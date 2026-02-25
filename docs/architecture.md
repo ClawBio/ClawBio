@@ -1,8 +1,8 @@
-# OpenClaw Bio Architecture
+# ClawBio Architecture
 
 ## Overview
 
-OpenClaw Bio is a collection of modular AI agent skills for bioinformatics, designed around three principles: local-first execution, reproducible analysis, and composable workflows.
+ClawBio is a collection of modular AI agent skills for bioinformatics, designed around three principles: local-first execution, reproducible analysis, and composable workflows.
 
 ## System Design
 
@@ -85,7 +85,7 @@ Audit Log Append (timestamped action record)
 
 ## Privacy Model
 
-OpenClaw Bio enforces a strict local-first privacy model:
+ClawBio enforces a strict local-first privacy model:
 
 - **No network calls** for data processing. All computation happens locally.
 - **Optional network** only for: literature search (PubMed API), structure database queries (PDB/UniProt), and package installation.
@@ -132,7 +132,7 @@ The existing [OpenBio skill](https://github.com/openclaw/skills) provides API ac
 - ChEMBL (bioactivity data)
 - Pathway databases
 
-OpenClaw Bio skills can call OpenBio for database lookups while keeping all computation local. For example, Struct Predictor might use OpenBio to fetch a reference structure from PDB, then run local AlphaFold for comparison.
+ClawBio skills can call OpenBio for database lookups while keeping all computation local. For example, Struct Predictor might use OpenBio to fetch a reference structure from PDB, then run local AlphaFold for comparison.
 
 ## Extensibility
 

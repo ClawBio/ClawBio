@@ -1,4 +1,4 @@
-# Contributing to OpenClaw Bio
+# Contributing to ClawBio
 
 We welcome skills from anyone working in bioinformatics, computational biology, or related fields.
 

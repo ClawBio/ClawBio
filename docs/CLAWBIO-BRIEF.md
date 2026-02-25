@@ -1,5 +1,7 @@
 # ClawBio Presentation Brief
 
+![ClawBio Logo](../img/clawbio-logo.jpeg)
+
 **Use this to brief anyone (or any AI) on what ClawBio is and why it matters.**
 
 ---
@@ -8,9 +10,9 @@
 
 OpenClaw is the fastest-growing open-source project in GitHub history, with 180,000+ stars. Created by Peter Steinberger, it's a generalist AI agent framework — think of it as an operating system for AI agents. It runs on your laptop, connects to messaging platforms (Telegram, WhatsApp, Slack, Discord), and lets you build persistent agents with memory, tools, and personality. It's LLM-agnostic (Claude, GPT, local models) and has a plugin architecture called **Skills** — modular capabilities you can install with one command.
 
-## What is OpenClaw Bio (ClawBio)?
+## What is ClawBio?
 
-OpenClaw Bio is the first bioinformatics-native skill library for AI agents. Built by Manuel Corpas (Senior Lecturer at University of Westminster, Turing Fellow), it's a curated collection of modular skills that wrap proven bioinformatics tools (Biopython, SAMtools, Seurat, AlphaFold) into composable, agent-orchestrated workflows.
+ClawBio is the first bioinformatics-native skill library for AI agents. Built by Manuel Corpas (Senior Lecturer at University of Westminster, Turing Fellow), it's a curated collection of modular skills that wrap proven bioinformatics tools (Biopython, SAMtools, Seurat, AlphaFold) into composable, agent-orchestrated workflows.
 
 **The key innovation**: everything runs locally on your machine. No genomic data leaves your laptop. No cloud uploads. No data exfiltration.
 

@@ -117,7 +117,7 @@ Just let this land. Brief pause.
 
 "Third: domain knowledge. A generic agent doesn't know that a VCF file needs ancestry-aware annotation, or that single-cell data needs doublet removal before clustering."
 
-[PAUSE] "So I'm announcing tonight: OpenClaw Bio. The first bioinformatics-native AI agent skill library. Open source. Local first. Privacy focused."
+[PAUSE] "So I'm announcing tonight: ClawBio. The first bioinformatics-native AI agent skill library. Open source. Local first. Privacy focused."
 
 ---
 

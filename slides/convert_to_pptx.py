@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert the OpenClaw Bio slides to PowerPoint (.pptx) — personalised v2."""
+"""Convert the ClawBio slides to PowerPoint (.pptx) — personalised v2."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -510,7 +510,7 @@ add_bullet_list(s, [
     ("Biology demands reproducibility: every step must be auditable", ORANGE),
     ("Generic agents do not know domain-specific workflows", PURPLE),
 ], Inches(1.5), Inches(3.5), Inches(10), Inches(2))
-add_text(s, "Announcing: OpenClaw Bio",
+add_text(s, "Announcing: ClawBio",
          Inches(0.5), Inches(5.7), Inches(12.3), Inches(0.7),
          font_size=34, bold=True, color=ACCENT)
 add_text(s, "The first bioinformatics-native AI agent skill library.\n"
@@ -524,7 +524,7 @@ add_notes(s, "Tip 8: contribute to open-source AI. OpenClaw has 180,000 skills f
           "demands audit trails. Every analysis step must be logged, versioned, and "
           "exportable. Third: domain knowledge. A generic agent does not know that a VCF "
           "file needs ancestry-aware annotation, or that single-cell data needs doublet "
-          "removal before clustering. So I am announcing tonight: OpenClaw Bio. The first "
+          "removal before clustering. So I am announcing tonight: ClawBio. The first "
           "bioinformatics-native AI agent skill library. Open source. Local first. "
           "Privacy focused.\nTIMING: 3 min")
 
@@ -533,7 +533,7 @@ add_notes(s, "Tip 8: contribute to open-source AI. OpenClaw has 180,000 skills f
 # ============================================================
 s = prs.slides.add_slide(blank_layout)
 set_bg(s)
-add_text(s, "OpenClaw Bio: Architecture",
+add_text(s, "ClawBio: Architecture",
          Inches(0.5), Inches(0.5), Inches(12.3), Inches(1),
          font_size=36, bold=True)
 add_code_block(s, [
@@ -807,7 +807,7 @@ set_bg(s)
 add_text(s, "Get Started Tonight",
          Inches(0.5), Inches(0.5), Inches(12.3), Inches(1),
          font_size=40, bold=True)
-add_text(s, "github.com/manuelcorpas/openclaw-bio",
+add_text(s, "github.com/manuelcorpas/ClawBio",
          Inches(0.5), Inches(1.6), Inches(12.3), Inches(0.8),
          font_size=32, color=ACCENT, bold=True)
 add_text(s, "Repository",
@@ -854,7 +854,7 @@ add_bullet_list(s, [
 add_bullet_list(s, [
     "6. Deploy persistent AI agents",
     "7. Let AI compound your outputs",
-    "8. Contribute to open-source AI (OpenClaw Bio)",
+    "8. Contribute to open-source AI (ClawBio)",
     "9. Build modular skills",
     "10. Create shipping infrastructure",
 ], Inches(6.8), Inches(1.5), Inches(5.8), Inches(3.5), font_size=22)
@@ -877,7 +877,7 @@ add_text(s, "Thank You",
 add_text(s, "Questions welcome. And at the pub after.",
          Inches(0.5), Inches(2.5), Inches(12.3), Inches(0.7),
          font_size=24, color=GRAY)
-tf = add_text(s, "GitHub: github.com/manuelcorpas/openclaw-bio",
+tf = add_text(s, "GitHub: github.com/manuelcorpas/ClawBio",
               Inches(2.5), Inches(3.6), Inches(8.3), Inches(0.5),
               font_size=22, color=ACCENT, alignment=PP_ALIGN.LEFT)
 add_text(s, "LinkedIn: linkedin.com/in/manuelcorpas",
@@ -891,7 +891,7 @@ add_text(s, 'Book: "AI Fluency: A Practical Guide to Leveraging AI\n'
          'Chatbots for Academic and Professional Work" (2026)',
          Inches(1.5), Inches(5.7), Inches(10.3), Inches(0.8),
          font_size=20, color=ORANGE, bold=True)
-add_text(s, "Slides: github.com/manuelcorpas/openclaw-bio/slides",
+add_text(s, "Slides: github.com/manuelcorpas/ClawBio/slides",
          Inches(1), Inches(6.7), Inches(11.3), Inches(0.5),
          font_size=16, color=DARK_GRAY)
 add_notes(s, "Thank you. I will be at the pub after. Come talk to me if you want to "

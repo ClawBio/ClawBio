@@ -77,7 +77,7 @@
 
 ## Methods
 
-- **Tool**: OpenClaw Bio Equity Scorer v0.1.0
+- **Tool**: ClawBio Equity Scorer v0.1.0
 - **HEIM framework**: Health Equity Index for Minorities (Corpas, 2026)
 - **Heterozygosity**: Observed = proportion of heterozygous genotypes per site, averaged across 500 variants. Expected = 2pq from population allele frequencies.
 - **FST**: Nei's GST (HT-HS)/HT, ratio of averages across sites. Values floored at 0.
@@ -95,6 +95,6 @@ python equity_scorer.py --input demo_populations.vcf --output demo_report
 
 ## References
 
-- Corpas, M. (2026). OpenClaw Bio. https://github.com/manuelcorpas/openclaw-bio
+- Corpas, M. (2026). ClawBio. https://github.com/manuelcorpas/ClawBio
 - Hudson, R.R., Slatkin, M. & Maddison, W.P. (1992). Estimation of levels of gene flow from DNA sequence data. Genetics, 132(2), 583-589.
 - The 1000 Genomes Project Consortium (2015). A global reference for human genetic variation. Nature, 526, 68-74.

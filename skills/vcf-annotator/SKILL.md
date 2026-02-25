@@ -12,7 +12,7 @@ metadata:
       config: []
     always: false
     emoji: "🔬"
-    homepage: https://github.com/manuelcorpas/openclaw-bio
+    homepage: https://github.com/manuelcorpas/ClawBio
     os: [macos, linux]
     install:
       - kind: uv

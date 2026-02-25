@@ -1,5 +1,9 @@
 # ClawBio
 
+<p align="center">
+  <img src="img/clawbio-logo.jpeg" alt="ClawBio Logo" width="300">
+</p>
+
 **The first bioinformatics-native AI agent skill library.** Built on [OpenClaw](https://github.com/openclaw/openclaw) (180k+ GitHub stars), ClawBio gives AI agents domain-specific skills for genomics and computational biology — all running locally on your machine.
 
 ## Core Principles

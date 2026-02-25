@@ -6,7 +6,7 @@ Run this during Slide 14 (Tip 9). Total time: 2-3 minutes.
 
 ```bash
 # Terminal setup
-cd ~/openclaw-bio/examples
+cd ~/ClawBio/examples
 clear
 
 # Verify everything works
