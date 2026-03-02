@@ -70,6 +70,11 @@ SKILLS = {
         "demo_args": ["--demo"],
         "description": "Metagenomics profiler (Kraken2, RGI/CARD, HUMAnN3)",
     },
+    "compare": {
+        "script": SKILLS_DIR / "genome-compare" / "genome_compare.py",
+        "demo_args": ["--demo"],
+        "description": "Genome comparator (IBS vs George Church + ancestry estimation)",
+    },
 }
 
 # --------------------------------------------------------------------------- #

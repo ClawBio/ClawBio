@@ -13,6 +13,7 @@ When the user asks a question, match it to a skill and act:
 | Nutrition, nutrigenomics, "what should I eat", diet genetics, MTHFR, folate, vitamin D, caffeine, lactose, omega-3 | `skills/nutrigx_advisor/` | Run `nutrigx_advisor.py` |
 | Ancestry, PCA, population structure, admixture, SGDP | `skills/claw-ancestry-pca/` | Read SKILL.md, apply methodology |
 | Semantic similarity, disease neglect, research gaps, NTDs, SII | `skills/claw-semantic-sim/` | Read SKILL.md, apply methodology |
+| Genome comparison, IBS, "how much DNA in common", George Church, Corpasome, pairwise | `skills/genome-compare/` | Run `genome_compare.py` |
 | Route a query, multi-step analysis, "what skill should I use" | `skills/bio-orchestrator/` | Run `orchestrator.py` |
 | Variant annotation, VEP, ClinVar, gnomAD | `skills/vcf-annotator/` | Read SKILL.md, apply methodology |
 | Literature search, PubMed, bioRxiv, citation graph | `skills/lit-synthesizer/` | Read SKILL.md, apply methodology |
@@ -50,6 +51,11 @@ python skills/equity-scorer/equity_scorer.py \
 python skills/nutrigx_advisor/nutrigx_advisor.py \
   --input <patient_file> --output <report_dir>
 
+# Genome comparator — IBS vs George Church + ancestry estimation
+python skills/genome-compare/genome_compare.py \
+  --input <23andme_file> --output <report_dir>
+python skills/genome-compare/genome_compare.py --demo --output <report_dir>
+
 # Bio orchestrator — auto-routes to the right skill
 python skills/bio-orchestrator/orchestrator.py \
   --input <file_or_query> [--skill <name>] [--output <dir>] [--list-skills]
@@ -67,6 +73,8 @@ For instant demos when the user has no data:
 | Population map | `examples/demo_population_map.csv` | equity-scorer |
 | Ancestry CSV (30 samples) | `examples/sample_ancestry.csv` | equity-scorer |
 | Pre-built equity report | `examples/demo_report/` | Reference output |
+| Manuel Corpas 23andMe (gzipped) | `skills/genome-compare/data/manuel_corpas_23andme.txt.gz` | genome-compare |
+| George Church 23andMe (gzipped) | `skills/genome-compare/data/george_church_23andme.txt.gz` | genome-compare (reference) |
 
 ### Demo Commands
 
