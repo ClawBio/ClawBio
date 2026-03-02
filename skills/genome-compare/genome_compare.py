@@ -65,13 +65,14 @@ def _stage_from_icloud(filepath: str | Path) -> Path:
     """If filepath is on iCloud Drive, copy to /tmp to avoid Errno 11 deadlock.
 
     The macOS `bird` daemon holds file locks on iCloud Drive files during
-    sync/indexing.  Copying to /tmp first avoids the persistent deadlock
-    that gzip.open / json.load trigger on long-lived file handles.
+    sync/indexing.  Uses subprocess `cp` (which macOS handles differently
+    from Python's open/read for iCloud files) with retry.
     """
-    import shutil
+    import subprocess
     import tempfile
+    import time as _time
     filepath = Path(filepath)
-    # Detect iCloud Drive paths (contains "Mobile Documents" or "com~apple~CloudDocs")
+    # Detect iCloud Drive paths
     path_str = str(filepath)
     if "Mobile Documents" not in path_str and "com~apple~CloudDocs" not in path_str:
         return filepath  # not on iCloud, use directly
@@ -80,8 +81,27 @@ def _stage_from_icloud(filepath: str | Path) -> Path:
     cache_dir.mkdir(exist_ok=True)
     cached = cache_dir / filepath.name
     # Re-copy if missing or source is newer
-    if not cached.exists() or filepath.stat().st_mtime > cached.stat().st_mtime:
-        shutil.copy2(filepath, cached)
+    needs_copy = not cached.exists()
+    if not needs_copy:
+        try:
+            needs_copy = filepath.stat().st_mtime > cached.stat().st_mtime
+        except OSError:
+            needs_copy = True  # stat failed, try to copy
+    if needs_copy:
+        for attempt in range(4):
+            try:
+                # Use macOS cp command — handles iCloud files better than Python open()
+                subprocess.run(
+                    ["cp", str(filepath), str(cached)],
+                    check=True, capture_output=True, timeout=30,
+                )
+                break
+            except (subprocess.CalledProcessError, OSError) as e:
+                if attempt < 3:
+                    print(f"  iCloud copy failed (attempt {attempt + 1}/4), retrying...")
+                    _time.sleep(2 ** attempt)
+                else:
+                    raise OSError(f"Cannot stage {filepath.name} from iCloud after 4 attempts: {e}")
     return cached
 
 
