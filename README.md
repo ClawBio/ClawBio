@@ -336,7 +336,7 @@ If you use ClawBio in your research, please cite:
 
 ## Links
 
-- 🦖 **Slides**: [manuelcorpas.github.io/ClawBio/slides/](https://manuelcorpas.github.io/ClawBio/slides/)
+- 🦖 **Slides**: [clawbio.github.io/ClawBio/slides/](https://clawbio.github.io/ClawBio/slides/)
 - [OpenClaw](https://github.com/openclaw/openclaw) — The agent platform
 - [ClawHub](https://clawhub.ai) — Skill registry
 - [HEIM Index](https://heim-index.org) — Health Equity Index for Minorities
