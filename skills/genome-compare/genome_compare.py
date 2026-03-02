@@ -62,11 +62,20 @@ CHROMOSOMES = [str(c) for c in range(1, 23)] + ["X", "Y", "MT"]
 
 
 def _open_file(filepath: str | Path):
-    """Open a file, handling .gz transparently."""
+    """Open a file, handling .gz transparently. Retries on iCloud Errno 11."""
+    import time as _time
     filepath = str(filepath)
-    if filepath.endswith(".gz"):
-        return gzip.open(filepath, "rt", encoding="utf-8", errors="replace")
-    return open(filepath, encoding="utf-8", errors="replace")
+    for attempt in range(3):
+        try:
+            if filepath.endswith(".gz"):
+                return gzip.open(filepath, "rt", encoding="utf-8", errors="replace")
+            return open(filepath, encoding="utf-8", errors="replace")
+        except OSError as e:
+            if e.errno == 11 and attempt < 2:
+                print(f"  iCloud lock (Errno 11), retrying ({attempt + 1}/3)...")
+                _time.sleep(1 + attempt)
+            else:
+                raise
 
 
 def parse_23andme_extended(filepath: str | Path) -> Tuple[dict, dict]:
@@ -193,11 +202,20 @@ def compute_ibs(
 
 def load_aims_panel(panel_path: Path) -> Tuple[list, list]:
     """Load AIMs panel. Returns (markers, population_names)."""
-    with open(panel_path) as f:
-        data = json.load(f)
-    populations = data["meta"]["populations"]
-    markers = data["markers"]
-    return markers, populations
+    import time as _time
+    for attempt in range(3):
+        try:
+            with open(panel_path) as f:
+                data = json.load(f)
+            populations = data["meta"]["populations"]
+            markers = data["markers"]
+            return markers, populations
+        except OSError as e:
+            if e.errno == 11 and attempt < 2:
+                print(f"  iCloud lock reading AIMs panel (Errno 11), retrying ({attempt + 1}/3)...")
+                _time.sleep(1 + attempt)
+            else:
+                raise
 
 
 def _count_alt_alleles(geno: str, ref: str, alt: str) -> Optional[int]:
@@ -773,8 +791,18 @@ def run_comparison(
     # Load Manuel's known ancestry
     manuel_ancestry = {}
     if MANUEL_ANCESTRY_FILE.exists():
-        with open(MANUEL_ANCESTRY_FILE) as f:
-            manuel_ancestry = json.load(f)
+        import time as _time
+        for _attempt in range(3):
+            try:
+                with open(MANUEL_ANCESTRY_FILE) as f:
+                    manuel_ancestry = json.load(f)
+                break
+            except OSError as e:
+                if e.errno == 11 and _attempt < 2:
+                    print(f"  iCloud lock reading ancestry file (Errno 11), retrying ({_attempt + 1}/3)...")
+                    _time.sleep(1 + _attempt)
+                else:
+                    raise
 
     # Generate figures
     figures = {}
