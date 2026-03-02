@@ -234,30 +234,54 @@ python -m pytest
 
 ---
 
+## Run via Telegram (RoboTerri)
+
+ClawBio skills are also available through **RoboTerri**, our Telegram AI agent. Send a genetic data file or ask for a demo — get back a summary, full report, and figures directly in Telegram.
+
+```
+You:        [send 23andMe file]
+RoboTerri:  Running PharmGx Reporter...
+            CYP2D6 *4/*4 — Poor Metabolizer → 10 drugs AVOID
+            [report.md attached]
+            [3 figures attached]
+```
+
+RoboTerri auto-detects file type (23andMe `.txt`, AncestryDNA `.csv`, VCF, FASTQ) and routes to the right skill via the Bio Orchestrator. You can also ask explicitly:
+
+- *"run pharmgx demo"* — PharmGx with synthetic patient data
+- *"run equity demo"* — HEIM equity score with demo populations
+- *"run nutrigx demo"* — Nutrigenomics with synthetic genotypes
+
+The integration uses the same `clawbio.run_skill()` API, so results are identical whether you run via CLI or Telegram. See [01-AGENTS/02-ROBOTERRI](https://github.com/manuelcorpas/AGENTIC-AI/tree/main/01-AGENTS/02-ROBOTERRI) for the full agent source.
+
+---
+
 ## 🦖 Architecture
 
 ```
-User: "Analyse the diversity in my VCF file"
-         │
-  ┌──────▼──────┐
-  │  Bio         │  ← routes by file type + keywords
-  │  Orchestrator│
-  └──────┬──────┘
-         │
-  ┌──────▼──────────────────────────────────────────┐
-  │                                                  │
-  PharmGx    Ancestry    Semantic    Equity    VCF
-  Reporter   PCA         Similarity  Scorer    Annotator ...
-  │                                                  │
-  └──────┬──────────────────────────────────────────┘
-         │
-  ┌──────▼──────┐
-  │  Markdown    │  ← report + figures + checksums
-  │  Report      │     + reproducibility bundle
-  └─────────────┘
+Telegram (RoboTerri)     CLI (clawbio.py)     Python (import clawbio)
+         │                      │                       │
+         └──────────┬───────────┘───────────────────────┘
+                    │
+             ┌──────▼──────┐
+             │  Bio         │  ← routes by file type + keywords
+             │  Orchestrator│
+             └──────┬──────┘
+                    │
+  ┌─────────────────▼──────────────────────────────────────┐
+  │                                                         │
+  PharmGx    Equity     NutriGx    Metagenomics   Ancestry
+  Reporter   Scorer     Advisor    Profiler        PCA    ...
+  │                                                         │
+  └─────────────────┬──────────────────────────────────────┘
+                    │
+             ┌──────▼──────┐
+             │  Markdown    │  ← report + figures + checksums
+             │  Report      │     + reproducibility bundle
+             └─────────────┘
 ```
 
-Each skill is standalone — the orchestrator routes to the right one, but every skill also works independently.
+Each skill is standalone — the orchestrator routes to the right one, but every skill also works independently. The `clawbio.run_skill()` API is importable by any agent (RoboTerri, RoboIsaac, Claude Code).
 
 See [docs/architecture.md](docs/architecture.md) for the full design.
 
