@@ -1,0 +1,52 @@
+{
+  "name": "Manuel Corpas",
+  "pgp_uk": "uk6D0CFA",
+  "pgp_uk_url": "https://my.personalgenomes.org.uk/profile/uk6D0CFA",
+  "source": "23andMe Ancestry Composition",
+  "ancestry_composition": {
+    "European": {
+      "total": 0.977,
+      "Southern European": {
+        "total": 0.920,
+        "Spanish & Portuguese": 0.798,
+        "Italian": 0.066,
+        "Broadly Southern European": 0.056
+      },
+      "Northwestern European": {
+        "total": 0.030,
+        "French & German": 0.006,
+        "Broadly Northwestern European": 0.024
+      },
+      "Ashkenazi Jewish": 0.005,
+      "Broadly European": 0.024
+    },
+    "Western Asian & North African": {
+      "total": 0.008,
+      "North African & Arabian": 0.003,
+      "Broadly Western Asian & North African": 0.005
+    },
+    "Sub-Saharan African": {
+      "total": 0.003,
+      "West African": {
+        "total": 0.002,
+        "Senegambian & Guinean": 0.002
+      },
+      "Northern East African": {
+        "total": 0.001,
+        "Sudanese": 0.001
+      }
+    },
+    "East Asian & Native American": {
+      "total": 0.001
+    },
+    "Unassigned": 0.010
+  },
+  "haplogroups": {
+    "maternal": "W",
+    "paternal": "R-P312"
+  },
+  "neanderthal": {
+    "percentile": 61,
+    "description": "More Neanderthal variants than 61% of customers"
+  }
+}

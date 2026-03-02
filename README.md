@@ -13,7 +13,7 @@
   <a href="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml"><img src="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.10+-blue?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
-  <a href="https://clawhub.ai"><img src="https://img.shields.io/badge/ClawHub-7_skills-orange" alt="ClawHub Skills"></a>
+  <a href="https://clawhub.ai"><img src="https://img.shields.io/badge/ClawHub-8_skills-orange" alt="ClawHub Skills"></a>
   <a href="https://github.com/ClawBio/ClawBio/issues"><img src="https://img.shields.io/github/issues/ClawBio/ClawBio" alt="Open Issues"></a>
   <a href="https://clawbio.github.io/ClawBio/slides/"><img src="https://img.shields.io/badge/slides-London_Bioinformatics_Meetup-purple" alt="Slides"></a>
 </p>
@@ -135,6 +135,7 @@ report/
 | [Metagenomics Profiler](skills/claw-metagenomics/) | **MVP** | Kraken2/RGI/HUMAnN3 taxonomy + resistome |
 | [Ancestry PCA](skills/ancestry-pca/) | **MVP** | PCA vs SGDP (345 samples, 164 populations) |
 | [Semantic Similarity](skills/semantic-sim/) | **MVP** | Isolation Index from 13.1M PubMed abstracts |
+| [Genome Comparator](skills/genome-compare/) | **MVP** | IBS vs George Church (PGP-1) + ancestry estimation |
 | [VCF Annotator](skills/vcf-annotator/) | Planned | Variant annotation with VEP, ClinVar, gnomAD + ancestry context |
 | [Lit Synthesizer](skills/lit-synthesizer/) | Planned | PubMed/bioRxiv search with LLM summarisation and citation graphs |
 | [scRNA Orchestrator](skills/scrna-orchestrator/) | Planned | Scanpy automation: QC, clustering, DE analysis, visualisation |
@@ -217,6 +218,7 @@ python clawbio.py run pharmgx --demo            # Pharmacogenomics (1s)
 python clawbio.py run equity --demo             # Equity scoring (55s)
 python clawbio.py run nutrigx --demo            # Nutrigenomics (60s)
 python clawbio.py run metagenomics --demo       # Metagenomics (3s)
+python clawbio.py run compare --demo            # Manuel Corpas vs George Church (10s)
 ```
 
 ### Run with your own data

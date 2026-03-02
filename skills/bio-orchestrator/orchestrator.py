@@ -64,6 +64,12 @@ KEYWORD_MAP: dict[str, str] = {
     "nextflow": "repro-enforcer",
     "singularity": "repro-enforcer",
     "conda": "repro-enforcer",
+    "compare": "genome-compare",
+    "corpasome": "genome-compare",
+    "ibs": "genome-compare",
+    "dna in common": "genome-compare",
+    "george church": "genome-compare",
+    "genome comparison": "genome-compare",
 }
 
 SKILLS_DIR = Path(__file__).resolve().parent.parent
