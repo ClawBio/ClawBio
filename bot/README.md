@@ -1,10 +1,10 @@
 # RoboTerri ClawBio Bot
 
-A Telegram bot that runs ClawBio bioinformatics skills using Claude as the reasoning engine. Send genetic data, medication photos, or natural language questions -- get personalised genomic reports back.
+A Telegram bot that runs ClawBio bioinformatics skills using any LLM as the reasoning engine. Send genetic data, medication photos, or natural language questions -- get personalised genomic reports back.
 
 ## Features
 
-- Claude-powered conversational AI with the RoboTerri persona
+- Works with **any LLM provider**: OpenAI, Anthropic (via OpenRouter), Google, Mistral, Groq, Together, Ollama, LM Studio, etc.
 - Runs all ClawBio skills: pharmgx, equity, nutrigx, metagenomics, compare, drugphoto
 - Handles text messages, genetic file uploads (.txt, .csv, .vcf, .fastq), and medication photos
 - All genetic data stays local -- nothing leaves your machine
@@ -14,7 +14,7 @@ A Telegram bot that runs ClawBio bioinformatics skills using Claude as the reaso
 
 - Python 3.11+
 - A Telegram account
-- An API key from any Anthropic-compatible provider (Anthropic, OpenRouter, AWS Bedrock, etc.)
+- An API key from any OpenAI-compatible LLM provider
 - ClawBio cloned and working (`python3 clawbio.py run pharmgx --demo`)
 
 ## Setup
@@ -46,29 +46,50 @@ Create a `.env` file in the ClawBio root directory:
 TELEGRAM_BOT_TOKEN=your-bot-token-here
 TELEGRAM_CHAT_ID=your-chat-id-here
 LLM_API_KEY=your-api-key-here
+CLAWBIO_MODEL=gpt-4o
 ```
 
-The `LLM_API_KEY` works with any Anthropic-compatible provider. For alternative providers, also set the base URL:
+### Provider examples
 
-```
-# OpenRouter
+Any provider that speaks the OpenAI chat completions API works. Set `LLM_BASE_URL` to point to your provider:
+
+```bash
+# OpenAI (default -- no LLM_BASE_URL needed)
+LLM_API_KEY=sk-...
+CLAWBIO_MODEL=gpt-4o
+
+# Anthropic via OpenRouter
 LLM_BASE_URL=https://openrouter.ai/api/v1
 LLM_API_KEY=sk-or-...
+CLAWBIO_MODEL=anthropic/claude-sonnet-4-5-20250929
 
-# AWS Bedrock (via proxy)
-LLM_BASE_URL=https://your-bedrock-proxy.example.com
+# Google Gemini via OpenRouter
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=sk-or-...
+CLAWBIO_MODEL=google/gemini-2.5-pro
 
-# Direct Anthropic (default, no LLM_BASE_URL needed)
-LLM_API_KEY=sk-ant-...
+# Groq
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_API_KEY=gsk_...
+CLAWBIO_MODEL=llama-3.3-70b-versatile
+
+# Together AI
+LLM_BASE_URL=https://api.together.xyz/v1
+LLM_API_KEY=...
+CLAWBIO_MODEL=meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo
+
+# Ollama (local, free)
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_API_KEY=ollama
+CLAWBIO_MODEL=llama3.1
+
+# LM Studio (local, free)
+LLM_BASE_URL=http://localhost:1234/v1
+LLM_API_KEY=lm-studio
+CLAWBIO_MODEL=local-model
 ```
 
-Optional: set the model (defaults to `claude-sonnet-4-5-20250929`):
-
-```
-CLAWBIO_MODEL=claude-sonnet-4-5-20250929
-```
-
-`ANTHROPIC_API_KEY` is also accepted as a fallback if `LLM_API_KEY` is not set.
+> **Note**: Photo/drug detection requires a model with vision capabilities (e.g. gpt-4o, claude-sonnet, gemini-pro). Tool calling requires a model that supports function calling. Most major providers support both.
 
 ### 5. Run
 
@@ -86,7 +107,7 @@ python3 bot/roboterri.py
 
 ## Usage
 
-- **Text**: Ask any bioinformatics question -- Claude routes to the right skill
+- **Text**: Ask any bioinformatics question -- the LLM routes to the right skill
 - **File upload**: Send a 23andMe .txt, AncestryDNA .csv, or VCF file for analysis
 - **Photo**: Send a photo of medication packaging for personalised drug guidance
 - **Demo**: Type `/demo pharmgx` to see a pharmacogenomics report with synthetic data

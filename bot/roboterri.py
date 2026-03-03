@@ -2,9 +2,12 @@
 """
 roboterri.py — RoboTerri ClawBio Telegram Bot
 ==============================================
-A Telegram bot that runs ClawBio bioinformatics skills using Claude
+A Telegram bot that runs ClawBio bioinformatics skills using any LLM
 as the reasoning engine. Handles text messages, genetic file uploads,
 and medication photos.
+
+Works with any OpenAI-compatible provider: OpenAI, Anthropic (via proxy),
+Google, Mistral, Groq, Together, OpenRouter, Ollama, LM Studio, etc.
 
 Prerequisites:
     pip3 install python-telegram-bot[job-queue] openai python-dotenv
@@ -26,8 +29,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import openai
 from dotenv import load_dotenv
+from openai import AsyncOpenAI, APIError
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -45,8 +48,8 @@ load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID", "0"))
-LLM_API_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
-LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")  # e.g. https://openrouter.ai/api/v1
+LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")
 CLAWBIO_MODEL = os.environ.get("CLAWBIO_MODEL", "gpt-4o")
 
 if not TELEGRAM_BOT_TOKEN:
@@ -101,7 +104,8 @@ SYSTEM_PROMPT = f"{_soul}\n\n{ROLE_GUARDRAILS}"
 _client_kwargs = {"api_key": LLM_API_KEY}
 if LLM_BASE_URL:
     _client_kwargs["base_url"] = LLM_BASE_URL
-llm = openai.AsyncOpenAI(**_client_kwargs)
+llm = AsyncOpenAI(**_client_kwargs)
+
 conversations: dict[int, list] = {}
 MAX_HISTORY = 20
 
@@ -117,7 +121,7 @@ _pending_text: list[str] = []
 BOT_START_TIME = time.time()
 
 # --------------------------------------------------------------------------- #
-# Tool definition (clawbio only)
+# Tool definition (OpenAI function-calling format)
 # --------------------------------------------------------------------------- #
 
 TOOLS = [
@@ -406,7 +410,7 @@ async def _drain_pending_media(update: Update, context) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# LLM tool loop
+# LLM tool loop (OpenAI-compatible chat completions + function calling)
 # --------------------------------------------------------------------------- #
 
 TOOL_EXECUTORS = {
@@ -418,76 +422,80 @@ MAX_TOOL_ITERATIONS = 10
 
 async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
     """
-    Run the OpenAI tool-use loop:
+    Run the LLM tool-use loop (OpenAI chat completions format):
     1. Append user message to history
-    2. Call the model with system_prompt + history + tools
+    2. Call LLM with system prompt + history + tools
     3. If tool_calls -> execute -> append results -> call again
     4. Return final text
     """
     history = conversations.setdefault(chat_id, [])
 
-    # Ensure system message is first
-    if not history or history[0].get("role") != "system":
-        history.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
-
-    # Convert user_content to OpenAI message format
-    if isinstance(user_content, list):
-        # Multimodal content (images + text) — convert from Anthropic to OpenAI format
+    # Build user message in OpenAI format
+    if isinstance(user_content, str):
+        history.append({"role": "user", "content": user_content})
+    else:
+        # Multimodal content blocks — convert to OpenAI format
         oai_parts = []
         for block in user_content:
             if block.get("type") == "text":
                 oai_parts.append({"type": "text", "text": block["text"]})
             elif block.get("type") == "image":
-                source = block.get("source", {})
-                data_uri = f"data:{source['media_type']};base64,{source['data']}"
+                src = block.get("source", {})
+                data_uri = f"data:{src['media_type']};base64,{src['data']}"
                 oai_parts.append({
                     "type": "image_url",
                     "image_url": {"url": data_uri},
                 })
         history.append({"role": "user", "content": oai_parts})
-    else:
-        history.append({"role": "user", "content": user_content})
 
-    if len(history) > MAX_HISTORY + 1:  # +1 for system message
-        history[1:] = history[-(MAX_HISTORY):]
+    if len(history) > MAX_HISTORY:
+        history[:] = history[-MAX_HISTORY:]
 
+    last_message = None
     for _iteration in range(MAX_TOOL_ITERATIONS):
         try:
             response = await llm.chat.completions.create(
                 model=CLAWBIO_MODEL,
                 max_tokens=8192,
-                messages=history,
+                messages=[{"role": "system", "content": SYSTEM_PROMPT}] + history,
                 tools=TOOLS,
             )
-        except openai.APIError as e:
+        except APIError as e:
             logger.error(f"LLM API error: {e}")
             return f"Sorry, I'm having trouble thinking right now -- API error: {e}"
 
-        message = response.choices[0].message
-        # Build assistant message dict for history
-        assistant_msg = {"role": "assistant", "content": message.content or ""}
-        if message.tool_calls:
+        choice = response.choices[0]
+        last_message = choice.message
+
+        # Append assistant message to history
+        assistant_msg = {"role": "assistant", "content": last_message.content or ""}
+        if last_message.tool_calls:
             assistant_msg["tool_calls"] = [
                 {
                     "id": tc.id,
                     "type": "function",
-                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
                 }
-                for tc in message.tool_calls
+                for tc in last_message.tool_calls
             ]
         history.append(assistant_msg)
 
-        if not message.tool_calls:
-            return message.content or "(no response)"
+        # No tool calls — return text
+        if not last_message.tool_calls:
+            return last_message.content or "(no response)"
 
-        for tc in message.tool_calls:
+        # Execute tool calls and append results
+        for tc in last_message.tool_calls:
             func_name = tc.function.name
-            try:
-                args = json.loads(tc.function.arguments)
-            except json.JSONDecodeError:
-                args = {}
             executor = TOOL_EXECUTORS.get(func_name)
             if executor:
+                try:
+                    args = json.loads(tc.function.arguments)
+                except json.JSONDecodeError:
+                    args = {}
                 logger.info(f"Tool call: {func_name}({json.dumps(args)[:200]})")
                 try:
                     result = await executor(args)
@@ -496,13 +504,14 @@ async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
                     result = f"Error executing {func_name}: {type(tool_err).__name__}: {tool_err}"
             else:
                 result = f"Unknown tool: {func_name}"
+
             history.append({
                 "role": "tool",
                 "tool_call_id": tc.id,
                 "content": result,
             })
 
-    return message.content if message.content else "(max tool iterations reached)"
+    return last_message.content if last_message and last_message.content else "(max tool iterations reached)"
 
 
 # --------------------------------------------------------------------------- #
@@ -660,7 +669,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle photos: download -> base64 -> Claude vision (drug detection)."""
+    """Handle photos: download -> base64 -> LLM vision (drug detection)."""
     if not is_authorised(update):
         return
     if not update.message:
@@ -701,6 +710,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
 
         caption = update.message.caption or ""
+        # Use internal format; llm_tool_loop converts to OpenAI image_url format
         content_blocks = [
             {
                 "type": "image",
