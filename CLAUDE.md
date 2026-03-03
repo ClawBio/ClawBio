@@ -21,6 +21,7 @@ When the user asks a question, match it to a skill and act:
 | Protein structure, AlphaFold, PDB, Boltz | `skills/struct-predictor/` | Read SKILL.md, apply methodology |
 | Reproducibility, Nextflow, Singularity, Conda export | `skills/repro-enforcer/` | Read SKILL.md, apply methodology |
 | Sequence QC, FASTQ, alignment, BAM, trimming | `skills/seq-wrangler/` | Read SKILL.md, apply methodology |
+| Lab notebook, experiments, protocols, inventory, Labstep | `skills/labstep/` | Read SKILL.md, apply methodology |
 
 ## How to Use a Skill
 
