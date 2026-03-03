@@ -1,0 +1,9 @@
+sample_id,condition,cell_type,donor
+d1_bcell_ctrl,control,Bcell,D1
+d2_bcell_ctrl,control,Bcell,D2
+d3_bcell_trt,treated,Bcell,D3
+d4_bcell_trt,treated,Bcell,D4
+d5_tcell_ctrl,control,Tcell,D5
+d6_tcell_ctrl,control,Tcell,D6
+d7_tcell_trt,treated,Tcell,D7
+d8_tcell_trt,treated,Tcell,D8

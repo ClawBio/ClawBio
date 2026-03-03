@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+import pandas as pd
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from rnaseq_de import (
@@ -19,6 +21,8 @@ from rnaseq_de import (
 HERE = Path(__file__).resolve().parent.parent
 DEMO_COUNTS = HERE / "examples" / "demo_counts.csv"
 DEMO_META = HERE / "examples" / "demo_metadata.csv"
+PSEUDO_COUNTS = HERE / "tests" / "fixtures" / "pseudobulk_counts.csv"
+PSEUDO_META = HERE / "tests" / "fixtures" / "pseudobulk_metadata.csv"
 
 
 def test_formula_parsing():
@@ -88,3 +92,22 @@ def test_run_analysis_writes_outputs(tmp_path):
     assert (out_dir / "figures" / "pca.png").exists()
     assert (out_dir / "figures" / "volcano.png").exists()
     assert (out_dir / "reproducibility" / "checksums.sha256").exists()
+
+
+def test_run_analysis_pseudobulk_fixture(tmp_path):
+    out_dir = tmp_path / "rnaseq_pseudobulk"
+    result = run_analysis(
+        counts_path=PSEUDO_COUNTS,
+        metadata_path=PSEUDO_META,
+        formula="~ cell_type + condition",
+        contrast="condition,treated,control",
+        output_dir=out_dir,
+        backend="simple",
+    )
+    de_df = pd.read_csv(out_dir / "tables" / "de_results.csv")
+    assert result["samples"] == 8
+    assert result["genes_post"] >= 2
+    assert (out_dir / "figures" / "pca.png").exists()
+    assert (out_dir / "tables" / "de_results.csv").exists()
+    assert {"gene", "log2FoldChange", "padj"}.issubset(set(de_df.columns))
+    assert de_df.shape[0] >= 2

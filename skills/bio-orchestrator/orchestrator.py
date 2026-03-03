@@ -91,13 +91,13 @@ SKILLS_DIR = Path(__file__).resolve().parent.parent
 def detect_skill_from_file(filepath: Path) -> str | None:
     """Determine which skill handles a given file based on extension."""
     suffixes = "".join(filepath.suffixes)  # handles .vcf.gz
-    if suffixes in EXTENSION_MAP:
-        return EXTENSION_MAP[suffixes]
-    suffix = filepath.suffix.lower()
-    if suffix in {".csv", ".tsv"}:
+    if filepath.suffix.lower() in {".csv", ".tsv"}:
         inferred = detect_skill_from_tabular_header(filepath)
         if inferred:
             return inferred
+    if suffixes in EXTENSION_MAP:
+        return EXTENSION_MAP[suffixes]
+    suffix = filepath.suffix.lower()
     return EXTENSION_MAP.get(suffix)
 
 
@@ -107,6 +107,7 @@ def detect_skill_from_tabular_header(filepath: Path) -> str | None:
         sep = "\t" if filepath.suffix.lower() == ".tsv" else ","
         with open(filepath, "r", encoding="utf-8") as f:
             first_line = f.readline().strip().lower()
+            second_line = f.readline().strip().lower()
     except Exception:
         return None
 
@@ -116,12 +117,26 @@ def detect_skill_from_tabular_header(filepath: Path) -> str | None:
     headers = [h.strip() for h in first_line.split(sep)]
     header_set = set(headers)
 
-    if {"sample_id", "condition"}.issubset(header_set) and "population" not in header_set:
+    equity_markers = {"population", "ancestry", "superpopulation", "ethnicity", "country"}
+    if header_set & equity_markers:
+        return "equity-scorer"
+
+    rnaseq_metadata_markers = {"condition", "batch", "group", "treatment", "donor", "cell_type"}
+    if "sample_id" in header_set and (header_set & rnaseq_metadata_markers):
         return "rnaseq-de"
 
     gene_like = {"gene", "gene_id", "ensembl_id", "symbol"}
-    if headers and headers[0] in gene_like and len(headers) >= 4:
-        return "rnaseq-de"
+    if headers and headers[0] in gene_like and len(headers) >= 4 and second_line:
+        values = [value.strip() for value in second_line.split(sep)]
+        numeric_count = 0
+        for value in values[1:]:
+            try:
+                float(value)
+                numeric_count += 1
+            except ValueError:
+                continue
+        if numeric_count >= 3:
+            return "rnaseq-de"
 
     return None
 
