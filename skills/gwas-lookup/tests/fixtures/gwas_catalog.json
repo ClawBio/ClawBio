@@ -1,0 +1,50 @@
+{
+  "source": "gwas_catalog",
+  "status": "ok",
+  "rsid": "rs3798220",
+  "total_associations": 3,
+  "associations": [
+    {
+      "pvalue": 1e-45,
+      "pvalue_mlog": 1,
+      "pvalue_exponent": -45,
+      "risk_allele": "rs3798220-C",
+      "risk_frequency": "0.02",
+      "or_beta": 1.51,
+      "beta_num": null,
+      "beta_direction": null,
+      "beta_unit": null,
+      "ci": "[1.38-1.66]",
+      "traits": ["Lipoprotein(a) levels"],
+      "study_accession": "GCST005140"
+    },
+    {
+      "pvalue": 2e-38,
+      "pvalue_mlog": 2,
+      "pvalue_exponent": -38,
+      "risk_allele": "rs3798220-C",
+      "risk_frequency": "0.015",
+      "or_beta": 1.92,
+      "beta_num": null,
+      "beta_direction": null,
+      "beta_unit": null,
+      "ci": "[1.74-2.12]",
+      "traits": ["Coronary heart disease"],
+      "study_accession": "GCST003116"
+    },
+    {
+      "pvalue": 3e-18,
+      "pvalue_mlog": 3,
+      "pvalue_exponent": -18,
+      "risk_allele": "rs3798220-C",
+      "risk_frequency": "0.02",
+      "or_beta": 1.36,
+      "beta_num": null,
+      "beta_direction": null,
+      "beta_unit": null,
+      "ci": "[1.24-1.49]",
+      "traits": ["Aortic valve stenosis"],
+      "study_accession": "GCST90038614"
+    }
+  ]
+}

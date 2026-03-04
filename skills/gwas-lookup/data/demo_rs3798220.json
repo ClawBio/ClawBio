@@ -1,0 +1,423 @@
+{
+  "variant": {
+    "rsid": "rs3798220",
+    "chr": "6",
+    "pos_grch38": 160540105,
+    "pos_grch37": 160531442,
+    "ref": "T",
+    "alt": "C",
+    "alt_alleles": ["C"],
+    "allele_string": "T/C",
+    "var_class": "SNP",
+    "most_severe_consequence": "missense_variant",
+    "minor_allele": "C",
+    "maf": 0.0178,
+    "populations": [
+      {"population": "1000GENOMES:phase_3:EUR", "allele": "C", "frequency": 0.0119},
+      {"population": "1000GENOMES:phase_3:AFR", "allele": "C", "frequency": 0.0015},
+      {"population": "1000GENOMES:phase_3:EAS", "allele": "C", "frequency": 0.0000},
+      {"population": "1000GENOMES:phase_3:AMR", "allele": "C", "frequency": 0.2176},
+      {"population": "1000GENOMES:phase_3:SAS", "allele": "C", "frequency": 0.0041},
+      {"population": "gnomAD:nfe", "allele": "C", "frequency": 0.0131},
+      {"population": "gnomAD:afr", "allele": "C", "frequency": 0.0012},
+      {"population": "gnomAD:eas", "allele": "C", "frequency": 0.0001},
+      {"population": "gnomAD:amr", "allele": "C", "frequency": 0.0398},
+      {"population": "gnomAD:fin", "allele": "C", "frequency": 0.0089}
+    ],
+    "variant_ids": {
+      "open_targets": "6_160540105_T_C",
+      "gtex": "chr6_160540105_T_C_b38",
+      "pheweb": "6:160540105-T-C",
+      "bbj": "6:160531442-T-C"
+    },
+    "ensembl_info": {
+      "source": "ensembl_variation",
+      "status": "ok",
+      "rsid": "rs3798220"
+    },
+    "vep_info": {
+      "source": "ensembl_vep",
+      "status": "ok",
+      "rsid": "rs3798220",
+      "most_severe_consequence": "missense_variant",
+      "consequences": [
+        {
+          "gene_symbol": "LPA",
+          "gene_id": "ENSG00000198670",
+          "consequence_terms": ["missense_variant"],
+          "impact": "MODERATE",
+          "biotype": "protein_coding",
+          "sift": "tolerated",
+          "polyphen": "benign"
+        },
+        {
+          "gene_symbol": "LPA",
+          "gene_id": "ENSG00000198670",
+          "consequence_terms": ["3_prime_UTR_variant"],
+          "impact": "MODIFIER",
+          "biotype": "protein_coding",
+          "sift": "",
+          "polyphen": ""
+        }
+      ]
+    }
+  },
+  "api_results": {
+    "gwas_catalog": {
+      "source": "gwas_catalog",
+      "status": "ok",
+      "rsid": "rs3798220",
+      "total_associations": 8,
+      "associations": [
+        {
+          "pvalue": 1e-45,
+          "pvalue_mlog": 1,
+          "pvalue_exponent": -45,
+          "risk_allele": "rs3798220-C",
+          "risk_frequency": "0.02",
+          "or_beta": 1.51,
+          "beta_num": null,
+          "beta_direction": null,
+          "beta_unit": null,
+          "ci": "[1.38-1.66]",
+          "traits": ["Lipoprotein(a) levels"],
+          "study_accession": "GCST005140"
+        },
+        {
+          "pvalue": 2e-38,
+          "pvalue_mlog": 2,
+          "pvalue_exponent": -38,
+          "risk_allele": "rs3798220-C",
+          "risk_frequency": "0.015",
+          "or_beta": 1.92,
+          "beta_num": null,
+          "beta_direction": null,
+          "beta_unit": null,
+          "ci": "[1.74-2.12]",
+          "traits": ["Coronary heart disease"],
+          "study_accession": "GCST003116"
+        },
+        {
+          "pvalue": 5e-22,
+          "pvalue_mlog": 5,
+          "pvalue_exponent": -22,
+          "risk_allele": "rs3798220-C",
+          "risk_frequency": "0.013",
+          "or_beta": null,
+          "beta_num": 0.84,
+          "beta_direction": "increase",
+          "beta_unit": "unit increase",
+          "ci": "[0.71-0.97]",
+          "traits": ["Lipoprotein(a) measurement"],
+          "study_accession": "GCST90002370"
+        },
+        {
+          "pvalue": 3e-18,
+          "pvalue_mlog": 3,
+          "pvalue_exponent": -18,
+          "risk_allele": "rs3798220-C",
+          "risk_frequency": "0.02",
+          "or_beta": 1.36,
+          "beta_num": null,
+          "beta_direction": null,
+          "beta_unit": null,
+          "ci": "[1.24-1.49]",
+          "traits": ["Aortic valve stenosis"],
+          "study_accession": "GCST90038614"
+        },
+        {
+          "pvalue": 8e-15,
+          "pvalue_mlog": 8,
+          "pvalue_exponent": -15,
+          "risk_allele": "rs3798220-C",
+          "risk_frequency": "0.014",
+          "or_beta": 1.27,
+          "beta_num": null,
+          "beta_direction": null,
+          "beta_unit": null,
+          "ci": "[1.19-1.36]",
+          "traits": ["Peripheral artery disease"],
+          "study_accession": "GCST90018890"
+        },
+        {
+          "pvalue": 1e-12,
+          "pvalue_mlog": 1,
+          "pvalue_exponent": -12,
+          "risk_allele": "rs3798220-C",
+          "risk_frequency": "0.018",
+          "or_beta": 1.22,
+          "beta_num": null,
+          "beta_direction": null,
+          "beta_unit": null,
+          "ci": "[1.15-1.29]",
+          "traits": ["Ischemic stroke"],
+          "study_accession": "GCST006906"
+        },
+        {
+          "pvalue": 4e-10,
+          "pvalue_mlog": 4,
+          "pvalue_exponent": -10,
+          "risk_allele": "rs3798220-C",
+          "risk_frequency": "0.01",
+          "or_beta": 1.18,
+          "beta_num": null,
+          "beta_direction": null,
+          "beta_unit": null,
+          "ci": "[1.12-1.25]",
+          "traits": ["Heart failure"],
+          "study_accession": "GCST90043673"
+        },
+        {
+          "pvalue": 2e-8,
+          "pvalue_mlog": 2,
+          "pvalue_exponent": -8,
+          "risk_allele": "rs3798220-C",
+          "risk_frequency": "0.012",
+          "or_beta": 1.15,
+          "beta_num": null,
+          "beta_direction": null,
+          "beta_unit": null,
+          "ci": "[1.09-1.22]",
+          "traits": ["Venous thromboembolism"],
+          "study_accession": "GCST90018997"
+        }
+      ]
+    },
+    "open_targets": {
+      "source": "open_targets",
+      "status": "ok",
+      "variant_id": "6_160540105_T_C",
+      "rsid": "rs3798220",
+      "nearest_gene": "LPA",
+      "nearest_gene_distance": 0,
+      "consequence": "missense_variant",
+      "population_frequencies": {
+        "NFE": 0.013,
+        "AFR": 0.001,
+        "EAS": 0.0001,
+        "AMR": 0.04,
+        "FIN": 0.009
+      }
+    },
+    "open_targets_credsets": {
+      "source": "open_targets_credsets",
+      "status": "ok",
+      "variant_id": "6_160540105_T_C",
+      "credible_sets": [
+        {
+          "study_id": "GCST005140",
+          "trait": "Lipoprotein(a) levels",
+          "posterior_probability": 0.92,
+          "pval": 1e-45,
+          "beta": 0.65,
+          "is_95_credible": true,
+          "is_99_credible": true
+        },
+        {
+          "study_id": "GCST003116",
+          "trait": "Coronary heart disease",
+          "posterior_probability": 0.78,
+          "pval": 2e-38,
+          "beta": 0.31,
+          "is_95_credible": true,
+          "is_99_credible": true
+        },
+        {
+          "study_id": "GCST90038614",
+          "trait": "Aortic valve stenosis",
+          "posterior_probability": 0.45,
+          "pval": 3e-18,
+          "beta": 0.22,
+          "is_95_credible": false,
+          "is_99_credible": true
+        }
+      ]
+    },
+    "pheweb_ukb": {
+      "source": "pheweb_ukb",
+      "status": "ok",
+      "variant": "6:160540105-T-C",
+      "total_associations": 5,
+      "associations": [
+        {
+          "phenocode": "411.4",
+          "phenostring": "Coronary atherosclerosis",
+          "category": "circulatory system",
+          "pval": 3.2e-25,
+          "beta": 0.28,
+          "sebeta": 0.027,
+          "maf": 0.012,
+          "num_cases": 34210,
+          "num_controls": 386290
+        },
+        {
+          "phenocode": "411",
+          "phenostring": "Ischemic heart disease",
+          "category": "circulatory system",
+          "pval": 1.5e-20,
+          "beta": 0.24,
+          "sebeta": 0.026,
+          "maf": 0.012,
+          "num_cases": 41280,
+          "num_controls": 379220
+        },
+        {
+          "phenocode": "424.1",
+          "phenostring": "Aortic valve disease",
+          "category": "circulatory system",
+          "pval": 8.7e-12,
+          "beta": 0.35,
+          "sebeta": 0.051,
+          "maf": 0.012,
+          "num_cases": 8420,
+          "num_controls": 412080
+        },
+        {
+          "phenocode": "443.9",
+          "phenostring": "Peripheral vascular disease",
+          "category": "circulatory system",
+          "pval": 2.1e-8,
+          "beta": 0.21,
+          "sebeta": 0.037,
+          "maf": 0.012,
+          "num_cases": 12350,
+          "num_controls": 408150
+        },
+        {
+          "phenocode": "LPA",
+          "phenostring": "Lipoprotein(a)",
+          "category": "biomarkers",
+          "pval": 1e-180,
+          "beta": 1.85,
+          "sebeta": 0.055,
+          "maf": 0.012,
+          "num_cases": null,
+          "num_controls": null
+        }
+      ]
+    },
+    "finngen": {
+      "source": "finngen",
+      "status": "ok",
+      "variant": "6:160540105-T-C",
+      "total_associations": 3,
+      "associations": [
+        {
+          "phenocode": "I9_CHD",
+          "phenostring": "Coronary heart disease",
+          "category": "Circulatory system",
+          "pval": 4.5e-15,
+          "beta": 0.31,
+          "sebeta": 0.039,
+          "maf": 0.009,
+          "num_cases": 25400,
+          "num_controls": 334100
+        },
+        {
+          "phenocode": "I9_AORVALam",
+          "phenostring": "Aortic valve stenosis/insufficiency",
+          "category": "Circulatory system",
+          "pval": 6.2e-10,
+          "beta": 0.42,
+          "sebeta": 0.068,
+          "maf": 0.009,
+          "num_cases": 5800,
+          "num_controls": 353700
+        },
+        {
+          "phenocode": "I9_PAD",
+          "phenostring": "Peripheral artery disease",
+          "category": "Circulatory system",
+          "pval": 3.8e-6,
+          "beta": 0.25,
+          "sebeta": 0.054,
+          "maf": 0.009,
+          "num_cases": 7200,
+          "num_controls": 352300
+        }
+      ]
+    },
+    "pheweb_bbj": {
+      "source": "pheweb_bbj",
+      "status": "ok",
+      "variant": "6:160531442-T-C",
+      "coordinate_system": "GRCh37",
+      "total_associations": 1,
+      "associations": [
+        {
+          "phenocode": "Angina_pectoris",
+          "phenostring": "Angina pectoris",
+          "category": "Circulatory",
+          "pval": 0.032,
+          "beta": 0.45,
+          "sebeta": 0.21,
+          "maf": 0.001,
+          "num_cases": 4580,
+          "num_controls": 176800
+        }
+      ]
+    },
+    "gtex": {
+      "source": "gtex",
+      "status": "ok",
+      "variant_id": "chr6_160540105_T_C_b38",
+      "total_eqtls": 3,
+      "eqtls": [
+        {
+          "gene_symbol": "LPA",
+          "gene_id": "ENSG00000198670.11",
+          "tissue": "Liver",
+          "pval": 2.3e-8,
+          "nes": -0.82,
+          "tissue_name": "Liver"
+        },
+        {
+          "gene_symbol": "LPA",
+          "gene_id": "ENSG00000198670.11",
+          "tissue": "Adipose_Subcutaneous",
+          "pval": 4.1e-5,
+          "nes": -0.45,
+          "tissue_name": "Adipose - Subcutaneous"
+        },
+        {
+          "gene_symbol": "SLC22A3",
+          "gene_id": "ENSG00000146477.13",
+          "tissue": "Liver",
+          "pval": 0.0012,
+          "nes": 0.31,
+          "tissue_name": "Liver"
+        }
+      ]
+    },
+    "eqtl_catalogue": {
+      "source": "eqtl_catalogue",
+      "status": "ok",
+      "rsid": "rs3798220",
+      "total_associations": 2,
+      "associations": [
+        {
+          "gene_id": "ENSG00000198670",
+          "gene_name": "LPA",
+          "tissue": "liver",
+          "study": "Schmiedel_2018",
+          "pval": 5.6e-6,
+          "beta": -0.67,
+          "se": 0.15,
+          "maf": 0.013,
+          "dataset": "QTD000580"
+        },
+        {
+          "gene_id": "ENSG00000198670",
+          "gene_name": "LPA",
+          "tissue": "monocyte",
+          "study": "BLUEPRINT",
+          "pval": 0.0034,
+          "beta": -0.38,
+          "se": 0.13,
+          "maf": 0.011,
+          "dataset": "QTD000021"
+        }
+      ]
+    }
+  }
+}

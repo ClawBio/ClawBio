@@ -1,0 +1,24 @@
+{
+  "count": 2,
+  "next": null,
+  "results": [
+    {
+      "id": "PGS000013",
+      "name": "PRS for T2D",
+      "trait_reported": "Type 2 diabetes",
+      "variants_number": 8,
+      "ftp_harmonized_scoring_files": {
+        "GRCh37": {"positions": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000013/ScoringFiles/Harmonized/PGS000013_hmPOS_GRCh37.txt.gz"}
+      }
+    },
+    {
+      "id": "PGS000999",
+      "name": "Mega PRS for T2D",
+      "trait_reported": "Type 2 diabetes",
+      "variants_number": 999999,
+      "ftp_harmonized_scoring_files": {
+        "GRCh37": {"positions": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000999/ScoringFiles/Harmonized/PGS000999_hmPOS_GRCh37.txt.gz"}
+      }
+    }
+  ]
+}

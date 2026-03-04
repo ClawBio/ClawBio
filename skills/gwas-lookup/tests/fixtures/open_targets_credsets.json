@@ -1,0 +1,25 @@
+{
+  "source": "open_targets_credsets",
+  "status": "ok",
+  "variant_id": "6_160540105_T_C",
+  "credible_sets": [
+    {
+      "study_id": "GCST005140",
+      "trait": "Lipoprotein(a) levels",
+      "posterior_probability": 0.92,
+      "pval": 1e-45,
+      "beta": 0.65,
+      "is_95_credible": true,
+      "is_99_credible": true
+    },
+    {
+      "study_id": "GCST003116",
+      "trait": "Coronary heart disease",
+      "posterior_probability": 0.78,
+      "pval": 2e-38,
+      "beta": 0.31,
+      "is_95_credible": true,
+      "is_99_credible": true
+    }
+  ]
+}

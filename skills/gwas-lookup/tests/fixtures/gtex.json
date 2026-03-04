@@ -1,0 +1,24 @@
+{
+  "source": "gtex",
+  "status": "ok",
+  "variant_id": "chr6_160540105_T_C_b38",
+  "total_eqtls": 2,
+  "eqtls": [
+    {
+      "gene_symbol": "LPA",
+      "gene_id": "ENSG00000198670.11",
+      "tissue": "Liver",
+      "pval": 2.3e-8,
+      "nes": -0.82,
+      "tissue_name": "Liver"
+    },
+    {
+      "gene_symbol": "SLC22A3",
+      "gene_id": "ENSG00000146477.13",
+      "tissue": "Liver",
+      "pval": 0.0012,
+      "nes": 0.31,
+      "tissue_name": "Liver"
+    }
+  ]
+}

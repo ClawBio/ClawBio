@@ -1,0 +1,18 @@
+#pgs_id=PGS000011
+#pgs_name=PRS for atrial fibrillation (Tada et al. 2014)
+#trait_reported=Atrial fibrillation
+#genome_build=GRCh37
+#variants_number=12
+rsID	chr_name	chr_position	effect_allele	other_allele	effect_weight	allelefrequency_effect
+rs2200733	4	111710169	T	C	0.26	0.15
+rs10033464	4	111714145	T	C	0.14	0.15
+rs6843082	4	111694958	G	A	0.11	0.22
+rs2106261	16	73051620	T	C	0.12	0.20
+rs7193343	1	169305592	T	C	0.08	0.35
+rs3807989	7	116186241	A	G	0.10	0.39
+rs10821415	9	97298883	A	G	0.09	0.49
+rs10824026	10	75419067	A	G	0.07	0.17
+rs1152591	14	73890305	G	A	0.06	0.42
+rs6666258	15	73638621	A	G	0.08	0.26
+rs7164883	1	154835785	A	G	0.09	0.33
+rs4946333	1	170571565	T	C	0.07	0.24

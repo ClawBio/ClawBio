@@ -38,9 +38,9 @@ def test_detect_format_23andme():
 def test_parse_file_finds_all_pgx_snps():
     fmt, total_snps, pgx_snps = parse_file(str(DEMO))
     assert fmt == "23andme"
-    assert total_snps == 30  # 31 data lines but one has genotype "--" or is skipped
-    assert len(pgx_snps) == len(PGX_SNPS), (
-        f"Expected {len(PGX_SNPS)} PGx SNPs, got {len(pgx_snps)}"
+    assert total_snps == 21  # 21 PGx SNPs present on the 23andMe v5 chip (Corpasome)
+    assert len(pgx_snps) == 21, (
+        f"Expected 21 PGx SNPs (Corpasome v5 chip coverage), got {len(pgx_snps)}"
     )
 
 
@@ -48,10 +48,10 @@ def test_parse_file_genotype_values():
     _, _, pgx = parse_file(str(DEMO))
     # CYP2C19 *2 het
     assert pgx["rs4244285"]["genotype"] == "AG"
-    # CYP2D6 *4 hom
-    assert pgx["rs3892097"]["genotype"] == "TT"
-    # VKORC1 het
-    assert pgx["rs9923231"]["genotype"] == "GA"
+    # CYP2D6 *4 ref (Corpasome: no *4 variant)
+    assert pgx["rs3892097"]["genotype"] == "CC"
+    # VKORC1 hom variant (Corpasome: TT = high warfarin sensitivity)
+    assert pgx["rs9923231"]["genotype"] == "TT"
 
 
 # ── Star Allele Calling ───────────────────────────────────────────────────────
@@ -68,27 +68,27 @@ def _profiles():
 
 
 def test_cyp2c19_diplotype():
-    """Demo patient: rs4244285 AG (*2 het), rest ref → *1/*2."""
+    """Demo patient: rs4244285 AG (*2 het) + rs12248560 CT (*17 het) → *17/*2."""
     p = _profiles()
-    assert p["CYP2C19"]["diplotype"] == "*1/*2"
+    assert p["CYP2C19"]["diplotype"] == "*17/*2"
 
 
 def test_cyp2d6_diplotype():
-    """Demo patient: rs3892097 TT (*4 hom) → *4/*4."""
+    """Demo patient: rs16947 AG (*2 het) + rs28371725 CT (*41 het) → *2/*41."""
     p = _profiles()
-    assert p["CYP2D6"]["diplotype"] == "*4/*4"
+    assert p["CYP2D6"]["diplotype"] == "*2/*41"
 
 
 def test_vkorc1_genotype():
-    """Demo patient: rs9923231 GA → GA diplotype."""
+    """Demo patient: rs9923231 TT → TT diplotype (hom variant)."""
     p = _profiles()
-    assert p["VKORC1"]["diplotype"] == "GA"
+    assert p["VKORC1"]["diplotype"] == "TT"
 
 
 def test_slco1b1_genotype():
-    """Demo patient: rs4149056 TC → TC diplotype."""
+    """Demo patient: rs4149056 TT → TT diplotype (ref, normal function)."""
     p = _profiles()
-    assert p["SLCO1B1"]["diplotype"] == "TC"
+    assert p["SLCO1B1"]["diplotype"] == "TT"
 
 
 def test_cyp3a5_diplotype():
@@ -104,19 +104,22 @@ def test_cyp2c19_intermediate():
     assert p["CYP2C19"]["phenotype"] == "Intermediate Metabolizer"
 
 
-def test_cyp2d6_poor():
+def test_cyp2d6_intermediate():
+    """CYP2D6 *2/*41: *2 normal-function + *41 decreased-function → Intermediate."""
     p = _profiles()
-    assert p["CYP2D6"]["phenotype"] == "Poor Metabolizer"
+    assert p["CYP2D6"]["phenotype"] == "Intermediate Metabolizer"
 
 
-def test_vkorc1_intermediate_sensitivity():
+def test_vkorc1_high_sensitivity():
+    """VKORC1 TT (hom variant) → High Warfarin Sensitivity per CPIC."""
     p = _profiles()
-    assert p["VKORC1"]["phenotype"] == "Intermediate Warfarin Sensitivity"
+    assert p["VKORC1"]["phenotype"] == "High Warfarin Sensitivity"
 
 
-def test_slco1b1_intermediate():
+def test_slco1b1_normal():
+    """SLCO1B1 TT (ref) → Normal Function per CPIC."""
     p = _profiles()
-    assert p["SLCO1B1"]["phenotype"] == "Intermediate Function"
+    assert p["SLCO1B1"]["phenotype"] == "Normal Function"
 
 
 def test_cyp3a5_nonexpressor():
@@ -155,20 +158,20 @@ def test_clopidogrel_caution_for_intermediate():
     assert len(clop) == 1, "Clopidogrel should be in caution list"
 
 
-def test_codeine_avoid_for_poor_cyp2d6():
-    """CYP2D6 *4/*4 → Poor Metabolizer → Codeine should be avoid."""
+def test_codeine_caution_for_intermediate_cyp2d6():
+    """CYP2D6 *2/*41 → Intermediate Metabolizer → Codeine should be caution."""
     p = _profiles()
     results = lookup_drugs(p)
-    codeine = [d for d in results["avoid"] if d["drug"] == "Codeine"]
-    assert len(codeine) == 1, "Codeine should be in avoid list for CYP2D6 PM"
+    codeine = [d for d in results["caution"] if d["drug"] == "Codeine"]
+    assert len(codeine) == 1, "Codeine should be in caution list for CYP2D6 IM"
 
 
-def test_simvastatin_caution_for_intermediate_slco1b1():
-    """SLCO1B1 TC → Intermediate → Simvastatin should be caution."""
+def test_simvastatin_standard_for_normal_slco1b1():
+    """SLCO1B1 TT → Normal Function → Simvastatin should be standard."""
     p = _profiles()
     results = lookup_drugs(p)
-    simva = [d for d in results["caution"] if d["drug"] == "Simvastatin"]
-    assert len(simva) == 1, "Simvastatin should be in caution list"
+    simva = [d for d in results["standard"] if d["drug"] == "Simvastatin"]
+    assert len(simva) == 1, "Simvastatin should be in standard list for SLCO1B1 Normal Function"
 
 
 # ── Phenotype Key Mapping ─────────────────────────────────────────────────────

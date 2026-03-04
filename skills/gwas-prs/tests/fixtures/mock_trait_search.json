@@ -1,0 +1,7 @@
+{
+  "count": 2,
+  "results": [
+    {"id": "EFO_0001360", "label": "type II diabetes mellitus", "description": "A type of diabetes..."},
+    {"id": "EFO_0000400", "label": "diabetes mellitus", "description": "A metabolic disorder..."}
+  ]
+}

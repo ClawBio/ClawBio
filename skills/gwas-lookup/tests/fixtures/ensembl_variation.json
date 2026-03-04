@@ -1,0 +1,19 @@
+{
+  "source": "ensembl_variation",
+  "status": "ok",
+  "rsid": "rs3798220",
+  "chr": "6",
+  "pos_grch38": 160540105,
+  "pos_grch37": 160531442,
+  "ref_allele": "T",
+  "alt_alleles": ["C"],
+  "allele_string": "T/C",
+  "var_class": "SNP",
+  "most_severe_consequence": "missense_variant",
+  "minor_allele": "C",
+  "maf": 0.0178,
+  "populations": [
+    {"population": "1000GENOMES:phase_3:EUR", "allele": "C", "frequency": 0.0119},
+    {"population": "1000GENOMES:phase_3:AFR", "allele": "C", "frequency": 0.0015}
+  ]
+}

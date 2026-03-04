@@ -1,0 +1,50 @@
+{
+  "PGS000013": {
+    "name": "PRS for type 2 diabetes (Vassy et al. 2014)",
+    "trait": "Type 2 diabetes",
+    "trait_id": "EFO_0001360",
+    "variants_count": 8,
+    "publication": "Vassy JA et al. (2014) PMID:24520119",
+    "reference_distribution": {"mean": 1.12, "sd": 0.30, "population": "EUR"}
+  },
+  "PGS000011": {
+    "name": "PRS for atrial fibrillation (Tada et al. 2014)",
+    "trait": "Atrial fibrillation",
+    "trait_id": "EFO_0000275",
+    "variants_count": 12,
+    "publication": "Tada H et al. (2014) PMID:25087147",
+    "reference_distribution": {"mean": 0.65, "sd": 0.23, "population": "EUR"}
+  },
+  "PGS000004": {
+    "name": "PRS for coronary artery disease (Abraham et al. 2016)",
+    "trait": "Coronary artery disease",
+    "trait_id": "EFO_0001645",
+    "variants_count": 46,
+    "publication": "Abraham G et al. (2016) PMID:27535533",
+    "reference_distribution": {"mean": 2.84, "sd": 0.28, "population": "EUR"}
+  },
+  "PGS000001": {
+    "name": "PRS for breast cancer (Mavaddat et al. 2015)",
+    "trait": "Breast cancer",
+    "trait_id": "EFO_0000305",
+    "variants_count": 77,
+    "publication": "Mavaddat N et al. (2015) PMID:25855707",
+    "reference_distribution": {"mean": 4.23, "sd": 0.54, "population": "EUR"}
+  },
+  "PGS000057": {
+    "name": "PRS for prostate cancer (Schumacher et al. 2018)",
+    "trait": "Prostate cancer",
+    "trait_id": "EFO_0001663",
+    "variants_count": 147,
+    "publication": "Schumacher FR et al. (2018) PMID:29892016",
+    "reference_distribution": {"mean": 7.11, "sd": 0.56, "population": "EUR"}
+  },
+  "PGS000039": {
+    "name": "PRS for BMI (Khera et al. 2019)",
+    "trait": "Body mass index",
+    "trait_id": "EFO_0004340",
+    "variants_count": 97,
+    "publication": "Khera AV et al. (2019) PMID:30239722",
+    "reference_distribution": {"mean": 2.89, "sd": 0.25, "population": "EUR"}
+  }
+}

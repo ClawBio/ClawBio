@@ -1,0 +1,30 @@
+{
+  "source": "pheweb_ukb",
+  "status": "ok",
+  "variant": "6:160540105-T-C",
+  "total_associations": 2,
+  "associations": [
+    {
+      "phenocode": "411.4",
+      "phenostring": "Coronary atherosclerosis",
+      "category": "circulatory system",
+      "pval": 3.2e-25,
+      "beta": 0.28,
+      "sebeta": 0.027,
+      "maf": 0.012,
+      "num_cases": 34210,
+      "num_controls": 386290
+    },
+    {
+      "phenocode": "LPA",
+      "phenostring": "Lipoprotein(a)",
+      "category": "biomarkers",
+      "pval": 1e-180,
+      "beta": 1.85,
+      "sebeta": 0.055,
+      "maf": 0.012,
+      "num_cases": null,
+      "num_controls": null
+    }
+  ]
+}

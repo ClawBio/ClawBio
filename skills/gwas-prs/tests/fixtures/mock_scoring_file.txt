@@ -1,0 +1,11 @@
+#pgs_id=PGS000099
+#pgs_name=Test Score
+#trait_reported=Test Trait
+#genome_build=GRCh37
+#variants_number=5
+rsID	chr_name	chr_position	effect_allele	other_allele	effect_weight	allelefrequency_effect
+rs100001	1	100000	A	G	0.15	0.30
+rs100002	2	200000	T	C	0.08	0.45
+rs100003	3	300000	G	A	-0.12	0.55
+rs100004	4	400000	C	T	0.20	0.20
+rs100005	5	500000	A	T	0.10	0.60

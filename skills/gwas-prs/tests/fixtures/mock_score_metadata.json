@@ -1,0 +1,20 @@
+{
+  "id": "PGS000013",
+  "name": "PRS for type 2 diabetes",
+  "trait_reported": "Type 2 diabetes",
+  "trait_efo": [{"id": "EFO_0001360", "label": "type II diabetes mellitus"}],
+  "variants_number": 8,
+  "weight_type": "log(OR)",
+  "ftp_scoring_file": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000013/ScoringFiles/PGS000013.txt.gz",
+  "ftp_harmonized_scoring_files": {
+    "GRCh37": {
+      "positions": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000013/ScoringFiles/Harmonized/PGS000013_hmPOS_GRCh37.txt.gz"
+    },
+    "GRCh38": {
+      "positions": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000013/ScoringFiles/Harmonized/PGS000013_hmPOS_GRCh38.txt.gz"
+    }
+  },
+  "publication": {"id": "PGP000001", "title": "Test publication", "doi": "10.1234/test", "PMID": "24520119"},
+  "samples_variants": [{"sample_number": 10000, "ancestry_broad": "European"}],
+  "license": "CC BY 4.0"
+}
