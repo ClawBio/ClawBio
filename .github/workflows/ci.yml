@@ -7,6 +7,30 @@ on:
     branches: [main]
 
 jobs:
+  commit-summary:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Commit summary
+        run: |
+          echo "## Commit Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`$(git rev-parse --short HEAD)\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Author** | $(git log -1 --format='%an') |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Message** | $(git log -1 --format='%s') |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Time** | $(git log -1 --format='%ci') |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Files changed" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          git diff --stat HEAD~1 HEAD >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
   test:
     runs-on: ubuntu-latest
     strategy:
