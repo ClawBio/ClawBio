@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest numpy pandas scikit-learn matplotlib
+          pip install pytest numpy pandas scikit-learn matplotlib requests
 
       - name: Test ClawBio CLI
         run: python clawbio.py list
@@ -40,3 +40,6 @@ jobs:
 
       - name: Run Genome Comparator tests
         run: python -m pytest skills/genome-compare/tests/test_genome_compare.py -v
+
+      - name: Run ClinPGx tests
+        run: python -m pytest skills/clinpgx/tests/test_clinpgx.py -v
