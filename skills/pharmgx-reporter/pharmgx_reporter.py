@@ -1335,6 +1335,7 @@ def main():
     parser.add_argument("--output", default="pharmgx_report", help="Output directory (default: pharmgx_report)")
     parser.add_argument("--drug", default=None, help="Single drug lookup (brand or generic name)")
     parser.add_argument("--dose", default=None, help="Visible dose from packaging (e.g. '50mg')")
+    parser.add_argument("--html", action="store_true", help="Also generate a rich-text HTML report")
     args = parser.parse_args()
 
     if not Path(args.input).exists():
@@ -1420,8 +1421,24 @@ def main():
     report = generate_report(args.input, fmt, total_snps, pgx_snps, profiles, drug_results)
     report_path = outdir / "report.md"
     report_path.write_text(report)
-
     print(f"Report saved: {report_path}")
+
+    # HTML report (always generated alongside markdown)
+    from html_report import generate_html_report
+    html = generate_html_report(
+        input_path=args.input,
+        fmt=fmt,
+        total_snps=total_snps,
+        pgx_snps=pgx_snps,
+        profiles=profiles,
+        drug_results=drug_results,
+        gene_defs=GENE_DEFS,
+        pgx_snp_defs=PGX_SNPS,
+    )
+    html_path = outdir / "report.html"
+    html_path.write_text(html)
+    print(f"HTML report: {html_path}")
+
     print("Done.")
 
 
