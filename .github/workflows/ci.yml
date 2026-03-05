@@ -73,3 +73,6 @@ jobs:
 
       - name: Run GWAS Lookup tests
         run: python -m pytest skills/gwas-lookup/tests/test_gwas_lookup.py -v
+
+      - name: Run scRNA Orchestrator tests (scanpy optional)
+        run: python -m pytest skills/scrna-orchestrator/tests/test_scrna_orchestrator.py -v

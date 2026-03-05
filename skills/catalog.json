@@ -394,17 +394,24 @@
     },
     {
       "name": "scrna-orchestrator",
-      "cli_alias": null,
+      "cli_alias": "scrna",
       "description": "Automate single-cell RNA-seq analysis with Scanpy or Seurat. QC, normalisation, clustering, DE analysis, and visualisation.",
       "version": "0.1.0",
-      "status": "planned",
-      "has_script": false,
-      "has_tests": false,
-      "has_demo": false,
-      "demo_command": null,
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run scrna --demo",
       "dependencies": [],
       "tags": [],
-      "trigger_keywords": [],
+      "trigger_keywords": [
+        "single-cell",
+        "scrna",
+        "h5ad",
+        "scanpy",
+        "umap",
+        "leiden"
+      ],
       "chaining_partners": []
     },
     {
