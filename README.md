@@ -26,6 +26,10 @@
 
 Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from your 23andMe file, and returns a personalised dosage card — on your machine, in seconds:
 
+<p align="center">
+  <img src="skills/drug-photo/demo-images/00-00-warfarin.jpg" width="360" alt="Warfarin 2mg medication packaging — ClawBio identifies the drug from a photo and returns a personalised pharmacogenomic report">
+</p>
+
 > **Warfarin** | CYP2C9 \*1/\*2 Intermediate · VKORC1 High Sensitivity
 > **AVOID — DO NOT USE** · Standard dose causes over-anticoagulation in this genotype.
 
