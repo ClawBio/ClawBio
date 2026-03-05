@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 SCRIPT_PATH = SKILL_DIR / "scrna_orchestrator.py"
+ORCHESTRATOR_PATH = SKILL_DIR.parent / "bio-orchestrator" / "orchestrator.py"
 
 
 def _run_cmd(args: list[str]) -> subprocess.CompletedProcess:
@@ -25,6 +29,15 @@ def _run_cmd(args: list[str]) -> subprocess.CompletedProcess:
 def _require_scanpy() -> None:
     pytest.importorskip("scanpy")
     pytest.importorskip("anndata")
+
+
+def _load_orchestrator_module():
+    spec = importlib.util.spec_from_file_location("bio_orchestrator_module", ORCHESTRATOR_PATH)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_demo_end_to_end_outputs(tmp_path: Path):
@@ -110,3 +123,59 @@ def test_non_h5ad_input_rejected(tmp_path: Path):
     result = _run_cmd(["--input", str(input_path), "--output", str(tmp_path / "out")])
     assert result.returncode != 0
     assert "Only .h5ad is supported" in result.stderr
+
+
+def test_tiny_dataset_no_pca_crash(tmp_path: Path):
+    _require_scanpy()
+    from anndata import AnnData  # type: ignore
+
+    input_path = tmp_path / "tiny.h5ad"
+    output_dir = tmp_path / "tiny_output"
+
+    x = np.array(
+        [
+            [1, 0],
+            [2, 1],
+            [3, 0],
+            [4, 1],
+        ],
+        dtype=np.int32,
+    )
+    obs = pd.DataFrame(index=[f"cell_{i}" for i in range(4)])
+    var = pd.DataFrame(index=["GeneA", "GeneB"])
+    AnnData(X=x, obs=obs, var=var).write_h5ad(input_path)
+
+    result = _run_cmd(
+        [
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_dir),
+            "--min-genes",
+            "1",
+            "--min-cells",
+            "1",
+            "--n-top-hvg",
+            "2",
+            "--n-neighbors",
+            "2",
+        ]
+    )
+    assert result.returncode == 0, result.stderr
+    assert (output_dir / "report.md").exists()
+
+
+def test_commands_sh_quotes_demo_output_path(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "demo output (quoted)"
+    result = _run_cmd(["--demo", "--output", str(output_dir)])
+    assert result.returncode == 0, result.stderr
+
+    commands_sh = (output_dir / "reproducibility" / "commands.sh").read_text()
+    assert f"--output {shlex.quote(str(output_dir))}" in commands_sh
+
+
+def test_orchestrator_no_rds_extension_route():
+    module = _load_orchestrator_module()
+    assert module.detect_skill_from_file(Path("x.rds")) is None
+    assert module.detect_skill_from_file(Path("x.h5ad")) == "scrna-orchestrator"

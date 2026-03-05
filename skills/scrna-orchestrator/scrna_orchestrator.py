@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -189,7 +190,12 @@ def run_embedding_cluster(
     adata = adata.copy()
     sc.pp.scale(adata, max_value=10)
 
-    n_pcs_eff = min(n_pcs, max(2, adata.n_vars - 1), max(2, adata.n_obs - 1))
+    n_pcs_eff = min(n_pcs, adata.n_obs - 1, adata.n_vars - 1)
+    if n_pcs_eff < 1:
+        raise ValueError(
+            "PCA requires at least 2 cells and 2 genes after QC/HVG selection. "
+            f"Got n_obs={adata.n_obs}, n_vars={adata.n_vars}."
+        )
     sc.tl.pca(adata, n_comps=n_pcs_eff, random_state=random_state, svd_solver="arpack")
     sc.pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_pcs_eff)
     sc.tl.umap(adata, random_state=random_state)
@@ -388,16 +394,20 @@ def write_reproducibility(
     """Write commands.sh, environment.yml, and checksums.sha256."""
     repro_dir = output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
+    quoted_output = shlex.quote(str(output_dir))
 
     if is_demo:
         cmd_line = (
             "python skills/scrna-orchestrator/scrna_orchestrator.py "
-            f"--demo --output {output_dir}"
+            f"--demo --output {quoted_output}"
         )
     else:
+        if input_path is None:
+            raise ValueError("input_path is required when --demo is not used.")
+        quoted_input = shlex.quote(str(input_path))
         cmd_line = (
             "python skills/scrna-orchestrator/scrna_orchestrator.py "
-            f"--input {input_path} --output {output_dir}"
+            f"--input {quoted_input} --output {quoted_output}"
         )
 
     commands = f"""#!/usr/bin/env bash
