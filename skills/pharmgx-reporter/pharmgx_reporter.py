@@ -26,6 +26,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 from clawbio.common.parsers import parse_genetic_file, genotypes_to_simple
 from clawbio.common.checksums import sha256_hex, sha256_file
 from clawbio.common.report import write_result_json, DISCLAIMER
+from clawbio.common.html_report import HtmlReportBuilder, write_html_report
 
 # ---------------------------------------------------------------------------
 # 1. PGx SNP definitions (ported from PharmXD snp-parser.js)
@@ -286,322 +287,255 @@ GUIDELINES = {
     "Clopidogrel": {
         "brand": "Plavix", "class": "Antiplatelet Agent", "gene": "CYP2C19",
         "recs": {
-            "ultrarapid_metabolizer": ("standard", "Use recommended dose."),
-            "normal_metabolizer":     ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Consider alternative antiplatelet therapy (prasugrel, ticagrelor)."),
-            "poor_metabolizer":       ("avoid", "Use alternative antiplatelet therapy (prasugrel or ticagrelor)."),
+            "ultrarapid_metabolizer": "standard", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Omeprazole": {
         "brand": "Prilosec", "class": "Proton Pump Inhibitor", "gene": "CYP2C19",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "For H. pylori: increase dose 50-100%. For GERD: standard dose."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended starting dose."),
-            "poor_metabolizer":       ("caution", "For chronic therapy >12 wk: consider 50% dose reduction."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Pantoprazole": {
         "brand": "Protonix", "class": "Proton Pump Inhibitor", "gene": "CYP2C19",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "For H. pylori: increase dose 50-100%."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended starting dose."),
-            "poor_metabolizer":       ("caution", "For chronic therapy >12 wk: consider 50% dose reduction."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Lansoprazole": {
         "brand": "Prevacid", "class": "Proton Pump Inhibitor", "gene": "CYP2C19",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "For H. pylori: increase dose 50-100%."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended starting dose."),
-            "poor_metabolizer":       ("caution", "For chronic therapy: consider 50% dose reduction."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Esomeprazole": {
         "brand": "Nexium", "class": "Proton Pump Inhibitor", "gene": "CYP2C19",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "For H. pylori: increase dose 50-100%."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended starting dose."),
-            "poor_metabolizer":       ("caution", "For chronic therapy: consider dose reduction."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Dexlansoprazole": {
         "brand": "Dexilant", "class": "Proton Pump Inhibitor", "gene": "CYP2C19",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "For H. pylori: increase dose 50-100%."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended starting dose."),
-            "poor_metabolizer":       ("caution", "For chronic therapy: consider dose reduction."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Citalopram": {
         "brand": "Celexa", "class": "SSRI Antidepressant", "gene": "CYP2C19",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "Select alternative SSRI not dependent on CYP2C19."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended starting dose."),
-            "poor_metabolizer":       ("caution", "Consider 50% reduction. Max 20 mg/day."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Escitalopram": {
         "brand": "Lexapro", "class": "SSRI Antidepressant", "gene": "CYP2C19",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "Select alternative SSRI or titrate to max dose."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended starting dose."),
-            "poor_metabolizer":       ("caution", "Consider 50% dose reduction."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Sertraline": {
         "brand": "Zoloft", "class": "SSRI Antidepressant", "gene": "CYP2C19",
         "recs": {
-            "ultrarapid_metabolizer": ("standard", "Use recommended starting dose."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended starting dose."),
-            "poor_metabolizer":       ("standard", "Use recommended starting dose."),
+            "ultrarapid_metabolizer": "standard", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "standard",
         },
     },
     "Voriconazole": {
         "brand": "Vfend", "class": "Antifungal", "gene": "CYP2C19",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "Use alternative antifungal; voriconazole may be ineffective."),
-            "normal_metabolizer":     ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended dose."),
-            "poor_metabolizer":       ("caution", "Increased exposure; consider dose reduction or TDM."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     # --- CYP2D6 drugs ---
     "Codeine": {
         "brand": "Tylenol w/ Codeine", "class": "Opioid Analgesic", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("avoid", "Avoid codeine. Risk of morphine toxicity."),
-            "normal_metabolizer":     ("standard", "Use label-recommended dosing."),
-            "intermediate_metabolizer": ("caution", "Use with caution; may have reduced analgesia."),
-            "poor_metabolizer":       ("avoid", "Avoid codeine. Select alternative analgesic."),
+            "ultrarapid_metabolizer": "avoid", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Tramadol": {
         "brand": "Ultram", "class": "Opioid Analgesic", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("avoid", "Avoid tramadol. Increased toxicity risk."),
-            "normal_metabolizer":     ("standard", "Use label-recommended dosing."),
-            "intermediate_metabolizer": ("caution", "Use with caution; possible reduced analgesia."),
-            "poor_metabolizer":       ("avoid", "Avoid tramadol. Select alternative analgesic."),
+            "ultrarapid_metabolizer": "avoid", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Hydrocodone": {
         "brand": "Vicodin", "class": "Opioid Analgesic", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "Use with caution; increased active metabolite."),
-            "normal_metabolizer":     ("standard", "Use label-recommended dosing."),
-            "intermediate_metabolizer": ("caution", "May have reduced analgesia; monitor response."),
-            "poor_metabolizer":       ("caution", "Reduced analgesia likely; consider alternative."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "caution",
         },
     },
     "Oxycodone": {
         "brand": "OxyContin", "class": "Opioid Analgesic", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "Use with caution; increased active metabolite."),
-            "normal_metabolizer":     ("standard", "Use label-recommended dosing."),
-            "intermediate_metabolizer": ("standard", "Use label-recommended dosing."),
-            "poor_metabolizer":       ("caution", "Reduced analgesia possible; consider alternative."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Tamoxifen": {
         "brand": "Nolvadex", "class": "SERM (Oncology)", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("standard", "Use recommended dose."),
-            "normal_metabolizer":     ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Reduced efficacy possible. Avoid strong CYP2D6 inhibitors."),
-            "poor_metabolizer":       ("avoid", "Consider aromatase inhibitor or higher tamoxifen dose with TDM."),
+            "ultrarapid_metabolizer": "standard", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Amitriptyline": {
         "brand": "Elavil", "class": "Tricyclic Antidepressant", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("avoid", "Avoid TCA; likely ineffective."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("caution", "Consider 25% dose reduction."),
-            "poor_metabolizer":       ("avoid", "Avoid TCA. If necessary, reduce dose 50%."),
+            "ultrarapid_metabolizer": "avoid", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Nortriptyline": {
         "brand": "Pamelor", "class": "Tricyclic Antidepressant", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("avoid", "Avoid TCA; reduced efficacy."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("caution", "Consider 25% dose reduction."),
-            "poor_metabolizer":       ("avoid", "Avoid TCA or reduce dose 50%."),
+            "ultrarapid_metabolizer": "avoid", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Desipramine": {
         "brand": "Norpramin", "class": "Tricyclic Antidepressant", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("avoid", "Avoid TCA; likely ineffective."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("caution", "Consider 25% dose reduction."),
-            "poor_metabolizer":       ("avoid", "Avoid TCA or reduce dose 50%."),
+            "ultrarapid_metabolizer": "avoid", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Imipramine": {
         "brand": "Tofranil", "class": "Tricyclic Antidepressant", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("avoid", "Avoid TCA; likely ineffective."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("caution", "Consider 25% dose reduction."),
-            "poor_metabolizer":       ("avoid", "Avoid TCA or reduce dose 50%."),
+            "ultrarapid_metabolizer": "avoid", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Doxepin": {
         "brand": "Sinequan", "class": "Tricyclic Antidepressant", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("avoid", "Avoid TCA; likely ineffective."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("caution", "Consider 25% dose reduction."),
-            "poor_metabolizer":       ("avoid", "Avoid TCA or reduce dose 50%."),
+            "ultrarapid_metabolizer": "avoid", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Trimipramine": {
         "brand": "Surmontil", "class": "Tricyclic Antidepressant", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("avoid", "Avoid TCA; likely ineffective."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("caution", "Consider 25% dose reduction."),
-            "poor_metabolizer":       ("avoid", "Avoid TCA or reduce dose 50%."),
+            "ultrarapid_metabolizer": "avoid", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Clomipramine": {
         "brand": "Anafranil", "class": "Tricyclic Antidepressant", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("avoid", "Avoid TCA; likely ineffective."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("caution", "Consider 25% dose reduction."),
-            "poor_metabolizer":       ("avoid", "Avoid TCA or reduce dose 50%."),
+            "ultrarapid_metabolizer": "avoid", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Paroxetine": {
         "brand": "Paxil", "class": "SSRI Antidepressant", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "Select alternative or titrate to response."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended starting dose."),
-            "poor_metabolizer":       ("caution", "Consider 50% dose reduction or alternative SSRI."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Fluoxetine": {
         "brand": "Prozac", "class": "SSRI Antidepressant", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "Select alternative or titrate to response."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended starting dose."),
-            "poor_metabolizer":       ("caution", "Consider 50% dose reduction or alternative."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Venlafaxine": {
         "brand": "Effexor", "class": "SNRI Antidepressant", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("standard", "Use recommended dose."),
-            "normal_metabolizer":     ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended dose."),
-            "poor_metabolizer":       ("caution", "Consider 50% dose reduction or switch to desvenlafaxine."),
+            "ultrarapid_metabolizer": "standard", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Metoprolol": {
         "brand": "Lopressor", "class": "Beta-Blocker", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "May need higher dose or alternative beta-blocker."),
-            "normal_metabolizer":     ("standard", "Use recommended starting dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended starting dose."),
-            "poor_metabolizer":       ("caution", "Consider 50% dose reduction or alternative beta-blocker."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Ondansetron": {
         "brand": "Zofran", "class": "Antiemetic", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "May have reduced antiemetic effect."),
-            "normal_metabolizer":     ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended dose."),
-            "poor_metabolizer":       ("caution", "May have reduced antiemetic effect; consider alternative."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Risperidone": {
         "brand": "Risperdal", "class": "Antipsychotic", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "May need higher dose."),
-            "normal_metabolizer":     ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Consider dose reduction."),
-            "poor_metabolizer":       ("caution", "Consider 50% dose reduction."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "caution",
         },
     },
     "Aripiprazole": {
         "brand": "Abilify", "class": "Antipsychotic", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("standard", "Use recommended dose."),
-            "normal_metabolizer":     ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended dose."),
-            "poor_metabolizer":       ("caution", "Reduce dose to 75% of usual."),
+            "ultrarapid_metabolizer": "standard", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     "Haloperidol": {
         "brand": "Haldol", "class": "Antipsychotic", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("caution", "May need higher dose."),
-            "normal_metabolizer":     ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Consider dose reduction."),
-            "poor_metabolizer":       ("caution", "Reduce dose; monitor for side effects."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "caution",
         },
     },
     "Atomoxetine": {
         "brand": "Strattera", "class": "ADHD Medication", "gene": "CYP2D6",
         "recs": {
-            "ultrarapid_metabolizer": ("standard", "Use recommended dose."),
-            "normal_metabolizer":     ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended dose."),
-            "poor_metabolizer":       ("caution", "Start at lower dose; 2-fold higher exposure expected."),
+            "ultrarapid_metabolizer": "standard", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     # --- CYP2C9 drugs ---
     "Phenytoin": {
         "brand": "Dilantin", "class": "Antiepileptic", "gene": "CYP2C9",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Reduce dose 25%. Monitor levels closely."),
-            "poor_metabolizer":         ("avoid", "Reduce dose 50%. Consider alternative anticonvulsant."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Celecoxib": {
         "brand": "Celebrex", "class": "NSAID", "gene": "CYP2C9",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Start at lowest dose."),
-            "poor_metabolizer":         ("avoid", "Use lowest dose or avoid; consider alternative NSAID."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Flurbiprofen": {
         "brand": "Ansaid", "class": "NSAID", "gene": "CYP2C9",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Start at lowest dose."),
-            "poor_metabolizer":         ("avoid", "Use lowest dose or consider alternative."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Piroxicam": {
         "brand": "Feldene", "class": "NSAID", "gene": "CYP2C9",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Start at lowest dose; monitor."),
-            "poor_metabolizer":         ("avoid", "Avoid or use lowest dose."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Meloxicam": {
         "brand": "Mobic", "class": "NSAID", "gene": "CYP2C9",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Start at lowest dose."),
-            "poor_metabolizer":         ("caution", "Use lowest dose; monitor GI and renal effects."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "caution",
         },
     },
     # --- Warfarin (multi-gene) ---
@@ -613,120 +547,105 @@ GUIDELINES = {
     "Simvastatin": {
         "brand": "Zocor", "class": "Statin", "gene": "SLCO1B1",
         "recs": {
-            "normal_function":       ("standard", "Use desired starting dose."),
-            "intermediate_function": ("caution", "Lower dose or alternative statin. 4.5x myopathy risk."),
-            "poor_function":         ("avoid", "Use alternative statin (pravastatin, rosuvastatin) or max 20 mg/day."),
+            "normal_function": "standard",
+            "intermediate_function": "caution", "poor_function": "avoid",
         },
     },
     "Atorvastatin": {
         "brand": "Lipitor", "class": "Statin", "gene": "SLCO1B1",
         "recs": {
-            "normal_function":       ("standard", "Use desired starting dose."),
-            "intermediate_function": ("caution", "Consider CK surveillance."),
-            "poor_function":         ("caution", "Lower starting dose or alternative statin."),
+            "normal_function": "standard",
+            "intermediate_function": "caution", "poor_function": "caution",
         },
     },
     "Rosuvastatin": {
         "brand": "Crestor", "class": "Statin", "gene": "SLCO1B1",
         "recs": {
-            "normal_function":       ("standard", "Use desired starting dose."),
-            "intermediate_function": ("standard", "Use desired starting dose."),
-            "poor_function":         ("standard", "Preferred alternative to simvastatin."),
+            "normal_function": "standard",
+            "intermediate_function": "standard", "poor_function": "standard",
         },
     },
     "Pravastatin": {
         "brand": "Pravachol", "class": "Statin", "gene": "SLCO1B1",
         "recs": {
-            "normal_function":       ("standard", "Use desired starting dose."),
-            "intermediate_function": ("standard", "Use desired starting dose."),
-            "poor_function":         ("standard", "Preferred alternative to simvastatin."),
+            "normal_function": "standard",
+            "intermediate_function": "standard", "poor_function": "standard",
         },
     },
     # --- DPYD drugs ---
     "Fluorouracil": {
         "brand": "5-FU", "class": "Antineoplastic", "gene": "DPYD",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Reduce dose 50%. Monitor toxicity closely."),
-            "poor_metabolizer":         ("avoid", "Avoid fluorouracil. Select alternative agent."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Capecitabine": {
         "brand": "Xeloda", "class": "Antineoplastic", "gene": "DPYD",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Reduce dose 50%. Monitor toxicity."),
-            "poor_metabolizer":         ("avoid", "Avoid capecitabine. Select alternative."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     # --- TPMT / NUDT15 drugs ---
     "Azathioprine": {
         "brand": "Imuran", "class": "Immunosuppressant", "gene": "TPMT",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Reduce dose 30-70%. Monitor blood counts weekly."),
-            "poor_metabolizer":         ("avoid", "Avoid or reduce to 10% dose. Consider alternative."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Mercaptopurine": {
         "brand": "Purinethol", "class": "Immunosuppressant", "gene": "TPMT",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Reduce dose 30-70%. Monitor blood counts."),
-            "poor_metabolizer":         ("avoid", "Avoid or reduce to 10% dose."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Thioguanine": {
         "brand": "Tabloid", "class": "Immunosuppressant", "gene": "TPMT",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Reduce dose 30-70%."),
-            "poor_metabolizer":         ("avoid", "Avoid or drastically reduce dose."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     # --- UGT1A1 drug ---
     "Irinotecan": {
         "brand": "Camptosar", "class": "Antineoplastic", "gene": "UGT1A1",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Consider dose reduction if prior toxicity."),
-            "poor_metabolizer":         ("avoid", "Reduce initial dose by at least one level."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
         },
     },
     "Atazanavir": {
         "brand": "Reyataz", "class": "Antiretroviral", "gene": "UGT1A1",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended dose. May develop jaundice."),
-            "poor_metabolizer":         ("caution", "Higher risk of jaundice. Monitor bilirubin."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
     # --- CYP3A5 drug ---
     "Tacrolimus": {
         "brand": "Prograf", "class": "Immunosuppressant", "gene": "CYP3A5",
         "recs": {
-            "extensive_metabolizer":    ("caution", "Increase dose 1.5-2x. Titrate to target trough."),
-            "intermediate_metabolizer": ("caution", "Increase dose 1.5x. Titrate to target trough."),
-            "poor_metabolizer":         ("standard", "Use recommended dose (most patients)."),
+            "extensive_metabolizer": "caution",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "standard",
         },
     },
     # --- CYP2B6 drug ---
     "Efavirenz": {
         "brand": "Sustiva", "class": "Antiretroviral", "gene": "CYP2B6",
         "recs": {
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("caution", "Consider dose reduction to 400 mg if toxicity occurs."),
-            "poor_metabolizer":         ("caution", "Reduce dose to 400 mg or consider alternative."),
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "caution",
         },
     },
     # --- CYP1A2 drugs ---
     "Clozapine": {
         "brand": "Clozaril", "class": "Antipsychotic", "gene": "CYP1A2",
         "recs": {
-            "ultrarapid_metabolizer":   ("caution", "May need higher dose; monitor levels."),
-            "normal_metabolizer":       ("standard", "Use recommended dose."),
-            "intermediate_metabolizer": ("standard", "Use recommended dose."),
-            "poor_metabolizer":         ("caution", "Consider dose reduction; monitor for toxicity."),
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
 }
@@ -802,7 +721,7 @@ def lookup_single_drug(drug_name, profiles):
 
     # Warfarin is multi-gene special case
     if info.get("special") == "warfarin":
-        classification, rec = get_warfarin_rec(profiles)
+        classification = get_warfarin_rec(profiles)
         cyp2c9 = profiles.get("CYP2C9", {})
         vkorc1 = profiles.get("VKORC1", {})
         return {
@@ -810,7 +729,7 @@ def lookup_single_drug(drug_name, profiles):
             "gene": "CYP2C9 + VKORC1",
             "diplotype": f"CYP2C9 {cyp2c9.get('diplotype', '?')} / VKORC1 {vkorc1.get('diplotype', '?')}",
             "phenotype": f"CYP2C9 {cyp2c9.get('phenotype', '?')} / VKORC1 {vkorc1.get('phenotype', '?')}",
-            "classification": classification, "recommendation": rec,
+            "classification": classification,
         }
 
     gene = info["gene"]
@@ -819,26 +738,17 @@ def lookup_single_drug(drug_name, profiles):
             "drug": drug_name, "brand": info["brand"], "class": info["class"],
             "gene": gene, "diplotype": "NOT_TESTED", "phenotype": "Indeterminate",
             "classification": "indeterminate",
-            "recommendation": "Gene not profiled. No recommendation available.",
         }
 
     prof = profiles[gene]
     pheno_key = phenotype_to_key(prof["phenotype"])
     recs = info.get("recs", {})
-
-    if pheno_key in recs:
-        classification, rec = recs[pheno_key]
-    elif pheno_key == "indeterminate":
-        classification = "indeterminate"
-        rec = f"Phenotype indeterminate ({prof['phenotype']}). Cannot assess."
-    else:
-        classification = "indeterminate"
-        rec = f"Phenotype '{prof['phenotype']}' not in guidelines."
+    classification = recs.get(pheno_key, "indeterminate")
 
     return {
         "drug": drug_name, "brand": info["brand"], "class": info["class"],
         "gene": gene, "diplotype": prof["diplotype"], "phenotype": prof["phenotype"],
-        "classification": classification, "recommendation": rec,
+        "classification": classification,
     }
 
 
@@ -856,15 +766,21 @@ def format_dosage_card(result, visible_dose=None):
     bar = "\u2501" * 35  # ━
 
     # Build dose-aware recommendation line
-    rec_text = result["recommendation"]
+    cl = result["classification"]
+    _CLS_TEXT = {
+        "standard": "Standard dosing expected to be effective.",
+        "caution": "Dose adjustment or monitoring may be needed.",
+        "avoid": "Consider alternative medication.",
+        "indeterminate": "Insufficient data for recommendation.",
+    }
+    rec_text = _CLS_TEXT.get(cl, "")
     if visible_dose:
-        cl = result["classification"]
         if cl == "standard":
             rec_text = f"Your genotype supports {result['drug']} {visible_dose} as prescribed."
         elif cl == "caution":
-            rec_text = f"{visible_dose} may need adjustment. {result['recommendation']}"
+            rec_text = f"{visible_dose} may need adjustment."
         elif cl == "avoid":
-            rec_text = f"Your genotype contraindicates {result['drug']} {visible_dose}. {result['recommendation']}"
+            rec_text = f"Your genotype contraindicates {result['drug']} {visible_dose}."
 
     # Wrap recommendation text at ~42 chars
     words = rec_text.split()
@@ -1098,11 +1014,11 @@ def get_warfarin_rec(profiles):
     vkorc1_normal = "normal" in vkorc1.lower()
 
     if cyp2c9_normal and vkorc1_normal:
-        return "standard", "Use warfarin dosing algorithm. Standard dose range expected."
+        return "standard"
     elif "poor" in cyp2c9.lower() or "high" in vkorc1.lower():
-        return "avoid", "Significantly reduce dose (50-80% reduction). Consider DOAC alternative."
+        return "avoid"
     else:
-        return "caution", "Reduce initial dose. Use genotype-guided dosing algorithm."
+        return "caution"
 
 
 def lookup_drugs(profiles):
@@ -1110,11 +1026,11 @@ def lookup_drugs(profiles):
 
     for drug_name, drug in GUIDELINES.items():
         if drug.get("special") == "warfarin":
-            classification, rec = get_warfarin_rec(profiles)
+            classification = get_warfarin_rec(profiles)
             results.setdefault(classification, []).append({
                 "drug": drug_name, "brand": drug["brand"],
                 "class": drug["class"], "gene": "CYP2C9+VKORC1",
-                "recommendation": rec, "classification": classification,
+                "classification": classification,
             })
             continue
 
@@ -1123,7 +1039,6 @@ def lookup_drugs(profiles):
             results["indeterminate"].append({
                 "drug": drug_name, "brand": drug["brand"],
                 "class": drug["class"], "gene": gene,
-                "recommendation": "Gene not profiled. No recommendation available.",
                 "classification": "indeterminate",
             })
             continue
@@ -1134,26 +1049,272 @@ def lookup_drugs(profiles):
             results["indeterminate"].append({
                 "drug": drug_name, "brand": drug["brand"],
                 "class": drug["class"], "gene": gene,
-                "recommendation": f"Gene phenotype indeterminate ({profiles[gene]['phenotype']}). Cannot assess.",
                 "classification": "indeterminate",
             })
             continue
 
         recs = drug.get("recs", {})
-
-        if pheno_key in recs:
-            classification, rec = recs[pheno_key]
-        else:
-            classification = "indeterminate"
-            rec = f"Phenotype '{profiles[gene]['phenotype']}' not covered by available guidelines. Consult clinical pharmacogenomics."
+        classification = recs.get(pheno_key, "indeterminate")
 
         results.setdefault(classification, []).append({
             "drug": drug_name, "brand": drug["brand"],
             "class": drug["class"], "gene": gene,
-            "recommendation": rec, "classification": classification,
+            "classification": classification,
         })
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# 6b. ClinPGx evidence enrichment
+# ---------------------------------------------------------------------------
+
+# Evidence level ranking (higher is stronger)
+_EVIDENCE_RANK = {"1A": 6, "1B": 5, "2A": 4, "2B": 3, "3": 2, "4": 1}
+
+_EVIDENCE_BADGE_CLASS = {
+    "1A": "badge-evidence-high",
+    "1B": "badge-evidence-high",
+    "2A": "badge-evidence-moderate",
+    "2B": "badge-evidence-moderate",
+    "3": "badge-evidence-low",
+    "4": "badge-evidence-minimal",
+}
+
+
+def enrich_with_clinpgx(drug_results, cache_dir=None):
+    """Query ClinPGx API for evidence levels, sources, and verification per drug.
+
+    Returns a dict keyed by lowercase drug name with evidence metadata.
+    Returns ``{}`` if the ClinPGx skill is unavailable.
+    """
+    try:
+        _clinpgx_dir = _PROJECT_ROOT / "skills" / "clinpgx"
+        if str(_clinpgx_dir) not in sys.path:
+            sys.path.insert(0, str(_clinpgx_dir))
+        from clinpgx import ClinPGxClient
+    except Exception:
+        return {}
+
+    if cache_dir is None:
+        cache_dir = Path.home() / ".clawbio" / "clinpgx_cache"
+    client = ClinPGxClient(cache_dir=Path(cache_dir), use_cache=True)
+
+    # Collect unique genes from all drug results
+    all_drugs = []
+    for cat_list in drug_results.values():
+        all_drugs.extend(cat_list)
+    genes = sorted({d["gene"] for d in all_drugs if d["gene"] not in ("", "CYP2C9+VKORC1")})
+    # Add both genes for warfarin
+    if any(d["gene"] == "CYP2C9+VKORC1" for d in all_drugs):
+        for g in ("CYP2C9", "VKORC1"):
+            if g not in genes:
+                genes.append(g)
+        genes.sort()
+
+    enrichment = {}
+    total = len(genes)
+
+    for idx, gene in enumerate(genes, 1):
+        print(f"  Enriching with ClinPGx data... [{idx}/{total}] {gene}")
+        try:
+            # Get gene accession ID
+            gene_data = client.get_gene(gene)
+            gene_id = gene_data[0].get("id", "") if gene_data else ""
+
+            # Get clinical annotations for this gene
+            annotations = client.get_clinical_annotations(gene_symbol=gene)
+
+            # Get guidelines for this gene
+            guidelines = client.get_guidelines(gene_accession_id=gene_id) if gene_id else []
+
+            # Build per-drug enrichment from annotations
+            for ann in annotations:
+                chemicals = ann.get("relatedChemicals", [])
+                level_obj = ann.get("levelOfEvidence", {})
+                level_term = level_obj.get("term", "") if isinstance(level_obj, dict) else str(level_obj)
+
+                for chem in chemicals:
+                    chem_name = chem.get("name", "").lower()
+                    if not chem_name:
+                        continue
+
+                    existing = enrichment.get(chem_name, {})
+                    existing_rank = _EVIDENCE_RANK.get(existing.get("evidence_level", ""), 0)
+                    new_rank = _EVIDENCE_RANK.get(level_term, 0)
+
+                    if new_rank > existing_rank:
+                        existing["evidence_level"] = level_term
+
+                    # Accumulate sources
+                    sources = existing.get("sources", set())
+                    if isinstance(sources, list):
+                        sources = set(sources)
+                    existing["sources"] = sources
+                    enrichment[chem_name] = existing
+
+            # Check guidelines for CPIC verification, sources, and store raw guidelines
+            for gl in guidelines:
+                source = gl.get("source", "")
+                has_dosing = gl.get("dosingInformation", False)
+                gl_chemicals = gl.get("relatedChemicals", [])
+
+                for chem in gl_chemicals:
+                    chem_name = chem.get("name", "").lower()
+                    if not chem_name:
+                        continue
+                    existing = enrichment.get(chem_name, {})
+                    sources = existing.get("sources", set())
+                    if isinstance(sources, list):
+                        sources = set(sources)
+                    if source:
+                        sources.add(source)
+                    existing["sources"] = sources
+
+                    if has_dosing and source == "CPIC":
+                        existing["verified"] = True
+
+                    guideline_name = gl.get("name", "")
+                    if guideline_name:
+                        existing["guideline_name"] = guideline_name
+
+                    # Store raw guideline objects for structured table parsing
+                    raw_guidelines = existing.get("_guidelines", [])
+                    raw_guidelines.append(gl)
+                    existing["_guidelines"] = raw_guidelines
+
+                    enrichment[chem_name] = existing
+
+        except Exception as exc:
+            print(f"    Warning: ClinPGx query failed for {gene}: {exc}")
+
+    # Convert sources sets to sorted lists for JSON serialization
+    for key in enrichment:
+        src = enrichment[key].get("sources", set())
+        if isinstance(src, set):
+            enrichment[key]["sources"] = sorted(src)
+        if "verified" not in enrichment[key]:
+            enrichment[key]["verified"] = False
+
+    return enrichment
+
+
+def extract_phenotype_recs(enrichment, drug_results, profiles):
+    """Extract phenotype-specific recommendations from ALL guideline sources.
+
+    Parses the structured HTML tables in ClinPGx guideline textMarkdown to
+    find the exact recommendation for the patient's phenotype from each source
+    (DPWG, CPIC, CPNDS, RNPGx). No LLM needed.
+
+    Mutates enrichment in-place: adds 'source_recs' list of {source, rec, strength}.
+    """
+    from clawbio.common.rec_shortener import extract_all_source_recs, shorten_rec
+
+    # Build drug→(gene, phenotype) mapping
+    drug_phenotype = {}
+    for cat_drugs in drug_results.values():
+        for d in cat_drugs:
+            gene = d.get("gene", "")
+            drug_key = d["drug"].lower()
+            if gene in profiles:
+                drug_phenotype[drug_key] = {
+                    "gene": gene,
+                    "phenotype": profiles[gene]["phenotype"],
+                }
+
+    extracted = 0
+    for drug_key, entry in enrichment.items():
+        guidelines = entry.get("_guidelines", [])
+        if not guidelines:
+            continue
+        pheno_info = drug_phenotype.get(drug_key)
+        if not pheno_info:
+            continue
+
+        all_recs = extract_all_source_recs(
+            guidelines,
+            drug_name=drug_key,
+            patient_phenotype=pheno_info["phenotype"],
+            gene=pheno_info["gene"],
+        )
+        if all_recs:
+            entry["source_recs"] = [
+                {"source": r["source"], "rec": shorten_rec(r["rec"]), "strength": r["strength"]}
+                for r in all_recs
+            ]
+            extracted += 1
+
+    # Remove raw guideline objects (large, not needed after extraction)
+    for entry in enrichment.values():
+        entry.pop("_guidelines", None)
+
+    if extracted:
+        print(f"  Extracted phenotype-specific recommendation(s) for {extracted} drug(s) from guideline tables.")
+
+
+_CLASSIFICATION_SUMMARY = {
+    "standard": "Standard dosing expected to be effective.",
+    "caution": "Dose adjustment or monitoring may be needed.",
+    "avoid": "Consider alternative medication.",
+    "indeterminate": "Insufficient data for recommendation.",
+}
+
+
+# Source acronym expansions
+_SOURCE_FULL_NAME = {
+    "CPIC": "Clinical Pharmacogenetics Implementation Consortium",
+    "DPWG": "Dutch Pharmacogenetics Working Group",
+    "CPNDS": "Canadian Pharmacogenomics Network for Drug Safety",
+    "RNPGx": "French National Network of Pharmacogenetics",
+}
+
+
+def _evidence_level_html(enrichment_entry):
+    """Render the Evidence Level column: badge + checkmark."""
+    import html as _h
+
+    if not enrichment_entry:
+        return ""
+
+    level = enrichment_entry.get("evidence_level", "")
+    verified = enrichment_entry.get("verified", False)
+
+    badge_cls = _EVIDENCE_BADGE_CLASS.get(level, "badge-evidence-na")
+    level_display = _h.escape(level) if level else "N/A"
+    badge = f'<span class="badge {badge_cls}">{level_display}</span>'
+
+    verify_html = ' <span class="evidence-verified">&#10003;</span>' if verified else ""
+
+    return f"{badge}{verify_html}"
+
+
+def _evidence_cell_html(enrichment_entry, classification=""):
+    """Render the recommendation cell from enrichment data."""
+    import html as _h
+
+    if not enrichment_entry:
+        fallback = _CLASSIFICATION_SUMMARY.get(classification, "")
+        if fallback:
+            return f'<div class="evidence-recs"><span class="evidence-rec-text">{_h.escape(fallback)}</span></div>'
+        return ""
+
+    # Show phenotype-specific recommendations from ALL guideline sources
+    source_recs = enrichment_entry.get("source_recs", [])
+    if source_recs:
+        lines = []
+        for sr in source_recs:
+            rec_text = _h.escape(sr["rec"])
+            src = sr["source"]
+            full_name = _SOURCE_FULL_NAME.get(src, src)
+            src_html = f'<span class="evidence-rec-source" title="{_h.escape(full_name)}">{_h.escape(src)}</span>'
+            lines.append(f'{src_html} <span class="evidence-rec-text">{rec_text}</span>')
+        return '<div class="evidence-recs">' + "<br>".join(lines) + "</div>"
+
+    # Fallback: generic summary based on classification
+    fallback = _CLASSIFICATION_SUMMARY.get(classification, "")
+    if fallback:
+        return f'<div class="evidence-recs"><span class="evidence-rec-text">{_h.escape(fallback)}</span></div>'
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -1232,13 +1393,13 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
             lines.append("**AVOID / USE ALTERNATIVE:**")
             lines.append("")
             for d in drug_results["avoid"]:
-                lines.append(f"- **{d['drug']}** ({d['brand']}) [{d['gene']}]: {d['recommendation']}")
+                lines.append(f"- **{d['drug']}** ({d['brand']}) [{d['gene']}]")
             lines.append("")
         if n_cau > 0:
             lines.append("**USE WITH CAUTION:**")
             lines.append("")
             for d in drug_results["caution"]:
-                lines.append(f"- **{d['drug']}** ({d['brand']}) [{d['gene']}]: {d['recommendation']}")
+                lines.append(f"- **{d['drug']}** ({d['brand']}) [{d['gene']}]")
             lines.append("")
 
     lines.append("---")
@@ -1269,12 +1430,12 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
     lines.append("")
     lines.append("## Complete Drug Recommendations")
     lines.append("")
-    lines.append("| Drug | Brand | Class | Gene | Status | Recommendation |")
-    lines.append("|------|-------|-------|------|--------|----------------|")
+    lines.append("| Drug | Brand | Class | Gene | Status |")
+    lines.append("|------|-------|-------|------|--------|")
     for cat in ["avoid", "caution", "indeterminate", "standard"]:
         for d in sorted(drug_results.get(cat, []), key=lambda x: x["drug"]):
             status = ICON.get(d["classification"], d["classification"].upper())
-            lines.append(f"| {d['drug']} | {d['brand']} | {d['class']} | {d['gene']} | {status} | {d['recommendation']} |")
+            lines.append(f"| {d['drug']} | {d['brand']} | {d['class']} | {d['gene']} | {status} |")
     lines.append("")
 
     # Disclaimer
@@ -1324,6 +1485,220 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
 
 
 # ---------------------------------------------------------------------------
+# 7b. HTML report generator
+# ---------------------------------------------------------------------------
+
+def _build_gene_rsid_map(pgx_snps):
+    """Map gene name → list of (rsid, allele) from detected PGx SNPs."""
+    gene_map = {}
+    for rsid, info in pgx_snps.items():
+        gene_map.setdefault(info["gene"], []).append((rsid, info["allele"]))
+    return gene_map
+
+
+def _drug_links_html(gene_str, gene_rsid_map):
+    """Build hyperlinks column: Gene:rsID per line, linking to ClinPGx."""
+    import html as _html
+    lines = []
+    genes = [g.strip() for g in gene_str.replace("+", ",").split(",")]
+    for gene in genes:
+        rsids = gene_rsid_map.get(gene, [])
+        for rsid, _allele in rsids:
+            lines.append(
+                f'<a href="https://www.clinpgx.org/rsid/{rsid}" '
+                f'target="_blank" rel="noopener">'
+                f'{_html.escape(gene)}:{_html.escape(rsid)}</a>'
+            )
+        if not rsids:
+            lines.append(
+                f'<a href="https://www.clinpgx.org/gene/{_html.escape(gene)}" '
+                f'target="_blank" rel="noopener">{_html.escape(gene)}</a>'
+            )
+    return '<span class="gene-links">' + "<br>".join(lines) + "</span>" if lines else "&mdash;"
+
+
+def generate_html_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_results, clinpgx_enrichment=None):
+    """Build a self-contained HTML report using HtmlReportBuilder."""
+    import html as _html
+
+    checksum = sha256_file(str(input_path))
+    fname = Path(input_path).name
+
+    n_std = len(drug_results["standard"])
+    n_cau = len(drug_results["caution"])
+    n_avo = len(drug_results["avoid"])
+    n_ind = len(drug_results.get("indeterminate", []))
+    n_total = n_std + n_cau + n_avo + n_ind
+
+    gene_rsid_map = _build_gene_rsid_map(pgx_snps)
+    not_tested = [g for g, p in profiles.items() if p["diplotype"] == "NOT_TESTED"]
+    n_genes_tested = len(profiles) - len(not_tested)
+
+    b = HtmlReportBuilder("ClawBio PharmGx Report", "PharmGx Reporter v0.2.0")
+
+    # ── Disclaimer at top ──
+    b.add_disclaimer()
+
+    # ── Branded header ──
+    b.add_header_block("Your Medication Report", "How your genes affect your medications")
+
+    # ── Executive summary ──
+    avoid_drugs = sorted(drug_results.get("avoid", []), key=lambda x: x["drug"])
+    if avoid_drugs:
+        avoid_lines = "; ".join(
+            f"{d['drug']} ({d['brand']})"
+            for d in avoid_drugs
+        )
+        avoid_item = ("\u26d4", f"{n_avo} drug(s) to avoid", avoid_lines, "avoid")
+    else:
+        avoid_item = ("\u2705", "No drugs to avoid",
+                      "No high-risk gene-drug interactions detected.", "ok")
+    b.add_executive_summary([
+        avoid_item,
+        ("\u26a0\ufe0f", f"{n_cau} drug(s) requiring caution",
+         "Dose adjustments or alternatives may be recommended.", "caution"),
+    ])
+
+    # ── Data quality warnings ──
+    unknown_pheno = [g for g, p in profiles.items()
+                     if "unknown" in p["phenotype"].lower()
+                     or "indeterminate" in p["phenotype"].lower()]
+    if not_tested:
+        b.add_alert_box(
+            "caution",
+            f"{len(not_tested)} gene(s) not assessed",
+            f"Relevant SNPs not found in input file: {', '.join(not_tested)}. "
+            "Drugs depending on these genes are marked Insufficient below. "
+            "Do not assume normal metabolism for untested genes.",
+        )
+    unmapped = [g for g in unknown_pheno if g not in not_tested]
+    if unmapped:
+        b.add_alert_box(
+            "info",
+            f"{len(unmapped)} gene(s) have unmapped diplotypes",
+            f"{', '.join(unmapped)}. These diplotypes could not be matched to a known phenotype. "
+            "Clinical pharmacogenomic testing is recommended.",
+        )
+
+    # ── Drug recommendations table (non-standard drugs) ──
+    b.add_section("Drug Recommendations")
+    from clawbio.common.html_report import _BADGE_CLASS, _BADGE_LABEL
+    has_enrichment = bool(clinpgx_enrichment)
+
+    def _build_row(d, enrichment_entry, row_cls):
+        """Build a table row with Drug, Evidence, Recommendation, Class, Genes."""
+        cls = d["classification"]
+        badge_cls = _BADGE_CLASS.get(cls, "badge-indeterminate")
+        badge_lbl = _BADGE_LABEL.get(cls, _html.escape(cls))
+        badge = f'<span class="badge {badge_cls}">{badge_lbl}</span>'
+
+        drug_cell = f"<strong>{_html.escape(d['drug'])}</strong> ({_html.escape(d['brand'])})"
+        evidence_cell = _evidence_level_html(enrichment_entry)
+        rec_cell = badge + _evidence_cell_html(enrichment_entry, classification=cls)
+        notes_cell = _html.escape(d['class'])
+        links_cell = _drug_links_html(d["gene"], gene_rsid_map)
+
+        return (
+            f'<tr class="row-{_html.escape(row_cls)}">'
+            f"<td>{drug_cell}</td><td>{rec_cell}</td><td>{evidence_cell}</td>"
+            f"<td>{notes_cell}</td><td>{links_cell}</td></tr>"
+        )
+
+    _TH = "<th>Drug</th><th>Recommendation</th><th>Evidence</th><th>Class</th><th>Genes</th>"
+
+    rows_html = []
+    for cat in ["avoid", "caution", "indeterminate"]:
+        for d in sorted(drug_results.get(cat, []), key=lambda x: x["drug"]):
+            entry = clinpgx_enrichment.get(d["drug"].lower(), {}) if has_enrichment else {}
+            rows_html.append(_build_row(d, entry, d["classification"]))
+
+    drug_table = (
+        '<div class="table-wrap"><table><thead><tr>'
+        + _TH +
+        "</tr></thead><tbody>"
+        + "\n".join(rows_html)
+        + "</tbody></table></div>"
+    )
+    b.add_raw_html(drug_table)
+
+    # ── Standard drugs (collapsible) ──
+    std_rows_html = []
+    for d in sorted(drug_results.get("standard", []), key=lambda x: x["drug"]):
+        entry = clinpgx_enrichment.get(d["drug"].lower(), {}) if has_enrichment else {}
+        std_rows_html.append(_build_row(d, entry, "standard"))
+
+    std_table_html = (
+        '<div class="table-wrap"><table><thead><tr>'
+        + _TH +
+        "</tr></thead><tbody>"
+        + "\n".join(std_rows_html)
+        + "</tbody></table></div>"
+    )
+    b.add_details(f"Standard Drugs ({n_std} medications \u2014 click to expand)", std_table_html)
+
+    # ── Gene Profiles (collapsible) ──
+    gene_rows_html = []
+    for gene in GENE_DEFS:
+        if gene in profiles:
+            p = profiles[gene]
+            gene_rows_html.append(
+                f"<tr><td>{_html.escape(gene)}</td>"
+                f"<td>{_html.escape(GENE_DEFS[gene]['name'])}</td>"
+                f"<td>{_html.escape(p['diplotype'])}</td>"
+                f"<td>{_html.escape(p['phenotype'])}</td></tr>"
+            )
+    gene_table_html = (
+        '<div class="table-wrap"><table><thead><tr>'
+        "<th>Gene</th><th>Full Name</th><th>Diplotype</th><th>Phenotype</th>"
+        "</tr></thead><tbody>"
+        + "\n".join(gene_rows_html)
+        + "</tbody></table></div>"
+    )
+    b.add_details("Gene Profiles (click to expand)", gene_table_html)
+
+    # ── Detected variants (collapsible) ──
+    var_rows_html = []
+    for rsid, info in sorted(pgx_snps.items(), key=lambda x: x[1]["gene"]):
+        var_rows_html.append(
+            f"<tr><td>{_html.escape(rsid)}</td>"
+            f"<td>{_html.escape(info['gene'])}</td>"
+            f"<td>{_html.escape(info['allele'])}</td>"
+            f"<td>{_html.escape(info['genotype'])}</td>"
+            f"<td>{_html.escape(info['effect'])}</td></tr>"
+        )
+    var_table_html = (
+        '<div class="table-wrap"><table><thead><tr>'
+        "<th>rsID</th><th>Gene</th><th>Star Allele</th><th>Genotype</th><th>Effect</th>"
+        "</tr></thead><tbody>"
+        + "\n".join(var_rows_html)
+        + "</tbody></table></div>"
+    )
+    b.add_details("Detected Variants (click to expand)", var_table_html)
+
+    # ── Input details (collapsible) ──
+    detail_items = {
+        "Input file": fname,
+        "Format detected": fmt,
+        "Checksum (SHA-256)": checksum,
+        "Total SNPs in file": str(total_snps),
+        "Pharmacogenomic SNPs found": f"{len(pgx_snps)}/{len(PGX_SNPS)}",
+        "Genes profiled": str(len(profiles)),
+        "Drugs assessed": str(n_total),
+    }
+    meta_parts = [
+        f"<p><strong>{_html.escape(k)}:</strong> {_html.escape(v)}</p>"
+        for k, v in detail_items.items()
+    ]
+    meta_html = f'<div class="metadata">{"".join(meta_parts)}</div>'
+    b.add_details("Input Details (click to expand)", meta_html)
+
+    # ── Footer ──
+    b.add_footer_block("PharmGx Reporter", "0.2.0")
+
+    return b.render()
+
+
+# ---------------------------------------------------------------------------
 # 8. Main
 # ---------------------------------------------------------------------------
 
@@ -1334,6 +1709,7 @@ def main():
     parser.add_argument("--output", default="pharmgx_report", help="Output directory (default: pharmgx_report)")
     parser.add_argument("--drug", default=None, help="Single drug lookup (brand or generic name)")
     parser.add_argument("--dose", default=None, help="Visible dose from packaging (e.g. '50mg')")
+    parser.add_argument("--no-enrich", action="store_true", help="Skip ClinPGx evidence enrichment")
     args = parser.parse_args()
 
     if not Path(args.input).exists():
@@ -1410,7 +1786,29 @@ def main():
     if n_avo > 0:
         print("ALERT - Drugs to AVOID:")
         for d in drug_results["avoid"]:
-            print(f"  * {d['drug']} ({d['brand']}): {d['recommendation']}")
+            print(f"  * {d['drug']} ({d['brand']})")
+        print()
+
+    # ClinPGx evidence enrichment
+    clinpgx_enrichment = {}
+    if not getattr(args, "no_enrich", False):
+        print("Querying ClinPGx for evidence data...")
+        try:
+            clinpgx_enrichment = enrich_with_clinpgx(drug_results)
+            if clinpgx_enrichment:
+                print(f"  Enriched {len(clinpgx_enrichment)} drug(s) with evidence data.")
+                # Extract phenotype-specific recs from CPIC guideline tables
+                try:
+                    extract_phenotype_recs(clinpgx_enrichment,
+                                           drug_results=drug_results,
+                                           profiles=profiles)
+                except Exception as extract_exc:
+                    print(f"  Recommendation extraction failed: {extract_exc}",
+                          file=sys.stderr)
+            else:
+                print("  ClinPGx enrichment returned no data (skill may be unavailable).")
+        except Exception as exc:
+            print(f"  ClinPGx enrichment failed: {exc}", file=sys.stderr)
         print()
 
     # Generate report
@@ -1420,8 +1818,21 @@ def main():
     report_path = outdir / "report.md"
     report_path.write_text(report)
 
+    # Generate HTML report
+    html_content = generate_html_report(
+        args.input, fmt, total_snps, pgx_snps, profiles, drug_results,
+        clinpgx_enrichment=clinpgx_enrichment or None,
+    )
+    html_path = write_html_report(outdir, "report.html", html_content)
+
     # Write result.json using shared report helper
     input_checksum = sha256_hex(str(args.input))
+    result_data = {
+        "gene_profiles": profiles,
+        "drug_recommendations": drug_results,
+    }
+    if clinpgx_enrichment:
+        result_data["clinpgx_enrichment"] = clinpgx_enrichment
     result_json_path = write_result_json(
         output_dir=outdir,
         skill="pharmgx",
@@ -1436,15 +1847,14 @@ def main():
             "drugs_caution": n_cau,
             "drugs_avoid": n_avo,
             "drugs_indeterminate": n_ind,
+            "clinpgx_enriched": len(clinpgx_enrichment),
         },
-        data={
-            "gene_profiles": profiles,
-            "drug_recommendations": drug_results,
-        },
+        data=result_data,
         input_checksum=input_checksum,
     )
 
     print(f"Report saved: {report_path}")
+    print(f"HTML report:  {html_path}")
     print(f"Result JSON:  {result_json_path}")
     print("Done.")
 

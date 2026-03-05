@@ -508,7 +508,7 @@ async def execute_clawbio(args: dict) -> str:
         for f in sorted(out_dir.rglob("*")):
             if not f.is_file():
                 continue
-            if f.suffix == ".md":
+            if f.suffix in (".md", ".html"):
                 media_items.append({"type": "document", "path": str(f)})
             elif f.suffix == ".png":
                 media_items.append({"type": "photo", "path": str(f)})

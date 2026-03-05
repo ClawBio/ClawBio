@@ -12,6 +12,7 @@ from clawbio.common.report import (
     DISCLAIMER,
 )
 from clawbio.common.profile import PatientProfile
+from clawbio.common.html_report import HtmlReportBuilder, write_html_report
 
 __all__ = [
     "detect_format",
@@ -23,4 +24,6 @@ __all__ = [
     "generate_report_footer",
     "DISCLAIMER",
     "PatientProfile",
+    "HtmlReportBuilder",
+    "write_html_report",
 ]

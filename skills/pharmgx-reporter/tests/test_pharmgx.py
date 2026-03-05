@@ -16,6 +16,7 @@ from pharmgx_reporter import (
     PGX_SNPS,
     GENE_DEFS,
     GUIDELINES,
+    _EVIDENCE_BADGE_CLASS,
     detect_format,
     parse_file,
     call_diplotype,
@@ -23,6 +24,10 @@ from pharmgx_reporter import (
     phenotype_to_key,
     lookup_drugs,
     generate_report,
+    generate_html_report,
+    enrich_with_clinpgx,
+    _evidence_cell_html,
+    _evidence_level_html,
 )
 
 DEMO = Path(__file__).parent.parent / "demo_patient.txt"
@@ -224,3 +229,149 @@ def test_all_guideline_drugs_reference_valid_genes():
             continue
         gene = info["gene"]
         assert gene in GENE_DEFS, f"{drug} references unknown gene {gene}"
+
+
+# ── ClinPGx Evidence Enrichment ──────────────────────────────────────────────
+
+def test_enrich_returns_dict():
+    """enrich_with_clinpgx returns a dict even when ClinPGx is unavailable."""
+    # Pass empty drug results — should return {} without error
+    result = enrich_with_clinpgx({"standard": [], "caution": [], "avoid": [], "indeterminate": []})
+    assert isinstance(result, {})  if False else True
+    assert isinstance(result, dict)
+
+
+def test_evidence_cell_html_empty():
+    """Empty enrichment entry with classification renders fallback summary."""
+    html = _evidence_cell_html({}, classification="caution")
+    assert "Dose adjustment" in html
+    assert "evidence-rec-text" in html
+
+
+def test_evidence_cell_html_no_data():
+    """No enrichment and no classification renders empty."""
+    assert _evidence_cell_html({}) == ""
+
+
+def test_evidence_cell_html_full():
+    """Full enrichment entry renders multi-source recs with source acronyms."""
+    entry = {
+        "evidence_level": "1A",
+        "sources": ["CPIC", "DPWG"],
+        "verified": True,
+        "guideline_name": "Test Guideline",
+        "source_recs": [
+            {"source": "CPIC", "rec": "Reduce dose by 50% for poor metabolizers.", "strength": "Strong"},
+            {"source": "DPWG", "rec": "Use 75% of standard dose.", "strength": ""},
+        ],
+    }
+    html = _evidence_cell_html(entry)
+    assert "CPIC" in html
+    assert "Reduce dose" in html
+    assert "evidence-recs" in html
+    assert "DPWG" in html  # second source
+    assert "75% of standard dose" in html  # DPWG rec
+    assert "title=" in html  # acronym tooltip
+
+
+def test_evidence_level_html_verified():
+    """Evidence level renders badge + checkmark."""
+    entry = {"evidence_level": "1A", "verified": True}
+    html = _evidence_level_html(entry)
+    assert "1A" in html
+    assert "badge-evidence-high" in html
+    assert "&#10003;" in html
+
+
+def test_evidence_level_html_unverified():
+    """Unverified entry has no checkmark."""
+    entry = {"evidence_level": "3", "verified": False}
+    html = _evidence_level_html(entry)
+    assert "&#10003;" not in html
+    assert "badge-evidence-low" in html
+
+
+def test_evidence_level_html_empty():
+    """No enrichment returns empty string."""
+    assert _evidence_level_html({}) == ""
+
+
+def test_extract_phenotype_rec():
+    """extract_phenotype_rec extracts matching recommendation from HTML table."""
+    from clawbio.common.rec_shortener import extract_phenotype_rec
+    html_table = """
+    <table>
+    <tr><th>Phenotype</th><th>Recommendation</th><th>Classification</th></tr>
+    <tr><td>Normal Metabolizer</td><td>Use standard dose.</td><td>Strong</td></tr>
+    <tr><td>Intermediate Metabolizer</td><td>Consider dose reduction.</td><td>Moderate</td></tr>
+    <tr><td>Poor Metabolizer</td><td>Use alternative drug.</td><td>Strong</td></tr>
+    </table>
+    """
+    rec, strength = extract_phenotype_rec(html_table, "Intermediate Metabolizer")
+    assert rec == "Consider dose reduction."
+    assert strength == "Moderate"
+
+
+def test_extract_phenotype_rec_no_match():
+    """Returns empty strings when phenotype not found."""
+    from clawbio.common.rec_shortener import extract_phenotype_rec
+    html_table = """
+    <table>
+    <tr><th>Phenotype</th><th>Recommendation</th><th>Classification</th></tr>
+    <tr><td>Normal Metabolizer</td><td>Use standard dose.</td><td>Strong</td></tr>
+    </table>
+    """
+    rec, strength = extract_phenotype_rec(html_table, "Poor Metabolizer")
+    assert rec == ""
+    assert strength == ""
+
+
+def test_evidence_badge_class_mapping():
+    """Badge class mapping covers all expected levels."""
+    assert _EVIDENCE_BADGE_CLASS["1A"] == "badge-evidence-high"
+    assert _EVIDENCE_BADGE_CLASS["1B"] == "badge-evidence-high"
+    assert _EVIDENCE_BADGE_CLASS["2A"] == "badge-evidence-moderate"
+    assert _EVIDENCE_BADGE_CLASS["2B"] == "badge-evidence-moderate"
+    assert _EVIDENCE_BADGE_CLASS["3"] == "badge-evidence-low"
+    assert _EVIDENCE_BADGE_CLASS["4"] == "badge-evidence-minimal"
+
+
+def test_html_report_with_enrichment():
+    """Evidence data renders when enrichment is provided."""
+    _, _, pgx = parse_file(str(DEMO))
+    p = _profiles()
+    results = lookup_drugs(p)
+    enrichment = {
+        "clopidogrel": {
+            "evidence_level": "1A", "sources": ["CPIC"], "verified": True,
+            "source_recs": [
+                {"source": "CPIC", "rec": "Use alternative antiplatelet therapy.", "strength": "Strong"},
+            ],
+        },
+        "codeine": {
+            "evidence_level": "1A", "sources": ["CPIC", "DPWG"], "verified": True,
+            "source_recs": [
+                {"source": "CPIC", "rec": "Use codeine label recommended dosing.", "strength": "Moderate"},
+                {"source": "DPWG", "rec": "Monitor for reduced efficacy.", "strength": ""},
+            ],
+        },
+    }
+    html = generate_html_report(str(DEMO), "23andme", 21, pgx, p, results,
+                                clinpgx_enrichment=enrichment)
+    assert "badge-evidence-high" in html
+    assert "&#10003;" in html  # checkmark
+    assert "alternative antiplatelet" in html
+    assert "evidence-recs" in html
+
+
+def test_html_report_without_enrichment():
+    """No evidence data when enrichment is None — still renders fine."""
+    _, _, pgx = parse_file(str(DEMO))
+    p = _profiles()
+    results = lookup_drugs(p)
+    html = generate_html_report(str(DEMO), "23andme", 21, pgx, p, results,
+                                clinpgx_enrichment=None)
+    # The body content should have no evidence badges (CSS classes exist in stylesheet, that's fine)
+    body = html.split("<body>")[1]
+    assert "badge-evidence-high" not in body
+    assert "evidence-rec-source" not in body
