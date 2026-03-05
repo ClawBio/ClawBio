@@ -97,6 +97,9 @@ FOLDER_TO_ALIAS = {
     "profile-report": "profile",
 }
 
+# Skill folders excluded from the public catalog (local-only / gitignored)
+EXCLUDED_FOLDERS = {"pr-audit"}
+
 # Skills that are MVP (have working Python + are in SKILLS dict or are bio-orchestrator)
 MVP_FOLDERS = {
     "pharmgx-reporter", "equity-scorer", "nutrigx_advisor", "claw-metagenomics",
@@ -154,6 +157,8 @@ def build_catalog() -> list[dict]:
 
     for skill_dir in sorted(SKILLS_DIR.iterdir()):
         if not skill_dir.is_dir() or skill_dir.name.startswith("."):
+            continue
+        if skill_dir.name in EXCLUDED_FOLDERS:
             continue
 
         skill_md = skill_dir / "SKILL.md"
