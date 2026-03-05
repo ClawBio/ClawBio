@@ -88,6 +88,7 @@ FOLDER_TO_ALIAS = {
     "pharmgx-reporter": "pharmgx",
     "equity-scorer": "equity",
     "nutrigx_advisor": "nutrigx",
+    "scrna-orchestrator": "scrna",
     "claw-metagenomics": "metagenomics",
     "genome-compare": "compare",
     "drug-photo": "drugphoto",
@@ -103,6 +104,7 @@ EXCLUDED_FOLDERS = {"pr-audit"}
 # Skills that are MVP (have working Python + are in SKILLS dict or are bio-orchestrator)
 MVP_FOLDERS = {
     "pharmgx-reporter", "equity-scorer", "nutrigx_advisor", "claw-metagenomics",
+    "scrna-orchestrator",
     "genome-compare", "drug-photo", "gwas-prs", "clinpgx", "gwas-lookup",
     "profile-report", "bio-orchestrator", "claw-ancestry-pca", "claw-semantic-sim",
     "ukb-navigator",
@@ -119,6 +121,7 @@ TRIGGER_KEYWORDS: dict[str, list[str]] = {
     "genome-compare": ["genome comparison", "IBS", "George Church", "Corpasome", "pairwise"],
     "equity-scorer": ["HEIM", "equity", "FST", "heterozygosity", "population representation"],
     "nutrigx_advisor": ["nutrition", "nutrigenomics", "diet genetics", "MTHFR", "caffeine", "lactose"],
+    "scrna-orchestrator": ["single-cell", "scrna", "h5ad", "scanpy", "umap", "leiden"],
     "claw-ancestry-pca": ["ancestry", "PCA", "admixture", "SGDP", "population structure"],
     "claw-semantic-sim": ["semantic similarity", "disease neglect", "research gaps", "NTDs", "SII"],
     "claw-metagenomics": ["metagenomics", "Kraken2", "RGI", "CARD", "HUMAnN3", "microbiome"],
@@ -137,6 +140,7 @@ CHAINING: dict[str, list[str]] = {
     "genome-compare": ["claw-ancestry-pca", "profile-report"],
     "equity-scorer": ["claw-semantic-sim"],
     "nutrigx_advisor": ["profile-report", "pharmgx-reporter"],
+    "scrna-orchestrator": [],
     "claw-ancestry-pca": ["genome-compare"],
     "claw-semantic-sim": ["equity-scorer"],
     "claw-metagenomics": [],

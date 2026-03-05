@@ -17,7 +17,7 @@ When the user asks a question, match it to a skill and act:
 | Route a query, multi-step analysis, "what skill should I use" | `skills/bio-orchestrator/` | Run `orchestrator.py` |
 | Variant annotation, VEP, ClinVar, gnomAD | `skills/vcf-annotator/` | Read SKILL.md, apply methodology |
 | Literature search, PubMed, bioRxiv, citation graph | `skills/lit-synthesizer/` | Read SKILL.md, apply methodology |
-| Single-cell RNA-seq, Scanpy, clustering, marker genes, h5ad | `skills/scrna-orchestrator/` | Read SKILL.md, apply methodology |
+| Single-cell RNA-seq, Scanpy, clustering, marker genes, h5ad | `skills/scrna-orchestrator/` | Run `scrna_orchestrator.py` |
 | Protein structure, AlphaFold, PDB, Boltz | `skills/struct-predictor/` | Read SKILL.md, apply methodology |
 | Reproducibility, Nextflow, Singularity, Conda export | `skills/repro-enforcer/` | Read SKILL.md, apply methodology |
 | Sequence QC, FASTQ, alignment, BAM, trimming | `skills/seq-wrangler/` | Read SKILL.md, apply methodology |
@@ -30,7 +30,7 @@ When the user asks a question, match it to a skill and act:
 
 ## How to Use a Skill
 
-### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator)
+### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator)
 1. Read the skill's `SKILL.md` for domain context
 2. Run the Python script with correct CLI arguments (see below)
 3. Show the user the output — open any generated figures and explain results
@@ -56,6 +56,12 @@ python skills/equity-scorer/equity_scorer.py \
 # Nutrigenomics advisor from genetic data
 python skills/nutrigx_advisor/nutrigx_advisor.py \
   --input <patient_file> --output <report_dir>
+
+# scRNA-seq pipeline from AnnData (.h5ad)
+python skills/scrna-orchestrator/scrna_orchestrator.py \
+  --input <data.h5ad> --output <report_dir>
+python skills/scrna-orchestrator/scrna_orchestrator.py \
+  --demo --output /tmp/scrna_demo
 
 # Genome comparator — IBS vs George Church + ancestry estimation
 python skills/genome-compare/genome_compare.py \
@@ -108,6 +114,7 @@ For instant demos when the user has no data:
 |---|---|---|
 | Synthetic patient (PGx, 31 SNPs) | `skills/pharmgx-reporter/demo_patient.txt` | pharmgx-reporter |
 | Synthetic patient (NutriGx, 40 SNPs) | `skills/nutrigx_advisor/synthetic_patient.txt` | nutrigx_advisor |
+| Synthetic scRNA AnnData | `--demo` flag | scrna-orchestrator |
 | Demo VCF (50 samples, 5 populations) | `examples/demo_populations.vcf` | equity-scorer |
 | Population map | `examples/demo_population_map.csv` | equity-scorer |
 | Ancestry CSV (30 samples) | `examples/sample_ancestry.csv` | equity-scorer |
@@ -139,6 +146,9 @@ python skills/equity-scorer/equity_scorer.py \
 # NutriGx demo
 python skills/nutrigx_advisor/nutrigx_advisor.py \
   --input skills/nutrigx_advisor/synthetic_patient.txt --output /tmp/nutrigx_demo
+
+# scRNA demo
+python skills/scrna-orchestrator/scrna_orchestrator.py --demo --output /tmp/scrna_demo
 
 # ClinPGx demo
 python skills/clinpgx/clinpgx.py --demo --output /tmp/clinpgx_demo

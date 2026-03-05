@@ -194,6 +194,7 @@ SKILL_REGISTRY_MAP: dict[str, str] = {
     "pharmgx-reporter": "pharmgx",
     "equity-scorer": "equity",
     "nutrigx_advisor": "nutrigx",
+    "scrna-orchestrator": "scrna",
     "genome-compare": "compare",
     "gwas-prs": "prs",
     "clinpgx": "clinpgx",
