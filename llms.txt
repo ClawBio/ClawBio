@@ -1,0 +1,47 @@
+# ClawBio
+
+> ClawBio is the first bioinformatics-native AI agent skill library, built on
+> OpenClaw. It provides local-first, privacy-focused, reproducible genomic
+> analysis through modular skills that any LLM can invoke via CLI or Python API.
+
+## Docs
+
+- [README](README.md): Project overview, quick start, architecture, skill table
+- [CLAUDE.md](CLAUDE.md): Agent routing table, CLI reference, demo data, safety rules
+- [AGENTS.md](AGENTS.md): Universal guide for AI coding agents (setup, style, workflow)
+- [CONTRIBUTING.md](CONTRIBUTING.md): How to contribute a skill, naming conventions, code standards
+- [SECURITY-AUDIT.md](SECURITY-AUDIT.md): Security audit results and remediation log
+- [SOUL.md](SOUL.md): ClawBio persona and voice
+
+## Skills (MVP)
+
+- [pharmgx-reporter](skills/pharmgx-reporter/SKILL.md): Pharmacogenomics report from 23andMe/AncestryDNA (12 genes, 51 drugs)
+- [drug-photo](skills/drug-photo/SKILL.md): Medication photo to personalised PGx dosage card via Claude vision
+- [clinpgx](skills/clinpgx/SKILL.md): Gene-drug lookup against ClinPGx/PharmGKB/FDA databases
+- [gwas-lookup](skills/gwas-lookup/SKILL.md): Federated variant query across 9 genomic databases
+- [gwas-prs](skills/gwas-prs/SKILL.md): Polygenic risk score calculation from DTC genetic data
+- [profile-report](skills/profile-report/SKILL.md): Unified personal genomic profile from all skill results
+- [genome-compare](skills/genome-compare/SKILL.md): IBS comparison vs George Church + ancestry estimation
+- [equity-scorer](skills/equity-scorer/SKILL.md): HEIM equity metrics (FST, heterozygosity, representation)
+- [nutrigx_advisor](skills/nutrigx_advisor/SKILL.md): Nutrigenomics advisor (diet, vitamins, caffeine, lactose)
+- [claw-ancestry-pca](skills/claw-ancestry-pca/SKILL.md): PCA against SGDP reference panel (345 samples, 164 populations)
+- [claw-semantic-sim](skills/claw-semantic-sim/SKILL.md): Semantic Isolation Index for disease research equity
+- [claw-metagenomics](skills/claw-metagenomics/SKILL.md): Metagenomic profiling with Kraken2, RGI/CARD, HUMAnN3
+- [bio-orchestrator](skills/bio-orchestrator/SKILL.md): Routes queries to the appropriate skill by file type and keywords
+- [ukb-navigator](skills/ukb-navigator/SKILL.md): Semantic search across 22k+ UK Biobank fields
+
+## Skills (Planned)
+
+- [vcf-annotator](skills/vcf-annotator/SKILL.md): VEP, ClinVar, gnomAD variant annotation
+- [lit-synthesizer](skills/lit-synthesizer/SKILL.md): PubMed/bioRxiv literature search and LLM summarisation
+- [scrna-orchestrator](skills/scrna-orchestrator/SKILL.md): Scanpy single-cell RNA-seq automation
+- [struct-predictor](skills/struct-predictor/SKILL.md): AlphaFold/Boltz protein structure prediction
+- [repro-enforcer](skills/repro-enforcer/SKILL.md): Conda/Singularity/Nextflow reproducibility export
+- [seq-wrangler](skills/seq-wrangler/SKILL.md): FASTQ/BAM QC and alignment
+- [labstep](skills/labstep/SKILL.md): Lab notebook integration
+
+## Optional
+
+- [Skill Catalog (JSON)](skills/catalog.json): Machine-readable index of all skills
+- [Skill Template](templates/SKILL-TEMPLATE.md): Template for creating new skills
+- [Main CLI](clawbio.py): `python clawbio.py list` / `python clawbio.py run <skill> --demo`

@@ -1,0 +1,483 @@
+{
+  "version": "1.0.0",
+  "generated_by": "scripts/generate_catalog.py",
+  "skill_count": 21,
+  "skills": [
+    {
+      "name": "bio-orchestrator",
+      "cli_alias": null,
+      "description": "Meta-agent that routes bioinformatics requests to specialised sub-skills. Handles file type detection, analysis planning, report generation, and reproducibility export.",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": false,
+      "has_demo": true,
+      "demo_command": "python skills/bio-orchestrator/orchestrator.py --demo",
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [
+        "route",
+        "which skill",
+        "orchestrator"
+      ],
+      "chaining_partners": []
+    },
+    {
+      "name": "claw-ancestry-pca",
+      "cli_alias": null,
+      "description": "Ancestry decomposition PCA against the Simons Genome Diversity Project",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/claw-ancestry-pca/ancestry_pca.py --demo",
+      "dependencies": [],
+      "tags": [
+        "population-genetics",
+        "PCA",
+        "ancestry",
+        "SGDP",
+        "global-diversity"
+      ],
+      "trigger_keywords": [
+        "ancestry",
+        "PCA",
+        "admixture",
+        "SGDP",
+        "population structure"
+      ],
+      "chaining_partners": [
+        "genome-compare"
+      ]
+    },
+    {
+      "name": "claw-metagenomics",
+      "cli_alias": "metagenomics",
+      "description": "Shotgun metagenomics profiling — taxonomy, resistome, and functional pathways",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": false,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run metagenomics --demo",
+      "dependencies": [],
+      "tags": [
+        "metagenomics",
+        "antimicrobial-resistance",
+        "taxonomy",
+        "functional-profiling",
+        "environmental",
+        "WHO-critical-ARGs"
+      ],
+      "trigger_keywords": [
+        "metagenomics",
+        "Kraken2",
+        "RGI",
+        "CARD",
+        "HUMAnN3",
+        "microbiome"
+      ],
+      "chaining_partners": []
+    },
+    {
+      "name": "claw-semantic-sim",
+      "cli_alias": null,
+      "description": "Semantic Similarity Index for disease research literature using PubMedBERT embeddings",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": false,
+      "has_tests": false,
+      "has_demo": false,
+      "demo_command": null,
+      "dependencies": [],
+      "tags": [
+        "health-equity",
+        "semantic-analysis",
+        "NLP",
+        "PubMedBERT",
+        "disease-neglect"
+      ],
+      "trigger_keywords": [
+        "semantic similarity",
+        "disease neglect",
+        "research gaps",
+        "NTDs",
+        "SII"
+      ],
+      "chaining_partners": [
+        "equity-scorer"
+      ]
+    },
+    {
+      "name": "clinpgx",
+      "cli_alias": "clinpgx",
+      "description": "Query the ClinPGx API for pharmacogenomic gene-drug data, clinical annotations, CPIC guidelines, and FDA drug labels",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run clinpgx --demo",
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [
+        "ClinPGx",
+        "gene-drug",
+        "PharmGKB",
+        "CPIC guideline database",
+        "FDA drug label"
+      ],
+      "chaining_partners": [
+        "pharmgx-reporter",
+        "gwas-lookup"
+      ]
+    },
+    {
+      "name": "drug-photo",
+      "cli_alias": "drugphoto",
+      "description": "Medication photo to personalised PGx dosage card via Claude vision — snap a pill, get genotype-informed guidance",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": false,
+      "has_tests": false,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run drugphoto --demo",
+      "dependencies": [],
+      "tags": [
+        "pharmacogenomics",
+        "computer-vision",
+        "drug-identification",
+        "dosage-guidance"
+      ],
+      "trigger_keywords": [
+        "drug photo",
+        "medication photo",
+        "pill photo",
+        "drug image"
+      ],
+      "chaining_partners": [
+        "pharmgx-reporter"
+      ]
+    },
+    {
+      "name": "equity-scorer",
+      "cli_alias": "equity",
+      "description": "Compute HEIM diversity and equity metrics from VCF or ancestry data. Generates heterozygosity, FST, PCA plots, and a composite HEIM Equity Score with markdown reports.",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run equity --demo",
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [
+        "HEIM",
+        "equity",
+        "FST",
+        "heterozygosity",
+        "population representation"
+      ],
+      "chaining_partners": [
+        "claw-semantic-sim"
+      ]
+    },
+    {
+      "name": "genome-compare",
+      "cli_alias": "compare",
+      "description": "Compare your genome to George Church (PGP-1) and estimate ancestry composition via IBS and EM admixture",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run compare --demo",
+      "dependencies": [],
+      "tags": [
+        "genome-comparison",
+        "IBS",
+        "ancestry",
+        "PGP",
+        "admixture"
+      ],
+      "trigger_keywords": [
+        "genome comparison",
+        "IBS",
+        "George Church",
+        "Corpasome",
+        "pairwise"
+      ],
+      "chaining_partners": [
+        "claw-ancestry-pca",
+        "profile-report"
+      ]
+    },
+    {
+      "name": "gwas-lookup",
+      "cli_alias": "gwas",
+      "description": "Federated variant lookup across 9 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, eQTL Catalogue, and more.",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run gwas --demo",
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [
+        "GWAS",
+        "variant lookup",
+        "rsID",
+        "PheWAS",
+        "eQTL"
+      ],
+      "chaining_partners": [
+        "clinpgx",
+        "gwas-prs",
+        "lit-synthesizer"
+      ]
+    },
+    {
+      "name": "gwas-prs",
+      "cli_alias": "prs",
+      "description": "Calculate polygenic risk scores from DTC genetic data using the PGS Catalog",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run prs --demo",
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [
+        "polygenic risk",
+        "PRS",
+        "PGS Catalog",
+        "risk score"
+      ],
+      "chaining_partners": [
+        "profile-report",
+        "gwas-lookup"
+      ]
+    },
+    {
+      "name": "labstep",
+      "cli_alias": null,
+      "description": "Interact with the Labstep electronic lab notebook API using labstepPy. Query experiments, protocols, resources, inventory, and other lab entities.",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": false,
+      "has_tests": false,
+      "has_demo": false,
+      "demo_command": null,
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [],
+      "chaining_partners": []
+    },
+    {
+      "name": "lit-synthesizer",
+      "cli_alias": null,
+      "description": "Search PubMed and bioRxiv, summarise papers with LLM, build citation graphs, and generate literature review sections.",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": false,
+      "has_tests": false,
+      "has_demo": false,
+      "demo_command": null,
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [],
+      "chaining_partners": []
+    },
+    {
+      "name": "nutrigx_advisor",
+      "cli_alias": "nutrigx",
+      "description": "",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run nutrigx --demo",
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [
+        "nutrition",
+        "nutrigenomics",
+        "diet genetics",
+        "MTHFR",
+        "caffeine",
+        "lactose"
+      ],
+      "chaining_partners": [
+        "profile-report",
+        "pharmgx-reporter"
+      ]
+    },
+    {
+      "name": "pharmgx-reporter",
+      "cli_alias": "pharmgx",
+      "description": "Pharmacogenomic report from DTC genetic data (23andMe/AncestryDNA) — 12 genes, 31 SNPs, 51 drugs",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run pharmgx --demo",
+      "dependencies": [],
+      "tags": [
+        "pharmacogenomics",
+        "CPIC",
+        "DTC-genetics",
+        "precision-medicine"
+      ],
+      "trigger_keywords": [
+        "pharmacogenomics",
+        "drug interactions",
+        "23andMe medications",
+        "CYP2D6",
+        "CYP2C19",
+        "warfarin",
+        "CPIC"
+      ],
+      "chaining_partners": [
+        "drug-photo",
+        "profile-report",
+        "clinpgx"
+      ]
+    },
+    {
+      "name": "profile-report",
+      "cli_alias": "profile",
+      "description": ">-",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run profile --demo",
+      "dependencies": [],
+      "tags": [
+        "profile",
+        "report-synthesis",
+        "personal-genomics"
+      ],
+      "trigger_keywords": [
+        "profile report",
+        "unified report",
+        "my profile",
+        "genomic profile"
+      ],
+      "chaining_partners": [
+        "pharmgx-reporter",
+        "nutrigx_advisor",
+        "gwas-prs",
+        "genome-compare"
+      ]
+    },
+    {
+      "name": "repro-enforcer",
+      "cli_alias": null,
+      "description": "Export any bioinformatics analysis as a reproducible bundle with Conda environment, Singularity container definition, and Nextflow pipeline.",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": false,
+      "has_tests": false,
+      "has_demo": false,
+      "demo_command": null,
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [],
+      "chaining_partners": []
+    },
+    {
+      "name": "scrna-orchestrator",
+      "cli_alias": "scrna",
+      "description": "Automate single-cell RNA-seq analysis with Scanpy or Seurat. QC, normalisation, clustering, DE analysis, and visualisation.",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run scrna --demo",
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [
+        "single-cell",
+        "scrna",
+        "h5ad",
+        "scanpy",
+        "umap",
+        "leiden"
+      ],
+      "chaining_partners": []
+    },
+    {
+      "name": "seq-wrangler",
+      "cli_alias": null,
+      "description": "Sequence QC, alignment, and BAM processing. Wraps FastQC, BWA/Bowtie2, SAMtools for automated read-to-BAM pipelines.",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": false,
+      "has_tests": false,
+      "has_demo": false,
+      "demo_command": null,
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [],
+      "chaining_partners": []
+    },
+    {
+      "name": "struct-predictor",
+      "cli_alias": null,
+      "description": "Local protein structure prediction with AlphaFold, Boltz, or Chai. Compare predicted structures, compute RMSD, visualise 3D models.",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": false,
+      "has_tests": false,
+      "has_demo": false,
+      "demo_command": null,
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [],
+      "chaining_partners": []
+    },
+    {
+      "name": "ukb-navigator",
+      "cli_alias": null,
+      "description": "Semantic search across UK Biobank's 12,000+ data fields and publications — find the right variables for your research question.",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": false,
+      "has_demo": true,
+      "demo_command": "python skills/ukb-navigator/ukb_navigator.py --demo",
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [
+        "UK Biobank",
+        "UKB",
+        "biobank schema",
+        "data showcase"
+      ],
+      "chaining_partners": []
+    },
+    {
+      "name": "vcf-annotator",
+      "cli_alias": null,
+      "description": "Annotate VCF variants with VEP, ClinVar, gnomAD frequencies, and ancestry-aware context. Generates prioritised variant reports.",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": false,
+      "has_tests": false,
+      "has_demo": false,
+      "demo_command": null,
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [],
+      "chaining_partners": []
+    }
+  ]
+}

@@ -77,6 +77,33 @@ Follow the [ClawHub submission guide](https://clawhub.ai/docs/submit).
 - No hardcoded absolute paths
 - Tests with pytest
 
+## For AI Agents Contributing Skills
+
+AI coding agents (Codex, Devin, Claude Code, Cursor, etc.) should follow the same workflow as human contributors, plus:
+
+1. Read [`AGENTS.md`](AGENTS.md) for setup, commands, code style, and project structure
+2. Read the target skill's `SKILL.md` before modifying any code
+3. Use `python clawbio.py list` to verify skills still load after changes
+4. Run `python -m pytest -v` to confirm all tests pass
+5. Regenerate `skills/catalog.json` if you changed any SKILL.md YAML frontmatter: `python scripts/generate_catalog.py`
+
+### SKILL.md Quality Checklist
+
+Every SKILL.md should include these sections (check the template at [`templates/SKILL-TEMPLATE.md`](templates/SKILL-TEMPLATE.md)):
+
+- [ ] **YAML frontmatter** with `openclaw` schema (name, description, version, tags, trigger_keywords)
+- [ ] **Why This Exists** (what goes wrong without the skill)
+- [ ] **Core Capabilities** (numbered list)
+- [ ] **Input Formats** (table with format, extension, required fields)
+- [ ] **Workflow** (numbered steps)
+- [ ] **CLI Reference** (bash examples with `--input`, `--output`, `--demo`)
+- [ ] **Demo** section with expected output description
+- [ ] **Output Structure** (directory tree)
+- [ ] **Dependencies** (required and optional)
+- [ ] **Safety** (local-first, disclaimer, no hallucination)
+- [ ] **Integration with Bio Orchestrator** (trigger conditions, chaining partners)
+- [ ] **Citations** (databases and papers used)
+
 ## 🦖 Skill Ideas We Need
 
 If you are looking for something to build:

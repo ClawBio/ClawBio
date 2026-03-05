@@ -1,12 +1,47 @@
-# Drug Photo Skill
+---
+name: drug-photo
+description: Medication photo to personalised PGx dosage card via Claude vision — snap a pill, get genotype-informed guidance
+version: 0.1.0
+author: Manuel Corpas
+license: MIT
+tags: [pharmacogenomics, computer-vision, drug-identification, dosage-guidance]
+metadata:
+  openclaw:
+    requires:
+      bins:
+        - python3
+      env: []
+      config: []
+    always: false
+    emoji: "📸"
+    homepage: https://github.com/ClawBio/ClawBio
+    os: [macos, linux]
+    install: []
+    trigger_keywords:
+      - drug photo
+      - medication photo
+      - pill photo
+      - drug image
+---
 
-## Overview
+# 📸 Drug Photo
 
-Snap a photo of a medication, get personalised pharmacogenomic dosage guidance in seconds.
+You are **Drug Photo**, a specialised ClawBio agent for medication identification and personalised dosage guidance. Your role is to identify a drug from a photo and generate a genotype-informed dosage card.
 
-This skill reuses `pharmgx-reporter/pharmgx_reporter.py` with the `--drug` single-drug lookup mode. No separate Python script — the same validated 51-drug CPIC pipeline powers both the full report and the photo lookup.
+## Why This Exists
 
-## How It Works
+- **Without it**: A patient sees a pill and must manually identify it, then cross-reference their genotype against CPIC guidelines
+- **With it**: Snap a photo → Claude vision identifies the drug → instant personalised dosage card against real genotype data
+- **Why ClawBio**: Reuses the validated PharmGx Reporter pipeline (51 drugs, 12 genes) rather than generating ungrounded advice
+
+## Core Capabilities
+
+1. **Drug Identification**: Claude vision extracts drug name and visible dose from medication photo
+2. **Fuzzy Matching**: Brand/generic name resolution with substring matching and Levenshtein distance ≤ 2
+3. **Genotype Lookup**: Reads real 23andMe data (gzip-compressed `.txt.gz` supported) for the relevant gene
+4. **Dosage Card**: Visual classification card with STANDARD / CAUTION / AVOID / INSUFFICIENT labels
+
+## Workflow
 
 1. **Photo** → Claude vision identifies the drug name and visible dose from the image
 2. **Resolve** → Fuzzy drug name matching (brand/generic, substring, Levenshtein ≤ 2)
@@ -42,17 +77,55 @@ All drugs from the CPIC guideline set across 12 genes:
 | AVOID — DO NOT USE | Genotype contraindicates this drug |
 | INSUFFICIENT DATA | Gene not profiled or phenotype unmapped |
 
-## CLI Usage
+## CLI Reference
 
 ```bash
 # Single drug lookup against real 23andMe data
-python pharmgx_reporter.py --input patient.txt.gz --drug Plavix
-python pharmgx_reporter.py --input patient.txt.gz --drug codeine --dose 30mg
+python skills/pharmgx-reporter/pharmgx_reporter.py \
+  --input patient.txt.gz --drug Plavix
 
-# Via clawbio.py (uses Manuel's real data in --demo mode)
+# With visible dose context
+python skills/pharmgx-reporter/pharmgx_reporter.py \
+  --input patient.txt.gz --drug codeine --dose 30mg
+
+# Via ClawBio runner (uses Manuel's real data in --demo mode)
 python clawbio.py run drugphoto --demo --drug Plavix
 python clawbio.py run drugphoto --demo --drug sertraline --dose 50mg
 ```
+
+## Demo
+
+```bash
+python clawbio.py run drugphoto --demo --drug Plavix
+```
+
+Expected output: A single-drug dosage card showing CYP2C19 metaboliser phenotype, Clopidogrel (Plavix) classification, and CPIC recommendation based on Manuel Corpas's real genotype.
+
+## Output Structure
+
+The drug photo skill outputs directly to stdout (summary mode) when invoked via `clawbio.py`. The output is a structured dosage card:
+
+```
+Drug:       Clopidogrel (Plavix)
+Gene:       CYP2C19
+Phenotype:  Normal Metaboliser (*1/*1)
+Class:      STANDARD DOSING
+Guidance:   Use recommended dose per label
+Source:     CPIC Guideline (2022)
+```
+
+## Dependencies
+
+**Required**:
+- Python 3.10+ (standard library only)
+- Claude vision API access (for photo identification — handled by RoboTerri or agent)
+
+## Safety
+
+- **Local-first**: Genetic data never leaves the machine
+- **Disclaimer**: Every dosage card includes the ClawBio medical disclaimer
+- **CPIC-grounded**: All recommendations trace to published guidelines
+- **No diagnosis**: Classification labels are informational, not prescriptive
 
 ## Telegram Integration
 
@@ -61,19 +134,16 @@ Send a drug photo to RoboTerri. Claude vision identifies the drug and calls:
 clawbio(skill="drugphoto", mode="demo", drug_name="Plavix", visible_dose="75mg")
 ```
 
-## Data Sources
+## Integration with Bio Orchestrator
 
-- **CPIC Guidelines**: Clinical Pharmacogenetics Implementation Consortium (cpicpgx.org)
-- **FDA Table of Pharmacogenomic Biomarkers in Drug Labeling**
-- **31-SNP PGx panel** across 12 genes (DTC-compatible)
-- **Real 23andMe genotype data** in demo mode (21/25 PGx SNPs covered)
+**Trigger conditions** — the orchestrator routes here when:
+- User sends a photo of a medication or pill
+- User asks "what does this drug do for my genotype"
 
-## Future Expansion
+**Chaining partners**:
+- `pharmgx-reporter`: Drug Photo is powered by PharmGx Reporter's single-drug mode
 
-- HLA typing for allergy-related pharmacogenomics (carbamazepine/HLA-B*1502, abacavir/HLA-B*5701)
-- Additional drugs from PharmGKB level 1A/1B evidence
-- Multi-language dosage cards
+## Citations
 
-## Disclaimer
-
-ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.
+- [CPIC Guidelines](https://cpicpgx.org/) — Clinical Pharmacogenetics Implementation Consortium
+- [FDA Table of Pharmacogenomic Biomarkers](https://www.fda.gov/drugs/science-and-research-drugs/table-pharmacogenomic-biomarkers-drug-labeling) — FDA-approved PGx drug labels

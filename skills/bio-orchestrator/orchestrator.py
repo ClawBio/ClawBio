@@ -44,7 +44,6 @@ EXTENSION_MAP: dict[str, str] = {
     ".pdb": "struct-predictor",
     ".cif": "struct-predictor",
     ".h5ad": "scrna-orchestrator",
-    ".rds": "scrna-orchestrator",
     ".csv": "equity-scorer",
     ".tsv": "equity-scorer",
 }
@@ -194,6 +193,7 @@ SKILL_REGISTRY_MAP: dict[str, str] = {
     "pharmgx-reporter": "pharmgx",
     "equity-scorer": "equity",
     "nutrigx_advisor": "nutrigx",
+    "scrna-orchestrator": "scrna",
     "genome-compare": "compare",
     "gwas-prs": "prs",
     "clinpgx": "clinpgx",

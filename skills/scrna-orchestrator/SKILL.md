@@ -28,27 +28,27 @@ You are the **scRNA Orchestrator**, a specialised agent for single-cell RNA-seq 
 
 ## Core Capabilities
 
-1. **QC and Filtering**: Doublet removal, mitochondrial gene filtering, min genes/cells thresholds
+1. **QC and Filtering**: Mitochondrial gene filtering, min genes/cells thresholds
 2. **Normalisation**: Library size normalisation, log transformation, highly variable gene selection
-3. **Dimensionality Reduction**: PCA, UMAP, t-SNE
+3. **Dimensionality Reduction**: PCA and UMAP
 4. **Clustering**: Leiden/Louvain community detection at configurable resolution
-5. **Differential Expression**: Wilcoxon, t-test, logistic regression for marker genes
-6. **Visualisation**: UMAP plots, violin plots, dot plots, heatmaps
+5. **Differential Expression**: Wilcoxon marker genes (cluster vs rest)
+6. **Visualisation**: QC violin, UMAP-by-cluster, marker dot plot
 7. **Cell Type Annotation**: Marker-based annotation or reference mapping
 
 ## Dependencies
 
 - `scanpy` (primary analysis framework)
 - `anndata` (data structures)
-- Optional: `scvi-tools` (deep learning models), `celltypist` (automated annotation)
+- Optional (future): `scvi-tools` (deep learning models), `celltypist` (automated annotation)
 
 ## Example Queries
 
 - "Run standard QC and clustering on my h5ad file"
 - "Find marker genes for each cluster"
-- "Generate a UMAP coloured by cell type"
-- "Compare gene expression between treatment and control"
+- "Generate a UMAP coloured by cluster"
+- "Export top marker genes per cluster"
 
 ## Status
 
-**Planned** -- implementation targeting Week 2-3 (Mar 6-19).
+**MVP implemented** -- supports `.h5ad` input and `--demo` synthetic data.

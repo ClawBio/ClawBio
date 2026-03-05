@@ -22,14 +22,18 @@
 
 ## What ClawBio Does Today
 
-**14 skills. Local-first. No cloud. No guessing.**
+**14 skills and growing. Local-first. No cloud. No guessing.**
 
-Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from your 23andMe file, and returns a personalised dosage card — on your machine, in seconds:
+Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card — on your machine, in seconds:
+
+<p align="center">
+  <img src="skills/drug-photo/demo-images/00-00-warfarin.jpg" width="360" alt="Warfarin 2mg medication packaging — ClawBio identifies the drug from a photo and returns a personalised pharmacogenomic report">
+</p>
 
 > **Warfarin** | CYP2C9 \*1/\*2 Intermediate · VKORC1 High Sensitivity
 > **AVOID — DO NOT USE** · Standard dose causes over-anticoagulation in this genotype.
 
-Or look up an rsID across nine federated genomic databases simultaneously. Or compute your polygenic risk score for type 2 diabetes from the PGS Catalog. Or ask what UK Biobank fields measure blood pressure, grip strength, or depression — and get the field IDs, descriptions, and linked publications back in plain English.
+Or take any genetic variant (identified by its rsID — a unique label like [rs9923231](https://www.ncbi.nlm.nih.gov/snp/rs9923231)) and search nine genomic databases at once to find every known disease association, tissue-specific effect, and population frequency. Or estimate your genetic predisposition to conditions like type 2 diabetes by combining thousands of small-effect variants into a single polygenic risk score. Or explore the [UK Biobank](https://www.ukbiobank.ac.uk/) — a half-million-person research dataset — by asking in plain English what fields measure blood pressure, grip strength, or depression, and get back the exact field IDs, descriptions, and linked publications you need.
 
 Every result ships with a reproducibility bundle: `commands.sh`, `environment.yml`, and SHA-256 checksums. A reviewer can reproduce your Figure 3 in 30 seconds without emailing you.
 
@@ -74,7 +78,7 @@ ChatGPT / Claude  = a smart generalist who guesses at bioinformatics
 
 ## Why Not Just Use ChatGPT?
 
-Ask Claude to "profile my pharmacogenes from this 23andMe file." It'll write plausible Python. But:
+Ask Claude to "profile my pharmacogenes from this [23andMe file](https://github.com/ClawBio/ClawBio/blob/main/docs/demo-genome.md)." It'll write plausible Python. But:
 
 - It **hallucinates** star allele calls and uses outdated CPIC guidelines
 - It **forgets** CYP2D6 \*4 is no-function (not reduced)
@@ -123,7 +127,7 @@ report/
 | [Genome Comparator](skills/genome-compare/) | **MVP** | Pairwise IBS vs George Church (PGP-1) + ancestry estimation |
 | [VCF Annotator](skills/vcf-annotator/) | Planned | Variant annotation with VEP, ClinVar, gnomAD |
 | [Lit Synthesizer](skills/lit-synthesizer/) | Planned | PubMed/bioRxiv search with LLM summarisation and citation graphs |
-| [scRNA Orchestrator](skills/scrna-orchestrator/) | Planned | Scanpy automation: QC, clustering, DE analysis, visualisation |
+| [scRNA Orchestrator](skills/scrna-orchestrator/) | **MVP** | Scanpy automation: QC, clustering, marker DE analysis, visualisation |
 | [Struct Predictor](skills/struct-predictor/) | Planned | AlphaFold/Boltz local structure prediction |
 | [Repro Enforcer](skills/repro-enforcer/) | Planned | Export any analysis as Conda env + Singularity + Nextflow pipeline |
 
@@ -252,6 +256,7 @@ python clawbio.py run pharmgx --demo             # Pharmacogenomics (1s)
 python clawbio.py run equity --demo              # Equity scoring (55s)
 python clawbio.py run nutrigx --demo             # Nutrigenomics (60s)
 python clawbio.py run metagenomics --demo        # Metagenomics (3s)
+python clawbio.py run scrna --demo               # scRNA clustering + marker detection
 python clawbio.py run compare --demo             # Manuel Corpas vs George Church (10s)
 python clawbio.py run gwas-lookup --demo         # rs3798220 across 9 databases (5s)
 python clawbio.py run prs --demo                 # Polygenic risk scores (10s)
@@ -335,6 +340,21 @@ Telegram (RoboTerri)     CLI (clawbio.py)     Python (import clawbio)
 Each skill is standalone — the orchestrator routes to the right one, but every skill also works independently. The `clawbio.run_skill()` API is importable by any agent (RoboTerri, RoboIsaac, Claude Code).
 
 See [docs/architecture.md](docs/architecture.md) for the full design.
+
+---
+
+## For AI Agents
+
+ClawBio is designed to be discovered and used by AI coding agents, not just humans.
+
+| Resource | Purpose |
+|----------|---------|
+| [`llms.txt`](llms.txt) | Token-optimized project summary for any LLM ([llmstxt.org](https://llmstxt.org) standard) |
+| [`AGENTS.md`](AGENTS.md) | Universal guide for AI coding agents — setup, commands, style, structure, git workflow |
+| [`CLAUDE.md`](CLAUDE.md) | Claude-specific routing table, CLI reference, demo commands, safety rules |
+| [`skills/catalog.json`](skills/catalog.json) | Machine-readable skill index with trigger keywords, chaining partners, and demo commands |
+
+Agents can also run `python clawbio.py list` to discover available skills programmatically.
 
 ---
 

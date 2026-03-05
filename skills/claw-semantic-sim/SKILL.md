@@ -4,55 +4,44 @@ version: 0.1.0
 description: Semantic Similarity Index for disease research literature using PubMedBERT embeddings
 author: Manuel Corpas
 license: MIT
-tags:
-  - health-equity
-  - semantic-analysis
-  - NLP
-  - PubMedBERT
-  - disease-neglect
-inputs:
-  - name: diseases
-    type: file
-    format: [json, csv]
-    description: List of diseases with GBD taxonomy identifiers
-  - name: pubmed-cache
-    type: directory
-    format: directory
-    description: Optional pre-fetched PubMed abstracts (skips retrieval if provided)
-outputs:
-  - name: figure
-    type: file
-    format: [png, pdf]
-    description: Multi-panel figure showing semantic isolation landscape, disease rankings, and NTD analysis
-  - name: report
-    type: file
-    format: markdown
-    description: Semantic analysis report with isolation scores, knowledge transfer metrics, and temporal drift
-  - name: metrics
-    type: file
-    format: json
-    description: Machine-readable metrics for all diseases (SII, KTP, RCC, temporal drift)
+tags: [health-equity, semantic-analysis, NLP, PubMedBERT, disease-neglect]
 metadata:
   openclaw:
-    category: bioinformatics
+    requires:
+      bins:
+        - python3
+      env: []
+      config: []
+    always: false
+    emoji: "🔬"
     homepage: https://github.com/ClawBio/ClawBio
-    min_python: "3.11"
-    dependencies:
-      - torch
-      - transformers
-      - pandas
-      - numpy
-      - h5py
-      - scikit-learn
-      - umap-learn
-      - matplotlib
-      - seaborn
-      - biopython
-      - networkx
-      - tqdm
-    system_dependencies: []
-    hardware:
-      - Apple Silicon MPS recommended (CPU fallback available)
+    os: [macos, linux]
+    install:
+      - kind: pip
+        package: torch
+        bins: []
+      - kind: pip
+        package: transformers
+        bins: []
+      - kind: pip
+        package: h5py
+        bins: []
+      - kind: pip
+        package: umap-learn
+        bins: []
+      - kind: pip
+        package: biopython
+        bins: []
+      - kind: pip
+        package: networkx
+        bins: []
+    trigger_keywords:
+      - semantic similarity
+      - disease neglect
+      - research gaps
+      - NTDs
+      - SII
+      - knowledge silo
 ---
 
 # 🦖 Semantic Similarity Index

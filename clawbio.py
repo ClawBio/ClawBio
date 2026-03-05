@@ -294,6 +294,13 @@ SKILLS = {
         "allowed_extra_flags": set(),
         "accepts_genotypes": False,
     },
+    "scrna": {
+        "script": SKILLS_DIR / "scrna-orchestrator" / "scrna_orchestrator.py",
+        "demo_args": ["--demo"],
+        "description": "scRNA Orchestrator (Scanpy QC, clustering, marker detection)",
+        "allowed_extra_flags": set(),
+        "accepts_genotypes": False,
+    },
     "compare": {
         "script": SKILLS_DIR / "genome-compare" / "genome_compare.py",
         "demo_args": ["--demo"],
