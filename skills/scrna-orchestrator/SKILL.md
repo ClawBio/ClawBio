@@ -51,4 +51,4 @@ You are the **scRNA Orchestrator**, a specialised agent for single-cell RNA-seq 
 
 ## Status
 
-**MVP implemented** -- supports `.h5ad` input and `--demo` synthetic data.
+**MVP implemented** -- supports `.h5ad` input and `--demo` PBMC3k-first demo data (fallback to synthetic on failure).
