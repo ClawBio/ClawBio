@@ -114,7 +114,7 @@ For instant demos when the user has no data:
 |---|---|---|
 | Synthetic patient (PGx, 31 SNPs) | `skills/pharmgx-reporter/demo_patient.txt` | pharmgx-reporter |
 | Synthetic patient (NutriGx, 40 SNPs) | `skills/nutrigx_advisor/synthetic_patient.txt` | nutrigx_advisor |
-| Synthetic scRNA AnnData | `--demo` flag | scrna-orchestrator |
+| PBMC3k raw demo (fallback synthetic) | `--demo` flag | scrna-orchestrator |
 | Demo VCF (50 samples, 5 populations) | `examples/demo_populations.vcf` | equity-scorer |
 | Population map | `examples/demo_population_map.csv` | equity-scorer |
 | Ancestry CSV (30 samples) | `examples/sample_ancestry.csv` | equity-scorer |

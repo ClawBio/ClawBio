@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
 import sys
 from datetime import datetime, timezone
@@ -39,6 +40,7 @@ DISCLAIMER = (
     "and does not provide clinical diagnoses. Consult a healthcare professional "
     "before making any medical decisions."
 )
+DEMO_SOURCE_ENV = "CLAWBIO_SCRNA_DEMO_SOURCE"
 
 
 def _import_scanpy():
@@ -97,13 +99,100 @@ def build_demo_adata(random_state: int):
     return AnnData(X=x, obs=obs, var=var)
 
 
+def load_demo_adata(random_state: int, demo_source_policy: str | None = None):
+    """Load real PBMC3k demo data, falling back to synthetic data when needed."""
+    sc = _import_scanpy()
+    policy = (demo_source_policy or os.getenv(DEMO_SOURCE_ENV, "auto")).strip().lower()
+    if policy not in {"auto", "pbmc3k", "synthetic"}:
+        policy = "auto"
+
+    if policy == "synthetic":
+        return build_demo_adata(random_state), "synthetic_forced"
+
+    try:
+        adata = sc.datasets.pbmc3k()
+        adata.var_names_make_unique()
+        sc.pp.filter_cells(adata, min_counts=1)
+        if adata.n_obs == 0:
+            raise ValueError("PBMC3k demo had no cells after filtering min_counts=1.")
+        return adata, "pbmc3k_raw"
+    except Exception as exc:
+        print(
+            f"WARNING: Failed to load PBMC3k demo ({exc}); falling back to synthetic demo data.",
+            file=sys.stderr,
+        )
+        return build_demo_adata(random_state), "synthetic_fallback"
+
+
+def _sample_expression_values(x, max_values: int = 200_000) -> np.ndarray:
+    """Sample expression values from dense/sparse matrices without densifying sparse input."""
+    try:
+        from scipy import sparse  # type: ignore
+    except Exception:
+        sparse = None
+
+    if sparse is not None and sparse.issparse(x):
+        values = np.asarray(x.data).ravel()
+    else:
+        values = np.asarray(x).ravel()
+
+    if values.size > max_values:
+        step = max(1, values.size // max_values)
+        values = values[::step][:max_values]
+
+    return values.astype(np.float64, copy=False)
+
+
+def detect_processed_input_reason(adata) -> str | None:
+    """Detect whether input looks preprocessed (log-normalized/scaled) instead of raw counts."""
+    values = _sample_expression_values(adata.X)
+    if values.size == 0:
+        return None
+
+    finite = values[np.isfinite(values)]
+    if finite.size == 0:
+        return None
+
+    uns_markers = {
+        "neighbors",
+        "pca",
+        "umap",
+        "rank_genes_groups",
+        "draw_graph",
+        "louvain",
+    }
+    uns_hits = sorted(key for key in uns_markers if key in adata.uns)
+    has_negative = bool(np.any(finite < -1e-8))
+    frac_non_integer = float(np.mean(np.abs(finite - np.rint(finite)) > 1e-6))
+    max_val = float(np.max(finite))
+
+    reason: str | None = None
+    if has_negative:
+        reason = "Detected negative expression values, indicating scaled/transformed input."
+    elif frac_non_integer > 0.20 and (max_val <= 50.0 or bool(uns_hits)):
+        reason = (
+            "Detected mostly non-integer expression values that look like normalized/log-transformed input."
+        )
+
+    if reason is None:
+        return None
+
+    if uns_hits:
+        reason += f" Found processed-analysis metadata in adata.uns: {', '.join(uns_hits)}."
+    reason += (
+        " This skill expects raw-count .h5ad input. `pbmc3k_processed` is not supported; "
+        "use raw counts (e.g., `scanpy.datasets.pbmc3k()`)."
+    )
+    return reason
+
+
 def load_data(input_path: str | None, demo: bool, random_state: int):
     """Load AnnData from .h5ad or build demo data."""
     sc = _import_scanpy()
 
     if demo:
-        adata = build_demo_adata(random_state)
-        return adata, None, True
+        adata, demo_source = load_demo_adata(random_state)
+        return adata, None, True, demo_source
 
     if not input_path:
         raise ValueError("Provide --input <file.h5ad> or --demo.")
@@ -117,7 +206,10 @@ def load_data(input_path: str | None, demo: bool, random_state: int):
         )
 
     adata = sc.read_h5ad(path)
-    return adata, path, False
+    processed_reason = detect_processed_input_reason(adata)
+    if processed_reason:
+        raise ValueError(processed_reason)
+    return adata, path, False, None
 
 
 def qc_filter(
@@ -320,6 +412,7 @@ def render_report(
     output_dir: Path,
     input_path: Path | None,
     is_demo: bool,
+    demo_source: str | None,
     qc_stats: dict[str, int],
     n_hvg: int,
     n_clusters: int,
@@ -339,6 +432,7 @@ def render_report(
             "Genes (after QC)": str(qc_stats["n_genes_after"]),
             "Leiden clusters": str(n_clusters),
             "HVG selected": str(n_hvg),
+            "Demo source": demo_source if is_demo and demo_source else "n/a",
         },
     )
 
@@ -472,7 +566,7 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
     figures_dir.mkdir(exist_ok=True)
     tables_dir.mkdir(exist_ok=True)
 
-    adata, input_path, is_demo = load_data(args.input, args.demo, args.random_state)
+    adata, input_path, is_demo, demo_source = load_data(args.input, args.demo, args.random_state)
     adata_qc, qc_stats = qc_filter(
         adata,
         min_genes=args.min_genes,
@@ -510,6 +604,7 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         output_dir=output_dir,
         input_path=input_path,
         is_demo=is_demo,
+        demo_source=demo_source,
         qc_stats=qc_stats,
         n_hvg=n_hvg,
         n_clusters=n_clusters,
@@ -533,6 +628,7 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
             "cluster_labels": sorted(adata_markers.obs["leiden"].astype(str).unique().tolist()),
             "tables": [cluster_path.name, markers_csv.name, markers_tsv.name],
             "figures": created_figures,
+            "demo_source": demo_source if is_demo else "not_demo",
             "disclaimer": DISCLAIMER,
         },
         input_checksum=sha256_file(input_path) if input_path else "",
@@ -554,7 +650,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--input", "-i", help="Input AnnData file (.h5ad)")
     parser.add_argument("--output", "-o", default="scrna_report", help="Output directory")
-    parser.add_argument("--demo", action="store_true", help="Run with synthetic demo data")
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Run demo data (PBMC3k raw preferred, fallback to synthetic)",
+    )
     parser.add_argument("--min-genes", type=int, default=200, help="Minimum genes per cell")
     parser.add_argument("--min-cells", type=int, default=3, help="Minimum cells per gene")
     parser.add_argument("--max-mt-pct", type=float, default=20.0, help="Maximum mitochondrial percentage")
