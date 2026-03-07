@@ -182,6 +182,89 @@ def test_markers_csv_tsv_schema_match(tmp_path: Path):
     assert len(csv_df) > 0
 
 
+def test_de_two_group_outputs_and_result_metadata(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "de_demo_output"
+    result = _run_cmd(
+        [
+            "--demo",
+            "--output",
+            str(output_dir),
+            "--de-groupby",
+            "demo_truth",
+            "--de-group1",
+            "cluster_0",
+            "--de-group2",
+            "cluster_1",
+            "--de-top-genes",
+            "7",
+        ]
+    )
+    assert result.returncode == 0, result.stderr
+
+    de_full = output_dir / "tables" / "de_full.csv"
+    de_top = output_dir / "tables" / "de_top.csv"
+    assert de_full.exists()
+    assert de_top.exists()
+
+    de_full_df = pd.read_csv(de_full)
+    de_top_df = pd.read_csv(de_top)
+    assert len(de_full_df) > 0
+    assert 0 < len(de_top_df) <= 7
+
+    payload = json.loads((output_dir / "result.json").read_text())
+    de_meta = payload["data"]["de"]
+    assert de_meta["enabled"] is True
+    assert de_meta["groupby"] == "demo_truth"
+    assert de_meta["group1"] == "cluster_0"
+    assert de_meta["group2"] == "cluster_1"
+    assert de_meta["n_genes_full"] == len(de_full_df)
+    assert de_meta["top_table"] == "de_top.csv"
+    assert de_meta["volcano_plot"] == ""
+    assert "de_full.csv" in payload["data"]["tables"]
+    assert "de_top.csv" in payload["data"]["tables"]
+    assert "de_volcano.png" not in payload["data"]["figures"]
+
+    report_text = (output_dir / "report.md").read_text()
+    assert "Differential Expression (Two-Group)" in report_text
+    assert "cluster_0" in report_text
+    assert "cluster_1" in report_text
+    assert "Volcano plot: not generated" in report_text
+
+
+def test_de_volcano_generated_when_requested(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "de_volcano_output"
+    result = _run_cmd(
+        [
+            "--demo",
+            "--output",
+            str(output_dir),
+            "--de-groupby",
+            "demo_truth",
+            "--de-group1",
+            "cluster_0",
+            "--de-group2",
+            "cluster_1",
+            "--de-top-genes",
+            "10",
+            "--de-volcano",
+        ]
+    )
+    assert result.returncode == 0, result.stderr
+
+    volcano_path = output_dir / "figures" / "de_volcano.png"
+    assert volcano_path.exists()
+
+    payload = json.loads((output_dir / "result.json").read_text())
+    de_meta = payload["data"]["de"]
+    assert de_meta["volcano_plot"] == "de_volcano.png"
+    assert "de_volcano.png" in payload["data"]["figures"]
+
+    report_text = (output_dir / "report.md").read_text()
+    assert "DE Volcano" in report_text
+
+
 def test_report_contains_key_stats(tmp_path: Path):
     _require_scanpy()
     output_dir = tmp_path / "demo_output"
@@ -298,6 +381,99 @@ def test_commands_sh_quotes_demo_output_path(tmp_path: Path):
     assert f"--output {shlex.quote(str(output_dir))}" in commands_sh
 
 
+def test_commands_sh_contains_de_flags_when_enabled(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "demo_de_commands"
+    result = _run_cmd(
+        [
+            "--demo",
+            "--output",
+            str(output_dir),
+            "--de-groupby",
+            "demo_truth",
+            "--de-group1",
+            "cluster_0",
+            "--de-group2",
+            "cluster_1",
+            "--de-top-genes",
+            "9",
+            "--de-volcano",
+        ]
+    )
+    assert result.returncode == 0, result.stderr
+
+    commands_sh = (output_dir / "reproducibility" / "commands.sh").read_text()
+    assert "--de-groupby demo_truth" in commands_sh
+    assert "--de-group1 cluster_0" in commands_sh
+    assert "--de-group2 cluster_1" in commands_sh
+    assert "--de-top-genes 9" in commands_sh
+    assert "--de-volcano" in commands_sh
+
+
+def test_de_requires_all_group_flags(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "de_incomplete"
+    result = _run_cmd(
+        [
+            "--demo",
+            "--output",
+            str(output_dir),
+            "--de-groupby",
+            "demo_truth",
+        ]
+    )
+    assert result.returncode != 0
+    assert "DE requires --de-groupby, --de-group1, and --de-group2 together" in result.stderr
+
+
+def test_de_volcano_requires_de_flags(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "de_volcano_requires_flags"
+    result = _run_cmd(["--demo", "--output", str(output_dir), "--de-volcano"])
+    assert result.returncode != 0
+    assert "--de-volcano requires --de-groupby, --de-group1, and --de-group2" in result.stderr
+
+
+def test_de_groupby_missing_rejected(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "de_missing_groupby"
+    result = _run_cmd(
+        [
+            "--demo",
+            "--output",
+            str(output_dir),
+            "--de-groupby",
+            "not_a_column",
+            "--de-group1",
+            "cluster_0",
+            "--de-group2",
+            "cluster_1",
+        ]
+    )
+    assert result.returncode != 0
+    assert "DE groupby column not found" in result.stderr
+
+
+def test_de_groups_missing_rejected(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "de_missing_groups"
+    result = _run_cmd(
+        [
+            "--demo",
+            "--output",
+            str(output_dir),
+            "--de-groupby",
+            "demo_truth",
+            "--de-group1",
+            "missing_a",
+            "--de-group2",
+            "missing_b",
+        ]
+    )
+    assert result.returncode != 0
+    assert "DE group value(s) not found" in result.stderr
+
+
 def test_clawbio_run_scrna_accepts_whitelisted_tuning_flags(tmp_path: Path):
     _require_scanpy()
     output_dir = tmp_path / "clawbio_scrna_output"
@@ -323,6 +499,32 @@ def test_clawbio_run_scrna_accepts_whitelisted_tuning_flags(tmp_path: Path):
     )
     assert result.returncode == 0, result.stderr
     assert (output_dir / "result.json").exists()
+
+
+def test_clawbio_run_scrna_accepts_whitelisted_de_flags(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "clawbio_scrna_de_output"
+
+    result = _run_clawbio_scrna_cmd(
+        [
+            "--demo",
+            "--output",
+            str(output_dir),
+            "--de-groupby",
+            "demo_truth",
+            "--de-group1",
+            "cluster_0",
+            "--de-group2",
+            "cluster_1",
+            "--de-top-genes",
+            "8",
+            "--de-volcano",
+        ]
+    )
+    assert result.returncode == 0, result.stderr
+    assert (output_dir / "tables" / "de_full.csv").exists()
+    assert (output_dir / "tables" / "de_top.csv").exists()
+    assert (output_dir / "figures" / "de_volcano.png").exists()
 
 
 def test_orchestrator_no_rds_extension_route():
