@@ -298,7 +298,17 @@ SKILLS = {
         "script": SKILLS_DIR / "scrna-orchestrator" / "scrna_orchestrator.py",
         "demo_args": ["--demo"],
         "description": "scRNA Orchestrator (Scanpy QC, clustering, marker detection)",
-        "allowed_extra_flags": set(),
+        "allowed_extra_flags": {
+            "--min-genes",
+            "--min-cells",
+            "--max-mt-pct",
+            "--n-top-hvg",
+            "--n-pcs",
+            "--n-neighbors",
+            "--leiden-resolution",
+            "--random-state",
+            "--top-markers",
+        },
         "accepts_genotypes": False,
     },
     "compare": {
@@ -758,6 +768,40 @@ def main():
     run_parser.add_argument("--genes", default=None, help="Comma-separated gene symbols for ClinPGx")
     run_parser.add_argument("--rsid", default=None, help="rsID for GWAS lookup skill (e.g. rs3798220)")
     run_parser.add_argument("--skip", default=None, help="Comma-separated API names to skip (gwas-lookup skill)")
+    run_parser.add_argument("--min-genes", type=int, default=None, help="Minimum genes per cell (scrna skill)")
+    run_parser.add_argument("--min-cells", type=int, default=None, help="Minimum cells per gene (scrna skill)")
+    run_parser.add_argument(
+        "--max-mt-pct",
+        type=float,
+        default=None,
+        help="Maximum mitochondrial percentage (scrna skill)",
+    )
+    run_parser.add_argument(
+        "--n-top-hvg",
+        type=int,
+        default=None,
+        help="Number of highly variable genes to keep (scrna skill)",
+    )
+    run_parser.add_argument("--n-pcs", type=int, default=None, help="Number of PCA components (scrna skill)")
+    run_parser.add_argument(
+        "--n-neighbors",
+        type=int,
+        default=None,
+        help="Neighbors for graph construction (scrna skill)",
+    )
+    run_parser.add_argument(
+        "--leiden-resolution",
+        type=float,
+        default=None,
+        help="Leiden resolution (scrna skill)",
+    )
+    run_parser.add_argument("--random-state", type=int, default=None, help="Random seed (scrna skill)")
+    run_parser.add_argument(
+        "--top-markers",
+        type=int,
+        default=None,
+        help="Top markers per cluster (scrna skill)",
+    )
 
     args = parser.parse_args()
 
@@ -798,6 +842,24 @@ def main():
             extra.extend(["--rsid", args.rsid])
         if getattr(args, "skip", None):
             extra.extend(["--skip", args.skip])
+        if getattr(args, "min_genes", None) is not None:
+            extra.extend(["--min-genes", str(args.min_genes)])
+        if getattr(args, "min_cells", None) is not None:
+            extra.extend(["--min-cells", str(args.min_cells)])
+        if getattr(args, "max_mt_pct", None) is not None:
+            extra.extend(["--max-mt-pct", str(args.max_mt_pct)])
+        if getattr(args, "n_top_hvg", None) is not None:
+            extra.extend(["--n-top-hvg", str(args.n_top_hvg)])
+        if getattr(args, "n_pcs", None) is not None:
+            extra.extend(["--n-pcs", str(args.n_pcs)])
+        if getattr(args, "n_neighbors", None) is not None:
+            extra.extend(["--n-neighbors", str(args.n_neighbors)])
+        if getattr(args, "leiden_resolution", None) is not None:
+            extra.extend(["--leiden-resolution", str(args.leiden_resolution)])
+        if getattr(args, "random_state", None) is not None:
+            extra.extend(["--random-state", str(args.random_state)])
+        if getattr(args, "top_markers", None) is not None:
+            extra.extend(["--top-markers", str(args.top_markers)])
 
         result = run_skill(
             skill_name=args.skill,
