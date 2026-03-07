@@ -22,7 +22,7 @@
 
 ## What ClawBio Does Today
 
-**14 skills and growing. Local-first. No cloud. No guessing.**
+**15 skills + 8,000 Galaxy tools. Local-first. No cloud. No guessing.**
 
 Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card — on your machine, in seconds:
 
@@ -125,6 +125,7 @@ report/
 | [Ancestry PCA](skills/claw-ancestry-pca/) | **MVP** | PCA vs SGDP (345 samples, 164 populations) with confidence ellipses |
 | [Semantic Similarity](skills/claw-semantic-sim/) | **MVP** | Semantic Isolation Index from 13.1M PubMed abstracts |
 | [Genome Comparator](skills/genome-compare/) | **MVP** | Pairwise IBS vs George Church (PGP-1) + ancestry estimation |
+| [Galaxy Bridge](skills/galaxy-bridge/) | **MVP** | Search, run, and chain 8,000+ Galaxy bioinformatics tools |
 | [VCF Annotator](skills/vcf-annotator/) | Planned | Variant annotation with VEP, ClinVar, gnomAD |
 | [Lit Synthesizer](skills/lit-synthesizer/) | Planned | PubMed/bioRxiv search with LLM summarisation and citation graphs |
 | [scRNA Orchestrator](skills/scrna-orchestrator/) | **MVP** | Scanpy automation: QC, clustering, marker DE analysis, visualisation |
@@ -262,6 +263,7 @@ python clawbio.py run gwas-lookup --demo         # rs3798220 across 9 databases 
 python clawbio.py run prs --demo                 # Polygenic risk scores (10s)
 python clawbio.py run ukb-navigator --demo       # UK Biobank schema search (5s)
 python clawbio.py run profile --demo             # Unified genomic profile (30s)
+python clawbio.py run galaxy --demo              # Galaxy Bridge FastQC demo (offline)
 ```
 
 ### Run with your own data
@@ -309,6 +311,30 @@ RoboTerri:  Querying 9 databases...
 ```
 
 RoboTerri auto-detects file type (23andMe `.txt`, AncestryDNA `.csv`, VCF, FASTQ) and routes to the right skill via the Bio Orchestrator. Photos of medications trigger the Drug Photo skill automatically — no command needed.
+
+---
+
+## Galaxy Integration
+
+ClawBio indexes **8,000+ bioinformatics tools** from [usegalaxy.org](https://usegalaxy.org) via the Galaxy Bridge skill. Search by natural language, inspect tool schemas, and execute remotely — all from the CLI.
+
+```bash
+# Search Galaxy tools by keyword
+python skills/galaxy-bridge/galaxy_bridge.py --search "metagenomics"
+
+# Browse all 86 tool categories
+python skills/galaxy-bridge/galaxy_bridge.py --list-categories
+
+# Run a tool on Galaxy (requires GALAXY_API_KEY)
+python skills/galaxy-bridge/galaxy_bridge.py --run fastqc --input reads.fq.gz --output results/
+
+# Demo mode (offline, no API key)
+python skills/galaxy-bridge/galaxy_bridge.py --demo
+```
+
+**Cross-platform chaining**: Galaxy VEP annotates variants → ClawBio PharmGx generates dosage report. Galaxy Kraken2 classifies reads → ClawBio metagenomics profiler. Neither can do this alone.
+
+Built on [BioBlend](https://bioblend.readthedocs.io/) (Galaxy Python SDK). Developed in collaboration with the Galaxy ML SIG.
 
 ---
 
@@ -386,6 +412,19 @@ ClawBio is built on [OpenClaw](https://github.com/openclaw/openclaw). On 1 March
     <img src="img/clawbio-peter-steinberger-poster.jpg" alt="Manuel Corpas introduces ClawBio to Peter Steinberger at the UK AI Agent Hack" width="480">
   </a>
   <br><em>Manuel Corpas introduces ClawBio to Peter Steinberger · UK AI Agent Hack, Imperial College London · <a href="https://www.youtube.com/watch?v=eEEA71qSOmU">Watch on YouTube →</a></em>
+</p>
+
+---
+
+## DoraHacks Demo Day — Imperial College London
+
+ClawBio was presented at **DoraHacks Demo Day** at Imperial College London on 7 March 2026. Live demo: pharmacogenomics, intelligent routing, multi-channel agents, and Drug Photo.
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=vxUDdjXMFwk">
+    <img src="https://img.youtube.com/vi/vxUDdjXMFwk/maxresdefault.jpg" alt="ClawBio DoraHacks Demo Day at Imperial College" width="480">
+  </a>
+  <br><em>ClawBio at DoraHacks Demo Day · Imperial College London · <a href="https://www.youtube.com/watch?v=vxUDdjXMFwk">Watch on YouTube →</a></em>
 </p>
 
 ---

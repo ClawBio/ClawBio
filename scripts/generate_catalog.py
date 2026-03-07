@@ -96,6 +96,7 @@ FOLDER_TO_ALIAS = {
     "clinpgx": "clinpgx",
     "gwas-lookup": "gwas",
     "profile-report": "profile",
+    "galaxy-bridge": "galaxy",
 }
 
 # Skill folders excluded from the public catalog (local-only / gitignored)
@@ -107,7 +108,7 @@ MVP_FOLDERS = {
     "scrna-orchestrator",
     "genome-compare", "drug-photo", "gwas-prs", "clinpgx", "gwas-lookup",
     "profile-report", "bio-orchestrator", "claw-ancestry-pca", "claw-semantic-sim",
-    "ukb-navigator",
+    "ukb-navigator", "galaxy-bridge",
 }
 
 # Known trigger keywords for orchestrator routing
@@ -127,6 +128,7 @@ TRIGGER_KEYWORDS: dict[str, list[str]] = {
     "claw-metagenomics": ["metagenomics", "Kraken2", "RGI", "CARD", "HUMAnN3", "microbiome"],
     "bio-orchestrator": ["route", "which skill", "orchestrator"],
     "ukb-navigator": ["UK Biobank", "UKB", "biobank schema", "data showcase"],
+    "galaxy-bridge": ["galaxy", "usegalaxy", "tool shed", "bioblend", "run on galaxy", "galaxy tool", "galaxy workflow", "NGS pipeline"],
 }
 
 # Known chaining partners
@@ -146,6 +148,7 @@ CHAINING: dict[str, list[str]] = {
     "claw-metagenomics": [],
     "bio-orchestrator": [],
     "ukb-navigator": [],
+    "galaxy-bridge": ["pharmgx-reporter", "claw-metagenomics", "equity-scorer", "vcf-annotator"],
 }
 
 
@@ -234,10 +237,22 @@ def build_catalog() -> list[dict]:
 
 def main() -> None:
     catalog = build_catalog()
+
+    # Inject Galaxy tool count from galaxy_catalog.json if present
+    galaxy_tool_count = 0
+    galaxy_catalog_path = SKILLS_DIR / "galaxy-bridge" / "galaxy_catalog.json"
+    if galaxy_catalog_path.exists():
+        try:
+            gcat = json.loads(galaxy_catalog_path.read_text(encoding="utf-8"))
+            galaxy_tool_count = gcat.get("tool_count", 0)
+        except (json.JSONDecodeError, KeyError):
+            pass
+
     catalog_obj = {
         "version": "1.0.0",
         "generated_by": "scripts/generate_catalog.py",
         "skill_count": len(catalog),
+        "galaxy_tool_count": galaxy_tool_count,
         "skills": catalog,
     }
 

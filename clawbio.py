@@ -366,6 +366,14 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "galaxy": {
+        "script": SKILLS_DIR / "galaxy-bridge" / "galaxy_bridge.py",
+        "demo_args": ["--demo"],
+        "description": "Galaxy tool discovery and execution (8,000+ bioinformatics tools)",
+        "allowed_extra_flags": {"--search", "--list-categories", "--tool-details", "--run", "--max-results"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
 }
 
 # Skills that run in the full-profile pipeline (order matters)

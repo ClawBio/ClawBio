@@ -29,6 +29,7 @@
 - [claw-metagenomics](skills/claw-metagenomics/SKILL.md): Metagenomic profiling with Kraken2, RGI/CARD, HUMAnN3
 - [bio-orchestrator](skills/bio-orchestrator/SKILL.md): Routes queries to the appropriate skill by file type and keywords
 - [ukb-navigator](skills/ukb-navigator/SKILL.md): Semantic search across 22k+ UK Biobank fields
+- [galaxy-bridge](skills/galaxy-bridge/SKILL.md): Galaxy tool discovery and execution — 8,000+ bioinformatics tools from usegalaxy.org
 
 ## Skills (Planned)
 

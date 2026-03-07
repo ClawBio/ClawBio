@@ -27,10 +27,11 @@ When the user asks a question, match it to a skill and act:
 | GWAS variant lookup, rsID search, "look up rs3798220", variant associations, PheWAS, variant eQTL, federated variant query | `skills/gwas-lookup/` | Run `gwas_lookup.py` |
 | Personal genomic profile report, "my profile", unified report, profile summary | `skills/profile-report/` | Run `profile_report.py` |
 | UK Biobank, UKB fields, "what UKB variables measure X", biobank schema search, UKB field lookup, data showcase | `skills/ukb-navigator/` | Run `ukb_navigator.py` |
+| Galaxy, usegalaxy, tool shed, bioblend, "run on galaxy", galaxy tool, galaxy workflow, NGS pipeline | `skills/galaxy-bridge/` | Run `galaxy_bridge.py` |
 
 ## How to Use a Skill
 
-### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator)
+### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator, galaxy-bridge)
 1. Read the skill's `SKILL.md` for domain context
 2. Run the Python script with correct CLI arguments (see below)
 3. Show the user the output — open any generated figures and explain results
@@ -101,6 +102,17 @@ python skills/ukb-navigator/ukb_navigator.py \
   --field 21001 --output <report_dir>
 python skills/ukb-navigator/ukb_navigator.py --demo --output /tmp/ukb_demo
 
+# Galaxy Bridge — search, inspect, and run Galaxy tools
+python skills/galaxy-bridge/galaxy_bridge.py \
+  --search "metagenomics profiling"
+python skills/galaxy-bridge/galaxy_bridge.py \
+  --list-categories
+python skills/galaxy-bridge/galaxy_bridge.py \
+  --tool-details <tool_id>
+python skills/galaxy-bridge/galaxy_bridge.py \
+  --run <tool_id> --input <file> --output <dir>
+python skills/galaxy-bridge/galaxy_bridge.py --demo
+
 # Bio orchestrator — auto-routes to the right skill
 python skills/bio-orchestrator/orchestrator.py \
   --input <file_or_query> [--skill <name>] [--output <dir>] [--list-skills]
@@ -127,6 +139,7 @@ For instant demos when the user has no data:
 | GWAS Lookup demo (rs3798220, pre-fetched) | `--demo` flag | gwas-lookup |
 | Profile report demo (full 4-skill profile) | `--demo` flag | profile-report |
 | UKB Navigator demo (blood pressure, pre-cached) | `--demo` flag | ukb-navigator |
+| Galaxy Bridge demo (FastQC, offline) | `--demo` flag | galaxy-bridge |
 
 ### Demo Commands
 
@@ -164,6 +177,12 @@ python skills/profile-report/profile_report.py --demo --output /tmp/profile_demo
 
 # UKB Navigator demo
 python skills/ukb-navigator/ukb_navigator.py --demo --output /tmp/ukb_demo
+
+# Galaxy Bridge demo
+python skills/galaxy-bridge/galaxy_bridge.py --demo
+
+# Galaxy tool search
+python skills/galaxy-bridge/galaxy_bridge.py --search "metagenomics"
 
 # List all available skills
 python skills/bio-orchestrator/orchestrator.py --list-skills
