@@ -256,7 +256,7 @@ python clawbio.py run pharmgx --demo             # Pharmacogenomics (1s)
 python clawbio.py run equity --demo              # Equity scoring (55s)
 python clawbio.py run nutrigx --demo             # Nutrigenomics (60s)
 python clawbio.py run metagenomics --demo        # Metagenomics (3s)
-python clawbio.py run scrna --demo               # scRNA clustering + marker detection
+python clawbio.py run scrna --demo               # scRNA clustering + marker detection (PBMC3k-first demo)
 python clawbio.py run compare --demo             # Manuel Corpas vs George Church (10s)
 python clawbio.py run gwas-lookup --demo         # rs3798220 across 9 databases (5s)
 python clawbio.py run prs --demo                 # Polygenic risk scores (10s)
