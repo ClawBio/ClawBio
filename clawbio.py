@@ -297,7 +297,7 @@ SKILLS = {
     "scrna": {
         "script": SKILLS_DIR / "scrna-orchestrator" / "scrna_orchestrator.py",
         "demo_args": ["--demo"],
-        "description": "scRNA Orchestrator (Scanpy QC, clustering, marker detection)",
+        "description": "scRNA Orchestrator (Scanpy QC, clustering, marker detection, optional two-group DE + volcano)",
         "allowed_extra_flags": {
             "--min-genes",
             "--min-cells",
@@ -308,6 +308,11 @@ SKILLS = {
             "--leiden-resolution",
             "--random-state",
             "--top-markers",
+            "--de-groupby",
+            "--de-group1",
+            "--de-group2",
+            "--de-top-genes",
+            "--de-volcano",
         },
         "accepts_genotypes": False,
     },
@@ -802,6 +807,20 @@ def main():
         default=None,
         help="Top markers per cluster (scrna skill)",
     )
+    run_parser.add_argument("--de-groupby", default=None, help="obs column for DE (scrna skill)")
+    run_parser.add_argument("--de-group1", default=None, help="Group 1 value for DE (scrna skill)")
+    run_parser.add_argument("--de-group2", default=None, help="Group 2 reference value for DE (scrna skill)")
+    run_parser.add_argument(
+        "--de-top-genes",
+        type=int,
+        default=None,
+        help="Top DE genes in summary table (scrna skill)",
+    )
+    run_parser.add_argument(
+        "--de-volcano",
+        action="store_true",
+        help="Generate DE volcano plot (scrna skill)",
+    )
 
     args = parser.parse_args()
 
@@ -860,6 +879,16 @@ def main():
             extra.extend(["--random-state", str(args.random_state)])
         if getattr(args, "top_markers", None) is not None:
             extra.extend(["--top-markers", str(args.top_markers)])
+        if getattr(args, "de_groupby", None):
+            extra.extend(["--de-groupby", args.de_groupby])
+        if getattr(args, "de_group1", None):
+            extra.extend(["--de-group1", args.de_group1])
+        if getattr(args, "de_group2", None):
+            extra.extend(["--de-group2", args.de_group2])
+        if getattr(args, "de_top_genes", None) is not None:
+            extra.extend(["--de-top-genes", str(args.de_top_genes)])
+        if getattr(args, "de_volcano", False):
+            extra.append("--de-volcano")
 
         result = run_skill(
             skill_name=args.skill,
