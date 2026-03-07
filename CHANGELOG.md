@@ -5,6 +5,17 @@ All notable changes to ClawBio are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.4.0] — 2026-03-10 — Galaxy Integration
+
+### Added
+- **Galaxy Bridge skill** — search, inspect, and run 8,000+ bioinformatics tools from usegalaxy.org through natural language
+- **galaxy_catalog.json** — bundled index of all Galaxy tools for offline discovery (8,182 tools across 86 categories)
+- **200 curated tool profiles** — structured markdown profiles for the most important Galaxy tools (FastQC, Kraken2, DESeq2, BWA-MEM2, etc.)
+- **BioBlend integration** — remote tool execution on Galaxy via Python SDK with full reproducibility bundles
+- **Demo mode** — `python galaxy_bridge.py --demo` runs simulated FastQC analysis offline (no API key needed)
+- **Cross-platform chaining** — Galaxy tools chain with ClawBio skills (e.g., Galaxy VEP → PharmGx Reporter)
+- **Galaxy tool count in catalog.json** — `galaxy_tool_count` field shows total accessible tools
+
 ## [v0.3.1] — 2026-03-05 — Agent-Friendly
 
 ### Added
@@ -31,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Org migration: repo moved to `github.com/ClawBio/ClawBio`
 - Community infrastructure: issue templates, PR template, Discussions seeded, 8 open skill issues
 
+[v0.4.0]: https://github.com/ClawBio/ClawBio/compare/v0.3.1...v0.4.0
 [v0.3.1]: https://github.com/ClawBio/ClawBio/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/ClawBio/ClawBio/compare/v0.2.0...v0.3.0
 [v0.2.0]: https://github.com/ClawBio/ClawBio/releases/tag/v0.2.0

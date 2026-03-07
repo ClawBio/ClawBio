@@ -1,7 +1,8 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 21,
+  "skill_count": 22,
+  "galaxy_tool_count": 8182,
   "skills": [
     {
       "name": "bio-orchestrator",
@@ -181,6 +182,44 @@
       ],
       "chaining_partners": [
         "claw-semantic-sim"
+      ]
+    },
+    {
+      "name": "galaxy-bridge",
+      "cli_alias": "galaxy",
+      "description": "Galaxy tool discovery and execution — search, run, and chain 8,000+ bioinformatics tools from usegalaxy.org",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run galaxy --demo",
+      "dependencies": [],
+      "tags": [
+        "galaxy",
+        "bioinformatics",
+        "tool-discovery",
+        "workflows",
+        "NGS",
+        "genomics",
+        "proteomics",
+        "metagenomics"
+      ],
+      "trigger_keywords": [
+        "galaxy",
+        "usegalaxy",
+        "tool shed",
+        "bioblend",
+        "run on galaxy",
+        "galaxy tool",
+        "galaxy workflow",
+        "NGS pipeline"
+      ],
+      "chaining_partners": [
+        "pharmgx-reporter",
+        "claw-metagenomics",
+        "equity-scorer",
+        "vcf-annotator"
       ]
     },
     {
