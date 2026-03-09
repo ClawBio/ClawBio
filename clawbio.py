@@ -297,7 +297,7 @@ SKILLS = {
     "scrna": {
         "script": SKILLS_DIR / "scrna-orchestrator" / "scrna_orchestrator.py",
         "demo_args": ["--demo"],
-        "description": "scRNA Orchestrator (Scanpy QC, clustering, marker detection)",
+        "description": "scRNA Orchestrator (Scanpy QC, doublet detection, clustering, annotation)",
         "allowed_extra_flags": {
             "--min-genes",
             "--min-cells",
@@ -308,6 +308,9 @@ SKILLS = {
             "--leiden-resolution",
             "--random-state",
             "--top-markers",
+            "--doublet-method",
+            "--annotate",
+            "--annotation-model",
         },
         "accepts_genotypes": False,
     },
@@ -802,6 +805,21 @@ def main():
         default=None,
         help="Top markers per cluster (scrna skill)",
     )
+    run_parser.add_argument(
+        "--doublet-method",
+        default=None,
+        help="Optional doublet detection method for scrna skill",
+    )
+    run_parser.add_argument(
+        "--annotate",
+        default=None,
+        help="Optional annotation backend for scrna skill",
+    )
+    run_parser.add_argument(
+        "--annotation-model",
+        default=None,
+        help="Local CellTypist model name or path for scrna skill",
+    )
 
     args = parser.parse_args()
 
@@ -860,6 +878,12 @@ def main():
             extra.extend(["--random-state", str(args.random_state)])
         if getattr(args, "top_markers", None) is not None:
             extra.extend(["--top-markers", str(args.top_markers)])
+        if getattr(args, "doublet_method", None):
+            extra.extend(["--doublet-method", args.doublet_method])
+        if getattr(args, "annotate", None):
+            extra.extend(["--annotate", args.annotate])
+        if getattr(args, "annotation_model", None):
+            extra.extend(["--annotation-model", args.annotation_model])
 
         result = run_skill(
             skill_name=args.skill,

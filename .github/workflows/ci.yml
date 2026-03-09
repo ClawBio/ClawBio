@@ -89,10 +89,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest scanpy==1.10.2 anndata==0.10.8 leidenalg==0.10.2 igraph==0.11.6 seaborn==0.13.2
+          pip install pytest scanpy==1.10.2 anndata==0.10.8 leidenalg==0.10.2 igraph==0.11.6 seaborn==0.13.2 scrublet==0.2.3 celltypist==1.7.1
 
       - name: Verify scRNA stack imports
-        run: python -c "import scanpy, anndata, leidenalg, igraph; print('ok')"
+        run: python -c "import scanpy, anndata, leidenalg, igraph, scrublet, celltypist; print('ok')"
 
       - name: Run scRNA Orchestrator tests
         run: python -m pytest skills/scrna-orchestrator/tests/test_scrna_orchestrator.py -v -rA

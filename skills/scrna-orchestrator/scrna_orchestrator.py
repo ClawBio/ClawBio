@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""ClawBio scRNA Orchestrator (MVP).
+"""ClawBio scRNA Orchestrator.
 
 Scanpy-based single-cell RNA-seq pipeline:
-QC/filtering -> normalisation/log1p -> HVG -> PCA/neighbors/UMAP ->
+QC/filtering -> optional doublet detection -> normalisation/log1p ->
+optional CellTypist annotation -> HVG -> PCA/neighbors/UMAP ->
 Leiden clustering -> marker detection.
 
 Usage:
@@ -13,7 +14,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import shlex
 import sys
@@ -41,6 +41,7 @@ DISCLAIMER = (
     "before making any medical decisions."
 )
 DEMO_SOURCE_ENV = "CLAWBIO_SCRNA_DEMO_SOURCE"
+DEFAULT_CELLTYPIST_MODEL = "Immune_All_Low"
 
 
 def _import_scanpy():
@@ -53,6 +54,29 @@ def _import_scanpy():
             "Install it with: pip install scanpy anndata"
         ) from exc
     return sc
+
+
+def _import_scrublet():
+    """Import scrublet for optional doublet detection."""
+    try:
+        import scrublet  # noqa: F401
+    except ImportError as exc:
+        raise RuntimeError(
+            "scrublet is required for --doublet-method scrublet. "
+            "Install it with: pip install scrublet"
+        ) from exc
+
+
+def _import_celltypist():
+    """Import celltypist for optional annotation."""
+    try:
+        import celltypist  # type: ignore
+    except ImportError as exc:
+        raise RuntimeError(
+            "celltypist is required for --annotate celltypist. "
+            "Install it with: pip install celltypist"
+        ) from exc
+    return celltypist
 
 
 def build_demo_adata(random_state: int):
@@ -186,6 +210,44 @@ def detect_processed_input_reason(adata) -> str | None:
     return reason
 
 
+def _cluster_sort_key(cluster: str) -> tuple[int, Any]:
+    """Sort cluster labels numerically when possible."""
+    try:
+        return (0, int(cluster))
+    except ValueError:
+        return (1, cluster)
+
+
+def _normalize_celltypist_model_name(model_name: str) -> str:
+    """Normalize a CellTypist model identifier to a .pkl filename when needed."""
+    normalized = model_name.strip()
+    if not normalized:
+        return f"{DEFAULT_CELLTYPIST_MODEL}.pkl"
+    if "/" not in normalized and "\\" not in normalized and not normalized.endswith(".pkl"):
+        normalized = f"{normalized}.pkl"
+    return normalized
+
+
+def resolve_celltypist_model_path(celltypist, model_name: str) -> Path:
+    """Resolve a CellTypist model to a local path without triggering downloads."""
+    normalized = _normalize_celltypist_model_name(model_name)
+    if "/" in normalized or "\\" in normalized:
+        path = Path(normalized).expanduser()
+    else:
+        path = Path(celltypist.models.models_path) / normalized
+
+    if path.exists():
+        return path
+
+    raise RuntimeError(
+        "CellTypist model "
+        f"'{normalized}' was not found locally at {path}. "
+        "Install it first with: "
+        f"python -c \"import celltypist; celltypist.models.download_models(model='{normalized}')\". "
+        "Runtime downloads are disabled for this skill."
+    )
+
+
 def load_data(input_path: str | None, demo: bool, random_state: int):
     """Load AnnData from .h5ad or build demo data."""
     sc = _import_scanpy()
@@ -201,9 +263,7 @@ def load_data(input_path: str | None, demo: bool, random_state: int):
     if not path.exists():
         raise FileNotFoundError(f"Input file not found: {path}")
     if path.suffix.lower() != ".h5ad":
-        raise ValueError(
-            f"Only .h5ad is supported in MVP. Received: {path.name}"
-        )
+        raise ValueError(f"Only .h5ad is supported in MVP. Received: {path.name}")
 
     adata = sc.read_h5ad(path)
     processed_reason = detect_processed_input_reason(adata)
@@ -252,21 +312,66 @@ def qc_filter(
     return adata, stats
 
 
-def run_preprocess(adata, n_top_hvg: int):
-    """Normalise, log-transform, and select HVGs."""
+def run_doublet_detection(
+    adata,
+    method: str,
+    random_state: int,
+) -> tuple[Any, dict[str, Any] | None]:
+    """Run optional doublet detection on QC-filtered raw counts."""
+    if method == "none":
+        return adata.copy(), None
+
+    _import_scrublet()
     sc = _import_scanpy()
 
     adata = adata.copy()
-    sc.pp.normalize_total(adata, target_sum=1e4)
-    sc.pp.log1p(adata)
-    sc.pp.highly_variable_genes(adata, n_top_genes=n_top_hvg, flavor="seurat")
+    n_prin_comps = min(30, adata.n_obs - 1, adata.n_vars - 1)
+    if n_prin_comps < 2:
+        raise ValueError(
+            "Scrublet requires at least 3 cells and 3 genes after QC filtering. "
+            f"Got n_obs={adata.n_obs}, n_vars={adata.n_vars}."
+        )
 
-    n_hvg = int(adata.var["highly_variable"].sum())
+    sc.pp.scrublet(
+        adata,
+        log_transform=False,
+        n_prin_comps=n_prin_comps,
+        random_state=random_state,
+        verbose=False,
+    )
+
+    predicted = adata.obs["predicted_doublet"].fillna(False).astype(bool)
+    n_cells_scored = int(adata.n_obs)
+    n_predicted_doublets = int(predicted.sum())
+    filtered = adata[~predicted.to_numpy(), :].copy()
+    if filtered.n_obs == 0:
+        raise ValueError("Doublet detection removed all cells. Re-run with --doublet-method none.")
+
+    summary = {
+        "method": method,
+        "n_cells_scored": n_cells_scored,
+        "n_predicted_doublets": n_predicted_doublets,
+        "n_cells_retained": int(filtered.n_obs),
+        "predicted_doublet_rate": round(n_predicted_doublets / max(1, n_cells_scored), 4),
+    }
+    return filtered, summary
+
+
+def run_preprocess(adata, n_top_hvg: int):
+    """Normalise, log-transform, and prepare full-gene + HVG branches."""
+    sc = _import_scanpy()
+
+    adata_norm = adata.copy()
+    sc.pp.normalize_total(adata_norm, target_sum=1e4)
+    sc.pp.log1p(adata_norm)
+    sc.pp.highly_variable_genes(adata_norm, n_top_genes=n_top_hvg, flavor="seurat")
+
+    n_hvg = int(adata_norm.var["highly_variable"].sum())
     if n_hvg == 0:
         raise ValueError("No highly variable genes found.")
 
-    adata = adata[:, adata.var["highly_variable"]].copy()
-    return adata, n_hvg
+    adata_hvg = adata_norm[:, adata_norm.var["highly_variable"]].copy()
+    return adata_norm, adata_hvg, n_hvg
 
 
 def run_embedding_cluster(
@@ -325,7 +430,86 @@ def run_markers(adata, top_markers: int = 10):
     return adata, markers_all, markers_top
 
 
-def plot_core_figures(adata, markers_top: pd.DataFrame, figures_dir: Path) -> list[str]:
+def aggregate_cluster_annotations(
+    clusters: pd.Series,
+    predicted_labels: pd.Series,
+    conf_scores: pd.Series,
+    model_name: str,
+) -> pd.DataFrame:
+    """Aggregate per-cell CellTypist predictions to cluster-level summaries."""
+    frame = pd.DataFrame(
+        {
+            "cluster": clusters.astype(str),
+            "predicted_cell_type": predicted_labels.astype(str),
+            "conf_score": conf_scores.astype(float),
+        },
+        index=clusters.index,
+    )
+
+    rows = []
+    cluster_order = sorted(frame["cluster"].unique().tolist(), key=_cluster_sort_key)
+    for cluster in cluster_order:
+        group = frame.loc[frame["cluster"] == cluster]
+        counts = group["predicted_cell_type"].value_counts()
+        max_count = int(counts.max())
+        winning_labels = sorted(counts[counts == max_count].index.astype(str).tolist())
+        majority_label = winning_labels[0]
+        majority_mask = group["predicted_cell_type"] == majority_label
+        rows.append(
+            {
+                "cluster": cluster,
+                "n_cells": int(group.shape[0]),
+                "predicted_cell_type": majority_label,
+                "support_fraction": round(float(majority_mask.mean()), 4),
+                "mean_confidence": round(float(group.loc[majority_mask, "conf_score"].mean()), 4),
+                "annotation_model": model_name,
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def run_celltypist_annotation(adata, model_name: str) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Run optional local CellTypist annotation and return cluster-level summaries."""
+    celltypist = _import_celltypist()
+    model_path = resolve_celltypist_model_path(celltypist, model_name)
+    model = celltypist.models.Model.load(str(model_path))
+
+    overlap = int(np.isin(np.asarray(adata.var_names, dtype=object), model.features).sum())
+    if overlap == 0:
+        raise RuntimeError(
+            "CellTypist annotation requires human gene symbols overlapping the local model. "
+            f"Found 0 overlapping genes with {model_path.name}."
+        )
+
+    adata = adata.copy()
+    adata.var_names_make_unique()
+    result = celltypist.annotate(
+        adata,
+        model=model,
+        majority_voting=False,
+    )
+
+    predicted = result.predicted_labels["predicted_labels"].reindex(adata.obs_names)
+    conf_scores = result.probability_matrix.max(axis=1).reindex(adata.obs_names)
+    annotations = aggregate_cluster_annotations(
+        clusters=adata.obs["leiden"],
+        predicted_labels=predicted,
+        conf_scores=conf_scores,
+        model_name=model_path.name,
+    )
+    metadata = {
+        "backend": "celltypist",
+        "model": model_path.name,
+        "model_path": str(model_path),
+        "overlap_genes": overlap,
+        "putative": True,
+        "n_clusters_annotated": int(annotations.shape[0]),
+    }
+    return annotations, metadata
+
+
+def plot_core_figures(adata, markers_top: pd.DataFrame, figures_dir: Path) -> list[Path]:
     """Create QC/UMAP/marker plots."""
     import matplotlib
 
@@ -335,7 +519,7 @@ def plot_core_figures(adata, markers_top: pd.DataFrame, figures_dir: Path) -> li
     sc = _import_scanpy()
     figures_dir.mkdir(parents=True, exist_ok=True)
 
-    created: list[str] = []
+    created: list[Path] = []
 
     sc.pl.violin(
         adata,
@@ -348,14 +532,14 @@ def plot_core_figures(adata, markers_top: pd.DataFrame, figures_dir: Path) -> li
     qc_path = figures_dir / "qc_violin.png"
     plt.savefig(qc_path, dpi=180, bbox_inches="tight")
     plt.close("all")
-    created.append(qc_path.name)
+    created.append(qc_path)
 
     sc.pl.umap(adata, color="leiden", legend_loc="on data", show=False)
     plt.tight_layout()
     umap_path = figures_dir / "umap_leiden.png"
     plt.savefig(umap_path, dpi=180, bbox_inches="tight")
     plt.close("all")
-    created.append(umap_path.name)
+    created.append(umap_path)
 
     marker_genes = (
         markers_top.groupby("cluster", as_index=False)
@@ -376,7 +560,7 @@ def plot_core_figures(adata, markers_top: pd.DataFrame, figures_dir: Path) -> li
         marker_path = figures_dir / "marker_dotplot.png"
         dot.savefig(marker_path, dpi=180)
         plt.close("all")
-        created.append(marker_path.name)
+        created.append(marker_path)
 
     return created
 
@@ -385,10 +569,13 @@ def write_tables(
     adata,
     markers_top: pd.DataFrame,
     tables_dir: Path,
-) -> tuple[Path, Path, Path]:
-    """Write cluster summary and marker tables."""
+    doublet_summary: dict[str, Any] | None = None,
+    annotation_table: pd.DataFrame | None = None,
+) -> dict[str, Path]:
+    """Write cluster, marker, and optional feature tables."""
     tables_dir.mkdir(parents=True, exist_ok=True)
 
+    table_paths: dict[str, Path] = {}
     cluster_counts = adata.obs["leiden"].value_counts().sort_index()
     cluster_summary = pd.DataFrame(
         {
@@ -399,13 +586,26 @@ def write_tables(
     )
     cluster_path = tables_dir / "cluster_summary.csv"
     cluster_summary.to_csv(cluster_path, index=False)
+    table_paths["cluster_summary"] = cluster_path
 
     csv_path = tables_dir / "markers_top.csv"
     tsv_path = tables_dir / "markers_top.tsv"
     markers_top.to_csv(csv_path, index=False)
     markers_top.to_csv(tsv_path, sep="\t", index=False)
+    table_paths["markers_top_csv"] = csv_path
+    table_paths["markers_top_tsv"] = tsv_path
 
-    return cluster_path, csv_path, tsv_path
+    if doublet_summary is not None:
+        doublet_path = tables_dir / "doublet_summary.csv"
+        pd.DataFrame([doublet_summary]).to_csv(doublet_path, index=False)
+        table_paths["doublet_summary"] = doublet_path
+
+    if annotation_table is not None:
+        annotation_path = tables_dir / "cluster_annotations.csv"
+        annotation_table.to_csv(annotation_path, index=False)
+        table_paths["cluster_annotations"] = annotation_path
+
+    return table_paths
 
 
 def render_report(
@@ -418,6 +618,12 @@ def render_report(
     n_clusters: int,
     n_pcs_eff: int,
     params: dict[str, Any],
+    table_paths: dict[str, Path],
+    figure_paths: list[Path],
+    n_cells_analyzed: int,
+    doublet_summary: dict[str, Any] | None = None,
+    annotation_table: pd.DataFrame | None = None,
+    annotation_info: dict[str, Any] | None = None,
 ) -> Path:
     """Create markdown report.md."""
     input_files = [input_path] if input_path else []
@@ -428,55 +634,142 @@ def render_report(
         extra_metadata={
             "Mode": "demo" if is_demo else "input",
             "Cells (before QC)": str(qc_stats["n_cells_before"]),
-            "Cells (after QC)": str(qc_stats["n_cells_after"]),
+            "Cells (after QC)": str(n_cells_analyzed),
             "Genes (after QC)": str(qc_stats["n_genes_after"]),
             "Leiden clusters": str(n_clusters),
             "HVG selected": str(n_hvg),
+            "Doublet method": params["doublet_method"],
+            "Annotation backend": params["annotate"],
             "Demo source": demo_source if is_demo and demo_source else "n/a",
         },
     )
 
-    body = f"""## Summary
+    figure_labels = {
+        "qc_violin.png": "QC Violin",
+        "umap_leiden.png": "UMAP Leiden",
+        "marker_dotplot.png": "Marker Dotplot",
+    }
+    lines = ["## Summary", ""]
+    lines.append(f"- Cells before QC: **{qc_stats['n_cells_before']}**")
+    lines.append(f"- Cells after QC: **{n_cells_analyzed}**")
+    if doublet_summary is not None:
+        lines.append(f"- Cells after filter-only QC: **{qc_stats['n_cells_after']}**")
+        lines.append(f"- Predicted doublets: **{doublet_summary['n_predicted_doublets']}**")
+        lines.append(
+            "- Doublet detection: "
+            f"**{doublet_summary['method']}** ({doublet_summary['predicted_doublet_rate']:.1%} predicted)"
+        )
+    lines.append(f"- Genes before QC: **{qc_stats['n_genes_before']}**")
+    lines.append(f"- Genes after QC: **{qc_stats['n_genes_after']}**")
+    lines.append(f"- HVGs selected: **{n_hvg}**")
+    lines.append(f"- Leiden clusters: **{n_clusters}**")
+    if annotation_info is not None:
+        lines.append(f"- Clusters annotated: **{annotation_info['n_clusters_annotated']}**")
 
-- Cells before QC: **{qc_stats["n_cells_before"]}**
-- Cells after QC: **{qc_stats["n_cells_after"]}**
-- Genes before QC: **{qc_stats["n_genes_before"]}**
-- Genes after QC: **{qc_stats["n_genes_after"]}**
-- HVGs selected: **{n_hvg}**
-- Leiden clusters: **{n_clusters}**
+    lines.extend(["", "## Core Figures", ""])
+    for figure_path in figure_paths:
+        label = figure_labels.get(figure_path.name, figure_path.stem.replace("_", " ").title())
+        lines.append(f"![{label}](figures/{figure_path.name})")
 
-## Core Figures
+    lines.extend(["", "## Tables", ""])
+    for table_path in table_paths.values():
+        lines.append(f"- `tables/{table_path.name}`")
 
-![QC Violin](figures/qc_violin.png)
-![UMAP Leiden](figures/umap_leiden.png)
-![Marker Dotplot](figures/marker_dotplot.png)
+    if doublet_summary is not None:
+        lines.extend(["", "## Doublet Detection", ""])
+        lines.append(f"- Method: `scanpy.pp.scrublet`")
+        lines.append(f"- Cells scored: **{doublet_summary['n_cells_scored']}**")
+        lines.append(f"- Predicted doublets: **{doublet_summary['n_predicted_doublets']}**")
+        lines.append(f"- Cells retained: **{doublet_summary['n_cells_retained']}**")
+        lines.append(f"- Summary table: `tables/doublet_summary.csv`")
 
-## Tables
+    if annotation_table is not None and annotation_info is not None:
+        lines.extend(["", "## Cell Type Annotation", ""])
+        lines.append("- Backend: `CellTypist`")
+        lines.append(f"- Model: `{annotation_info['model']}`")
+        lines.append(f"- Overlapping genes with model: **{annotation_info['overlap_genes']}**")
+        lines.append("- Labels are **putative**, model-based assignments and should be manually reviewed.")
+        lines.append("- Summary table: `tables/cluster_annotations.csv`")
+        lines.append("")
+        for row in annotation_table.itertuples(index=False):
+            lines.append(
+                f"- Cluster `{row.cluster}` -> **{row.predicted_cell_type}** "
+                f"(support={row.support_fraction:.2f}, mean_confidence={row.mean_confidence:.2f})"
+            )
 
-- `tables/cluster_summary.csv`
-- `tables/markers_top.csv`
-- `tables/markers_top.tsv`
+    lines.extend(["", "## Methods", ""])
+    lines.append(
+        "- QC/filtering: "
+        f"`min_genes={params['min_genes']}`, `min_cells={params['min_cells']}`, `max_mt_pct={params['max_mt_pct']}`"
+    )
+    if doublet_summary is not None:
+        lines.append(
+            "- Doublet detection: "
+            "`scanpy.pp.scrublet` on QC-filtered raw counts before normalization/clustering"
+        )
+    lines.append("- Normalisation: total-count normalisation (`target_sum=1e4`) + `log1p`")
+    lines.append(f"- Feature selection: `n_top_hvg={params['n_top_hvg']}`")
+    lines.append(
+        "- Embedding: "
+        f"`n_pcs={n_pcs_eff}`, `n_neighbors={params['n_neighbors']}`, UMAP"
+    )
+    lines.append(f"- Clustering: Leiden `resolution={params['leiden_resolution']}`")
+    lines.append("- Marker analysis: `scanpy.tl.rank_genes_groups` (Wilcoxon, cluster-vs-rest)")
+    if annotation_info is not None:
+        lines.append(
+            "- Annotation: "
+            f"`CellTypist` model `{annotation_info['model']}` on normalized/log1p full-gene expression"
+        )
 
-## Methods
-
-- QC/filtering: `min_genes={params["min_genes"]}`, `min_cells={params["min_cells"]}`, `max_mt_pct={params["max_mt_pct"]}`
-- Normalisation: total-count normalisation (`target_sum=1e4`) + `log1p`
-- Feature selection: `n_top_hvg={params["n_top_hvg"]}`
-- Embedding: `n_pcs={n_pcs_eff}`, `n_neighbors={params["n_neighbors"]}`, UMAP
-- Clustering: Leiden `resolution={params["leiden_resolution"]}`
-- Marker analysis: `scanpy.tl.rank_genes_groups` (Wilcoxon, cluster-vs-rest)
-
-## Reproducibility
-
-See:
-- `reproducibility/commands.sh`
-- `reproducibility/environment.yml`
-- `reproducibility/checksums.sha256`
-"""
+    lines.extend(["", "## Reproducibility", "", "See:"])
+    lines.append("- `reproducibility/commands.sh`")
+    lines.append("- `reproducibility/environment.yml`")
+    lines.append("- `reproducibility/checksums.sha256`")
 
     report_path = output_dir / "report.md"
-    report_path.write_text(header + body + generate_report_footer(), encoding="utf-8")
+    report_path.write_text(header + "\n".join(lines) + generate_report_footer(), encoding="utf-8")
     return report_path
+
+
+def build_repro_command(
+    output_dir: Path,
+    input_path: Path | None,
+    is_demo: bool,
+    args: argparse.Namespace,
+) -> str:
+    """Build a reproducible CLI command for commands.sh."""
+    parts = ["python", "skills/scrna-orchestrator/scrna_orchestrator.py"]
+    if is_demo:
+        parts.append("--demo")
+    else:
+        if input_path is None:
+            raise ValueError("input_path is required when --demo is not used.")
+        parts.extend(["--input", str(input_path)])
+
+    parts.extend(["--output", str(output_dir)])
+
+    tunable_defaults = [
+        ("--min-genes", args.min_genes, 200),
+        ("--min-cells", args.min_cells, 3),
+        ("--max-mt-pct", args.max_mt_pct, 20.0),
+        ("--n-top-hvg", args.n_top_hvg, 2000),
+        ("--n-pcs", args.n_pcs, 50),
+        ("--n-neighbors", args.n_neighbors, 15),
+        ("--leiden-resolution", args.leiden_resolution, 1.0),
+        ("--random-state", args.random_state, 0),
+        ("--top-markers", args.top_markers, 10),
+    ]
+    for flag, value, default in tunable_defaults:
+        if value != default:
+            parts.extend([flag, str(value)])
+
+    if args.doublet_method != "none":
+        parts.extend(["--doublet-method", args.doublet_method])
+    if args.annotate != "none":
+        parts.extend(["--annotate", args.annotate])
+        parts.extend(["--annotation-model", args.annotation_model])
+
+    return " ".join(shlex.quote(part) for part in parts)
 
 
 def write_reproducibility(
@@ -484,25 +777,13 @@ def write_reproducibility(
     input_path: Path | None,
     is_demo: bool,
     args: argparse.Namespace,
+    table_paths: dict[str, Path],
+    figure_paths: list[Path],
 ) -> None:
     """Write commands.sh, environment.yml, and checksums.sha256."""
     repro_dir = output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
-    quoted_output = shlex.quote(str(output_dir))
-
-    if is_demo:
-        cmd_line = (
-            "python skills/scrna-orchestrator/scrna_orchestrator.py "
-            f"--demo --output {quoted_output}"
-        )
-    else:
-        if input_path is None:
-            raise ValueError("input_path is required when --demo is not used.")
-        quoted_input = shlex.quote(str(input_path))
-        cmd_line = (
-            "python skills/scrna-orchestrator/scrna_orchestrator.py "
-            f"--input {quoted_input} --output {quoted_output}"
-        )
+    cmd_line = build_repro_command(output_dir, input_path, is_demo, args)
 
     commands = f"""#!/usr/bin/env bash
 # Reproducibility script — ClawBio scRNA Orchestrator
@@ -529,6 +810,10 @@ dependencies:
   - seaborn=0.13.2
   - leidenalg=0.10.2
   - python-igraph=0.11.6
+  - pip
+  - pip:
+      - scrublet==0.2.3
+      - celltypist==1.7.1
 """
     (repro_dir / "environment.yml").write_text(env_yml, encoding="utf-8")
 
@@ -539,12 +824,8 @@ dependencies:
         [
             output_dir / "report.md",
             output_dir / "result.json",
-            output_dir / "tables" / "cluster_summary.csv",
-            output_dir / "tables" / "markers_top.csv",
-            output_dir / "tables" / "markers_top.tsv",
-            output_dir / "figures" / "qc_violin.png",
-            output_dir / "figures" / "umap_leiden.png",
-            output_dir / "figures" / "marker_dotplot.png",
+            *table_paths.values(),
+            *figure_paths,
         ]
     )
 
@@ -558,7 +839,7 @@ dependencies:
 
 
 def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
-    """Run the full scRNA MVP pipeline."""
+    """Run the full scRNA pipeline."""
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
     figures_dir = output_dir / "figures"
@@ -573,23 +854,47 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         min_cells=args.min_cells,
         max_mt_pct=args.max_mt_pct,
     )
-    adata_pp, n_hvg = run_preprocess(adata_qc, n_top_hvg=args.n_top_hvg)
+    adata_clean, doublet_summary = run_doublet_detection(
+        adata_qc,
+        method=args.doublet_method,
+        random_state=args.random_state,
+    )
+    adata_norm, adata_hvg, n_hvg = run_preprocess(adata_clean, n_top_hvg=args.n_top_hvg)
     adata_emb, n_pcs_eff = run_embedding_cluster(
-        adata_pp,
+        adata_hvg,
         n_pcs=args.n_pcs,
         n_neighbors=args.n_neighbors,
         leiden_resolution=args.leiden_resolution,
         random_state=args.random_state,
     )
-    adata_markers, markers_all, markers_top = run_markers(
+    adata_markers, _, markers_top = run_markers(
         adata_emb,
         top_markers=args.top_markers,
     )
 
-    cluster_path, markers_csv, markers_tsv = write_tables(adata_markers, markers_top, tables_dir)
-    created_figures = plot_core_figures(adata_markers, markers_top, figures_dir)
+    annotation_table = None
+    annotation_info = None
+    if args.annotate != "none":
+        adata_annotation = adata_norm.copy()
+        adata_annotation.obs["leiden"] = adata_markers.obs["leiden"].astype(str).reindex(
+            adata_annotation.obs_names
+        )
+        annotation_table, annotation_info = run_celltypist_annotation(
+            adata_annotation,
+            model_name=args.annotation_model,
+        )
+
+    table_paths = write_tables(
+        adata_markers,
+        markers_top,
+        tables_dir,
+        doublet_summary=doublet_summary,
+        annotation_table=annotation_table,
+    )
+    figure_paths = plot_core_figures(adata_markers, markers_top, figures_dir)
 
     n_clusters = int(adata_markers.obs["leiden"].nunique())
+    n_cells_analyzed = int(adata_markers.n_obs)
     params = {
         "min_genes": args.min_genes,
         "min_cells": args.min_cells,
@@ -599,6 +904,9 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         "n_neighbors": args.n_neighbors,
         "leiden_resolution": args.leiden_resolution,
         "random_state": args.random_state,
+        "doublet_method": args.doublet_method,
+        "annotate": args.annotate,
+        "annotation_model": args.annotation_model,
     }
     report_path = render_report(
         output_dir=output_dir,
@@ -610,43 +918,76 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         n_clusters=n_clusters,
         n_pcs_eff=n_pcs_eff,
         params=params,
+        table_paths=table_paths,
+        figure_paths=figure_paths,
+        n_cells_analyzed=n_cells_analyzed,
+        doublet_summary=doublet_summary,
+        annotation_table=annotation_table,
+        annotation_info=annotation_info,
     )
+
+    summary = {
+        "n_cells_before": qc_stats["n_cells_before"],
+        "n_cells_after": n_cells_analyzed,
+        "n_genes_before": qc_stats["n_genes_before"],
+        "n_genes_after": qc_stats["n_genes_after"],
+        "n_hvg": n_hvg,
+        "n_clusters": n_clusters,
+    }
+    if doublet_summary is not None:
+        summary["n_predicted_doublets"] = doublet_summary["n_predicted_doublets"]
+    if annotation_info is not None:
+        summary["n_clusters_annotated"] = annotation_info["n_clusters_annotated"]
+
+    data: dict[str, Any] = {
+        "cluster_labels": sorted(adata_markers.obs["leiden"].astype(str).unique().tolist(), key=_cluster_sort_key),
+        "tables": [path.name for path in table_paths.values()],
+        "figures": [path.name for path in figure_paths],
+        "demo_source": demo_source if is_demo else "not_demo",
+        "disclaimer": DISCLAIMER,
+    }
+    if doublet_summary is not None:
+        doublet_table = table_paths.get("doublet_summary")
+        data["doublet"] = {
+            **doublet_summary,
+            "table": doublet_table.name if doublet_table else "",
+        }
+    if annotation_info is not None:
+        annotation_path = table_paths.get("cluster_annotations")
+        data["annotation"] = {
+            **annotation_info,
+            "table": annotation_path.name if annotation_path else "",
+        }
 
     write_result_json(
         output_dir=output_dir,
         skill="scrna",
         version="0.1.0",
-        summary={
-            "n_cells_before": qc_stats["n_cells_before"],
-            "n_cells_after": qc_stats["n_cells_after"],
-            "n_genes_before": qc_stats["n_genes_before"],
-            "n_genes_after": qc_stats["n_genes_after"],
-            "n_hvg": n_hvg,
-            "n_clusters": n_clusters,
-        },
-        data={
-            "cluster_labels": sorted(adata_markers.obs["leiden"].astype(str).unique().tolist()),
-            "tables": [cluster_path.name, markers_csv.name, markers_tsv.name],
-            "figures": created_figures,
-            "demo_source": demo_source if is_demo else "not_demo",
-            "disclaimer": DISCLAIMER,
-        },
+        summary=summary,
+        data=data,
         input_checksum=sha256_file(input_path) if input_path else "",
     )
 
-    write_reproducibility(output_dir, input_path, is_demo, args)
+    write_reproducibility(
+        output_dir,
+        input_path,
+        is_demo,
+        args,
+        table_paths=table_paths,
+        figure_paths=figure_paths,
+    )
 
     return {
         "report_path": report_path,
         "output_dir": output_dir,
         "n_clusters": n_clusters,
-        "n_cells_after": qc_stats["n_cells_after"],
+        "n_cells_after": n_cells_analyzed,
     }
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="ClawBio scRNA Orchestrator — Scanpy QC/clustering/markers MVP",
+        description="ClawBio scRNA Orchestrator — Scanpy QC/clustering/markers with optional doublet detection and annotation",
     )
     parser.add_argument("--input", "-i", help="Input AnnData file (.h5ad)")
     parser.add_argument("--output", "-o", default="scrna_report", help="Output directory")
@@ -664,6 +1005,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--leiden-resolution", type=float, default=1.0, help="Leiden resolution")
     parser.add_argument("--random-state", type=int, default=0, help="Random seed")
     parser.add_argument("--top-markers", type=int, default=10, help="Top markers per cluster")
+    parser.add_argument(
+        "--doublet-method",
+        choices=("none", "scrublet"),
+        default="none",
+        help="Optional doublet detection method",
+    )
+    parser.add_argument(
+        "--annotate",
+        choices=("none", "celltypist"),
+        default="none",
+        help="Optional cell type annotation backend",
+    )
+    parser.add_argument(
+        "--annotation-model",
+        default=DEFAULT_CELLTYPIST_MODEL,
+        help="Local CellTypist model name or path (used with --annotate celltypist)",
+    )
     return parser.parse_args()
 
 

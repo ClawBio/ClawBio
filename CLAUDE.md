@@ -17,7 +17,7 @@ When the user asks a question, match it to a skill and act:
 | Route a query, multi-step analysis, "what skill should I use" | `skills/bio-orchestrator/` | Run `orchestrator.py` |
 | Variant annotation, VEP, ClinVar, gnomAD | `skills/vcf-annotator/` | Read SKILL.md, apply methodology |
 | Literature search, PubMed, bioRxiv, citation graph | `skills/lit-synthesizer/` | Read SKILL.md, apply methodology |
-| Single-cell RNA-seq, Scanpy, clustering, marker genes, h5ad | `skills/scrna-orchestrator/` | Run `scrna_orchestrator.py` |
+| Single-cell RNA-seq, Scanpy, clustering, marker genes, doublet removal, h5ad | `skills/scrna-orchestrator/` | Run `scrna_orchestrator.py` |
 | Protein structure, AlphaFold, PDB, Boltz | `skills/struct-predictor/` | Read SKILL.md, apply methodology |
 | Reproducibility, Nextflow, Singularity, Conda export | `skills/repro-enforcer/` | Read SKILL.md, apply methodology |
 | Sequence QC, FASTQ, alignment, BAM, trimming | `skills/seq-wrangler/` | Read SKILL.md, apply methodology |
@@ -62,6 +62,8 @@ python skills/scrna-orchestrator/scrna_orchestrator.py \
   --input <data.h5ad> --output <report_dir>
 python skills/scrna-orchestrator/scrna_orchestrator.py \
   --demo --output /tmp/scrna_demo
+python skills/scrna-orchestrator/scrna_orchestrator.py \
+  --demo --doublet-method scrublet --output /tmp/scrna_doublet_demo
 
 # Genome comparator — IBS vs George Church + ancestry estimation
 python skills/genome-compare/genome_compare.py \
@@ -149,6 +151,7 @@ python skills/nutrigx_advisor/nutrigx_advisor.py \
 
 # scRNA demo
 python skills/scrna-orchestrator/scrna_orchestrator.py --demo --output /tmp/scrna_demo
+python skills/scrna-orchestrator/scrna_orchestrator.py --demo --doublet-method scrublet --output /tmp/scrna_doublet_demo
 
 # ClinPGx demo
 python skills/clinpgx/clinpgx.py --demo --output /tmp/clinpgx_demo
