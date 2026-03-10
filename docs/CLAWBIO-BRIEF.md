@@ -49,7 +49,7 @@ User request (natural language)
 | Semantic Similarity | **Production** | — | Semantic Isolation Index for 175 GBD diseases from 13.1M PubMed abstracts |
 | VCF Annotator | Planned | — | Variant annotation with VEP and ancestry context |
 | Lit Synthesizer | Planned | — | PubMed/bioRxiv search with LLM summarisation |
-| scRNA Orchestrator | Planned | — | Seurat/Scanpy automation: QC, clustering, DE analysis |
+| scRNA Orchestrator | **Production** | — | Scanpy automation: QC, optional doublet detection, clustering, marker DE analysis |
 | Struct Predictor | Planned | — | AlphaFold/Boltz protein structure prediction |
 | Seq Wrangler | Planned | — | FastQC, alignment, BAM processing |
 | Repro Enforcer | Planned | — | Export any analysis as Conda env + Singularity + Nextflow |

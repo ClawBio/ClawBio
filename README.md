@@ -134,7 +134,7 @@ report/
 | [Galaxy Bridge](skills/galaxy-bridge/) | **MVP** | Search, run, and chain 8,000+ Galaxy bioinformatics tools |
 | [VCF Annotator](skills/vcf-annotator/) | Planned | Variant annotation with VEP, ClinVar, gnomAD |
 | [Lit Synthesizer](skills/lit-synthesizer/) | Planned | PubMed/bioRxiv search with LLM summarisation and citation graphs |
-| [scRNA Orchestrator](skills/scrna-orchestrator/) | **MVP** | Scanpy automation: QC, clustering, marker DE analysis, visualisation |
+| [scRNA Orchestrator](skills/scrna-orchestrator/) | **MVP** | Scanpy automation: QC, optional doublet detection, clustering, marker DE analysis, visualisation |
 | [Struct Predictor](skills/struct-predictor/) | Planned | AlphaFold/Boltz local structure prediction |
 | [Repro Enforcer](skills/repro-enforcer/) | Planned | Export any analysis as Conda env + Singularity + Nextflow pipeline |
 
@@ -264,6 +264,8 @@ python clawbio.py run equity --demo              # Equity scoring (55s)
 python clawbio.py run nutrigx --demo             # Nutrigenomics (60s)
 python clawbio.py run metagenomics --demo        # Metagenomics (3s)
 python clawbio.py run scrna --demo               # scRNA clustering + marker detection (PBMC3k-first demo)
+python clawbio.py run scrna --demo --doublet-method scrublet
+                                                 # Optional doublet detection before clustering
 python clawbio.py run compare --demo             # Manuel Corpas vs George Church (10s)
 python clawbio.py run gwas-lookup --demo         # rs3798220 across 9 databases (5s)
 python clawbio.py run prs --demo                 # Polygenic risk scores (10s)

@@ -297,7 +297,7 @@ SKILLS = {
     "scrna": {
         "script": SKILLS_DIR / "scrna-orchestrator" / "scrna_orchestrator.py",
         "demo_args": ["--demo"],
-        "description": "scRNA Orchestrator (Scanpy QC, clustering, marker detection, optional two-group DE + volcano)",
+        "description": "scRNA Orchestrator (Scanpy QC, doublet detection, clustering, annotation, optional two-group DE + volcano)",
         "allowed_extra_flags": {
             "--min-genes",
             "--min-cells",
@@ -313,6 +313,9 @@ SKILLS = {
             "--de-group2",
             "--de-top-genes",
             "--de-volcano",
+            "--doublet-method",
+            "--annotate",
+            "--annotation-model",
         },
         "accepts_genotypes": False,
     },
@@ -829,6 +832,21 @@ def main():
         action="store_true",
         help="Generate DE volcano plot (scrna skill)",
     )
+    run_parser.add_argument(
+        "--doublet-method",
+        default=None,
+        help="Optional doublet detection method for scrna skill",
+    )
+    run_parser.add_argument(
+        "--annotate",
+        default=None,
+        help="Optional annotation backend for scrna skill",
+    )
+    run_parser.add_argument(
+        "--annotation-model",
+        default=None,
+        help="Local CellTypist model name or path for scrna skill",
+    )
 
     args = parser.parse_args()
 
@@ -897,6 +915,12 @@ def main():
             extra.extend(["--de-top-genes", str(args.de_top_genes)])
         if getattr(args, "de_volcano", False):
             extra.append("--de-volcano")
+        if getattr(args, "doublet_method", None):
+            extra.extend(["--doublet-method", args.doublet_method])
+        if getattr(args, "annotate", None):
+            extra.extend(["--annotate", args.annotate])
+        if getattr(args, "annotation_model", None):
+            extra.extend(["--annotation-model", args.annotation_model])
 
         result = run_skill(
             skill_name=args.skill,

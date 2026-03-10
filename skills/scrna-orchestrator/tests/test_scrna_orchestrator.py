@@ -9,6 +9,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -78,6 +79,54 @@ def _load_scrna_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _build_human_like_input(path: Path) -> None:
+    from anndata import AnnData  # type: ignore
+
+    genes = ["CD3D", "TRBC1", "MS4A1", "CD79A", "LYZ", "S100A8", "NKG7", "GNLY"]
+    rng = np.random.default_rng(0)
+    templates = [
+        np.array([18, 16, 1, 1, 1, 1, 4, 3], dtype=np.int32),
+        np.array([1, 1, 18, 16, 1, 1, 3, 1], dtype=np.int32),
+        np.array([1, 1, 1, 1, 18, 16, 10, 8], dtype=np.int32),
+    ]
+
+    rows = []
+    for template in templates:
+        for _ in range(6):
+            rows.append(rng.poisson(lam=template).astype(np.int32) + 1)
+
+    obs = pd.DataFrame(index=pd.Index([f"cell_{i}" for i in range(len(rows))], dtype="object"))
+    var = pd.DataFrame(index=pd.Index(genes, dtype="object"))
+    AnnData(X=np.vstack(rows), obs=obs, var=var).write_h5ad(path)
+
+
+def _make_args(output_dir: Path, **overrides) -> SimpleNamespace:
+    defaults = {
+        "input": None,
+        "output": str(output_dir),
+        "demo": False,
+        "min_genes": 200,
+        "min_cells": 3,
+        "max_mt_pct": 20.0,
+        "n_top_hvg": 2000,
+        "n_pcs": 50,
+        "n_neighbors": 15,
+        "leiden_resolution": 1.0,
+        "random_state": 0,
+        "top_markers": 10,
+        "doublet_method": "none",
+        "annotate": "none",
+        "annotation_model": "Immune_All_Low",
+        "de_groupby": None,
+        "de_group1": None,
+        "de_group2": None,
+        "de_top_genes": 50,
+        "de_volcano": False,
+    }
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
 
 
 def test_demo_end_to_end_outputs(tmp_path: Path):
@@ -410,6 +459,55 @@ def test_commands_sh_contains_de_flags_when_enabled(tmp_path: Path):
     assert "--de-volcano" in commands_sh
 
 
+def test_demo_doublet_detection_outputs_summary_metadata(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "doublet_output"
+    result = _run_cmd(
+        [
+            "--demo",
+            "--output",
+            str(output_dir),
+            "--doublet-method",
+            "scrublet",
+        ]
+    )
+    assert result.returncode == 0, result.stderr
+
+    doublet_table = output_dir / "tables" / "doublet_summary.csv"
+    assert doublet_table.exists()
+    payload = json.loads((output_dir / "result.json").read_text())
+    assert payload["summary"]["n_predicted_doublets"] >= 0
+    assert payload["data"]["doublet"]["method"] == "scrublet"
+    assert payload["data"]["doublet"]["table"] == "doublet_summary.csv"
+    report_text = (output_dir / "report.md").read_text()
+    assert "Doublet Detection" in report_text
+    commands_sh = (output_dir / "reproducibility" / "commands.sh").read_text()
+    assert "--doublet-method scrublet" in commands_sh
+
+
+def test_doublet_and_de_can_run_together(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "doublet_de_output"
+    result = _run_cmd(
+        [
+            "--demo",
+            "--output",
+            str(output_dir),
+            "--doublet-method",
+            "scrublet",
+            "--de-groupby",
+            "demo_truth",
+            "--de-group1",
+            "cluster_0",
+            "--de-group2",
+            "cluster_1",
+        ]
+    )
+    assert result.returncode == 0, result.stderr
+    assert (output_dir / "tables" / "doublet_summary.csv").exists()
+    assert (output_dir / "tables" / "de_full.csv").exists()
+
+
 def test_de_requires_all_group_flags(tmp_path: Path):
     _require_scanpy()
     output_dir = tmp_path / "de_incomplete"
@@ -501,6 +599,36 @@ def test_clawbio_run_scrna_accepts_whitelisted_tuning_flags(tmp_path: Path):
     assert (output_dir / "result.json").exists()
 
 
+def test_clawbio_run_scrna_accepts_whitelisted_feature_flags(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "clawbio_scrna_feature_output"
+
+    result = _run_clawbio_scrna_cmd(
+        [
+            "--demo",
+            "--output",
+            str(output_dir),
+            "--n-pcs",
+            "20",
+            "--n-neighbors",
+            "10",
+            "--leiden-resolution",
+            "0.6",
+            "--min-genes",
+            "1",
+            "--min-cells",
+            "1",
+            "--top-markers",
+            "5",
+            "--doublet-method",
+            "scrublet",
+        ]
+    )
+    assert result.returncode == 0, result.stderr
+    assert (output_dir / "result.json").exists()
+    assert (output_dir / "tables" / "doublet_summary.csv").exists()
+
+
 def test_clawbio_run_scrna_accepts_whitelisted_de_flags(tmp_path: Path):
     _require_scanpy()
     output_dir = tmp_path / "clawbio_scrna_de_output"
@@ -525,6 +653,172 @@ def test_clawbio_run_scrna_accepts_whitelisted_de_flags(tmp_path: Path):
     assert (output_dir / "tables" / "de_full.csv").exists()
     assert (output_dir / "tables" / "de_top.csv").exists()
     assert (output_dir / "figures" / "de_volcano.png").exists()
+
+
+def test_doublet_missing_dependency_message(monkeypatch: pytest.MonkeyPatch):
+    from anndata import AnnData  # type: ignore
+
+    module = _load_scrna_module()
+    adata = AnnData(
+        X=np.array([[1, 0, 3], [2, 1, 0], [1, 1, 2]], dtype=np.int32),
+        obs=pd.DataFrame(index=pd.Index(["cell0", "cell1", "cell2"], dtype="object")),
+        var=pd.DataFrame(index=pd.Index(["GeneA", "GeneB", "GeneC"], dtype="object")),
+    )
+
+    def _raise_missing():
+        raise RuntimeError(
+            "scrublet is required for --doublet-method scrublet. Install it with: pip install scrublet"
+        )
+
+    monkeypatch.setattr(module, "_import_scrublet", _raise_missing)
+    with pytest.raises(RuntimeError, match="pip install scrublet"):
+        module.run_doublet_detection(adata, method="scrublet", random_state=0)
+
+
+def test_parse_args_annotation_defaults_and_override(monkeypatch: pytest.MonkeyPatch):
+    module = _load_scrna_module()
+
+    monkeypatch.setattr(sys, "argv", ["scrna_orchestrator.py", "--demo"])
+    args = module.parse_args()
+    assert args.annotate == "none"
+    assert args.annotation_model == "Immune_All_Low"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "scrna_orchestrator.py",
+            "--demo",
+            "--annotate",
+            "celltypist",
+            "--annotation-model",
+            "CustomModel",
+        ],
+    )
+    args = module.parse_args()
+    assert args.annotate == "celltypist"
+    assert args.annotation_model == "CustomModel"
+
+
+def test_celltypist_annotation_pipeline_writes_cluster_summary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _require_scanpy()
+    module = _load_scrna_module()
+    input_path = tmp_path / "human_like.h5ad"
+    output_dir = tmp_path / "annotated_output"
+    _build_human_like_input(input_path)
+
+    model_dir = tmp_path / "models"
+    model_dir.mkdir()
+    model_path = model_dir / "Immune_All_Low.pkl"
+    model_path.write_text("fake model placeholder", encoding="utf-8")
+
+    genes = np.array(["CD3D", "TRBC1", "MS4A1", "CD79A", "LYZ", "S100A8", "NKG7", "GNLY"], dtype=object)
+
+    class FakeModel:
+        def __init__(self, features: np.ndarray):
+            self.features = features
+
+    class FakeModelLoader:
+        @staticmethod
+        def load(model: str):
+            assert model.endswith("Immune_All_Low.pkl")
+            return FakeModel(features=genes)
+
+    def fake_annotate(adata, model, majority_voting: bool = False):
+        assert majority_voting is False
+        assert np.array_equal(model.features, genes)
+        cluster_order = sorted(
+            adata.obs["leiden"].astype(str).unique().tolist(),
+            key=module._cluster_sort_key,
+        )
+        label_map = {}
+        labels = ["T cell", "B cell", "Myeloid"]
+        for index, cluster in enumerate(cluster_order):
+            label_map[cluster] = labels[min(index, len(labels) - 1)]
+
+        predicted = []
+        probabilities = []
+        for cell_name in adata.obs_names:
+            cluster = str(adata.obs.loc[cell_name, "leiden"])
+            label = label_map[cluster]
+            predicted.append(label)
+            probabilities.append(
+                {
+                    "T cell": 0.92 if label == "T cell" else 0.04,
+                    "B cell": 0.91 if label == "B cell" else 0.04,
+                    "Myeloid": 0.90 if label == "Myeloid" else 0.04,
+                }
+            )
+
+        return SimpleNamespace(
+            predicted_labels=pd.DataFrame({"predicted_labels": predicted}, index=adata.obs_names),
+            probability_matrix=pd.DataFrame(probabilities, index=adata.obs_names),
+            adata=adata,
+        )
+
+    fake_celltypist = SimpleNamespace(
+        models=SimpleNamespace(models_path=str(model_dir), Model=FakeModelLoader),
+        annotate=fake_annotate,
+    )
+    monkeypatch.setattr(module, "_import_celltypist", lambda: fake_celltypist)
+
+    args = _make_args(
+        output_dir,
+        input=str(input_path),
+        min_genes=1,
+        min_cells=1,
+        n_top_hvg=8,
+        n_pcs=5,
+        n_neighbors=4,
+        leiden_resolution=0.7,
+        top_markers=4,
+        annotate="celltypist",
+        annotation_model="Immune_All_Low",
+    )
+    result = module.run_pipeline(args)
+    assert result["n_clusters"] >= 2
+
+    ann = pd.read_csv(output_dir / "tables" / "cluster_annotations.csv")
+    assert list(ann.columns) == [
+        "cluster",
+        "n_cells",
+        "predicted_cell_type",
+        "support_fraction",
+        "mean_confidence",
+        "annotation_model",
+    ]
+    assert set(ann["predicted_cell_type"]).issubset({"T cell", "B cell", "Myeloid"})
+    payload = json.loads((output_dir / "result.json").read_text())
+    assert payload["data"]["annotation"]["backend"] == "celltypist"
+    assert payload["data"]["annotation"]["model"] == "Immune_All_Low.pkl"
+    assert payload["summary"]["n_clusters_annotated"] == len(ann)
+    report_text = (output_dir / "report.md").read_text().lower()
+    assert "putative" in report_text
+    commands_sh = (output_dir / "reproducibility" / "commands.sh").read_text()
+    assert "--annotate celltypist" in commands_sh
+    assert "--annotation-model Immune_All_Low" in commands_sh
+
+
+def test_annotation_missing_local_model_fails_actionably(tmp_path: Path):
+    _require_scanpy()
+    output_dir = tmp_path / "annotation_missing_model"
+    result = _run_cmd(
+        [
+            "--demo",
+            "--output",
+            str(output_dir),
+            "--annotate",
+            "celltypist",
+            "--annotation-model",
+            "DefinitelyMissingModel",
+        ]
+    )
+    assert result.returncode != 0
+    assert "Runtime downloads are disabled" in result.stderr
+    assert "download_models" in result.stderr
 
 
 def test_orchestrator_no_rds_extension_route():

@@ -434,7 +434,7 @@
     {
       "name": "scrna-orchestrator",
       "cli_alias": "scrna",
-      "description": "Automate single-cell RNA-seq analysis with Scanpy or Seurat. QC, normalisation, clustering, DE analysis, and visualisation.",
+      "description": "Automate single-cell RNA-seq analysis with Scanpy. QC, optional doublet detection, clustering, marker analysis, visualisation, and optional CellTypist annotation.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
