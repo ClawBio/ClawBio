@@ -1,0 +1,194 @@
+/* Custom styles beyond Tailwind */
+
+.figure-card {
+    transition: all 0.2s ease;
+}
+
+.figure-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.figure-card.selected {
+    ring: 2px solid #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+.badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.badge-scatter { background: #dbeafe; color: #1e40af; }
+.badge-bar { background: #dcfce7; color: #166534; }
+.badge-line { background: #fef3c7; color: #92400e; }
+.badge-box { background: #f3e8ff; color: #6b21a8; }
+.badge-violin { background: #fce7f3; color: #9d174d; }
+.badge-histogram { background: #e0e7ff; color: #3730a3; }
+.badge-heatmap { background: #ffedd5; color: #9a3412; }
+.badge-forest { background: #d1fae5; color: #065f46; }
+.badge-kaplan_meier { background: #fecaca; color: #991b1b; }
+.badge-table { background: #cffafe; color: #155e75; }
+.badge-other { background: #f3f4f6; color: #374151; }
+.badge-non_data { background: #e5e7eb; color: #6b7280; }
+
+.confidence-high { color: #059669; }
+.confidence-medium { color: #d97706; }
+.confidence-low { color: #dc2626; }
+
+.spinner {
+    border: 3px solid #e5e7eb;
+    border-top: 3px solid #3b82f6;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.data-table input {
+    width: 100%;
+    border: 1px solid transparent;
+    background: transparent;
+    padding: 2px 4px;
+    font-family: monospace;
+    font-size: 0.85rem;
+}
+
+.data-table input:hover {
+    border-color: #d1d5db;
+}
+
+.data-table input:focus {
+    border-color: #3b82f6;
+    outline: none;
+    background: #eff6ff;
+}
+
+.drop-zone {
+    border: 2px dashed #d1d5db;
+    transition: all 0.2s;
+    background: #fafafa;
+}
+
+.drop-zone:hover {
+    border-color: #93c5fd;
+    background: #f0f7ff;
+}
+
+.drop-zone.dragover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    transform: scale(1.01);
+}
+
+/* Drawing preview rectangle */
+.draw-preview {
+    position: absolute;
+    border: 2px dashed #7c3aed;
+    background: rgba(124, 58, 237, 0.08);
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+/* Plot detection boxes */
+.plot-box {
+    position: absolute;
+    border: 2px solid #3b82f6;
+    background: rgba(59, 130, 246, 0.06);
+    cursor: move;
+    box-sizing: border-box;
+    min-width: 30px;
+    min-height: 30px;
+    pointer-events: auto;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.plot-box:hover {
+    border-color: #2563eb;
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.plot-box.extracting {
+    border-color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.1);
+    animation: pulse-border 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+    0%, 100% { border-color: #8b5cf6; }
+    50% { border-color: #c4b5fd; }
+}
+
+.plot-box.done {
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.06);
+}
+
+.plot-box .box-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #3b82f6;
+    border: 1px solid white;
+    border-radius: 2px;
+    z-index: 2;
+}
+
+.box-handle.se { bottom: -5px; right: -5px; cursor: se-resize; }
+.box-handle.sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+.box-handle.ne { top: -5px; right: -5px; cursor: ne-resize; }
+.box-handle.nw { top: -5px; left: -5px; cursor: nw-resize; }
+
+.plot-box .box-controls {
+    position: absolute;
+    top: -28px;
+    right: -2px;
+    display: flex;
+    gap: 2px;
+    z-index: 3;
+    white-space: nowrap;
+}
+
+.plot-box .box-label {
+    position: absolute;
+    top: -28px;
+    left: -2px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #3b82f6;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px 4px 0 0;
+    z-index: 3;
+    white-space: nowrap;
+}
+
+.plot-box .box-btn {
+    font-size: 11px;
+    padding: 2px 8px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.plot-box .btn-extract {
+    background: #7c3aed;
+    color: white;
+}
+.plot-box .btn-extract:hover { background: #6d28d9; }
+
+.plot-box .btn-delete {
+    background: #fecaca;
+    color: #991b1b;
+}
+.plot-box .btn-delete:hover { background: #fca5a5; }

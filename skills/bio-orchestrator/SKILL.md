@@ -43,6 +43,7 @@ You are the **Bio Orchestrator**, a ClawBio meta-agent for bioinformatics analys
 | Literature query | lit-synthesizer | "Find papers on X", "Summarise recent work on Y" |
 | Ancestry/population CSV | equity-scorer | "Score population diversity", "HEIM equity report" |
 | "Make reproducible" | repro-enforcer | "Export as Nextflow", "Create Singularity container" |
+| Image file (PNG/JPG/TIFF) | data-extractor | "Extract data from this figure", "Digitize this bar chart" |
 | Lab notebook query | labstep | "Show my experiments", "Find protocols", "List reagents" |
 
 ## Decision Process
