@@ -187,8 +187,8 @@
     {
       "name": "galaxy-bridge",
       "cli_alias": "galaxy",
-      "description": "Galaxy tool discovery and execution — search, run, and chain 8,000+ bioinformatics tools from usegalaxy.org",
-      "version": "0.1.0",
+      "description": "Galaxy tool discovery, intelligent recommendation, and execution — 8,000+ bioinformatics tools from usegalaxy.org with multi-signal scoring and workflow suggestions",
+      "version": "0.2.0",
       "status": "mvp",
       "has_script": true,
       "has_tests": true,
@@ -434,7 +434,7 @@
     {
       "name": "scrna-orchestrator",
       "cli_alias": "scrna",
-      "description": "Automate single-cell RNA-seq analysis with Scanpy. QC, optional doublet detection, clustering, marker analysis, visualisation, and optional CellTypist annotation.",
+      "description": "Local Scanpy pipeline for single-cell RNA-seq QC, optional doublet detection, clustering, marker discovery, optional CellTypist annotation, and optional two-group differential expression from raw-count .h5ad or 10x Matrix Market input.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -442,11 +442,21 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run scrna --demo",
       "dependencies": [],
-      "tags": [],
+      "tags": [
+        "scrna",
+        "single-cell",
+        "scanpy",
+        "clustering",
+        "differential-expression",
+        "mtx",
+        "10x"
+      ],
       "trigger_keywords": [
         "single-cell",
         "scrna",
         "h5ad",
+        "mtx",
+        "10x",
         "scanpy",
         "umap",
         "leiden"

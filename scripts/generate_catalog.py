@@ -122,7 +122,7 @@ TRIGGER_KEYWORDS: dict[str, list[str]] = {
     "genome-compare": ["genome comparison", "IBS", "George Church", "Corpasome", "pairwise"],
     "equity-scorer": ["HEIM", "equity", "FST", "heterozygosity", "population representation"],
     "nutrigx_advisor": ["nutrition", "nutrigenomics", "diet genetics", "MTHFR", "caffeine", "lactose"],
-    "scrna-orchestrator": ["single-cell", "scrna", "h5ad", "scanpy", "umap", "leiden"],
+    "scrna-orchestrator": ["single-cell", "scrna", "h5ad", "mtx", "10x", "scanpy", "umap", "leiden"],
     "claw-ancestry-pca": ["ancestry", "PCA", "admixture", "SGDP", "population structure"],
     "claw-semantic-sim": ["semantic similarity", "disease neglect", "research gaps", "NTDs", "SII"],
     "claw-metagenomics": ["metagenomics", "Kraken2", "RGI", "CARD", "HUMAnN3", "microbiome"],

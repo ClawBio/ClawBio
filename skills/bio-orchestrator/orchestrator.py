@@ -44,6 +44,8 @@ EXTENSION_MAP: dict[str, str] = {
     ".pdb": "struct-predictor",
     ".cif": "struct-predictor",
     ".h5ad": "scrna-orchestrator",
+    ".mtx": "scrna-orchestrator",
+    ".mtx.gz": "scrna-orchestrator",
     ".csv": "equity-scorer",
     ".tsv": "equity-scorer",
 }

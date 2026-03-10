@@ -8,12 +8,14 @@ Leiden clustering -> marker detection.
 
 Usage:
     python scrna_orchestrator.py --input sample.h5ad --output report_dir
+    python scrna_orchestrator.py --input filtered_feature_bc_matrix --output report_dir
     python scrna_orchestrator.py --demo --output demo_report
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shlex
@@ -205,7 +207,7 @@ def detect_processed_input_reason(adata) -> str | None:
     if uns_hits:
         reason += f" Found processed-analysis metadata in adata.uns: {', '.join(uns_hits)}."
     reason += (
-        " This skill expects raw-count .h5ad input. `pbmc3k_processed` is not supported; "
+        " This skill expects raw-count single-cell input. `pbmc3k_processed` is not supported; "
         "use raw counts (e.g., `scanpy.datasets.pbmc3k()`)."
     )
     return reason
@@ -249,30 +251,163 @@ def resolve_celltypist_model_path(celltypist, model_name: str) -> Path:
     )
 
 
+def _is_h5ad_input_path(path: Path) -> bool:
+    """Return True when the input points to an AnnData file."""
+    return path.is_file() and path.suffix.lower() == ".h5ad"
+
+
+def _is_matrix_market_input_path(path: Path) -> bool:
+    """Return True when the input is a matrix.mtx or matrix.mtx.gz file."""
+    name = path.name.lower()
+    return path.is_file() and (name.endswith(".mtx") or name.endswith(".mtx.gz"))
+
+
+def resolve_10x_mtx_source(path: Path) -> dict[str, Any]:
+    """Resolve a 10x Matrix Market input from a directory or matrix file."""
+    source_dir = path if path.is_dir() else path.parent
+    if not source_dir.exists():
+        raise FileNotFoundError(f"Input path not found: {path}")
+
+    if path.is_dir():
+        matrix_candidates = sorted(
+            [
+                candidate
+                for candidate in source_dir.iterdir()
+                if candidate.is_file() and candidate.name.endswith(("matrix.mtx", "matrix.mtx.gz"))
+            ]
+        )
+        if not matrix_candidates:
+            raise ValueError(
+                "10x Matrix Market input requires a directory containing "
+                "`matrix.mtx` or `matrix.mtx.gz`."
+            )
+        if len(matrix_candidates) > 1:
+            candidate_names = ", ".join(candidate.name for candidate in matrix_candidates)
+            raise ValueError(
+                "Multiple 10x matrix files were found in the input directory. "
+                "Point `--input` to a specific `matrix.mtx` or `matrix.mtx.gz` file. "
+                f"Found: {candidate_names}"
+            )
+        matrix_path = matrix_candidates[0]
+    else:
+        if not _is_matrix_market_input_path(path):
+            raise ValueError(
+                "10x Matrix Market input must be a `matrix.mtx(.gz)` file or a directory "
+                "containing one."
+            )
+        matrix_path = path
+
+    if matrix_path.name.endswith("matrix.mtx.gz"):
+        prefix = matrix_path.name[: -len("matrix.mtx.gz")]
+        compressed = True
+        features_path = source_dir / f"{prefix}features.tsv.gz"
+        barcodes_path = source_dir / f"{prefix}barcodes.tsv.gz"
+        missing = [candidate.name for candidate in (features_path, barcodes_path) if not candidate.exists()]
+        if missing:
+            raise ValueError(
+                "Compressed 10x Matrix Market input requires matching `features.tsv.gz` "
+                f"and `barcodes.tsv.gz` files. Missing: {', '.join(missing)}"
+            )
+        input_files = [matrix_path, barcodes_path, features_path]
+    else:
+        prefix = matrix_path.name[: -len("matrix.mtx")]
+        compressed = False
+        barcodes_path = source_dir / f"{prefix}barcodes.tsv"
+        features_path = source_dir / f"{prefix}features.tsv"
+        genes_path = source_dir / f"{prefix}genes.tsv"
+        if not barcodes_path.exists():
+            raise ValueError(
+                "Uncompressed 10x Matrix Market input requires a matching `barcodes.tsv` file."
+            )
+        if features_path.exists():
+            feature_table_path = features_path
+        elif genes_path.exists():
+            feature_table_path = genes_path
+        else:
+            raise ValueError(
+                "Uncompressed 10x Matrix Market input requires either `features.tsv` "
+                "or legacy `genes.tsv` alongside `matrix.mtx`."
+            )
+        input_files = [matrix_path, barcodes_path, feature_table_path]
+
+    return {
+        "format": "10x_mtx",
+        "reader_path": source_dir,
+        "files": input_files,
+        "compressed": compressed,
+        "prefix": prefix,
+    }
+
+
+def resolve_input_source(path: Path) -> dict[str, Any]:
+    """Resolve supported input types into a normalized metadata bundle."""
+    if not path.exists():
+        raise FileNotFoundError(f"Input path not found: {path}")
+
+    if _is_h5ad_input_path(path):
+        return {
+            "format": "h5ad",
+            "reader_path": path,
+            "files": [path],
+            "compressed": False,
+            "prefix": "",
+        }
+
+    if path.is_dir() or _is_matrix_market_input_path(path):
+        return resolve_10x_mtx_source(path)
+
+    raise ValueError(
+        "Supported inputs are raw-count `.h5ad` and 10x Matrix Market inputs "
+        "(`matrix.mtx`, `matrix.mtx.gz`, or a directory containing them). "
+        f"Received: {path.name}"
+    )
+
+
+def compute_input_checksum(input_source: dict[str, Any] | None) -> str:
+    """Compute a stable checksum for one or more input files."""
+    if input_source is None:
+        return ""
+
+    input_files = sorted((Path(path) for path in input_source["files"]), key=lambda path: path.name)
+    if len(input_files) == 1:
+        return sha256_file(input_files[0])
+
+    digest = hashlib.sha256()
+    for path in input_files:
+        digest.update(path.name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(sha256_file(path).encode("utf-8"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def load_data(input_path: str | None, demo: bool, random_state: int):
-    """Load AnnData from .h5ad or build demo data."""
+    """Load AnnData from supported inputs or build demo data."""
     sc = _import_scanpy()
 
     if demo:
         adata, demo_source = load_demo_adata(random_state)
-        return adata, None, True, demo_source
+        return adata, None, True, demo_source, None
 
     if not input_path:
-        raise ValueError("Provide --input <file.h5ad> or --demo.")
+        raise ValueError("Provide --input <input.h5ad|matrix.mtx|10x_dir> or --demo.")
 
     path = Path(input_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Input file not found: {path}")
-    if path.suffix.lower() != ".h5ad":
-        raise ValueError(
-            f"Only .h5ad is supported in MVP. Received: {path.name}"
+    source_info = resolve_input_source(path)
+    if source_info["format"] == "h5ad":
+        adata = sc.read_h5ad(path)
+    else:
+        adata = sc.read_10x_mtx(
+            source_info["reader_path"],
+            var_names="gene_symbols",
+            make_unique=True,
+            prefix=source_info["prefix"] or None,
+            compressed=bool(source_info["compressed"]),
         )
-
-    adata = sc.read_h5ad(path)
     processed_reason = detect_processed_input_reason(adata)
     if processed_reason:
         raise ValueError(processed_reason)
-    return adata, path, False, None
+    return adata, path, False, None, source_info
 
 
 def qc_filter(
@@ -831,6 +966,7 @@ def plot_de_volcano(
 def render_report(
     output_dir: Path,
     input_path: Path | None,
+    input_source: dict[str, Any] | None,
     is_demo: bool,
     demo_source: str | None,
     qc_stats: dict[str, int],
@@ -847,13 +983,14 @@ def render_report(
     annotation_info: dict[str, Any] | None = None,
 ) -> Path:
     """Create markdown report.md."""
-    input_files = [input_path] if input_path else []
+    input_files = [Path(path) for path in input_source["files"]] if input_source else []
     header = generate_report_header(
         title="scRNA Orchestrator Report",
         skill_name="scrna-orchestrator",
         input_files=input_files,
         extra_metadata={
             "Mode": "demo" if is_demo else "input",
+            "Input format": "demo" if is_demo else input_source["format"] if input_source else "unknown",
             "Cells (before QC)": str(qc_stats["n_cells_before"]),
             "Cells (after QC)": str(n_cells_analyzed),
             "Genes (after QC)": str(qc_stats["n_genes_after"]),
@@ -1041,6 +1178,7 @@ def build_repro_command(
 def write_reproducibility(
     output_dir: Path,
     input_path: Path | None,
+    input_source: dict[str, Any] | None,
     is_demo: bool,
     args: argparse.Namespace,
     table_paths: dict[str, Path],
@@ -1084,8 +1222,8 @@ dependencies:
     (repro_dir / "environment.yml").write_text(env_yml, encoding="utf-8")
 
     checksum_targets: list[Path] = []
-    if input_path and input_path.exists():
-        checksum_targets.append(input_path)
+    if input_source is not None:
+        checksum_targets.extend(Path(path) for path in input_source["files"] if Path(path).exists())
     checksum_targets.extend(
         [
             output_dir / "report.md",
@@ -1133,7 +1271,11 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         "volcano_plot": "",
     }
 
-    adata, input_path, is_demo, demo_source = load_data(args.input, args.demo, args.random_state)
+    adata, input_path, is_demo, demo_source, input_source = load_data(
+        args.input,
+        args.demo,
+        args.random_state,
+    )
     adata_qc, qc_stats = qc_filter(
         adata,
         min_genes=args.min_genes,
@@ -1223,6 +1365,7 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
     report_path = render_report(
         output_dir=output_dir,
         input_path=input_path,
+        input_source=input_source,
         is_demo=is_demo,
         demo_source=demo_source,
         qc_stats=qc_stats,
@@ -1257,6 +1400,10 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
             adata_markers.obs["leiden"].astype(str).unique().tolist(),
             key=_cluster_sort_key,
         ),
+        "input": {
+            "format": "demo" if is_demo else input_source["format"] if input_source else "unknown",
+            "files": [] if input_source is None else [Path(path).name for path in input_source["files"]],
+        },
         "tables": [path.name for path in table_paths.values()],
         "figures": [path.name for path in figure_paths],
         "demo_source": demo_source if is_demo else "not_demo",
@@ -1291,12 +1438,13 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         version="0.1.0",
         summary=summary,
         data=data,
-        input_checksum=sha256_file(input_path) if input_path else "",
+        input_checksum=compute_input_checksum(input_source),
     )
 
     write_reproducibility(
         output_dir,
         input_path,
+        input_source,
         is_demo,
         args,
         table_paths=table_paths,
@@ -1318,7 +1466,11 @@ def parse_args() -> argparse.Namespace:
             "doublet detection, CellTypist annotation, and two-group DE"
         ),
     )
-    parser.add_argument("--input", "-i", help="Input AnnData file (.h5ad)")
+    parser.add_argument(
+        "--input",
+        "-i",
+        help="Input raw-count .h5ad, matrix.mtx(.gz), or 10x Matrix Market directory",
+    )
     parser.add_argument("--output", "-o", default="scrna_report", help="Output directory")
     parser.add_argument(
         "--demo",
@@ -1362,7 +1514,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     if not args.demo and not args.input:
-        print("ERROR: Provide --input <file.h5ad> or --demo", file=sys.stderr)
+        print("ERROR: Provide --input <input.h5ad|matrix.mtx|10x_dir> or --demo", file=sys.stderr)
         sys.exit(1)
 
     try:
