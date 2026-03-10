@@ -93,16 +93,11 @@ def _build_human_like_input(path: Path) -> None:
     ]
 
     rows = []
-    labels = []
-    for idx, template in enumerate(templates):
+    for template in templates:
         for _ in range(6):
             rows.append(rng.poisson(lam=template).astype(np.int32) + 1)
-            labels.append(f"truth_{idx}")
 
-    obs = pd.DataFrame(
-        {"truth_label": np.asarray(labels, dtype=object)},
-        index=pd.Index([f"cell_{i}" for i in range(len(rows))], dtype="object"),
-    )
+    obs = pd.DataFrame(index=pd.Index([f"cell_{i}" for i in range(len(rows))], dtype="object"))
     var = pd.DataFrame(index=pd.Index(genes, dtype="object"))
     AnnData(X=np.vstack(rows), obs=obs, var=var).write_h5ad(path)
 
