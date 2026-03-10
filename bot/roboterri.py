@@ -45,22 +45,24 @@ from telegram.ext import (
 # Config
 # --------------------------------------------------------------------------- #
 
-load_dotenv()
+_project_root = Path(__file__).resolve().parents[3]  # AGENTIC-AI/
+load_dotenv(_project_root / ".env")
+load_dotenv()  # also check local .env (overrides)
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID", os.environ.get("AUTHORISED_CHAT_ID", "0")))
+ADMIN_CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID", os.environ.get("AUTHORISED_CHAT_ID", "0")) or "0")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")
-CLAWBIO_MODEL = os.environ.get("CLAWBIO_MODEL", "gpt-4o")
+CLAWBIO_MODEL = os.environ.get("CLAWBIO_MODEL", "gemini-2.0-flash")
+
+# Rate limiting: messages per user per hour (0 = unlimited)
+RATE_LIMIT_PER_HOUR = int(os.environ.get("RATE_LIMIT_PER_HOUR", "10"))
 
 if not TELEGRAM_BOT_TOKEN:
     print("Error: TELEGRAM_BOT_TOKEN not set. See bot/README.md for setup.")
     sys.exit(1)
 if not LLM_API_KEY:
     print("Error: LLM_API_KEY not set. See bot/README.md for setup.")
-    sys.exit(1)
-if not TELEGRAM_CHAT_ID:
-    print("Error: TELEGRAM_CHAT_ID not set. See bot/README.md for setup.")
     sys.exit(1)
 
 CLAWBIO_DIR = Path(__file__).resolve().parent.parent
@@ -876,9 +878,37 @@ async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
 # --------------------------------------------------------------------------- #
 
 
-def is_authorised(update: Update) -> bool:
-    """Check if the message is from the authorised chat."""
-    return update.effective_chat.id == TELEGRAM_CHAT_ID
+def is_admin(update: Update) -> bool:
+    """Check if the message is from the admin chat."""
+    return ADMIN_CHAT_ID and update.effective_chat.id == ADMIN_CHAT_ID
+
+
+# Per-user rate limiting
+_rate_buckets: dict[int, list[float]] = {}
+
+
+def _check_rate_limit(update: Update) -> bool:
+    """Return True if the user is within rate limits (or is admin)."""
+    if RATE_LIMIT_PER_HOUR <= 0 or is_admin(update):
+        return True
+    uid = update.effective_user.id if update.effective_user else update.effective_chat.id
+    now = time.time()
+    window = 3600  # 1 hour
+    bucket = _rate_buckets.setdefault(uid, [])
+    # Prune old entries
+    bucket[:] = [t for t in bucket if now - t < window]
+    if len(bucket) >= RATE_LIMIT_PER_HOUR:
+        return False
+    bucket.append(now)
+    return True
+
+
+async def _rate_limit_reply(update: Update) -> None:
+    """Send a rate-limit notice."""
+    await update.message.reply_text(
+        f"You've reached the limit of {RATE_LIMIT_PER_HOUR} messages per hour. "
+        "Please try again later."
+    )
 
 
 def strip_markup(text: str) -> str:
@@ -938,27 +968,25 @@ async def send_long_message(update: Update, text: str):
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
-    if not is_authorised(update):
-        return
     await update.message.reply_text(
-        "Hi there! RoboTerri here -- your ClawBio bioinformatics assistant ;-)\n\n"
+        "Welcome to ClawBio -- open-source bioinformatics at your fingertips!\n\n"
+        "I can analyse genetic data, check drug interactions, assess nutritional "
+        "genomics, estimate polygenic risk scores, and more.\n\n"
         "Commands:\n"
-        "  /skills  -- list available ClawBio skills\n"
+        "  /skills  -- list available bioinformatics skills\n"
         "  /demo <skill>  -- run a demo (pharmgx, equity, nutrigx, compare, prs, profile)\n"
-        "  /voice  -- toggle voice replies on/off\n"
-        "  /status  -- bot uptime and model info\n"
+        "  /status  -- bot info\n"
         "  /health  -- system health check\n\n"
-        "Or just chat -- I can answer bioinformatics questions.\n"
-        "Send a genetic data file to get your pharmacogenomics report.\n"
-        "Then ask: \"what diseases am I at risk for?\" or \"show my full profile\"\n"
-        "Send a photo of a medication for personalised drug guidance."
+        "Or just chat -- ask any bioinformatics question.\n"
+        "Upload a 23andMe/AncestryDNA file for a personalised report.\n"
+        "Send a photo of a medication for pharmacogenomic guidance.\n\n"
+        "ClawBio is a research tool, not a medical device. "
+        "Consult a healthcare professional before making medical decisions."
     )
 
 
 async def cmd_skills(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /skills command -- list available ClawBio skills."""
-    if not is_authorised(update):
-        return
     try:
         proc = await asyncio.create_subprocess_exec(
             sys.executable, str(CLAWBIO_PY), "list",
@@ -975,7 +1003,8 @@ async def cmd_skills(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_demo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /demo <skill> command -- run a skill with demo data."""
-    if not is_authorised(update):
+    if not _check_rate_limit(update):
+        await _rate_limit_reply(update)
         return
     skill = context.args[0] if context.args else "pharmgx"
     await update.message.reply_text(f"Running {skill} demo -- this may take a moment...")
@@ -999,8 +1028,6 @@ async def cmd_demo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /voice command -- toggle voice replies on/off."""
-    if not is_authorised(update):
-        return
     current = context.user_data.get("voice_replies", False)
     context.user_data["voice_replies"] = not current
     state = "ON" if not current else "OFF"
@@ -1012,8 +1039,6 @@ async def cmd_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /status command -- report uptime and model info."""
-    if not is_authorised(update):
-        return
 
     uptime_secs = int(time.time() - BOT_START_TIME)
     hours, remainder = divmod(uptime_secs, 3600)
@@ -1043,8 +1068,6 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /health command -- system health check."""
-    if not is_authorised(update):
-        return
 
     checks = []
 
@@ -1155,7 +1178,8 @@ async def _send_voice_reply(bot, chat_id: int, text: str) -> bool:
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming text messages via the LLM tool loop."""
-    if not is_authorised(update):
+    if not _check_rate_limit(update):
+        await _rate_limit_reply(update)
         return
     if not update.message or not update.message.text:
         return
@@ -1191,7 +1215,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle photos: download -> base64 -> LLM vision (drug detection)."""
-    if not is_authorised(update):
+    if not _check_rate_limit(update):
+        await _rate_limit_reply(update)
         return
     if not update.message:
         return
@@ -1286,7 +1311,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle documents: download -> detect genetic file -> route to skill."""
-    if not is_authorised(update):
+    if not _check_rate_limit(update):
+        await _rate_limit_reply(update)
         return
     if not update.message or not update.message.document:
         return
@@ -1399,7 +1425,8 @@ def main():
     logger.info(f"ClawBio directory: {CLAWBIO_DIR}")
     if LLM_BASE_URL:
         logger.info(f"LLM base URL: {LLM_BASE_URL}")
-    logger.info(f"Authorised chat ID: {TELEGRAM_CHAT_ID}")
+    logger.info(f"Admin chat ID: {ADMIN_CHAT_ID or 'not set (public mode)'}")
+    logger.info(f"Rate limit: {RATE_LIMIT_PER_HOUR} msgs/hour per user (0=unlimited)")
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
