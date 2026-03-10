@@ -46,6 +46,11 @@ EXTENSION_MAP: dict[str, str] = {
     ".h5ad": "scrna-orchestrator",
     ".csv": "equity-scorer",
     ".tsv": "equity-scorer",
+    ".png": "data-extractor",
+    ".jpg": "data-extractor",
+    ".jpeg": "data-extractor",
+    ".tiff": "data-extractor",
+    ".tif": "data-extractor",
 }
 
 KEYWORD_MAP: dict[str, str] = {
@@ -103,6 +108,14 @@ KEYWORD_MAP: dict[str, str] = {
     "personal profile": "profile-report",
     "my profile": "profile-report",
     "genomic profile": "profile-report",
+    "digitize": "data-extractor",
+    "extract data": "data-extractor",
+    "plot data": "data-extractor",
+    "figure data": "data-extractor",
+    "read chart": "data-extractor",
+    "bar chart": "data-extractor",
+    "scatter plot": "data-extractor",
+    "meta-analysis": "data-extractor",
 }
 
 SKILLS_DIR = Path(__file__).resolve().parent.parent
@@ -219,6 +232,7 @@ SKILL_REGISTRY_MAP: dict[str, str] = {
     "clinpgx": "clinpgx",
     "gwas-lookup": "gwas",
     "profile-report": "profile",
+    "data-extractor": "data-extract",
 }
 
 
