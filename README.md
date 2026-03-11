@@ -26,27 +26,6 @@
 
 ---
 
-<h3 align="center">🧬 Try it now — no install needed</h3>
-
-<p align="center">
-  <a href="https://t.me/RoboTerri_bot"><strong>Open RoboTerri on Telegram →</strong></a>
-</p>
-
-<p align="center">
-  <a href="https://t.me/RoboTerri_bot">
-    <img src="demo/roboterri-preview.gif" alt="RoboTerri Telegram bot demo — querying a real genome" width="300">
-  </a>
-</p>
-
-RoboTerri is ClawBio's public Telegram bot, running against a real human genome ([Manuel Corpas](https://en.wikipedia.org/wiki/Manuel_Corpas), CC0 public domain). Ask it anything:
-
-- **"Give me my pharmacogenomic summary"** — analyses 12 genes, 51 drugs
-- **"What diseases am I at risk for?"** — polygenic risk scores for 6 conditions
-- **Send a photo of any medication** — checks CYP2D6/CYP2C19 metaboliser status
-- `/demo pharmgx` `/demo prs` `/demo nutrigx` `/demo compare` `/demo profile`
-
-All processing is local. No genetic data leaves the machine. 18 bioinformatics skills available.
-
 ---
 
 ## What ClawBio Does Today
@@ -315,15 +294,21 @@ python -m pytest
 ## Run via Telegram (RoboTerri)
 
 <p align="center">
-  <img src="img/terri_attwood_avatar_top_left.png" alt="RoboTerri" width="250">
-  <br><em>RoboTerri — ClawBio's Telegram agent, inspired by <a href="https://en.wikipedia.org/wiki/Teresa_Attwood">Prof. Teresa K. Attwood</a></em>
+  <a href="https://t.me/RoboTerri_bot">
+    <img src="demo/roboterri-preview.gif" alt="RoboTerri Telegram bot demo — querying a real genome" width="300">
+  </a>
+  <br>
+  <a href="https://t.me/RoboTerri_bot"><strong>Try RoboTerri now — no install needed →</strong></a>
 </p>
 
-ClawBio skills are also available through **RoboTerri**, a Telegram AI agent named after [Prof. Teresa K. Attwood](https://en.wikipedia.org/wiki/Teresa_Attwood) — a pioneer of bioinformatics education, founding Chair of GOBLET, and winner of the 2021 ISCB Outstanding Contributions Award. Send a genetic data file, a medication photo, or a plain-English question. Get back a summary, full report, and figures directly in Telegram.
+ClawBio skills are available through **RoboTerri**, a public Telegram bot running against a real human genome ([Manuel Corpas](https://en.wikipedia.org/wiki/Manuel_Corpas), CC0 public domain). Named after [Prof. Teresa K. Attwood](https://en.wikipedia.org/wiki/Teresa_Attwood) — a pioneer of bioinformatics education, founding Chair of GOBLET, and winner of the 2021 ISCB Outstanding Contributions Award.
 
-> **[Try RoboTerri now — no install needed](https://t.me/RoboTerri_bot)**: Open the public bot on Telegram and start querying. Type `/demo pharmgx` to see a pharmacogenomics report on a real public genome.
->
-> **[Install your own RoboTerri — Step-by-step tutorial](docs/tutorial-roboterri-install.md)**: Set up your own Telegram bot running ClawBio skills in ~20 minutes.
+Ask it anything:
+
+- **"Give me my pharmacogenomic summary"** — analyses 12 genes, 51 drugs
+- **"What diseases am I at risk for?"** — polygenic risk scores for 6 conditions
+- **Send a photo of any medication** — checks CYP2D6/CYP2C19 metaboliser status
+- `/demo pharmgx` `/demo prs` `/demo nutrigx` `/demo compare` `/demo profile`
 
 ```
 You:        [send 23andMe file]
@@ -344,6 +329,8 @@ RoboTerri:  Querying 9 databases...
 ```
 
 RoboTerri auto-detects file type (23andMe `.txt`, AncestryDNA `.csv`, VCF, FASTQ) and routes to the right skill via the Bio Orchestrator. Photos of medications trigger the Drug Photo skill automatically — no command needed.
+
+> **[Install your own RoboTerri](docs/tutorial-roboterri-install.md)**: Set up your own Telegram bot running ClawBio skills in ~20 minutes.
 
 ---
 
