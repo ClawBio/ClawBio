@@ -6,6 +6,7 @@ dist/
 build/
 .env
 *.log
+bot/logs/
 output/
 profiles/
 analysis_log.md
