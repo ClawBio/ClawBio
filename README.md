@@ -13,7 +13,7 @@
   <a href="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml"><img src="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.10+-blue?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
-  <a href="https://clawhub.ai"><img src="https://img.shields.io/badge/ClawHub-14_skills-orange" alt="ClawHub Skills"></a>
+  <a href="https://clawhub.ai"><img src="https://img.shields.io/badge/ClawHub-18_skills-orange" alt="ClawHub Skills"></a>
   <a href="https://github.com/ClawBio/ClawBio/issues"><img src="https://img.shields.io/github/issues/ClawBio/ClawBio" alt="Open Issues"></a>
   <a href="https://clawbio.github.io/ClawBio/slides/"><img src="https://img.shields.io/badge/slides-London_Bioinformatics_Meetup-purple" alt="Slides"></a>
 </p>
@@ -26,9 +26,26 @@
 
 ---
 
+<h3 align="center">🧬 Try it now — no install needed</h3>
+
+<p align="center">
+  <a href="https://t.me/RoboTerri_bot"><strong>Open RoboTerri on Telegram →</strong></a>
+</p>
+
+RoboTerri is ClawBio's public Telegram bot, running against a real human genome ([Manuel Corpas](https://en.wikipedia.org/wiki/Manuel_Corpas), CC0 public domain). Ask it anything:
+
+- **"Give me my pharmacogenomic summary"** — analyses 12 genes, 51 drugs
+- **"What diseases am I at risk for?"** — polygenic risk scores for 6 conditions
+- **Send a photo of any medication** — checks CYP2D6/CYP2C19 metaboliser status
+- `/demo pharmgx` `/demo prs` `/demo nutrigx` `/demo compare` `/demo profile`
+
+All processing is local. No genetic data leaves the machine. 18 bioinformatics skills available.
+
+---
+
 ## What ClawBio Does Today
 
-**15 skills + 8,000 Galaxy tools. Local-first. No cloud. No guessing.**
+**18 skills + 8,000 Galaxy tools. Local-first. No cloud. No guessing.**
 
 Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card — on your machine, in seconds:
 
@@ -463,8 +480,9 @@ If you use ClawBio in your research, please cite:
 
 ## Links
 
+- 🧬 **Try RoboTerri**: [t.me/RoboTerri_bot](https://t.me/RoboTerri_bot) — Query a real genome on Telegram, no install needed
 - 🦖 **Slides**: [clawbio.github.io/ClawBio/slides/](https://clawbio.github.io/ClawBio/slides/)
-- 🦖 **Tutorial**: [Install RoboTerri (Telegram agent)](docs/tutorial-roboterri-install.md)
+- 🦖 **Tutorial**: [Install your own RoboTerri](docs/tutorial-roboterri-install.md)
 - [OpenClaw](https://github.com/openclaw/openclaw) — The agent platform
 - [ClawHub](https://clawhub.ai) — Skill registry
 - [HEIM Index](https://heim-index.org) — Health Equity Index for Minorities
