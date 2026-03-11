@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 22,
+  "skill_count": 24,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -135,6 +135,21 @@
       ]
     },
     {
+      "name": "data-extractor",
+      "cli_alias": null,
+      "description": "Extract numerical data from scientific figure images using Claude vision + OpenCV calibration. Supports 26+ plot types including bar charts, scatter plots, forest plots, Kaplan-Meier curves, box plots, and more.",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/data-extractor/data_extractor.py --demo",
+      "dependencies": [],
+      "tags": [],
+      "trigger_keywords": [],
+      "chaining_partners": []
+    },
+    {
       "name": "drug-photo",
       "cli_alias": "drugphoto",
       "description": "Medication photo to personalised PGx dosage card via Claude vision — snap a pill, get genotype-informed guidance",
@@ -187,8 +202,8 @@
     {
       "name": "galaxy-bridge",
       "cli_alias": "galaxy",
-      "description": "Galaxy tool discovery and execution — search, run, and chain 8,000+ bioinformatics tools from usegalaxy.org",
-      "version": "0.1.0",
+      "description": "Galaxy tool discovery, intelligent recommendation, and execution — 8,000+ bioinformatics tools from usegalaxy.org with multi-signal scoring and workflow suggestions",
+      "version": "0.2.0",
       "status": "mvp",
       "has_script": true,
       "has_tests": true,
@@ -432,9 +447,42 @@
       "chaining_partners": []
     },
     {
+      "name": "scrna-embedding",
+      "cli_alias": "scrna-embedding",
+      "description": "Local scVI-based single-cell latent embedding and batch-aware integration from raw-count .h5ad or 10x Matrix Market input, with integrated AnnData export and latent-space outputs.",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run scrna-embedding --demo",
+      "dependencies": [],
+      "tags": [
+        "scrna",
+        "single-cell",
+        "scvi",
+        "embedding",
+        "integration",
+        "batch-correction",
+        "h5ad",
+        "10x"
+      ],
+      "trigger_keywords": [
+        "scvi",
+        "latent",
+        "embedding",
+        "integration",
+        "batch correction",
+        "10x"
+      ],
+      "chaining_partners": [
+        "scrna-orchestrator"
+      ]
+    },
+    {
       "name": "scrna-orchestrator",
       "cli_alias": "scrna",
-      "description": "Automate single-cell RNA-seq analysis with Scanpy. QC, optional doublet detection, clustering, marker analysis, visualisation, and optional CellTypist annotation.",
+      "description": "Local Scanpy pipeline for single-cell RNA-seq QC, optional doublet detection, clustering, marker discovery, optional CellTypist annotation, and optional two-group differential expression from raw-count .h5ad or 10x Matrix Market input.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -442,7 +490,16 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run scrna --demo",
       "dependencies": [],
-      "tags": [],
+      "tags": [
+        "scrna",
+        "single-cell",
+        "scanpy",
+        "clustering",
+        "differential-expression",
+        "h5ad",
+        "10x",
+        "mtx"
+      ],
       "trigger_keywords": [
         "single-cell",
         "scrna",

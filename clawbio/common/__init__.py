@@ -13,6 +13,13 @@ from clawbio.common.report import (
 )
 from clawbio.common.profile import PatientProfile
 from clawbio.common.html_report import HtmlReportBuilder, write_html_report
+from clawbio.common.scrna_io import (
+    compute_input_checksum,
+    detect_processed_input_reason,
+    load_count_adata,
+    load_10x_mtx_data,
+    resolve_input_source,
+)
 
 __all__ = [
     "detect_format",
@@ -26,4 +33,9 @@ __all__ = [
     "PatientProfile",
     "HtmlReportBuilder",
     "write_html_report",
+    "compute_input_checksum",
+    "detect_processed_input_reason",
+    "load_count_adata",
+    "load_10x_mtx_data",
+    "resolve_input_source",
 ]

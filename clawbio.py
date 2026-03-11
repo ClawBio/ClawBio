@@ -319,6 +319,26 @@ SKILLS = {
         },
         "accepts_genotypes": False,
     },
+    "scrna-embedding": {
+        "script": SKILLS_DIR / "scrna-embedding" / "scrna_embedding.py",
+        "demo_args": ["--demo"],
+        "description": "scRNA Embedding (scVI latent embedding, optional batch integration, clustering, markers, integrated h5ad export)",
+        "allowed_extra_flags": {
+            "--method",
+            "--layer",
+            "--batch-key",
+            "--min-genes",
+            "--min-cells",
+            "--max-mt-pct",
+            "--n-top-hvg",
+            "--latent-dim",
+            "--max-epochs",
+            "--n-neighbors",
+            "--random-state",
+            "--accelerator",
+        },
+        "accepts_genotypes": False,
+    },
     "compare": {
         "script": SKILLS_DIR / "genome-compare" / "genome_compare.py",
         "demo_args": ["--demo"],
@@ -792,26 +812,31 @@ def main():
     run_parser.add_argument("--genes", default=None, help="Comma-separated gene symbols for ClinPGx")
     run_parser.add_argument("--rsid", default=None, help="rsID for GWAS lookup skill (e.g. rs3798220)")
     run_parser.add_argument("--skip", default=None, help="Comma-separated API names to skip (gwas-lookup skill)")
-    run_parser.add_argument("--min-genes", type=int, default=None, help="Minimum genes per cell (scrna skill)")
-    run_parser.add_argument("--min-cells", type=int, default=None, help="Minimum cells per gene (scrna skill)")
+    run_parser.add_argument("--method", default=None, help="Embedding backend (scrna-embedding skill)")
+    run_parser.add_argument("--layer", default=None, help="Raw-count layer for `.h5ad` input (scrna-embedding skill)")
+    run_parser.add_argument("--batch-key", default=None, help="obs batch column for integration (scrna-embedding skill)")
+    run_parser.add_argument("--min-genes", type=int, default=None, help="Minimum genes per cell (scrna/scrna-embedding skill)")
+    run_parser.add_argument("--min-cells", type=int, default=None, help="Minimum cells per gene (scrna/scrna-embedding skill)")
     run_parser.add_argument(
         "--max-mt-pct",
         type=float,
         default=None,
-        help="Maximum mitochondrial percentage (scrna skill)",
+        help="Maximum mitochondrial percentage (scrna/scrna-embedding skill)",
     )
     run_parser.add_argument(
         "--n-top-hvg",
         type=int,
         default=None,
-        help="Number of highly variable genes to keep (scrna skill)",
+        help="Number of highly variable genes to keep (scrna/scrna-embedding skill)",
     )
     run_parser.add_argument("--n-pcs", type=int, default=None, help="Number of PCA components (scrna skill)")
+    run_parser.add_argument("--latent-dim", type=int, default=None, help="Latent dimensionality (scrna-embedding skill)")
+    run_parser.add_argument("--max-epochs", type=int, default=None, help="Max training epochs (scrna-embedding skill)")
     run_parser.add_argument(
         "--n-neighbors",
         type=int,
         default=None,
-        help="Neighbors for graph construction (scrna skill)",
+        help="Neighbors for graph construction (scrna/scrna-embedding skill)",
     )
     run_parser.add_argument(
         "--leiden-resolution",
@@ -819,12 +844,17 @@ def main():
         default=None,
         help="Leiden resolution (scrna skill)",
     )
-    run_parser.add_argument("--random-state", type=int, default=None, help="Random seed (scrna skill)")
+    run_parser.add_argument("--random-state", type=int, default=None, help="Random seed (scrna/scrna-embedding skill)")
     run_parser.add_argument(
         "--top-markers",
         type=int,
         default=None,
         help="Top markers per cluster (scrna skill)",
+    )
+    run_parser.add_argument(
+        "--accelerator",
+        default=None,
+        help="Training accelerator (scrna-embedding skill)",
     )
     run_parser.add_argument("--de-groupby", default=None, help="obs column for DE (scrna skill)")
     run_parser.add_argument("--de-group1", default=None, help="Group 1 value for DE (scrna skill)")
@@ -895,6 +925,12 @@ def main():
             extra.extend(["--rsid", args.rsid])
         if getattr(args, "skip", None):
             extra.extend(["--skip", args.skip])
+        if getattr(args, "method", None):
+            extra.extend(["--method", args.method])
+        if getattr(args, "layer", None):
+            extra.extend(["--layer", args.layer])
+        if getattr(args, "batch_key", None):
+            extra.extend(["--batch-key", args.batch_key])
         if getattr(args, "min_genes", None) is not None:
             extra.extend(["--min-genes", str(args.min_genes)])
         if getattr(args, "min_cells", None) is not None:
@@ -905,6 +941,10 @@ def main():
             extra.extend(["--n-top-hvg", str(args.n_top_hvg)])
         if getattr(args, "n_pcs", None) is not None:
             extra.extend(["--n-pcs", str(args.n_pcs)])
+        if getattr(args, "latent_dim", None) is not None:
+            extra.extend(["--latent-dim", str(args.latent_dim)])
+        if getattr(args, "max_epochs", None) is not None:
+            extra.extend(["--max-epochs", str(args.max_epochs)])
         if getattr(args, "n_neighbors", None) is not None:
             extra.extend(["--n-neighbors", str(args.n_neighbors)])
         if getattr(args, "leiden_resolution", None) is not None:
@@ -913,6 +953,8 @@ def main():
             extra.extend(["--random-state", str(args.random_state)])
         if getattr(args, "top_markers", None) is not None:
             extra.extend(["--top-markers", str(args.top_markers)])
+        if getattr(args, "accelerator", None):
+            extra.extend(["--accelerator", args.accelerator])
         if getattr(args, "de_groupby", None):
             extra.extend(["--de-groupby", args.de_groupby])
         if getattr(args, "de_group1", None):

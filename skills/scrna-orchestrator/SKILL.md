@@ -1,10 +1,10 @@
 ---
 name: scrna-orchestrator
-description: Local Scanpy pipeline for single-cell RNA-seq QC, optional doublet detection, clustering, marker discovery, optional CellTypist annotation, and optional two-group differential expression from raw-count .h5ad.
+description: Local Scanpy pipeline for single-cell RNA-seq QC, optional doublet detection, clustering, marker discovery, optional CellTypist annotation, and optional two-group differential expression from raw-count .h5ad or 10x Matrix Market input.
 version: 0.1.0
 author: Yonghao Zhao
 license: MIT
-tags: [scrna, single-cell, scanpy, clustering, differential-expression]
+tags: [scrna, single-cell, scanpy, clustering, differential-expression, h5ad, 10x, mtx]
 metadata:
   openclaw:
     requires:
@@ -34,6 +34,8 @@ metadata:
       - single-cell
       - scanpy
       - h5ad
+      - 10x
+      - mtx
       - leiden
       - marker genes
       - differential expression
@@ -70,17 +72,19 @@ Single-cell workflows are easy to misconfigure and hard to reproduce when run ad
 | Format | Extension | Required Fields | Example |
 |--------|-----------|-----------------|---------|
 | AnnData raw counts | `.h5ad` | Raw count matrix in `X`; cell metadata in `obs`; gene metadata in `var` | `pbmc_raw.h5ad` |
+| 10x Matrix Market | directory, `.mtx`, `.mtx.gz` | `matrix.mtx(.gz)` plus matching `barcodes.tsv(.gz)` and `features.tsv(.gz)` or `genes.tsv(.gz)` | `filtered_feature_bc_matrix/` |
 | Demo mode | n/a | none | `python clawbio.py run scrna --demo` |
 
 Notes:
 - Processed/normalized/scaled `.h5ad` inputs are rejected with an actionable error.
+- 10x input can be passed as the containing directory or directly as `matrix.mtx(.gz)`.
 - `pbmc3k_processed`-style inputs are out of scope for this skill.
 
 ## Workflow
 
 When the user asks for scRNA QC/clustering/markers/annotation/DE:
 
-1. **Validate**: Check `.h5ad` input (or `--demo`), and reject processed-like matrices.
+1. **Validate**: Check raw-count `.h5ad` or 10x input (or `--demo`), and reject processed-like matrices.
 2. **Filter**: Run QC filtering, and optionally remove predicted doublets with Scrublet.
 3. **Process**: Normalize, `log1p`, select HVGs, run PCA, neighbors, UMAP, and Leiden.
 4. **Analyze**:
@@ -95,6 +99,10 @@ When the user asks for scRNA QC/clustering/markers/annotation/DE:
 # Standard usage
 python skills/scrna-orchestrator/scrna_orchestrator.py \
   --input <input.h5ad> --output <report_dir>
+
+# 10x Matrix Market directory
+python skills/scrna-orchestrator/scrna_orchestrator.py \
+  --input <filtered_feature_bc_matrix_dir> --output <report_dir>
 
 # Demo mode
 python skills/scrna-orchestrator/scrna_orchestrator.py \
@@ -123,6 +131,7 @@ python skills/scrna-orchestrator/scrna_orchestrator.py \
 
 # Via ClawBio runner
 python clawbio.py run scrna --input <input.h5ad> --output <report_dir>
+python clawbio.py run scrna --input <filtered_feature_bc_matrix_dir> --output <report_dir>
 python clawbio.py run scrna --demo
 ```
 
@@ -207,6 +216,7 @@ output_directory/
 **Required**:
 - `scanpy` >= 1.10
 - `anndata` >= 0.10
+- `scipy`
 - `numpy`, `pandas`, `matplotlib`, `leidenalg`, `python-igraph`
 
 **Optional**:
@@ -228,11 +238,11 @@ output_directory/
 ## Integration with Bio Orchestrator
 
 **Trigger conditions**:
-- File extension `.h5ad`
+- File extension `.h5ad`, `.mtx`, or `.mtx.gz`
 - User intent includes scRNA terms (single-cell, Scanpy, clustering, marker genes, DE, doublets, annotation)
 
 **Current limitations**:
-- Raw-count `.h5ad` only
+- Raw-count `.h5ad` and 10x Matrix Market only
 - CellTypist support is human-model focused and requires a locally installed model
 - Multi-group pairwise DE, within-cluster DE, and latent-model integration are future work
 

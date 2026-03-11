@@ -35,6 +35,7 @@ from clawbio.common.report import (
     generate_report_header,
     write_result_json,
 )
+from clawbio.common.scrna_io import compute_input_checksum, load_count_adata
 
 DISCLAIMER = (
     "ClawBio is a research and educational tool. It is not a medical device "
@@ -250,29 +251,22 @@ def resolve_celltypist_model_path(celltypist, model_name: str) -> Path:
 
 
 def load_data(input_path: str | None, demo: bool, random_state: int):
-    """Load AnnData from .h5ad or build demo data."""
+    """Load AnnData from supported raw-count input or build demo data."""
     sc = _import_scanpy()
 
     if demo:
         adata, demo_source = load_demo_adata(random_state)
-        return adata, None, True, demo_source
+        return adata, None, True, demo_source, None
 
     if not input_path:
-        raise ValueError("Provide --input <file.h5ad> or --demo.")
+        raise ValueError("Provide --input <input.h5ad|matrix.mtx|10x_dir> or --demo.")
 
-    path = Path(input_path)
-    if not path.exists():
-        raise FileNotFoundError(f"Input file not found: {path}")
-    if path.suffix.lower() != ".h5ad":
-        raise ValueError(
-            f"Only .h5ad is supported in MVP. Received: {path.name}"
-        )
-
-    adata = sc.read_h5ad(path)
-    processed_reason = detect_processed_input_reason(adata)
-    if processed_reason:
-        raise ValueError(processed_reason)
-    return adata, path, False, None
+    adata, input_source = load_count_adata(
+        input_path,
+        h5ad_loader=sc.read_h5ad,
+        expected_input="raw-count .h5ad or 10x single-cell input",
+    )
+    return adata, Path(input_path), False, None, input_source
 
 
 def qc_filter(
@@ -831,6 +825,7 @@ def plot_de_volcano(
 def render_report(
     output_dir: Path,
     input_path: Path | None,
+    input_source: dict[str, Any] | None,
     is_demo: bool,
     demo_source: str | None,
     qc_stats: dict[str, int],
@@ -847,13 +842,14 @@ def render_report(
     annotation_info: dict[str, Any] | None = None,
 ) -> Path:
     """Create markdown report.md."""
-    input_files = [input_path] if input_path else []
+    input_files = [Path(path) for path in input_source["files"]] if input_source else []
     header = generate_report_header(
         title="scRNA Orchestrator Report",
         skill_name="scrna-orchestrator",
         input_files=input_files,
         extra_metadata={
             "Mode": "demo" if is_demo else "input",
+            "Input format": input_source["format"] if input_source else "demo",
             "Cells (before QC)": str(qc_stats["n_cells_before"]),
             "Cells (after QC)": str(n_cells_analyzed),
             "Genes (after QC)": str(qc_stats["n_genes_after"]),
@@ -1041,6 +1037,7 @@ def build_repro_command(
 def write_reproducibility(
     output_dir: Path,
     input_path: Path | None,
+    input_source: dict[str, Any] | None,
     is_demo: bool,
     args: argparse.Namespace,
     table_paths: dict[str, Path],
@@ -1084,8 +1081,8 @@ dependencies:
     (repro_dir / "environment.yml").write_text(env_yml, encoding="utf-8")
 
     checksum_targets: list[Path] = []
-    if input_path and input_path.exists():
-        checksum_targets.append(input_path)
+    if input_source:
+        checksum_targets.extend(Path(path) for path in input_source["files"] if Path(path).exists())
     checksum_targets.extend(
         [
             output_dir / "report.md",
@@ -1133,7 +1130,11 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         "volcano_plot": "",
     }
 
-    adata, input_path, is_demo, demo_source = load_data(args.input, args.demo, args.random_state)
+    adata, input_path, is_demo, demo_source, input_source = load_data(
+        args.input,
+        args.demo,
+        args.random_state,
+    )
     adata_qc, qc_stats = qc_filter(
         adata,
         min_genes=args.min_genes,
@@ -1223,6 +1224,7 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
     report_path = render_report(
         output_dir=output_dir,
         input_path=input_path,
+        input_source=input_source,
         is_demo=is_demo,
         demo_source=demo_source,
         qc_stats=qc_stats,
@@ -1257,6 +1259,7 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
             adata_markers.obs["leiden"].astype(str).unique().tolist(),
             key=_cluster_sort_key,
         ),
+        "input_format": input_source["format"] if input_source else "demo",
         "tables": [path.name for path in table_paths.values()],
         "figures": [path.name for path in figure_paths],
         "demo_source": demo_source if is_demo else "not_demo",
@@ -1291,12 +1294,13 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         version="0.1.0",
         summary=summary,
         data=data,
-        input_checksum=sha256_file(input_path) if input_path else "",
+        input_checksum=compute_input_checksum(input_source),
     )
 
     write_reproducibility(
         output_dir,
         input_path,
+        input_source,
         is_demo,
         args,
         table_paths=table_paths,
@@ -1318,7 +1322,11 @@ def parse_args() -> argparse.Namespace:
             "doublet detection, CellTypist annotation, and two-group DE"
         ),
     )
-    parser.add_argument("--input", "-i", help="Input AnnData file (.h5ad)")
+    parser.add_argument(
+        "--input",
+        "-i",
+        help="Input raw-count `.h5ad`, `matrix.mtx(.gz)`, or 10x Matrix Market directory",
+    )
     parser.add_argument("--output", "-o", default="scrna_report", help="Output directory")
     parser.add_argument(
         "--demo",
@@ -1362,7 +1370,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     if not args.demo and not args.input:
-        print("ERROR: Provide --input <file.h5ad> or --demo", file=sys.stderr)
+        print("ERROR: Provide --input <input.h5ad|matrix.mtx|10x_dir> or --demo", file=sys.stderr)
         sys.exit(1)
 
     try:

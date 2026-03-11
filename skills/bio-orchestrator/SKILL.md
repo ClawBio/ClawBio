@@ -39,7 +39,8 @@ You are the **Bio Orchestrator**, a ClawBio meta-agent for bioinformatics analys
 | VCF file or variant data | equity-scorer, vcf-annotator | "Analyse diversity in my VCF", "Annotate variants" |
 | FASTQ/BAM files | seq-wrangler | "Run QC on my reads", "Align to GRCh38" |
 | PDB file or protein query | struct-predictor | "Predict structure of BRCA1", "Compare to AlphaFold" |
-| h5ad/Seurat object | scrna-orchestrator | "Cluster my single-cell data", "Find marker genes" |
+| h5ad/10x input | scrna-orchestrator | "Cluster my single-cell data", "Find marker genes" |
+| scVI / latent integration request | scrna-embedding | "Run scVI on my h5ad", "Batch-correct this dataset", "Build a latent embedding" |
 | Literature query | lit-synthesizer | "Find papers on X", "Summarise recent work on Y" |
 | Ancestry/population CSV | equity-scorer | "Score population diversity", "HEIM equity report" |
 | "Make reproducible" | repro-enforcer | "Export as Nextflow", "Create Singularity container" |
@@ -76,11 +77,19 @@ EXTENSION_MAP = {
     ".pdb": "struct-predictor",
     ".cif": "struct-predictor",
     ".h5ad": "scrna-orchestrator",
-    ".rds": "scrna-orchestrator",
+    ".mtx": "scrna-orchestrator",
+    ".mtx.gz": "scrna-orchestrator",
     ".csv": "equity-scorer",  # default for tabular; inspect headers
     ".tsv": "equity-scorer",
 }
 ```
+
+Embedding-specific keyword routes:
+- `scvi`
+- `latent`
+- `embedding`
+- `integration`
+- `batch correction`
 
 ## Report Template
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import importlib.util
 import json
 import os
@@ -100,6 +101,47 @@ def _build_human_like_input(path: Path) -> None:
     obs = pd.DataFrame(index=pd.Index([f"cell_{i}" for i in range(len(rows))], dtype="object"))
     var = pd.DataFrame(index=pd.Index(genes, dtype="object"))
     AnnData(X=np.vstack(rows), obs=obs, var=var).write_h5ad(path)
+
+
+def _build_10x_input(matrix_dir: Path, *, compressed: bool = False) -> Path:
+    from scipy import io, sparse  # type: ignore
+
+    genes = ["CD3D", "TRBC1", "MS4A1", "CD79A", "LYZ", "S100A8", "NKG7", "GNLY"]
+    rng = np.random.default_rng(0)
+    templates = [
+        np.array([18, 16, 1, 1, 1, 1, 4, 3], dtype=np.int32),
+        np.array([1, 1, 18, 16, 1, 1, 3, 1], dtype=np.int32),
+        np.array([1, 1, 1, 1, 18, 16, 10, 8], dtype=np.int32),
+    ]
+
+    rows = []
+    for template in templates:
+        for _ in range(6):
+            rows.append(rng.poisson(lam=template).astype(np.int32) + 1)
+
+    matrix_dir.mkdir(parents=True, exist_ok=True)
+    matrix = np.vstack(rows).T
+    matrix_path = matrix_dir / "matrix.mtx"
+    io.mmwrite(str(matrix_path), sparse.coo_matrix(matrix))
+
+    (matrix_dir / "barcodes.tsv").write_text(
+        "\n".join(f"cell_{idx}" for idx in range(matrix.shape[1])) + "\n",
+        encoding="utf-8",
+    )
+    (matrix_dir / "features.tsv").write_text(
+        "\n".join(f"gene_{idx}\t{gene}\tGene Expression" for idx, gene in enumerate(genes)) + "\n",
+        encoding="utf-8",
+    )
+
+    if not compressed:
+        return matrix_dir
+
+    for plain_path in (matrix_path, matrix_dir / "barcodes.tsv", matrix_dir / "features.tsv"):
+        gz_path = plain_path.with_suffix(plain_path.suffix + ".gz")
+        with plain_path.open("rb") as source_handle, gzip.open(gz_path, "wb") as dest_handle:
+            dest_handle.write(source_handle.read())
+        plain_path.unlink()
+    return matrix_dir / "matrix.mtx.gz"
 
 
 def _make_args(output_dir: Path, **overrides) -> SimpleNamespace:
@@ -348,7 +390,7 @@ def test_non_h5ad_input_rejected(tmp_path: Path):
 
     result = _run_cmd(["--input", str(input_path), "--output", str(tmp_path / "out")])
     assert result.returncode != 0
-    assert "Only .h5ad is supported" in result.stderr
+    assert "Unsupported input" in result.stderr
 
 
 def test_tiny_dataset_no_pca_crash(tmp_path: Path):
@@ -416,7 +458,7 @@ def test_processed_input_rejected_early_with_actionable_message(tmp_path: Path):
 
     result = _run_cmd(["--input", str(input_path), "--output", str(output_dir)])
     assert result.returncode != 0
-    assert "raw-count .h5ad input" in result.stderr
+    assert "raw-count .h5ad or 10x single-cell input" in result.stderr
     assert "pbmc3k_processed" in result.stderr
 
 
@@ -825,3 +867,55 @@ def test_orchestrator_no_rds_extension_route():
     module = _load_orchestrator_module()
     assert module.detect_skill_from_file(Path("x.rds")) is None
     assert module.detect_skill_from_file(Path("x.h5ad")) == "scrna-orchestrator"
+
+
+def test_10x_directory_input_runs(tmp_path: Path):
+    _require_scanpy()
+    input_dir = _build_10x_input(tmp_path / "tenx_dir")
+    output_dir = tmp_path / "tenx_output"
+
+    result = _run_cmd(
+        [
+            "--input",
+            str(input_dir),
+            "--output",
+            str(output_dir),
+            "--min-genes",
+            "1",
+            "--min-cells",
+            "1",
+            "--n-top-hvg",
+            "8",
+            "--n-neighbors",
+            "4",
+        ]
+    )
+    assert result.returncode == 0, result.stderr
+    payload = json.loads((output_dir / "result.json").read_text())
+    assert payload["data"]["input_format"] == "10x_mtx"
+
+
+def test_matrix_mtx_gz_input_runs(tmp_path: Path):
+    _require_scanpy()
+    matrix_path = _build_10x_input(tmp_path / "tenx_gz", compressed=True)
+    output_dir = tmp_path / "tenx_gz_output"
+
+    result = _run_cmd(
+        [
+            "--input",
+            str(matrix_path),
+            "--output",
+            str(output_dir),
+            "--min-genes",
+            "1",
+            "--min-cells",
+            "1",
+            "--n-top-hvg",
+            "8",
+            "--n-neighbors",
+            "4",
+        ]
+    )
+    assert result.returncode == 0, result.stderr
+    checksums = (output_dir / "reproducibility" / "checksums.sha256").read_text()
+    assert "barcodes.tsv.gz" in checksums

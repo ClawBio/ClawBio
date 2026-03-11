@@ -74,8 +74,8 @@ def load_skills_registry() -> set:
     the SKILLS dict keys with a regex instead of importing the module.
     """
     source = (CLAWBIO_DIR / "clawbio.py").read_text(encoding="utf-8")
-    # Match top-level keys like:  "pharmgx": {
-    return set(re.findall(r'^\s{4}"(\w+)":\s*\{', source, re.MULTILINE))
+    # Match top-level keys like:  "pharmgx": { or "scrna-embedding": {
+    return set(re.findall(r'^\s{4}"([\w-]+)":\s*\{', source, re.MULTILINE))
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +89,7 @@ FOLDER_TO_ALIAS = {
     "equity-scorer": "equity",
     "nutrigx_advisor": "nutrigx",
     "scrna-orchestrator": "scrna",
+    "scrna-embedding": "scrna-embedding",
     "claw-metagenomics": "metagenomics",
     "genome-compare": "compare",
     "drug-photo": "drugphoto",
@@ -105,7 +106,7 @@ EXCLUDED_FOLDERS = {"pr-audit"}
 # Skills that are MVP (have working Python + are in SKILLS dict or are bio-orchestrator)
 MVP_FOLDERS = {
     "pharmgx-reporter", "equity-scorer", "nutrigx_advisor", "claw-metagenomics",
-    "scrna-orchestrator",
+    "scrna-orchestrator", "scrna-embedding",
     "genome-compare", "drug-photo", "gwas-prs", "clinpgx", "gwas-lookup",
     "profile-report", "bio-orchestrator", "claw-ancestry-pca", "claw-semantic-sim",
     "ukb-navigator", "galaxy-bridge",
@@ -123,6 +124,7 @@ TRIGGER_KEYWORDS: dict[str, list[str]] = {
     "equity-scorer": ["HEIM", "equity", "FST", "heterozygosity", "population representation"],
     "nutrigx_advisor": ["nutrition", "nutrigenomics", "diet genetics", "MTHFR", "caffeine", "lactose"],
     "scrna-orchestrator": ["single-cell", "scrna", "h5ad", "scanpy", "umap", "leiden"],
+    "scrna-embedding": ["scvi", "latent", "embedding", "integration", "batch correction", "10x"],
     "claw-ancestry-pca": ["ancestry", "PCA", "admixture", "SGDP", "population structure"],
     "claw-semantic-sim": ["semantic similarity", "disease neglect", "research gaps", "NTDs", "SII"],
     "claw-metagenomics": ["metagenomics", "Kraken2", "RGI", "CARD", "HUMAnN3", "microbiome"],
@@ -143,6 +145,7 @@ CHAINING: dict[str, list[str]] = {
     "equity-scorer": ["claw-semantic-sim"],
     "nutrigx_advisor": ["profile-report", "pharmgx-reporter"],
     "scrna-orchestrator": [],
+    "scrna-embedding": ["scrna-orchestrator"],
     "claw-ancestry-pca": ["genome-compare"],
     "claw-semantic-sim": ["equity-scorer"],
     "claw-metagenomics": [],
