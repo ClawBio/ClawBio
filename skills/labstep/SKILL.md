@@ -13,7 +13,7 @@ metadata:
     always: false
     emoji: "🔬"
     homepage: https://www.labstep.com
-    os: [macos, linux]
+    os: [darwin, linux]
     install:
       - kind: uv
         package: labstep

@@ -12,7 +12,7 @@ metadata:
     always: false
     emoji: "🎯"
     homepage: https://www.pgscatalog.org
-    os: [macos, linux]
+    os: [darwin, linux]
     install:
       - kind: uv
         package: requests

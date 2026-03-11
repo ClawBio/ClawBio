@@ -12,7 +12,7 @@ metadata:
     always: false
     emoji: "🧬"
     homepage: https://api.clinpgx.org/
-    os: [macos, linux]
+    os: [darwin, linux]
     min_python: "3.10"
     install:
       - kind: uv
