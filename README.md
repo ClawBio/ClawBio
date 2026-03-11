@@ -298,7 +298,9 @@ python -m pytest
 
 ClawBio skills are also available through **RoboTerri**, a Telegram AI agent named after [Prof. Teresa K. Attwood](https://en.wikipedia.org/wiki/Teresa_Attwood) — a pioneer of bioinformatics education, founding Chair of GOBLET, and winner of the 2021 ISCB Outstanding Contributions Award. Send a genetic data file, a medication photo, or a plain-English question. Get back a summary, full report, and figures directly in Telegram.
 
-> **[Install RoboTerri — Step-by-step tutorial](docs/tutorial-roboterri-install.md)**: Set up your own Telegram bot running ClawBio skills in ~20 minutes.
+> **[Try RoboTerri now — no install needed](https://t.me/RoboTerri_bot)**: Open the public bot on Telegram and start querying. Type `/demo pharmgx` to see a pharmacogenomics report on a real public genome.
+>
+> **[Install your own RoboTerri — Step-by-step tutorial](docs/tutorial-roboterri-install.md)**: Set up your own Telegram bot running ClawBio skills in ~20 minutes.
 
 ```
 You:        [send 23andMe file]

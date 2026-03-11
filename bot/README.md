@@ -31,7 +31,9 @@ pip3 install -r bot/requirements.txt
 2. Send `/newbot`, choose a name and username
 3. Save the **bot token** BotFather gives you
 
-### 3. Get your chat ID
+### 3. Get your admin chat ID (optional)
+
+The bot is open to all users by default. To identify yourself as admin (bypasses rate limits):
 
 1. Start a conversation with your new bot
 2. Send any message
@@ -44,9 +46,12 @@ Create a `.env` file in the ClawBio root directory:
 
 ```
 TELEGRAM_BOT_TOKEN=your-bot-token-here
-TELEGRAM_CHAT_ID=your-chat-id-here
 LLM_API_KEY=your-api-key-here
-CLAWBIO_MODEL=gpt-4o
+CLAWBIO_MODEL=gemini-2.0-flash
+
+# Optional:
+TELEGRAM_CHAT_ID=your-chat-id-here    # Admin chat ID (bypasses rate limits)
+RATE_LIMIT_PER_HOUR=10                 # Max messages per user per hour (default: 10)
 ```
 
 ### Provider examples
@@ -54,7 +59,12 @@ CLAWBIO_MODEL=gpt-4o
 Any provider that speaks the OpenAI chat completions API works. Set `LLM_BASE_URL` to point to your provider:
 
 ```bash
-# OpenAI (default -- no LLM_BASE_URL needed)
+# Google Gemini (default -- free tier)
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+LLM_API_KEY=your-google-api-key
+CLAWBIO_MODEL=gemini-2.0-flash
+
+# OpenAI
 LLM_API_KEY=sk-...
 CLAWBIO_MODEL=gpt-4o
 
@@ -112,10 +122,22 @@ python3 bot/roboterri.py
 - **Photo**: Send a photo of medication packaging for personalised drug guidance
 - **Demo**: Type `/demo pharmgx` to see a pharmacogenomics report with synthetic data
 
+### Zero-cost setup (recommended for public bots)
+
+```bash
+# Google Gemini free tier (1,500 requests/day)
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+LLM_API_KEY=your-google-api-key
+CLAWBIO_MODEL=gemini-2.0-flash
+```
+
+Get a free Google API key at https://aistudio.google.com/apikey
+
 ## Security
 
-- The bot only responds to your configured `TELEGRAM_CHAT_ID`
-- All genetic data is processed locally
+- All genetic data is processed locally -- nothing leaves your machine
+- Per-user rate limiting prevents abuse (default: 10 messages/hour)
+- Admin chat ID is optional -- set it to bypass rate limits for yourself
 - Never commit your `.env` file (already in `.gitignore`)
 
 ---

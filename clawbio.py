@@ -377,6 +377,14 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "data-extract": {
+        "script": SKILLS_DIR / "data-extractor" / "data_extractor.py",
+        "demo_args": ["--demo"],
+        "description": "Extract numerical data from scientific figure images (Claude vision + OpenCV)",
+        "allowed_extra_flags": {"--web", "--port", "--plot-type"},
+        "api_module": "skills.data-extractor.api",
+        "accepts_genotypes": False,
+    },
 }
 
 # Skills that run in the full-profile pipeline (order matters)
