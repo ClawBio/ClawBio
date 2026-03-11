@@ -112,7 +112,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest scanpy==1.10.2 anndata==0.10.8 leidenalg==0.10.2 igraph==0.11.6 seaborn==0.13.2 torch scvi-tools
+          pip install pytest scanpy==1.10.2 "anndata>=0.12" leidenalg==0.10.2 igraph==0.11.6 seaborn==0.13.2 torch scvi-tools
 
       - name: Verify scRNA embedding stack imports
         run: python -c "import scanpy, anndata, leidenalg, igraph, torch, scvi; print('ok')"

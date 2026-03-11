@@ -170,7 +170,7 @@ output_directory/
 
 **Required**:
 - `scanpy` >= 1.10
-- `anndata` >= 0.10
+- `anndata` >= 0.12
 - `torch`
 - `scvi-tools`
 

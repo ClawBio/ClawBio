@@ -620,7 +620,7 @@ channels:
 dependencies:
   - python=3.11
   - scanpy=1.10.2
-  - anndata=0.10.8
+  - anndata=0.12.10
   - numpy=1.26.4
   - pandas=2.2.2
   - matplotlib=3.8.4
