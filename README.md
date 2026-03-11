@@ -32,6 +32,12 @@
   <a href="https://t.me/RoboTerri_bot"><strong>Open RoboTerri on Telegram →</strong></a>
 </p>
 
+<p align="center">
+  <a href="https://t.me/RoboTerri_bot">
+    <img src="demo/roboterri-preview.gif" alt="RoboTerri Telegram bot demo — querying a real genome" width="300">
+  </a>
+</p>
+
 RoboTerri is ClawBio's public Telegram bot, running against a real human genome ([Manuel Corpas](https://en.wikipedia.org/wiki/Manuel_Corpas), CC0 public domain). Ask it anything:
 
 - **"Give me my pharmacogenomic summary"** — analyses 12 genes, 51 drugs
