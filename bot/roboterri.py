@@ -46,7 +46,9 @@ from telegram.ext import (
 # --------------------------------------------------------------------------- #
 
 _project_root = Path(__file__).resolve().parents[3]  # AGENTIC-AI/
-load_dotenv(_project_root / ".env")
+# Use local copy if available (avoids iCloud file-lock deadlocks under launchd)
+_dotenv_path = os.environ.get("DOTENV_PATH", str(_project_root / ".env"))
+load_dotenv(_dotenv_path)
 load_dotenv()  # also check local .env (overrides)
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -71,6 +73,9 @@ SOUL_MD = CLAWBIO_DIR / "SOUL.md"
 OUTPUT_DIR = CLAWBIO_DIR / "output"
 DATA_DIR = CLAWBIO_DIR / "data"
 
+# Owner's genome — used as default when admin asks about their own PGx/nutrition/risk
+OWNER_GENOME = CLAWBIO_DIR / "skills" / "genome-compare" / "data" / "manuel_corpas_23andme.txt.gz"
+
 # Security limits (TG-004)
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB (Telegram document limit)
 MAX_PHOTO_BYTES = 20 * 1024 * 1024   # 20 MB (Telegram photo limit)
@@ -80,6 +85,74 @@ logging.basicConfig(
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
 )
 logger = logging.getLogger("roboterri")
+
+
+# ---------------------------------------------------------------------------
+# Redact bot token from log output
+# ---------------------------------------------------------------------------
+class _TokenRedactFilter(logging.Filter):
+    def __init__(self, token: str):
+        super().__init__()
+        self._token = token
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if self._token and self._token in record.getMessage():
+            record.msg = str(record.msg).replace(self._token, "[REDACTED]")
+            if isinstance(record.args, tuple):
+                record.args = tuple(
+                    str(a).replace(self._token, "[REDACTED]")
+                    for a in record.args
+                )
+            elif isinstance(record.args, dict):
+                record.args = {
+                    k: str(v).replace(self._token, "[REDACTED]")
+                    for k, v in record.args.items()
+                }
+        return True
+
+
+if TELEGRAM_BOT_TOKEN:
+    _redact = _TokenRedactFilter(TELEGRAM_BOT_TOKEN)
+    for _ln in ("httpx", "telegram", "httpcore"):
+        logging.getLogger(_ln).addFilter(_redact)
+
+
+# ---------------------------------------------------------------------------
+# Structured audit log (JSONL)
+# ---------------------------------------------------------------------------
+_AUDIT_LOG_DIR = CLAWBIO_DIR / "bot" / "logs"
+_AUDIT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+_AUDIT_LOG_PATH = _AUDIT_LOG_DIR / "audit.jsonl"
+
+
+def _audit(event: str, **kwargs):
+    """Append a structured JSON event to the audit log."""
+    from datetime import timezone as _tz
+    entry = {"ts": datetime.now(_tz.utc).isoformat(), "event": event, **kwargs}
+    try:
+        with open(_AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, default=str) + "\n")
+    except OSError:
+        pass
+
+
+def _user_ctx(update: Update) -> dict:
+    """Extract user identity for audit logging."""
+    u = update.effective_user
+    c = update.effective_chat
+    return {
+        "user_id": u.id if u else None,
+        "username": u.username if u else None,
+        "first_name": u.first_name if u else None,
+        "chat_id": c.id if c else None,
+        "chat_type": c.type if c else None,
+        "is_admin": is_admin(update) if c else False,
+    }
+
+
+def is_admin(update: Update) -> bool:
+    """Check if the message is from the admin chat."""
+    return bool(ADMIN_CHAT_ID) and update.effective_chat.id == ADMIN_CHAT_ID
 
 # --------------------------------------------------------------------------- #
 # System prompt
@@ -101,6 +174,7 @@ Operational constraints:
 2. Keep outputs concise, evidence-led, and explicit about confidence and gaps.
 3. When the user sends a genetic data file (23andMe .txt, AncestryDNA .csv, VCF, FASTQ) or asks about pharmacogenomics, nutrigenomics, equity scoring, metagenomics, or genome comparison, use the clawbio tool. When the user asks about disease risk, polygenic risk scores, or "what am I at risk for", use skill='prs'. For a unified profile report use skill='profile'. For gene-drug database lookups use skill='clinpgx'. For variant lookups (rsID, "look up rs...") use skill='gwas'. For quick demos say "run pharmgx demo", "run prs demo", "run profile demo" etc. Reports and figures are sent automatically after your summary.
 4. TOOL OUTPUT RELAY (STRICT): When the clawbio tool returns results, relay the output VERBATIM. Do not paraphrase, summarise, or rewrite tool results. Tool outputs contain precise data (IBS scores, percentages, gene-drug interactions) that must not be altered. You may add a brief intro line before the verbatim output but never replace or condense it.
+5. OWNER GENOME: The bot owner (admin) has their genome pre-loaded. When the admin asks about "my pharmacogenomics", "my risk", "my nutrition", "my genome", or similar personal queries WITHOUT uploading a file, use mode='file' — the system will automatically use the owner's genome. Do NOT ask the admin to upload a file. Only ask non-admin users to upload files.
 """
 
 SYSTEM_PROMPT = f"{_soul}\n\n{ROLE_GUARDRAILS}"
@@ -410,7 +484,12 @@ async def execute_clawbio(args: dict) -> str:
         break
 
     if mode == "file" and not input_path and not profile_path:
-        return "Error: no file received. Send a genetic data file first, then run the skill."
+        # Fall back to owner's genome for admin users
+        if OWNER_GENOME.exists():
+            input_path = str(OWNER_GENOME)
+            logger.info(f"No file uploaded — using owner genome: {OWNER_GENOME.name}")
+        else:
+            return "Error: no file received. Send a genetic data file first, then run the skill."
 
     # Build output directory
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -532,7 +611,8 @@ async def execute_clawbio(args: dict) -> str:
     if not report_text:
         return stdout_str if stdout_str else f"{skill_key} completed. Output: {out_dir}"
 
-    # Extract key sections (drop chromosome table, methods, reproducibility, disclaimer)
+    # Trim verbose sections for Telegram readability but ALWAYS keep disclaimer.
+    # Full report is preserved on disk at out_dir.
     keep_lines = []
     skip = False
     for line in report_text.split("\n"):
@@ -544,10 +624,10 @@ async def execute_clawbio(args: dict) -> str:
             skip = True
         elif line.startswith("## About"):
             skip = False
-        elif line.startswith("## Disclaimer"):
-            skip = True
         elif line.startswith("## Reproducibility"):
             skip = True
+        elif line.startswith("## Disclaimer"):
+            skip = False  # always show disclaimer
         if line.startswith("!["):
             continue
         if not skip:
@@ -575,10 +655,18 @@ def _sanitize_filename(filename: str) -> str:
 
 
 def _resolve_dest(folder: str | None) -> Path:
-    """Resolve a destination folder, defaulting to ClawBio data/."""
+    """Resolve a destination folder, restricted to CLAWBIO_DIR."""
     dest = Path(folder) if folder else DATA_DIR
     if not dest.is_absolute():
         dest = CLAWBIO_DIR / dest
+    # Security: block path traversal outside CLAWBIO_DIR
+    try:
+        dest.resolve().relative_to(CLAWBIO_DIR.resolve())
+    except ValueError:
+        logger.warning(f"Path escape blocked: {dest}")
+        _audit("security", severity="HIGH", detail="path_escape_blocked",
+               attempted_path=str(dest), function="_resolve_dest")
+        dest = DATA_DIR
     dest.mkdir(parents=True, exist_ok=True)
     return dest
 
@@ -810,6 +898,23 @@ async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
     if len(history) > MAX_HISTORY:
         history[:] = history[-MAX_HISTORY:]
 
+    # Sanitise: strip orphaned tool messages that lack a preceding
+    # assistant message with tool_calls (prevents API 400 errors).
+    sanitised: list[dict] = []
+    for msg in history:
+        if msg.get("role") == "tool":
+            # Only keep if previous message is assistant with tool_calls
+            if sanitised and sanitised[-1].get("role") == "assistant":
+                if sanitised[-1].get("tool_calls"):
+                    sanitised.append(msg)
+                    continue
+            logger.warning("Dropped orphaned tool message from history")
+            _audit("history_sanitised", chat_id=chat_id,
+                   detail="orphaned_tool_message_dropped")
+            continue
+        sanitised.append(msg)
+    history[:] = sanitised
+
     last_message = None
     for _iteration in range(MAX_TOOL_ITERATIONS):
         try:
@@ -856,10 +961,14 @@ async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
                 except json.JSONDecodeError:
                     args = {}
                 logger.info(f"Tool call: {func_name}({json.dumps(args)[:200]})")
+                _audit("tool_call", chat_id=chat_id, tool=func_name,
+                       args_preview=json.dumps(args, default=str)[:300])
                 try:
                     result = await executor(args)
                 except Exception as tool_err:
                     logger.error(f"Tool {func_name} raised: {tool_err}", exc_info=True)
+                    _audit("tool_error", chat_id=chat_id, tool=func_name,
+                           error=str(tool_err)[:300])
                     result = f"Error executing {func_name}: {type(tool_err).__name__}: {tool_err}"
             else:
                 result = f"Unknown tool: {func_name}"
@@ -876,11 +985,6 @@ async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
 # --------------------------------------------------------------------------- #
 # Telegram helpers
 # --------------------------------------------------------------------------- #
-
-
-def is_admin(update: Update) -> bool:
-    """Check if the message is from the admin chat."""
-    return ADMIN_CHAT_ID and update.effective_chat.id == ADMIN_CHAT_ID
 
 
 # Per-user rate limiting
@@ -905,6 +1009,7 @@ def _check_rate_limit(update: Update) -> bool:
 
 async def _rate_limit_reply(update: Update) -> None:
     """Send a rate-limit notice."""
+    _audit("rate_limited", **_user_ctx(update))
     await update.message.reply_text(
         f"You've reached the limit of {RATE_LIMIT_PER_HOUR} messages per hour. "
         "Please try again later."
@@ -1186,6 +1291,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_text = update.message.text
     logger.info(f"Message from {update.effective_user.first_name}: {user_text[:100]}")
+    _audit("message", **_user_ctx(update), text_preview=user_text[:200],
+           text_len=len(user_text))
 
     try:
         await context.bot.send_chat_action(
@@ -1256,6 +1363,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         img_b64 = base64.standard_b64encode(bytes(img_bytes)).decode("ascii")
         logger.info(f"Photo received: {len(img_bytes)} bytes, type={media_type}")
+        _audit("photo", **_user_ctx(update), size_bytes=len(img_bytes),
+               media_type=media_type)
 
         # Sanitize filename (TG-002)
         filename = _sanitize_filename(filename)
@@ -1344,6 +1453,8 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tmp_path = Path(tempfile.gettempdir()) / f"roboterri_{filename}"
         await file.download_to_drive(str(tmp_path))
         logger.info(f"Document received: {filename} ({file_size} bytes, {mime})")
+        _audit("document", **_user_ctx(update), filename=filename,
+               size_bytes=file_size, mime=mime)
 
         _received_files[update.effective_chat.id] = {
             "path": str(tmp_path), "filename": filename,
@@ -1427,6 +1538,8 @@ def main():
         logger.info(f"LLM base URL: {LLM_BASE_URL}")
     logger.info(f"Admin chat ID: {ADMIN_CHAT_ID or 'not set (public mode)'}")
     logger.info(f"Rate limit: {RATE_LIMIT_PER_HOUR} msgs/hour per user (0=unlimited)")
+    _audit("bot_start", model=CLAWBIO_MODEL,
+           admin_chat=ADMIN_CHAT_ID, rate_limit=RATE_LIMIT_PER_HOUR)
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
@@ -1437,6 +1550,28 @@ def main():
     app.add_handler(CommandHandler("voice", cmd_voice))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("health", cmd_health))
+
+    # Global error handler
+    async def _error_handler(update, context):
+        err = context.error
+        if err is None:
+            return
+        err_name = type(err).__name__
+        if "Forbidden" in err_name or "forbidden" in str(err).lower():
+            logger.info(f"User blocked bot: {err}")
+            _audit("error", severity="LOW", error_type="forbidden",
+                   detail=str(err)[:200])
+            return
+        if err_name in ("TimedOut", "NetworkError", "RetryAfter"):
+            logger.warning(f"Transient error: {err}")
+            _audit("error", severity="LOW", error_type=err_name,
+                   detail=str(err)[:200])
+            return
+        logger.error(f"Unhandled error: {err}", exc_info=context.error)
+        _audit("error", severity="HIGH", error_type=err_name,
+               detail=str(err)[:300])
+
+    app.add_error_handler(_error_handler)
 
     # Message handlers
     app.add_handler(MessageHandler(

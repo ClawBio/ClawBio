@@ -395,13 +395,8 @@ def main() -> None:
         else:
             print(f"FLock routing: {reasoning}")
 
-    # Auto-fallback: even in keyword mode, try FLock if available
-    if not skill and args.provider == "keyword" and args.input:
-        skill_flock, reasoning = detect_skill_with_flock(args.input)
-        if skill_flock:
-            print(f"Keyword matching failed. FLock fallback routed to: {skill_flock} — {reasoning}")
-            skill = skill_flock
-            method = "flock-llm-fallback"
+    # FLock fallback removed: keyword mode must not silently send queries
+    # to an external API. Use --provider flock explicitly to opt in.
 
     if not skill:
         print(f"Could not determine skill for input: {args.input}")
