@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RoboTerri - ClawBio Bioinformatics Assistant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+  .header { background: #111; border-bottom: 1px solid #222; padding: 12px 20px; display: flex; align-items: center; gap: 12px; }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .header .sub { font-size: 13px; color: #888; }
+  .status { width: 8px; height: 8px; border-radius: 50%; background: #555; flex-shrink: 0; }
+  .status.connected { background: #24e08a; }
+  .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user { align-self: flex-end; background: #1a3a5c; color: #d0e8ff; border-bottom-right-radius: 4px; }
+  .msg.assistant { align-self: flex-start; background: #1a1a1a; border: 1px solid #2a2a2a; border-bottom-left-radius: 4px; }
+  .msg.system { align-self: center; background: none; color: #666; font-size: 12px; font-style: italic; }
+  .input-area { background: #111; border-top: 1px solid #222; padding: 12px 20px; display: flex; gap: 10px; }
+  .input-area textarea { flex: 1; background: #1a1a1a; border: 1px solid #333; border-radius: 10px; color: #e0e0e0; padding: 10px 14px; font-size: 14px; font-family: inherit; resize: none; outline: none; min-height: 42px; max-height: 120px; }
+  .input-area textarea:focus { border-color: #4a9eff; }
+  .input-area textarea::placeholder { color: #555; }
+  .input-area button { background: #1a3a5c; border: none; color: #d0e8ff; padding: 0 18px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .input-area button:hover { background: #245080; }
+  .input-area button:disabled { opacity: 0.4; cursor: default; }
+  .typing { align-self: flex-start; color: #666; font-size: 13px; padding: 4px 14px; }
+  .disclaimer { text-align: center; padding: 8px; font-size: 11px; color: #555; background: #0a0a0a; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="status" id="status"></div>
+  <div>
+    <h1>RoboTerri</h1>
+    <div class="sub">ClawBio Bioinformatics Assistant</div>
+  </div>
+</div>
+
+<div class="messages" id="messages">
+  <div class="msg system">Send a message to start. Try "!skills" or "!demo pharmgx".</div>
+</div>
+
+<div class="input-area">
+  <textarea id="input" placeholder="Ask a bioinformatics question..." rows="1"></textarea>
+  <button id="send" onclick="sendMessage()">Send</button>
+</div>
+
+<div class="disclaimer">
+  ClawBio is a research tool, not a medical device. Consult a healthcare professional before making medical decisions.
+</div>
+
+<script>
+const GATEWAY_URL = window.location.origin.replace(/^http/, 'ws');
+const AUTH_TOKEN = new URLSearchParams(window.location.search).get('t') || '';
+
+let ws = null;
+let sessionId = null;
+let reconnectTimer = null;
+
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const statusEl = document.getElementById('status');
+
+function connect() {
+  if (ws && ws.readyState <= 1) return;
+
+  const url = new URL(GATEWAY_URL);
+  ws = new WebSocket(url.href);
+
+  ws.onopen = () => {
+    statusEl.classList.add('connected');
+    // Authenticate
+    ws.send(JSON.stringify({
+      type: 'connect',
+      params: { auth: { token: AUTH_TOKEN } }
+    }));
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      handleMessage(data);
+    } catch (e) {
+      console.error('Parse error:', e);
+    }
+  };
+
+  ws.onclose = () => {
+    statusEl.classList.remove('connected');
+    reconnectTimer = setTimeout(connect, 3000);
+  };
+
+  ws.onerror = () => {
+    statusEl.classList.remove('connected');
+  };
+}
+
+function handleMessage(data) {
+  if (data.type === 'connected') {
+    sessionId = data.sessionId;
+    addMessage('Connected to RoboTerri.', 'system');
+    return;
+  }
+
+  if (data.type === 'chat' || data.type === 'chat.stream') {
+    const text = data.text || data.content || '';
+    if (text && data.role === 'assistant') {
+      // Remove typing indicator
+      const typing = document.querySelector('.typing');
+      if (typing) typing.remove();
+      addMessage(text, 'assistant');
+    }
+    return;
+  }
+
+  if (data.type === 'chat.typing') {
+    if (!document.querySelector('.typing')) {
+      const el = document.createElement('div');
+      el.className = 'typing';
+      el.textContent = 'RoboTerri is thinking...';
+      messagesEl.appendChild(el);
+      scrollToBottom();
+    }
+    return;
+  }
+
+  if (data.type === 'error') {
+    addMessage(`Error: ${data.message || JSON.stringify(data)}`, 'system');
+    return;
+  }
+}
+
+function addMessage(text, role) {
+  const el = document.createElement('div');
+  el.className = `msg ${role}`;
+  el.textContent = text;
+  messagesEl.appendChild(el);
+  scrollToBottom();
+}
+
+function scrollToBottom() {
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text || !ws || ws.readyState !== 1) return;
+
+  addMessage(text, 'user');
+  ws.send(JSON.stringify({
+    type: 'chat.send',
+    text: text,
+    sessionId: sessionId,
+  }));
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+  sendBtn.disabled = true;
+  setTimeout(() => { sendBtn.disabled = false; }, 1000);
+}
+
+// Auto-resize textarea
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+});
+
+// Enter to send, Shift+Enter for newline
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+connect();
+</script>
+</body>
+</html>
