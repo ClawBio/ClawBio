@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BioSkill Marketplace — OpenClaw Biology Skills</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400;500&family=Outfit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #070a0d;
+  --bg-card: #0d1117;
+  --bg-card-hover: #131a23;
+  --bg-surface: #161b22;
+  --border: #21262d;
+  --border-glow: #00e5a0;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #484f58;
+  --accent-green: #00e5a0;
+  --accent-cyan: #00c2d1;
+  --accent-blue: #58a6ff;
+  --accent-purple: #bc8cff;
+  --accent-amber: #f0b429;
+  --accent-red: #ff6b6b;
+  --accent-pink: #f778ba;
+  --glow-green: 0 0 20px rgba(0,229,160,0.3);
+  --radius: 12px;
+  --radius-lg: 20px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Outfit', sans-serif;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Ambient background ── */
+.ambient {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.ambient::before {
+  content: '';
+  position: absolute;
+  top: -30%; left: -10%;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(0,229,160,0.06) 0%, transparent 70%);
+  animation: drift 25s ease-in-out infinite;
+}
+.ambient::after {
+  content: '';
+  position: absolute;
+  bottom: -20%; right: -5%;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(0,194,209,0.05) 0%, transparent 70%);
+  animation: drift 30s ease-in-out infinite reverse;
+}
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(60px, -40px); }
+  66% { transform: translate(-30px, 50px); }
+}
+
+/* ── Layout ── */
+.container {
+  position: relative;
+  z-index: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+/* ── Header ── */
+header {
+  padding: 60px 0 40px;
+}
+.header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(0,229,160,0.08);
+  border: 1px solid rgba(0,229,160,0.2);
+  border-radius: 100px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent-green);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+.header-badge .pulse {
+  width: 6px; height: 6px;
+  background: var(--accent-green);
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,229,160,0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(0,229,160,0); }
+}
+
+h1 {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(42px, 6vw, 72px);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -1.5px;
+  margin-bottom: 16px;
+}
+h1 .highlight {
+  background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  font-size: 17px;
+  font-weight: 300;
+  color: var(--text-secondary);
+  max-width: 600px;
+  line-height: 1.6;
+}
+
+/* ── Stats bar ── */
+.stats-bar {
+  display: flex;
+  gap: 40px;
+  padding: 28px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin: 28px 0;
+  flex-wrap: wrap;
+}
+.stat { display: flex; flex-direction: column; gap: 4px; }
+.stat-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--accent-green);
+}
+.stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ── Search & Filters ── */
+.controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.search-box {
+  flex: 1;
+  min-width: 280px;
+  position: relative;
+}
+.search-box input {
+  width: 100%;
+  padding: 14px 20px 14px 48px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search-box input::placeholder { color: var(--text-muted); }
+.search-box input:focus {
+  border-color: var(--accent-green);
+  box-shadow: var(--glow-green);
+}
+.search-box .search-icon {
+  position: absolute;
+  left: 16px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 18px;
+}
+
+.filter-pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pill {
+  padding: 10px 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.pill:hover { border-color: var(--text-muted); color: var(--text-primary); }
+.pill.active {
+  background: rgba(0,229,160,0.1);
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+/* ── Section headers ── */
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin: 40px 0 16px;
+}
+.section-header h2 {
+  font-family: 'Instrument Serif', serif;
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+}
+.section-header .count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ── Readiness Badge ── */
+.readiness {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.readiness.ready {
+  background: rgba(0,229,160,0.12);
+  border: 1px solid rgba(0,229,160,0.3);
+  color: var(--accent-green);
+}
+.readiness.partial {
+  background: rgba(240,180,41,0.1);
+  border: 1px solid rgba(240,180,41,0.3);
+  color: var(--accent-amber);
+}
+.readiness.not-ready {
+  background: rgba(139,148,158,0.08);
+  border: 1px solid rgba(139,148,158,0.2);
+  color: var(--text-muted);
+}
+
+/* ── Sortable Table ── */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+}
+.s-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1080px;
+}
+.s-table thead th {
+  text-align: left;
+  padding: 14px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+.s-table thead th:first-child { border-radius: var(--radius-lg) 0 0 0; }
+.s-table thead th:last-child { border-radius: 0 var(--radius-lg) 0 0; }
+.s-table thead th:hover { color: var(--text-primary); }
+.s-table thead th.sorted { color: var(--accent-green); }
+.s-table thead th .sort-arrow {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  opacity: 0.4;
+  transition: opacity 0.15s, transform 0.2s;
+}
+.s-table thead th.sorted .sort-arrow { opacity: 1; }
+.s-table thead th.sorted.desc .sort-arrow { transform: rotate(180deg); }
+
+.s-table tbody tr {
+  transition: background 0.15s;
+  border-bottom: 1px solid rgba(33,38,45,0.5);
+}
+.s-table tbody tr:last-child { border-bottom: none; }
+.s-table tbody tr:hover { background: var(--bg-card-hover); }
+.s-table td {
+  padding: 14px 16px;
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+/* Specific column styles */
+.col-repo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.col-repo a {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent-blue);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.col-repo a:hover { color: var(--accent-cyan); text-decoration: underline; }
+.col-repo .org {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.col-desc {
+  color: var(--text-secondary);
+  font-weight: 300;
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 340px;
+}
+
+.col-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+}
+.col-stars {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: right;
+  color: var(--accent-amber);
+  white-space: nowrap;
+}
+.col-forks {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: right;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.col-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  max-width: 220px;
+}
+.tag {
+  padding: 2px 8px;
+  background: rgba(88,166,255,0.08);
+  border-radius: 100px;
+  font-size: 10px;
+  color: var(--accent-blue);
+  white-space: nowrap;
+}
+
+.col-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+}
+.chk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.chk .ico {
+  width: 14px; height: 14px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  flex-shrink: 0;
+}
+.chk .ico.y { background: rgba(0,229,160,0.15); color: var(--accent-green); }
+.chk .ico.n { background: rgba(139,148,158,0.08); color: var(--text-muted); }
+.chk .ico.p { background: rgba(240,180,41,0.12); color: var(--accent-amber); }
+.chk span:last-child { color: var(--text-muted); font-size: 11px; }
+
+/* ── Status dots ── */
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.status-dot.live { background: var(--accent-green); box-shadow: 0 0 8px rgba(0,229,160,0.5); }
+.status-dot.beta { background: var(--accent-amber); }
+.status-dot.planned { background: var(--text-muted); }
+.status-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+
+.skill-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.skill-emoji { font-size: 16px; width: 24px; text-align: center; }
+.skill-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.skill-desc-text {
+  color: var(--text-secondary);
+  font-weight: 300;
+  font-size: 12px;
+}
+
+/* ── Legend ── */
+.legend {
+  display: flex;
+  gap: 24px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ── Footer ── */
+footer {
+  padding: 48px 0 32px;
+  border-top: 1px solid var(--border);
+  margin-top: 48px;
+  text-align: center;
+}
+footer p { font-size: 13px; color: var(--text-muted); font-weight: 300; }
+footer a { color: var(--accent-green); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+/* ── Animations ── */
+.fade-in {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: fadeIn 0.5s ease forwards;
+}
+@keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.3s; }
+.delay-4 { animation-delay: 0.4s; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .container { padding: 0 12px; }
+  h1 { font-size: 32px; }
+  .stats-bar { gap: 20px; }
+  .s-table { font-size: 12px; }
+  .s-table td, .s-table th { padding: 10px 8px; }
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Row expand ── */
+.detail-row td {
+  padding: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.detail-inner {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+  padding: 0 16px;
+}
+.detail-row.open .detail-inner {
+  max-height: 300px;
+  padding: 16px;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px;
+}
+tr.clickable { cursor: pointer; }
+tr.clickable:hover .col-repo a { color: var(--accent-cyan); }
+</style>
+</head>
+<body>
+
+<div class="ambient"></div>
+
+<div class="container">
+
+<!-- ══════ HEADER ══════ -->
+<header>
+  <div class="header-badge fade-in"><span class="pulse"></span> OpenClaw Ecosystem</div>
+  <h1 class="fade-in delay-1">Biology <span class="highlight">Skill</span> Marketplace</h1>
+  <p class="subtitle fade-in delay-2">
+    Curated biology &amp; biomedical AI agent skills from across GitHub.
+    Click any column header to sort. Click a row to expand the readiness checklist.
+  </p>
+</header>
+
+<!-- ══════ STATS ══════ -->
+<div class="stats-bar fade-in delay-3">
+  <div class="stat"><span class="stat-value">9</span><span class="stat-label">Repositories</span></div>
+  <div class="stat"><span class="stat-value">2,000+</span><span class="stat-label">Total Skills</span></div>
+  <div class="stat"><span class="stat-value">4</span><span class="stat-label">OpenClaw Ready</span></div>
+  <div class="stat"><span class="stat-value">3</span><span class="stat-label">Partially Ready</span></div>
+</div>
+
+<!-- ══════ SEARCH & FILTERS ══════ -->
+<div class="controls fade-in delay-3">
+  <div class="search-box">
+    <span class="search-icon">&#x2315;</span>
+    <input type="text" id="searchInput" placeholder="Search repos, skills, or domains...">
+  </div>
+  <div class="filter-pills">
+    <button class="pill active" data-filter="all">All</button>
+    <button class="pill" data-filter="ready">OpenClaw Ready</button>
+    <button class="pill" data-filter="partial">Partial</button>
+    <button class="pill" data-filter="not-ready">Framework</button>
+  </div>
+</div>
+
+<!-- ══════ LEGEND ══════ -->
+<div class="legend fade-in delay-3">
+  <div class="legend-item"><span class="readiness ready" style="padding:2px 8px;font-size:10px;">&#10003; READY</span> SKILL.md + OpenClaw frontmatter</div>
+  <div class="legend-item"><span class="readiness partial" style="padding:2px 8px;font-size:10px;">~ PARTIAL</span> SKILL.md but missing metadata</div>
+  <div class="legend-item"><span class="readiness not-ready" style="padding:2px 8px;font-size:10px;">&mdash; FRAMEWORK</span> Needs adaptation</div>
+</div>
+
+<!-- ══════ REPOS TABLE ══════ -->
+<div class="section-header fade-in delay-4">
+  <h2>Repositories</h2>
+  <span class="count" id="repoCount">9 repos</span>
+</div>
+
+<div class="table-wrap fade-in delay-4">
+<table class="s-table" id="repoTable">
+<thead>
+<tr>
+  <th data-col="repo" data-type="string">Repository <span class="sort-arrow">&#9650;</span></th>
+  <th data-col="desc" data-type="string">Description <span class="sort-arrow">&#9650;</span></th>
+  <th data-col="skills" data-type="number" style="text-align:right">Skills <span class="sort-arrow">&#9650;</span></th>
+  <th data-col="stars" data-type="number" style="text-align:right">Stars <span class="sort-arrow">&#9650;</span></th>
+  <th data-col="forks" data-type="number" style="text-align:right">Forks <span class="sort-arrow">&#9650;</span></th>
+  <th data-col="status" data-type="status">OpenClaw Ready <span class="sort-arrow">&#9650;</span></th>
+  <th data-col="tags" data-type="string">Domains <span class="sort-arrow">&#9650;</span></th>
+</tr>
+</thead>
+<tbody id="repoBody">
+
+<!-- ClawBio -->
+<tr class="clickable" data-readiness="ready" data-search="clawbio genomics pharmacogenomics single-cell gwas prs equity nutrigenomics ancestry variant galaxy" data-skills="28" data-stars="342" data-forks="50" data-status="1" data-repo="ClawBio" data-origin="Imperial College London">
+  <td><div class="col-repo"><span class="org">ClawBio</span><a href="https://github.com/ClawBio/ClawBio" target="_blank" onclick="event.stopPropagation()">ClawBio</a></div></td>
+  <td class="col-desc">First bioinformatics-native AI agent skill library. Local-first genomic analysis with reproducibility bundles. 15 skills + 8,000 Galaxy tools.</td>
+  <td class="col-num" style="text-align:right">28</td>
+  <td class="col-stars" style="text-align:right">&#9733; 342</td>
+  <td class="col-forks" style="text-align:right">&#9741; 50</td>
+  <td><span class="readiness ready">&#10003; READY</span></td>
+  <td><div class="col-tags"><span class="tag">PGx</span><span class="tag">GWAS</span><span class="tag">scRNA</span><span class="tag">equity</span><span class="tag">Galaxy</span></div></td>
+
+</tr>
+<tr class="detail-row" data-readiness="ready"><td colspan="7"><div class="detail-inner"><div class="detail-grid">
+  <div class="chk"><span class="ico y">&#10003;</span><span>SKILL.md + YAML frontmatter</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>metadata.openclaw section</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>trigger_keywords routing</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>Python CLI + api.py</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>pytest suites (182 tests)</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>Demo data &amp; --demo flag</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>result.json output</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>Reproducibility bundle</span></div>
+</div></div></td></tr>
+
+<!-- GPTomics/bioSkills -->
+<tr class="clickable" data-readiness="ready" data-search="gptomics bioskills rnaseq single-cell variant sequencing epigenomics pathways differential expression" data-skills="425" data-stars="331" data-forks="52" data-status="1" data-repo="bioSkills" data-origin="GPTomics">
+  <td><div class="col-repo"><span class="org">GPTomics</span><a href="https://github.com/GPTomics/bioSkills" target="_blank" onclick="event.stopPropagation()">bioSkills</a></div></td>
+  <td class="col-desc">425 bioinformatics SKILL.md files across 62 categories. RNA-seq, variant analysis, sequencing QC, pathways, single-cell, and epigenomics.</td>
+  <td class="col-num" style="text-align:right">425</td>
+  <td class="col-stars" style="text-align:right">&#9733; 331</td>
+  <td class="col-forks" style="text-align:right">&#9741; 52</td>
+  <td><span class="readiness ready">&#10003; READY</span></td>
+  <td><div class="col-tags"><span class="tag">RNA-seq</span><span class="tag">scRNA</span><span class="tag">variants</span><span class="tag">epigenomics</span></div></td>
+
+</tr>
+<tr class="detail-row" data-readiness="ready"><td colspan="7"><div class="detail-inner"><div class="detail-grid">
+  <div class="chk"><span class="ico y">&#10003;</span><span>SKILL.md with methodology</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>Structured for AI agents</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>Code patterns &amp; best practices</span></div>
+  <div class="chk"><span class="ico p">~</span><span>OpenClaw frontmatter (varies)</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>No Python CLI scripts</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>No test suites</span></div>
+</div></div></td></tr>
+
+<!-- FreedomIntelligence -->
+<tr class="clickable" data-readiness="ready" data-search="freedomintelligence medical clinical genomics drug discovery ontology hpo snomed alphafold crispr" data-skills="869" data-stars="1037" data-forks="123" data-status="1" data-repo="OpenClaw-Medical-Skills" data-origin="FreedomIntelligence">
+  <td><div class="col-repo"><span class="org">FreedomIntelligence</span><a href="https://github.com/FreedomIntelligence/OpenClaw-Medical-Skills" target="_blank" onclick="event.stopPropagation()">OpenClaw-Medical-Skills</a></div></td>
+  <td class="col-desc">Largest open-source medical AI skills library. 869 skills covering clinical research, genomics, drug discovery, biomedical ontologies, and lab automation.</td>
+  <td class="col-num" style="text-align:right">869</td>
+  <td class="col-stars" style="text-align:right">&#9733; 1,037</td>
+  <td class="col-forks" style="text-align:right">&#9741; 123</td>
+  <td><span class="readiness ready">&#10003; READY</span></td>
+  <td><div class="col-tags"><span class="tag">clinical</span><span class="tag">drug discovery</span><span class="tag">AlphaFold</span><span class="tag">CRISPR</span></div></td>
+
+</tr>
+<tr class="detail-row" data-readiness="ready"><td colspan="7"><div class="detail-inner"><div class="detail-grid">
+  <div class="chk"><span class="ico y">&#10003;</span><span>SKILL.md format</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>OpenClaw-compatible</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>Categorized skill directory</span></div>
+  <div class="chk"><span class="ico p">~</span><span>Quality varies (869 entries)</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>Methodology-only (no scripts)</span></div>
+</div></div></td></tr>
+
+<!-- LabClaw -->
+<tr class="clickable" data-readiness="ready" data-search="labclaw stanford labos drug discovery metabolic modeling phylogenetics cobra bioservices gget cellxgene" data-skills="211" data-stars="317" data-forks="54" data-status="1" data-repo="LabClaw" data-origin="Stanford">
+  <td><div class="col-repo"><span class="org">wu-yc</span><a href="https://github.com/wu-yc/LabClaw" target="_blank" onclick="event.stopPropagation()">LabClaw</a></div></td>
+  <td class="col-desc">Skill operating layer for Stanford LabOS. 211 production-ready SKILL.md files for biomedical AI — biology, lab automation, drug discovery, and data science.</td>
+  <td class="col-num" style="text-align:right">211</td>
+  <td class="col-stars" style="text-align:right">&#9733; 317</td>
+  <td class="col-forks" style="text-align:right">&#9741; 54</td>
+  <td><span class="readiness ready">&#10003; READY</span></td>
+  <td><div class="col-tags"><span class="tag">lab automation</span><span class="tag">COBRA</span><span class="tag">gget</span><span class="tag">CELLxGENE</span></div></td>
+
+</tr>
+<tr class="detail-row" data-readiness="ready"><td colspan="7"><div class="detail-inner"><div class="detail-grid">
+  <div class="chk"><span class="ico y">&#10003;</span><span>SKILL.md structured format</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>OpenClaw-compatible metadata</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>Modular skill directory</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>When/how/output guidance</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>No CLI scripts (methodology-only)</span></div>
+</div></div></td></tr>
+
+<!-- K-Dense-AI -->
+<tr class="clickable" data-readiness="partial" data-search="kdense scientific uniprot chembl ensembl biopython alphafold pubmed bioinformatics proteomics cheminformatics rdkit scanpy" data-skills="250" data-stars="14531" data-forks="1585" data-status="2" data-repo="claude-scientific-skills" data-origin="K-Dense AI">
+  <td><div class="col-repo"><span class="org">K-Dense-AI</span><a href="https://github.com/K-Dense-AI/claude-scientific-skills" target="_blank" onclick="event.stopPropagation()">claude-scientific-skills</a></div></td>
+  <td class="col-desc">250+ scientific database skills with access to UniProt, ChEMBL, Ensembl, AlphaFold DB, and 60+ Python packages including BioPython, Scanpy, and RDKit.</td>
+  <td class="col-num" style="text-align:right">250</td>
+  <td class="col-stars" style="text-align:right">&#9733; 14.5k</td>
+  <td class="col-forks" style="text-align:right">&#9741; 1,585</td>
+  <td><span class="readiness partial">~ PARTIAL</span></td>
+  <td><div class="col-tags"><span class="tag">UniProt</span><span class="tag">ChEMBL</span><span class="tag">Ensembl</span><span class="tag">BioPython</span></div></td>
+
+</tr>
+<tr class="detail-row" data-readiness="partial"><td colspan="7"><div class="detail-inner"><div class="detail-grid">
+  <div class="chk"><span class="ico y">&#10003;</span><span>SKILL.md files present</span></div>
+  <div class="chk"><span class="ico p">~</span><span>Custom format (not full OpenClaw)</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>Database API patterns</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>MCP server integration</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>Missing openclaw.metadata block</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>No trigger_keywords</span></div>
+</div></div></td></tr>
+
+<!-- Lobster -->
+<tr class="clickable" data-readiness="partial" data-search="lobster omics multi-omics rnaseq proteomics genomics literature mining scanpy mudata" data-skills="10" data-stars="50" data-forks="4" data-status="2" data-repo="lobster-local" data-origin="omics-os">
+  <td><div class="col-repo"><span class="org">the-omics-os</span><a href="https://github.com/the-omics-os/lobster-local" target="_blank" onclick="event.stopPropagation()">lobster-local</a></div></td>
+  <td class="col-desc">Self-evolving agentic framework for bioinformatics. Modular platform with pluggable execution. Download &rarr; QC &rarr; Cluster &rarr; Annotate in one conversation.</td>
+  <td class="col-num" style="text-align:right">10</td>
+  <td class="col-stars" style="text-align:right">&#9733; 50</td>
+  <td class="col-forks" style="text-align:right">&#9741; 4</td>
+  <td><span class="readiness partial">~ PARTIAL</span></td>
+  <td><div class="col-tags"><span class="tag">scRNA-seq</span><span class="tag">proteomics</span><span class="tag">MuData</span><span class="tag">literature</span></div></td>
+
+</tr>
+<tr class="detail-row" data-readiness="partial"><td colspan="7"><div class="detail-inner"><div class="detail-grid">
+  <div class="chk"><span class="ico y">&#10003;</span><span>Claude Code integration</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>Modular agent routing</span></div>
+  <div class="chk"><span class="ico p">~</span><span>Custom skill format</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>Not standard SKILL.md</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>No OpenClaw metadata</span></div>
+</div></div></td></tr>
+
+<!-- BioClaw -->
+<tr class="clickable" data-readiness="partial" data-search="bioclaw stanford princeton blast bwa pymol fastqc whatsapp nanoclaw sequence alignment" data-skills="8" data-stars="178" data-forks="21" data-status="2" data-repo="BioClaw" data-origin="Stanford / Princeton">
+  <td><div class="col-repo"><span class="org">Runchuan-BU</span><a href="https://github.com/Runchuan-BU/BioClaw" target="_blank" onclick="event.stopPropagation()">BioClaw</a></div></td>
+  <td class="col-desc">AI-powered bioinformatics assistant from Stanford/Princeton. NanoClaw architecture with BLAST, BWA, PyMOL, FastQC. Accessible via WhatsApp.</td>
+  <td class="col-num" style="text-align:right">8</td>
+  <td class="col-stars" style="text-align:right">&#9733; 178</td>
+  <td class="col-forks" style="text-align:right">&#9741; 21</td>
+  <td><span class="readiness partial">~ PARTIAL</span></td>
+  <td><div class="col-tags"><span class="tag">BLAST</span><span class="tag">BWA</span><span class="tag">PyMOL</span><span class="tag">FastQC</span></div></td>
+
+</tr>
+<tr class="detail-row" data-readiness="partial"><td colspan="7"><div class="detail-inner"><div class="detail-grid">
+  <div class="chk"><span class="ico y">&#10003;</span><span>Built on OpenClaw ecosystem</span></div>
+  <div class="chk"><span class="ico p">~</span><span>Container-based skills</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>Not standard SKILL.md format</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>No OpenClaw metadata block</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>WhatsApp-only interface</span></div>
+</div></div></td></tr>
+
+<!-- Biomni -->
+<tr class="clickable" data-readiness="not-ready" data-search="biomni stanford gwas crispr admet rare disease microbiome drug repurposing clinical snap" data-skills="314" data-stars="2826" data-forks="508" data-status="3" data-repo="Biomni" data-origin="Stanford SNAP">
+  <td><div class="col-repo"><span class="org">snap-stanford</span><a href="https://github.com/snap-stanford/Biomni" target="_blank" onclick="event.stopPropagation()">Biomni</a></div></td>
+  <td class="col-desc">General-purpose biomedical AI agent from Stanford SNAP. 105 software tools + 150 specialized bio tools + 59 databases. CRISPR, GWAS, rare disease diagnosis.</td>
+  <td class="col-num" style="text-align:right">314</td>
+  <td class="col-stars" style="text-align:right">&#9733; 2,826</td>
+  <td class="col-forks" style="text-align:right">&#9741; 508</td>
+  <td><span class="readiness not-ready">&mdash; FRAMEWORK</span></td>
+  <td><div class="col-tags"><span class="tag">CRISPR</span><span class="tag">GWAS</span><span class="tag">ADMET</span><span class="tag">rare disease</span></div></td>
+
+</tr>
+<tr class="detail-row" data-readiness="not-ready"><td colspan="7"><div class="detail-inner"><div class="detail-grid">
+  <div class="chk"><span class="ico y">&#10003;</span><span>Comprehensive tool library</span></div>
+  <div class="chk"><span class="ico y">&#10003;</span><span>Research-grade evaluation</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>Custom Python framework</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>No SKILL.md files</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>No OpenClaw integration</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>Needs full adaptation</span></div>
+</div></div></td></tr>
+
+<!-- bioclaw (pritam) -->
+<tr class="clickable" data-readiness="not-ready" data-search="bioclaw ngs drug design nextflow pipeline agent sequencing" data-skills="5" data-stars="0" data-forks="0" data-status="3" data-repo="bioclaw" data-origin="Independent">
+  <td><div class="col-repo"><span class="org">pritampanda15</span><a href="https://github.com/pritampanda15/bioclaw" target="_blank" onclick="event.stopPropagation()">bioclaw</a></div></td>
+  <td class="col-desc">Bioinformatics agent for NGS analysis and drug design. Pipeline-oriented approach for next-generation sequencing workflows.</td>
+  <td class="col-num" style="text-align:right">5</td>
+  <td class="col-stars" style="text-align:right">&#9733; &mdash;</td>
+  <td class="col-forks" style="text-align:right">&#9741; &mdash;</td>
+  <td><span class="readiness not-ready">&mdash; FRAMEWORK</span></td>
+  <td><div class="col-tags"><span class="tag">NGS</span><span class="tag">drug design</span><span class="tag">pipelines</span></div></td>
+
+</tr>
+<tr class="detail-row" data-readiness="not-ready"><td colspan="7"><div class="detail-inner"><div class="detail-grid">
+  <div class="chk"><span class="ico p">~</span><span>Bioinformatics domain</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>No SKILL.md format</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>No OpenClaw metadata</span></div>
+  <div class="chk"><span class="ico n">&mdash;</span><span>Custom architecture</span></div>
+</div></div></td></tr>
+
+</tbody>
+</table>
+</div>
+
+<!-- ══════ CLAWBIO SKILLS TABLE ══════ -->
+<div class="section-header fade-in">
+  <h2>ClawBio Native Skills</h2>
+  <span class="count">28 skills</span>
+</div>
+
+<div class="table-wrap fade-in">
+<table class="s-table" id="skillTable">
+<thead>
+<tr>
+  <th data-col="name" data-type="string">Skill <span class="sort-arrow">&#9650;</span></th>
+  <th data-col="desc" data-type="string">Description <span class="sort-arrow">&#9650;</span></th>
+  <th data-col="status" data-type="string">Status <span class="sort-arrow">&#9650;</span></th>
+  <th data-col="python" data-type="string" style="text-align:center">Python <span class="sort-arrow">&#9650;</span></th>
+  <th data-col="tests" data-type="number" style="text-align:center">Tests <span class="sort-arrow">&#9650;</span></th>
+  <th data-col="demo" data-type="string" style="text-align:center">Demo <span class="sort-arrow">&#9650;</span></th>
+</tr>
+</thead>
+<tbody id="skillBody">
+<tr data-name="pharmgx-reporter" data-status="MVP" data-python="1" data-tests="24" data-demo="1">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128138;</span><span class="skill-name">pharmgx-reporter</span></div></td>
+  <td class="skill-desc-text">Pharmacogenomics report &mdash; 12 genes, 31 SNPs, 51 drugs</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--accent-green);font-family:'JetBrains Mono',monospace;font-size:12px">24</td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+</tr>
+<tr data-name="nutrigx-advisor" data-status="MVP" data-python="1" data-tests="9" data-demo="1">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#127813;</span><span class="skill-name">nutrigx-advisor</span></div></td>
+  <td class="skill-desc-text">Nutrigenomics advisor &mdash; diet &amp; nutrition genetics</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--accent-green);font-family:'JetBrains Mono',monospace;font-size:12px">9</td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+</tr>
+<tr data-name="equity-scorer" data-status="MVP" data-python="1" data-tests="24" data-demo="1">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#9878;</span><span class="skill-name">equity-scorer</span></div></td>
+  <td class="skill-desc-text">HEIM genomic equity score &mdash; population representation</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--accent-green);font-family:'JetBrains Mono',monospace;font-size:12px">24</td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+</tr>
+<tr data-name="genome-compare" data-status="MVP" data-python="1" data-tests="28" data-demo="1">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#129516;</span><span class="skill-name">genome-compare</span></div></td>
+  <td class="skill-desc-text">IBS genome comparison &mdash; vs George Church &amp; ancestry</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--accent-green);font-family:'JetBrains Mono',monospace;font-size:12px">28</td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+</tr>
+<tr data-name="gwas-prs" data-status="MVP" data-python="1" data-tests="25" data-demo="1">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#127922;</span><span class="skill-name">gwas-prs</span></div></td>
+  <td class="skill-desc-text">Polygenic risk scores &mdash; PGS Catalog integration</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--accent-green);font-family:'JetBrains Mono',monospace;font-size:12px">25</td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+</tr>
+<tr data-name="gwas-lookup" data-status="MVP" data-python="1" data-tests="15" data-demo="1">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128269;</span><span class="skill-name">gwas-lookup</span></div></td>
+  <td class="skill-desc-text">Federated variant query &mdash; 9 genomic databases</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--accent-green);font-family:'JetBrains Mono',monospace;font-size:12px">15</td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+</tr>
+<tr data-name="clinpgx" data-status="MVP" data-python="1" data-tests="32" data-demo="1">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128202;</span><span class="skill-name">clinpgx</span></div></td>
+  <td class="skill-desc-text">ClinPGx API &mdash; gene-drug pharmacogenomic lookup</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--accent-green);font-family:'JetBrains Mono',monospace;font-size:12px">32</td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+</tr>
+<tr data-name="scrna-orchestrator" data-status="MVP" data-python="1" data-tests="0" data-demo="1">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128300;</span><span class="skill-name">scrna-orchestrator</span></div></td>
+  <td class="skill-desc-text">Single-cell RNA-seq pipeline &mdash; Scanpy + doublet removal</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+</tr>
+<tr data-name="galaxy-bridge" data-status="MVP" data-python="1" data-tests="0" data-demo="1">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#127757;</span><span class="skill-name">galaxy-bridge</span></div></td>
+  <td class="skill-desc-text">Galaxy tool hub &mdash; search &amp; run 8,000+ bioinformatics tools</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+</tr>
+<tr data-name="profile-report" data-status="MVP" data-python="1" data-tests="0" data-demo="1">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128196;</span><span class="skill-name">profile-report</span></div></td>
+  <td class="skill-desc-text">Unified personal genomic profile report</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+</tr>
+<tr data-name="ukb-navigator" data-status="MVP" data-python="1" data-tests="0" data-demo="1">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#127468;&#127463;</span><span class="skill-name">ukb-navigator</span></div></td>
+  <td class="skill-desc-text">UK Biobank schema search &mdash; semantic field discovery</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+</tr>
+<tr data-name="data-extractor" data-status="MVP" data-python="1" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128248;</span><span class="skill-name">data-extractor</span></div></td>
+  <td class="skill-desc-text">Scientific figure digitization &mdash; extract data from plots</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="bio-orchestrator" data-status="MVP" data-python="1" data-tests="0" data-demo="1">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128172;</span><span class="skill-name">bio-orchestrator</span></div></td>
+  <td class="skill-desc-text">Auto-router &mdash; routes queries to the right skill</td>
+  <td><span class="status-dot live"></span><span class="status-label">MVP</span></td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--accent-green)">&#10003;</td>
+</tr>
+<tr data-name="claw-ancestry-pca" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#127981;</span><span class="skill-name">claw-ancestry-pca</span></div></td>
+  <td class="skill-desc-text">PCA ancestry estimation &mdash; population structure</td>
+  <td><span class="status-dot beta"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="claw-semantic-sim" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128200;</span><span class="skill-name">claw-semantic-sim</span></div></td>
+  <td class="skill-desc-text">Semantic similarity &mdash; disease neglect &amp; research gaps</td>
+  <td><span class="status-dot beta"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="lit-synthesizer" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128214;</span><span class="skill-name">lit-synthesizer</span></div></td>
+  <td class="skill-desc-text">Literature search &mdash; PubMed, bioRxiv, citation graphs</td>
+  <td><span class="status-dot beta"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="vcf-annotator" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#129520;</span><span class="skill-name">vcf-annotator</span></div></td>
+  <td class="skill-desc-text">VEP / ClinVar / gnomAD variant annotation</td>
+  <td><span class="status-dot beta"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="struct-predictor" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#129518;</span><span class="skill-name">struct-predictor</span></div></td>
+  <td class="skill-desc-text">AlphaFold / Boltz protein structure prediction</td>
+  <td><span class="status-dot beta"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="repro-enforcer" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128260;</span><span class="skill-name">repro-enforcer</span></div></td>
+  <td class="skill-desc-text">Reproducibility &mdash; Nextflow, Singularity, Conda export</td>
+  <td><span class="status-dot beta"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="seq-wrangler" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128196;</span><span class="skill-name">seq-wrangler</span></div></td>
+  <td class="skill-desc-text">Sequence QC &mdash; FASTQ, BAM, alignment, trimming</td>
+  <td><span class="status-dot beta"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="claw-metagenomics" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#129514;</span><span class="skill-name">claw-metagenomics</span></div></td>
+  <td class="skill-desc-text">Metagenomics profiling &amp; community analysis</td>
+  <td><span class="status-dot beta"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="drug-photo" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128247;</span><span class="skill-name">drug-photo</span></div></td>
+  <td class="skill-desc-text">Drug photo identification &amp; pill matching</td>
+  <td><span class="status-dot beta"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="labstep" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128221;</span><span class="skill-name">labstep</span></div></td>
+  <td class="skill-desc-text">Labstep ELN API &mdash; experiments, protocols, inventory</td>
+  <td><span class="status-dot live"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="labstep-sentiment" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128161;</span><span class="skill-name">labstep-sentiment</span></div></td>
+  <td class="skill-desc-text">Research findings &amp; experiment sentiment analysis</td>
+  <td><span class="status-dot live"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="nucleic-acid-analysis" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#129514;</span><span class="skill-name">nucleic-acid-analysis</span></div></td>
+  <td class="skill-desc-text">Qubit, TapeStation, qPCR data extraction</td>
+  <td><span class="status-dot live"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="read-from-sharepoint" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128193;</span><span class="skill-name">read-from-sharepoint</span></div></td>
+  <td class="skill-desc-text">Read lab data from OneDrive/SharePoint (read-only)</td>
+  <td><span class="status-dot live"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="experiment-summary" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128203;</span><span class="skill-name">experiment-summary</span></div></td>
+  <td class="skill-desc-text">Generate experiment summary .docx from lab data</td>
+  <td><span class="status-dot live"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+<tr data-name="lab-orchestrator" data-status="SKILL.md" data-python="0" data-tests="0" data-demo="0">
+  <td><div class="skill-name-cell"><span class="skill-emoji">&#128736;</span><span class="skill-name">lab-orchestrator</span></div></td>
+  <td class="skill-desc-text">Lab workflow orchestration &mdash; routes to sub-skills</td>
+  <td><span class="status-dot live"></span><span class="status-label">SKILL.md</span></td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+  <td style="text-align:center;color:var(--text-muted)">&mdash;</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<!-- ══════ FOOTER ══════ -->
+<footer>
+  <p style="margin-bottom:8px;">
+    <strong style="color:var(--text-secondary);">BioSkill Marketplace</strong> &mdash; curated by <a href="https://github.com/ClawBio/ClawBio">ClawBio</a>
+  </p>
+  <p>
+    Data sourced from GitHub &middot; March 2026 &middot;
+    <a href="https://github.com/openclaw/clawhub">ClawHub Registry</a> &middot;
+    <a href="https://clawbio.github.io/">clawbio.github.io</a>
+  </p>
+  <p style="margin-top:12px;font-size:11px;color:var(--text-muted);">
+    To submit a skill, follow the OpenClaw SKILL.md template and open a PR.
+  </p>
+</footer>
+
+</div>
+
+<script>
+// ══════ SORTABLE TABLE ENGINE ══════
+function makeSortable(table) {
+  const headers = table.querySelectorAll('thead th');
+  const tbody = table.querySelector('tbody');
+  let currentSort = { col: null, asc: true };
+
+  headers.forEach((th, colIndex) => {
+    th.addEventListener('click', () => {
+      const isRepo = table.id === 'repoTable';
+      const asc = currentSort.col === colIndex ? !currentSort.asc : true;
+      currentSort = { col: colIndex, asc };
+
+      // Update header styles
+      headers.forEach(h => { h.classList.remove('sorted', 'desc'); });
+      th.classList.add('sorted');
+      if (!asc) th.classList.add('desc');
+
+      // Get rows (skip detail rows for repo table)
+      let rows;
+      if (isRepo) {
+        // Pair data rows with their detail rows
+        const allRows = Array.from(tbody.querySelectorAll('tr'));
+        const pairs = [];
+        for (let i = 0; i < allRows.length; i += 2) {
+          pairs.push([allRows[i], allRows[i + 1]]);
+        }
+        pairs.sort((a, b) => compareRows(a[0], b[0], colIndex, asc, th.dataset.type));
+        const frag = document.createDocumentFragment();
+        pairs.forEach(([data, detail]) => { frag.appendChild(data); frag.appendChild(detail); });
+        tbody.appendChild(frag);
+      } else {
+        rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort((a, b) => compareRows(a, b, colIndex, asc, th.dataset.type));
+        const frag = document.createDocumentFragment();
+        rows.forEach(r => frag.appendChild(r));
+        tbody.appendChild(frag);
+      }
+    });
+  });
+}
+
+function compareRows(a, b, col, asc, type) {
+  let va = getCellValue(a, col, type);
+  let vb = getCellValue(b, col, type);
+
+  if (type === 'number' || type === 'status') {
+    va = parseFloat(va) || 0;
+    vb = parseFloat(vb) || 0;
+    return asc ? va - vb : vb - va;
+  }
+  va = String(va).toLowerCase();
+  vb = String(vb).toLowerCase();
+  return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+}
+
+function getCellValue(row, col, type) {
+  // For repo table: use data attributes for numeric columns
+  if (type === 'number' && row.hasAttribute('data-skills')) {
+    // Map column index to data attribute (repo table has 8 cols)
+    const th = row.closest('table').querySelectorAll('thead th')[col];
+    const colName = th ? th.dataset.col : '';
+    if (colName === 'skills') return parseFloat(row.dataset.skills) || 0;
+    if (colName === 'stars') return parseFloat(row.dataset.stars) || 0;
+    if (colName === 'forks') return parseFloat(row.dataset.forks) || 0;
+  }
+  // For skill table: use data attributes
+  if (type === 'number' && row.hasAttribute('data-tests')) {
+    const th = row.closest('table').querySelectorAll('thead th')[col];
+    const colName = th ? th.dataset.col : '';
+    if (colName === 'tests') return parseFloat(row.dataset.tests) || 0;
+  }
+  if (type === 'status') {
+    if (row.hasAttribute('data-status')) return row.dataset.status;
+  }
+  const cell = row.querySelectorAll('td')[col];
+  if (!cell) return '';
+  return cell.textContent.trim();
+}
+
+// Init both tables
+makeSortable(document.getElementById('repoTable'));
+makeSortable(document.getElementById('skillTable'));
+
+// ══════ SEARCH & FILTER ══════
+const searchInput = document.getElementById('searchInput');
+const pills = document.querySelectorAll('.pill');
+const repoCount = document.getElementById('repoCount');
+let activeFilter = 'all';
+
+function filterRepos() {
+  const query = searchInput.value.toLowerCase();
+  const tbody = document.getElementById('repoBody');
+  const allRows = Array.from(tbody.querySelectorAll('tr'));
+  let visible = 0;
+
+  for (let i = 0; i < allRows.length; i += 2) {
+    const dataRow = allRows[i];
+    const detailRow = allRows[i + 1];
+    if (!dataRow.classList.contains('clickable')) continue;
+
+    const searchText = (dataRow.dataset.search || '') + ' ' + dataRow.textContent.toLowerCase();
+    const readiness = dataRow.dataset.readiness;
+    const matchesSearch = !query || searchText.includes(query);
+    const matchesFilter = activeFilter === 'all' || readiness === activeFilter;
+    const show = matchesSearch && matchesFilter;
+
+    dataRow.style.display = show ? '' : 'none';
+    detailRow.style.display = show ? '' : 'none';
+    if (show) visible++;
+  }
+  repoCount.textContent = visible + ' repo' + (visible !== 1 ? 's' : '');
+}
+
+searchInput.addEventListener('input', filterRepos);
+pills.forEach(pill => {
+  pill.addEventListener('click', () => {
+    pills.forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    activeFilter = pill.dataset.filter;
+    filterRepos();
+  });
+});
+
+// ══════ EXPANDABLE DETAIL ROWS ══════
+document.querySelectorAll('tr.clickable').forEach(row => {
+  row.addEventListener('click', (e) => {
+    if (e.target.tagName === 'A') return; // don't toggle on link click
+    const detail = row.nextElementSibling;
+    if (detail && detail.classList.contains('detail-row')) {
+      detail.classList.toggle('open');
+    }
+  });
+});
+
+// ══════ SCROLL FADE-IN ══════
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.style.opacity = '1';
+      entry.target.style.transform = 'translateY(0)';
+    }
+  });
+}, { threshold: 0.1 });
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
