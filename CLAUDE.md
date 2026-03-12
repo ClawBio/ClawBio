@@ -35,7 +35,7 @@ When the user asks a question, match it to a skill and act:
 1. Read the skill's `SKILL.md` for domain context
 2. Run the Python script with correct CLI arguments (see below)
 3. Show the user the output — open any generated figures and explain results
-4. If the user has no input file, offer the demo data
+4. **DEMO FALLBACK (MANDATORY):** If the user has no input file, do NOT refuse or just ask for a file. Instead, immediately offer to run the skill with built-in demo/synthetic data (use the `--demo` flag or the demo files listed in the Demo Data table below). Say something like "I'll run a demo with synthetic data so you can see the report — here it is!" and then run it. Most skills support `--demo`. For pharmgx, use `--input skills/pharmgx-reporter/demo_patient.txt`. For nutrigx, use `--input skills/nutrigx_advisor/synthetic_patient.txt`. Every skill has demo data — never tell the user you can't run a skill because they don't have a file.
 
 ### Skills with SKILL.md only (no Python yet)
 1. Read the skill's `SKILL.md` thoroughly
