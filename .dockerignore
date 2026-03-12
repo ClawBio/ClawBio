@@ -1,0 +1,12 @@
+.git
+.env
+output/
+__pycache__/
+*.pyc
+.pytest_cache/
+docs/
+slides/
+img/
+prs/
+compare/
+lab-orchestrator-workspace/
