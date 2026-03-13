@@ -1,0 +1,668 @@
+{
+  "pharmgx-reporter": {
+    "concepts": [
+      "pharmacogenomics",
+      "CYP2D6",
+      "CYP2C19",
+      "drug metabolism",
+      "CPIC guidelines",
+      "star allele",
+      "diplotype"
+    ],
+    "gtn_topics": [
+      "variant-analysis"
+    ],
+    "tutorials": [
+      {
+        "id": "variant-analysis/introduction",
+        "title": "Introduction to Variant analysis",
+        "topic": "variant-analysis",
+        "time": "",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/introduction/slides.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/dunovo",
+        "title": "Calling very rare variants",
+        "topic": "variant-analysis",
+        "time": "3h",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/dunovo/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/non-dip",
+        "title": "Calling variants in non-diploid systems",
+        "topic": "variant-analysis",
+        "time": "1h30m",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/non-dip/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/trio-analysis",
+        "title": "Trio Analysis using Synthetic Datasets from RD-Connect GPAP",
+        "topic": "variant-analysis",
+        "time": "2H",
+        "level": "Advanced",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/trio-analysis/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/tb-variant-analysis",
+        "title": "M. tuberculosis Variant Analysis",
+        "topic": "variant-analysis",
+        "time": "2h",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/tb-variant-analysis/tutorial.html",
+        "relevance_score": 3.0
+      }
+    ]
+  },
+  "gwas-prs": {
+    "concepts": [
+      "polygenic risk score",
+      "GWAS",
+      "effect size",
+      "linkage disequilibrium",
+      "PGS Catalog",
+      "genome-wide association"
+    ],
+    "gtn_topics": [
+      "variant-analysis",
+      "statistics"
+    ],
+    "tutorials": [
+      {
+        "id": "statistics/classification_regression",
+        "title": "Machine learning: classification and regression",
+        "topic": "statistics",
+        "time": "1H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/statistics/tutorials/classification_regression/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "statistics/clustering_machinelearning",
+        "title": "Clustering in Machine Learning",
+        "topic": "statistics",
+        "time": "2H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/statistics/tutorials/clustering_machinelearning/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "statistics/aberrant_pi3k_pathway_analysis",
+        "title": "PAPAA PI3K_OG: PanCancer Aberrant Pathway Activity Analysis",
+        "topic": "statistics",
+        "time": "1H30M",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/statistics/tutorials/aberrant_pi3k_pathway_analysis/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "statistics/gpu_jupyter_lab",
+        "title": "A Docker-based interactive Jupyterlab powered by GPU for artificial intelligence in Galaxy",
+        "topic": "statistics",
+        "time": "1H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/statistics/tutorials/gpu_jupyter_lab/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "statistics/RNN",
+        "title": "Deep Learning (Part 2) - Recurrent neural networks (RNN)",
+        "topic": "statistics",
+        "time": "2H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/statistics/tutorials/RNN/tutorial.html",
+        "relevance_score": 3.0
+      }
+    ]
+  },
+  "equity-scorer": {
+    "concepts": [
+      "genomic diversity",
+      "population genetics",
+      "FST",
+      "heterozygosity",
+      "PCA",
+      "health equity"
+    ],
+    "gtn_topics": [
+      "variant-analysis",
+      "sequence-analysis"
+    ],
+    "tutorials": [
+      {
+        "id": "variant-analysis/somatic-variants",
+        "title": "Identification of somatic and germline variants from tumor and normal sample pairs",
+        "topic": "variant-analysis",
+        "time": "7h",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/somatic-variants/tutorial.html",
+        "relevance_score": 10.0
+      },
+      {
+        "id": "elixir/genomic-llm-sequence-generation",
+        "title": "Generating Artificial Yeast DNA Sequences using a DNA LLM",
+        "topic": "elixir",
+        "time": "3H",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/statistics/tutorials/genomic-llm-sequence-generation/tutorial.html",
+        "relevance_score": 7.0
+      },
+      {
+        "id": "single-cell/scrna-case_cell-cycle",
+        "title": "Removing the effects of the cell cycle",
+        "topic": "single-cell",
+        "time": "1H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/single-cell/tutorials/scrna-case_cell-cycle/tutorial.html",
+        "relevance_score": 7.0
+      },
+      {
+        "id": "statistics/genomic-llm-sequence-generation",
+        "title": "Generating Artificial Yeast DNA Sequences using a DNA LLM",
+        "topic": "statistics",
+        "time": "3H",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/statistics/tutorials/genomic-llm-sequence-generation/tutorial.html",
+        "relevance_score": 7.0
+      },
+      {
+        "id": "sequence-analysis/human-reads-removal",
+        "title": "Removal of human reads from SARS-CoV-2 sequencing data",
+        "topic": "sequence-analysis",
+        "time": "1h",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/sequence-analysis/tutorials/human-reads-removal/tutorial.html",
+        "relevance_score": 3.0
+      }
+    ]
+  },
+  "genome-compare": {
+    "concepts": [
+      "identity by state",
+      "IBS",
+      "genome comparison",
+      "ancestry estimation",
+      "admixture"
+    ],
+    "gtn_topics": [
+      "variant-analysis"
+    ],
+    "tutorials": [
+      {
+        "id": "genome-annotation/hpc-for-lsgc",
+        "title": "From small to large-scale genome comparison",
+        "topic": "genome-annotation",
+        "time": "2H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/genome-annotation/tutorials/hpc-for-lsgc/tutorial.html",
+        "relevance_score": 5.0
+      },
+      {
+        "id": "plants/hpc-for-lsgc",
+        "title": "From small to large-scale genome comparison",
+        "topic": "plants",
+        "time": "2H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/genome-annotation/tutorials/hpc-for-lsgc/tutorial.html",
+        "relevance_score": 5.0
+      },
+      {
+        "id": "variant-analysis/introduction",
+        "title": "Introduction to Variant analysis",
+        "topic": "variant-analysis",
+        "time": "",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/introduction/slides.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/dunovo",
+        "title": "Calling very rare variants",
+        "topic": "variant-analysis",
+        "time": "3h",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/dunovo/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/non-dip",
+        "title": "Calling variants in non-diploid systems",
+        "topic": "variant-analysis",
+        "time": "1h30m",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/non-dip/tutorial.html",
+        "relevance_score": 3.0
+      }
+    ]
+  },
+  "scrna-orchestrator": {
+    "concepts": [
+      "single-cell RNA-seq",
+      "scRNA-seq",
+      "Scanpy",
+      "clustering",
+      "UMAP",
+      "marker genes",
+      "doublet detection",
+      "leiden"
+    ],
+    "gtn_topics": [
+      "single-cell",
+      "transcriptomics"
+    ],
+    "tutorials": [
+      {
+        "id": "single-cell/scrna-scanpy-pbmc3k",
+        "title": "Clustering 3K PBMCs with Scanpy",
+        "topic": "single-cell",
+        "time": "8H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/single-cell/tutorials/scrna-scanpy-pbmc3k/tutorial.html",
+        "relevance_score": 22.0
+      },
+      {
+        "id": "single-cell/scrna-plant",
+        "title": "Analysis of plant scRNA-Seq Data with Scanpy",
+        "topic": "single-cell",
+        "time": "2H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/single-cell/tutorials/scrna-plant/tutorial.html",
+        "relevance_score": 22.0
+      },
+      {
+        "id": "single-cell/scrna-case-jupyter_basic-pipeline",
+        "title": "Filter, plot and explore single-cell RNA-seq data with Scanpy (Python)",
+        "topic": "single-cell",
+        "time": "3H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/single-cell/tutorials/scrna-case-jupyter_basic-pipeline/tutorial.html",
+        "relevance_score": 20.0
+      },
+      {
+        "id": "single-cell/scrna-case_basic-pipeline",
+        "title": "Filter, plot and explore single-cell RNA-seq data with Scanpy",
+        "topic": "single-cell",
+        "time": "3H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/single-cell/tutorials/scrna-case_basic-pipeline/tutorial.html",
+        "relevance_score": 20.0
+      },
+      {
+        "id": "plants/scrna-plant",
+        "title": "Analysis of plant scRNA-Seq Data with Scanpy",
+        "topic": "plants",
+        "time": "2H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/single-cell/tutorials/scrna-plant/tutorial.html",
+        "relevance_score": 19.0
+      }
+    ]
+  },
+  "clinpgx": {
+    "concepts": [
+      "pharmacogenomics",
+      "gene-drug interaction",
+      "PharmGKB",
+      "CPIC",
+      "clinical annotation",
+      "FDA drug label"
+    ],
+    "gtn_topics": [
+      "variant-analysis"
+    ],
+    "tutorials": [
+      {
+        "id": "variant-analysis/introduction",
+        "title": "Introduction to Variant analysis",
+        "topic": "variant-analysis",
+        "time": "",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/introduction/slides.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/dunovo",
+        "title": "Calling very rare variants",
+        "topic": "variant-analysis",
+        "time": "3h",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/dunovo/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/non-dip",
+        "title": "Calling variants in non-diploid systems",
+        "topic": "variant-analysis",
+        "time": "1h30m",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/non-dip/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/trio-analysis",
+        "title": "Trio Analysis using Synthetic Datasets from RD-Connect GPAP",
+        "topic": "variant-analysis",
+        "time": "2H",
+        "level": "Advanced",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/trio-analysis/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/tb-variant-analysis",
+        "title": "M. tuberculosis Variant Analysis",
+        "topic": "variant-analysis",
+        "time": "2h",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/tb-variant-analysis/tutorial.html",
+        "relevance_score": 3.0
+      }
+    ]
+  },
+  "gwas-lookup": {
+    "concepts": [
+      "GWAS",
+      "variant annotation",
+      "rsID",
+      "eQTL",
+      "PheWAS",
+      "Open Targets",
+      "GTEx"
+    ],
+    "gtn_topics": [
+      "variant-analysis"
+    ],
+    "tutorials": [
+      {
+        "id": "variant-analysis/exome-seq",
+        "title": "Exome sequencing data analysis for diagnosing a genetic disease",
+        "topic": "variant-analysis",
+        "time": "5h",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/exome-seq/tutorial.html",
+        "relevance_score": 10.0
+      },
+      {
+        "id": "proteomics/neoantigen-variant-annotation",
+        "title": "Neoantigen 4: Variant Annotation",
+        "topic": "proteomics",
+        "time": "3H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/proteomics/tutorials/neoantigen-variant-annotation/tutorial.html",
+        "relevance_score": 5.0
+      },
+      {
+        "id": "variant-analysis/introduction",
+        "title": "Introduction to Variant analysis",
+        "topic": "variant-analysis",
+        "time": "",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/introduction/slides.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/dunovo",
+        "title": "Calling very rare variants",
+        "topic": "variant-analysis",
+        "time": "3h",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/dunovo/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/non-dip",
+        "title": "Calling variants in non-diploid systems",
+        "topic": "variant-analysis",
+        "time": "1h30m",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/non-dip/tutorial.html",
+        "relevance_score": 3.0
+      }
+    ]
+  },
+  "nutrigx_advisor": {
+    "concepts": [
+      "nutrigenomics",
+      "MTHFR",
+      "folate metabolism",
+      "caffeine metabolism",
+      "lactose tolerance",
+      "vitamin D"
+    ],
+    "gtn_topics": [
+      "variant-analysis"
+    ],
+    "tutorials": [
+      {
+        "id": "variant-analysis/introduction",
+        "title": "Introduction to Variant analysis",
+        "topic": "variant-analysis",
+        "time": "",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/introduction/slides.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/dunovo",
+        "title": "Calling very rare variants",
+        "topic": "variant-analysis",
+        "time": "3h",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/dunovo/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/non-dip",
+        "title": "Calling variants in non-diploid systems",
+        "topic": "variant-analysis",
+        "time": "1h30m",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/non-dip/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/trio-analysis",
+        "title": "Trio Analysis using Synthetic Datasets from RD-Connect GPAP",
+        "topic": "variant-analysis",
+        "time": "2H",
+        "level": "Advanced",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/trio-analysis/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "variant-analysis/tb-variant-analysis",
+        "title": "M. tuberculosis Variant Analysis",
+        "topic": "variant-analysis",
+        "time": "2h",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/tb-variant-analysis/tutorial.html",
+        "relevance_score": 3.0
+      }
+    ]
+  },
+  "rnaseq-de": {
+    "concepts": [
+      "RNA-seq",
+      "differential expression",
+      "DESeq2",
+      "volcano plot",
+      "pseudo-bulk",
+      "count matrix"
+    ],
+    "gtn_topics": [
+      "transcriptomics"
+    ],
+    "tutorials": [
+      {
+        "id": "transcriptomics/ref-based",
+        "title": "Reference-based RNA-Seq data analysis",
+        "topic": "transcriptomics",
+        "time": "8h",
+        "level": "Introductory",
+        "url": "https://training.galaxyproject.org/training-material/topics/transcriptomics/tutorials/ref-based/tutorial.html",
+        "relevance_score": 21.0
+      },
+      {
+        "id": "transcriptomics/rna-seq-viz-with-volcanoplot",
+        "title": "Visualization of RNA-Seq results with Volcano Plot",
+        "topic": "transcriptomics",
+        "time": "30m",
+        "level": "Introductory",
+        "url": "https://training.galaxyproject.org/training-material/topics/transcriptomics/tutorials/rna-seq-viz-with-volcanoplot/tutorial.html",
+        "relevance_score": 17.0
+      },
+      {
+        "id": "transcriptomics/mirna-target-finder",
+        "title": "Whole transcriptome analysis of Arabidopsis thaliana",
+        "topic": "transcriptomics",
+        "time": "2H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/transcriptomics/tutorials/mirna-target-finder/tutorial.html",
+        "relevance_score": 17.0
+      },
+      {
+        "id": "transcriptomics/rna-seq-viz-with-volcanoplot-r",
+        "title": "Visualization of RNA-Seq results with Volcano Plot in R",
+        "topic": "transcriptomics",
+        "time": "1H",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/transcriptomics/tutorials/rna-seq-viz-with-volcanoplot-r/tutorial.html",
+        "relevance_score": 15.0
+      },
+      {
+        "id": "plants/mirna-target-finder",
+        "title": "Whole transcriptome analysis of Arabidopsis thaliana",
+        "topic": "plants",
+        "time": "2H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/transcriptomics/tutorials/mirna-target-finder/tutorial.html",
+        "relevance_score": 14.0
+      }
+    ]
+  },
+  "galaxy-bridge": {
+    "concepts": [
+      "Galaxy",
+      "bioinformatics tools",
+      "workflows",
+      "tool discovery",
+      "BioBlend"
+    ],
+    "gtn_topics": [
+      "galaxy-interface",
+      "introduction"
+    ],
+    "tutorials": [
+      {
+        "id": "galaxy-interface/workflow-fairification",
+        "title": "Annotate, prepare tests and publish Galaxy workflows in workflow registries",
+        "topic": "galaxy-interface",
+        "time": "2H",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/galaxy-interface/tutorials/workflow-fairification/tutorial.html",
+        "relevance_score": 25.0
+      },
+      {
+        "id": "galaxy-interface/galaxy-on-dockstore",
+        "title": "Galaxy workflows in Dockstore",
+        "topic": "galaxy-interface",
+        "time": "",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/galaxy-interface/tutorials/galaxy-on-dockstore/slides.html",
+        "relevance_score": 23.0
+      },
+      {
+        "id": "contributing/create-new-tutorial-technical",
+        "title": "Tools, Data, and Workflows for tutorials",
+        "topic": "contributing",
+        "time": "30m",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/contributing/tutorials/create-new-tutorial-technical/tutorial.html",
+        "relevance_score": 18.0
+      },
+      {
+        "id": "dev/bioblend-dev",
+        "title": "Contributing to BioBlend as a developer",
+        "topic": "dev",
+        "time": "3h",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/dev/tutorials/bioblend-dev/tutorial.html",
+        "relevance_score": 18.0
+      },
+      {
+        "id": "galaxy-interface/workflow-editor",
+        "title": "Creating, Editing and Importing Galaxy Workflows",
+        "topic": "galaxy-interface",
+        "time": "30m",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/galaxy-interface/tutorials/workflow-editor/tutorial.html",
+        "relevance_score": 17.0
+      }
+    ]
+  },
+  "claw-ancestry-pca": {
+    "concepts": [
+      "ancestry",
+      "PCA",
+      "population structure",
+      "admixture",
+      "SGDP"
+    ],
+    "gtn_topics": [
+      "variant-analysis",
+      "evolution"
+    ],
+    "tutorials": [
+      {
+        "id": "elixir/genomic-llm-sequence-generation",
+        "title": "Generating Artificial Yeast DNA Sequences using a DNA LLM",
+        "topic": "elixir",
+        "time": "3H",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/statistics/tutorials/genomic-llm-sequence-generation/tutorial.html",
+        "relevance_score": 7.0
+      },
+      {
+        "id": "single-cell/scrna-case_cell-cycle",
+        "title": "Removing the effects of the cell cycle",
+        "topic": "single-cell",
+        "time": "1H",
+        "level": "",
+        "url": "https://training.galaxyproject.org/training-material/topics/single-cell/tutorials/scrna-case_cell-cycle/tutorial.html",
+        "relevance_score": 7.0
+      },
+      {
+        "id": "statistics/genomic-llm-sequence-generation",
+        "title": "Generating Artificial Yeast DNA Sequences using a DNA LLM",
+        "topic": "statistics",
+        "time": "3H",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/statistics/tutorials/genomic-llm-sequence-generation/tutorial.html",
+        "relevance_score": 7.0
+      },
+      {
+        "id": "evolution/abc_intro_phylo",
+        "title": "Phylogenetics - Back to basics",
+        "topic": "evolution",
+        "time": "4H",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/evolution/tutorials/abc_intro_phylo/tutorial.html",
+        "relevance_score": 3.0
+      },
+      {
+        "id": "evolution/mtb_transmission",
+        "title": "Identifying tuberculosis transmission links: from SNPs to transmission clusters",
+        "topic": "evolution",
+        "time": "2H",
+        "level": "Intermediate",
+        "url": "https://training.galaxyproject.org/training-material/topics/evolution/tutorials/mtb_transmission/tutorial.html",
+        "relevance_score": 3.0
+      }
+    ]
+  }
+}

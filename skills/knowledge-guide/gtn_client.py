@@ -12,10 +12,18 @@ GTN_BASE = "https://training.galaxyproject.org/training-material/api"
 
 
 def fetch_topics() -> list[dict]:
-    """Fetch all GTN topics (/api/topics.json)."""
+    """Fetch all GTN topics (/api/topics.json).
+
+    The GTN API returns a dict keyed by topic ID. We convert to a list
+    of dicts with the 'name' key set to the topic ID.
+    """
     resp = requests.get(f"{GTN_BASE}/topics.json", timeout=30)
     resp.raise_for_status()
-    return resp.json()
+    data = resp.json()
+    # API returns {topic_id: {name, title, summary, ...}, ...}
+    if isinstance(data, dict):
+        return list(data.values())
+    return data
 
 
 def fetch_topic_detail(topic_id: str) -> dict:

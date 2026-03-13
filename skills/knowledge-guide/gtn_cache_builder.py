@@ -108,6 +108,8 @@ def build_gtn_cache(output_path: Path | None = None) -> dict:
     print(f"Fetching detail for {len(raw_topics)} topics...")
     topics = []
     for t in raw_topics:
+        if not isinstance(t, dict):
+            continue
         topic_id = t.get("name", "")
         if not topic_id:
             continue
@@ -121,15 +123,24 @@ def build_gtn_cache(output_path: Path | None = None) -> dict:
         for m in detail.get("materials", []):
             if m.get("type") != "tutorial":
                 continue
+            tut_name = m.get("tutorial_name", m.get("name", ""))
+            # Extract short tool names from full toolshed IDs
+            raw_tools = m.get("tools", [])
+            short_tools = []
+            for tool_id in raw_tools:
+                if isinstance(tool_id, str) and "/" in tool_id:
+                    short_tools.append(tool_id.rsplit("/", 2)[-2] if tool_id.count("/") >= 2 else tool_id.split("/")[-1])
+                elif isinstance(tool_id, str):
+                    short_tools.append(tool_id)
             tutorials.append({
                 "title": m.get("title", ""),
-                "name": m.get("name", ""),
+                "name": tut_name,
                 "topic": topic_id,
                 "time_estimation": m.get("time_estimation", ""),
                 "level": m.get("level", ""),
                 "objectives": m.get("objectives", []),
-                "tools": m.get("tools", []),
-                "url": f"{GTN_TUTORIAL_BASE}/topics/{topic_id}/tutorials/{m.get('name', '')}/tutorial.html",
+                "tools": short_tools,
+                "url": f"{GTN_TUTORIAL_BASE}{m.get('url', f'/topics/{topic_id}/tutorials/{tut_name}/tutorial.html')}",
             })
 
         topics.append({
@@ -216,9 +227,12 @@ def build_skill_recommendations(
         scored = []
         for tut in all_tutorials:
             score = 0.0
+            objectives = tut.get("objectives", [])
+            if not isinstance(objectives, list):
+                objectives = []
             searchable = " ".join([
                 tut.get("title", ""),
-                " ".join(tut.get("objectives", [])),
+                " ".join(str(o) for o in objectives),
                 tut.get("topic", ""),
             ]).lower()
 
@@ -232,7 +246,7 @@ def build_skill_recommendations(
                 score += 3.0
 
             # Objectives match (bonus for specific terms)
-            for obj in tut.get("objectives", []):
+            for obj in objectives:
                 for concept in concepts:
                     if concept.lower() in obj.lower():
                         score += 2.0
