@@ -1190,6 +1190,7 @@ class TestDemoMode:
         )
         assert result.returncode == 0, f"STDERR: {result.stderr}"
         assert (tmp_path / "report.md").exists()
+        assert (tmp_path / "report.html").exists()
         assert (tmp_path / "result.json").exists()
 
     def test_demo_result_json_envelope(self, tmp_path):
@@ -1260,6 +1261,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -1271,6 +1273,7 @@ if str(SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(SKILL_DIR))
 
 from clawbio.common.report import generate_report_header, generate_report_footer, write_result_json
+from clawbio.common.html_report import HtmlReportBuilder
 
 CACHE_PATH = SKILL_DIR / "gtn_cache.json"
 RECS_PATH = SKILL_DIR / "skill_recommendations.json"
@@ -1425,7 +1428,6 @@ def _format_deep_content(content: dict) -> str:
 
     # Extract first ~2000 chars of content as a preview
     # The GTN tutorial content is HTML — extract text portions
-    import re
     text = re.sub(r"<[^>]+>", "", body)  # strip HTML tags
     text = re.sub(r"\n{3,}", "\n\n", text)  # collapse whitespace
     preview = text[:2000]
@@ -1537,6 +1539,34 @@ def generate_report(result: dict, output_dir: Path) -> None:
     report_md = header + "\n".join(body_lines) + footer
     (output_dir / "report.md").write_text(report_md)
 
+    # --- report.html ---
+    builder = HtmlReportBuilder(title="Knowledge Guide", skill="knowledge-guide")
+    builder.add_header_block(
+        title="Knowledge Guide",
+        subtitle=f"Query: {result['query']} ({result['mode']} mode)",
+    )
+    if result["tutorials"]:
+        rows = []
+        for tut in result["tutorials"]:
+            rows.append([
+                tut.get("title", ""),
+                tut.get("topic", ""),
+                tut.get("time_estimation", tut.get("time", "")),
+                tut.get("level", ""),
+                f'<a href="{tut.get("url", "#")}">Open</a>',
+            ])
+        builder.add_section(
+            title="Matching Tutorials",
+            content=builder.table(
+                headers=["Tutorial", "Topic", "Time", "Level", "Link"],
+                rows=rows,
+            ),
+        )
+    else:
+        builder.add_section(title="Results", content="No matching tutorials found.")
+    html_path = output_dir / "report.html"
+    html_path.write_text(builder.render())
+
     # --- result.json ---
     # Strip deep_content from result.json (too large)
     data = {k: v for k, v in result.items() if k != "deep_content"}
@@ -1614,7 +1644,6 @@ git commit -m "feat(knowledge-guide): add CLI with query, topic, tool, concept, 
 - [ ] **Step 1: Create demo queries file**
 
 ```json
-// skills/knowledge-guide/demo/demo_queries.json
 [
   {"query": "variant calling", "expected_topic": "variant-analysis"},
   {"query": "RNA-seq differential expression", "expected_topic": "transcriptomics"},
@@ -1626,16 +1655,76 @@ git commit -m "feat(knowledge-guide): add CLI with query, topic, tool, concept, 
 
 - [ ] **Step 2: Create SKILL.md**
 
-Write the `skills/knowledge-guide/SKILL.md` file with:
-- YAML frontmatter (name, description, version)
-- Core capabilities (6): free-text search, topic lookup, tool lookup, concept lookup, skill Learn More, deep content pull
-- Input modes table (--query, --topic, --tool, --concept, --skill)
-- Query engine scoring weights (title: 4, objectives: 3, topic: 2, tools: 1, phrase bonus: 10/6)
-- Output structure (report.md, result.json, tutorials/)
-- CLI reference
-- Demo section
-- Dependencies (requests)
-- Disclaimer
+```markdown
+---
+name: knowledge-guide
+description: >-
+  GTN-backed educational guide — explains bioinformatics concepts grounded
+  in Galaxy Training Network tutorials. Supports free-text queries, structured
+  lookups by topic/tool/concept, and report-embedded "Learn More" sections.
+version: 0.1.0
+metadata:
+  openclaw:
+    category: education
+    data_source: Galaxy Training Network (training.galaxyproject.org)
+---
+
+# Knowledge Guide
+
+Explains bioinformatics concepts by grounding every answer in Galaxy Training
+Network (GTN) tutorials. No hallucinated biology — every explanation traces
+back to an authoritative training resource.
+
+## Core Capabilities
+
+1. **Free-text search** — "what is variant calling?" → ranked tutorial matches
+2. **Topic lookup** — browse all tutorials within a GTN topic
+3. **Tool lookup** — find tutorials that use a specific Galaxy tool
+4. **Concept lookup** — fuzzy match against skill-seeded concept lists
+5. **Skill Learn More** — pre-computed tutorial recommendations per ClawBio skill
+6. **Deep content pull** — live-fetch full tutorial content for inline explanation
+
+## Input Modes
+
+| Flag | Example | Description |
+|------|---------|-------------|
+| `--query` | `"what is variant calling?"` | Free-text keyword search |
+| `--topic` | `variant-analysis` | Direct GTN topic lookup |
+| `--tool` | `fastqc` | Reverse tool→tutorial index |
+| `--concept` | `"polygenic risk"` | Fuzzy concept matching |
+| `--skill` | `gwas-prs` | ClawBio skill Learn More |
+| `--deep` | (flag) | Fetch full tutorial content live |
+
+## Scoring Weights (Free-Text Mode)
+
+| Signal | Weight | Bonus |
+|--------|--------|-------|
+| Title match | 4.0/token | +10.0 phrase |
+| Objectives match | 3.0/token | +6.0 phrase |
+| Topic match | 2.0/token | — |
+| Tool match | 1.0/token | — |
+
+## Output Structure
+
+```text
+output_dir/
+├── report.md
+├── report.html
+├── result.json
+└── tutorials/        (only with --deep)
+    └── <name>.md
+```
+
+## Dependencies
+
+- `requests` (for live GTN API calls and --deep mode)
+
+## Disclaimer
+
+*ClawBio is a research and educational tool. It is not a medical device
+and does not provide clinical diagnoses. Consult a healthcare professional
+before making any medical decisions.*
+```
 
 - [ ] **Step 3: Verify demo mode end-to-end**
 
