@@ -1,0 +1,7 @@
+[
+  {"query": "variant calling", "expected_topic": "variant-analysis"},
+  {"query": "RNA-seq differential expression", "expected_topic": "transcriptomics"},
+  {"query": "single cell clustering", "expected_topic": "single-cell"},
+  {"tool": "fastqc", "expected_tutorials_min": 1},
+  {"skill": "pharmgx-reporter", "expected_concepts": ["pharmacogenomics"]}
+]
