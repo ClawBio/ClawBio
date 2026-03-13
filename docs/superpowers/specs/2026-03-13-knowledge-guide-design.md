@@ -135,7 +135,8 @@ When `--deep` is passed, `gtn_client.py` fetches `/api/topics/{topic}/tutorials/
 Other skills call `api.py`'s `get_learn_more(skill_name)`:
 
 ```python
-from skills.knowledge_guide.api import get_learn_more
+# Uses sys.path + importlib pattern (hyphenated dir, same as other skills)
+from api import get_learn_more  # after sys.path.insert for skills/knowledge-guide/
 
 learn_more = get_learn_more("gwas-prs")
 # Returns:
