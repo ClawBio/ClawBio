@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 24,
+  "skill_count": 22,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -133,21 +133,6 @@
         "pharmgx-reporter",
         "gwas-lookup"
       ]
-    },
-    {
-      "name": "data-extractor",
-      "cli_alias": null,
-      "description": "Extract numerical data from scientific figure images using Claude vision + OpenCV calibration. Supports 26+ plot types including bar charts, scatter plots, forest plots, Kaplan-Meier curves, box plots, and more.",
-      "version": "0.1.0",
-      "status": "planned",
-      "has_script": true,
-      "has_tests": true,
-      "has_demo": true,
-      "demo_command": "python skills/data-extractor/data_extractor.py --demo",
-      "dependencies": [],
-      "tags": [],
-      "trigger_keywords": [],
-      "chaining_partners": []
     },
     {
       "name": "drug-photo",
@@ -316,19 +301,38 @@
       ]
     },
     {
-      "name": "labstep",
-      "cli_alias": null,
-      "description": "Interact with the Labstep electronic lab notebook API using labstepPy. Query experiments, protocols, resources, inventory, and other lab entities.",
+      "name": "knowledge-guide",
+      "cli_alias": "guide",
+      "description": "GTN-backed educational guide — explains bioinformatics concepts grounded in Galaxy Training Network tutorials, with free-text queries and report-embedded Learn More sections",
       "version": "0.1.0",
-      "status": "planned",
-      "has_script": false,
-      "has_tests": false,
-      "has_demo": false,
-      "demo_command": null,
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/knowledge-guide/knowledge_guide.py --demo --output /tmp/kg_demo",
       "dependencies": [],
-      "tags": [],
-      "trigger_keywords": [],
-      "chaining_partners": []
+      "tags": [
+        "education",
+        "tutorials",
+        "GTN",
+        "Galaxy-Training-Network",
+        "knowledge-base"
+      ],
+      "trigger_keywords": [
+        "what is",
+        "how does",
+        "explain",
+        "learn more",
+        "tutorial",
+        "guide",
+        "GTN"
+      ],
+      "chaining_partners": [
+        "galaxy-bridge",
+        "pharmgx-reporter",
+        "gwas-prs",
+        "scrna-orchestrator"
+      ]
     },
     {
       "name": "lit-synthesizer",

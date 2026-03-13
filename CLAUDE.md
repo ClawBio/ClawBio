@@ -21,7 +21,6 @@ When the user asks a question, match it to a skill and act:
 | Protein structure, AlphaFold, PDB, Boltz | `skills/struct-predictor/` | Read SKILL.md, apply methodology |
 | Reproducibility, Nextflow, Singularity, Conda export | `skills/repro-enforcer/` | Read SKILL.md, apply methodology |
 | Sequence QC, FASTQ, alignment, BAM, trimming | `skills/seq-wrangler/` | Read SKILL.md, apply methodology |
-| Lab notebook, experiments, protocols, inventory, Labstep | `skills/labstep/` | Read SKILL.md, apply methodology |
 | ClinPGx database, gene-drug lookup, PharmGKB query, CPIC guideline database, FDA drug label PGx, "look up gene on ClinPGx" | `skills/clinpgx/` | Run `clinpgx.py` |
 | GWAS polygenic risk scores, PRS, "what's my risk for diabetes", PGS Catalog, polygenic | `skills/gwas-prs/` | Run `gwas_prs.py` |
 | GWAS variant lookup, rsID search, "look up rs3798220", variant associations, PheWAS, variant eQTL, federated variant query | `skills/gwas-lookup/` | Run `gwas_lookup.py` |
@@ -29,6 +28,7 @@ When the user asks a question, match it to a skill and act:
 | UK Biobank, UKB fields, "what UKB variables measure X", biobank schema search, UKB field lookup, data showcase | `skills/ukb-navigator/` | Run `ukb_navigator.py` |
 | Galaxy, usegalaxy, tool shed, bioblend, "run on galaxy", galaxy tool, galaxy workflow, NGS pipeline | `skills/galaxy-bridge/` | Run `galaxy_bridge.py` |
 | Bulk RNA-seq, pseudo-bulk, differential expression, DESeq2, PyDESeq2, contrast, volcano plot | `skills/rnaseq-de/` | Run `rnaseq_de.py` |
+| Educational guide, "what is X", "how does Y work", explain analysis, learn more, GTN tutorials | `skills/knowledge-guide/` | Run `knowledge_guide.py` |
 
 ## How to Use a Skill
 
@@ -124,6 +124,21 @@ python skills/bio-orchestrator/orchestrator.py \
 python skills/rnaseq-de/rnaseq_de.py \
   --counts <counts_csv_or_tsv> --metadata <metadata_csv_or_tsv> \
   --formula "~ batch + condition" --contrast "condition,treated,control" --output <report_dir>
+
+# Knowledge Guide — GTN-backed educational explainer
+python skills/knowledge-guide/knowledge_guide.py \
+  --query "what is variant calling?" --output <report_dir>
+python skills/knowledge-guide/knowledge_guide.py \
+  --topic variant-analysis --output <report_dir>
+python skills/knowledge-guide/knowledge_guide.py \
+  --tool fastqc --output <report_dir>
+python skills/knowledge-guide/knowledge_guide.py \
+  --concept "polygenic risk" --output <report_dir>
+python skills/knowledge-guide/knowledge_guide.py \
+  --skill gwas-prs --output <report_dir>
+python skills/knowledge-guide/knowledge_guide.py \
+  --query "RNA-seq DE" --deep --output <report_dir>
+python skills/knowledge-guide/knowledge_guide.py --demo --output /tmp/kg_demo
 ```
 
 ## Demo Data
@@ -148,6 +163,7 @@ For instant demos when the user has no data:
 | Profile report demo (full 4-skill profile) | `--demo` flag | profile-report |
 | UKB Navigator demo (blood pressure, pre-cached) | `--demo` flag | ukb-navigator |
 | Galaxy Bridge demo (FastQC, offline) | `--demo` flag | galaxy-bridge |
+| Knowledge Guide demo (3 topics, embedded) | `--demo` flag | knowledge-guide |
 
 ### Demo Commands
 
@@ -198,6 +214,9 @@ python skills/bio-orchestrator/orchestrator.py --list-skills
 
 # RNA-seq DE demo
 python skills/rnaseq-de/rnaseq_de.py --demo --output /tmp/rnaseq_de_demo
+
+# Knowledge Guide demo
+python skills/knowledge-guide/knowledge_guide.py --demo --output /tmp/kg_demo
 ```
 
 ## Contributing — New Skill Workflow
