@@ -25,6 +25,7 @@ When the user asks a question, match it to a skill and act:
 | ClinPGx database, gene-drug lookup, PharmGKB query, CPIC guideline database, FDA drug label PGx, "look up gene on ClinPGx" | `skills/clinpgx/` | Run `clinpgx.py` |
 | GWAS polygenic risk scores, PRS, "what's my risk for diabetes", PGS Catalog, polygenic | `skills/gwas-prs/` | Run `gwas_prs.py` |
 | GWAS variant lookup, rsID search, "look up rs3798220", variant associations, PheWAS, variant eQTL, federated variant query | `skills/gwas-lookup/` | Run `gwas_lookup.py` |
+| Epigenetic age, methylation clocks, PyAging, Horvath, GrimAge, DunedinPACE, GEO methylation | `skills/methylation-clock/` | Run `methylation_clock.py` |
 | Personal genomic profile report, "my profile", unified report, profile summary | `skills/profile-report/` | Run `profile_report.py` |
 | UK Biobank, UKB fields, "what UKB variables measure X", biobank schema search, UKB field lookup, data showcase | `skills/ukb-navigator/` | Run `ukb_navigator.py` |
 | Galaxy, usegalaxy, tool shed, bioblend, "run on galaxy", galaxy tool, galaxy workflow, NGS pipeline | `skills/galaxy-bridge/` | Run `galaxy_bridge.py` |
@@ -32,7 +33,7 @@ When the user asks a question, match it to a skill and act:
 
 ## How to Use a Skill
 
-### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator, galaxy-bridge)
+### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator, galaxy-bridge, rnaseq-de, methylation-clock)
 1. Read the skill's `SKILL.md` for domain context
 2. Run the Python script with correct CLI arguments (see below)
 3. Show the user the output — open any generated figures and explain results
@@ -145,6 +146,7 @@ For instant demos when the user has no data:
 | Synthetic patient (PRS, ~300 SNPs) | `skills/gwas-prs/demo_patient_prs.txt` | gwas-prs |
 | Curated PGS scores (6 traits) | `skills/gwas-prs/curated_scores.json` | gwas-prs |
 | GWAS Lookup demo (rs3798220, pre-fetched) | `--demo` flag | gwas-lookup |
+| Methylation demo subset (GSE139307, 2 samples) | `pyaging_data/GSE139307_small.pkl` | methylation-clock |
 | Profile report demo (full 4-skill profile) | `--demo` flag | profile-report |
 | UKB Navigator demo (blood pressure, pre-cached) | `--demo` flag | ukb-navigator |
 | Galaxy Bridge demo (FastQC, offline) | `--demo` flag | galaxy-bridge |
@@ -180,6 +182,10 @@ python skills/gwas-prs/gwas_prs.py --demo --output /tmp/prs_demo
 
 # GWAS Lookup demo
 python skills/gwas-lookup/gwas_lookup.py --demo --output /tmp/gwas_lookup_demo
+
+# Methylation clock demo
+python skills/methylation-clock/methylation_clock.py \
+  --input pyaging_data/GSE139307_small.pkl --output /tmp/methylation_clock_demo
 
 # Profile report demo
 python skills/profile-report/profile_report.py --demo --output /tmp/profile_demo

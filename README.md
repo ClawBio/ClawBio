@@ -135,6 +135,7 @@ report/
 | [Genome Comparator](skills/genome-compare/) | **MVP** | Pairwise IBS vs George Church (PGP-1) + ancestry estimation |
 | [Galaxy Bridge](skills/galaxy-bridge/) | **MVP** | Search, run, and chain 8,000+ Galaxy bioinformatics tools |
 | [RNA-seq DE](skills/rnaseq-de/) | **MVP** | Bulk/pseudo-bulk differential expression with QC + PCA + contrasts |
+| [Methylation Clock](skills/methylation-clock/) | **MVP** | Epigenetic age from methylation arrays with PyAging clocks |
 | [scRNA Embedding](skills/scrna-embedding/) | **MVP** | scVI latent embedding, batch integration, and stable `integrated.h5ad` export for downstream latent analysis |
 | [VCF Annotator](skills/vcf-annotator/) | Planned | Variant annotation with VEP, ClinVar, gnomAD |
 | [Lit Synthesizer](skills/lit-synthesizer/) | Planned | PubMed/bioRxiv search with LLM summarisation and citation graphs |
@@ -290,6 +291,7 @@ python clawbio.py run ukb-navigator --demo       # UK Biobank schema search (5s)
 python clawbio.py run profile --demo             # Unified genomic profile (30s)
 python clawbio.py run galaxy --demo              # Galaxy Bridge FastQC demo (offline)
 python clawbio.py run rnaseq --demo              # RNA-seq DE demo (bulk/pseudo-bulk)
+python clawbio.py run methylation --demo        # Epigenetic methylation clocks via PyAging
 ```
 
 ### Run with your own data
@@ -297,6 +299,7 @@ python clawbio.py run rnaseq --demo              # RNA-seq DE demo (bulk/pseudo-
 ```bash
 python clawbio.py run pharmgx --input my_23andme.txt --output results/
 python clawbio.py run rnaseq --input counts.csv,metadata.csv --output results_rnaseq/
+python clawbio.py run methylation --geo-id GSE139307 --output results_methylation/
 ```
 
 ### Run tests
