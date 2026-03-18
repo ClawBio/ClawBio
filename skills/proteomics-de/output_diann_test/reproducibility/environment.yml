@@ -1,0 +1,11 @@
+name: clawbio-proteomics-de
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10
+  - pandas
+  - numpy
+  - matplotlib
+  - scikit-learn
+  - scipy
+  - seaborn
