@@ -1,6 +1,6 @@
 ---
 name: proteomics-de
-description: Differential expression analysis for label-free quantitative proteomics (LFQ) data with standard MaxQuant preprocessing, imputation, and statistical testing.
+description: Differential expression analysis for label-free quantitative (LFQ) intensity data with standard MaxQuant and DIA-NN output. Workflow includes preprocessing, imputation, and statistical testing.
 version: 0.1.0
 metadata:
   openclaw:
