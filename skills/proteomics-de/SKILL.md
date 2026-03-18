@@ -36,7 +36,7 @@ metadata:
 
 # 🥚 Proteomics Differential Expression
 
-This skill performs differential expression analysis on label-free quantitative proteomics (LFQ) data from MaxQuant output.
+This skill performs differential expression analysis on label-free quantitative(LFQ) intensity data from MaxQuant and DIA-NN output.
 
 ## Core Capabilities
 
