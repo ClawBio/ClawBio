@@ -46,6 +46,8 @@ EXTENSION_MAP: dict[str, str] = {
     ".h5ad": "scrna-orchestrator",
     ".mtx": "scrna-orchestrator",
     ".mtx.gz": "scrna-orchestrator",
+    ".pkl": "methylation-clock",
+    ".pickle": "methylation-clock",
     ".csv": "equity-scorer",
     ".tsv": "equity-scorer",
     ".png": "data-extractor",
@@ -150,6 +152,17 @@ KEYWORD_MAP: dict[str, str] = {
     "ma plot": "rnaseq-de",
     "contrast": "rnaseq-de",
     "count matrix": "rnaseq-de",
+    "epigenetic age": "methylation-clock",
+    "methylation": "methylation-clock",
+    "methylation clock": "methylation-clock",
+    "dna methylation": "methylation-clock",
+    "pyaging": "methylation-clock",
+    "horvath": "methylation-clock",
+    "altumage": "methylation-clock",
+    "grimage": "methylation-clock",
+    "dunedinpace": "methylation-clock",
+    "geo accession": "methylation-clock",
+    "gse": "methylation-clock",
 }
 
 SKILLS_DIR = Path(__file__).resolve().parent.parent
@@ -265,6 +278,12 @@ def detect_skill_from_tabular_header(filepath: Path) -> str | None:
                 continue
         if numeric_count >= 3:
             return "rnaseq-de"
+
+    methylation_markers = {"gender", "sex", "female", "tissue_type", "dataset"}
+    if header_set & methylation_markers:
+        cg_like = [h for h in headers if h.startswith("cg")]
+        if len(cg_like) >= 10:
+            return "methylation-clock"
 
     return None
 
