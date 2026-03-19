@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 26,
+  "skill_count": 27,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -661,6 +661,21 @@
       "tags": [],
       "trigger_keywords": [],
       "chaining_partners": []
+    },
+    {
+      "name": "pubmed-summariser",
+      "cli_alias": null,
+      "description": "Search PubMed for a gene name or disease term and generate a structured research briefing of the top recent English-language papers.",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/pubmed-summariser/pubmed_summariser.py --demo --output /tmp/pubmed_demo",
+      "dependencies": ["requests"],
+      "tags": ["pubmed", "literature", "genomics", "research"],
+      "trigger_keywords": ["pubmed", "summarise papers", "research briefing", "papers about", "recent studies", "gene papers"],
+      "chaining_partners": ["lit-synthesizer", "gwas-lookup", "gwas-prs"]
     }
   ]
 }

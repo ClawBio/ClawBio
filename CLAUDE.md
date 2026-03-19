@@ -17,6 +17,7 @@ When the user asks a question, match it to a skill and act:
 | Route a query, multi-step analysis, "what skill should I use" | `skills/bio-orchestrator/` | Run `orchestrator.py` |
 | Variant annotation, VEP, ClinVar, gnomAD | `skills/vcf-annotator/` | Read SKILL.md, apply methodology |
 | Literature search, PubMed, bioRxiv, citation graph | `skills/lit-synthesizer/` | Read SKILL.md, apply methodology |
+| PubMed search, "summarise PubMed papers about X", "recent papers on gene/disease", research briefing, gene papers, disease papers | `skills/pubmed-summariser/` | Run `pubmed_summariser.py` |
 | Single-cell RNA-seq, Scanpy, clustering, marker genes, doublet removal, h5ad | `skills/scrna-orchestrator/` | Run `scrna_orchestrator.py` |
 | Protein structure, AlphaFold, PDB, Boltz | `skills/struct-predictor/` | Read SKILL.md, apply methodology |
 | Reproducibility, Nextflow, Singularity, Conda export | `skills/repro-enforcer/` | Read SKILL.md, apply methodology |
@@ -116,6 +117,11 @@ python skills/galaxy-bridge/galaxy_bridge.py \
   --run <tool_id> --input <file> --output <dir>
 python skills/galaxy-bridge/galaxy_bridge.py --demo
 
+# PubMed research briefing from gene name or disease term
+python skills/pubmed-summariser/pubmed_summariser.py \
+  --query <gene_or_disease> --output <report_dir>
+python skills/pubmed-summariser/pubmed_summariser.py --demo --output /tmp/pubmed_demo
+
 # Bio orchestrator — auto-routes to the right skill
 python skills/bio-orchestrator/orchestrator.py \
   --input <file_or_query> [--skill <name>] [--output <dir>] [--list-skills]
@@ -148,6 +154,7 @@ For instant demos when the user has no data:
 | Profile report demo (full 4-skill profile) | `--demo` flag | profile-report |
 | UKB Navigator demo (blood pressure, pre-cached) | `--demo` flag | ukb-navigator |
 | Galaxy Bridge demo (FastQC, offline) | `--demo` flag | galaxy-bridge |
+| PubMed Summariser demo (BRCA1, live API) | `--demo` flag | pubmed-summariser |
 
 ### Demo Commands
 
@@ -198,6 +205,9 @@ python skills/bio-orchestrator/orchestrator.py --list-skills
 
 # RNA-seq DE demo
 python skills/rnaseq-de/rnaseq_de.py --demo --output /tmp/rnaseq_de_demo
+
+# PubMed Summariser demo
+python skills/pubmed-summariser/pubmed_summariser.py --demo --output /tmp/pubmed_demo
 ```
 
 ## Contributing — New Skill Workflow
