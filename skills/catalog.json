@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 27,
+  "skill_count": 28,
   "galaxy_tool_count": 8182,
   "skills": [
     {
