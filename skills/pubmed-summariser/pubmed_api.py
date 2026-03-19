@@ -103,6 +103,17 @@ def _parse_article(article: ET.Element) -> dict:
             month = pub_date.findtext("Month", "").strip()
             date = f"{year}-{month}" if month else year
 
+    # Prefer electronic publication date over journal issue date (avoids
+    # future eCollection dates on online-first articles)
+    if art is not None:
+        epublish = art.find("ArticleDate[@DateType='Electronic']")
+        if epublish is not None:
+            ep_year = epublish.findtext("Year", "").strip()
+            ep_month = epublish.findtext("Month", "").strip()
+            ep_day = epublish.findtext("Day", "").strip()
+            if ep_year:
+                date = f"{ep_year}-{ep_month}-{ep_day}" if ep_month and ep_day else (f"{ep_year}-{ep_month}" if ep_month else ep_year)
+
     # Abstract
     abstract_el = art.find(".//AbstractText") if art is not None else None
     raw_abstract = (abstract_el.text or "").strip() if abstract_el is not None else ""
