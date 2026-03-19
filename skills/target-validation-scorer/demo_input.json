@@ -1,0 +1,68 @@
+{
+  "target": "TGFBR1",
+  "disease": "idiopathic pulmonary fibrosis",
+  "evidence": {
+    "disease_association": {
+      "source": "Open Targets",
+      "overall_score": 0.72,
+      "genetic_association": 0.65,
+      "literature_mining": 0.81,
+      "animal_models": 0.58,
+      "detail": "Strong genetic and literature evidence linking TGFBR1 to IPF pathogenesis via TGF-beta-driven fibroblast activation and extracellular matrix deposition.",
+      "tier": "T1"
+    },
+    "druggability": {
+      "source": "ChEMBL + UniProt",
+      "target_class": "kinase",
+      "kinase_family": "TKL > TGFBR",
+      "known_ligands": 847,
+      "best_potency_nM": 12,
+      "detail": "Serine/threonine kinase receptor. Well-established kinase target class with extensive medicinal chemistry precedent.",
+      "tier": "T1"
+    },
+    "chemical_matter": {
+      "source": "ChEMBL",
+      "bioactive_compounds": 847,
+      "compounds_sub_100nM": 89,
+      "scaffold_diversity": "medium",
+      "detail": "Substantial chemical matter exists. Multiple chemotypes with sub-100nM potency. Hinge binder motifs well characterized.",
+      "tier": "T1"
+    },
+    "clinical_precedent": {
+      "source": "ChEMBL + ClinicalTrials.gov",
+      "clinical_candidates": ["galunisertib (LY2157299)", "vactosertib (TEW-7197)"],
+      "max_phase": 3,
+      "trials_active": 4,
+      "trials_completed": 12,
+      "detail": "Multiple ALK5 inhibitors have reached Phase II-III. Galunisertib tested in IPF (Phase II). Vactosertib in clinical trials for fibrotic diseases.",
+      "tier": "T1"
+    },
+    "structural_data": {
+      "source": "PDB + AlphaFold",
+      "pdb_structures": 15,
+      "best_resolution_A": 1.8,
+      "co_crystal_ligands": true,
+      "alphafold_available": true,
+      "detail": "Multiple co-crystal structures available (e.g. PDB 1VJY). Hinge region well resolved. Suitable for structure-based drug design.",
+      "tier": "T1"
+    },
+    "safety_signals": [
+      {
+        "risk": "TGF-beta systemic pathway involvement",
+        "severity": "high",
+        "penalty": -17,
+        "evidence": "TGF-beta signaling regulates immune homeostasis, wound healing, and tumor suppression. Complete pathway inhibition in preclinical models caused cardiac valve lesions and immune dysregulation.",
+        "mitigation": "Selective ALK5 inhibition over ALK4/ALK7. Controlled exposure via intermittent dosing. Safety-first compound design prioritizing selectivity.",
+        "tier": "T1"
+      },
+      {
+        "risk": "Tumor promotion concern",
+        "severity": "medium",
+        "penalty": 0,
+        "evidence": "TGF-beta has dual role: tumor suppressor in early stages, tumor promoter in late stages. Long-term ALK5 inhibition has theoretical cancer risk, but no confirmed clinical signal to date.",
+        "mitigation": "Monitor for neoplasia in long-term studies. Consider indication-specific benefit-risk.",
+        "tier": "T2"
+      }
+    ]
+  }
+}

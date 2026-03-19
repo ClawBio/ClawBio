@@ -2,6 +2,8 @@
 name: rnaseq-de
 description: Differential expression analysis for bulk RNA-seq and pseudo-bulk count matrices with QC, PCA, and contrast testing.
 version: 0.1.0
+tags: [rna-seq, differential expression, bulk, pseudo-bulk, transcriptomics, DESeq2, PyDESeq2, QC, PCA]
+trigger_keywords: [rna-seq, differential expression, bulk RNA, pseudo-bulk, volcano plot, ma plot, count matrix, DESeq2, pydeseq2]
 metadata:
   openclaw:
     requires:

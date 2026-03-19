@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 26,
+  "skill_count": 28,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -401,7 +401,7 @@
     {
       "name": "nutrigx_advisor",
       "cli_alias": "nutrigx",
-      "description": "Personalised nutrigenomics report from consumer genetic data, with dietary and supplementation guidance generated locally.",
+      "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -430,6 +430,27 @@
         "profile-report",
         "pharmgx-reporter"
       ]
+    },
+    {
+      "name": "omics-target-evidence-mapper",
+      "cli_alias": null,
+      "description": "Aggregate public target-level evidence across omics and translational sources for research triage.",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/omics-target-evidence-mapper/omics_target_evidence_mapper.py --demo",
+      "dependencies": [],
+      "tags": [
+        "omics",
+        "targets",
+        "translational-research",
+        "literature",
+        "trials"
+      ],
+      "trigger_keywords": [],
+      "chaining_partners": []
     },
     {
       "name": "pharmgx-reporter",

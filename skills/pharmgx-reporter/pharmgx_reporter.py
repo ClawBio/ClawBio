@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 ClawBio PharmGx Reporter
 Pharmacogenomic report generator from DTC genetic data (23andMe/AncestryDNA).
@@ -1705,12 +1706,27 @@ def generate_html_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_r
 def main():
     parser = argparse.ArgumentParser(
         description="ClawBio PharmGx Reporter: pharmacogenomic report from DTC genetic data")
-    parser.add_argument("--input", required=True, help="Path to genetic data file (23andMe/AncestryDNA)")
+    parser.add_argument("--input", default=None, help="Path to genetic data file (23andMe/AncestryDNA)")
     parser.add_argument("--output", default="pharmgx_report", help="Output directory (default: pharmgx_report)")
     parser.add_argument("--drug", default=None, help="Single drug lookup (brand or generic name)")
     parser.add_argument("--dose", default=None, help="Visible dose from packaging (e.g. '50mg')")
     parser.add_argument("--no-enrich", action="store_true", help="Skip ClinPGx evidence enrichment")
+    parser.add_argument("--demo", action="store_true", help="Run with bundled demo patient data")
     args = parser.parse_args()
+
+    if args.demo:
+        demo_file = Path(__file__).resolve().parent / "demo_patient.txt"
+        if not demo_file.exists():
+            print("Error: demo_patient.txt not found alongside script", file=sys.stderr)
+            sys.exit(1)
+        args.input = str(demo_file)
+        if args.output == "pharmgx_report":
+            args.output = str(Path(__file__).resolve().parent / "demo_report")
+        print("Running in demo mode with bundled patient data")
+        print()
+
+    if not args.input:
+        parser.error("--input is required (or use --demo)")
 
     if not Path(args.input).exists():
         print(f"Error: input file not found: {args.input}", file=sys.stderr)
