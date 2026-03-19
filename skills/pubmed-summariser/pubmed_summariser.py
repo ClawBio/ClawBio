@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import html
 import sys
 from pathlib import Path
 
@@ -97,16 +98,17 @@ def _build_html_report(query: str, papers: list[dict]) -> str:
             f"<div style='border:1px solid #e0e0e0;border-radius:8px;"
             f"padding:16px;margin:12px 0;background:#fff;'>"
             f"<h3 style='margin:0 0 8px 0;font-size:1em;'>"
-            f"<a href='{paper['url']}' target='_blank'>{i}. {paper['title']}</a></h3>"
+            f"<a href=\"{html.escape(paper['url'])}\" target='_blank'>"
+            f"{i}. {html.escape(paper['title'])}</a></h3>"
             f"<p style='margin:4px 0;color:#616161;font-size:0.9em;'>"
-            f"<strong>Authors:</strong> {paper['authors']}</p>"
+            f"<strong>Authors:</strong> {html.escape(paper['authors'])}</p>"
             f"<p style='margin:4px 0;color:#616161;font-size:0.9em;'>"
-            f"<strong>Journal:</strong> {paper['journal']} &middot; {paper['date']}</p>"
+            f"<strong>Journal:</strong> {html.escape(paper['journal'])} &middot; {html.escape(paper['date'])}</p>"
         )
         if paper["abstract"]:
             card_html += (
                 f"<p style='margin:8px 0 0 0;font-size:0.9em;'>"
-                f"{paper['abstract']}</p>"
+                f"{html.escape(paper['abstract'])}</p>"
             )
         card_html += "</div>"
         builder.add_raw_html(card_html)
