@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 26,
+  "skill_count": 28,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -22,6 +22,45 @@
         "orchestrator"
       ],
       "chaining_partners": []
+    },
+    {
+      "name": "bioconductor-bridge",
+      "cli_alias": "bioc",
+      "description": "Bioconductor package discovery, workflow recommendation, setup inspection, and starter code generation grounded in official Bioconductor containers and BiocManager.",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run bioc --demo",
+      "dependencies": [],
+      "tags": [
+        "bioconductor",
+        "r",
+        "package-discovery",
+        "workflows",
+        "transcriptomics",
+        "genomics",
+        "single-cell",
+        "annotation"
+      ],
+      "trigger_keywords": [
+        "bioconductor",
+        "bioc",
+        "biocmanager",
+        "summarizedexperiment",
+        "singlecellexperiment",
+        "genomicranges",
+        "variantannotation",
+        "annotationhub",
+        "experimenthub"
+      ],
+      "chaining_partners": [
+        "rnaseq-de",
+        "scrna-orchestrator",
+        "diff-visualizer",
+        "bio-orchestrator"
+      ]
     },
     {
       "name": "claw-ancestry-pca",
@@ -401,7 +440,7 @@
     {
       "name": "nutrigx_advisor",
       "cli_alias": "nutrigx",
-      "description": "Personalised nutrigenomics report from consumer genetic data, with dietary and supplementation guidance generated locally.",
+      "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
