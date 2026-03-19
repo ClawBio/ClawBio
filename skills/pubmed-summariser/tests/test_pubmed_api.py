@@ -161,6 +161,49 @@ def test_parse_article_date_format():
     assert result["date"] == "2023-11"
 
 
+# ── _date_sort_key ──────────────────────────────────────────────────────────
+
+
+def test_date_sort_key_full_iso():
+    from pubmed_api import _date_sort_key
+    assert _date_sort_key("2026-03-19") == (2026, 3, 19)
+
+
+def test_date_sort_key_numeric_month():
+    from pubmed_api import _date_sort_key
+    assert _date_sort_key("2026-03") == (2026, 3, 0)
+
+
+def test_date_sort_key_month_abbr():
+    from pubmed_api import _date_sort_key
+    assert _date_sort_key("2026-Mar") == (2026, 3, 0)
+    assert _date_sort_key("2026-Apr") == (2026, 4, 0)
+
+
+def test_date_sort_key_year_only():
+    from pubmed_api import _date_sort_key
+    assert _date_sort_key("2025") == (2025, 0, 0)
+
+
+def test_date_sort_key_unknown():
+    from pubmed_api import _date_sort_key
+    assert _date_sort_key("") == (0, 0, 0)
+    assert _date_sort_key("not-a-date") == (0, 0, 0)
+
+
+def test_date_sort_key_ordering():
+    """Newer dates must produce a larger tuple."""
+    from pubmed_api import _date_sort_key
+    dates = ["2025-11-24", "2026-Mar", "2026-03-19", "2026-Apr", "2025"]
+    sorted_dates = sorted(dates, key=_date_sort_key, reverse=True)
+    # Apr > Mar 19 > Mar (month-only) > Nov 2025 > 2025 (year-only)
+    assert sorted_dates[0] == "2026-Apr"
+    assert sorted_dates[1] == "2026-03-19"
+    assert sorted_dates[2] == "2026-Mar"
+    assert sorted_dates[3] == "2025-11-24"
+    assert sorted_dates[4] == "2025"
+
+
 def test_parse_article_no_abstract():
     """Missing abstract element returns empty string."""
     from pubmed_api import _parse_article

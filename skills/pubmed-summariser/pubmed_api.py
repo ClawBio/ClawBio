@@ -36,6 +36,39 @@ _TIMEOUT = 10  # seconds
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+_MONTH_ABBR = {
+    "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+    "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+}
+
+
+def _date_sort_key(date_str: str) -> tuple:
+    """
+    Convert a date string to a (year, month, day) tuple for comparison.
+
+    Handles formats: YYYY-MM-DD, YYYY-MM, YYYY-Mon, YYYY.
+    Returns (0, 0, 0) for unrecognised strings so they sort last.
+    """
+    # YYYY-MM-DD
+    m = re.match(r'^(\d{4})-(\d{2})-(\d{2})$', date_str)
+    if m:
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    # YYYY-MM (numeric)
+    m = re.match(r'^(\d{4})-(\d{2})$', date_str)
+    if m:
+        return (int(m.group(1)), int(m.group(2)), 0)
+    # YYYY-Mon (3-letter abbreviation)
+    m = re.match(r'^(\d{4})-([A-Za-z]{3})$', date_str)
+    if m:
+        month = _MONTH_ABBR.get(m.group(2).capitalize(), 0)
+        return (int(m.group(1)), month, 0)
+    # YYYY only
+    m = re.match(r'^(\d{4})$', date_str)
+    if m:
+        return (int(m.group(1)), 0, 0)
+    return (0, 0, 0)
+
+
 def _format_authors(authors: list[str]) -> str:
     """Format author list: up to 3 names, then 'et al.' if more."""
     if not authors:
@@ -186,4 +219,5 @@ def fetch_papers(query: str, max_results: int = 10) -> list[dict]:
         if parsed["pmid"]:  # skip malformed articles
             papers.append(parsed)
 
+    papers.sort(key=lambda p: _date_sort_key(p["date"]), reverse=True)
     return papers
