@@ -1,0 +1,6 @@
+{
+  "fhir": {
+    "server_url": "https://hapi.fhir.org/baseR4",
+    "patient_id": "131299660"
+  }
+}

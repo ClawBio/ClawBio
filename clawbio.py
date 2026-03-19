@@ -473,6 +473,19 @@ SKILLS = {
         },
         "accepts_genotypes": False,
     },
+    "fhir-pgx": {
+        "script": SKILLS_DIR / "marcelo-emr-fhir-drug-analyser" / "marcelo-emr-fhir-drug-analyser.py",
+        "demo_args": ["--demo"],
+        "description": "FHIR EMR drug analyser — PGx review of current/planned medications from a HAPI FHIR server",
+        "allowed_extra_flags": {
+            "--fhir-connection",
+            "--genotype",
+            "--pharmgx-result",
+            "--context-only",
+        },
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
 }
 
 # Skills that run in the full-profile pipeline (order matters)
@@ -1029,6 +1042,26 @@ def main():
         default=None,
         help="Local CellTypist model name or path for scrna skill",
     )
+    run_parser.add_argument(
+        "--fhir-connection",
+        default=None,
+        help="JSON file with fhir.server_url and fhir.patient_id (fhir-pgx skill)",
+    )
+    run_parser.add_argument(
+        "--genotype",
+        default=None,
+        help="23andMe/AncestryDNA raw genotype file (.txt/.txt.gz) for PGx analysis (fhir-pgx skill)",
+    )
+    run_parser.add_argument(
+        "--pharmgx-result",
+        default=None,
+        help="Pre-computed PharmGx result.json — skips re-running pharmgx-reporter (fhir-pgx skill)",
+    )
+    run_parser.add_argument(
+        "--context-only",
+        action="store_true",
+        help="Stop after FHIR retrieval and return a PGx-relevance map without running PharmGx (fhir-pgx skill)",
+    )
 
     args = parser.parse_args()
 
@@ -1179,6 +1212,14 @@ def main():
             extra.extend(["--annotate", args.annotate])
         if getattr(args, "annotation_model", None):
             extra.extend(["--annotation-model", args.annotation_model])
+        if getattr(args, "fhir_connection", None):
+            extra.extend(["--fhir-connection", args.fhir_connection])
+        if getattr(args, "genotype", None):
+            extra.extend(["--genotype", args.genotype])
+        if getattr(args, "pharmgx_result", None):
+            extra.extend(["--pharmgx-result", args.pharmgx_result])
+        if getattr(args, "context_only", False):
+            extra.append("--context-only")
 
         result = run_skill(
             skill_name=args.skill,
