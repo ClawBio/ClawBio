@@ -31,6 +31,7 @@ When the user asks a question, match it to a skill and act:
 | Personal genomic profile report, "my profile", unified report, profile summary | `skills/profile-report/` | Run `profile_report.py` |
 | UK Biobank, UKB fields, "what UKB variables measure X", biobank schema search, UKB field lookup, data showcase | `skills/ukb-navigator/` | Run `ukb_navigator.py` |
 | Galaxy, usegalaxy, tool shed, bioblend, "run on galaxy", galaxy tool, galaxy workflow, NGS pipeline | `skills/galaxy-bridge/` | Run `galaxy_bridge.py` |
+| Flow.bio, flow pipeline, flow sample, flow execution, flow project, "run on flow", "upload to flow", flow search | `skills/flow-bio/` | Run `flow_bio.py` |
 | Bulk RNA-seq, pseudo-bulk, differential expression, DESeq2, PyDESeq2, contrast, volcano plot | `skills/rnaseq-de/` | Run `rnaseq_de.py` |
 | protocols.io, protocol search, lab protocol, scientific methods, protocol DOI, protocol steps | `skills/protocols-io/` | Run `protocols_io.py` |
 | Soul to genome, compile soul, synthetic genome, Genomebook compile, character genome | `skills/soul2dna/` | Run `soul2dna.py` |
@@ -46,6 +47,7 @@ When the user asks a question, match it to a skill and act:
 ## How to Use a Skill
 
 ### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator, galaxy-bridge, rnaseq-de, methylation-clock, proteomics-clock, protocols-io, soul2dna, genome-match, recombinator, labstep, fine-mapping, cell-detection, wes-clinical-report-en, wes-clinical-report-es)
+### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator, galaxy-bridge, flow-bio)
 1. Read the skill's `SKILL.md` for domain context
 2. Run the Python script with correct CLI arguments (see below)
 3. Show the user the output — open any generated figures and explain results
@@ -133,6 +135,16 @@ python skills/galaxy-bridge/galaxy_bridge.py --demo
 python skills/pubmed-summariser/pubmed_summariser.py \
   --query <gene_or_disease> --output <report_dir>
 python skills/pubmed-summariser/pubmed_summariser.py --demo --output /tmp/pubmed_demo
+# Flow.bio — browse, search, upload, and run pipelines on Flow
+# Credentials: set FLOW_USERNAME + FLOW_PASSWORD env vars, or FLOW_TOKEN
+python skills/flow-bio/flow_bio.py --demo --output /tmp/flow_demo
+python skills/flow-bio/flow_bio.py --pipelines --output <report_dir>
+python skills/flow-bio/flow_bio.py --samples --output <report_dir>
+python skills/flow-bio/flow_bio.py --projects --output <report_dir>
+python skills/flow-bio/flow_bio.py --search "RNA-seq" --output <report_dir>
+python skills/flow-bio/flow_bio.py --upload-sample \
+  --name <sample_name> --sample-type <type> \
+  --reads1 <R1.fastq.gz> [--reads2 <R2.fastq.gz>] --output <report_dir>
 
 # Bio orchestrator — auto-routes to the right skill
 python skills/bio-orchestrator/orchestrator.py \
@@ -261,6 +273,7 @@ For instant demos when the user has no data:
 | Corpas 30x NutriGx loci (WGS) | `corpas-30x/subsets/nutrigx_loci.vcf.gz` | nutrigx_advisor |
 | Corpas 30x QC baselines | `corpas-30x/baselines/qc_summary.json` | Benchmark tests |
 
+| Flow.bio demo (live API + offline cache) | `--demo` flag / `skills/flow-bio/data/demo_cache.json` | flow-bio |
 
 ### Demo Commands
 
@@ -352,6 +365,11 @@ python skills/wes-clinical-report-en/wes_clinical_report_en.py --demo
 # WES Clinical Report (Spanish) demo
 python skills/wes-clinical-report-es/wes_clinical_report_es.py --demo
 
+# Flow.bio demo (works offline with cached data, or live)
+python skills/flow-bio/flow_bio.py --demo --output /tmp/flow_demo
+
+# Flow.bio search (requires FLOW_USERNAME + FLOW_PASSWORD)
+python skills/flow-bio/flow_bio.py --search "RNA-seq" --output /tmp/flow_search
 ```
 
 ## Development Rules (STRICT)

@@ -153,6 +153,14 @@ KEYWORD_MAP: dict[str, str] = {
     "setup bioconductor": "bioconductor-bridge",
     "visualize de results": "diff-visualizer",
     "visualise de results": "diff-visualizer",
+    "flow": "flow-bio",
+    "flow.bio": "flow-bio",
+    "flow bio": "flow-bio",
+    "flow pipeline": "flow-bio",
+    "flow sample": "flow-bio",
+    "flow execution": "flow-bio",
+    "run on flow": "flow-bio",
+    "flow upload": "flow-bio",
     "de visualization": "diff-visualizer",
     "differential expression visualization": "diff-visualizer",
     "marker heatmap": "diff-visualizer",
@@ -496,6 +504,7 @@ SKILL_REGISTRY_MAP: dict[str, str] = {
     "data-extractor": "data-extract",
     "rnaseq-de": "rnaseq",
     "diff-visualizer": "diffviz",
+    "flow-bio": "flow",
 }
 
 

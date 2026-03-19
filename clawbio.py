@@ -581,6 +581,24 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "flow": {
+        "script": SKILLS_DIR / "flow-bio" / "flow_bio.py",
+        "demo_args": ["--demo"],
+        "description": "Flow.bio API bridge (pipelines, samples, projects, executions)",
+        "allowed_extra_flags": {
+            "--login", "--username", "--password", "--token", "--url",
+            "--pipelines", "--samples", "--projects", "--executions",
+            "--organisms", "--sample-types", "--data",
+            "--pipeline", "--sample", "--execution",
+            "--pipeline-detail", "--sample-detail", "--execution-detail",
+            "--search", "--upload-sample", "--name", "--sample-type",
+            "--reads1", "--reads2", "--organism", "--project",
+            "--run-pipeline", "--run-samples", "--run-data", "--run-params",
+            "--genome", "--json",
+        },
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
 }
 
 # Skills that run in the full-profile pipeline (order matters)
@@ -1167,6 +1185,30 @@ def main():
     run_parser.add_argument("--container", default=None, help="Canonical object/container hint for bioc skill")
     run_parser.add_argument("--modality", default=None, help="Modality hint for bioc skill")
     run_parser.add_argument("--max-results", type=int, default=None, help="Maximum bioc search/recommendation results")
+    # flow-bio skill flags
+    run_parser.add_argument("--search", default=None, help="Search query (galaxy/flow skills)")
+    run_parser.add_argument("--pipelines", action="store_true", help="List pipelines (flow skill)")
+    run_parser.add_argument("--samples", action="store_true", help="List samples (flow skill)")
+    run_parser.add_argument("--projects", action="store_true", help="List projects (flow skill)")
+    run_parser.add_argument("--executions", action="store_true", help="List executions (flow skill)")
+    run_parser.add_argument("--organisms", action="store_true", help="List organisms (flow skill)")
+    run_parser.add_argument("--sample-types", action="store_true", help="List sample types (flow skill)")
+    run_parser.add_argument("--data", action="store_true", help="List data (flow skill)")
+    run_parser.add_argument("--upload-sample", action="store_true", help="Upload a sample (flow skill)")
+    run_parser.add_argument("--name", default=None, help="Sample name for upload (flow skill)")
+    run_parser.add_argument("--reads1", default=None, help="First reads file (flow skill)")
+    run_parser.add_argument("--reads2", default=None, help="Second reads file (flow skill)")
+    run_parser.add_argument("--organism", default=None, help="Organism name or ID (flow skill)")
+    run_parser.add_argument("--project", default=None, help="Project ID (flow skill)")
+    run_parser.add_argument("--run-pipeline", default=None, help="Pipeline version ID to run (flow skill)")
+    run_parser.add_argument("--run-samples", default=None, help="Comma-separated sample IDs for pipeline (flow skill)")
+    run_parser.add_argument("--run-data", default=None, help="Comma-separated data IDs for pipeline (flow skill)")
+    run_parser.add_argument("--run-params", default=None, help="Pipeline parameters as JSON string (flow skill)")
+    run_parser.add_argument("--genome", default=None, help="Genome ID for pipeline run (flow skill)")
+    run_parser.add_argument("--pipeline-detail", default=None, dest="pipeline_detail", help="Get pipeline details by ID (flow skill)")
+    run_parser.add_argument("--sample-detail", default=None, dest="sample_detail", help="Get sample details by ID (flow skill)")
+    run_parser.add_argument("--execution-detail", default=None, dest="execution_detail", help="Get execution details by ID (flow skill)")
+    run_parser.add_argument("--json", action="store_true", help="Output raw JSON (flow skill)")
 
     args = parser.parse_args()
 
@@ -1363,6 +1405,53 @@ def main():
             extra.extend(["--modality", args.modality])
         if getattr(args, "max_results", None) is not None:
             extra.extend(["--max-results", str(args.max_results)])
+        # flow-bio skill flags
+        if getattr(args, "search", None):
+            extra.extend(["--search", args.search])
+        if getattr(args, "pipelines", False):
+            extra.append("--pipelines")
+        if getattr(args, "samples", False):
+            extra.append("--samples")
+        if getattr(args, "projects", False):
+            extra.append("--projects")
+        if getattr(args, "executions", False):
+            extra.append("--executions")
+        if getattr(args, "organisms", False):
+            extra.append("--organisms")
+        if getattr(args, "sample_types", False):
+            extra.append("--sample-types")
+        if getattr(args, "data", False):
+            extra.append("--data")
+        if getattr(args, "upload_sample", False):
+            extra.append("--upload-sample")
+        if getattr(args, "name", None):
+            extra.extend(["--name", args.name])
+        if getattr(args, "reads1", None):
+            extra.extend(["--reads1", args.reads1])
+        if getattr(args, "reads2", None):
+            extra.extend(["--reads2", args.reads2])
+        if getattr(args, "organism", None):
+            extra.extend(["--organism", args.organism])
+        if getattr(args, "project", None):
+            extra.extend(["--project", args.project])
+        if getattr(args, "run_pipeline", None):
+            extra.extend(["--run-pipeline", args.run_pipeline])
+        if getattr(args, "run_samples", None):
+            extra.extend(["--run-samples", args.run_samples])
+        if getattr(args, "run_data", None):
+            extra.extend(["--run-data", args.run_data])
+        if getattr(args, "run_params", None):
+            extra.extend(["--run-params", args.run_params])
+        if getattr(args, "genome", None):
+            extra.extend(["--genome", args.genome])
+        if getattr(args, "pipeline_detail", None):
+            extra.extend(["--pipeline", args.pipeline_detail])
+        if getattr(args, "sample_detail", None):
+            extra.extend(["--sample", args.sample_detail])
+        if getattr(args, "execution_detail", None):
+            extra.extend(["--execution", args.execution_detail])
+        if getattr(args, "json", False):
+            extra.append("--json")
 
         result = run_skill(
             skill_name=args.skill,
