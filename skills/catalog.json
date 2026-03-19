@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 28,
+  "skill_count": 29,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -681,6 +681,29 @@
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [],
+      "chaining_partners": []
+    },
+    {
+      "name": "skill-builder",
+      "cli_alias": "skill-builder",
+      "description": "Scaffold a new ClawBio skill from a JSON/YAML spec or interactively — generates SKILL.md, Python skeleton, pytest tests, and auto-registers in catalog.json and clawbio.py",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run skill-builder --demo",
+      "dependencies": [],
+      "tags": ["scaffold", "developer-tools", "meta", "cli"],
+      "trigger_keywords": [
+        "create a new skill",
+        "scaffold a skill",
+        "add a skill",
+        "new clawbio skill",
+        "build a skill",
+        "skill template",
+        "skill builder"
+      ],
       "chaining_partners": []
     }
   ]

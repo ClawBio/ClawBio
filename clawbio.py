@@ -473,6 +473,14 @@ SKILLS = {
         },
         "accepts_genotypes": False,
     },
+    "skill-builder": {
+        "script": SKILLS_DIR / "skill-builder" / "skill_builder.py",
+        "demo_args": ["--demo"],
+        "description": "Skill builder — scaffold a new ClawBio skill from a spec or interactively",
+        "allowed_extra_flags": {"--dry-run", "--interactive", "--agent", "--edit", "--validate-only"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
 }
 
 # Skills that run in the full-profile pipeline (order matters)
