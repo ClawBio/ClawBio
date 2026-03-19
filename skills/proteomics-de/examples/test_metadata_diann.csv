@@ -1,0 +1,7 @@
+sample_id,group
+/path/to/Orbi2_EvKe_SA_IP_BY4741_01.raw,control
+/path/to/Orbi2_EvKe_SA_IP_BY4741_02.raw,control
+/path/to/Orbi2_EvKe_SA_IP_BY4741_03.raw,control
+/path/to/Orbi2_EvKe_SA_IP_APC1_01.raw,treated
+/path/to/Orbi2_EvKe_SA_IP_APC1_02.raw,treated
+/path/to/Orbi2_EvKe_SA_IP_APC1_03.raw,treated

@@ -1,0 +1,11 @@
+Protein.Group	Protein.Ids	Protein.Names	Genes	First.Protein.Description	/path/to/Orbi2_EvKe_SA_IP_BY4741_01.raw	/path/to/Orbi2_EvKe_SA_IP_BY4741_02.raw	/path/to/Orbi2_EvKe_SA_IP_BY4741_03.raw	/path/to/Orbi2_EvKe_SA_IP_APC1_01.raw	/path/to/Orbi2_EvKe_SA_IP_APC1_02.raw	/path/to/Orbi2_EvKe_SA_IP_APC1_03.raw
+A0A178W0K0	A0A178W0K0	A0A178W0K0_ARATH	At2g37020	Translin family protein		100351	45876.6			100351
+A0A178W3G2	A0A178W3G2	A0A178W3G2_ARATH	At1g69070	Nucleolar-like protein	100351	736986		72468.1		736986
+A0A178WLG7	A0A178WLG7	A0A178WLG7_ARATH	At1g51790	non-specific serine/threonine protein kinase	736986	664893				664893
+A0A1I9LMD5;Q93Z30	Q93Z30;A0A1I9LMD5	A0A1I9LMD5_ARATH;Q93Z30_ARATH	At3g58760;BHP	Integrin-linked protein kinase family	664893		54281.4			
+A0A1I9LMH3	A0A1I9LMH3	A0A1I9LMH3_ARATH	At3g18900	Ternary complex factor MIP1 leucine-zipper protein				757118	711977	
+A0A1I9LMU3	A0A1I9LMU3	A0A1I9LMU3_ARATH	At3g48410	Alpha/beta-Hydrolases superfamily protein				353550	86352.6	
+A0A1I9LN94	A0A1I9LN94	A0A1I9LN94_ARATH	At3g06770	Pectin lyase-like superfamily protein			41191.2			
+A0A1I9LP30	A0A1I9LP30	A0A1I9LP30_ARATH	TED4	Bifunctional inhibitor/lipid-transfer protein/seed storage 2S albumin superfamily protein	2.12E+06				261552	
+A0A1I9LQC2	A0A1I9LQC2	A0A1I9LQC2_ARATH	At3g28720	Transmembrane protein	767915	736182		727341	622098	736182
+A0A1I9LRJ3	A0A1I9LRJ3	A0A1I9LRJ3_ARATH	GHS1	Ribosomal protein S21 family protein		150892				150892

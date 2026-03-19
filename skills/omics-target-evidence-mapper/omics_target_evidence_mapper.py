@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -50,7 +51,8 @@ def safe_request_json(
         response = requests.request(method, url, params=params, json=json_body, timeout=timeout)
         response.raise_for_status()
         return response.json()
-    except Exception:
+    except requests.RequestException as exc:
+        print(f"[WARN] {method} {url} failed: {exc}", file=sys.stderr)
         return None
 
 

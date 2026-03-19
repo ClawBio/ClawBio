@@ -55,6 +55,11 @@ def _sha256(path: Path) -> str:
 def _load_dataframe(path: Path) -> pd.DataFrame:
     suffixes = [s.lower() for s in path.suffixes]
     if suffixes and suffixes[-1] in {".pkl", ".pickle"}:
+        import warnings
+        warnings.warn(
+            f"Loading pickle file {path.name}. Untrusted pickles can execute arbitrary code.",
+            stacklevel=2,
+        )
         return pd.read_pickle(path)
     if suffixes[-2:] == [".csv", ".gz"]:
         return pd.read_csv(path, compression="gzip")
