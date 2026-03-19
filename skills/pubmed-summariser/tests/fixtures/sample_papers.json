@@ -1,0 +1,20 @@
+[
+  {
+    "title": "BRCA1 and BRCA2: different roles in a common pathway of genome protection",
+    "authors": "Prakash R, Zhang Y, et al.",
+    "journal": "Nat Rev Mol Cell Biol",
+    "date": "2015-08",
+    "abstract": "BRCA1 and BRCA2 are involved in the repair of DNA double-strand breaks.",
+    "pmid": "26130008",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/26130008/"
+  },
+  {
+    "title": "Single-author paper example",
+    "authors": "Smith J",
+    "journal": "Cell",
+    "date": "2024-01",
+    "abstract": "This is the first sentence.",
+    "pmid": "99999999",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/99999999/"
+  }
+]
