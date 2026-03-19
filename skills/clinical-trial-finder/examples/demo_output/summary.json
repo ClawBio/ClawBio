@@ -1,0 +1,591 @@
+{
+  "query": "BRCA1 breast cancer",
+  "timestamp": "2026-03-19T15:06:35.824762",
+  "source": "clinicaltrials.gov/api/v2",
+  "total": 20,
+  "recruiting": 1,
+  "trials": [
+    {
+      "nct_id": "NCT00381927",
+      "title": "Effect of Counseling on Psychological Stress Amongst Women Felt to be at High Risk for Breast Cancer Development",
+      "status": "COMPLETED",
+      "phase": "",
+      "study_type": "OBSERVATIONAL",
+      "start_date": "2003-08",
+      "completion_date": "2006-04",
+      "conditions": [
+        "Breast Cancer"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        },
+        {
+          "id": "D001008",
+          "term": "Anxiety Disorders"
+        }
+      ],
+      "interventions": [
+        "Physician Counseling"
+      ],
+      "summary": "To evaluate 1) the extent of patient overestimation of breast cancer development risk in subjects referred to a physician-based high-risk breast clinic; 2) the ability of physician counseling to improve patient risk perception and reduce psychological distress; 3) to identify factors relevant in cli..."
+    },
+    {
+      "nct_id": "NCT01009788",
+      "title": "ABT-888 and Temozolomide for Metastatic Breast Cancer and BRCA1/2 Breast Cancer",
+      "status": "COMPLETED",
+      "phase": "PHASE2",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2009-11",
+      "completion_date": "2015-09",
+      "conditions": [
+        "Breast Cancer",
+        "Metastatic Breast Cancer",
+        "BRCA1 Gene Mutation",
+        "brca2 Gene Mutation"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        }
+      ],
+      "interventions": [
+        "ABT-888",
+        "temozolomide"
+      ],
+      "summary": "The purpose of this research study is to find out if the combination of ABT-888 and temozolomide is safe and effective in treating patients with metastatic breast cancer. ABT-888 works by obstructing a DNA enzyme called poly (ADP-ribose) polymerase (PARP) which helps repair cancer cells damaged by c..."
+    },
+    {
+      "nct_id": "NCT02826512",
+      "title": "A Feasibility Study of Niraparib for Advanced, BRCA1-like, HER2-negative Breast Cancer Patients",
+      "status": "TERMINATED",
+      "phase": "PHASE2",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2018-05-15",
+      "completion_date": "2022-07-01",
+      "conditions": [
+        "Breast Cancer"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        }
+      ],
+      "interventions": [
+        "Niraparib"
+      ],
+      "summary": "Patients with locally recurrent BRCA1-like, HER2-negative breast cancer that cannot be treated with curative intent by local treatment (surgery, radiotherapy +/- hyperthermia) or patients with metastatic BRCA1-like, HER2-negative breast cancer that have received a maximum of one prior line of treatm..."
+    },
+    {
+      "nct_id": "NCT02514499",
+      "title": "Multiplex Testing for Evaluation of Breast Cancer Risk, Longitudinal Study",
+      "status": "COMPLETED",
+      "phase": "NA",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2014-07",
+      "completion_date": "2018-10",
+      "conditions": [
+        "BRCA1/2 Negative"
+      ],
+      "condition_meshes": [],
+      "interventions": [
+        "Questionnaires"
+      ],
+      "summary": "The overall goal of the proposed research is to evaluate the uptake of testing and longitudinal risks and benefits of multiplex testing for cancer susceptibility in BRCA1/2 negative patients. This model will inform the selection of the outcomes and potential mediators and moderators of these outcome..."
+    },
+    {
+      "nct_id": "NCT02151747",
+      "title": "Testing BRCA 1/2 Mutation Using Next Generation Sequencing",
+      "status": "COMPLETED",
+      "phase": "",
+      "study_type": "OBSERVATIONAL",
+      "start_date": "2014-02",
+      "completion_date": "2015-02",
+      "conditions": [
+        "Breast Neoplasms",
+        "Breast Cancer"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        }
+      ],
+      "interventions": [],
+      "summary": "Testing BRCA 1/2 mutation is important for patients with breast cancer, and Sanger sequencing is a standard method to identify BRCA 1/2 mutation. Next generation sequencing (NGS) is a high-throughput parallel sequencing that can provide genetic information with high accuracy. NGS is a faster and cos..."
+    },
+    {
+      "nct_id": "NCT01374685",
+      "title": "Family Communication of Hereditary Breast and Ovarian Cancer Risk Among African Americans",
+      "status": "TERMINATED",
+      "phase": "",
+      "study_type": "OBSERVATIONAL",
+      "start_date": "2011-06-07",
+      "completion_date": "2016-01-07",
+      "conditions": [
+        "Ovarian Neoplasm",
+        "Cancer Genetics",
+        "Breast Cancer"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D010051",
+          "term": "Ovarian Neoplasms"
+        },
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        }
+      ],
+      "interventions": [],
+      "summary": "Background:\n\n\\- Certain genetic mutations are linked to higher rates of cancer. It is important for people with these mutations to tell their families about it. This is because others in the family may also be at greater risk for developing these cancers. They can also pass these genes to their own ..."
+    },
+    {
+      "nct_id": "NCT02286687",
+      "title": "Talazoparib in Treating Patients With Recurrent, Refractory, Advanced, or Metastatic Cancers and Alterations in the BRCA Genes",
+      "status": "ACTIVE_NOT_RECRUITING",
+      "phase": "PHASE2",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2014-12-22",
+      "completion_date": "2026-12-31",
+      "conditions": [
+        "Advanced Malignant Neoplasm",
+        "ATM Gene Mutation",
+        "BRCA1 Gene Mutation",
+        "BRCA2 Gene Mutation",
+        "Metastatic Malignant Neoplasm",
+        "PALB2 Gene Mutation",
+        "Recurrent Malignant Neoplasm",
+        "Refractory Malignant Neoplasm"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D009362",
+          "term": "Neoplasm Metastasis"
+        },
+        {
+          "id": "D012008",
+          "term": "Recurrence"
+        },
+        {
+          "id": "D009369",
+          "term": "Neoplasms"
+        }
+      ],
+      "interventions": [
+        "Laboratory Biomarker Analysis",
+        "Pharmacological Study",
+        "Talazoparib"
+      ],
+      "summary": "This phase II trial studies how well talazoparib works in treating patients with cancers that have returned after a period of improvement, do not respond to treatment, or have spread to other parts of the body, and have alterations in the breast cancer, early onset (BRCA) genes. Talazoparib may caus..."
+    },
+    {
+      "nct_id": "NCT01992471",
+      "title": "Multiplex Testing for Breast Cancer Susceptibility: A Pilot Study of Subject Preferences for Information and Responses After Testing",
+      "status": "COMPLETED",
+      "phase": "",
+      "study_type": "OBSERVATIONAL",
+      "start_date": "2013-11",
+      "completion_date": "2017-12-01",
+      "conditions": [
+        "Breast Cancer"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        }
+      ],
+      "interventions": [
+        "Pre-test Assessment",
+        "Pre test Counseling",
+        "Blood draw",
+        "Post-test counseling, and post-test assessment",
+        "Follow-up assessments (6 and 12 months)"
+      ],
+      "summary": "The purpose of this study is to find out what kinds of information people would like to receive from a new kind of genetic testing, and how they respond to this new kind of testing."
+    },
+    {
+      "nct_id": "NCT07416500",
+      "title": "BRCA1, RASSF1A and PTEN Methylation in Breast Lesions of Uncertain Malignant Potential",
+      "status": "COMPLETED",
+      "phase": "NA",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2024-09-01",
+      "completion_date": "2025-06-30",
+      "conditions": [
+        "Breast Cancer",
+        "Breast Lesions of Uncertain Malignant Potential (B3 Lesions)"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        }
+      ],
+      "interventions": [
+        "MS-MLPA Methylation Analysis"
+      ],
+      "summary": "This prospective interventional diagnostic study evaluates the clinical utility of methylation analysis of BRCA1, RASSF1A and PTEN genes in breast lesions of uncertain malignant potential (B3 lesions).\n\nWomen with suspicious non-palpable breast lesions undergo standard diagnostic procedures includin..."
+    },
+    {
+      "nct_id": "NCT02401347",
+      "title": "Phase II Trial of Talazoparib in BRCA1/2 Wild-type HER2-negative Breast Cancer and Other Solid Tumors",
+      "status": "COMPLETED",
+      "phase": "PHASE2",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2015-08",
+      "completion_date": "2022-12",
+      "conditions": [
+        "Advanced Breast Cancer",
+        "HER2/Neu Negative",
+        "Triple-Negative Breast Cancer"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D064726",
+          "term": "Triple Negative Breast Neoplasms"
+        }
+      ],
+      "interventions": [
+        "Talazoparib Tosylate"
+      ],
+      "summary": "The aim of this single-arm phase 2 clinical trial is to evaluate the anti-cancer activity of Talazoparib (also known as BMN 673) in patients with advanced breast cancer with specific genetic or tumor genomic alterations. Patients with either triple-negative or HER2-negative breast cancer are eligibl..."
+    },
+    {
+      "nct_id": "NCT04585074",
+      "title": "Prospective Study of MAstectomy With Reconstruction Including Robot Endoscopic Surgery",
+      "status": "ACTIVE_NOT_RECRUITING",
+      "phase": "",
+      "study_type": "OBSERVATIONAL",
+      "start_date": "2020-04-08",
+      "completion_date": "2030-04-07",
+      "conditions": [
+        "Breast Neoplasms",
+        "Germline BRCA1 Gene Mutation",
+        "Germline BRCA2 Gene Mutation",
+        "Benign Breast Disease",
+        "Germline Mutation Abnormality"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        },
+        {
+          "id": "D003550",
+          "term": "Cystic Fibrosis"
+        }
+      ],
+      "interventions": [
+        "Robotic or endoscopic nipple sparing mastectomy",
+        "Conventional mastectomy (including nipple sparing mastectomy, skin sparing mastectomy)"
+      ],
+      "summary": "Robotic mastectomy and immediate reconstruction have been introduced in 2015. However, since robotic mastectomy is the latest surgical technique, there is a lack of studies prospectively comparing conventional mastectomy and immediate reconstruction with robotic mastectomy. For this reason, this stu..."
+    },
+    {
+      "nct_id": "NCT04711109",
+      "title": "Studying the Effect of Denosumab on Preventing Breast Cancer in Women With a BRCA1 Germline Mutation",
+      "status": "ACTIVE_NOT_RECRUITING",
+      "phase": "PHASE3",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2023-02-14",
+      "completion_date": "2033-12",
+      "conditions": [
+        "BRCA1 Mutation",
+        "Breast Cancer",
+        "Breast Diseases",
+        "Breast Neoplasms",
+        "Breast Carcinoma",
+        "Neoplasms"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        },
+        {
+          "id": "D001941",
+          "term": "Breast Diseases"
+        },
+        {
+          "id": "D009369",
+          "term": "Neoplasms"
+        }
+      ],
+      "interventions": [
+        "Denosumab",
+        "Placebo",
+        "Quality-of-Life Assessment"
+      ],
+      "summary": "This phase III trial compares denosumab to placebo for the prevention of breast cancer in women with a BRCA1 germline mutation. A germline mutation is an inherited gene change which, in the BRCA1 gene, is associated with an increased risk of breast and other cancers. Denosumab is a monoclonal antibo..."
+    },
+    {
+      "nct_id": "NCT01333748",
+      "title": "Search Allelic Imbalance of Expression of BRCA Genes in Hereditary Risk of Breast and/or Ovarian Cancer",
+      "status": "COMPLETED",
+      "phase": "PHASE2",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2010-04",
+      "completion_date": "2012-06",
+      "conditions": [
+        "Hereditary Breast and Ovarian Cancer Syndrome"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D061325",
+          "term": "Hereditary Breast and Ovarian Cancer Syndrome"
+        },
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        },
+        {
+          "id": "D010051",
+          "term": "Ovarian Neoplasms"
+        }
+      ],
+      "interventions": [
+        "blood collection",
+        "blood collection"
+      ],
+      "summary": "The purpose of this study is to determine proportion of patients presented a search allelic imbalance of expression of genes BRCA 1 and 2 in population with hereditary breast and/or ovarian cancer risk and negative for deletion mutation BRCA 1 and 2 genes"
+    },
+    {
+      "nct_id": "NCT03544983",
+      "title": "Genetic Education in BRCA Families",
+      "status": "ENROLLING_BY_INVITATION",
+      "phase": "NA",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2020-05-01",
+      "completion_date": "2027-06-30",
+      "conditions": [
+        "BRCA1 Mutation",
+        "BRCA2 Mutation"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        },
+        {
+          "id": "D010051",
+          "term": "Ovarian Neoplasms"
+        },
+        {
+          "id": "D011471",
+          "term": "Prostatic Neoplasms"
+        }
+      ],
+      "interventions": [
+        "Web + Streamlined Telephone Genetic Information"
+      ],
+      "summary": "The primary goal of this research is to test a web-based genetic education intervention that is designed to educate men and women from hereditary cancer families about the personal relevance of genetic testing in order to help them male decisions about whether to pursue genetic testing. We will test..."
+    },
+    {
+      "nct_id": "NCT05340413",
+      "title": "Predicting Olaparib Sensitivity in Patients With Unresectable Locally Advanced/Metastatic HER2-negative Breast Cancer.",
+      "status": "COMPLETED",
+      "phase": "PHASE2",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2022-03-25",
+      "completion_date": "2025-02-03",
+      "conditions": [
+        "HER2-negative Breast Cancer",
+        "Metastatic Breast Cancer",
+        "Triple Negative Breast Cancer"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        },
+        {
+          "id": "D064726",
+          "term": "Triple Negative Breast Neoplasms"
+        }
+      ],
+      "interventions": [
+        "Olaparib"
+      ],
+      "summary": "The primary objetive is to assess the capacity of the RAD51-foci score to predict the efficacy of olaparib in BRCA1/2, PALB2 or RAD51C/D mut advanced breast cancer (cohort 1).\n\nThe investigators propose the hypothesis that the RAD51-foci low tumours determined by immunofluorescence using RAD51 assay..."
+    },
+    {
+      "nct_id": "NCT03330847",
+      "title": "To Assess Safety and Efficacy of Agents Targeting DNA Damage Repair With Olaparib Versus Olaparib Monotherapy.",
+      "status": "ACTIVE_NOT_RECRUITING",
+      "phase": "PHASE2",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2018-03-07",
+      "completion_date": "2026-09-04",
+      "conditions": [
+        "Metastatic Triple Negative Breast Cancer"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D064726",
+          "term": "Triple Negative Breast Neoplasms"
+        }
+      ],
+      "interventions": [
+        "Olaparib Continuous (28-Day cycle) 300 mg BD.",
+        "Ceralasertib 160 mg OD + olaparib continuous 300 mg BD (28-day cycle).",
+        "Adavosertib 150 mg BD + olaparib 200 mg BD (21-day cycle)."
+      ],
+      "summary": "This study is to assess the efficacy and safety of olaparib monotherapy versus olaparib in combination with an inhibitor of ATR (Ataxia-Telangiectasia Mutated (ATM) and Rad3-related protein kinase (Ceralasertib \\[AZD6738\\]) and olaparib monotherapy versus olaparib in combination with an inhibitor of..."
+    },
+    {
+      "nct_id": "NCT02133703",
+      "title": "Decision Support Following Genetic Testing for Breast-Ovarian Cancer Susceptibility",
+      "status": "COMPLETED",
+      "phase": "NA",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2015-10",
+      "completion_date": "2022-07-01",
+      "conditions": [
+        "Breast Cancer",
+        "Ovarian Cancer"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        },
+        {
+          "id": "D010051",
+          "term": "Ovarian Neoplasms"
+        },
+        {
+          "id": "C562840",
+          "term": "Breast Cancer, Familial"
+        }
+      ],
+      "interventions": [
+        "Enhanced Internet DA",
+        "Internet DA",
+        "Enhanced Print DA",
+        "Print DA",
+        "Inconclusive Results DA"
+      ],
+      "summary": "This non-therapeutic trial is for women who have received results of genetic testing for BRCA1/2 mutations. The trial compares decision support tools designed to facilitate informed decision making regarding risk management following testing to usual care. The researchers will test separate decision..."
+    },
+    {
+      "nct_id": "NCT03510689",
+      "title": "Genetics and Heart Health After Cancer Therapy",
+      "status": "COMPLETED",
+      "phase": "",
+      "study_type": "OBSERVATIONAL",
+      "start_date": "2017-12-05",
+      "completion_date": "2022-05-31",
+      "conditions": [
+        "Breast Cancer",
+        "Hereditary Breast/Ovarian Cancer (brca1, Brca2)",
+        "Heart Diseases",
+        "Drug-Induced Cardiomyopathy"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        },
+        {
+          "id": "D061325",
+          "term": "Hereditary Breast and Ovarian Cancer Syndrome"
+        },
+        {
+          "id": "D006331",
+          "term": "Heart Diseases"
+        }
+      ],
+      "interventions": [
+        "echocardiography",
+        "Cardiopulmonary Exercise Testing",
+        "Blood Collection"
+      ],
+      "summary": "The overall objective of this study is to use patient-centered in vitro and in vivo models to answer the fundamental question of whether or not pathogenic mutations in BRCA1/2 result in an increased risk of CV disease"
+    },
+    {
+      "nct_id": "NCT04150042",
+      "title": "SHARON: A Clinical Trial for Metastatic Cancer Using Chemotherapy and Patients' Own Stem Cells",
+      "status": "RECRUITING",
+      "phase": "PHASE1",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2021-01-13",
+      "completion_date": "2028-12",
+      "conditions": [
+        "Pancreatic Adenocarcinoma Metastatic",
+        "BRCA1 Mutation",
+        "BRCA2 Mutation",
+        "Pancreatic Acinar Cell Carcinoma",
+        "Pancreatic Ductal Adenocarcinoma",
+        "Pancreatic Cancer",
+        "Metastatic Pancreatic Cancer",
+        "Metastatic Pancreatic Ductal Adenocarcinoma",
+        "Breast Cancer Metastatic",
+        "Breast Cancer Stage IV",
+        "Pancreatic Cancer Stage IV",
+        "HER2-negative Breast Cancer",
+        "HER2 Negative Breast Carcinoma",
+        "Adenocarcinoma of the Breast",
+        "PALB2 Gene Mutation",
+        "Pancreas Cancer, Metastatic",
+        "Pancreas Cancer, Recurrent",
+        "Pancreas Cancer",
+        "Stage IV Pancreatic Cancer",
+        "Stage 4 Pancreatic Cancer"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D010190",
+          "term": "Pancreatic Neoplasms"
+        },
+        {
+          "id": "D001943",
+          "term": "Breast Neoplasms"
+        },
+        {
+          "id": "D009362",
+          "term": "Neoplasm Metastasis"
+        },
+        {
+          "id": "D012008",
+          "term": "Recurrence"
+        }
+      ],
+      "interventions": [
+        "Melphalan",
+        "BCNU",
+        "Vitamin B12B",
+        "Vitamin C",
+        "Autologous Hematopoietic Stem Cells"
+      ],
+      "summary": "The clinical trial is a phase 1, single-arm trial that will evaluate the safety of the investigational treatment on metastatic pancreatic cancer and metastatic breast cancer. The investigational treatment will involve 2 cycles of a combination of intravenous melphalan, BCNU, vitamin B12b, and vitami..."
+    },
+    {
+      "nct_id": "NCT03911973",
+      "title": "Gedatolisib Plus Talazoparib in Advanced Triple Negative or BRCA1/2 Positive, HER2 Negative Breast Cancers",
+      "status": "ACTIVE_NOT_RECRUITING",
+      "phase": "PHASE1 / PHASE2",
+      "study_type": "INTERVENTIONAL",
+      "start_date": "2019-04-17",
+      "completion_date": "2024-07",
+      "conditions": [
+        "TNBC - Triple-Negative Breast Cancer"
+      ],
+      "condition_meshes": [
+        {
+          "id": "D064726",
+          "term": "Triple Negative Breast Neoplasms"
+        }
+      ],
+      "interventions": [
+        "Gedatolisib",
+        "Talazoparib"
+      ],
+      "summary": "This study is designed to determine the RP2D of gedatolisib in combination with talazoparib and to evaluate the efficacy of this combination in advanced HER2 negative breast cancer that is triple negative or BRCA1/2 positive (deficient)."
+    }
+  ]
+}
