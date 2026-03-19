@@ -79,7 +79,7 @@ def _parse_article(article: ET.Element) -> dict:
 
     # Title
     title_el = art.find("ArticleTitle") if art is not None else None
-    title = (title_el.text or "").strip() if title_el is not None else ""
+    title = "".join(title_el.itertext()).strip() if title_el is not None else ""
 
     # Authors — each as "LastName Initials"
     raw_authors: list[str] = []
