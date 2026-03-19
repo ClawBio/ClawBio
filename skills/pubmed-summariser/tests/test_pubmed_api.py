@@ -4,19 +4,12 @@ Unit tests for pubmed_api.py — no network calls required.
 All tests operate on pre-built XML strings or fixture data.
 """
 
-import json
 import sys
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_DIR))
-
-FIXTURES = Path(__file__).parent / "fixtures"
-
-
-def load_fixture():
-    return json.loads((FIXTURES / "sample_papers.json").read_text())
 
 
 # ── _format_authors ────────────────────────────────────────────────────────────

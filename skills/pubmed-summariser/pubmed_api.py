@@ -129,7 +129,7 @@ def fetch_papers(query: str, max_results: int = 10) -> list[dict]:
 
     Args:
         query:       Gene name or disease term (e.g. 'BRCA1', 'type 2 diabetes')
-        max_results: Number of papers to return (default 10, max 50)
+        max_results: Number of papers to return (default 10)
 
     Returns:
         List of dicts with keys: title, authors, journal, date, abstract, pmid, url
@@ -137,6 +137,7 @@ def fetch_papers(query: str, max_results: int = 10) -> list[dict]:
 
     Raises:
         requests.RequestException: on network failure or HTTP error
+        xml.etree.ElementTree.ParseError: if the NCBI response XML is malformed
     """
     # Step 1: esearch — get PMIDs
     search_params = {
