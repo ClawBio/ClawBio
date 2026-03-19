@@ -1,0 +1,20 @@
+# Demo query file for clinical-trial-finder
+# This is NOT real patient data -- synthetic search terms only.
+#
+# Format: one search term per line. Lines starting with # are comments.
+# Terms are joined into a single query.cond string for the CT.gov API.
+#
+# This query searches for trials related to BRCA1 in breast cancer.
+# BRCA1 is the most commonly mutated gene in hereditary breast cancer
+# and has extensive trial coverage on ClinicalTrials.gov (~20 results).
+#
+# Alternative queries to try:
+#   EGFR lung cancer          -- targeted therapy trials
+#   colorectal cancer         -- broad condition search
+#   atrial fibrillation       -- cardiovascular (pairs with PRS demo)
+#   Jervell Lange-Nielsen     -- rare disease / diagnostic odyssey
+#
+# Or use --gene BRCA1 to let OpenTargets resolve associated diseases
+# automatically (gene -> diseases -> trials chain).
+#
+BRCA1 breast cancer
