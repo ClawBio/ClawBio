@@ -15,3 +15,5 @@ skills/pharmgx-reporter/report/
 skills/genome-compare/data/manuel_corpas_23andme.txt
 skills/pr-audit/
 data/
+skills/proteomics-de/output_diann_test/
+skills/proteomics-de/output_maxquant_test/
