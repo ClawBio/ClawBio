@@ -673,11 +673,16 @@ def run_analysis(
     }
 
 
+# ==== Argument Parsing ====
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Minimal proteomics differential expression analysis")
-    parser.add_argument("--input", required=True, help="Path to input protein quantification file (MaxQuant proteinGroups.txt or DIA-NN output)")
-    parser.add_argument("--input-type", choices=["maxquant", "diann"], default="maxquant", help="Input file type: maxquant (default) or diann")
-    parser.add_argument("--metadata", required=True, help="Path to sample metadata (.csv/.tsv)")
+    parser = argparse.ArgumentParser(
+        description="Minimal proteomics differential expression analysis"
+    )
+
+    parser.add_argument("--input", help="Path to input protein quantification file (MaxQuant proteinGroups.txt or DIA-NN output)")
+    parser.add_argument("--input-type", choices=["maxquant", "diann"], default="maxquant",
+                        help="Input file type: maxquant (default) or diann")
+    parser.add_argument("--metadata", help="Path to sample metadata (.csv/.tsv)")
     parser.add_argument("--contrast", default="treated,control", help="Contrast: treatment,control")
     parser.add_argument("--s0", type=float, default=0.1, help="s0 calibration parameter (default: 0.1)")
     parser.add_argument("--fdr", type=float, default=0.05, help="False discovery rate threshold (default: 0.05)")
@@ -685,12 +690,37 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--imputation-shift", type=float, default=1.8, help="Down-shift for imputation (default: 1.8)")
     parser.add_argument("--imputation-scale", type=float, default=0.3, help="Scale factor for imputation (default: 0.3)")
     parser.add_argument("--output", required=True, help="Output directory")
+    parser.add_argument("--demo", action="store_true", help="Run with bundled toy dataset")
+
     return parser
 
+
+def validate_args(args, parser):
+    if args.demo:
+        ## if demo is True, use bundled toy dataset
+        here = Path(__file__).resolve().parent
+        args.input = str(here / "examples" / "test_proteinGroups.txt")
+        args.metadata = str(here / "examples" / "test_metadata.csv")
+        args.input_type = "maxquant"
+        
+    else:
+        missing = []
+        if args.input is None:
+            missing.append("--input")
+        if args.metadata is None:
+            missing.append("--metadata")
+        if args.input_type is None:
+            missing.append("--input-type")
+
+        if missing:
+            parser.error(f"Missing required arguments: {', '.join(missing)}")
+
+    return args
 
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
+    args = validate_args(args, parser)
 
     result = run_analysis(
         input_path=Path(args.input),
