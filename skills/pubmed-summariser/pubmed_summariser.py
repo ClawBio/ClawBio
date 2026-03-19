@@ -156,8 +156,8 @@ def main(argv: list[str] | None = None) -> None:
 
     # HTML report
     if papers:
-        html = _build_html_report(query, papers)
-        report_path = write_html_report(args.output, "report.html", html)
+        report_html = _build_html_report(query, papers)
+        report_path = write_html_report(args.output, "report.html", report_html)
         print(f"Report saved to: {report_path}")
 
 
