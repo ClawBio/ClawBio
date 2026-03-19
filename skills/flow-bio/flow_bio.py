@@ -194,6 +194,25 @@ class FlowClient:
         """Full-text search across Flow resources."""
         return self._get("/search", params={"q": query})
 
+    def search_samples(self, filters: dict[str, str]) -> dict:
+        """Search samples with metadata and field filters.
+
+        Supported filter keys (all optional, combinable):
+          - name: substring match on sample name
+          - sample_types: comma-separated type identifiers
+          - organism: organism ID, or "true"/"false" for has/missing
+          - owner: substring match on owner name/username
+          - project: substring match on project name
+          - Any metadata attribute identifier (e.g. purification_target,
+            experimental_method): substring match on value, or "true"/"false"
+            for has/missing
+          - full_metadata: "true" to include all metadata (not just in_table)
+          - sort: field to sort by (default: -created)
+
+        Returns dict with "count", "page", and "samples" keys.
+        """
+        return self._get("/samples/search", params=filters)
+
     # -- actions ------------------------------------------------------------
 
     def upload_sample(
@@ -822,6 +841,35 @@ def write_report(output_dir: Path, action: str, data: dict) -> Path:
                 else:
                     lines.append(f"| {attr_id} | {attr_data} | |")
 
+    elif action == "search_samples":
+        filters = data.get("filters", {})
+        filter_desc = ", ".join(f"{k}={v}" for k, v in filters.items() if k != "full_metadata")
+        lines.append("## Sample Search Results")
+        lines.append("")
+        lines.append(f"**Filters**: {filter_desc}")
+        lines.append(f"**Found**: {data.get('count', 0)} samples")
+        lines.append("")
+        samples = data.get("samples", [])
+        if samples:
+            lines.append("| # | Name | ID | Type | Organism | Key Metadata |")
+            lines.append("|---|------|----|------|----------|--------------|")
+            for idx, s in enumerate(samples, 1):
+                name = s.get("name", "?")
+                sid = s.get("id", "?")
+                stype = s.get("sample_type", {})
+                stype_name = stype.get("name", stype) if isinstance(stype, dict) else str(stype)
+                org = s.get("organism", {})
+                org_name = org.get("name", org) if isinstance(org, dict) else str(org or "—")
+                metadata = s.get("metadata", {})
+                meta_parts = []
+                for attr_id, attr_data in metadata.items():
+                    if isinstance(attr_data, dict) and attr_data.get("value"):
+                        meta_parts.append(f"{attr_data.get('attribute_name', attr_id)}: {attr_data['value']}")
+                meta_str = "; ".join(meta_parts[:3])
+                if len(meta_parts) > 3:
+                    meta_str += f" (+{len(meta_parts) - 3} more)"
+                lines.append(f"| {idx} | {name} | {sid} | {stype_name} | {org_name} | {meta_str} |")
+
     elif action == "search":
         lines.append("## Search Results")
         lines.append("")
@@ -977,6 +1025,10 @@ def main():
 
     # Search
     parser.add_argument("--search", metavar="QUERY", help="Search Flow resources")
+    parser.add_argument(
+        "--search-samples", nargs="+", metavar="KEY=VALUE",
+        help="Search samples by metadata/fields (e.g. purification_target=SNRPB organism=Hs name=iCLIP)",
+    )
 
     # Upload
     upload_group = parser.add_argument_group("upload")
@@ -1009,7 +1061,7 @@ def main():
         args.executions, args.organisms, args.sample_types, args.data,
         args.metadata_attributes,
         args.pipeline, args.sample, args.execution, args.search,
-        args.upload_sample, args.run_pipeline,
+        args.search_samples, args.upload_sample, args.run_pipeline,
     ])
     if not has_action:
         parser.print_help()
@@ -1377,6 +1429,61 @@ def main():
             write_result_json(output_dir, "search", {"query": args.search, "results": results, "flow_url": base_url})
             write_report(output_dir, "search", {"query": args.search, "results": results, "flow_url": base_url})
             write_reproducibility(output_dir, f'python skills/flow-bio/flow_bio.py --search "{args.search}"', base_url)
+        return
+
+    # --- Search samples by metadata ---
+
+    if args.search_samples:
+        # Parse key=value pairs
+        filters: dict[str, str] = {"full_metadata": "true"}
+        for pair in args.search_samples:
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                filters[k] = v
+            else:
+                # Treat bare words as name search
+                filters["name"] = pair
+
+        results = client.search_samples(filters)
+        samples = results.get("samples", []) if isinstance(results, dict) else results
+        count = results.get("count", len(samples)) if isinstance(results, dict) else len(samples)
+
+        if args.json:
+            _print_json(results)
+        else:
+            filter_desc = " ".join(f"{k}={v}" for k, v in filters.items() if k != "full_metadata")
+            print(f"\nSample search: {filter_desc}")
+            print(f"Found: {count} samples\n")
+            for idx, s in enumerate(samples, 1):
+                sid = s.get("id", "?")
+                name = s.get("name", "?")
+                stype = s.get("sample_type", {})
+                stype_name = stype.get("name", stype) if isinstance(stype, dict) else str(stype)
+                org = s.get("organism", {})
+                org_name = org.get("name", org) if isinstance(org, dict) else str(org or "—")
+                owner = s.get("owner_name", "")
+                print(f"  {idx:>3}. {name}")
+                print(f"       id: {sid}  type: {stype_name}  organism: {org_name}")
+                # Show metadata values
+                metadata = s.get("metadata", {})
+                meta_parts = []
+                for attr_id, attr_data in metadata.items():
+                    if isinstance(attr_data, dict):
+                        val = attr_data.get("value")
+                        if val:
+                            label = attr_data.get("attribute_name", attr_id)
+                            meta_parts.append(f"{label}: {val}")
+                if meta_parts:
+                    print(f"       {', '.join(meta_parts)}")
+                if owner:
+                    print(f"       owner: {owner}")
+                print()
+        if output_dir:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            write_result_json(output_dir, "search_samples", {"filters": filters, "count": count, "samples": samples, "flow_url": base_url})
+            write_report(output_dir, "search_samples", {"filters": filters, "count": count, "samples": samples, "flow_url": base_url})
+            cmd_filters = " ".join(f"{k}={v}" for k, v in filters.items() if k != "full_metadata")
+            write_reproducibility(output_dir, f'python skills/flow-bio/flow_bio.py --search-samples {cmd_filters}', base_url)
         return
 
     # --- Upload ---
