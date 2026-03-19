@@ -26,7 +26,7 @@ def resolve_rsid(rsid: str, max_traits: int = 5) -> dict:
     Raises ValueError if the API fails or returns no associations.
     """
     # Try reading cached gwas-lookup result first
-    cached = _try_cached_result(rsid)
+    cached = _try_cached_result(rsid, max_traits)
     if cached:
         return cached
 
@@ -34,7 +34,7 @@ def resolve_rsid(rsid: str, max_traits: int = 5) -> dict:
     return _query_gwas_catalog(rsid, max_traits)
 
 
-def _try_cached_result(rsid: str) -> dict | None:
+def _try_cached_result(rsid: str, max_traits: int) -> dict | None:
     """Check if gwas-lookup has a cached result.json we can reuse."""
     for candidate in [
         _GWAS_LOOKUP_DIR / "data" / f"demo_{rsid}.json",
@@ -45,7 +45,7 @@ def _try_cached_result(rsid: str) -> dict | None:
                 data = json.loads(candidate.read_text())
                 merged = data.get("data", {}).get("merged", {})
                 if merged:
-                    return _extract_traits_and_genes(rsid, merged, 5)
+                    return _extract_traits_and_genes(rsid, merged, max_traits)
             except (json.JSONDecodeError, KeyError):
                 continue
     return None

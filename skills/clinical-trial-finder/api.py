@@ -95,7 +95,9 @@ def parse_input(input_path: Path) -> dict:
     """
     lines = input_path.read_text().splitlines()
     terms = [
-        line.strip() for line in lines if line.strip() and not line.startswith("#")
+        line.strip()
+        for line in lines
+        if line.strip() and not line.lstrip().startswith("#")
     ]
     if not terms:
         raise ValueError(

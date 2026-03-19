@@ -585,7 +585,7 @@ def test_write_commands_demo(tmp_path):
     assert path.exists()
     content = path.read_text()
     assert "--demo" in content
-    assert f"--output {tmp_path}" in content
+    assert f"--output '{tmp_path}'" in content
 
 
 def test_write_commands_query_with_status(tmp_path):

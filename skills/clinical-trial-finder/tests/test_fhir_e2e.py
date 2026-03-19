@@ -8,11 +8,19 @@ Run:  python3 -m pytest skills/clinical-trial-finder/tests/test_fhir_e2e.py -v
 
 import importlib.util
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
 import pytest
+
+# Skip E2E tests in CI to avoid flaky failures from live API calls.
+# Run locally with: RUN_E2E=1 python3 -m pytest tests/test_fhir_e2e.py -v
+pytestmark = pytest.mark.skipif(
+    os.getenv("RUN_E2E") != "1" and os.getenv("CI") == "true",
+    reason="E2E tests skipped in CI (set RUN_E2E=1 to force)",
+)
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 

@@ -673,7 +673,7 @@ def write_commands(args: argparse.Namespace, output_dir: Path) -> Path:
     if getattr(args, "ot_max_diseases", 5) != 5:
         parts.append(f"--ot-max-diseases {args.ot_max_diseases}")
 
-    parts.append(f"--output {output_dir}")
+    parts.append(f"--output {_sq(output_dir)}")
     path = output_dir / "commands.sh"
     path.write_text(" \\\n  ".join(parts) + "\n")
     return path
