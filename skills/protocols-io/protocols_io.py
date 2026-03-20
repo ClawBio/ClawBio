@@ -259,6 +259,7 @@ def search_protocols(
     page_id: int = 1,
     order_field: str = "activity",
     peer_reviewed: int | None = None,
+    published_on: int | None = None,
 ) -> dict | None:
     """Search protocols.io for protocols matching a keyword query."""
     params: dict = {
@@ -270,6 +271,8 @@ def search_protocols(
     }
     if peer_reviewed is not None:
         params["peer_reviewed"] = peer_reviewed
+    if published_on is not None:
+        params["published_on"] = published_on
     return _api_get(f"{API_V3}/protocols", params=params)
 
 
@@ -603,6 +606,9 @@ def main() -> None:
                         help="Protocol filter type")
     parser.add_argument("--peer-reviewed", action="store_const", const=1, default=None,
                         help="Filter to peer-reviewed protocols only (omit to show all)")
+    parser.add_argument("--published-on", type=str, default=None,
+                        help="Filter to protocols published on or after this date "
+                             "(Unix timestamp or YYYY-MM-DD)")
 
     args = parser.parse_args()
 
@@ -628,6 +634,27 @@ def main() -> None:
                 print("ERROR: Cannot search without an access token.", file=sys.stderr)
                 sys.exit(1)
 
+        # Parse --published-on: accept Unix timestamp int or YYYY-MM-DD string
+        published_on: int | None = None
+        if args.published_on:
+            raw = args.published_on.strip()
+            if raw.isdigit():
+                published_on = int(raw)
+            else:
+                try:
+                    published_on = int(
+                        datetime.strptime(raw, "%Y-%m-%d")
+                        .replace(tzinfo=timezone.utc)
+                        .timestamp()
+                    )
+                except ValueError:
+                    print(
+                        f"ERROR: --published-on value '{raw}' must be a Unix timestamp "
+                        "or YYYY-MM-DD date.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+
         # The protocols.io API uses 0-based page indexing when peer_reviewed=1
         # but 1-based otherwise. Normalise so --page 1 always means first page.
         effective_page = args.page - 1 if args.peer_reviewed else args.page
@@ -639,6 +666,7 @@ def main() -> None:
                 page_size=args.page_size,
                 page_id=effective_page,
                 peer_reviewed=args.peer_reviewed,
+                published_on=published_on,
             )
         if not data:
             print("ERROR: Search failed.", file=sys.stderr)
