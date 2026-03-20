@@ -643,7 +643,7 @@ def write_report(output_dir: Path, action: str, data: dict) -> Path:
         lines.append(heading)
         lines.append("")
         if not is_live:
-            lines.append("This report was generated with synthetic data. No Flow API calls were made.")
+            lines.append("This report was generated with cached data. No Flow API calls were made.")
             lines.append("")
         lines.append(f"- **User**: {data.get('user', 'N/A')}")
         lines.append(f"- **Authenticated**: {'yes' if data.get('authenticated') else 'no'}")
@@ -1051,7 +1051,7 @@ def main():
     # Output
     parser.add_argument("--output", metavar="DIR", help="Output directory for reports")
     parser.add_argument("--json", action="store_true", help="Output raw JSON instead of formatted tables")
-    parser.add_argument("--demo", action="store_true", help="Run with synthetic data (offline, no credentials)")
+    parser.add_argument("--demo", action="store_true", help="Run with cached data (offline, no credentials)")
 
     args = parser.parse_args()
 
