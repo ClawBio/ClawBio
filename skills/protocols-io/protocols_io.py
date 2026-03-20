@@ -257,18 +257,19 @@ def search_protocols(
     page_size: int = 10,
     page_id: int = 1,
     order_field: str = "activity",
+    peer_reviewed: int | None = None,
 ) -> dict | None:
     """Search protocols.io for protocols matching a keyword query."""
-    return _api_get(
-        f"{API_V3}/protocols",
-        params={
-            "filter": filter_type,
-            "key": query,
-            "order_field": order_field,
-            "page_size": page_size,
-            "page_id": page_id,
-        },
-    )
+    params: dict = {
+        "filter": filter_type,
+        "key": query,
+        "order_field": order_field,
+        "page_size": page_size,
+        "page_id": page_id,
+    }
+    if peer_reviewed is not None:
+        params["peer_reviewed"] = peer_reviewed
+    return _api_get(f"{API_V3}/protocols", params=params)
 
 
 def _parse_protocol_id(raw: str) -> str:
@@ -334,7 +335,10 @@ def format_search_results(data: dict, query: str) -> str:
         n_steps = p.get("number_of_steps") or p.get("stats", {}).get("number_of_steps", "?")
         url = f"https://www.protocols.io/view/{uri}" if uri else ""
 
+        peer_reviewed = p.get("peer_reviewed")
         lines.append(f"## {i}. {title}\n")
+        if peer_reviewed == 1:
+            lines.append(f"- ✅ Peer-reviewed method")
         lines.append(f"- **Creator**: {creator}")
         lines.append(f"- **Published**: {pub_str}")
         lines.append(f"- **Steps**: {n_steps}")
@@ -499,9 +503,21 @@ def run_demo() -> None:
     demo_search = _load_demo_json("demo_search_results.json")
     demo_protocol = _load_demo_json("demo_protocol.json")
 
-    print("\n--- Search Demo: \"RNA extraction\" ---\n")
+    print("\n--- Search Demo: \"RNA extraction\" (all results) ---\n")
     search_md = format_search_results(demo_search, "RNA extraction")
     print(search_md)
+
+    print("\n--- Search Demo: \"RNA extraction\" --peer-reviewed ---\n")
+    peer_reviewed_data = {
+        **demo_search,
+        "items": [p for p in demo_search.get("items", []) if p.get("peer_reviewed") == 1],
+        "pagination": {
+            **demo_search.get("pagination", {}),
+            "total_results": sum(1 for p in demo_search.get("items", []) if p.get("peer_reviewed") == 1),
+        },
+    }
+    pr_md = format_search_results(peer_reviewed_data, "RNA extraction (peer-reviewed)")
+    print(pr_md)
 
     print("\n--- Protocol Detail Demo ---\n")
     detail_md = format_protocol_detail(demo_protocol)
@@ -556,6 +572,8 @@ def main() -> None:
     parser.add_argument("--filter", type=str, default="public",
                         choices=["public", "user_public", "user_private", "shared_with_user"],
                         help="Protocol filter type")
+    parser.add_argument("--peer-reviewed", action="store_const", const=1, default=None,
+                        help="Filter to peer-reviewed protocols only (omit to show all)")
 
     args = parser.parse_args()
 
@@ -587,6 +605,7 @@ def main() -> None:
                 filter_type=args.filter,
                 page_size=args.page_size,
                 page_id=args.page,
+                peer_reviewed=args.peer_reviewed,
             )
         if not data:
             print("ERROR: Search failed.", file=sys.stderr)
