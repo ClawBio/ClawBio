@@ -403,6 +403,28 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "bioc": {
+        "script": SKILLS_DIR / "bioconductor-bridge" / "bioconductor_bridge.py",
+        "demo_args": ["--demo"],
+        "description": "Bioconductor package discovery, workflow recommendation, setup, and starter code generation",
+        "allowed_extra_flags": {
+            "--search",
+            "--recommend",
+            "--workflow",
+            "--package-details",
+            "--docs-search",
+            "--package-docs",
+            "--list-domains",
+            "--setup",
+            "--install",
+            "--format",
+            "--modality",
+            "--container",
+            "--max-results",
+        },
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
     "illumina": {
         "script": SKILLS_DIR / "illumina-bridge" / "illumina_bridge.py",
         "demo_args": ["--demo"],
@@ -1046,6 +1068,19 @@ def main():
         default=None,
         help="Local CellTypist model name or path for scrna skill",
     )
+    run_parser.add_argument("--search", default=None, help="Live Bioconductor package search query for bioc skill")
+    run_parser.add_argument("--recommend", default=None, help="Recommendation query for bioc skill")
+    run_parser.add_argument("--workflow", default=None, help="Workflow query for bioc skill")
+    run_parser.add_argument("--package-details", default=None, help="Bioconductor package name for bioc skill")
+    run_parser.add_argument("--docs-search", default=None, help="Documentation search query for bioc skill")
+    run_parser.add_argument("--package-docs", default=None, help="Fetch package documentation for bioc skill")
+    run_parser.add_argument("--list-domains", action="store_true", help="List supported Bioconductor domains")
+    run_parser.add_argument("--setup", action="store_true", help="Inspect local Bioconductor setup")
+    run_parser.add_argument("--install", default=None, help="Comma-separated Bioconductor packages to install")
+    run_parser.add_argument("--format", dest="skill_format", default=None, help="Input format hint for bioc skill")
+    run_parser.add_argument("--container", default=None, help="Canonical object/container hint for bioc skill")
+    run_parser.add_argument("--modality", default=None, help="Modality hint for bioc skill")
+    run_parser.add_argument("--max-results", type=int, default=None, help="Maximum bioc search/recommendation results")
 
     args = parser.parse_args()
 
@@ -1196,6 +1231,32 @@ def main():
             extra.extend(["--annotate", args.annotate])
         if getattr(args, "annotation_model", None):
             extra.extend(["--annotation-model", args.annotation_model])
+        if getattr(args, "search", None):
+            extra.extend(["--search", args.search])
+        if getattr(args, "recommend", None):
+            extra.extend(["--recommend", args.recommend])
+        if getattr(args, "workflow", None):
+            extra.extend(["--workflow", args.workflow])
+        if getattr(args, "package_details", None):
+            extra.extend(["--package-details", args.package_details])
+        if getattr(args, "docs_search", None):
+            extra.extend(["--docs-search", args.docs_search])
+        if getattr(args, "package_docs", None):
+            extra.extend(["--package-docs", args.package_docs])
+        if getattr(args, "list_domains", False):
+            extra.append("--list-domains")
+        if getattr(args, "setup", False):
+            extra.append("--setup")
+        if getattr(args, "install", None):
+            extra.extend(["--install", args.install])
+        if getattr(args, "skill_format", None):
+            extra.extend(["--format", args.skill_format])
+        if getattr(args, "container", None):
+            extra.extend(["--container", args.container])
+        if getattr(args, "modality", None):
+            extra.extend(["--modality", args.modality])
+        if getattr(args, "max_results", None) is not None:
+            extra.extend(["--max-results", str(args.max_results)])
 
         result = run_skill(
             skill_name=args.skill,
