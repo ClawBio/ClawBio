@@ -191,6 +191,15 @@ def test_format_steps_count():
     assert "Step 3." in md
 
 
+def test_format_steps_payload_list():
+    """Steps formatter handles v4 API response where steps are in 'payload' list."""
+    data = {"payload": [{"step": "Do A"}, {"step": "Do B"}], "status_code": 0, "items_count": 2}
+    md = format_steps(data, "test-456")
+    assert "2 steps" in md
+    assert "Step 1." in md
+    assert "Step 2." in md
+
+
 def test_format_steps_json_draft_parsing():
     """Steps with draft JSON content are parsed to plain text."""
     draft = json.dumps({"blocks": [{"text": "Extracted text here"}]})

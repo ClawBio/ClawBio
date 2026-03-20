@@ -331,7 +331,7 @@ def format_search_results(data: dict, query: str) -> str:
         creator = p.get("creator", {}).get("name", "Unknown")
         published = p.get("published_on")
         pub_str = datetime.fromtimestamp(published, tz=timezone.utc).strftime("%Y-%m-%d") if published else "Draft"
-        n_steps = p.get("number_of_steps", "?")
+        n_steps = p.get("number_of_steps") or p.get("stats", {}).get("number_of_steps", "?")
         url = f"https://www.protocols.io/view/{uri}" if uri else ""
 
         lines.append(f"## {i}. {title}\n")
@@ -378,9 +378,10 @@ def format_protocol_detail(data: dict) -> str:
         lines.append(f"- **URL**: [{url}]({url})")
 
     stats = p.get("stats", {})
-    if stats:
+    n_steps = stats.get("number_of_steps") or p.get("number_of_steps", "?")
+    if stats or p.get("number_of_steps"):
         lines.append(f"- **Views**: {stats.get('number_of_views', '?')} | "
-                      f"**Steps**: {stats.get('number_of_steps', '?')} | "
+                      f"**Steps**: {n_steps} | "
                       f"**Exports**: {stats.get('number_of_exports', '?')}")
 
     lines.append("")
@@ -415,7 +416,7 @@ def format_protocol_detail(data: dict) -> str:
         for j, s in enumerate(steps, 1):
             section = s.get("section")
             if section:
-                lines.append(f"### {section}\n")
+                lines.append(f"### {_strip_html(section)}\n")
             step_text = s.get("step", "")
             if isinstance(step_text, str) and step_text.startswith("{"):
                 try:
@@ -431,9 +432,21 @@ def format_protocol_detail(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _strip_html(text: str) -> str:
+    """Remove HTML tags from a string."""
+    import re
+    return re.sub(r"<[^>]+>", "", text).strip()
+
+
 def format_steps(data: dict, protocol_id: str) -> str:
     """Render protocol steps as markdown."""
-    steps = data.get("steps", [])
+    # v4 /steps endpoint returns steps as a list under "payload";
+    # fall back to "steps" key for backward-compat with mocked/demo data.
+    payload = data.get("payload")
+    if isinstance(payload, list):
+        steps = payload
+    else:
+        steps = data.get("steps", [])
     lines = [
         f"# Protocol Steps — {protocol_id}\n",
         f"**{len(steps)} steps**\n",
@@ -441,7 +454,7 @@ def format_steps(data: dict, protocol_id: str) -> str:
     for j, s in enumerate(steps, 1):
         section = s.get("section")
         if section:
-            lines.append(f"### {section}\n")
+            lines.append(f"### {_strip_html(section)}\n")
         components = s.get("components", [])
         step_text = ""
         for comp in components:
