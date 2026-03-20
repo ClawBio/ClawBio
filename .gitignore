@@ -15,4 +15,8 @@ skills/pharmgx-reporter/report/
 skills/genome-compare/data/manuel_corpas_23andme.txt
 skills/pr-audit/
 data/
+!skills/methylation-clock/data/
+!skills/methylation-clock/data/GSE139307_small.csv.gz
+skills/proteomics-de/output_diann_test/
+skills/proteomics-de/output_maxquant_test/
 .venv/
