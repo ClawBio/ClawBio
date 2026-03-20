@@ -476,7 +476,7 @@ SKILLS = {
     "protocols-io": {
         "script": SKILLS_DIR / "protocols-io" / "protocols_io.py",
         "demo_args": ["--demo"],
-        "description": "protocols.io bridge — search, browse, and retrieve scientific protocols via REST API",
+        "description": "protocols.io bridge: search, browse, and retrieve scientific protocols via REST API",
         "allowed_extra_flags": {
             "--login",
             "--search",
