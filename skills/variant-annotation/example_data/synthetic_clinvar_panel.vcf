@@ -1,0 +1,40 @@
+##fileformat=VCFv4.2
+##fileDate=20260319
+##source=ClawBioSyntheticClinVarPanel
+##reference=GRCh38
+##contig=<ID=1,length=248956422>
+##contig=<ID=6,length=170805979>
+##contig=<ID=7,length=159345973>
+##contig=<ID=10,length=133797422>
+##contig=<ID=11,length=135086622>
+##contig=<ID=12,length=133275309>
+##contig=<ID=13,length=114364328>
+##contig=<ID=14,length=107043718>
+##contig=<ID=16,length=90338345>
+##contig=<ID=19,length=58617616>
+##contig=<ID=22,length=50818468>
+##INFO=<ID=GENE,Number=1,Type=String,Description="Associated gene symbol">
+##INFO=<ID=CLNSIG,Number=1,Type=String,Description="Simplified ClinVar clinical significance label">
+##INFO=<ID=DBSRC,Number=1,Type=String,Description="Source database for annotation">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SYNTHETIC_SAMPLE
+1	11794419	rs1801131	T	A	.	PASS	GENE=MTHFR;CLNSIG=Benign/Likely_benign;DBSRC=ClinVar	GT	0/1
+1	11796321	rs1801133	G	A	.	PASS	GENE=MTHFR;CLNSIG=Drug_response;DBSRC=ClinVar	GT	0/1
+1	169549811	rs6025	C	A	.	PASS	GENE=F5;CLNSIG=Pathogenic/Risk_factor;DBSRC=ClinVar	GT	0/1
+6	18130687	rs1142345	T	A	.	PASS	GENE=TPMT;CLNSIG=Drug_response;DBSRC=ClinVar	GT	0/1
+6	18138997	rs1800460	C	A	.	PASS	GENE=TPMT;CLNSIG=Drug_response;DBSRC=ClinVar	GT	0/1
+6	26090951	rs1799945	C	G	.	PASS	GENE=HFE;CLNSIG=Benign/Likely_benign;DBSRC=ClinVar	GT	1/1
+6	26092913	rs1800562	G	A	.	PASS	GENE=HFE;CLNSIG=Pathogenic/Likely_pathogenic;DBSRC=ClinVar	GT	0/1
+7	117559591	rs113993960	TCTT	T	.	PASS	GENE=CFTR;CLNSIG=Pathogenic;DBSRC=ClinVar	GT	0/1
+10	94942290	rs1799853	C	A	.	PASS	GENE=CYP2C9;CLNSIG=Drug_response;DBSRC=ClinVar	GT	0/1
+10	94981296	rs1057910	A	C	.	PASS	GENE=CYP2C9;CLNSIG=Drug_response;DBSRC=ClinVar	GT	0/1
+11	5227002	rs334	T	A	.	PASS	GENE=HBB;CLNSIG=Pathogenic;DBSRC=ClinVar	GT	0/1
+11	46739505	rs1799963	G	A	.	PASS	GENE=F2;CLNSIG=Pathogenic/Risk_factor;DBSRC=ClinVar	GT	0/1
+12	21178615	rs4149056	T	A	.	PASS	GENE=SLCO1B1;CLNSIG=Drug_response;DBSRC=ClinVar	GT	0/1
+13	20189547	rs80338939	CCCCCC	CCCCC	.	PASS	GENE=GJB2;CLNSIG=Pathogenic;DBSRC=ClinVar	GT	0/1
+14	94378610	rs28929474	C	A	.	PASS	GENE=SERPINA1;CLNSIG=Pathogenic;DBSRC=ClinVar	GT	0/1
+16	31096368	rs9923231	C	A	.	PASS	GENE=VKORC1;CLNSIG=Drug_response;DBSRC=ClinVar	GT	1/1
+19	44908684	rs429358	T	C	.	PASS	GENE=APOE;CLNSIG=Risk_factor;DBSRC=ClinVar	GT	0/1
+19	44908822	rs7412	C	T	.	PASS	GENE=APOE;CLNSIG=Risk_factor;DBSRC=ClinVar	GT	0/0
+22	42128945	rs3892097	C	A	.	PASS	GENE=CYP2D6;CLNSIG=Drug_response;DBSRC=ClinVar	GT	1/1
+22	42130692	rs1065852	G	A	.	PASS	GENE=CYP2D6;CLNSIG=Drug_response;DBSRC=ClinVar	GT	0/1
