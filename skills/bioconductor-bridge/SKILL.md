@@ -2,7 +2,7 @@
 name: bioconductor-bridge
 description: "Bioconductor package discovery, workflow recommendation, setup inspection, and starter code generation grounded in official Bioconductor containers and BiocManager."
 version: 0.1.0
-author: OpenAI
+author: Hiranyamaya Dash
 license: MIT
 tags: [bioconductor, r, package-discovery, workflows, transcriptomics, genomics, single-cell, annotation]
 metadata:
