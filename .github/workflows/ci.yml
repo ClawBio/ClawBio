@@ -31,6 +31,37 @@ jobs:
           git diff --stat HEAD~1 HEAD >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      scrna: ${{ steps.filter.outputs.scrna }}
+      scrna_embedding: ${{ steps.filter.outputs.scrna_embedding }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            scrna:
+              - "skills/scrna-orchestrator/**"
+              - "skills/bio-orchestrator/**"
+              - "clawbio/**"
+              - "clawbio.py"
+              - "pytest.ini"
+              - "requirements.txt"
+              - ".github/workflows/ci.yml"
+            scrna_embedding:
+              - "skills/scrna-embedding/**"
+              - "skills/bio-orchestrator/**"
+              - "clawbio/**"
+              - "clawbio.py"
+              - "pytest.ini"
+              - "requirements.txt"
+              - ".github/workflows/ci.yml"
+
   skill-lint:
     runs-on: ubuntu-latest
     steps:
@@ -94,6 +125,8 @@ jobs:
         run: python -m pytest skills/rnaseq-de/tests/test_rnaseq_de.py -v
 
   scrna-test:
+    needs: changes
+    if: needs.changes.outputs.scrna == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -117,6 +150,8 @@ jobs:
         run: python -m pytest skills/scrna-orchestrator/tests/test_scrna_orchestrator.py -v -rA
 
   scrna-embedding-test:
+    needs: changes
+    if: needs.changes.outputs.scrna_embedding == 'true'
     runs-on: ubuntu-latest
 
     steps:
