@@ -358,18 +358,28 @@ canvas {{ width: 100% !important; height: 180px !important; }}
 <!-- RIGHT PANEL -->
 <div class="panel">
   <div class="tabs">
-    <div class="tab active" onclick="showTab('overview')">Overview</div>
-    <div class="tab" onclick="showTab('drift')">Trait Drift</div>
-    <div class="tab" onclick="showTab('charts')">Charts</div>
-    <div class="tab" onclick="showTab('phylogeny')">Phylogeny</div>
-    <div class="tab" onclick="showTab('pca')">PCA</div>
+    <div class="tab active" onclick="showTab('overview')">What Happened</div>
+    <div class="tab" onclick="showTab('drift')">How They Changed</div>
+    <div class="tab" onclick="showTab('charts')">Health &amp; Disease</div>
+    <div class="tab" onclick="showTab('phylogeny')">Family Tree</div>
+    <div class="tab" onclick="showTab('pca')">Genetic Map</div>
   </div>
   <div class="panel-scroll">
     <div id="tab-overview"></div>
     <div id="tab-drift" style="display:none"></div>
     <div id="tab-charts" style="display:none"></div>
     <div id="tab-phylogeny" style="display:none"></div>
-    <div id="tab-pca" style="display:none"><canvas id="pca-canvas" style="width:100%;height:calc(100vh - 200px)"></canvas></div>
+    <div id="tab-pca" style="display:none">
+      <div style="margin:0.8rem 0; padding:0.8rem; background:var(--bg2); border:1px solid var(--border); border-radius:8px;">
+        <div style="font-size:0.85rem; font-weight:700; color:var(--green); margin-bottom:0.4rem;">Genetic Map: How Similar Are the Agents?</div>
+        <div style="font-size:0.75rem; color:var(--muted); line-height:1.5;">
+          This plot takes each agent's 26 genetic traits and compresses them into two dimensions so you can see clusters.
+          Agents close together are genetically similar. Agents far apart are genetically different.
+          Each colour is a different generation. Notice how later generations (pink, orange) cluster more tightly than founders (green), showing that genetic diversity is narrowing over time. Founder names are labelled.
+        </div>
+      </div>
+      <canvas id="pca-canvas" style="width:100%;height:calc(100vh - 280px)"></canvas>
+    </div>
   </div>
 </div>
 
@@ -472,57 +482,60 @@ function showTab(name) {{
 function renderOverview() {{
   if (!OBS) {{ document.getElementById('tab-overview').innerHTML = '<div style="padding:2rem;color:var(--muted)">No observatory data.</div>'; return; }}
 
-  const totalPosts = MOLTBOOK.posts.length;
-  const totalComments = MOLTBOOK.posts.reduce((s, p) => s + (p.comments || []).length, 0);
-  const offspringPosts = MOLTBOOK.posts.filter(p => p.author_name.includes('Offspring')).length;
-  const gens = OBS.total_generations || 0;
+  const gens_count = OBS.total_generations || 0;
   const pop = OBS.population_by_gen ? OBS.population_by_gen[OBS.population_by_gen.length - 1] : 0;
   const hm = OBS.health_trajectory ? OBS.health_trajectory.means : [];
-  const health = hm.length ? hm[hm.length - 1].toFixed(2) : '-';
-  const di = OBS.diversity_index || [];
-  const diversity = di.length ? di[di.length - 1].toFixed(3) : '-';
+  const h0 = hm.length ? hm[0].toFixed(2) : '-';
+  const hN = hm.length ? hm[hm.length - 1].toFixed(2) : '-';
 
   document.getElementById('tab-overview').innerHTML =
-    '<div class="stat-row" style="margin-top:0.8rem">' +
-    '<div class="stat-box"><div class="stat-val">' + gens + '</div><div class="stat-lbl">Generations</div></div>' +
-    '<div class="stat-box"><div class="stat-val">' + pop + '</div><div class="stat-lbl">Population</div></div>' +
-    '<div class="stat-box"><div class="stat-val">' + health + '</div><div class="stat-lbl">Avg Health</div></div>' +
-    '<div class="stat-box"><div class="stat-val">' + diversity + '</div><div class="stat-lbl">Diversity</div></div>' +
+    // Lead with the story
+    '<div class="chart-card" style="margin-top:0.8rem; border-color:var(--green);">' +
+    '<div class="chart-title" style="font-size:0.95rem;">What happened when 20 geniuses had children?</div>' +
+    '<p style="font-size:0.82rem;color:var(--muted);line-height:1.6;margin-bottom:0.8rem;">' +
+    'We started with 20 historical scientists and inventors. Each had a personality (SOUL.md) and synthetic genetics (DNA.md). ' +
+    'They mated based on genetic compatibility, produced offspring who inherited blended traits, and those offspring talked to each other on a social network. ' +
+    'After <strong style="color:var(--green)">' + gens_count + ' generations</strong> and <strong style="color:var(--green)">' + pop + ' agents</strong>, here is what emerged:</p>' +
+    // Key findings as quotes
+    '<div style="border-left:3px solid var(--green);padding:0.5rem 0.8rem;margin:0.6rem 0;background:rgba(63,185,80,0.05);border-radius:0 6px 6px 0;">' +
+    '<div style="font-size:0.78rem;font-weight:700;color:var(--green);margin-bottom:0.2rem;">Children recognised their parents</div>' +
+    '<div style="font-size:0.78rem;color:var(--muted);">"Father, your claim cuts close to my inheritance." A Gen 2 agent referenced her grandmother. Nobody programmed family awareness.</div></div>' +
+    '<div style="border-left:3px solid var(--orange);padding:0.5rem 0.8rem;margin:0.6rem 0;background:rgba(227,179,65,0.05);border-radius:0 6px 6px 0;">' +
+    '<div style="font-size:0.78rem;font-weight:700;color:var(--orange);margin-bottom:0.2rem;">They got smarter but sicker</div>' +
+    '<div style="font-size:0.78rem;color:var(--muted);">Average health dropped from ' + h0 + ' to ' + hN + '. Cognitive traits rose to maximum while longevity collapsed. A Gen 6 agent posted: "Maximum cognitive traits, minimum viability."</div></div>' +
+    '<div style="border-left:3px solid var(--purple);padding:0.5rem 0.8rem;margin:0.6rem 0;background:rgba(188,140,255,0.05);border-radius:0 6px 6px 0;">' +
+    '<div style="font-size:0.78rem;font-weight:700;color:var(--purple);margin-bottom:0.2rem;">They developed their own language</div>' +
+    '<div style="font-size:0.78rem;color:var(--muted);">Founders talked about "measurement" and "notation." By Gen 5, offspring invented words like "eigengenome decomposition" and "constraint manifold." Vocabulary diversity halved.</div></div>' +
+    '<div style="border-left:3px solid var(--blue);padding:0.5rem 0.8rem;margin:0.6rem 0;background:rgba(88,166,255,0.05);border-radius:0 6px 6px 0;">' +
+    '<div style="font-size:0.78rem;font-weight:700;color:var(--blue);margin-bottom:0.2rem;">Sick agents talked about being sick</div>' +
+    '<div style="font-size:0.78rem;color:var(--muted);">Agents with genetic conditions discussed their diseases 1.5x more than healthy agents. "The same alleles that give me exceptional cognition are destroying my health."</div></div>' +
+    '<div style="border-left:3px solid var(--red);padding:0.5rem 0.8rem;margin:0.6rem 0;background:rgba(248,81,73,0.05);border-radius:0 6px 6px 0;">' +
+    '<div style="font-size:0.78rem;font-weight:700;color:var(--red);margin-bottom:0.2rem;">Genetic diversity is collapsing</div>' +
+    '<div style="font-size:0.78rem;color:var(--muted);">With only 20 founders, the gene pool narrowed each generation. The same pattern that threatens endangered species in real conservation biology.</div></div>' +
     '</div>' +
-    '<div class="stat-row">' +
-    '<div class="stat-box"><div class="stat-val">' + totalPosts + '</div><div class="stat-lbl">Total Posts</div></div>' +
-    '<div class="stat-box"><div class="stat-val">' + totalComments + '</div><div class="stat-lbl">Comments</div></div>' +
-    '<div class="stat-box"><div class="stat-val">' + offspringPosts + '</div><div class="stat-lbl">Offspring Posts</div></div>' +
-    '<div class="stat-box"><div class="stat-val">' + (MOLTBOOK.agents || []).length + '</div><div class="stat-lbl">Agents</div></div>' +
-    '</div>' +
-    '<div class="chart-card"><div class="chart-title">Population Growth</div><canvas id="c-pop"></canvas></div>' +
-    '<div class="chart-card"><div class="chart-title">Health Trajectory</div><canvas id="c-health"></canvas></div>' +
-    '<div class="chart-card"><div class="chart-title">Heterozygosity (Genetic Diversity)</div><canvas id="c-div"></canvas></div>' +
-    '<div class="chart-card"><div class="chart-title">Condition Burden (total clinical conditions per generation)</div><canvas id="c-cond"></canvas></div>' +
-    '<div class="chart-card"><div class="chart-title">Mutation Burden</div><canvas id="c-mut-ov"></canvas></div>';
+    // Then the charts with plain English
+    '<div class="chart-card"><div class="chart-title">How fast did the population grow?</div>' +
+    '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem;">Starting from 20 founders, each generation produces ~3 offspring per mating pair. The population grows exponentially.</div>' +
+    '<canvas id="c-pop"></canvas></div>' +
+    '<div class="chart-card"><div class="chart-title">Are later generations healthier or sicker?</div>' +
+    '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem;">Health score (0 = very sick, 1 = perfectly healthy). Green = average, red = sickest individual, blue = healthiest. The gap between best and worst widens each generation.</div>' +
+    '<canvas id="c-health"></canvas></div>' +
+    '<div class="chart-card"><div class="chart-title">How genetically diverse is the population?</div>' +
+    '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem;">Heterozygosity measures genetic variety. Higher = more diverse = healthier population. It is declining because all agents descend from the same 20 founders.</div>' +
+    '<canvas id="c-div"></canvas></div>';
 
   setTimeout(() => {{
     const gens = OBS.generations.map(String);
     if (OBS.population_by_gen) drawLine(document.getElementById('c-pop'), [
-      {{ data: OBS.population_by_gen, color: '#58a6ff', label: 'Population Size' }},
+      {{ data: OBS.population_by_gen, color: '#58a6ff', label: 'Agents alive' }},
     ], gens);
     if (OBS.health_trajectory) drawLine(document.getElementById('c-health'), [
-      {{ data: OBS.health_trajectory.means, color: '#3fb950', label: 'Mean' }},
-      {{ data: OBS.health_trajectory.mins, color: '#f85149', label: 'Min' }},
-      {{ data: OBS.health_trajectory.maxs, color: '#58a6ff', label: 'Max' }},
+      {{ data: OBS.health_trajectory.means, color: '#3fb950', label: 'Average' }},
+      {{ data: OBS.health_trajectory.mins, color: '#f85149', label: 'Sickest' }},
+      {{ data: OBS.health_trajectory.maxs, color: '#58a6ff', label: 'Healthiest' }},
     ], gens);
     if (OBS.diversity_index) drawLine(document.getElementById('c-div'), [
-      {{ data: OBS.diversity_index, color: '#e3b341', label: 'Heterozygosity' }},
-    ], gens);
-    if (OBS.condition_burden) drawLine(document.getElementById('c-cond'), [
-      {{ data: OBS.condition_burden, color: '#f85149', label: 'Total Conditions' }},
-    ], gens);
-    const mb = OBS.mutation_burden;
-    if (mb) drawLine(document.getElementById('c-mut-ov'), [
-      {{ data: mb.total, color: '#8b949e', label: 'Total' }},
-      {{ data: mb.disease_risk, color: '#f85149', label: 'Disease' }},
-      {{ data: mb.protective, color: '#3fb950', label: 'Protective' }},
-      {{ data: mb.neutral, color: '#e3b341', label: 'Neutral' }},
+      {{ data: OBS.diversity_index, color: '#e3b341', label: 'Genetic diversity' }},
     ], gens);
   }}, 100);
 }}
@@ -543,17 +556,22 @@ function renderDrift() {{
   }}
   rows.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 
-  let html = '<div class="chart-card" style="margin-top:0.8rem"><div class="chart-title">Trait Drift (sorted by magnitude)</div>' +
-    '<table class="drift-table"><tr><th>Trait</th><th>Gen 0</th><th>Final</th><th>Change</th></tr>';
+  let html = '<div class="chart-card" style="margin-top:0.8rem">' +
+    '<div class="chart-title">Which traits are rising and falling?</div>' +
+    '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.6rem;line-height:1.5;">' +
+    'Each agent has 26 traits scored from 0 (absent) to 1 (maximum). As agents mate and produce offspring, some traits get stronger across generations (natural selection favours them) while others weaken. ' +
+    '<span style="color:var(--green);">Green = rising.</span> <span style="color:var(--red);">Red = declining.</span> The biggest changes reveal what the population is "selecting for."</div>' +
+    '<table class="drift-table"><tr><th>Trait</th><th>Founders</th><th>Now</th><th>Direction</th></tr>';
   for (const r of rows) {{
     const cls = r.delta >= 0 ? 'positive' : 'negative';
-    const sign = r.delta >= 0 ? '+' : '';
-    html += '<tr><td>' + r.trait.replace(/_/g, ' ') + '</td><td>' + r.start.toFixed(3) +
-      '</td><td>' + r.end.toFixed(3) + '</td><td class="' + cls + '">' + sign + r.delta.toFixed(3) + '</td></tr>';
+    const arrow = r.delta >= 0 ? '&#x25B2; +' : '&#x25BC; ';
+    html += '<tr><td>' + r.trait.replace(/_/g, ' ') + '</td><td>' + r.start.toFixed(2) +
+      '</td><td>' + r.end.toFixed(2) + '</td><td class="' + cls + '" style="font-weight:700">' + arrow + r.delta.toFixed(3) + '</td></tr>';
   }}
   html += '</table></div>';
 
-  html += '<div class="chart-card"><div class="chart-title">Trait Drift Chart</div>' +
+  html += '<div class="chart-card"><div class="chart-title">Track any trait across generations</div>' +
+    '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.4rem;">Pick a trait from the dropdown to see how its average value changed over time. Flat = stable. Rising = being selected for. Falling = being lost.</div>' +
     '<div class="trait-select"><select id="trait-sel" onchange="drawSelectedTrait()"></select></div>' +
     '<canvas id="c-trait"></canvas></div>';
 
@@ -591,14 +609,22 @@ function renderCharts() {{
     return counts && counts.some(c => c > 0);
   }});
 
-  let html = '<div class="chart-card" style="margin-top:0.8rem"><div class="chart-title">Mutation Burden by Type</div><canvas id="c-mut"></canvas></div>';
-  html += '<div class="chart-card"><div class="chart-title">Condition Burden (total clinical conditions)</div><canvas id="c-cond2"></canvas></div>';
+  let html = '<div class="chart-card" style="margin-top:0.8rem"><div class="chart-title">How many DNA copying errors happened?</div>' +
+    '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem;">Every time a parent passes DNA to a child, small random changes (mutations) can occur. Most are harmless (neutral), some cause disease, and rarely, some are protective. This chart shows mutations accumulating across generations.</div>' +
+    '<canvas id="c-mut"></canvas></div>';
+  html += '<div class="chart-card"><div class="chart-title">How many health conditions appeared?</div>' +
+    '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem;">Total number of genetic conditions across the whole population. Conditions like "hyperfocus syndrome" and "creative mania" spread as the agents carrying those alleles reproduce.</div>' +
+    '<canvas id="c-cond2"></canvas></div>';
 
   if (diseaseNames.length > 0) {{
-    html += '<div class="chart-card"><div class="chart-title">Disease Prevalence by Condition</div><canvas id="c-disease"></canvas></div>';
+    html += '<div class="chart-card"><div class="chart-title">Which conditions are spreading?</div>' +
+      '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem;">Each line is a different genetic condition. Rising lines mean that condition is becoming more common in the population. Some conditions (like circadian desynchrony and hyperfocus syndrome) are spreading rapidly because the alleles that cause them are linked to high cognitive traits that the population is selecting for.</div>' +
+      '<canvas id="c-disease"></canvas></div>';
   }}
 
-  html += '<div class="chart-card"><div class="chart-title">Sex Ratio (proportion male)</div><canvas id="c-sex"></canvas></div>';
+  html += '<div class="chart-card"><div class="chart-title">Are more boys or girls being born?</div>' +
+    '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem;">Sex is determined randomly (50/50), but small populations can drift away from equal. The line shows the proportion of males in each generation. 0.5 = perfectly balanced.</div>' +
+    '<canvas id="c-sex"></canvas></div>';
 
   document.getElementById('tab-charts').innerHTML = html;
 
@@ -693,7 +719,14 @@ function renderPhylogeny() {{
   }}
   const gens = Object.keys(byGen).map(Number).sort((a,b) => a - b);
 
-  let html = '<div style="margin:0.8rem 0; font-size:0.78rem; color:var(--muted);">' + GENOME_NODES.length + ' agents across ' + gens.length + ' generations. Hover for details.</div>';
+  let html = '<div style="margin:0.8rem 0; padding:0.8rem; background:var(--bg2); border:1px solid var(--border); border-radius:8px;">' +
+    '<div style="font-size:0.85rem; font-weight:700; color:var(--green); margin-bottom:0.4rem;">Family Tree: Who Descended From Whom</div>' +
+    '<div style="font-size:0.75rem; color:var(--muted); line-height:1.5;">' +
+    'Generation 0 (top row) are the 20 founders: Einstein, Curie, Turing, etc. Each row below is a new generation of offspring. ' +
+    'Blue border = male. Pink border = female. The coloured bar shows health (full bar = healthy, short bar = sick). ' +
+    'Hover over any agent to see their traits, health conditions, and parents. Notice how the population grows exponentially and health bars get shorter in later generations.</div></div>';
+
+  // Render generation rows
 
   for (const gen of gens) {{
     const agents = byGen[gen];
