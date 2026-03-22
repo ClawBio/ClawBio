@@ -83,8 +83,9 @@ def load_observatory():
 def build_static_html(moltbook, observatory):
     """Build a self-contained HTML demo page."""
 
-    moltbook_json = json.dumps(moltbook, indent=None, default=str)
-    obs_json = json.dumps(observatory, indent=None, default=str) if observatory else "null"
+    # Ensure no raw newlines break the inline <script> JS
+    moltbook_json = json.dumps(moltbook, indent=None, default=str, ensure_ascii=True)
+    obs_json = json.dumps(observatory, indent=None, default=str, ensure_ascii=True) if observatory else "null"
 
     return f'''<!DOCTYPE html>
 <html lang="en">
@@ -302,13 +303,13 @@ function renderFilters() {{
   const submolts = [...new Set(MOLTBOOK.posts.map(p => p.submolt))].sort();
   const hasOffspring = MOLTBOOK.posts.some(p => p.author_name.includes('Offspring'));
 
-  let chips = '<div class="filter-chip active" onclick="setFilter(\'all\', this)">All</div>';
+  let chips = "<div class=\\"filter-chip active\\" onclick=\\"setFilter(&quot;all&quot;, this)\\">All</div>";
   if (hasOffspring) {{
-    chips += '<div class="filter-chip" onclick="setFilter(\'offspring\', this)">Offspring Only</div>';
-    chips += '<div class="filter-chip" onclick="setFilter(\'founders\', this)">Founders Only</div>';
+    chips += "<div class=\\"filter-chip\\" onclick=\\"setFilter(&quot;offspring&quot;, this)\\">Offspring Only</div>";
+    chips += "<div class=\\"filter-chip\\" onclick=\\"setFilter(&quot;founders&quot;, this)\\">Founders Only</div>";
   }}
   for (const s of submolts) {{
-    chips += '<div class="filter-chip" onclick="setFilter(\'' + s + '\', this)">' + s + '</div>';
+    chips += "<div class=\\"filter-chip\\" onclick=\\"setFilter(&quot;" + s + "&quot;, this)\\">" + s + "</div>";
   }}
   document.getElementById('filters').innerHTML = chips;
 }}
