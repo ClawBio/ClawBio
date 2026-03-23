@@ -22,7 +22,7 @@ When the user asks a question, match it to a skill and act:
 | Protein structure, AlphaFold, PDB, Boltz | `skills/struct-predictor/` | Read SKILL.md, apply methodology |
 | Reproducibility, Nextflow, Singularity, Conda export | `skills/repro-enforcer/` | Read SKILL.md, apply methodology |
 | Sequence QC, FASTQ, alignment, BAM, trimming | `skills/seq-wrangler/` | Read SKILL.md, apply methodology |
-| Lab notebook, experiments, protocols, inventory, Labstep | `skills/labstep/` | Read SKILL.md, apply methodology |
+| Lab notebook, experiments, protocols, inventory, Labstep | `skills/labstep/` | Run `labstep.py` |
 | ClinPGx database, gene-drug lookup, PharmGKB query, CPIC guideline database, FDA drug label PGx, "look up gene on ClinPGx" | `skills/clinpgx/` | Run `clinpgx.py` |
 | GWAS polygenic risk scores, PRS, "what's my risk for diabetes", PGS Catalog, polygenic | `skills/gwas-prs/` | Run `gwas_prs.py` |
 | GWAS variant lookup, rsID search, "look up rs3798220", variant associations, PheWAS, variant eQTL, federated variant query | `skills/gwas-lookup/` | Run `gwas_lookup.py` |
@@ -38,7 +38,7 @@ When the user asks a question, match it to a skill and act:
 
 ## How to Use a Skill
 
-### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator, galaxy-bridge, rnaseq-de, methylation-clock, protocols-io, soul2dna, genome-match, recombinator)
+### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator, galaxy-bridge, rnaseq-de, methylation-clock, protocols-io, soul2dna, genome-match, recombinator, labstep)
 1. Read the skill's `SKILL.md` for domain context
 2. Run the Python script with correct CLI arguments (see below)
 3. Show the user the output — open any generated figures and explain results
@@ -156,6 +156,14 @@ python skills/genome-match/genome_match.py --generation 0 --top 10
 python skills/recombinator/recombinator.py --demo
 python skills/recombinator/recombinator.py \
   --father einstein-g0 --mother anning-g0 --offspring 3 --generation 1
+
+# Labstep ELN bridge — experiments, protocols, inventory
+python skills/labstep/labstep.py --demo
+python skills/labstep/labstep.py --experiments [--search QUERY] [--count N]
+python skills/labstep/labstep.py --experiment-id ID
+python skills/labstep/labstep.py --protocols [--search QUERY] [--count N]
+python skills/labstep/labstep.py --protocol-id ID
+python skills/labstep/labstep.py --inventory [--search QUERY]
 ```
 
 ## Demo Data
@@ -185,6 +193,7 @@ For instant demos when the user has no data:
 | Soul2DNA demo (20 historical figures) | `--demo` flag | soul2dna |
 | GenomeMatch demo (generation-0 pairings) | `--demo` flag | genome-match |
 | Recombinator demo (Einstein x Anning, 3 offspring) | `--demo` flag | recombinator |
+| Labstep demo (3 experiments, protocols, inventory) | `--demo` flag | labstep |
 
 
 ### Demo Commands
@@ -255,6 +264,9 @@ python skills/genome-match/genome_match.py --demo
 
 # Recombinator demo
 python skills/recombinator/recombinator.py --demo
+
+# Labstep demo
+python skills/labstep/labstep.py --demo
 
 ```
 
