@@ -20,7 +20,9 @@ from protocols_io import (
     _load_demo_json,
     _parse_protocol_id,
     _RateLimiter,
+    _sha256,
     _strip_html,
+    _write_reproducibility,
     download_protocol_pdf,
     format_search_results,
     format_protocol_detail,
@@ -29,6 +31,7 @@ from protocols_io import (
     get_protocol,
     get_protocol_steps,
     load_tokens,
+    main,
     save_tokens,
 )
 
@@ -601,3 +604,186 @@ def test_download_protocol_pdf_network_error(mock_get, tmp_path):
         result = download_protocol_pdf("some-proto", output_path=tmp_path / "out.pdf")
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _parse_protocol_id — dx.doi.org prefix
+# ---------------------------------------------------------------------------
+
+
+def test_parse_dx_doi_prefix():
+    """dx.doi.org/ prefix is stripped to leave the bare DOI."""
+    result = _parse_protocol_id("dx.doi.org/10.17504/protocols.io.abc123")
+    assert result == "10.17504/protocols.io.abc123"
+
+
+def test_parse_dx_doi_prefix_with_version():
+    """dx.doi.org/ DOI with version suffix is parsed correctly."""
+    result = _parse_protocol_id("dx.doi.org/10.17504/protocols.io.e6nvwwq2zvmk/v1")
+    assert result == "10.17504/protocols.io.e6nvwwq2zvmk/v1"
+
+
+# ---------------------------------------------------------------------------
+# _sha256
+# ---------------------------------------------------------------------------
+
+
+def test_sha256_matches_hashlib(tmp_path):
+    """_sha256 produces the same digest as hashlib.sha256 directly."""
+    import hashlib
+    content = b"test content for hashing"
+    f = tmp_path / "test.bin"
+    f.write_bytes(content)
+    expected = hashlib.sha256(content).hexdigest()
+    assert _sha256(f) == expected
+
+
+# ---------------------------------------------------------------------------
+# _write_reproducibility
+# ---------------------------------------------------------------------------
+
+
+def test_write_reproducibility_creates_files(tmp_path):
+    """Reproducibility bundle creates commands.sh, checksums.sha256, environment.yml."""
+    import argparse
+    output_file = tmp_path / "report.md"
+    output_file.write_text("# Report")
+    args = argparse.Namespace(
+        search="RNA extraction", protocol=None, steps=None, demo=False,
+        filter="public", peer_reviewed=None, published_on=None,
+        page_size=10, page=1, output=str(tmp_path),
+    )
+    _write_reproducibility(args, tmp_path, [output_file])
+    repro = tmp_path / "reproducibility"
+    assert (repro / "commands.sh").exists()
+    assert (repro / "checksums.sha256").exists()
+    assert (repro / "environment.yml").exists()
+
+
+def test_write_reproducibility_checksum_is_correct(tmp_path):
+    """Checksum in checksums.sha256 matches the actual file digest."""
+    import argparse, hashlib
+    output_file = tmp_path / "report.md"
+    content = "# Reproducibility test"
+    output_file.write_text(content)
+    args = argparse.Namespace(
+        search="test", protocol=None, steps=None, demo=False,
+        filter="public", peer_reviewed=None, published_on=None,
+        page_size=10, page=1, output=str(tmp_path),
+    )
+    _write_reproducibility(args, tmp_path, [output_file])
+    checksum_text = (tmp_path / "reproducibility" / "checksums.sha256").read_text()
+    expected = hashlib.sha256(content.encode()).hexdigest()
+    assert expected in checksum_text
+    assert "report.md" in checksum_text
+
+
+def test_write_reproducibility_commands_contains_args(tmp_path):
+    """commands.sh includes the search query and output path."""
+    import argparse
+    output_file = tmp_path / "search_results.md"
+    output_file.write_text("# Results")
+    args = argparse.Namespace(
+        search="CRISPR knockout", protocol=None, steps=None, demo=False,
+        filter="public", peer_reviewed=None, published_on=None,
+        page_size=10, page=1, output=str(tmp_path),
+    )
+    _write_reproducibility(args, tmp_path, [output_file])
+    cmd = (tmp_path / "reproducibility" / "commands.sh").read_text()
+    assert "CRISPR knockout" in cmd
+    assert str(tmp_path) in cmd
+
+
+def test_write_reproducibility_skips_missing_files(tmp_path):
+    """Files that don't exist are silently excluded from checksums."""
+    import argparse
+    missing = tmp_path / "nonexistent.md"
+    args = argparse.Namespace(
+        search="test", protocol=None, steps=None, demo=False,
+        filter="public", peer_reviewed=None, published_on=None,
+        page_size=10, page=1, output=str(tmp_path),
+    )
+    _write_reproducibility(args, tmp_path, [missing])
+    checksum_text = (tmp_path / "reproducibility" / "checksums.sha256").read_text()
+    assert checksum_text.strip() == ""
+
+
+def test_write_reproducibility_environment_yml(tmp_path):
+    """environment.yml contains the conda spec with requests dependency."""
+    import argparse
+    args = argparse.Namespace(
+        search="test", protocol=None, steps=None, demo=False,
+        filter="public", peer_reviewed=None, published_on=None,
+        page_size=10, page=1, output=str(tmp_path),
+    )
+    _write_reproducibility(args, tmp_path, [])
+    env = (tmp_path / "reproducibility" / "environment.yml").read_text()
+    assert "clawbio-protocols-io" in env
+    assert "requests" in env
+
+
+# ---------------------------------------------------------------------------
+# main() — --output saves files for --search and --steps
+# ---------------------------------------------------------------------------
+
+
+@patch("protocols_io.requests.get")
+def test_main_search_output_saves_markdown(mock_get, tmp_path):
+    """--search --output saves search_results.md and reproducibility bundle."""
+    demo_data = _load_demo_json("demo_search_results.json")
+    mock_get.return_value = _mock_response(demo_data)
+
+    with patch("protocols_io.get_access_token", return_value="fake_token"), \
+         patch("protocols_io._rate_limiter", _unlimited_limiter()), \
+         patch("sys.argv", ["protocols_io.py", "--search", "RNA extraction",
+                            "--output", str(tmp_path)]):
+        main()
+
+    assert (tmp_path / "report.md").exists()
+    assert (tmp_path / "reproducibility" / "commands.sh").exists()
+    assert (tmp_path / "reproducibility" / "checksums.sha256").exists()
+
+
+@patch("protocols_io.requests.get")
+def test_main_steps_output_saves_markdown(mock_get, tmp_path):
+    """--steps --output saves steps.md and reproducibility bundle."""
+    steps_data = {"steps": [{"step": "Do A"}, {"step": "Do B"}], "status_code": 0}
+    mock_get.return_value = _mock_response(steps_data)
+
+    with patch("protocols_io.get_access_token", return_value="fake_token"), \
+         patch("protocols_io._rate_limiter", _unlimited_limiter()), \
+         patch("sys.argv", ["protocols_io.py", "--steps", "12001",
+                            "--output", str(tmp_path)]):
+        main()
+
+    assert (tmp_path / "report.md").exists()
+    assert (tmp_path / "reproducibility" / "commands.sh").exists()
+    assert (tmp_path / "reproducibility" / "checksums.sha256").exists()
+
+
+@patch("protocols_io.requests.get")
+def test_main_protocol_output_saves_pdf_and_repro(mock_get, tmp_path):
+    """--protocol --output downloads PDF and writes reproducibility bundle."""
+    demo_data = _load_demo_json("demo_protocol.json")
+    fake_pdf = b"%PDF-1.4 fake"
+    pdf_resp = MagicMock()
+    pdf_resp.status_code = 200
+    pdf_resp.headers = {"Content-Type": "application/pdf"}
+    pdf_resp.content = fake_pdf
+    mock_get.side_effect = [
+        _mock_response(demo_data),  # get_protocol call
+        pdf_resp,                   # download_protocol_pdf call
+    ]
+
+    with patch("protocols_io.get_access_token", return_value="fake_token"), \
+         patch("protocols_io._rate_limiter", _unlimited_limiter()), \
+         patch("sys.argv", ["protocols_io.py", "--protocol", "12001",
+                            "--output", str(tmp_path)]):
+        main()
+
+    assert (tmp_path / "report.md").exists()
+    pdfs = list(tmp_path.glob("*.pdf"))
+    assert len(pdfs) == 1
+    assert pdfs[0].read_bytes() == fake_pdf
+    assert (tmp_path / "reproducibility" / "commands.sh").exists()
+    assert (tmp_path / "reproducibility" / "checksums.sha256").exists()
