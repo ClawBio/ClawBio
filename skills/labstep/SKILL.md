@@ -1,7 +1,13 @@
 ---
 name: labstep
-description: Interact with the Labstep electronic lab notebook API using labstepPy. Query experiments, protocols, resources, inventory, and other lab entities.
-version: 0.1.0
+description: >-
+  Query and display Labstep electronic lab notebook data — experiments,
+  protocols, resources, and inventory — via labstepPy.  Supports offline
+  demo mode with synthetic biology data.
+version: 0.2.0
+author: ClawBio Contributors
+license: MIT
+tags: [labstep, ELN, lab-notebook, experiments, protocols, inventory, LIMS]
 metadata:
   openclaw:
     requires:
@@ -18,6 +24,15 @@ metadata:
       - kind: uv
         package: labstep
         bins: []
+    trigger_keywords:
+      - labstep
+      - lab notebook
+      - ELN
+      - experiment
+      - protocol steps
+      - reagent inventory
+      - lab inventory
+      - LIMS
 ---
 
 # 🔬 Labstep
@@ -146,6 +161,66 @@ item.getLineageChildren()
 loc = user.getResourceLocation(guid)
 loc.getItems()
 loc.getInnerLocations()
+```
+
+## CLI Reference
+
+```bash
+# Offline demo — no API key required
+python skills/labstep/labstep.py --demo
+
+# List recent experiments (live API)
+python skills/labstep/labstep.py --experiments
+python skills/labstep/labstep.py --experiments --search "CRISPR" --count 10
+
+# Full detail for one experiment (data fields, comments, linked protocols)
+python skills/labstep/labstep.py --experiment-id 10241
+
+# List protocols
+python skills/labstep/labstep.py --protocols
+python skills/labstep/labstep.py --protocols --search "RNA extraction"
+
+# Full protocol detail with all steps
+python skills/labstep/labstep.py --protocol-id 3301
+
+# Inventory / reagent list
+python skills/labstep/labstep.py --inventory
+python skills/labstep/labstep.py --inventory --search "TRIzol"
+```
+
+## Demo
+
+Running `--demo` prints three sections using synthetic offline data:
+
+1. **Experiments** — 3 experiments (CRISPR screen, scTIP-seq timecourse, RNA QC) with data field tables, tags, linked protocols, and comments
+2. **Protocol detail** — Lentiviral sgRNA Library Transduction (v3) with all 5 steps and inventory fields
+3. **Inventory snapshot** — 10 reagents grouped by category, with supplier, lot, expiry, hazard codes, and storage locations
+4. **Inventory search** — filtered view for "RNA" showing 4 matching resources
+
+## Output Structure
+
+```
+stdout (markdown)
+├── # 🔬 Labstep — <title>        ← experiments section
+│   ├── ## [ID] <experiment name>
+│   │   ├── Created / Updated dates
+│   │   ├── Tags
+│   │   ├── Data Fields table
+│   │   ├── Linked Protocols
+│   │   └── Comments
+│
+├── # 📋 Labstep — <title>        ← protocols section
+│   ├── ## [ID] <protocol name>  (vN)
+│   │   ├── Created / Updated dates
+│   │   ├── Steps (numbered, with body text)
+│   │   └── Inventory Fields
+│
+└── # 🧪 Labstep — <title>        ← inventory section
+    ├── ## <Category>
+    │   └── ### [ID] <resource name>
+    │       ├── Supplier / Lot / Expiry / Hazard
+    │       ├── Stock items (name | amount | 📍 location)
+    └── ## Storage Locations table
 ```
 
 ## Example Queries
