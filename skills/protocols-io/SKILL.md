@@ -77,14 +77,20 @@ python skills/protocols-io/protocols_io.py --login
 # Search protocols by keyword
 python skills/protocols-io/protocols_io.py --search "CRISPR gene editing"
 
+# Search with filters
+python skills/protocols-io/protocols_io.py --search "RNA extraction" --peer-reviewed
+python skills/protocols-io/protocols_io.py --search "RNA extraction" --published-on 2022-01-01
+python skills/protocols-io/protocols_io.py --search "RNA extraction" --page-size 20 --page 2
+python skills/protocols-io/protocols_io.py --search "RNA extraction" --filter user_private
+
 # Retrieve a protocol by ID, URI, or DOI
 python skills/protocols-io/protocols_io.py --protocol 30756
 
+# Download protocol as PDF
+python skills/protocols-io/protocols_io.py --protocol 30756 --pdf
+
 # Get protocol steps only
 python skills/protocols-io/protocols_io.py --steps 30756
-
-# Save output as markdown file
-python skills/protocols-io/protocols_io.py --search "RNA extraction" --dump
 
 # Demo mode (offline, pre-cached)
 python skills/protocols-io/protocols_io.py --demo
@@ -132,7 +138,7 @@ Expected output: a search results report for "RNA extraction" with 5 pre-cached 
 
 ## Output Structure
 
-Output is printed to the terminal. With `--dump`, a markdown file is saved to the current directory with an auto-generated filename based on the query or protocol title.
+Output is printed to the terminal as markdown.
 
 ## Dependencies
 
