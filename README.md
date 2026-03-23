@@ -1,4 +1,10 @@
 <p align="center">
+  <a href="GENOMEBOOK/">
+    <img src="img/genomebook-encode-london.jpeg" alt="ClawBio Genomebook — Agentic Genomics, Encode London, 20-22 March" width="600">
+  </a>
+</p>
+
+<p align="center">
   <img src="img/clawbio-social-preview.png" alt="ClawBio" width="600">
 </p>
 
