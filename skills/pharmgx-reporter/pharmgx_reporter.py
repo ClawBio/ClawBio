@@ -4,8 +4,8 @@
 ClawBio PharmGx Reporter
 Pharmacogenomic report generator from DTC genetic data (23andMe/AncestryDNA).
 
-Analyses 31 pharmacogenomic SNPs across 12 genes, calls star alleles and
-metabolizer phenotypes, and looks up CPIC drug recommendations for 51 medications.
+Analyses 33 pharmacogenomic SNPs across 13 genes, calls star alleles and
+metabolizer phenotypes, and looks up CPIC drug recommendations for 59 medications.
 
 Usage:
     python pharmgx_reporter.py --input patient_data.txt --output report_dir
@@ -28,6 +28,18 @@ from clawbio.common.parsers import parse_genetic_file, genotypes_to_simple
 from clawbio.common.checksums import sha256_hex, sha256_file
 from clawbio.common.report import write_result_json, DISCLAIMER
 from clawbio.common.html_report import HtmlReportBuilder, write_html_report
+
+# ---------------------------------------------------------------------------
+# Strand utilities (mirrors nutrigx_advisor/extract_genotypes.py)
+# ---------------------------------------------------------------------------
+
+COMPLEMENT = {"A": "T", "T": "A", "C": "G", "G": "C"}
+
+
+def flip_genotype(genotype: str) -> str:
+    """Return the complement strand genotype (e.g. 'GA' → 'CT')."""
+    return "".join(COMPLEMENT.get(b, b) for b in genotype)
+
 
 # ---------------------------------------------------------------------------
 # 1. PGx SNP definitions (ported from PharmXD snp-parser.js)
@@ -76,6 +88,9 @@ PGX_SNPS = {
     # CYP1A2
     "rs762551":   {"gene": "CYP1A2", "allele": "*1F", "effect": "increased_function"},
     "rs2069514":  {"gene": "CYP1A2", "allele": "*1C", "effect": "decreased_function"},
+    # MTHFR
+    "rs1801133":  {"gene": "MTHFR", "allele": "677T",  "effect": "decreased_function"},
+    "rs1801131":  {"gene": "MTHFR", "allele": "1298C", "effect": "decreased_function"},
 }
 
 # ---------------------------------------------------------------------------
@@ -262,6 +277,24 @@ GENE_DEFS = {
             "Normal Metabolizer":       ["*1/*1", "*1/*1F"],
             "Intermediate Metabolizer": ["*1/*1C", "*1C/*1F"],
             "Poor Metabolizer":         ["*1C/*1C"],
+        },
+    },
+    "MTHFR": {
+        "name": "Methylenetetrahydrofolate Reductase",
+        "function": "Folate metabolism; affects methotrexate toxicity",
+        "type": "mthfr",
+        "rsid_677": "rs1801133",
+        "rsid_1298": "rs1801131",
+        "variants": {
+            "rs1801133": {"allele": "677T",  "alt": "T", "effect": "decreased_function"},
+            "rs1801131": {"allele": "1298C", "alt": "C", "effect": "decreased_function"},
+        },
+        "phenotypes": {
+            # Activity labels follow CPIC MTHFR nomenclature
+            "Normal Activity":        ["677CC/1298AA", "677CC/1298NOT_TESTED",
+                                       "677NOT_TESTED/1298AA"],
+            "Intermediate Activity":  ["677CT/1298AA", "677CC/1298AC"],
+            "Reduced Activity":       ["677TT/1298AA", "677CT/1298AC"],
         },
     },
 }
@@ -649,6 +682,67 @@ GUIDELINES = {
             "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
         },
     },
+    # --- MTHFR drug ---
+    "Methotrexate": {
+        "brand": "Rheumatrex / Trexall", "class": "DMARD / Antineoplastic", "gene": "MTHFR",
+        "recs": {
+            "normal_activity": "standard",
+            "intermediate_activity": "caution",
+            "reduced_activity": "caution",
+        },
+    },
+    # --- Additional CYP2C9 NSAIDs ---
+    "Diclofenac": {
+        "brand": "Voltaren", "class": "NSAID", "gene": "CYP2C9",
+        "recs": {
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
+        },
+    },
+    "Ibuprofen": {
+        "brand": "Advil / Motrin", "class": "NSAID", "gene": "CYP2C9",
+        "recs": {
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "caution",
+        },
+    },
+    "Naproxen": {
+        "brand": "Aleve / Naprosyn", "class": "NSAID", "gene": "CYP2C9",
+        "recs": {
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "caution",
+        },
+    },
+    # --- Additional CYP2D6 drugs ---
+    "Dextromethorphan": {
+        "brand": "Robitussin DM", "class": "Antitussive", "gene": "CYP2D6",
+        "recs": {
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
+        },
+    },
+    "Propafenone": {
+        "brand": "Rythmol", "class": "Antiarrhythmic", "gene": "CYP2D6",
+        "recs": {
+            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
+        },
+    },
+    # --- Additional CYP2B6 drugs ---
+    "Methadone": {
+        "brand": "Dolophine", "class": "Opioid Analgesic", "gene": "CYP2B6",
+        "recs": {
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "caution", "poor_metabolizer": "caution",
+        },
+    },
+    "Bupropion": {
+        "brand": "Wellbutrin / Zyban", "class": "Antidepressant / Smoking Cessation", "gene": "CYP2B6",
+        "recs": {
+            "normal_metabolizer": "standard",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
+        },
+    },
 }
 
 
@@ -879,6 +973,22 @@ def parse_file(path):
 def call_diplotype(gene, pgx_snps):
     gdef = GENE_DEFS[gene]
 
+    if gdef.get("type") == "mthfr":
+        # Build combined diplotype: "677{CT}/1298{AC}" using CPIC gene-strand notation.
+        # 23andMe reports on the forward (+) strand; MTHFR is on the minus strand,
+        # so alleles are complemented via flip_genotype before phenotype lookup.
+        rsid_677  = gdef["rsid_677"]
+        rsid_1298 = gdef["rsid_1298"]
+        gt_677  = pgx_snps[rsid_677]["genotype"]  if rsid_677  in pgx_snps else "NOT_TESTED"
+        gt_1298 = pgx_snps[rsid_1298]["genotype"] if rsid_1298 in pgx_snps else "NOT_TESTED"
+        if gt_677 == "NOT_TESTED" and gt_1298 == "NOT_TESTED":
+            return "NOT_TESTED"
+        if gt_677 != "NOT_TESTED":
+            gt_677  = "".join(sorted(flip_genotype(gt_677)))
+        if gt_1298 != "NOT_TESTED":
+            gt_1298 = "".join(sorted(flip_genotype(gt_1298)))
+        return f"677{gt_677}/1298{gt_1298}"
+
     if gdef.get("type") == "genotype":
         rsid = gdef["rsid"]
         if rsid in pgx_snps:
@@ -981,6 +1091,10 @@ def phenotype_to_key(phenotype_desc):
         "CYP3A5 Expressor": "extensive_metabolizer",
         "Intermediate Expressor": "intermediate_metabolizer",
         "CYP3A5 Non-expressor": "poor_metabolizer",
+        # MTHFR activity labels
+        "Normal Activity": "normal_activity",
+        "Intermediate Activity": "intermediate_activity",
+        "Reduced Activity": "reduced_activity",
     }
     # Try exact match first, then strip qualifiers like "(inferred)"
     key = mapping.get(phenotype_desc)

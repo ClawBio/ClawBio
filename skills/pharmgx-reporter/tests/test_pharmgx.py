@@ -43,9 +43,9 @@ def test_detect_format_23andme():
 def test_parse_file_finds_all_pgx_snps():
     fmt, total_snps, pgx_snps = parse_file(str(DEMO))
     assert fmt == "23andme"
-    assert total_snps == 21  # 21 PGx SNPs present on the 23andMe v5 chip (Corpasome)
-    assert len(pgx_snps) == 21, (
-        f"Expected 21 PGx SNPs (Corpasome v5 chip coverage), got {len(pgx_snps)}"
+    assert total_snps == 23  # 23 PGx SNPs present on the 23andMe v5 chip (Corpasome, incl. MTHFR)
+    assert len(pgx_snps) == 23, (
+        f"Expected 23 PGx SNPs (Corpasome v5 chip coverage), got {len(pgx_snps)}"
     )
 
 
@@ -130,6 +130,37 @@ def test_slco1b1_normal():
 def test_cyp3a5_nonexpressor():
     p = _profiles()
     assert p["CYP3A5"]["phenotype"] == "CYP3A5 Non-expressor"
+
+
+def test_mthfr_forward_strand_conversion_hom_1298():
+    """677GG/1298GG (raw 23andMe fwd-strand) → CPIC 677CC/1298CC."""
+    pgx = {
+        "rs1801133": {"genotype": "GG", "gene": "MTHFR", "allele": "677T", "effect": "decreased_function"},
+        "rs1801131": {"genotype": "GG", "gene": "MTHFR", "allele": "1298C", "effect": "decreased_function"},
+    }
+    diplotype = call_diplotype("MTHFR", pgx)
+    assert diplotype == "677CC/1298CC", f"Expected 677CC/1298CC, got {diplotype}"
+
+
+def test_mthfr_forward_strand_conversion_corpas():
+    """Manuel Corpas fwd-strand rs1801133=GG, rs1801131=GT → CPIC 677CC/1298AC → Intermediate Activity."""
+    pgx = {
+        "rs1801133": {"genotype": "GG", "gene": "MTHFR", "allele": "677T", "effect": "decreased_function"},
+        "rs1801131": {"genotype": "GT", "gene": "MTHFR", "allele": "1298C", "effect": "decreased_function"},
+    }
+    diplotype = call_diplotype("MTHFR", pgx)
+    assert diplotype == "677CC/1298AC", f"Expected 677CC/1298AC, got {diplotype}"
+    assert call_phenotype("MTHFR", diplotype) == "Intermediate Activity"
+
+
+def test_mthfr_level2_reduced():
+    """MTHFR 677TT/1298AA: Level 2 CPIC guideline → Reduced Activity."""
+    assert call_phenotype("MTHFR", "677TT/1298AA") == "Reduced Activity"
+
+
+def test_mthfr_level2_intermediate():
+    """MTHFR 677CT/1298AA: Level 2 CPIC guideline → Intermediate Activity."""
+    assert call_phenotype("MTHFR", "677CT/1298AA") == "Intermediate Activity"
 
 
 def test_dpyd_normal():

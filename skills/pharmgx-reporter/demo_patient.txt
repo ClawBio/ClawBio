@@ -2,7 +2,7 @@
 # genome (Corpasome, CC0 license).
 # Download: https://figshare.com/articles/dataset/23andMe_SNP_chip_genotype_data/92682
 #
-# 21 PGx SNPs present on the 23andMe v5 chip.
+# 23 PGx SNPs present on the 23andMe v5 chip.
 # 9 SNPs from the full 30-SNP panel are absent (reporter handles missing
 # SNPs gracefully): rs28399504, rs5030655, rs55886062, rs1800462,
 # rs8175347, rs10264272, rs41303343, rs28399499, rs147390019
@@ -62,3 +62,8 @@ rs116855232	13	48611703	CC
 rs762551	15	75041917	AC
 # CYP1A2 - rs2069514 *1C (ref: no variant)
 rs2069514	15	75044934	GG
+#
+# MTHFR - rs1801133 C677T (ref on fwd strand: GG → gene-strand CC → Normal)
+rs1801133	1	11856378	GG
+# MTHFR - rs1801131 A1298C (het on fwd strand: GT → gene-strand AC → Intermediate Activity)
+rs1801131	1	11854476	GT
