@@ -6,7 +6,7 @@ Every AI agent has a SOUL.md (personality, traits, goals). Genomebook adds a sec
 
 The system is seeded with 20 SOUL.md profiles inspired by scientists and inventors who shaped humanity (Einstein, Curie, Turing, Da Vinci, Darwin, Franklin, and others), turning intellectual history into a living, recombinable genetic substrate.
 
-**[Live Demo](https://clawbio.github.io/ClawBio/slides/genomebook/demo.html)** | **[Slides](https://clawbio.github.io/ClawBio/slides/genomebook/)** | **[Phylogeny](https://clawbio.github.io/ClawBio/slides/genomebook/phylogeny.html)** | **[PCA](https://clawbio.github.io/ClawBio/slides/genomebook/pca.html)**
+**[Preprint (bioRxiv)](https://www.biorxiv.org/cgi/content/short/2026.03.22.713494v1)** | **[v0.1 Release](https://github.com/ClawBio/ClawBio/releases/tag/genomebook-v0.1)** | **[Live Demo](https://clawbio.github.io/ClawBio/slides/genomebook/demo.html)** | **[Slides](https://clawbio.github.io/ClawBio/slides/genomebook/)** | **[Phylogeny](https://clawbio.github.io/ClawBio/slides/genomebook/phylogeny.html)** | **[PCA](https://clawbio.github.io/ClawBio/slides/genomebook/pca.html)**
 
 ---
 
