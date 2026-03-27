@@ -451,10 +451,10 @@ class TestRunFinemapping:
     """Integration tests for the top-level pipeline."""
 
     def test_demo_mode_produces_outputs(self, demo_run):
-        """Demo mode writes report.md, results.json, and tables/pips.tsv."""
+        """Demo mode writes report.md, fine_mapping.json, and tables/pips.tsv."""
         _, tmp = demo_run
         assert (tmp / "report.md").exists()
-        assert (tmp / "results.json").exists()
+        assert (tmp / "fine_mapping.json").exists()
         assert (tmp / "tables" / "pips.tsv").exists()
 
     def test_demo_results_structure(self, demo_run):
@@ -510,9 +510,9 @@ class TestRunFinemapping:
         assert "ClawBio is a research and educational tool" in report
 
     def test_results_json_parseable(self, demo_run):
-        """results.json is valid JSON with expected keys."""
+        """fine_mapping.json is valid JSON with expected keys."""
         _, tmp = demo_run
-        data = json.loads((tmp / "results.json").read_text())
+        data = json.loads((tmp / "fine_mapping.json").read_text())
         assert "credible_sets" in data
         assert "n_variants" in data
 

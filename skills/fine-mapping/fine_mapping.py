@@ -271,7 +271,7 @@ def run_finemapping(
         print("  Generating figures...")
         generate_figures(output_dir, df, credible_sets, R=R, gene_track=gene_track)
 
-    print("  Writing results.json...")
+    print("  Writing fine_mapping.json...")
     results = {
         "method": method,
         "params": params,
@@ -283,7 +283,7 @@ def run_finemapping(
         "pip_above_0_1": int((df["pip"] >= 0.1).sum()),
         "pip_above_0_5": int((df["pip"] >= 0.5).sum()),
     }
-    (output_dir / "results.json").write_text(json.dumps(results, indent=2, default=str))
+    (output_dir / "fine_mapping.json").write_text(json.dumps(results, indent=2, default=str))
 
     if _HAS_COMMON:
         write_result_json(

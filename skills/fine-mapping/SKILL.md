@@ -176,7 +176,7 @@ When an LD matrix **R** is provided:
 ```
 output_directory/
 ├── report.md                    # Primary markdown report
-├── results.json                 # Machine-readable PIPs + credible sets
+├── fine_mapping.json            # Machine-readable PIPs + credible sets
 ├── figures/
 │   ├── pip_locus_plot.png       # Per-variant PIP coloured by LD r²
 │   ├── regional_association.png # -log10(p) with lead variant highlighted (only if p-values present)
