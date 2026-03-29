@@ -508,6 +508,13 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "acmg": {
+        "script": SKILLS_DIR / "clinical-variant-reporter" / "clinical_variant_reporter.py",
+        "demo_args": ["--demo"],
+        "description": "ACMG/AMP clinical variant classifier (28-criteria, SF v3.2 screening)",
+        "allowed_extra_flags": {"--genes", "--assembly"},
+        "accepts_genotypes": False,
+    },
 }
 
 # Skills that run in the full-profile pipeline (order matters)
