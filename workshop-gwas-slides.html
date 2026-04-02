@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic GWAS | ClawBio Workshop Slides</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+      --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+      --accent: #3fb950; --accent2: #58a6ff; --warn: #d29922; --danger: #f85149;
+    }
+    html, body { height: 100%; overflow: hidden; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+
+    /* Slide container */
+    .deck { position: relative; width: 100%; height: 100%; }
+    .slide {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      padding: 4rem 6rem;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+    .slide.active { opacity: 1; pointer-events: auto; }
+    .slide-inner { max-width: 960px; width: 100%; }
+
+    /* Typography */
+    h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 800; line-height: 1.15; margin-bottom: 1rem; letter-spacing: -0.02em; }
+    h1 em { font-style: normal; color: var(--accent); }
+    h2 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 700; margin-bottom: 1rem; color: var(--accent); }
+    h3 { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.6rem; color: var(--accent2); }
+    p { font-size: 1.15rem; line-height: 1.7; color: var(--muted); margin-bottom: 0.8rem; }
+    p.big { font-size: 1.35rem; }
+    .bright { color: var(--text); }
+    .green { color: var(--accent); }
+    .blue { color: var(--accent2); }
+    .yellow { color: var(--warn); }
+    .red { color: var(--danger); }
+    strong { color: var(--text); }
+
+    /* Lists */
+    ul, ol { padding-left: 1.5rem; margin-bottom: 1rem; }
+    li { font-size: 1.1rem; line-height: 1.7; color: var(--muted); margin-bottom: 0.5rem; }
+    li strong { color: var(--text); }
+
+    /* Stats grid */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.2rem; margin: 1.5rem 0; }
+    .stat { text-align: center; padding: 1.5rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; }
+    .stat .num { font-size: 2.5rem; font-weight: 800; color: var(--accent); display: block; }
+    .stat .label { font-size: 0.85rem; color: var(--muted); margin-top: 0.3rem; }
+
+    /* Cards */
+    .card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin: 1rem 0; }
+    .card-grid.three { grid-template-columns: repeat(3, 1fr); }
+    .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem 1.5rem; }
+    .card h3 { margin-bottom: 0.4rem; }
+    .card p { font-size: 0.95rem; margin-bottom: 0; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th { text-align: left; padding: 0.7rem 1rem; background: var(--bg2); color: var(--text); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid var(--border); }
+    td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 1rem; }
+
+    /* Pipeline */
+    .pipeline { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; margin: 2rem 0; }
+    .pipeline-step { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 1.2rem; font-weight: 600; font-size: 1rem; color: var(--text); }
+    .pipeline-step.active-step { border-color: var(--accent); color: var(--accent); background: rgba(63,185,80,0.08); }
+    .pipeline-arrow { color: var(--muted); font-size: 1.3rem; }
+
+    /* Callout */
+    .callout { border-left: 4px solid var(--accent); background: rgba(63,185,80,0.06); padding: 1.2rem 1.5rem; border-radius: 0 8px 8px 0; margin: 1.5rem 0; }
+    .callout.warn { border-left-color: var(--warn); background: rgba(210,153,34,0.06); }
+    .callout.danger { border-left-color: var(--danger); background: rgba(248,81,73,0.06); }
+    .callout p { margin-bottom: 0; }
+
+    /* Badge */
+    .badge { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .badge-gwas { background: rgba(88,166,255,0.15); color: var(--accent2); }
+    .badge-prs { background: rgba(210,153,34,0.15); color: var(--warn); }
+    .badge-fine { background: rgba(63,185,80,0.12); color: var(--accent); }
+
+    /* Big number */
+    .big-number { font-size: 5rem; font-weight: 800; color: var(--accent); line-height: 1; margin-bottom: 0.5rem; }
+
+    /* Comparison columns */
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin: 1rem 0; }
+    .compare-col { padding: 1.5rem; border-radius: 10px; }
+    .compare-col.old { background: rgba(248,81,73,0.06); border: 1px solid rgba(248,81,73,0.2); }
+    .compare-col.new { background: rgba(63,185,80,0.06); border: 1px solid rgba(63,185,80,0.2); }
+
+    /* Code */
+    code { background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 0.15rem 0.4rem; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.9em; color: var(--accent2); }
+
+    /* Center slide */
+    .center { text-align: center; }
+    .center h1, .center h2, .center p { text-align: center; }
+
+    /* Controls */
+    .controls { position: fixed; bottom: 1.5rem; right: 2rem; display: flex; gap: 0.5rem; z-index: 100; }
+    .controls button { background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+    .controls button:hover { background: var(--bg3); }
+    .controls button:disabled { opacity: 0.3; cursor: default; }
+    .progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); z-index: 100; transition: width 0.3s; }
+    .counter { position: fixed; bottom: 1.7rem; left: 2rem; font-size: 0.85rem; color: var(--muted); z-index: 100; }
+
+    /* Title slide special */
+    .title-slide { background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(88,166,255,0.12) 0%, transparent 70%); }
+    .title-badge { display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(63,185,80,0.15); border: 1px solid rgba(63,185,80,0.4); color: var(--accent); font-size: 0.85rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.3rem 1rem; border-radius: 999px; margin-bottom: 1.5rem; }
+    .title-badge img { height: 1.4rem; width: 1.4rem; border-radius: 50%; object-fit: cover; }
+
+    /* Section divider */
+    .section-slide { background: radial-gradient(ellipse 60% 40% at 50% 50%, rgba(88,166,255,0.08) 0%, transparent 70%); }
+
+    @media (max-width: 768px) {
+      .slide { padding: 2rem; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .card-grid { grid-template-columns: 1fr; }
+      .card-grid.three { grid-template-columns: 1fr; }
+      .compare { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="counter" id="counter"></div>
+
+<div class="deck" id="deck">
+
+  <!-- SLIDE 1: Title -->
+  <div class="slide title-slide center active" data-n="1">
+    <div class="slide-inner">
+      <div class="title-badge"><img src="img/clawbio-logo.jpeg" alt="ClawBio logo">ClawBio Workshop</div>
+      <h1>Agentic <em>GWAS</em></h1>
+      <p class="big">From summary statistics to causal variants</p>
+      <p>Dr Manuel Corpas &middot; University of Westminster &middot; 2026</p>
+    </div>
+  </div>
+
+  <!-- SLIDE 2: Context -->
+  <div class="slide" data-n="2">
+    <div class="slide-inner">
+      <h2>Where we are</h2>
+      <p>In the previous session you annotated a single genome and found clinically relevant variants using VEP, ClinVar, gnomAD, and CPIC.</p>
+      <p><strong>Now we scale up.</strong> GWAS looks across thousands of genomes to find variants associated with disease at the population level.</p>
+      <div class="callout">
+        <p><strong>This session:</strong> ~10 min slides, then ~20 min hands-on in Google Colab. By the end you will have queried nine GWAS databases, computed a polygenic risk score, and fine-mapped a locus to identify causal variants.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3: Learning objectives -->
+  <div class="slide" data-n="3">
+    <div class="slide-inner">
+      <h2>Learning objectives</h2>
+      <ol>
+        <li>Explain what a <strong>GWAS</strong> is and what summary statistics contain</li>
+        <li>Query <strong>nine federated databases</strong> for variant associations in seconds</li>
+        <li>Calculate <strong>polygenic risk scores</strong> from published PGS Catalog scores</li>
+        <li>Apply <strong>SuSiE fine-mapping</strong> to identify credible sets of causal variants</li>
+        <li>Recognise <strong>cross-ancestry gaps</strong> in GWAS representation</li>
+        <li>Run all three analyses in <strong>Google Colab</strong> with zero infrastructure</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- SLIDE 4: Section - What is a GWAS -->
+  <div class="slide section-slide center" data-n="4">
+    <div class="slide-inner">
+      <p class="big" style="color:var(--accent2);">Part 1</p>
+      <h1>What is a <em>GWAS</em>?</h1>
+    </div>
+  </div>
+
+  <!-- SLIDE 5: GWAS in one slide -->
+  <div class="slide" data-n="5">
+    <div class="slide-inner">
+      <h2>GWAS in one slide</h2>
+      <p class="big bright">Test every variant in the genome for association with a trait across thousands of people.</p>
+      <div class="stats" style="margin-top:1.5rem;">
+        <div class="stat"><span class="num">6,000+</span><span class="label">published GWAS</span></div>
+        <div class="stat"><span class="num">500M+</span><span class="label">participants (cumulative)</span></div>
+        <div class="stat"><span class="num">90,000+</span><span class="label">trait associations</span></div>
+        <div class="stat"><span class="num" style="color:var(--danger);">86%</span><span class="label">European ancestry</span></div>
+      </div>
+      <p>The last number is the problem. Most GWAS findings may not transfer to non-European populations.</p>
+    </div>
+  </div>
+
+  <!-- SLIDE 6: Summary statistics -->
+  <div class="slide" data-n="6">
+    <div class="slide-inner">
+      <h2>What are summary statistics?</h2>
+      <p>Published GWAS release <strong>summary statistics</strong>: per-variant results without individual genotypes.</p>
+      <table>
+        <thead><tr><th>Field</th><th>Meaning</th><th>Example</th></tr></thead>
+        <tbody>
+          <tr><td><code>rsid</code></td><td>Variant identifier</td><td>rs7903146</td></tr>
+          <tr><td><code>beta</code></td><td>Effect size (log-odds or per-allele)</td><td>0.31</td></tr>
+          <tr><td><code>se</code></td><td>Standard error of beta</td><td>0.02</td></tr>
+          <tr><td><code>p</code></td><td>P-value for association</td><td>5.2 x 10<sup>-38</sup></td></tr>
+          <tr><td><code>MAF</code></td><td>Minor allele frequency</td><td>0.28</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <p><strong>Key insight:</strong> Summary statistics are public, free, and enough to run PRS, meta-analysis, and fine-mapping. No HPC. No data access agreements. No individual-level data.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 7: Section - Three ClawBio skills -->
+  <div class="slide section-slide center" data-n="7">
+    <div class="slide-inner">
+      <p class="big" style="color:var(--accent2);">Part 2</p>
+      <h1>Three skills, <em>one pipeline</em></h1>
+    </div>
+  </div>
+
+  <!-- SLIDE 8: Pipeline overview -->
+  <div class="slide" data-n="8">
+    <div class="slide-inner">
+      <h2>The GWAS pipeline</h2>
+      <div class="pipeline">
+        <div class="pipeline-step active-step">GWAS Lookup</div>
+        <div class="pipeline-arrow">&rarr;</div>
+        <div class="pipeline-step active-step">PRS Calculator</div>
+        <div class="pipeline-arrow">&rarr;</div>
+        <div class="pipeline-step active-step">Fine-Mapping</div>
+      </div>
+      <div class="card-grid three" style="margin-top:1.5rem;">
+        <div class="card">
+          <h3>GWAS Lookup</h3>
+          <p>Query 9 databases in parallel for a single variant: GWAS Catalog, Open Targets, UKB, FinnGen, Biobank Japan, GTEx, eQTL Catalogue.</p>
+        </div>
+        <div class="card">
+          <h3>PRS Calculator</h3>
+          <p>Compute polygenic risk scores from 23andMe or AncestryDNA data using 3,000+ published scores from the PGS Catalog.</p>
+        </div>
+        <div class="card">
+          <h3>Fine-Mapping</h3>
+          <p>Apply SuSiE to identify credible sets of likely causal variants from summary statistics. No individual-level data needed.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 9: GWAS Lookup detail -->
+  <div class="slide" data-n="9">
+    <div class="slide-inner">
+      <h2>Skill 1: GWAS Lookup</h2>
+      <p>Give it an rsID. It queries <strong>nine databases in parallel</strong> and returns a unified report.</p>
+      <table>
+        <thead><tr><th>Database</th><th>What it returns</th><th>Ancestry</th></tr></thead>
+        <tbody>
+          <tr><td><strong>GWAS Catalog</strong></td><td>Published trait associations</td><td>Mixed</td></tr>
+          <tr><td><strong>Open Targets</strong></td><td>Credible sets, L2G scores</td><td>Mixed</td></tr>
+          <tr><td><strong>UKB-TOPMed PheWeb</strong></td><td>PheWAS across 4,500 phenotypes</td><td>Multi-ancestry</td></tr>
+          <tr><td><strong>FinnGen r12</strong></td><td>Finnish disease endpoints</td><td>Finnish</td></tr>
+          <tr><td><strong>Biobank Japan</strong></td><td>East Asian PheWAS</td><td>Japanese</td></tr>
+          <tr><td><strong>GTEx v8</strong></td><td>eQTL tissue expression</td><td>Mostly European</td></tr>
+          <tr><td><strong>EBI eQTL Catalogue</strong></td><td>Multi-tissue eQTL associations</td><td>Mixed</td></tr>
+        </tbody>
+      </table>
+      <p>One command: <code>python gwas_lookup.py --rsid rs7903146</code></p>
+    </div>
+  </div>
+
+  <!-- SLIDE 10: Cross-ancestry -->
+  <div class="slide" data-n="10">
+    <div class="slide-inner">
+      <h2>Cross-ancestry: why it matters</h2>
+      <div class="compare">
+        <div class="compare-col old">
+          <h3 class="red">The problem</h3>
+          <ul>
+            <li>86% of GWAS participants are of European ancestry</li>
+            <li>Effect sizes and allele frequencies differ between populations</li>
+            <li>PRS trained on Europeans perform poorly in African and South Asian populations</li>
+            <li>Risk of widening health disparities</li>
+          </ul>
+        </div>
+        <div class="compare-col new">
+          <h3 class="green">What ClawBio does</h3>
+          <ul>
+            <li>Queries UKB, FinnGen, <strong>and Biobank Japan</strong> in one call</li>
+            <li>Flags allele frequency differences across populations</li>
+            <li>MVP (Million Veteran Program) is the most diverse GWAS cohort: 33% non-European</li>
+            <li>Uganda Genome Resource: 6,407 samples, African ancestry GWAS</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 11: PRS detail -->
+  <div class="slide" data-n="11">
+    <div class="slide-inner">
+      <h2>Skill 2: Polygenic Risk Scores</h2>
+      <p>A PRS sums the effects of many variants into a single risk estimate.</p>
+      <div class="callout">
+        <p><strong>Formula:</strong> PRS = &sum; (dosage<sub>i</sub> &times; effect_weight<sub>i</sub>) across all matched variants</p>
+      </div>
+      <p style="margin-top:1rem;">ClawBio ships with <strong>6 curated scores</strong> for instant demos:</p>
+      <table>
+        <thead><tr><th>Trait</th><th>PGS ID</th><th>Variants</th></tr></thead>
+        <tbody>
+          <tr><td>Type 2 diabetes</td><td>PGS000013</td><td>8</td></tr>
+          <tr><td>Coronary artery disease</td><td>PGS000004</td><td>46</td></tr>
+          <tr><td>Breast cancer</td><td>PGS000001</td><td>77</td></tr>
+          <tr><td>Prostate cancer</td><td>PGS000057</td><td>147</td></tr>
+          <tr><td>Atrial fibrillation</td><td>PGS000011</td><td>12</td></tr>
+          <tr><td>BMI</td><td>PGS000039</td><td>97</td></tr>
+        </tbody>
+      </table>
+      <p>Risk categories: <span class="green">Low (&lt;20th)</span> &middot; Average (20-80th) &middot; <span class="yellow">Elevated (80-95th)</span> &middot; <span class="red">High (&gt;95th)</span></p>
+    </div>
+  </div>
+
+  <!-- SLIDE 12: Fine-mapping detail -->
+  <div class="slide" data-n="12">
+    <div class="slide-inner">
+      <h2>Skill 3: SuSiE Fine-Mapping</h2>
+      <p>GWAS finds associated regions. Fine-mapping finds the <strong>causal variants</strong> within them.</p>
+      <div class="compare">
+        <div class="compare-col old">
+          <h3 class="red">Without fine-mapping</h3>
+          <ul>
+            <li>A GWAS hit spans 10-200 correlated SNPs in LD</li>
+            <li>Which one is causal? All look equally significant</li>
+            <li>Manual triage: slow, subjective, error-prone</li>
+          </ul>
+        </div>
+        <div class="compare-col new">
+          <h3 class="green">With SuSiE</h3>
+          <ul>
+            <li><strong>Credible sets</strong>: minimal set of SNPs capturing 95% of causal probability</li>
+            <li><strong>PIPs</strong>: posterior inclusion probability per variant</li>
+            <li>Handles <strong>multiple causal signals</strong> per locus</li>
+            <li>Works from summary statistics alone</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 13: The democratisation argument -->
+  <div class="slide" data-n="13">
+    <div class="slide-inner">
+      <h2>Democratising GWAS</h2>
+      <p class="big bright">The infrastructure barrier is gone.</p>
+      <div class="card-grid">
+        <div class="card">
+          <h3>No HPC</h3>
+          <p>Summary statistics are small. Everything runs in Google Colab on a free tier.</p>
+        </div>
+        <div class="card">
+          <h3>No data access agreements</h3>
+          <p>Summary statistics are publicly released. No application, no waiting, no ethics board.</p>
+        </div>
+        <div class="card">
+          <h3>No bioinformatics team</h3>
+          <p>ClawBio wraps the full pipeline. One command per analysis.</p>
+        </div>
+        <div class="card">
+          <h3>No cost</h3>
+          <p>Google Colab is free. ClawBio is MIT-licensed. PGS Catalog is open. All databases are public APIs.</p>
+        </div>
+      </div>
+      <div class="callout">
+        <p><strong>Implication for the Global South:</strong> A researcher in Lima, Kampala, or Dhaka can run the same GWAS analyses as one at the Broad Institute. Today.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 14: Section - Practical -->
+  <div class="slide section-slide center" data-n="14">
+    <div class="slide-inner">
+      <p class="big" style="color:var(--accent2);">Part 3</p>
+      <h1>Hands-on <em>Practical</em></h1>
+      <p class="big">Open Google Colab now</p>
+    </div>
+  </div>
+
+  <!-- SLIDE 15: What you will do -->
+  <div class="slide" data-n="15">
+    <div class="slide-inner">
+      <h2>What you will do</h2>
+      <table>
+        <thead><tr><th>Step</th><th>Task</th><th>Time</th></tr></thead>
+        <tbody>
+          <tr><td><strong>1</strong></td><td>Setup: install ClawBio in Colab (same as variant interpretation)</td><td>2 min</td></tr>
+          <tr><td><strong>2</strong></td><td>GWAS Lookup: query rs7903146 (type 2 diabetes) across 9 databases</td><td>5 min</td></tr>
+          <tr><td><strong>3</strong></td><td>Compare allele frequencies across UKB, FinnGen, and Biobank Japan</td><td>3 min</td></tr>
+          <tr><td><strong>4</strong></td><td>PRS: compute polygenic risk scores for 6 traits using the Corpasome</td><td>5 min</td></tr>
+          <tr><td><strong>5</strong></td><td>Fine-mapping: run SuSiE on a demo locus with 2 causal signals</td><td>5 min</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <p><strong>Requirements:</strong> Same as before. A Google account and a web browser. Nothing to install.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 16: Key variants -->
+  <div class="slide" data-n="16">
+    <div class="slide-inner">
+      <h2>Variants we will explore</h2>
+      <table>
+        <thead><tr><th>rsID</th><th>Gene / Locus</th><th>Trait</th><th>Why it matters</th></tr></thead>
+        <tbody>
+          <tr><td>rs7903146</td><td>TCF7L2</td><td>Type 2 diabetes</td><td>Strongest common T2D signal. OR 1.4 per allele.</td></tr>
+          <tr><td>rs429358</td><td>APOE</td><td>Alzheimer's</td><td>Already found in variant interpretation. Now see the GWAS context.</td></tr>
+          <tr><td>rs3798220</td><td>LPA</td><td>Heart disease</td><td>Lipoprotein(a). Risk factor for coronary events.</td></tr>
+          <tr><td>rs1801282</td><td>PPARG</td><td>Type 2 diabetes</td><td>Drug target for thiazolidinediones.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SLIDE 17: Take-home messages -->
+  <div class="slide" data-n="17">
+    <div class="slide-inner">
+      <h2>Take-home messages</h2>
+      <ol>
+        <li><strong>GWAS summary statistics are free and public.</strong> You do not need individual-level data to do meaningful research.</li>
+        <li><strong>Three ClawBio skills cover the full GWAS workflow:</strong> lookup, PRS, and fine-mapping.</li>
+        <li><strong>Cross-ancestry analysis is not optional.</strong> Most GWAS are European-biased. Query multiple biobanks to check transferability.</li>
+        <li><strong>Fine-mapping narrows GWAS hits to causal variants.</strong> SuSiE credible sets are the state of the art.</li>
+        <li><strong>Infrastructure is no longer a barrier.</strong> Google Colab + ClawBio = publication-quality GWAS analysis for free.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- SLIDE 18: Resources -->
+  <div class="slide" data-n="18">
+    <div class="slide-inner">
+      <h2>Resources</h2>
+      <table>
+        <thead><tr><th>Resource</th><th>Link</th></tr></thead>
+        <tbody>
+          <tr><td>ClawBio GitHub</td><td><a href="https://github.com/ClawBio/ClawBio" style="color:var(--accent2)">github.com/ClawBio/ClawBio</a></td></tr>
+          <tr><td>Variant Interpretation Workshop</td><td><a href="https://docs.clawbio.ai/tutorials/variant-interpretation-workshop/" style="color:var(--accent2)">Previous workshop</a></td></tr>
+          <tr><td>GWAS Catalog</td><td><a href="https://www.ebi.ac.uk/gwas/" style="color:var(--accent2)">ebi.ac.uk/gwas</a></td></tr>
+          <tr><td>PGS Catalog</td><td><a href="https://www.pgscatalog.org" style="color:var(--accent2)">pgscatalog.org</a></td></tr>
+          <tr><td>Open Targets</td><td><a href="https://genetics.opentargets.org" style="color:var(--accent2)">genetics.opentargets.org</a></td></tr>
+          <tr><td>Corpasome (Zenodo)</td><td><a href="https://doi.org/10.5281/zenodo.19297389" style="color:var(--accent2)">doi:10.5281/zenodo.19297389</a></td></tr>
+          <tr><td>Ensembl VEP</td><td><a href="https://ensembl.org/vep" style="color:var(--accent2)">ensembl.org/vep</a></td></tr>
+          <tr><td>gnomAD</td><td><a href="https://gnomad.broadinstitute.org" style="color:var(--accent2)">gnomad.broadinstitute.org</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <button id="prev" onclick="go(-1)">&larr; Prev</button>
+  <button id="next" onclick="go(1)">Next &rarr;</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  function show(n) {
+    slides.forEach((s, i) => s.classList.toggle('active', i === n));
+    document.getElementById('progress').style.width = ((n + 1) / total * 100) + '%';
+    document.getElementById('counter').textContent = (n + 1) + ' / ' + total;
+    document.getElementById('prev').disabled = n === 0;
+    document.getElementById('next').disabled = n === total - 1;
+  }
+
+  function go(dir) {
+    current = Math.max(0, Math.min(total - 1, current + dir));
+    show(current);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
+    if (e.key === 'Home') { e.preventDefault(); current = 0; show(0); }
+    if (e.key === 'End') { e.preventDefault(); current = total - 1; show(current); }
+  });
+
+  // Touch support
+  let touchX = 0;
+  document.addEventListener('touchstart', e => touchX = e.touches[0].clientX);
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+  });
+
+  show(0);
+</script>
+
+</body>
+</html>
