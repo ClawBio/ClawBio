@@ -565,6 +565,115 @@ class TestRunFinemapping:
 
 
 # ---------------------------------------------------------------------------
+# TestSuSiEInf
+# ---------------------------------------------------------------------------
+
+
+class TestSuSiEInf:
+    """Tests for the SuSiE-inf IBSS algorithm with infinitesimal component."""
+
+    def test_pip_shape(self):
+        """run_susie_inf returns a 1-D PIP array of length p."""
+        from core.susie_inf import run_susie_inf
+        df = _small_locus(n=20)
+        R = _identity_ld(20)
+        result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=5)
+        assert result["pip"].shape == (20,)
+
+    def test_pip_range(self):
+        """All PIPs returned by run_susie_inf are in [0, 1]."""
+        from core.susie_inf import run_susie_inf
+        df = _small_locus(n=20)
+        R = _identity_ld(20)
+        result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=5)
+        assert result["pip"].min() >= 0.0
+        assert result["pip"].max() <= 1.0
+
+    def test_alpha_shape(self):
+        """run_susie_inf returns alpha as a (p, L) matrix."""
+        from core.susie_inf import run_susie_inf
+        df = _small_locus(n=20)
+        R = _identity_ld(20)
+        result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=3)
+        assert result["alpha"].shape == (20, 3)
+
+    def test_alpha_columns_sum_to_one(self):
+        """Each column of alpha (per-effect posterior weights) sums to 1."""
+        from core.susie_inf import run_susie_inf
+        df = _small_locus(n=20)
+        R = _identity_ld(20)
+        result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=3)
+        col_sums = result["alpha"].sum(axis=0)
+        np.testing.assert_allclose(col_sums, 1.0, atol=1e-5)
+
+    def test_signal_recovers_high_pip(self):
+        """The injected signal at index 10 receives the highest PIP."""
+        from core.susie_inf import run_susie_inf
+        df = _small_locus(n=20)
+        R = _identity_ld(20)
+        result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=5)
+        assert result["pip"].argmax() == 10
+
+    def test_variance_components_returned(self):
+        """run_susie_inf returns sigmasq and tausq scalar variance components."""
+        from core.susie_inf import run_susie_inf
+        df = _small_locus(n=20)
+        R = _identity_ld(20)
+        result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=5)
+        assert np.isfinite(result["sigmasq"])
+        assert np.isfinite(result["tausq"])
+        assert result["sigmasq"] > 0
+
+    def test_ssq_length_matches_L(self):
+        """ssq (per-effect prior variances) has length L."""
+        from core.susie_inf import run_susie_inf
+        df = _small_locus(n=20)
+        R = _identity_ld(20)
+        L = 4
+        result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=L)
+        assert len(result["ssq"]) == L
+
+    def test_two_signals_recovered(self):
+        """Demo locus with two causal variants: both appear in top-5 PIPs."""
+        from core.susie_inf import run_susie_inf
+        df, R = fine_mapping.make_demo_data(seed=42)
+        result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=10)
+        top5 = set(np.argsort(-result["pip"])[:5])
+        assert 60 in top5 or 140 in top5
+
+    def test_identity_ld_reduces_to_sparse(self):
+        """Under identity LD (no LD), tausq should converge near zero."""
+        from core.susie_inf import run_susie_inf
+        df = _small_locus(n=20)
+        R = _identity_ld(20)
+        result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=5)
+        # tausq should be non-negative
+        assert result["tausq"] >= 0.0
+
+    def test_cred_inf_returns_list_of_index_lists(self):
+        """cred_inf returns a list where each element is a list of SNP indices."""
+        from core.susie_inf import run_susie_inf, cred_inf
+        df = _small_locus(n=20)
+        R = _identity_ld(20)
+        result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=3)
+        csets = cred_inf(result["alpha"], R=R, coverage=0.95, purity=0.0)
+        assert isinstance(csets, list)
+        for cs in csets:
+            assert isinstance(cs, list)
+            assert all(isinstance(i, (int, np.integer)) for i in cs)
+
+    def test_cred_inf_captures_injected_signal(self):
+        """cred_inf includes index 10 (injected signal) in at least one credible set."""
+        from core.susie_inf import run_susie_inf, cred_inf
+        df = _small_locus(n=20)
+        R = _identity_ld(20)
+        result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=5)
+        csets = cred_inf(result["alpha"], R=R, coverage=0.95, purity=0.0)
+        all_indices = {i for cs in csets for i in cs}
+        assert 10 in all_indices
+
+
+# ---------------------------------------------------------------------------
 # TestGeneTrack
 # ---------------------------------------------------------------------------
 

@@ -164,3 +164,63 @@ class TestBenchmarkRunner:
             assert m["composite_score"] > 0
             assert m["recall"] >= 0
             assert m["precision"] >= 0
+
+
+class TestSuSiEInfMethod:
+    """Test SuSiE-inf as a swappable fine-mapping method in the benchmark."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.df, self.ld, self.causal = make_benchmark_locus()
+
+    def test_susieinf_registered_in_methods(self):
+        """susieinf is registered as a runnable method."""
+        assert "susieinf" in METHODS
+
+    def test_susieinf_returns_required_keys(self):
+        """run_method_susieinf returns dict with pips, credible_set_indices, method."""
+        from finemapping_benchmark import run_method_susieinf
+        result = run_method_susieinf(self.df, self.ld)
+        for key in ("method", "pips", "credible_set_indices", "credible_set_size", "elapsed"):
+            assert key in result, f"Missing key: {key}"
+
+    def test_susieinf_method_label(self):
+        """run_method_susieinf sets method to 'SuSiE-inf'."""
+        from finemapping_benchmark import run_method_susieinf
+        result = run_method_susieinf(self.df, self.ld)
+        assert result["method"] == "SuSiE-inf"
+
+    def test_susieinf_pips_length(self):
+        """run_method_susieinf returns one PIP per variant."""
+        from finemapping_benchmark import run_method_susieinf
+        result = run_method_susieinf(self.df, self.ld)
+        assert len(result["pips"]) == len(self.df)
+
+    def test_susieinf_pips_in_range(self):
+        """All SuSiE-inf PIPs are in [0, 1]."""
+        from finemapping_benchmark import run_method_susieinf
+        result = run_method_susieinf(self.df, self.ld)
+        assert all(0.0 <= p <= 1.0 for p in result["pips"])
+
+    def test_susieinf_finds_causal_signal_in_top20(self):
+        """SuSiE-inf ranks at least one causal variant in the top 20 by PIP."""
+        from finemapping_benchmark import run_method_susieinf
+        result = run_method_susieinf(self.df, self.ld)
+        top20 = set(np.argsort(-np.array(result["pips"]))[:20])
+        assert any(c in top20 for c in self.causal)
+
+    def test_susieinf_benchmark_produces_valid_score(self):
+        """Full benchmark including susieinf produces a valid composite score."""
+        result = run_benchmark(methods=["susieinf"], seed=42)
+        assert len(result["methods"]) == 1
+        scored = result["methods"][0]
+        assert "error" not in scored
+        assert scored["composite_score"] > 0
+        assert scored["recall"] >= 0
+        assert scored["precision"] >= 0
+
+    def test_three_way_benchmark_picks_winner(self):
+        """Benchmark across abf, susie, susieinf completes and picks a winner."""
+        result = run_benchmark(methods=["abf", "susie", "susieinf"], seed=42)
+        assert result["winner"] in ("ABF", "SuSiE", "SuSiE-inf")
+        assert result["winner_score"] > 0
