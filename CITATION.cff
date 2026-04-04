@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use ClawBio, please cite it using the metadata from this file."
+type: software
+title: "ClawBio: Bioinformatics-Native AI Agent Skill Library"
+version: 0.5.0
+date-released: "2026-04-04"
+url: "https://clawbio.ai"
+repository-code: "https://github.com/ClawBio/ClawBio"
+license: MIT
+abstract: >-
+  ClawBio is where biological AI gets its skills: a curated, reproducible,
+  open repository any agent can call. 42 executable bioinformatics skills
+  covering pharmacogenomics, variant annotation, fine-mapping, polygenic
+  risk scoring, single-cell RNA-seq, and more. Includes validation
+  infrastructure with Alzheimer's disease ground truth benchmark, mock
+  API server, swappable fine-mapping pipeline, and 687 automated tests.
+keywords:
+  - bioinformatics
+  - AI agents
+  - genomics
+  - pharmacogenomics
+  - fine-mapping
+  - GWAS
+  - benchmark
+  - validation
+  - open source
+authors:
+  - family-names: Corpas
+    given-names: Manuel
+    orcid: "https://orcid.org/0000-0002-5765-9827"
+    affiliation: "University of Westminster"

@@ -1,0 +1,66 @@
+{
+  "title": "ClawBio: Bioinformatics-Native AI Agent Skill Library",
+  "description": "ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call. v0.5.0 introduces the platform's first systematic validation infrastructure including an Alzheimer's disease ground truth benchmark, mock API server for offline testing, swappable fine-mapping pipeline (ABF vs SuSiE), benchmark scorer with objective metrics, and red/green TDD mandate. 42 skills, 687 tests, 74 benchmark tests.",
+  "upload_type": "software",
+  "creators": [
+    {
+      "name": "Corpas, Manuel",
+      "affiliation": "University of Westminster",
+      "orcid": "0000-0002-5765-9827"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Lloyd, Cameron",
+      "type": "Other"
+    },
+    {
+      "name": "Zhao, Yonghao",
+      "type": "Other"
+    },
+    {
+      "name": "De Lorenzo, David",
+      "type": "Other"
+    },
+    {
+      "name": "Farajzadeh, Reza",
+      "type": "Other"
+    },
+    {
+      "name": "Moore, Jay",
+      "type": "Other"
+    }
+  ],
+  "keywords": [
+    "bioinformatics",
+    "AI agents",
+    "genomics",
+    "pharmacogenomics",
+    "fine-mapping",
+    "GWAS",
+    "benchmark",
+    "validation",
+    "open source",
+    "agentic engineering",
+    "Alzheimer's disease",
+    "reproducibility"
+  ],
+  "license": "MIT",
+  "access_right": "open",
+  "related_identifiers": [
+    {
+      "identifier": "10.5281/zenodo.19297389",
+      "relation": "isSupplementedBy",
+      "resource_type": "dataset",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "https://github.com/ClawBio/ClawBio",
+      "relation": "isSupplementTo",
+      "resource_type": "software",
+      "scheme": "url"
+    }
+  ],
+  "notes": "Winner of UK AI Agent Hackathon 2026 (Europe's largest AI hackathon). Bioinformatics Application Note submitted to Oxford University Press. Nature feature interview (Nicola Jones, April 2026).",
+  "version": "0.5.0"
+}
