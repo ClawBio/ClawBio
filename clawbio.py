@@ -559,6 +559,17 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "affprot": {
+        "script": SKILLS_DIR / "affinity-proteomics" / "affinity_proteomics.py",
+        "demo_args": ["--demo", "--platform", "olink"],
+        "description": "Affinity proteomics — Olink NPX + SomaLogic SomaScan differential abundance",
+        "allowed_extra_flags": {
+            "--platform", "--meta", "--group-col", "--contrast",
+            "--fdr", "--fc", "--top-n", "--test",
+        },
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
 }
 
 # Skills that run in the full-profile pipeline (order matters)

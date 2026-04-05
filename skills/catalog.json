@@ -1,9 +1,43 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 50,
+  "skill_count": 51,
   "galaxy_tool_count": 8182,
   "skills": [
+    {
+      "name": "affinity-proteomics",
+      "cli_alias": null,
+      "description": "Unified analysis pipeline for affinity-based proteomics platforms — Olink (PEA, NPX) and SomaLogic SomaScan (SOMAmer, RFU). Platform-aware QC, normalisation, differential abundance, volcano plots, heatmaps, and PCA.",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/affinity-proteomics/affinity_proteomics.py --demo",
+      "dependencies": [],
+      "tags": [
+        "proteomics",
+        "olink",
+        "somalogic",
+        "somascan",
+        "npx",
+        "affinity",
+        "differential-abundance",
+        "biomarker"
+      ],
+      "trigger_keywords": [
+        "Olink",
+        "SomaLogic",
+        "SomaScan",
+        "NPX",
+        "proteomics",
+        "affinity proteomics",
+        "protein biomarker",
+        "plasma proteomics",
+        "ADAT"
+      ],
+      "chaining_partners": []
+    },
     {
       "name": "archaic-introgression",
       "cli_alias": null,
@@ -13,7 +47,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/archaic-introgression/archaic_introgression.py --demo",
+      "demo_command": "python skills/archaic-introgression/pipeline.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [],
@@ -275,7 +309,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/clinical-trial-finder/clinical_trial_finder.py --demo",
+      "demo_command": "python skills/clinical-trial-finder/euctr.py --demo",
       "dependencies": [
         "python>=3.11"
       ],
