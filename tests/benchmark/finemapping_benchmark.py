@@ -33,6 +33,7 @@ sys.path.insert(0, str(SKILL_DIR))
 
 from core.abf import compute_abf
 from core.susie import run_susie
+from core.susie_inf import run_susie_inf, cred_inf
 from core.credible_sets import build_credible_set_abf, build_credible_sets_susie
 
 # ---------------------------------------------------------------------------
@@ -207,10 +208,46 @@ def run_method_susie(
     }
 
 
+def run_method_susieinf(
+    sumstats: pd.DataFrame, ld: np.ndarray, **kwargs
+) -> dict:
+    """Run SuSiE-inf fine-mapping and return results."""
+    t0 = time.time()
+    z = sumstats["z"].values
+    n = int(sumstats["n"].iloc[0])
+
+    result = run_susie_inf(z=z, R=ld, n=n, L=10, max_iter=100, tol=1e-3)
+    credsets = cred_inf(result["alpha"], R=ld, coverage=0.95, purity=0.5)
+    elapsed = time.time() - t0
+
+    rsid_to_idx = {r: i for i, r in enumerate(sumstats["rsid"])}
+    cs_indices = sorted({
+        i
+        for cs in credsets
+        for i in cs
+    })
+
+    cs_details = [
+        {"indices": cs, "size": len(cs)}
+        for cs in credsets
+    ]
+
+    return {
+        "method": "SuSiE-inf",
+        "pips": result["pip"].tolist(),
+        "credible_sets": cs_details,
+        "n_credible_sets": len(credsets),
+        "credible_set_indices": cs_indices,
+        "credible_set_size": len(cs_indices),
+        "elapsed": round(elapsed, 3),
+    }
+
+
 # Registry of available methods
 METHODS = {
     "abf": run_method_abf,
     "susie": run_method_susie,
+    "susieinf": run_method_susieinf,
     # Future methods: "finemap", "polyfun" will be added here
 }
 

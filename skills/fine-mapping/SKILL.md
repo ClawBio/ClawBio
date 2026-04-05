@@ -1,10 +1,11 @@
 ---
 name: fine-mapping
 description: >-
-  Statistical fine-mapping of GWAS loci using SuSiE (Sum of Single Effects)
-  and Approximate Bayes Factors to identify credible sets and posterior inclusion
-  probabilities (PIPs) for causal variant discovery.
-version: 0.1.0
+  Statistical fine-mapping of GWAS loci using SuSiE, SuSiE-inf, and Approximate
+  Bayes Factors to identify credible sets and posterior inclusion probabilities
+  (PIPs) for causal variant discovery. SuSiE-inf adds an infinitesimal polygenic
+  component for improved calibration at well-powered loci.
+version: 0.2.0
 author: ClawBio
 license: MIT
 tags: [gwas, fine-mapping, susie, credible-sets, pip, causal-variants, statistics]
@@ -36,6 +37,9 @@ metadata:
       - fine-mapping
       - finemapping
       - susie
+      - susie-inf
+      - susieinf
+      - infinitesimal fine-mapping
       - credible set
       - posterior inclusion probability
       - PIP
@@ -64,10 +68,12 @@ GWAS identifies associated loci, not causal variants. A single GWAS signal can c
 ## Core Capabilities
 
 1. **Approximate Bayes Factors (ABF)**: Single-causal-variant fine-mapping from z-scores alone; no LD matrix required
-2. **SuSiE (Sum of Single Effects)**: Multi-signal fine-mapping with LD using the iterative Bayesian stepwise selection algorithm; wraps `polyfun` if installed, falls back to a pure-Python SuSiE implementation
-3. **Credible sets**: 95% and 99% credible sets computed from PIPs; reports size, coverage, and lead variant
-4. **Visualisation**: Locus PIP plot (colour-coded by LD r²), regional association plot overlaid with PIPs (optionally with a gene track fetched from Ensembl), credible set summary table
-5. **LD computation**: Optionally computes LD from a PLINK .bed file in the locus window; or accepts a pre-computed LD matrix
+2. **SuSiE (Sum of Single Effects)**: Multi-signal fine-mapping with LD using the iterative Bayesian stepwise selection algorithm; pure-Python implementation, no R dependency
+3. **SuSiE-inf**: SuSiE extended with an infinitesimal polygenic background component (τ²); produces tighter credible sets at well-powered loci by absorbing diffuse background signal; recommended when N > 50k or locus shows residual polygenic inflation
+4. **Swappable benchmark**: `tests/benchmark/finemapping_benchmark.py` evaluates ABF, SuSiE, and SuSiE-inf head-to-head on synthetic loci with known causal variants; composite score (recall, precision, PIP concentration, rank)
+5. **Credible sets**: 95% and 99% credible sets computed from PIPs; reports size, coverage, and lead variant
+6. **Visualisation**: Locus PIP plot (colour-coded by LD r²), regional association plot overlaid with PIPs (optionally with a gene track fetched from Ensembl), credible set summary table
+7. **LD computation**: Accepts a pre-computed LD matrix (`.npy` or `.tsv`)
 
 ## Input Formats
 
@@ -75,7 +81,6 @@ GWAS identifies associated loci, not causal variants. A single GWAS signal can c
 |--------|-----------|-----------------|---------|
 | GWAS summary stats | `.tsv` / `.csv` / `.txt` | `rsid`, `chr`, `pos`, `beta`, `se` **or** `z` | `locus_sumstats.tsv` |
 | Pre-computed LD matrix | `.npy` / `.tsv` | Square correlation matrix, row/col = variant order | `ld_matrix.npy` |
-| PLINK genotype data | `.bed/.bim/.fam` | Standard PLINK binary format | `reference_panel` |
 | Demo (built-in) | — | — | `--demo` |
 
 Optional columns in sumstats: `p`, `maf`, `n`, `a1`, `a2`
@@ -85,7 +90,7 @@ Optional columns in sumstats: `p`, `maf`, `n`, `a1`, `a2`
 When the user asks for fine-mapping:
 
 1. **Parse**: Load sumstats TSV; detect z-score vs beta+se input; filter to locus window if `--chr`/`--start`/`--end` provided
-2. **LD**: If `--ld` matrix supplied, load and validate dimensions match variants; if `--bfile` supplied, compute LD with `bed-reader`+numpy; if neither, run ABF (no LD needed)
+2. **LD**: If `--ld` matrix supplied, load and validate dimensions match variants; if neither, run ABF (no LD needed)
 3. **Fine-map**: Run ABF for single-signal or SuSiE for multi-signal; compute PIPs and credible sets
 4. **Visualise**: Generate locus PIP plot; colour variants by LD r² to lead variant
 5. **Report**: Write `report.md` with credible set tables, PIPs, methodology note, and reproducibility bundle
@@ -155,12 +160,32 @@ When an LD matrix **R** is provided:
 4. PIPs: `PIP_i = 1 - prod_l (1 - α_l_i)`
 5. Credible sets: greedily add highest-PIP variants until cumulative PIP ≥ 0.95
 
+### SuSiE-inf (Cui et al. 2024)
+
+Extends SuSiE with an infinitesimal variance component τ² that captures diffuse polygenic signal. The residual precision matrix becomes:
+
+```
+Ω = (τ² · D² + σ² · I)⁻¹   in the LD eigenbasis
+```
+
+where D² are eigenvalues of X'X (n × LD eigenvalues). When τ²→0 the model reduces to standard SuSiE.
+
+1. Eigendecompose LD once: `LD = V diag(d²/n) V'`
+2. IBSS loop with Ω-weighted residuals instead of σ²-only residuals
+3. Method-of-moments update for σ² and τ² each iteration
+4. Credible sets via per-effect PIPs (p×L matrix) with purity filter
+
+**When to prefer SuSiE-inf over SuSiE**:
+- Large cohort (N > 50k): background polygenic signal is detectable
+- Locus shows many nominally associated variants (diffuse signal)
+- SuSiE returns very large credible sets (many variants absorbed as "sparse" effects)
+
 **Key thresholds / parameters**:
 - Prior W (ABF): 0.04 (source: Wakefield 2009, Am J Hum Genet)
 - Credible set coverage: 95% (adjustable via `--coverage`)
 - Max signals L: 10 (adjustable via `--max-signals`)
-- Min purity (SuSiE CS filter): 0.5 average pairwise LD r² within set
-- Convergence tolerance: ELBO Δ < 1e-3
+- Min purity (SuSiE/SuSiE-inf CS filter): 0.5 average pairwise LD r² within set
+- Convergence tolerance: max |ΔPIP| < 1e-3
 
 ## Example Queries
 
@@ -197,9 +222,6 @@ output_directory/
 - `pandas` >= 1.5 — sumstats parsing
 - `matplotlib` >= 3.7 — locus plots
 
-**Optional**:
-- `polyfun` — SuSiE-inf (infinite-mixture prior); automatically used if importable
-- `bed-reader` — LD computation from PLINK .bed files
 
 ## Safety
 
@@ -224,5 +246,4 @@ output_directory/
 
 - [Wang et al. (2020) JRSS-B](https://doi.org/10.1111/rssb.12388) — SuSiE algorithm
 - [Wakefield (2009) Am J Hum Genet](https://doi.org/10.1016/j.ajhg.2008.12.010) — Approximate Bayes Factors for GWAS
-- [Benner et al. (2016) Bioinformatics](https://doi.org/10.1093/bioinformatics/btw018) — FINEMAP comparison
-- [Zou et al. (2022) Nature Genetics](https://doi.org/10.1038/s41588-022-01167-z) — SuSiE-inf / polyfun
+- [Cui et al. (2024) Nature Genetics](https://doi.org/10.1038/s41588-023-01597-3) — SuSiE-inf: improving fine-mapping by modeling infinitesimal effects
