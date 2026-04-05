@@ -34,15 +34,15 @@ def main():
     )
     parser.add_argument(
         "--input", required=True,
-        help="Path to genetic data file (23andMe .txt/.csv, AncestryDNA .csv, or .vcf)"
+        help="Path to genetic data file (23andMe .txt/.csv, AncestryDNA .csv, MyHeritage .csv, or .vcf)"
     )
     parser.add_argument(
         "--output", default="nutrigx_results",
         help="Output directory (created if absent)"
     )
     parser.add_argument(
-        "--format", choices=["auto", "23andme", "ancestry", "vcf"], default="auto",
-        help="Input file format (default: auto-detect)"
+        "--format", choices=["auto", "23andme", "ancestry", "myheritage", "vcf"], default="auto",
+        help="Input file format: 23andme, ancestry, myheritage, vcf (default: auto-detect)"
     )
     parser.add_argument(
         "--panel", default=None,

@@ -1,6 +1,6 @@
 """
 parse_input.py — Multi-format genetic data parser
-Supports: 23andMe .txt, AncestryDNA .csv, standard VCF
+Supports: 23andMe .txt, AncestryDNA .csv, MyHeritage .csv, standard VCF
 Returns: dict mapping rsid -> genotype string (e.g. "AT", "TT")
 """
 
@@ -15,10 +15,13 @@ def detect_format(filepath: str) -> str:
         for line in f:
             if line.startswith("##fileformat=VCF"):
                 return "vcf"
-            if "rsid" in line.lower() and "chromosome" in line.lower() and "genotype" in line.lower():
+            lower = line.lower()
+            if "rsid" in lower and "chromosome" in lower and "genotype" in lower:
                 return "23andme"
-            if "rsid" in line.lower() and "allele1" in line.lower():
+            if "rsid" in lower and "allele1" in lower:
                 return "ancestry"
+            if "rsid" in lower and "chromosome" in lower and "result" in lower:
+                return "myheritage"
             if not line.startswith("#"):
                 break
     # Fallback: infer from extension
@@ -28,7 +31,7 @@ def detect_format(filepath: str) -> str:
     raise ValueError(
         f"Cannot auto-detect genetic file format for '{filepath}'. "
         f"No recognized header found and extension '{ext}' is ambiguous. "
-        f"Please specify --format explicitly (23andme, ancestry, or vcf)."
+        f"Please specify --format explicitly (23andme, ancestry, myheritage, or vcf)."
     )
 
 
@@ -71,6 +74,26 @@ def parse_ancestry(filepath: str) -> dict:
         allele2 = row.get("allele2", "").strip()
         if rsid.startswith("rs"):
             genotypes[rsid] = allele1 + allele2
+    return genotypes
+
+
+def parse_myheritage(filepath: str) -> dict:
+    """Parse MyHeritage DNA raw data file. Returns {rsid: genotype}."""
+    genotypes = {}
+    lines = []
+    with open(filepath, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if not line.startswith("#"):
+                lines.append(line)
+
+    reader = csv.DictReader(lines)
+    for row in reader:
+        rsid = (row.get("RSID") or row.get("rsid") or "").strip()
+        result = (row.get("RESULT") or row.get("result") or "").strip()
+        if rsid.startswith("rs"):
+            geno = result.replace("-", "")
+            if geno:
+                genotypes[rsid] = geno
     return genotypes
 
 
@@ -126,9 +149,10 @@ def parse_genetic_file(filepath: str, fmt: str = "auto") -> dict:
     parsers = {
         "23andme": parse_23andme,
         "ancestry": parse_ancestry,
+        "myheritage": parse_myheritage,
         "vcf": parse_vcf,
     }
-    
+
     if fmt not in parsers:
         raise ValueError(f"Unknown format: {fmt}. Choose from: {list(parsers.keys())}")
     
