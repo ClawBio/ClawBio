@@ -207,6 +207,10 @@ def run_finemapping(
     if R is not None:
         print(f"  Method: SuSiE (L={max_signals}, coverage={coverage:.0%})")
         n_eff = int(df["n"].median()) if "n" in df.columns and df["n"].notna().any() else 10_000
+        # null_weight: prior probability of no effect for each single-effect
+        # regression. Prevents phantom PIPs on null loci. Value 1/(L+1) gives
+        # equal prior to "no effect" as to each of L possible effects.
+        null_wt = 1.0 / (max_signals + 1)
         result = run_susie(
             z=df["z"].values,
             R=R,
@@ -214,6 +218,7 @@ def run_finemapping(
             L=max_signals,
             w=w,
             min_purity=min_purity,
+            null_weight=null_wt,
         )
         pip = result["pip"]
         method = "SuSiE"

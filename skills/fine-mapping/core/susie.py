@@ -24,6 +24,7 @@ def run_susie(
     max_iter: int = 100,
     tol: float = 1e-3,
     min_purity: float = 0.5,
+    null_weight: float = 0.0,
 ) -> dict:
     """Run SuSiE fine-mapping.
 
@@ -37,6 +38,12 @@ def run_susie(
     max_iter : maximum IBSS iterations
     tol : ELBO convergence tolerance
     min_purity : minimum pairwise |r| within a credible set (Wang 2020 section 3.2)
+    null_weight : prior weight on the null hypothesis (no effect) for each
+        single-effect regression. When > 0, the model can assign posterior mass
+        to "no effect at this locus", preventing phantom PIPs on null loci.
+        The susieR reference implementation uses null_weight to mitigate
+        forced signal assignment. Recommended: 0 for loci with known signals,
+        a small value (e.g. 1/(L+1)) for genome-wide scans.
 
     Returns
     -------
@@ -45,6 +52,7 @@ def run_susie(
         mu      : (L, p) posterior mean effect sizes
         mu2     : (L, p) posterior second moments
         pip     : (p,) posterior inclusion probabilities
+        null_weight_used : float, the null_weight that was applied
         elbo    : list of ELBO values per iteration
         converged : bool
         n_iter  : int
@@ -66,6 +74,17 @@ def run_susie(
 
     # Variance of z-scores ≈ 1/n (used to derive V_i = 1/n for all variants)
     V = np.full(p, 1.0 / n)
+
+    # Null component: log prior odds of "no effect" vs uniform prior on variants
+    # When null_weight > 0, each single-effect regression includes a null
+    # hypothesis that competes with the p variant hypotheses.
+    use_null = null_weight > 0
+    if use_null:
+        # log prior: log(null_weight) for null, log((1 - null_weight)/p) for each variant
+        log_prior_null = np.log(null_weight)
+        log_prior_variant = np.log((1.0 - null_weight) / p)
+    else:
+        log_prior_variant = -np.log(p)  # uniform 1/p
 
     # Initialise
     alpha = np.ones((L, p)) / p       # posterior weights (uniform init)
@@ -91,9 +110,27 @@ def run_susie(
             # treating r_l as observed z-score with variance V
             log_bf = _log_abf(r_l, V, w)
 
-            # Posterior weights for this effect
-            log_bf_shifted = log_bf - np.max(log_bf)
-            alpha[l] = np.exp(log_bf_shifted) / np.exp(log_bf_shifted).sum()
+            # Add prior: log_bf + log_prior_variant for each variant
+            log_posterior = log_bf + log_prior_variant
+
+            if use_null:
+                # Null component: BF = 1 (log BF = 0), prior = null_weight
+                log_null_posterior = log_prior_null  # log(null_weight) + 0
+
+                # Normalise across p variants + 1 null
+                all_log_posts = np.append(log_posterior, log_null_posterior)
+                max_lp = np.max(all_log_posts)
+                all_log_posts_shifted = all_log_posts - max_lp
+                all_weights = np.exp(all_log_posts_shifted)
+                total = all_weights.sum()
+
+                # alpha[l] gets the variant weights (excluding null)
+                alpha[l] = all_weights[:p] / total
+                # null_alpha is all_weights[p] / total (not stored, just absorbed)
+            else:
+                # Original behaviour: normalise across variants only
+                log_bf_shifted = log_bf - np.max(log_bf)
+                alpha[l] = np.exp(log_bf_shifted) / np.exp(log_bf_shifted).sum()
 
             # Posterior mean and second moment (Gaussian single-effect)
             # mu_l_j  = w / (V_j + w) * r_l_j    (scalar approximation per variant)
@@ -124,6 +161,7 @@ def run_susie(
         "mu": mu,
         "mu2": mu2,
         "pip": pip,
+        "null_weight_used": null_weight,
         "elbo": elbo_history,
         "converged": converged,
         "n_iter": iteration + 1,
