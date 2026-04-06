@@ -58,7 +58,11 @@ def stage_from_icloud(filepath: str | Path) -> Path:
 
     cache_dir = Path(tempfile.gettempdir()) / "clawbio_cache"
     cache_dir.mkdir(exist_ok=True)
-    cached = cache_dir / filepath.name
+    # Use hash of full path as cache key to avoid collisions when
+    # different files share the same name (e.g. multiple input.txt)
+    import hashlib
+    path_hash = hashlib.md5(str(filepath.resolve()).encode()).hexdigest()[:12]
+    cached = cache_dir / f"{path_hash}_{filepath.name}"
 
     needs_copy = not cached.exists()
     if not needs_copy:
