@@ -63,7 +63,7 @@ Or install as a [Claude Code](https://claude.ai/claude-code) plugin: `/plugin ma
 
 ## What ClawBio Does Today
 
-**46 executable skills + 8,000 Galaxy tools + 687 tests + benchmark validation. Local-first. No cloud. No guessing.**
+**46 executable skills + 8,000 Galaxy tools + 1,244 tests + benchmark validation. Local-first. No cloud. No guessing.**
 
 > **v0.5.0 released** (4 Apr 2026): Validation and Benchmark Infrastructure. AD ground truth benchmark, mock API server for offline testing, swappable fine-mapping pipeline (SuSiE vs ABF), 74 benchmark tests, red/green TDD mandate. [Release notes](https://github.com/ClawBio/ClawBio/releases/tag/v0.5.0). DOI: [10.5281/zenodo.19420648](https://doi.org/10.5281/zenodo.19420648).
 
