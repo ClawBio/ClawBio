@@ -273,6 +273,13 @@ def write_report(
         missing_df.groupby("clock").size().to_dict() if not missing_df.empty else {}
     )
 
+    summary_block = "\n".join(summary_rows) if summary_rows else "| (none) | 0 | n/a | n/a |"
+    missing_block = (
+        "No missing clock features were reported by PyAging."
+        if not missing_counts
+        else "\n".join([f"- {clock}: {count}" for clock, count in sorted(missing_counts.items())])
+    )
+
     report = f"""# ClawBio Methylation Clock Report
 
 **Date**: {now}
@@ -293,11 +300,11 @@ def write_report(
 
 | Clock | Non-missing | Mean | Std |
 |---|---:|---:|---:|
-{"\n".join(summary_rows) if summary_rows else "| (none) | 0 | n/a | n/a |"}
+{summary_block}
 
 ## Missing Features
 
-{"No missing clock features were reported by PyAging." if not missing_counts else "\n".join([f"- {clock}: {count}" for clock, count in sorted(missing_counts.items())])}
+{missing_block}
 
 ## Reproducibility
 
