@@ -41,10 +41,11 @@ When the user asks a question, match it to a skill and act:
 | Cell segmentation, nucleus segmentation, microscopy, fluorescence microscopy, cellpose, cpsam, image segmentation, cell counting, segmentation mask | `skills/cell-detection/` | Run `cell_detection.py` |
 | WES clinical report English, exome PDF report, whole exome sequencing report, clinical exome PDF | `skills/wes-clinical-report-en/` | Run `wes_clinical_report_en.py` |
 | WES clinical report Spanish, informe clinico WES, exome PDF espanol, Predice, Inbiomedic, Novogene report | `skills/wes-clinical-report-es/` | Run `wes_clinical_report_es.py` |
+| Proteomic aging clocks, organ aging, Olink clock, proteomics clock, organ clock, Goeminne, plasma protein aging, organ-specific aging | `skills/proteomics-clock/` | Run `proteomics_clock.py` |
 
 ## How to Use a Skill
 
-### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator, galaxy-bridge, rnaseq-de, methylation-clock, protocols-io, soul2dna, genome-match, recombinator, labstep, fine-mapping, cell-detection, wes-clinical-report-en, wes-clinical-report-es)
+### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator, galaxy-bridge, rnaseq-de, methylation-clock, proteomics-clock, protocols-io, soul2dna, genome-match, recombinator, labstep, fine-mapping, cell-detection, wes-clinical-report-en, wes-clinical-report-es)
 1. Read the skill's `SKILL.md` for domain context
 2. Run the Python script with correct CLI arguments (see below)
 3. Show the user the output — open any generated figures and explain results
@@ -211,6 +212,12 @@ python skills/wes-clinical-report-es/wes_clinical_report_es.py --demo
 python skills/multiqc-reporter/multiqc_reporter.py \
   --input <dir> [<dir2> ...] --output <report_dir>
 python skills/multiqc-reporter/multiqc_reporter.py --demo --output /tmp/multiqc_demo
+# Proteomics Clock — organ-specific proteomic aging from Olink NPX data
+python skills/proteomics-clock/proteomics_clock.py \
+  --input <olink_npx.csv> --output <report_dir>
+python skills/proteomics-clock/proteomics_clock.py \
+  --input <olink_npx.csv> --organs Heart,Brain,Kidney --generation gen1 --output <dir>
+python skills/proteomics-clock/proteomics_clock.py --demo --output /tmp/proteomics_demo
 ```
 
 ## Demo Data
@@ -233,6 +240,7 @@ For instant demos when the user has no data:
 | Curated PGS scores (6 traits) | `skills/gwas-prs/curated_scores.json` | gwas-prs |
 | GWAS Lookup demo (rs3798220, pre-fetched) | `--demo` flag | gwas-lookup |
 | Methylation demo subset (GSE139307, 2 samples) | `skills/methylation-clock/data/GSE139307_small.csv.gz` | methylation-clock |
+| Proteomics Clock demo (20 synthetic Olink NPX samples, 26 proteins) | `skills/proteomics-clock/data/demo_olink_npx.csv.gz` | proteomics-clock |
 | Profile report demo (full 4-skill profile) | `--demo` flag | profile-report |
 | UKB Navigator demo (blood pressure, pre-cached) | `--demo` flag | ukb-navigator |
 | Galaxy Bridge demo (FastQC, offline) | `--demo` flag | galaxy-bridge |
@@ -292,6 +300,9 @@ python skills/gwas-lookup/gwas_lookup.py --demo --output /tmp/gwas_lookup_demo
 # Methylation clock demo
 python skills/methylation-clock/methylation_clock.py \
   --input skills/methylation-clock/data/GSE139307_small.csv.gz --output /tmp/methylation_clock_demo
+
+# Proteomics clock demo
+python skills/proteomics-clock/proteomics_clock.py --demo --output /tmp/proteomics_demo
 
 # Profile report demo
 python skills/profile-report/profile_report.py --demo --output /tmp/profile_demo
