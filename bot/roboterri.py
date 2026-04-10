@@ -195,7 +195,7 @@ _received_files: dict[int, dict] = {}
 _pending_media: dict[int, list[dict]] = {}
 
 # Pending text queue: bypass LLM paraphrasing for compare/drugphoto
-_pending_text: list[str] = []
+_pending_text: dict[int, list[str]] = {}
 
 BOT_START_TIME = time.time()
 
@@ -574,7 +574,9 @@ async def execute_clawbio(args: dict) -> str:
     if skill_key in ("compare", "drugphoto", "profile"):
         raw_output = stdout_str.strip()
         if raw_output:
-            _pending_text.append(raw_output)
+            chat_id = args.get("_chat_id")
+            if chat_id:
+                _pending_text.setdefault(chat_id, []).append(raw_output)
         return "Result sent directly to chat. Do not repeat or paraphrase it."
 
     # For other skills: collect report + figures from output directory
@@ -1167,9 +1169,9 @@ async def cmd_demo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             update.effective_chat.id,
             f"Run the {skill} demo using the clawbio tool with mode='demo'."
         )
-        if _pending_text:
-            reply = "\n\n".join(_pending_text)
-            _pending_text.clear()
+        _chat_pending = _pending_text.pop(update.effective_chat.id, None)
+        if _chat_pending:
+            reply = "\n\n".join(_chat_pending)
         await send_long_message(update, reply)
         await _drain_pending_media(update, context)
     except Exception as e:
@@ -1346,9 +1348,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=update.effective_chat.id, action="typing"
         )
         reply = await llm_tool_loop(update.effective_chat.id, user_text)
-        if _pending_text:
-            reply = "\n\n".join(_pending_text)
-            _pending_text.clear()
+        _chat_pending = _pending_text.pop(update.effective_chat.id, None)
+        if _chat_pending:
+            reply = "\n\n".join(_chat_pending)
         await send_long_message(update, reply)
         await _drain_pending_media(update, context)
 
@@ -1458,9 +1460,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             })
 
         reply = await llm_tool_loop(update.effective_chat.id, content_blocks)
-        if _pending_text:
-            reply = "\n\n".join(_pending_text)
-            _pending_text.clear()
+        _chat_pending = _pending_text.pop(update.effective_chat.id, None)
+        if _chat_pending:
+            reply = "\n\n".join(_chat_pending)
         await send_long_message(update, reply)
 
     except Exception as e:
@@ -1574,9 +1576,9 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = await llm_tool_loop(
             update.effective_chat.id, "\n\n".join(parts)
         )
-        if _pending_text:
-            reply = "\n\n".join(_pending_text)
-            _pending_text.clear()
+        _chat_pending = _pending_text.pop(update.effective_chat.id, None)
+        if _chat_pending:
+            reply = "\n\n".join(_chat_pending)
         await send_long_message(update, reply)
         await _drain_pending_media(update, context)
 
