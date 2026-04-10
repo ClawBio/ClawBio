@@ -3,52 +3,58 @@ name: your-skill-name
 description: >-
   One-line description of what this skill does. Be specific; this is how users
   and AI agents discover your skill.
-version: 0.1.0
-author: Your Name
-domain: genomics
 license: MIT
-
-inputs:
-  - name: input_file
-    type: file
-    format: [vcf, csv, tsv, txt]
-    description: Primary input data file
-    required: true
-
-outputs:
-  - name: report
-    type: file
-    format: md
-    description: Analysis report
-
-dependencies:
-  python: ">=3.11"
-  packages:
-    - pandas>=2.0
-
-tags: [tag1, tag2, tag3]
-
-demo_data:
-  - path: demo_input.txt
-    description: Synthetic test data
-
-endpoints:
-  cli: python skills/your-skill-name/your_skill.py --input {input_file} --output {output_dir}
-
 metadata:
+  version: "0.1.0"
+  author: Your Name
+  domain: genomics
+  tags:
+    - tag1
+    - tag2
+    - tag3
+  inputs:
+    - name: input_file
+      type: file
+      format:
+        - vcf
+        - csv
+        - tsv
+        - txt
+      description: Primary input data file
+      required: true
+  outputs:
+    - name: report
+      type: file
+      format:
+        - md
+      description: Analysis report
+    - name: result
+      type: file
+      format:
+        - json
+      description: Machine-readable results
+  dependencies:
+    python: ">=3.11"
+    packages:
+      - pandas>=2.0
+  demo_data:
+    - path: demo_input.txt
+      description: Synthetic test data
+  endpoints:
+    cli: python skills/your-skill-name/your_skill.py --input {input_file} --output {output_dir}
   openclaw:
     requires:
       bins:
         - python3
-      env: []
-      config: []
     always: false
+    emoji: "🦖"
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+      - darwin
+      - linux
     install:
       - kind: pip
         package: biopython
-        bins: []
     trigger_keywords:
       - keyword that routes to this skill
       - another trigger phrase
