@@ -410,3 +410,88 @@ class TestExcludeOnEdges:
         cell_detection.write_report(metrics, {"exclude_on_edges": False}, tmp_path)
         text = (tmp_path / "report.md").read_text()
         assert "Exclude edge cells:** no" in text
+
+
+# ---------------------------------------------------------------------------
+# TestFlowCellprobThresholds
+# ---------------------------------------------------------------------------
+
+
+class TestFlowCellprobThresholds:
+    """Tests for --flow_threshold and --cellprob_threshold parameters."""
+
+    def _metrics(self):
+        return [{"id": 1, "area": 200, "diameter": 16.0, "centroid_x": 10.0, "centroid_y": 10.0, "eccentricity": 0.2}]
+
+    # Report rendering
+
+    def test_report_shows_flow_threshold(self, tmp_path):
+        cell_detection.write_report(self._metrics(), {"flow_threshold": 0.4}, tmp_path)
+        text = (tmp_path / "report.md").read_text()
+        assert "0.4" in text
+
+    def test_report_shows_cellprob_threshold(self, tmp_path):
+        cell_detection.write_report(self._metrics(), {"cellprob_threshold": 0.0}, tmp_path)
+        text = (tmp_path / "report.md").read_text()
+        assert "cellprob" in text.lower()
+
+    def test_report_shows_custom_flow_threshold(self, tmp_path):
+        cell_detection.write_report(self._metrics(), {"flow_threshold": 0.8}, tmp_path)
+        text = (tmp_path / "report.md").read_text()
+        assert "0.8" in text
+
+    def test_report_shows_custom_cellprob_threshold(self, tmp_path):
+        cell_detection.write_report(self._metrics(), {"cellprob_threshold": -2.0}, tmp_path)
+        text = (tmp_path / "report.md").read_text()
+        assert "-2.0" in text
+
+    # run_segmentation passes params to model.eval
+
+    def test_run_segmentation_passes_flow_threshold(self):
+        import types
+        calls = {}
+
+        def fake_eval(img, diameter=None, do_3D=False, z_axis=None,
+                      flow_threshold=0.4, cellprob_threshold=0.0):
+            calls["flow_threshold"] = flow_threshold
+            calls["cellprob_threshold"] = cellprob_threshold
+            h, w = img.shape[:2]
+            return np.zeros((h, w), dtype=np.uint16), [[]], None
+
+        fake_model = types.SimpleNamespace(eval=fake_eval)
+
+        with patch("cellpose.models.CellposeModel", return_value=fake_model):
+            img = np.zeros((32, 32), dtype=np.uint8)
+            cell_detection.run_segmentation(img, diameter=None, use_gpu=False,
+                                            flow_threshold=0.9, cellprob_threshold=0.0)
+        assert calls["flow_threshold"] == 0.9
+
+    def test_run_segmentation_passes_cellprob_threshold(self):
+        import types
+        calls = {}
+
+        def fake_eval(img, diameter=None, do_3D=False, z_axis=None,
+                      flow_threshold=0.4, cellprob_threshold=0.0):
+            calls["flow_threshold"] = flow_threshold
+            calls["cellprob_threshold"] = cellprob_threshold
+            h, w = img.shape[:2]
+            return np.zeros((h, w), dtype=np.uint16), [[]], None
+
+        fake_model = types.SimpleNamespace(eval=fake_eval)
+
+        with patch("cellpose.models.CellposeModel", return_value=fake_model):
+            img = np.zeros((32, 32), dtype=np.uint8)
+            cell_detection.run_segmentation(img, diameter=None, use_gpu=False,
+                                            flow_threshold=0.4, cellprob_threshold=-3.0)
+        assert calls["cellprob_threshold"] == -3.0
+
+    # Argparse defaults
+
+    def test_argparse_flow_threshold_default(self):
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--flow_threshold", type=float, default=0.4)
+        parser.add_argument("--cellprob_threshold", type=float, default=0.0)
+        args = parser.parse_args([])
+        assert args.flow_threshold == 0.4
+        assert args.cellprob_threshold == 0.0

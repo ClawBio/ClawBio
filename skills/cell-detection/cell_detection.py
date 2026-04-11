@@ -175,6 +175,8 @@ def write_report(metrics: list[dict], meta: dict, output_dir: Path | str, outlin
     diameter_used = meta.get("diameter") or "auto-estimated"
     device = "GPU" if meta.get("use_gpu") else "CPU"
     edge_excluded = "yes" if meta.get("exclude_on_edges") else "no"
+    flow_threshold = meta.get("flow_threshold", 0.4)
+    cellprob_threshold = meta.get("cellprob_threshold", 0.0)
 
     lines = [
         "# Cell Segmentation Report",
@@ -184,6 +186,8 @@ def write_report(metrics: list[dict], meta: dict, output_dir: Path | str, outlin
         f"**Device:** {device}",
         f"**Diameter used:** {diameter_used} px",
         f"**Exclude edge cells:** {edge_excluded}",
+        f"**Flow threshold:** {flow_threshold}",
+        f"**Cellprob threshold:** {cellprob_threshold}",
         "",
         "## Results",
         "",
@@ -281,6 +285,8 @@ def run_segmentation(
     use_gpu: bool,
     do_3D: bool = False,
     exclude_on_edges: bool = False,
+    flow_threshold: float = 0.4,
+    cellprob_threshold: float = 0.0,
 ) -> tuple[np.ndarray, list]:
     """Run cpsam on an image (greyscale H×W, multi-channel H×W×C, or z-stack Z×H×W).
 
@@ -288,13 +294,24 @@ def run_segmentation(
     Pass do_3D=True for volumetric segmentation of (Z, H, W) stacks.
     Pass exclude_on_edges=True to remove any cell whose mask touches a border
     pixel (mirrors cellpose CLI --exclude_on_edges).
+    flow_threshold: max allowed error of the flows for each mask (default 0.4).
+      Increase to accept more masks; decrease to be more stringent.
+    cellprob_threshold: threshold on the cell probability output (default 0.0).
+      Decrease (e.g. -6) to detect more/dimmer cells; increase to be stricter.
     Returns (uint16 label mask, flows) — flows are needed for save_outlines.
     """
     from cellpose.models import CellposeModel
     from cellpose import utils as cp_utils
 
     model = CellposeModel(gpu=use_gpu)
-    masks, flows, _ = model.eval(img, diameter=diameter, do_3D=do_3D, z_axis=0 if do_3D else None)
+    masks, flows, _ = model.eval(
+        img,
+        diameter=diameter,
+        do_3D=do_3D,
+        z_axis=0 if do_3D else None,
+        flow_threshold=flow_threshold,
+        cellprob_threshold=cellprob_threshold,
+    )
     masks = masks.astype(np.uint16)
     if exclude_on_edges:
         masks = cp_utils.remove_edge_masks(masks).astype(np.uint16)
@@ -321,6 +338,8 @@ def main() -> None:
     parser.add_argument("--use_gpu", dest="gpu", action="store_true", default=False, help="Use GPU if available")
     parser.add_argument("--do_3D", action="store_true", default=False, help="Volumetric 3D segmentation for z-stack (Z×H×W) input")
     parser.add_argument("--exclude_on_edges", action="store_true", default=False, help="Remove cells touching the image border (mirrors cellpose CLI --exclude_on_edges)")
+    parser.add_argument("--flow_threshold", type=float, default=0.4, help="Max flow error per mask (default: 0.4). Increase to accept more masks, decrease for stricter filtering.")
+    parser.add_argument("--cellprob_threshold", type=float, default=0.0, help="Cell probability threshold (default: 0.0). Decrease (e.g. -6) to detect dimmer/more cells, increase for stricter detection.")
     parser.add_argument("--output", required=True, help="Output directory")
     parser.add_argument("--demo", action="store_true", help="Run on a synthetic demo image")
     args = parser.parse_args()
@@ -359,6 +378,10 @@ def main() -> None:
             parts.append("--do_3D")
         if args.exclude_on_edges:
             parts.append("--exclude_on_edges")
+        if args.flow_threshold != 0.4:
+            parts.append(f"--flow_threshold {args.flow_threshold}")
+        if args.cellprob_threshold != 0.0:
+            parts.append(f"--cellprob_threshold {args.cellprob_threshold}")
         parts.append(f"--output {args.output}")
         cmd = " ".join(parts)
 
@@ -366,7 +389,7 @@ def main() -> None:
     use_gpu = _detect_gpu(True if args.demo else args.gpu)
     device_label = "GPU" if use_gpu else "CPU"
     print(f"[cell-detection] Segmenting with cpsam on {device_label}...")
-    masks, flows = run_segmentation(img_prep, args.diameter, use_gpu, do_3D=args.do_3D, exclude_on_edges=args.exclude_on_edges)
+    masks, flows = run_segmentation(img_prep, args.diameter, use_gpu, do_3D=args.do_3D, exclude_on_edges=args.exclude_on_edges, flow_threshold=args.flow_threshold, cellprob_threshold=args.cellprob_threshold)
 
     # Save masks + seg.npy
     masks_filename = save_masks(masks, output_dir, stem=stem)
@@ -390,7 +413,7 @@ def main() -> None:
     save_histogram(metrics, output_dir, stem=stem)
 
     # Report
-    meta = {"image_path": image_path, "use_gpu": use_gpu, "diameter": args.diameter, "exclude_on_edges": args.exclude_on_edges}
+    meta = {"image_path": image_path, "use_gpu": use_gpu, "diameter": args.diameter, "exclude_on_edges": args.exclude_on_edges, "flow_threshold": args.flow_threshold, "cellprob_threshold": args.cellprob_threshold}
     write_report(metrics, meta, output_dir, outlines_filename=outlines_filename, masks_filename=masks_filename, seg_filename=seg_filename, csv_filename=f"{stem}_measurements.csv", histogram_filename=f"{stem}_histogram.png")
 
     # Reproducibility
