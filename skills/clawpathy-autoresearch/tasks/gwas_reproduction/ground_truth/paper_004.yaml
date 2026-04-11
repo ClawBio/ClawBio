@@ -1,0 +1,20 @@
+# Trubetskoy et al. 2022 — Schizophrenia GWAS
+# PMID: 35396580 | DOI: 10.1038/s41586-022-04434-5
+lead_variants:
+  - rsid: "rs2514218"
+    gene: "DRD2"
+    p_value_order: -20
+    effect_direction: "risk"
+    or_range: [1.05, 1.12]
+  - rsid: "rs1233578"
+    gene: "GRIN2A"
+    p_value_order: -15
+    effect_direction: "risk"
+    or_range: [1.04, 1.10]
+qualitative_findings:
+  - "287 distinct loci associated with schizophrenia"
+  - "Glutamatergic and dopaminergic signalling enriched"
+  - "Synaptic gene sets implicated"
+  - "Enrichment in excitatory and inhibitory neurons"
+total_loci: 287
+ancestry: "Multi-ancestry"

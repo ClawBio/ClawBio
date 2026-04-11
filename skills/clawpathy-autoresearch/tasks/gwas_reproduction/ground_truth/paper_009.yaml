@@ -1,0 +1,20 @@
+# Demontis et al. 2019 — ADHD GWAS
+# PMID: 30478444 | DOI: 10.1038/s41588-018-0269-7
+lead_variants:
+  - rsid: "rs4916723"
+    gene: "LINC00461"
+    p_value_order: -9
+    effect_direction: "risk"
+    or_range: [1.05, 1.12]
+  - rsid: "rs28411770"
+    gene: "DUSP6"
+    p_value_order: -8
+    effect_direction: "risk"
+    or_range: [1.04, 1.10]
+qualitative_findings:
+  - "12 genome-wide significant loci"
+  - "First well-powered ADHD GWAS"
+  - "Genetic overlap with educational attainment"
+  - "Enrichment in brain-expressed gene sets"
+total_loci: 12
+ancestry: "European"

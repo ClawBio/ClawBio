@@ -1,0 +1,25 @@
+# Mahajan et al. 2018 — Type 2 diabetes fine-mapping
+# PMID: 30297969 | DOI: 10.1038/s41588-018-0241-6
+lead_variants:
+  - rsid: "rs7903146"
+    gene: "TCF7L2"
+    p_value_order: -200
+    effect_direction: "risk"
+    or_range: [1.30, 1.45]
+  - rsid: "rs11708067"
+    gene: "ADCY5"
+    p_value_order: -15
+    effect_direction: "risk"
+    or_range: [1.08, 1.15]
+  - rsid: "rs1801282"
+    gene: "PPARG"
+    p_value_order: -20
+    effect_direction: "protective"
+    or_range: [0.82, 0.90]
+qualitative_findings:
+  - "243 loci associated with T2D"
+  - "Fine-mapping identified causal variants at 51 signals"
+  - "Beta cell dysfunction pathways enriched"
+  - "Effector transcript prioritisation"
+total_loci: 243
+ancestry: "European"

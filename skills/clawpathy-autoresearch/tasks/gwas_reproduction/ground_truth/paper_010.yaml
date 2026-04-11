@@ -1,0 +1,20 @@
+# Stahl et al. 2019 — Bipolar disorder GWAS
+# PMID: 31043756 | DOI: 10.1038/s41588-019-0397-8
+lead_variants:
+  - rsid: "rs174592"
+    gene: "FADS2"
+    p_value_order: -10
+    effect_direction: "risk"
+    or_range: [1.04, 1.10]
+  - rsid: "rs9834970"
+    gene: "TRANK1"
+    p_value_order: -12
+    effect_direction: "risk"
+    or_range: [1.06, 1.14]
+qualitative_findings:
+  - "30 genome-wide significant loci"
+  - "20 novel loci"
+  - "Enrichment in synaptic signalling"
+  - "Genetic overlap with schizophrenia and depression"
+total_loci: 30
+ancestry: "European"

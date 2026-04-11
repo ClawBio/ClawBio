@@ -1,0 +1,25 @@
+# Wightman et al. 2021 — Alzheimer's disease GWAS
+# PMID: 34493870 | DOI: 10.1038/s41588-021-00921-z
+lead_variants:
+  - rsid: "rs429358"
+    gene: "APOE"
+    p_value_order: -300
+    effect_direction: "risk"
+    or_range: [3.00, 4.00]
+  - rsid: "rs6733839"
+    gene: "BIN1"
+    p_value_order: -50
+    effect_direction: "risk"
+    or_range: [1.15, 1.25]
+  - rsid: "rs679515"
+    gene: "CR1"
+    p_value_order: -20
+    effect_direction: "risk"
+    or_range: [1.10, 1.20]
+qualitative_findings:
+  - "75 genome-wide significant loci"
+  - "42 novel risk loci"
+  - "Amyloid and tau pathways enriched"
+  - "Microglial gene networks implicated"
+total_loci: 75
+ancestry: "European"
