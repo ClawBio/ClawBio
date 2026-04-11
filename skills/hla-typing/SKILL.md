@@ -47,7 +47,8 @@ metadata:
       config: []
     always: false
     homepage: https://github.com/ClawBio/ClawBio
-    os: [macos, linux]
+    emoji: 🧬
+    os: [darwin, linux]
     install:
       - kind: pip
         package: pandas
