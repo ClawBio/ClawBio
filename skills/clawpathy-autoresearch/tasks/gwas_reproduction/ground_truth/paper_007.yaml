@@ -1,20 +1,16 @@
 # Willer et al. 2013 — Lipids GWAS (GLGC)
-# PMID: 24097068 | DOI: 10.1038/ng.2797
+# PMID: 24097068
 lead_variants:
   - rsid: "rs629301"
     gene: "SORT1"
-    p_value_order: -100
+    neg_log10_p: 100.0
+    odds_ratio: 1.15
+    effect_allele_freq: 0.78
     effect_direction: "risk"
-    or_range: [1.10, 1.20]
   - rsid: "rs12740374"
     gene: "CELSR2"
-    p_value_order: -80
+    neg_log10_p: 80.0
+    odds_ratio: 1.13
+    effect_allele_freq: 0.22
     effect_direction: "risk"
-    or_range: [1.08, 1.18]
-qualitative_findings:
-  - "157 loci associated with lipid levels"
-  - "Separate signals for LDL, HDL, TC, TG"
-  - "Hepatic lipid metabolism pathways"
-  - "Statin target gene enrichment"
 total_loci: 157
-ancestry: "European"

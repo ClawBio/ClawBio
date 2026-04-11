@@ -1,20 +1,16 @@
 # de Lange et al. 2017 — IBD GWAS
-# PMID: 28067908 | DOI: 10.1038/ng.3760
+# PMID: 28067908
 lead_variants:
   - rsid: "rs2241880"
     gene: "ATG16L1"
-    p_value_order: -30
+    neg_log10_p: 30.0
+    odds_ratio: 1.22
+    effect_allele_freq: 0.47
     effect_direction: "risk"
-    or_range: [1.15, 1.30]
   - rsid: "rs11209026"
     gene: "IL23R"
-    p_value_order: -40
+    neg_log10_p: 40.0
+    odds_ratio: 0.50
+    effect_allele_freq: 0.05
     effect_direction: "protective"
-    or_range: [0.40, 0.60]
-qualitative_findings:
-  - "25 new IBD risk loci"
-  - "Autophagy and innate immunity pathways"
-  - "Shared loci between Crohn's and UC"
-  - "Mesenchymal cell type enrichment"
 total_loci: 226
-ancestry: "European"

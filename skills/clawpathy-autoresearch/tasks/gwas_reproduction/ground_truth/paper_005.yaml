@@ -1,20 +1,16 @@
 # Ishigaki et al. 2022 — Rheumatoid arthritis multi-ancestry
-# PMID: 36333501 | DOI: 10.1038/s41588-022-01213-w
+# PMID: 36333501
 lead_variants:
   - rsid: "rs6927172"
     gene: "HLA-DRB1"
-    p_value_order: -300
+    neg_log10_p: 300.0
+    odds_ratio: 2.50
+    effect_allele_freq: 0.11
     effect_direction: "risk"
-    or_range: [2.00, 3.00]
   - rsid: "rs2476601"
     gene: "PTPN22"
-    p_value_order: -40
+    neg_log10_p: 40.0
+    odds_ratio: 1.65
+    effect_allele_freq: 0.10
     effect_direction: "risk"
-    or_range: [1.50, 1.80]
-qualitative_findings:
-  - "124 genome-wide significant loci"
-  - "Multi-ancestry design improved fine-mapping"
-  - "T cell and B cell regulatory pathways"
-  - "Drug target enrichment for existing RA therapies"
 total_loci: 124
-ancestry: "Multi-ancestry"
