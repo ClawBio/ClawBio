@@ -31,6 +31,8 @@ from pharmgx_reporter import (
     enrich_with_clinpgx,
     _evidence_cell_html,
     _evidence_level_html,
+    build_clinpgx_url,
+    build_cpic_gene_url,
 )
 
 DEMO = Path(__file__).parent.parent / "demo_patient.txt"
@@ -444,6 +446,66 @@ def test_cyp2d6_star1_star10_is_normal_metabolizer():
     assert pheno == "Normal Metabolizer", (
         f"CYP2D6 *1/*10 should be NM per CPIC 2020 (Caudle, PMID 31647186), got {pheno}"
     )
+
+
+# ── ClinPGx URL Generation ──────────────────────────────────────────────────
+
+import json
+from urllib.parse import unquote
+
+
+def test_build_clinpgx_url_returns_valid_url():
+    """build_clinpgx_url must return a URL starting with the ClinPGx endpoint."""
+    p = _profiles()
+    url = build_clinpgx_url(p)
+    assert url.startswith("https://www.clinpgx.org/genotypeResults?q=")
+
+
+def test_build_clinpgx_url_contains_gene_data():
+    """URL-decoded payload must contain CYP2D6 (a gene with a / diplotype)."""
+    p = _profiles()
+    url = build_clinpgx_url(p)
+    encoded_part = url.split("?q=", 1)[1]
+    decoded = unquote(encoded_part)
+    assert "CYP2D6" in decoded
+
+
+def test_build_clinpgx_url_format():
+    """Decoded JSON payload must map each gene to [allele1, allele2, null]."""
+    p = _profiles()
+    url = build_clinpgx_url(p)
+    encoded_part = url.split("?q=", 1)[1]
+    decoded = unquote(encoded_part)
+    data = json.loads(decoded)
+    for gene, alleles in data.items():
+        assert isinstance(alleles, list), f"{gene} value is not a list"
+        assert len(alleles) == 3, f"{gene} list length is {len(alleles)}, expected 3"
+        assert alleles[2] is None, f"{gene} third element should be null"
+
+
+def test_build_cpic_gene_url():
+    """build_cpic_gene_url must return correct CPIC gene page URLs."""
+    assert build_cpic_gene_url("CYP2D6") == "https://cpicpgx.org/gene/cyp2d6/"
+    assert build_cpic_gene_url("CYP2C19") == "https://cpicpgx.org/gene/cyp2c19/"
+    assert build_cpic_gene_url("VKORC1") == "https://cpicpgx.org/gene/vkorc1/"
+
+
+def test_report_contains_clinpgx_section():
+    """Generated report must include the Interactive ClinPGx Link heading."""
+    _, _, pgx, _ = parse_file(str(DEMO))
+    p = _profiles()
+    results = lookup_drugs(p)
+    report = generate_report(str(DEMO), "23andme", 31, pgx, p, results)
+    assert "## Interactive ClinPGx Link" in report
+
+
+def test_report_contains_clinpgx_url():
+    """Generated report must include a link to clinpgx.org."""
+    _, _, pgx, _ = parse_file(str(DEMO))
+    p = _profiles()
+    results = lookup_drugs(p)
+    report = generate_report(str(DEMO), "23andme", 31, pgx, p, results)
+    assert "clinpgx.org" in report
 
 
 # ── ClinPGx Evidence Enrichment ──────────────────────────────────────────────

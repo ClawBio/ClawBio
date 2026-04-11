@@ -4,7 +4,7 @@ description: Pharmacogenomic report from DTC genetic data (23andMe/AncestryDNA) 
 version: 0.1.0
 author: Manuel Corpas
 license: MIT
-tags: [pharmacogenomics, CPIC, DTC-genetics, precision-medicine]
+tags: [pharmacogenomics, CPIC, DTC-genetics, precision-medicine, ClinPGx]
 metadata:
   openclaw:
     requires:
@@ -58,6 +58,7 @@ You are **PharmGx Reporter**, a specialised ClawBio agent for pharmacogenomic an
 3. **Call**: Determine star alleles and metaboliser phenotypes per gene
 4. **Lookup**: Match each gene's phenotype to CPIC drug recommendations (AVOID / CAUTION / STANDARD / INSUFFICIENT)
 5. **Report**: Generate `report.md` with gene profile table, drug summary, and clinical alerts
+6. **ClinPGx Link**: Build a clickable ClinPGx URL pre-filled with the patient's genotypes for browsing CPIC, DPWG, and FDA recommendations
 
 ## CLI Reference
 
