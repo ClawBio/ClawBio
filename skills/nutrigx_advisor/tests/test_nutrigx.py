@@ -149,7 +149,7 @@ def test_empty_input_exits_cleanly(tmp_path):
     empty_file = tmp_path / "empty.txt"
     empty_file.write_text("")
     result = subprocess.run(
-        ["/usr/local/bin/python3.11", str(SKILL_DIR / "nutrigx_advisor.py"),
+        [sys.executable, str(SKILL_DIR / "nutrigx_advisor.py"),
          "--input", str(empty_file), "--output", str(tmp_path / "out")],
         capture_output=True, text=True,
     )
