@@ -75,8 +75,7 @@ DATA_DIR = CLAWBIO_DIR / "data"
 OWNER_GENOME = CLAWBIO_DIR / "skills" / "genome-compare" / "data" / "manuel_corpas_23andme.txt.gz"
 
 # Security limits (TG-004)
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB (Telegram document limit)
-MAX_PHOTO_BYTES = 20 * 1024 * 1024   # 20 MB (Telegram photo limit)
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB — Telegram Bot API getFile() limit
 
 logging.basicConfig(
     level=logging.INFO,
@@ -94,25 +93,24 @@ class _TokenRedactFilter(logging.Filter):
         self._token = token
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if self._token and self._token in record.getMessage():
-            record.msg = str(record.msg).replace(self._token, "[REDACTED]")
-            if isinstance(record.args, tuple):
-                record.args = tuple(
-                    str(a).replace(self._token, "[REDACTED]")
-                    for a in record.args
-                )
-            elif isinstance(record.args, dict):
-                record.args = {
-                    k: str(v).replace(self._token, "[REDACTED]")
-                    for k, v in record.args.items()
-                }
+        try:
+            formatted = record.getMessage()
+        except Exception:
+            return True
+        if self._token and self._token in formatted:
+            # Collapse to pre-formatted string and clear args so that
+            # subsequent getMessage() calls (from the handler's emit) don't
+            # re-apply % formatting with now-wrong arg types (e.g. %d vs str).
+            record.msg = formatted.replace(self._token, "[REDACTED]")
+            record.args = None
         return True
 
 
-if TELEGRAM_BOT_TOKEN:
-    _redact = _TokenRedactFilter(TELEGRAM_BOT_TOKEN)
-    for _ln in ("httpx", "telegram", "httpcore"):
+for _secret in filter(None, [TELEGRAM_BOT_TOKEN, LLM_API_KEY]):
+    _redact = _TokenRedactFilter(_secret)
+    for _ln in ("httpx", "telegram", "httpcore", "openai", "httpx._client", "root"):
         logging.getLogger(_ln).addFilter(_redact)
+    logger.addFilter(_redact)
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +195,7 @@ _received_files: dict[int, dict] = {}
 _pending_media: dict[int, list[dict]] = {}
 
 # Pending text queue: bypass LLM paraphrasing for compare/drugphoto
-_pending_text: list[str] = []
+_pending_text: dict[int, list[str]] = {}
 
 BOT_START_TIME = time.time()
 
@@ -427,9 +425,10 @@ async def execute_clawbio(args: dict) -> str:
 
         orch_input = query
         if mode == "file":
-            for _cid, info in _received_files.items():
-                orch_input = info["path"]
-                break
+            chat_id = args.get("_chat_id")
+            file_info = _received_files.get(chat_id) if chat_id else next(iter(_received_files.values()), None)
+            if file_info:
+                orch_input = file_info["path"]
         if not orch_input:
             return "Error: skill='auto' requires either a file or a query to route."
 
@@ -475,10 +474,11 @@ async def execute_clawbio(args: dict) -> str:
     # Resolve input and profile for file mode
     input_path = None
     profile_path = None
-    for _cid, info in _received_files.items():
-        input_path = info.get("path")
-        profile_path = info.get("profile_path")
-        break
+    chat_id = args.get("_chat_id")
+    file_info = _received_files.get(chat_id) if chat_id else next(iter(_received_files.values()), None)
+    if file_info:
+        input_path = file_info.get("path")
+        profile_path = file_info.get("profile_path")
 
     if mode == "file" and not input_path and not profile_path:
         # Fall back to owner's genome for admin users
@@ -574,7 +574,9 @@ async def execute_clawbio(args: dict) -> str:
     if skill_key in ("compare", "drugphoto", "profile"):
         raw_output = stdout_str.strip()
         if raw_output:
-            _pending_text.append(raw_output)
+            chat_id = args.get("_chat_id")
+            if chat_id:
+                _pending_text.setdefault(chat_id, []).append(raw_output)
         return "Result sent directly to chat. Do not repeat or paraphrase it."
 
     # For other skills: collect report + figures from output directory
@@ -591,7 +593,7 @@ async def execute_clawbio(args: dict) -> str:
             elif f.suffix == ".png":
                 media_items.append({"type": "photo", "path": str(f)})
         if media_items:
-            _pending_media[0] = _pending_media.get(0, []) + media_items
+            _pending_media[chat_id] = _pending_media.get(chat_id, []) + media_items
 
     # Read report for chat display
     report_text = ""
@@ -636,6 +638,35 @@ async def execute_clawbio(args: dict) -> str:
 # --------------------------------------------------------------------------- #
 # Security helpers (TG-002)
 # --------------------------------------------------------------------------- #
+
+
+_ALLOWED_UPLOAD_EXTENSIONS = {
+    ".txt", ".csv", ".vcf", ".fastq", ".fq",   # genetic data (uncompressed)
+    ".h5ad",                                     # single-cell AnnData
+    ".tif", ".tiff", ".png", ".jpg", ".jpeg", ".heic", ".heif",  # microscopy / photos
+    ".tsv",                                      # tab-separated counts
+    # .pdf, .html, .md excluded — active content risk / prompt injection
+}
+
+# Compound suffixes allowed for gzip-compressed files (e.g. "data.vcf.gz").
+# Bare ".gz" is intentionally excluded — it could wrap arbitrary content.
+_ALLOWED_GZ_STEMS = {
+    ".vcf.gz", ".fastq.gz", ".fq.gz", ".txt.gz", ".tsv.gz", ".csv.gz", ".bed.gz",
+}
+
+
+def _is_allowed_extension(filename: str) -> bool:
+    """Return True if the file's extension (or compound .*.gz suffix) is permitted."""
+    p = Path(filename)
+    suffixes = p.suffixes
+    if not suffixes:
+        return False
+    # Compound suffix check first (e.g. ".vcf.gz")
+    compound = "".join(suffixes[-2:]).lower()
+    if compound in _ALLOWED_GZ_STEMS:
+        return True
+    # Single-suffix check
+    return suffixes[-1].lower() in _ALLOWED_UPLOAD_EXTENSIONS
 
 
 def _sanitize_filename(filename: str) -> str:
@@ -684,10 +715,8 @@ def _validate_path(filepath: Path, allowed_root: Path) -> bool:
 
 async def execute_save_file(args: dict) -> str:
     """Save the most recently received file to the requested destination."""
-    file_info = None
-    for _cid, info in _received_files.items():
-        file_info = info
-        break
+    chat_id = args.get("_chat_id")
+    file_info = _received_files.get(chat_id) if chat_id else None
 
     if not file_info:
         return "No recently received file to save. Send a file first."
@@ -846,10 +875,10 @@ async def execute_generate_audio(args: dict) -> str:
 
 async def _drain_pending_media(update: Update, context) -> None:
     """Send any queued ClawBio media (documents + figures) after the text reply."""
-    items = _pending_media.pop(0, [])
+    chat_id = update.effective_chat.id
+    items = _pending_media.pop(chat_id, [])
     if not items:
         return
-    chat_id = update.effective_chat.id
     for item in items:
         try:
             path = Path(item["path"])
@@ -982,6 +1011,7 @@ async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
                 _audit("tool_call", chat_id=chat_id, tool=func_name,
                        args_preview=json.dumps(args, default=str)[:300])
                 try:
+                    args["_chat_id"] = chat_id
                     result = await executor(args)
                 except Exception as tool_err:
                     logger.error(f"Tool {func_name} raised: {tool_err}", exc_info=True)
@@ -1139,9 +1169,9 @@ async def cmd_demo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             update.effective_chat.id,
             f"Run the {skill} demo using the clawbio tool with mode='demo'."
         )
-        if _pending_text:
-            reply = "\n\n".join(_pending_text)
-            _pending_text.clear()
+        _chat_pending = _pending_text.pop(update.effective_chat.id, None)
+        if _chat_pending:
+            reply = "\n\n".join(_chat_pending)
         await send_long_message(update, reply)
         await _drain_pending_media(update, context)
     except Exception as e:
@@ -1318,9 +1348,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=update.effective_chat.id, action="typing"
         )
         reply = await llm_tool_loop(update.effective_chat.id, user_text)
-        if _pending_text:
-            reply = "\n\n".join(_pending_text)
-            _pending_text.clear()
+        _chat_pending = _pending_text.pop(update.effective_chat.id, None)
+        if _chat_pending:
+            reply = "\n\n".join(_chat_pending)
         await send_long_message(update, reply)
         await _drain_pending_media(update, context)
 
@@ -1373,10 +1403,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         img_bytes = await file.download_as_bytearray()
 
         # File size check (TG-004)
-        if len(img_bytes) > MAX_PHOTO_BYTES:
+        if len(img_bytes) > MAX_UPLOAD_BYTES:
             await update.message.reply_text(
                 f"Photo too large ({len(img_bytes) / (1024*1024):.1f} MB). "
-                f"Maximum: {MAX_PHOTO_BYTES / (1024*1024):.0f} MB."
+                f"Maximum: {MAX_UPLOAD_BYTES / (1024*1024):.0f} MB."
             )
             return
 
@@ -1388,8 +1418,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Sanitize filename (TG-002)
         filename = _sanitize_filename(filename)
 
+        # Extension allowlist — photos must be image types (TG-005)
+        if not _is_allowed_extension(filename) or not media_type.startswith("image/"):
+            logger.warning(f"Rejected photo with ext={ext} mime={media_type}")
+            return
+
         # Store for potential file-based skill use
-        tmp_path = Path(tempfile.gettempdir()) / f"roboterri_{filename}"
+        tmp_path = Path(tempfile.gettempdir()) / f"roboterri_{update.effective_chat.id}_{filename}"
         tmp_path.write_bytes(bytes(img_bytes))
         _received_files[update.effective_chat.id] = {
             "path": str(tmp_path), "filename": filename,
@@ -1425,9 +1460,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             })
 
         reply = await llm_tool_loop(update.effective_chat.id, content_blocks)
-        if _pending_text:
-            reply = "\n\n".join(_pending_text)
-            _pending_text.clear()
+        _chat_pending = _pending_text.pop(update.effective_chat.id, None)
+        if _chat_pending:
+            reply = "\n\n".join(_chat_pending)
         await send_long_message(update, reply)
 
     except Exception as e:
@@ -1461,6 +1496,16 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         filename = _sanitize_filename(doc.file_name or "document")
         file_size = doc.file_size or 0
 
+        # Extension allowlist check (TG-005)
+        if not _is_allowed_extension(filename):
+            ext = "".join(Path(filename).suffixes).lower() or "no extension"
+            allowed = ", ".join(sorted(_ALLOWED_UPLOAD_EXTENSIONS | _ALLOWED_GZ_STEMS))
+            await update.message.reply_text(
+                f"Unsupported file type ({ext}). "
+                f"Accepted: {allowed}"
+            )
+            return
+
         # File size check (TG-004)
         if file_size > MAX_UPLOAD_BYTES:
             await update.message.reply_text(
@@ -1469,7 +1514,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        tmp_path = Path(tempfile.gettempdir()) / f"roboterri_{filename}"
+        tmp_path = Path(tempfile.gettempdir()) / f"roboterri_{update.effective_chat.id}_{filename}"
         await file.download_to_drive(str(tmp_path))
         logger.info(f"Document received: {filename} ({file_size} bytes, {mime})")
         _audit("document", **_user_ctx(update), filename=filename,
@@ -1531,9 +1576,9 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = await llm_tool_loop(
             update.effective_chat.id, "\n\n".join(parts)
         )
-        if _pending_text:
-            reply = "\n\n".join(_pending_text)
-            _pending_text.clear()
+        _chat_pending = _pending_text.pop(update.effective_chat.id, None)
+        if _chat_pending:
+            reply = "\n\n".join(_chat_pending)
         await send_long_message(update, reply)
         await _drain_pending_media(update, context)
 
