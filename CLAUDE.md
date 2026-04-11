@@ -209,7 +209,7 @@ python skills/wes-clinical-report-es/wes_clinical_report_es.py --demo
 
 # Autoresearch — iterative skill improvement loop
 python skills/clawpathy-autoresearch/autoresearch.py \
-  --task tasks/gwas_reproduction/task.yaml --output /tmp/autoresearch --iterations 80
+  --task /path/to/workspace --output /tmp/autoresearch --iterations 80
 python skills/clawpathy-autoresearch/autoresearch.py --demo --output /tmp/autoresearch_demo
 ```
 
@@ -251,7 +251,7 @@ For instant demos when the user has no data:
 | Corpas 30x PGx loci (WGS) | `corpas-30x/subsets/pgx_loci.vcf.gz` | pharmgx-reporter |
 | Corpas 30x NutriGx loci (WGS) | `corpas-30x/subsets/nutrigx_loci.vcf.gz` | nutrigx_advisor |
 | Corpas 30x QC baselines | `corpas-30x/baselines/qc_summary.json` | Benchmark tests |
-| Autoresearch demo (83 synthetic experiments, progress plot) | `--demo` flag | clawpathy-autoresearch |
+| Autoresearch demo (83 synthetic experiments, progress plot + pre-built GWAS workspace) | `--demo` flag | clawpathy-autoresearch |
 
 
 ### Demo Commands
