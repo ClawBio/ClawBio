@@ -40,6 +40,7 @@ When the user asks a question, match it to a skill and act:
 | Cell segmentation, nucleus segmentation, microscopy, fluorescence microscopy, cellpose, cpsam, image segmentation, cell counting, segmentation mask | `skills/cell-detection/` | Run `cell_detection.py` |
 | WES clinical report English, exome PDF report, whole exome sequencing report, clinical exome PDF | `skills/wes-clinical-report-en/` | Run `wes_clinical_report_en.py` |
 | WES clinical report Spanish, informe clinico WES, exome PDF espanol, Predice, Inbiomedic, Novogene report | `skills/wes-clinical-report-es/` | Run `wes_clinical_report_es.py` |
+| Auto research, iteratively improve skills, optimise skills for task, clawpathy, skill improvement loop, benchmark skills | `skills/clawpathy-autoresearch/` | Run `autoresearch.py` |
 
 ## How to Use a Skill
 
@@ -205,6 +206,11 @@ python skills/wes-clinical-report-es/wes_clinical_report_es.py \
 python skills/wes-clinical-report-es/wes_clinical_report_es.py \
   --report-dir <reports_dir> --output-dir <pdf_dir> --samples Sample3
 python skills/wes-clinical-report-es/wes_clinical_report_es.py --demo
+
+# Autoresearch — iterative skill improvement loop
+python skills/clawpathy-autoresearch/autoresearch.py \
+  --task tasks/gwas_reproduction/task.yaml --output /tmp/autoresearch --iterations 80
+python skills/clawpathy-autoresearch/autoresearch.py --demo --output /tmp/autoresearch_demo
 ```
 
 ## Demo Data
@@ -245,6 +251,7 @@ For instant demos when the user has no data:
 | Corpas 30x PGx loci (WGS) | `corpas-30x/subsets/pgx_loci.vcf.gz` | pharmgx-reporter |
 | Corpas 30x NutriGx loci (WGS) | `corpas-30x/subsets/nutrigx_loci.vcf.gz` | nutrigx_advisor |
 | Corpas 30x QC baselines | `corpas-30x/baselines/qc_summary.json` | Benchmark tests |
+| Autoresearch demo (83 synthetic experiments, progress plot) | `--demo` flag | clawpathy-autoresearch |
 
 
 ### Demo Commands
@@ -330,6 +337,9 @@ python skills/wes-clinical-report-en/wes_clinical_report_en.py --demo
 
 # WES Clinical Report (Spanish) demo
 python skills/wes-clinical-report-es/wes_clinical_report_es.py --demo
+
+# Autoresearch demo
+python skills/clawpathy-autoresearch/autoresearch.py --demo --output /tmp/autoresearch_demo
 
 ```
 
