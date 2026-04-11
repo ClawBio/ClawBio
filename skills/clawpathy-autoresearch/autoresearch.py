@@ -268,20 +268,20 @@ def run_demo(output_dir: Path) -> None:
     disc_idx = 0
 
     for i in range(1, 84):
-        # Higher improvement rate early, diminishing returns later
-        p_improve = max(0.12, 0.55 - i * 0.005)
+        # Low acceptance rate: most attempts fail, only substantial wins kept
+        p_improve = max(0.08, 0.30 - i * 0.003)
         improves = random.random() < p_improve
 
         if improves and kept_idx < len(labels_kept):
-            # Phase-based reductions: big early, moderate mid, smaller late
-            if i < 15:
-                reduction = random.uniform(0.04, 0.10)
-            elif i < 35:
-                reduction = random.uniform(0.02, 0.06)
-            elif i < 60:
-                reduction = random.uniform(0.01, 0.03)
+            # Substantial reductions only: big jumps, not incremental drift
+            if i < 20:
+                reduction = random.uniform(0.06, 0.14)
+            elif i < 45:
+                reduction = random.uniform(0.04, 0.09)
+            elif i < 65:
+                reduction = random.uniform(0.02, 0.05)
             else:
-                reduction = random.uniform(0.005, 0.015)
+                reduction = random.uniform(0.01, 0.025)
             score = best - reduction
             score = max(score, 0.008)  # floor near zero
             label = labels_kept[kept_idx]
@@ -289,8 +289,17 @@ def run_demo(output_dir: Path) -> None:
             best = score
             history.append(ExperimentRecord(i, score, True, label))
         else:
-            # Failed attempt: error goes up from current best
-            score = best + random.uniform(0.002, 0.02)
+            # Failed attempt: scatter widely in all directions from best
+            # Some are close misses, some are wildly worse
+            jitter = random.choice([
+                random.uniform(0.01, 0.06),     # small regression
+                random.uniform(0.06, 0.20),     # moderate regression
+                random.uniform(0.20, 0.55),     # big regression (way off)
+                random.uniform(0.30, 0.70),     # catastrophic (skill broke something)
+                random.uniform(-0.005, 0.02),   # near-miss (tantalisingly close)
+            ])
+            score = best + jitter
+            score = max(score, 0.005)  # can't go below zero
             label = labels_disc[disc_idx % len(labels_disc)]
             disc_idx += 1
             history.append(ExperimentRecord(i, score, False, label))

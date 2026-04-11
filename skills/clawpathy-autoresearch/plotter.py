@@ -33,10 +33,10 @@ def plot_progress(
     """Generate a Karpathy-style progress plot.
 
     Matches the aesthetic of github.com/karpathy/autoresearch:
-    - Very faint grey dots for discarded experiments
+    - Grey dots for discarded experiments (scattered widely)
     - Green dots + step line for kept improvements
     - Rotated italic labels on kept points
-    - Clean, minimal aesthetic with lots of white space
+    - Clean, minimal aesthetic
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -50,30 +50,28 @@ def plot_progress(
     if title is None:
         title = f"Autoresearch Progress: {n_total} Experiments, {n_kept} Kept Improvements"
 
-    fig, ax = plt.subplots(figsize=(16, 8))
+    fig, ax = plt.subplots(figsize=(18, 9))
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
 
-    # Remove top and right spines for clean look
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.spines["left"].set_color("#cccccc")
     ax.spines["bottom"].set_color("#cccccc")
     ax.tick_params(colors="#888888", labelsize=11)
 
-    # Discarded: very faint dots (nearly invisible like Karpathy's)
+    # Discarded: visible grey dots showing the failed attempts
     if discarded:
         ax.scatter(
             [r.experiment for r in discarded],
             [r.score for r in discarded],
-            c="#d4d4d4",
-            s=25,
-            alpha=0.35,
+            c="#cccccc",
+            s=35,
+            alpha=0.5,
             zorder=2,
             label="Discarded",
         )
 
-    # Kept: green dots + step line
     if kept:
         kept_x = [r.experiment for r in kept]
         kept_y = [r.score for r in kept]
@@ -91,7 +89,6 @@ def plot_progress(
             running_best_y.append(y)
             current_best = y
 
-        # Extend step line to the right edge
         if kept_x[-1] < max_x:
             running_best_x.append(max_x)
             running_best_y.append(current_best)
@@ -116,20 +113,19 @@ def plot_progress(
             label="Kept",
         )
 
-        # Rotated italic labels like Karpathy's
-        # Alternate offset direction to reduce overlap
+        # Rotated italic labels on kept points
         for idx, r in enumerate(kept):
-            y_offset = -10 if idx % 2 == 0 else 12
+            y_offset = -12 if idx % 2 == 0 else 14
             ax.annotate(
                 r.label,
                 (r.experiment, r.score),
                 textcoords="offset points",
-                xytext=(10, y_offset),
-                fontsize=7.5,
+                xytext=(8, y_offset),
+                fontsize=7,
                 fontstyle="italic",
                 color="#5a9e6f",
                 alpha=0.85,
-                rotation=30,
+                rotation=32,
                 rotation_mode="anchor",
                 ha="left",
                 va="top" if y_offset < 0 else "bottom",
@@ -139,7 +135,6 @@ def plot_progress(
     ax.set_ylabel("Mean Reproduction Error (lower is better)", fontsize=13, color="#555555", labelpad=10)
     ax.set_title(title, fontsize=15, fontweight="bold", color="#333333", pad=20)
 
-    # Legend: top-right, minimal frame
     legend = ax.legend(
         loc="upper right",
         framealpha=0.9,
@@ -149,7 +144,6 @@ def plot_progress(
     )
     legend.get_frame().set_linewidth(0.5)
 
-    # Very subtle grid
     ax.grid(True, alpha=0.1, color="#cccccc", linewidth=0.5)
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
