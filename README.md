@@ -637,7 +637,7 @@ See [Contributing a Skill](#contributing-a-skill) above for the submission proce
 
 ## Versioning
 
-ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.4.0**. See [CHANGELOG.md](CHANGELOG.md) for a full history of additions and breaking changes.
+ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.5.0**. See [CHANGELOG.md](CHANGELOG.md) for a full history of additions and breaking changes.
 
 ---
 
