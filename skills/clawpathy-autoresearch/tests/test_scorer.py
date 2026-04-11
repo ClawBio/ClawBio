@@ -6,10 +6,12 @@ Lower is better. Zero = perfect reproduction.
 from __future__ import annotations
 
 import pytest
+from pathlib import Path
 
 from skills.clawpathy_autoresearch.scorer import (
     reproduction_error,
     ErrorBreakdown,
+    load_scorer,
 )
 
 
@@ -164,3 +166,29 @@ def test_error_breakdown_dict(ground_truth, partial_output):
     assert "locus_count_error" in d
     assert "variant_missing_penalty" in d
     assert "direction_error" in d
+
+
+def test_load_scorer_from_file(tmp_path: Path):
+    scorer_code = '''
+def score(skill_output: dict, ground_truth: dict) -> float:
+    return abs(skill_output.get("value", 0) - ground_truth.get("value", 0))
+'''
+    scorer_path = tmp_path / "scorer.py"
+    scorer_path.write_text(scorer_code)
+
+    score_fn = load_scorer(scorer_path)
+    result = score_fn({"value": 10}, {"value": 7})
+    assert result == pytest.approx(3.0)
+
+
+def test_load_scorer_missing_file_raises():
+    with pytest.raises(FileNotFoundError):
+        load_scorer(Path("/nonexistent/scorer.py"))
+
+
+def test_load_scorer_missing_score_function(tmp_path: Path):
+    scorer_path = tmp_path / "scorer.py"
+    scorer_path.write_text("x = 1\n")
+
+    with pytest.raises(AttributeError, match="score"):
+        load_scorer(scorer_path)

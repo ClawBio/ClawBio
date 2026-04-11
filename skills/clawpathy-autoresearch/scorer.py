@@ -13,7 +13,9 @@ Metrics:
 """
 from __future__ import annotations
 
+import importlib.util
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -151,3 +153,23 @@ def reproduction_error(
         direction_error=direction_error,
         total=total,
     )
+
+
+def load_scorer(scorer_path: Path) -> callable:
+    """Dynamically import a scorer.py and return its score() function.
+
+    The scorer module must define: score(skill_output: dict, ground_truth: dict) -> float
+    """
+    scorer_path = Path(scorer_path)
+    if not scorer_path.exists():
+        raise FileNotFoundError(f"Scorer not found: {scorer_path}")
+
+    spec = importlib.util.spec_from_file_location("workspace_scorer", scorer_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    if not hasattr(module, "score"):
+        raise AttributeError(
+            f"Scorer at {scorer_path} must define a score() function"
+        )
+    return module.score
