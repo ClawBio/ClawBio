@@ -1,12 +1,15 @@
-"""Tests for hybrid scorer."""
+"""Tests for reproduction error scorer.
+
+Score = mean absolute error across concrete numerical targets.
+Lower is better. Zero = perfect reproduction.
+"""
 from __future__ import annotations
 
 import pytest
 
 from skills.clawpathy_autoresearch.scorer import (
-    automated_score,
-    combine_scores,
-    ScoreResult,
+    reproduction_error,
+    ErrorBreakdown,
 )
 
 
@@ -17,106 +20,147 @@ def ground_truth() -> dict:
             {
                 "rsid": "rs356182",
                 "gene": "SNCA",
-                "p_value_order": -45,
+                "neg_log10_p": 45.0,
+                "odds_ratio": 1.33,
+                "effect_allele_freq": 0.37,
                 "effect_direction": "risk",
-                "or_range": [1.25, 1.40],
             },
             {
                 "rsid": "rs34311866",
                 "gene": "LRRK2",
-                "p_value_order": -30,
+                "neg_log10_p": 30.0,
+                "odds_ratio": 1.22,
+                "effect_allele_freq": 0.02,
                 "effect_direction": "risk",
-                "or_range": [1.15, 1.30],
             },
         ],
-        "qualitative_findings": [
-            "Identified immune system enrichment",
-            "Lysosomal pathway implicated",
-            "90 independent risk loci total",
-        ],
         "total_loci": 90,
-        "ancestry": "European",
     }
 
 
 @pytest.fixture
-def perfect_agent_output() -> dict:
+def perfect_output() -> dict:
     return {
         "variants_found": [
             {
                 "rsid": "rs356182",
-                "gene": "SNCA",
-                "p_value": 1e-50,
+                "neg_log10_p": 45.0,
+                "odds_ratio": 1.33,
+                "effect_allele_freq": 0.37,
                 "effect_direction": "risk",
-                "odds_ratio": 1.32,
             },
             {
                 "rsid": "rs34311866",
-                "gene": "LRRK2",
-                "p_value": 1e-35,
-                "effect_direction": "risk",
+                "neg_log10_p": 30.0,
                 "odds_ratio": 1.22,
+                "effect_allele_freq": 0.02,
+                "effect_direction": "risk",
             },
         ],
         "total_loci_reported": 90,
-        "qualitative_summary": (
-            "Found immune system enrichment and lysosomal pathway involvement. "
-            "Identified 90 independent risk loci in European ancestry."
-        ),
     }
 
 
 @pytest.fixture
-def partial_agent_output() -> dict:
+def partial_output() -> dict:
     return {
         "variants_found": [
             {
                 "rsid": "rs356182",
-                "gene": "SNCA",
-                "p_value": 1e-50,
+                "neg_log10_p": 40.0,
+                "odds_ratio": 1.28,
+                "effect_allele_freq": 0.35,
                 "effect_direction": "risk",
-                "odds_ratio": 1.32,
             },
         ],
-        "total_loci_reported": 45,
-        "qualitative_summary": "Found some immune enrichment.",
+        "total_loci_reported": 60,
     }
 
 
-def test_automated_score_perfect(ground_truth, perfect_agent_output):
-    result = automated_score(ground_truth, perfect_agent_output)
-    assert isinstance(result, ScoreResult)
-    assert result.variant_recovery == 1.0
-    assert result.direction_accuracy == 1.0
-    assert result.effect_size_accuracy == 1.0
-    assert result.locus_count_accuracy == 1.0
-    assert result.automated_total == pytest.approx(10.0, abs=0.01)
+def test_perfect_reproduction_is_zero(ground_truth, perfect_output):
+    result = reproduction_error(ground_truth, perfect_output)
+    assert isinstance(result, ErrorBreakdown)
+    assert result.total == pytest.approx(0.0, abs=0.001)
+    assert result.p_value_error == pytest.approx(0.0, abs=0.001)
+    assert result.or_error == pytest.approx(0.0, abs=0.001)
+    assert result.freq_error == pytest.approx(0.0, abs=0.001)
+    assert result.locus_count_error == pytest.approx(0.0, abs=0.001)
+    assert result.variant_missing_penalty == pytest.approx(0.0, abs=0.001)
+    assert result.direction_error == pytest.approx(0.0, abs=0.001)
 
 
-def test_automated_score_partial(ground_truth, partial_agent_output):
-    result = automated_score(ground_truth, partial_agent_output)
-    assert result.variant_recovery == 0.5
-    assert result.locus_count_accuracy == 0.5
-    assert result.automated_total < 10.0
+def test_partial_output_has_positive_error(ground_truth, partial_output):
+    result = reproduction_error(ground_truth, partial_output)
+    assert result.total > 0.0
+    assert result.variant_missing_penalty > 0.0  # missed rs34311866
+    assert result.locus_count_error > 0.0  # 60 vs 90
 
 
-def test_automated_score_empty_output(ground_truth):
-    empty = {"variants_found": [], "total_loci_reported": 0, "qualitative_summary": ""}
-    result = automated_score(ground_truth, empty)
-    assert result.variant_recovery == 0.0
-    assert result.automated_total == pytest.approx(0.0, abs=0.01)
+def test_empty_output_has_maximum_penalty(ground_truth):
+    empty = {"variants_found": [], "total_loci_reported": 0}
+    result = reproduction_error(ground_truth, empty)
+    assert result.total > 0.0
+    assert result.variant_missing_penalty > 0.0
 
 
-def test_combine_scores():
-    auto = 7.5
-    llm = 8.0
-    combined = combine_scores(auto, llm, auto_weight=0.6, llm_weight=0.4)
-    expected = 0.6 * 7.5 + 0.4 * 8.0  # 7.7
-    assert combined == pytest.approx(expected, abs=0.01)
+def test_wrong_direction_penalised(ground_truth):
+    output = {
+        "variants_found": [
+            {
+                "rsid": "rs356182",
+                "neg_log10_p": 45.0,
+                "odds_ratio": 1.33,
+                "effect_allele_freq": 0.37,
+                "effect_direction": "protective",  # wrong
+            },
+            {
+                "rsid": "rs34311866",
+                "neg_log10_p": 30.0,
+                "odds_ratio": 1.22,
+                "effect_allele_freq": 0.02,
+                "effect_direction": "risk",
+            },
+        ],
+        "total_loci_reported": 90,
+    }
+    result = reproduction_error(ground_truth, output)
+    assert result.direction_error > 0.0
+    assert result.total > 0.0
 
 
-def test_combine_scores_clamps_to_scale():
-    combined = combine_scores(10.0, 10.0)
-    assert combined <= 10.0
-    combined = combine_scores(0.0, 0.0)
-    assert combined >= 0.0
+def test_p_value_error_is_normalised(ground_truth):
+    """P-value error should be normalised by target so huge p-values don't dominate."""
+    output = {
+        "variants_found": [
+            {
+                "rsid": "rs356182",
+                "neg_log10_p": 50.0,  # off by 5 from target 45
+                "odds_ratio": 1.33,
+                "effect_allele_freq": 0.37,
+                "effect_direction": "risk",
+            },
+            {
+                "rsid": "rs34311866",
+                "neg_log10_p": 35.0,  # off by 5 from target 30
+                "odds_ratio": 1.22,
+                "effect_allele_freq": 0.02,
+                "effect_direction": "risk",
+            },
+        ],
+        "total_loci_reported": 90,
+    }
+    result = reproduction_error(ground_truth, output)
+    # Normalised: |50-45|/45 = 0.111, |35-30|/30 = 0.167, mean = 0.139
+    assert result.p_value_error == pytest.approx(0.139, abs=0.01)
+
+
+def test_error_breakdown_dict(ground_truth, partial_output):
+    result = reproduction_error(ground_truth, partial_output)
+    d = result.to_dict()
+    assert "total" in d
+    assert "p_value_error" in d
+    assert "or_error" in d
+    assert "freq_error" in d
+    assert "locus_count_error" in d
+    assert "variant_missing_penalty" in d
+    assert "direction_error" in d

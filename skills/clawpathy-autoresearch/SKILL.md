@@ -52,17 +52,17 @@ You are **clawpathy-autoresearch**, a meta-skill that iteratively improves other
 ## Core Capabilities
 
 1. **Task definition**: YAML-based task configs with ground truth for scoring
-2. **Hybrid scoring**: Automated numerical checks (60%) + LLM-as-judge qualitative (40%)
+2. **Concrete error scoring**: Mean reproduction error from numerical metrics (lower is better, 0 = perfect)
 3. **Skill management**: Read, modify, create, snapshot, and rollback SKILL.md files
 4. **Iterative loop**: Attempt task, score, modify skills, retry. Keep improvements, revert failures
-5. **Progress plotting**: Karpathy-style scatter + step-line chart showing improvement over experiments
+5. **Progress plotting**: Karpathy-style scatter + step-line chart showing error descending towards zero
 
 ## Input Formats
 
 | Format | Extension | Required Fields | Example |
 |--------|-----------|-----------------|---------|
 | Task config | `.yaml` | name, metric, direction, papers | `tasks/gwas_reproduction/task.yaml` |
-| Ground truth | `.yaml` | lead_variants, qualitative_findings, total_loci | `ground_truth/paper_001.yaml` |
+| Ground truth | `.yaml` | lead_variants (rsid, gene, neg_log10_p, odds_ratio, effect_allele_freq, effect_direction), total_loci | `ground_truth/paper_001.yaml` |
 
 ## Workflow
 
@@ -71,8 +71,8 @@ When the user asks to iteratively improve skills:
 1. **Load task**: Parse task.yaml, resolve ground truth files
 2. **Snapshot skills**: Capture current state of all SKILL.md files
 3. **Attempt task**: Agent runs the task using current skills
-4. **Score output**: Hybrid scoring (automated + LLM judge) against ground truth
-5. **Decide**: If score improved, keep changes. If not, revert to snapshot
+4. **Score output**: Compute mean reproduction error against ground truth (lower is better)
+5. **Decide**: If error decreased, keep changes. If not, revert to snapshot
 6. **Modify skills**: Agent proposes SKILL.md modifications based on feedback
 7. **Plot**: Update progress.png with latest experiment
 8. **Repeat**: Loop for N iterations
@@ -83,17 +83,11 @@ When the user asks to iteratively improve skills:
 # Run with a defined task
 python skills/clawpathy-autoresearch/autoresearch.py \
   --task tasks/gwas_reproduction/task.yaml \
-  --output /tmp/autoresearch --iterations 20
+  --output /tmp/autoresearch --iterations 80
 
 # Demo mode (synthetic data, generates example progress plot)
 python skills/clawpathy-autoresearch/autoresearch.py \
   --demo --output /tmp/autoresearch_demo
-
-# Custom scoring weights
-python skills/clawpathy-autoresearch/autoresearch.py \
-  --task tasks/gwas_reproduction/task.yaml \
-  --auto-weight 0.7 --llm-weight 0.3 \
-  --output /tmp/autoresearch
 ```
 
 ## Demo
@@ -104,7 +98,7 @@ To verify the skill works:
 python skills/clawpathy-autoresearch/autoresearch.py --demo --output /tmp/autoresearch_demo
 ```
 
-Expected output: "50 experiments, N kept." plus a `progress.png` showing a Karpathy-style improvement curve with grey discarded dots, green kept improvements, and annotations on each kept point.
+Expected output: "83 experiments, 30 kept." plus a `progress.png` showing a Karpathy-style error curve descending from ~1.0 towards zero, with grey discarded dots, green kept improvements, and rotated italic annotations on each kept point.
 
 ## Algorithm / Methodology
 
@@ -113,26 +107,26 @@ Expected output: "50 experiments, N kept." plus a `progress.png` showing a Karpa
 1. **Baseline**: Run the task with current skills, establish initial score
 2. **Propose**: Agent analyses score breakdown and proposes skill modifications
 3. **Apply**: Modify SKILL.md files (workflow reordering, new gotchas, parameter changes, new skills)
-4. **Evaluate**: Re-run task with modified skills, compute hybrid score
-5. **Select**: If score > best_score, keep changes (commit). Otherwise, revert to snapshot
+4. **Evaluate**: Re-run task with modified skills, compute mean reproduction error
+5. **Select**: If error < best_error, keep changes (commit). Otherwise, revert to snapshot
 6. **Record**: Log experiment result (kept/discarded, score, label, skill diff)
 7. **Plot**: Update progress chart
 8. **Repeat**: Back to step 2
 
-### Hybrid Scoring
+### Error Metrics (Lower is Better, 0 = Perfect)
 
-**Automated (60% weight):**
-- Variant recovery: fraction of ground truth rsIDs found (35%)
-- Direction accuracy: correct risk/protective calls (25%)
-- Effect size accuracy: OR within expected range (25%)
-- Locus count accuracy: within tolerance of reported total (15%)
+Score is a weighted mean of six concrete numerical error components:
 
-**LLM Judge (40% weight):**
-- Biological pathways identified (0-2)
-- Methodology appropriate (0-2)
-- Qualitative findings matched (0-2)
-- Relevant skills created/modified (0-2)
-- Overall coherence (0-2)
+| Component | Weight | Calculation |
+|-----------|--------|-------------|
+| **P-value error** | 0.20 | Normalised \|target - reproduced\| / target on neg_log10_p |
+| **Odds ratio error** | 0.25 | Absolute \|target - reproduced\| on OR |
+| **Effect allele freq error** | 0.10 | Absolute difference in frequency |
+| **Locus count error** | 0.15 | Normalised \|target - reproduced\| / target |
+| **Variant missing penalty** | 0.20 | 1.0 per missing variant / total variants |
+| **Direction error** | 0.10 | 1.0 per wrong risk/protective call / total variants |
+
+Total error = weighted sum. Zero means perfect reproduction. No LLM judge, no vague qualitative rubrics: just numbers.
 
 ### Skill Modification Types
 
@@ -163,7 +157,7 @@ output_directory/
 - `matplotlib` >= 3.7 — progress plot generation
 
 **Optional:**
-- `anthropic` >= 0.25 — LLM judge scoring (graceful fallback to score 5.0 without it)
+- `anthropic` >= 0.25 — agent integration for real task execution
 
 ## Safety
 

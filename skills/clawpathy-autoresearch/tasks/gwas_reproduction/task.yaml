@@ -4,9 +4,9 @@ description: >-
   The agent must identify lead variants, effect sizes, biological pathways,
   and overall locus counts. Skills are iteratively modified to improve
   reproduction accuracy.
-metric: "reproduction_score"
-direction: "higher_is_better"
-scale: [0, 10]
+metric: "reproduction_error"
+direction: "lower_is_better"
+scale: [0, 1]
 skills_dir: "../../"
 
 papers:

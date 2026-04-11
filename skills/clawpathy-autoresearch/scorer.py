@@ -1,47 +1,71 @@
-"""Hybrid scoring engine for clawpathy-autoresearch.
+"""Reproduction error scorer for clawpathy-autoresearch.
 
-Combines automated numerical checks (variant recovery, effect sizes, locus counts)
-with LLM-as-judge qualitative scoring.
+Score = mean absolute error across concrete numerical targets.
+Lower is better. Zero = perfect reproduction.
+
+Metrics:
+- p_value_error: normalised |target - reproduced| / target for -log10(p)
+- or_error: absolute |target - reproduced| for odds ratios
+- freq_error: absolute |target - reproduced| for effect allele frequencies
+- locus_count_error: normalised |target - reproduced| / target for total loci
+- variant_missing_penalty: 1.0 per missing variant (not found by rsID)
+- direction_error: 1.0 per incorrect effect direction call
 """
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from typing import Any
 
 
+# Penalty added per missing variant (not found in agent output)
+MISSING_VARIANT_PENALTY = 1.0
+
+# Penalty per wrong direction call
+DIRECTION_PENALTY = 1.0
+
+# Weights for combining error components into total
+WEIGHTS = {
+    "p_value": 0.20,
+    "or": 0.25,
+    "freq": 0.10,
+    "locus_count": 0.15,
+    "missing": 0.20,
+    "direction": 0.10,
+}
+
+
 @dataclass
-class ScoreResult:
-    """Breakdown of automated scoring components."""
+class ErrorBreakdown:
+    """Breakdown of reproduction error components. All >= 0, lower is better."""
 
-    variant_recovery: float  # 0-1: fraction of ground truth variants found
-    direction_accuracy: float  # 0-1: correct risk/protective calls
-    effect_size_accuracy: float  # 0-1: OR within expected range
-    locus_count_accuracy: float  # 0-1: reported loci count vs expected
-    automated_total: float  # 0-10: weighted combination
+    p_value_error: float
+    or_error: float
+    freq_error: float
+    locus_count_error: float
+    variant_missing_penalty: float
+    direction_error: float
+    total: float
 
-    @property
-    def breakdown(self) -> dict[str, float]:
+    def to_dict(self) -> dict[str, float]:
         return {
-            "variant_recovery": self.variant_recovery,
-            "direction_accuracy": self.direction_accuracy,
-            "effect_size_accuracy": self.effect_size_accuracy,
-            "locus_count_accuracy": self.locus_count_accuracy,
-            "automated_total": self.automated_total,
+            "p_value_error": self.p_value_error,
+            "or_error": self.or_error,
+            "freq_error": self.freq_error,
+            "locus_count_error": self.locus_count_error,
+            "variant_missing_penalty": self.variant_missing_penalty,
+            "direction_error": self.direction_error,
+            "total": self.total,
         }
 
 
-def automated_score(
+def reproduction_error(
     ground_truth: dict[str, Any],
     agent_output: dict[str, Any],
-) -> ScoreResult:
-    """Score agent output against ground truth using automated checks.
+) -> ErrorBreakdown:
+    """Compute reproduction error between ground truth and agent output.
 
-    Components (each 0-1, then combined to 0-10):
-    - variant_recovery: fraction of expected lead variants found by rsID
-    - direction_accuracy: fraction with correct effect direction
-    - effect_size_accuracy: fraction with OR inside expected range
-    - locus_count_accuracy: 1 - |expected - reported| / expected (floored at 0)
+    All error components are >= 0. Total is a weighted sum.
+    Perfect reproduction returns total == 0.
     """
     gt_variants = ground_truth.get("lead_variants", [])
     agent_variants = agent_output.get("variants_found", [])
@@ -49,113 +73,81 @@ def automated_score(
     agent_loci = agent_output.get("total_loci_reported", 0)
 
     if not gt_variants:
-        return ScoreResult(0.0, 0.0, 0.0, 0.0, 0.0)
+        lce = abs(gt_loci - agent_loci) / max(gt_loci, 1)
+        return ErrorBreakdown(0.0, 0.0, 0.0, lce, 0.0, 0.0, lce * WEIGHTS["locus_count"])
 
-    # Build lookup of agent variants by rsID
     agent_by_rsid = {v["rsid"]: v for v in agent_variants}
 
-    found = 0
-    direction_correct = 0
-    effect_correct = 0
+    p_errors = []
+    or_errors = []
+    freq_errors = []
+    direction_errors = []
+    missing_count = 0
 
     for gt_v in gt_variants:
         rsid = gt_v["rsid"]
-        if rsid in agent_by_rsid:
-            found += 1
-            av = agent_by_rsid[rsid]
+        if rsid not in agent_by_rsid:
+            missing_count += 1
+            continue
 
-            # Direction check
-            if av.get("effect_direction") == gt_v.get("effect_direction"):
-                direction_correct += 1
+        av = agent_by_rsid[rsid]
 
-            # Effect size check
-            or_range = gt_v.get("or_range", [0, 0])
-            agent_or = av.get("odds_ratio", 0)
-            if or_range[0] <= agent_or <= or_range[1]:
-                effect_correct += 1
+        # P-value error: normalised by target
+        gt_p = gt_v.get("neg_log10_p", 0)
+        ag_p = av.get("neg_log10_p", 0)
+        if gt_p > 0:
+            p_errors.append(abs(gt_p - ag_p) / gt_p)
+        else:
+            p_errors.append(abs(gt_p - ag_p))
+
+        # OR error: absolute difference
+        gt_or = gt_v.get("odds_ratio", 1.0)
+        ag_or = av.get("odds_ratio", 1.0)
+        or_errors.append(abs(gt_or - ag_or))
+
+        # Frequency error: absolute difference
+        gt_freq = gt_v.get("effect_allele_freq", 0.0)
+        ag_freq = av.get("effect_allele_freq", 0.0)
+        freq_errors.append(abs(gt_freq - ag_freq))
+
+        # Direction error: binary
+        gt_dir = gt_v.get("effect_direction", "")
+        ag_dir = av.get("effect_direction", "")
+        if gt_dir and ag_dir and gt_dir != ag_dir:
+            direction_errors.append(DIRECTION_PENALTY)
+        else:
+            direction_errors.append(0.0)
 
     n = len(gt_variants)
-    variant_recovery = found / n
-    direction_accuracy = direction_correct / n if found > 0 else 0.0
-    effect_size_accuracy = effect_correct / n if found > 0 else 0.0
 
-    # Locus count accuracy
+    p_value_error = sum(p_errors) / len(p_errors) if p_errors else 0.0
+    or_error = sum(or_errors) / len(or_errors) if or_errors else 0.0
+    freq_error = sum(freq_errors) / len(freq_errors) if freq_errors else 0.0
+    direction_error = sum(direction_errors) / n
+    variant_missing_penalty = missing_count * MISSING_VARIANT_PENALTY / n
+
+    # Locus count error: normalised
     if gt_loci > 0:
-        locus_count_accuracy = max(0.0, 1.0 - abs(gt_loci - agent_loci) / gt_loci)
+        locus_count_error = abs(gt_loci - agent_loci) / gt_loci
     else:
-        locus_count_accuracy = 1.0 if agent_loci == 0 else 0.0
+        locus_count_error = float(agent_loci)
 
-    # Weighted combination to 0-10 scale
-    # Weights: variant recovery 35%, direction 25%, effect size 25%, locus count 15%
-    automated_total = (
-        0.35 * variant_recovery
-        + 0.25 * direction_accuracy
-        + 0.25 * effect_size_accuracy
-        + 0.15 * locus_count_accuracy
-    ) * 10.0
-
-    return ScoreResult(
-        variant_recovery=variant_recovery,
-        direction_accuracy=direction_accuracy,
-        effect_size_accuracy=effect_size_accuracy,
-        locus_count_accuracy=locus_count_accuracy,
-        automated_total=automated_total,
+    # Weighted total
+    total = (
+        WEIGHTS["p_value"] * p_value_error
+        + WEIGHTS["or"] * or_error
+        + WEIGHTS["freq"] * freq_error
+        + WEIGHTS["locus_count"] * locus_count_error
+        + WEIGHTS["missing"] * variant_missing_penalty
+        + WEIGHTS["direction"] * direction_error
     )
 
-
-def llm_judge_score(
-    paper_results_text: str,
-    agent_output_text: str,
-    model: str = "claude-sonnet-4-20250514",
-) -> tuple[float, str]:
-    """Score agent output using an LLM judge.
-
-    Returns (score 0-10, reasoning text).
-    Falls back to 5.0 if the API call fails.
-    """
-    try:
-        import anthropic
-    except ImportError:
-        return 5.0, "LLM judge unavailable (anthropic SDK not installed)"
-
-    rubric = (
-        "Score the agent's reproduction of this GWAS paper's findings on a 0-10 scale.\n\n"
-        "Rubric:\n"
-        "- Correct lead variants identified (0-2)\n"
-        "- Effect directions and sizes accurate (0-2)\n"
-        "- Biological pathways / enrichments identified (0-2)\n"
-        "- Methodology appropriate for the paper (0-2)\n"
-        "- Overall coherence and completeness (0-2)\n\n"
-        "Respond with ONLY a JSON object: {\"score\": <number>, \"reasoning\": \"<text>\"}"
+    return ErrorBreakdown(
+        p_value_error=p_value_error,
+        or_error=or_error,
+        freq_error=freq_error,
+        locus_count_error=locus_count_error,
+        variant_missing_penalty=variant_missing_penalty,
+        direction_error=direction_error,
+        total=total,
     )
-
-    prompt = (
-        f"## Paper's actual results\n\n{paper_results_text}\n\n"
-        f"## Agent's reproduction output\n\n{agent_output_text}\n\n"
-        f"## Scoring rubric\n\n{rubric}"
-    )
-
-    try:
-        client = anthropic.Anthropic()
-        response = client.messages.create(
-            model=model,
-            max_tokens=500,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        import json
-
-        result = json.loads(response.content[0].text)
-        return float(result["score"]), result["reasoning"]
-    except Exception as e:
-        return 5.0, f"LLM judge error: {e}"
-
-
-def combine_scores(
-    automated: float,
-    llm: float,
-    auto_weight: float = 0.6,
-    llm_weight: float = 0.4,
-) -> float:
-    """Combine automated and LLM scores into a final 0-10 score."""
-    combined = auto_weight * automated + llm_weight * llm
-    return max(0.0, min(10.0, combined))

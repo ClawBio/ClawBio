@@ -15,13 +15,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-
-import yaml
 
 # ---------------------------------------------------------------------------
 # Ensure project root is importable
@@ -31,28 +28,26 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from skills.clawpathy_autoresearch.task import TaskDefinition, load_task
-from skills.clawpathy_autoresearch.scorer import (
-    automated_score,
-    llm_judge_score,
-    combine_scores,
-)
+from skills.clawpathy_autoresearch.scorer import reproduction_error
 from skills.clawpathy_autoresearch.plotter import plot_progress, ExperimentRecord
 from skills.clawpathy_autoresearch.skill_manager import SkillManager
 
 
 @dataclass
 class ExperimentResult:
-    """Result of a single experiment iteration."""
+    """Result of a single experiment iteration.
+
+    Score is mean reproduction error (lower is better, 0 = perfect).
+    """
 
     experiment: int
-    score: float
+    score: float  # mean reproduction error, lower is better
     kept: bool
     label: str
     skill_changes: list[str]
     skills_created: list[str]
-    per_paper_scores: dict[str, float]
-    automated_score: float
-    llm_score: float
+    per_paper_errors: dict[str, float]
+    error_breakdown: dict[str, float]
     timestamp: str = ""
 
     def __post_init__(self):
@@ -67,9 +62,8 @@ class ExperimentResult:
             "label": self.label,
             "skill_changes": self.skill_changes,
             "skills_created": self.skills_created,
-            "per_paper_scores": self.per_paper_scores,
-            "automated_score": self.automated_score,
-            "llm_score": self.llm_score,
+            "per_paper_errors": self.per_paper_errors,
+            "error_breakdown": self.error_breakdown,
             "timestamp": self.timestamp,
         }
 
@@ -88,27 +82,24 @@ def load_experiment_log(path: Path) -> list[dict]:
 
 
 class AutoResearchLoop:
-    """The core iterative skill improvement loop."""
+    """The core iterative skill improvement loop.
+
+    Score = mean reproduction error. Lower is better. 0 = perfect.
+    """
 
     def __init__(
         self,
         task_path: Path,
         output_dir: Path,
-        max_iterations: int = 20,
-        auto_weight: float = 0.6,
-        llm_weight: float = 0.4,
-        llm_model: str = "claude-sonnet-4-20250514",
+        max_iterations: int = 80,
     ) -> None:
         self.task = load_task(task_path)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.max_iterations = max_iterations
-        self.auto_weight = auto_weight
-        self.llm_weight = llm_weight
-        self.llm_model = llm_model
         self.skill_mgr = SkillManager(Path(self.task.skills_dir))
         self.history: list[ExperimentResult] = []
-        self.best_score: float = -1.0
+        self.best_score: float = float("inf")  # lower is better
 
     def run_agent_on_paper(self, paper_id: str) -> dict[str, Any]:
         """Run the agent on a single paper using current skills.
@@ -118,7 +109,6 @@ class AutoResearchLoop:
         return {
             "variants_found": [],
             "total_loci_reported": 0,
-            "qualitative_summary": "",
         }
 
     def propose_skill_changes(
@@ -135,33 +125,27 @@ class AutoResearchLoop:
         """Execute one iteration of the loop."""
         snapshot = self.skill_mgr.snapshot()
 
-        paper_scores = {}
-        total_auto = 0.0
-        total_llm = 0.0
+        paper_errors = {}
+        total_breakdown = {}
 
         for paper in self.task.papers:
             agent_output = self.run_agent_on_paper(paper.id)
+            error = reproduction_error(paper.ground_truth or {}, agent_output)
+            paper_errors[paper.id] = error.total
 
-            auto_result = automated_score(paper.ground_truth or {}, agent_output)
-            auto_s = auto_result.automated_total
-
-            gt_text = yaml.dump(paper.ground_truth) if paper.ground_truth else ""
-            agent_text = yaml.dump(agent_output)
-            llm_s, _ = llm_judge_score(gt_text, agent_text, model=self.llm_model)
-
-            combined = combine_scores(auto_s, llm_s, self.auto_weight, self.llm_weight)
-            paper_scores[paper.id] = combined
-            total_auto += auto_s
-            total_llm += llm_s
+            # Accumulate breakdowns
+            for k, v in error.to_dict().items():
+                if k != "total":
+                    total_breakdown[k] = total_breakdown.get(k, 0.0) + v
 
         n = max(len(self.task.papers), 1)
-        avg_score = sum(paper_scores.values()) / n
-        avg_auto = total_auto / n
-        avg_llm = total_llm / n
+        avg_error = sum(paper_errors.values()) / n
+        avg_breakdown = {k: v / n for k, v in total_breakdown.items()}
 
-        kept = avg_score > self.best_score
+        # Lower is better: keep if error decreased
+        kept = avg_error < self.best_score
         if kept:
-            self.best_score = avg_score
+            self.best_score = avg_error
             label = "baseline" if iteration == 1 else "improvement"
         else:
             self.skill_mgr.restore(snapshot)
@@ -173,14 +157,13 @@ class AutoResearchLoop:
 
         result = ExperimentResult(
             experiment=iteration,
-            score=avg_score,
+            score=avg_error,
             kept=kept,
             label=label,
             skill_changes=modified,
             skills_created=created,
-            per_paper_scores=paper_scores,
-            automated_score=avg_auto,
-            llm_score=avg_llm,
+            per_paper_errors=paper_errors,
+            error_breakdown=avg_breakdown,
         )
         self.history.append(result)
         return result
@@ -196,7 +179,7 @@ class AutoResearchLoop:
             result = self.run_iteration(i)
             status = "KEPT" if result.kept else "DISCARDED"
             print(
-                f"[{i}/{self.max_iterations}] Score: {result.score:.2f} "
+                f"[{i}/{self.max_iterations}] Error: {result.score:.4f} "
                 f"({status}) — {result.label}"
             )
 
@@ -215,65 +198,102 @@ class AutoResearchLoop:
             plot_progress(records, self.output_dir / "progress.png")
 
         print("-" * 60)
-        print(f"Done. Best score: {self.best_score:.2f}")
+        print(f"Done. Best error: {self.best_score:.4f}")
         print(f"Results: {self.output_dir}")
         return self.history
 
 
 def run_demo(output_dir: Path) -> None:
-    """Run a demo with synthetic data to show the plot."""
+    """Run a demo with synthetic data to show a descending error plot.
+
+    Simulates 83 experiments like Karpathy's autoresearch, with error
+    starting high (~1.0) and being driven towards zero.
+    """
     import random
 
     random.seed(42)
 
     history: list[ExperimentRecord] = []
-    best = 2.5
-    exp = 0
+    best = 0.98  # starting error (high)
 
     labels_kept = [
         "baseline",
-        "added gwas-lookup chaining",
-        "created fine-mapping skill",
-        "expanded PheWAS workflow",
-        "added LD cross-reference gotcha",
-        "improved variant resolution step",
-        "created pathway-enrichment skill",
-        "added multi-ancestry check",
-        "expanded effect size validation",
-        "added cross-database deduplication",
-        "refined LLM judge rubric",
-        "added confidence interval parsing",
+        "added neg_log10_p normalisation to gwas-lookup",
+        "created variant-resolution skill",
+        "added OR confidence-interval cross-check",
+        "gwas-lookup: chain to fine-mapping for lead SNPs",
+        "expanded PheWAS cross-check workflow",
+        "effect-direction: use beta sign not OR",
+        "locus-count: parse supplementary tables",
+        "added allele-frequency population matching",
+        "variant-resolution: fuzzy rsID matching (merged SNPs)",
+        "gwas-lookup: add EBI GWAS Catalog fallback",
+        "fine-mapping: SuSiE credible set → lead variant",
+        "created multi-ancestry reconciliation skill",
+        "locus-count: exclude HLA region duplicates",
+        "p-value: handle extreme values (1e-300+) via log",
+        "OR: cap error at 2.0 for protective alleles",
+        "added proxy-SNP LD lookup (r2 > 0.8)",
+        "effect-freq: gnomAD v4 supersedes ExAC",
+        "variant-resolution: handle tri-allelic sites",
+        "direction: infer from beta when OR missing",
+        "created GWAS-catalog-scraper skill",
+        "locus-count: merge LD-linked loci (r2 > 0.1)",
+        "p-value: use exact -log10 from summary stats",
+        "fine-mapping: weight by posterior probability",
+        "OR: impute from beta + SE when not reported",
+        "added ancestry-aware allele frequency skill",
+        "variant-resolution: dbSNP merge history lookup",
+        "p-value: condition on lead SNP for secondary",
+        "created effect-size-harmoniser skill",
+        "locus-count: count independent signals not loci",
     ]
     labels_disc = [
-        "removed validation step",
+        "removed validation step (broke OR checks)",
         "aggressive gotcha pruning",
-        "reordered workflow badly",
+        "reordered workflow (lost chaining context)",
         "over-specified trigger conditions",
-        "merged unrelated skills",
+        "merged unrelated skills (gwas + prs)",
         "stripped safety checks",
-        "added redundant API calls",
+        "added redundant API calls (rate limited)",
         "weakened scoring rubric",
+        "skipped allele-frequency normalisation",
+        "removed LD-based deduplication",
+        "used p-value instead of -log10(p)",
+        "hardcoded EUR frequencies (ancestry bias)",
+        "dropped protective variant handling",
     ]
 
     kept_idx = 0
     disc_idx = 0
 
-    for i in range(1, 51):
-        exp += 1
-        improves = random.random() < max(0.15, 0.4 - i * 0.005)
+    for i in range(1, 84):
+        # Higher improvement rate early, diminishing returns later
+        p_improve = max(0.12, 0.55 - i * 0.005)
+        improves = random.random() < p_improve
 
         if improves and kept_idx < len(labels_kept):
-            improvement = random.uniform(0.3, 1.2) * max(0.5, 1.0 - i * 0.01)
-            score = best + improvement
+            # Phase-based reductions: big early, moderate mid, smaller late
+            if i < 15:
+                reduction = random.uniform(0.04, 0.10)
+            elif i < 35:
+                reduction = random.uniform(0.02, 0.06)
+            elif i < 60:
+                reduction = random.uniform(0.01, 0.03)
+            else:
+                reduction = random.uniform(0.005, 0.015)
+            score = best - reduction
+            score = max(score, 0.008)  # floor near zero
             label = labels_kept[kept_idx]
             kept_idx += 1
             best = score
-            history.append(ExperimentRecord(exp, score, True, label))
+            history.append(ExperimentRecord(i, score, True, label))
         else:
-            score = best - random.uniform(0.1, 2.0)
+            # Failed attempt: error goes up from current best
+            score = best + random.uniform(0.002, 0.02)
             label = labels_disc[disc_idx % len(labels_disc)]
             disc_idx += 1
-            history.append(ExperimentRecord(exp, score, False, label))
+            history.append(ExperimentRecord(i, score, False, label))
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -283,7 +303,7 @@ def run_demo(output_dir: Path) -> None:
     log = [
         {
             "experiment": r.experiment,
-            "score": round(r.score, 2),
+            "score": round(r.score, 4),
             "kept": r.kept,
             "label": r.label,
         }
@@ -291,7 +311,9 @@ def run_demo(output_dir: Path) -> None:
     ]
     (output_dir / "experiment_log.json").write_text(json.dumps(log, indent=2))
 
-    print(f"Demo complete. {len(history)} experiments, {sum(1 for r in history if r.kept)} kept.")
+    n_kept = sum(1 for r in history if r.kept)
+    print(f"Demo complete. {len(history)} experiments, {n_kept} kept.")
+    print(f"Final error: {best:.4f}")
     print(f"Plot: {output_dir / 'progress.png'}")
     print(f"Log: {output_dir / 'experiment_log.json'}")
 
@@ -302,13 +324,8 @@ def main() -> None:
     )
     parser.add_argument("--task", type=Path, help="Path to task.yaml")
     parser.add_argument("--output", type=Path, default=Path("/tmp/autoresearch"))
-    parser.add_argument("--iterations", type=int, default=20)
+    parser.add_argument("--iterations", type=int, default=80)
     parser.add_argument("--demo", action="store_true", help="Run with synthetic demo data")
-    parser.add_argument("--auto-weight", type=float, default=0.6)
-    parser.add_argument("--llm-weight", type=float, default=0.4)
-    parser.add_argument(
-        "--llm-model", default="claude-sonnet-4-20250514", help="Model for LLM judge"
-    )
     args = parser.parse_args()
 
     if args.demo:
@@ -322,9 +339,6 @@ def main() -> None:
         task_path=args.task,
         output_dir=args.output,
         max_iterations=args.iterations,
-        auto_weight=args.auto_weight,
-        llm_weight=args.llm_weight,
-        llm_model=args.llm_model,
     )
     loop.run()
 

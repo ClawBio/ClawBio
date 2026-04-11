@@ -136,7 +136,7 @@ def plot_progress(
             )
 
     ax.set_xlabel("Experiment #", fontsize=13, color="#555555", labelpad=10)
-    ax.set_ylabel("Reproduction Score (higher is better)", fontsize=13, color="#555555", labelpad=10)
+    ax.set_ylabel("Mean Reproduction Error (lower is better)", fontsize=13, color="#555555", labelpad=10)
     ax.set_title(title, fontsize=15, fontweight="bold", color="#333333", pad=20)
 
     # Legend: top-right, minimal frame
