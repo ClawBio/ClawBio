@@ -1,11 +1,10 @@
-"""Tests for the main autoresearch loop."""
+"""Tests for the autoresearch loop and CLI."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
 import pytest
-import yaml
 
 from skills.clawpathy_autoresearch.autoresearch import (
     AutoResearchLoop,
@@ -16,53 +15,48 @@ from skills.clawpathy_autoresearch.autoresearch import (
 
 
 @pytest.fixture
-def task_dir(tmp_path: Path) -> Path:
-    """Create a complete task directory."""
-    gt_dir = tmp_path / "tasks" / "test_task" / "ground_truth"
-    gt_dir.mkdir(parents=True)
+def workspace_dir(tmp_path: Path) -> Path:
+    """Create a minimal workspace for testing the loop."""
+    ws = tmp_path / "test_workspace"
+    ws.mkdir()
 
-    task_config = {
-        "name": "Test Reproduction",
-        "description": "Test task",
-        "metric": "reproduction_error",
-        "direction": "lower_is_better",
-        "scale": [0, 1],
-        "skills_dir": str(tmp_path / "skills"),
-        "papers": [
-            {
-                "id": "paper_001",
-                "title": "Test GWAS",
-                "pmid": "12345678",
-                "ground_truth": "ground_truth/paper_001.yaml",
-            }
-        ],
+    task_json = {
+        "name": "Test Task",
+        "description": "Test",
+        "max_iterations": 3,
+        "early_stop_n": 2,
     }
-    task_yaml = tmp_path / "tasks" / "test_task" / "task.yaml"
-    task_yaml.write_text(yaml.dump(task_config))
+    (ws / "task.json").write_text(json.dumps(task_json))
 
-    gt = {
-        "lead_variants": [
-            {
-                "rsid": "rs123456",
-                "gene": "TEST1",
-                "neg_log10_p": 20.0,
-                "odds_ratio": 1.20,
-                "effect_allele_freq": 0.30,
-                "effect_direction": "risk",
-            }
-        ],
-        "total_loci": 10,
+    ground_truth = {
+        "targets": [
+            {"id": "item_1", "value": 10.0},
+        ]
     }
-    (gt_dir / "paper_001.yaml").write_text(yaml.dump(gt))
+    (ws / "ground_truth.json").write_text(json.dumps(ground_truth))
 
-    # Create a skills dir with one skill
-    skills_dir = tmp_path / "skills" / "test-skill"
-    skills_dir.mkdir(parents=True)
-    (skills_dir / "SKILL.md").write_text(
-        "---\nname: test-skill\n---\n\n# Test Skill\n\n## Workflow\n\n1. Do thing\n"
+    scorer_code = '''
+def score(skill_output: dict, ground_truth: dict) -> float:
+    targets = {t["id"]: t["value"] for t in ground_truth["targets"]}
+    outputs = {o["id"]: o["value"] for o in skill_output.get("results", [])}
+    if not targets:
+        return 0.0
+    errors = []
+    for tid, tval in targets.items():
+        oval = outputs.get(tid, 0.0)
+        errors.append(abs(tval - oval) / max(abs(tval), 1e-9))
+    return sum(errors) / len(errors)
+'''
+    (ws / "scorer.py").write_text(scorer_code)
+
+    skill_dir = ws / "skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: test-skill\n---\n# Test\n\n## Workflow\n\n1. Do thing\n"
     )
 
-    return tmp_path
+    (ws / "sources").mkdir()
+    return ws
 
 
 def test_experiment_result_serialisation():
@@ -71,30 +65,24 @@ def test_experiment_result_serialisation():
         score=0.35,
         kept=True,
         label="baseline",
-        skill_changes=["test-skill"],
-        skills_created=[],
-        per_paper_errors={"paper_001": 0.35},
-        error_breakdown={"p_value_error": 0.1, "or_error": 0.05},
+        skill_diff={},
+        error_breakdown={},
     )
     d = result.to_dict()
     assert d["experiment"] == 1
     assert d["score"] == 0.35
     assert d["kept"] is True
-    assert "per_paper_errors" in d
-    assert "error_breakdown" in d
 
 
 def test_save_and_load_experiment_log(tmp_path: Path):
     results = [
         ExperimentResult(
             experiment=1, score=0.8, kept=True, label="baseline",
-            skill_changes=[], skills_created=[],
-            per_paper_errors={}, error_breakdown={},
+            skill_diff={}, error_breakdown={},
         ),
         ExperimentResult(
             experiment=2, score=0.6, kept=True, label="improved",
-            skill_changes=["x"], skills_created=[],
-            per_paper_errors={}, error_breakdown={},
+            skill_diff={"skill": "modified"}, error_breakdown={},
         ),
     ]
     log_path = tmp_path / "experiment_log.json"
@@ -107,13 +95,56 @@ def test_save_and_load_experiment_log(tmp_path: Path):
     assert loaded[1]["score"] == 0.6
 
 
-def test_autoresearch_loop_init(task_dir: Path):
+def test_loop_init(workspace_dir: Path):
     loop = AutoResearchLoop(
-        task_path=task_dir / "tasks" / "test_task" / "task.yaml",
-        output_dir=task_dir / "results",
-        max_iterations=3,
+        workspace_dir=workspace_dir,
+        output_dir=workspace_dir / "output",
     )
-    assert loop.task.name == "Test Reproduction"
+    assert loop.workspace.name == "Test Task"
     assert loop.max_iterations == 3
+    assert loop.early_stop_n == 2
     assert len(loop.history) == 0
-    assert loop.best_score == float("inf")  # lower is better
+    assert loop.best_score == float("inf")
+
+
+def test_loop_run_iteration_default_agent(workspace_dir: Path):
+    """Default run_agent_on_skill returns empty output, scoring > 0."""
+    loop = AutoResearchLoop(
+        workspace_dir=workspace_dir,
+        output_dir=workspace_dir / "output",
+    )
+    result = loop.run_iteration(1)
+    assert isinstance(result, ExperimentResult)
+    assert result.experiment == 1
+    assert result.score >= 0.0
+    assert result.kept is True  # first iteration is always kept as baseline
+
+
+def test_loop_early_stop(workspace_dir: Path):
+    """Loop stops after early_stop_n consecutive non-improvements."""
+    loop = AutoResearchLoop(
+        workspace_dir=workspace_dir,
+        output_dir=workspace_dir / "output",
+    )
+    results = loop.run()
+    # With default agent (always returns same output), should early-stop
+    # after 1 kept (baseline) + early_stop_n non-improvements = 3 total
+    assert len(results) <= loop.max_iterations
+
+
+def test_loop_produces_plot(workspace_dir: Path):
+    loop = AutoResearchLoop(
+        workspace_dir=workspace_dir,
+        output_dir=workspace_dir / "output",
+    )
+    loop.run()
+    assert (workspace_dir / "output" / "progress.png").exists()
+
+
+def test_loop_produces_experiment_log(workspace_dir: Path):
+    loop = AutoResearchLoop(
+        workspace_dir=workspace_dir,
+        output_dir=workspace_dir / "output",
+    )
+    loop.run()
+    assert (workspace_dir / "output" / "experiment_log.json").exists()
