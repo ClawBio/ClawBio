@@ -1,0 +1,38 @@
+{
+  "targets": [
+    {
+      "paper_id": "nalls_2019_pd",
+      "pmid": "31701892",
+      "title": "Nalls et al. 2019 - Parkinson's disease",
+      "total_loci": 90,
+      "lead_variants": [
+        {"rsid": "rs356182", "gene": "SNCA", "neg_log10_p": 45.0, "odds_ratio": 1.33, "effect_allele_freq": 0.37, "effect_direction": "risk"},
+        {"rsid": "rs34311866", "gene": "LRRK2", "neg_log10_p": 30.0, "odds_ratio": 1.22, "effect_allele_freq": 0.02, "effect_direction": "risk"},
+        {"rsid": "rs34637584", "gene": "LRRK2", "neg_log10_p": 25.0, "odds_ratio": 2.25, "effect_allele_freq": 0.001, "effect_direction": "risk"},
+        {"rsid": "rs114138760", "gene": "GBA", "neg_log10_p": 20.0, "odds_ratio": 1.95, "effect_allele_freq": 0.015, "effect_direction": "risk"},
+        {"rsid": "rs12637471", "gene": "MAPT", "neg_log10_p": 40.0, "odds_ratio": 0.80, "effect_allele_freq": 0.22, "effect_direction": "protective"}
+      ]
+    },
+    {
+      "paper_id": "mahajan_2018_t2d",
+      "pmid": "30297969",
+      "title": "Mahajan et al. 2018 - Type 2 diabetes",
+      "total_loci": 243,
+      "lead_variants": [
+        {"rsid": "rs7903146", "gene": "TCF7L2", "neg_log10_p": 200.0, "odds_ratio": 1.38, "effect_allele_freq": 0.30, "effect_direction": "risk"},
+        {"rsid": "rs11708067", "gene": "ADCY5", "neg_log10_p": 15.0, "odds_ratio": 1.12, "effect_allele_freq": 0.22, "effect_direction": "risk"},
+        {"rsid": "rs1801282", "gene": "PPARG", "neg_log10_p": 20.0, "odds_ratio": 0.86, "effect_allele_freq": 0.12, "effect_direction": "protective"}
+      ]
+    },
+    {
+      "paper_id": "delange_2017_ibd",
+      "pmid": "28067908",
+      "title": "de Lange et al. 2017 - IBD",
+      "total_loci": 226,
+      "lead_variants": [
+        {"rsid": "rs2241880", "gene": "ATG16L1", "neg_log10_p": 30.0, "odds_ratio": 1.22, "effect_allele_freq": 0.47, "effect_direction": "risk"},
+        {"rsid": "rs11209026", "gene": "IL23R", "neg_log10_p": 40.0, "odds_ratio": 0.50, "effect_allele_freq": 0.06, "effect_direction": "protective"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "GWAS Paper Reproduction",
+  "description": "Reproduce lead variant statistics from landmark GWAS papers by reading the paper methods and applying the described analysis pipeline.",
+  "max_iterations": 80,
+  "early_stop_n": 5
+}
