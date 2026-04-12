@@ -125,3 +125,31 @@ def test_load_workspace_invalid_raises(valid_workspace: Path):
 def test_load_workspace_nonexistent_dir():
     with pytest.raises(FileNotFoundError):
         load_workspace(Path("/nonexistent/workspace"))
+
+
+def test_ground_truth_split_dev_heldout(tmp_path: Path):
+    """When ground_truth.json has {dev, heldout}, loop uses dev, auditor uses heldout."""
+    ws = tmp_path / "split_task"
+    ws.mkdir()
+    (ws / "task.json").write_text(json.dumps({"name": "t", "description": "d"}))
+    (ws / "ground_truth.json").write_text(json.dumps({
+        "dev": {"targets": [{"id": "a", "value": 1.0}]},
+        "heldout": {"targets": [{"id": "b", "value": 2.0}]},
+    }))
+    (ws / "scorer.py").write_text("def score(o, g): return 0.0\n")
+    (ws / "skill").mkdir()
+    (ws / "skill" / "SKILL.md").write_text("x")
+    (ws / "sources").mkdir()
+
+    loaded = load_workspace(ws)
+    # ground_truth for the loop = dev split
+    assert loaded.ground_truth == {"targets": [{"id": "a", "value": 1.0}]}
+    # held-out preserved separately
+    assert loaded.heldout_ground_truth == {"targets": [{"id": "b", "value": 2.0}]}
+
+
+def test_ground_truth_flat_no_split(valid_workspace: Path):
+    """Flat ground_truth.json (no dev/heldout keys) keeps backward-compat behaviour."""
+    ws = load_workspace(valid_workspace)
+    assert ws.heldout_ground_truth is None
+    assert "targets" in ws.ground_truth

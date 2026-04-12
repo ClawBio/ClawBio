@@ -1,32 +1,9 @@
-#!/usr/bin/env python3
-"""clawpathy-autoresearch: iterative skill improvement loop.
+"""Stub. The loop engine is rewritten in Task 8."""
 
-General-purpose meta-skill that creates and iteratively improves SKILL.md
-files for any reproducible task. Domain-agnostic: all domain knowledge
-enters through the workspace.
 
-Usage:
-    python autoresearch.py --task /path/to/workspace --iterations 80
-    python autoresearch.py --demo --output /tmp/autoresearch_demo
-"""
-from __future__ import annotations
+def run(*args, **kwargs):
+    raise NotImplementedError("rewritten in Task 8")
 
-import argparse
-import json
-import sys
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any
-
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-
-from skills.clawpathy_autoresearch.workspace import load_workspace, Workspace
-from skills.clawpathy_autoresearch.scorer import load_scorer
-from skills.clawpathy_autoresearch.plotter import plot_progress, ExperimentRecord
-from skills.clawpathy_autoresearch.skill_manager import SkillManager
 
 
 @dataclass
@@ -94,26 +71,43 @@ class AutoResearchLoop:
         self.history: list[ExperimentResult] = []
         self.best_score: float = float("inf")
         self._consecutive_non_improvements = 0
+        self.enable_critic: bool = True
 
     def run_agent_on_skill(
         self, skill_path: Path, sources_dir: Path
     ) -> dict[str, Any]:
         """Run an agent that reads the SKILL.md and produces output.
 
-        Override this method to plug in different agent backends.
-        Returns a dict matching the ground truth schema for scoring.
+        MUST be overridden per-workspace. The default raises to prevent
+        silent vacuous loops where every iteration scores an empty dict.
         """
-        return {}
+        raise NotImplementedError(
+            "AutoResearchLoop.run_agent_on_skill must be overridden. "
+            "Subclass AutoResearchLoop and implement run_agent_on_skill(skill_path, sources_dir) "
+            "to execute the workspace task and return a dict matching ground_truth schema."
+        )
 
     def propose_skill_changes(
         self, score: float, error_breakdown: dict[str, Any], history: list[ExperimentResult]
     ) -> str:
-        """Propose a single targeted edit to the SKILL.md.
+        """Propose a single targeted edit to the SKILL.md via the LLM proposer.
 
-        Override this for real agent integration.
-        Returns a label describing the proposed change.
+        Default implementation dispatches to `proposer.propose_edit` which
+        rewrites SKILL.md in place. Override to plug in a different proposer.
         """
-        return "no changes proposed"
+        from skills.clawpathy_autoresearch.proposer import propose_edit
+
+        skill_path = self.workspace.skill_dir / "SKILL.md"
+        history_labels = [r.label for r in history]
+        result = propose_edit(
+            workspace_name=self.workspace.name,
+            skill_path=skill_path,
+            history_labels=history_labels,
+            last_score=score,
+        )
+        if result.error:
+            print(f"  (proposer error: {result.error[:160]})")
+        return result.label
 
     def run_iteration(self, iteration: int) -> ExperimentResult:
         """Execute one iteration of the loop.
@@ -132,9 +126,41 @@ class AutoResearchLoop:
                 self.history,
             )
 
+            # Reflection critic: reject edits that cheat (memorise ground truth)
+            if self.enable_critic:
+                from skills.clawpathy_autoresearch import critic as critic_mod
+
+                diff = self.skill_mgr.diff_from_snapshot(snapshot)
+                verdict = critic_mod.review_edit(
+                    task_description=self.workspace.description or self.workspace.name,
+                    ground_truth=self.workspace.ground_truth,
+                    diff=diff,
+                    proposer_label=change_label,
+                )
+                if not verdict.approved:
+                    self.skill_mgr.restore(snapshot)
+                    self._consecutive_non_improvements += 1
+                    result = ExperimentResult(
+                        experiment=iteration,
+                        score=self.best_score,
+                        kept=False,
+                        label=f"critic-rejected: {change_label} ({verdict.reason})",
+                        skill_diff=diff,
+                        error_breakdown={},
+                    )
+                    self.history.append(result)
+                    return result
+
         skill_path = self.workspace.skill_dir / "SKILL.md"
         output = self.run_agent_on_skill(skill_path, self.workspace.sources_dir)
-        score = self.score_fn(output, self.workspace.ground_truth)
+        score_result = self.score_fn(output, self.workspace.ground_truth)
+        if isinstance(score_result, tuple):
+            score, error_breakdown = score_result
+        else:
+            score, error_breakdown = score_result, {}
+
+        # Capture the diff BEFORE potentially restoring, so discarded edits are logged too
+        diff = self.skill_mgr.diff_from_snapshot(snapshot)
 
         kept = score < self.best_score
         if kept:
@@ -146,15 +172,13 @@ class AutoResearchLoop:
             self._consecutive_non_improvements += 1
             label = f"discarded: {change_label}" if change_label else "discarded"
 
-        diff = self.skill_mgr.diff_from_snapshot(snapshot) if kept else {}
-
         result = ExperimentResult(
             experiment=iteration,
             score=score,
             kept=kept,
             label=label,
             skill_diff=diff,
-            error_breakdown={},
+            error_breakdown=error_breakdown,
         )
         self.history.append(result)
         return result
@@ -187,7 +211,52 @@ class AutoResearchLoop:
         print("-" * 60)
         print(f"Done. Best score: {self.best_score:.4f} ({len(self.history)} experiments)")
         print(f"Results: {self.output_dir}")
+
+        # Final parallel LLM-judge pass (qualitative score + proposed additions)
+        if not self._skip_final_judges:
+            self._run_final_judges()
+
         return self.history
+
+    _skip_final_judges = False  # override in tests
+
+    def _run_final_judges(self) -> None:
+        """Run the final LLM-judge pass. Safe to call only after loop completes."""
+        try:
+            from skills.clawpathy_autoresearch.final_judge import run_final_judges
+        except ImportError:
+            print("(final judges skipped: final_judge module unavailable)")
+            return
+
+        skill_path = self.workspace.skill_dir / "SKILL.md"
+        skill_text = skill_path.read_text()
+        output = self.run_agent_on_skill(skill_path, self.workspace.sources_dir)
+
+        print("-" * 60)
+        print("Running final LLM judges in parallel (quality + proposal)...")
+        try:
+            results = run_final_judges(
+                workspace_name=self.workspace.name,
+                skill_text=skill_text,
+                output=output,
+                ground_truth=self.workspace.ground_truth,
+                output_dir=self.output_dir,
+            )
+            q = results["quality"].get("parsed") or {}
+            p = results["proposal"].get("parsed") or {}
+            q_err = results["quality"].get("error")
+            p_err = results["proposal"].get("error")
+            if q_err:
+                print(f"Quality judge FAILED: {q_err}")
+            else:
+                print(f"Quality judge: {q.get('verdict', '?')} (score={q.get('score', '?')})")
+            if p_err:
+                print(f"Proposal judge FAILED: {p_err}")
+            elif p.get("priority_change"):
+                print(f"Proposal judge priority: {p['priority_change']}")
+            print(f"Full judge output: {self.output_dir}/final_judges.json")
+        except Exception as exc:
+            print(f"(final judges failed: {exc})")
 
 
 def run_demo(output_dir: Path) -> None:
@@ -200,50 +269,50 @@ def run_demo(output_dir: Path) -> None:
 
     labels_kept = [
         "baseline",
-        "added neg_log10_p normalisation to gwas-lookup",
-        "created variant-resolution skill",
-        "added OR confidence-interval cross-check",
-        "gwas-lookup: chain to fine-mapping for lead SNPs",
-        "expanded PheWAS cross-check workflow",
-        "effect-direction: use beta sign not OR",
-        "locus-count: parse supplementary tables",
-        "added allele-frequency population matching",
-        "variant-resolution: fuzzy rsID matching (merged SNPs)",
-        "gwas-lookup: add EBI GWAS Catalog fallback",
-        "fine-mapping: SuSiE credible set to lead variant",
-        "created multi-ancestry reconciliation skill",
-        "locus-count: exclude HLA region duplicates",
-        "p-value: handle extreme values (1e-300+) via log",
-        "OR: cap error at 2.0 for protective alleles",
-        "added proxy-SNP LD lookup (r2 > 0.8)",
-        "effect-freq: gnomAD v4 supersedes ExAC",
-        "variant-resolution: handle tri-allelic sites",
-        "direction: infer from beta when OR missing",
-        "created GWAS-catalog-scraper skill",
-        "locus-count: merge LD-linked loci (r2 > 0.1)",
-        "p-value: use exact -log10 from summary stats",
-        "fine-mapping: weight by posterior probability",
-        "OR: impute from beta + SE when not reported",
-        "added ancestry-aware allele frequency skill",
-        "variant-resolution: dbSNP merge history lookup",
-        "p-value: condition on lead SNP for secondary",
-        "created effect-size-harmoniser skill",
-        "locus-count: count independent signals not loci",
+        "added explicit input-format gotcha",
+        "tightened trigger keywords",
+        "split workflow step 3 into two substeps",
+        "added output-schema example block",
+        "reordered gotchas by severity",
+        "clarified ambiguous parameter default",
+        "added edge-case: empty input handling",
+        "added cross-check step against reference",
+        "pinned numerical tolerance in scorer",
+        "added missing-data imputation note",
+        "separated validation from transformation",
+        "added provenance logging to workflow",
+        "cached intermediate result between steps",
+        "replaced prose instruction with table",
+        "added explicit type annotations to output",
+        "tuned retry count for flaky step",
+        "added batching for large inputs",
+        "deduplicated overlapping gotchas",
+        "surfaced silent failure as loud error",
+        "added domain-specific glossary",
+        "linked to chaining partner skill",
+        "added dry-run mode to workflow",
+        "tightened output rounding precision",
+        "added structured error-return contract",
+        "added rate-limit handling note",
+        "explicit ordering of multi-step output",
+        "added regression guard for common mistake",
+        "pre-flight input schema validation",
+        "added progress reporting to long step",
     ]
     labels_disc = [
-        "removed validation step (broke OR checks)",
+        "removed validation step",
         "aggressive gotcha pruning",
         "reordered workflow (lost chaining context)",
         "over-specified trigger conditions",
-        "merged unrelated skills (gwas + prs)",
+        "merged unrelated steps",
         "stripped safety checks",
-        "added redundant API calls (rate limited)",
+        "added redundant API calls",
         "weakened scoring rubric",
-        "skipped allele-frequency normalisation",
-        "removed LD-based deduplication",
-        "used p-value instead of -log10(p)",
-        "hardcoded EUR frequencies (ancestry bias)",
-        "dropped protective variant handling",
+        "skipped input normalisation",
+        "removed deduplication pass",
+        "collapsed gotchas into a single line",
+        "hardcoded default that varies by input",
+        "dropped edge-case handling",
     ]
 
     kept_idx = 0
@@ -297,6 +366,52 @@ def run_demo(output_dir: Path) -> None:
     print(f"Log: {output_dir / 'experiment_log.json'}")
 
 
+def setup_workspace_interactive(output_dir: Path) -> Path:
+    """Scaffold a fresh workspace by asking the user for task details.
+
+    Creates task.json, ground_truth.json (empty stub), scorer.py (exact-match
+    stub), skill/SKILL.md (task header only), and sources/ in output_dir.
+    Returns the workspace path.
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    print("No workspace found. Let's scaffold one.")
+    name = input("Task name (short, e.g. 'IBD GWAS reproduction'): ").strip() or "Untitled task"
+    description = input("One-paragraph description of what the agent must do: ").strip()
+    max_iters_raw = input("Max iterations [30]: ").strip()
+    max_iters = int(max_iters_raw) if max_iters_raw else 30
+    early_stop_raw = input("Early-stop after N consecutive non-improvements [5]: ").strip()
+    early_stop = int(early_stop_raw) if early_stop_raw else 5
+
+    (output_dir / "task.json").write_text(
+        json.dumps(
+            {"name": name, "description": description,
+             "max_iterations": max_iters, "early_stop_n": early_stop},
+            indent=2,
+        )
+    )
+    (output_dir / "ground_truth.json").write_text(
+        json.dumps({"_note": "Fill in task-specific ground truth here."}, indent=2)
+    )
+    (output_dir / "scorer.py").write_text(
+        'def score(skill_output: dict, ground_truth: dict):\n'
+        '    """Return float (lower is better) or (float, breakdown_dict)."""\n'
+        '    raise NotImplementedError("Implement scoring for this task.")\n'
+    )
+    skill_dir = output_dir / "skill"
+    skill_dir.mkdir(exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(
+        f"---\nname: {name.lower().replace(' ', '-')}\nversion: 0.1.0\n---\n\n"
+        f"# {name}\n\n{description}\n\n## Workflow\n\n(to be proposed by autoresearch)\n"
+    )
+    (output_dir / "sources").mkdir(exist_ok=True)
+
+    print(f"\nWorkspace scaffolded at: {output_dir}")
+    print("Next: edit ground_truth.json and scorer.py, then rerun with --task", output_dir)
+    return output_dir
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="clawpathy-autoresearch: iterative skill improvement loop"
@@ -308,14 +423,27 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=Path("/tmp/autoresearch"))
     parser.add_argument("--iterations", type=int, default=None)
     parser.add_argument("--demo", action="store_true", help="Run with synthetic demo data")
+    parser.add_argument("--setup", type=Path, help="Scaffold a new workspace interactively at this path")
+    parser.add_argument("--validate", action="store_true", help="Validate workspace (load task + scorer) and exit")
     args = parser.parse_args()
 
     if args.demo:
         run_demo(args.output)
         return
 
+    if args.setup:
+        setup_workspace_interactive(args.setup)
+        return
+
     if not args.task:
-        parser.error("--task is required (path to workspace directory, or use --demo)")
+        parser.error("--task is required (or use --demo / --setup)")
+
+    if args.validate:
+        from skills.clawpathy_autoresearch.workspace import load_workspace
+        ws = load_workspace(args.task)
+        load_scorer(ws.scorer_path)
+        print(f"OK: {ws.name} — {len(ws.ground_truth)} ground-truth keys, scorer loads.")
+        return
 
     loop = AutoResearchLoop(
         workspace_dir=args.task,

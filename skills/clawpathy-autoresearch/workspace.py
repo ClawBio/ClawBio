@@ -21,6 +21,7 @@ class Workspace:
     max_iterations: int
     early_stop_n: int
     ground_truth: dict[str, Any]
+    heldout_ground_truth: dict[str, Any] | None
     workspace_dir: Path
     skill_dir: Path
     sources_dir: Path
@@ -65,7 +66,15 @@ def load_workspace(workspace_dir: Path) -> Workspace:
         )
 
     task_data = json.loads((workspace_dir / "task.json").read_text())
-    ground_truth = json.loads((workspace_dir / "ground_truth.json").read_text())
+    gt_raw = json.loads((workspace_dir / "ground_truth.json").read_text())
+
+    # Optional held-out split: {"dev": {...}, "heldout": {...}}
+    if isinstance(gt_raw, dict) and "dev" in gt_raw and "heldout" in gt_raw:
+        ground_truth = gt_raw["dev"]
+        heldout = gt_raw["heldout"]
+    else:
+        ground_truth = gt_raw
+        heldout = None
 
     return Workspace(
         name=task_data["name"],
@@ -73,6 +82,7 @@ def load_workspace(workspace_dir: Path) -> Workspace:
         max_iterations=task_data.get("max_iterations", 80),
         early_stop_n=task_data.get("early_stop_n", 5),
         ground_truth=ground_truth,
+        heldout_ground_truth=heldout,
         workspace_dir=workspace_dir,
         skill_dir=workspace_dir / "skill",
         sources_dir=workspace_dir / "sources",

@@ -32,10 +32,9 @@ dependencies:
   python: ">=3.11"
   packages:
     - matplotlib>=3.7
-    - anthropic>=0.25
 
 demo_data:
-  - path: skills/clawpathy-autoresearch/demo/
+  - path: skills/clawpathy-autoresearch/demo_workspace/
     description: Synthetic workspace with 83 pre-computed experiments and progress plot
 
 endpoints:
@@ -54,9 +53,6 @@ metadata:
     install:
       - kind: pip
         package: matplotlib
-        bins: []
-      - kind: pip
-        package: anthropic
         bins: []
     trigger_keywords:
       - auto research
@@ -119,25 +115,52 @@ One skill, one task: iterative optimisation of a single target SKILL.md against 
 
 ## Workflow
 
-Two phases: interactive setup, then headless optimisation loop.
+Three phases: multi-agent setup, headless optimisation loop, independent audit.
 
-### Phase 1: Workspace Setup (interactive)
+The setup phase is gated by three sequential subagents that prevent the
+controller from making assumptions. Grounded in published systems:
+task-clarifier (setup gate), prior-art-check (Sakana AI Scientist's
+Semantic Scholar novelty check), ground-truth-auditor (Coscientist
+reality-gate / OpenAI Deep Research citation pattern). The loop is gated
+per iteration by a reflection critic (Google Co-Scientist's Reflection
+agent). The final phase is a reproduction auditor on a held-out split
+(MLAgentBench pattern).
 
-1. **Create workspace**: Make a directory with `task.json`, `ground_truth.json`, `scorer.py`, and copy the target `SKILL.md` into `workspace/skill/SKILL.md`.
-2. **Define ground truth**: Write `ground_truth.json` with the expected outputs for your task. Format is task-specific.
-3. **Write scorer**: Implement `scorer.py` with a `score(output_path, ground_truth_path) -> float` function. Lower is better, 0 is perfect. Must be deterministic pure Python, no LLM calls.
-4. **Validate**: Run `autoresearch.py --task <workspace_dir> --validate` to confirm the workspace parses and scorer runs.
+### Phase 1: Workspace Setup (multi-agent gated)
 
-### Phase 2: Optimisation Loop (headless)
+1. **Clarify task** via `clarifier-prompt.md` subagent. Loop until
+   `ready=true`. Relay missing questions to the user.
+2. **Verify prior art** via `prior-art-prompt.md` subagent. Confirms the
+   paper + target results exist and are cited correctly.
+3. **Scaffold**: Run `autoresearch.py --setup <path>` to create
+   `task.json`, `ground_truth.json`, `scorer.py`, `skill/SKILL.md`.
+4. **Use a dev/held-out split** in `ground_truth.json`: `{"dev": {...},
+   "heldout": {...}}`. The loop optimises on `dev`. The reproduction
+   auditor verifies on `heldout`.
+5. **Audit ground truth** via `ground-truth-auditor-prompt.md` subagent.
+   Independently verifies every numerical value against the cited source.
+6. **Validate**: `autoresearch.py --task <workspace> --validate`.
 
-5. **Baseline**: Run the task with the current SKILL.md, record initial score.
-6. **Propose**: Agent analyses score breakdown and proposes one SKILL.md modification (workflow reordering, new gotcha, parameter clarification, etc.).
-7. **Apply**: Write the single edit to `workspace/skill/SKILL.md`.
-8. **Evaluate**: Re-run the task, compute score via scorer.py.
-9. **Select**: If score improved, keep the edit. If not, revert to the pre-edit snapshot.
-10. **Record**: Log iteration result (kept/discarded, score delta, edit summary) to `experiment_log.json`.
-11. **Plot**: Update `progress.png`.
-12. **Repeat**: Back to step 6 until `max_iterations` reached or score converges.
+### Phase 2: Optimisation Loop (critic-gated)
+
+7. **Baseline**: Run the task with the current SKILL.md, record initial score.
+8. **Propose**: LLM proposer rewrites SKILL.md (one targeted edit).
+9. **Critic review**: `critic.py` reviews the diff. Rejects edits that
+   bake ground-truth values into the skill (memorisation) or are
+   cosmetic. Rejected edits are reverted and logged as
+   `critic-rejected: <label>` without running the agent.
+10. **Evaluate**: Run agent on the new SKILL.md, score via scorer.py
+    against the `dev` split.
+11. **Select**: If score improved, keep the edit. If not, revert.
+12. **Record + plot**: Log to `experiment_log.json`, update `progress.png`.
+13. **Repeat**: Back to step 8 until `max_iterations` or early-stop.
+
+### Phase 3: Reproduction Audit (independent)
+
+14. **Run final SKILL.md against `heldout` split.**
+15. **Dispatch `reproduction-auditor-prompt.md` subagent.** Independent
+    judge never saw `dev`. Decides whether the skill genuinely reproduces
+    the paper's claim or overfit the loop's scorer.
 
 ## CLI Reference
 
@@ -212,6 +235,12 @@ output_directory/
 ## Agent Boundary
 
 The agent (LLM) dispatches and explains. The skill (Python) executes the loop, manages snapshots, and produces the progress plot. The agent proposes SKILL.md edits but does not decide keep/discard: that decision is made by comparing `scorer.py` outputs.
+
+## Chaining Partners
+
+- **Any ClawBio skill with a Python entrypoint**: autoresearch subclasses `AutoResearchLoop` and implements `run_agent_on_skill` to dispatch the target skill per iteration. It does not import target skills directly — the workspace defines the contract.
+- **`final_judge.py`**: runs at the end of the loop, producing a qualitative score and concrete SKILL.md addition proposals via parallel LLM judges.
+- **`proposer.py`**: runs every iteration, generating a single targeted SKILL.md edit from the current skill text plus experiment history.
 
 ## Maintenance
 
