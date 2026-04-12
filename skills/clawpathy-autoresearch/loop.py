@@ -100,9 +100,9 @@ def run_loop(workspace_dir: Path, dispatcher: Dispatcher) -> dict[str, Any]:
         with history_path.open("a") as f:
             f.write(json.dumps(entry) + "\n")
 
-        if ws.target_score is not None and best_score < ws.target_score:
+        if ws.target_score is not None and best_score <= ws.target_score:
             break
-        if consecutive_non_improvements >= max(1, ws.early_stop_n - 1):
+        if consecutive_non_improvements >= ws.early_stop_n:
             break
 
     return {

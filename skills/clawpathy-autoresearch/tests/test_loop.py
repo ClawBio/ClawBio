@@ -46,6 +46,12 @@ def test_loop_converges_on_trivial_task(tmp_path):
 
 def test_loop_reverts_when_score_worsens(tmp_path):
     ws = _build_task(tmp_path, target_text="hello")
+    # Drop target_score so the loop doesn't stop on first success; cap iters
+    task_json = ws / "task.json"
+    data = json.loads(task_json.read_text())
+    data.pop("target_score", None)
+    data["max_iterations"] = 2
+    task_json.write_text(json.dumps(data))
     proposals = iter([
         '```markdown\n# good\nreturn hello\n```',
         '```markdown\n# bad\nreturn wrong\n```',
