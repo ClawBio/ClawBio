@@ -88,7 +88,6 @@ def write_environment_yml(
     content = f"""name: {env_name}
 channels:
   - conda-forge
-  - defaults
 dependencies:
   - python={python_version}{conda_block}
   - pip
