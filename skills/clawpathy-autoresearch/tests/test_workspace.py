@@ -58,8 +58,7 @@ def score(skill_output: dict, ground_truth: dict) -> float:
         "## Workflow\n\n1. Read the input\n2. Produce output\n"
     )
 
-    sources_dir = ws / "sources"
-    sources_dir.mkdir()
+    (ws / "sandbox.yaml").write_text("allowed_tools: [Read]\n")
 
     return ws
 
@@ -83,7 +82,7 @@ def test_workspace_has_paths(valid_workspace: Path):
     ws = load_workspace(valid_workspace)
     assert ws.workspace_dir == valid_workspace
     assert ws.skill_dir == valid_workspace / "skill"
-    assert ws.sources_dir == valid_workspace / "sources"
+    assert ws.sandbox_path == valid_workspace / "sandbox.yaml"
     assert ws.scorer_path == valid_workspace / "scorer.py"
 
 
@@ -127,29 +126,19 @@ def test_load_workspace_nonexistent_dir():
         load_workspace(Path("/nonexistent/workspace"))
 
 
-def test_ground_truth_split_dev_heldout(tmp_path: Path):
-    """When ground_truth.json has {dev, heldout}, loop uses dev, auditor uses heldout."""
-    ws = tmp_path / "split_task"
-    ws.mkdir()
-    (ws / "task.json").write_text(json.dumps({"name": "t", "description": "d"}))
-    (ws / "ground_truth.json").write_text(json.dumps({
-        "dev": {"targets": [{"id": "a", "value": 1.0}]},
-        "heldout": {"targets": [{"id": "b", "value": 2.0}]},
-    }))
-    (ws / "scorer.py").write_text("def score(o, g): return 0.0\n")
-    (ws / "skill").mkdir()
-    (ws / "skill" / "SKILL.md").write_text("x")
-    (ws / "sources").mkdir()
-
-    loaded = load_workspace(ws)
-    # ground_truth for the loop = dev split
-    assert loaded.ground_truth == {"targets": [{"id": "a", "value": 1.0}]}
-    # held-out preserved separately
-    assert loaded.heldout_ground_truth == {"targets": [{"id": "b", "value": 2.0}]}
 
 
-def test_ground_truth_flat_no_split(valid_workspace: Path):
-    """Flat ground_truth.json (no dev/heldout keys) keeps backward-compat behaviour."""
-    ws = load_workspace(valid_workspace)
-    assert ws.heldout_ground_truth is None
-    assert "targets" in ws.ground_truth
+def test_workspace_has_sandbox_path(tmp_path):
+    """Workspace has sandbox_path field pointing to sandbox.yaml."""
+    ws_dir = tmp_path / "ws"
+    ws_dir.mkdir()
+    (ws_dir / "skill").mkdir()
+    (ws_dir / "skill" / "SKILL.md").write_text("# skill\n")
+    (ws_dir / "task.json").write_text('{"name":"t","max_iterations":5,"early_stop_n":2}')
+    (ws_dir / "ground_truth.json").write_text('{"targets":[]}')
+    (ws_dir / "scorer.py").write_text("def score(o, d): return (0.0, {})\n")
+    (ws_dir / "sandbox.yaml").write_text("allowed_tools: [Read]\n")
+    ws = load_workspace(ws_dir)
+    assert ws.sandbox_path == ws_dir / "sandbox.yaml"
+    assert ws.ground_truth == {"targets": []}
+    assert not hasattr(ws, "heldout_ground_truth")
