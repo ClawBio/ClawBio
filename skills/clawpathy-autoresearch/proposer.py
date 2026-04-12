@@ -19,15 +19,26 @@ Current SKILL.md:
 {current_skill}
 ```
 
-Last score: {last_score_line}
+Last score (lower is better): {last_score_line}
 Last score breakdown: {last_breakdown_line}
 Recent history (most recent last):
 {history_block}
 
-Return a full replacement SKILL.md as a markdown code block. Do not include \
-commentary outside the code block. Describe methodology only — never paste \
-ground-truth answers, rsIDs, specific gene names, or target values into the \
-skill. The executor that runs this skill will have sandbox-restricted tools.
+Write a **minimal, imperative, executor-facing playbook**. Constraints:
+- No YAML frontmatter. No Trigger/Scope/Gotchas/Safety sections.
+- One short `## Workflow` section with numbered steps.
+- Each step must be either (a) an exact bash command to run, (b) an exact \
+file to read, or (c) an exact rule for assembling output JSON. No \
+conditionals the executor has to resolve at runtime unless strictly needed.
+- End with the exact output JSON shape the executor must return.
+- The executor is an LLM with shell access but no memory of this task; it \
+will read this SKILL.md cold and act. Optimise for "a smart intern follows \
+this in one pass without asking questions".
+- Never paste ground-truth answers, rsIDs, gene names, or target values \
+into the skill — the executor must derive them by running the methodology.
+
+Return the replacement SKILL.md as a single markdown code block. No \
+commentary outside the code block.
 """
 
 

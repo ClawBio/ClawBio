@@ -10,9 +10,11 @@ from .sandbox import Sandbox
 
 
 EXECUTOR_PROMPT = """\
-You are executing the methodology described in the SKILL.md below. Follow it \
-exactly. Do not consult external information beyond what the skill tells you \
-to fetch. Return only the JSON output the skill specifies.
+You are executing the methodology described in the SKILL.md below. Execute \
+every numbered step of the workflow, in order, using the shell and file \
+tools available. Do not skip steps. Do not substitute your own estimates \
+for values the skill says to compute. Do not consult external information \
+beyond what the skill tells you to fetch.
 
 Sandbox contract (enforced):
 ```yaml
@@ -25,8 +27,9 @@ SKILL.md:
 {skill_content}
 ```
 
-Return ONLY a JSON object, optionally wrapped in a ```json code fence. No \
-prose.
+After completing every step, return ONLY the JSON object the skill \
+specifies, wrapped in a ```json code fence. No prose before or after. \
+If a step fails, fix it and retry before responding.
 """
 
 

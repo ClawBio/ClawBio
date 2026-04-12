@@ -16,7 +16,7 @@ import json
 import sys
 from pathlib import Path
 
-from .dispatcher import CallableDispatcher, DispatchRequest
+from .dispatcher import CallableDispatcher, ClaudeCLIDispatcher, DispatchRequest
 from .loop import run_loop
 
 
@@ -32,13 +32,20 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", required=True, type=Path)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--live", action="store_true",
+                        help="Use ClaudeCLIDispatcher (shells out to `claude -p`).")
+    parser.add_argument("--model", default="haiku")
+    parser.add_argument("--add-dir", action="append", default=[],
+                        help="Extra directories to expose to subagents (repeatable).")
     args = parser.parse_args(argv)
 
     if args.dry_run:
         dispatcher = _dry_run_dispatcher()
+    elif args.live:
+        dispatcher = ClaudeCLIDispatcher(model=args.model, extra_dirs=args.add_dir)
     else:
         print(
-            "error: no dispatcher configured. Use --dry-run, or invoke "
+            "error: no dispatcher configured. Use --dry-run or --live, or invoke "
             "run_loop() directly with a CallableDispatcher provided by the "
             "outer agent.",
             file=sys.stderr,
