@@ -116,8 +116,21 @@ class AutoResearchLoop:
         return "no changes proposed"
 
     def run_iteration(self, iteration: int) -> ExperimentResult:
-        """Execute one iteration of the loop."""
+        """Execute one iteration of the loop.
+
+        Flow: propose changes (iteration > 1) → snapshot → run → score → keep/revert.
+        """
+        # Snapshot BEFORE proposing changes so we can revert if the change hurts
         snapshot = self.skill_mgr.snapshot()
+
+        # Propose changes before running (except baseline)
+        change_label = ""
+        if iteration > 1:
+            change_label = self.propose_skill_changes(
+                self.best_score,
+                self.history[-1].error_breakdown if self.history else {},
+                self.history,
+            )
 
         skill_path = self.workspace.skill_dir / "SKILL.md"
         output = self.run_agent_on_skill(skill_path, self.workspace.sources_dir)
@@ -127,11 +140,11 @@ class AutoResearchLoop:
         if kept:
             self.best_score = score
             self._consecutive_non_improvements = 0
-            label = "baseline" if iteration == 1 else "improvement"
+            label = change_label or ("baseline" if iteration == 1 else "improvement")
         else:
             self.skill_mgr.restore(snapshot)
             self._consecutive_non_improvements += 1
-            label = "discarded"
+            label = f"discarded: {change_label}" if change_label else "discarded"
 
         diff = self.skill_mgr.diff_from_snapshot(snapshot) if kept else {}
 
