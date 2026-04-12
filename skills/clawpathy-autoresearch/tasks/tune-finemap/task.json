@@ -1,0 +1,7 @@
+{
+  "name": "tune-finemap",
+  "description": "For each of the 3 GWAS loci in data/ (locus_L1.tsv + locus_L1_ld.npy, etc.), call the existing fine-mapping tool at /Users/jaymoore/Documents/JAY_PhD/imperial/ClawBio/skills/fine-mapping/fine_mapping.py and return the union of credible-set rsIDs per locus. The scorer computes 1 - mean Jaccard vs true causal variants across loci. Choose SuSiE parameters (max-signals / L, coverage, min-purity, prior-variance) and any pre-filtering that makes credible sets tight and correctly recover the causals. The sumstats TSVs have columns rsid, chr, pos, z, se, n, p. LD matrices are numpy .npy files aligned row-by-row to the sumstats. Output JSON shape: {\"L1\": {\"credible_set\": [rsid,...], \"L\": int}, \"L2\": {...}, \"L3\": {...}}.",
+  "max_iterations": 12,
+  "early_stop_n": 4,
+  "target_score": 0.05
+}

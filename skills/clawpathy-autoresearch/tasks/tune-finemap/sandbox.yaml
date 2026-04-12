@@ -1,0 +1,6 @@
+allowed_tools: [Read, Bash, Write]
+network:
+  allowed: false
+data_dir: ./data
+python_packages: [numpy, pandas, scipy]
+timeout_seconds: 900
