@@ -1,0 +1,5 @@
+allowed_tools: [Read]
+network:
+  allowed: false
+python_packages: []
+timeout_seconds: 60

@@ -1,0 +1,3 @@
+{"iter": 1, "score": 1.0, "kept": true, "breakdown": {"text_match": 1.0, "got": null, "want": "hello"}}
+{"iter": 2, "score": 1.0, "kept": false, "breakdown": {"text_match": 1.0, "got": null, "want": "hello"}}
+{"iter": 3, "score": 1.0, "kept": false, "breakdown": {"text_match": 1.0, "got": null, "want": "hello"}}

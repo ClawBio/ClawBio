@@ -1,0 +1,7 @@
+{
+  "name": "hello-world",
+  "description": "Return a JSON object whose 'text' field equals the string 'hello'.",
+  "max_iterations": 5,
+  "early_stop_n": 2,
+  "target_score": 0.0
+}
