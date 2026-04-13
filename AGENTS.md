@@ -135,6 +135,7 @@ Even skills without Python scripts are usable — an AI agent reads the SKILL.md
 - Tests must pass on Python 3.10, 3.11, and 3.12
 - Include demo output in the PR description so reviewers can verify
 - Update `skills/catalog.json` if you changed any SKILL.md YAML frontmatter
+- When opening a PR, use `.github/PULL_REQUEST_TEMPLATE.md` as the body — fill in every section, do not leave placeholders
 
 ## Safety Boundaries
 
