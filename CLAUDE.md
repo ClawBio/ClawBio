@@ -22,6 +22,7 @@ When the user asks a question, match it to a skill and act:
 | Protein structure, AlphaFold, PDB, Boltz | `skills/struct-predictor/` | Read SKILL.md, apply methodology |
 | Reproducibility, Nextflow, Singularity, Conda export | `skills/repro-enforcer/` | Read SKILL.md, apply methodology |
 | Sequence QC, FASTQ, alignment, BAM, trimming | `skills/seq-wrangler/` | Read SKILL.md, apply methodology |
+| MultiQC, aggregate QC, QC report, FastQC summary, multi-sample QC, sequencing QC report, combine QC results | `skills/multiqc-reporter/` | Run `multiqc_reporter.py` |
 | Lab notebook, experiments, protocols, inventory, Labstep | `skills/labstep/` | Run `labstep.py` |
 | ClinPGx database, gene-drug lookup, PharmGKB query, CPIC guideline database, FDA drug label PGx, "look up gene on ClinPGx" | `skills/clinpgx/` | Run `clinpgx.py` |
 | GWAS polygenic risk scores, PRS, "what's my risk for diabetes", PGS Catalog, polygenic | `skills/gwas-prs/` | Run `gwas_prs.py` |
@@ -205,6 +206,11 @@ python skills/wes-clinical-report-es/wes_clinical_report_es.py \
 python skills/wes-clinical-report-es/wes_clinical_report_es.py \
   --report-dir <reports_dir> --output-dir <pdf_dir> --samples Sample3
 python skills/wes-clinical-report-es/wes_clinical_report_es.py --demo
+
+# MultiQC — aggregate QC reports across samples and tools
+python skills/multiqc-reporter/multiqc_reporter.py \
+  --input <dir> [<dir2> ...] --output <report_dir>
+python skills/multiqc-reporter/multiqc_reporter.py --demo --output /tmp/multiqc_demo
 ```
 
 ## Demo Data
@@ -239,6 +245,7 @@ For instant demos when the user has no data:
 | CellposeSAM demo (synthetic 512×512 fluorescence nuclei image, ~67 cells) | `--demo` flag | cell-detection |
 | WES demo report (8 P/LP variants, 6 PGx, synthetic) | `skills/wes-clinical-report-en/examples/demo_WES_Report.md` | wes-clinical-report-en |
 | WES demo report (same, for Spanish output) | `skills/wes-clinical-report-es/examples/demo_WES_Report.md` | wes-clinical-report-es |
+| MultiQC demo (synthetic FastQC, 3 samples — SAMPLE_01/02/03) | `--demo` flag | multiqc-reporter |
 | Corpas 30x chr20 SNPs + indels (WGS) | `corpas-30x/subsets/chr20_snps_indels.vcf.gz` | variant-annotation, equity-scorer |
 | Corpas 30x SV calls (WGS) | `corpas-30x/subsets/sv_calls.vcf.gz` | variant-annotation |
 | Corpas 30x CNV calls (WGS) | `corpas-30x/subsets/cnv_calls.vcf.gz` | variant-annotation |
@@ -265,6 +272,9 @@ python skills/equity-scorer/equity_scorer.py \
 # NutriGx demo
 python skills/nutrigx_advisor/nutrigx_advisor.py \
   --input skills/nutrigx_advisor/synthetic_patient.txt --output /tmp/nutrigx_demo
+
+# MultiQC demo
+python skills/multiqc-reporter/multiqc_reporter.py --demo --output /tmp/multiqc_demo
 
 # scRNA demo
 python skills/scrna-orchestrator/scrna_orchestrator.py --demo --output /tmp/scrna_demo
