@@ -1,4 +1,4 @@
-.PHONY: demo test list demo-all
+.PHONY: demo test list demo-all lint
 
 demo:
 	python clawbio.py run pharmgx --demo
@@ -8,6 +8,9 @@ test:
 
 list:
 	python clawbio.py list
+
+lint:
+	python scripts/lint_skills.py
 
 demo-all:
 	python clawbio.py run pharmgx --demo
