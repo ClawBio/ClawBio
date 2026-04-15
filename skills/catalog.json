@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 48,
+  "skill_count": 49,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -13,7 +13,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/archaic-introgression/pipeline.py --demo",
+      "demo_command": "python skills/archaic-introgression/archaic_introgression.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [],
@@ -222,7 +222,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/clinical-trial-finder/euctr.py --demo",
+      "demo_command": "python skills/clinical-trial-finder/clinical_trial_finder.py --demo",
       "dependencies": [],
       "tags": [
         "clinical-trials",
@@ -696,6 +696,33 @@
         "GEO",
         "illlumina-450k",
         "EPIC"
+      ],
+      "trigger_keywords": [],
+      "chaining_partners": []
+    },
+    {
+      "name": "multiqc-reporter",
+      "cli_alias": null,
+      "description": "Aggregates QC reports from any bioinformatics tool outputs (FastQC, fastp, STAR, Picard, samtools, etc.) into a single MultiQC HTML report plus a ClawBio markdown summary with per-sample QC metrics.",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/multiqc-reporter/multiqc_reporter.py --demo",
+      "dependencies": [
+        "multiqc>=1.20"
+      ],
+      "tags": [
+        "qc",
+        "fastqc",
+        "multiqc",
+        "sequencing",
+        "alignment",
+        "rna-seq",
+        "wgs",
+        "wes",
+        "aggregation"
       ],
       "trigger_keywords": [],
       "chaining_partners": []
