@@ -1,5 +1,9 @@
 # Pointing a Custom Domain at an OpenClaw Webchat
 
+An **OpenClaw gateway** is the self-hosted conversational layer that sits between a browser chat client and your local ClawBio runtime. The browser sends a natural-language request to the gateway, the gateway asks an external LLM to interpret it, and that LLM translates the request into local ClawBio CLI or Python calls.
+
+This is the plain-language alternative to Telegram or Discord adapters. You might choose it if you want browser-based chat without relying on messenger platforms, if you want tighter operational control over authentication and deployment, or if you want the strongest privacy story while keeping ClawBio's biological processing local.
+
 ## What you need
 
 - A domain you own (e.g. `yourdomain.com`)

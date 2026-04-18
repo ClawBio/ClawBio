@@ -1,6 +1,8 @@
-# RoboTerri ClawBio Bot
+# RoboTerri Messaging Adapters for ClawBio
 
-A Telegram and Discord bot that runs ClawBio bioinformatics skills using any LLM as the reasoning engine. Send genetic data, medication photos, or natural language questions -- get personalised genomic reports back.
+This README covers the **Telegram and Discord adapter layer** for ClawBio. ClawBio itself remains a local bioinformatics skill library that can be used directly via `python clawbio.py run ...` or through its Python API (`from clawbio import run_skill`). If you want a direct browser/webchat interface instead of a messenger adapter, use the self-hosted OpenClaw gateway route documented in [../docs/custom-domain-webchat.md](../docs/custom-domain-webchat.md).
+
+RoboTerri turns Telegram or Discord into conversational front ends for that local runtime. Users send natural-language requests, files, or photos; an external LLM interprets the request and translates it into local ClawBio skill executions.
 
 ## Features
 
@@ -8,7 +10,7 @@ A Telegram and Discord bot that runs ClawBio bioinformatics skills using any LLM
 - Runs all ClawBio skills: pharmgx, equity, nutrigx, metagenomics, compare, drugphoto
 - Handles text messages, genetic file uploads (.txt, .csv, .vcf, .fastq), and medication photos
 - All genetic data stays local -- nothing leaves your machine
-- Reports and figures sent directly in Telegram
+- Reports and figures sent directly back through Telegram or Discord
 
 ## Prerequisites
 
@@ -69,7 +71,7 @@ DISCORD_CHANNEL_ID=your-channel-id-here
 
 # --- LLM (shared by both) ---
 LLM_API_KEY=your-api-key-here
-CLAWBIO_MODEL=gemini-2.0-flash
+CLAWBIO_MODEL=gemini-2.5-flash
 
 # Optional:
 TELEGRAM_CHAT_ID=your-chat-id-here    # Admin chat ID (bypasses rate limits)
@@ -84,7 +86,7 @@ Any provider that speaks the OpenAI chat completions API works. Set `LLM_BASE_UR
 # Google Gemini (default -- free tier)
 LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 LLM_API_KEY=your-google-api-key
-CLAWBIO_MODEL=gemini-2.0-flash
+CLAWBIO_MODEL=gemini-2.5-flash
 
 # OpenAI
 LLM_API_KEY=sk-...
@@ -137,6 +139,8 @@ python3 bot/roboterri.py &
 python3 bot/roboterri_discord.py &
 ```
 
+If you want a direct browser chat instead of a messenger adapter, see [../docs/custom-domain-webchat.md](../docs/custom-domain-webchat.md) for the self-hosted OpenClaw gateway setup.
+
 ## Commands
 
 ### Telegram
@@ -168,7 +172,7 @@ python3 bot/roboterri_discord.py &
 # Google Gemini free tier (1,500 requests/day)
 LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 LLM_API_KEY=your-google-api-key
-CLAWBIO_MODEL=gemini-2.0-flash
+CLAWBIO_MODEL=gemini-2.5-flash
 ```
 
 Get a free Google API key at https://aistudio.google.com/apikey

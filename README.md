@@ -397,6 +397,12 @@ python semantic_sim.py --demo --output sem_report
 
 ## Quick Start
 
+ClawBio is first and foremost a local bioinformatics skill library. You can execute it directly from the UNIX command line or through its Python module without any messenger or chat interface at all.
+
+The OpenClaw-borrowed "magic" happens when an external LLM interprets a user's request and translates it into those local library or command-line calls. In other words, the LLM operates at the orchestration layer, while the biological data processing remains local, inspectable, and reproducible.
+
+To experience that orchestration layer conversationally, ClawBio can be used through Telegram or Discord via RoboTerri, as a Claude Code skill, or through a self-hosted OpenClaw gateway with browser-based webchat. Of these options, the self-hosted OpenClaw gateway offers the strongest privacy story together with LLM-assisted interaction, because the LLM stays at the meta/orchestration level rather than operating on the underlying biological data themselves.
+
 ### Clone and run
 
 ```bash
@@ -492,14 +498,16 @@ No Docker or Singularity required for core functionality. Skills that need exter
 
 ---
 
-## Run via Telegram (RoboTerri)
+## Conversational Interfaces
+
+### RoboTerri
 
 <p align="center">
   <img src="img/terri_attwood_avatar_top_left.png" alt="RoboTerri" width="250">
-  <br><em>RoboTerri — ClawBio's Telegram agent, inspired by <a href="https://en.wikipedia.org/wiki/Teresa_Attwood">Prof. Teresa K. Attwood</a></em>
+  <br><em>RoboTerri — ClawBio's messaging-facing agent, inspired by <a href="https://en.wikipedia.org/wiki/Teresa_Attwood">Prof. Teresa K. Attwood</a></em>
 </p>
 
-ClawBio skills are available through **RoboTerri**, a public Telegram bot running against a real human genome ([Manuel Corpas](https://en.wikipedia.org/wiki/Manuel_Corpas), CC0 public domain). Named after [Prof. Teresa K. Attwood](https://en.wikipedia.org/wiki/Teresa_Attwood) — a pioneer of bioinformatics education, founding Chair of GOBLET, and winner of the 2021 ISCB Outstanding Contributions Award.
+**RoboTerri** is the messaging-facing interface to ClawBio. It currently runs over Telegram and Discord, letting an external LLM interpret free-text requests and translate them into local ClawBio skill executions. The public demo bot runs against a real human genome ([Manuel Corpas](https://en.wikipedia.org/wiki/Manuel_Corpas), CC0 public domain). Named after [Prof. Teresa K. Attwood](https://en.wikipedia.org/wiki/Teresa_Attwood) — a pioneer of bioinformatics education, founding Chair of GOBLET, and winner of the 2021 ISCB Outstanding Contributions Award.
 
 <p align="center">
   <a href="https://t.me/RoboTerri_bot">
@@ -536,7 +544,15 @@ RoboTerri:  Querying 9 databases...
 
 RoboTerri auto-detects file type (23andMe `.txt`, AncestryDNA `.csv`, VCF, FASTQ) and routes to the right skill via the Bio Orchestrator. Photos of medications trigger the Drug Photo skill automatically — no command needed.
 
-> **[Install your own RoboTerri](docs/tutorial-roboterri-install.md)**: Set up your own Telegram bot running ClawBio skills in ~20 minutes.
+> **[Install your own RoboTerri](docs/tutorial-roboterri-install.md)**: Set up your own Telegram or Discord adapter running ClawBio skills in ~20 minutes.
+
+### OpenClaw Gateway
+
+The **OpenClaw gateway** is the direct, self-hosted browser/webchat interface for ClawBio. Instead of routing through Telegram or Discord, it places a chat client directly in front of a local gateway that orchestrates ClawBio skill calls on your machine.
+
+This is the strongest privacy-preserving conversational setup in the ClawBio stack. It avoids reliance on external messenger platforms, keeps operational control in your hands, and lets the LLM remain at the orchestration layer while the biological analysis itself stays local.
+
+See [docs/custom-domain-webchat.md](docs/custom-domain-webchat.md) for a plain-language walkthrough of the gateway and how to expose a browser-based webchat on your own domain.
 
 ---
 
@@ -567,29 +583,33 @@ Built on [BioBlend](https://bioblend.readthedocs.io/) (Galaxy Python SDK). Devel
 ## Architecture
 
 ```
-Telegram (RoboTerri)     CLI (clawbio.py)     Python (import clawbio)
-         │                      │                       │
-         └──────────┬───────────┘───────────────────────┘
-                    │
-             ┌──────▼──────┐
-             │  Bio         │  ← routes by file type + keywords
-             │  Orchestrator│
-             └──────┬──────┘
-                    │
-  ┌─────────────────▼──────────────────────────────────────┐
-  │                                                         │
-  PharmGx    Equity     NutriGx    Metagenomics   Ancestry
-  Reporter   Scorer     Advisor    Profiler        PCA    ...
-  │                                                         │
-  └─────────────────┬──────────────────────────────────────┘
-                    │
-             ┌──────▼──────┐
-             │  Markdown    │  ← report + figures + checksums
-             │  Report      │     + reproducibility bundle
-             └─────────────┘
+CLI (clawbio.py)     Python (import clawbio)     Claude Code
+        │                     │                    │
+        └─────────────┬───────┴──────────────┬─────┘
+                      │                      │
+        OpenClaw Gateway (webchat)    RoboTerri (Telegram/Discord)
+                      │                      │
+                      └──────────┬───────────┘
+                                 │
+                          ┌──────▼──────┐
+                          │  Bio         │  ← routes by file type + keywords
+                          │  Orchestrator│
+                          └──────┬──────┘
+                                 │
+         ┌───────────────────────▼──────────────────────────────────────┐
+         │                                                               │
+         PharmGx    Equity     NutriGx    Metagenomics   Ancestry
+         Reporter   Scorer     Advisor    Profiler        PCA    ...
+         │                                                               │
+         └───────────────────────┬──────────────────────────────────────┘
+                                 │
+                          ┌──────▼──────┐
+                          │  Markdown    │  ← report + figures + checksums
+                          │  Report      │     + reproducibility bundle
+                          └─────────────┘
 ```
 
-Each skill is standalone — the orchestrator routes to the right one, but every skill also works independently. The `clawbio.run_skill()` API is importable by any agent (RoboTerri, RoboIsaac, Claude Code).
+Each skill is standalone — the orchestrator routes to the right one, but every skill also works independently. The `clawbio.run_skill()` API is importable by any agent or adapter layer (RoboTerri, Claude Code, or an OpenClaw gateway), and it remains usable directly from local Python without any conversational interface at all.
 
 See [docs/architecture.md](docs/architecture.md) for the full design.
 
