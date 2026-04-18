@@ -69,7 +69,7 @@ DISCORD_CHANNEL_ID=your-channel-id-here
 
 # --- LLM (shared by both) ---
 LLM_API_KEY=your-api-key-here
-CLAWBIO_MODEL=gemini-2.0-flash
+CLAWBIO_MODEL=gemini-2.5-flash
 
 # Optional:
 TELEGRAM_CHAT_ID=your-chat-id-here    # Admin chat ID (bypasses rate limits)
@@ -84,7 +84,7 @@ Any provider that speaks the OpenAI chat completions API works. Set `LLM_BASE_UR
 # Google Gemini (default -- free tier)
 LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 LLM_API_KEY=your-google-api-key
-CLAWBIO_MODEL=gemini-2.0-flash
+CLAWBIO_MODEL=gemini-2.5-flash
 
 # OpenAI
 LLM_API_KEY=sk-...
@@ -168,7 +168,7 @@ python3 bot/roboterri_discord.py &
 # Google Gemini free tier (1,500 requests/day)
 LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 LLM_API_KEY=your-google-api-key
-CLAWBIO_MODEL=gemini-2.0-flash
+CLAWBIO_MODEL=gemini-2.5-flash
 ```
 
 Get a free Google API key at https://aistudio.google.com/apikey
