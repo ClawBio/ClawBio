@@ -37,13 +37,6 @@ RECOMMENDED_FIELDS = ["emoji", "homepage"]
 SKILLS_DIR = Path(__file__).resolve().parent.parent / "skills"
 
 
-def extract_frontmatter(path: Path) -> str | None:
-    """Return the YAML frontmatter string between --- markers, or None."""
-    text = path.read_text(encoding="utf-8")
-    m = re.match(r"^---\n(.*?\n)---", text, re.DOTALL)
-    return m.group(1) if m else None
-
-
 def parse_yaml_simple(yaml_str: str) -> dict:
     """Minimal YAML parser — enough for flat/nested keys we care about.
 
@@ -56,63 +49,101 @@ def parse_yaml_simple(yaml_str: str) -> dict:
     except ImportError:
         pass
 
-    # Fallback: regex-based extraction for the fields we need
     result: dict = {}
 
-    # name
     m = re.search(r"^name:\s*(.+)", yaml_str, re.MULTILINE)
     if m:
         result["name"] = m.group(1).strip().strip('"').strip("'")
 
-    # description
     m = re.search(r"^description:\s*(.+)", yaml_str, re.MULTILINE)
     if m:
         result["description"] = m.group(1).strip().strip('"').strip("'")
 
-    # Look for metadata.openclaw block
-    oc_match = re.search(r"openclaw:\s*\n((?:[ \t]+.+\n)*)", yaml_str)
-    if oc_match:
-        oc_block = oc_match.group(1)
-        openclaw: dict = {}
+    metadata_match = re.search(r"metadata:\s*\n((?:[ \t]+.+\n)*)", yaml_str)
+    metadata_block = metadata_match.group(1) if metadata_match else ""
 
-        # os: [darwin, linux]
-        os_match = re.search(r"os:\s*\[([^\]]*)\]", oc_block)
-        if os_match:
-            openclaw["os"] = [
-                v.strip().strip('"').strip("'")
-                for v in os_match.group(1).split(",")
-                if v.strip()
-            ]
+    def _extract_block(parent: str, key: str) -> str:
+        match = re.search(rf"{key}:\s*\n((?:[ \t]+.+\n)*)", parent)
+        return match.group(1) if match else ""
 
-        # emoji
-        em_match = re.search(r'emoji:\s*["\']?([^"\'\n]+)', oc_block)
-        if em_match:
-            openclaw["emoji"] = em_match.group(1).strip()
+    if metadata_block:
+        metadata: dict = {}
+        for field in ("version", "author", "domain"):
+            field_match = re.search(rf"^\s*{field}:\s*(.+)", metadata_block, re.MULTILINE)
+            if field_match:
+                metadata[field] = field_match.group(1).strip().strip('"').strip("'")
 
-        # homepage
-        hp_match = re.search(r"homepage:\s*(\S+)", oc_block)
-        if hp_match:
-            openclaw["homepage"] = hp_match.group(1).strip()
+        openclaw_block = _extract_block(metadata_block, "openclaw")
+        if openclaw_block:
+            openclaw: dict = {}
 
-        # always
-        al_match = re.search(r"always:\s*(\S+)", oc_block)
-        if al_match:
-            openclaw["always"] = al_match.group(1).strip().lower() == "true"
+            inline_os_match = re.search(r"os:\s*\[([^\]]*)\]", openclaw_block)
+            if inline_os_match:
+                openclaw["os"] = [
+                    v.strip().strip('"').strip("'")
+                    for v in inline_os_match.group(1).split(",")
+                    if v.strip()
+                ]
+            else:
+                block_os_match = re.search(r"os:\s*\n((?:\s*-\s*.+\n)+)", openclaw_block)
+                if block_os_match:
+                    openclaw["os"] = [
+                        line.strip().lstrip("- ").strip('"').strip("'")
+                        for line in block_os_match.group(1).splitlines()
+                        if line.strip()
+                    ]
 
-        # trigger_keywords (list)
-        kw_section = re.search(
-            r"trigger_keywords:\s*\n((?:\s+-\s+.+\n)*)", oc_block
-        )
-        if kw_section:
-            openclaw["trigger_keywords"] = [
-                line.strip().lstrip("- ").strip('"').strip("'")
-                for line in kw_section.group(1).strip().splitlines()
-                if line.strip()
-            ]
+            em_match = re.search(r'emoji:\s*["\']?([^"\'\n]+)', openclaw_block)
+            if em_match:
+                openclaw["emoji"] = em_match.group(1).strip()
 
-        result.setdefault("metadata", {})["openclaw"] = openclaw
+            hp_match = re.search(r"homepage:\s*(\S+)", openclaw_block)
+            if hp_match:
+                openclaw["homepage"] = hp_match.group(1).strip()
+
+            al_match = re.search(r"always:\s*(\S+)", openclaw_block)
+            if al_match:
+                openclaw["always"] = al_match.group(1).strip().lower() == "true"
+
+            kw_section = re.search(
+                r"trigger_keywords:\s*\n((?:\s+-\s+.+\n)*)", openclaw_block
+            )
+            if kw_section:
+                openclaw["trigger_keywords"] = [
+                    line.strip().lstrip("- ").strip('"').strip("'")
+                    for line in kw_section.group(1).strip().splitlines()
+                    if line.strip()
+                ]
+
+            metadata["openclaw"] = openclaw
+
+        result["metadata"] = metadata
+
+    if "version" not in result:
+        m = re.search(r"^version:\s*(.+)", yaml_str, re.MULTILINE)
+        if m:
+            result["version"] = m.group(1).strip().strip('"').strip("'")
+    if "author" not in result:
+        m = re.search(r"^author:\s*(.+)", yaml_str, re.MULTILINE)
+        if m:
+            result["author"] = m.group(1).strip().strip('"').strip("'")
+    if "domain" not in result:
+        m = re.search(r"^domain:\s*(.+)", yaml_str, re.MULTILINE)
+        if m:
+            result["domain"] = m.group(1).strip().strip('"').strip("'")
 
     return result
+
+
+def normalize_skill_metadata(raw: dict) -> dict:
+    metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
+    openclaw = metadata.get("openclaw") if isinstance(metadata.get("openclaw"), dict) else {}
+    return {
+        "version": raw.get("version", metadata.get("version", "0.1.0")),
+        "author": raw.get("author", metadata.get("author", "")),
+        "domain": raw.get("domain", metadata.get("domain", "")),
+        "openclaw": openclaw,
+    }
 
 
 def lint_skill(skill_dir: Path) -> dict:
@@ -133,13 +164,15 @@ def lint_skill(skill_dir: Path) -> dict:
         result["errors"].append("No SKILL.md found")
         return result
 
-    fm = extract_frontmatter(skill_md)
+    text = skill_md.read_text(encoding="utf-8")
+    fm = re.match(r"^---\n(.*?\n)---", text, re.DOTALL)
+    fm = fm.group(1) if fm else None
     if fm is None:
         result["errors"].append("No YAML frontmatter (--- markers)")
         return result
 
-    data = parse_yaml_simple(fm)
-    openclaw = (data.get("metadata") or {}).get("openclaw") or {}
+    data = normalize_skill_metadata(parse_yaml_simple(fm))
+    openclaw = data.get("openclaw") or {}
 
     if not openclaw:
         result["errors"].append("No metadata.openclaw block")

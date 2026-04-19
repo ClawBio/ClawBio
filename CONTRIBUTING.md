@@ -15,7 +15,7 @@ cp -r templates/SKILL-TEMPLATE.md skills/your-skill-name/SKILL.md
 ### 2. Define your skill
 
 Edit `SKILL.md` with:
-- **YAML frontmatter**: name, description, dependencies (bins, env vars, packages)
+- **YAML frontmatter**: AgentSkills-compatible metadata. Keep `name`, `description`, and `license` at the top level, then place skill details such as `version`, `author`, `domain`, `tags`, `inputs`, `outputs`, `dependencies`, `demo_data`, and `endpoints` under the top-level `metadata:` block.
 - **Markdown body**: Instructions the AI agent follows. Include capabilities, workflow steps, example queries, output format, and safety rules.
 
 ### 3. Add supporting code (optional)
@@ -94,6 +94,7 @@ AI coding agents (Codex, Devin, Claude Code, Cursor, etc.) should follow the sam
 Every SKILL.md should include these sections (check the template at [`templates/SKILL-TEMPLATE.md`](templates/SKILL-TEMPLATE.md)):
 
 - [ ] **YAML frontmatter** with `openclaw` schema (name, description, version, tags, trigger_keywords)
+- [ ] **AgentSkills-compatible layout** with skill metadata nested under `metadata` and OpenClaw routing fields under `metadata.openclaw`
 - [ ] **Why This Exists** (what goes wrong without the skill)
 - [ ] **Core Capabilities** (numbered list)
 - [ ] **Input Formats** (table with format, extension, required fields)

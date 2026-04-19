@@ -32,72 +32,141 @@ sys.path.insert(0, str(CLAWBIO_DIR))
 
 
 def parse_yaml_frontmatter(text: str) -> dict:
-    """Extract YAML frontmatter between --- markers. Returns flat-ish dict."""
+    """Extract YAML frontmatter between --- markers."""
     match = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
     if not match:
         return {}
     raw = match.group(1)
-    result: dict = {}
-    current_key = None
-    lines = raw.split("\n")
-    idx = 0
+    try:
+        import yaml
 
-    def _fold_block(block_lines: list[str], style: str) -> str:
-        cleaned = [line[2:] if line.startswith("  ") else line for line in block_lines]
-        if style.startswith("|"):
-            return "\n".join(cleaned).strip()
-        paragraphs: list[str] = []
-        current: list[str] = []
-        for line in cleaned:
-            stripped = line.strip()
-            if not stripped:
-                if current:
-                    paragraphs.append(" ".join(current))
-                    current = []
-                continue
-            current.append(stripped)
-        if current:
-            paragraphs.append(" ".join(current))
-        return "\n\n".join(paragraphs).strip()
+        data = yaml.safe_load(raw) or {}
+        return data if isinstance(data, dict) else {}
+    except ImportError:
+        result: dict = {}
 
-    while idx < len(lines):
-        line = lines[idx]
-        # Top-level key: value
-        m = re.match(r"^(\w[\w-]*):\s*(.*)", line)
-        if m:
-            key, val = m.group(1), m.group(2).strip()
-            if val.startswith("[") and val.endswith("]"):
-                result[key] = [v.strip().strip("'\"") for v in val[1:-1].split(",") if v.strip()]
-                current_key = None
-            elif val in {"|", "|-", ">", ">-"}:
-                idx += 1
-                block_lines: list[str] = []
-                while idx < len(lines):
-                    next_line = lines[idx]
-                    if next_line.startswith("  ") or next_line == "":
-                        block_lines.append(next_line)
-                        idx += 1
-                        continue
-                    break
-                result[key] = _fold_block(block_lines, val)
-                current_key = None
-                continue
-            elif val == "":
-                result[key] = ""
-                current_key = key
-            else:
-                result[key] = val.strip("'\"")
-                current_key = key
-            idx += 1
-            continue
-        # List item under current key
-        m2 = re.match(r"^\s+-\s+(.*)", line)
-        if m2 and current_key:
-            if not isinstance(result.get(current_key), list):
-                result[current_key] = []
-            result[current_key].append(m2.group(1).strip().strip("'\""))
-        idx += 1
-    return result
+        def _strip(value: str) -> str:
+            return value.strip().strip('"').strip("'")
+
+        name_match = re.search(r"^name:\s*(.+)", raw, re.MULTILINE)
+        if name_match:
+            result["name"] = _strip(name_match.group(1))
+
+        desc_match = re.search(r"^description:\s*(.+)", raw, re.MULTILINE)
+        if desc_match:
+            result["description"] = _strip(desc_match.group(1))
+
+        for field in ("version", "author", "domain", "license"):
+            match = re.search(rf"^{field}:\s*(.+)", raw, re.MULTILINE)
+            if match:
+                result[field] = _strip(match.group(1))
+
+        tags_match = re.search(r"^tags:\s*\[([^\]]*)\]", raw, re.MULTILINE)
+        if tags_match:
+            result["tags"] = [_strip(v) for v in tags_match.group(1).split(",") if v.strip()]
+
+        dep_python_match = re.search(r"^dependencies:\s*\n(?:\s+.+\n)*?\s+python:\s*(.+)", raw, re.MULTILINE)
+        dep_packages_match = re.search(r"^dependencies:\s*\n(?:\s+.+\n)*?\s+packages:\s*\n((?:\s+-\s+.+\n)*)", raw, re.MULTILINE)
+        if dep_python_match or dep_packages_match:
+            deps: dict = {}
+            if dep_python_match:
+                deps["python"] = _strip(dep_python_match.group(1))
+            if dep_packages_match:
+                deps["packages"] = [
+                    _strip(line.strip().lstrip("- "))
+                    for line in dep_packages_match.group(1).splitlines()
+                    if line.strip()
+                ]
+            result["dependencies"] = deps
+
+        metadata_match = re.search(r"^metadata:\s*\n((?:\s+.+\n)*)", raw, re.MULTILINE)
+        if metadata_match:
+            metadata_block = metadata_match.group(1)
+            metadata: dict = {}
+            for field in ("version", "author", "domain"):
+                match = re.search(rf"^\s+{field}:\s*(.+)", metadata_block, re.MULTILINE)
+                if match:
+                    metadata[field] = _strip(match.group(1))
+
+            tags_block = re.search(r"^\s+tags:\s*\n((?:\s+-\s+.+\n)*)", metadata_block, re.MULTILINE)
+            if tags_block:
+                metadata["tags"] = [
+                    _strip(line.strip().lstrip("- "))
+                    for line in tags_block.group(1).splitlines()
+                    if line.strip()
+                ]
+
+            dep_meta_python = re.search(r"^\s+dependencies:\s*\n(?:\s+.+\n)*?\s+python:\s*(.+)", metadata_block, re.MULTILINE)
+            dep_meta_packages = re.search(r"^\s+dependencies:\s*\n(?:\s+.+\n)*?\s+packages:\s*\n((?:\s+-\s+.+\n)*)", metadata_block, re.MULTILINE)
+            if dep_meta_python or dep_meta_packages:
+                deps: dict = {}
+                if dep_meta_python:
+                    deps["python"] = _strip(dep_meta_python.group(1))
+                if dep_meta_packages:
+                    deps["packages"] = [
+                        _strip(line.strip().lstrip("- "))
+                        for line in dep_meta_packages.group(1).splitlines()
+                        if line.strip()
+                    ]
+                metadata["dependencies"] = deps
+
+            openclaw_block = re.search(r"^\s+openclaw:\s*\n((?:\s+.+\n)*)", metadata_block, re.MULTILINE)
+            if openclaw_block:
+                oc: dict = {}
+                trigger_block = re.search(r"trigger_keywords:\s*\n((?:\s+-\s+.+\n)*)", openclaw_block.group(1))
+                if trigger_block:
+                    oc["trigger_keywords"] = [
+                        _strip(line.strip().lstrip("- "))
+                        for line in trigger_block.group(1).splitlines()
+                        if line.strip()
+                    ]
+                metadata["openclaw"] = oc
+
+            result["metadata"] = metadata
+
+        return result
+
+
+def normalize_skill_metadata(raw: dict) -> dict:
+    """Normalize legacy top-level and AgentSkills nested metadata."""
+    metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
+    openclaw = metadata.get("openclaw") if isinstance(metadata.get("openclaw"), dict) else {}
+    return {
+        "name": raw.get("name", ""),
+        "description": raw.get("description", ""),
+        "license": raw.get("license", ""),
+        "version": raw.get("version", metadata.get("version", "0.1.0")),
+        "author": raw.get("author", metadata.get("author", "")),
+        "domain": raw.get("domain", metadata.get("domain", "")),
+        "tags": raw.get("tags", metadata.get("tags", [])),
+        "inputs": raw.get("inputs", metadata.get("inputs", [])),
+        "outputs": raw.get("outputs", metadata.get("outputs", [])),
+        "dependencies": raw.get("dependencies", metadata.get("dependencies", [])),
+        "demo_data": raw.get("demo_data", metadata.get("demo_data", [])),
+        "endpoints": raw.get("endpoints", metadata.get("endpoints", {})),
+        "openclaw": openclaw,
+    }
+
+
+def _normalize_dependencies(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value] if value else []
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    if isinstance(value, dict):
+        deps: list[str] = []
+        python_req = value.get("python")
+        if python_req:
+            deps.append(f"python{python_req}")
+        packages = value.get("packages")
+        if isinstance(packages, list):
+            deps.extend(str(pkg) for pkg in packages)
+        elif packages:
+            deps.append(str(packages))
+        return deps
+    return [str(value)]
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +302,7 @@ def build_catalog() -> list[dict]:
 
         folder_name = skill_dir.name
         yaml_data = parse_yaml_frontmatter(skill_md.read_text(encoding="utf-8"))
+        skill_meta = normalize_skill_metadata(yaml_data)
 
         # Determine CLI alias
         cli_alias = FOLDER_TO_ALIAS.get(folder_name)
@@ -259,26 +329,15 @@ def build_catalog() -> list[dict]:
         # Status
         status = "mvp" if folder_name in MVP_FOLDERS else "planned"
 
-        # Input types from YAML
-        input_types = []
-        if isinstance(yaml_data.get("inputs"), list):
-            input_types = yaml_data["inputs"] if isinstance(yaml_data["inputs"][0], str) else []
-
-        # Tags
-        tags = yaml_data.get("tags", [])
-        if isinstance(tags, str):
-            tags = [t.strip() for t in tags.split(",")]
-
-        # Dependencies from YAML
-        deps = yaml_data.get("dependencies", [])
-        if isinstance(deps, str):
-            deps = [deps] if deps else []
+        tags = [str(tag) for tag in skill_meta.get("tags", [])]
+        deps = _normalize_dependencies(skill_meta.get("dependencies"))
+        trigger_keywords = skill_meta.get("openclaw", {}).get("trigger_keywords") or TRIGGER_KEYWORDS.get(folder_name, [])
 
         entry = {
             "name": folder_name,
             "cli_alias": cli_alias,
-            "description": yaml_data.get("description", ""),
-            "version": yaml_data.get("version", "0.1.0"),
+            "description": skill_meta.get("description", ""),
+            "version": str(skill_meta.get("version", "0.1.0")),
             "status": status,
             "has_script": has_script,
             "has_tests": has_tests,
@@ -286,7 +345,7 @@ def build_catalog() -> list[dict]:
             "demo_command": demo_command,
             "dependencies": deps,
             "tags": tags,
-            "trigger_keywords": TRIGGER_KEYWORDS.get(folder_name, []),
+            "trigger_keywords": trigger_keywords,
             "chaining_partners": CHAINING.get(folder_name, []),
         }
         entries.append(entry)
