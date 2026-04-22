@@ -1035,7 +1035,7 @@ def main():
             demo=args.demo,
             extra_args=extra or None,
             timeout=args.timeout,
-            profile_path=getattr(args, "profile_path", None),
+            profile_path=args.profile_path,
         )
 
         # Summary mode: skill printed text to stdout — relay it directly
