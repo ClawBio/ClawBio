@@ -1,0 +1,7 @@
+{
+  "name": "demo_gwas_sumstats_analysis",
+  "description": "Given the synthetic GWAS summary statistics in reference/sumstats.tsv (do not read — judge-only), the executor must produce an analysis pipeline that: (1) identifies genome-wide significant lead variants (p < 5e-8), (2) computes the genomic inflation factor lambda, and (3) produces a QQ plot. All outputs must go under output/.",
+  "max_iterations": 10,
+  "early_stop_n": 4,
+  "target_score": 0.1
+}

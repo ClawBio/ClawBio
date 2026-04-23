@@ -1,0 +1,40 @@
+# Runtime / sandbox scratch — never commit
+__pycache__/
+candidates/
+scratch/
+executor_runs/
+multitask/snapshots/
+multitask/scratch/
+multitask/reference/
+
+# Per-task runtime state: the skill, rubric, task.json, reference/ and
+# selected snapshots are tracked; everything below is regenerated each run.
+tasks/*/output/
+tasks/*/data/
+tasks/*/data
+tasks/*/pipeline/
+tasks/*/scripts/
+tasks/*/tools/
+tasks/*/bin/
+tasks/*/candidates/
+tasks/*/executor_runs/
+
+# Loose artifacts deposited by executor runs
+tasks/*/ALL.chr*.phase3_*.vcf.gz*
+tasks/*/out.*
+tasks/*/data.ld
+tasks/*/data.z
+tasks/*/plink*.log
+tasks/*/loop.std*.log
+tasks/*/master_standard
+
+# Transient per-iter snapshots — only champion-*.md is tracked
+tasks/*/snapshots/iter-*.md
+
+# Paper supplementary downloads (public, not source code)
+tasks/*/reference/supp_tables/
+tasks/*/reference/*.xlsx
+tasks/*/reference/*.csv.gz
+
+# Huge stray per-task workspaces NOT part of this PR
+tasks/repro-mahajan-t2d/
