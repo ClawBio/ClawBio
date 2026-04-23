@@ -1173,7 +1173,7 @@ def main():
         default=None,
         help="Local CellTypist model name or path for scrna skill",
     )
-    run_parser.add_argument("--search", default=None, help="Live Bioconductor package search query for bioc skill")
+    run_parser.add_argument("--search", default=None, help="Search query (bioc / galaxy skills)")
     run_parser.add_argument("--recommend", default=None, help="Recommendation query for bioc skill")
     run_parser.add_argument("--workflow", default=None, help="Workflow query for bioc skill")
     run_parser.add_argument("--package-details", default=None, help="Bioconductor package name for bioc skill")
@@ -1187,7 +1187,7 @@ def main():
     run_parser.add_argument("--modality", default=None, help="Modality hint for bioc skill")
     run_parser.add_argument("--max-results", type=int, default=None, help="Maximum bioc search/recommendation results")
     # flow-bio skill flags
-    run_parser.add_argument("--search", default=None, help="Search query (galaxy/flow skills)")
+    run_parser.add_argument("--flow-search", dest="flow_search", default=None, help="Search query (flow skill)")
     run_parser.add_argument("--pipelines", action="store_true", help="List pipelines (flow skill)")
     run_parser.add_argument("--samples", action="store_true", help="List samples (flow skill)")
     run_parser.add_argument("--projects", action="store_true", help="List projects (flow skill)")
@@ -1409,8 +1409,8 @@ def main():
         if getattr(args, "max_results", None) is not None:
             extra.extend(["--max-results", str(args.max_results)])
         # flow-bio skill flags
-        if getattr(args, "search", None):
-            extra.extend(["--search", args.search])
+        if getattr(args, "flow_search", None):
+            extra.extend(["--search", args.flow_search])
         if getattr(args, "pipelines", False):
             extra.append("--pipelines")
         if getattr(args, "samples", False):
