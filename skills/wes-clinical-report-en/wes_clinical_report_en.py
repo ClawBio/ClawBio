@@ -11,17 +11,40 @@ import re
 from pathlib import Path
 from datetime import datetime
 
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import mm
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
-from reportlab.platypus import (
-    Paragraph, Spacer, Table, TableStyle,
-    HRFlowable, NextPageTemplate, Image, Frame, PageTemplate,
-    BaseDocTemplate,
-)
-from reportlab.platypus.doctemplate import _doNothing
+try:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
+    from reportlab.platypus import (
+        Paragraph, Spacer, Table, TableStyle,
+        HRFlowable, NextPageTemplate, Image, Frame, PageTemplate,
+        BaseDocTemplate,
+    )
+    from reportlab.platypus.doctemplate import _doNothing
+    _REPORTLAB_AVAILABLE = True
+except ImportError:
+    colors = None
+    A4 = None
+    getSampleStyleSheet = None
+    ParagraphStyle = None
+    mm = None
+    TA_LEFT = None
+    TA_CENTER = None
+    TA_JUSTIFY = None
+    Paragraph = None
+    Spacer = None
+    Table = None
+    TableStyle = None
+    HRFlowable = None
+    NextPageTemplate = None
+    Image = None
+    Frame = None
+    PageTemplate = None
+    BaseDocTemplate = None
+    _doNothing = None
+    _REPORTLAB_AVAILABLE = False
 
 # ── Paths (defaults, overridable via CLI) ───────────────────────────────
 REPORT_DIR = Path("/Volumes/CPM-16Tb/NOVOGENE/ANALYSIS/REPORTS")
@@ -31,23 +54,38 @@ LOGO_RIGHT = str(REPORT_DIR / "logo_inbiomedic.jpg")
 ANCESTRY_DIR = Path("/Volumes/CPM-16Tb/NOVOGENE/ANALYSIS/ANCESTRY/OUTPUT")
 SAMPLES = [f"Sample{i}" for i in range(1, 8)]
 
-# ── Colour palette ──────────────────────────────────────────────────────
-NAVY       = colors.HexColor("#1B2A4A")
-DARK_BLUE  = colors.HexColor("#2C4A7C")
-MID_BLUE   = colors.HexColor("#4A90D9")
-LIGHT_BLUE = colors.HexColor("#D6E8F7")
-PALE_BLUE  = colors.HexColor("#EBF3FB")
-ACCENT_RED = colors.HexColor("#C0392B")
-ACCENT_AMBER = colors.HexColor("#E67E22")
-ACCENT_GREEN = colors.HexColor("#27AE60")
-WARM_GREY  = colors.HexColor("#7F8C8D")
-LIGHT_GREY = colors.HexColor("#F4F6F8")
-WHITE      = colors.white
-BLACK      = colors.black
-ROW_ALT    = colors.HexColor("#F8FAFC")
+if _REPORTLAB_AVAILABLE:
+    # ── Colour palette ──────────────────────────────────────────────────
+    NAVY       = colors.HexColor("#1B2A4A")
+    DARK_BLUE  = colors.HexColor("#2C4A7C")
+    MID_BLUE   = colors.HexColor("#4A90D9")
+    LIGHT_BLUE = colors.HexColor("#D6E8F7")
+    PALE_BLUE  = colors.HexColor("#EBF3FB")
+    ACCENT_RED = colors.HexColor("#C0392B")
+    ACCENT_AMBER = colors.HexColor("#E67E22")
+    ACCENT_GREEN = colors.HexColor("#27AE60")
+    WARM_GREY  = colors.HexColor("#7F8C8D")
+    LIGHT_GREY = colors.HexColor("#F4F6F8")
+    WHITE      = colors.white
+    BLACK      = colors.black
+    ROW_ALT    = colors.HexColor("#F8FAFC")
 
-PAGE_W, PAGE_H = A4
-MARGIN = 20 * mm
+    PAGE_W, PAGE_H = A4
+    MARGIN = 20 * mm
+else:
+    NAVY = DARK_BLUE = MID_BLUE = LIGHT_BLUE = PALE_BLUE = None
+    ACCENT_RED = ACCENT_AMBER = ACCENT_GREEN = None
+    WARM_GREY = LIGHT_GREY = WHITE = BLACK = ROW_ALT = None
+    PAGE_W = PAGE_H = MARGIN = None
+
+
+def _require_reportlab():
+    """Raise a helpful error when PDF generation is requested without reportlab."""
+    if not _REPORTLAB_AVAILABLE:
+        raise ImportError(
+            "reportlab is required for PDF generation. Install it with "
+            "`pip install -r skills/wes-clinical-report-en/requirements.txt`."
+        )
 
 
 # ── Markdown parser ─────────────────────────────────────────────────────
@@ -1032,6 +1070,7 @@ def render_section(section, styles):
 
 def build_sample_pdf_en(md_path, output_path):
     """Generate an English clinical PDF from a WES markdown report."""
+    _require_reportlab()
     report = parse_markdown_report(md_path)
     sample_id = report["sample_id"] or md_path.stem.split("_")[0]
     styles = build_styles()
