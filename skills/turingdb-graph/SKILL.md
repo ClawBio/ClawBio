@@ -1,109 +1,100 @@
 ---
 name: turingdb-graph
-description: >-
-  Build, query, and analyse biomedical knowledge graphs in TuringDB, a columnar
-  graph database with git-like versioning.
+description: Build, query, and analyse biomedical knowledge graphs in TuringDB, a columnar graph database with git-like versioning.
 license: MIT
 metadata:
-  version: "0.1.0"
+  version: 0.1.0
   author: TuringDB <team@turingdb.ai>
   domain: graph-analytics
   tags:
-    - graph-database
-    - knowledge-graph
-    - turingdb
-    - cypher
-    - biomedical
-    - patient-cohort
-    - pathway
+  - graph-database
+  - knowledge-graph
+  - turingdb
+  - cypher
+  - biomedical
+  - patient-cohort
+  - pathway
   inputs:
-    - name: input_file
-      type: file
-      format:
-        - csv
-        - tsv
-        - gml
-        - jsonl
-      description: >-
-        Graph source file for --build. CSV/TSV: one node per row (requires
-        --node-label). GML: nodes become GMLNode. JSONL: typed nodes and edges
-        (Neo4j APOC-compatible).
-      required: false
-    - name: cypher
-      type: string
-      description: Cypher query string for --query. TuringDB supports a subset of openCypher.
-      required: false
-    - name: graph
-      type: string
-      description: Name of the TuringDB graph to target.
-      required: false
+  - name: input_file
+    type: file
+    format:
+    - csv
+    - tsv
+    - gml
+    - jsonl
+    description: 'Graph source file for --build. CSV/TSV: one node per row (requires --node-label). GML: nodes become GMLNode.
+      JSONL: typed nodes and edges (Neo4j APOC-compatible).'
+    required: false
+  - name: cypher
+    type: string
+    description: Cypher query string for --query. TuringDB supports a subset of openCypher.
+    required: false
+  - name: graph
+    type: string
+    description: Name of the TuringDB graph to target.
+    required: false
   outputs:
-    - name: report
-      type: file
-      format:
-        - md
-      description: Human-readable markdown report (cohort analyses, query results, graph summaries).
-    - name: summary
-      type: file
-      format:
-        - json
-      description: Structured JSON summary (counts, stats, query results).
+  - name: report
+    type: file
+    format:
+    - md
+    description: Human-readable markdown report (cohort analyses, query results, graph summaries).
+  - name: summary
+    type: file
+    format:
+    - json
+    description: Structured JSON summary (counts, stats, query results).
   dependencies:
-    python: ">=3.11"
+    python: '>=3.11'
     packages:
-      - turingdb>=1.29
-      - pandas>=2.0
-      - fastapi>=0.110
-      - uvicorn>=0.27
-      - pydantic>=2.0
-      - tabulate>=0.9
+    - turingdb>=1.29
+    - pandas>=2.0
+    - fastapi>=0.110
+    - uvicorn>=0.27
+    - pydantic>=2.0
+    - tabulate>=0.9
   demo_data:
-    - path: demo/cohort.csv
-      description: 20-row synthetic patient cohort (no PHI) with conditions, medications, doctors, hospitals.
-    - path: demo/pathway.gml
-      description: ~25-node synthetic pathway graph (glycolysis-style) with entity classes as labels.
-    - path: demo/antibody.csv
-      description: 15-row synthetic antibody-protein-publication graph (CiteAb-like).
+  - path: demo/cohort.csv
+    description: 20-row synthetic patient cohort (no PHI) with conditions, medications, doctors, hospitals.
+  - path: demo/pathway.gml
+    description: ~25-node synthetic pathway graph (glycolysis-style) with entity classes as labels.
+  - path: demo/antibody.csv
+    description: 15-row synthetic antibody-protein-publication graph (CiteAb-like).
   endpoints:
     cli: python skills/turingdb-graph/turingdb_graph.py --demo cohort --out {output_dir}
     http: uvicorn http_server:app
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🕸"
+    emoji: 🕸
     homepage: https://github.com/ClawBio/ClawBio
     os:
-      - darwin
-      - linux
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: turingdb
-        bins:
-          - turingdb
-      - kind: pip
-        package: pandas
-        bins: []
-      - kind: pip
-        package: fastapi
-        bins: []
-      - kind: pip
-        package: tabulate
-        bins: []
-    trigger_keywords:
-      - knowledge graph
-      - biomedical graph
+    - kind: pip
+      package: turingdb
+      bins:
       - turingdb
-      - cypher query
-      - patient cohort graph
-      - pathway graph
-      - graph database
-      - build a graph from CSV
-      - comorbidity analysis
-      - comedication analysis
+    - kind: pip
+      package: pandas
+    - kind: pip
+      package: fastapi
+    - kind: pip
+      package: tabulate
+    trigger_keywords:
+    - knowledge graph
+    - biomedical graph
+    - turingdb
+    - cypher query
+    - patient cohort graph
+    - pathway graph
+    - graph database
+    - build a graph from CSV
+    - comorbidity analysis
+    - comedication analysis
 ---
 
 # 🕸 TuringDB Graph

@@ -1,30 +1,31 @@
 ---
 name: profile-report
-description: >-
-  Unified personal genomic profile report — reads a PatientProfile JSON and
-  synthesizes all skill results into a single "Your Genomic Profile" document.
-version: 0.1.0
-author: Manuel Corpas
+description: Unified personal genomic profile report — reads a PatientProfile JSON and synthesizes all skill results into
+  a single "Your Genomic Profile" document.
 license: MIT
-tags: [profile, report-synthesis, personal-genomics]
 metadata:
+  version: 0.1.0
+  author: Manuel Corpas
+  tags:
+  - profile
+  - report-synthesis
+  - personal-genomics
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "📋"
+    emoji: 📋
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    install: []
+    os:
+    - darwin
+    - linux
     trigger_keywords:
-      - profile report
-      - unified report
-      - my profile
-      - genomic profile
-      - personal profile
+    - profile report
+    - unified report
+    - my profile
+    - genomic profile
+    - personal profile
 ---
 
 # 📋 Profile Report

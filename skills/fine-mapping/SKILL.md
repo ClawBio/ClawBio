@@ -1,56 +1,57 @@
 ---
 name: fine-mapping
-description: >-
-  Statistical fine-mapping of GWAS loci using SuSiE, SuSiE-inf, and Approximate
-  Bayes Factors to identify credible sets and posterior inclusion probabilities
-  (PIPs) for causal variant discovery. SuSiE-inf adds an infinitesimal polygenic
+description: Statistical fine-mapping of GWAS loci using SuSiE, SuSiE-inf, and Approximate Bayes Factors to identify credible
+  sets and posterior inclusion probabilities (PIPs) for causal variant discovery. SuSiE-inf adds an infinitesimal polygenic
   component for improved calibration at well-powered loci.
-version: 0.2.0
-author: ClawBio
 license: MIT
-tags: [gwas, fine-mapping, susie, credible-sets, pip, causal-variants, statistics]
 metadata:
+  version: 0.2.0
+  author: ClawBio
+  tags:
+  - gwas
+  - fine-mapping
+  - susie
+  - credible-sets
+  - pip
+  - causal-variants
+  - statistics
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🎯"
+    emoji: 🎯
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: numpy
-        bins: []
-      - kind: pip
-        package: scipy
-        bins: []
-      - kind: pip
-        package: pandas
-        bins: []
-      - kind: pip
-        package: matplotlib
-        bins: []
+    - kind: pip
+      package: numpy
+    - kind: pip
+      package: scipy
+    - kind: pip
+      package: pandas
+    - kind: pip
+      package: matplotlib
     trigger_keywords:
-      - fine-mapping
-      - finemapping
-      - susie
-      - susie-inf
-      - susieinf
-      - infinitesimal fine-mapping
-      - credible set
-      - posterior inclusion probability
-      - PIP
-      - causal variant
-      - fine map
-      - ABF
-      - approximate bayes factor
-      - FINEMAP
-      - polyfun
-      - fine map locus
-      - causal SNP
+    - fine-mapping
+    - finemapping
+    - susie
+    - susie-inf
+    - susieinf
+    - infinitesimal fine-mapping
+    - credible set
+    - posterior inclusion probability
+    - PIP
+    - causal variant
+    - fine map
+    - ABF
+    - approximate bayes factor
+    - FINEMAP
+    - polyfun
+    - fine map locus
+    - causal SNP
 ---
 
 # 🎯 SuSiE Fine-Mapper

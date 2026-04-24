@@ -1,39 +1,41 @@
 ---
 name: clinical-trial-finder
-version: 0.1.0
-author: Duvet05 <gonzalo.galvezc@pucp.edu.pe>
-domain: clinical
 description: Find clinical trials for a gene, variant, or condition from ClinicalTrials.gov + EUCTR, with FHIR R4 output
 license: MIT
-
-inputs:
+metadata:
+  version: 0.1.0
+  author: Duvet05 <gonzalo.galvezc@pucp.edu.pe>
+  domain: clinical
+  tags:
+  - clinical-trials
+  - genomics
+  - drug-discovery
+  - clinical
+  - precision-medicine
+  inputs:
   - name: input_file
     type: file
-    format: [txt]
+    format:
+    - txt
     description: Text file with one search term per line (gene name, condition, or drug)
     required: false
   - name: query
     type: string
-    format: []
     description: Direct search query string (alternative to input_file)
     required: false
   - name: gene
     type: string
-    format: []
     description: Gene symbol (e.g. BRCA1) — enriched via OpenTargets gene-to-disease mapping
     required: false
   - name: rsid
     type: string
-    format: []
     description: dbSNP rsID (e.g. rs3798220) — resolved via GWAS Catalog to disease traits, then queried against CT.gov
     required: false
   - name: demo
     type: flag
-    format: []
     description: Run with built-in demo data (BRCA1 breast cancer)
     required: false
-
-outputs:
+  outputs:
   - name: report
     type: file
     format: md
@@ -66,46 +68,38 @@ outputs:
     type: file
     format: csv
     description: Trial data as CSV for import into Excel, R, or pandas (tables/trials.csv)
-
-dependencies:
-  python: ">=3.11"
-  packages: []
-
-tags: [clinical-trials, genomics, drug-discovery, clinical, precision-medicine]
-metadata:
+  dependencies:
+    python: '>=3.11'
+  demo_data:
+  - path: demo_input.txt
+    description: Synthetic query for BRCA1 breast cancer trials — exercises recruiting and completed status paths
+  endpoints:
+    cli_gene: python skills/clinical-trial-finder/clinical_trial_finder.py --gene {gene} --output {output_dir}
+    cli_rsid: python skills/clinical-trial-finder/clinical_trial_finder.py --rsid {rsid} --output {output_dir}
+    cli_query: python skills/clinical-trial-finder/clinical_trial_finder.py --query "{query}" --output {output_dir}
+    cli_file: python skills/clinical-trial-finder/clinical_trial_finder.py --input {input_file} --output {output_dir}
+    cli_demo: python skills/clinical-trial-finder/clinical_trial_finder.py --demo --output {output_dir}
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🏥"
+    emoji: 🏥
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    install: []
+    os:
+    - darwin
+    - linux
     trigger_keywords:
-      - clinical trial
-      - clinical trials
-      - trial finder
-      - FHIR
-      - ResearchStudy
-      - NCT
-      - ClinicalTrials.gov
-      - GWAS
-      - rsID
-      - variant
-
-demo_data:
-  - path: demo_input.txt
-    description: Synthetic query for BRCA1 breast cancer trials — exercises recruiting and completed status paths
-
-endpoints:
-  cli_gene: python skills/clinical-trial-finder/clinical_trial_finder.py --gene {gene} --output {output_dir}
-  cli_rsid: python skills/clinical-trial-finder/clinical_trial_finder.py --rsid {rsid} --output {output_dir}
-  cli_query: python skills/clinical-trial-finder/clinical_trial_finder.py --query "{query}" --output {output_dir}
-  cli_file: python skills/clinical-trial-finder/clinical_trial_finder.py --input {input_file} --output {output_dir}
-  cli_demo: python skills/clinical-trial-finder/clinical_trial_finder.py --demo --output {output_dir}
+    - clinical trial
+    - clinical trials
+    - trial finder
+    - FHIR
+    - ResearchStudy
+    - NCT
+    - ClinicalTrials.gov
+    - GWAS
+    - rsID
+    - variant
 ---
 
 ## Domain Decisions

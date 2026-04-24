@@ -1,14 +1,13 @@
 ---
 name: clinical-variant-reporter
-description: >-
-  Classify germline variants from VCF/BCF files according to the ACMG/AMP 2015
-  28-criteria evidence framework and generate clinical-grade interpretation
-  reports with per-variant evidence audit trails and ACMG SF v3.2 secondary
-  findings screening.
-version: 0.1.0
-author: Reza
+description: Classify germline variants from VCF/BCF files according to the ACMG/AMP 2015 28-criteria evidence framework and
+  generate clinical-grade interpretation reports with per-variant evidence audit trails and ACMG SF v3.2 secondary findings
+  screening.
 license: MIT
-tags:
+metadata:
+  version: 0.1.0
+  author: Reza
+  tags:
   - acmg
   - variant-classification
   - clinical-genomics
@@ -17,39 +16,35 @@ tags:
   - secondary-findings
   - exome
   - genome
-metadata:
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🏥"
+    emoji: 🏥
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: pysam
-        bins: []
-      - kind: pip
-        package: requests
-        bins: []
-      - kind: pip
-        package: pandas
-        bins: []
+    - kind: pip
+      package: pysam
+    - kind: pip
+      package: requests
+    - kind: pip
+      package: pandas
     trigger_keywords:
-      - ACMG
-      - ACMG classification
-      - pathogenic variant
-      - likely pathogenic
-      - variant of uncertain significance
-      - VUS
-      - clinical variant
-      - germline classification
-      - secondary findings
-      - ACMG SF
-      - variant interpretation
+    - ACMG
+    - ACMG classification
+    - pathogenic variant
+    - likely pathogenic
+    - variant of uncertain significance
+    - VUS
+    - clinical variant
+    - germline classification
+    - secondary findings
+    - ACMG SF
+    - variant interpretation
 ---
 
 # 🏥 Clinical Variant Reporter

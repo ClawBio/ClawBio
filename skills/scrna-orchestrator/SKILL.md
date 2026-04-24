@@ -1,49 +1,55 @@
 ---
 name: scrna-orchestrator
-description: Local Scanpy pipeline for single-cell RNA-seq QC, optional doublet detection, clustering, marker discovery, optional CellTypist annotation, optional latent downstream mode from integrated.h5ad/X_scvi, and optional dataset-level plus within-cluster contrastive marker analysis from raw-count .h5ad or 10x Matrix Market input.
-version: 0.1.0
-author: Yonghao Zhao
+description: Local Scanpy pipeline for single-cell RNA-seq QC, optional doublet detection, clustering, marker discovery, optional
+  CellTypist annotation, optional latent downstream mode from integrated.h5ad/X_scvi, and optional dataset-level plus within-cluster
+  contrastive marker analysis from raw-count .h5ad or 10x Matrix Market input.
 license: MIT
-tags: [scrna, single-cell, scanpy, clustering, differential-expression, h5ad, mtx, 10x]
 metadata:
+  version: 0.1.0
+  author: Yonghao Zhao
+  tags:
+  - scrna
+  - single-cell
+  - scanpy
+  - clustering
+  - differential-expression
+  - h5ad
+  - mtx
+  - 10x
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🦖"
+    emoji: 🦖
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: uv
-        package: scanpy
-        bins: []
-      - kind: uv
-        package: anndata
-        bins: []
-      - kind: uv
-        package: scrublet
-        bins: []
-      - kind: uv
-        package: celltypist
-        bins: []
+    - kind: uv
+      package: scanpy
+    - kind: uv
+      package: anndata
+    - kind: uv
+      package: scrublet
+    - kind: uv
+      package: celltypist
     trigger_keywords:
-      - scrna
-      - single-cell
-      - scanpy
-      - h5ad
-      - mtx
-      - 10x
-      - leiden
-      - marker genes
-      - differential expression
-      - contrastive markers
-      - integrated.h5ad
-      - x_scvi
-      - doublet
-      - celltypist
+    - scrna
+    - single-cell
+    - scanpy
+    - h5ad
+    - mtx
+    - 10x
+    - leiden
+    - marker genes
+    - differential expression
+    - contrastive markers
+    - integrated.h5ad
+    - x_scvi
+    - doublet
+    - celltypist
 ---
 
 # 🦖 scRNA Orchestrator

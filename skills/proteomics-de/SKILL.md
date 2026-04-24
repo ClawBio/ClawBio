@@ -1,33 +1,36 @@
 ---
 name: proteomics-de
-description: Differential expression analysis for label-free quantitative (LFQ) intensity data with standard MaxQuant and DIA-NN output. Workflow includes preprocessing, imputation, and statistical testing.
-version: 0.1.0
+description: Differential expression analysis for label-free quantitative (LFQ) intensity data with standard MaxQuant and
+  DIA-NN output. Workflow includes preprocessing, imputation, and statistical testing.
+license: MIT
 metadata:
+  version: 0.1.0
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🥚"
+    emoji: 🥚
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux, win32]
+    os:
+    - darwin
+    - linux
+    - win32
     install:
-      - kind: pip
-        package: pandas
-      - kind: pip
-        package: numpy
-      - kind: pip
-        package: matplotlib
-      - kind: pip
-        package: scikit-learn
-      - kind: pip
-        package: scipy
-      - kind: pip
-        package: seaborn
+    - kind: pip
+      package: pandas
+    - kind: pip
+      package: numpy
+    - kind: pip
+      package: matplotlib
+    - kind: pip
+      package: scikit-learn
+    - kind: pip
+      package: scipy
+    - kind: pip
+      package: seaborn
     trigger_keywords:
-      - Differential expression analysis of proteomics data from MaxQuant or DIA-NN output
+    - Differential expression analysis of proteomics data from MaxQuant or DIA-NN output
 ---
 
 # 🥚 Proteomics Differential Expression

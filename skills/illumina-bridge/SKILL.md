@@ -1,34 +1,40 @@
 ---
 name: illumina-bridge
-description: "Import DRAGEN-exported Illumina result bundles into ClawBio for local tertiary analysis and downstream routing."
-version: 0.1.0
-author: ClawBio
+description: Import DRAGEN-exported Illumina result bundles into ClawBio for local tertiary analysis and downstream routing.
 license: MIT
-tags: [illumina, dragen, ica, tertiary-analysis, vcf, genomics]
 metadata:
+  version: 0.1.0
+  author: ClawBio
+  tags:
+  - illumina
+  - dragen
+  - ica
+  - tertiary-analysis
+  - vcf
+  - genomics
   openclaw:
     requires:
       bins:
-        - python3
+      - python3
       env:
-        - ILLUMINA_ICA_API_KEY
-        - ILLUMINA_ICA_BASE_URL
-      config: []
+      - ILLUMINA_ICA_API_KEY
+      - ILLUMINA_ICA_BASE_URL
     always: false
-    emoji: "🧬"
+    emoji: 🧬
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: requests
-        bins: []
+    - kind: pip
+      package: requests
     trigger_keywords:
-      - illumina
-      - dragen
-      - ica
-      - basespace
-      - sample sheet
-      - samplesheet
+    - illumina
+    - dragen
+    - ica
+    - basespace
+    - sample sheet
+    - samplesheet
 ---
 
 # Illumina Bridge

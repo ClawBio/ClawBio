@@ -1,33 +1,48 @@
 ---
 name: rnaseq-de
 description: Differential expression analysis for bulk RNA-seq and pseudo-bulk count matrices with QC, PCA, and contrast testing.
-version: 0.1.0
-tags: [rna-seq, differential expression, bulk, pseudo-bulk, transcriptomics, DESeq2, PyDESeq2, QC, PCA]
-trigger_keywords: [rna-seq, differential expression, bulk RNA, pseudo-bulk, volcano plot, ma plot, count matrix, DESeq2, pydeseq2]
+license: MIT
 metadata:
+  version: 0.1.0
+  tags:
+  - rna-seq
+  - differential expression
+  - bulk
+  - pseudo-bulk
+  - transcriptomics
+  - DESeq2
+  - PyDESeq2
+  - QC
+  - PCA
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🧬"
+    emoji: 🧬
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: uv
-        package: pandas
-        bins: []
-      - kind: uv
-        package: numpy
-        bins: []
-      - kind: uv
-        package: matplotlib
-        bins: []
-      - kind: uv
-        package: scikit-learn
-        bins: []
+    - kind: uv
+      package: pandas
+    - kind: uv
+      package: numpy
+    - kind: uv
+      package: matplotlib
+    - kind: uv
+      package: scikit-learn
+    trigger_keywords:
+    - rna-seq
+    - differential expression
+    - bulk RNA
+    - pseudo-bulk
+    - volcano plot
+    - ma plot
+    - count matrix
+    - DESeq2
+    - pydeseq2
 ---
 
 # 🧬 RNA-seq Differential Expression

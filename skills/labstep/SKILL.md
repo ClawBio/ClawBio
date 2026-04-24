@@ -1,38 +1,43 @@
 ---
 name: labstep
-description: >-
-  Query and display Labstep electronic lab notebook data — experiments,
-  protocols, resources, and inventory — via labstepPy.  Supports offline
-  demo mode with synthetic biology data.
-version: 0.2.0
-author: ClawBio Contributors
+description: Query and display Labstep electronic lab notebook data — experiments, protocols, resources, and inventory — via
+  labstepPy.  Supports offline demo mode with synthetic biology data.
 license: MIT
-tags: [labstep, ELN, lab-notebook, experiments, protocols, inventory, LIMS]
 metadata:
+  version: 0.2.0
+  author: ClawBio Contributors
+  tags:
+  - labstep
+  - ELN
+  - lab-notebook
+  - experiments
+  - protocols
+  - inventory
+  - LIMS
   openclaw:
     requires:
       bins:
-        - python3
+      - python3
       env:
-        - LABSTEP_API_KEY
-      config: []
+      - LABSTEP_API_KEY
     always: false
-    emoji: "🔬"
+    emoji: 🔬
     homepage: https://www.labstep.com
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: uv
-        package: labstep
-        bins: []
+    - kind: uv
+      package: labstep
     trigger_keywords:
-      - labstep
-      - lab notebook
-      - ELN
-      - experiment
-      - protocol steps
-      - reagent inventory
-      - lab inventory
-      - LIMS
+    - labstep
+    - lab notebook
+    - ELN
+    - experiment
+    - protocol steps
+    - reagent inventory
+    - lab inventory
+    - LIMS
 ---
 
 # 🔬 Labstep

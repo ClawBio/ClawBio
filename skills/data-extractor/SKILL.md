@@ -1,41 +1,37 @@
 ---
 name: data-extractor
-description: Extract numerical data from scientific figure images using Claude vision + OpenCV calibration. Supports 26+ plot types including bar charts, scatter plots, forest plots, Kaplan-Meier curves, box plots, and more.
-version: 0.1.0
+description: Extract numerical data from scientific figure images using Claude vision + OpenCV calibration. Supports 26+ plot
+  types including bar charts, scatter plots, forest plots, Kaplan-Meier curves, box plots, and more.
+license: MIT
 metadata:
+  version: 0.1.0
   openclaw:
     requires:
       bins:
-        - python3
+      - python3
       env:
-        - ANTHROPIC_API_KEY
-      config: []
+      - ANTHROPIC_API_KEY
     always: false
-    emoji: "📊"
+    emoji: 📊
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: anthropic
-        bins: []
-      - kind: pip
-        package: opencv-python-headless
-        bins: []
-      - kind: pip
-        package: numpy
-        bins: []
-      - kind: pip
-        package: Pillow
-        bins: []
-      - kind: pip
-        package: pydantic
-        bins: []
-      - kind: pip
-        package: fastapi
-        bins: []
-      - kind: pip
-        package: uvicorn
-        bins: []
+    - kind: pip
+      package: anthropic
+    - kind: pip
+      package: opencv-python-headless
+    - kind: pip
+      package: numpy
+    - kind: pip
+      package: Pillow
+    - kind: pip
+      package: pydantic
+    - kind: pip
+      package: fastapi
+    - kind: pip
+      package: uvicorn
 ---
 
 # 📊 Data Extractor

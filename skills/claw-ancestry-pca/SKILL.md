@@ -1,50 +1,61 @@
 ---
 name: claw-ancestry-pca
-version: 0.1.0
 description: Ancestry decomposition PCA against the Simons Genome Diversity Project
-author: Manuel Corpas
 license: MIT
-tags:
+metadata:
+  version: 0.1.0
+  author: Manuel Corpas
+  tags:
   - population-genetics
   - PCA
   - ancestry
   - SGDP
   - global-diversity
-inputs:
+  inputs:
   - name: vcf
     type: file
-    format: [vcf, vcf.gz]
+    format:
+    - vcf
+    - vcf.gz
     description: VCF file with genotype data for your study cohort
   - name: pop-map
     type: file
-    format: [tsv, txt]
+    format:
+    - tsv
+    - txt
     description: Tab-separated file mapping sample IDs to population labels
-outputs:
+  outputs:
   - name: figure
     type: file
-    format: [png, pdf]
+    format:
+    - png
+    - pdf
     description: Multi-panel PCA composite figure showing ancestry decomposition
   - name: report
     type: file
     format: markdown
     description: Ancestry analysis report with population assignments and statistics
-metadata:
   openclaw:
     category: bioinformatics
-    emoji: "🧬"
+    emoji: 🧬
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    min_python: "3.9"
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
+    min_python: '3.9'
     dependencies:
-      - pandas
-      - numpy
-      - matplotlib
-      - scikit-learn
-      - adjustText
+    - pandas
+    - numpy
+    - matplotlib
+    - scikit-learn
+    - adjustText
     system_dependencies:
-      - plink
-      - bcftools
+    - plink
+    - bcftools
+    requires:
+      bins:
+      - python3
+    always: false
 ---
 
 # 🦖 Ancestry Decomposition PCA
