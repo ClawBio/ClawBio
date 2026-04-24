@@ -6,6 +6,7 @@ Provides write_checksums and write_environment_yml, both writing into
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from clawbio.common.checksums import sha256_file
@@ -116,3 +117,36 @@ def write_commands_sh(output_dir: Path | str, command: str) -> Path:
     path.write_text(content)
     path.chmod(path.stat().st_mode | 0o111)
     return path
+
+
+def write_conda_lock(output_dir: Path | str) -> Path:
+    """Write reproducibility/conda-lock.yml from an existing environment.yml.
+
+    Runs ``conda-lock lock`` in the reproducibility directory. conda-lock
+    defaults to multi-platform resolution and writes conda-lock.yml.
+
+    Args:
+        output_dir: Skill output directory containing reproducibility/environment.yml.
+
+    Raises:
+        FileNotFoundError: If reproducibility/environment.yml is missing.
+        subprocess.CalledProcessError: If conda-lock exits with a non-zero status.
+
+    Returns the path of the written conda-lock.yml file.
+    """
+    output_dir = Path(output_dir)
+    repro_dir = output_dir / "reproducibility"
+    if not (repro_dir / "environment.yml").exists():
+        raise FileNotFoundError(repro_dir / "environment.yml")
+
+    try:
+        subprocess.run(
+            ["conda-lock", "lock", "-f", "environment.yml"],
+            cwd=repro_dir,
+            check=True,
+        )
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            "conda-lock is not installed. Install it with: pip install conda-lock"
+        )
+    return repro_dir / "conda-lock.yml"

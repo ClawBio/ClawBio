@@ -1,14 +1,18 @@
-"""Tests for clawbio.common.reproducibility — write_checksums and write_environment_yml."""
+"""Tests for clawbio.common.reproducibility."""
 
-import sys
+import subprocess
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-
 from clawbio.common.checksums import sha256_file
-from clawbio.common.reproducibility import write_checksums, write_environment_yml, write_commands_sh
+from clawbio.common.reproducibility import (
+    write_checksums,
+    write_environment_yml,
+    write_commands_sh,
+    write_conda_lock,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -214,3 +218,68 @@ class TestWriteCommandsSh:
         write_commands_sh(tmp_path, "python skill.py")
         mode = (tmp_path / "reproducibility" / "commands.sh").stat().st_mode
         assert mode & stat.S_IXUSR, "owner execute bit not set"
+
+
+# ---------------------------------------------------------------------------
+# TestWriteCondaLock
+# ---------------------------------------------------------------------------
+
+
+class TestWriteCondaLock:
+    def test_calls_conda_lock_with_correct_args(self, tmp_path):
+        """write_conda_lock calls conda-lock with correct arguments."""
+        repro_dir = tmp_path / "reproducibility"
+        repro_dir.mkdir()
+        (repro_dir / "environment.yml").write_text("name: test\n")
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            write_conda_lock(tmp_path)
+
+        mock_run.assert_called_once_with(
+            ["conda-lock", "lock", "-f", "environment.yml"],
+            cwd=repro_dir,
+            check=True,
+        )
+
+    def test_returns_lockfile_path(self, tmp_path):
+        """write_conda_lock returns the path to conda-lock.yml."""
+        repro_dir = tmp_path / "reproducibility"
+        repro_dir.mkdir()
+        (repro_dir / "environment.yml").write_text("name: test\n")
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            result = write_conda_lock(tmp_path)
+
+        assert result == repro_dir / "conda-lock.yml"
+
+    def test_raises_if_environment_yml_missing(self, tmp_path):
+        """write_conda_lock raises FileNotFoundError if environment.yml is missing."""
+        repro_dir = tmp_path / "reproducibility"
+        repro_dir.mkdir()
+
+        with pytest.raises(FileNotFoundError):
+            write_conda_lock(tmp_path)
+
+    def test_raises_clear_error_if_conda_lock_not_installed(self, tmp_path):
+        """write_conda_lock raises FileNotFoundError with install instructions if conda-lock binary is missing."""
+        repro_dir = tmp_path / "reproducibility"
+        repro_dir.mkdir()
+        (repro_dir / "environment.yml").write_text("name: test\n")
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = FileNotFoundError("conda-lock")
+            with pytest.raises(FileNotFoundError, match="pip install conda-lock"):
+                write_conda_lock(tmp_path)
+
+    def test_propagates_called_process_error(self, tmp_path):
+        """write_conda_lock propagates CalledProcessError from subprocess.run."""
+        repro_dir = tmp_path / "reproducibility"
+        repro_dir.mkdir()
+        (repro_dir / "environment.yml").write_text("name: test\n")
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(1, "conda-lock")
+            with pytest.raises(subprocess.CalledProcessError):
+                write_conda_lock(tmp_path)
