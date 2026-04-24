@@ -1,22 +1,22 @@
 ---
 name: gwas-prs
 description: Calculate polygenic risk scores from DTC genetic data using the PGS Catalog
-version: 0.1.0
+license: MIT
 metadata:
+  version: 0.1.0
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🎯"
+    emoji: 🎯
     homepage: https://www.pgscatalog.org
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: uv
-        package: requests
-        bins: []
+    - kind: uv
+      package: requests
 ---
 
 # Polygenic Risk Score Calculator (GWAS-PRS)

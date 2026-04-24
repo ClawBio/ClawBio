@@ -1,34 +1,34 @@
 ---
 name: struct-predictor
-description: Protein structure prediction with Boltz-2. Accepts YAML inputs (single protein or multi-chain complex), runs boltz predict, extracts per-residue pLDDT and PAE confidence, and writes a markdown report with figures.
-version: 0.2.0
+description: Protein structure prediction with Boltz-2. Accepts YAML inputs (single protein or multi-chain complex), runs
+  boltz predict, extracts per-residue pLDDT and PAE confidence, and writes a markdown report with figures.
+license: MIT
 metadata:
+  version: 0.2.0
   openclaw:
     requires:
       bins:
-        - python3
+      - python3
       anyBins:
-        - boltz
-      env: []
-      config: []
+      - boltz
     always: false
-    emoji: "🧱"
+    emoji: 🧱
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: uv
-        package: boltz
-        bins: [boltz]
-        comment: "GPU: uv pip install 'boltz[cuda]' -U"
-      - kind: uv
-        package: numpy
-        bins: []
-      - kind: uv
-        package: matplotlib
-        bins: []
-      - kind: uv
-        package: pyyaml
-        bins: []
+    - kind: uv
+      package: boltz
+      bins:
+      - boltz
+      comment: 'GPU: uv pip install ''boltz[cuda]'' -U'
+    - kind: uv
+      package: numpy
+    - kind: uv
+      package: matplotlib
+    - kind: uv
+      package: pyyaml
 ---
 
 # Struct Predictor

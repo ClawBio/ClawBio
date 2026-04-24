@@ -1,73 +1,71 @@
 ---
 name: bgpt-mcp
-description: >-
-  Search scientific papers via the BGPT MCP server and retrieve structured
-  experimental data — methods, results, conclusions, quality scores, and 25+
-  metadata fields per paper.
-version: 0.1.0
-author: Conner Lambden
-domain: literature-search
+description: Search scientific papers via the BGPT MCP server and retrieve structured experimental data — methods, results,
+  conclusions, quality scores, and 25+ metadata fields per paper.
 license: MIT
-
-inputs:
+metadata:
+  version: 0.1.0
+  author: Conner Lambden
+  domain: literature-search
+  tags:
+  - literature
+  - papers
+  - mcp
+  - search
+  - experimental-data
+  - pubmed
+  - scientific
+  inputs:
   - name: query
     type: string
-    format: [text]
+    format:
+    - text
     description: Search terms (e.g. "CRISPR gene editing efficiency")
     required: true
   - name: num_results
     type: integer
-    format: [number]
+    format:
+    - number
     description: Number of results to return (1–100, default 10)
     required: false
   - name: days_back
     type: integer
-    format: [number]
+    format:
+    - number
     description: Only return papers published within the last N days
     required: false
-
-outputs:
+  outputs:
   - name: papers
     type: structured
     format: json
     description: Structured paper data with 25+ fields per result
-
-dependencies:
-  python: ">=3.10"
-  packages: []
-
-tags: [literature, papers, mcp, search, experimental-data, pubmed, scientific]
-
-endpoints:
-  mcp_sse: https://bgpt.pro/mcp/sse
-  mcp_stream: https://bgpt.pro/mcp/stream
-
-metadata:
+  dependencies:
+    python: '>=3.10'
+  endpoints:
+    mcp_sse: https://bgpt.pro/mcp/sse
+    mcp_stream: https://bgpt.pro/mcp/stream
   openclaw:
-    requires:
-      bins: []
-      env: []
-      config: []
     always: false
-    emoji: "🔬"
+    emoji: 🔬
     homepage: https://bgpt.pro/mcp
-    os: [darwin, linux, win32]
-    install: []
-    system_dependencies: []
+    os:
+    - darwin
+    - linux
+    - win32
     trigger_keywords:
-      - search papers
-      - find papers
-      - literature search
-      - experimental data
-      - paper search
-      - search studies
-      - find studies
-      - bgpt
-      - scientific papers
-      - research papers
-      - paper data
-      - full-text data
-      - methods and results
+    - search papers
+    - find papers
+    - literature search
+    - experimental data
+    - paper search
+    - search studies
+    - find studies
+    - bgpt
+    - scientific papers
+    - research papers
+    - paper data
+    - full-text data
+    - methods and results
 ---
 
 # 🔬 BGPT MCP

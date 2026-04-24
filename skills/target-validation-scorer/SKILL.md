@@ -1,19 +1,25 @@
 ---
 name: target-validation-scorer
-version: 1.0.0
-author: Heng Gao <heng.gao25@imperial.ac.uk>
-domain: drug-discovery
 description: Evidence-grounded target validation scoring with GO/NO-GO decisions for drug discovery campaigns
 license: MIT
-
-inputs:
+metadata:
+  version: 1.0.0
+  author: Heng Gao <heng.gao25@imperial.ac.uk>
+  domain: drug-discovery
+  tags:
+  - drug-discovery
+  - target-validation
+  - evidence-grading
+  - decision-support
+  - kinase
+  inputs:
   - name: input_file
     type: file
-    format: [json]
+    format:
+    - json
     description: JSON file with target gene symbol and optional disease name
     required: true
-
-outputs:
+  outputs:
   - name: report
     type: file
     format: md
@@ -22,46 +28,37 @@ outputs:
     type: file
     format: json
     description: Machine-readable scoring output with evidence objects
-
-dependencies:
-  python: ">=3.11"
-  packages:
+  dependencies:
+    python: '>=3.11'
+    packages:
     - pandas>=2.0
     - matplotlib>=3.7
     - numpy>=1.24
-
-tags: [drug-discovery, target-validation, evidence-grading, decision-support, kinase]
-
-metadata:
+  demo_data:
+  - path: demo_input.json
+    description: Synthetic target validation query for TGFBR1/IPF with pre-cached evidence
+  endpoints:
+    cli: python skills/target-validation-scorer/target_validation_scorer.py --input {input_file} --output {output_dir}
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🎯"
+    emoji: 🎯
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: matplotlib
-        bins: []
-      - kind: pip
-        package: numpy
-        bins: []
+    - kind: pip
+      package: matplotlib
+    - kind: pip
+      package: numpy
     trigger_keywords:
-      - target validation
-      - is this target druggable
-      - evaluate drug target
-      - GO NO-GO decision for target
-
-demo_data:
-  - path: demo_input.json
-    description: Synthetic target validation query for TGFBR1/IPF with pre-cached evidence
-
-endpoints:
-  cli: python skills/target-validation-scorer/target_validation_scorer.py --input {input_file} --output {output_dir}
+    - target validation
+    - is this target druggable
+    - evaluate drug target
+    - GO NO-GO decision for target
 ---
 
 # 🎯 Target Validation Scorer

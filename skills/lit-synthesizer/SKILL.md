@@ -1,59 +1,62 @@
 ---
 name: lit-synthesizer
-description: >
-  Search PubMed and bioRxiv for bioinformatics literature, synthesise results
-  into a structured report, and build a citation graph — all locally, with a
-  reproducibility bundle.
-version: 0.1.0
-author: Sooraj (github.com/sooraj-codes)
-domain: literature
+description: 'Search PubMed and bioRxiv for bioinformatics literature, synthesise results into a structured report, and build
+  a citation graph — all locally, with a reproducibility bundle.
+
+  '
 license: MIT
-inputs:
-  - name: query
-    type: string
-    description: "Free-text search query (e.g. 'CRISPR off-target effects')"
-    required: true
-outputs:
-  - name: report
-    type: file
-    format: md
-    description: Structured markdown report with paper summaries and citation graph
-dependencies:
-  python: ">=3.11"
-  packages:
-    - biopython>=1.83
-tags:
+metadata:
+  version: 0.1.0
+  author: Sooraj (github.com/sooraj-codes)
+  domain: literature
+  tags:
   - literature
   - pubmed
   - biorxiv
   - citation
   - synthesis
-demo_data:
+  inputs:
+  - name: query
+    type: string
+    description: Free-text search query (e.g. 'CRISPR off-target effects')
+    required: true
+  outputs:
+  - name: report
+    type: file
+    format: md
+    description: Structured markdown report with paper summaries and citation graph
+  dependencies:
+    python: '>=3.11'
+    packages:
+    - biopython>=1.83
+  demo_data:
   - path: examples/demo_output/report.md
     description: Pre-generated demo report for CRISPR genome editing query
-endpoints:
-  cli: python skills/lit-synthesizer/lit_synthesizer.py --query "{query}" --output {output_dir}
-metadata:
+  endpoints:
+    cli: python skills/lit-synthesizer/lit_synthesizer.py --query "{query}" --output {output_dir}
   openclaw:
     requires:
       always: false
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    emoji: "📚"
+    os:
+    - darwin
+    - linux
+    emoji: 📚
     install:
-      - kind: pip
-        package: biopython
+    - kind: pip
+      package: biopython
     trigger_keywords:
-      - "search pubmed"
-      - "find papers"
-      - "literature review"
-      - "search biorxiv"
-      - "find articles"
-      - "citation graph"
-      - "synthesize literature"
-      - "find research papers"
-      - "pubmed search"
-      - "recent papers on"
+    - search pubmed
+    - find papers
+    - literature review
+    - search biorxiv
+    - find articles
+    - citation graph
+    - synthesize literature
+    - find research papers
+    - pubmed search
+    - recent papers on
+    always: false
 ---
 
 # 🦖 Lit Synthesizer

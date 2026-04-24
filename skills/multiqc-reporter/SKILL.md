@@ -1,22 +1,30 @@
 ---
 name: multiqc-reporter
-description: >-
-  Aggregates QC reports from any bioinformatics tool outputs (FastQC, fastp,
-  STAR, Picard, samtools, etc.) into a single MultiQC HTML report plus a
-  ClawBio markdown summary with per-sample QC metrics.
-version: 0.1.0
-author: Cameron Lloyd
-domain: genomics
+description: Aggregates QC reports from any bioinformatics tool outputs (FastQC, fastp, STAR, Picard, samtools, etc.) into
+  a single MultiQC HTML report plus a ClawBio markdown summary with per-sample QC metrics.
 license: MIT
-
-inputs:
+metadata:
+  version: 0.1.0
+  author: Cameron Lloyd
+  domain: genomics
+  tags:
+  - qc
+  - fastqc
+  - multiqc
+  - sequencing
+  - alignment
+  - rna-seq
+  - wgs
+  - wes
+  - aggregation
+  inputs:
   - name: input_dirs
     type: directory
-    format: [any]
+    format:
+    - any
     description: One or more directories containing tool QC output files
     required: true
-
-outputs:
+  outputs:
   - name: report
     type: file
     format: md
@@ -25,47 +33,40 @@ outputs:
     type: file
     format: html
     description: Standard MultiQC interactive HTML report
-
-dependencies:
-  python: ">=3.11"
-  packages: []
-  external:
+  dependencies:
+    python: '>=3.11'
+    external:
     - multiqc>=1.20
-
-tags: [qc, fastqc, multiqc, sequencing, alignment, rna-seq, wgs, wes, aggregation]
-
-demo_data:
-  - path: "--demo flag"
+  demo_data:
+  - path: --demo flag
     description: Synthetic FastQC output for 3 samples (generated at runtime into a tempdir)
-
-endpoints:
-  cli: python skills/multiqc-reporter/multiqc_reporter.py --input {input_dirs} --output {output_dir}
-
-metadata:
+  endpoints:
+    cli: python skills/multiqc-reporter/multiqc_reporter.py --input {input_dirs} --output {output_dir}
   openclaw:
     requires:
       bins:
-        - python3
-        - multiqc
-      env: []
-      config: []
-    always: false
-    emoji: "📊"
-    homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    install:
-      - kind: pip
-        package: multiqc
-        bins: [multiqc]
-    trigger_keywords:
+      - python3
       - multiqc
-      - aggregate QC
-      - QC report
-      - FastQC summary
-      - multi-sample QC
-      - sequencing QC report
-      - combine QC
-      - QC aggregation
+    always: false
+    emoji: 📊
+    homepage: https://github.com/ClawBio/ClawBio
+    os:
+    - darwin
+    - linux
+    install:
+    - kind: pip
+      package: multiqc
+      bins:
+      - multiqc
+    trigger_keywords:
+    - multiqc
+    - aggregate QC
+    - QC report
+    - FastQC summary
+    - multi-sample QC
+    - sequencing QC report
+    - combine QC
+    - QC aggregation
 ---
 
 # 📊 MultiQC

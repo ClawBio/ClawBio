@@ -1,13 +1,12 @@
 ---
 name: gwas-pipeline
-description: >-
-  End-to-end GWAS automation wrapping PLINK2 for genotype QC and REGENIE for
-  two-step whole-genome regression association testing. Produces Manhattan plots,
-  QQ plots, clumped lead variants, and structured summary statistics.
-version: 0.1.0
-author: Reza
+description: End-to-end GWAS automation wrapping PLINK2 for genotype QC and REGENIE for two-step whole-genome regression association
+  testing. Produces Manhattan plots, QQ plots, clumped lead variants, and structured summary statistics.
 license: MIT
-tags:
+metadata:
+  version: 0.1.0
+  author: Reza
+  tags:
   - gwas
   - association-testing
   - regenie
@@ -15,36 +14,37 @@ tags:
   - population-genetics
   - biobank
   - quality-control
-metadata:
   openclaw:
     requires:
       bins:
-        - python3
-        - plink2
-        - regenie
-      env: []
-      config: []
+      - python3
+      - plink2
+      - regenie
     always: false
-    emoji: "📊"
+    emoji: 📊
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: conda
-        package: plink2
-        bins: [plink2]
-      - kind: conda
-        package: regenie
-        bins: [regenie]
+    - kind: conda
+      package: plink2
+      bins:
+      - plink2
+    - kind: conda
+      package: regenie
+      bins:
+      - regenie
     trigger_keywords:
-      - GWAS
-      - genome-wide association
-      - PLINK
-      - REGENIE
-      - association testing
-      - Manhattan plot
-      - QQ plot
-      - polygenic
-      - case-control
+    - GWAS
+    - genome-wide association
+    - PLINK
+    - REGENIE
+    - association testing
+    - Manhattan plot
+    - QQ plot
+    - polygenic
+    - case-control
 ---
 
 # 📊 GWAS Pipeline

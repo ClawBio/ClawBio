@@ -1,44 +1,41 @@
 ---
 name: archaic-introgression
-version: 0.1.0
-author: Manuel Corpas
 description: Detect Neanderthal and Denisovan introgression segments from modern human genomes
-domain: genomics
-inputs:
+license: MIT
+metadata:
+  version: 0.1.0
+  author: Manuel Corpas
+  domain: genomics
+  inputs:
   - format: VCF
     description: Modern human genotypes
     required: true
   - format: VCF
     description: Archaic reference genotypes (Neanderthal/Denisovan)
     required: true
-outputs:
+  outputs:
   - format: JSON
     description: Introgression segments with scores and summary statistics
   - format: BED
     description: Genomic coordinates of introgressed segments
-trigger_keywords:
-  - archaic introgression
-  - Neanderthal DNA
-  - Denisovan ancestry
-  - IBDmix
-  - Sprime
-  - hmmix
-  - introgressed segments
-
-metadata:
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🦴"
-    os: [darwin, linux]
-    install:
-      - kind: pip
-        package: numpy
-        bins: []
+    emoji: 🦴
+    homepage: https://github.com/ClawBio/ClawBio
+    os:
+    - darwin
+    - linux
+    trigger_keywords:
+    - archaic introgression
+    - Neanderthal DNA
+    - Denisovan ancestry
+    - IBDmix
+    - Sprime
+    - hmmix
+    - introgressed segments
 ---
 
 # Archaic Introgression Detector

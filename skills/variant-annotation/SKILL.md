@@ -1,17 +1,27 @@
 ---
 name: variant-annotation
-description: Annotate VCF variants with Ensembl VEP REST, ClinVar significance, gnomAD/population frequency context, and prioritized variant ranking.
-version: 0.1.0
-author: Toby Clark
+description: Annotate VCF variants with Ensembl VEP REST, ClinVar significance, gnomAD/population frequency context, and prioritized
+  variant ranking.
 license: MIT
-domain: genomics
-tags: [genomics, vcf, variant-annotation, vep, clinvar, gnomad]
-inputs:
+metadata:
+  version: 0.1.0
+  author: Toby Clark
+  domain: genomics
+  tags:
+  - genomics
+  - vcf
+  - variant-annotation
+  - vep
+  - clinvar
+  - gnomad
+  inputs:
   - name: input
     type: file
-    format: [vcf, vcf.gz]
+    format:
+    - vcf
+    - vcf.gz
     description: Input VCF containing variant records and optional sample genotype columns
-outputs:
+  outputs:
   - name: report
     type: file
     format: markdown
@@ -27,35 +37,32 @@ outputs:
   - name: reproducibility
     type: directory
     description: Reproduction commands and run metadata for the analysis
-demo_data:
+  demo_data:
   - path: example_data/synthetic_clinvar_panel.vcf
     description: Bundled synthetic 20-variant VCF used for demo mode
-metadata:
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🧬"
+    emoji: 🧬
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: uv
-        package: pysam
-        bins: []
-      - kind: uv
-        package: requests
-        bins: []
+    - kind: uv
+      package: pysam
+    - kind: uv
+      package: requests
     trigger_keywords:
-      - vcf
-      - variant annotation
-      - vep
-      - clinvar
-      - gnomad
-      - annotate variants
-      - pathogenic variants
+    - vcf
+    - variant annotation
+    - vep
+    - clinvar
+    - gnomad
+    - annotate variants
+    - pathogenic variants
 ---
 
 # 🧬 Variant Annotation

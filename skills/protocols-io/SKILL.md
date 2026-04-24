@@ -1,36 +1,40 @@
 ---
 name: protocols-io
-description: >-
-  Search, browse, and retrieve scientific protocols from protocols.io via REST API.
-  Client token authentication for private protocols. Use when user mentions protocols.io,
-  lab protocols, DOI lookup, protocol search, protocol steps, or scientific methods.
-version: 0.2.0
-author: ClawBio Contributors
+description: Search, browse, and retrieve scientific protocols from protocols.io via REST API. Client token authentication
+  for private protocols. Use when user mentions protocols.io, lab protocols, DOI lookup, protocol search, protocol steps,
+  or scientific methods.
 license: MIT
-tags: [protocols, lab-methods, reproducibility, protocols-io, scientific-methods, DOI]
 metadata:
+  version: 0.2.0
+  author: ClawBio Contributors
+  tags:
+  - protocols
+  - lab-methods
+  - reproducibility
+  - protocols-io
+  - scientific-methods
+  - DOI
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🧪"
+    emoji: 🧪
     homepage: https://www.protocols.io
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: requests
-        bins: []
+    - kind: pip
+      package: requests
     trigger_keywords:
-      - protocols.io
-      - protocol search
-      - lab protocol
-      - scientific protocol
-      - protocol steps
-      - protocol DOI
-      - methods repository
+    - protocols.io
+    - protocol search
+    - lab protocol
+    - scientific protocol
+    - protocol steps
+    - protocol DOI
+    - methods repository
 ---
 
 # 🧪 Protocols.io Bridge

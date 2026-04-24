@@ -1,39 +1,13 @@
 ---
 name: mendelian-randomisation
-description: >-
-  Two-sample Mendelian Randomisation from GWAS summary statistics with IVW,
-  MR-Egger, weighted median/mode, and full sensitivity analysis (Cochran Q,
-  Egger intercept, Steiger, F-statistic, leave-one-out).
-version: 0.1.0
-author: Reza
-domain: genetic-epidemiology
+description: Two-sample Mendelian Randomisation from GWAS summary statistics with IVW, MR-Egger, weighted median/mode, and
+  full sensitivity analysis (Cochran Q, Egger intercept, Steiger, F-statistic, leave-one-out).
 license: MIT
-
-inputs:
-  - name: instruments
-    type: file
-    format: [json]
-    description: Harmonised instrument JSON with exposure/outcome effect sizes
-    required: true
-
-outputs:
-  - name: report
-    type: file
-    format: md
-    description: STROBE-MR aligned interpretation report
-  - name: result
-    type: file
-    format: json
-    description: Machine-readable MR estimates and sensitivity results
-
-dependencies:
-  python: ">=3.10"
-  packages:
-    - numpy>=1.24
-    - scipy>=1.10
-    - matplotlib>=3.7
-
-tags:
+metadata:
+  version: 0.1.0
+  author: Reza
+  domain: genetic-epidemiology
+  tags:
   - mendelian-randomisation
   - causal-inference
   - two-sample-mr
@@ -42,46 +16,61 @@ tags:
   - gwas
   - genetic-epidemiology
   - drug-target-validation
-
-demo_data:
+  inputs:
+  - name: instruments
+    type: file
+    format:
+    - json
+    description: Harmonised instrument JSON with exposure/outcome effect sizes
+    required: true
+  outputs:
+  - name: report
+    type: file
+    format: md
+    description: STROBE-MR aligned interpretation report
+  - name: result
+    type: file
+    format: json
+    description: Machine-readable MR estimates and sensitivity results
+  dependencies:
+    python: '>=3.10'
+    packages:
+    - numpy>=1.24
+    - scipy>=1.10
+    - matplotlib>=3.7
+  demo_data:
   - path: example_data/demo_instruments.json
     description: 30 synthetic BMI->T2D instruments for offline demo
-
-endpoints:
-  cli: python skills/mendelian-randomisation/mendelian_randomisation.py --instruments {input_file} --output {output_dir}
-
-metadata:
+  endpoints:
+    cli: python skills/mendelian-randomisation/mendelian_randomisation.py --instruments {input_file} --output {output_dir}
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🫛"
+    emoji: 🫛
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: numpy
-        bins: []
-      - kind: pip
-        package: scipy
-        bins: []
-      - kind: pip
-        package: matplotlib
-        bins: []
+    - kind: pip
+      package: numpy
+    - kind: pip
+      package: scipy
+    - kind: pip
+      package: matplotlib
     trigger_keywords:
-      - mendelian randomisation
-      - mendelian randomization
-      - MR analysis
-      - two-sample MR
-      - causal inference genetics
-      - IVW
-      - MR-Egger
-      - instrumental variable
-      - drug target validation MR
-      - GWAS causal
+    - mendelian randomisation
+    - mendelian randomization
+    - MR analysis
+    - two-sample MR
+    - causal inference genetics
+    - IVW
+    - MR-Egger
+    - instrumental variable
+    - drug target validation MR
+    - GWAS causal
 ---
 
 # 🧬 Mendelian Randomisation

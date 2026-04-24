@@ -1,33 +1,32 @@
 ---
 name: pubmed-summariser
-description: >-
-  Search PubMed for a gene name or disease term and generate a structured
-  research briefing of the top recent English-language papers.
-version: 0.1.0
+description: Search PubMed for a gene name or disease term and generate a structured research briefing of the top recent English-language
+  papers.
+license: MIT
 metadata:
+  version: 0.1.0
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "📄"
+    emoji: 📄
     homepage: https://pubmed.ncbi.nlm.nih.gov/
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: requests
-        bins: []
+    - kind: pip
+      package: requests
     trigger_keywords:
-      - pubmed
-      - summarise papers
-      - research briefing
-      - papers about
-      - recent studies
-      - literature search pubmed
-      - gene papers
-      - disease papers
+    - pubmed
+    - summarise papers
+    - research briefing
+    - papers about
+    - recent studies
+    - literature search pubmed
+    - gene papers
+    - disease papers
 ---
 
 # 📄 PubMed Summariser

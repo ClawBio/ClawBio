@@ -1,31 +1,31 @@
 ---
 name: omics-target-evidence-mapper
 description: Aggregate public target-level evidence across omics and translational sources for research triage.
-version: 0.1.0
-tags:
+license: MIT
+metadata:
+  version: 0.1.0
+  tags:
   - omics
   - targets
   - translational-research
   - literature
   - trials
-metadata:
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🧬"
+    emoji: 🧬
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    install: []
+    os:
+    - darwin
+    - linux
     trigger_keywords:
-      - target evidence
-      - gene disease evidence
-      - target triage
-      - omics evidence
-      - gene disease mapper
+    - target evidence
+    - gene disease evidence
+    - target triage
+    - omics evidence
+    - gene disease mapper
 ---
 
 # Why This Exists

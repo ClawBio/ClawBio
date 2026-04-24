@@ -1,13 +1,12 @@
 ---
 name: affinity-proteomics
-description: >-
-  Unified analysis pipeline for affinity-based proteomics platforms — Olink
-  (PEA, NPX) and SomaLogic SomaScan (SOMAmer, RFU). Platform-aware QC,
-  normalisation, differential abundance, volcano plots, heatmaps, and PCA.
-version: 0.1.0
-author: Reza
+description: Unified analysis pipeline for affinity-based proteomics platforms — Olink (PEA, NPX) and SomaLogic SomaScan (SOMAmer,
+  RFU). Platform-aware QC, normalisation, differential abundance, volcano plots, heatmaps, and PCA.
 license: MIT
-tags:
+metadata:
+  version: 0.1.0
+  author: Reza
+  tags:
   - proteomics
   - olink
   - somalogic
@@ -16,43 +15,37 @@ tags:
   - affinity
   - differential-abundance
   - biomarker
-metadata:
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🧪"
+    emoji: 🧪
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: somadata
-        bins: []
-      - kind: pip
-        package: scipy
-        bins: []
-      - kind: pip
-        package: statsmodels
-        bins: []
-      - kind: pip
-        package: seaborn
-        bins: []
-      - kind: pip
-        package: scikit-learn
-        bins: []
+    - kind: pip
+      package: somadata
+    - kind: pip
+      package: scipy
+    - kind: pip
+      package: statsmodels
+    - kind: pip
+      package: seaborn
+    - kind: pip
+      package: scikit-learn
     trigger_keywords:
-      - Olink
-      - SomaLogic
-      - SomaScan
-      - NPX
-      - proteomics
-      - affinity proteomics
-      - protein biomarker
-      - plasma proteomics
-      - ADAT
+    - Olink
+    - SomaLogic
+    - SomaScan
+    - NPX
+    - proteomics
+    - affinity proteomics
+    - protein biomarker
+    - plasma proteomics
+    - ADAT
 ---
 
 # 🧪 Affinity Proteomics Pipeline

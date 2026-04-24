@@ -1,36 +1,38 @@
 ---
 name: bigquery-public
-description: >-
-  Run read-only SQL against BigQuery public datasets with local result capture,
-  cost safeguards, and reproducibility outputs.
-version: 0.2.1
-author: ClawBio
+description: Run read-only SQL against BigQuery public datasets with local result capture, cost safeguards, and reproducibility
+  outputs.
 license: MIT
-tags: [bigquery, public-datasets, sql, cloud, genomics]
 metadata:
+  version: 0.2.1
+  author: ClawBio
+  tags:
+  - bigquery
+  - public-datasets
+  - sql
+  - cloud
+  - genomics
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🗃️"
+    emoji: 🗃️
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: google-cloud-bigquery>=3,<4
-        bins: []
-      - kind: pip
-        package: google-auth>=2,<3
-        bins: []
+    - kind: pip
+      package: google-cloud-bigquery>=3,<4
+    - kind: pip
+      package: google-auth>=2,<3
     trigger_keywords:
-      - bigquery
-      - public dataset sql
-      - query public data
-      - bigquery public data
-      - public genomics dataset
+    - bigquery
+    - public dataset sql
+    - query public data
+    - bigquery public data
+    - public genomics dataset
 ---
 
 # 🗃️ BigQuery Public
