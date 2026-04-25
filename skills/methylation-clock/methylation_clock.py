@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,6 +13,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pyaging as pya
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_portable_commands_sh,
+)
 
 
 DISCLAIMER = (
@@ -218,12 +229,56 @@ def plot_clock_correlation(predictions: pd.DataFrame, outpath: Path) -> None:
     plt.close()
 
 
-def write_reproducibility(output_dir: Path, input_desc: str, clocks: list[str], command_args: list[str]) -> None:
+def repro_command_for_bundle(
+    output_dir: Path,
+    *,
+    input_path: "Path | None",
+    geo_id: "str | None",
+    demo: bool,
+    clocks: list[str],
+    metadata_cols: list[str],
+    imputer_strategy: str,
+    skip_epicv2_aggregation: bool,
+    verbose: bool = False,
+) -> ReproCommand:
+    args: list = []
+    if demo:
+        args.append("--demo")
+    elif input_path is not None:
+        args += ["--input", ReproPath(input_path, anchor="auto")]
+    else:
+        args += ["--geo-id", geo_id]
+    args += [
+        "--output", ReproPath(output_dir, anchor="output_dir"),
+        "--clocks", ",".join(clocks),
+        "--metadata-cols", ",".join(metadata_cols),
+        "--imputer-strategy", imputer_strategy,
+    ]
+    if skip_epicv2_aggregation:
+        args.append("--skip-epicv2-aggregation")
+    if verbose:
+        args.append("--verbose")
+    return ReproCommand(
+        script_path=Path("skills/methylation-clock/methylation_clock.py"),
+        args=args,
+        comment="Replay this ClawBio methylation-clock run",
+    )
+
+
+def write_reproducibility(
+    output_dir: Path,
+    *,
+    input_path: "Path | None",
+    geo_id: "str | None",
+    demo: bool,
+    clocks: list[str],
+    metadata_cols: list[str],
+    imputer_strategy: str,
+    skip_epicv2_aggregation: bool,
+    verbose: bool = False,
+) -> None:
     repro_dir = output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
-
-    command_text = "python skills/methylation-clock/methylation_clock.py " + " ".join(command_args) + "\n"
-    (repro_dir / "commands.sh").write_text(command_text)
 
     env_text = """name: clawbio-methylation-clock
 channels:
@@ -237,10 +292,23 @@ dependencies:
 """
     (repro_dir / "environment.yml").write_text(env_text)
 
+    write_portable_commands_sh(
+        output_dir,
+        repro_command_for_bundle(
+            output_dir,
+            input_path=input_path,
+            geo_id=geo_id,
+            demo=demo,
+            clocks=clocks,
+            metadata_cols=metadata_cols,
+            imputer_strategy=imputer_strategy,
+            skip_epicv2_aggregation=skip_epicv2_aggregation,
+            verbose=verbose,
+        ),
+        repo_root=_PROJECT_ROOT,
+    )
+
     checksums = []
-    input_path = Path(input_desc)
-    if input_path.exists():
-        checksums.append(f"{_sha256(input_path)}  {input_path.name}")
     for path in sorted((output_dir / "tables").glob("*")):
         if path.is_file():
             checksums.append(f"{_sha256(path)}  tables/{path.name}")
@@ -456,26 +524,16 @@ def main() -> None:
         skip_epicv2_aggregation=args.skip_epicv2_aggregation,
     )
 
-    command_args = []
-    if args.demo:
-        command_args.extend(["--demo"])
-    elif input_path is not None:
-        command_args.extend(["--input", str(input_path)])
-    else:
-        command_args.extend(["--geo-id", str(geo_id)])
-    command_args.extend(["--output", str(args.output), "--clocks", ",".join(clocks)])
-    command_args.extend(["--metadata-cols", ",".join(metadata_cols)])
-    command_args.extend(["--imputer-strategy", args.imputer_strategy])
-    if args.skip_epicv2_aggregation:
-        command_args.append("--skip-epicv2-aggregation")
-    if args.verbose:
-        command_args.append("--verbose")
-
     write_reproducibility(
         output_dir=Path(args.output),
-        input_desc=result["input"],
+        input_path=input_path,
+        geo_id=geo_id,
+        demo=args.demo,
         clocks=clocks,
-        command_args=command_args,
+        metadata_cols=metadata_cols,
+        imputer_strategy=args.imputer_strategy,
+        skip_epicv2_aggregation=args.skip_epicv2_aggregation,
+        verbose=args.verbose,
     )
 
     print(json.dumps(result, indent=2))

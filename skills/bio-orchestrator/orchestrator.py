@@ -338,6 +338,8 @@ def detect_skill_with_hint_from_query(query: str) -> tuple[str | None, str]:
             "produce `integrated.h5ad`, then run `scrna-orchestrator` with "
             "`--use-rep X_scvi` for downstream clustering, annotation, and contrastive markers.",
         )
+    if wants_embedding:
+        return "scrna-embedding", ""
     # Prefer longest keyword match to avoid ambiguity (e.g. "variant annotation"
     # should match vcf-annotator, not equity-scorer via "variant" substring)
     best_skill = None

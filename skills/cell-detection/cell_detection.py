@@ -14,9 +14,11 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from clawbio.common.reproducibility import (
+    ReproCommand,
+    ReproPath,
     write_checksums,
-    write_commands_sh,
     write_environment_yml,
+    write_portable_commands_sh,
 )
 
 
@@ -335,9 +337,55 @@ def _detect_gpu(requested: bool) -> bool:
         return False
     try:
         import torch
+
         return torch.cuda.is_available() or torch.backends.mps.is_available()
     except ImportError:
         return False
+
+
+def _repro_path(value: Path, *, output_dir: Path) -> ReproPath:
+    """Classify a path for portable reproducibility command rendering."""
+    try:
+        value.relative_to(_PROJECT_ROOT)
+        return ReproPath(value, anchor="repo_root")
+    except ValueError:
+        pass
+
+    try:
+        value.relative_to(output_dir)
+        return ReproPath(value, anchor="output_dir")
+    except ValueError:
+        return ReproPath(value, anchor="auto")
+
+
+def repro_command_for_bundle(args: argparse.Namespace, output_dir: Path) -> ReproCommand:
+    """Build a structured reproducibility command for this skill."""
+    cmd_args: list[str | ReproPath] = []
+    if args.demo:
+        cmd_args.append("--demo")
+    else:
+        cmd_args.extend(["--input", _repro_path(Path(args.input), output_dir=output_dir)])
+
+    if args.diameter is not None:
+        cmd_args.extend(["--diameter", str(args.diameter)])
+    if args.gpu:
+        cmd_args.append("--use_gpu")
+    if args.do_3D:
+        cmd_args.append("--do_3D")
+    if args.exclude_on_edges:
+        cmd_args.append("--exclude_on_edges")
+    if args.flow_threshold != 0.4:
+        cmd_args.extend(["--flow_threshold", str(args.flow_threshold)])
+    if args.cellprob_threshold != 0.0:
+        cmd_args.extend(["--cellprob_threshold", str(args.cellprob_threshold)])
+
+    cmd_args.extend(["--output", ReproPath(output_dir, anchor="output_dir")])
+
+    return ReproCommand(
+        script_path=Path("skills/cell-detection/cell_detection.py"),
+        args=cmd_args,
+        comment="Replay this ClawBio cell-detection run",
+    )
 
 
 def main() -> None:
@@ -363,11 +411,6 @@ def main() -> None:
         img_prep = make_demo_image()
         image_path = "demo (synthetic fluorescence nuclei — offline)"
         stem = "demo"
-        demo_parts = ["python skills/cell-detection/cell_detection.py --demo"]
-        if args.exclude_on_edges:
-            demo_parts.append("--exclude_on_edges")
-        demo_parts.append(f"--output {args.output}")
-        cmd = " ".join(demo_parts)
     else:
         if not args.input:
             parser.error("--input is required unless --demo is used")
@@ -379,21 +422,6 @@ def main() -> None:
             img_prep = img  # pass Z×H×W directly to cellpose
         else:
             img_prep = prepare_image(img, n_channels)
-        parts = [f"python skills/cell-detection/cell_detection.py --input {args.input}"]
-        if args.diameter is not None:
-            parts.append(f"--diameter {args.diameter}")
-        if args.gpu:
-            parts.append("--use_gpu")
-        if args.do_3D:
-            parts.append("--do_3D")
-        if args.exclude_on_edges:
-            parts.append("--exclude_on_edges")
-        if args.flow_threshold != 0.4:
-            parts.append(f"--flow_threshold {args.flow_threshold}")
-        if args.cellprob_threshold != 0.0:
-            parts.append(f"--cellprob_threshold {args.cellprob_threshold}")
-        parts.append(f"--output {args.output}")
-        cmd = " ".join(parts)
 
     # Segmentation — demo always attempts GPU; otherwise honour --use_gpu flag
     use_gpu = _detect_gpu(True if args.demo else args.gpu)
@@ -426,17 +454,22 @@ def main() -> None:
     meta = {"image_path": image_path, "use_gpu": use_gpu, "diameter": args.diameter, "exclude_on_edges": args.exclude_on_edges, "flow_threshold": args.flow_threshold, "cellprob_threshold": args.cellprob_threshold}
     write_report(metrics, meta, output_dir, outlines_filename=outlines_filename, masks_filename=masks_filename, seg_filename=seg_filename, csv_filename=f"{stem}_measurements.csv", histogram_filename=f"{stem}_histogram.png")
 
-    # Reproducibility
-    write_commands_sh(output_dir, cmd)
+    # Reproducibility — environment.yml must be written first so REPLAY.md
+    # can include the env name from the file.
     write_environment_yml(
         output_dir,
         env_name="clawbio-cell-detection",
         pip_deps=["cellpose>=4.0", "tifffile", "Pillow", "numpy", "matplotlib", "scikit-image", "scipy"],
         python_version="3.10",
     )
+    write_portable_commands_sh(
+        output_dir,
+        repro_command_for_bundle(args, output_dir),
+        repo_root=_PROJECT_ROOT,
+    )
+    # report.md contains a timestamp — exclude it so checksums pass on replay.
     write_checksums(
         [
-            output_dir / "report.md",
             output_dir / masks_filename,
             output_dir / seg_filename,
             csv_path,

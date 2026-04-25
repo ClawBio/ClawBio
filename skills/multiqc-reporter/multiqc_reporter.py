@@ -29,9 +29,11 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
     write_checksums,
-    write_commands_sh,
     write_environment_yml,
+    write_portable_commands_sh,
 )
 
 DISCLAIMER = (
@@ -190,32 +192,68 @@ def _multiqc_pip_spec() -> str:
         return "multiqc"
 
 
+# These files contain timestamps or absolute paths and will differ between runs.
+_MULTIQC_NONDETERMINISTIC = frozenset({
+    "multiqc_report.html",
+    "multiqc.log",
+    "multiqc.parquet",
+    "multiqc_data.json",
+    "multiqc_sources.txt",
+    "llms-full.txt",
+    "report.md",
+})
+
+
 def _output_paths_to_checksum(output_dir: Path) -> list[Path]:
-    paths: list[Path] = []
-    for rel in ("report.md", "multiqc_report.html"):
-        p = output_dir / rel
-        if p.is_file():
-            paths.append(p)
     mdir = output_dir / "multiqc_data"
-    if mdir.is_dir():
-        paths.extend(p for p in sorted(mdir.rglob("*")) if p.is_file())
-    return paths
+    if not mdir.is_dir():
+        return []
+    return [
+        p for p in sorted(mdir.rglob("*"))
+        if p.is_file() and p.name not in _MULTIQC_NONDETERMINISTIC
+    ]
 
 
-def cli_command_for_repro(output_dir: Path, *, demo: bool, input_dirs: list[Path]) -> str:
-    script = str((_PROJECT_ROOT / "skills" / "multiqc-reporter" / "multiqc_reporter.py").resolve())
-    parts = [sys.executable, script]
+def _repro_path(value: Path, *, output_dir: Path) -> ReproPath:
+    """Classify a path for portable reproducibility command rendering."""
+    try:
+        value.relative_to(_PROJECT_ROOT)
+        return ReproPath(value, anchor="repo_root")
+    except ValueError:
+        pass
+
+    try:
+        value.relative_to(output_dir)
+        return ReproPath(value, anchor="output_dir")
+    except ValueError:
+        return ReproPath(value, anchor="auto")
+
+
+def repro_command_for_bundle(output_dir: Path, *, demo: bool, input_dirs: list[Path]) -> ReproCommand:
+    """Build a structured reproducibility command for this skill."""
+    args: list[str | ReproPath] = []
     if demo:
-        parts.append("--demo")
+        args.append("--demo")
     else:
-        parts += ["--input"] + [str(p.resolve()) for p in input_dirs]
-    parts += ["--output", str(output_dir.resolve())]
-    return " ".join(parts)
+        args.append("--input")
+        args.extend(_repro_path(p, output_dir=output_dir) for p in input_dirs)
+    args.extend(["--output", ReproPath(output_dir, anchor="output_dir")])
+
+    return ReproCommand(
+        script_path=Path("skills/multiqc-reporter/multiqc_reporter.py"),
+        args=args,
+        comment="Replay this ClawBio MultiQC run",
+        preflight=["multiqc --version || true"],
+    )
 
 
 def write_reproducibility_bundle(output_dir: Path, *, demo: bool, input_dirs: list[Path]) -> None:
-    write_commands_sh(output_dir, cli_command_for_repro(output_dir, demo=demo, input_dirs=input_dirs))
     write_environment_yml(output_dir, "clawbio-multiqc-reporter", pip_deps=[_multiqc_pip_spec()], python_version="3.11")
+    write_portable_commands_sh(
+        output_dir,
+        repro_command_for_bundle(output_dir, demo=demo, input_dirs=input_dirs),
+        repo_root=_PROJECT_ROOT,
+    )
     write_checksums(_output_paths_to_checksum(output_dir), output_dir, anchor=output_dir)
 
 

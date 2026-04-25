@@ -7,9 +7,15 @@ import hashlib
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_portable_commands_sh,
+)
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -305,10 +311,9 @@ def s0_based_FDR_correction(fc_pvalue_df: pd.DataFrame, degree_of_freedom: int, 
     conditions = [
         (fc_pvalue_df[fc_col] > ta * s0) & (fc_pvalue_df['-log10(pvalue)'] >= fc_pvalue_df['s0_corrected_-log10(pvalue)']),
         (fc_pvalue_df[fc_col] < -ta * s0) & (fc_pvalue_df['-log10(pvalue)'] >= fc_pvalue_df['s0_corrected_-log10(pvalue)']),
-        True
     ]
-    choices = ['upregulated', 'downregulated', 'non significant']
-    fc_pvalue_df['regulation'] = np.select(conditions, choices)
+    choices = ['upregulated', 'downregulated']
+    fc_pvalue_df['regulation'] = np.select(conditions, choices, default='non significant')
 
     return fc_pvalue_df
 
@@ -463,6 +468,37 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def repro_command_for_bundle(
+    output_dir: Path,
+    input_path: Path,
+    input_type: str,
+    metadata_path: Path,
+    contrast: str,
+    s0: float,
+    fdr: float,
+    ttest_df: int,
+    imputation_shift: float,
+    imputation_scale: float,
+) -> ReproCommand:
+    """Build the structured ReproCommand for the proteomics-de reproducibility bundle."""
+    return ReproCommand(
+        script_path=Path("skills/proteomics-de/proteomics_de.py"),
+        args=[
+            "--input", ReproPath(input_path, anchor="auto"),
+            "--input-type", input_type,
+            "--metadata", ReproPath(metadata_path, anchor="auto"),
+            "--contrast", contrast,
+            "--s0", str(s0),
+            "--fdr", str(fdr),
+            "--ttest-df", str(ttest_df),
+            "--imputation-shift", str(imputation_shift),
+            "--imputation-scale", str(imputation_scale),
+            "--output", ReproPath(output_dir, anchor="output_dir"),
+        ],
+        comment="Replay this ClawBio proteomics-de run",
+    )
+
+
 def write_repro_files(
     output_dir: Path,
     input_path: Path,
@@ -479,20 +515,14 @@ def write_repro_files(
     repro_dir = output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
 
-    commands = (
-        "python proteomics_de.py "
-        f"--input {input_path} "
-        f"--input-type {input_type} "
-        f"--metadata {metadata_path} "
-        f"--contrast \"{contrast}\" "
-        f"--s0 {s0} "
-        f"--fdr {fdr} "
-        f"--ttest-df {ttest_df} "
-        f"--imputation-shift {imputation_shift} "
-        f"--imputation-scale {imputation_scale} "
-        f"--output {output_dir}\n"
+    write_portable_commands_sh(
+        output_dir,
+        repro_command_for_bundle(
+            output_dir, input_path, input_type, metadata_path,
+            contrast, s0, fdr, ttest_df, imputation_shift, imputation_scale,
+        ),
+        repo_root=_PROJECT_ROOT,
     )
-    (repro_dir / "commands.sh").write_text(commands)
 
     env = """name: clawbio-proteomics-de
 channels:
@@ -509,8 +539,6 @@ dependencies:
     (repro_dir / "environment.yml").write_text(env)
 
     checksums = []
-    for path in [input_path, metadata_path]:
-        checksums.append(f"{_sha256(path)}  {path.name}")
     for path in sorted((output_dir / "tables").glob("*.csv")):
         checksums.append(f"{_sha256(path)}  tables/{path.name}")
     for path in sorted((output_dir / "figures").glob("*.png")):
