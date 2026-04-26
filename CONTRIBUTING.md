@@ -73,7 +73,7 @@ Follow the [ClawHub submission guide](https://clawhub.ai/docs/submit).
 
 ## Code Standards
 
-- Python 3.11+
+- Python 3.10+
 - Type hints encouraged
 - pathlib for all file paths
 - No hardcoded absolute paths
