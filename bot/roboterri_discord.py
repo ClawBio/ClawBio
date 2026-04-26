@@ -34,6 +34,12 @@ import discord
 from dotenv import load_dotenv
 from openai import AsyncOpenAI, APIError
 
+_PROJECT_ROOT_FOR_IMPORT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT_FOR_IMPORT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT_FOR_IMPORT))
+
+from clawbio.skill_intents import load_default_skill_registry, plan_skill_intent
+
 # --------------------------------------------------------------------------- #
 # Config
 # --------------------------------------------------------------------------- #
@@ -559,119 +565,131 @@ async def execute_clawbio(args: dict) -> str:
         else:
             return "Error: no file received. Send a genetic data file first, then run the skill."
 
-    # Build output directory
+    attachments = []
+    if input_path or profile_path:
+        attachments.append({"path": str(input_path) if input_path else None, "profile_path": profile_path})
+    for key in ("trait", "gene", "rsid", "drug_name", "visible_dose"):
+        if args.get(key):
+            attachments.append({key: args[key]})
+
+    skill_registry = load_default_skill_registry(CLAWBIO_DIR)
+    plan = plan_skill_intent(
+        user_text=args.get("_raw_user_text") or query or "",
+        requested_skill=skill_key,
+        requested_mode=mode,
+        attachments=attachments,
+        skill_registry=skill_registry,
+    )
+    _audit(
+        "skill_intent_plan",
+        channel_id=args.get("_channel_id"),
+        raw_user_text_sha256=plan.raw_user_text_sha256,
+        raw_user_text_preview=plan.raw_user_text[:200],
+        selected_skill=plan.skill,
+        selected_intent=plan.intent_id,
+        matched_route=plan.matched_route,
+        commands=[item.argv for item in plan.executions],
+    )
+    logger.info(
+        "Skill intent plan: skill=%s intent=%s status=%s reason=%s",
+        plan.skill, plan.intent_id, plan.status, plan.reason,
+    )
+    if plan.status == "needs_confirmation":
+        return f"Confirmation required before running {plan.skill}: {plan.reason}"
+    if plan.status == "needs_input" or not plan.executions:
+        return plan.reason or "I need an input file or a clearer skill request before running ClawBio."
+
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_dir = OUTPUT_DIR / f"{skill_key}_{ts}"
+    stdout_parts = []
+    output_dirs: list[Path] = []
+    executed_skills: list[str] = []
 
-    # Build command
-    cmd = [sys.executable, str(CLAWBIO_PY), "run", skill_key]
-
-    # Profile-based skills: prefer --profile over --input
-    if skill_key == "profile":
-        if mode == "demo":
-            cmd.append("--demo")
-        elif profile_path:
-            cmd.extend(["--profile", profile_path])
+    for index, execution in enumerate(plan.executions):
+        cmd = list(execution.argv)
+        run_skill = execution.skill
+        executed_skills.append(run_skill)
+        if "--output" in cmd:
+            out_dir = Path(cmd[cmd.index("--output") + 1])
+        elif run_skill not in ("compare", "drugphoto"):
+            suffix = f"_{index + 1}" if len(plan.executions) > 1 else ""
+            out_dir = OUTPUT_DIR / f"{run_skill}_{ts}{suffix}"
+            cmd.extend(["--output", str(out_dir)])
         else:
-            return "Error: no profile available. Send a genetic data file first to create a profile."
-    elif skill_key == "prs":
-        if mode == "demo":
-            cmd.append("--demo")
-        elif profile_path:
-            cmd.extend(["--profile", profile_path])
-        elif input_path:
-            cmd.extend(["--input", str(input_path)])
-        trait = args.get("trait", "")
-        if trait:
-            cmd.extend(["--trait", trait])
-    elif skill_key == "clinpgx":
-        if mode == "demo":
-            cmd.append("--demo")
-        else:
-            gene = args.get("gene", "")
-            if gene:
-                cmd.extend(["--gene", gene])
-            else:
-                cmd.append("--demo")
-    elif skill_key == "gwas":
-        if mode == "demo":
-            cmd.append("--demo")
-        else:
-            rsid = args.get("rsid", "")
-            if rsid:
-                cmd.extend(["--rsid", rsid])
-            else:
-                cmd.append("--demo")
-    elif mode == "demo":
-        cmd.append("--demo")
-    elif input_path:
-        cmd.extend(["--input", str(input_path)])
-
-    # Skills with summary_default (compare, drugphoto) skip --output
-    if skill_key not in ("compare", "drugphoto"):
-        cmd.extend(["--output", str(out_dir)])
-
-    # Pass drug_name and visible_dose for drugphoto
-    if skill_key == "drugphoto":
-        drug_name = args.get("drug_name", "")
-        visible_dose = args.get("visible_dose", "")
-        if drug_name:
-            cmd.extend(["--drug", drug_name])
-        if visible_dose:
-            cmd.extend(["--dose", visible_dose])
-
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            out_dir = None
+        if out_dir:
+            output_dirs.append(out_dir)
+        _audit(
+            "skill_execution_command",
+            channel_id=args.get("_channel_id"),
+            selected_skill=run_skill,
+            selected_intent=plan.intent_id,
+            command=cmd,
+            output_bundle_path=str(out_dir) if out_dir else None,
         )
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(), timeout=120,
-        )
-        stdout_str = stdout_bytes.decode(errors="replace")
-        stderr_str = stderr_bytes.decode(errors="replace")
-    except asyncio.TimeoutError:
-        return f"{skill_key} timed out after 120 seconds."
-    except Exception as e:
-        import traceback as _tb
-        return f"{skill_key} crashed:\n{_tb.format_exc()[-1500:]}"
 
-    if proc.returncode != 0:
-        err = stderr_str[-1500:] if stderr_str else stdout_str[-1500:] if stdout_str else "unknown error"
-        return f"{skill_key} failed (exit {proc.returncode}):\n{err}"
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=120,
+            )
+            stdout_str = stdout_bytes.decode(errors="replace")
+            stderr_str = stderr_bytes.decode(errors="replace")
+        except asyncio.TimeoutError:
+            return f"{run_skill} timed out after 120 seconds."
+        except Exception:
+            import traceback as _tb
+            return f"{run_skill} crashed:\n{_tb.format_exc()[-1500:]}"
+
+        stdout_parts.append(stdout_str)
+        if proc.returncode != 0:
+            err = stderr_str[-1500:] if stderr_str else stdout_str[-1500:] if stdout_str else "unknown error"
+            return f"{run_skill} failed (exit {proc.returncode}):\n{err}"
+
+    skill_key = executed_skills[-1] if executed_skills else skill_key
+    stdout_str = "\n".join(part for part in stdout_parts if part)
+    out_dir = output_dirs[-1] if output_dirs else OUTPUT_DIR / f"{skill_key}_{ts}"
 
     # For compare / drugphoto / profile: send stdout directly (bypass LLM paraphrasing)
-    if skill_key in ("compare", "drugphoto", "profile"):
+    if any(item in ("compare", "drugphoto", "profile") for item in executed_skills):
         raw_output = stdout_str.strip()
         if raw_output:
             _pending_text.append(raw_output)
         return "Result sent directly to chat. Do not repeat or paraphrase it."
 
     # For other skills: collect report + figures from output directory
-    if out_dir.exists():
-        media_items = []
-        for f in sorted(out_dir.rglob("*")):
+    media_items = []
+    for bundle_dir in output_dirs:
+        if not bundle_dir.exists():
+            continue
+        for f in sorted(bundle_dir.rglob("*")):
             if not f.is_file():
                 continue
             if f.suffix == ".md":
                 media_items.append({"type": "document", "path": str(f)})
             elif f.suffix == ".png":
                 media_items.append({"type": "photo", "path": str(f)})
-        if media_items:
-            _pending_media[0] = _pending_media.get(0, []) + media_items
+    if media_items:
+        _pending_media[0] = _pending_media.get(0, []) + media_items
 
     # Read report for chat display
     report_text = ""
-    if out_dir.exists():
+    for bundle_dir in output_dirs:
+        if not bundle_dir.exists():
+            continue
         for pattern in ["report.md", "*_report.md", "*.md"]:
-            for md_file in sorted(out_dir.glob(pattern)):
+            for md_file in sorted(bundle_dir.glob(pattern)):
                 if md_file.name.startswith("."):
                     continue
                 report_text = md_file.read_text(encoding="utf-8")
                 break
             if report_text:
                 break
+        if report_text:
+            break
 
     if not report_text:
         return stdout_str if stdout_str else f"{skill_key} completed. Output: {out_dir}"
@@ -887,6 +905,7 @@ async def llm_tool_loop(channel_id: int, user_content: str | list) -> str:
     history = conversations.setdefault(channel_id, [])
 
     # Build user message in OpenAI format
+    raw_user_text = user_content if isinstance(user_content, str) else ""
     if isinstance(user_content, str):
         history.append({"role": "user", "content": user_content})
     else:
@@ -894,6 +913,7 @@ async def llm_tool_loop(channel_id: int, user_content: str | list) -> str:
         oai_parts = []
         for block in user_content:
             if block.get("type") == "text":
+                raw_user_text = f"{raw_user_text}\n{block['text']}".strip()
                 oai_parts.append({"type": "text", "text": block["text"]})
             elif block.get("type") == "image":
                 src = block.get("source", {})
@@ -973,6 +993,8 @@ async def llm_tool_loop(channel_id: int, user_content: str | list) -> str:
                 _audit("tool_call", channel_id=channel_id, tool=func_name,
                        args_preview=json.dumps(args, default=str)[:300])
                 try:
+                    args["_channel_id"] = channel_id
+                    args["_raw_user_text"] = raw_user_text
                     result = await executor(args)
                 except Exception as tool_err:
                     logger.error(f"Tool {func_name} raised: {tool_err}", exc_info=True)
