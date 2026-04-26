@@ -8,12 +8,14 @@ code.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 import hashlib
 import importlib.util
 import json
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +46,8 @@ class SkillIntentExecution:
     argv: list[str]
     output_dir: str | None = None
     input_path: str | None = None
+    input_payload: dict[str, Any] | None = None
+    slot_values: dict[str, str] = field(default_factory=dict)
     requires_confirmation: bool = False
     confirmation_reason: str | None = None
     route_step_id: str | None = None
@@ -81,7 +85,7 @@ def load_default_skill_registry(project_root: str | Path | None = None) -> dict[
         return {}
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return getattr(module, "SKILLS", {})
+    return augment_skill_registry_with_descriptors(getattr(module, "SKILLS", {}), root)
 
 
 def plan_skill_intent(
@@ -103,6 +107,7 @@ def plan_skill_intent(
     explicit_demo = _demo_allowed(text, requested_mode)
     effective_mode = _normalise_mode(requested_mode, explicit_demo)
     execution_root = Path(project_root) if project_root else _project_root_from_registry(skill_registry)
+    skill_registry = augment_skill_registry_with_descriptors(skill_registry, execution_root)
     descriptors = load_skill_intent_descriptors(skill_registry, execution_root)
     requested_skill = _resolve_skill_alias(requested_skill, skill_registry, descriptors)
 
@@ -164,15 +169,45 @@ def load_skill_intent_descriptors(
     return descriptors
 
 
+def augment_skill_registry_with_descriptors(
+    skill_registry: dict,
+    project_root: str | Path | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Add descriptor-defined skills with safe local Python entrypoints."""
+
+    root = Path(project_root) if project_root else _project_root_from_registry(skill_registry)
+    augmented = dict(skill_registry)
+    for descriptor in load_skill_intent_descriptors(skill_registry, root):
+        skill = str(descriptor.get("skill") or descriptor.get("_registry_alias"))
+        if not skill or skill in augmented:
+            continue
+        skill_dir = Path(str(descriptor["_skill_dir"]))
+        script = _descriptor_entrypoint(descriptor, skill_dir)
+        if not script:
+            continue
+        augmented[skill] = {
+            "script": script,
+            "demo_args": descriptor.get("demo_args", ["--demo"]),
+            "description": descriptor.get("description") or _descriptor_description(descriptor),
+            "allowed_extra_flags": set(descriptor.get("allowed_extra_flags", [])),
+            "no_input_required": bool(descriptor.get("no_input_required", False)),
+            "summary_default": bool(descriptor.get("summary_default", False)),
+            "dynamic_descriptor": True,
+            "descriptor_path": descriptor.get("_descriptor_path"),
+        }
+    return augmented
+
+
 def skill_names_for_tool_schema(
     skill_registry: dict,
     project_root: str | Path | None = None,
 ) -> list[str]:
     """Return registry and descriptor skill names suitable for chat tool enums."""
 
-    names = set(skill_registry.keys())
-    for descriptor in load_skill_intent_descriptors(skill_registry, project_root):
-        if descriptor.get("skill") and _descriptor_has_executable_route(descriptor, skill_registry):
+    executable_registry = augment_skill_registry_with_descriptors(skill_registry, project_root)
+    names = set(executable_registry.keys())
+    for descriptor in load_skill_intent_descriptors(executable_registry, project_root):
+        if descriptor.get("skill") and _descriptor_has_executable_route(descriptor, executable_registry):
             names.add(str(descriptor["skill"]))
     names.add("auto")
     return sorted(names)
@@ -185,8 +220,9 @@ def skill_intent_tool_summary(
     """Compact human-readable descriptor route summary for LLM tool descriptions."""
 
     summaries = []
-    for descriptor in load_skill_intent_descriptors(skill_registry, project_root):
-        if not _descriptor_has_executable_route(descriptor, skill_registry):
+    executable_registry = augment_skill_registry_with_descriptors(skill_registry, project_root)
+    for descriptor in load_skill_intent_descriptors(executable_registry, project_root):
+        if not _descriptor_has_executable_route(descriptor, executable_registry):
             continue
         skill = descriptor.get("skill") or descriptor.get("_registry_alias")
         intents = [
@@ -220,6 +256,119 @@ def _read_descriptor(skill_dir: Path, alias: str) -> dict[str, Any] | None:
         data["_skill_name"] = skill_name
         return data
     return None
+
+
+def _descriptor_entrypoint(descriptor: dict[str, Any], skill_dir: Path) -> Path | None:
+    raw = descriptor.get("entrypoint") or descriptor.get("script")
+    execution = descriptor.get("execution")
+    if isinstance(execution, dict):
+        raw = raw or execution.get("entrypoint") or execution.get("script")
+    candidates = []
+    if raw:
+        path = Path(str(raw))
+        candidates.append(path if path.is_absolute() else skill_dir / path)
+    skill_name = str(descriptor.get("skill") or skill_dir.name)
+    candidates.extend(
+        [
+            skill_dir / f"{skill_name.replace('-', '_')}.py",
+            skill_dir / f"{skill_dir.name.replace('-', '_')}.py",
+            skill_dir / "main.py",
+            skill_dir / "__main__.py",
+        ]
+    )
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved.exists() and resolved.suffix == ".py":
+            return resolved
+    return None
+
+
+def _descriptor_description(descriptor: dict[str, Any]) -> str:
+    for route in descriptor.get("routes", []):
+        if isinstance(route, dict) and route.get("description"):
+            return str(route["description"])
+    return "Descriptor-defined ClawBio skill"
+
+
+def _extract_step_slots(text: str, step: dict[str, Any]) -> tuple[dict[str, str], set[str]]:
+    specs = step.get("slots") or {}
+    if not isinstance(specs, dict):
+        return {}, set()
+    values: dict[str, str] = {}
+    missing: set[str] = set()
+    for name, raw_spec in specs.items():
+        spec = raw_spec if isinstance(raw_spec, dict) else {}
+        value = _extract_slot_value(text, str(name), spec)
+        if value is None and spec.get("default") is not None:
+            value = str(spec["default"])
+        if value is None and spec.get("required", True):
+            missing.add(str(name))
+            continue
+        if value is not None:
+            values[str(name)] = value
+    return values, missing
+
+
+def _extract_slot_value(text: str, name: str, spec: dict[str, Any]) -> str | None:
+    pattern = spec.get("pattern")
+    if pattern:
+        flags = re.IGNORECASE if spec.get("ignore_case") else 0
+        match = re.search(str(pattern), text, flags=flags)
+        if match:
+            return match.group(1) if match.groups() else match.group(0)
+    choices = spec.get("choices")
+    if isinstance(choices, list):
+        for choice in choices:
+            choice_text = str(choice)
+            if _term_matches(_normalise_text(text), choice_text):
+                return choice_text
+    aliases = spec.get("aliases")
+    if isinstance(aliases, dict):
+        normalised = _normalise_text(text)
+        for alias, value in aliases.items():
+            if _term_matches(normalised, str(alias)):
+                return str(value)
+    if name == "gene_symbol":
+        match = re.search(r"\b([A-Z][A-Z0-9]{2,15})\b", text)
+        if match:
+            return match.group(1)
+    if name == "species":
+        normalised = _normalise_text(text)
+        if _term_matches(normalised, "human") or _term_matches(normalised, "homo sapiens"):
+            return "homo_sapiens"
+    if name == "source":
+        normalised = _normalise_text(text)
+        for source in ("ensembl", "refseq", "uniprot"):
+            if _term_matches(normalised, source):
+                return source
+    return None
+
+
+def _fill_template(value: Any, slots: dict[str, str]) -> Any:
+    if isinstance(value, dict):
+        return {key: _fill_template(item, slots) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_fill_template(item, slots) for item in value]
+    if isinstance(value, str):
+        try:
+            return value.format(**slots)
+        except KeyError:
+            return value
+    return value
+
+
+def _materialize_request_payload(
+    payload: dict[str, Any],
+    skill: str,
+    intent_id: str,
+    text: str,
+) -> Path:
+    digest = _sha(json.dumps(payload, sort_keys=True) + "\n" + text)[:16]
+    request_dir = Path(tempfile.gettempdir()) / "clawbio_skill_intents"
+    request_dir.mkdir(parents=True, exist_ok=True)
+    path = request_dir / f"{skill}_{intent_id}_{digest}.json"
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
 
 
 def _descriptor_has_executable_route(descriptor: dict[str, Any], skill_registry: dict) -> bool:
@@ -259,6 +408,7 @@ def _plan_descriptor_route(
     executions: list[SkillIntentExecution] = []
     warnings: list[str] = []
     missing_skills: set[str] = set()
+    missing_slots: set[str] = set()
 
     for index, step in enumerate(route.get("plan") or []):
         if not isinstance(step, dict):
@@ -276,7 +426,17 @@ def _plan_descriptor_route(
             missing_skills.add(step_skill)
             continue
         argv = [sys.executable, str(project_root / "clawbio.py"), "run", step_skill]
-        input_path = _resolve_descriptor_input(step.get("input"), skill_dir)
+        input_payload = None
+        slot_values: dict[str, str] = {}
+        if isinstance(step.get("input_template"), dict):
+            slot_values, step_missing_slots = _extract_step_slots(text, step)
+            if step_missing_slots:
+                missing_slots.update(step_missing_slots)
+                continue
+            input_payload = _fill_template(step["input_template"], slot_values)
+            input_path = _materialize_request_payload(input_payload, descriptor_skill, intent_id, text)
+        else:
+            input_path = _resolve_descriptor_input(step.get("input"), skill_dir)
         if step_demo:
             argv.append("--demo")
         elif input_path:
@@ -303,6 +463,8 @@ def _plan_descriptor_route(
                 argv=argv,
                 output_dir=output_dir,
                 input_path=str(input_path) if input_path else None,
+                input_payload=input_payload,
+                slot_values=slot_values,
                 requires_confirmation=requires_confirmation,
                 confirmation_reason=confirmation_reason,
                 route_step_id=str(step.get("id") or index),
@@ -334,6 +496,30 @@ def _plan_descriptor_route(
             requested_mode=requested_mode,
             descriptor_path=descriptor.get("_descriptor_path"),
             warnings=[*warnings, f"Register {missing} before exposing it for execution."],
+        )
+
+    if missing_slots:
+        missing = ", ".join(sorted(missing_slots))
+        return SkillExecutionPlan(
+            status="needs_input",
+            raw_user_text=text,
+            raw_user_text_sha256=_sha(text),
+            skill=descriptor_skill,
+            intent_id=intent_id,
+            confidence=CONFIDENCE_LOW,
+            reason=f"Matched descriptor route '{intent_id}', but missing required slot(s): {missing}.",
+            matched_route={
+                "intent_id": intent_id,
+                "description": route.get("description", ""),
+                "matched_terms": matched_terms,
+                "score": score,
+                "demo_policy": route.get("demo_policy", "never_unless_explicit"),
+            },
+            executions=[],
+            requested_skill=requested_skill,
+            requested_mode=requested_mode,
+            descriptor_path=descriptor.get("_descriptor_path"),
+            warnings=[*warnings, f"Missing required slot(s): {missing}."],
         )
 
     status = "planned"

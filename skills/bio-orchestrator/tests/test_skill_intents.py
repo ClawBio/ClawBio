@@ -1,8 +1,11 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
+from bot.tool_loop_utils import execute_tool_calls_safely
 from clawbio.skill_intents import (
     SCHEMA,
+    augment_skill_registry_with_descriptors,
     load_skill_intent_descriptors,
     plan_skill_intent,
     skill_intent_tool_summary,
@@ -300,3 +303,173 @@ def test_unregistered_skill_directory_descriptor_is_discovered_but_not_executabl
     assert plan.status == "needs_registration"
     assert plan.skill == "gentle-cloning"
     assert plan.executions == []
+
+
+def test_descriptor_skill_with_entrypoint_is_advertised_and_planned(tmp_path: Path):
+    skill_dir = tmp_path / "skills" / "gentle-cloning"
+    (skill_dir / "examples").mkdir(parents=True)
+    script = skill_dir / "gentle_cloning.py"
+    script.write_text("print('gentle')\n", encoding="utf-8")
+    (skill_dir / "examples" / "request_runtime_version.json").write_text("{}", encoding="utf-8")
+    (skill_dir / "INTENTS.json").write_text(
+        json.dumps(
+            {
+                "schema": SCHEMA,
+                "skill": "gentle-cloning",
+                "entrypoint": "gentle_cloning.py",
+                "routes": [
+                    {
+                        "intent_id": "runtime_version",
+                        "description": "Check runtime version.",
+                        "trigger_terms": ["version", "runtime version"],
+                        "plan": [
+                            {
+                                "kind": "skill_run",
+                                "skill": "gentle-cloning",
+                                "input": "examples/request_runtime_version.json",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    registry = augment_skill_registry_with_descriptors({}, tmp_path)
+
+    names = skill_names_for_tool_schema({}, tmp_path)
+    summary = skill_intent_tool_summary({}, tmp_path)
+    plan = plan_skill_intent(
+        user_text="gentle runtime version",
+        requested_skill="auto",
+        requested_mode=None,
+        attachments=None,
+        skill_registry=registry,
+        project_root=tmp_path,
+    )
+
+    assert "gentle-cloning" in names
+    assert "runtime_version" in summary
+    assert plan.status == "planned"
+    assert plan.executions[0].argv[:4] == [
+        plan.executions[0].argv[0],
+        str(tmp_path / "clawbio.py"),
+        "run",
+        "gentle-cloning",
+    ]
+
+
+def test_parameterized_gentle_request_template_extracts_slots(tmp_path: Path):
+    skill_dir = tmp_path / "skills" / "gentle-cloning"
+    skill_dir.mkdir(parents=True)
+    script = skill_dir / "gentle_cloning.py"
+    script.write_text("print('gentle')\n", encoding="utf-8")
+    (skill_dir / "INTENTS.json").write_text(
+        json.dumps(
+            {
+                "schema": SCHEMA,
+                "skill": "gentle-cloning",
+                "entrypoint": "gentle_cloning.py",
+                "routes": [
+                    {
+                        "intent_id": "protein_2d_gel",
+                        "description": "Generate a 2D protein gel request.",
+                        "trigger_terms": ["2d protein gel", "isoforms"],
+                        "plan": [
+                            {
+                                "kind": "skill_run",
+                                "skill": "gentle-cloning",
+                                "input_template": {
+                                    "mode": "gene-protein-2d-gel",
+                                    "gene_symbol": "{gene_symbol}",
+                                    "species": "{species}",
+                                    "source": "{source}",
+                                },
+                                "slots": {
+                                    "gene_symbol": {"pattern": "\\b([A-Z][A-Z0-9]{2,15})\\b"},
+                                    "species": {
+                                        "aliases": {"human": "homo_sapiens", "homo sapiens": "homo_sapiens"},
+                                        "default": "homo_sapiens",
+                                    },
+                                    "source": {"choices": ["ensembl", "refseq", "uniprot"], "default": "ensembl"},
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    registry = augment_skill_registry_with_descriptors({}, tmp_path)
+
+    plan = plan_skill_intent(
+        user_text="Make a 2D protein gel for PATZ1 isoforms from Ensembl",
+        requested_skill="auto",
+        requested_mode=None,
+        attachments=None,
+        skill_registry=registry,
+        project_root=tmp_path,
+    )
+
+    assert plan.status == "planned"
+    assert plan.intent_id == "protein_2d_gel"
+    execution = plan.executions[0]
+    assert execution.slot_values == {
+        "gene_symbol": "PATZ1",
+        "species": "homo_sapiens",
+        "source": "ensembl",
+    }
+    assert execution.input_payload == {
+        "mode": "gene-protein-2d-gel",
+        "gene_symbol": "PATZ1",
+        "species": "homo_sapiens",
+        "source": "ensembl",
+    }
+    assert "--input" in execution.argv
+
+
+def test_tool_call_helper_returns_message_for_failing_executor():
+    async def boom(_args):
+        raise RuntimeError("kaboom")
+
+    tool_call = SimpleNamespace(
+        id="call-1",
+        function=SimpleNamespace(name="clawbio", arguments='{"skill": "gentle-cloning"}'),
+    )
+
+    import asyncio
+
+    messages = asyncio.run(
+        execute_tool_calls_safely(
+            [tool_call],
+            {"clawbio": boom},
+            base_args={"_chat_id": 123},
+            raw_user_text="run gentle",
+        )
+    )
+
+    assert messages == [
+        {
+            "role": "tool",
+            "tool_call_id": "call-1",
+            "content": "Error executing clawbio: RuntimeError: kaboom",
+        }
+    ]
+
+
+def test_tool_call_helper_returns_one_message_per_tool_call():
+    async def ok(_args):
+        return "ok"
+
+    tool_calls = [
+        SimpleNamespace(id="call-1", function=SimpleNamespace(name="known", arguments="{}")),
+        SimpleNamespace(id="call-2", function=SimpleNamespace(name="missing", arguments="{}")),
+    ]
+
+    import asyncio
+
+    messages = asyncio.run(execute_tool_calls_safely(tool_calls, {"known": ok}))
+
+    assert [message["tool_call_id"] for message in messages] == ["call-1", "call-2"]
+    assert [message["content"] for message in messages] == ["ok", "Unknown tool: missing"]

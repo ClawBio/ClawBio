@@ -602,6 +602,15 @@ SKILLS = {
     },
 }
 
+try:
+    from clawbio.skill_intents import augment_skill_registry_with_descriptors
+
+    SKILLS = augment_skill_registry_with_descriptors(SKILLS, CLAWBIO_DIR)
+except Exception:
+    # Descriptor routing is optional; keep the static registry usable if a
+    # descriptor is malformed or the package import is unavailable.
+    pass
+
 # Skills that run in the full-profile pipeline (order matters)
 FULL_PROFILE_PIPELINE = ["pharmgx", "nutrigx", "prs", "compare"]
 

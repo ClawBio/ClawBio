@@ -52,6 +52,7 @@ from clawbio.skill_intents import (
     skill_intent_tool_summary,
     skill_names_for_tool_schema,
 )
+from bot.tool_loop_utils import execute_tool_calls_safely
 
 # --------------------------------------------------------------------------- #
 # Config
@@ -1080,35 +1081,16 @@ async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
         if not last_message.tool_calls:
             return last_message.content or "(no response)"
 
-        # Execute tool calls and append results
-        for tc in last_message.tool_calls:
-            func_name = tc.function.name
-            executor = TOOL_EXECUTORS.get(func_name)
-            if executor:
-                try:
-                    args = json.loads(tc.function.arguments)
-                except json.JSONDecodeError:
-                    args = {}
-                logger.info(f"Tool call: {func_name}({json.dumps(args)[:200]})")
-                _audit("tool_call", chat_id=chat_id, tool=func_name,
-                       args_preview=json.dumps(args, default=str)[:300])
-                try:
-                    args["_chat_id"] = chat_id
-                    args["_raw_user_text"] = raw_user_text
-                    result = await executor(args)
-                except Exception as tool_err:
-                    logger.error(f"Tool {func_name} raised: {tool_err}", exc_info=True)
-                    _audit("tool_error", chat_id=chat_id, tool=func_name,
-                           error=str(tool_err)[:300])
-                    result = f"Error executing {func_name}: {type(tool_err).__name__}: {tool_err}"
-            else:
-                result = f"Unknown tool: {func_name}"
-
-            history.append({
-                "role": "tool",
-                "tool_call_id": tc.id,
-                "content": result,
-            })
+        tool_messages = await execute_tool_calls_safely(
+            last_message.tool_calls,
+            TOOL_EXECUTORS,
+            base_args={"_chat_id": chat_id},
+            raw_user_text=raw_user_text,
+            audit=_audit,
+            audit_context={"chat_id": chat_id},
+            logger=logger,
+        )
+        history.extend(tool_messages)
 
     return last_message.content if last_message and last_message.content else "(max tool iterations reached)"
 

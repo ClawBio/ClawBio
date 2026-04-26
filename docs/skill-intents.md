@@ -14,14 +14,15 @@ Place one JSON file in the skill directory:
 
 RoboTerri and the Discord bot discover descriptors both for registered skills
 and by scanning `skills/*/INTENTS.json`, so descriptor-only symlinked or copied
-skill directories can publish routing metadata before they are added to the
-main `SKILLS` registry. Descriptor-only skills are not exposed in executable
-chat tool enums and route matches return `needs_registration` until every
-`skill_run.skill` target is registered in `clawbio.py`'s `SKILLS` dictionary.
-If neither file exists, chat adapters fall back to the legacy skill/mode
-behavior. Demo mode is only planned when the raw user text explicitly asks for a
-demo, example, synthetic data, or sample data, or when the user confirms an
-already proposed demo with text such as "yes" or "go ahead".
+skill directories can publish routing metadata. A descriptor-only skill becomes
+executable when it provides a safe local Python entrypoint, either through
+top-level `entrypoint`/`script`, `execution.entrypoint`, or a conventional file
+such as `<skill_name_with_underscores>.py` in the skill directory. Descriptors
+without an executable entrypoint are still discoverable, but route matches
+return `needs_registration`. If neither file exists, chat adapters fall back to
+the legacy skill/mode behavior. Demo mode is only planned when the raw user text
+explicitly asks for a demo, example, synthetic data, or sample data, or when the
+user confirms an already proposed demo with text such as "yes" or "go ahead".
 
 ## Schema
 
@@ -29,6 +30,7 @@ already proposed demo with text such as "yes" or "go ahead".
 {
   "schema": "clawbio.skill_intents.v1",
   "skill": "gentle-cloning",
+  "entrypoint": "gentle_cloning.py",
   "aliases": ["gentle", "cloning"],
   "routes": [
     {
@@ -57,6 +59,8 @@ Required top-level fields:
 Optional top-level fields:
 
 - `aliases`: skill names or terms users may type
+- `entrypoint` or `script`: local Python skill script, resolved relative to the skill directory
+- `execution.entrypoint`: nested form of `entrypoint`
 
 Route fields:
 
@@ -73,6 +77,8 @@ Plan step fields:
 - `kind`: currently only `skill_run`
 - `skill`: optional override; defaults to the descriptor `skill`
 - `input`: optional request JSON or data file path, resolved relative to the skill directory
+- `input_template`: optional request JSON object filled from extracted slots and materialized as a temporary input file
+- `slots`: optional slot extraction specs for `input_template`; supported fields include `pattern`, `choices`, `aliases`, `default`, and `required`
 - `demo`: optional boolean; `true` only becomes `--demo` when the user explicitly asks for demo/example/synthetic/sample data
 - `args`: optional array of literal CLI arguments; no shell is used
 - `output`: optional path, resolved relative to the skill directory
@@ -80,6 +86,29 @@ Plan step fields:
 
 The descriptor is data only. It cannot run arbitrary code, define shell
 commands, or call chat-platform APIs.
+
+Parameterized request example:
+
+```json
+{
+  "kind": "skill_run",
+  "skill": "gentle-cloning",
+  "input_template": {
+    "mode": "gene-protein-2d-gel",
+    "gene_symbol": "{gene_symbol}",
+    "species": "{species}",
+    "source": "{source}"
+  },
+  "slots": {
+    "gene_symbol": {"pattern": "\\b([A-Z][A-Z0-9]{2,15})\\b"},
+    "species": {
+      "aliases": {"human": "homo_sapiens", "homo sapiens": "homo_sapiens"},
+      "default": "homo_sapiens"
+    },
+    "source": {"choices": ["ensembl", "refseq", "uniprot"], "default": "ensembl"}
+  }
+}
+```
 
 ## Planner Output
 
@@ -102,3 +131,6 @@ For runtime/status requests, provide a route whose `trigger_terms` include
 uses an `input` JSON request such as `examples/request_runtime_version.json`.
 Multi-step workflows should list each `skill_run` step in order and mark
 mutating or expensive steps with `confirmation.required: true`.
+For parameterized protein-gel requests, use an `input_template` with slots for
+`gene_symbol`, `species`, and `source`, as shown above. The generated temporary
+JSON request is passed to `gentle-cloning` via `--input`.
