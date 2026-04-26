@@ -13,6 +13,7 @@ Usage:
     python clawbio.py run full-profile --profile profiles/PT001.json --output ./results
 
 Importable:
+    # With the repository checkout on sys.path:
     from clawbio import run_skill, list_skills, upload_profile
     result = run_skill("pharmgx", demo=True)
 """
