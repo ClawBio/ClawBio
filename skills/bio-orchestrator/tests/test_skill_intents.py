@@ -3,6 +3,7 @@ from pathlib import Path
 
 from clawbio.skill_intents import (
     SCHEMA,
+    load_skill_intent_descriptors,
     plan_skill_intent,
     skill_intent_tool_summary,
     skill_names_for_tool_schema,
@@ -251,7 +252,7 @@ def test_drugphoto_keeps_demo_genotype_exception(tmp_path: Path):
     assert "--drug" in plan.executions[0].argv
 
 
-def test_unregistered_skill_directory_descriptor_is_discovered(tmp_path: Path):
+def test_unregistered_skill_directory_descriptor_is_discovered_but_not_executable(tmp_path: Path):
     skill_dir = tmp_path / "skills" / "gentle-cloning"
     (skill_dir / "examples").mkdir(parents=True)
     (skill_dir / "examples" / "request_runtime_version.json").write_text("{}", encoding="utf-8")
@@ -281,6 +282,7 @@ def test_unregistered_skill_directory_descriptor_is_discovered(tmp_path: Path):
     )
     registry = {}
 
+    descriptors = load_skill_intent_descriptors(registry, tmp_path)
     names = skill_names_for_tool_schema(registry, tmp_path)
     summary = skill_intent_tool_summary(registry, tmp_path)
     plan = plan_skill_intent(
@@ -292,8 +294,9 @@ def test_unregistered_skill_directory_descriptor_is_discovered(tmp_path: Path):
         project_root=tmp_path,
     )
 
-    assert "gentle-cloning" in names
-    assert "runtime_version" in summary
-    assert plan.status == "planned"
+    assert [descriptor["skill"] for descriptor in descriptors] == ["gentle-cloning"]
+    assert "gentle-cloning" not in names
+    assert "runtime_version" not in summary
+    assert plan.status == "needs_registration"
     assert plan.skill == "gentle-cloning"
-    assert plan.executions[0].argv[1] == str(tmp_path / "clawbio.py")
+    assert plan.executions == []

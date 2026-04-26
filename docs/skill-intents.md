@@ -15,10 +15,13 @@ Place one JSON file in the skill directory:
 RoboTerri and the Discord bot discover descriptors both for registered skills
 and by scanning `skills/*/INTENTS.json`, so descriptor-only symlinked or copied
 skill directories can publish routing metadata before they are added to the
-main `SKILLS` registry. If neither file exists, chat adapters fall back to the
-legacy skill/mode behavior. Demo mode is only planned when the raw user text
-explicitly asks for a demo, example, synthetic data, or sample data, or when the
-user confirms an already proposed demo with text such as "yes" or "go ahead".
+main `SKILLS` registry. Descriptor-only skills are not exposed in executable
+chat tool enums and route matches return `needs_registration` until every
+`skill_run.skill` target is registered in `clawbio.py`'s `SKILLS` dictionary.
+If neither file exists, chat adapters fall back to the legacy skill/mode
+behavior. Demo mode is only planned when the raw user text explicitly asks for a
+demo, example, synthetic data, or sample data, or when the user confirms an
+already proposed demo with text such as "yes" or "go ahead".
 
 ## Schema
 
@@ -82,7 +85,7 @@ commands, or call chat-platform APIs.
 
 `plan_skill_intent(...)` returns a structured `SkillExecutionPlan` with:
 
-- `status`: `planned`, `needs_input`, or `needs_confirmation`
+- `status`: `planned`, `needs_input`, `needs_confirmation`, or `needs_registration`
 - `raw_user_text` and `raw_user_text_sha256`
 - `skill`, `intent_id`, `confidence`, and `reason`
 - `matched_route`: route id, matched terms, score, and demo policy

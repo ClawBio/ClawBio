@@ -120,6 +120,7 @@ def plan_skill_intent(
             score=score,
             matched_terms=matched_terms,
             project_root=execution_root,
+            skill_registry=skill_registry,
         )
 
     return _plan_legacy_fallback(
@@ -171,7 +172,7 @@ def skill_names_for_tool_schema(
 
     names = set(skill_registry.keys())
     for descriptor in load_skill_intent_descriptors(skill_registry, project_root):
-        if descriptor.get("skill"):
+        if descriptor.get("skill") and _descriptor_has_executable_route(descriptor, skill_registry):
             names.add(str(descriptor["skill"]))
     names.add("auto")
     return sorted(names)
@@ -185,6 +186,8 @@ def skill_intent_tool_summary(
 
     summaries = []
     for descriptor in load_skill_intent_descriptors(skill_registry, project_root):
+        if not _descriptor_has_executable_route(descriptor, skill_registry):
+            continue
         skill = descriptor.get("skill") or descriptor.get("_registry_alias")
         intents = [
             str(route.get("intent_id"))
@@ -219,6 +222,20 @@ def _read_descriptor(skill_dir: Path, alias: str) -> dict[str, Any] | None:
     return None
 
 
+def _descriptor_has_executable_route(descriptor: dict[str, Any], skill_registry: dict) -> bool:
+    descriptor_skill = str(descriptor.get("skill") or descriptor.get("_registry_alias"))
+    for route in descriptor.get("routes", []):
+        if not isinstance(route, dict):
+            continue
+        for step in route.get("plan") or []:
+            if not isinstance(step, dict) or step.get("kind", "skill_run") != "skill_run":
+                continue
+            step_skill = str(step.get("skill") or descriptor_skill)
+            if step_skill in skill_registry:
+                return True
+    return False
+
+
 def _plan_descriptor_route(
     text: str,
     requested_skill: str | None,
@@ -229,6 +246,7 @@ def _plan_descriptor_route(
     score: int,
     matched_terms: list[str],
     project_root: Path,
+    skill_registry: dict,
 ) -> SkillExecutionPlan:
     descriptor_skill = str(descriptor.get("skill") or descriptor.get("_registry_alias"))
     intent_id = str(route.get("intent_id") or "default")
@@ -240,6 +258,7 @@ def _plan_descriptor_route(
     skill_dir = Path(str(descriptor["_skill_dir"]))
     executions: list[SkillIntentExecution] = []
     warnings: list[str] = []
+    missing_skills: set[str] = set()
 
     for index, step in enumerate(route.get("plan") or []):
         if not isinstance(step, dict):
@@ -253,6 +272,9 @@ def _plan_descriptor_route(
             warnings.append(f"Skipped demo step {index}; user did not request a demo.")
             continue
         step_skill = str(step.get("skill") or descriptor_skill)
+        if step_skill not in skill_registry:
+            missing_skills.add(step_skill)
+            continue
         argv = [sys.executable, str(project_root / "clawbio.py"), "run", step_skill]
         input_path = _resolve_descriptor_input(step.get("input"), skill_dir)
         if step_demo:
@@ -285,6 +307,33 @@ def _plan_descriptor_route(
                 confirmation_reason=confirmation_reason,
                 route_step_id=str(step.get("id") or index),
             )
+        )
+
+    if missing_skills:
+        missing = ", ".join(sorted(missing_skills))
+        return SkillExecutionPlan(
+            status="needs_registration",
+            raw_user_text=text,
+            raw_user_text_sha256=_sha(text),
+            skill=descriptor_skill,
+            intent_id=intent_id,
+            confidence=confidence,
+            reason=(
+                f"Matched descriptor route '{intent_id}', but skill(s) {missing} "
+                "are not registered in clawbio.py SKILLS yet."
+            ),
+            matched_route={
+                "intent_id": intent_id,
+                "description": route.get("description", ""),
+                "matched_terms": matched_terms,
+                "score": score,
+                "demo_policy": route.get("demo_policy", "never_unless_explicit"),
+            },
+            executions=[],
+            requested_skill=requested_skill,
+            requested_mode=requested_mode,
+            descriptor_path=descriptor.get("_descriptor_path"),
+            warnings=[*warnings, f"Register {missing} before exposing it for execution."],
         )
 
     status = "planned"
