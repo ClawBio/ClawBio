@@ -103,7 +103,7 @@ def plan_skill_intent(
     explicit_demo = _demo_allowed(text, requested_mode)
     effective_mode = _normalise_mode(requested_mode, explicit_demo)
     execution_root = Path(project_root) if project_root else _project_root_from_registry(skill_registry)
-    descriptors = load_skill_intent_descriptors(skill_registry)
+    descriptors = load_skill_intent_descriptors(skill_registry, execution_root)
     requested_skill = _resolve_skill_alias(requested_skill, skill_registry, descriptors)
 
     matches = _score_descriptor_routes(text, requested_skill, descriptors, explicit_demo)
@@ -134,53 +134,57 @@ def plan_skill_intent(
     )
 
 
-def load_skill_intent_descriptors(skill_registry: dict) -> list[dict[str, Any]]:
-    """Return validated descriptor dictionaries discovered beside skill scripts."""
+def load_skill_intent_descriptors(
+    skill_registry: dict,
+    project_root: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    """Return validated descriptors from registered scripts and ``skills/*`` dirs."""
 
     descriptors: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
     for alias, info in skill_registry.items():
         skill_dir = _skill_dir(info)
         if not skill_dir:
             continue
-        for filename in DESCRIPTOR_FILENAMES:
-            path = skill_dir / filename
-            if not path.exists():
-                continue
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                continue
-            if data.get("schema") != SCHEMA:
-                continue
-            skill_name = str(data.get("skill") or skill_dir.name)
-            routes = data.get("routes")
-            if not isinstance(routes, list):
-                continue
-            data["_descriptor_path"] = str(path)
-            data["_skill_dir"] = str(skill_dir)
-            data["_registry_alias"] = alias
-            data["_skill_name"] = skill_name
+        data = _read_descriptor(skill_dir, alias)
+        if data:
+            seen_paths.add(str(data["_descriptor_path"]))
             descriptors.append(data)
-            break
+
+    root = Path(project_root) if project_root else _project_root_from_registry(skill_registry)
+    skills_root = root / "skills"
+    if skills_root.exists():
+        for skill_dir in sorted(p for p in skills_root.iterdir() if p.is_dir()):
+            data = _read_descriptor(skill_dir.resolve(), skill_dir.name)
+            if not data or str(data["_descriptor_path"]) in seen_paths:
+                continue
+            seen_paths.add(str(data["_descriptor_path"]))
+            descriptors.append(data)
     return descriptors
 
 
-def skill_names_for_tool_schema(skill_registry: dict) -> list[str]:
+def skill_names_for_tool_schema(
+    skill_registry: dict,
+    project_root: str | Path | None = None,
+) -> list[str]:
     """Return registry and descriptor skill names suitable for chat tool enums."""
 
     names = set(skill_registry.keys())
-    for descriptor in load_skill_intent_descriptors(skill_registry):
+    for descriptor in load_skill_intent_descriptors(skill_registry, project_root):
         if descriptor.get("skill"):
             names.add(str(descriptor["skill"]))
     names.add("auto")
     return sorted(names)
 
 
-def skill_intent_tool_summary(skill_registry: dict) -> str:
+def skill_intent_tool_summary(
+    skill_registry: dict,
+    project_root: str | Path | None = None,
+) -> str:
     """Compact human-readable descriptor route summary for LLM tool descriptions."""
 
     summaries = []
-    for descriptor in load_skill_intent_descriptors(skill_registry):
+    for descriptor in load_skill_intent_descriptors(skill_registry, project_root):
         skill = descriptor.get("skill") or descriptor.get("_registry_alias")
         intents = [
             str(route.get("intent_id"))
@@ -190,6 +194,29 @@ def skill_intent_tool_summary(skill_registry: dict) -> str:
         if intents:
             summaries.append(f"{skill} intents: {', '.join(intents)}")
     return "; ".join(summaries)
+
+
+def _read_descriptor(skill_dir: Path, alias: str) -> dict[str, Any] | None:
+    for filename in DESCRIPTOR_FILENAMES:
+        path = skill_dir / filename
+        if not path.exists():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if data.get("schema") != SCHEMA:
+            continue
+        routes = data.get("routes")
+        if not isinstance(routes, list):
+            continue
+        skill_name = str(data.get("skill") or skill_dir.name)
+        data["_descriptor_path"] = str(path)
+        data["_skill_dir"] = str(skill_dir)
+        data["_registry_alias"] = alias
+        data["_skill_name"] = skill_name
+        return data
+    return None
 
 
 def _plan_descriptor_route(
