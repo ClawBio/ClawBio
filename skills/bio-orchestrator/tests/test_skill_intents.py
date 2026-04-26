@@ -1,7 +1,12 @@
 import json
 from pathlib import Path
 
-from clawbio.skill_intents import SCHEMA, plan_skill_intent
+from clawbio.skill_intents import (
+    SCHEMA,
+    plan_skill_intent,
+    skill_intent_tool_summary,
+    skill_names_for_tool_schema,
+)
 
 
 def _fixture_registry(tmp_path: Path) -> dict:
@@ -244,3 +249,51 @@ def test_drugphoto_keeps_demo_genotype_exception(tmp_path: Path):
     assert plan.status == "planned"
     assert "--demo" in plan.executions[0].argv
     assert "--drug" in plan.executions[0].argv
+
+
+def test_unregistered_skill_directory_descriptor_is_discovered(tmp_path: Path):
+    skill_dir = tmp_path / "skills" / "gentle-cloning"
+    (skill_dir / "examples").mkdir(parents=True)
+    (skill_dir / "examples" / "request_runtime_version.json").write_text("{}", encoding="utf-8")
+    (skill_dir / "INTENTS.json").write_text(
+        json.dumps(
+            {
+                "schema": SCHEMA,
+                "skill": "gentle-cloning",
+                "aliases": ["gentle"],
+                "routes": [
+                    {
+                        "intent_id": "runtime_version",
+                        "description": "Check runtime version.",
+                        "trigger_terms": ["version", "runtime version"],
+                        "plan": [
+                            {
+                                "kind": "skill_run",
+                                "skill": "gentle-cloning",
+                                "input": "examples/request_runtime_version.json",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    registry = {}
+
+    names = skill_names_for_tool_schema(registry, tmp_path)
+    summary = skill_intent_tool_summary(registry, tmp_path)
+    plan = plan_skill_intent(
+        user_text="gentle runtime version",
+        requested_skill="auto",
+        requested_mode=None,
+        attachments=None,
+        skill_registry=registry,
+        project_root=tmp_path,
+    )
+
+    assert "gentle-cloning" in names
+    assert "runtime_version" in summary
+    assert plan.status == "planned"
+    assert plan.skill == "gentle-cloning"
+    assert plan.executions[0].argv[1] == str(tmp_path / "clawbio.py")

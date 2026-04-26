@@ -244,8 +244,8 @@ _voice_enabled: dict[int, bool] = {}
 BOT_START_TIME = time.time()
 
 _SKILL_REGISTRY = load_default_skill_registry(CLAWBIO_DIR)
-_SKILL_TOOL_ENUM = skill_names_for_tool_schema(_SKILL_REGISTRY)
-_DESCRIPTOR_TOOL_SUMMARY = skill_intent_tool_summary(_SKILL_REGISTRY)
+_SKILL_TOOL_ENUM = skill_names_for_tool_schema(_SKILL_REGISTRY, CLAWBIO_DIR)
+_DESCRIPTOR_TOOL_SUMMARY = skill_intent_tool_summary(_SKILL_REGISTRY, CLAWBIO_DIR)
 
 # --------------------------------------------------------------------------- #
 # Tool definition (OpenAI function-calling format)

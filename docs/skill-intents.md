@@ -12,10 +12,13 @@ Place one JSON file in the skill directory:
 - `skills/<skill>/INTENTS.json` preferred
 - `skills/<skill>/skill_intents.json` supported alias
 
-If neither file exists, RoboTerri and the Discord bot fall back to the legacy
-skill/mode behavior. Demo mode is only planned when the raw user text explicitly
-asks for a demo, example, synthetic data, or sample data, or when the user
-confirms an already proposed demo with text such as "yes" or "go ahead".
+RoboTerri and the Discord bot discover descriptors both for registered skills
+and by scanning `skills/*/INTENTS.json`, so descriptor-only symlinked or copied
+skill directories can publish routing metadata before they are added to the
+main `SKILLS` registry. If neither file exists, chat adapters fall back to the
+legacy skill/mode behavior. Demo mode is only planned when the raw user text
+explicitly asks for a demo, example, synthetic data, or sample data, or when the
+user confirms an already proposed demo with text such as "yes" or "go ahead".
 
 ## Schema
 
