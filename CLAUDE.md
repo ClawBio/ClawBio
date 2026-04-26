@@ -43,10 +43,11 @@ When the user asks a question, match it to a skill and act:
 | WES clinical report English, exome PDF report, whole exome sequencing report, clinical exome PDF | `skills/wes-clinical-report-en/` | Run `wes_clinical_report_en.py` |
 | WES clinical report Spanish, informe clinico WES, exome PDF espanol, Predice, Inbiomedic, Novogene report | `skills/wes-clinical-report-es/` | Run `wes_clinical_report_es.py` |
 | Proteomic aging clocks, organ aging, Olink clock, proteomics clock, organ clock, Goeminne, plasma protein aging, organ-specific aging | `skills/proteomics-clock/` | Run `proteomics_clock.py` |
+| Genome completeness, BUSCO score, assembly quality, BUSCO assessment, completeness metrics, check my assembly, assembly QC, transcriptome completeness, protein set completeness | `skills/busco-assessor/` | Run `busco_assessor.py` |
 
 ## How to Use a Skill
 
-### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator, galaxy-bridge, rnaseq-de, methylation-clock, proteomics-clock, protocols-io, soul2dna, genome-match, recombinator, labstep, fine-mapping, cell-detection, wes-clinical-report-en, wes-clinical-report-es)
+### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator, galaxy-bridge, rnaseq-de, methylation-clock, proteomics-clock, protocols-io, soul2dna, genome-match, recombinator, labstep, fine-mapping, cell-detection, wes-clinical-report-en, wes-clinical-report-es, busco-assessor)
 ### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx_advisor, scrna-orchestrator, bio-orchestrator, clinpgx, gwas-prs, gwas-lookup, profile-report, ukb-navigator, galaxy-bridge, flow-bio)
 1. Read the skill's `SKILL.md` for domain context
 2. Run the Python script with correct CLI arguments (see below)
@@ -224,6 +225,15 @@ python skills/wes-clinical-report-es/wes_clinical_report_es.py --demo
 python skills/multiqc-reporter/multiqc_reporter.py \
   --input <dir> [<dir2> ...] --output <report_dir>
 python skills/multiqc-reporter/multiqc_reporter.py --demo --output /tmp/multiqc_demo
+# BUSCO Assessor — genome/transcriptome/protein completeness
+python skills/busco-assessor/busco_assessor.py \
+  --input <assembly.fna> --mode genome --lineage bacteria_odb12 --output <report_dir>
+python skills/busco-assessor/busco_assessor.py \
+  --input <assembly.fna> --mode genome --auto-lineage-prok --output <report_dir>
+python skills/busco-assessor/busco_assessor.py \
+  --input <assembly.fna> --organism "fruit fly" --output <report_dir>
+python skills/busco-assessor/busco_assessor.py --demo --output /tmp/busco_demo
+python skills/busco-assessor/busco_assessor.py --demo-live --output /tmp/busco_demo_live
 # Proteomics Clock — organ-specific proteomic aging from Olink NPX data
 python skills/proteomics-clock/proteomics_clock.py \
   --input <olink_npx.csv> --output <report_dir>
@@ -253,6 +263,8 @@ For instant demos when the user has no data:
 | GWAS Lookup demo (rs3798220, pre-fetched) | `--demo` flag | gwas-lookup |
 | Methylation demo subset (GSE139307, 2 samples) | `skills/methylation-clock/data/GSE139307_small.csv.gz` | methylation-clock |
 | Proteomics Clock demo (20 synthetic Olink NPX samples, 26 proteins) | `skills/proteomics-clock/data/demo_olink_npx.csv.gz` | proteomics-clock |
+| BUSCO demo (synthetic 5-seq FASTA, bacteria-like C:95.2%[S:93.1%,D:2.1%],F:2.3%,M:2.5%,n:124) | `--demo` flag | busco-assessor |
+| BUSCO live demo (S. cerevisiae mito from Ensembl, NCBI taxonomy routing) | `--demo-live` flag | busco-assessor |
 | Profile report demo (full 4-skill profile) | `--demo` flag | profile-report |
 | UKB Navigator demo (blood pressure, pre-cached) | `--demo` flag | ukb-navigator |
 | Galaxy Bridge demo (FastQC, offline) | `--demo` flag | galaxy-bridge |
@@ -296,6 +308,11 @@ python skills/nutrigx_advisor/nutrigx_advisor.py \
 
 # MultiQC demo
 python skills/multiqc-reporter/multiqc_reporter.py --demo --output /tmp/multiqc_demo
+
+# BUSCO assessor demo
+python skills/busco-assessor/busco_assessor.py --demo --output /tmp/busco_demo
+# BUSCO assessor live demo (downloads S. cerevisiae mito from Ensembl, NCBI taxonomy)
+python skills/busco-assessor/busco_assessor.py --demo-live --output /tmp/busco_demo_live
 
 # scRNA demo
 python skills/scrna-orchestrator/scrna_orchestrator.py --demo --output /tmp/scrna_demo
