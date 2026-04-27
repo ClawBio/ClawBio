@@ -52,7 +52,7 @@ from clawbio.skill_intents import (
     skill_intent_tool_summary,
     skill_names_for_tool_schema,
 )
-from bot.tool_loop_utils import execute_tool_calls_safely
+from bot.tool_loop_utils import execute_tool_calls_safely, synthetic_tool_result_messages
 
 # --------------------------------------------------------------------------- #
 # Config
@@ -1081,15 +1081,28 @@ async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
         if not last_message.tool_calls:
             return last_message.content or "(no response)"
 
-        tool_messages = await execute_tool_calls_safely(
-            last_message.tool_calls,
-            TOOL_EXECUTORS,
-            base_args={"_chat_id": chat_id},
-            raw_user_text=raw_user_text,
-            audit=_audit,
-            audit_context={"chat_id": chat_id},
-            logger=logger,
-        )
+        try:
+            tool_messages = await execute_tool_calls_safely(
+                last_message.tool_calls,
+                TOOL_EXECUTORS,
+                base_args={"_chat_id": chat_id},
+                raw_user_text=raw_user_text,
+                audit=_audit,
+                audit_context={"chat_id": chat_id},
+                logger=logger,
+            )
+        except BaseException as tool_loop_err:
+            logger.error("Tool loop failed before producing tool results", exc_info=True)
+            _audit(
+                "tool_loop_error",
+                chat_id=chat_id,
+                error=type(tool_loop_err).__name__,
+                detail=str(tool_loop_err)[:300],
+            )
+            tool_messages = synthetic_tool_result_messages(
+                last_message.tool_calls,
+                f"Tool execution interrupted before completion: {type(tool_loop_err).__name__}: {tool_loop_err}",
+            )
         history.extend(tool_messages)
 
     return last_message.content if last_message and last_message.content else "(max tool iterations reached)"

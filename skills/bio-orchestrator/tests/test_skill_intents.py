@@ -3,6 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from bot.tool_loop_utils import execute_tool_calls_safely
+from bot.tool_loop_utils import synthetic_tool_result_messages
 from clawbio.skill_intents import (
     SCHEMA,
     augment_skill_registry_with_descriptors,
@@ -473,3 +474,36 @@ def test_tool_call_helper_returns_one_message_per_tool_call():
 
     assert [message["tool_call_id"] for message in messages] == ["call-1", "call-2"]
     assert [message["content"] for message in messages] == ["ok", "Unknown tool: missing"]
+
+
+def test_tool_call_helper_converts_cancellation_to_tool_message():
+    async def cancelled(_args):
+        raise asyncio.CancelledError()
+
+    tool_call = SimpleNamespace(id="call-cancel", function=SimpleNamespace(name="known", arguments="{}"))
+
+    import asyncio
+
+    messages = asyncio.run(execute_tool_calls_safely([tool_call], {"known": cancelled}))
+
+    assert messages == [
+        {
+            "role": "tool",
+            "tool_call_id": "call-cancel",
+            "content": "Tool execution cancelled before completion: known",
+        }
+    ]
+
+
+def test_synthetic_tool_results_cover_every_tool_call_id():
+    tool_calls = [
+        SimpleNamespace(id="call-1", function=SimpleNamespace(name="a", arguments="{}")),
+        SimpleNamespace(id="call-2", function=SimpleNamespace(name="b", arguments="{}")),
+    ]
+
+    messages = synthetic_tool_result_messages(tool_calls, "deferred pending user confirmation")
+
+    assert messages == [
+        {"role": "tool", "tool_call_id": "call-1", "content": "deferred pending user confirmation"},
+        {"role": "tool", "tool_call_id": "call-2", "content": "deferred pending user confirmation"},
+    ]
