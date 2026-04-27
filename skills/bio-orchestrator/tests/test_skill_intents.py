@@ -507,3 +507,37 @@ def test_synthetic_tool_results_cover_every_tool_call_id():
         {"role": "tool", "tool_call_id": "call-1", "content": "deferred pending user confirmation"},
         {"role": "tool", "tool_call_id": "call-2", "content": "deferred pending user confirmation"},
     ]
+
+
+def test_duplicate_tool_call_is_not_executed_twice():
+    calls = 0
+
+    async def ok(_args):
+        nonlocal calls
+        calls += 1
+        return "ok"
+
+    first = SimpleNamespace(
+        id="call-1",
+        function=SimpleNamespace(name="known", arguments='{"skill": "gentle-cloning"}'),
+    )
+    second = SimpleNamespace(
+        id="call-2",
+        function=SimpleNamespace(name="known", arguments='{"skill":"gentle-cloning"}'),
+    )
+    seen = set()
+
+    import asyncio
+
+    first_messages = asyncio.run(execute_tool_calls_safely([first], {"known": ok}, seen_signatures=seen))
+    second_messages = asyncio.run(execute_tool_calls_safely([second], {"known": ok}, seen_signatures=seen))
+
+    assert calls == 1
+    assert first_messages[0]["content"] == "ok"
+    assert second_messages == [
+        {
+            "role": "tool",
+            "tool_call_id": "call-2",
+            "content": "Duplicate tool call suppressed; the same tool request was already handled in this turn.",
+        }
+    ]

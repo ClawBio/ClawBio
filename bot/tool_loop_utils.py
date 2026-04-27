@@ -13,6 +13,19 @@ def tool_call_id(tool_call: Any) -> str:
     return str(getattr(tool_call, "id", ""))
 
 
+def tool_call_signature(tool_call: Any) -> str:
+    """Return a stable signature for duplicate suppression within one turn."""
+
+    function = getattr(tool_call, "function", None)
+    func_name = str(getattr(function, "name", ""))
+    arguments = getattr(function, "arguments", "{}") or "{}"
+    try:
+        normalised_args = json.dumps(json.loads(arguments), sort_keys=True)
+    except json.JSONDecodeError:
+        normalised_args = str(arguments)
+    return f"{func_name}:{normalised_args}"
+
+
 def synthetic_tool_result_messages(
     tool_calls: list[Any],
     content: str,
@@ -38,6 +51,7 @@ async def execute_tool_calls_safely(
     audit: Callable[..., None] | None = None,
     audit_context: dict[str, Any] | None = None,
     logger: Any | None = None,
+    seen_signatures: set[str] | None = None,
 ) -> list[dict[str, str]]:
     """Execute tool calls and always return matching tool messages."""
 
@@ -47,11 +61,29 @@ async def execute_tool_calls_safely(
     expected_ids = [tool_call_id(tc) for tc in tool_calls]
     for tc in tool_calls:
         current_tool_call_id = tool_call_id(tc)
+        signature = tool_call_signature(tc)
         function = getattr(tc, "function", None)
         func_name = str(getattr(function, "name", ""))
         arguments = getattr(function, "arguments", "{}")
         result = f"Unknown tool: {func_name}" if func_name else "Unknown tool call."
         try:
+            if seen_signatures is not None:
+                if signature in seen_signatures:
+                    if logger:
+                        logger.warning(f"Duplicate tool call suppressed: {func_name}")
+                    if audit:
+                        audit(
+                            "tool_duplicate_suppressed",
+                            **audit_context,
+                            tool=func_name,
+                        )
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": current_tool_call_id,
+                        "content": "Duplicate tool call suppressed; the same tool request was already handled in this turn.",
+                    })
+                    continue
+                seen_signatures.add(signature)
             executor = executors.get(func_name)
             if executor:
                 try:
