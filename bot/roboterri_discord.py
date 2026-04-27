@@ -970,6 +970,7 @@ async def llm_tool_loop(channel_id: int, user_content: str | list) -> str:
     history[:] = sanitised
 
     last_message = None
+    seen_tool_call_signatures: set[str] = set()
     for _iteration in range(MAX_TOOL_ITERATIONS):
         try:
             response = await llm.chat.completions.create(
@@ -1014,6 +1015,7 @@ async def llm_tool_loop(channel_id: int, user_content: str | list) -> str:
                 audit=_audit,
                 audit_context={"channel_id": channel_id},
                 logger=logger,
+                seen_signatures=seen_tool_call_signatures,
             )
         except BaseException as tool_loop_err:
             logger.error("Tool loop failed before producing tool results", exc_info=True)
