@@ -31,8 +31,9 @@ metadata:
       env: []        
       config: []
     always: false
+    emoji: "🧬"
     homepage: https://www.ncbi.nlm.nih.gov/datasets/
-    os: [macos, linux, windows]
+    os: [darwin, linux, win32]
     install:
       - kind: conda
         package: ncbi-datasets-cli

@@ -25,6 +25,11 @@ from clawbio.common.report import (
     generate_report_header,
     write_result_json,
 )
+from clawbio.common.reproducibility import (
+    ReproCommand,
+    ReproPath,
+    write_portable_commands_sh,
+)
 from clawbio.common.scrna_io import compute_input_checksum, load_count_adata
 
 EMBEDDING_ARTIFACT_KEY = "clawbio_scrna_embedding"
@@ -751,77 +756,75 @@ See:
     return report_path
 
 
+def repro_command_for_bundle(
+    output_dir: Path,
+    *,
+    input_source: "dict[str, Any] | None",
+    is_demo: bool,
+    method: str,
+    layer: "str | None",
+    batch_key: "str | None",
+    labels_key: "str | None",
+    unlabeled_category: "str | None",
+    min_genes: int,
+    min_cells: int,
+    max_mt_pct: float,
+    n_top_hvg: int,
+    latent_dim: int,
+    max_epochs: int,
+    n_neighbors: int,
+    random_state: int,
+    accelerator: str,
+) -> ReproCommand:
+    args: list = []
+    if is_demo:
+        args.append("--demo")
+    elif input_source is not None:
+        args += ["--input", ReproPath(input_source["input_path"], anchor="auto")]
+    args += ["--output", ReproPath(output_dir, anchor="output_dir")]
+    if method != "scvi":
+        args += ["--method", method]
+    if layer:
+        args += ["--layer", layer]
+    if batch_key:
+        args += ["--batch-key", batch_key]
+    if labels_key:
+        args += ["--labels-key", labels_key]
+    if unlabeled_category:
+        args += ["--unlabeled-category", unlabeled_category]
+    defaults = {
+        "--min-genes": 200, "--min-cells": 3, "--max-mt-pct": 20.0,
+        "--n-top-hvg": 2000, "--latent-dim": 10, "--max-epochs": 20,
+        "--n-neighbors": 15, "--random-state": 0, "--accelerator": "auto",
+    }
+    values = {
+        "--min-genes": min_genes, "--min-cells": min_cells, "--max-mt-pct": max_mt_pct,
+        "--n-top-hvg": n_top_hvg, "--latent-dim": latent_dim, "--max-epochs": max_epochs,
+        "--n-neighbors": n_neighbors, "--random-state": random_state, "--accelerator": accelerator,
+    }
+    for flag, value in values.items():
+        if value != defaults[flag]:
+            args += [flag, str(value)]
+    return ReproCommand(
+        script_path=Path("skills/scrna-embedding/scrna_embedding.py"),
+        args=args,
+        comment="Replay this ClawBio scrna-embedding run",
+    )
+
+
 def write_reproducibility(
     *,
     output_dir: Path,
-    input_source: dict[str, Any] | None,
+    input_source: "dict[str, Any] | None",
     is_demo: bool,
     args: argparse.Namespace,
-    table_paths: dict[str, Path],
-    figure_paths: list[Path],
+    table_paths: "dict[str, Path]",
+    figure_paths: "list[Path]",
     integrated_path: Path,
 ) -> None:
     """Write commands.sh, environment.yml, and checksums.sha256."""
     repro_dir = output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
-
-    cmd_parts = [
-        "python",
-        "skills/scrna-embedding/scrna_embedding.py",
-    ]
-    if is_demo:
-        cmd_parts.append("--demo")
-    elif input_source is not None:
-        cmd_parts.extend(["--input", str(input_source["input_path"])])
-
-    cmd_parts.extend(["--output", str(output_dir)])
-    if args.method != "scvi":
-        cmd_parts.extend(["--method", args.method])
-    if args.layer:
-        cmd_parts.extend(["--layer", args.layer])
-    if args.batch_key:
-        cmd_parts.extend(["--batch-key", args.batch_key])
-    if args.labels_key:
-        cmd_parts.extend(["--labels-key", args.labels_key])
-    if args.unlabeled_category:
-        cmd_parts.extend(["--unlabeled-category", args.unlabeled_category])
-
-    defaults = {
-        "--min-genes": 200,
-        "--min-cells": 3,
-        "--max-mt-pct": 20.0,
-        "--n-top-hvg": 2000,
-        "--latent-dim": 10,
-        "--max-epochs": 20,
-        "--n-neighbors": 15,
-        "--random-state": 0,
-        "--accelerator": "auto",
-    }
-    values = {
-        "--min-genes": args.min_genes,
-        "--min-cells": args.min_cells,
-        "--max-mt-pct": args.max_mt_pct,
-        "--n-top-hvg": args.n_top_hvg,
-        "--latent-dim": args.latent_dim,
-        "--max-epochs": args.max_epochs,
-        "--n-neighbors": args.n_neighbors,
-        "--random-state": args.random_state,
-        "--accelerator": args.accelerator,
-    }
-    for flag, value in values.items():
-        if value != defaults[flag]:
-            cmd_parts.extend([flag, str(value)])
-
-    quoted = " ".join(shlex.quote(part) for part in cmd_parts)
-    commands = f"""#!/usr/bin/env bash
-# Reproducibility script — ClawBio scRNA Embedding
-# Generated: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
-
-set -euo pipefail
-
-{quoted}
-"""
-    (repro_dir / "commands.sh").write_text(commands, encoding="utf-8")
 
     env_yml = """name: clawbio-scrna-embedding
 channels:
@@ -845,18 +848,38 @@ dependencies:
 """
     (repro_dir / "environment.yml").write_text(env_yml, encoding="utf-8")
 
-    checksum_targets: list[Path] = []
-    if input_source:
-        checksum_targets.extend(Path(path) for path in input_source["files"] if Path(path).exists())
-    checksum_targets.extend(
-        [
-            output_dir / "report.md",
-            output_dir / "result.json",
-            integrated_path,
-            *table_paths.values(),
-            *figure_paths,
-        ]
+    write_portable_commands_sh(
+        output_dir,
+        repro_command_for_bundle(
+            output_dir,
+            input_source=input_source,
+            is_demo=is_demo,
+            method=args.method,
+            layer=args.layer,
+            batch_key=args.batch_key,
+            labels_key=args.labels_key,
+            unlabeled_category=args.unlabeled_category,
+            min_genes=args.min_genes,
+            min_cells=args.min_cells,
+            max_mt_pct=args.max_mt_pct,
+            n_top_hvg=args.n_top_hvg,
+            latent_dim=args.latent_dim,
+            max_epochs=args.max_epochs,
+            n_neighbors=args.n_neighbors,
+            random_state=args.random_state,
+            accelerator=args.accelerator,
+        ),
+        repo_root=_PROJECT_ROOT,
     )
+
+    # report.md and result.json contain timestamps — exclude from checksums.
+    # Only fingerprint deterministic science outputs: tables, figures, and the
+    # integrated AnnData file.
+    checksum_targets: list[Path] = [
+        integrated_path,
+        *table_paths.values(),
+        *figure_paths,
+    ]
 
     lines: list[str] = []
     for path in checksum_targets:
