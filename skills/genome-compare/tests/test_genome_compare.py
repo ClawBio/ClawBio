@@ -227,30 +227,45 @@ def test_demo_patient_eur_is_top():
 # ------------------------------------------------------------------ #
 
 
-def test_report_contains_key_sections():
+def test_report_contains_key_sections(tmp_path):
     """Report has expected markdown headers."""
+    out = tmp_path / "report"
     result = run_comparison(
         input_path=DEMO_PATIENT_FILE,
-        output_dir=Path("/tmp/test_genome_compare_report"),
+        output_dir=out,
         no_figures=True,
         is_demo=True,
     )
-    report = (Path("/tmp/test_genome_compare_report") / "report.md").read_text()
+    report = (out / "report.md").read_text()
     assert "# Genome Comparison Report" in report
     assert "## Summary" in report
     assert "## Identity By State Analysis" in report
     assert "## Ancestry Composition" in report
 
 
-def test_report_contains_disclaimer():
+def test_report_contains_disclaimer(tmp_path):
     """Standard ClawBio disclaimer is present."""
-    report = (Path("/tmp/test_genome_compare_report") / "report.md").read_text()
+    out = tmp_path / "report"
+    run_comparison(
+        input_path=DEMO_PATIENT_FILE,
+        output_dir=out,
+        no_figures=True,
+        is_demo=True,
+    )
+    report = (out / "report.md").read_text()
     assert "not a medical device" in report
 
 
-def test_report_contains_methods():
+def test_report_contains_methods(tmp_path):
     """Methods section is present."""
-    report = (Path("/tmp/test_genome_compare_report") / "report.md").read_text()
+    out = tmp_path / "report"
+    run_comparison(
+        input_path=DEMO_PATIENT_FILE,
+        output_dir=out,
+        no_figures=True,
+        is_demo=True,
+    )
+    report = (out / "report.md").read_text()
     assert "## Methods" in report
     assert "Identity By State" in report
 
@@ -260,9 +275,9 @@ def test_report_contains_methods():
 # ------------------------------------------------------------------ #
 
 
-def test_end_to_end_demo():
+def test_end_to_end_demo(tmp_path):
     """Full pipeline runs and produces expected outputs."""
-    out = Path("/tmp/test_genome_compare_e2e")
+    out = tmp_path / "e2e"
     result = run_comparison(
         input_path=DEMO_PATIENT_FILE,
         output_dir=out,

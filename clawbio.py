@@ -462,7 +462,7 @@ SKILLS = {
         "demo_args": ["--demo"],
         "description": "Extract numerical data from scientific figure images (Claude vision + OpenCV)",
         "allowed_extra_flags": {"--web", "--port", "--plot-type"},
-        "api_module": "skills.data-extractor.api",
+        "api_module": "skills.data-extractor.data_extractor_api",
         "accepts_genotypes": False,
     },
     "rnaseq": {

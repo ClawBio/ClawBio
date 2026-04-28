@@ -31,10 +31,10 @@ SKILL_DIR = PROJECT_ROOT / "skills" / "fine-mapping"
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(SKILL_DIR))
 
-from core.abf import compute_abf
-from core.susie import run_susie
-from core.susie_inf import run_susie_inf, cred_inf
-from core.credible_sets import build_credible_set_abf, build_credible_sets_susie
+from fine_mapping_core.abf import compute_abf
+from fine_mapping_core.susie import run_susie
+from fine_mapping_core.susie_inf import run_susie_inf, cred_inf
+from fine_mapping_core.credible_sets import build_credible_set_abf, build_credible_sets_susie
 
 # ---------------------------------------------------------------------------
 # Synthetic benchmark locus generator

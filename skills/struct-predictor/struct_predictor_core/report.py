@@ -78,7 +78,7 @@ def generate_report(
     _plot_plddt(output_dir / "figures" / "plddt.png", plddt, chain_boundaries)
     _plot_pae(output_dir / "figures" / "pae.png", pae, chain_boundaries)
 
-    from core.viewer import generate_viewer_html
+    from struct_predictor_core.viewer import generate_viewer_html
     generate_viewer_html(
         output_path=output_dir / "viewer.html",
         cif_path=cif_path,
