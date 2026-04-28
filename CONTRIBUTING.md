@@ -9,14 +9,21 @@ We welcome skills from anyone working in bioinformatics, computational biology, 
 ### 1. Copy the template
 
 ```bash
-cp -r templates/SKILL-TEMPLATE.md skills/your-skill-name/SKILL.md
+mkdir -p skills/your-skill-name/tests skills/your-skill-name/examples
+cp templates/SKILL-TEMPLATE.md skills/your-skill-name/SKILL.md
 ```
 
 ### 2. Define your skill
 
+Use [`templates/SKILL-TEMPLATE.md`](templates/SKILL-TEMPLATE.md) as the structural source of truth.
+
 Edit `SKILL.md` with:
-- **YAML frontmatter**: AgentSkills-compatible metadata. Keep `name`, `description`, and `license` at the top level, then place skill details such as `version`, `author`, `domain`, `tags`, `inputs`, `outputs`, `dependencies`, `demo_data`, and `endpoints` under the top-level `metadata:` block.
-- **Markdown body**: Instructions the AI agent follows. Include capabilities, workflow steps, example queries, output format, and safety rules.
+- **Top-level YAML fields**: `name`, `description`, and `license`
+- **`metadata` fields**: `version`, `author`, `domain`, `tags`, `inputs`, `outputs`, `dependencies`, `demo_data`, and `endpoints`
+- **`metadata.openclaw` fields**: runtime and routing metadata such as `requires`, `always`, `emoji`, `homepage`, `os`, `install`, and `trigger_keywords`
+- **Markdown body**: follow the template sections and keep them aligned with the PR audit expectations in [`CLAUDE.md`](CLAUDE.md)
+
+If there is any discrepancy between documents, follow the template for structure and `CLAUDE.md` for audit requirements.
 
 ### 3. Add supporting code (optional)
 
@@ -44,11 +51,28 @@ channels:
 ### 4. Test locally
 
 ```bash
-# Install your skill
-openclaw install skills/your-skill-name
+# Confirm the runner is working
+python clawbio.py list
 
-# Test with a sample query
-openclaw "Your example query here"
+# Test a registered skill through the real CLI
+python clawbio.py run <registered-alias> --demo
+
+# Test a new skill directly before registration
+python skills/your-skill-name/your_skill.py --demo --output /tmp/your-skill-demo
+```
+
+Use the direct script path until the skill is registered in `clawbio.py`. Once you add the alias to `clawbio.py`, confirm it appears in `python clawbio.py list` and then validate it through `python clawbio.py run <registered-alias> --demo`.
+
+If the skill includes tests, run:
+
+```bash
+python -m pytest skills/your-skill-name/tests/ -v
+```
+
+If you changed `SKILL.md` YAML frontmatter, regenerate the catalog:
+
+```bash
+python scripts/generate_catalog.py
 ```
 
 ### 5. Submit
@@ -99,21 +123,17 @@ AI coding agents (Codex, Devin, Claude Code, Cursor, etc.) should follow the sam
 
 ### SKILL.md Quality Checklist
 
-Every SKILL.md should include these sections (check the template at [`templates/SKILL-TEMPLATE.md`](templates/SKILL-TEMPLATE.md)):
+Treat this as a contributor summary, not as a second source of truth.
 
-- [ ] **YAML frontmatter** with `openclaw` schema (name, description, version, tags, trigger_keywords)
-- [ ] **AgentSkills-compatible layout** with skill metadata nested under `metadata` and OpenClaw routing fields under `metadata.openclaw`
-- [ ] **Why This Exists** (what goes wrong without the skill)
-- [ ] **Core Capabilities** (numbered list)
-- [ ] **Input Formats** (table with format, extension, required fields)
-- [ ] **Workflow** (numbered steps)
-- [ ] **CLI Reference** (bash examples with `--input`, `--output`, `--demo`)
-- [ ] **Demo** section with expected output description
-- [ ] **Output Structure** (directory tree)
-- [ ] **Dependencies** (required and optional)
-- [ ] **Safety** (local-first, disclaimer, no hallucination)
-- [ ] **Integration with Bio Orchestrator** (trigger conditions, chaining partners)
-- [ ] **Citations** (databases and papers used)
+- [`templates/SKILL-TEMPLATE.md`](templates/SKILL-TEMPLATE.md) defines the canonical `SKILL.md` structure.
+- [`CLAUDE.md`](CLAUDE.md) defines the formal PR audit and conformance checklist.
+- Every skill should cover `Trigger`, `Scope`, `Workflow`, `Example Output`, `Gotchas`, `Safety`, and `Agent Boundary`.
+- Include synthetic demo data and support `--demo` whenever the skill has executable automation.
+- Add tests for demo mode and the main expected path when the skill includes code.
+- Keep dependencies, installation steps, inputs, outputs, and safety boundaries accurate and specific.
+- Regenerate `skills/catalog.json` whenever you change YAML frontmatter.
+
+If you are unsure whether a `SKILL.md` is PR-ready, defer to the checklist in `CLAUDE.md`.
 
 ## 🦖 Skill Ideas We Need
 
