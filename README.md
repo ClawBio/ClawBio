@@ -212,9 +212,9 @@ report/
 | [LLM Biobank Bench](skills/llm-biobank-bench/) | **MVP** | Benchmark LLMs on biobank knowledge retrieval and coverage scoring |
 | [VCF Annotator](skills/vcf-annotator/) | Planned | Legacy VCF annotation pipeline (see Variant Annotation for the active skill) |
 | [Lit Synthesizer](skills/lit-synthesizer/) | Planned | PubMed/bioRxiv search with LLM summarisation and citation graphs |
-| [Struct Predictor](skills/struct-predictor/) | Planned | AlphaFold/Boltz local structure prediction |
+| [Struct Predictor](skills/struct-predictor/) | **MVP** | AlphaFold/Boltz local structure prediction |
 | [Repro Enforcer](skills/repro-enforcer/) | Planned | Export any analysis as Conda env + Singularity + Nextflow pipeline |
-| [Labstep](skills/labstep/) | Planned | Labstep electronic lab notebook API integration |
+| [Labstep](skills/labstep/) | **MVP** | Labstep electronic lab notebook API integration |
 | [Seq Wrangler](skills/seq-wrangler/) | Planned | Sequence QC, alignment, and BAM processing (FastQC, BWA, SAMtools) |
 
 ### Contributing a Skill
@@ -424,6 +424,17 @@ Inside [Claude Code](https://claude.ai/claude-code):
 ```
 
 All skills are then available as agent-routable commands. Alternatively, clone the repo and open it as your working directory in Claude Code; the `CLAUDE.md` at the repo root teaches Claude how to route requests to skills automatically.
+
+### Slash Commands
+
+The repository also ships reusable slash commands in [`commands/`](commands/) for Claude Code and compatible agents:
+
+| Command | Purpose |
+|---------|---------|
+| `/analyse` | Analyse a file or input with the appropriate ClawBio skill |
+| `/new-skill` | Scaffold a new skill from the official template |
+| `/list-skills` | List available skills from `skills/catalog.json` |
+| `/run-demo` | Run a skill demo with built-in sample data |
 
 ### Try all skills
 

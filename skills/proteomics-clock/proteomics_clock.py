@@ -22,7 +22,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import requests
-import seaborn as sns
 
 
 DISCLAIMER = (
@@ -268,6 +267,7 @@ def plot_organ_distributions(predictions: pd.DataFrame, outpath: Path) -> None:
 
 
 def plot_organ_correlation(predictions: pd.DataFrame, outpath: Path) -> None:
+    import seaborn as sns
     numeric = predictions.select_dtypes(include=["number"]).dropna(axis=1, how="all")
     if numeric.shape[1] < 2:
         return
@@ -281,6 +281,7 @@ def plot_organ_correlation(predictions: pd.DataFrame, outpath: Path) -> None:
 
 
 def plot_organ_heatmap(predictions: pd.DataFrame, sample_ids: pd.Series, outpath: Path) -> None:
+    import seaborn as sns
     numeric = predictions.select_dtypes(include=["number"]).dropna(axis=1, how="all")
     if numeric.empty:
         return

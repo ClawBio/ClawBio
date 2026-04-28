@@ -31,7 +31,7 @@ def load_demo_data() -> dict:
 
 def test_merge_gwas_sorts_by_pval():
     """GWAS associations should be sorted by p-value ascending."""
-    from core.normalise import merge_gwas
+    from gwas_lookup_core.normalise import merge_gwas
 
     gwas_catalog = load_fixture("gwas_catalog")
     credsets = load_fixture("open_targets_credsets")
@@ -44,7 +44,7 @@ def test_merge_gwas_sorts_by_pval():
 
 def test_merge_gwas_includes_both_sources():
     """Merged GWAS should include entries from both GWAS Catalog and Open Targets."""
-    from core.normalise import merge_gwas
+    from gwas_lookup_core.normalise import merge_gwas
 
     gwas_catalog = load_fixture("gwas_catalog")
     credsets = load_fixture("open_targets_credsets")
@@ -57,7 +57,7 @@ def test_merge_gwas_includes_both_sources():
 
 def test_merge_gwas_flags_significant():
     """Genome-wide significant hits (p < 5e-8) should be flagged."""
-    from core.normalise import merge_gwas
+    from gwas_lookup_core.normalise import merge_gwas
 
     gwas_catalog = load_fixture("gwas_catalog")
     credsets = load_fixture("open_targets_credsets")
@@ -72,7 +72,7 @@ def test_merge_gwas_flags_significant():
 
 def test_merge_phewas_structure():
     """PheWAS merge should return dict with ukb, finngen, bbj keys."""
-    from core.normalise import merge_phewas
+    from gwas_lookup_core.normalise import merge_phewas
 
     ukb = load_fixture("pheweb_ukb")
     finngen = {"source": "finngen", "status": "ok", "associations": []}
@@ -87,7 +87,7 @@ def test_merge_phewas_structure():
 
 def test_merge_eqtls():
     """eQTL merge should combine GTEx and eQTL Catalogue results."""
-    from core.normalise import merge_eqtls
+    from gwas_lookup_core.normalise import merge_eqtls
 
     gtex = load_fixture("gtex")
     eqtl_cat = load_fixture("eqtl_catalogue")
@@ -101,7 +101,7 @@ def test_merge_eqtls():
 
 def test_merge_all_structure():
     """merge_all should produce the expected top-level keys."""
-    from core.normalise import merge_all
+    from gwas_lookup_core.normalise import merge_all
 
     api_results = {
         "gwas_catalog": load_fixture("gwas_catalog"),
@@ -126,12 +126,56 @@ def test_merge_all_structure():
     assert summary["total_eqtls"] > 0
 
 
+def test_resolve_variant_imports_api_modules(monkeypatch):
+    """resolve_variant should use the sibling api package without package-parent assumptions."""
+    from gwas_lookup_core.resolve import resolve_variant
+    from gwas_lookup_api import ensembl, portaldev
+
+    monkeypatch.setattr(
+        ensembl,
+        "get_variant_info",
+        lambda rsid, cache_dir=None, use_cache=True: {
+            "status": "ok",
+            "chr": "6",
+            "pos_grch38": 160540105,
+            "pos_grch37": 161005610,
+            "ref_allele": "T",
+            "alt_alleles": ["C"],
+            "allele_string": "T/C",
+            "var_class": "SNV",
+            "most_severe_consequence": "missense_variant",
+            "minor_allele": "C",
+            "maf": 0.12,
+            "populations": [],
+        },
+    )
+    monkeypatch.setattr(
+        ensembl,
+        "get_vep_annotation",
+        lambda rsid, cache_dir=None, use_cache=True: {
+            "status": "ok",
+            "consequences": [],
+        },
+    )
+    monkeypatch.setattr(
+        portaldev,
+        "resolve_rsid",
+        lambda rsid, cache_dir=None, use_cache=True: {"status": "error"},
+    )
+
+    resolved = resolve_variant("rs3798220")
+
+    assert resolved["rsid"] == "rs3798220"
+    assert resolved["variant_ids"]["open_targets"] == "6_160540105_T_C"
+    assert resolved["variant_ids"]["bbj"] == "6:161005610-T-C"
+
+
 # ── Graceful degradation ─────────────────────────────────────────────────────
 
 
 def test_merge_with_error_api():
     """Report should still generate when one API returns an error."""
-    from core.normalise import merge_all
+    from gwas_lookup_core.normalise import merge_all
 
     api_results = {
         "gwas_catalog": load_fixture("gwas_catalog"),
@@ -154,7 +198,7 @@ def test_merge_with_error_api():
 
 def test_merge_with_all_errors():
     """merge_all should produce a valid structure even if all APIs fail."""
-    from core.normalise import merge_all
+    from gwas_lookup_core.normalise import merge_all
 
     api_results = {
         "gwas_catalog": {"source": "gwas_catalog", "status": "error", "message": "timeout"},
@@ -176,10 +220,10 @@ def test_merge_with_all_errors():
 
 def test_report_includes_disclaimer():
     """Report markdown should include the ClawBio disclaimer."""
-    from core.report import generate_markdown
+    from gwas_lookup_core.report import generate_markdown
 
     demo = load_demo_data()
-    from core.normalise import merge_all
+    from gwas_lookup_core.normalise import merge_all
     merged = merge_all(demo["api_results"])
 
     report = generate_markdown(demo["variant"], merged)
@@ -189,8 +233,8 @@ def test_report_includes_disclaimer():
 
 def test_report_includes_variant_info():
     """Report should include variant rsID, coordinates, and consequence."""
-    from core.report import generate_markdown
-    from core.normalise import merge_all
+    from gwas_lookup_core.report import generate_markdown
+    from gwas_lookup_core.normalise import merge_all
 
     demo = load_demo_data()
     merged = merge_all(demo["api_results"])
@@ -203,8 +247,8 @@ def test_report_includes_variant_info():
 
 def test_report_includes_gwas_table():
     """Report should include a GWAS associations table."""
-    from core.report import generate_markdown
-    from core.normalise import merge_all
+    from gwas_lookup_core.report import generate_markdown
+    from gwas_lookup_core.normalise import merge_all
 
     demo = load_demo_data()
     merged = merge_all(demo["api_results"])
@@ -216,8 +260,8 @@ def test_report_includes_gwas_table():
 
 def test_write_tables(tmp_path):
     """CSV tables should be written to the output directory."""
-    from core.report import write_tables
-    from core.normalise import merge_all
+    from gwas_lookup_core.report import write_tables
+    from gwas_lookup_core.normalise import merge_all
 
     demo = load_demo_data()
     merged = merge_all(demo["api_results"])
@@ -255,8 +299,8 @@ def test_demo_data_has_all_sources():
 
 def test_demo_full_pipeline(tmp_path):
     """Full pipeline should run with demo data and produce report.md."""
-    from core.normalise import merge_all
-    from core.report import generate_markdown, write_tables, write_reproducibility
+    from gwas_lookup_core.normalise import merge_all
+    from gwas_lookup_core.report import generate_markdown, write_tables, write_reproducibility
 
     demo = load_demo_data()
     variant = demo["variant"]

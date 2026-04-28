@@ -5,7 +5,7 @@ Usage:
     _skill_dir = pathlib.Path("<project_root>/skills/gwas-lookup")
     if str(_skill_dir) not in sys.path:
         sys.path.insert(0, str(_skill_dir))
-    from api import run
+    from gwas_lookup_api import run
 
     result = run(
         genotypes=None,
