@@ -65,7 +65,7 @@ def run(genotypes=None, options=None) -> dict:
         }
 
     try:
-        from core.digitizer import extract_from_image, export_csv, export_json
+        from data_extractor_core.digitizer import extract_from_image, export_csv, export_json
         results, _panel_figs = asyncio.run(
             extract_from_image(
                 image_path=image_path,

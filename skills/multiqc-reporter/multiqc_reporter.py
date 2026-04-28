@@ -192,26 +192,16 @@ def _multiqc_pip_spec() -> str:
         return "multiqc"
 
 
-# These files contain timestamps or absolute paths and will differ between runs.
-_MULTIQC_NONDETERMINISTIC = frozenset({
-    "multiqc_report.html",
-    "multiqc.log",
-    "multiqc.parquet",
-    "multiqc_data.json",
-    "multiqc_sources.txt",
-    "llms-full.txt",
-    "report.md",
-})
-
-
 def _output_paths_to_checksum(output_dir: Path) -> list[Path]:
+    paths: list[Path] = []
+    for rel in ("report.md", "multiqc_report.html"):
+        p = output_dir / rel
+        if p.is_file():
+            paths.append(p)
     mdir = output_dir / "multiqc_data"
-    if not mdir.is_dir():
-        return []
-    return [
-        p for p in sorted(mdir.rglob("*"))
-        if p.is_file() and p.name not in _MULTIQC_NONDETERMINISTIC
-    ]
+    if mdir.is_dir():
+        paths.extend(p for p in sorted(mdir.rglob("*")) if p.is_file())
+    return paths
 
 
 def _repro_path(value: Path, *, output_dir: Path) -> ReproPath:
@@ -255,6 +245,18 @@ def write_reproducibility_bundle(output_dir: Path, *, demo: bool, input_dirs: li
         repo_root=_PROJECT_ROOT,
     )
     write_checksums(_output_paths_to_checksum(output_dir), output_dir, anchor=output_dir)
+
+
+def cli_command_for_repro(output_dir: Path, *, demo: bool, input_dirs: list[Path]) -> str:
+    """Return the rendered CLI command string for this skill run."""
+    cmd = repro_command_for_bundle(output_dir, demo=demo, input_dirs=input_dirs)
+    parts: list[str] = [f"python {cmd.script_path}"]
+    for arg in cmd.args:
+        if isinstance(arg, ReproPath):
+            parts.append(str(arg.path))
+        else:
+            parts.append(arg)
+    return " ".join(parts)
 
 
 def main() -> None:

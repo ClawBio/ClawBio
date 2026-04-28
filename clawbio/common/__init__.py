@@ -24,6 +24,7 @@ from clawbio.common.reproducibility import (
     write_checksums,
     write_environment_yml,
     write_commands_sh,
+    write_conda_lock,
 )
 
 __all__ = [
@@ -46,4 +47,5 @@ __all__ = [
     "write_checksums",
     "write_environment_yml",
     "write_commands_sh",
+    "write_conda_lock",
 ]

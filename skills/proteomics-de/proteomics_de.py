@@ -364,9 +364,6 @@ def run_differential_expression(
     # Apply FDR correction with s0
     result = s0_based_FDR_correction(result, degree_of_freedom=ttest_df, fdr=fdr, s0=s0)
 
-    # Remove padj column
-    result = result.drop(columns=["padj"])
-
     return result
 
 

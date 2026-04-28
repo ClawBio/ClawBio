@@ -55,7 +55,7 @@ metadata:
     always: false
     emoji: "🌊"
     homepage: https://flow.bio
-    os: [macos, linux]
+    os: [darwin, linux]
     install:
       - kind: pip
         package: requests

@@ -309,7 +309,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/clinical-trial-finder/clinical_trial_finder.py --demo",
+      "demo_command": "python skills/clinical-trial-finder/opentargets.py --demo",
       "dependencies": [
         "python>=3.11"
       ],
@@ -343,7 +343,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/clinical-variant-reporter/acmg_engine.py --demo",
+      "demo_command": "python skills/clinical-variant-reporter/clinical_variant_reporter.py --demo",
       "dependencies": [],
       "tags": [
         "acmg",
@@ -811,7 +811,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/illumina-bridge/illumina_bridge.py --demo",
+      "demo_command": "python skills/illumina-bridge/illumina_providers.py --demo",
       "dependencies": [],
       "tags": [
         "illumina",
@@ -1222,7 +1222,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/pubmed-summariser/pubmed_api.py --demo",
+      "demo_command": "python skills/pubmed-summariser/pubmed_summariser.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [

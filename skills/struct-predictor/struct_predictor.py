@@ -26,10 +26,10 @@ if str(_PROJECT_ROOT) not in sys.path:
 if str(_SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(_SKILL_DIR))
 
-from core.io import validate_and_prepare
-from core.predict import run_boltz
-from core.confidence import extract_confidence
-from core.report import generate_report
+from struct_predictor_core.io import validate_and_prepare
+from struct_predictor_core.predict import run_boltz
+from struct_predictor_core.confidence import extract_confidence
+from struct_predictor_core.report import generate_report
 
 # ---------------------------------------------------------------------------
 # Demo data — Trp-cage miniprotein (PDB: 1L2Y)

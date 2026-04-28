@@ -22,7 +22,7 @@ def resolve_variant(rsid: str, cache_dir: Optional[Path] = None, use_cache: bool
       - ensembl_info: full Ensembl response
       - vep_info: full VEP response
     """
-    from ..api import ensembl, portaldev
+    from gwas_lookup_api import ensembl, portaldev
 
     # Step 1: Get variant info from Ensembl
     var_info = ensembl.get_variant_info(rsid, cache_dir=cache_dir, use_cache=use_cache)

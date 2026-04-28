@@ -467,9 +467,9 @@ def main() -> None:
         repro_command_for_bundle(args, output_dir),
         repo_root=_PROJECT_ROOT,
     )
-    # report.md contains a timestamp — exclude it so checksums pass on replay.
     write_checksums(
         [
+            output_dir / "report.md",
             output_dir / masks_filename,
             output_dir / seg_filename,
             csv_path,

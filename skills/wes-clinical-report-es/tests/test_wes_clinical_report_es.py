@@ -114,6 +114,10 @@ def sample_md_path(tmp_path):
     return md_file
 
 
+def _require_reportlab():
+    pytest.importorskip("reportlab")
+
+
 # ── Markdown parser tests ───────────────────────────────────────────────
 
 class TestParseMarkdownReport:
@@ -271,6 +275,7 @@ class TestExtractMetrics:
 
 class TestBuildPdf:
     def test_generates_pdf_file(self, sample_md_path, tmp_path):
+        _require_reportlab()
         from wes_clinical_report_es import build_sample_pdf_es
         output = tmp_path / "Sample1_Informe_Clinico_WES.pdf"
         result = build_sample_pdf_es(sample_md_path, output)
@@ -278,6 +283,7 @@ class TestBuildPdf:
         assert result.stat().st_size > 1000
 
     def test_pdf_is_valid(self, sample_md_path, tmp_path):
+        _require_reportlab()
         from wes_clinical_report_es import build_sample_pdf_es
         output = tmp_path / "Sample1_Informe_Clinico_WES.pdf"
         build_sample_pdf_es(sample_md_path, output)
@@ -286,6 +292,7 @@ class TestBuildPdf:
         assert header == b"%PDF-"
 
     def test_pdf_contains_sample_id(self, sample_md_path, tmp_path):
+        _require_reportlab()
         from wes_clinical_report_es import build_sample_pdf_es
         output = tmp_path / "Sample1_Informe_Clinico_WES.pdf"
         build_sample_pdf_es(sample_md_path, output)
@@ -297,6 +304,7 @@ class TestBuildPdf:
 
 class TestBuildInterpretation:
     def test_returns_flowables(self, sample_md_path):
+        _require_reportlab()
         from wes_clinical_report_es import (
             parse_markdown_report, build_interpretation_paragraph, build_styles
         )
@@ -306,6 +314,7 @@ class TestBuildInterpretation:
         assert len(elements) > 0
 
     def test_interpretation_in_spanish(self, sample_md_path):
+        _require_reportlab()
         from wes_clinical_report_es import (
             parse_markdown_report, build_interpretation_paragraph, build_styles
         )
@@ -323,12 +332,14 @@ class TestBuildInterpretation:
 
 class TestLimitationsSection:
     def test_returns_elements(self):
+        _require_reportlab()
         from wes_clinical_report_es import _build_limitations_section, build_styles
         styles = build_styles()
         elements = _build_limitations_section(styles)
         assert len(elements) > 5
 
     def test_limitations_in_spanish(self):
+        _require_reportlab()
         from wes_clinical_report_es import _build_limitations_section, build_styles
         from reportlab.platypus import Paragraph
         styles = build_styles()
@@ -342,6 +353,7 @@ class TestLimitationsSection:
 
 class TestRenderSection:
     def test_renders_section(self, sample_md_path):
+        _require_reportlab()
         from wes_clinical_report_es import (
             parse_markdown_report, render_section_es, build_styles
         )
