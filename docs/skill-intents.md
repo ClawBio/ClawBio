@@ -24,6 +24,11 @@ the legacy skill/mode behavior. Demo mode is only planned when the raw user text
 explicitly asks for a demo, example, synthetic data, or sample data, or when the
 user confirms an already proposed demo with text such as "yes" or "go ahead".
 
+Descriptor paths are confined to the resolved skill directory. `entrypoint`,
+`script`, plan-step `input`, and plan-step `output` may be absolute only if they
+resolve inside that directory; relative paths containing `..` that escape the
+skill directory are rejected.
+
 ## Schema
 
 ```json
@@ -88,6 +93,25 @@ The descriptor is data only. The planner never runs arbitrary code, invokes a
 shell, or calls chat-platform APIs from metadata. A descriptor may still create
 ordinary request JSON fields such as `shell_line` for a registered skill that
 validates and interprets those fields itself.
+
+## Validation And Safety
+
+Descriptors are validated before use:
+
+- `schema` must equal `clawbio.skill_intents.v1`
+- `skill`, `intent_id`, step `skill`, and slot names must match conservative identifier patterns
+- `routes`, `plan`, `aliases`, `trigger_terms`, and `args` have item and length caps
+- slot regexes must compile and must stay short
+- `input`, `output`, `entrypoint`, and `script` must stay within the skill directory
+- descriptor prompt text is sanitized as untrusted labels and capped before entering Roboterri's system prompt
+
+Plan-step `args` are deliberately narrow. Descriptor metadata cannot grant
+itself new CLI privileges. Extra args are emitted only when the target skill is
+already registered with a static ClawBio `allowed_extra_flags` allow-list, and
+blocked core/sensitive flags such as `--input`, `--output`, `--profile`, and
+`--demo` are never accepted through descriptor `args`. Sensitive path-oriented
+flags and absolute, traversal, or path-separator values are also rejected there;
+use `input` or `input_template` for request data instead.
 
 ## Chat Adapter Behavior
 
