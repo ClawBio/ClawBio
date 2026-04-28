@@ -77,11 +77,17 @@ ClawBio/
 │   │   ├── core/           # Normalisation, resolution, reporting
 │   │   └── tests/
 │   └── catalog.json        # Machine-readable skill index (auto-generated)
+├── commands/               # Slash commands for Claude Code and compatible agents
+├── scripts/                # Repo automation (catalog generation, nightly sweep, helpers)
 ├── templates/
 │   └── SKILL-TEMPLATE.md   # Template for new skills
+├── tests/
+│   └── benchmark/          # AD ground truth, mock APIs, scoring, fine-mapping benchmark
 ├── examples/               # Shared demo data (VCFs, CSVs)
 ├── profiles/               # PatientProfile JSONs
 ├── output/                 # Generated reports (timestamped)
+├── GENOMEBOOK/             # Synthetic-genetics sandbox data and reports
+├── corpas-30x/             # Corpas 30x WGS reference genome and benchmark inputs
 ├── docs/                   # Tutorials and reference docs
 ├── bot/                    # RoboTerri Telegram integration
 ├── requirements.txt        # Core Python dependencies
@@ -128,6 +134,24 @@ Even skills without Python scripts are usable — an AI agent reads the SKILL.md
 5. **Run tests again** — all must pass
 6. **Regenerate catalog** if SKILL.md YAML changed: `python scripts/generate_catalog.py`
 
+## Benchmark Infrastructure
+
+ClawBio `v0.5.0` added benchmark and validation infrastructure that agents should know about when developing or testing skills:
+
+- `tests/benchmark/ad_ground_truth.json` — curated AD ground-truth gene and variant benchmark set
+- `tests/benchmark/mock_api_server.py` — deterministic mock APIs for offline CI and local testing
+- `tests/benchmark/benchmark_scorer.py` — CLI and Python API for scoring outputs against ground truth
+- `tests/benchmark/finemapping_benchmark.py` — ABF vs SuSiE benchmark runner for fine-mapping
+- `CLAUDE.md` — source of truth for the red/green TDD mandate now required for skill work
+
+Useful commands:
+
+```bash
+python tests/benchmark/finemapping_benchmark.py --output /tmp/fm_bench
+python tests/benchmark/benchmark_scorer.py --genes "APP,BIN1,CLU,TREM2,GAPDH"
+python tests/benchmark/mock_api_server.py &
+```
+
 ## Git Workflow
 
 - Branch from `main` — name branches `feat/<skill-name>` or `fix/<skill-name>`
@@ -166,7 +190,14 @@ The `commands/` directory contains reusable slash-command workflows for common a
 | `skills/catalog.json` | Machine-readable skill index (auto-generated) |
 | `commands/` | Slash commands for analysis, skill scaffolding, skill listing, and demos |
 | `CLAUDE.md` | Claude-specific routing table and demo commands |
+| `llms.txt` | Token-optimized project summary and LLM entry point |
 | `CONTRIBUTING.md` | Human contributor guide and wanted skills list |
+| `templates/SKILL-TEMPLATE.md` | Canonical template for creating new skills |
+| `commands/` | Slash command definitions such as `/analyse`, `/new-skill`, `/list-skills`, `/run-demo` |
+| `scripts/generate_catalog.py` | Auto-generates `skills/catalog.json` from skill metadata |
+| `scripts/nightly_demo_sweep.py` | Nightly demo and benchmark sweep across skills |
+| `tests/benchmark/mock_api_server.py` | Deterministic mock API server for offline CI and local testing |
+| `tests/benchmark/benchmark_scorer.py` | Benchmark scoring CLI and Python API |
 | `requirements.txt` | Core Python dependencies |
 | `pytest.ini` | Test path registration |
 | `Makefile` | `make test`, `make demo`, `make list` |
