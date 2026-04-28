@@ -1,9 +1,32 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 55,
+  "skill_count": 56,
   "galaxy_tool_count": 8182,
   "skills": [
+    {
+      "name": "article-data-fetcher",
+      "cli_alias": "article-data-fetcher",
+      "description": "Given an article DOI or PubMed ID, discover and download the genomics data files deposited by the authors (VCF, FASTA, H5AD, CSV, BAM, etc.) from public repositories such as GEO, ENA, Zenodo, Figshare, Dryad, and OSF.",
+      "version": "0.1.0",
+      "status": "active",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/article-data-fetcher/article_data_fetcher.py --demo",
+      "dependencies": ["requests", "tqdm", "pydantic", "biopython"],
+      "tags": [
+        "data-download",
+        "genomics",
+        "reproducibility",
+        "geo",
+        "ena",
+        "zenodo",
+        "vcf",
+        "fasta",
+        "h5ad"
+      ]
+    },
     {
       "name": "affinity-proteomics",
       "cli_alias": null,
