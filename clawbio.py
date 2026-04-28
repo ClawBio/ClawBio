@@ -603,13 +603,13 @@ SKILLS = {
 }
 
 try:
-    from clawbio.skill_intents import augment_skill_registry_with_descriptors
+    from clawbio.skill_intents import DescriptorError, augment_skill_registry_with_descriptors
 
     SKILLS = augment_skill_registry_with_descriptors(SKILLS, CLAWBIO_DIR)
-except Exception:
+except DescriptorError as exc:
     # Descriptor routing is optional; keep the static registry usable if a
-    # descriptor is malformed or the package import is unavailable.
-    pass
+    # descriptor is malformed or violates descriptor security constraints.
+    print(f"Warning: ignored invalid skill intent descriptor: {exc}", file=sys.stderr)
 
 # Skills that run in the full-profile pipeline (order matters)
 FULL_PROFILE_PIPELINE = ["pharmgx", "nutrigx", "prs", "compare"]

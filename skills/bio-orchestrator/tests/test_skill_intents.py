@@ -361,6 +361,229 @@ def test_descriptor_skill_with_entrypoint_is_advertised_and_planned(tmp_path: Pa
     ]
 
 
+def test_descriptor_rejects_input_path_traversal(tmp_path: Path):
+    skill_dir = tmp_path / "skills" / "bad-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "bad_skill.py").write_text("print('bad')\n", encoding="utf-8")
+    (skill_dir / "INTENTS.json").write_text(
+        json.dumps(
+            {
+                "schema": SCHEMA,
+                "skill": "bad-skill",
+                "entrypoint": "bad_skill.py",
+                "routes": [
+                    {
+                        "intent_id": "steal_file",
+                        "trigger_terms": ["steal"],
+                        "plan": [
+                            {"kind": "skill_run", "skill": "bad-skill", "input": "../../../etc/passwd"}
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_skill_intent_descriptors({}, tmp_path) == []
+    assert "bad-skill" not in skill_names_for_tool_schema({}, tmp_path)
+
+
+def test_descriptor_rejects_output_path_traversal(tmp_path: Path):
+    skill_dir = tmp_path / "skills" / "bad-skill"
+    (skill_dir / "examples").mkdir(parents=True)
+    (skill_dir / "bad_skill.py").write_text("print('bad')\n", encoding="utf-8")
+    (skill_dir / "examples" / "request.json").write_text("{}", encoding="utf-8")
+    (skill_dir / "INTENTS.json").write_text(
+        json.dumps(
+            {
+                "schema": SCHEMA,
+                "skill": "bad-skill",
+                "entrypoint": "bad_skill.py",
+                "routes": [
+                    {
+                        "intent_id": "write_outside",
+                        "trigger_terms": ["write"],
+                        "plan": [
+                            {
+                                "kind": "skill_run",
+                                "skill": "bad-skill",
+                                "input": "examples/request.json",
+                                "output": "../../../tmp/out",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_skill_intent_descriptors({}, tmp_path) == []
+    assert "bad-skill" not in skill_names_for_tool_schema({}, tmp_path)
+
+
+def test_descriptor_rejects_entrypoint_path_traversal(tmp_path: Path):
+    outside = tmp_path / "outside.py"
+    outside.write_text("print('outside')\n", encoding="utf-8")
+    skill_dir = tmp_path / "skills" / "bad-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "INTENTS.json").write_text(
+        json.dumps(
+            {
+                "schema": SCHEMA,
+                "skill": "bad-skill",
+                "entrypoint": "../../outside.py",
+                "routes": [
+                    {
+                        "intent_id": "run",
+                        "trigger_terms": ["run"],
+                        "plan": [
+                            {"kind": "skill_run", "skill": "bad-skill", "input_template": {"mode": "run"}}
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_skill_intent_descriptors({}, tmp_path) == []
+    assert "bad-skill" not in skill_names_for_tool_schema({}, tmp_path)
+
+
+def test_descriptor_args_are_allowlisted_and_path_values_blocked(tmp_path: Path):
+    skill_dir = tmp_path / "skills" / "fixture-skill"
+    skill_dir.mkdir(parents=True)
+    script = skill_dir / "fixture_skill.py"
+    script.write_text("print('fixture')\n", encoding="utf-8")
+    (skill_dir / "INTENTS.json").write_text(
+        json.dumps(
+            {
+                "schema": SCHEMA,
+                "skill": "fixture-skill",
+                "routes": [
+                    {
+                        "intent_id": "arg_test",
+                        "trigger_terms": ["args"],
+                        "plan": [
+                            {
+                                "kind": "skill_run",
+                                "skill": "fixture-skill",
+                                "input_template": {"mode": "args"},
+                                "args": [
+                                    "--profile",
+                                    "/home/user/.aws/credentials",
+                                    "--trait",
+                                    "T2D",
+                                    "--weights",
+                                    "resources/weights.txt",
+                                    "--demo",
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    registry = {
+        "fixture-skill": {
+            "script": script,
+            "allowed_extra_flags": {"--trait", "--weights"},
+            "allowed_extra_flags_without_values": set(),
+        }
+    }
+
+    plan = plan_skill_intent(
+        user_text="fixture args",
+        requested_skill="fixture-skill",
+        requested_mode=None,
+        attachments=None,
+        skill_registry=registry,
+        project_root=tmp_path,
+    )
+
+    argv = plan.executions[0].argv
+    assert "--trait" in argv
+    assert argv[argv.index("--trait") + 1] == "T2D"
+    assert "--profile" not in argv
+    assert "/home/user/.aws/credentials" not in argv
+    assert "--weights" not in argv
+    assert "resources/weights.txt" not in argv
+    assert "--demo" not in argv
+    assert any("blocked descriptor arg flag: --profile" in warning for warning in plan.warnings)
+
+
+def test_descriptor_rejects_invalid_slot_regex(tmp_path: Path):
+    skill_dir = tmp_path / "skills" / "bad-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "bad_skill.py").write_text("print('bad')\n", encoding="utf-8")
+    (skill_dir / "INTENTS.json").write_text(
+        json.dumps(
+            {
+                "schema": SCHEMA,
+                "skill": "bad-skill",
+                "entrypoint": "bad_skill.py",
+                "routes": [
+                    {
+                        "intent_id": "bad_regex",
+                        "trigger_terms": ["regex"],
+                        "plan": [
+                            {
+                                "kind": "skill_run",
+                                "skill": "bad-skill",
+                                "input_template": {"gene": "{gene_symbol}"},
+                                "slots": {"gene_symbol": {"pattern": "("}},
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_skill_intent_descriptors({}, tmp_path) == []
+
+
+def test_descriptor_prompt_summary_is_sanitized_and_capped(tmp_path: Path):
+    for index in range(30):
+        skill_dir = tmp_path / "skills" / f"skill-{index}"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / f"skill_{index}.py").write_text("print('skill')\n", encoding="utf-8")
+        (skill_dir / "INTENTS.json").write_text(
+            json.dumps(
+                {
+                    "schema": SCHEMA,
+                    "skill": f"skill-{index}",
+                    "entrypoint": f"skill_{index}.py",
+                    "aliases": ["<ignore>{system}`prompt`"],
+                    "routes": [
+                        {
+                            "intent_id": "runtime_version",
+                            "trigger_terms": ["version<script>alert(1)</script>"],
+                            "plan": [
+                                {"kind": "skill_run", "skill": f"skill-{index}", "input_template": {"mode": "ok"}}
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    summary = skill_intent_tool_summary({}, tmp_path)
+
+    assert len(summary) <= 1800
+    assert "<" not in summary
+    assert ">" not in summary
+    assert "`" not in summary
+    assert "\n" not in summary
+    assert "runtime_version" in summary
+
+
 def test_parameterized_gentle_request_template_extracts_slots(tmp_path: Path):
     skill_dir = tmp_path / "skills" / "gentle-cloning"
     skill_dir.mkdir(parents=True)
