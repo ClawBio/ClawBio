@@ -425,6 +425,17 @@ Inside [Claude Code](https://claude.ai/claude-code):
 
 All skills are then available as agent-routable commands. Alternatively, clone the repo and open it as your working directory in Claude Code; the `CLAUDE.md` at the repo root teaches Claude how to route requests to skills automatically.
 
+### Slash Commands
+
+The repository also ships reusable slash commands in [`commands/`](commands/) for Claude Code and compatible agents:
+
+| Command | Purpose |
+|---------|---------|
+| `/analyse` | Analyse a file or input with the appropriate ClawBio skill |
+| `/new-skill` | Scaffold a new skill from the official template |
+| `/list-skills` | List available skills from `skills/catalog.json` |
+| `/run-demo` | Run a skill demo with built-in sample data |
+
 ### Try all skills
 
 ```bash

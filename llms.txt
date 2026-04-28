@@ -9,10 +9,20 @@
 - [README](README.md): Project overview, quick start, architecture, skill table
 - [CLAUDE.md](CLAUDE.md): Agent routing table, CLI reference, demo data, safety rules
 - [AGENTS.md](AGENTS.md): Universal guide for AI coding agents (setup, style, workflow)
+- [commands/](commands/): Slash commands for analysis, skill scaffolding, skill listing, and demos
 - [CONTRIBUTING.md](CONTRIBUTING.md): How to contribute a skill, naming conventions, code standards
 - [SECURITY-AUDIT.md](SECURITY-AUDIT.md): Security audit results and remediation log
 - [SOUL.md](SOUL.md): ClawBio persona and voice
 - [Reference Genome](docs/reference-genome.md): Corpas 30x WGS reference genome (CC0, GRCh37, SNPs + indels + SVs + CNVs)
+
+## Slash Commands
+
+The `commands/` directory contains reusable slash-command workflows for common agent tasks:
+
+- `/analyse`: Analyse a file or input with the appropriate ClawBio skill
+- `/new-skill`: Scaffold a new skill from the official template
+- `/list-skills`: List available skills from `skills/catalog.json`
+- `/run-demo`: Run a skill demo with built-in sample data
 
 ## Skills (MVP)
 

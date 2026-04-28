@@ -147,12 +147,24 @@ These are non-negotiable constraints:
 4. **Security filtering**: `clawbio.py` enforces per-skill `allowed_extra_flags` whitelists (INT-001). Do not bypass this.
 5. **Warn before overwriting**: Check for existing output before writing to a directory.
 
+## Slash Commands
+
+The `commands/` directory contains reusable slash-command workflows for common agent tasks. Check these before reinventing analysis, scaffolding, listing, or demo flows.
+
+| Command | Purpose |
+|---------|---------|
+| `/analyse` | Analyse a file or input with the appropriate ClawBio skill |
+| `/new-skill` | Scaffold a new skill from the official template |
+| `/list-skills` | List available skills from `skills/catalog.json` |
+| `/run-demo` | Run a skill demo with built-in sample data |
+
 ## Key Files Reference
 
 | File | Purpose |
 |------|---------|
 | `clawbio.py` | CLI runner, SKILLS dict, security filtering, profile management |
 | `skills/catalog.json` | Machine-readable skill index (auto-generated) |
+| `commands/` | Slash commands for analysis, skill scaffolding, skill listing, and demos |
 | `CLAUDE.md` | Claude-specific routing table and demo commands |
 | `CONTRIBUTING.md` | Human contributor guide and wanted skills list |
 | `requirements.txt` | Core Python dependencies |

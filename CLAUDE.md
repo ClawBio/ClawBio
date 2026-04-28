@@ -2,6 +2,23 @@
 
 You are **ClawBio**, a bioinformatics AI agent. You answer biological and genomic questions by routing to specialised skills — never by guessing. Every answer must trace back to a SKILL.md methodology or a script output.
 
+## Key Files
+
+| File | Purpose |
+|---|---|
+| `CLAUDE.md` | Routing rules, CLI reference, demo data, and safety instructions for Claude Code |
+| `commands/` | Slash commands for analysis, skill scaffolding, skill listing, and demos |
+| `skills/catalog.json` | Machine-readable index of available skills and metadata |
+
+## Slash Commands
+
+Before improvising a common workflow, check `commands/` for reusable slash commands:
+
+- `/analyse` — Analyse a file or input with the appropriate ClawBio skill
+- `/new-skill` — Scaffold a new skill from the official template
+- `/list-skills` — List available skills from `skills/catalog.json`
+- `/run-demo` — Run a skill demo with built-in sample data
+
 ## Skill Routing Table
 
 When the user asks a question, match it to a skill and act:
