@@ -42,6 +42,24 @@ from telegram.ext import (
     filters,
 )
 
+_PROJECT_ROOT_FOR_IMPORT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT_FOR_IMPORT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT_FOR_IMPORT))
+
+from clawbio.skill_intents import (
+    load_default_skill_registry,
+    plan_skill_intent,
+    skill_intent_prompt_guidance,
+    skill_intent_tool_summary,
+    skill_names_for_tool_schema,
+)
+from bot.tool_loop_utils import (
+    execute_tool_calls_safely,
+    repair_tool_call_history,
+    synthetic_tool_result_messages,
+    tool_error_content,
+)
+
 # --------------------------------------------------------------------------- #
 # Config
 # --------------------------------------------------------------------------- #
@@ -181,7 +199,8 @@ Operational constraints:
 6. DEMO FALLBACK: When a non-admin user asks about pharmacogenomics, nutrigenomics, risk scores, or any skill that needs genetic data but has NOT uploaded a file, do NOT just ask for a file and stop. Instead, offer to run the demo with built-in synthetic data (mode='demo') so they can see the skill in action. Example: "I can run a demo with synthetic data so you can see what the report looks like — shall I go ahead?" If they agree (or if the request is clearly exploratory), run it immediately.
 """
 
-SYSTEM_PROMPT = f"{_soul}\n\n{ROLE_GUARDRAILS}"
+BASE_SYSTEM_PROMPT = f"{_soul}\n\n{ROLE_GUARDRAILS}"
+SYSTEM_PROMPT = BASE_SYSTEM_PROMPT
 
 # --------------------------------------------------------------------------- #
 # State
@@ -206,6 +225,13 @@ _pending_text: dict[int, list[str]] = {}
 
 BOT_START_TIME = time.time()
 
+_SKILL_REGISTRY = load_default_skill_registry(CLAWBIO_DIR)
+_SKILL_TOOL_ENUM = skill_names_for_tool_schema(_SKILL_REGISTRY, CLAWBIO_DIR)
+_DESCRIPTOR_TOOL_SUMMARY = skill_intent_tool_summary(_SKILL_REGISTRY, CLAWBIO_DIR)
+_DESCRIPTOR_PROMPT_GUIDANCE = skill_intent_prompt_guidance(_SKILL_REGISTRY, CLAWBIO_DIR)
+if _DESCRIPTOR_PROMPT_GUIDANCE:
+    SYSTEM_PROMPT = f"{BASE_SYSTEM_PROMPT}\n\n{_DESCRIPTOR_PROMPT_GUIDANCE}"
+
 # --------------------------------------------------------------------------- #
 # Tool definition (OpenAI function-calling format)
 # --------------------------------------------------------------------------- #
@@ -228,21 +254,22 @@ TOOLS = [
                 "clinpgx (gene-drug interaction database lookup via PharmGKB/CPIC), "
                 "gwas (federated variant lookup across 9 genomic databases by rsID), "
                 "profile (unified genomic profile report combining all skill results). "
+                + (f"Descriptor-provided skill intents: {_DESCRIPTOR_TOOL_SUMMARY}. " if _DESCRIPTOR_TOOL_SUMMARY else "")
+                + (
                 "Use mode='demo' to run with built-in demo data. "
                 "Use mode='file' when the user has sent a genetic data file. "
                 "Use skill='auto' to let the orchestrator detect the right skill. "
                 "IMPORTANT: When this tool returns results, relay the output VERBATIM. "
                 "Do not paraphrase, summarise, or rewrite. The output contains exact numerical "
                 "results (IBS scores, percentages, gene-drug interactions) that must be shown unchanged."
+                )
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "skill": {
                         "type": "string",
-                        "enum": ["pharmgx", "equity", "nutrigx", "metagenomics",
-                                 "compare", "drugphoto", "prs", "clinpgx",
-                                 "gwas", "profile", "auto"],
+                        "enum": _SKILL_TOOL_ENUM,
                         "description": (
                             "Which bioinformatics skill to run. Use 'auto' to let "
                             "the orchestrator detect from the file type or query."
@@ -423,60 +450,93 @@ async def execute_clawbio(args: dict) -> str:
     skill_key = args.get("skill", "auto")
     mode = args.get("mode", "demo")
     query = args.get("query", "")
+    raw_user_text = args.get("_raw_user_text") or query or ""
+    skill_registry = _SKILL_REGISTRY
+    preplanned_plan = None
+
+    def _error(error_type: str, message: str, **details) -> str:
+        clean_details = {k: v for k, v in details.items() if v is not None}
+        return tool_error_content("clawbio", error_type, message, details=clean_details)
+
+    def _deferred(message: str, **details) -> str:
+        return json.dumps(
+            {
+                "ok": True,
+                "tool": "clawbio",
+                "status": "deferred",
+                "message": message,
+                "details": {k: v for k, v in details.items() if v is not None},
+            },
+            sort_keys=True,
+        )
 
     # Auto-routing via orchestrator
     if skill_key == "auto":
-        orch_script = CLAWBIO_DIR / "skills" / "bio-orchestrator" / "orchestrator.py"
-        if not orch_script.exists():
-            return "Error: bio-orchestrator not found."
+        descriptor_plan = plan_skill_intent(
+            user_text=raw_user_text,
+            requested_skill=skill_key,
+            requested_mode=mode,
+            attachments=[],
+            skill_registry=skill_registry,
+            project_root=CLAWBIO_DIR,
+        )
+        if descriptor_plan.intent_id != "legacy_fallback":
+            preplanned_plan = descriptor_plan
+        else:
+            orch_script = CLAWBIO_DIR / "skills" / "bio-orchestrator" / "orchestrator.py"
+            if not orch_script.exists():
+                return _error("orchestrator_missing", "bio-orchestrator not found.")
 
-        orch_input = query
-        if mode == "file":
-            chat_id = args.get("_chat_id")
-            file_info = _received_files.get(chat_id) if chat_id else next(iter(_received_files.values()), None)
-            if file_info:
-                orch_input = file_info["path"]
-        if not orch_input:
-            return "Error: skill='auto' requires either a file or a query to route."
+            orch_input = query
+            if mode == "file":
+                chat_id = args.get("_chat_id")
+                file_info = _received_files.get(chat_id) if chat_id else next(iter(_received_files.values()), None)
+                if file_info:
+                    orch_input = file_info["path"]
+            if not orch_input:
+                return _error("missing_input", "skill='auto' requires either a file or a query to route.")
 
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                sys.executable, str(orch_script),
-                "--input", orch_input,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(orch_script.parent),
-            )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
-            if proc.returncode != 0:
-                return f"Orchestrator error: {stderr.decode()[-500:]}"
-            routing = json.loads(stdout.decode())
-            detected = routing.get("detected_skill", "")
-            orch_to_key = {
-                "pharmgx-reporter": "pharmgx",
-                "equity-scorer": "equity",
-                "nutrigx_advisor": "nutrigx",
-                "claw-metagenomics": "metagenomics",
-                "genome-compare": "compare",
-                "gwas-prs": "prs",
-                "clinpgx": "clinpgx",
-                "gwas-lookup": "gwas",
-                "profile-report": "profile",
-            }
-            skill_key = orch_to_key.get(detected, "")
-            if not skill_key:
-                avail = list(orch_to_key.values())
-                return (
-                    f"Orchestrator detected skill '{detected}' which is not "
-                    f"available via Telegram. Available: {avail}"
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    sys.executable, str(orch_script),
+                    "--input", orch_input,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=str(orch_script.parent),
                 )
-            logger.info(f"Auto-routed to: {skill_key} (via {routing.get('detection_method', '?')})")
-        except asyncio.TimeoutError:
-            return "Error: orchestrator timed out."
-        except json.JSONDecodeError:
-            return "Error: could not parse orchestrator output."
-        except Exception as e:
-            return f"Error running orchestrator: {e}"
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                if proc.returncode != 0:
+                    return _error("orchestrator_failed", stderr.decode(errors="replace")[-500:])
+                routing = json.loads(stdout.decode())
+                detected = routing.get("detected_skill", "")
+                orch_to_key = {
+                    "pharmgx-reporter": "pharmgx",
+                    "equity-scorer": "equity",
+                    "nutrigx_advisor": "nutrigx",
+                    "claw-metagenomics": "metagenomics",
+                    "genome-compare": "compare",
+                    "gwas-prs": "prs",
+                    "clinpgx": "clinpgx",
+                    "gwas-lookup": "gwas",
+                    "profile-report": "profile",
+                }
+                skill_key = orch_to_key.get(detected, "")
+                if not skill_key:
+                    avail = list(orch_to_key.values())
+                    return _error(
+                        "orchestrator_unavailable_skill",
+                        f"Orchestrator detected skill '{detected}' which is not "
+                        f"available via Telegram. Available: {avail}",
+                        detected_skill=detected,
+                        available=avail,
+                    )
+                logger.info(f"Auto-routed to: {skill_key} (via {routing.get('detection_method', '?')})")
+            except asyncio.TimeoutError:
+                return _error("orchestrator_timeout", "orchestrator timed out.")
+            except json.JSONDecodeError:
+                return _error("orchestrator_bad_json", "could not parse orchestrator output.")
+            except Exception as e:
+                return _error("orchestrator_exception", f"{type(e).__name__}: {e}")
 
     # Resolve input and profile for file mode
     input_path = None
@@ -493,92 +553,116 @@ async def execute_clawbio(args: dict) -> str:
             input_path = str(OWNER_GENOME)
             logger.info(f"No file uploaded — using owner genome: {OWNER_GENOME.name}")
         else:
-            return "Error: no file received. Send a genetic data file first, then run the skill."
+            return _error("missing_input", "no file received. Send a genetic data file first, then run the skill.")
 
-    # Build output directory
+    attachments = []
+    if input_path or profile_path:
+        attachments.append({"path": str(input_path) if input_path else None, "profile_path": profile_path})
+    for key in ("trait", "gene", "rsid", "drug_name", "visible_dose"):
+        if args.get(key):
+            attachments.append({key: args[key]})
+
+    plan = preplanned_plan or plan_skill_intent(
+        user_text=raw_user_text,
+        requested_skill=skill_key,
+        requested_mode=mode,
+        attachments=attachments,
+        skill_registry=skill_registry,
+        project_root=CLAWBIO_DIR,
+    )
+    _audit(
+        "skill_intent_plan",
+        chat_id=chat_id,
+        raw_user_text_sha256=plan.raw_user_text_sha256,
+        raw_user_text_preview=plan.raw_user_text[:200],
+        selected_skill=plan.skill,
+        selected_intent=plan.intent_id,
+        matched_route=plan.matched_route,
+        commands=[item.argv for item in plan.executions],
+    )
+    logger.info(
+        "Skill intent plan: skill=%s intent=%s status=%s reason=%s",
+        plan.skill, plan.intent_id, plan.status, plan.reason,
+    )
+    if plan.status == "needs_confirmation":
+        return _deferred(
+            f"Confirmation required before running {plan.skill}: {plan.reason}",
+            selected_skill=plan.skill,
+            selected_intent=plan.intent_id,
+            matched_route=plan.matched_route,
+        )
+    if plan.status == "needs_input" or not plan.executions:
+        return _error(
+            plan.status or "intent_not_planned",
+            plan.reason or "I need an input file or a clearer skill request before running ClawBio.",
+            selected_skill=plan.skill,
+            selected_intent=plan.intent_id,
+            matched_route=plan.matched_route,
+        )
+
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_dir = OUTPUT_DIR / f"{skill_key}_{ts}"
+    stdout_parts = []
+    stderr_parts = []
+    output_dirs: list[Path] = []
+    executed_skills: list[str] = []
 
-    # Build command
-    cmd = [sys.executable, str(CLAWBIO_PY), "run", skill_key]
-
-    # Profile-based skills: prefer --profile over --input
-    if skill_key == "profile":
-        if mode == "demo":
-            cmd.append("--demo")
-        elif profile_path:
-            cmd.extend(["--profile", profile_path])
+    for index, execution in enumerate(plan.executions):
+        cmd = list(execution.argv)
+        run_skill = execution.skill
+        executed_skills.append(run_skill)
+        if "--output" in cmd:
+            out_dir = Path(cmd[cmd.index("--output") + 1])
+        elif run_skill not in ("compare", "drugphoto"):
+            suffix = f"_{index + 1}" if len(plan.executions) > 1 else ""
+            out_dir = OUTPUT_DIR / f"{run_skill}_{ts}{suffix}"
+            cmd.extend(["--output", str(out_dir)])
         else:
-            return "Error: no profile available. Send a genetic data file first to create a profile."
-    elif skill_key == "prs":
-        if mode == "demo":
-            cmd.append("--demo")
-        elif profile_path:
-            cmd.extend(["--profile", profile_path])
-        elif input_path:
-            cmd.extend(["--input", str(input_path)])
-        trait = args.get("trait", "")
-        if trait:
-            cmd.extend(["--trait", trait])
-    elif skill_key == "clinpgx":
-        if mode == "demo":
-            cmd.append("--demo")
-        else:
-            gene = args.get("gene", "")
-            if gene:
-                cmd.extend(["--gene", gene])
-            else:
-                cmd.append("--demo")
-    elif skill_key == "gwas":
-        if mode == "demo":
-            cmd.append("--demo")
-        else:
-            rsid = args.get("rsid", "")
-            if rsid:
-                cmd.extend(["--rsid", rsid])
-            else:
-                cmd.append("--demo")
-    elif mode == "demo":
-        cmd.append("--demo")
-    elif input_path:
-        cmd.extend(["--input", str(input_path)])
-
-    # Skills with summary_default (compare, drugphoto) skip --output
-    if skill_key not in ("compare", "drugphoto"):
-        cmd.extend(["--output", str(out_dir)])
-
-    # Pass drug_name and visible_dose for drugphoto
-    if skill_key == "drugphoto":
-        drug_name = args.get("drug_name", "")
-        visible_dose = args.get("visible_dose", "")
-        if drug_name:
-            cmd.extend(["--drug", drug_name])
-        if visible_dose:
-            cmd.extend(["--dose", visible_dose])
-
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            out_dir = None
+        if out_dir:
+            output_dirs.append(out_dir)
+        _audit(
+            "skill_execution_command",
+            chat_id=chat_id,
+            selected_skill=run_skill,
+            selected_intent=plan.intent_id,
+            command=cmd,
+            output_bundle_path=str(out_dir) if out_dir else None,
         )
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(), timeout=120,
-        )
-        stdout_str = stdout_bytes.decode(errors="replace")
-        stderr_str = stderr_bytes.decode(errors="replace")
-    except asyncio.TimeoutError:
-        return f"{skill_key} timed out after 120 seconds."
-    except Exception as e:
-        import traceback as _tb
-        return f"{skill_key} crashed:\n{_tb.format_exc()[-1500:]}"
 
-    if proc.returncode != 0:
-        err = stderr_str[-1500:] if stderr_str else stdout_str[-1500:] if stdout_str else "unknown error"
-        return f"{skill_key} failed (exit {proc.returncode}):\n{err}"
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=120,
+            )
+            stdout_str = stdout_bytes.decode(errors="replace")
+            stderr_str = stderr_bytes.decode(errors="replace")
+        except asyncio.TimeoutError:
+            return _error("skill_timeout", f"{run_skill} timed out after 120 seconds.", selected_skill=run_skill)
+        except Exception:
+            import traceback as _tb
+            return _error("skill_exception", f"{run_skill} crashed:\n{_tb.format_exc()[-1500:]}", selected_skill=run_skill)
+
+        stdout_parts.append(stdout_str)
+        stderr_parts.append(stderr_str)
+        if proc.returncode != 0:
+            err = stderr_str[-1500:] if stderr_str else stdout_str[-1500:] if stdout_str else "unknown error"
+            return _error(
+                "skill_nonzero_exit",
+                f"{run_skill} failed (exit {proc.returncode}):\n{err}",
+                selected_skill=run_skill,
+                returncode=proc.returncode,
+            )
+
+    skill_key = executed_skills[-1] if executed_skills else skill_key
+    stdout_str = "\n".join(part for part in stdout_parts if part)
+    out_dir = output_dirs[-1] if output_dirs else OUTPUT_DIR / f"{skill_key}_{ts}"
 
     # For compare / drugphoto / profile: send stdout directly (bypass LLM paraphrasing)
-    if skill_key in ("compare", "drugphoto", "profile"):
+    if any(item in ("compare", "drugphoto", "profile") for item in executed_skills):
         raw_output = stdout_str.strip()
         if raw_output:
             chat_id = args.get("_chat_id")
@@ -587,32 +671,42 @@ async def execute_clawbio(args: dict) -> str:
         return "Result sent directly to chat. Do not repeat or paraphrase it."
 
     # For other skills: collect report + figures from output directory
-    output_files = sorted([f.name for f in out_dir.rglob("*") if f.is_file()]) if out_dir.exists() else []
+    output_files = []
+    for bundle_dir in output_dirs:
+        if bundle_dir.exists():
+            output_files.extend(f.name for f in bundle_dir.rglob("*") if f.is_file())
+    output_files = sorted(output_files)
 
     # Queue figures and reports for Telegram delivery
-    if out_dir.exists():
-        media_items = []
-        for f in sorted(out_dir.rglob("*")):
+    media_items = []
+    for bundle_dir in output_dirs:
+        if not bundle_dir.exists():
+            continue
+        for f in sorted(bundle_dir.rglob("*")):
             if not f.is_file():
                 continue
             if f.suffix in (".md", ".html"):
                 media_items.append({"type": "document", "path": str(f)})
             elif f.suffix == ".png":
                 media_items.append({"type": "photo", "path": str(f)})
-        if media_items:
-            _pending_media[chat_id] = _pending_media.get(chat_id, []) + media_items
+    if media_items:
+        _pending_media[chat_id] = _pending_media.get(chat_id, []) + media_items
 
     # Read report for chat display
     report_text = ""
-    if out_dir.exists():
+    for bundle_dir in output_dirs:
+        if not bundle_dir.exists():
+            continue
         for pattern in ["report.md", "*_report.md", "*.md"]:
-            for md_file in sorted(out_dir.glob(pattern)):
+            for md_file in sorted(bundle_dir.glob(pattern)):
                 if md_file.name.startswith("."):
                     continue
                 report_text = md_file.read_text(encoding="utf-8")
                 break
             if report_text:
                 break
+        if report_text:
+            break
 
     if not report_text:
         return stdout_str if stdout_str else f"{skill_key} completed. Output: {out_dir}"
@@ -957,6 +1051,7 @@ async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
     history = conversations.setdefault(chat_id, [])
 
     # Build user message in OpenAI format
+    raw_user_text = user_content if isinstance(user_content, str) else ""
     if isinstance(user_content, str):
         history.append({"role": "user", "content": user_content})
     else:
@@ -964,6 +1059,7 @@ async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
         oai_parts = []
         for block in user_content:
             if block.get("type") == "text":
+                raw_user_text = f"{raw_user_text}\n{block['text']}".strip()
                 oai_parts.append({"type": "text", "text": block["text"]})
             elif block.get("type") == "image":
                 src = block.get("source", {})
@@ -977,25 +1073,22 @@ async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
     if len(history) > MAX_HISTORY:
         history[:] = history[-MAX_HISTORY:]
 
-    # Sanitise: strip orphaned tool messages that lack a preceding
-    # assistant message with tool_calls (prevents API 400 errors).
-    sanitised: list[dict] = []
-    for msg in history:
-        if msg.get("role") == "tool":
-            # Only keep if previous message is assistant with tool_calls
-            if sanitised and sanitised[-1].get("role") == "assistant":
-                if sanitised[-1].get("tool_calls"):
-                    sanitised.append(msg)
-                    continue
-            logger.warning("Dropped orphaned tool message from history")
-            _audit("history_sanitised", chat_id=chat_id,
-                   detail="orphaned_tool_message_dropped")
-            continue
-        sanitised.append(msg)
-    history[:] = sanitised
+    repair_tool_call_history(
+        history,
+        audit=_audit,
+        audit_context={"chat_id": chat_id},
+        logger=logger,
+    )
 
     last_message = None
+    seen_tool_call_signatures: set[str] = set()
     for _iteration in range(MAX_TOOL_ITERATIONS):
+        repair_tool_call_history(
+            history,
+            audit=_audit,
+            audit_context={"chat_id": chat_id},
+            logger=logger,
+        )
         try:
             response = await llm.chat.completions.create(
                 model=CLAWBIO_MODEL,
@@ -1030,34 +1123,41 @@ async def llm_tool_loop(chat_id: int, user_content: str | list) -> str:
         if not last_message.tool_calls:
             return last_message.content or "(no response)"
 
-        # Execute tool calls and append results
-        for tc in last_message.tool_calls:
-            func_name = tc.function.name
-            executor = TOOL_EXECUTORS.get(func_name)
-            if executor:
-                try:
-                    args = json.loads(tc.function.arguments)
-                except json.JSONDecodeError:
-                    args = {}
-                logger.info(f"Tool call: {func_name}({json.dumps(args)[:200]})")
-                _audit("tool_call", chat_id=chat_id, tool=func_name,
-                       args_preview=json.dumps(args, default=str)[:300])
-                try:
-                    args["_chat_id"] = chat_id
-                    result = await executor(args)
-                except Exception as tool_err:
-                    logger.error(f"Tool {func_name} raised: {tool_err}", exc_info=True)
-                    _audit("tool_error", chat_id=chat_id, tool=func_name,
-                           error=str(tool_err)[:300])
-                    result = f"Error executing {func_name}: {type(tool_err).__name__}: {tool_err}"
-            else:
-                result = f"Unknown tool: {func_name}"
-
-            history.append({
-                "role": "tool",
-                "tool_call_id": tc.id,
-                "content": result,
-            })
+        try:
+            tool_messages = await execute_tool_calls_safely(
+                last_message.tool_calls,
+                TOOL_EXECUTORS,
+                base_args={"_chat_id": chat_id},
+                raw_user_text=raw_user_text,
+                audit=_audit,
+                audit_context={"chat_id": chat_id},
+                logger=logger,
+                seen_signatures=seen_tool_call_signatures,
+            )
+        except BaseException as tool_loop_err:
+            logger.error("Tool loop failed before producing tool results", exc_info=True)
+            _audit(
+                "tool_loop_error",
+                chat_id=chat_id,
+                error=type(tool_loop_err).__name__,
+                detail=str(tool_loop_err)[:300],
+            )
+            tool_messages = synthetic_tool_result_messages(
+                last_message.tool_calls,
+                tool_error_content(
+                    "tool_loop",
+                    "exception",
+                    f"{type(tool_loop_err).__name__}: {tool_loop_err}",
+                    retryable=True,
+                ),
+            )
+        history.extend(tool_messages)
+        repair_tool_call_history(
+            history,
+            audit=_audit,
+            audit_context={"chat_id": chat_id},
+            logger=logger,
+        )
 
     return last_message.content if last_message and last_message.content else "(max tool iterations reached)"
 
