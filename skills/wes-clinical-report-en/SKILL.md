@@ -1,14 +1,20 @@
 ---
 name: wes-clinical-report-en
-description: >-
-  Generates professional clinical PDF reports in English from WES (Whole Exome
-  Sequencing) data with clinical interpretation summary, pharmacogenomic
-  alerts, and follow-up recommendations.
-version: 1.0.0
-author: Manuel Corpas
+description: Generates professional clinical PDF reports in English from WES (Whole Exome Sequencing) data with clinical interpretation
+  summary, pharmacogenomic alerts, and follow-up recommendations.
 license: PROPRIETARY
-tags: [WES, exome, clinical-report, english, pharmacogenomics, PDF, ANNOVAR]
-inputs:
+metadata:
+  version: 1.0.0
+  author: Manuel Corpas
+  tags:
+  - WES
+  - exome
+  - clinical-report
+  - english
+  - pharmacogenomics
+  - PDF
+  - ANNOVAR
+  inputs:
   - name: WES markdown report
     format: markdown (.md)
     required: true
@@ -21,33 +27,31 @@ inputs:
     format: image (JPG/PNG)
     required: false
     description: Right institutional logo for cover and header
-outputs:
+  outputs:
   - name: Clinical PDF report
     format: PDF (A4)
     description: Professional clinical report with interpretation, tables, and disclaimer
-metadata:
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🧬"
+    emoji: 🧬
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    min_python: "3.9"
+    os:
+    - darwin
+    - linux
+    min_python: '3.9'
     dependencies:
-      - reportlab
-      - pandas
+    - reportlab
+    - pandas
     private: true
-    install: []
     trigger_keywords:
-      - WES clinical report
-      - exome PDF report english
-      - clinical report english
-      - Novogene report english
-      - WES report PDF
+    - WES clinical report
+    - exome PDF report english
+    - clinical report english
+    - Novogene report english
+    - WES report PDF
 ---
 
 # WES Clinical Report (English)

@@ -1,33 +1,46 @@
 ---
 name: methylation-clock
 description: Compute epigenetic age from DNA methylation arrays using PyAging clocks from GEO accessions or local files.
-version: 0.1.0
-tags: [epigenetics, methylation, aging, clock, pyaging, GEO, illlumina-450k, EPIC]
-trigger_keywords: [epigenetic age, methylation clock, pyaging, horvath, grimage, dunedinpace, GEO, GSE]
+license: MIT
 metadata:
+  version: 0.1.0
+  tags:
+  - epigenetics
+  - methylation
+  - aging
+  - clock
+  - pyaging
+  - GEO
+  - illlumina-450k
+  - EPIC
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🧪"
+    emoji: 🧪
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: pandas
-        bins: []
-      - kind: pip
-        package: numpy
-        bins: []
-      - kind: pip
-        package: matplotlib
-        bins: []
-      - kind: pip
-        package: pyaging
-        bins: []
+    - kind: pip
+      package: pandas
+    - kind: pip
+      package: numpy
+    - kind: pip
+      package: matplotlib
+    - kind: pip
+      package: pyaging
+    trigger_keywords:
+    - epigenetic age
+    - methylation clock
+    - pyaging
+    - horvath
+    - grimage
+    - dunedinpace
+    - GEO
+    - GSE
 ---
 
 # Methylation Clock

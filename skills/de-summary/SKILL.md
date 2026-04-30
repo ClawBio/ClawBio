@@ -1,25 +1,29 @@
 ---
 name: de-summary
-description: Summarise pre-computed differential expression results with ranked gene lists, biological themes, and publication-ready interpretation.
-version: 0.1.0
-author: Manuel Corpas
+description: Summarise pre-computed differential expression results with ranked gene lists, biological themes, and publication-ready
+  interpretation.
 license: MIT
-tags:
+metadata:
+  version: 0.1.0
+  author: Manuel Corpas
+  tags:
   - transcriptomics
   - differential-expression
   - summary
   - interpretation
   - bulk-rna-seq
-inputs:
+  inputs:
   - name: de_results
     type: file
-    format: [csv, tsv]
+    format:
+    - csv
+    - tsv
     required: true
-    description: >
-      DESeq2, edgeR, or limma output table with columns: gene_id or gene_name,
-      log2FoldChange, pvalue, padj (adjusted p-value). Optional columns:
-      baseMean, lfcSE, stat.
-outputs:
+    description: 'DESeq2, edgeR, or limma output table with columns: gene_id or gene_name, log2FoldChange, pvalue, padj (adjusted
+      p-value). Optional columns: baseMean, lfcSE, stat.
+
+      '
+  outputs:
   - name: report
     type: file
     format: md
@@ -31,26 +35,24 @@ outputs:
   - name: reproducibility
     type: directory
     description: commands.sh, environment.yml, checksums.sha256
-metadata:
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "📊"
+    emoji: 📊
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    install: []
+    os:
+    - darwin
+    - linux
     trigger_keywords:
-      - DE summary
-      - differential expression summary
-      - top DE genes
-      - summarise DE results
-      - interpret DE
-      - volcano summary
-      - gene expression summary
+    - DE summary
+    - differential expression summary
+    - top DE genes
+    - summarise DE results
+    - interpret DE
+    - volcano summary
+    - gene expression summary
 ---
 
 # Differential Expression Summary Reporter

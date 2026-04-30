@@ -1,79 +1,76 @@
 ---
 name: proteomics-clock
-description: >-
-  Compute organ-specific biological age from Olink proteomic data using
-  Goeminne et al. (2025) elastic net aging clocks.
-version: 0.1.0
-author: Maria Dermit
-domain: proteomics
+description: Compute organ-specific biological age from Olink proteomic data using Goeminne et al. (2025) elastic net aging
+  clocks.
 license: MIT
-
-inputs:
+metadata:
+  version: 0.1.0
+  author: Maria Dermit
+  domain: proteomics
+  tags:
+  - proteomics
+  - aging
+  - olink
+  - organ-clock
+  - biological-age
+  - goeminne
+  inputs:
   - name: input_file
     type: file
-    format: [csv, tsv, csv.gz, tsv.gz]
+    format:
+    - csv
+    - tsv
+    - csv.gz
+    - tsv.gz
     description: Olink NPX protein expression table (samples x proteins)
     required: true
-
-outputs:
+  outputs:
   - name: report
     type: file
     format: md
     description: Organ aging analysis report
-
-dependencies:
-  python: ">=3.11"
-  packages:
+  dependencies:
+    python: '>=3.11'
+    packages:
     - pandas>=2.0
     - numpy>=1.24
     - matplotlib>=3.7
     - seaborn>=0.12
     - requests>=2.28
-
-tags: [proteomics, aging, olink, organ-clock, biological-age, goeminne]
-
-demo_data:
+  demo_data:
   - path: data/demo_olink_npx.csv.gz
     description: Synthetic 20-sample Olink NPX dataset (26 proteins)
-
-endpoints:
-  cli: python skills/proteomics-clock/proteomics_clock.py --input {input_file} --output {output_dir}
-
-metadata:
+  endpoints:
+    cli: python skills/proteomics-clock/proteomics_clock.py --input {input_file} --output {output_dir}
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: pandas
-        bins: []
-      - kind: pip
-        package: numpy
-        bins: []
-      - kind: pip
-        package: matplotlib
-        bins: []
-      - kind: pip
-        package: seaborn
-        bins: []
-      - kind: pip
-        package: requests
-        bins: []
+    - kind: pip
+      package: pandas
+    - kind: pip
+      package: numpy
+    - kind: pip
+      package: matplotlib
+    - kind: pip
+      package: seaborn
+    - kind: pip
+      package: requests
     trigger_keywords:
-      - proteomics clock
-      - organ aging
-      - proteomic clock
-      - olink clock
-      - organ clock
-      - goeminne
-      - plasma protein aging
-      - organ-specific aging
+    - proteomics clock
+    - organ aging
+    - proteomic clock
+    - olink clock
+    - organ clock
+    - goeminne
+    - plasma protein aging
+    - organ-specific aging
 ---
 
 # Proteomics Clock

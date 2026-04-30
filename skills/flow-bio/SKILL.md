@@ -1,27 +1,41 @@
 ---
 name: flow-bio
-description: >-
-  Flow.bio API bridge — authenticate, browse pipelines/samples/projects, search,
-  upload data, launch pipeline executions, and check run status on any Flow instance.
-version: 0.1.0
-author: ClawBio Contributors
+description: Flow.bio API bridge — authenticate, browse pipelines/samples/projects, search, upload data, launch pipeline executions,
+  and check run status on any Flow instance.
 license: MIT
-domain: bioinformatics
-tags: [flow, flow.bio, LIMS, pipelines, samples, nextflow, bioinformatics, cloud]
-
-inputs:
+metadata:
+  version: 0.1.0
+  author: ClawBio Contributors
+  domain: bioinformatics
+  tags:
+  - flow
+  - flow.bio
+  - LIMS
+  - pipelines
+  - samples
+  - nextflow
+  - bioinformatics
+  - cloud
+  inputs:
   - name: reads1
     type: file
-    format: [fastq, fq, fastq.gz, fq.gz]
+    format:
+    - fastq
+    - fq
+    - fastq.gz
+    - fq.gz
     description: First reads file for sample upload
     required: false
   - name: reads2
     type: file
-    format: [fastq, fq, fastq.gz, fq.gz]
+    format:
+    - fastq
+    - fq
+    - fastq.gz
+    - fq.gz
     description: Second reads file for paired-end upload
     required: false
-
-outputs:
+  outputs:
   - name: report
     type: file
     format: md
@@ -30,46 +44,41 @@ outputs:
     type: file
     format: json
     description: Machine-readable result envelope
-
-dependencies:
-  python: ">=3.10"
-  packages:
+  dependencies:
+    python: '>=3.10'
+    packages:
     - requests>=2.28
-
-demo_data:
+  demo_data:
   - path: data/demo_cache.json
     description: Pre-cached public Flow.bio data (pipelines, organisms, sample types) for offline demo
-
-endpoints:
-  cli: python skills/flow-bio/flow_bio.py --demo --output {output_dir}
-
-metadata:
+  endpoints:
+    cli: python skills/flow-bio/flow_bio.py --demo --output {output_dir}
   openclaw:
     requires:
       bins:
-        - python3
+      - python3
       env:
-        - FLOW_URL
-        - FLOW_TOKEN
-      config: []
+      - FLOW_URL
+      - FLOW_TOKEN
     always: false
-    emoji: "🌊"
+    emoji: 🌊
     homepage: https://flow.bio
-    os: [macos, linux]
+    os:
+    - macos
+    - linux
     install:
-      - kind: pip
-        package: requests
-        bins: []
+    - kind: pip
+      package: requests
     trigger_keywords:
-      - flow
-      - flow.bio
-      - flow bio
-      - flow pipeline
-      - flow sample
-      - flow execution
-      - flow project
-      - flow upload
-      - run on flow
+    - flow
+    - flow.bio
+    - flow bio
+    - flow pipeline
+    - flow sample
+    - flow execution
+    - flow project
+    - flow upload
+    - run on flow
 ---
 
 # Flow Bio Bridge

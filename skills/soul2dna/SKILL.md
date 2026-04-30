@@ -1,29 +1,32 @@
 ---
 name: soul2dna
 description: Compile SOUL.md character profiles into synthetic diploid genomes (.genome.json) via trait-to-allele mapping
-version: 0.1.0
-author: Manuel Corpas
 license: MIT
-tags: [genomebook, synthetic-genomics, soul-compiler, trait-mapping]
 metadata:
+  version: 0.1.0
+  author: Manuel Corpas
+  tags:
+  - genomebook
+  - synthetic-genomics
+  - soul-compiler
+  - trait-mapping
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🧬"
+    emoji: 🧬
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    install: []
+    os:
+    - darwin
+    - linux
     trigger_keywords:
-      - soul2dna
-      - soul compiler
-      - soul to genome
-      - genomebook compile
-      - synthetic genome
-      - character genome
+    - soul2dna
+    - soul compiler
+    - soul to genome
+    - genomebook compile
+    - synthetic genome
+    - character genome
 ---
 
 # 🧬 Soul2DNA Compiler

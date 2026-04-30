@@ -1,29 +1,33 @@
 ---
 name: genome-match
 description: Score genetic compatibility across all male-female pairings in a Genomebook generation
-version: 0.1.0
-author: Manuel Corpas
 license: MIT
-tags: [genomebook, compatibility, heterozygosity, disease-risk, mating-selection]
 metadata:
+  version: 0.1.0
+  author: Manuel Corpas
+  tags:
+  - genomebook
+  - compatibility
+  - heterozygosity
+  - disease-risk
+  - mating-selection
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "💞"
+    emoji: 💞
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    install: []
+    os:
+    - darwin
+    - linux
     trigger_keywords:
-      - genome match
-      - compatibility
-      - mating pairs
-      - genomebook match
-      - heterozygosity score
-      - breeding pairs
+    - genome match
+    - compatibility
+    - mating pairs
+    - genomebook match
+    - heterozygosity score
+    - breeding pairs
 ---
 
 # 💞 GenomeMatch

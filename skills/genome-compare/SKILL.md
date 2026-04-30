@@ -1,29 +1,33 @@
 ---
 name: genome-compare
 description: Compare your genome to George Church (PGP-1) and estimate ancestry composition via IBS and EM admixture
-version: 0.1.0
-author: Manuel Corpas
 license: MIT
-tags: [genome-comparison, IBS, ancestry, PGP, admixture]
 metadata:
+  version: 0.1.0
+  author: Manuel Corpas
+  tags:
+  - genome-comparison
+  - IBS
+  - ancestry
+  - PGP
+  - admixture
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🧬"
+    emoji: 🧬
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    install: []
+    os:
+    - darwin
+    - linux
     trigger_keywords:
-      - genome comparison
-      - IBS
-      - identity by state
-      - George Church
-      - Corpasome
-      - pairwise
+    - genome comparison
+    - IBS
+    - identity by state
+    - George Church
+    - Corpasome
+    - pairwise
 ---
 
 # 🧬 Genome Comparator

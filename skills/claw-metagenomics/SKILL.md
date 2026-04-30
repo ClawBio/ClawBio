@@ -1,30 +1,43 @@
 ---
 name: claw-metagenomics
-version: 0.1.0
 description: Shotgun metagenomics profiling — taxonomy, resistome, and functional pathways
-author: Manuel Corpas
 license: MIT
-tags:
+metadata:
+  version: 0.1.0
+  author: Manuel Corpas
+  tags:
   - metagenomics
   - antimicrobial-resistance
   - taxonomy
   - functional-profiling
   - environmental
   - WHO-critical-ARGs
-inputs:
+  inputs:
   - name: r1
     type: file
-    format: [fastq, fastq.gz, fq, fq.gz]
+    format:
+    - fastq
+    - fastq.gz
+    - fq
+    - fq.gz
     description: Forward reads (paired-end FASTQ R1)
   - name: r2
     type: file
-    format: [fastq, fastq.gz, fq, fq.gz]
+    format:
+    - fastq
+    - fastq.gz
+    - fq
+    - fq.gz
     description: Reverse reads (paired-end FASTQ R2)
   - name: input
     type: file
-    format: [fastq, fastq.gz, fq, fq.gz]
+    format:
+    - fastq
+    - fastq.gz
+    - fq
+    - fq.gz
     description: Single concatenated or interleaved FASTQ (alternative to R1+R2)
-outputs:
+  outputs:
   - name: taxonomy_report
     type: file
     format: tsv
@@ -39,31 +52,37 @@ outputs:
     description: HUMAnN3 pathway abundance table (MetaCyc/UniRef)
   - name: figures
     type: directory
-    format: [png, pdf]
+    format:
+    - png
+    - pdf
     description: Publication-quality figures (taxonomy bar chart, resistome heatmap, WHO-critical ARG summary)
   - name: reproducibility
     type: directory
     description: commands.sh, environment.yml, checksums.sha256
-metadata:
   openclaw:
     category: bioinformatics
-    emoji: "🦠"
+    emoji: 🦠
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    min_python: "3.9"
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
+    min_python: '3.9'
     dependencies:
-      - pandas
-      - numpy
-      - matplotlib
-      - seaborn
-      - scipy
-      - biopython
+    - pandas
+    - numpy
+    - matplotlib
+    - seaborn
+    - scipy
+    - biopython
     system_dependencies:
-      - kraken2
-      - bracken
-      - rgi
-      - humann
+    - kraken2
+    - bracken
+    - rgi
+    - humann
+    requires:
+      bins:
+      - python3
+    always: false
 ---
 
 # Shotgun Metagenomics Profiler
