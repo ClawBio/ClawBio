@@ -126,6 +126,10 @@ _SCORE_RE = re.compile(
 
 NCBI_EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 NCBI_REQUEST_TIMEOUT = 15  # seconds
+NCBI_USER_AGENT = "ClawBio/1.0 (busco-assessor; contact: Ideatharit@gmail.com)"
+NCBI_API_KEY = os.environ.get("NCBI_API_KEY", "")
+
+MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024  # 200 MB hard cap for demo downloads
 
 # Ensembl Genomes: S. cerevisiae mitochondrial chromosome (~22 KB gzipped)
 DEMO_LIVE_URL = (
@@ -200,6 +204,18 @@ NCBI_TO_BUSCO: list[tuple[str, str, str, str | None]] = [
 # ---------------------------------------------------------------------------
 
 
+def _kw_matches(kw: str, text: str) -> bool:
+    """Return True if *kw* appears in *text* as a whole word (or phrase).
+
+    Multi-word keywords (e.g. "e. coli", "fruit fly") use plain substring
+    matching. Single-word keywords use a word-boundary regex so that "rat"
+    does not match "rational" and "bacteria" does not match "bacteriophage".
+    """
+    if " " in kw:
+        return kw in text
+    return bool(re.search(r"\b" + re.escape(kw) + r"\b", text))
+
+
 def infer_lineage(organism_hint: str) -> tuple[str, str | None]:
     """Map a free-text organism description to a BUSCO lineage flag + value.
 
@@ -209,7 +225,7 @@ def infer_lineage(organism_hint: str) -> tuple[str, str | None]:
     """
     hint_lower = organism_hint.lower()
     for keywords, flag, value in LINEAGE_ROUTING:
-        if any(kw in hint_lower for kw in keywords):
+        if any(_kw_matches(kw, hint_lower) for kw in keywords):
             return flag, value
     return "--auto-lineage", None
 
@@ -725,11 +741,15 @@ def ncbi_taxonomy_lookup(organism_name: str) -> list[dict[str, str]]:
     try:
         # Step 1: esearch — get the taxid
         query = urllib.parse.quote(organism_name)
+        key_param = f"&api_key={NCBI_API_KEY}" if NCBI_API_KEY else ""
         search_url = (
             f"{NCBI_EUTILS_BASE}/esearch.fcgi"
-            f"?db=taxonomy&term={query}&retmode=json"
+            f"?db=taxonomy&term={query}&retmode=json{key_param}"
         )
-        with urllib.request.urlopen(search_url, timeout=NCBI_REQUEST_TIMEOUT) as resp:
+        search_req = urllib.request.Request(
+            search_url, headers={"User-Agent": NCBI_USER_AGENT}
+        )
+        with urllib.request.urlopen(search_req, timeout=NCBI_REQUEST_TIMEOUT) as resp:
             data = json.loads(resp.read())
         ids = data.get("esearchresult", {}).get("idlist", [])
         if not ids:
@@ -739,9 +759,12 @@ def ncbi_taxonomy_lookup(organism_name: str) -> list[dict[str, str]]:
         # Step 2: efetch — get full lineage XML
         fetch_url = (
             f"{NCBI_EUTILS_BASE}/efetch.fcgi"
-            f"?db=taxonomy&id={taxid}&retmode=xml"
+            f"?db=taxonomy&id={taxid}&retmode=xml{key_param}"
         )
-        with urllib.request.urlopen(fetch_url, timeout=NCBI_REQUEST_TIMEOUT) as resp:
+        fetch_req = urllib.request.Request(
+            fetch_url, headers={"User-Agent": NCBI_USER_AGENT}
+        )
+        with urllib.request.urlopen(fetch_req, timeout=NCBI_REQUEST_TIMEOUT) as resp:
             xml_bytes = resp.read()
 
         root = ET.fromstring(xml_bytes)
@@ -797,7 +820,21 @@ def download_and_decompress(url: str, dest_dir: Path) -> Path:
     fa_path = dest_dir / fa_name
 
     print(f"  Downloading {filename} ({url}) ...")
-    urllib.request.urlretrieve(url, gz_path)
+    total = 0
+    with urllib.request.urlopen(url, timeout=NCBI_REQUEST_TIMEOUT) as resp, \
+            open(gz_path, "wb") as fh:
+        while True:
+            chunk = resp.read(65536)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_DOWNLOAD_BYTES:
+                fh.close()
+                gz_path.unlink(missing_ok=True)
+                raise RuntimeError(
+                    f"Download aborted: response exceeded {MAX_DOWNLOAD_BYTES // (1024 ** 2)} MB cap"
+                )
+            fh.write(chunk)
 
     print(f"  Decompressing {gz_path.name} ...")
     with gzip.open(gz_path, "rb") as f_in, open(fa_path, "wb") as f_out:

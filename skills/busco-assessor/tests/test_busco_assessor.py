@@ -26,6 +26,8 @@ from busco_assessor import (  # noqa: E402
     DEMO_LIVE_ORGANISM,
     DEMO_LIVE_URL,
     DISCLAIMER,
+    MAX_DOWNLOAD_BYTES,
+    NCBI_USER_AGENT,
     build_busco_command,
     download_and_decompress,
     infer_lineage,
@@ -126,6 +128,24 @@ class TestInferLineage:
         flag, value = infer_lineage("Saccharomyces cerevisiae assembly")
         assert flag == "--lineage"
         assert value == "fungi_odb10"
+
+    def test_bacteriophage_not_routed_to_prok(self):
+        # "bacteria" is a substring of "bacteriophage" but NOT a whole word — must not route to prok
+        flag, value = infer_lineage("bacteriophage assembly")
+        assert flag == "--auto-lineage"
+        assert value is None
+
+    def test_rational_not_routed_to_mammalia(self):
+        # "rat" is a substring of "rational" — must not trigger mammalia routing
+        flag, value = infer_lineage("rational design organism")
+        assert flag == "--auto-lineage"
+        assert value is None
+
+    def test_transplant_not_routed_to_embryophyta(self):
+        # "plant" is a substring of "transplant"
+        flag, value = infer_lineage("transplant organ genome")
+        assert flag == "--auto-lineage"
+        assert value is None
 
 
 # ---------------------------------------------------------------------------
@@ -515,6 +535,41 @@ class TestNCBITaxonomy:
         assert flag == "--auto-lineage"
         assert value is None
 
+    def test_user_agent_header_is_set(self):
+        import urllib.error
+        captured = []
+        def fake_urlopen(req, timeout=None):
+            captured.append(req)
+            raise urllib.error.URLError("mock — short circuit")
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            ncbi_taxonomy_lookup("anything")
+        assert captured, "urlopen was never called"
+        assert captured[0].get_header("User-agent") == NCBI_USER_AGENT
+
+    def test_api_key_appended_when_set(self):
+        import urllib.error
+        captured = []
+        def fake_urlopen(req, timeout=None):
+            captured.append(req)
+            raise urllib.error.URLError("mock — short circuit")
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen), \
+             patch("busco_assessor.NCBI_API_KEY", "testkey123"):
+            ncbi_taxonomy_lookup("Saccharomyces cerevisiae")
+        assert captured, "urlopen was never called"
+        assert "api_key=testkey123" in captured[0].get_full_url()
+
+    def test_no_api_key_when_empty(self):
+        import urllib.error
+        captured = []
+        def fake_urlopen(req, timeout=None):
+            captured.append(req)
+            raise urllib.error.URLError("mock — short circuit")
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen), \
+             patch("busco_assessor.NCBI_API_KEY", ""):
+            ncbi_taxonomy_lookup("Saccharomyces cerevisiae")
+        assert captured, "urlopen was never called"
+        assert "api_key" not in captured[0].get_full_url()
+
     def test_ncbi_lineage_to_busco_mammalia(self):
         lineage = [
             {"rank": "superkingdom", "name": "Eukaryota"},
@@ -532,41 +587,66 @@ class TestNCBITaxonomy:
 # ---------------------------------------------------------------------------
 
 class TestDownloadDecompress:
-    def _write_fake_gz(self, path: Path, content: str = ">Mito_seq\nACGTACGT\n") -> None:
-        with gzip.open(path, "wt", encoding="utf-8") as fh:
-            fh.write(content)
+    def _make_gz_bytes(self, content: str = ">Mito_seq\nACGTACGT\n") -> bytes:
+        import io
+        buf = io.BytesIO()
+        with gzip.GzipFile(fileobj=buf, mode="wb") as fh:
+            fh.write(content.encode())
+        return buf.getvalue()
+
+    def _mock_urlopen(self, data: bytes):
+        """Return a urlopen mock that streams *data* in 65536-byte chunks."""
+        class FakeResp:
+            def __init__(self):
+                self._data = data
+                self._pos = 0
+            def read(self, n=-1):
+                if n == -1:
+                    chunk = self._data[self._pos:]
+                    self._pos = len(self._data)
+                else:
+                    chunk = self._data[self._pos:self._pos + n]
+                    self._pos += len(chunk)
+                return chunk
+            def __enter__(self): return self
+            def __exit__(self, *a): pass
+        return MagicMock(return_value=FakeResp())
 
     def test_creates_decompressed_fasta(self, tmp_path):
-        gz_path = tmp_path / "test.fa.gz"
-        self._write_fake_gz(gz_path)
-
-        def fake_urlretrieve(url, dest):
-            import shutil
-            shutil.copy(gz_path, dest)
-
-        with patch("urllib.request.urlretrieve", side_effect=fake_urlretrieve):
+        gz_bytes = self._make_gz_bytes()
+        with patch("urllib.request.urlopen", self._mock_urlopen(gz_bytes)):
             result = download_and_decompress(
                 "http://fake.example.com/test.fa.gz", tmp_path / "out"
             )
         assert result.exists()
-        assert result.suffix == ".fa" or result.name.endswith(".fa")
-        content = result.read_text()
-        assert ">Mito_seq" in content
+        assert result.name.endswith(".fa")
+        assert ">Mito_seq" in result.read_text()
 
     def test_removes_gz_after_decompress(self, tmp_path):
-        gz_path = tmp_path / "test.fa.gz"
-        self._write_fake_gz(gz_path)
-
-        def fake_urlretrieve(url, dest):
-            import shutil
-            shutil.copy(gz_path, dest)
-
-        with patch("urllib.request.urlretrieve", side_effect=fake_urlretrieve):
+        gz_bytes = self._make_gz_bytes()
+        with patch("urllib.request.urlopen", self._mock_urlopen(gz_bytes)):
             result = download_and_decompress(
                 "http://fake.example.com/test.fa.gz", tmp_path / "out"
             )
         gz_result = result.parent / (result.name + ".gz")
         assert not gz_result.exists()
+
+    def test_raises_on_oversized_download(self, tmp_path):
+        oversized = b"X" * (MAX_DOWNLOAD_BYTES + 1)
+        with patch("urllib.request.urlopen", self._mock_urlopen(oversized)), \
+             pytest.raises(RuntimeError, match="exceeded"):
+            download_and_decompress(
+                "http://fake.example.com/huge.fa.gz", tmp_path / "out"
+            )
+
+    def test_gz_cleaned_up_on_size_cap_exceeded(self, tmp_path):
+        oversized = b"X" * (MAX_DOWNLOAD_BYTES + 1)
+        out_dir = tmp_path / "out"
+        with patch("urllib.request.urlopen", self._mock_urlopen(oversized)), \
+             pytest.raises(RuntimeError):
+            download_and_decompress("http://fake.example.com/huge.fa.gz", out_dir)
+        leftover = list(out_dir.glob("*.gz")) if out_dir.exists() else []
+        assert leftover == []
 
 
 # ---------------------------------------------------------------------------

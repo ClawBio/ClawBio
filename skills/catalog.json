@@ -13,7 +13,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\affinity-proteomics\\affinity_proteomics.py --demo",
+      "demo_command": "python skills/affinity-proteomics/affinity_proteomics.py --demo",
       "dependencies": [],
       "tags": [
         "proteomics",
@@ -47,7 +47,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\archaic-introgression\\archaic_introgression.py --demo",
+      "demo_command": "python skills/archaic-introgression/archaic_introgression.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [],
@@ -128,7 +128,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\bio-orchestrator\\orchestrator.py --demo",
+      "demo_command": "python skills/bio-orchestrator/orchestrator.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [
@@ -189,7 +189,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\busco-assessor\\busco_assessor.py --demo",
+      "demo_command": "python skills/busco-assessor/busco_assessor.py --demo",
       "dependencies": [
         "python>=3.10"
       ],
@@ -232,7 +232,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\cell-detection\\cell_detection.py --demo",
+      "demo_command": "python skills/cell-detection/cell_detection.py --demo",
       "dependencies": [],
       "tags": [
         "microscopy",
@@ -264,7 +264,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\claw-ancestry-pca\\ancestry_pca.py --demo",
+      "demo_command": "python skills/claw-ancestry-pca/ancestry_pca.py --demo",
       "dependencies": [],
       "tags": [
         "population-genetics",
@@ -352,7 +352,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\clinical-trial-finder\\clinical_trial_finder.py --demo",
+      "demo_command": "python skills/clinical-trial-finder/clinical_trial_finder.py --demo",
       "dependencies": [
         "python>=3.11"
       ],
@@ -386,7 +386,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\clinical-variant-reporter\\acmg_engine.py --demo",
+      "demo_command": "python skills/clinical-variant-reporter/acmg_engine.py --demo",
       "dependencies": [],
       "tags": [
         "acmg",
@@ -446,7 +446,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\data-extractor\\data_extractor.py --demo",
+      "demo_command": "python skills/data-extractor/data_extractor.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [],
@@ -572,7 +572,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\fine-mapping\\fine_mapping.py --demo",
+      "demo_command": "python skills/fine-mapping/fine_mapping.py --demo",
       "dependencies": [],
       "tags": [
         "gwas",
@@ -613,7 +613,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\flow-bio\\flow_bio.py --demo",
+      "demo_command": "python skills/flow-bio/flow_bio.py --demo",
       "dependencies": [
         "python>=3.10",
         "requests>=2.28"
@@ -719,7 +719,7 @@
       "has_script": true,
       "has_tests": false,
       "has_demo": true,
-      "demo_command": "python skills\\genome-match\\genome_match.py --demo",
+      "demo_command": "python skills/genome-match/genome_match.py --demo",
       "dependencies": [],
       "tags": [
         "genomebook",
@@ -772,7 +772,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\gwas-pipeline\\gwas_pipeline.py --demo",
+      "demo_command": "python skills/gwas-pipeline/gwas_pipeline.py --demo",
       "dependencies": [],
       "tags": [
         "gwas",
@@ -828,7 +828,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\hla-typing\\hla_typing.py --demo",
+      "demo_command": "python skills/hla-typing/hla_typing.py --demo",
       "dependencies": [
         "python>=3.11",
         "pandas>=2.0"
@@ -854,7 +854,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\illumina-bridge\\illumina_bridge.py --demo",
+      "demo_command": "python skills/illumina-bridge/illumina_bridge.py --demo",
       "dependencies": [],
       "tags": [
         "illumina",
@@ -883,7 +883,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\labstep\\labstep.py --demo",
+      "demo_command": "python skills/labstep/labstep.py --demo",
       "dependencies": [],
       "tags": [
         "labstep",
@@ -915,7 +915,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\lit-synthesizer\\lit_synthesizer.py --demo",
+      "demo_command": "python skills/lit-synthesizer/lit_synthesizer.py --demo",
       "dependencies": [
         "python>=3.11",
         "biopython>=1.83"
@@ -950,7 +950,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\mendelian-randomisation\\mendelian_randomisation.py --demo",
+      "demo_command": "python skills/mendelian-randomisation/mendelian_randomisation.py --demo",
       "dependencies": [
         "python>=3.10",
         "numpy>=1.24",
@@ -990,7 +990,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\methylation-clock\\methylation_clock.py --demo",
+      "demo_command": "python skills/methylation-clock/methylation_clock.py --demo",
       "dependencies": [],
       "tags": [
         "epigenetics",
@@ -1014,7 +1014,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\multiqc-reporter\\multiqc_reporter.py --demo",
+      "demo_command": "python skills/multiqc-reporter/multiqc_reporter.py --demo",
       "dependencies": [
         "python>=3.11"
       ],
@@ -1091,7 +1091,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\omics-target-evidence-mapper\\omics_target_evidence_mapper.py --demo",
+      "demo_command": "python skills/omics-target-evidence-mapper/omics_target_evidence_mapper.py --demo",
       "dependencies": [],
       "tags": [
         "omics",
@@ -1180,7 +1180,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\proteomics-clock\\proteomics_clock.py --demo",
+      "demo_command": "python skills/proteomics-clock/proteomics_clock.py --demo",
       "dependencies": [
         "python>=3.11",
         "pandas>=2.0",
@@ -1218,7 +1218,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\proteomics-de\\proteomics_de.py --demo",
+      "demo_command": "python skills/proteomics-de/proteomics_de.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [
@@ -1235,7 +1235,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\protocols-io\\protocols_io.py --demo",
+      "demo_command": "python skills/protocols-io/protocols_io.py --demo",
       "dependencies": [],
       "tags": [
         "protocols",
@@ -1265,7 +1265,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\pubmed-summariser\\pubmed_api.py --demo",
+      "demo_command": "python skills/pubmed-summariser/pubmed_api.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [
@@ -1289,7 +1289,7 @@
       "has_script": true,
       "has_tests": false,
       "has_demo": true,
-      "demo_command": "python skills\\recombinator\\recombinator.py --demo",
+      "demo_command": "python skills/recombinator/recombinator.py --demo",
       "dependencies": [],
       "tags": [
         "genomebook",
@@ -1444,7 +1444,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\seq-wrangler\\seq_wrangler.py --demo",
+      "demo_command": "python skills/seq-wrangler/seq_wrangler.py --demo",
       "dependencies": [
         "python>=3.10"
       ],
@@ -1487,7 +1487,7 @@
       "has_script": true,
       "has_tests": false,
       "has_demo": true,
-      "demo_command": "python skills\\soul2dna\\soul2dna.py --demo",
+      "demo_command": "python skills/soul2dna/soul2dna.py --demo",
       "dependencies": [],
       "tags": [
         "genomebook",
@@ -1514,7 +1514,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\struct-predictor\\struct_predictor.py --demo",
+      "demo_command": "python skills/struct-predictor/struct_predictor.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [],
@@ -1529,7 +1529,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\target-validation-scorer\\target_validation_scorer.py --demo",
+      "demo_command": "python skills/target-validation-scorer/target_validation_scorer.py --demo",
       "dependencies": [
         "python>=3.11",
         "pandas>=2.0",
@@ -1560,7 +1560,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\turingdb-graph\\http_server.py --demo",
+      "demo_command": "python skills/turingdb-graph/http_server.py --demo",
       "dependencies": [
         "python>=3.11",
         "turingdb>=1.29",
@@ -1602,7 +1602,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\ukb-navigator\\ukb_navigator.py --demo",
+      "demo_command": "python skills/ukb-navigator/ukb_navigator.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [
@@ -1624,7 +1624,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\variant-annotation\\variant_annotation.py --demo",
+      "demo_command": "python skills/variant-annotation/variant_annotation.py --demo",
       "dependencies": [],
       "tags": [
         "genomics",
@@ -1654,7 +1654,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\vcf-annotator\\vcf_annotator.py --demo",
+      "demo_command": "python skills/vcf-annotator/vcf_annotator.py --demo",
       "dependencies": [
         "python>=3.11"
       ],
@@ -1690,7 +1690,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills\\wes-clinical-report-en\\wes_clinical_report_en.py --demo",
+      "demo_command": "python skills/wes-clinical-report-en/wes_clinical_report_en.py --demo",
       "dependencies": [],
       "tags": [
         "WES",
