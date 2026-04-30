@@ -1,0 +1,2 @@
+# Linux / macOS only — pysam requires htslib C extensions
+pysam>=0.22

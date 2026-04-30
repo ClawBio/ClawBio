@@ -12,15 +12,15 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_DIR))
 
 import fine_mapping
-from core.abf import compute_abf, _log_abf, DEFAULT_W
-from core.susie import run_susie
-from core.credible_sets import (
+from fine_mapping_core.abf import compute_abf, _log_abf, DEFAULT_W
+from fine_mapping_core.susie import run_susie
+from fine_mapping_core.credible_sets import (
     build_credible_sets_susie,
     build_credible_set_abf,
     _greedy_credible_set,
     _purity,
 )
-from core.io import load_sumstats, load_ld
+from fine_mapping_core.io import load_sumstats, load_ld
 
 
 # ---------------------------------------------------------------------------
@@ -615,7 +615,7 @@ class TestSuSiEInf:
 
     def test_pip_shape(self):
         """run_susie_inf returns a 1-D PIP array of length p."""
-        from core.susie_inf import run_susie_inf
+        from fine_mapping_core.susie_inf import run_susie_inf
         df = _small_locus(n=20)
         R = _identity_ld(20)
         result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=5)
@@ -623,7 +623,7 @@ class TestSuSiEInf:
 
     def test_pip_range(self):
         """All PIPs returned by run_susie_inf are in [0, 1]."""
-        from core.susie_inf import run_susie_inf
+        from fine_mapping_core.susie_inf import run_susie_inf
         df = _small_locus(n=20)
         R = _identity_ld(20)
         result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=5)
@@ -632,7 +632,7 @@ class TestSuSiEInf:
 
     def test_alpha_shape(self):
         """run_susie_inf returns alpha as a (p, L) matrix."""
-        from core.susie_inf import run_susie_inf
+        from fine_mapping_core.susie_inf import run_susie_inf
         df = _small_locus(n=20)
         R = _identity_ld(20)
         result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=3)
@@ -640,7 +640,7 @@ class TestSuSiEInf:
 
     def test_alpha_columns_sum_to_at_most_one(self):
         """Each column of alpha sums to <= 1 (remainder goes to null component)."""
-        from core.susie_inf import run_susie_inf
+        from fine_mapping_core.susie_inf import run_susie_inf
         df = _small_locus(n=20)
         R = _identity_ld(20)
         result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=3)
@@ -650,7 +650,7 @@ class TestSuSiEInf:
 
     def test_signal_recovers_high_pip(self):
         """The injected signal at index 10 receives the highest PIP."""
-        from core.susie_inf import run_susie_inf
+        from fine_mapping_core.susie_inf import run_susie_inf
         df = _small_locus(n=20)
         R = _identity_ld(20)
         result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=5)
@@ -658,7 +658,7 @@ class TestSuSiEInf:
 
     def test_variance_components_returned(self):
         """run_susie_inf returns sigmasq and tausq scalar variance components."""
-        from core.susie_inf import run_susie_inf
+        from fine_mapping_core.susie_inf import run_susie_inf
         df = _small_locus(n=20)
         R = _identity_ld(20)
         result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=5)
@@ -668,7 +668,7 @@ class TestSuSiEInf:
 
     def test_ssq_length_matches_L(self):
         """ssq (per-effect prior variances) has length L."""
-        from core.susie_inf import run_susie_inf
+        from fine_mapping_core.susie_inf import run_susie_inf
         df = _small_locus(n=20)
         R = _identity_ld(20)
         L = 4
@@ -677,7 +677,7 @@ class TestSuSiEInf:
 
     def test_two_signals_recovered(self):
         """Demo locus with two causal variants: both appear in top-5 PIPs."""
-        from core.susie_inf import run_susie_inf
+        from fine_mapping_core.susie_inf import run_susie_inf
         df, R = fine_mapping.make_demo_data(seed=42)
         result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=10)
         top5 = set(np.argsort(-result["pip"])[:5])
@@ -685,7 +685,7 @@ class TestSuSiEInf:
 
     def test_identity_ld_reduces_to_sparse(self):
         """Under identity LD (no LD), tausq should converge near zero."""
-        from core.susie_inf import run_susie_inf
+        from fine_mapping_core.susie_inf import run_susie_inf
         df = _small_locus(n=20)
         R = _identity_ld(20)
         result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=5)
@@ -694,7 +694,7 @@ class TestSuSiEInf:
 
     def test_cred_inf_returns_list_of_index_lists(self):
         """cred_inf returns a list where each element is a list of SNP indices."""
-        from core.susie_inf import run_susie_inf, cred_inf
+        from fine_mapping_core.susie_inf import run_susie_inf, cred_inf
         df = _small_locus(n=20)
         R = _identity_ld(20)
         result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=3)
@@ -706,7 +706,7 @@ class TestSuSiEInf:
 
     def test_cred_inf_captures_injected_signal(self):
         """cred_inf includes index 10 (injected signal) in at least one credible set."""
-        from core.susie_inf import run_susie_inf, cred_inf
+        from fine_mapping_core.susie_inf import run_susie_inf, cred_inf
         df = _small_locus(n=20)
         R = _identity_ld(20)
         result = run_susie_inf(z=df["z"].values, R=R, n=5000, L=5)
@@ -725,7 +725,7 @@ class TestGeneTrack:
 
     def test_fetch_genes_returns_empty_on_network_error(self):
         """_fetch_genes returns [] when the network request fails."""
-        from core.report import _fetch_genes
+        from fine_mapping_core.report import _fetch_genes
         from unittest.mock import patch
 
         with patch("urllib.request.urlopen", side_effect=OSError("network error")):
@@ -736,7 +736,7 @@ class TestGeneTrack:
         """_fetch_genes sleeps for Retry-After seconds and retries on HTTP 429."""
         import json
         import urllib.error
-        from core.report import _fetch_genes
+        from fine_mapping_core.report import _fetch_genes
         from unittest.mock import MagicMock, call, patch
 
         # First two calls raise 429; third succeeds
@@ -766,7 +766,7 @@ class TestGeneTrack:
     def test_fetch_genes_returns_empty_after_max_retries(self):
         """_fetch_genes returns [] when all 3 attempts receive HTTP 429."""
         import urllib.error
-        from core.report import _fetch_genes
+        from fine_mapping_core.report import _fetch_genes
         from unittest.mock import patch
 
         headers_429 = {"Retry-After": "0.01"}
@@ -783,7 +783,7 @@ class TestGeneTrack:
     def test_fetch_genes_returns_empty_on_non_429_http_error(self):
         """_fetch_genes returns [] immediately on non-429 HTTP errors (no retry)."""
         import urllib.error
-        from core.report import _fetch_genes
+        from fine_mapping_core.report import _fetch_genes
         from unittest.mock import patch
 
         http_500 = urllib.error.HTTPError(
@@ -801,7 +801,7 @@ class TestGeneTrack:
     def test_fetch_genes_filters_to_gene_feature_type(self):
         """_fetch_genes drops non-gene features (e.g. transcripts)."""
         import json
-        from core.report import _fetch_genes
+        from fine_mapping_core.report import _fetch_genes
         from unittest.mock import MagicMock, patch
 
         mock_data = [
@@ -824,7 +824,7 @@ class TestGeneTrack:
     def test_fetch_genes_strips_chr_prefix(self):
         """_fetch_genes strips 'chr' prefix from chromosome before building URL."""
         import json
-        from core.report import _fetch_genes
+        from fine_mapping_core.report import _fetch_genes
         from unittest.mock import MagicMock, call, patch
 
         mock_resp = MagicMock()
@@ -848,7 +848,7 @@ class TestGeneTrack:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        from core.report import _plot_gene_track
+        from fine_mapping_core.report import _plot_gene_track
 
         genes = [
             {"external_name": "GENE1", "gene_id": "ENSG001",
@@ -865,7 +865,7 @@ class TestGeneTrack:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        from core.report import _plot_gene_track
+        from fine_mapping_core.report import _plot_gene_track
 
         fig, ax = plt.subplots()
         _plot_gene_track(ax, [], 0, 10_000)
@@ -876,11 +876,11 @@ class TestGeneTrack:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        from core.report import _plot_regional_association
+        from fine_mapping_core.report import _plot_regional_association
         from unittest.mock import patch
 
         df = _small_locus()
-        with patch("core.report._fetch_genes", return_value=[]):
+        with patch("fine_mapping_core.report._fetch_genes", return_value=[]):
             _plot_regional_association(df, [], tmp_path, plt, gene_track=True)
 
         assert (tmp_path / "regional_association.png").exists()
@@ -890,7 +890,7 @@ class TestGeneTrack:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        from core.report import _plot_regional_association
+        from fine_mapping_core.report import _plot_regional_association
         from unittest.mock import patch
 
         genes = [
@@ -900,7 +900,7 @@ class TestGeneTrack:
              "start": 1_010_000, "end": 1_015_000, "strand": -1},
         ]
         df = _small_locus()
-        with patch("core.report._fetch_genes", return_value=genes):
+        with patch("fine_mapping_core.report._fetch_genes", return_value=genes):
             _plot_regional_association(df, [], tmp_path, plt, gene_track=True)
 
         assert (tmp_path / "regional_association.png").exists()
@@ -910,11 +910,11 @@ class TestGeneTrack:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        from core.report import _plot_regional_association
+        from fine_mapping_core.report import _plot_regional_association
         from unittest.mock import patch
 
         df = _small_locus()
-        with patch("core.report._fetch_genes") as mock_fetch:
+        with patch("fine_mapping_core.report._fetch_genes") as mock_fetch:
             _plot_regional_association(df, [], tmp_path, plt, gene_track=False)
 
         mock_fetch.assert_not_called()

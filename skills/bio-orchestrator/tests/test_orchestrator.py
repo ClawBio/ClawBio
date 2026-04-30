@@ -153,6 +153,32 @@ class TestDetectSkillWithHint:
         assert skill == "scrna-embedding"
         assert "two-step" in hint.lower() or "scrna-embedding" in hint.lower()
 
+    def test_embedding_without_downstream_prefers_scrna_embedding(self):
+        skill, hint = detect_skill_with_hint_from_query(
+            "Build a latent embedding for this single-cell dataset"
+        )
+        assert skill == "scrna-embedding"
+        assert "embedding-focused" in hint.lower()
+        assert "latent space" in hint.lower()
+
+    def test_embedding_with_latent_artifact_prefers_scrna_embedding(self):
+        skill, hint = detect_skill_with_hint_from_query(
+            "Run embedding on my integrated.h5ad file"
+        )
+        assert skill == "scrna-embedding"
+        assert "embedding-focused" in hint.lower()
+        assert "latent artifact" in hint.lower()
+
+    def test_generic_single_cell_query_still_prefers_orchestrator(self):
+        skill, hint = detect_skill_with_hint_from_query("single-cell dataset")
+        assert skill == "scrna-orchestrator"
+        assert hint == ""
+
+    def test_downstream_only_query_still_prefers_orchestrator(self):
+        skill, hint = detect_skill_with_hint_from_query("Cluster my single-cell data")
+        assert skill == "scrna-orchestrator"
+        assert hint == ""
+
 
 # ---------------------------------------------------------------------------
 # detect_multiple_skills

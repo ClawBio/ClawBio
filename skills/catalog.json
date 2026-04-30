@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 56,
+  "skill_count": 57,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -446,7 +446,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/data-extractor/data_extractor.py --demo",
+      "demo_command": "python skills/data-extractor/data_extractor_api.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [],
@@ -1042,15 +1042,60 @@
       "chaining_partners": []
     },
     {
-      "name": "nutrigx_advisor",
-      "cli_alias": "nutrigx",
+      "name": "ncbi-datasets",
+      "cli_alias": null,
+      "description": "Download genomes, genes, virus sequences, and taxonomy data from NCBI using the datasets and dataformat CLI tools.",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": false,
+      "has_tests": false,
+      "has_demo": false,
+      "demo_command": null,
+      "dependencies": [],
+      "tags": [
+        "ncbi",
+        "genomics",
+        "bioinformatics",
+        "genome-download",
+        "gene",
+        "virus",
+        "taxonomy",
+        "datasets",
+        "dataformat",
+        "refseq",
+        "genbank"
+      ],
+      "trigger_keywords": [
+        "ncbi",
+        "datasets download",
+        "datasets summary",
+        "dataformat",
+        "download genome",
+        "download gene",
+        "reference genome",
+        "genome accession",
+        "gene symbol",
+        "ortholog",
+        "download virus",
+        "sars-cov-2 sequence",
+        "taxonomy data",
+        "dehydrated download",
+        "rehydrate",
+        "GCF",
+        "GCA"
+      ],
+      "chaining_partners": []
+    },
+    {
+      "name": "nutrigx-advisor",
+      "cli_alias": null,
       "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
       "version": "0.1.0",
-      "status": "mvp",
+      "status": "planned",
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python clawbio.py run nutrigx --demo",
+      "demo_command": "python skills/nutrigx-advisor/parse_input.py --demo",
       "dependencies": [],
       "tags": [
         "nutrigenomics",
@@ -1077,10 +1122,7 @@
         "vitamin absorption genetics",
         "gluten"
       ],
-      "chaining_partners": [
-        "profile-report",
-        "pharmgx-reporter"
-      ]
+      "chaining_partners": []
     },
     {
       "name": "omics-target-evidence-mapper",
@@ -1475,6 +1517,35 @@
         "flagstat",
         "sort and index bam",
         "process fastq"
+      ],
+      "chaining_partners": []
+    },
+    {
+      "name": "skill-builder",
+      "cli_alias": null,
+      "description": "Scaffold a new ClawBio skill from a spec file (JSON/YAML) or interactively — generates SKILL.md, Python skeleton, tests, and updates catalog.json",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/skill-builder/skill_builder.py --demo",
+      "dependencies": [],
+      "tags": [
+        "meta",
+        "scaffolding",
+        "developer-tools",
+        "skill-creation"
+      ],
+      "trigger_keywords": [
+        "create skill",
+        "new skill",
+        "scaffold skill",
+        "skill template",
+        "skill builder",
+        "add a skill",
+        "build a skill",
+        "make a skill"
       ],
       "chaining_partners": []
     },

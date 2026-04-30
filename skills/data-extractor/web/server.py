@@ -9,7 +9,7 @@ import logging
 import sys
 from pathlib import Path
 
-# Add skill root to sys.path so `from core.models import ...` works
+# Add skill root to sys.path so `from data_extractor_core.models import ...` works
 _WEB_DIR = Path(__file__).resolve().parent
 _SKILL_ROOT = _WEB_DIR.parent
 if str(_SKILL_ROOT) not in sys.path:
@@ -21,13 +21,13 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image as PILImage
 from pydantic import BaseModel
 
-from core.models import (
+from data_extractor_core.models import (
     Confidence,
     ExtractedData,
     Figure,
     PlotType,
 )
-from core.digitizer import digitize_figure
+from data_extractor_core.digitizer import digitize_figure
 
 logger = logging.getLogger(__name__)
 

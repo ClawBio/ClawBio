@@ -14,7 +14,7 @@ import pytest
 SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_DIR))
 
-from core.io import validate_and_prepare, VALID_AA
+from struct_predictor_core.io import validate_and_prepare, VALID_AA
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -164,7 +164,7 @@ class TestValidateAndPrepare:
         assert result["sequences"][1]["chain_id"] == "B"
 
 
-from core.predict import run_boltz, _find_cif, _build_boltz_cmd
+from struct_predictor_core.predict import run_boltz, _find_cif, _build_boltz_cmd
 
 
 class TestBuildBoltzCmd:
@@ -217,7 +217,7 @@ class TestRunBoltz:
         mock_proc = MagicMock()
         mock_proc.returncode = 0
 
-        with patch("core.predict.subprocess.run", return_value=mock_proc):
+        with patch("struct_predictor_core.predict.subprocess.run", return_value=mock_proc):
             result = run_boltz(
                 input_path=tmp_path / "input.yaml",
                 boltz_output_dir=tmp_path / "boltz_out",
@@ -230,7 +230,7 @@ class TestRunBoltz:
         mock_proc.returncode = 1
         mock_proc.stderr = "CUDA out of memory"
 
-        with patch("core.predict.subprocess.run", return_value=mock_proc):
+        with patch("struct_predictor_core.predict.subprocess.run", return_value=mock_proc):
             with pytest.raises(RuntimeError, match="Boltz exited with code 1"):
                 run_boltz(
                     input_path=tmp_path / "input.yaml",
@@ -242,7 +242,7 @@ class TestRunBoltz:
 # TestConfidence
 # ---------------------------------------------------------------------------
 
-from core.confidence import extract_confidence, _parse_plddt_from_cif, _parse_pae_from_json, _read_atom_site_columns
+from struct_predictor_core.confidence import extract_confidence, _parse_plddt_from_cif, _parse_pae_from_json, _read_atom_site_columns
 
 
 def _make_synthetic_cif(tmp_path: Path, n_residues: int = 5, n_chains: int = 1) -> Path:
@@ -404,7 +404,7 @@ class TestConfidence:
 # TestReport
 # ---------------------------------------------------------------------------
 
-from core.report import generate_report, _confidence_band_breakdown, DISCLAIMER
+from struct_predictor_core.report import generate_report, _confidence_band_breakdown, DISCLAIMER
 
 
 class TestReport:
@@ -577,7 +577,7 @@ class TestPipeline:
                 self._make_fake_boltz_output(boltz_out, n=20)
             return mock_proc
 
-        with patch("core.predict.subprocess.run", side_effect=fake_run):
+        with patch("struct_predictor_core.predict.subprocess.run", side_effect=fake_run):
             result = run_struct_prediction(
                 input_path=None, output_dir=tmp_path / "out", demo=True,
             )

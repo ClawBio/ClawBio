@@ -34,7 +34,7 @@ metadata:
         - json
       description: Machine-readable results
   dependencies:
-    python: ">=3.11"
+    python: ">=3.10"
     packages:
       - pandas>=2.0
   demo_data:

@@ -12,20 +12,54 @@ import textwrap
 from pathlib import Path
 from datetime import datetime
 
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import mm, cm
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, HRFlowable, KeepTogether, Frame, PageTemplate,
-    BaseDocTemplate, NextPageTemplate, Image
-)
-from reportlab.platypus.doctemplate import _doNothing
-from reportlab.graphics.shapes import Drawing, Rect, String, Line
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
+try:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm, cm
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+        PageBreak, HRFlowable, KeepTogether, Frame, PageTemplate,
+        BaseDocTemplate, NextPageTemplate, Image
+    )
+    from reportlab.platypus.doctemplate import _doNothing
+    from reportlab.graphics.shapes import Drawing, Rect, String, Line
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    _REPORTLAB_AVAILABLE = True
+except ImportError:
+    colors = None
+    A4 = None
+    getSampleStyleSheet = None
+    ParagraphStyle = None
+    mm = None
+    cm = None
+    TA_LEFT = None
+    TA_CENTER = None
+    TA_RIGHT = None
+    TA_JUSTIFY = None
+    SimpleDocTemplate = None
+    Paragraph = None
+    Spacer = None
+    Table = None
+    TableStyle = None
+    PageBreak = None
+    HRFlowable = None
+    KeepTogether = None
+    Frame = None
+    PageTemplate = None
+    BaseDocTemplate = None
+    NextPageTemplate = None
+    Image = None
+    _doNothing = None
+    Drawing = None
+    Rect = None
+    String = None
+    Line = None
+    pdfmetrics = None
+    TTFont = None
+    _REPORTLAB_AVAILABLE = False
 
 # ── Paths ────────────────────────────────────────────────────────────────
 REPORT_DIR = Path("/Volumes/CPM-16Tb/NOVOGENE/ANALYSIS/REPORTS")
@@ -241,23 +275,38 @@ INTERP_ES = {
 }
 
 
-# ── Colour palette ───────────────────────────────────────────────────────
-NAVY       = colors.HexColor("#1B2A4A")
-DARK_BLUE  = colors.HexColor("#2C4A7C")
-MID_BLUE   = colors.HexColor("#4A90D9")
-LIGHT_BLUE = colors.HexColor("#D6E8F7")
-PALE_BLUE  = colors.HexColor("#EBF3FB")
-ACCENT_RED = colors.HexColor("#C0392B")
-ACCENT_AMBER = colors.HexColor("#E67E22")
-ACCENT_GREEN = colors.HexColor("#27AE60")
-WARM_GREY  = colors.HexColor("#7F8C8D")
-LIGHT_GREY = colors.HexColor("#F4F6F8")
-WHITE      = colors.white
-BLACK      = colors.black
-ROW_ALT    = colors.HexColor("#F8FAFC")
+if _REPORTLAB_AVAILABLE:
+    # ── Colour palette ───────────────────────────────────────────────────
+    NAVY       = colors.HexColor("#1B2A4A")
+    DARK_BLUE  = colors.HexColor("#2C4A7C")
+    MID_BLUE   = colors.HexColor("#4A90D9")
+    LIGHT_BLUE = colors.HexColor("#D6E8F7")
+    PALE_BLUE  = colors.HexColor("#EBF3FB")
+    ACCENT_RED = colors.HexColor("#C0392B")
+    ACCENT_AMBER = colors.HexColor("#E67E22")
+    ACCENT_GREEN = colors.HexColor("#27AE60")
+    WARM_GREY  = colors.HexColor("#7F8C8D")
+    LIGHT_GREY = colors.HexColor("#F4F6F8")
+    WHITE      = colors.white
+    BLACK      = colors.black
+    ROW_ALT    = colors.HexColor("#F8FAFC")
 
-PAGE_W, PAGE_H = A4
-MARGIN = 20 * mm
+    PAGE_W, PAGE_H = A4
+    MARGIN = 20 * mm
+else:
+    NAVY = DARK_BLUE = MID_BLUE = LIGHT_BLUE = PALE_BLUE = None
+    ACCENT_RED = ACCENT_AMBER = ACCENT_GREEN = None
+    WARM_GREY = LIGHT_GREY = WHITE = BLACK = ROW_ALT = None
+    PAGE_W = PAGE_H = MARGIN = None
+
+
+def _require_reportlab():
+    """Raise a helpful error when PDF generation is requested without reportlab."""
+    if not _REPORTLAB_AVAILABLE:
+        raise ImportError(
+            "reportlab is required for PDF generation. Install it with "
+            "`pip install -r skills/wes-clinical-report-es/requirements.txt`."
+        )
 
 
 # ── Translation helper ───────────────────────────────────────────────────
@@ -1355,6 +1404,7 @@ def _build_limitations_section(styles):
 # ── Build PDF (Spanish) ──────────────────────────────────────────────────
 
 def build_sample_pdf_es(md_path, output_path):
+    _require_reportlab()
     report = parse_markdown_report(md_path)
     sample_id = report["sample_id"] or md_path.stem.split("_")[0]
     styles = build_styles()

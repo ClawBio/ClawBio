@@ -1,50 +1,118 @@
 # ClawBio
 
-> ClawBio is the first bioinformatics-native AI agent skill library, built on
-> OpenClaw. It provides local-first, privacy-focused, reproducible genomic
-> analysis through modular skills that any LLM can invoke via CLI or Python API.
+> ClawBio is a local-first, privacy-focused, reproducible bioinformatics AI agent skill library built on OpenClaw. This file is the fast entry point for LLMs discovering the repository.
 
 ## Docs
 
-- [README](README.md): Project overview, quick start, architecture, skill table
-- [CLAUDE.md](CLAUDE.md): Agent routing table, CLI reference, demo data, safety rules
-- [AGENTS.md](AGENTS.md): Universal guide for AI coding agents (setup, style, workflow)
-- [CONTRIBUTING.md](CONTRIBUTING.md): How to contribute a skill, naming conventions, code standards
-- [SECURITY-AUDIT.md](SECURITY-AUDIT.md): Security audit results and remediation log
-- [SOUL.md](SOUL.md): ClawBio persona and voice
-- [Reference Genome](docs/reference-genome.md): Corpas 30x WGS reference genome (CC0, GRCh37, SNPs + indels + SVs + CNVs)
+- [README](README.md): Project overview, quick start, current skill table, architecture, benchmark summary
+- [CLAUDE.md](CLAUDE.md): Agent routing table, CLI reference, demo data, safety rules, script-first execution guidance
+- [AGENTS.md](AGENTS.md): Universal guide for AI coding agents working in this repo
+- [commands/](commands/): Reusable slash-command workflows for analysis, skill scaffolding, skill listing, and demos
+- [CHANGELOG.md](CHANGELOG.md): Release milestones through `v0.5.0`
+- [REMEDIATION-PLAN.md](REMEDIATION-PLAN.md): External audit findings and remediation roadmap
+- [docs/CLAWBIO-BRIEF.md](docs/CLAWBIO-BRIEF.md): Evergreen project brief for collaborators, investors, and agents
+- [docs/reference-genome.md](docs/reference-genome.md): Corpas 30x WGS reference genome used across demos, tutorials, and benchmarking
+- [CONTRIBUTING.md](CONTRIBUTING.md): Contribution workflow, naming conventions, code standards
 
-## Skills (MVP)
+## Slash Commands
 
-- [pharmgx-reporter](skills/pharmgx-reporter/SKILL.md): Pharmacogenomics report from 23andMe/AncestryDNA (12 genes, 51 drugs)
-- [drug-photo](skills/drug-photo/SKILL.md): Medication photo to personalised PGx dosage card via Claude vision
-- [clinpgx](skills/clinpgx/SKILL.md): Gene-drug lookup against ClinPGx/PharmGKB/FDA databases
-- [gwas-lookup](skills/gwas-lookup/SKILL.md): Federated variant query across 9 genomic databases
-- [gwas-prs](skills/gwas-prs/SKILL.md): Polygenic risk score calculation from DTC genetic data
-- [profile-report](skills/profile-report/SKILL.md): Unified personal genomic profile from all skill results
-- [genome-compare](skills/genome-compare/SKILL.md): IBS comparison vs George Church + ancestry estimation
-- [equity-scorer](skills/equity-scorer/SKILL.md): HEIM equity metrics (FST, heterozygosity, representation)
-- [nutrigx_advisor](skills/nutrigx_advisor/SKILL.md): Nutrigenomics advisor (diet, vitamins, caffeine, lactose)
-- [claw-ancestry-pca](skills/claw-ancestry-pca/SKILL.md): PCA against SGDP reference panel (345 samples, 164 populations)
-- [claw-semantic-sim](skills/claw-semantic-sim/SKILL.md): Semantic Isolation Index for disease research equity
-- [claw-metagenomics](skills/claw-metagenomics/SKILL.md): Metagenomic profiling with Kraken2, RGI/CARD, HUMAnN3
-- [bio-orchestrator](skills/bio-orchestrator/SKILL.md): Routes queries to the appropriate skill by file type and keywords
-- [ukb-navigator](skills/ukb-navigator/SKILL.md): Semantic search across 22k+ UK Biobank fields
-- [galaxy-bridge](skills/galaxy-bridge/SKILL.md): Galaxy tool discovery and execution — 8,000+ bioinformatics tools from usegalaxy.org
+- `/analyse`: Analyse a file or input with the appropriate ClawBio skill
+- `/new-skill`: Scaffold a new skill from the official template
+- `/list-skills`: List available skills from `skills/catalog.json`
+- `/run-demo`: Run a skill demo with built-in sample data
 
-## Skills (Implemented / Planned Mix)
+## Project State
 
-- [vcf-annotator](skills/vcf-annotator/SKILL.md): VEP, ClinVar, gnomAD variant annotation
-- [lit-synthesizer](skills/lit-synthesizer/SKILL.md): PubMed/bioRxiv literature search and LLM summarisation
-- [scrna-embedding](skills/scrna-embedding/SKILL.md): scVI/scANVI latent embedding, batch integration, and stable integrated.h5ad export
-- [scrna-orchestrator](skills/scrna-orchestrator/SKILL.md): Scanpy single-cell RNA-seq automation with latent downstream mode and contrastive markers
-- [struct-predictor](skills/struct-predictor/SKILL.md): AlphaFold/Boltz protein structure prediction
-- [repro-enforcer](skills/repro-enforcer/SKILL.md): Conda/Singularity/Nextflow reproducibility export
-- [seq-wrangler](skills/seq-wrangler/SKILL.md): FASTQ/BAM QC and alignment
-- [labstep](skills/labstep/SKILL.md): Lab notebook integration
+- Current public release: `v0.5.0`
+- Public framing in `README.md`: `55 skills + 8,000 Galaxy tools + 1,401 tests + benchmark validation`
+- Public README skill table: `37` MVP skills and `6` planned / legacy skills
+- Source precedence for this file:
+  - `README.md` for active vs planned public skill framing
+  - `clawbio.py` and `skills/catalog.json` for registered CLI aliases
+  - `CHANGELOG.md` for benchmark infrastructure and release milestones
+  - `commands/` for slash commands
+
+## Validation & Benchmarking
+
+- [tests/benchmark/ad_ground_truth.json](tests/benchmark/ad_ground_truth.json): AD Ground Truth benchmark set
+- [tests/benchmark/mock_api_server.py](tests/benchmark/mock_api_server.py): Deterministic mock endpoints for offline CI and testing
+- [tests/benchmark/benchmark_scorer.py](tests/benchmark/benchmark_scorer.py): Benchmark scoring CLI / Python API
+- [tests/benchmark/finemapping_benchmark.py](tests/benchmark/finemapping_benchmark.py): ABF vs SuSiE benchmark harness
+- [scripts/nightly_demo_sweep.py](scripts/nightly_demo_sweep.py): Nightly sweep with benchmark integration
+
+## Active Skills With Registered CLI Alias
+
+- [pharmgx-reporter](skills/pharmgx-reporter/SKILL.md) — alias `pharmgx`: Pharmacogenomic report from DTC genetic data
+- [drug-photo](skills/drug-photo/SKILL.md) — alias `drugphoto`: Medication photo to personalised PGx dosage card
+- [clinpgx](skills/clinpgx/SKILL.md) — alias `clinpgx`: Gene-drug lookup against ClinPGx / PharmGKB / FDA data
+- [gwas-lookup](skills/gwas-lookup/SKILL.md) — alias `gwas`: Federated variant query across 9 genomic databases
+- [gwas-prs](skills/gwas-prs/SKILL.md) — alias `prs`: Polygenic risk scores from the PGS Catalog
+- [profile-report](skills/profile-report/SKILL.md) — alias `profile`: Unified personal genomic profile report
+- [genome-compare](skills/genome-compare/SKILL.md) — alias `compare`: IBS comparison vs George Church plus ancestry estimation
+- [equity-scorer](skills/equity-scorer/SKILL.md) — alias `equity`: HEIM diversity metrics from VCF or ancestry CSV
+- [nutrigx_advisor](skills/nutrigx_advisor/SKILL.md) — alias `nutrigx`: Personalised nutrigenomics from consumer genetic data
+- [claw-metagenomics](skills/claw-metagenomics/SKILL.md) — alias `metagenomics`: Kraken2 / RGI / HUMAnN3 metagenomic profiling
+- [galaxy-bridge](skills/galaxy-bridge/SKILL.md) — alias `galaxy`: Search, run, and chain 8,000+ Galaxy tools
+- [scrna-orchestrator](skills/scrna-orchestrator/SKILL.md) — alias `scrna`: Scanpy single-cell RNA-seq automation
+- [scrna-embedding](skills/scrna-embedding/SKILL.md) — alias `scrna-embedding`: scVI/scANVI latent embedding and integration
+- [rnaseq-de](skills/rnaseq-de/SKILL.md) — alias `rnaseq`: Bulk / pseudo-bulk RNA-seq differential expression
+- [methylation-clock](skills/methylation-clock/SKILL.md) — alias `methylation`: Epigenetic age from methylation clocks
+- [diff-visualizer](skills/diff-visualizer/SKILL.md) — alias `diffviz`: Downstream DE and marker visualisation
+- [bioconductor-bridge](skills/bioconductor-bridge/SKILL.md) — alias `bioc`: Bioconductor package discovery and workflow recommendation
+- [data-extractor](skills/data-extractor/SKILL.md) — alias `data-extract`: Extract quantitative data from scientific figures
+- [illumina-bridge](skills/illumina-bridge/SKILL.md) — alias `illumina`: Import DRAGEN / Illumina result bundles
+- [protocols-io](skills/protocols-io/SKILL.md) — alias `protocols-io`: Search, browse, and retrieve scientific protocols
+- [clinical-variant-reporter](skills/clinical-variant-reporter/SKILL.md) — alias `acmg`: ACMG/AMP clinical variant classification
+
+## Active Skills Without Registered CLI Alias
+
+- [bio-orchestrator](skills/bio-orchestrator/SKILL.md): Routes requests to the right skill automatically
+- [ukb-navigator](skills/ukb-navigator/SKILL.md): Semantic search across the UK Biobank schema
+- [claw-ancestry-pca](skills/claw-ancestry-pca/SKILL.md): PCA vs SGDP reference populations
+- [claw-semantic-sim](skills/claw-semantic-sim/SKILL.md): Semantic Isolation Index from PubMed-scale literature embeddings
+- [proteomics-de](skills/proteomics-de/SKILL.md): Differential expression for label-free quantitative proteomics
+- [variant-annotation](skills/variant-annotation/SKILL.md): Active VCF annotation skill using Ensembl VEP REST, ClinVar, and gnomAD
+- [clinical-trial-finder](skills/clinical-trial-finder/SKILL.md): Find clinical trials for a gene, variant, or condition
+- [pubmed-summariser](skills/pubmed-summariser/SKILL.md): Structured briefings of top recent PubMed papers
+- [omics-target-evidence-mapper](skills/omics-target-evidence-mapper/SKILL.md): Aggregate public target-level evidence across omics and translational sources
+- [target-validation-scorer](skills/target-validation-scorer/SKILL.md): Evidence-grounded target validation scoring with GO / NO-GO outputs
+- [soul2dna](skills/soul2dna/SKILL.md): Compile SOUL.md character profiles into synthetic diploid genomes
+- [genome-match](skills/genome-match/SKILL.md): Score genetic compatibility across all pairings in a generation
+- [recombinator](skills/recombinator/SKILL.md): Produce offspring via meiotic recombination, mutation, and clinical evaluation
+- [fine-mapping](skills/fine-mapping/SKILL.md): SuSiE / ABF credible sets and posterior inclusion probabilities
+- [wes-clinical-report-es](skills/wes-clinical-report-es/SKILL.md): Whole-exome sequencing clinical report generation
+
+## Additional Agent-Visible Script Skills
+
+These skills are referenced in `CLAUDE.md`, `skills/catalog.json`, or executable metadata but are not currently presented in the public `README.md` MVP table as active skills. Keep that inconsistency in mind when describing project status.
+
+- [bigquery-public](skills/bigquery-public/SKILL.md) — alias `bigquery`: Read-only SQL bridge for public datasets with local outputs
+- [flow-bio](skills/flow-bio/SKILL.md) — alias `flow`: Flow.bio API bridge for pipelines, samples, projects, and executions
+- [multiqc-reporter](skills/multiqc-reporter/SKILL.md): Aggregate QC reports into MultiQC plus ClawBio summary output
+- [cell-detection](skills/cell-detection/SKILL.md): Cell segmentation from fluorescence microscopy images
+- [proteomics-clock](skills/proteomics-clock/SKILL.md): Organ-specific biological age from Olink proteomic data
+- [wes-clinical-report-en](skills/wes-clinical-report-en/SKILL.md): Professional English clinical PDF reports from WES results
+- [mendelian-randomisation](skills/mendelian-randomisation/SKILL.md): Two-sample Mendelian randomisation with sensitivity analysis
+- [affinity-proteomics](skills/affinity-proteomics/SKILL.md): Olink and SomaLogic differential abundance workflow
+- [gwas-pipeline](skills/gwas-pipeline/SKILL.md): PLINK2 + REGENIE GWAS automation pipeline
+
+## Planned or Legacy Skills
+
+- [vcf-annotator](skills/vcf-annotator/SKILL.md): Legacy VCF annotation pipeline; use `variant-annotation` for the active replacement
+- [lit-synthesizer](skills/lit-synthesizer/SKILL.md): Planned broader literature search and citation graph skill
+- [struct-predictor](skills/struct-predictor/SKILL.md): Planned AlphaFold / Boltz local structure prediction entry in the public README
+- [repro-enforcer](skills/repro-enforcer/SKILL.md): Planned reproducibility export layer
+- [labstep](skills/labstep/SKILL.md): Planned Labstep ELN API integration in the public README
+- [seq-wrangler](skills/seq-wrangler/SKILL.md): Planned sequence QC / alignment / BAM processing pipeline
+
+## Known Metadata Inconsistencies
+
+- `README.md` lists `LLM Biobank Bench` as an MVP skill, and `clawbio.py` registers alias `llm-bench`, but this checkout does not contain a matching `skills/llm-biobank-bench/` directory.
+- `wes-clinical-report-es` is visible in `README.md` and `CLAUDE.md`, but the current `skills/catalog.json` does not contain a matching entry.
+- Several executable skills are exposed in `CLAUDE.md` or `clawbio.py` without being part of the public `README.md` MVP table; see `Additional Agent-Visible Script Skills` above.
 
 ## Optional
 
-- [Skill Catalog (JSON)](skills/catalog.json): Machine-readable index of all skills
-- [Skill Template](templates/SKILL-TEMPLATE.md): Template for creating new skills
-- [Main CLI](clawbio.py): `python clawbio.py list` / `python clawbio.py run <skill> --demo`
+- [skills/catalog.json](skills/catalog.json): Machine-readable skill index; current catalog contains `55` entries
+- [templates/SKILL-TEMPLATE.md](templates/SKILL-TEMPLATE.md): Template for new skills
+- [clawbio.py](clawbio.py): Main CLI runner and alias registry for `python clawbio.py run <alias>`

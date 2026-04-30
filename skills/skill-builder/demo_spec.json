@@ -1,0 +1,36 @@
+{
+  "name": "hello-bioinformatics",
+  "description": "A minimal demo skill that greets a list of sample IDs and produces a formatted report — used to verify the Skill Builder pipeline end-to-end",
+  "author": "ClawBio Skill Builder (auto-generated demo)",
+  "version": "0.1.0",
+  "license": "MIT",
+  "domain": "bioinformatics",
+  "emoji": "👋",
+  "cli_alias": "hello-bio",
+  "tags": ["demo", "tutorial", "scaffold"],
+  "trigger_keywords": [
+    "hello bioinformatics",
+    "demo skill",
+    "test scaffold",
+    "skill builder demo"
+  ],
+  "capabilities": [
+    "Accept a list of sample IDs from a plain-text file (one per line)",
+    "Produce a formatted markdown report greeting each sample",
+    "Write a machine-readable result.json with sample count and IDs",
+    "Provide a full reproducibility bundle (commands.sh + environment.yml)"
+  ],
+  "input_formats": [
+    {
+      "format": "Plain text — sample list",
+      "extension": ".txt",
+      "required_fields": "one sample ID per line (lines starting with # are comments)",
+      "example": "demo_input.txt"
+    }
+  ],
+  "dependencies": {
+    "required": [],
+    "optional": []
+  },
+  "chaining_partners": ["skill-builder"]
+}
