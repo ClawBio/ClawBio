@@ -8,3 +8,4 @@ openai>=1.0
 pydeseq2>=0.4
 google-auth>=2,<3
 google-cloud-bigquery>=3,<4
+rocrate>=0.15.0

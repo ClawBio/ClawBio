@@ -283,3 +283,112 @@ class TestWriteCondaLock:
             mock_run.side_effect = subprocess.CalledProcessError(1, "conda-lock")
             with pytest.raises(subprocess.CalledProcessError):
                 write_conda_lock(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# TestWriteRoCrate
+# ---------------------------------------------------------------------------
+
+
+import json as _json
+
+from clawbio.common.reproducibility import write_ro_crate
+
+
+class TestWriteRoCrate:
+    def test_creates_metadata_file(self, tmp_path):
+        out = write_ro_crate(
+            tmp_path,
+            skill_name="test-skill",
+            skill_version="0.1.0",
+            script_path="skills/test-skill/test_skill.py",
+        )
+        assert out == tmp_path / "ro-crate-metadata.json"
+        assert out.exists()
+
+    def test_metadata_is_valid_json(self, tmp_path):
+        write_ro_crate(
+            tmp_path,
+            skill_name="test-skill",
+            skill_version="0.1.0",
+            script_path="skills/test-skill/test_skill.py",
+        )
+        data = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())
+        assert "@context" in data
+        assert "@graph" in data
+
+    def test_root_dataset_contains_skill_version(self, tmp_path):
+        write_ro_crate(
+            tmp_path,
+            skill_name="test-skill",
+            skill_version="1.2.3",
+            script_path="skills/test-skill/test_skill.py",
+        )
+        graph = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
+        root = next(e for e in graph if e.get("@id") == "./")
+        assert root.get("version") == "1.2.3"
+
+    def test_create_action_present(self, tmp_path):
+        write_ro_crate(
+            tmp_path,
+            skill_name="test-skill",
+            skill_version="0.1.0",
+            script_path="skills/test-skill/test_skill.py",
+        )
+        graph = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
+        actions = [e for e in graph if e.get("@type") == "CreateAction"]
+        assert len(actions) == 1
+        assert actions[0]["instrument"]["@id"] == "skills/test-skill/test_skill.py"
+
+    def test_params_included_as_property_values(self, tmp_path):
+        write_ro_crate(
+            tmp_path,
+            skill_name="test-skill",
+            skill_version="0.1.0",
+            script_path="skills/test-skill/test_skill.py",
+            params={"input": "sample.vcf", "threshold": "0.05"},
+        )
+        graph = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
+        pv = [e for e in graph if e.get("@type") == "PropertyValue"]
+        names = {e["name"] for e in pv}
+        assert {"input", "threshold"} == names
+
+    def test_output_files_registered_as_has_part(self, tmp_path):
+        (tmp_path / "report.md").write_text("# Report")
+        (tmp_path / "figure.png").write_bytes(b"PNG")
+        write_ro_crate(
+            tmp_path,
+            skill_name="test-skill",
+            skill_version="0.1.0",
+            script_path="skills/test-skill/test_skill.py",
+        )
+        graph = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
+        root = next(e for e in graph if e.get("@id") == "./")
+        has_part_ids = {e["@id"] for e in root.get("hasPart", [])}
+        assert "report.md" in has_part_ids
+        assert "figure.png" in has_part_ids
+
+    def test_description_propagated(self, tmp_path):
+        write_ro_crate(
+            tmp_path,
+            skill_name="test-skill",
+            skill_version="0.1.0",
+            script_path="skills/test-skill/test_skill.py",
+            description="Demo run for testing",
+        )
+        graph = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
+        root = next(e for e in graph if e.get("@id") == "./")
+        assert root.get("description") == "Demo run for testing"
+
+    def test_completed_at_override(self, tmp_path):
+        ts = "2026-01-01T00:00:00+00:00"
+        write_ro_crate(
+            tmp_path,
+            skill_name="test-skill",
+            skill_version="0.1.0",
+            script_path="skills/test-skill/test_skill.py",
+            completed_at=ts,
+        )
+        graph = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
+        action = next(e for e in graph if e.get("@type") == "CreateAction")
+        assert action["endTime"] == ts
