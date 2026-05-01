@@ -467,6 +467,35 @@ class TestPatchClawbioPy:
         assert patch_clawbio_py(target, spec) is True
         py_compile.compile(str(target), doraise=True)
 
+    def test_descriptor_block_between_skills_and_anchor_is_ignored(self, spec: dict, tmp_path: Path) -> None:
+        clawbio = tmp_path / "clawbio.py"
+        clawbio.write_text(
+            "from pathlib import Path\n"
+            "SKILLS_DIR = Path('skills')\n"
+            "SKILLS = {\n"
+            '    "existing": {\n'
+            '        "script": SKILLS_DIR / "existing" / "existing.py",\n'
+            '        "demo_args": ["--demo"],\n'
+            '        "description": "Pre-existing entry",\n'
+            '        "allowed_extra_flags": set(),\n'
+            "    },\n"
+            "}\n"
+            "\n"
+            "try:\n"
+            "    print(f\"descriptor failed: {exc}\")\n"
+            "except Exception as exc:\n"
+            "    print(f\"fallback: {exc}\")\n"
+            "\n"
+            f"{self._ANCHOR}\n"
+            'FULL_PROFILE_PIPELINE = ["existing"]\n',
+            encoding="utf-8",
+        )
+
+        assert patch_clawbio_py(clawbio, spec) is True
+        source = clawbio.read_text()
+        assert '"testskill"' in source
+        assert source.index('"testskill"') < source.index("try:")
+
 
 # ---------------------------------------------------------------------------
 # validate_skill_md
