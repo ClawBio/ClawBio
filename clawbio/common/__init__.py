@@ -26,6 +26,9 @@ from clawbio.common.reproducibility import (
     write_commands_sh,
 )
 
+from clawbio.common.sarek import SarekConfig, SarekSample, SarekWrapper, build_samplesheet
+from clawbio.common.vcf_qc import QcConfig, QcResult, VcfQC
+
 __all__ = [
     "detect_format",
     "parse_genetic_file",
@@ -46,4 +49,11 @@ __all__ = [
     "write_checksums",
     "write_environment_yml",
     "write_commands_sh",
+    "SarekConfig",
+    "SarekSample",
+    "SarekWrapper",
+    "build_samplesheet",
+    "QcConfig",
+    "QcResult",
+    "VcfQC"
 ]
