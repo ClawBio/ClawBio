@@ -34,7 +34,7 @@ def main():
 
     args = parser.parse_args()
 
-    from api import run
+    from data_extractor_api import run
 
     if args.demo:
         demo_fig = _SKILL_DIR / "data" / "demo_figure.png"

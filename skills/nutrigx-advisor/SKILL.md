@@ -1,43 +1,49 @@
 ---
 name: nutrigx-advisor
-description: Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.
-version: 0.1.0
-author: David de Lorenzo
+description: Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant
+  SNPs and generates actionable dietary guidance, all computed locally.
 license: MIT
-tags: [nutrigenomics, nutrition, diet, genetics, 23andme, ancestrydna, vcf]
 metadata:
+  version: 0.1.0
+  author: David de Lorenzo
+  tags:
+  - nutrigenomics
+  - nutrition
+  - diet
+  - genetics
+  - 23andme
+  - ancestrydna
+  - vcf
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🥦"
+    emoji: 🥦
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: pandas numpy matplotlib seaborn
-        bins: []
-      - kind: pip
-        package: reportlab
-        bins: []
+    - kind: pip
+      package: pandas numpy matplotlib seaborn
+    - kind: pip
+      package: reportlab
     trigger_keywords:
-      - personalised nutrition
-      - nutrigenomics
-      - diet genetics
-      - MTHFR
-      - APOE
-      - FTO
-      - vitamin D
-      - caffeine metabolism
-      - lactose
-      - omega-3
-      - folate
-      - what should I eat based on my DNA
-      - vitamin absorption genetics
-      - gluten
+    - personalised nutrition
+    - nutrigenomics
+    - diet genetics
+    - MTHFR
+    - APOE
+    - FTO
+    - vitamin D
+    - caffeine metabolism
+    - lactose
+    - omega-3
+    - folate
+    - what should I eat based on my DNA
+    - vitamin absorption genetics
+    - gluten
 ---
 
 # NutriGx Advisor — Personalised Nutrition from Genetic Data

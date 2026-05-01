@@ -9,7 +9,12 @@ Entry point and CLI only.  Business logic lives in:
 """
 
 import argparse
+import sys
 from pathlib import Path
+
+_SKILL_DIR = Path(__file__).resolve().parent
+if str(_SKILL_DIR) not in sys.path:
+    sys.path.insert(0, str(_SKILL_DIR))
 
 from api import fetch_trials, parse_input
 from constants import ALL_STATUSES, DEFAULT_PAGE_SIZE, DEMO_DATA

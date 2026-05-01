@@ -15,7 +15,7 @@ if str(_SKILL_DIR) not in sys.path:
 
 def test_models_import():
     """Test that core models can be imported."""
-    from core.models import PlotType, Confidence, Figure, DataSeries, ExtractedData
+    from data_extractor_core.models import PlotType, Confidence, Figure, DataSeries, ExtractedData
 
     assert PlotType.BAR.value == "bar"
     assert Confidence.HIGH.value == "high"
@@ -24,7 +24,7 @@ def test_models_import():
 
 def test_plot_type_enum():
     """Test all expected plot types exist."""
-    from core.models import PlotType
+    from data_extractor_core.models import PlotType
 
     expected = [
         "scatter", "bar", "line", "box", "violin", "histogram",
@@ -39,7 +39,7 @@ def test_plot_type_enum():
 
 def test_extracted_data_model():
     """Test ExtractedData model creation."""
-    from core.models import ExtractedData, PlotType, Confidence, DataSeries
+    from data_extractor_core.models import ExtractedData, PlotType, Confidence, DataSeries
 
     data = ExtractedData(
         figure_id="test_fig",
@@ -67,7 +67,7 @@ def test_extracted_data_model():
 
 def test_cv_calibration_import():
     """Test that cv_calibration module can be imported."""
-    from core.cv_calibration import (
+    from data_extractor_core.cv_calibration import (
         PlotRegion, DetectedMarker, DetectedBar, CalibrationResult,
         calibrate_image, format_calibration_prompt,
     )
@@ -80,7 +80,7 @@ def test_cv_calibration_import():
 
 def test_digitizer_prompts():
     """Test that digitizer prompts are defined."""
-    from core.digitizer import BASE_PROMPT, PLOT_GUIDANCE, DEFAULT_GUIDANCE
+    from data_extractor_core.digitizer import BASE_PROMPT, PLOT_GUIDANCE, DEFAULT_GUIDANCE
 
     assert "STEP 1" in BASE_PROMPT
     assert "STEP 4" in BASE_PROMPT
@@ -89,8 +89,8 @@ def test_digitizer_prompts():
 
 def test_export_csv(tmp_path):
     """Test CSV export."""
-    from core.models import ExtractedData, PlotType, Confidence, DataSeries
-    from core.digitizer import export_csv
+    from data_extractor_core.models import ExtractedData, PlotType, Confidence, DataSeries
+    from data_extractor_core.digitizer import export_csv
 
     results = [
         ExtractedData(
@@ -118,8 +118,8 @@ def test_export_csv(tmp_path):
 def test_export_json(tmp_path):
     """Test JSON export."""
     import json
-    from core.models import ExtractedData, PlotType, Confidence, DataSeries
-    from core.digitizer import export_json
+    from data_extractor_core.models import ExtractedData, PlotType, Confidence, DataSeries
+    from data_extractor_core.digitizer import export_json
 
     results = [
         ExtractedData(
@@ -142,7 +142,7 @@ def test_export_json(tmp_path):
 
 def test_api_run_no_input():
     """Test api.run() with no input returns error."""
-    from api import run
+    from data_extractor_api import run
 
     result = run()
     assert result["success"] is False
@@ -151,8 +151,8 @@ def test_api_run_no_input():
 
 def test_validate_extraction():
     """Test heuristic validation."""
-    from core.models import ExtractedData, PlotType, Confidence, DataSeries
-    from core.digitizer import validate_extraction
+    from data_extractor_core.models import ExtractedData, PlotType, Confidence, DataSeries
+    from data_extractor_core.digitizer import validate_extraction
 
     # Valid result — should pass
     result = ExtractedData(

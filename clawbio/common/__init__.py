@@ -24,6 +24,7 @@ from clawbio.common.reproducibility import (
     write_checksums,
     write_environment_yml,
     write_commands_sh,
+    write_conda_lock,
 )
 
 from clawbio.common.sarek import SarekConfig, SarekSample, SarekWrapper, build_samplesheet
@@ -49,6 +50,7 @@ __all__ = [
     "write_checksums",
     "write_environment_yml",
     "write_commands_sh",
+    "write_conda_lock",
     "SarekConfig",
     "SarekSample",
     "SarekWrapper",

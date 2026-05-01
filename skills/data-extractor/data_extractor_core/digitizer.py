@@ -9,7 +9,6 @@ import json
 import logging
 import re
 
-import anthropic
 from PIL import Image
 
 from .models import Confidence, DataSeries, ExtractedData, Figure, PlotType
@@ -951,6 +950,7 @@ async def pre_analyze(figure: Figure) -> dict:
     Uses Claude tool calling for structured, reliable output.
     Returns a dict with plot_type, axis info, scale, legend entries, etc.
     """
+    import anthropic
     client = anthropic.AsyncAnthropic()
 
     response = await client.messages.create(
@@ -1005,6 +1005,7 @@ async def detect_panels(figure: Figure) -> list[dict]:
     far more reliable than asking Claude to estimate pixel coordinates or
     percentages, which it consistently gets wrong.
     """
+    import anthropic
     client = anthropic.AsyncAnthropic()
 
     # Use actual image dimensions (may differ from figure.width/height if resized)
@@ -1133,6 +1134,7 @@ async def _digitize_single(
     a context image so the model can reference the full figure's axes, legends,
     and labels even when the cropped panel is missing them.
     """
+    import anthropic
     client = anthropic.AsyncAnthropic()
 
     # Phase 2: Pre-analyze if not already done

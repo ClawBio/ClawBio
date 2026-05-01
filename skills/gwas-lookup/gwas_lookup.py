@@ -65,12 +65,12 @@ SKIP_ALIASES = {
 
 
 def _fetch_gwas_catalog(rsid, variant, cache_dir, use_cache, max_hits):
-    from api.gwas_catalog import get_associations
+    from gwas_lookup_api.gwas_catalog import get_associations
     return "gwas_catalog", get_associations(rsid, max_hits=max_hits, cache_dir=cache_dir, use_cache=use_cache)
 
 
 def _fetch_open_targets(rsid, variant, cache_dir, use_cache, max_hits):
-    from api.open_targets import get_variant
+    from gwas_lookup_api.open_targets import get_variant
     chr_val = variant.get("chr", "")
     pos = variant.get("pos_grch38")
     ref = variant.get("ref", "")
@@ -81,7 +81,7 @@ def _fetch_open_targets(rsid, variant, cache_dir, use_cache, max_hits):
 
 
 def _fetch_open_targets_credsets(rsid, variant, cache_dir, use_cache, max_hits):
-    from api.open_targets import get_credible_sets
+    from gwas_lookup_api.open_targets import get_credible_sets
     chr_val = variant.get("chr", "")
     pos = variant.get("pos_grch38")
     ref = variant.get("ref", "")
@@ -92,7 +92,7 @@ def _fetch_open_targets_credsets(rsid, variant, cache_dir, use_cache, max_hits):
 
 
 def _fetch_pheweb_ukb(rsid, variant, cache_dir, use_cache, max_hits):
-    from api.pheweb_ukb import get_phewas
+    from gwas_lookup_api.pheweb_ukb import get_phewas
     chr_val = variant.get("chr", "")
     pos = variant.get("pos_grch38")
     ref = variant.get("ref", "")
@@ -103,7 +103,7 @@ def _fetch_pheweb_ukb(rsid, variant, cache_dir, use_cache, max_hits):
 
 
 def _fetch_finngen(rsid, variant, cache_dir, use_cache, max_hits):
-    from api.finngen import get_phewas
+    from gwas_lookup_api.finngen import get_phewas
     chr_val = variant.get("chr", "")
     pos = variant.get("pos_grch38")
     ref = variant.get("ref", "")
@@ -114,7 +114,7 @@ def _fetch_finngen(rsid, variant, cache_dir, use_cache, max_hits):
 
 
 def _fetch_pheweb_bbj(rsid, variant, cache_dir, use_cache, max_hits):
-    from api.pheweb_bbj import get_phewas
+    from gwas_lookup_api.pheweb_bbj import get_phewas
     chr_val = variant.get("chr", "")
     pos_37 = variant.get("pos_grch37")
     ref = variant.get("ref", "")
@@ -125,7 +125,7 @@ def _fetch_pheweb_bbj(rsid, variant, cache_dir, use_cache, max_hits):
 
 
 def _fetch_gtex(rsid, variant, cache_dir, use_cache, max_hits):
-    from api.gtex import get_eqtls
+    from gwas_lookup_api.gtex import get_eqtls
     chr_val = variant.get("chr", "")
     pos = variant.get("pos_grch38")
     ref = variant.get("ref", "")
@@ -136,7 +136,7 @@ def _fetch_gtex(rsid, variant, cache_dir, use_cache, max_hits):
 
 
 def _fetch_eqtl_catalogue(rsid, variant, cache_dir, use_cache, max_hits):
-    from api.eqtl_catalogue import get_associations
+    from gwas_lookup_api.eqtl_catalogue import get_associations
     return "eqtl_catalogue", get_associations(rsid, cache_dir=cache_dir, use_cache=use_cache)
 
 
@@ -172,9 +172,9 @@ def run_lookup(
 
     Returns the merged results dict.
     """
-    from core.resolve import resolve_variant
-    from core.normalise import merge_all
-    from core.report import generate_markdown, write_tables, generate_figures, write_reproducibility
+    from gwas_lookup_core.resolve import resolve_variant
+    from gwas_lookup_core.normalise import merge_all
+    from gwas_lookup_core.report import generate_markdown, write_tables, generate_figures, write_reproducibility
 
     skip_set = set(skip_apis or [])
     # Normalize skip aliases

@@ -96,6 +96,9 @@ jobs:
       - name: Run RNA-seq DE tests
         run: python -m pytest skills/rnaseq-de/tests/test_rnaseq_de.py -v
 
+      - name: Run Skill Builder tests
+        run: python -m pytest skills/skill-builder/tests/test_skill_builder.py -v
+
   benchmark:
     runs-on: ubuntu-latest
     steps:

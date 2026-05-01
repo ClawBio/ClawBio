@@ -44,11 +44,11 @@ if str(_PROJECT_ROOT) not in sys.path:
 if str(_SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(_SKILL_DIR))
 
-from core.io import load_sumstats, load_ld
-from core.abf import compute_abf
-from core.susie import run_susie
-from core.credible_sets import build_credible_sets_susie, build_credible_set_abf
-from core.report import (
+from fine_mapping_core.io import load_sumstats, load_ld
+from fine_mapping_core.abf import compute_abf
+from fine_mapping_core.susie import run_susie
+from fine_mapping_core.credible_sets import build_credible_sets_susie, build_credible_set_abf
+from fine_mapping_core.report import (
     generate_markdown, write_tables, generate_figures,
     write_reproducibility, DISCLAIMER,
 )

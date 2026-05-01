@@ -1019,9 +1019,9 @@ def main():
 
     # Detail (single resource)
     detail_group = parser.add_argument_group("details")
-    detail_group.add_argument("--pipeline", metavar="ID", help="Get pipeline details")
-    detail_group.add_argument("--sample", metavar="ID", help="Get sample details")
-    detail_group.add_argument("--execution", metavar="ID", help="Get execution details")
+    detail_group.add_argument("--pipeline", "--pipeline-detail", metavar="ID", help="Get pipeline details")
+    detail_group.add_argument("--sample", "--sample-detail", metavar="ID", help="Get sample details")
+    detail_group.add_argument("--execution", "--execution-detail", metavar="ID", help="Get execution details")
 
     # Search
     parser.add_argument("--search", metavar="QUERY", help="Search Flow resources")

@@ -1,0 +1,72 @@
+{
+  "_comment": "ClawBio Skill Spec Template — copy this file, fill in every field, then run:",
+  "_usage": "python skills/skill-builder/skill_builder.py --input my_skill_spec.json",
+
+  "name": "my-skill-name",
+  "_name_comment": "REQUIRED. Lowercase letters, digits, hyphens only. e.g. pharmgx-reporter, variant-annotator",
+
+  "description": "One-sentence description of what this skill does for the user.",
+  "_description_comment": "REQUIRED. Keep it under 120 characters. Start with a verb (Analyse, Predict, Generate…).",
+
+  "author": "Your Name",
+  "_author_comment": "REQUIRED. Your name or GitHub handle.",
+
+  "version": "0.1.0",
+  "_version_comment": "Semantic version. Start at 0.1.0 for an MVP.",
+
+  "license": "MIT",
+  "_license_comment": "Must match the ClawBio repo license (MIT).",
+
+  "domain": "genomics",
+  "_domain_comment": "Primary scientific domain. Examples: genomics, metagenomics, proteomics, pharmacogenomics, transcriptomics, epigenomics, bioinformatics.",
+
+  "emoji": "🧬",
+  "_emoji_comment": "Single emoji that represents your skill. Shown in logs and reports.",
+
+  "cli_alias": "myskill",
+  "_cli_alias_comment": "Short alias for `python clawbio.py run <alias>`. Lowercase, no hyphens. e.g. pharmgx, varann, myskill.",
+
+  "tags": ["genomics", "variant-analysis", "clinical"],
+  "_tags_comment": "Free-form list of tags for catalog search. Include domain, data type, and use case.",
+
+  "trigger_keywords": [
+    "analyse variants",
+    "variant annotation",
+    "annotate VCF",
+    "interpret SNPs"
+  ],
+  "_trigger_keywords_comment": "Natural-language phrases that should route the user here. The orchestrator matches these against user queries. Include synonyms and common misspellings.",
+
+  "capabilities": [
+    "Parse VCF/TSV input and validate required columns",
+    "Annotate variants against ClinVar / dbSNP",
+    "Generate a clinical-style markdown report with tier classifications",
+    "Produce a machine-readable result.json and reproducibility bundle"
+  ],
+  "_capabilities_comment": "List 3-6 concrete, testable capabilities. Each maps to a bullet point in SKILL.md Core Capabilities.",
+
+  "input_formats": [
+    {
+      "format": "VCF (Variant Call Format)",
+      "extension": ".vcf",
+      "required_fields": "CHROM, POS, REF, ALT",
+      "example": "demo_variants.vcf"
+    },
+    {
+      "format": "TSV — variant table",
+      "extension": ".tsv",
+      "required_fields": "chrom, pos, ref, alt",
+      "example": "demo_variants.tsv"
+    }
+  ],
+  "_input_formats_comment": "One entry per accepted input format. 'required_fields' is a comma-separated string of mandatory column/field names.",
+
+  "dependencies": {
+    "required": [],
+    "optional": ["pyyaml>=6.0"],
+    "_comment": "List pip package specs (e.g. 'biopython>=1.81'). Keep required[] minimal — prefer stdlib. Optional packages must degrade gracefully."
+  },
+
+  "chaining_partners": ["pharmgx-reporter", "variant-annotator"],
+  "_chaining_partners_comment": "Skill names (not aliases) that this skill commonly chains with. Used to generate the Integration section of SKILL.md."
+}
