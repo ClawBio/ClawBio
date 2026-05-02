@@ -1,25 +1,25 @@
 ---
 name: bio-orchestrator
-description: Meta-agent that routes bioinformatics requests to specialised sub-skills. Handles file type detection, analysis planning, report generation, and reproducibility export.
-version: 0.1.0
+description: Meta-agent that routes bioinformatics requests to specialised sub-skills. Handles file type detection, analysis
+  planning, report generation, and reproducibility export.
+license: MIT
 metadata:
+  version: 0.1.0
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🦖"
+    emoji: 🦖
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: uv
-        package: biopython
-        bins: []
-      - kind: uv
-        package: pandas
-        bins: []
+    - kind: uv
+      package: biopython
+    - kind: uv
+      package: pandas
 ---
 
 # 🦖 Bio Orchestrator

@@ -1,44 +1,46 @@
 ---
 name: diff-visualizer
-description: Rich downstream visualisation and reporting for bulk RNA-seq differential expression and scRNA marker/contrast outputs.
-version: 0.1.0
-author: Yonghao Zhao
+description: Rich downstream visualisation and reporting for bulk RNA-seq differential expression and scRNA marker/contrast
+  outputs.
 license: MIT
-tags: [differential-expression, visualisation, rnaseq, scrna, volcano, heatmap]
 metadata:
+  version: 0.1.0
+  author: Yonghao Zhao
+  tags:
+  - differential-expression
+  - visualisation
+  - rnaseq
+  - scrna
+  - volcano
+  - heatmap
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "📈"
+    emoji: 📈
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: uv
-        package: pandas
-        bins: []
-      - kind: uv
-        package: numpy
-        bins: []
-      - kind: uv
-        package: matplotlib
-        bins: []
-      - kind: uv
-        package: anndata
-        bins: []
-      - kind: uv
-        package: scanpy
-        bins: []
+    - kind: uv
+      package: pandas
+    - kind: uv
+      package: numpy
+    - kind: uv
+      package: matplotlib
+    - kind: uv
+      package: anndata
+    - kind: uv
+      package: scanpy
     trigger_keywords:
-      - visualize de results
-      - differential expression visualization
-      - marker heatmap
-      - marker dotplot
-      - top genes heatmap
-      - diffviz
+    - visualize de results
+    - differential expression visualization
+    - marker heatmap
+    - marker dotplot
+    - top genes heatmap
+    - diffviz
 ---
 
 # 📈 Differential Visualizer

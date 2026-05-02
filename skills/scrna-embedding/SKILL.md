@@ -1,44 +1,50 @@
 ---
 name: scrna-embedding
-description: Local scVI/scANVI-based single-cell latent embedding and batch-aware integration from raw-count .h5ad or 10x Matrix Market input, with stable integrated AnnData export for downstream latent analysis.
-version: 0.1.0
-author: Yonghao Zhao
+description: Local scVI/scANVI-based single-cell latent embedding and batch-aware integration from raw-count .h5ad or 10x
+  Matrix Market input, with stable integrated AnnData export for downstream latent analysis.
 license: MIT
-tags: [scrna, single-cell, scvi, scanvi, embedding, integration, batch-correction, h5ad, 10x]
 metadata:
+  version: 0.1.0
+  author: Yonghao Zhao
+  tags:
+  - scrna
+  - single-cell
+  - scvi
+  - scanvi
+  - embedding
+  - integration
+  - batch-correction
+  - h5ad
+  - 10x
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🧬"
+    emoji: 🧬
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: uv
-        package: scanpy
-        bins: []
-      - kind: uv
-        package: anndata
-        bins: []
-      - kind: uv
-        package: torch
-        bins: []
-      - kind: uv
-        package: scvi-tools
-        bins: []
+    - kind: uv
+      package: scanpy
+    - kind: uv
+      package: anndata
+    - kind: uv
+      package: torch
+    - kind: uv
+      package: scvi-tools
     trigger_keywords:
-      - scvi
-      - scanvi
-      - embedding
-      - latent
-      - integration
-      - batch correction
-      - batch integration
-      - h5ad
-      - 10x
+    - scvi
+    - scanvi
+    - embedding
+    - latent
+    - integration
+    - batch correction
+    - batch integration
+    - h5ad
+    - 10x
 ---
 
 # 🧬 scRNA Embedding

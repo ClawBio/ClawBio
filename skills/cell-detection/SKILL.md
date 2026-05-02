@@ -1,45 +1,46 @@
 ---
 name: cell-detection
-description: >-
-  Cell segmentation in fluorescence microscopy images. Supports Cellpose/cpsam
-  (Cellpose 4.0) with additional backends planned. Produces segmentation masks,
-  per-cell morphology metrics (area, diameter, centroid, eccentricity), overlay
-  figures, and a report.md.
-version: 0.1.0
-author: ClawBio
+description: Cell segmentation in fluorescence microscopy images. Supports Cellpose/cpsam (Cellpose 4.0) with additional backends
+  planned. Produces segmentation masks, per-cell morphology metrics (area, diameter, centroid, eccentricity), overlay figures,
+  and a report.md.
 license: MIT
-tags: [microscopy, segmentation, cellpose, fluorescence, imaging, cell-biology]
 metadata:
+  version: 0.1.0
+  author: ClawBio
+  tags:
+  - microscopy
+  - segmentation
+  - cellpose
+  - fluorescence
+  - imaging
+  - cell-biology
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🔬"
+    emoji: 🔬
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: cellpose>=4.0
-        bins: []
-      - kind: pip
-        package: tifffile
-        bins: []
-      - kind: pip
-        package: scikit-image
-        bins: []
+    - kind: pip
+      package: cellpose>=4.0
+    - kind: pip
+      package: tifffile
+    - kind: pip
+      package: scikit-image
     trigger_keywords:
-      - cellpose
-      - cpsam
-      - cell segmentation
-      - nucleus segmentation
-      - fluorescence microscopy
-      - microscopy image
-      - image segmentation
-      - cell counting
-      - segmentation mask
+    - cellpose
+    - cpsam
+    - cell segmentation
+    - nucleus segmentation
+    - fluorescence microscopy
+    - microscopy image
+    - image segmentation
+    - cell counting
+    - segmentation mask
 ---
 
 # 🔬 Cell Segmentation

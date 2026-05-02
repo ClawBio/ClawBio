@@ -1,36 +1,44 @@
 ---
 name: bioconductor-bridge
-description: "Bioconductor package discovery, workflow recommendation, setup inspection, and starter code generation grounded in official Bioconductor containers and BiocManager."
-version: 0.1.0
-author: Hiranyamaya Dash
+description: Bioconductor package discovery, workflow recommendation, setup inspection, and starter code generation grounded
+  in official Bioconductor containers and BiocManager.
 license: MIT
-tags: [bioconductor, r, package-discovery, workflows, transcriptomics, genomics, single-cell, annotation]
 metadata:
+  version: 0.1.0
+  author: Hiranyamaya Dash
+  tags:
+  - bioconductor
+  - r
+  - package-discovery
+  - workflows
+  - transcriptomics
+  - genomics
+  - single-cell
+  - annotation
   openclaw:
     requires:
       bins:
-        - python3
-        - Rscript
-      env: []
-      config: []
+      - python3
+      - Rscript
     always: false
-    emoji: "🧬"
+    emoji: 🧬
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    install: []
+    os:
+    - darwin
+    - linux
     trigger_keywords:
-      - bioconductor
-      - bioc
-      - biocmanager
-      - summarizedexperiment
-      - singlecellexperiment
-      - genomicranges
-      - variantannotation
-      - annotationhub
-      - experimenthub
-      - which bioconductor package
-      - what package should i use
-      - set up bioconductor
+    - bioconductor
+    - bioc
+    - biocmanager
+    - summarizedexperiment
+    - singlecellexperiment
+    - genomicranges
+    - variantannotation
+    - annotationhub
+    - experimenthub
+    - which bioconductor package
+    - what package should i use
+    - set up bioconductor
 ---
 
 # 🧬 Bioconductor Bridge

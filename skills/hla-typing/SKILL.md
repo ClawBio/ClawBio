@@ -1,20 +1,26 @@
 ---
 name: hla-typing
-description: >-
-  HLA allele typing from WGS/WES VCF data
-version: 0.1.0
-author: Manuel Corpas
-domain: genomics
+description: HLA allele typing from WGS/WES VCF data
 license: MIT
-
-inputs:
+metadata:
+  version: 0.1.0
+  author: Manuel Corpas
+  domain: genomics
+  tags:
+  - allele
+  - typing
+  - from
+  inputs:
   - name: input_file
     type: file
-    format: [vcf, csv, tsv, txt]
+    format:
+    - vcf
+    - csv
+    - tsv
+    - txt
     description: Primary input data file
     required: true
-
-outputs:
+  outputs:
   - name: report
     type: file
     format: md
@@ -23,40 +29,32 @@ outputs:
     type: file
     format: json
     description: Machine-readable results
-
-dependencies:
-  python: ">=3.11"
-  packages:
+  dependencies:
+    python: '>=3.11'
+    packages:
     - pandas>=2.0
-
-tags: [allele, typing, from]
-
-demo_data:
+  demo_data:
   - path: demo_input.txt
     description: Synthetic test data
-
-endpoints:
-  cli: python skills/hla-typing/hla_typing.py --input {input_file} --output {output_dir}
-
-metadata:
+  endpoints:
+    cli: python skills/hla-typing/hla_typing.py --input {input_file} --output {output_dir}
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
     homepage: https://github.com/ClawBio/ClawBio
     emoji: 🧬
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     install:
-      - kind: pip
-        package: pandas
-        bins: []
+    - kind: pip
+      package: pandas
     trigger_keywords:
-      - allele
-      - typing
-      - from
+    - allele
+    - typing
+    - from
 ---
 
 # Hla Typing

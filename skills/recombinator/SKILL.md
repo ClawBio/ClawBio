@@ -1,30 +1,35 @@
 ---
 name: recombinator
 description: Produce offspring genomes from parent pairs via meiotic recombination, mutation, and clinical evaluation
-version: 0.1.0
-author: Manuel Corpas
 license: MIT
-tags: [genomebook, recombination, meiosis, mutation, offspring, clinical-genetics]
 metadata:
+  version: 0.1.0
+  author: Manuel Corpas
+  tags:
+  - genomebook
+  - recombination
+  - meiosis
+  - mutation
+  - offspring
+  - clinical-genetics
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🧪"
+    emoji: 🧪
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-    install: []
+    os:
+    - darwin
+    - linux
     trigger_keywords:
-      - recombinator
-      - recombination
-      - offspring
-      - breed
-      - meiosis
-      - genomebook breed
-      - next generation
+    - recombinator
+    - recombination
+    - offspring
+    - breed
+    - meiosis
+    - genomebook breed
+    - next generation
 ---
 
 # 🧪 Recombinator

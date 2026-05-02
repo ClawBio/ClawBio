@@ -1,24 +1,24 @@
 ---
 name: clinpgx
-description: Query the ClinPGx API for pharmacogenomic gene-drug data, clinical annotations, CPIC guidelines, and FDA drug labels
-version: 0.1.0
+description: Query the ClinPGx API for pharmacogenomic gene-drug data, clinical annotations, CPIC guidelines, and FDA drug
+  labels
+license: MIT
 metadata:
+  version: 0.1.0
   openclaw:
     requires:
       bins:
-        - python3
-      env: []
-      config: []
+      - python3
     always: false
-    emoji: "🧬"
+    emoji: 🧬
     homepage: https://api.clinpgx.org/
-    os: [darwin, linux]
-    min_python: "3.10"
+    os:
+    - darwin
+    - linux
+    min_python: '3.10'
     install:
-      - kind: uv
-        package: requests
-        bins: []
-    system_dependencies: []
+    - kind: uv
+      package: requests
 ---
 
 # 🧬 ClinPGx
