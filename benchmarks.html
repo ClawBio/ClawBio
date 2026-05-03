@@ -118,35 +118,35 @@
 
   <section class="hero">
     <div class="hero-badge">Public Scientific Correctness Leaderboard</div>
-    <h1>We benchmark our skills.<br><em>And we publish the failures.</em></h1>
-    <p>Every ClawBio skill is tested by an independent benchmark suite that checks scientific correctness, edge case behaviour, and reporting honesty. The full scorecard, the audit commit, and every open remediation task are public.</p>
+    <h1>We benchmark our skills.<br><em>We publish the failures.</em><br>We fix them.</h1>
+    <p>Every ClawBio skill is tested by an independent benchmark suite that checks scientific correctness, edge case behaviour, and reporting honesty. The full scorecard, the bench commit, and every open remediation task are public. Numbers below are regenerated from <a href="https://github.com/biostochastics/clawbio_bench" target="_blank" style="color:var(--accent2);">clawbio_bench</a> against the latest ClawBio commit, not from a static report.</p>
   </section>
 
   <section>
     <div class="section-inner">
       <div class="meta-grid">
         <div class="meta-card">
-          <div class="meta-label">Audit Date</div>
-          <div class="meta-value">2026-04-05</div>
+          <div class="meta-label">Last Run</div>
+          <div class="meta-value">2026-05-03</div>
         </div>
         <div class="meta-card">
-          <div class="meta-label">Auditor</div>
-          <div class="meta-value">Sergey Kornilov, Biostochastics, LLC</div>
+          <div class="meta-label">Bench</div>
+          <div class="meta-value"><a href="https://github.com/biostochastics/clawbio_bench" target="_blank">clawbio_bench v0.1.5</a></div>
         </div>
         <div class="meta-card">
-          <div class="meta-label">Benchmark Suite</div>
-          <div class="meta-value"><a href="https://github.com/biostochastics/clawbio_bench" target="_blank">clawbio_bench v0.1.0</a></div>
+          <div class="meta-label">Bench Author</div>
+          <div class="meta-value">Biostochastics LLC</div>
         </div>
         <div class="meta-card">
-          <div class="meta-label">Audit Commit</div>
-          <div class="meta-value"><a href="https://github.com/ClawBio/ClawBio/commit/1481fb4" target="_blank"><code>1481fb4</code></a></div>
+          <div class="meta-label">ClawBio Commit</div>
+          <div class="meta-value"><a href="https://github.com/ClawBio/ClawBio/commit/925b89a" target="_blank"><code>925b89a</code></a></div>
         </div>
       </div>
 
       <div class="summary-bar">
         <div>
-          <div class="summary-headline"><span class="pass">80</span> / 140 tests passing <span style="color:var(--text-muted);font-weight:600;">(57.1%)</span></div>
-          <div class="summary-rest">7 skills audited across 3 dimensions: safety, correctness, honesty. 13 remediation tasks open across 3 priority tiers.</div>
+          <div class="summary-headline"><span class="pass">149</span> / 162 tests passing <span style="color:var(--text-muted);font-weight:600;">(92.0%)</span></div>
+          <div class="summary-rest">10 skills audited across 3 dimensions: safety, correctness, honesty. Up from 80 / 140 (57.1%) at the original 2026-04-05 audit. One harness (fine-mapping, 21 tests) currently shows infrastructure errors and is excluded from the rate.</div>
         </div>
       </div>
 
@@ -163,59 +163,80 @@
           </thead>
           <tbody>
             <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/equity-scorer" target="_blank">equity-scorer</a></td>
+              <td>15 / 15</td>
+              <td><div class="rate-cell" style="color:var(--accent);">100.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:100%;background:var(--accent);"></span></span></td>
+              <td><span class="finding-tag">fst_correct</span><span class="finding-tag">heim_bounded</span><span class="finding-tag">edge_handled</span></td>
+              <td><span class="pill-status status-clear">Clear</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/nutrigx-advisor" target="_blank">nutrigx-advisor</a></td>
+              <td>10 / 10</td>
+              <td><div class="rate-cell" style="color:var(--accent);">100.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:100%;background:var(--accent);"></span></span></td>
+              <td><span class="finding-tag">score_correct</span><span class="finding-tag">snp_valid</span><span class="finding-tag">repro_functional</span></td>
+              <td><span class="pill-status status-clear">Clear</span></td>
+            </tr>
+            <tr>
               <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/claw-metagenomics" target="_blank">claw-metagenomics</a></td>
-              <td>6 / 7</td>
-              <td><div class="rate-cell" style="color:var(--accent);">85.7%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:85.7%;background:var(--accent);"></span></span></td>
-              <td><span class="finding-tag">exit_suppressed</span></td>
-              <td><span class="pill-status status-clear">Clear</span></td>
-            </tr>
-            <tr>
-              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/nutrigx_advisor" target="_blank">nutrigx-advisor</a></td>
-              <td>8 / 10</td>
-              <td><div class="rate-cell" style="color:var(--accent);">80.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:80%;background:var(--accent);"></span></span></td>
-              <td><span class="finding-tag">snp_invalid</span><span class="finding-tag">score_incorrect</span></td>
-              <td><span class="pill-status status-clear">Clear</span></td>
-            </tr>
-            <tr>
-              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/clinical-variant-reporter" target="_blank">clinical-variant</a></td>
-              <td>4 / 5</td>
-              <td><div class="rate-cell" style="color:var(--accent);">80.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:80%;background:var(--accent);"></span></span></td>
-              <td><span class="finding-tag">report_structure_incomplete</span></td>
+              <td>7 / 7</td>
+              <td><div class="rate-cell" style="color:var(--accent);">100.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:100%;background:var(--accent);"></span></span></td>
+              <td>none</td>
               <td><span class="pill-status status-clear">Clear</span></td>
             </tr>
             <tr>
               <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/bio-orchestrator" target="_blank">bio-orchestrator</a></td>
-              <td>41 / 54</td>
-              <td><div class="rate-cell" style="color:var(--accent);">75.9%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:75.9%;background:var(--accent);"></span></span></td>
-              <td><span class="finding-tag">stub_silent</span><span class="finding-tag">routed_wrong</span></td>
-              <td><span class="pill-status status-watch">Watch</span></td>
+              <td>53 / 54</td>
+              <td><div class="rate-cell" style="color:var(--accent);">98.1%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:98.1%;background:var(--accent);"></span></span></td>
+              <td><span class="finding-tag">unroutable_crash</span></td>
+              <td><span class="pill-status status-clear">Clear</span></td>
             </tr>
             <tr>
               <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/pharmgx-reporter" target="_blank">pharmgx-reporter</a></td>
-              <td>14 / 33</td>
-              <td><div class="rate-cell" style="color:var(--warn);">42.4%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:42.4%;background:var(--warn);"></span></span></td>
-              <td><span class="finding-tag">correct_indeterminate</span><span class="finding-tag">disclosure_failure</span></td>
+              <td>43 / 44</td>
+              <td><div class="rate-cell" style="color:var(--accent);">97.7%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:97.7%;background:var(--accent);"></span></span></td>
+              <td><span class="finding-tag">disclosure_failure</span></td>
+              <td><span class="pill-status status-clear">Clear</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/clinical-variant-reporter" target="_blank">clinical-variant-reporter</a></td>
+              <td>4 / 5</td>
+              <td><div class="rate-cell" style="color:var(--accent);">80.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:80%;background:var(--accent);"></span></span></td>
+              <td><span class="finding-tag">gene_disease_context_missing</span></td>
+              <td><span class="pill-status status-clear">Clear</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/cvr-acmg-correctness" target="_blank">cvr-acmg-correctness</a></td>
+              <td>9 / 13</td>
+              <td><div class="rate-cell" style="color:var(--warn);">69.2%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:69.2%;background:var(--warn);"></span></span></td>
+              <td><span class="finding-tag">criteria_not_machine_parseable</span></td>
+              <td><span class="pill-status status-watch">Watch</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/gwas-prs" target="_blank">gwas-prs</a></td>
+              <td>5 / 8</td>
+              <td><div class="rate-cell" style="color:var(--warn);">62.5%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:62.5%;background:var(--warn);"></span></span></td>
+              <td><span class="finding-tag">missing_output</span></td>
+              <td><span class="pill-status status-watch">Watch</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/cvr-variant-identity" target="_blank">cvr-variant-identity</a></td>
+              <td>3 / 6</td>
+              <td><div class="rate-cell" style="color:var(--warn);">50.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:50%;background:var(--warn);"></span></span></td>
+              <td><span class="finding-tag">transcript_selection_error</span></td>
               <td><span class="pill-status status-p1">P1</span></td>
             </tr>
             <tr>
-              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/fine-mapping" target="_blank">fine-mapping</a></td>
-              <td>4 / 16</td>
-              <td><div class="rate-cell" style="color:var(--danger);">25.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:25%;background:var(--danger);"></span></span></td>
-              <td><span class="finding-tag">pathology_flagged</span></td>
-              <td><span class="pill-status status-p0">P0</span></td>
-            </tr>
-            <tr>
-              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/equity-scorer" target="_blank">equity-scorer</a></td>
-              <td>3 / 15</td>
-              <td><div class="rate-cell" style="color:var(--danger);">20.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:20%;background:var(--danger);"></span></span></td>
-              <td><span class="finding-tag">fst_mislabeled</span><span class="finding-tag">heim_unbounded</span><span class="finding-tag">edge_crash</span></td>
-              <td><span class="pill-status status-p0">P0</span></td>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/clawbio-finemapping" target="_blank">clawbio-finemapping</a></td>
+              <td>0 / 0</td>
+              <td><div class="rate-cell" style="color:var(--text-muted);">infra</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:0%;"></span></span></td>
+              <td><span class="finding-tag">harness_error</span> (21)</td>
+              <td><span class="pill-status status-p0">Infra</span></td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <p style="margin-top:1.5rem;color:var(--text-muted);font-size:0.9rem;">Status legend: <span class="pill-status status-clear">Clear</span> at or above 75%, <span class="pill-status status-watch">Watch</span> active remediation, <span class="pill-status status-p1">P1</span> medium priority fix, <span class="pill-status status-p0">P0</span> critical fix before next release. Full task breakdown in <a href="https://github.com/ClawBio/ClawBio/blob/main/REMEDIATION-PLAN.md" style="color:var(--accent2);">REMEDIATION-PLAN.md</a>.</p>
+      <p style="margin-top:1.5rem;color:var(--text-muted);font-size:0.9rem;">Status legend: <span class="pill-status status-clear">Clear</span> at or above 75%, <span class="pill-status status-watch">Watch</span> active remediation, <span class="pill-status status-p1">P1</span> medium priority fix, <span class="pill-status status-p0">Infra</span> harness setup error (under investigation, not a science regression). Bench source and harness implementations: <a href="https://github.com/biostochastics/clawbio_bench" target="_blank" style="color:var(--accent2);">biostochastics/clawbio_bench</a>.</p>
     </div>
   </section>
 
@@ -223,7 +244,7 @@
     <div class="section-inner">
       <div class="section-label">Why this exists</div>
       <h2 class="section-title">Most bio-skill repositories never publish a number.</h2>
-      <p class="section-sub">"57 skills, 1,401 tests" is a claim any project can make. Scientific correctness, edge case stability, and reporting honesty are different measurements, and they are the ones that decide whether a skill should run on a clinician's data.</p>
+      <p class="section-sub">"59 skills, 1,401 tests" is a claim any project can make. Scientific correctness, edge case stability, and reporting honesty are different measurements, and they are the ones that decide whether a skill should run on a clinician's data.</p>
 
       <div class="principles-grid">
         <div class="principle-card">
@@ -259,7 +280,7 @@
   </section>
 
   <footer>
-    <p>Last benchmark run: 2026-04-05 against commit <a href="https://github.com/ClawBio/ClawBio/commit/1481fb4" target="_blank"><code>1481fb4</code></a>. Next run rebases on the v0.6.0 release.</p>
+    <p>Last benchmark run: 2026-05-03 against commit <a href="https://github.com/ClawBio/ClawBio/commit/925b89a" target="_blank"><code>925b89a</code></a>. Original audit baseline 2026-04-05 at commit <a href="https://github.com/ClawBio/ClawBio/commit/1481fb4" target="_blank"><code>1481fb4</code></a>: 80 / 140 (57.1%).</p>
     <p style="margin-top:0.5rem;">ClawBio is open source under the <a href="https://github.com/ClawBio/ClawBio/blob/main/LICENSE" target="_blank">MIT License</a>.</p>
   </footer>
 
@@ -277,8 +298,8 @@
     },
     "license": "https://opensource.org/licenses/MIT",
     "isAccessibleForFree": true,
-    "dateModified": "2026-04-05",
-    "keywords": "bioinformatics, benchmark, scientific-correctness, AI-agents, genomics, equity-scorer, fine-mapping, pharmgx, nutrigx"
+    "dateModified": "2026-05-03",
+    "keywords": "bioinformatics, benchmark, scientific-correctness, AI-agents, genomics, equity-scorer, fine-mapping, pharmgx, nutrigx, clawbio_bench"
   }
   </script>
 </body>
