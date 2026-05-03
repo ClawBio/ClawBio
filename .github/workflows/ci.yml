@@ -79,7 +79,7 @@ jobs:
         run: python -m pytest skills/equity-scorer/tests/test_equity_scorer.py -v
 
       - name: Run NutriGx Advisor tests
-        run: python -m pytest skills/nutrigx_advisor/tests/test_nutrigx.py -v
+        run: python -m pytest skills/nutrigx-advisor/tests/test_nutrigx.py -v
 
       - name: Run Genome Comparator tests
         run: python -m pytest skills/genome-compare/tests/test_genome_compare.py -v
