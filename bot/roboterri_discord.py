@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-roboterri_discord.py — RoboTerri ClawBio Discord Bot
+roboterri_discord.py - RoboTerri ClawBio Discord Bot
 =====================================================
 A Discord bot that runs ClawBio bioinformatics skills using any LLM
 as the reasoning engine. Handles text messages, genetic file uploads,
@@ -118,7 +118,7 @@ SOUL_MD = CLAWBIO_DIR / "SOUL.md"
 OUTPUT_DIR = CLAWBIO_DIR / "output"
 DATA_DIR = CLAWBIO_DIR / "data"
 
-# Owner's genome — used as default when admin asks about their own PGx/nutrition/risk
+# Owner's genome - used as default when admin asks about their own PGx/nutrition/risk
 OWNER_GENOME = CLAWBIO_DIR / "skills" / "genome-compare" / "data" / "manuel_corpas_23andme.txt.gz"
 
 # Security limits
@@ -218,8 +218,8 @@ Operational constraints:
 2. Keep outputs concise, evidence-led, and explicit about confidence and gaps.
 3. When the user sends a genetic data file (23andMe .txt, AncestryDNA .csv, VCF, FASTQ) or asks about pharmacogenomics, nutrigenomics, equity scoring, metagenomics, or genome comparison, use the clawbio tool. When the user asks about disease risk, polygenic risk scores, or "what am I at risk for", use skill='prs'. For a unified profile report use skill='profile'. For gene-drug database lookups use skill='clinpgx'. For variant lookups (rsID, "look up rs...") use skill='gwas'. For quick demos say "run pharmgx demo", "run prs demo", "run profile demo" etc. Reports and figures are sent automatically after your summary.
 4. TOOL OUTPUT RELAY (STRICT): When the clawbio tool returns results, relay the output VERBATIM. Do not paraphrase, summarise, or rewrite tool results. Tool outputs contain precise data (IBS scores, percentages, gene-drug interactions) that must not be altered. You may add a brief intro line before the verbatim output but never replace or condense it.
-5. OWNER GENOME: The bot owner (admin) has their genome pre-loaded. When the admin asks about "my pharmacogenomics", "my risk", "my nutrition", "my genome", or similar personal queries WITHOUT uploading a file, use mode='file' — the system will automatically use the owner's genome. Do NOT ask the admin to upload a file.
-6. DEMO FALLBACK: When a non-admin user asks about pharmacogenomics, nutrigenomics, risk scores, or any skill that needs genetic data but has NOT uploaded a file, do NOT just ask for a file and stop. Instead, offer to run the demo with built-in synthetic data (mode='demo') so they can see the skill in action. Example: "I can run a demo with synthetic data so you can see what the report looks like — shall I go ahead?" If they agree (or if the request is clearly exploratory), run it immediately.
+5. OWNER GENOME: The bot owner (admin) has their genome pre-loaded. When the admin asks about "my pharmacogenomics", "my risk", "my nutrition", "my genome", or similar personal queries WITHOUT uploading a file, use mode='file' - the system will automatically use the owner's genome. Do NOT ask the admin to upload a file.
+6. DEMO FALLBACK: When a non-admin user asks about pharmacogenomics, nutrigenomics, risk scores, or any skill that needs genetic data but has NOT uploaded a file, do NOT just ask for a file and stop. Instead, offer to run the demo with built-in synthetic data (mode='demo') so they can see the skill in action. Example: "I can run a demo with synthetic data so you can see what the report looks like - shall I go ahead?" If they agree (or if the request is clearly exploratory), run it immediately.
 """
 
 BASE_SYSTEM_PROMPT = f"{_soul}\n\n{ROLE_GUARDRAILS}"
@@ -615,7 +615,7 @@ async def execute_clawbio(args: dict) -> str:
         # Fall back to owner's genome for admin users
         if OWNER_GENOME.exists():
             input_path = str(OWNER_GENOME)
-            logger.info(f"No file uploaded — using owner genome: {OWNER_GENOME.name}")
+            logger.info(f"No file uploaded - using owner genome: {OWNER_GENOME.name}")
         else:
             return _error("missing_input", "no file received. Send a genetic data file first, then run the skill.")
 
@@ -875,7 +875,7 @@ async def execute_generate_audio(args: dict) -> str:
     if not _validate_path(filepath, dest):
         return f"Error: filename '{filename}' would escape the destination directory."
 
-    # OpenAI TTS has a 4096-char input limit — split if needed
+    # OpenAI TTS has a 4096-char input limit - split if needed
     MAX_CHUNK = 4096
     chunks = [text[i:i + MAX_CHUNK] for i in range(0, len(text), MAX_CHUNK)]
 
