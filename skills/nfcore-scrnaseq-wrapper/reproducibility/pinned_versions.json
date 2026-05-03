@@ -1,0 +1,35 @@
+{
+  "mode": "stable",
+  "skill": {
+    "name": "nfcore-scrnaseq-wrapper",
+    "version": "0.1.0"
+  },
+  "pipeline": {
+    "name": "nf-core/scrnaseq",
+    "default_version": "4.1.0",
+    "source_preference": "local_checkout_then_remote"
+  },
+  "minimum_versions": {
+    "java": "17",
+    "nextflow": "25.04.0",
+    "python": "3.11"
+  },
+  "supported_profiles": [
+    "docker",
+    "conda",
+    "mamba",
+    "singularity",
+    "apptainer",
+    "podman",
+    "shifter",
+    "charliecloud"
+  ],
+  "supported_presets": [
+    "standard",
+    "star",
+    "kallisto",
+    "cellranger",
+    "cellrangerarc",
+    "cellrangermulti"
+  ]
+}
