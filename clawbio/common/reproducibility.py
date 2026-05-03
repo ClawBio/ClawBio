@@ -189,7 +189,7 @@ def write_environment_yml(
     conda_lines = "\n".join(f"  - {dep}" for dep in filtered_conda)
     conda_block = f"\n{conda_lines}" if conda_lines else ""
 
-    # Only emit the pip block when there are pip deps — empty pip: is invalid YAML for conda.
+    # Only emit the pip block when there are pip deps - empty pip: is invalid YAML for conda.
     if pip_deps:
         pip_lines = "\n".join(f"      - {dep}" for dep in pip_deps)
         pip_block = f"  - pip:\n{pip_lines}\n"
@@ -295,7 +295,7 @@ def write_ro_crate(
     crate.root_dataset["datePublished"] = completed_at
     crate.root_dataset["license"] = {"@id": "https://spdx.org/licenses/MIT.html"}
 
-    # Add output files — library manages hasPart automatically
+    # Add output files - library manages hasPart automatically
     result_refs = []
     for f in sorted(output_dir.rglob("*")):
         if f.is_file() and f.name != "ro-crate-metadata.json":
@@ -303,7 +303,7 @@ def write_ro_crate(
             crate.add_file(f, dest_path=rel)
             result_refs.append({"@id": rel})
 
-    # Script as contextual entity — not physically in the crate
+    # Script as contextual entity - not physically in the crate
     crate.add(ContextEntity(crate, script_path, properties={
         "@type": "SoftwareSourceCode",
         "name": skill_name,

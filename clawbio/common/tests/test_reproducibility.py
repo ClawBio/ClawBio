@@ -1,5 +1,6 @@
 """Tests for clawbio.common.reproducibility."""
 
+import json
 import subprocess
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -12,6 +13,7 @@ from clawbio.common.reproducibility import (
     write_environment_yml,
     write_commands_sh,
     write_conda_lock,
+    write_ro_crate,
 )
 
 
@@ -290,11 +292,6 @@ class TestWriteCondaLock:
 # ---------------------------------------------------------------------------
 
 
-import json as _json
-
-from clawbio.common.reproducibility import write_ro_crate
-
-
 class TestWriteRoCrate:
     def test_creates_metadata_file(self, tmp_path):
         out = write_ro_crate(
@@ -313,7 +310,7 @@ class TestWriteRoCrate:
             skill_version="0.1.0",
             script_path="skills/test-skill/test_skill.py",
         )
-        data = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())
+        data = json.loads((tmp_path / "ro-crate-metadata.json").read_text())
         assert "@context" in data
         assert "@graph" in data
 
@@ -324,7 +321,7 @@ class TestWriteRoCrate:
             skill_version="1.2.3",
             script_path="skills/test-skill/test_skill.py",
         )
-        graph = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
+        graph = json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
         root = next(e for e in graph if e.get("@id") == "./")
         assert root.get("version") == "1.2.3"
 
@@ -335,7 +332,7 @@ class TestWriteRoCrate:
             skill_version="0.1.0",
             script_path="skills/test-skill/test_skill.py",
         )
-        graph = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
+        graph = json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
         actions = [e for e in graph if e.get("@type") == "CreateAction"]
         assert len(actions) == 1
         assert actions[0]["instrument"]["@id"] == "skills/test-skill/test_skill.py"
@@ -348,7 +345,7 @@ class TestWriteRoCrate:
             script_path="skills/test-skill/test_skill.py",
             params={"input": "sample.vcf", "threshold": "0.05"},
         )
-        graph = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
+        graph = json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
         pv = [e for e in graph if e.get("@type") == "PropertyValue"]
         names = {e["name"] for e in pv}
         assert {"input", "threshold"} == names
@@ -362,7 +359,7 @@ class TestWriteRoCrate:
             skill_version="0.1.0",
             script_path="skills/test-skill/test_skill.py",
         )
-        graph = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
+        graph = json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
         root = next(e for e in graph if e.get("@id") == "./")
         has_part_ids = {e["@id"] for e in root.get("hasPart", [])}
         assert "report.md" in has_part_ids
@@ -376,7 +373,7 @@ class TestWriteRoCrate:
             script_path="skills/test-skill/test_skill.py",
             description="Demo run for testing",
         )
-        graph = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
+        graph = json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
         root = next(e for e in graph if e.get("@id") == "./")
         assert root.get("description") == "Demo run for testing"
 
@@ -389,6 +386,6 @@ class TestWriteRoCrate:
             script_path="skills/test-skill/test_skill.py",
             completed_at=ts,
         )
-        graph = _json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
+        graph = json.loads((tmp_path / "ro-crate-metadata.json").read_text())["@graph"]
         action = next(e for e in graph if e.get("@type") == "CreateAction")
         assert action["endTime"] == ts
