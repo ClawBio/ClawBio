@@ -43,6 +43,7 @@ When the user asks a question, match it to a skill and act:
 | PubMed search, "summarise PubMed papers about X", "recent papers on gene/disease", research briefing, gene papers, disease papers | `skills/pubmed-summariser/` | Run `pubmed_summariser.py` |
 | Target evidence, omics evidence, translational evidence, target triage, gene evidence aggregation | `skills/omics-target-evidence-mapper/` | Run `omics_target_evidence_mapper.py` |
 | Target validation, GO/NO-GO, drug target scoring, target prioritisation, target assessment | `skills/target-validation-scorer/` | Run `target_validation_scorer.py` |
+| Upstream single-cell pipeline, run nf-core/scrnaseq, FASTQ to h5ad, 10x Chromium FASTQ preprocessing, generate h5ad from raw FASTQs, STARsolo from FASTQ, alevin-fry from FASTQ, run nextflow scrnaseq | `skills/nfcore-scrnaseq-wrapper/` | Run `nfcore_scrnaseq_wrapper.py` |
 | Single-cell RNA-seq, Scanpy, clustering, marker genes, doublet removal, h5ad | `skills/scrna-orchestrator/` | Run `scrna_orchestrator.py` |
 | scVI, scANVI, single-cell embedding, latent embedding, batch integration, integrated h5ad | `skills/scrna-embedding/` | Run `scrna_embedding.py` |
 | Differential expression visualisation, volcano plot styling, marker heatmap, DE report plots, contrast visualisation | `skills/diff-visualizer/` | Run `diff_visualizer.py` |
