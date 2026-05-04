@@ -230,6 +230,10 @@ def test_write_macos_docker_config_produces_valid_groovy(tmp_path):
     assert "process {" in content
     assert "stageInMode" in content
     assert '"copy"' in content
+    assert "STAR_ALIGN" in content
+    assert '--outTmpDir' in content
+    assert 'ext.args' in content
+    assert 'resourceLimits' in content
     assert "docker {" in content
     assert "--platform linux/amd64" in content
 

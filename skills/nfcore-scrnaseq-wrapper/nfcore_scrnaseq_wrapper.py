@@ -119,7 +119,7 @@ def _write_demo_samplesheet(samplesheet_path: Path) -> None:
 def _write_macos_docker_config(output_dir: Path) -> Path:
     """Write a Nextflow config with macOS + Apple Silicon Docker workarounds.
 
-    Two issues on macOS with Docker (Colima / Docker Desktop):
+    Three issues on macOS with Docker (Colima / Docker Desktop):
 
     1. EDEADLK (errno 35): QEMU-emulated amd64 containers cannot exec files from
        VirtioFS bind-mounted paths. stageInMode="copy" forces Nextflow to copy
@@ -130,6 +130,19 @@ def _write_macos_docker_config(output_dir: Path) -> Path:
        docker.runOptions = "--platform linux/amd64" tells Docker to pull and run
        the amd64 image under Rosetta / QEMU emulation on Apple Silicon.
 
+    3. STAR FIFO (named-pipe) limitation: STAR creates named pipes under its work
+       dir for streaming reads. VirtioFS does not support FIFOs, so STAR fails with
+       "could not create FIFO file". --outTmpDir /tmp/star_tmp routes _STARtmp to
+       the container's own /tmp (Linux tmpfs) where FIFOs are supported. The full
+       ext.args from conf/modules.config is reproduced here so no flags are lost.
+       Do NOT use a self-referencing closure (task.ext.args ?: "") — that causes a
+       StackOverflowError.
+
+    4. Time limit: macOS Docker (VirtioFS) adds significant I/O overhead. The nf-core
+       test profile caps all tasks at 1 h, which is too short for STAR genome generation
+       and alignment under emulation. resourceLimits.time is raised to 4 h here so the
+       test profile limit is overridden (later configs take precedence in Nextflow).
+
     IMPORTANT — work directory must be under HOME:
     Colima (QEMU or VZ backend) only mounts the macOS HOME directory into the VM.
     /tmp and /private/tmp are NOT mounted; they map to the VM's own filesystem.
@@ -139,9 +152,27 @@ def _write_macos_docker_config(output_dir: Path) -> Path:
     config_path = output_dir / "reproducibility" / "macos_docker.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
-        '// macOS + Docker workaround for VirtioFS EDEADLK (errno 35) and ARM64 hosts\n'
+        '// macOS + Docker workaround for VirtioFS EDEADLK (errno 35), ARM64 hosts,\n'
+        '// STAR FIFOs, and the nf-core test profile 1 h time cap.\n'
         'process {\n'
         '    stageInMode = "copy"\n'
+        '    // VirtioFS I/O overhead makes STAR genome generation and alignment\n'
+        '    // exceed the test profile\'s 1 h cap. Raise the ceiling to 4 h.\n'
+        '    resourceLimits = [\n'
+        '        cpus: 4,\n'
+        '        memory: \'15.GB\',\n'
+        '        time: \'4.h\'\n'
+        '    ]\n'
+        '    // STAR creates FIFOs in _STARtmp; VirtioFS does not support FIFOs.\n'
+        '    // --outTmpDir /tmp/star_tmp routes _STARtmp to the container\'s /tmp\n'
+        '    // (Linux tmpfs), which does support FIFOs.\n'
+        '    // All other flags mirror nf-core/scrnaseq conf/modules.config verbatim\n'
+        '    // so this override does not silently drop --readFilesCommand zcat.\n'
+        '    // Note: do NOT use a closure that references task.ext.args — that\n'
+        '    // causes a StackOverflowError. Instead we reproduce the flags here.\n'
+        '    withName: \'.*STAR_ALIGN.*\' {\n'
+        '        ext.args = { "--readFilesCommand zcat --runDirPerm All_RWX --outWigType bedGraph --twopassMode Basic --outSAMtype BAM SortedByCoordinate --limitBAMsortRAM ${task.memory.toBytes()} --outTmpDir /tmp/star_tmp" }\n'
+        '    }\n'
         '}\n'
         'docker {\n'
         '    runOptions = "--platform linux/amd64"\n'

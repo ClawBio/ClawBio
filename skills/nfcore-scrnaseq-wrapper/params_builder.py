@@ -84,6 +84,11 @@ def _build_base_params(args, *, normalized_samplesheet: Path, output_dir: Path) 
     }
     if not args.demo:
         params["input"] = _schema_safe_input_path(normalized_samplesheet, output_dir=output_dir)
+    else:
+        # nf-schema 4.x validates igenomes_base (an S3 URL) even when the test
+        # profile provides explicit fasta/gtf. DNS failure aborts before any task
+        # runs. igenomes_ignore suppresses that validation when iGenomes is unused.
+        params["igenomes_ignore"] = True
     if args.protocol:
         params["protocol"] = args.protocol
     return params
@@ -172,10 +177,16 @@ def _add_save_flags(params: dict[str, object], args) -> None:
 def _add_reference_path_params(params: dict[str, object], args) -> None:
     # All file paths — resolved to absolute POSIX before writing so Nextflow
     # can locate them regardless of its own working directory at runtime.
+    explicit_refs = []
     for param_name in _REFERENCE_PATH_FIELDS:
         value = getattr(args, param_name, None)
         if value:
             params[param_name] = _posix(value)
+            explicit_refs.append(param_name)
+    # When fasta/gtf are provided explicitly, iGenomes is unused. Suppress
+    # nf-schema DNS validation of the default igenomes_base S3 URL.
+    if explicit_refs and "fasta" in explicit_refs:
+        params.setdefault("igenomes_ignore", True)
 
 
 def write_params_yaml(params: dict[str, object], *, output_dir: Path) -> Path:
