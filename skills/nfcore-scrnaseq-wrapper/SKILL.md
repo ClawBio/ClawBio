@@ -113,7 +113,7 @@ Running upstream scRNA pipelines manually is error-prone.
 2. **Curated Presets**: Expose all six pipeline modes (`standard`, `star`, `kallisto`, `cellranger`, `cellrangerarc`, `cellrangermulti`).
 3. **Controlled Execution**: Always run with `-params-file`, fixed pipeline source, and explicit reproducibility artifacts.
 4. **Output Resolution**: Detect MultiQC, pipeline_info, `.h5ad`, `.rds`, and choose a canonical `preferred_h5ad` when possible.
-5. **Downstream Handoff**: Recommend the next command for `scrna` or `scrna-embedding`.
+5. **Downstream Handoff**: Recommend the next command for `scrna-orchestrator` (auto via `--run-downstream`); `scrna-embedding` can follow as a second step.
 
 ## Input Formats
 
@@ -364,7 +364,7 @@ And `report.md` closes with:
 - **Preflight runs before any Nextflow call.** If Java, Nextflow, or Docker are missing, the pipeline never starts and you get a structured JSON error with `error_code` and a `fix` hint. Do not try to skip preflight.
 - **`--resume` enforces strict compatibility.** The wrapper checks that the stored manifest matches the current preset, profile, and pipeline source. If any differ, it raises `INVALID_RESUME_STATE` rather than silently continuing with incompatible state.
 - **`--demo` runs the pipeline's real `test` profile, not bundled sample data.** It exercises the full Nextflow code path with the upstream test fixtures. Docker must be running. Output reflects what `nf-core/scrnaseq -profile test,docker` produces.
-- **`preferred_h5ad` may be empty.** If no combined matrix is found and there are multiple per-sample files, `handoff_available` is `false`. Always check `result.json` before chaining `scrna` or `scrna-embedding`.
+- **`preferred_h5ad` may be empty.** If no combined matrix is found and there are multiple per-sample files, `handoff_available` is `false`. Always check `result.json` before chaining to `scrna-orchestrator` or manually invoking `scrna-embedding`.
 - **No arbitrary Nextflow passthrough.** You cannot add `-c`, `--outdir`, or custom Nextflow flags. All pipeline configuration flows through the preset system and `params.yaml`. Attempting to inject flags directly is blocked by the wrapper's CLI contract.
 - **`--genome` conflicts with any explicit reference flag.** Providing `--genome` alongside any of `--fasta`, `--gtf`, `--star-index`, `--simpleaf-index`, `--kallisto-index`, `--cellranger-index`, `--transcript-fasta`, or `--txp2gene` raises `CONFLICTING_REFERENCES` in preflight. Use either `--genome <shortcut>` or explicit reference/index flags — never both.
 - **Protocol compatibility is enforced before Nextflow starts.** `standard`/Simpleaf, `star`, and `kallisto` cannot rely on upstream `protocol=auto`, so provide an explicit protocol such as `10XV3`, `dropseq`, or a supported custom chemistry string. `standard`/Simpleaf rejects `smartseq`; use `star` or `kallisto` for Smart-seq data. `cellranger` accepts only `auto` or `10XV1`-`10XV4`; `cellrangerarc` accepts only `auto`.
@@ -385,7 +385,7 @@ The agent dispatches and explains; this skill executes.
 
 **The agent is responsible for:**
 - Interpreting the user's preprocessing intent and choosing the right preset
-- Verifying that `handoff_available` is true in `result.json` before routing to `scrna` or `scrna-embedding`
+- Verifying that `handoff_available` is true in `result.json` before routing to `scrna-orchestrator` (automatic) or `scrna-embedding` (manual follow-up)
 
 **This skill is responsible for:**
 - Validating the environment and inputs before any execution

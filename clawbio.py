@@ -612,6 +612,19 @@ SKILLS = {
         "allowed_extra_flags": {"--genes", "--assembly"},
         "accepts_genotypes": False,
     },
+    "llm-bench": {
+        "script": SKILLS_DIR / "llm-biobank-bench" / "llm_biobank_bench.py",
+        "demo_args": ["--demo"],
+        "description": "Benchmark LLMs on UK Biobank knowledge retrieval (4 tasks, 6 models)",
+        "allowed_extra_flags": {
+            "--task",
+            "--models",
+            "--schema19",
+            "--schema27",
+        },
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
     "mr": {
         "script": SKILLS_DIR / "mendelian-randomisation" / "mendelian_randomisation.py",
         "demo_args": ["--demo"],
