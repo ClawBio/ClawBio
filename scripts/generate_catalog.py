@@ -225,6 +225,7 @@ MVP_FOLDERS = {
     "ukb-navigator", "galaxy-bridge", "rnaseq-de", "diff-visualizer",
     "bioconductor-bridge",
     "llm-biobank-bench",
+    "analyze-fasta",
 }
 
 # Known trigger keywords for orchestrator routing
@@ -251,6 +252,7 @@ TRIGGER_KEYWORDS: dict[str, list[str]] = {
     "llm-biobank-bench": ["llm benchmark", "benchmark language models", "biobank knowledge retrieval", "coverage score", "weighted coverage", "model comparison biobank"],
     "galaxy-bridge": ["galaxy", "usegalaxy", "tool shed", "bioblend", "run on galaxy", "galaxy tool", "galaxy workflow", "NGS pipeline"],
     "bioconductor-bridge": ["bioconductor", "bioc", "biocmanager", "summarizedexperiment", "singlecellexperiment", "genomicranges", "variantannotation", "annotationhub", "experimenthub"],
+    "analyze-fasta": ["fasta", "analyze fasta", "gc content", "find orfs", "isoelectric point", "gravy index", "protein properties"],
 }
 
 # Known chaining partners
@@ -277,6 +279,7 @@ CHAINING: dict[str, list[str]] = {
     "llm-biobank-bench": ["ukb-navigator", "pubmed-summariser", "lit-synthesizer"],
     "galaxy-bridge": ["pharmgx-reporter", "claw-metagenomics", "equity-scorer", "vcf-annotator"],
     "bioconductor-bridge": ["rnaseq-de", "scrna-orchestrator", "diff-visualizer", "bio-orchestrator"],
+    "analyze-fasta": ["struct-predictor", "variant-annotation", "pubmed-summariser"],
 }
 
 

@@ -72,6 +72,7 @@ When the user asks a question, match it to a skill and act:
 | WES clinical report English, exome PDF report, whole exome sequencing report, clinical exome PDF | `skills/wes-clinical-report-en/` | Run `wes_clinical_report_en.py` |
 | WES clinical report Spanish, informe clinico WES, exome PDF espanol, Predice, Inbiomedic, Novogene report | `skills/wes-clinical-report-es/` | Run `wes_clinical_report_es.py` |
 | Proteomic aging clocks, organ aging, Olink clock, proteomics clock, organ clock, Goeminne, plasma protein aging, organ-specific aging | `skills/proteomics-clock/` | Run `proteomics_clock.py` |
+| Single FASTA analysis, GC content, ORF finding, protein properties, isoelectric point, GRAVY index, molecular weight, sequence summary, fasta metrics | `skills/analyze-fasta/` | Run `analyze_fasta.py` |
 
 ## How to Use a Skill
 
