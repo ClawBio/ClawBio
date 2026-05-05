@@ -361,6 +361,36 @@ def test_check_output_dir_rejects_existing_file(tmp_path):
     assert getattr(exc.value, "error_code", "") == "OUTPUT_DIR_NOT_WRITABLE"
 
 
+def test_write_repro_commands_creates_remap_script(tmp_path):
+    args = _make_args(tmp_path)
+    write_repro_commands(tmp_path, args=args)
+    assert (tmp_path / "reproducibility" / "remap_paths.py").exists()
+
+
+def test_remap_script_is_executable_python(tmp_path):
+    args = _make_args(tmp_path)
+    write_repro_commands(tmp_path, args=args)
+    content = (tmp_path / "reproducibility" / "remap_paths.py").read_text(encoding="utf-8")
+    assert "#!/usr/bin/env python3" in content
+    assert "remap_csv" in content
+    assert "verify_paths" in content
+
+
+def test_write_repro_commands_portability_notice_in_commands_sh(tmp_path):
+    args = _make_args(tmp_path, demo=False)
+    write_repro_commands(tmp_path, args=args)
+    content = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+    assert "remap_paths.py" in content
+    assert "portab" in content.lower() or "absolute" in content.lower() or "FASTQ" in content
+
+
+def test_write_repro_commands_demo_skips_portability_notice(tmp_path):
+    args = _make_args(tmp_path, demo=True)
+    write_repro_commands(tmp_path, args=args)
+    content = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+    assert "remap_paths.py" not in content
+
+
 def test_handoff_lines_use_absolute_clawbio_path():
     import sys as _sys
     _sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))

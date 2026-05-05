@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -134,19 +135,48 @@ def _build_handoff_lines(preferred_h5ad: str) -> list[str]:
     ]
 
 
+_PORTABILITY_NOTICE = """\
+
+# ── Portability notice (FASTQ paths) ─────────────────────────────────────────
+# FASTQ paths in samplesheet.valid.csv are absolute paths (required by
+# Nextflow). Before replaying on a different machine, update them with:
+#
+#   python reproducibility/remap_paths.py --old /original/prefix --new /new/prefix
+#
+# Preview changes without modifying files:
+#   python reproducibility/remap_paths.py --old /original/prefix --new /new/prefix --dry-run
+#
+# Verify all current paths exist on this machine:
+#   python reproducibility/remap_paths.py --verify
+"""
+
+_REMAP_SCRIPT_SRC = SKILL_DIR / "remap_paths.py"
+
+
 def write_repro_commands(
     output_dir: Path,
     *,
     args,
 ) -> None:
+    repro_dir = output_dir / "reproducibility"
     command_args = build_repro_command_args(output_dir, args=args)
     write_portable_commands_sh(
-        output_dir / "reproducibility",
+        repro_dir,
         skill_name=SKILL_NAME,
         script_name="nfcore_scrnaseq_wrapper.py",
         args=command_args,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     )
+    if not getattr(args, "demo", False):
+        commands_sh = repro_dir / "commands.sh"
+        with commands_sh.open("a", encoding="utf-8") as fh:
+            fh.write(_PORTABILITY_NOTICE)
+    _write_remap_script(repro_dir)
+
+
+def _write_remap_script(repro_dir: Path) -> None:
+    repro_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(_REMAP_SCRIPT_SRC, repro_dir / "remap_paths.py")
 
 
 def build_repro_command_args(output_dir: Path, *, args) -> dict[str, str | None]:
