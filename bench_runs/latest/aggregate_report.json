@@ -1,0 +1,918 @@
+{
+  "benchmark_suite_version": "0.1.5",
+  "date": "2026-05-03",
+  "clawbio_commit": "7820473",
+  "mode": "smoke",
+  "wall_clock_seconds": 99.5,
+  "environment": {
+    "python": "3.13.12",
+    "platform": "macOS-26.3-arm64-arm-64bit-Mach-O"
+  },
+  "harnesses": {
+    "bio-orchestrator": {
+      "version": "0.1.1",
+      "pass": false,
+      "total_cases": 54,
+      "evaluated": 54,
+      "harness_errors": 0,
+      "pass_count": 53,
+      "fail_count": 1,
+      "pass_rate": 98.1,
+      "pass_categories": [
+        "routed_correct",
+        "stub_warned",
+        "unroutable_handled"
+      ],
+      "fail_categories": [
+        "routed_wrong",
+        "stub_silent",
+        "unroutable_crash"
+      ],
+      "category_legend": {
+        "routed_correct": {
+          "color": "#22c55e",
+          "label": "Correct routing",
+          "tier": "pass"
+        },
+        "routed_wrong": {
+          "color": "#ef4444",
+          "label": "WRONG routing",
+          "tier": "critical"
+        },
+        "stub_warned": {
+          "color": "#fbbf24",
+          "label": "Stub routed, warned",
+          "tier": "pass"
+        },
+        "stub_silent": {
+          "color": "#f97316",
+          "label": "Stub routed, NO warning",
+          "tier": "warning"
+        },
+        "unroutable_handled": {
+          "color": "#86efac",
+          "label": "Unknown input handled",
+          "tier": "pass"
+        },
+        "unroutable_crash": {
+          "color": "#ef4444",
+          "label": "Unknown input CRASH",
+          "tier": "critical"
+        },
+        "harness_error": {
+          "color": "#9ca3af",
+          "label": "Harness infrastructure error",
+          "tier": "infra"
+        }
+      },
+      "categories": {
+        "routed_correct": 39,
+        "unroutable_handled": 13,
+        "unroutable_crash": 1,
+        "stub_warned": 1
+      },
+      "critical_failures": [
+        {
+          "test": "inj_03_flock_routing_hijack",
+          "category": "unroutable_crash",
+          "rationale": "No skill detected (expected 'equity-scorer')",
+          "commit": "7820473e"
+        }
+      ]
+    },
+    "equity-scorer": {
+      "version": "0.1.1",
+      "pass": true,
+      "total_cases": 15,
+      "evaluated": 15,
+      "harness_errors": 0,
+      "pass_count": 15,
+      "fail_count": 0,
+      "pass_rate": 100.0,
+      "pass_categories": [
+        "fst_correct",
+        "heim_bounded",
+        "csv_honest",
+        "edge_handled"
+      ],
+      "fail_categories": [
+        "fst_incorrect",
+        "fst_mislabeled",
+        "heim_unbounded",
+        "csv_inflated",
+        "edge_crash"
+      ],
+      "category_legend": {
+        "fst_correct": {
+          "color": "#22c55e",
+          "label": "FST correct + labeled correctly",
+          "tier": "pass"
+        },
+        "fst_incorrect": {
+          "color": "#ef4444",
+          "label": "FST value outside tolerance",
+          "tier": "critical"
+        },
+        "fst_mislabeled": {
+          "color": "#f97316",
+          "label": "FST correct, label WRONG",
+          "tier": "warning"
+        },
+        "heim_bounded": {
+          "color": "#86efac",
+          "label": "HEIM in [0, 100]",
+          "tier": "pass"
+        },
+        "heim_unbounded": {
+          "color": "#ef4444",
+          "label": "HEIM outside [0, 100]",
+          "tier": "warning"
+        },
+        "csv_honest": {
+          "color": "#22c55e",
+          "label": "CSV mode honest",
+          "tier": "pass"
+        },
+        "csv_inflated": {
+          "color": "#f97316",
+          "label": "CSV mode inflated",
+          "tier": "warning"
+        },
+        "edge_handled": {
+          "color": "#86efac",
+          "label": "Edge case handled",
+          "tier": "pass"
+        },
+        "edge_crash": {
+          "color": "#ef4444",
+          "label": "Edge case CRASH",
+          "tier": "critical"
+        },
+        "harness_error": {
+          "color": "#9ca3af",
+          "label": "Harness infrastructure error",
+          "tier": "infra"
+        }
+      },
+      "categories": {
+        "fst_correct": 3,
+        "edge_handled": 5,
+        "heim_bounded": 5,
+        "csv_honest": 2
+      },
+      "critical_failures": []
+    },
+    "nutrigx-advisor": {
+      "version": "0.1.1",
+      "pass": true,
+      "total_cases": 10,
+      "evaluated": 10,
+      "harness_errors": 0,
+      "pass_count": 10,
+      "fail_count": 0,
+      "pass_rate": 100.0,
+      "pass_categories": [
+        "score_correct",
+        "repro_functional",
+        "snp_valid",
+        "threshold_consistent"
+      ],
+      "fail_categories": [
+        "score_incorrect",
+        "repro_broken",
+        "snp_invalid",
+        "threshold_mismatch"
+      ],
+      "category_legend": {
+        "score_correct": {
+          "color": "#22c55e",
+          "label": "Score matches expected",
+          "tier": "pass"
+        },
+        "score_incorrect": {
+          "color": "#ef4444",
+          "label": "Score diverges",
+          "tier": "critical"
+        },
+        "repro_functional": {
+          "color": "#22c55e",
+          "label": "Repro bundle works",
+          "tier": "pass"
+        },
+        "repro_broken": {
+          "color": "#f97316",
+          "label": "Repro bundle fails",
+          "tier": "warning"
+        },
+        "snp_valid": {
+          "color": "#86efac",
+          "label": "SNP panel valid",
+          "tier": "pass"
+        },
+        "snp_invalid": {
+          "color": "#ef4444",
+          "label": "SNP panel error",
+          "tier": "warning"
+        },
+        "threshold_consistent": {
+          "color": "#86efac",
+          "label": "Thresholds match docs",
+          "tier": "pass"
+        },
+        "threshold_mismatch": {
+          "color": "#fbbf24",
+          "label": "Code vs docs disagree",
+          "tier": "warning"
+        },
+        "harness_error": {
+          "color": "#9ca3af",
+          "label": "Harness infrastructure error",
+          "tier": "infra"
+        }
+      },
+      "categories": {
+        "score_correct": 4,
+        "threshold_consistent": 2,
+        "repro_functional": 1,
+        "snp_valid": 3
+      },
+      "critical_failures": []
+    },
+    "pharmgx-reporter": {
+      "version": "0.1.1",
+      "pass": false,
+      "total_cases": 44,
+      "evaluated": 44,
+      "harness_errors": 0,
+      "pass_count": 43,
+      "fail_count": 1,
+      "pass_rate": 97.7,
+      "pass_categories": [
+        "correct_determinate",
+        "correct_indeterminate",
+        "scope_honest_indeterminate"
+      ],
+      "fail_categories": [
+        "incorrect_determinate",
+        "incorrect_indeterminate",
+        "omission",
+        "disclosure_failure"
+      ],
+      "category_legend": {
+        "correct_determinate": {
+          "color": "#22c55e",
+          "label": "Correct (determinate)",
+          "tier": "pass"
+        },
+        "correct_indeterminate": {
+          "color": "#86efac",
+          "label": "Correct (indeterminate)",
+          "tier": "pass"
+        },
+        "scope_honest_indeterminate": {
+          "color": "#a7f3d0",
+          "label": "Scope-honest Indeterminate (DTC limitation, correct behavior)",
+          "tier": "advisory"
+        },
+        "incorrect_determinate": {
+          "color": "#ef4444",
+          "label": "WRONG (false Normal)",
+          "tier": "critical"
+        },
+        "incorrect_indeterminate": {
+          "color": "#fbbf24",
+          "label": "Unnecessary indeterminate",
+          "tier": "warning"
+        },
+        "omission": {
+          "color": "#1e1b4b",
+          "label": "Drug MISSING from report",
+          "tier": "critical"
+        },
+        "disclosure_failure": {
+          "color": "#f97316",
+          "label": "Warning on stderr only",
+          "tier": "warning"
+        },
+        "harness_error": {
+          "color": "#9ca3af",
+          "label": "Harness infrastructure error",
+          "tier": "infra"
+        }
+      },
+      "categories": {
+        "correct_determinate": 29,
+        "scope_honest_indeterminate": 8,
+        "correct_indeterminate": 6,
+        "incorrect_indeterminate": 1
+      },
+      "critical_failures": [
+        {
+          "test": "tpmt_compound_het",
+          "category": "incorrect_indeterminate",
+          "rationale": "Unnecessary indeterminate: Indeterminate (phase ambiguity: *3B(rs1800460) + *3C(rs1142345))",
+          "commit": "7820473e"
+        }
+      ]
+    },
+    "claw-metagenomics": {
+      "version": "0.1.1",
+      "pass": true,
+      "total_cases": 7,
+      "evaluated": 7,
+      "harness_errors": 0,
+      "pass_count": 7,
+      "fail_count": 0,
+      "pass_rate": 100.0,
+      "pass_categories": [
+        "injection_blocked",
+        "exit_handled",
+        "demo_functional"
+      ],
+      "fail_categories": [
+        "injection_succeeded",
+        "exit_suppressed",
+        "demo_broken"
+      ],
+      "category_legend": {
+        "injection_blocked": {
+          "color": "#22c55e",
+          "label": "Injection BLOCKED",
+          "tier": "pass"
+        },
+        "injection_succeeded": {
+          "color": "#ef4444",
+          "label": "Injection SUCCEEDED",
+          "tier": "critical"
+        },
+        "exit_handled": {
+          "color": "#22c55e",
+          "label": "Exit code handled",
+          "tier": "pass"
+        },
+        "exit_suppressed": {
+          "color": "#f97316",
+          "label": "Exit suppressed to warning",
+          "tier": "warning"
+        },
+        "demo_functional": {
+          "color": "#86efac",
+          "label": "Demo mode works",
+          "tier": "pass"
+        },
+        "demo_broken": {
+          "color": "#ef4444",
+          "label": "Demo mode fails",
+          "tier": "critical"
+        },
+        "harness_error": {
+          "color": "#9ca3af",
+          "label": "Harness infrastructure error",
+          "tier": "infra"
+        }
+      },
+      "categories": {
+        "demo_functional": 2,
+        "injection_blocked": 4,
+        "exit_handled": 1
+      },
+      "critical_failures": []
+    },
+    "clawbio-finemapping": {
+      "version": "0.1.1",
+      "pass": false,
+      "total_cases": 21,
+      "evaluated": 20,
+      "harness_errors": 1,
+      "pass_count": 19,
+      "fail_count": 1,
+      "pass_rate": 95.0,
+      "pass_categories": [
+        "finemap_correct",
+        "edge_handled"
+      ],
+      "fail_categories": [
+        "pip_value_incorrect",
+        "pip_nan_silent",
+        "susie_null_forced_signal",
+        "susie_spurious_secondary_signal",
+        "susie_nonconvergence_suppressed",
+        "susie_moment_field_mislabeled",
+        "susie_inf_est_tausq_ignored",
+        "credset_pip_is_alpha_mismatch",
+        "credset_purity_mean_hides_weak",
+        "credset_purity_none_wrongly_pure",
+        "credset_coverage_incorrect",
+        "abf_variant_n_collapsed",
+        "input_validation_missing",
+        "edge_crash"
+      ],
+      "category_legend": {
+        "finemap_correct": {
+          "color": "#22c55e",
+          "label": "PIPs correct + claims match math",
+          "tier": "pass"
+        },
+        "edge_handled": {
+          "color": "#86efac",
+          "label": "Edge case handled cleanly",
+          "tier": "pass"
+        },
+        "pip_value_incorrect": {
+          "color": "#ef4444",
+          "label": "PIPs outside tolerance",
+          "tier": "critical"
+        },
+        "pip_nan_silent": {
+          "color": "#ef4444",
+          "label": "NaN PIPs returned silently",
+          "tier": "critical"
+        },
+        "susie_null_forced_signal": {
+          "color": "#ef4444",
+          "label": "Null locus returns phantom signal",
+          "tier": "critical"
+        },
+        "susie_spurious_secondary_signal": {
+          "color": "#ef4444",
+          "label": "One-signal locus returns phantom secondary",
+          "tier": "critical"
+        },
+        "susie_nonconvergence_suppressed": {
+          "color": "#f97316",
+          "label": "Non-convergence scored as valid",
+          "tier": "warning"
+        },
+        "susie_moment_field_mislabeled": {
+          "color": "#f97316",
+          "label": "mu/mu2 are alpha-weighted, not posterior",
+          "tier": "warning"
+        },
+        "susie_inf_est_tausq_ignored": {
+          "color": "#ef4444",
+          "label": "SuSiE-inf est_tausq=True silently ignored (tau^2 not estimated)",
+          "tier": "critical"
+        },
+        "credset_pip_is_alpha_mismatch": {
+          "color": "#f97316",
+          "label": "Credset 'pip' field is alpha not true PIP",
+          "tier": "warning"
+        },
+        "credset_purity_mean_hides_weak": {
+          "color": "#f97316",
+          "label": "Mean purity hides weak-link variant",
+          "tier": "warning"
+        },
+        "credset_purity_none_wrongly_pure": {
+          "color": "#f97316",
+          "label": "pure=True when purity unknown",
+          "tier": "warning"
+        },
+        "credset_coverage_incorrect": {
+          "color": "#f97316",
+          "label": "Reported coverage != sum of weights",
+          "tier": "warning"
+        },
+        "abf_variant_n_collapsed": {
+          "color": "#ef4444",
+          "label": "Per-variant n collapsed to median",
+          "tier": "critical"
+        },
+        "input_validation_missing": {
+          "color": "#ef4444",
+          "label": "Invalid input silently accepted",
+          "tier": "critical"
+        },
+        "edge_crash": {
+          "color": "#ef4444",
+          "label": "Edge case crashed",
+          "tier": "critical"
+        },
+        "harness_error": {
+          "color": "#9ca3af",
+          "label": "Harness infrastructure error",
+          "tier": "infra"
+        }
+      },
+      "categories": {
+        "finemap_correct": 13,
+        "edge_handled": 6,
+        "harness_error": 1,
+        "susie_inf_est_tausq_ignored": 1
+      },
+      "critical_failures": [
+        {
+          "test": "fm_20_susie_inf_est_tausq_activation",
+          "category": "susie_inf_est_tausq_ignored",
+          "rationale": "est_tausq=True silently ignored: tausq stayed at 0.0 (oracle estimates >1e-09) AND bump PIPs match the est_tausq=False regime (max error 0.1326 > tolerance 0.05). Two known failure modes produce this signature: (A) dead code where _mom_update is called with est_tausq=False hardcoded, OR run_susie_inf never exposes / propagates the est_tausq parameter; (B) a defensive threshold like `effective_tausq = tausq if tausq >= 1e-3 else 0.0` that zeros out the correctly-estimated tau^2 before applying it to the variance structure. Realistic gentropy-reference tau^2 estimates are in the 1e-5 to 1e-4 range on SuSiE-inf inputs, so any threshold above ~1e-4 nullifies activation across all geometries.",
+          "commit": "7820473e"
+        }
+      ]
+    },
+    "clinical-variant-reporter": {
+      "version": "0.1.1",
+      "pass": false,
+      "total_cases": 5,
+      "evaluated": 5,
+      "harness_errors": 0,
+      "pass_count": 4,
+      "fail_count": 1,
+      "pass_rate": 80.0,
+      "pass_categories": [
+        "report_structure_complete"
+      ],
+      "fail_categories": [
+        "assembly_missing",
+        "transcript_missing",
+        "data_source_version_missing",
+        "limitations_missing",
+        "disclaimer_missing",
+        "evidence_trail_incomplete",
+        "gene_disease_context_missing",
+        "reference_build_inconsistent"
+      ],
+      "category_legend": {
+        "report_structure_complete": {
+          "color": "#22c55e",
+          "label": "Report structurally complete",
+          "tier": "pass"
+        },
+        "assembly_missing": {
+          "color": "#ef4444",
+          "label": "Reference build missing",
+          "tier": "critical"
+        },
+        "transcript_missing": {
+          "color": "#ef4444",
+          "label": "Transcript source missing",
+          "tier": "critical"
+        },
+        "data_source_version_missing": {
+          "color": "#f97316",
+          "label": "Data source versions unpinned",
+          "tier": "warning"
+        },
+        "limitations_missing": {
+          "color": "#f97316",
+          "label": "Limitations section missing",
+          "tier": "warning"
+        },
+        "disclaimer_missing": {
+          "color": "#ef4444",
+          "label": "RUO disclaimer missing",
+          "tier": "critical"
+        },
+        "evidence_trail_incomplete": {
+          "color": "#ef4444",
+          "label": "Evidence audit trail incomplete",
+          "tier": "critical"
+        },
+        "gene_disease_context_missing": {
+          "color": "#f97316",
+          "label": "Gene-disease context missing",
+          "tier": "warning"
+        },
+        "reference_build_inconsistent": {
+          "color": "#ef4444",
+          "label": "Conflicting reference builds in report",
+          "tier": "critical"
+        },
+        "harness_error": {
+          "color": "#9ca3af",
+          "label": "Harness infrastructure error",
+          "tier": "infra"
+        }
+      },
+      "categories": {
+        "gene_disease_context_missing": 1,
+        "report_structure_complete": 4
+      },
+      "critical_failures": [
+        {
+          "test": "cvr_01_demo_structure",
+          "category": "gene_disease_context_missing",
+          "rationale": "Report contains P/LP/VUS/LB/B classifications with no disease / condition / inheritance context",
+          "commit": "7820473e"
+        }
+      ]
+    },
+    "cvr-variant-identity": {
+      "version": "0.1.1",
+      "pass": false,
+      "total_cases": 6,
+      "evaluated": 6,
+      "harness_errors": 0,
+      "pass_count": 3,
+      "fail_count": 3,
+      "pass_rate": 50.0,
+      "pass_categories": [
+        "variant_identity_correct"
+      ],
+      "fail_categories": [
+        "hgvs_syntax_error",
+        "hgvs_semantic_mismatch",
+        "transcript_selection_error",
+        "variant_normalization_error",
+        "assembly_coordinate_mismatch",
+        "liftover_mapping_error",
+        "self_consistency_error"
+      ],
+      "category_legend": {
+        "variant_identity_correct": {
+          "color": "#22c55e",
+          "label": "Variant identity correct",
+          "tier": "pass"
+        },
+        "hgvs_syntax_error": {
+          "color": "#ef4444",
+          "label": "HGVS syntax violates v21.1",
+          "tier": "critical"
+        },
+        "hgvs_semantic_mismatch": {
+          "color": "#ef4444",
+          "label": "HGVS does not match variant",
+          "tier": "critical"
+        },
+        "transcript_selection_error": {
+          "color": "#f97316",
+          "label": "Non-MANE transcript used",
+          "tier": "warning"
+        },
+        "variant_normalization_error": {
+          "color": "#f97316",
+          "label": "Indel normalization incorrect",
+          "tier": "warning"
+        },
+        "assembly_coordinate_mismatch": {
+          "color": "#ef4444",
+          "label": "Coordinates inconsistent with assembly",
+          "tier": "critical"
+        },
+        "liftover_mapping_error": {
+          "color": "#f97316",
+          "label": "Cross-build liftover error",
+          "tier": "warning"
+        },
+        "self_consistency_error": {
+          "color": "#ef4444",
+          "label": "Tool output contradicts its own expected behavior",
+          "tier": "critical"
+        },
+        "harness_error": {
+          "color": "#9ca3af",
+          "label": "Harness infrastructure error",
+          "tier": "infra"
+        }
+      },
+      "categories": {
+        "transcript_selection_error": 3,
+        "variant_identity_correct": 3
+      },
+      "critical_failures": [
+        {
+          "test": "cvr_10_hgvs_syntax_baseline",
+          "category": "transcript_selection_error",
+          "rationale": "Only unversioned transcript accessions found (HGVS v21.1 requires versioned form somewhere in report): ['ENST00000231790', 'ENST00000233146', 'ENST00000252444', 'ENST00000261769', 'ENST00000269305']",
+          "commit": "7820473e"
+        },
+        {
+          "test": "cvr_13_mane_select",
+          "category": "transcript_selection_error",
+          "rationale": "Only unversioned transcript accessions found (HGVS v21.1 requires versioned form somewhere in report): ['ENST00000231790', 'ENST00000233146', 'ENST00000252444', 'ENST00000261769', 'ENST00000269305']",
+          "commit": "7820473e"
+        },
+        {
+          "test": "cvr_15_transcript_versioning",
+          "category": "transcript_selection_error",
+          "rationale": "Only unversioned transcript accessions found (HGVS v21.1 requires versioned form somewhere in report): ['ENST00000231790', 'ENST00000233146', 'ENST00000252444', 'ENST00000261769', 'ENST00000269305']",
+          "commit": "7820473e"
+        }
+      ]
+    },
+    "gwas-prs": {
+      "version": "0.1.0",
+      "pass": false,
+      "total_cases": 8,
+      "evaluated": 8,
+      "harness_errors": 0,
+      "pass_count": 5,
+      "fail_count": 3,
+      "pass_rate": 62.5,
+      "pass_categories": [
+        "score_exact_match",
+        "percentile_correct",
+        "coverage_correctly_flagged"
+      ],
+      "fail_categories": [
+        "score_incorrect",
+        "percentile_incorrect",
+        "coverage_not_flagged",
+        "missing_output"
+      ],
+      "category_legend": {
+        "score_exact_match": {
+          "color": "#22c55e",
+          "label": "PRS exact match",
+          "tier": "pass"
+        },
+        "percentile_correct": {
+          "color": "#86efac",
+          "label": "Percentile correct",
+          "tier": "pass"
+        },
+        "coverage_correctly_flagged": {
+          "color": "#a7f3d0",
+          "label": "Low coverage correctly flagged",
+          "tier": "pass"
+        },
+        "score_incorrect": {
+          "color": "#ef4444",
+          "label": "PRS WRONG",
+          "tier": "critical"
+        },
+        "percentile_incorrect": {
+          "color": "#fbbf24",
+          "label": "Percentile wrong",
+          "tier": "warning"
+        },
+        "coverage_not_flagged": {
+          "color": "#f97316",
+          "label": "Low coverage NOT flagged",
+          "tier": "warning"
+        },
+        "missing_output": {
+          "color": "#1e1b4b",
+          "label": "Output files missing",
+          "tier": "critical"
+        },
+        "harness_error": {
+          "color": "#6b7280",
+          "label": "Harness error (infra)",
+          "tier": "infra"
+        }
+      },
+      "categories": {
+        "score_exact_match": 5,
+        "missing_output": 3
+      },
+      "critical_failures": [
+        {
+          "test": "gwas_03_no_matching_variants",
+          "category": "missing_output",
+          "rationale": "PRS results JSON missing, unreadable, or invalid schema",
+          "commit": "7820473e"
+        },
+        {
+          "test": "gwas_04_below_coverage_threshold",
+          "category": "missing_output",
+          "rationale": "PRS results JSON missing, unreadable, or invalid schema",
+          "commit": "7820473e"
+        },
+        {
+          "test": "gwas_08_single_variant_below_threshold",
+          "category": "missing_output",
+          "rationale": "PRS results JSON missing, unreadable, or invalid schema",
+          "commit": "7820473e"
+        }
+      ]
+    },
+    "cvr-acmg-correctness": {
+      "version": "0.1.1",
+      "pass": false,
+      "total_cases": 13,
+      "evaluated": 13,
+      "harness_errors": 0,
+      "pass_count": 9,
+      "fail_count": 4,
+      "pass_rate": 69.2,
+      "pass_categories": [
+        "classification_correct"
+      ],
+      "fail_categories": [
+        "pvs1_strength_error",
+        "pvs1_applicability_error",
+        "population_frequency_error",
+        "pm2_threshold_misapplied",
+        "in_silico_overcounting",
+        "pp3_bp4_calibration_error",
+        "criterion_double_counting",
+        "clinvar_strength_misuse",
+        "vcep_rules_ignored",
+        "vcep_rule_version_mismatch",
+        "gene_disease_validity_error",
+        "sf_list_outdated",
+        "classification_aggregation_error",
+        "self_consistency_error"
+      ],
+      "category_legend": {
+        "classification_correct": {
+          "color": "#22c55e",
+          "label": "ACMG classification correct",
+          "tier": "pass"
+        },
+        "pvs1_strength_error": {
+          "color": "#ef4444",
+          "label": "PVS1 strength tier wrong per SVI",
+          "tier": "critical"
+        },
+        "pvs1_applicability_error": {
+          "color": "#ef4444",
+          "label": "PVS1 applied when LoF not mechanism",
+          "tier": "critical"
+        },
+        "population_frequency_error": {
+          "color": "#ef4444",
+          "label": "BA1/BS1/PM2 threshold misapplied",
+          "tier": "critical"
+        },
+        "pm2_threshold_misapplied": {
+          "color": "#f97316",
+          "label": "PM2 uses 'absent' not 'absent or extremely low'",
+          "tier": "warning"
+        },
+        "in_silico_overcounting": {
+          "color": "#ef4444",
+          "label": "Multiple in-silico tools counted as multiple PP3/BP4",
+          "tier": "critical"
+        },
+        "pp3_bp4_calibration_error": {
+          "color": "#f97316",
+          "label": "PP3/BP4 strength miscalibrated",
+          "tier": "warning"
+        },
+        "criterion_double_counting": {
+          "color": "#f97316",
+          "label": "Correlated evidence counted twice",
+          "tier": "warning"
+        },
+        "clinvar_strength_misuse": {
+          "color": "#f97316",
+          "label": "ClinVar review status ignored",
+          "tier": "warning"
+        },
+        "vcep_rules_ignored": {
+          "color": "#ef4444",
+          "label": "Gene-specific VCEP rules not applied",
+          "tier": "critical"
+        },
+        "vcep_rule_version_mismatch": {
+          "color": "#f97316",
+          "label": "VCEP rules applied but wrong version",
+          "tier": "warning"
+        },
+        "gene_disease_validity_error": {
+          "color": "#f97316",
+          "label": "Gene-disease validity caveat missing",
+          "tier": "warning"
+        },
+        "sf_list_outdated": {
+          "color": "#f97316",
+          "label": "Secondary findings list not v3.3 (84 genes)",
+          "tier": "warning"
+        },
+        "classification_aggregation_error": {
+          "color": "#ef4444",
+          "label": "Correct criteria but wrong 5-tier label",
+          "tier": "critical"
+        },
+        "self_consistency_error": {
+          "color": "#ef4444",
+          "label": "Tool output contradicts its own expected behavior",
+          "tier": "critical"
+        },
+        "criteria_not_machine_parseable": {
+          "color": "#9ca3af",
+          "label": "Criteria not extractable from output",
+          "tier": "advisory"
+        },
+        "harness_error": {
+          "color": "#9ca3af",
+          "label": "Harness infrastructure error",
+          "tier": "infra"
+        }
+      },
+      "categories": {
+        "classification_correct": 9,
+        "criteria_not_machine_parseable": 4
+      },
+      "critical_failures": []
+    }
+  },
+  "overall": {
+    "pass": false,
+    "total_cases": 183,
+    "total_evaluated": 182,
+    "total_harness_errors": 1,
+    "total_pass": 168,
+    "total_pass_rate": 92.3,
+    "blocking_skills": [
+      "bio-orchestrator",
+      "pharmgx-reporter",
+      "clawbio-finemapping",
+      "clinical-variant-reporter",
+      "cvr-variant-identity",
+      "gwas-prs",
+      "cvr-acmg-correctness"
+    ]
+  }
+}

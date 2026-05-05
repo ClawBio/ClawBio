@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Benchmark Leaderboard · ClawBio</title>
+  <meta name="description" content="Public scientific-correctness leaderboard for ClawBio bioinformatics skills. Independent third-party benchmark, full audit trail, every failure documented.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="ClawBio">
+  <meta property="og:title" content="ClawBio Benchmark Leaderboard">
+  <meta property="og:description" content="Public scientific-correctness leaderboard. Independent third-party benchmark, full audit trail, every failure documented.">
+  <meta property="og:image" content="https://raw.githubusercontent.com/ClawBio/ClawBio/main/img/clawbio-social-preview.png">
+  <meta property="og:url" content="https://clawbio.ai/benchmarks.html">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@manuelcorpas">
+  <meta name="twitter:title" content="ClawBio Benchmark Leaderboard">
+  <meta name="twitter:description" content="Public scientific-correctness leaderboard. Independent third-party benchmark, full audit trail.">
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/ClawBio/ClawBio/main/img/clawbio-social-preview.png">
+  <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="/img/clawbio-logo.jpeg">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #3fb950;
+      --accent2: #58a6ff;
+      --warn: #d29922;
+      --danger: #f85149;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; line-height: 1.6; }
+    nav { position: sticky; top: 0; z-index: 100; background: rgba(13,17,23,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .nav-logo { display: flex; align-items: center; gap: 0.6rem; font-weight: 700; font-size: 1.15rem; text-decoration: none; color: var(--text); }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .hero { text-align: center; padding: 5rem 2rem 3.5rem; background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(63,185,80,0.12) 0%, transparent 70%); }
+    .hero-badge { display: inline-block; background: rgba(63,185,80,0.15); border: 1px solid rgba(63,185,80,0.4); color: var(--accent); font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.3rem 0.9rem; border-radius: 999px; margin-bottom: 1.5rem; }
+    .hero h1 { font-size: clamp(2rem, 4.5vw, 3.2rem); font-weight: 800; line-height: 1.15; margin-bottom: 1.2rem; letter-spacing: -0.02em; }
+    .hero h1 em { font-style: normal; color: var(--accent); }
+    .hero p { font-size: clamp(1rem, 2vw, 1.2rem); color: var(--text-muted); max-width: 720px; margin: 0 auto 2rem; }
+    section { padding: 3.5rem 2rem; }
+    .section-inner { max-width: 1100px; margin: 0 auto; }
+    .section-label { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem; }
+    .section-title { font-size: clamp(1.5rem, 2.6vw, 2rem); font-weight: 700; margin-bottom: 1rem; }
+    .section-sub { color: var(--text-muted); max-width: 720px; margin-bottom: 2.2rem; font-size: 1.02rem; }
+
+    .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2.5rem; }
+    .meta-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.2rem; }
+    .meta-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.35rem; }
+    .meta-value { font-size: 1.05rem; font-weight: 600; }
+    .meta-value a { color: var(--accent2); text-decoration: none; }
+    .meta-value a:hover { text-decoration: underline; }
+
+    .summary-bar { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem 1.8rem; margin-bottom: 2rem; display: flex; gap: 2rem; align-items: center; flex-wrap: wrap; }
+    .summary-headline { font-size: 1.6rem; font-weight: 800; }
+    .summary-headline .pass { color: var(--accent); }
+    .summary-rest { color: var(--text-muted); font-size: 0.95rem; }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+    table.leaderboard { width: 100%; border-collapse: collapse; background: var(--bg2); }
+    table.leaderboard thead th { text-align: left; padding: 0.9rem 1rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); background: var(--bg3); border-bottom: 1px solid var(--border); }
+    table.leaderboard tbody td { padding: 0.95rem 1rem; border-bottom: 1px solid var(--border); font-size: 0.94rem; vertical-align: middle; }
+    table.leaderboard tbody tr:last-child td { border-bottom: none; }
+    table.leaderboard tbody tr:hover { background: var(--bg3); }
+    table.leaderboard td a.skill-link { color: var(--text); font-weight: 600; text-decoration: none; }
+    table.leaderboard td a.skill-link:hover { color: var(--accent2); }
+    .rate-cell { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.95rem; }
+    .rate-bar-wrap { display: block; height: 4px; background: var(--bg3); border-radius: 999px; margin-top: 0.4rem; overflow: hidden; }
+    .rate-bar { display: block; height: 100%; border-radius: 999px; }
+    .pill-status { display: inline-block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.18rem 0.55rem; border-radius: 999px; border: 1px solid; }
+    .status-clear { color: var(--accent); border-color: rgba(63,185,80,0.4); background: rgba(63,185,80,0.1); }
+    .status-watch { color: var(--accent2); border-color: rgba(88,166,255,0.4); background: rgba(88,166,255,0.1); }
+    .status-p1 { color: var(--warn); border-color: rgba(210,153,34,0.4); background: rgba(210,153,34,0.1); }
+    .status-p0 { color: var(--danger); border-color: rgba(248,81,73,0.4); background: rgba(248,81,73,0.1); }
+    .finding-tag { display: inline-block; background: var(--bg3); border: 1px solid var(--border); color: var(--text-muted); font-family: 'Fira Code', monospace; font-size: 0.78rem; padding: 0.1rem 0.45rem; border-radius: 4px; margin: 0.15rem 0.2rem 0.15rem 0; }
+
+    .principles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+    .principle-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1.4rem 1.5rem; }
+    .principle-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--accent); }
+    .principle-card p { color: var(--text-muted); font-size: 0.9rem; }
+
+    .cta-section { background: var(--bg2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); text-align: center; }
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.4rem; border-radius: 8px; font-weight: 600; font-size: 0.95rem; text-decoration: none; transition: all 0.2s; }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-primary:hover { background: #56d364; transform: translateY(-1px); }
+    .btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--bg2); border-color: var(--text-muted); transform: translateY(-1px); }
+    .cta-row { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 1.5rem; }
+
+    footer { padding: 2.5rem 2rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; border-top: 1px solid var(--border); }
+    footer a { color: var(--accent2); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 700px) {
+      .nav-links { display: none; }
+      table.leaderboard thead th:nth-child(4), table.leaderboard tbody td:nth-child(4) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="nav-logo" href="/"><span>🦖</span> ClawBio</a>
+    <ul class="nav-links">
+      <li><a href="/#skills">Skills</a></li>
+      <li><a href="/benchmarks.html" style="color:var(--accent);font-weight:600;">Benchmarks</a></li>
+      <li><a href="/#marketplace" style="color:var(--accent);font-weight:600;">Marketplace</a></li>
+      <li><a href="https://docs.clawbio.ai" target="_blank" style="color:var(--accent2);font-weight:600;">Docs</a></li>
+      <li><a href="https://github.com/ClawBio/ClawBio" target="_blank">GitHub</a></li>
+    </ul>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-badge">Public Scientific Correctness Leaderboard</div>
+    <h1>We benchmark our skills.<br><em>We publish the failures.</em><br>We fix them.</h1>
+    <p>Every ClawBio skill is tested by an independent benchmark suite that checks scientific correctness, edge case behaviour, and reporting honesty. The full scorecard, the bench commit, and every open remediation task are public. Numbers below are regenerated from <a href="https://github.com/biostochastics/clawbio_bench" target="_blank" style="color:var(--accent2);">clawbio_bench</a> against the latest ClawBio commit, not from a static report.</p>
+  </section>
+
+  <section>
+    <div class="section-inner">
+      <div class="meta-grid">
+        <!-- BENCH_META_START -->
+        <div class="meta-card">
+          <div class="meta-label">Last Run</div>
+          <div class="meta-value">2026-05-03</div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">Bench</div>
+          <div class="meta-value"><a href="https://github.com/biostochastics/clawbio_bench" target="_blank">clawbio_bench v0.1.5</a></div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">Bench Author</div>
+          <div class="meta-value">Biostochastics LLC</div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">ClawBio Commit</div>
+          <div class="meta-value"><a href="https://github.com/ClawBio/ClawBio/commit/7820473" target="_blank"><code>7820473</code></a></div>
+        </div>
+        <!-- BENCH_META_END -->
+      </div>
+
+      <div class="summary-bar">
+        <!-- BENCH_SUMMARY_START -->
+        <div>
+          <div class="summary-headline"><span class="pass">168</span> / 182 tests passing <span style="color:var(--text-muted);font-weight:600;">(92.3%)</span></div>
+          <div class="summary-rest">10 skills audited across 3 dimensions: safety, correctness, honesty. Up from 80 / 140 (57.1%) at the original 2026-04-05 audit.</div>
+        </div>
+        <!-- BENCH_SUMMARY_END -->
+      </div>
+
+      <div class="table-wrap">
+        <table class="leaderboard">
+          <thead>
+            <tr>
+              <th>Skill</th>
+              <th>Pass / Total</th>
+              <th>Rate</th>
+              <th>Worst Findings</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- BENCH_TABLE_START -->
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/claw-metagenomics" target="_blank">claw-metagenomics</a></td>
+              <td>7 / 7</td>
+              <td><div class="rate-cell" style="color:var(--accent);">100.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:100.0%;background:var(--accent);"></span></span></td>
+              <td><span class="finding-tag">none</span></td>
+              <td><span class="pill-status status-clear">Clear</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/equity-scorer" target="_blank">equity-scorer</a></td>
+              <td>15 / 15</td>
+              <td><div class="rate-cell" style="color:var(--accent);">100.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:100.0%;background:var(--accent);"></span></span></td>
+              <td><span class="finding-tag">none</span></td>
+              <td><span class="pill-status status-clear">Clear</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/nutrigx-advisor" target="_blank">nutrigx-advisor</a></td>
+              <td>10 / 10</td>
+              <td><div class="rate-cell" style="color:var(--accent);">100.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:100.0%;background:var(--accent);"></span></span></td>
+              <td><span class="finding-tag">none</span></td>
+              <td><span class="pill-status status-clear">Clear</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/bio-orchestrator" target="_blank">bio-orchestrator</a></td>
+              <td>53 / 54</td>
+              <td><div class="rate-cell" style="color:var(--accent);">98.1%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:98.1%;background:var(--accent);"></span></span></td>
+              <td><span class="finding-tag">unroutable_crash</span></td>
+              <td><span class="pill-status status-clear">Clear</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/pharmgx-reporter" target="_blank">pharmgx-reporter</a></td>
+              <td>43 / 44</td>
+              <td><div class="rate-cell" style="color:var(--accent);">97.7%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:97.7%;background:var(--accent);"></span></span></td>
+              <td><span class="finding-tag">incorrect_indeterminate</span></td>
+              <td><span class="pill-status status-clear">Clear</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/fine-mapping" target="_blank">fine-mapping</a></td>
+              <td>19 / 20</td>
+              <td><div class="rate-cell" style="color:var(--accent);">95.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:95.0%;background:var(--accent);"></span></span></td>
+              <td><span class="finding-tag">susie_inf_est_tausq_ignored</span></td>
+              <td><span class="pill-status status-clear">Clear</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/clinical-variant-reporter" target="_blank">clinical-variant-reporter</a></td>
+              <td>4 / 5</td>
+              <td><div class="rate-cell" style="color:var(--accent);">80.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:80.0%;background:var(--accent);"></span></span></td>
+              <td><span class="finding-tag">gene_disease_context_missing</span></td>
+              <td><span class="pill-status status-clear">Clear</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/clinical-variant-reporter" target="_blank">cvr-acmg-correctness</a></td>
+              <td>9 / 13</td>
+              <td><div class="rate-cell" style="color:var(--warn);">69.2%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:69.2%;background:var(--warn);"></span></span></td>
+              <td><span class="finding-tag">none</span></td>
+              <td><span class="pill-status status-watch">Watch</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/gwas-prs" target="_blank">gwas-prs</a></td>
+              <td>5 / 8</td>
+              <td><div class="rate-cell" style="color:var(--warn);">62.5%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:62.5%;background:var(--warn);"></span></span></td>
+              <td><span class="finding-tag">missing_output (3)</span></td>
+              <td><span class="pill-status status-watch">Watch</span></td>
+            </tr>
+            <tr>
+              <td><a class="skill-link" href="https://github.com/ClawBio/ClawBio/tree/main/skills/clinical-variant-reporter" target="_blank">cvr-variant-identity</a></td>
+              <td>3 / 6</td>
+              <td><div class="rate-cell" style="color:var(--warn);">50.0%</div><span class="rate-bar-wrap"><span class="rate-bar" style="width:50.0%;background:var(--warn);"></span></span></td>
+              <td><span class="finding-tag">transcript_selection_error (3)</span></td>
+              <td><span class="pill-status status-watch">Watch</span></td>
+            </tr>
+        <!-- BENCH_TABLE_END -->
+          </tbody>
+        </table>
+      </div>
+
+      <p style="margin-top:1.5rem;color:var(--text-muted);font-size:0.9rem;">Status legend: <span class="pill-status status-clear">Clear</span> at or above 75%, <span class="pill-status status-watch">Watch</span> active remediation, <span class="pill-status status-p1">P1</span> medium priority fix, <span class="pill-status status-p0">Infra</span> harness setup error (under investigation, not a science regression). Bench source and harness implementations: <a href="https://github.com/biostochastics/clawbio_bench" target="_blank" style="color:var(--accent2);">biostochastics/clawbio_bench</a>.</p>
+    </div>
+  </section>
+
+  <section style="background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+    <div class="section-inner">
+      <div class="section-label">Why this exists</div>
+      <h2 class="section-title">Most bio-skill repositories never publish a number.</h2>
+      <p class="section-sub">"59 skills, 1,401 tests" is a claim any project can make. Scientific correctness, edge case stability, and reporting honesty are different measurements, and they are the ones that decide whether a skill should run on a clinician's data.</p>
+
+      <div class="principles-grid">
+        <div class="principle-card">
+          <h3>Independent</h3>
+          <p>Benchmark is in a separate repository, written and run by a third party. ClawBio cannot quietly tune the rubric.</p>
+        </div>
+        <div class="principle-card">
+          <h3>Three dimensions</h3>
+          <p>Safety: does the skill reject unsafe input. Correctness: does it produce the right number. Honesty: does the report match what the code actually computed.</p>
+        </div>
+        <div class="principle-card">
+          <h3>Public failure surface</h3>
+          <p>Every failing test maps to a tagged finding (<code>fst_mislabeled</code>, <code>heim_unbounded</code>, <code>pathology_flagged</code>). Every finding maps to a remediation task with an assignee.</p>
+        </div>
+        <div class="principle-card">
+          <h3>Block on regression</h3>
+          <p>The pr-audit skill runs the bench on touched skills before merge. New regressions block the PR. Resolved findings get highlighted as progress.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-section">
+    <div class="section-inner">
+      <h2 class="section-title">Submit your bio skill. We will benchmark it.</h2>
+      <p class="section-sub" style="margin-left:auto;margin-right:auto;">Skill authors get an independent third-party correctness audit, a public scoreboard slot, and a remediation task list they can work against. No private benchmarks, no marketing-grade pass rates.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/ClawBio/ClawBio/blob/main/CONTRIBUTING.md" target="_blank">Submit a Skill</a>
+        <a class="btn btn-secondary" href="https://github.com/biostochastics/clawbio_bench" target="_blank">Run the Bench Yourself</a>
+        <a class="btn btn-secondary" href="https://github.com/ClawBio/ClawBio/blob/main/REMEDIATION-PLAN.md" target="_blank">Full Remediation Plan</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <!-- BENCH_FOOTER_START -->
+    <p>Last benchmark run: 2026-05-03 against commit <a href="https://github.com/ClawBio/ClawBio/commit/7820473" target="_blank"><code>7820473</code></a>. Original audit baseline 2026-04-05 at commit <a href="https://github.com/ClawBio/ClawBio/commit/1481fb4" target="_blank"><code>1481fb4</code></a>: 80 / 140 (57.1%).</p>
+    <p style="margin-top:0.5rem;">ClawBio is open source under the <a href="https://github.com/ClawBio/ClawBio/blob/main/LICENSE" target="_blank">MIT License</a>.</p>
+        <!-- BENCH_FOOTER_END -->
+  </footer>
+
+  <script type="application/ld+json">
+<!-- BENCH_JSONLD_START -->
+{
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  "name": "ClawBio Benchmark Leaderboard",
+  "description": "Public scientific-correctness leaderboard for ClawBio bioinformatics skills, audited by an independent third-party benchmark suite.",
+  "url": "https://clawbio.ai/benchmarks.html",
+  "creator": {
+    "@type": "Organization",
+    "name": "ClawBio",
+    "url": "https://clawbio.ai"
+  },
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "dateModified": "2026-05-03",
+  "keywords": "bioinformatics, benchmark, scientific-correctness, AI-agents, genomics, equity-scorer, fine-mapping, pharmgx, nutrigx, clawbio_bench"
+}
+        <!-- BENCH_JSONLD_END -->
+  </script>
+</body>
+</html>

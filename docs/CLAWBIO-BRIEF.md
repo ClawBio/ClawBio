@@ -1,87 +1,184 @@
-# 🦖 ClawBio Presentation Brief
+# ClawBio Brief
 
 ![ClawBio Logo](../img/clawbio-logo.jpeg)
 
-**Use this to brief anyone (or any AI) on what ClawBio is and why it matters.**
+**Use this brief to explain ClawBio to collaborators, researchers, workshop organisers, and funders. It can also serve as a quick orientation document for AI agents working from the repository docs.**
 
 ---
 
-## What is OpenClaw?
-
-OpenClaw is the fastest-growing open-source project in GitHub history, with 180,000+ stars. Created by Peter Steinberger, it's a generalist AI agent framework — think of it as an operating system for AI agents. It runs on your laptop, connects to messaging platforms (Telegram, WhatsApp, Slack, Discord), and lets you build persistent agents with memory, tools, and personality. It's LLM-agnostic (Claude, GPT, local models) and has a plugin architecture called **Skills** — modular capabilities you can install with one command.
-
 ## What is ClawBio?
 
-ClawBio is the first bioinformatics-native skill library for AI agents. Built by Manuel Corpas (Senior Lecturer at University of Westminster, Turing Fellow), it's a curated collection of modular skills that wrap proven bioinformatics tools (Biopython, SAMtools, Seurat, AlphaFold) into composable, agent-orchestrated workflows.
+ClawBio is a bioinformatics skill library for local, reproducible genomic analysis. It packages domain methods as composable skills that an agent can route, execute, and report on without sending biological data to third-party cloud services.
 
-**The key innovation**: everything runs locally on your machine. No genomic data leaves your laptop. No cloud uploads. No data exfiltration.
+At a high level, ClawBio provides documented workflows for pharmacogenomics, GWAS lookup, PRS calculation, UK Biobank exploration, fine-mapping, and sequencing analysis, with clear inputs, outputs, and reproducibility artifacts.
 
-## The Problem It Solves
+## How It Relates to OpenClaw
 
-General-purpose AI agents are powerful but blind to biology. Three specific gaps:
+ClawBio is built on [OpenClaw](https://github.com/OpenClaw/OpenClaw), an agent framework for persistent, tool-using AI systems. OpenClaw provides the runtime and skill model; ClawBio adds the bioinformatics layer: domain-specific skills, safety constraints, demo data, reproducibility conventions, and project documentation.
 
-1. **Privacy** — Genomic data is sensitive. Patient VCFs, proprietary variants, and unpublished findings cannot be sent to cloud APIs. We need local-first execution.
-2. **Reproducibility** — Biology demands audit trails. Every analysis step must be logged, versioned, and exportable as a reproducible pipeline (Conda env + Singularity + Nextflow).
-3. **Domain knowledge** — A generic agent doesn't know that VCF files need ancestry-aware annotation, or that single-cell data requires doublet removal before clustering.
+## Why It Matters
 
-## How It Works
+ClawBio exists to solve three recurring problems in computational biology:
 
-You describe what you want in natural language. A Bio Orchestrator detects your file type, routes to the right specialist skill, runs the analysis, and produces a markdown report with figures, tables, and a full reproducibility bundle.
+1. **Privacy**: genomic and biomedical data often cannot be uploaded to external services.
+2. **Reproducibility**: analyses need reports, commands, environments, and checksums that another researcher can verify.
+3. **Domain grounding**: general-purpose agents are not reliable enough to improvise sensitive bioinformatics logic from scratch.
 
-**Architecture**:
+ClawBio addresses this by combining local execution, versioned skill specifications, Python implementations, demo datasets, and reproducibility bundles.
+
+## Current Project State
+
+As documented in `README.md`, ClawBio is currently presented as:
+
+- **v0.5.0** of the project
+- **55 skills** in the broader platform framing
+- **8,000+ Galaxy tools**
+- **1,401 tests + benchmark validation**
+- a local-first bioinformatics stack with privacy and reproducibility as core constraints
+
+The current public skills table in `README.md` lists **43 named skills**, comprising:
+
+- **37 MVP skills**
+- **6 planned skills**
+
+This is a substantial expansion from the older brief, which described the project as having 7 production skills and 6 planned skills.
+
+## How ClawBio Works
+
+ClawBio uses a simple operating model:
+
+```text
+User request or input file
+    -> agent routing layer
+        -> specialist ClawBio skill
+            -> report + tables + figures + reproducibility bundle
 ```
-User request (natural language)
-    → Bio Orchestrator (routing + planning)
-        → Specialist Skill (Equity Scorer, VCF Annotator, etc.)
-            → Output: Markdown report + figures + audit log + repro bundle
-```
 
-## 🦖 The Skills (7 production, 6 planned)
+In practice, that means an agent can:
 
-| Skill | Status | Tests | What it does |
-|-------|--------|-------|-------------|
-| Bio Orchestrator | **Production** | — | Routes requests to the right skill automatically |
-| PharmGx Reporter | **Production** | 24 | Pharmacogenomic report: 12 genes, 51 drugs, CPIC guidelines |
-| Equity Scorer | **Production** | 24 | HEIM diversity metrics from VCF/ancestry data (0-100 score) |
-| NutriGx Advisor | **Production** | 9 | Personalised nutrition report from 23andMe/AncestryDNA/VCF — 40 SNPs across 13 nutrient domains |
-| Metagenomics Profiler | **Production** | — | Shotgun metagenomics: Kraken2 + RGI + HUMAnN3 |
-| Ancestry PCA | **Production** | — | PCA decomposition vs SGDP (345 samples, 164 global populations) |
-| Semantic Similarity | **Production** | — | Semantic Isolation Index for 175 GBD diseases from 13.1M PubMed abstracts |
-| VCF Annotator | Planned | — | Variant annotation with VEP and ancestry context |
-| Lit Synthesizer | Planned | — | PubMed/bioRxiv search with LLM summarisation |
-| scRNA Orchestrator | **Production** | — | Scanpy automation: QC, optional doublet detection, clustering, marker DE analysis |
-| Struct Predictor | Planned | — | AlphaFold/Boltz protein structure prediction |
-| Seq Wrangler | Planned | — | FastQC, alignment, BAM processing |
-| Repro Enforcer | Planned | — | Export any analysis as Conda env + Singularity + Nextflow |
+- detect the analysis intent or file type
+- route to a specialist skill such as PharmGx, GWAS Lookup, UKB Navigator, or Fine-Mapping
+- run the analysis locally
+- return a report plus reproducibility artifacts such as `commands.sh`, `environment.yml`, and checksums
 
-## Why It Matters (the equity argument)
+## Skills Snapshot
 
-86% of GWAS participants are European. Polygenic risk scores, drug targets, and clinical guidelines are biased towards one population. The **HEIM Index** (Health Equity Index for Minorities) gives researchers a single number to quantify this. Score your dataset. Report it alongside your demographics. Track it over time. There is a paper in review on this — but the tool is open source and runnable tonight.
+The current public skill inventory in `README.md` spans personal genomics, population genetics, benchmarking, literature, sequencing, and synthetic genomics. The visible skills table currently includes the following entries and statuses:
 
-## Five Design Principles
+| Skill | Status | Description |
+|-------|--------|-------------|
+| Bio Orchestrator | **MVP** | Routes requests to the right skill automatically |
+| PharmGx Reporter | **MVP** | 12 genes, 51 drugs, CPIC guidelines from consumer genetic data |
+| Drug Photo | **MVP** | Snap a medication photo to a personalised dosage card from genotype |
+| ClinPGx | **MVP** | Gene-drug lookup from ClinPGx, PharmGKB, CPIC, and FDA drug labels |
+| GWAS Lookup | **MVP** | Federated variant query across 9 genomic databases |
+| GWAS PRS | **MVP** | Polygenic risk scores from the PGS Catalog for 6+ traits |
+| Profile Report | **MVP** | Unified personal genomic report: PGx + ancestry + PRS + nutrigenomics |
+| UKB Navigator | **MVP** | Semantic search across the UK Biobank schema |
+| Equity Scorer | **MVP** | HEIM diversity metrics from VCF or ancestry CSV |
+| NutriGx Advisor | **MVP** | Personalised nutrigenomics across 13 dietary domains |
+| Metagenomics Profiler | **MVP** | Kraken2 / RGI / HUMAnN3 taxonomy, resistome, and functional profiles |
+| Ancestry PCA | **MVP** | PCA vs SGDP with confidence ellipses |
+| Semantic Similarity | **MVP** | Semantic Isolation Index from 13.1M PubMed abstracts |
+| Genome Comparator | **MVP** | Pairwise IBS vs George Church + ancestry estimation |
+| Galaxy Bridge | **MVP** | Search, run, and chain 8,000+ Galaxy bioinformatics tools |
+| RNA-seq DE | **MVP** | Bulk/pseudo-bulk differential expression with QC + PCA + contrasts |
+| Methylation Clock | **MVP** | Epigenetic age from methylation arrays with PyAging clocks |
+| scRNA Embedding | **MVP** | scVI/scANVI latent embedding and integrated downstream export |
+| scRNA Orchestrator | **MVP** | Scanpy automation with QC, clustering, markers, annotation, and latent mode |
+| Diff Visualizer | **MVP** | Visualisation for bulk RNA-seq DE and scRNA marker outputs |
+| Proteomics DE | **MVP** | Differential expression for LFQ proteomics |
+| Variant Annotation | **MVP** | Annotate VCF variants with Ensembl VEP REST, ClinVar, and gnomAD |
+| Bioconductor Bridge | **MVP** | Bioconductor package discovery and starter workflow recommendation |
+| Clinical Trial Finder | **MVP** | Find trials for a gene, variant, or condition |
+| Data Extractor | **MVP** | Extract numerical data from scientific figures |
+| Illumina Bridge | **MVP** | Import DRAGEN-exported Illumina result bundles |
+| Protocols.io | **MVP** | Search, browse, and retrieve protocols from protocols.io |
+| PubMed Summariser | **MVP** | Structured briefings of top recent PubMed papers |
+| Omics Target Evidence Mapper | **MVP** | Aggregate target-level evidence across omics and translational sources |
+| Target Validation Scorer | **MVP** | Evidence-grounded GO/NO-GO target scoring |
+| Soul2DNA | **MVP** | Compile character profiles into synthetic diploid genomes |
+| GenomeMatch | **MVP** | Score genetic compatibility across pairings |
+| Recombinator | **MVP** | Produce offspring via meiotic recombination and mutation |
+| Fine-Mapping | **MVP** | SuSiE/ABF credible sets with posterior inclusion probabilities |
+| Clinical Variant Reporter | **MVP** | ACMG-guided clinical variant classification from VCF |
+| WES Clinical Report | **MVP** | Whole-exome sequencing clinical report generation |
+| LLM Biobank Bench | **MVP** | Benchmark LLMs on biobank knowledge retrieval and coverage |
+| VCF Annotator | Planned | Legacy VCF annotation pipeline |
+| Lit Synthesizer | Planned | PubMed/bioRxiv search with LLM summarisation and citation graphs |
+| Struct Predictor | Planned | AlphaFold/Boltz local structure prediction |
+| Repro Enforcer | Planned | Export analyses as Conda env + Singularity + Nextflow |
+| Labstep | Planned | Labstep ELN API integration |
+| Seq Wrangler | Planned | Sequence QC, alignment, and BAM processing |
 
-1. **Local-first** — All processing on your machine. No mandatory cloud.
-2. **Modular** — Each skill does one thing well. Compose via the orchestrator.
-3. **Reproducible** — Every analysis generates audit trails + exportable pipelines.
-4. **Auditable** — Human-review checkpoints before destructive actions.
-5. **Secure** — Minimal permissions. Containerisation recommended.
+## Project Milestones Since Launch
 
-## For the Non-Technical Audience
+### v0.3.0 — Imperial College AI Agent Hack
 
-Imagine you're a genomics researcher. Today, you either (a) write custom scripts from scratch every time, or (b) send your sensitive patient data to a cloud service you don't control. ClawBio is a third option: you tell an AI agent what you want in plain English, it runs the analysis on your own laptop using established tools, and gives you back a report with everything needed to reproduce the result. Your data never leaves your machine.
+- public project introduction at the UK AI Agent Hack, Imperial College London
+- security audit with 32 fixes for silent degradation across 4 production skills
+- major README overhaul with demo video, provenance section, and architecture framing
 
-## For the Technical Audience
+### v0.3.1 — Agent-Friendly Release
 
-Each skill is a `SKILL.md` (YAML frontmatter + markdown instructions) plus Python scripts. The agent reads the SKILL.md to understand capabilities, invokes Python via shell commands, and pipes results into a unified report. Skills are platform-agnostic — they work with any agent that can read markdown and execute shell commands. The reproducibility contract guarantees every run produces `commands.sh`, `environment.yml`, `checksums.sha256`, and `analysis_log.md`.
+- introduced `llms.txt`, `AGENTS.md`, and machine-readable `skills/catalog.json`
+- standardised SKILL.md files and upgraded the skill template
+- added project metadata and documentation that make the repository easier to navigate and extend
 
-## The Call to Action
+### v0.4.0 — Galaxy Integration
 
-The repo goes live on 26 February 2026. MIT licensed. Anyone can build a skill using the provided template. Wanted skills from the community: GWAS Pipeline (PLINK/REGENIE), Metagenomics Classifier (Kraken2/MetaPhlAn), Clinical Variant Reporter (ACMG), Pathway Enricher (GO/KEGG), Phylogenetics Builder (IQ-TREE/RAxML).
+- added Galaxy Bridge for natural-language discovery and execution across 8,000+ Galaxy bioinformatics tools
+- shipped bundled Galaxy catalog data and curated tool profiles
+- broadened the project's scope by connecting ClawBio skills to external bioinformatics tooling through Galaxy
 
-## Context for the Meetup
+### v0.5.0 — Validation & Benchmark Infrastructure
 
-- **Event**: London Bioinformatics Meetup — "10 Tips for Becoming a Top 1% AI User"
-- **Date**: 26 Feb 2026, 18:45-19:45, Cavendish Campus, University of Westminster
-- **Talk structure**: Tips 1-7 cover AI fluency habits (Claude Code, CLAUDE.md, RAG memory, voice, automation, persistent agents, compounding output). Tips 8-10 pivot to *building* with AI — where ClawBio is announced as the centrepiece, with a live demo of the Equity Scorer and a call for community contributions.
-- **Audience**: ~40-50 people, mix of bioinformaticians, computational biologists, data scientists, and curious non-specialists.
-- **Key framing** (from Steinberger insights): "The system emerged from daily use, not from a grand plan." Frame iterative discovery. Position as builder, not just analyst. Keep it authentic — no AI polish, no AI-generated images. Fun as competitive advantage.
+- added the **AD Ground Truth Benchmark Set**
+- added a **mock API server** for deterministic offline testing
+- added a **benchmark scorer** and **nightly demo sweep benchmark integration**
+- introduced a **swappable fine-mapping benchmark** comparing ABF and SuSiE
+- documented **74 benchmark tests** as part of the release
+
+### Additional Strategic Milestones
+
+- **Corpas 30x WGS reference genome** added as a project resource for demos, tutorials, and benchmarking
+- **External audit** by Sergey Kornilov / Biostochastics documented in `REMEDIATION-PLAN.md`
+- **UK AI Agent Hackathon 2026 Winner**
+- **Bioinformatics Application Note submitted**
+- as of **29 April 2026**, the repository showed **767 GitHub stars** and **154 forks**
+
+## Why ClawBio Is Different
+
+ClawBio differs from ad hoc LLM-assisted bioinformatics workflows in a few practical ways:
+
+- **Local execution**: data stays on the researcher's machine unless a workflow explicitly uses an external source.
+- **Documented methods**: domain logic is recorded in `SKILL.md`, together with implementation details and operating constraints.
+- **Reproducible outputs**: analyses produce reusable artifacts, not just chat responses.
+- **Modular structure**: skills can be developed, tested, and improved independently.
+- **Readable project metadata**: the repository includes documentation and machine-readable indexes that help both contributors and software agents navigate the project.
+
+## Who This Is For
+
+- **Researchers** who want local, inspectable analyses instead of opaque cloud workflows
+- **Tool builders** who want to package methods as reusable skills
+- **Collaborators and funders** who need a concise picture of project maturity and trajectory
+- **AI agents and automation tools** that need explicit project structure, capabilities, and execution guidance
+
+## Historical Notes
+
+The original February 2026 meetup context that launched this brief has been archived separately in [docs/talks/london-bioinformatics-meetup-2026.md](talks/london-bioinformatics-meetup-2026.md). That material remains useful as project history, but it is no longer the framing for the main ClawBio brief.
+
+## Links
+
+- **Main README**: [README.md](../README.md)
+- **Changelog**: [CHANGELOG.md](../CHANGELOG.md)
+- **Remediation Plan**: [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md)
+- **Slides**: [clawbio.github.io/ClawBio/slides/](https://clawbio.github.io/ClawBio/slides/)
+- **Reference Genome**: [docs/reference-genome.md](reference-genome.md)
+- **Tutorial**: [Install your own RoboTerri](tutorial-roboterri-install.md)
+- **OpenClaw**: [github.com/openclaw/openclaw](https://github.com/openclaw/openclaw)
+- **ClawHub**: [clawhub.ai](https://clawhub.ai)
+
+## License
+
+MIT. See [LICENSE](../LICENSE).

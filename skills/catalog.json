@@ -1082,6 +1082,47 @@
       "chaining_partners": []
     },
     {
+      "name": "nutrigx_advisor",
+      "cli_alias": "nutrigx",
+      "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run nutrigx --demo",
+      "dependencies": [],
+      "tags": [
+        "nutrigenomics",
+        "nutrition",
+        "diet",
+        "genetics",
+        "23andme",
+        "ancestrydna",
+        "vcf"
+      ],
+      "trigger_keywords": [
+        "personalised nutrition",
+        "nutrigenomics",
+        "diet genetics",
+        "MTHFR",
+        "APOE",
+        "FTO",
+        "vitamin D",
+        "caffeine metabolism",
+        "lactose",
+        "omega-3",
+        "folate",
+        "what should I eat based on my DNA",
+        "vitamin absorption genetics",
+        "gluten"
+      ],
+      "chaining_partners": [
+        "profile-report",
+        "pharmgx-reporter"
+      ]
+    },
+    {
       "name": "omics-target-evidence-mapper",
       "cli_alias": null,
       "description": "Aggregate public target-level evidence across omics and translational sources for research triage.",
