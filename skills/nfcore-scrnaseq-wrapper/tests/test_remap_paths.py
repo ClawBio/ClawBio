@@ -244,3 +244,82 @@ def test_cmd_verify_returns_nonzero_when_paths_missing(tmp_path):
 def test_cmd_verify_returns_nonzero_when_no_samplesheet(tmp_path):
     rc = cmd_verify(bundle_dir=tmp_path)
     assert rc != 0
+
+
+# ── find_commands_sh ──────────────────────────────────────────────────────────
+
+def test_find_commands_sh_returns_path_when_exists(tmp_path):
+    from remap_paths import find_commands_sh
+    cs = tmp_path / "commands.sh"
+    cs.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+    assert find_commands_sh(bundle_dir=tmp_path) == cs
+
+
+def test_find_commands_sh_returns_none_when_absent(tmp_path):
+    from remap_paths import find_commands_sh
+    assert find_commands_sh(bundle_dir=tmp_path) is None
+
+
+# ── update_commands_output ────────────────────────────────────────────────────
+
+def test_update_commands_output_replaces_output_flag(tmp_path):
+    from remap_paths import update_commands_output
+    cs = tmp_path / "commands.sh"
+    cs.write_text(
+        'python "$SKILL_SCRIPT" \\\n    --output /old/output/dir \\\n    --preset star\n',
+        encoding="utf-8",
+    )
+    update_commands_output(cs, "/new/output/dir")
+    content = cs.read_text(encoding="utf-8")
+    assert "/new/output/dir" in content
+    assert "/old/output/dir" not in content
+
+
+def test_update_commands_output_creates_backup(tmp_path):
+    from remap_paths import update_commands_output
+    cs = tmp_path / "commands.sh"
+    cs.write_text('    --output /old/path \\\n', encoding="utf-8")
+    update_commands_output(cs, "/new/path")
+    assert cs.with_suffix(".sh.bak").exists()
+
+
+def test_update_commands_output_noop_when_no_output_flag(tmp_path):
+    from remap_paths import update_commands_output
+    cs = tmp_path / "commands.sh"
+    original = '#!/usr/bin/env bash\necho hello\n'
+    cs.write_text(original, encoding="utf-8")
+    update_commands_output(cs, "/new/path")
+    assert cs.read_text(encoding="utf-8") == original
+    assert not cs.with_suffix(".sh.bak").exists()
+
+
+# ── CLAWBIO_REPO fallback in commands.sh ─────────────────────────────────────
+
+def test_generated_commands_sh_contains_clawbio_repo_fallback(tmp_path):
+    import argparse
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from reporting import write_repro_commands
+    args = argparse.Namespace(
+        input=str(tmp_path / "samplesheet.csv"),
+        output=str(tmp_path / "out"), preset="star", profile="docker",
+        pipeline_version="4.1.0", protocol=None, demo=False, check=False,
+        resume=False, skip_cellbender=False, skip_fastqc=False,
+        skip_emptydrops=False, skip_multiqc=False, star_feature=None,
+        star_ignore_sjdbgtf=False, seq_center=None, simpleaf_umi_resolution=None,
+        kb_workflow=None, kb_t1c=None, kb_t2c=None, fasta=None, gtf=None,
+        transcript_fasta=None, txp2gene=None, simpleaf_index=None,
+        kallisto_index=None, star_index=None, cellranger_index=None,
+        barcode_whitelist=None, expected_cells=None, genome=None,
+        save_reference=False, save_align_intermeds=False,
+        skip_cellranger_renaming=False, motifs=None, cellrangerarc_config=None,
+        cellrangerarc_reference=None, cellranger_vdj_index=None,
+        skip_cellrangermulti_vdjref=False, gex_frna_probe_set=None,
+        gex_target_panel=None, gex_cmo_set=None, fb_reference=None,
+        vdj_inner_enrichment_primers=None, gex_barcode_sample_assignment=None,
+        cellranger_multi_barcodes=None, run_downstream=False,
+        email=None, multiqc_title=None,
+    )
+    write_repro_commands(tmp_path, args=args)
+    content = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+    assert "CLAWBIO_REPO" in content

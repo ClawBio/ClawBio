@@ -137,18 +137,43 @@ def _build_handoff_lines(preferred_h5ad: str) -> list[str]:
 
 _PORTABILITY_NOTICE = """\
 
-# ── Portability notice (FASTQ paths) ─────────────────────────────────────────
-# FASTQ paths in samplesheet.valid.csv are absolute paths (required by
-# Nextflow). Before replaying on a different machine, update them with:
+# ── Portability notice ────────────────────────────────────────────────────────
+# FASTQ paths in samplesheet.valid.csv are absolute (required by Nextflow).
+# Before replaying on a different machine:
 #
-#   python reproducibility/remap_paths.py --old /original/prefix --new /new/prefix
+#   1. Remap FASTQ paths:
+#        python reproducibility/remap_paths.py --old /original/prefix --new /new/prefix
 #
-# Preview changes without modifying files:
-#   python reproducibility/remap_paths.py --old /original/prefix --new /new/prefix --dry-run
+#   2. Update the --output path above if the output directory changed:
+#        python reproducibility/remap_paths.py --output-dir /new/output/dir
 #
-# Verify all current paths exist on this machine:
-#   python reproducibility/remap_paths.py --verify
+#   3. Verify everything:
+#        python reproducibility/remap_paths.py --verify
+#
+# If ClawBio is installed at a non-standard path on this machine:
+#   CLAWBIO_REPO=/path/to/ClawBio bash reproducibility/commands.sh
 """
+
+# Injected into commands.sh after the walk-up block to allow replay when the
+# output directory is outside the repo tree (the typical case).
+_CLAWBIO_REPO_FALLBACK = (
+    'if [[ ! -d "$REPO_ROOT/skills" ]]; then\n'
+    '  echo "ERROR: Could not locate repo root (no skills/ directory found)" >&2\n'
+    '  exit 1\n'
+    'fi'
+)
+_CLAWBIO_REPO_FALLBACK_PATCHED = (
+    'if [[ ! -d "$REPO_ROOT/skills" ]]; then\n'
+    '  if [[ -n "${CLAWBIO_REPO:-}" && -d "${CLAWBIO_REPO}/skills" ]]; then\n'
+    '    REPO_ROOT="$CLAWBIO_REPO"\n'
+    '  else\n'
+    '    echo "ERROR: Could not locate repo root (no skills/ directory found)" >&2\n'
+    '    echo "If ClawBio is installed elsewhere, set CLAWBIO_REPO:" >&2\n'
+    '    echo "  CLAWBIO_REPO=/path/to/ClawBio bash commands.sh" >&2\n'
+    '    exit 1\n'
+    '  fi\n'
+    'fi'
+)
 
 _REMAP_SCRIPT_SRC = SKILL_DIR / "remap_paths.py"
 
@@ -167,11 +192,24 @@ def write_repro_commands(
         args=command_args,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     )
+    commands_sh = repro_dir / "commands.sh"
+    _patch_commands_sh_repo_fallback(commands_sh)
     if not getattr(args, "demo", False):
-        commands_sh = repro_dir / "commands.sh"
         with commands_sh.open("a", encoding="utf-8") as fh:
             fh.write(_PORTABILITY_NOTICE)
     _write_remap_script(repro_dir)
+
+
+def _patch_commands_sh_repo_fallback(commands_sh: Path) -> None:
+    if not commands_sh.exists():
+        return
+    content = commands_sh.read_text(encoding="utf-8")
+    if _CLAWBIO_REPO_FALLBACK not in content:
+        return
+    commands_sh.write_text(
+        content.replace(_CLAWBIO_REPO_FALLBACK, _CLAWBIO_REPO_FALLBACK_PATCHED),
+        encoding="utf-8",
+    )
 
 
 def _write_remap_script(repro_dir: Path) -> None:

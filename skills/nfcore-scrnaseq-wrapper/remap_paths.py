@@ -1,28 +1,38 @@
 #!/usr/bin/env python3
 """
-remap_paths.py — Update absolute FASTQ paths in this reproducibility bundle.
+remap_paths.py — Make this reproducibility bundle portable across machines.
 
-FASTQ paths in the samplesheet are stored as absolute paths (required by
-Nextflow). Before replaying this run on a different machine, update them:
+FASTQ paths and the --output directory in commands.sh are stored as absolute
+paths (required by Nextflow). Before replaying on a different machine:
 
-    python remap_paths.py --old /original/data/dir --new /new/data/dir
+  1. Update FASTQ paths in the samplesheet:
+       python remap_paths.py --old /original/data/dir --new /new/data/dir
 
-Preview changes without modifying files:
-    python remap_paths.py --old /original/data/dir --new /new/data/dir --dry-run
+  2. Update the --output path in commands.sh (if output dir changed):
+       python remap_paths.py --output-dir /new/output/dir
 
-Verify all current paths exist on this machine:
-    python remap_paths.py --verify
+  3. Verify everything is ready:
+       python remap_paths.py --verify
+
+  Preview any change without modifying files by adding --dry-run.
+
+  On a machine where ClawBio is installed at a non-standard location, set:
+       CLAWBIO_REPO=/path/to/ClawBio bash commands.sh
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import re
 import shutil
 import sys
 from pathlib import Path
 
 _BUNDLE_DIR = Path(__file__).resolve().parent
 _FASTQ_COLUMNS = ("fastq_1", "fastq_2", "fastq_barcode")
+# Matches `    --output /path \` lines — requires line to start with whitespace
+# (not #) so comment lines containing --output are never modified.
+_OUTPUT_FLAG_RE = re.compile(r"^([ \t]+--output[ \t]+)(\S+)([ \t]*(?:\\[ \t]*)?)$", re.MULTILINE)
 
 
 def find_samplesheet(bundle_dir: Path | None = None) -> Path | None:
@@ -32,6 +42,12 @@ def find_samplesheet(bundle_dir: Path | None = None) -> Path | None:
         if p.exists():
             return p
     return None
+
+
+def find_commands_sh(bundle_dir: Path | None = None) -> Path | None:
+    search_dir = bundle_dir or _BUNDLE_DIR
+    p = search_dir / "commands.sh"
+    return p if p.exists() else None
 
 
 def remap_csv(
@@ -76,6 +92,23 @@ def verify_paths(samplesheet: Path) -> list[str]:
     return missing
 
 
+def update_commands_output(commands_sh: Path, new_output_dir: str) -> bool:
+    """Replace the --output value in commands.sh. Return True if changed."""
+    original = commands_sh.read_text(encoding="utf-8")
+    if not _OUTPUT_FLAG_RE.search(original):
+        return False
+    updated = _OUTPUT_FLAG_RE.sub(
+        lambda m: f"{m.group(1)}{new_output_dir}{m.group(3)}",
+        original,
+    )
+    if updated == original:
+        return False
+    backup = commands_sh.with_suffix(".sh.bak")
+    shutil.copy2(commands_sh, backup)
+    commands_sh.write_text(updated, encoding="utf-8")
+    return True
+
+
 def cmd_remap(
     old_prefix: str,
     new_prefix: str,
@@ -118,8 +151,35 @@ def cmd_remap(
         print("\nCorrect the paths and run again, or verify the FASTQ files are accessible.")
         return 1
 
-    print("\nAll paths verified — ready to replay:")
+    print("\nAll FASTQ paths verified — ready to replay:")
     print(f"  bash {samplesheet.parent / 'commands.sh'}")
+    return 0
+
+
+def cmd_update_output(new_output_dir: str, *, dry_run: bool, bundle_dir: Path | None = None) -> int:
+    commands_sh = find_commands_sh(bundle_dir=bundle_dir)
+    if commands_sh is None:
+        print("ERROR: commands.sh not found in this bundle directory.", file=sys.stderr)
+        return 1
+
+    if dry_run:
+        content = commands_sh.read_text(encoding="utf-8")
+        m = _OUTPUT_FLAG_RE.search(content)
+        if not m:
+            print("No --output flag found in commands.sh — nothing to change.")
+            return 0
+        print(f"[DRY RUN] Would change --output in commands.sh:")
+        print(f"    - {m.group(2)}")
+        print(f"    + {new_output_dir}")
+        return 0
+
+    changed = update_commands_output(commands_sh, new_output_dir)
+    if not changed:
+        print("No --output flag found in commands.sh — nothing to change.")
+        return 0
+
+    print(f"Updated --output in commands.sh → {new_output_dir}")
+    print(f"Backup saved: {commands_sh.with_suffix('.sh.bak').name}")
     return 0
 
 
@@ -129,43 +189,69 @@ def cmd_verify(bundle_dir: Path | None = None) -> int:
         print("ERROR: No samplesheet found in this bundle directory.", file=sys.stderr)
         return 1
 
+    ok = True
     missing = verify_paths(samplesheet)
     if not missing:
-        print(f"All FASTQ paths in {samplesheet.name} exist on this machine.")
-        print(f"Ready to replay: bash {samplesheet.parent / 'commands.sh'}")
-        return 0
+        print(f"FASTQ paths: all exist in {samplesheet.name}")
+    else:
+        ok = False
+        print(f"FASTQ paths: {len(missing)} missing in {samplesheet.name}:")
+        for m in missing:
+            print(f"  {m}")
+        print("  → fix: python remap_paths.py --old <old_prefix> --new <new_prefix>")
 
-    print(f"Missing {len(missing)} FASTQ path(s) in {samplesheet.name}:")
-    for m in missing:
-        print(f"  {m}")
-    print("\nTo remap paths: python remap_paths.py --old <old_prefix> --new <new_prefix>")
-    return 1
+    commands_sh = find_commands_sh(bundle_dir=bundle_dir)
+    if commands_sh is not None:
+        content = commands_sh.read_text(encoding="utf-8")
+        m = _OUTPUT_FLAG_RE.search(content)
+        if m:
+            output_path = m.group(2)
+            if Path(output_path).exists():
+                print(f"Output dir:  exists ({output_path})")
+            else:
+                ok = False
+                print(f"Output dir:  missing ({output_path})")
+                print("  → fix: python remap_paths.py --output-dir <new_output_dir>")
+
+    if ok:
+        print(f"\nAll checks passed — ready to replay:")
+        print(f"  bash {(bundle_dir or _BUNDLE_DIR) / 'commands.sh'}")
+    return 0 if ok else 1
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Update absolute FASTQ paths in the reproducibility bundle.",
+        description="Make this reproducibility bundle portable across machines.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
-  Remap from the original machine to this one:
+  Remap FASTQ paths (required when FASTQs live at a different prefix):
     python remap_paths.py --old /Users/alice/fastqs --new /home/bob/fastqs
 
-  Preview changes (no files modified):
+  Update the --output directory in commands.sh:
+    python remap_paths.py --output-dir /home/bob/my_run
+
+  Preview any change without modifying files:
     python remap_paths.py --old /Users/alice/fastqs --new /home/bob/fastqs --dry-run
 
-  Verify all paths exist on this machine:
+  Verify everything is ready to replay:
     python remap_paths.py --verify
+
+  If ClawBio is installed at a non-standard path on this machine:
+    CLAWBIO_REPO=/path/to/ClawBio bash commands.sh
 """,
     )
-    parser.add_argument("--old", metavar="PREFIX", help="Original path prefix to replace")
-    parser.add_argument("--new", metavar="PREFIX", help="New path prefix for this machine")
+    parser.add_argument("--old", metavar="PREFIX", help="Original FASTQ path prefix to replace")
+    parser.add_argument("--new", metavar="PREFIX", help="New FASTQ path prefix for this machine")
+    parser.add_argument("--output-dir", metavar="PATH", help="New --output directory for commands.sh")
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without modifying files")
-    parser.add_argument("--verify", action="store_true", help="Check that all FASTQ paths exist")
+    parser.add_argument("--verify", action="store_true", help="Check all paths exist on this machine")
     args = parser.parse_args()
 
     if args.verify:
         return cmd_verify()
+    if args.output_dir is not None:
+        return cmd_update_output(args.output_dir, dry_run=args.dry_run)
     if args.old is not None and args.new is not None:
         return cmd_remap(args.old, args.new, dry_run=args.dry_run)
     parser.print_help()
