@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-wgs_prs.py — WGS-PRS Skill: End-to-end WGS to Polygenic Risk Scores
+wgs_prs.py: WGS-PRS Skill: End-to-end WGS to Polygenic Risk Scores
 ClawBio WGS-PRS Skill v0.1.0
 Author: David de Lorenzo
 License: MIT
@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import Optional
 
 # ---------------------------------------------------------------------------
-# Imports — clawbio.common shared library
+# Imports: clawbio.common shared library
 # ---------------------------------------------------------------------------
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -77,13 +77,13 @@ class BridgeConfig:
     sample_id: str = "SAMPLE"
     sex: str = "XX"                        # XX / XY
 
-    # Stage 1 — sarek
+    # Stage 1: sarek
     sarek: SarekConfig = field(default_factory=SarekConfig)
 
-    # Stage 2 — VCF QC
+    # Stage 2: VCF QC
     qc: QcConfig = field(default_factory=QcConfig)
 
-    # Stage 3 — PRS
+    # Stage 3: PRS
     clawbio_root: str = ""                 # path to ClawBio-0.5.0; auto-detected if empty
     prs_traits: list[str] = field(default_factory=list)   # empty = all curated scores
     pgs_ids: list[str] = field(default_factory=list)      # explicit PGS IDs to compute
@@ -165,7 +165,7 @@ class WgsToPrsBridge:
         Args:
             fastq_r1: Forward reads FASTQ.gz (required unless input_vcf is given).
             fastq_r2: Reverse reads FASTQ.gz (optional, paired-end recommended).
-            input_vcf: Pre-existing VCF — skips Stage 1.
+            input_vcf: Pre-existing VCF, skips Stage 1.
             samplesheet: Pre-built sarek samplesheet CSV (overrides fastq_r1/r2).
 
         Returns:
@@ -203,7 +203,7 @@ class WgsToPrsBridge:
         report.qc_metrics = self._load_json(qc_result.metrics_json) if qc_result else None
 
         if stage2.status == "failed" and self.config.fail_fast:
-            log.error("QC failed — aborting. Set fail_fast=False to continue despite QC failure.")
+            log.error("QC failed. Aborting. Set fail_fast=False to continue despite QC failure.")
             report.overall_status = "failed"
             self._write_report(report)
             return report
@@ -231,7 +231,7 @@ class WgsToPrsBridge:
         self._write_report(report)
 
         log.info("=" * 60)
-        log.info("Bridge complete — status: %s", report.overall_status.upper())
+        log.info("Bridge complete, status: %s", report.overall_status.upper())
         if report.report_md:
             log.info("Report: %s", report.report_md)
         log.info("=" * 60)
@@ -239,7 +239,7 @@ class WgsToPrsBridge:
         return report
 
     # ------------------------------------------------------------------
-    # Stage 1 — nf-core/sarek
+    # Stage 1: nf-core/sarek
     # ------------------------------------------------------------------
 
     def _run_stage1(
@@ -279,7 +279,7 @@ class WgsToPrsBridge:
         return stage
 
     # ------------------------------------------------------------------
-    # Stage 2 — VCF QC
+    # Stage 2: VCF QC
     # ------------------------------------------------------------------
 
     def _run_stage2(self, vcf_path: Path | None) -> tuple[StageResult, Optional[QcResult]]:
@@ -317,7 +317,7 @@ class WgsToPrsBridge:
             return stage, None
 
     # ------------------------------------------------------------------
-    # Stage 3 — PRS scoring via ClawBio gwas-prs
+    # Stage 3: PRS scoring via ClawBio gwas-prs
     # ------------------------------------------------------------------
 
     def _run_stage3(self, vcf_path: Path | None) -> StageResult:
@@ -374,7 +374,7 @@ class WgsToPrsBridge:
         return stage
 
     # ------------------------------------------------------------------
-    # Stage 4 — Aggregated report
+    # Stage 4: Aggregated report
     # ------------------------------------------------------------------
 
     def _run_stage4(self, report: BridgeReport) -> StageResult:
@@ -413,7 +413,7 @@ class WgsToPrsBridge:
         ]
         for s in report.stages:
             icon = {"success": "✅", "failed": "❌", "skipped": "⏭️", "running": "⏳", "pending": "⏸️"}.get(s.status, "❓")
-            dur = f"{s.duration_s:.1f}s" if s.duration_s else "—"
+            dur = f"{s.duration_s:.1f}s" if s.duration_s else "N/A"
             lines.append(f"| {s.name} | {icon} {s.status} | {dur} |")
 
         # QC metrics section
@@ -454,7 +454,7 @@ class WgsToPrsBridge:
             prs_lines = prs_report.read_text().splitlines()
             lines += prs_lines[:40]
             if len(prs_lines) > 40:
-                lines.append(f"\n_... ({len(prs_lines) - 40} more lines — see full report)_")
+                lines.append(f"\n_... ({len(prs_lines) - 40} more lines, see full report)_")
         else:
             lines.append("_PRS scores not available (scoring stage did not complete)._")
 
@@ -546,7 +546,7 @@ def _cli() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="ClawBio WGS-PRS Bridge — FASTQ/VCF → Polygenic Risk Scores",
+        description="ClawBio WGS-PRS Bridge: FASTQ/VCF to Polygenic Risk Scores",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         epilog=(
             "Examples:\n"

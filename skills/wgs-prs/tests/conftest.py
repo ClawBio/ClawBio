@@ -1,5 +1,5 @@
 """
-conftest.py — fix clawbio package shadowing for wgs-prs tests.
+conftest.py: fix clawbio package shadowing for wgs-prs tests.
 
 The repo root contains clawbio.py (the CLI) which shadows the clawbio/
 package directory. This conftest removes the stale module entry and re-imports

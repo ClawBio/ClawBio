@@ -1,4 +1,4 @@
-"""Tests for vcf_qc.py — uses a synthetic minimal VCF; mocks bcftools."""
+"""Tests for vcf_qc.py. Uses a synthetic minimal VCF; mocks bcftools."""
 
 from __future__ import annotations
 
@@ -172,7 +172,7 @@ class TestPassFail:
 
 
 # ---------------------------------------------------------------------------
-# Full run — no bcftools (Python-only mode)
+# Full run: no bcftools (Python-only mode)
 # ---------------------------------------------------------------------------
 
 class TestFullRunNoBcftools:

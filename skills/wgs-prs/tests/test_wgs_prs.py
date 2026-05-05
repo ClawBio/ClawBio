@@ -58,7 +58,7 @@ def corpas_chr20_vcf() -> Path | None:
 
 
 # ---------------------------------------------------------------------------
-# Bridge — skip-sarek (VCF entry point)
+# Bridge: skip-sarek (VCF entry point)
 # ---------------------------------------------------------------------------
 
 class TestBridgeVcfEntry:
@@ -124,7 +124,7 @@ class TestBridgeVcfEntry:
 
 
 # ---------------------------------------------------------------------------
-# Bridge — dry run from FASTQ
+# Bridge: dry run from FASTQ
 # ---------------------------------------------------------------------------
 
 class TestBridgeDryRun:
@@ -163,7 +163,7 @@ class TestBridgeDryRun:
 
 
 # ---------------------------------------------------------------------------
-# Bridge — fail_fast behaviour
+# Bridge: fail_fast behaviour
 # ---------------------------------------------------------------------------
 
 class TestFailFast:
@@ -206,7 +206,7 @@ class TestCorpasIntegration:
             Path(__file__).resolve().parents[3] /
             "corpas-30x" / "subsets" / "chr20_snps_indels.vcf.gz"
         ).exists(),
-        reason="Corpas chr20 subset not present — download from Zenodo",
+        reason="Corpas chr20 subset not present: download from Zenodo",
     )
     def test_corpas_chr20_passes_qc(self, tmp_path):
         vcf = (
@@ -224,5 +224,5 @@ class TestCorpasIntegration:
         qc_stage = next(s for s in report.stages if s.name == "vcf_qc")
         assert qc_stage.status in {"success", "failed"}  # status depends on bcftools availability
         assert report.qc_metrics is not None
-        # Stage 3 may fail if gwas-prs dependencies are missing — that is acceptable here
+        # Stage 3 may fail if gwas-prs dependencies are missing; that is acceptable here
         assert report.report_json is not None and report.report_json.exists()

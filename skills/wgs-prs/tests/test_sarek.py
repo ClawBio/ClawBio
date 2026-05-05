@@ -1,4 +1,4 @@
-"""Tests for sarek_wrapper.py — mock subprocess to avoid needing Nextflow."""
+"""Tests for sarek_wrapper.py. Mocks subprocess to avoid needing Nextflow."""
 
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ class TestSarekConfig:
 
 
 # ---------------------------------------------------------------------------
-# SarekWrapper.run — dry run
+# SarekWrapper.run: dry run
 # ---------------------------------------------------------------------------
 
 class TestSarekWrapperDryRun:
@@ -114,7 +114,7 @@ class TestSarekWrapperDryRun:
 
 
 # ---------------------------------------------------------------------------
-# SarekWrapper.run — missing nextflow
+# SarekWrapper.run: missing nextflow
 # ---------------------------------------------------------------------------
 
 class TestSarekWrapperMissingNextflow:
