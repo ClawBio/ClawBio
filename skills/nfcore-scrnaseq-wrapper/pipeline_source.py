@@ -15,6 +15,10 @@ from schemas import DEFAULT_LOCAL_PIPELINE_DIR, DEFAULT_REMOTE_PIPELINE, PIPELIN
 _GIT_TIMEOUT = 10
 
 
+def _path_has_whitespace(path: Path) -> bool:
+    return any(" " in part for part in path.parts)
+
+
 def _git_stdout(path: Path, args: list[str]) -> str:
     try:
         proc = subprocess.run(
@@ -36,7 +40,14 @@ def resolve_pipeline_source(
     local_pipeline_dir: Path | None = None,
 ) -> dict[str, str | bool]:
     local_dir = (local_pipeline_dir or DEFAULT_LOCAL_PIPELINE_DIR).resolve()
-    if local_dir.exists():
+    if local_dir.exists() and _path_has_whitespace(local_dir):
+        print(
+            f"WARNING: Local scrnaseq checkout at '{local_dir}' contains whitespace in its path. "
+            "Docker on macOS cannot reliably execute scripts from paths with spaces (errno 35). "
+            "Falling back to the remote nf-core/scrnaseq pipeline.",
+            file=sys.stderr,
+        )
+    elif local_dir.exists():
         missing = [name for name in PIPELINE_REQUIRED_FILES if not (local_dir / name).exists()]
         if missing:
             raise SkillError(

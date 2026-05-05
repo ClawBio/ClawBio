@@ -60,6 +60,44 @@ def test_raises_when_local_dir_missing_required_files(tmp_path):
     assert "missing_files" in exc.value.details
 
 
+def _make_valid_local_checkout(path: Path) -> None:
+    """Create a minimal valid scrnaseq checkout at *path*."""
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "main.nf").write_text("// main", encoding="utf-8")
+    (path / "nextflow.config").write_text("// config", encoding="utf-8")
+    assets = path / "assets"
+    assets.mkdir()
+    (assets / "schema_input.json").write_text("{}", encoding="utf-8")
+
+
+def test_falls_back_to_remote_when_local_path_has_spaces(tmp_path, capsys):
+    local = tmp_path / "my scrnaseq checkout"
+    _make_valid_local_checkout(local)
+    result = resolve_pipeline_source(
+        requested_version="4.1.0",
+        local_pipeline_dir=local,
+    )
+    assert result["source_kind"] == "remote_repo", (
+        "Expected remote fallback when local path contains spaces"
+    )
+    assert result["resolved_version"] == "4.1.0"
+    captured = capsys.readouterr()
+    assert "whitespace" in captured.err.lower() or "space" in captured.err.lower(), (
+        "Expected a warning about whitespace in the local path"
+    )
+
+
+def test_local_path_without_spaces_uses_local_checkout(tmp_path):
+    local = tmp_path / "scrnaseq_no_spaces"
+    _make_valid_local_checkout(local)
+    result = resolve_pipeline_source(
+        requested_version="4.1.0",
+        local_pipeline_dir=local,
+    )
+    assert result["source_kind"] == "local_checkout"
+    assert result["source_ref"] == str(local.resolve())
+
+
 @_requires_git
 def test_local_checkout_dirty_includes_untracked_files(tmp_path):
     local = tmp_path / "scrnaseq"
