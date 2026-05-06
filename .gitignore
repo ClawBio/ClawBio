@@ -17,6 +17,8 @@ skills/pr-audit/
 data/
 !skills/methylation-clock/data/
 !skills/methylation-clock/data/GSE139307_small.csv.gz
+!skills/rare-disease-rnaseq/data/
+!skills/rare-disease-rnaseq/data/disease_panel.csv
 skills/proteomics-de/output_diann_test/
 skills/proteomics-de/output_maxquant_test/
 .venv/

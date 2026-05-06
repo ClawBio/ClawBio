@@ -1,0 +1,51 @@
+gene,mechanism,phenotype
+FBN1,haploinsufficiency,Marfan syndrome
+NF1,haploinsufficiency,Neurofibromatosis type 1
+TP53,haploinsufficiency,Li-Fraumeni syndrome
+PTEN,haploinsufficiency,PTEN hamartoma tumour syndrome
+BRCA1,haploinsufficiency,Hereditary breast/ovarian cancer
+BRCA2,haploinsufficiency,Hereditary breast/ovarian cancer
+MLH1,haploinsufficiency,Lynch syndrome
+MSH2,haploinsufficiency,Lynch syndrome
+COL1A1,haploinsufficiency,Osteogenesis imperfecta / Ehlers-Danlos
+COL2A1,haploinsufficiency,Stickler syndrome
+COL3A1,haploinsufficiency,Vascular Ehlers-Danlos
+COL5A1,haploinsufficiency,Classical Ehlers-Danlos
+MYH7,haploinsufficiency,Hypertrophic cardiomyopathy
+LMNA,haploinsufficiency,Laminopathies
+RYR2,haploinsufficiency,Catecholaminergic polymorphic VT
+KCNQ1,haploinsufficiency,Long QT syndrome 1
+RB1,haploinsufficiency,Retinoblastoma
+APC,haploinsufficiency,Familial adenomatous polyposis
+CDH1,haploinsufficiency,Hereditary diffuse gastric cancer
+VHL,haploinsufficiency,Von Hippel-Lindau
+NF2,haploinsufficiency,Neurofibromatosis type 2
+RUNX1,haploinsufficiency,Familial platelet disorder / AML
+SETD2,haploinsufficiency,Luscan-Lumish syndrome
+EP300,haploinsufficiency,Rubinstein-Taybi syndrome 2
+CBFB,haploinsufficiency,Cleidocranial dysplasia spectrum
+DDX3X,haploinsufficiency,DDX3X-related neurodevelopmental disorder
+EHMT1,haploinsufficiency,Kleefstra syndrome
+KMT2A,haploinsufficiency,Wiedemann-Steiner syndrome
+KMT2D,haploinsufficiency,Kabuki syndrome
+MED12,haploinsufficiency,Opitz-Kaveggia / Lujan syndrome
+NSD1,haploinsufficiency,Sotos syndrome
+SMC1A,haploinsufficiency,Cornelia de Lange syndrome
+SOX2,haploinsufficiency,Anophthalmia-oesophageal-genital syndrome
+SOX9,haploinsufficiency,Campomelic dysplasia
+SOX10,haploinsufficiency,Waardenburg-Shah syndrome
+ARID1B,haploinsufficiency,Coffin-Siris syndrome
+CHD7,haploinsufficiency,CHARGE syndrome
+CHD8,haploinsufficiency,Autism spectrum / overgrowth
+CREBBP,haploinsufficiency,Rubinstein-Taybi syndrome 1
+FOXG1,haploinsufficiency,Rett syndrome (congenital variant)
+FOXP2,haploinsufficiency,Speech-language disorder 1
+GLI3,haploinsufficiency,Greig cephalopolysyndactyly
+KAT6A,haploinsufficiency,Arboleda-Tham syndrome
+NIPBL,haploinsufficiency,Cornelia de Lange syndrome 1
+PAX3,haploinsufficiency,Waardenburg syndrome 1/3
+SATB2,haploinsufficiency,SATB2-associated syndrome
+SHH,haploinsufficiency,Holoprosencephaly 3
+SMARCA4,haploinsufficiency,Coffin-Siris syndrome 4
+SMARCB1,haploinsufficiency,Coffin-Siris syndrome 3 / rhabdoid tumour
+TCF4,haploinsufficiency,Pitt-Hopkins syndrome

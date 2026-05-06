@@ -480,6 +480,20 @@ SKILLS = {
             "--min-samples",
         },
     },
+    "rdoutlier": {
+        "script": SKILLS_DIR / "rare-disease-rnaseq" / "rare_disease_rnaseq.py",
+        "demo_args": ["--demo"],
+        "description": "Rare-disease blood RNA-seq outlier detection (NGRL-style: cases vs control panel + disease-gene filter)",
+        "allowed_extra_flags": {
+            "--counts",
+            "--cases",
+            "--controls",
+            "--panel",
+            "--z-threshold",
+            "--output",
+            "--seed",
+        },
+    },
     "methylation": {
         "script": SKILLS_DIR / "methylation-clock" / "methylation_clock.py",
         "demo_args": [
