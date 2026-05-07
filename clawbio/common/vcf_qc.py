@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-vcf_qc.py — VCF normalisation, hard filtering, and QC metrics for the ClawBio bridge
+vcf_qc.py: VCF normalisation, hard filtering, and QC metrics for the ClawBio bridge
 ClawBio WGS-PRS Bridge v0.1.0
 Author: David de Lorenzo
 License: MIT
@@ -14,7 +14,7 @@ Requires:
   - bcftools >= 1.17 (for normalisation and stats)
 
 Falls back gracefully if bcftools is unavailable (Python-only mode with
-reduced metrics — suitable for quick testing on pre-normalised VCFs).
+reduced metrics, suitable for quick testing on pre-normalised VCFs).
 
 Usage:
     from clawbio.common.vcf_qc import VcfQC, QcConfig
@@ -61,11 +61,11 @@ class QcConfig:
     # QC pass/fail thresholds
     min_titv_ratio: float = 1.8                # WGS coding: ~3.0; whole genome: ~2.0
     max_titv_ratio: float = 2.5
-    min_het_hom_ratio: float = 1.0             # typical WGS germline range: 1.2–2.0
+    min_het_hom_ratio: float = 1.0             # typical WGS germline range: 1.2 to 2.0
     max_het_hom_ratio: float = 3.0
-    min_snp_count: int = 100                   # sanity check — expect millions for WGS
+    min_snp_count: int = 100                   # sanity check; expect millions for WGS
 
-    # PRS coverage threshold — warn if below this for any score
+    # PRS coverage threshold: warn if below this for any score
     min_prs_coverage_pct: float = 50.0
 
 
@@ -119,9 +119,9 @@ class VcfQC:
     """Normalise and QC-check a VCF for downstream PRS scoring.
 
     Pipeline steps:
-      1. bcftools norm  — left-align indels, split multiallelic sites
-      2. bcftools filter — apply hard QUAL/DP thresholds
-      3. bcftools stats  — compute Ti/Tv, het/hom, variant counts
+      1. bcftools norm: left-align indels, split multiallelic sites
+      2. bcftools filter: apply hard QUAL/DP thresholds
+      3. bcftools stats: compute Ti/Tv, het/hom, variant counts
       4. Pass/fail evaluation against QcConfig thresholds
       5. Write metrics JSON
     """
@@ -131,7 +131,7 @@ class VcfQC:
         self._bcftools = shutil.which("bcftools")
         if not self._bcftools:
             log.warning(
-                "bcftools not found — normalisation and hard filtering will be skipped. "
+                "bcftools not found; normalisation and hard filtering will be skipped. "
                 "Install with: conda install -c bioconda bcftools"
             )
 

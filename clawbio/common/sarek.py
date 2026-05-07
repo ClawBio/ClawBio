@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-sarek_wrapper.py — nf-core/sarek orchestration layer for ClawBio WGS-PRS bridge
+sarek_wrapper.py: nf-core/sarek orchestration layer for ClawBio WGS-PRS bridge
 ClawBio WGS-PRS Bridge v0.1.0
 Author: David de Lorenzo
 License: MIT
@@ -55,7 +55,7 @@ class SarekConfig:
 
     # Sample metadata
     sample_id: str = "SAMPLE"
-    sex: str = "XX"                       # XX or XY — used for chrX/Y calling
+    sex: str = "XX"                       # XX or XY; used for chrX/Y calling
     status: int = 0                       # 0 = normal, 1 = tumour
 
     # Resource limits (passed as Nextflow params)
@@ -119,7 +119,7 @@ def build_samplesheet(
         fastq_r2: Path to reverse reads FASTQ (None for single-end).
         output_path: Where to write the samplesheet CSV.
         sample_id: Sample identifier used throughout the pipeline.
-        sex: Biological sex — "XX" or "XY" (affects variant calling on sex chromosomes).
+        sex: Biological sex. "XX" or "XY" (affects variant calling on sex chromosomes).
         status: 0 = normal germline, 1 = tumour.
         lane: Sequencing lane identifier.
 
