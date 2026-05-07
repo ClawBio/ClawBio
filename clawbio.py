@@ -559,6 +559,14 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "eqtl-region": {
+        "script": SKILLS_DIR / "eqtl-catalogue-region-fetch" / "eqtl_catalogue_region_fetch.py",
+        "demo_args": ["--demo"],
+        "description": "eQTL Catalogue region fetch — tabix-on-FTP cis-QTL summary stats per genomic window",
+        "allowed_extra_flags": {"--list-demos", "--no-cache"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
     "affprot": {
         "script": SKILLS_DIR / "affinity-proteomics" / "affinity_proteomics.py",
         "demo_args": ["--demo", "--platform", "olink"],
