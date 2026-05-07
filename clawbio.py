@@ -739,7 +739,7 @@ def run_skill(
     if summary_mode:
         out_dir = None
     elif output_dir:
-        out_dir = Path(output_dir)
+        out_dir = Path(output_dir).expanduser().resolve()
     else:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         out_dir = DEFAULT_OUTPUT_ROOT / f"{skill_name}_{ts}"
