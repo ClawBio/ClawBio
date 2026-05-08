@@ -36,6 +36,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -1172,9 +1173,38 @@ def _clawbio_entry(spec: dict) -> str:
 #
 # An older version of this function anchored only on the comment and inserted
 # *after* the closing brace, producing invalid Python (entry outside the dict).
-_CLAWBIO_DICT_CLOSE_RE = re.compile(
-    r"\n(?P<close>\})\n(?P<blank>\s*)(?P<anchor>#\s*Skills that run in the full-profile pipeline)",
-)
+_CLAWBIO_ANCHOR_RE = re.compile(r"^#\s*Skills that run in the full-profile pipeline", re.MULTILINE)
+
+
+def _find_skills_dict_close(source: str) -> int | None:
+    """Return the source index of the closing brace for the top-level SKILLS dict."""
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Dict):
+            continue
+        if not any(isinstance(target, ast.Name) and target.id == "SKILLS" for target in node.targets):
+            continue
+        if node.value.end_lineno is None or node.value.end_col_offset is None:
+            return None
+        line_offsets = _line_start_offsets(source)
+        close_idx = line_offsets[node.value.end_lineno - 1] + max(node.value.end_col_offset - 1, 0)
+        if close_idx < len(source) and source[close_idx] == "}":
+            return close_idx
+        end_idx = line_offsets[node.value.end_lineno - 1] + node.value.end_col_offset
+        fallback = source.rfind("}", 0, end_idx)
+        return fallback if fallback != -1 else None
+    return None
+
+
+def _line_start_offsets(source: str) -> list[int]:
+    offsets = [0]
+    for match in re.finditer(r"\n", source):
+        offsets.append(match.end())
+    return offsets
 
 
 def _alias_already_present(source: str, cli_alias: str) -> bool:
@@ -1205,8 +1235,9 @@ def patch_clawbio_py(clawbio_path: Path, spec: dict) -> bool:
         print(f"  {DIM}clawbio.py: alias '{cli_alias}' already present — skipping.{RESET}")
         return False
 
-    m = _CLAWBIO_DICT_CLOSE_RE.search(source)
-    if m is None:
+    insert_at = _find_skills_dict_close(source)
+    anchor = _CLAWBIO_ANCHOR_RE.search(source)
+    if insert_at is None or anchor is None or anchor.start() < insert_at:
         print(
             f"  {RED}clawbio.py: could not locate SKILLS dict close marker — "
             f"skipping auto-patch.{RESET}",
@@ -1218,7 +1249,6 @@ def patch_clawbio_py(clawbio_path: Path, spec: dict) -> bool:
     # Indent the entry to match the SKILLS dict (4 spaces).
     indented = textwrap.indent(new_entry, "    ")
     # Insert the indented entry immediately before the closing }.
-    insert_at = m.start("close")
     patched = source[:insert_at] + indented + source[insert_at:]
     clawbio_path.write_text(patched, encoding="utf-8")
     print(f"  {GREEN}Patched clawbio.py (+1 SKILLS entry for '{cli_alias}'){RESET}")
