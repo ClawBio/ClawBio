@@ -7,7 +7,7 @@
     {
       "name": "affinity-proteomics",
       "cli_alias": null,
-      "description": "Unified analysis pipeline for affinity-based proteomics platforms — Olink (PEA, NPX) and SomaLogic SomaScan (SOMAmer, RFU). Platform-aware QC, normalisation, differential abundance, volcano plots, heatmaps, and PCA.",
+      "description": "Unified analysis pipeline for affinity-based proteomics platforms \u2014 Olink (PEA, NPX) and SomaLogic SomaScan (SOMAmer, RFU). Platform-aware QC, normalisation, differential abundance, volcano plots, heatmaps, and PCA.",
       "version": "0.1.0",
       "status": "planned",
       "has_script": true,
@@ -56,7 +56,7 @@
     {
       "name": "bgpt-mcp",
       "cli_alias": null,
-      "description": "Search scientific papers via the BGPT MCP server and retrieve structured experimental data — methods, results, conclusions, quality scores, and 25+ metadata fields per paper.",
+      "description": "Search scientific papers via the BGPT MCP server and retrieve structured experimental data \u2014 methods, results, conclusions, quality scores, and 25+ metadata fields per paper.",
       "version": "0.1.0",
       "status": "planned",
       "has_script": false,
@@ -244,7 +244,7 @@
     {
       "name": "claw-metagenomics",
       "cli_alias": "metagenomics",
-      "description": "Shotgun metagenomics profiling — taxonomy, resistome, and functional pathways",
+      "description": "Shotgun metagenomics profiling \u2014 taxonomy, resistome, and functional pathways",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -473,7 +473,7 @@
     {
       "name": "drug-photo",
       "cli_alias": "drugphoto",
-      "description": "Medication photo to personalised PGx dosage card via Claude vision — snap a pill, get genotype-informed guidance",
+      "description": "Medication photo to personalised PGx dosage card via Claude vision \u2014 snap a pill, get genotype-informed guidance",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": false,
@@ -564,7 +564,7 @@
     {
       "name": "flow-bio",
       "cli_alias": null,
-      "description": "Flow.bio API bridge — authenticate, browse pipelines/samples/projects, search, upload data, launch pipeline executions, and check run status on any Flow instance.",
+      "description": "Flow.bio API bridge \u2014 authenticate, browse pipelines/samples/projects, search, upload data, launch pipeline executions, and check run status on any Flow instance.",
       "version": "0.1.0",
       "status": "planned",
       "has_script": true,
@@ -601,7 +601,7 @@
     {
       "name": "galaxy-bridge",
       "cli_alias": "galaxy",
-      "description": "Galaxy tool discovery, intelligent recommendation, and execution — 8,000+ bioinformatics tools from usegalaxy.org with multi-signal scoring and workflow suggestions",
+      "description": "Galaxy tool discovery, intelligent recommendation, and execution \u2014 8,000+ bioinformatics tools from usegalaxy.org with multi-signal scoring and workflow suggestions",
       "version": "0.2.0",
       "status": "mvp",
       "has_script": true,
@@ -698,7 +698,7 @@
     {
       "name": "gwas-lookup",
       "cli_alias": "gwas",
-      "description": "Federated variant lookup across 9 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, eQTL Catalogue, and more.",
+      "description": "Federated variant lookup across 9 genomic databases \u2014 GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, eQTL Catalogue, and more.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -834,7 +834,7 @@
     {
       "name": "labstep",
       "cli_alias": null,
-      "description": "Query and display Labstep electronic lab notebook data — experiments, protocols, resources, and inventory — via labstepPy.  Supports offline demo mode with synthetic biology data.",
+      "description": "Query and display Labstep electronic lab notebook data \u2014 experiments, protocols, resources, and inventory \u2014 via labstepPy.  Supports offline demo mode with synthetic biology data.",
       "version": "0.2.0",
       "status": "planned",
       "has_script": true,
@@ -866,7 +866,7 @@
     {
       "name": "lit-synthesizer",
       "cli_alias": null,
-      "description": "Search PubMed and bioRxiv for bioinformatics literature, synthesise results into a structured report, and build a citation graph — all locally, with a reproducibility bundle.\n",
+      "description": "Search PubMed and bioRxiv for bioinformatics literature, synthesise results into a structured report, and build a citation graph \u2014 all locally, with a reproducibility bundle.\n",
       "version": "0.1.0",
       "status": "planned",
       "has_script": true,
@@ -1046,7 +1046,7 @@
     {
       "name": "nutrigx-advisor",
       "cli_alias": null,
-      "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
+      "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) \u2014 interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
       "version": "0.1.0",
       "status": "planned",
       "has_script": true,
@@ -1084,7 +1084,7 @@
     {
       "name": "nutrigx_advisor",
       "cli_alias": "nutrigx",
-      "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
+      "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) \u2014 interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -1152,7 +1152,7 @@
     {
       "name": "pharmgx-reporter",
       "cli_alias": "pharmgx",
-      "description": "Pharmacogenomic report from DTC genetic data (23andMe/AncestryDNA) — 12 genes, 31 SNPs, 51 drugs",
+      "description": "Pharmacogenomic report from DTC genetic data (23andMe/AncestryDNA) \u2014 12 genes, 31 SNPs, 51 drugs",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -1184,7 +1184,7 @@
     {
       "name": "profile-report",
       "cli_alias": "profile",
-      "description": "Unified personal genomic profile report — reads a PatientProfile JSON and synthesizes all skill results into a single \"Your Genomic Profile\" document.",
+      "description": "Unified personal genomic profile report \u2014 reads a PatientProfile JSON and synthesizes all skill results into a single \"Your Genomic Profile\" document.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -1319,6 +1319,48 @@
         "disease papers"
       ],
       "chaining_partners": []
+    },
+    {
+      "name": "rare-disease-rnaseq",
+      "cli_alias": "rdoutlier",
+      "description": "Blood RNA-seq expression-outlier detection for rare-disease diagnostics. Cases scored against a control reference panel; outliers ranked and filtered by a haploinsufficient disease-gene panel. Reproduces the diagnostic principle of the Genomics England NGRL paper (medRxiv 2026.03.19.26348811).",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run rdoutlier --demo",
+      "dependencies": [
+        "pandas",
+        "numpy",
+        "matplotlib"
+      ],
+      "tags": [
+        "rna-seq",
+        "rare-disease",
+        "outlier-detection",
+        "OUTRIDER",
+        "FRASER",
+        "diagnostic",
+        "blood",
+        "transcriptomics",
+        "haploinsufficiency"
+      ],
+      "trigger_keywords": [
+        "rare disease rnaseq",
+        "expression outlier",
+        "outrider",
+        "fraser",
+        "blood rna-seq diagnostic",
+        "ngrl",
+        "undiagnosed",
+        "candidate diagnosis"
+      ],
+      "chaining_partners": [
+        "rnaseq-de",
+        "clinical-variant-reporter",
+        "gwas-pipeline"
+      ]
     },
     {
       "name": "recombinator",
@@ -1521,7 +1563,7 @@
     {
       "name": "skill-builder",
       "cli_alias": null,
-      "description": "Scaffold a new ClawBio skill from a spec file (JSON/YAML) or interactively — generates SKILL.md, Python skeleton, tests, and updates catalog.json",
+      "description": "Scaffold a new ClawBio skill from a spec file (JSON/YAML) or interactively \u2014 generates SKILL.md, Python skeleton, tests, and updates catalog.json",
       "version": "0.1.0",
       "status": "planned",
       "has_script": true,
@@ -1665,7 +1707,7 @@
     {
       "name": "ukb-navigator",
       "cli_alias": null,
-      "description": "Semantic search across UK Biobank's 12,000+ data fields and publications — find the right variables for your research question.",
+      "description": "Semantic search across UK Biobank's 12,000+ data fields and publications \u2014 find the right variables for your research question.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
