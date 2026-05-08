@@ -190,6 +190,7 @@ report/
 | [Galaxy Bridge](skills/galaxy-bridge/) | **MVP** | Search, run, and chain 8,000+ Galaxy bioinformatics tools |
 | [RNA-seq DE](skills/rnaseq-de/) | **MVP** | Bulk/pseudo-bulk differential expression with QC + PCA + contrasts |
 | [Methylation Clock](skills/methylation-clock/) | **MVP** | Epigenetic age from methylation arrays with PyAging clocks |
+| [nf-core scRNA Wrapper](skills/nfcore-scrnaseq-wrapper/) | **MVP** | Upstream single-cell preprocessing: FASTQ → h5ad via nf-core/scrnaseq (simpleaf, STARsolo, kallisto, CellRanger) with strict preflight and reproducibility bundle |
 | [scRNA Embedding](skills/scrna-embedding/) | **MVP** | scVI/scANVI latent embedding, batch integration, and stable `integrated.h5ad` export for downstream latent analysis |
 | [scRNA Orchestrator](skills/scrna-orchestrator/) | **MVP** | Scanpy automation: QC, optional doublet detection, clustering, markers, annotation, latent downstream mode, contrastive markers |
 | [Diff Visualizer](skills/diff-visualizer/) | **MVP** | Rich downstream visualisation for bulk RNA-seq DE and scRNA marker/contrast outputs |

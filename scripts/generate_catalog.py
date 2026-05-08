@@ -207,6 +207,7 @@ FOLDER_TO_ALIAS = {
     "profile-report": "profile",
     "galaxy-bridge": "galaxy",
     "bioconductor-bridge": "bioc",
+    "nfcore-scrnaseq-wrapper": "scrnaseq-pipeline",
     "rnaseq-de": "rnaseq",
     "diff-visualizer": "diffviz",
     "llm-biobank-bench": "llm-bench",
@@ -218,7 +219,7 @@ EXCLUDED_FOLDERS = {"pr-audit", "wes-clinical-report-es"}
 # Skills that are MVP (have working Python + are in SKILLS dict or are bio-orchestrator)
 MVP_FOLDERS = {
     "pharmgx-reporter", "equity-scorer", "nutrigx_advisor", "claw-metagenomics",
-    "scrna-orchestrator", "scrna-embedding",
+    "nfcore-scrnaseq-wrapper", "scrna-orchestrator", "scrna-embedding",
     "genome-compare", "drug-photo", "gwas-prs", "clinpgx", "gwas-lookup",
     "bigquery-public",
     "profile-report", "bio-orchestrator", "claw-ancestry-pca", "claw-semantic-sim",
@@ -239,6 +240,7 @@ TRIGGER_KEYWORDS: dict[str, list[str]] = {
     "genome-compare": ["genome comparison", "IBS", "George Church", "Corpasome", "pairwise"],
     "equity-scorer": ["HEIM", "equity", "FST", "heterozygosity", "population representation"],
     "nutrigx_advisor": ["nutrition", "nutrigenomics", "diet genetics", "MTHFR", "caffeine", "lactose"],
+    "nfcore-scrnaseq-wrapper": ["scrnaseq", "nf-core scrnaseq", "single-cell preprocessing", "10x fastq", "generate h5ad from fastq"],
     "scrna-orchestrator": ["single-cell", "scrna", "h5ad", "mtx", "10x", "scanpy", "umap", "leiden"],
     "scrna-embedding": ["scvi", "scanvi", "latent", "embedding", "integration", "batch correction", "10x"],
     "rnaseq-de": ["differential expression", "bulk rna", "rna-seq", "count matrix", "deseq2", "pydeseq2"],
@@ -265,6 +267,7 @@ CHAINING: dict[str, list[str]] = {
     "genome-compare": ["claw-ancestry-pca", "profile-report"],
     "equity-scorer": ["claw-semantic-sim"],
     "nutrigx_advisor": ["profile-report", "pharmgx-reporter"],
+    "nfcore-scrnaseq-wrapper": ["scrna-orchestrator", "scrna-embedding", "bio-orchestrator"],
     "scrna-orchestrator": [],
     "scrna-embedding": ["scrna-orchestrator"],
     "rnaseq-de": ["diff-visualizer"],

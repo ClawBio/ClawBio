@@ -20,3 +20,5 @@ data/
 skills/proteomics-de/output_diann_test/
 skills/proteomics-de/output_maxquant_test/
 .venv/
+.claude/
+.claire/

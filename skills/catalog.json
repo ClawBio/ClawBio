@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 58,
+  "skill_count": 59,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -1044,6 +1044,51 @@
       "chaining_partners": []
     },
     {
+      "name": "nfcore-scrnaseq-wrapper",
+      "cli_alias": "scrnaseq-pipeline",
+      "description": "Wrapper skill for running nf-core/scrnaseq-style single-cell RNA-seq preprocessing from FASTQ with strict preflight, reproducibility outputs, and downstream handoff to ClawBio scRNA skills.",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run scrnaseq-pipeline --demo",
+      "dependencies": [
+        "python>=3.11"
+      ],
+      "tags": [
+        "scrna",
+        "single-cell",
+        "nextflow",
+        "nf-core",
+        "fastq",
+        "10x",
+        "h5ad",
+        "preprocessing"
+      ],
+      "trigger_keywords": [
+        "scrnaseq",
+        "nf-core scrnaseq",
+        "run scrnaseq from fastq",
+        "preprocess 10x fastqs",
+        "generate h5ad from single-cell fastq",
+        "single-cell preprocessing",
+        "nextflow scrna pipeline",
+        "10x chromium fastq pipeline",
+        "starsolo upstream processing",
+        "alevin-fry fastq to counts",
+        "run nextflow scrnaseq",
+        "upstream single-cell pipeline",
+        "fastq to h5ad single cell",
+        "10x genomics fastq pipeline"
+      ],
+      "chaining_partners": [
+        "scrna-orchestrator",
+        "scrna-embedding",
+        "bio-orchestrator"
+      ]
+    },
+    {
       "name": "nutrigx-advisor",
       "cli_alias": null,
       "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
@@ -1680,9 +1725,7 @@
         "biobank schema",
         "data showcase"
       ],
-      "chaining_partners": [
-        "llm-biobank-bench"
-      ]
+      "chaining_partners": []
     },
     {
       "name": "variant-annotation",
