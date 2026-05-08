@@ -294,6 +294,13 @@ SKILLS = {
         "allowed_extra_flags": set(),
         "accepts_genotypes": False,
     },
+    "analyze-fasta": {
+        "script": SKILLS_DIR / "analyze-fasta" / "analyze_fasta.py",
+        "demo_args": ["--demo"],
+        "description": "Single FASTA analyzer (auto-detect nucleotide/protein, GC, ORFs, MW, pI, GRAVY)",
+        "allowed_extra_flags": set(),
+        "accepts_genotypes": False,
+    },
     "scrna": {
         "script": SKILLS_DIR / "scrna-orchestrator" / "scrna_orchestrator.py",
         "demo_args": ["--demo"],

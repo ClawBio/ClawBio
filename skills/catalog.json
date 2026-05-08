@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 58,
+  "skill_count": 59,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -37,6 +37,45 @@
         "ADAT"
       ],
       "chaining_partners": []
+    },
+    {
+      "name": "analyze-fasta",
+      "cli_alias": "analyze-fasta",
+      "description": "Analyze a single FASTA file (nucleotide or protein), compute sequence-level metrics (GC, ORFs, MW, pI, GRAVY, secondary-structure fractions) with Biopython, and write a Markdown report plus structured JSON for downstream chaining.",
+      "version": "0.1.0",
+      "status": "mvp",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/analyze-fasta/analyze_fasta.py --demo --output /tmp/analyze_fasta_demo",
+      "dependencies": [
+        "python>=3.10",
+        "biopython>=1.80"
+      ],
+      "tags": [
+        "fasta",
+        "biopython",
+        "sequence-analysis",
+        "gc-content",
+        "orf",
+        "protein-properties",
+        "isoelectric-point",
+        "gravy"
+      ],
+      "trigger_keywords": [
+        "fasta",
+        "analyze fasta",
+        "gc content",
+        "find orfs",
+        "isoelectric point",
+        "gravy index",
+        "protein properties"
+      ],
+      "chaining_partners": [
+        "struct-predictor",
+        "variant-annotation",
+        "pubmed-summariser"
+      ]
     },
     {
       "name": "archaic-introgression",
