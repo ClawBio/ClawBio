@@ -287,6 +287,19 @@ SKILLS = {
         "allowed_extra_flags": set(),
         "accepts_genotypes": True,
     },
+    "dnasp": {
+        "script": SKILLS_DIR / "dnasp" / "dnasp.py",
+        "demo_args": ["--demo"],
+        "description": "DnaSP 6 population genetics (Pi, Tajima's D, Fu & Li, Fay & Wu, MK, Ka/Ks, Fst, and more)",
+        "allowed_extra_flags": {
+            "--fasta", "--outgroup", "--pop-map", "--window", "--step",
+            "--all", "--pi", "--theta", "--tajima", "--fuliD", "--fuliF",
+            "--hka", "--mk", "--kaks", "--r2", "--fufs", "--sfs",
+            "--tstv", "--codon", "--faywu", "--fst",
+            "--n-sim", "--sim-seed",
+        },
+        "accepts_genotypes": False,
+    },
     "metagenomics": {
         "script": SKILLS_DIR / "claw-metagenomics" / "metagenomics_profiler.py",
         "demo_args": ["--demo"],

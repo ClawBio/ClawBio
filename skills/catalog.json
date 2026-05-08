@@ -1,13 +1,13 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 59,
+  "skill_count": 63,
   "galaxy_tool_count": 8182,
   "skills": [
     {
       "name": "affinity-proteomics",
       "cli_alias": null,
-      "description": "Unified analysis pipeline for affinity-based proteomics platforms \u2014 Olink (PEA, NPX) and SomaLogic SomaScan (SOMAmer, RFU). Platform-aware QC, normalisation, differential abundance, volcano plots, heatmaps, and PCA.",
+      "description": "Unified analysis pipeline for affinity-based proteomics platforms — Olink (PEA, NPX) and SomaLogic SomaScan (SOMAmer, RFU). Platform-aware QC, normalisation, differential abundance, volcano plots, heatmaps, and PCA.",
       "version": "0.1.0",
       "status": "planned",
       "has_script": true,
@@ -40,14 +40,14 @@
     },
     {
       "name": "analyze-fasta",
-      "cli_alias": "analyze-fasta",
+      "cli_alias": null,
       "description": "Analyze a single FASTA file (nucleotide or protein), compute sequence-level metrics (GC, ORFs, MW, pI, GRAVY, secondary-structure fractions) with Biopython, and write a Markdown report plus structured JSON for downstream chaining.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/analyze-fasta/analyze_fasta.py --demo --output /tmp/analyze_fasta_demo",
+      "demo_command": "python skills/analyze-fasta/analyze_fasta.py --demo",
       "dependencies": [
         "python>=3.10",
         "biopython>=1.80"
@@ -65,11 +65,17 @@
       "trigger_keywords": [
         "fasta",
         "analyze fasta",
+        "analiza fasta",
+        "sequence analysis",
         "gc content",
         "find orfs",
+        "orf finder",
+        "protein properties",
         "isoelectric point",
         "gravy index",
-        "protein properties"
+        "protparam",
+        "molecular weight protein",
+        "molecular weight dna"
       ],
       "chaining_partners": [
         "struct-predictor",
@@ -86,7 +92,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/archaic-introgression/archaic_introgression.py --demo",
+      "demo_command": "python skills/archaic-introgression/pipeline.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [],
@@ -95,7 +101,7 @@
     {
       "name": "bgpt-mcp",
       "cli_alias": null,
-      "description": "Search scientific papers via the BGPT MCP server and retrieve structured experimental data \u2014 methods, results, conclusions, quality scores, and 25+ metadata fields per paper.",
+      "description": "Search scientific papers via the BGPT MCP server and retrieve structured experimental data — methods, results, conclusions, quality scores, and 25+ metadata fields per paper.",
       "version": "0.1.0",
       "status": "planned",
       "has_script": false,
@@ -283,7 +289,7 @@
     {
       "name": "claw-metagenomics",
       "cli_alias": "metagenomics",
-      "description": "Shotgun metagenomics profiling \u2014 taxonomy, resistome, and functional pathways",
+      "description": "Shotgun metagenomics profiling — taxonomy, resistome, and functional pathways",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -340,6 +346,37 @@
       ]
     },
     {
+      "name": "clawpathy_autoresearch",
+      "cli_alias": null,
+      "description": "Eval-driven skill tuning. Given a task and an LLM-judge rubric, iteratively rewrites a SKILL.md until a downstream executor agent performs well against the judge. Low-code: all evaluation is LLM-as-judge, not deterministic Python.",
+      "version": "1.0.0",
+      "status": "planned",
+      "has_script": true,
+      "has_tests": false,
+      "has_demo": true,
+      "demo_command": "python skills/clawpathy_autoresearch/dispatcher.py --demo",
+      "dependencies": [],
+      "tags": [
+        "meta",
+        "autoresearch",
+        "skill-tuning",
+        "llm-judge",
+        "eval-driven"
+      ],
+      "trigger_keywords": [
+        "auto research",
+        "autoresearch",
+        "tune a skill",
+        "skill tuning",
+        "improve a skill",
+        "eval-driven",
+        "clawpathy",
+        "replicate paper",
+        "reproduce paper"
+      ],
+      "chaining_partners": []
+    },
+    {
       "name": "clinical-trial-finder",
       "cli_alias": null,
       "description": "Find clinical trials for a gene, variant, or condition from ClinicalTrials.gov + EUCTR, with FHIR R4 output",
@@ -348,7 +385,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/clinical-trial-finder/opentargets.py --demo",
+      "demo_command": "python skills/clinical-trial-finder/euctr.py --demo",
       "dependencies": [
         "python>=3.11"
       ],
@@ -382,7 +419,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/clinical-variant-reporter/clinical_variant_reporter.py --demo",
+      "demo_command": "python skills/clinical-variant-reporter/acmg_engine.py --demo",
       "dependencies": [],
       "tags": [
         "acmg",
@@ -510,9 +547,82 @@
       ]
     },
     {
+      "name": "dnasp",
+      "cli_alias": null,
+      "description": "Full reimplementation of DnaSP 6 for population genetics analysis of aligned DNA sequences. Covers nucleotide diversity, haplotype statistics, neutrality tests (Tajima's D, Fu & Li's D*/F*, R2), linkage disequilibrium (D, D', R², ZnS, Za, ZZ), minimum recombination (Rm), mismatch distribution, InDel polymorphism, between-population divergence (Dxy, Da, fixed/shared sites), outgroup-based Fu & Li D/F tests (fuliout), the HKA multi-locus neutrality test (hka), the McDonald-Kreitman test (mk), Ka/Ks (dN/dS) via the Nei-Gojobori (1986) method (kaks), Fu's Fs test (fufs), the site frequency spectrum (sfs, folded and outgroup-unfolded), transition/transversion ratio (tstv), and codon usage bias  -  RSCU (Sharp & Li 1987) and ENC (Wright 1990) (codon). Accepts FASTA or NEXUS input; outputs DnaSP-compatible TSV and a Markdown report.",
+      "version": "0.4.0",
+      "status": "planned",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/dnasp/dnasp.py --demo",
+      "dependencies": [
+        "python>=3.10",
+        "matplotlib>=3.7"
+      ],
+      "tags": [
+        "population-genetics",
+        "molecular-evolution",
+        "DNA-polymorphism",
+        "neutrality-tests",
+        "linkage-disequilibrium",
+        "recombination",
+        "divergence",
+        "sequence-analysis"
+      ],
+      "trigger_keywords": [
+        "nucleotide diversity",
+        "Tajima's D",
+        "DNA polymorphism",
+        "population genetics sequences",
+        "haplotype diversity",
+        "DnaSP",
+        "segregating sites",
+        "Fu and Li test",
+        "neutrality test alignment",
+        "Watterson theta",
+        "linkage disequilibrium",
+        "recombination events",
+        "mismatch distribution",
+        "population expansion",
+        "InDel polymorphism",
+        "divergence between populations",
+        "Dxy Da net divergence",
+        "fixed differences populations",
+        "Ramos-Onsins Rozas R2",
+        "Fu Li D F outgroup",
+        "outgroup polarised mutations",
+        "HKA test neutrality",
+        "Hudson Kreitman Aguade",
+        "multi-locus neutrality",
+        "polymorphism divergence ratio",
+        "McDonald-Kreitman test",
+        "MK test",
+        "adaptive evolution test",
+        "alpha McDonald-Kreitman",
+        "neutrality index NI",
+        "direction of selection DoS",
+        "Ka/Ks",
+        "dN/dS",
+        "omega synonymous nonsynonymous",
+        "synonymous substitution rate",
+        "nonsynonymous substitution rate",
+        "coding sequence neutrality",
+        "Nei-Gojobori method",
+        "Fu's Fs test",
+        "Fu 1997 Fs",
+        "site frequency spectrum",
+        "SFS folded unfolded",
+        "allele frequency spectrum",
+        "singleton excess",
+        "minor allele frequency distribution"
+      ],
+      "chaining_partners": []
+    },
+    {
       "name": "drug-photo",
       "cli_alias": "drugphoto",
-      "description": "Medication photo to personalised PGx dosage card via Claude vision \u2014 snap a pill, get genotype-informed guidance",
+      "description": "Medication photo to personalised PGx dosage card via Claude vision — snap a pill, get genotype-informed guidance",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": false,
@@ -603,7 +713,7 @@
     {
       "name": "flow-bio",
       "cli_alias": null,
-      "description": "Flow.bio API bridge \u2014 authenticate, browse pipelines/samples/projects, search, upload data, launch pipeline executions, and check run status on any Flow instance.",
+      "description": "Flow.bio API bridge — authenticate, browse pipelines/samples/projects, search, upload data, launch pipeline executions, and check run status on any Flow instance.",
       "version": "0.1.0",
       "status": "planned",
       "has_script": true,
@@ -640,7 +750,7 @@
     {
       "name": "galaxy-bridge",
       "cli_alias": "galaxy",
-      "description": "Galaxy tool discovery, intelligent recommendation, and execution \u2014 8,000+ bioinformatics tools from usegalaxy.org with multi-signal scoring and workflow suggestions",
+      "description": "Galaxy tool discovery, intelligent recommendation, and execution — 8,000+ bioinformatics tools from usegalaxy.org with multi-signal scoring and workflow suggestions",
       "version": "0.2.0",
       "status": "mvp",
       "has_script": true,
@@ -737,7 +847,7 @@
     {
       "name": "gwas-lookup",
       "cli_alias": "gwas",
-      "description": "Federated variant lookup across 9 genomic databases \u2014 GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, eQTL Catalogue, and more.",
+      "description": "Federated variant lookup across 9 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, eQTL Catalogue, and more.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -850,7 +960,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/illumina-bridge/illumina_providers.py --demo",
+      "demo_command": "python skills/illumina-bridge/illumina_bridge.py --demo",
       "dependencies": [],
       "tags": [
         "illumina",
@@ -873,7 +983,7 @@
     {
       "name": "labstep",
       "cli_alias": null,
-      "description": "Query and display Labstep electronic lab notebook data \u2014 experiments, protocols, resources, and inventory \u2014 via labstepPy.  Supports offline demo mode with synthetic biology data.",
+      "description": "Query and display Labstep electronic lab notebook data — experiments, protocols, resources, and inventory — via labstepPy.  Supports offline demo mode with synthetic biology data.",
       "version": "0.2.0",
       "status": "planned",
       "has_script": true,
@@ -905,7 +1015,7 @@
     {
       "name": "lit-synthesizer",
       "cli_alias": null,
-      "description": "Search PubMed and bioRxiv for bioinformatics literature, synthesise results into a structured report, and build a citation graph \u2014 all locally, with a reproducibility bundle.\n",
+      "description": "Search PubMed and bioRxiv for bioinformatics literature, synthesise results into a structured report, and build a citation graph — all locally, with a reproducibility bundle.\n",
       "version": "0.1.0",
       "status": "planned",
       "has_script": true,
@@ -1085,13 +1195,13 @@
     {
       "name": "nutrigx-advisor",
       "cli_alias": null,
-      "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) \u2014 interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
+      "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
       "version": "0.1.0",
       "status": "planned",
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/nutrigx-advisor/parse_input.py --demo",
+      "demo_command": "python skills/nutrigx-advisor/score_variants.py --demo",
       "dependencies": [],
       "tags": [
         "nutrigenomics",
@@ -1123,7 +1233,7 @@
     {
       "name": "nutrigx_advisor",
       "cli_alias": "nutrigx",
-      "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) \u2014 interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
+      "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -1191,7 +1301,7 @@
     {
       "name": "pharmgx-reporter",
       "cli_alias": "pharmgx",
-      "description": "Pharmacogenomic report from DTC genetic data (23andMe/AncestryDNA) \u2014 12 genes, 31 SNPs, 51 drugs",
+      "description": "Pharmacogenomic report from DTC genetic data (23andMe/AncestryDNA) — 12 genes, 31 SNPs, 51 drugs",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -1223,7 +1333,7 @@
     {
       "name": "profile-report",
       "cli_alias": "profile",
-      "description": "Unified personal genomic profile report \u2014 reads a PatientProfile JSON and synthesizes all skill results into a single \"Your Genomic Profile\" document.",
+      "description": "Unified personal genomic profile report — reads a PatientProfile JSON and synthesizes all skill results into a single \"Your Genomic Profile\" document.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -1344,7 +1454,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/pubmed-summariser/pubmed_summariser.py --demo",
+      "demo_command": "python skills/pubmed-summariser/pubmed_api.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [
@@ -1361,19 +1471,15 @@
     },
     {
       "name": "rare-disease-rnaseq",
-      "cli_alias": "rdoutlier",
-      "description": "Blood RNA-seq expression-outlier detection for rare-disease diagnostics. Cases scored against a control reference panel; outliers ranked and filtered by a haploinsufficient disease-gene panel. Reproduces the diagnostic principle of the Genomics England NGRL paper (medRxiv 2026.03.19.26348811).",
+      "cli_alias": null,
+      "description": "Blood RNA-seq expression-outlier detection for rare-disease diagnostics. Cases scored against a control reference panel; outliers ranked and filtered by a haploinsufficient disease-gene panel.",
       "version": "0.1.0",
-      "status": "mvp",
+      "status": "planned",
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python clawbio.py run rdoutlier --demo",
-      "dependencies": [
-        "pandas",
-        "numpy",
-        "matplotlib"
-      ],
+      "demo_command": "python skills/rare-disease-rnaseq/rare_disease_rnaseq.py --demo",
+      "dependencies": [],
       "tags": [
         "rna-seq",
         "rare-disease",
@@ -1385,21 +1491,8 @@
         "transcriptomics",
         "haploinsufficiency"
       ],
-      "trigger_keywords": [
-        "rare disease rnaseq",
-        "expression outlier",
-        "outrider",
-        "fraser",
-        "blood rna-seq diagnostic",
-        "ngrl",
-        "undiagnosed",
-        "candidate diagnosis"
-      ],
-      "chaining_partners": [
-        "rnaseq-de",
-        "clinical-variant-reporter",
-        "gwas-pipeline"
-      ]
+      "trigger_keywords": [],
+      "chaining_partners": []
     },
     {
       "name": "recombinator",
@@ -1602,7 +1695,7 @@
     {
       "name": "skill-builder",
       "cli_alias": null,
-      "description": "Scaffold a new ClawBio skill from a spec file (JSON/YAML) or interactively \u2014 generates SKILL.md, Python skeleton, tests, and updates catalog.json",
+      "description": "Scaffold a new ClawBio skill from a spec file (JSON/YAML) or interactively — generates SKILL.md, Python skeleton, tests, and updates catalog.json",
       "version": "0.1.0",
       "status": "planned",
       "has_script": true,
@@ -1746,7 +1839,7 @@
     {
       "name": "ukb-navigator",
       "cli_alias": null,
-      "description": "Semantic search across UK Biobank's 12,000+ data fields and publications \u2014 find the right variables for your research question.",
+      "description": "Semantic search across UK Biobank's 12,000+ data fields and publications — find the right variables for your research question.",
       "version": "0.1.0",
       "status": "mvp",
       "has_script": true,
@@ -1863,19 +1956,14 @@
     {
       "name": "wgs-prs",
       "cli_alias": null,
-      "description": "End-to-end WGS to polygenic risk score pipeline. Takes paired-end FASTQ files (or a pre-existing VCF) through nf-core/sarek for variant calling, applies VCF QC (normalisation, hard filtering, Ti/Tv and Het/Hom checks), then computes polygenic risk scores via the PGS Catalog. Fills the FASTQ\u2192VCF gap upstream of the gwas-prs skill.",
+      "description": "End-to-end WGS to polygenic risk score pipeline. Takes paired-end FASTQ files (or a pre-existing VCF) through nf-core/sarek for variant calling, applies VCF QC (normalisation, hard filtering, Ti/Tv and Het/Hom checks), then computes polygenic risk scores via the PGS Catalog. Fills the FASTQ to VCF gap upstream of the gwas-prs skill.",
       "version": "0.1.0",
-      "author": "David de Lorenzo",
-      "status": "active",
+      "status": "planned",
       "has_script": true,
       "has_tests": true,
-      "has_demo": false,
-      "demo_command": "python skills/wgs-prs/wgs_prs.py --input-vcf corpas-30x/subsets/chr20_snps_indels.vcf.gz --output-dir /tmp/wgs_prs_demo --no-fail-fast",
-      "dependencies": [
-        "nextflow",
-        "docker",
-        "bcftools"
-      ],
+      "has_demo": true,
+      "demo_command": "python skills/wgs-prs/wgs_prs.py --demo",
+      "dependencies": [],
       "tags": [
         "wgs",
         "whole-genome-sequencing",
@@ -1902,12 +1990,7 @@
         "WGS pipeline",
         "raw sequencing to risk scores"
       ],
-      "chaining_partners": [
-        "gwas-prs",
-        "variant-annotation",
-        "pharmgx-reporter",
-        "clinical-variant-reporter"
-      ]
+      "chaining_partners": []
     }
   ]
 }
