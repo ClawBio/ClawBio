@@ -181,6 +181,49 @@
       ]
     },
     {
+      "name": "busco-assessor",
+      "cli_alias": null,
+      "description": "Genome, transcriptome, and protein completeness assessment via BUSCO v6. Agentic lineage routing from organism description, all three BUSCO modes, auto-lineage support, and full demo mode without the BUSCO binary.",
+      "version": "0.1.0",
+      "status": "planned",
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/busco-assessor/busco_assessor.py --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "busco",
+        "genome-completeness",
+        "assembly-qc",
+        "transcriptome",
+        "lineage",
+        "orthodb",
+        "hmmer",
+        "prokaryote",
+        "eukaryote"
+      ],
+      "trigger_keywords": [
+        "genome completeness",
+        "BUSCO score",
+        "BUSCO assessment",
+        "assembly quality",
+        "check my assembly",
+        "BUSCO genome mode",
+        "completeness metrics",
+        "assembly QC",
+        "transcriptome completeness",
+        "protein set completeness",
+        "auto-lineage",
+        "busco -m genome",
+        "how complete is my genome",
+        "BUSCO bacteria",
+        "run BUSCO"
+      ],
+      "chaining_partners": []
+    },
+    {
       "name": "cell-detection",
       "cli_alias": null,
       "description": "Cell segmentation in fluorescence microscopy images. Supports Cellpose/cpsam (Cellpose 4.0) with additional backends planned. Produces segmentation masks, per-cell morphology metrics (area, diameter, centroid, eccentricity), overlay figures, and a report.md.",
@@ -309,7 +352,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/clinical-trial-finder/opentargets.py --demo",
+      "demo_command": "python skills/clinical-trial-finder/clinical_trial_finder.py --demo",
       "dependencies": [
         "python>=3.11"
       ],
@@ -343,7 +386,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/clinical-variant-reporter/clinical_variant_reporter.py --demo",
+      "demo_command": "python skills/clinical-variant-reporter/acmg_engine.py --demo",
       "dependencies": [],
       "tags": [
         "acmg",
@@ -811,7 +854,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/illumina-bridge/illumina_providers.py --demo",
+      "demo_command": "python skills/illumina-bridge/illumina_bridge.py --demo",
       "dependencies": [],
       "tags": [
         "illumina",
@@ -1305,7 +1348,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/pubmed-summariser/pubmed_summariser.py --demo",
+      "demo_command": "python skills/pubmed-summariser/pubmed_api.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [
