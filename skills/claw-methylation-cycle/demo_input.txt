@@ -1,0 +1,16 @@
+# Synthetic demo data for claw-methylation-cycle
+# This is NOT real patient data. Generated for testing purposes only.
+# Format: rsid  chromosome  position  genotype
+# Profile: MTHFR compound heterozygous (C677T het + A1298C het)
+#          BHMT R239Q heterozygous, COMT Val158Met heterozygous
+#          MTRR A66G heterozygous, SHMT1 C1420T wildtype
+rsid	chromosome	position	genotype
+rs1801133	1	11856378	CT
+rs1801131	1	11854476	GT
+rs1801394	5	7870973	AG
+rs1805087	1	237048500	AG
+rs234706	21	44483107	CC
+rs3733890	5	78396840	AG
+rs1979277	17	17682293	CC
+rs4680	22	19951271	GA
+rs819147	20	3889982	CC
