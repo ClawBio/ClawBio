@@ -27,6 +27,9 @@ from clawbio.common.reproducibility import (
     write_conda_lock,
 )
 
+from clawbio.common.sarek import SarekConfig, SarekSample, SarekWrapper, build_samplesheet
+from clawbio.common.vcf_qc import QcConfig, QcResult, VcfQC
+
 __all__ = [
     "detect_format",
     "parse_genetic_file",
@@ -48,4 +51,11 @@ __all__ = [
     "write_environment_yml",
     "write_commands_sh",
     "write_conda_lock",
+    "SarekConfig",
+    "SarekSample",
+    "SarekWrapper",
+    "build_samplesheet",
+    "QcConfig",
+    "QcResult",
+    "VcfQC"
 ]
