@@ -1,14 +1,17 @@
 """Reproducibility helpers for ClawBio skills.
 
-Provides write_checksums, write_environment_yml, and portable-bundle helpers
+Provides write_checksums, write_environment_yml, write_commands_sh,
+write_conda_lock, write_ro_crate (RO-Crate 1.1), and portable-bundle helpers
 (ReproPath, ReproCommand, write_portable_commands_sh), all writing into
 <output_dir>/reproducibility/.
 """
 
 from __future__ import annotations
 
+import json
 import subprocess
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Union
 
@@ -186,7 +189,7 @@ def write_environment_yml(
     conda_lines = "\n".join(f"  - {dep}" for dep in filtered_conda)
     conda_block = f"\n{conda_lines}" if conda_lines else ""
 
-    # Only emit the pip block when there are pip deps — empty pip: is invalid YAML for conda.
+    # Only emit the pip block when there are pip deps - empty pip: is invalid YAML for conda.
     if pip_deps:
         pip_lines = "\n".join(f"      - {dep}" for dep in pip_deps)
         pip_block = f"  - pip:\n{pip_lines}\n"
@@ -257,3 +260,79 @@ def write_conda_lock(output_dir: Path | str) -> Path:
             "conda-lock is not installed. Install it with: pip install conda-lock"
         )
     return repro_dir / "conda-lock.yml"
+
+
+def write_ro_crate(
+    output_dir: Path | str,
+    *,
+    skill_name: str,
+    skill_version: str,
+    script_path: str,
+    description: str = "",
+    completed_at: str | None = None,
+    params: dict | None = None,
+) -> Path:
+    """Write an RO-Crate 1.1 ro-crate-metadata.json to output_dir.
+
+    Includes a CreateAction for run provenance (schema.org).
+    Returns the path of the written file.
+
+    Warning: every file under output_dir is packaged into the crate metadata
+    via rglob("*"). Callers must not place sensitive files (credentials, raw
+    patient data) in output_dir before calling this function.
+    """
+    from rocrate.rocrate import ROCrate
+    from rocrate.model import ContextEntity
+
+    output_dir = Path(output_dir)
+    completed_at = completed_at or datetime.now(timezone.utc).isoformat()
+    action_id = "#run"
+
+    crate = ROCrate(version="1.1")
+    crate.name = f"{skill_name} run"
+    crate.description = description
+    crate.root_dataset["version"] = skill_version
+    crate.root_dataset["datePublished"] = completed_at
+    crate.root_dataset["license"] = {"@id": "https://spdx.org/licenses/MIT.html"}
+
+    # Add output files - library manages hasPart automatically
+    result_refs = []
+    for f in sorted(output_dir.rglob("*")):
+        if f.is_file() and f.name != "ro-crate-metadata.json":
+            rel = str(f.relative_to(output_dir))
+            crate.add_file(f, dest_path=rel)
+            result_refs.append({"@id": rel})
+
+    # Script as contextual entity - not physically in the crate
+    crate.add(ContextEntity(crate, script_path, properties={
+        "@type": "SoftwareSourceCode",
+        "name": skill_name,
+        "version": skill_version,
+        "programmingLanguage": {"@id": "https://www.python.org/"},
+    }))
+
+    # Flatten PropertyValue params as top-level entities
+    param_refs = []
+    for k, v in (params or {}).items():
+        crate.add(ContextEntity(crate, f"#{k}", properties={
+            "@type": "PropertyValue",
+            "name": k,
+            "value": str(v),
+        }))
+        param_refs.append({"@id": f"#{k}"})
+
+    action_props = {
+        "@type": "CreateAction",
+        "name": f"{skill_name} execution",
+        "instrument": {"@id": script_path},
+        "endTime": completed_at,
+        "result": result_refs,
+    }
+    if param_refs:
+        action_props["object"] = param_refs
+    action = crate.add(ContextEntity(crate, action_id, properties=action_props))
+    crate.root_dataset["mentions"] = action
+
+    path = output_dir / "ro-crate-metadata.json"
+    path.write_text(json.dumps(crate.metadata.generate(), indent=2))
+    return path
