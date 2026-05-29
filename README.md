@@ -655,3 +655,43 @@ ClawBio follows [Semantic Versioning](https://semver.org/). The current release 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+
+## FAQ
+
+### What is ClawBio?
+
+ClawBio is an AI agent-related project in the AI agent ecosystem.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **AI Agent Integration** | Works with AI agents and agent frameworks |
+| **Automation** | Automates workflows and tasks |
+| **Extensible** | Plugin-based architecture for customization |
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/ClawBio/ClawBio.git
+cd ClawBio
+
+# Follow project-specific installation instructions
+```
+
+### Requirements
+
+- Node.js 18+ / Python 3.10+ (depending on project)
+- Git
+- Basic understanding of AI agents
+
+### License
+
+Check the project repository for license information.
+
+### Help & Resources
+
+- [Issues](https://github.com/ClawBio/ClawBio/issues) - Report bugs and request features
+- [Documentation](https://github.com/ClawBio/ClawBio#readme) - Project README
