@@ -2,10 +2,11 @@
 """
 remap_paths.py — Make this reproducibility bundle portable across machines.
 
-Samplesheet input paths (fastq_1, fastq_2, spring_1, spring_2, bam, bai,
-cram, crai, vcf, table) are stored as absolute paths (required by
-Nextflow). Reference/index paths are stored in params.yaml, not in
-commands.sh. Before replaying on a different machine:
+Local samplesheet input paths (fastq_1, fastq_2, spring_1, spring_2, bam, bai,
+cram, crai, vcf, table) are stored as absolute paths (required by Nextflow);
+remote data URLs (s3://, https://, ...) are passed through unchanged and need no
+remapping. Reference/index paths are stored in params.yaml, not in commands.sh.
+Before replaying on a different machine:
 
   1. Remap input data paths in the samplesheet (if data moved):
        python3 remap_paths.py --old /original/data/dir --new /new/data/dir

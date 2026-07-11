@@ -307,6 +307,22 @@ def test_write_repro_commands_skips_portability_notice_for_demo(tmp_path):
     assert "Portability notice" not in content
 
 
+def test_portability_notice_does_not_claim_remote_inputs_are_absolute(tmp_path):
+    """A run started with --allow-remote-inputs carries remote URIs, not absolute
+    local paths. The portability notice must not make a blanket claim that every
+    input path in the samplesheet is absolute, and it must acknowledge the remote
+    case so the remap guidance is not misapplied to URLs (which resolve anywhere).
+    """
+    write_repro_commands(tmp_path, args=_args(tmp_path, demo=False, allow_remote_inputs=True))
+    content = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+    assert "Portability notice" in content
+    # The unconditional "are absolute" assertion is false for remote inputs.
+    assert "in samplesheet.valid.csv are absolute" not in content
+    # The notice must cover the remote-input case explicitly.
+    assert "--allow-remote-inputs" in content
+    assert "remote" in content.lower()
+
+
 def test_build_repro_command_args_includes_rnaseq_core_flags(tmp_path):
     command_args = build_repro_command_args(tmp_path, args=_args(tmp_path, aligner="star_rsem", profile="singularity"))
     assert command_args["--output"] == tmp_path.as_posix()

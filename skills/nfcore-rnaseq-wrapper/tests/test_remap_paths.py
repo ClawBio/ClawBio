@@ -43,6 +43,10 @@ from remap_paths import (
     verify_reference_paths,
 )
 
+# Capture the module docstring before it is purged from sys.modules below, so the
+# header-accuracy test can assert on it without re-importing.
+_REMAP_PATHS_DOC = sys.modules["remap_paths"].__doc__ or ""
+
 _purge_local_modules("remap_paths")
 if str(_SKILL_DIR) in sys.path:
     sys.path.remove(str(_SKILL_DIR))
@@ -602,3 +606,18 @@ def test_update_commands_output_rewrites_resume_guard_manifest(tmp_path):
     assert 'if [[ -f "/new/out/reproducibility/manifest.json" ]]; then' in updated
     assert "--output /new/out" in updated
     assert "/old/out" not in updated
+
+
+def test_module_docstring_does_not_claim_all_inputs_are_absolute():
+    """The remap_paths.py header must not state unconditionally that every FASTQ/BAM
+    and reference path is stored as an absolute path. A run started with
+    --allow-remote-inputs stores remote URIs (which the remap/verify helpers here
+    already skip), so the blanket claim is false and self-contradictory with the
+    header's own note that remote URIs are skipped. Mirrors the fix to the
+    commands.sh portability notice and the scrnaseq remap_paths header.
+    """
+    doc = _REMAP_PATHS_DOC
+    assert "are stored as\nabsolute paths (required by Nextflow)" not in doc
+    # The remote-input case must be acknowledged in the header itself.
+    assert "--allow-remote-inputs" in doc
+    assert "remote" in doc.lower()

@@ -238,8 +238,9 @@ def _add_save_flags(params: dict[str, object], args) -> None:
 
 
 def _add_reference_path_params(params: dict[str, object], args) -> None:
-    # All file paths — resolved to absolute POSIX before writing so Nextflow
-    # can locate them regardless of its own working directory at runtime.
+    # Local file paths — resolved to absolute POSIX before writing so Nextflow
+    # can locate them regardless of its own working directory at runtime. Remote
+    # URIs are preserved verbatim (see the _posix_or_uri call below).
     explicit_genome_refs = []
     for param_name in _REFERENCE_PATH_FIELDS:
         value = getattr(args, param_name, None)

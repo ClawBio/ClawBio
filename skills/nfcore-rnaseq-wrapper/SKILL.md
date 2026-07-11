@@ -231,7 +231,7 @@ Expected output: upstream `nf-core/rnaseq` test profile outputs plus ClawBio `re
 The wrapper uses a gated 7-step flow. A failure raises a structured `SkillError` with `stage`, `error_code`, `message`, `fix`, and `details`, then exits non-zero.
 
 Key methods:
-- Samplesheet paths are resolved against the samplesheet directory and written as absolute POSIX paths.
+- Local samplesheet paths are resolved against the samplesheet directory and written as absolute POSIX paths; remote URIs (`s3://`, `https://`, ... — only accepted with `--allow-remote-inputs`) are passed through unchanged.
 - `params.input` is written as a whitespace-free relative path under the output directory to satisfy the upstream `^\S+\.csv$` schema.
 - References must use either `--genome`, `--fasta --gtf`, or `--fasta --gff`.
 - `--genome` accepts additive annotation/transcriptome overrides (`--gtf` *or* `--gff`, `--gene-bed`, `--transcript-fasta`, `--additional-fasta`, `--splicesites`, `--salmon-index`, `--kallisto-index`) — matching nf-core/rnaseq — but is mutually exclusive with a genome `--fasta` or a genome-level index (`--star-index`/`--rsem-index`/`--hisat2-index`/`--bowtie2-index`).

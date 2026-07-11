@@ -213,3 +213,17 @@ def test_bundle_remap_roundtrip_simulates_another_machine(tmp_path: Path):
     assert remap_paths.verify_paths(ss) == [], "all paths must resolve after remap"
     # The rewrite preserved LF endings (cross-OS byte stability — no CRLF).
     assert b"\r" not in ss.read_bytes()
+
+
+def test_module_docstring_does_not_claim_all_inputs_are_absolute():
+    """The remap_paths.py header must not state unconditionally that every
+    samplesheet input path is stored as an absolute path. nf-core/sarek accepts
+    remote data URLs (passed through unchanged), which this helper's verify step
+    already skips — so the blanket claim is false and self-contradictory with the
+    header's own note that remote URIs are skipped. Mirrors the rnaseq fix.
+    """
+    doc = remap_paths.__doc__ or ""
+    # The absolute-path statement must be scoped to local inputs, not unconditional.
+    assert "Local samplesheet input paths" in doc
+    # The remote-input case must be acknowledged in the header intro itself.
+    assert "passed through unchanged" in doc

@@ -2,9 +2,11 @@
 """
 remap_paths.py — Make this reproducibility bundle portable across machines.
 
-FASTQ/BAM paths (fastq_1, fastq_2, genome_bam, transcriptome_bam) and all
-reference/index paths (--fasta, --gtf, --star-index, etc.) are stored as
-absolute paths (required by Nextflow). Before replaying on a different machine:
+Local FASTQ/BAM paths (fastq_1, fastq_2, genome_bam, transcriptome_bam) and local
+reference/index paths (--fasta, --gtf, --star-index, etc.) are stored as absolute
+paths (required by Nextflow). A run started with --allow-remote-inputs instead
+stores remote URIs (s3://, https://, ...), which resolve from anywhere and are
+skipped by the remap and verify steps below. Before replaying on a different machine:
 
   1. Remap FASTQ/BAM paths in the samplesheet (if data moved):
        python3 remap_paths.py --old /original/data/dir --new /new/data/dir

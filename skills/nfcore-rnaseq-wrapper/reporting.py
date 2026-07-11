@@ -163,11 +163,13 @@ _BOOLEAN_FLAGS = (
 _PORTABILITY_NOTICE = """\
 
 # ── Portability notice ────────────────────────────────────────────────────────
-# Input paths in samplesheet.valid.csv are absolute (required by Nextflow).
-# This covers FASTQ paths for fresh runs and BAM paths for reprocessing runs.
-# Before replaying on a different machine:
+# Input paths in samplesheet.valid.csv are machine-specific. Local inputs are
+# absolute (required by Nextflow): FASTQ paths for fresh runs, BAM paths for
+# reprocessing runs. A run started with --allow-remote-inputs instead carries
+# remote URIs (http(s)://, s3://, gs://, ...) that resolve from anywhere and need
+# no remapping. Before replaying on a different machine:
 #
-#   1. Remap FASTQ/BAM paths in samplesheet.valid.csv:
+#   1. Remap any local FASTQ/BAM paths in samplesheet.valid.csv (skip for remote URIs):
 #        python3 reproducibility/remap_paths.py --old /original/prefix --new /new/prefix
 #
 #   2. Remap reference/index paths in commands.sh (if references moved):
