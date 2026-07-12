@@ -188,6 +188,42 @@ def test_skip_flags_absent_when_false(tmp_path):
     assert "skip_multiqc" not in loaded
 
 
+# ── plugin-owned config scopes must never leak into params.yaml ───────────────
+
+
+def test_params_never_carry_upstream_plugin_config_scopes(tmp_path):
+    """params.yaml must never contain the pipeline's plugin-owned config scopes.
+
+    nf-core/scrnaseq 4.1.0's own nextflow.config declares `plugins { nf-schema@2.5.1 }`
+    and the matching `validation { defaultIgnoreParams; monochromeLogs }` scope, and
+    ships a `monochromeLogs = null` param that upstream annotates as a temporary
+    workaround for one of its own warnings. nf-schema surfaces that as
+    `WARN: ... invalid input values ... --validationSchemaIgnoreParams: genomes`.
+
+    That warning is upstream's, and the tempting "fix" — writing `validation` /
+    `validationSchemaIgnoreParams` / `monochromeLogs` into params.yaml to quiet it —
+    would override the pipeline's own config through -params-file and is exactly wrong
+    ("omit = trust upstream default"). This pins that the wrapper never does it.
+    """
+    samplesheet = tmp_path / "samplesheet.valid.csv"
+    samplesheet.write_text("sample,fastq_1,fastq_2\n", encoding="utf-8")
+    params = build_effective_params(
+        _base_args(tmp_path), normalized_samplesheet=samplesheet, output_dir=tmp_path
+    )
+    loaded = yaml.safe_load(serialize_params_yaml(params))
+    for forbidden in (
+        "validation",
+        "validationSchemaIgnoreParams",
+        "validationSchemaIgnoreParams".lower(),
+        "monochromeLogs",
+        "prov",
+    ):
+        assert forbidden not in loaded, (
+            f"{forbidden!r} is owned by the pipeline's own nextflow.config/plugins; "
+            "the wrapper must not write it into params.yaml"
+        )
+
+
 # ── aligner tuning ────────────────────────────────────────────────────────────
 
 

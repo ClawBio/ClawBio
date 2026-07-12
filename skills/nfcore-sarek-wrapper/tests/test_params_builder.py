@@ -18,6 +18,31 @@ def test_params_yaml_written_with_lf_line_endings(tmp_path):
     assert data.endswith(b"\n")
 
 
+def test_params_never_carry_upstream_plugin_config_scopes(tmp_path):
+    """params.yaml must never contain the pipeline's plugin-owned config scopes.
+
+    nf-core/sarek 3.8.1's own nextflow.config declares `plugins { … nf-prov@1.2.2,
+    nf-schema@2.6.1 }` and, alongside them, the matching `prov { enabled; formats.bco.file }`
+    and `validation { defaultIgnoreParams }` scopes. Those scopes belong to the plugins,
+    so Nextflow only reports them as unrecognised when a plugin is not active — an
+    environment condition, not a bundle defect.
+
+    The tempting "fix" — writing `prov` / `validation` into params.yaml to quiet such a
+    warning — would override the pipeline's own provenance configuration through
+    -params-file and is exactly wrong. This pins that the wrapper never does it.
+    """
+    params = build_effective_params(
+        _args(),
+        normalized_samplesheet=tmp_path / "samplesheet.valid.csv",
+        output_dir=tmp_path,
+    )
+    for forbidden in ("prov", "validation", "validationSchemaIgnoreParams", "monochromeLogs"):
+        assert forbidden not in params, (
+            f"{forbidden!r} is owned by the pipeline's own nextflow.config/plugins; "
+            "the wrapper must not write it into params.yaml"
+        )
+
+
 def _args(**overrides):
     base = {
         "demo": False,

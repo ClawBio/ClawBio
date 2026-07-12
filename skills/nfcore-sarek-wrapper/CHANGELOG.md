@@ -6,6 +6,36 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Documentation
+
+- **The `prov.*` / `validation.*` config keys are documented as pipeline-owned, with a
+  regression guard.** A review reported the bundle's `commands.sh` emitting
+  unrecognised-config warnings for `prov.enabled` and `prov.formats.bco.file`, and
+  attributed them to the wrapper. They are not the wrapper's: nf-core/sarek 3.8.1's own
+  `nextflow.config` declares `plugins { … nf-prov@1.2.2, nf-schema@2.6.1 }` and, alongside
+  them, the matching `prov { enabled = true; formats { bco { file = "…/pipeline_info/manifest_${params.trace_report_suffix}.bco.json" } } }`
+  and `validation { defaultIgnoreParams = [...] }` scopes. Those scopes are owned by the
+  plugins, so Nextflow reports them as unrecognised only when a plugin is not active —
+  an engine/environment condition, not a bundle defect.
+
+  Verified: the wrapper writes none of these keys (`params.yaml` carries only the audited
+  CLI surface) and `commands.sh` runs the pinned pipeline unmodified, so a plain upstream
+  `nextflow run nf-core/sarek -r 3.8.1` behaves identically. No wrapper change is warranted.
+
+  Documented as a Gotcha in SKILL.md, and pinned by a new regression test
+  (`test_params_never_carry_upstream_plugin_config_scopes`) asserting the wrapper never
+  writes `prov` / `validation` / `validationSchemaIgnoreParams` / `monochromeLogs` into
+  `params.yaml`. Injecting those to silence a warning would override the pipeline's own
+  provenance configuration — the wrong fix.
+- **Timestamped `pipeline_info/` reports documented.** Upstream sarek names its execution
+  report, timeline, trace, DAG and nf-prov BCO manifest with `${params.trace_report_suffix}`
+  (the run's start timestamp), so re-running `commands.sh` in place adds a new set of report
+  files next to the previous run's rather than overwriting them. That is upstream nf-core
+  behaviour and is deliberate — those files are each execution's audit trail — and it does
+  not invalidate `checksums.sha256`, which pins only the bundle's own artefacts. Recorded as
+  a Gotcha with an explicit warning not to "clean" it by pinning `trace_report_suffix`, which
+  would make a replay silently overwrite the original run's execution evidence.
+
 ### Fixed
 
 - **`--demo` no longer discards `--resume`, so an interrupted demo can be resumed.**

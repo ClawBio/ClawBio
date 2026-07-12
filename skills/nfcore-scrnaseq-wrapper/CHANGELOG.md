@@ -6,6 +6,34 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Documentation
+
+- **The `validation.*` / `validationSchemaIgnoreParams` warning is documented as upstream,
+  with a regression guard.** A review reported the bundle's `commands.sh` emitting
+  unrecognised-config warnings for `validation.defaultIgnoreParams` and
+  `validation.monochromeLogs`, and attributed them to the wrapper. They are not the
+  wrapper's: nf-core/scrnaseq 4.1.0's own `nextflow.config` declares
+  `plugins { id 'nf-schema@2.5.1' }` and, directly beneath it, the matching
+  `validation { defaultIgnoreParams = ["genomes"]; monochromeLogs = params.monochrome_logs }`
+  scope, plus a `monochromeLogs = null` param that upstream itself annotates
+  `// TODO temporary workaround a warning` (with a matching ignored lint check in its
+  `.nf-core.yml`). nf-schema surfaces this as
+  `WARN: The following invalid input values have been detected: * --validationSchemaIgnoreParams: genomes`.
+
+  Verified against a real run: the wrapper's `params.yaml` contains none of these keys
+  (only the audited CLI surface), the plugin loads correctly
+  (`Plugins declared=[nf-schema@2.5.1]`), and the run's `.nextflow.log` contains zero
+  "unknown config attribute" entries — the identical warning appears on a plain upstream
+  `nextflow run nf-core/scrnaseq -r 4.1.0`. No wrapper change is warranted; the warning is
+  harmless and belongs to the pipeline.
+
+  Documented as a Gotcha in SKILL.md, and pinned by a new regression test
+  (`test_params_never_carry_upstream_plugin_config_scopes`) asserting the wrapper never
+  writes `validation` / `validationSchemaIgnoreParams` / `monochromeLogs` / `prov` into
+  `params.yaml`. Injecting those to silence the warning would override the pipeline's own
+  config through `-params-file` — the wrong fix, and the one a future reader is most likely
+  to reach for.
+
 ### Fixed
 
 - **Normalized replay samplesheets now match the nf-core/scrnaseq 4.1.0 input
