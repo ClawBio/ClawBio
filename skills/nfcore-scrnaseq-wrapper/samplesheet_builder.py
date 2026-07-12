@@ -242,7 +242,15 @@ def _unknown_columns(fieldnames: list[str]) -> list[str]:
 
 
 def _build_output_columns(fieldnames: list[str]) -> list[str]:
-    extra_columns = [name for name in fieldnames if name not in _BASE_OUTPUT_COLUMNS]
+    # This file is passed directly to nf-core/scrnaseq, so emit only headers in
+    # the pinned 4.1.0 assets/schema_input.json contract. Unsupported input
+    # metadata remains visible through ``unknown_columns`` without reaching
+    # nf-schema, which would report every such header as unidentified.
+    extra_columns = [
+        name
+        for name in fieldnames
+        if name not in _BASE_OUTPUT_COLUMNS and name in SUPPORTED_SAMPLE_COLUMNS
+    ]
     return list(dict.fromkeys([*_BASE_OUTPUT_COLUMNS, *extra_columns]))
 
 

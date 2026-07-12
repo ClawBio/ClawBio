@@ -362,10 +362,8 @@ def test_non_cellranger_preset_does_not_warn_about_expected_cells(tmp_path, caps
     assert "Cell Ranger v7" not in capsys.readouterr().out
 
 
-def test_protocol_column_is_recognised_not_flagged_unknown(tmp_path):
-    """nf-core/scrnaseq 4.1.0 ships an example samplesheet (assets/samplesheet.csv)
-    with a `protocol` column, so the wrapper must not warn that it is an
-    unrecognised column (it is preserved as before, just not flagged)."""
+def test_protocol_column_is_reported_and_omitted_from_upstream_sheet(tmp_path):
+    """Protocol is a global 4.1.0 parameter, not an input-schema column."""
     r1 = tmp_path / "a_R1.fastq.gz"
     r2 = tmp_path / "a_R2.fastq.gz"
     r1.write_text("x", encoding="utf-8")
@@ -375,5 +373,27 @@ def test_protocol_column_is_recognised_not_flagged_unknown(tmp_path):
         f"sample,fastq_1,fastq_2,protocol,expected_cells\nsampleA,{r1},{r2},10XV2,1000\n",
         encoding="utf-8",
     )
-    result = validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv")
-    assert "protocol" not in result["unknown_columns"]
+    normalized = tmp_path / "normalized.csv"
+    result = validate_and_normalize_samplesheet(src, normalized)
+    assert "protocol" in result["unknown_columns"]
+    assert "protocol" not in normalized.read_text(encoding="utf-8").splitlines()[0]
+
+
+def test_unknown_metadata_columns_are_omitted_from_upstream_sheet(tmp_path):
+    """The reproducibility sheet is an upstream input, not a metadata archive."""
+    r1 = tmp_path / "S_R1.fastq.gz"
+    r2 = tmp_path / "S_R2.fastq.gz"
+    r1.write_bytes(b"")
+    r2.write_bytes(b"")
+    sheet = tmp_path / "samples.csv"
+    sheet.write_text(
+        "sample,fastq_1,fastq_2,cohort\n"
+        f"S,{r1.name},{r2.name},discovery\n",
+        encoding="utf-8",
+    )
+    normalized = tmp_path / "normalized.csv"
+
+    result = validate_and_normalize_samplesheet(sheet, normalized)
+
+    assert result["unknown_columns"] == ["cohort"]
+    assert "cohort" not in normalized.read_text(encoding="utf-8").splitlines()[0]

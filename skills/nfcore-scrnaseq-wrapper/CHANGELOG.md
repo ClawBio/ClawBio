@@ -6,6 +6,15 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Fixed
+
+- **Normalized replay samplesheets now match the nf-core/scrnaseq 4.1.0 input
+  schema exactly.** Unsupported metadata headers are reported but omitted from
+  `reproducibility/samplesheet.valid.csv`, preventing nf-schema's unidentified-
+  header warning during replay. This specifically removes the non-schema
+  `protocol` column; the effective protocol remains the documented global
+  `--protocol` pipeline parameter.
+
 ### Added
 
 - **Bundle `remap_paths.py` gains `--repair-bundle` (crash-recovery parity).** The
