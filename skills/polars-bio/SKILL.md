@@ -40,19 +40,24 @@ metadata:
   outputs:
     - name: report
       type: file
-      format: [md]
+      format:
+        - md
       description: Operation summary with parameters, schema, interpretation, disclaimer
     - name: result
       type: file
-      format: [json]
+      format:
+        - json
       description: Machine-readable metadata (subcommand, params, row counts, schema, version)
     - name: figure
       type: file
-      format: [png]
+      format:
+        - png
       description: Interval/coverage visualization (interval ops and pileup)
     - name: table
       type: file
-      format: [csv, ndjson]
+      format:
+        - csv
+        - ndjson
       description: Result table (NDJSON fallback for nested columns)
   dependencies:
     python: ">=3.11,<3.15"
