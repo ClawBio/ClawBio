@@ -1571,6 +1571,14 @@ def _check_resume_compatibility(args, *, output_dir: Path, pipeline_source: dict
     manifest_arm = bool(manifest.get("arm", False))
     if current_arm != manifest_arm:
         _raise_resume_mismatch("arm", current_arm, manifest_arm)
+    # `demo` composes the upstream `test` profile, which brings its own samplesheet AND
+    # its own bundled references. Resuming across the demo/real boundary would swap both
+    # underneath the run, so block it explicitly instead of letting it surface later as an
+    # opaque params_checksum mismatch. Legacy manifests omit the key — treat absence as False.
+    current_demo = bool(getattr(args, "demo", False))
+    manifest_demo = bool(manifest.get("demo", False))
+    if current_demo != manifest_demo:
+        _raise_resume_mismatch("demo", current_demo, manifest_demo)
     previous_source = manifest.get("pipeline_source", {})
     for key in ("source_kind", "resolved_version"):
         if previous_source.get(key) != pipeline_source.get(key):

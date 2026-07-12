@@ -6,6 +6,25 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Fixed
+
+- **`--demo` no longer discards `--resume`, so an interrupted demo can be resumed.**
+  `_apply_demo_overrides` force-cleared `--resume` on every demo run. Because the upstream
+  `-profile test` streams its reads and references from remote URLs, a demo is quite likely
+  to be interrupted mid-run (a flaky download, a cancelled session) — and that left the user
+  in a dead end: the half-populated output directory made preflight raise
+  `OUTPUT_DIR_NOT_EMPTY`, whose fix text says to "re-run with `--resume` against a compatible
+  manifest", which the demo override then silently threw away. The only escape was to delete
+  the directory and recompute from scratch.
+
+  The force-clear had no basis in the upstream documentation: Nextflow's `-resume` is
+  orthogonal to `-profile test`, and nf-core documents no incompatibility between them. It is
+  now left alone, matching `nfcore-scrnaseq-wrapper`, which never cleared it.
+
+  Demo/real drift stays blocked, with no new field needed: `params["profile"]` records the
+  *composed* profile (which carries the `test` token for a demo) and is already compared via
+  `_RESUME_TRACKED_FIELDS`.
+
 ### Documentation
 
 - **`split_fastq` gotcha: demo-vs-normal difference is a profile effect, not a thread/CPU

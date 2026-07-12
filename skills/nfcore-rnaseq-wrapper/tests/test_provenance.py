@@ -205,6 +205,10 @@ def test_manifest_contains_checksums_and_pipeline_source(tmp_path):
     assert manifest["pseudo_aligner"] == "salmon"
     assert manifest["prokaryotic"] is True
     assert manifest["checksums_file"].endswith("checksums.sha256")
+    # `demo` is part of the resume compatibility contract: --demo swaps in the upstream
+    # `test` profile's own samplesheet and bundled references, so a resume must not
+    # cross the demo/real boundary. Recording it lets preflight reject that precisely.
+    assert manifest["demo"] is False
 
 
 def test_manifest_written_by_provenance_validates_for_resume(tmp_path):

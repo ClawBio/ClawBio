@@ -299,6 +299,24 @@ def test_apply_demo_overrides_silent_when_no_refs_set(capsys):
     assert "--demo ignores reference flags" not in captured.err
 
 
+def test_apply_demo_overrides_preserves_resume(capsys):
+    """--demo must NOT strip --resume.
+
+    Nextflow's -resume is orthogonal to -profile test: nf-core documents no
+    incompatibility, and a demo run keeps its work dir (<output>/upstream/work) and
+    Nextflow session cache (<output>/.nextflow) in the output dir, so resuming it in
+    place is well-defined. Stripping --resume here was what made a demo bundle's
+    reproducibility/commands.sh unreplayable: the replay hit OUTPUT_DIR_NOT_EMPTY and
+    the error's suggested --resume fix was silently discarded.
+    """
+    module = _load_skill_module()
+    args = module.build_parser().parse_args(["--output", "out", "--demo", "--resume"])
+    module._apply_demo_overrides(args)
+    assert args.resume is True, "--demo must not disable --resume"
+    captured = capsys.readouterr()
+    assert "disables --resume" not in captured.err
+
+
 def test_debug_profile_does_not_set_noinput():
     """--profile debug must NOT set _noinput=True.
 

@@ -989,8 +989,40 @@ def test_main_resume_passes_manifest_to_preflight(module, monkeypatch, tmp_path)
         "--no-banner",
     ])
     assert rc == 0
-    # In demo mode resume is cleared, so resume=False
+    # No --resume on the command line, so resume=False.
     assert captured["resume"] is False
+
+
+def test_main_demo_preserves_resume(module, monkeypatch, tmp_path):
+    """--demo must NOT strip --resume.
+
+    Nextflow's -resume is orthogonal to -profile test (nf-core documents no
+    incompatibility). Stripping it left a failed or interrupted demo in a dead end:
+    the partially-populated output dir makes preflight raise OUTPUT_DIR_NOT_EMPTY,
+    whose fix text tells the user to "re-run with --resume against a compatible
+    manifest" — advice the demo override then silently discarded.
+
+    Demo/real drift stays blocked: params["profile"] records the *composed* profile
+    (which carries the `test` token for demo) and is part of _RESUME_TRACKED_FIELDS.
+    """
+    _patch_heavy(monkeypatch, module)
+    monkeypatch.setattr(module, "load_manifest", lambda *a, **kw: {"schema_version": 1, "params_checksum": "sha256:abc"})
+    captured: dict[str, Any] = {}
+
+    def capture_preflight(**kw):
+        captured.update(kw)
+        return _fake_preflight()
+
+    monkeypatch.setattr(module, "run_preflight", capture_preflight)
+    rc = module.main([
+        "--output", str(tmp_path / "out"),
+        "--demo",
+        "--resume",
+        "--check",
+        "--no-banner",
+    ])
+    assert rc == 0
+    assert captured["resume"] is True, "--demo must not disable --resume"
 
 
 def test_main_pipeline_source_passed_through(module, monkeypatch, tmp_path):

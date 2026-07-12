@@ -6,8 +6,45 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Fixed
+
+- **A `--demo` run's reproducibility bundle is now replayable.** After a successful
+  `--demo` run, `bash reproducibility/commands.sh` re-invoked the wrapper against the
+  now-populated output directory and died with `OUTPUT_DIR_NOT_EMPTY`. The error's own
+  suggested fix (`--resume`) could not work either, because `_apply_demo_overrides`
+  force-cleared `--resume` for every demo run — leaving the bundle in a dead end.
+
+  Root cause was that force-clear, which had no basis in the upstream documentation:
+  Nextflow's `-resume` is orthogonal to `-profile test` and nf-core documents no
+  incompatibility between them. Everything a resume needs already persisted inside the
+  demo run's own output directory — the work tree (`upstream/work`) and the Nextflow
+  session cache (`.nextflow/`) — and the demo samplesheet stub is content-stable, so its
+  checksum matches on replay.
+
+  `--demo` no longer touches `--resume`, and the idempotent-replay guard already emitted
+  into `commands.sh` for real runs is now emitted for demo bundles too: it adds
+  `--resume` when the target output directory already holds a completed run of this
+  bundle (`reproducibility/manifest.json` present), and stays out of the way for a fresh
+  or `remap_paths.py --output-dir`-relocated directory.
+
+### Added
+
+- **`demo` is now part of the resume compatibility contract.** The reproducibility
+  manifest records `demo`, and preflight compares it like `aligner`/`profile`/`arm`.
+  `--demo` composes the upstream `test` profile, which brings *both* its own samplesheet
+  and its own bundled references, so resuming across the demo/real boundary would swap
+  both underneath the run. This previously surfaced (if at all) as an opaque
+  `params_checksum` mismatch; it is now rejected precisely, naming the `demo` field.
+  Manifests written before this key existed are treated as `demo: false`, so older
+  output directories still resume.
+
 ### Documentation
 
+- **Bundle replay documented as a Gotcha.** SKILL.md now states that an in-place replay
+  is idempotent (including for `--demo`), explains why the rnaseq bundle needs the guard
+  when the sarek/scrnaseq bundles do not (rnaseq's `commands.sh` re-invokes the wrapper;
+  theirs invoke Nextflow directly, which tolerates a populated output dir), and warns
+  against "fixing" a replay by deleting the output directory.
 - **`remap_paths.py --output-dir` documented as a Gotcha.** SKILL.md now explains that
   relocating the bundle's output directory uses `python3 reproducibility/remap_paths.py
   --output-dir <new-path>` (the rnaseq bundle bakes `--output` into `commands.sh`),

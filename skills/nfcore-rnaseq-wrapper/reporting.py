@@ -595,12 +595,16 @@ def _apply_idempotent_resume(content: str, output_dir: Path) -> str:
     bundle (reproducibility/manifest.json present); a fresh or `remap_paths.py
     --output-dir`-relocated output directory has no manifest and runs normally.
 
-    Skipped when the command already carries `--resume` (the run always resumes) or is a
-    `--demo` replay (the test profile is not combined with --resume).
+    This applies to `--demo` bundles too: a successful demo run populates its own
+    output dir, so its bundle needs the guard just as much as a real run's. `-resume`
+    is orthogonal to `-profile test` (nf-core documents no incompatibility) and the
+    demo run's work tree and Nextflow cache both persist under the output dir.
+
+    Skipped only when the command already carries `--resume` (the run always resumes).
     """
     if _REPLAY_INVOCATION_LINE not in content:
         return content
-    if "\n    --resume" in content or "\n    --demo" in content:
+    if "\n    --resume" in content:
         return content
     manifest = f"{output_dir.as_posix()}/reproducibility/manifest.json"
     guard = (
