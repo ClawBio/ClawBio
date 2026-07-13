@@ -8,6 +8,26 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ### Fixed
 
+- **A lane-split sample is now counted once, not once per row.** The samplesheet summary
+  counted raw CSV rows (`sample_count = len(normalized_rows)`) and appended to
+  `sample_names` with no duplicate guard. nf-core/scrnaseq documents re-sequencing a sample
+  across lanes by repeating the `sample` identifier on several rows — *"The `sample`
+  identifiers have to be the same when you have re-sequenced the same sample more than
+  once"*, and the pipeline *"concatenate[s] the raw reads before performing any downstream
+  analysis"* — so rows > samples is normal and expected. A 2-sample sheet with one sample
+  split over two lanes therefore reported **3** samples and listed the split sample twice.
+
+  This was not purely cosmetic. The value is written into the provenance bundle
+  (`inputs.json` → `sample_count`) and is *preferred* by `report.md` over the samples
+  actually detected in the outputs, so the run's own audit trail claimed more samples than
+  the run had — while the pipeline itself merged the lanes correctly, making the
+  discrepancy invisible at execution time.
+
+  `sample_names` is now deduplicated and `sample_count` is `len(sample_names)`, matching
+  `nfcore-rnaseq-wrapper` and `nfcore-sarek-wrapper`, which both already did this;
+  scrnaseq was the only outlier. Every lane row is still written to the normalized
+  samplesheet unchanged, so the pipeline concatenates them exactly as before — only the
+  reported/recorded count changes.
 - **`remap_paths.py`: combining actions no longer discards one of them silently.**
   `main()` dispatched through a chain of early returns, so only the first matching flag
   ever ran. Here `--output-dir` came first, so `--output-dir <new> --verify` printed the
