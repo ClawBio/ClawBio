@@ -1749,12 +1749,20 @@ def _store_result_in_profile(profile_path: str, skill_name: str, out_dir: Path) 
 def main():
     # Pipeline wrappers own large, schema-derived CLIs. Delegate their help so
     # `clawbio.py run <pipeline> --help` cannot drift from the wrapper parser.
+    #
+    # This applies to EVERY nf-core pipeline, not just sarek. The launcher declares only a
+    # subset of each wrapper's flags as argparse options; the rest are forwarded through the
+    # per-skill allowlist. Rendering the launcher's own help therefore hides flags that
+    # genuinely work — `--allow-remote-inputs` was the case in point: supported by all three
+    # wrappers, but discoverable in --help only for sarek, because the delegation below was
+    # hardcoded to sarek-pipeline.
     if (
         len(sys.argv) >= 4
-        and sys.argv[1:3] == ["run", "sarek-pipeline"]
+        and sys.argv[1] == "run"
+        and sys.argv[2] in _NFCORE_PIPELINE_SKILLS
         and any(arg in {"-h", "--help"} for arg in sys.argv[3:])
     ):
-        subprocess.run([PYTHON, str(SKILLS["sarek-pipeline"]["script"]), "--help"], check=False)
+        subprocess.run([PYTHON, str(SKILLS[sys.argv[2]]["script"]), "--help"], check=False)
         return
 
     parser = argparse.ArgumentParser(

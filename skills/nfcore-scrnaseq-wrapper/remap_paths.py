@@ -604,7 +604,7 @@ def cmd_output_dir_hint(new_output_dir: str) -> int:
     return 0
 
 
-def main() -> int:
+def main(argv: list[str] | None = None, *, bundle_dir: Path | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Make this reproducibility bundle portable across machines.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -661,18 +661,52 @@ examples:
             "self-relocates, so no rewrite is needed — just move the output directory."
         ),
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    if args.output_dir is not None:
-        return cmd_output_dir_hint(args.output_dir)
+    # A prefix remap needs BOTH halves. Accepting one silently (the old dispatch fell
+    # through to print_help) hides a typo behind a "nothing to do" exit.
+    if (args.old is None) != (args.new is None):
+        parser.error("--old and --new must be given together")
+    if (args.refs_old is None) != (args.refs_new is None):
+        parser.error("--refs-old and --refs-new must be given together")
+
+    requested = (
+        args.repair_bundle
+        or args.verify
+        or args.output_dir is not None
+        or args.old is not None
+        or args.refs_old is not None
+    )
+    if not requested:
+        parser.print_help()
+        return 1
+
+    # Every requested action runs, in the documented order: repair the bundle, apply the
+    # remaps, show the --output-dir relocation hint, then verify LAST so --verify reports
+    # on the bundle as it now stands. The previous dispatch was a chain of early returns
+    # with --output-dir first, so `--output-dir X --verify` short-circuited on the hint and
+    # silently discarded --verify: the user asked for a readiness check, got none, and saw
+    # a zero exit code implying all was well. (rnaseq/sarek had the mirror image, dropping
+    # --output-dir instead.) Actions compose; none is discarded. The first non-zero step
+    # decides the exit code, but later steps still run so every problem shows in one pass.
+    exit_code = 0
+
+    def _record(rc: int) -> None:
+        nonlocal exit_code
+        if exit_code == 0 and rc != 0:
+            exit_code = rc
+
     if args.repair_bundle:
-        return cmd_repair_bundle()
+        _record(cmd_repair_bundle(bundle_dir=bundle_dir))
+    if args.old is not None:
+        _record(cmd_remap(args.old, args.new, dry_run=args.dry_run, bundle_dir=bundle_dir))
+    if args.refs_old is not None:
+        _record(cmd_remap_references(args.refs_old, args.refs_new, dry_run=args.dry_run, bundle_dir=bundle_dir))
+    if args.output_dir is not None:
+        _record(cmd_output_dir_hint(args.output_dir))
     if args.verify:
-        return cmd_verify()
-    if args.refs_old is not None and args.refs_new is not None:
-        return cmd_remap_references(args.refs_old, args.refs_new, dry_run=args.dry_run)
-    if args.old is not None and args.new is not None:
-        return cmd_remap(args.old, args.new, dry_run=args.dry_run)
+        _record(cmd_verify(bundle_dir=bundle_dir))
+    return exit_code
     parser.print_help()
     return 1
 

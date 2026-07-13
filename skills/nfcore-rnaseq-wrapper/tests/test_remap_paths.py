@@ -4,6 +4,8 @@ import csv
 from pathlib import Path
 import sys
 
+import pytest
+
 _SKILL_DIR = Path(__file__).resolve().parent.parent
 if str(_SKILL_DIR) in sys.path:
     sys.path.remove(str(_SKILL_DIR))
@@ -36,6 +38,7 @@ from remap_paths import (
     cmd_update_output,
     cmd_verify,
     find_samplesheet,
+    main,
     remap_commands_references,
     remap_csv,
     update_commands_output,
@@ -621,3 +624,79 @@ def test_module_docstring_does_not_claim_all_inputs_are_absolute():
     # The remote-input case must be acknowledged in the header itself.
     assert "--allow-remote-inputs" in doc
     assert "remote" in doc.lower()
+
+
+# ── main(): requested actions must compose, never be silently dropped ─────────
+
+
+def _bundle_for_main(tmp_path: Path, old_output: str) -> Path:
+    """A complete bundle whose commands.sh points --output at ``old_output``."""
+    fastq = tmp_path / "S1.fastq.gz"
+    fastq.write_bytes(b"")
+    _write_samplesheet(tmp_path / "samplesheet.valid.csv", str(fastq))
+    (tmp_path / "commands.sh").write_text(
+        "python skill.py \\\n"
+        f"    --output {old_output} \\\n",
+        encoding="utf-8",
+    )
+    _write_minimal_bundle_files(tmp_path)
+    return tmp_path
+
+
+def test_main_output_dir_and_verify_compose(tmp_path):
+    """`--output-dir X --verify` must rewrite --output AND then verify.
+
+    The dispatch used to be a chain of early returns with --verify ahead of
+    --output-dir, so combining them silently discarded the rewrite and then printed
+    "ready to replay" over a bundle that still pointed at the OLD output directory —
+    the worst possible outcome: a confident green light on a stale bundle.
+    """
+    new_output = tmp_path / "relocated_run"
+    _bundle_for_main(tmp_path, old_output="/original/output")
+
+    rc = main(["--output-dir", str(new_output), "--verify"], bundle_dir=tmp_path)
+
+    content = (tmp_path / "commands.sh").read_text(encoding="utf-8")
+    assert str(new_output) in content, "--output-dir rewrite was silently dropped by --verify"
+    assert "/original/output" not in content
+    assert rc == 0
+
+
+def test_main_verify_runs_after_the_rewrite_not_before(tmp_path, capsys):
+    """--verify must report on the POST-rewrite bundle, so its output names the new dir."""
+    new_output = tmp_path / "relocated_run"
+    _bundle_for_main(tmp_path, old_output="/original/output")
+
+    main(["--output-dir", str(new_output), "--verify"], bundle_dir=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "/original/output" not in out, "--verify reported on the stale, pre-rewrite bundle"
+
+
+def test_main_remap_and_verify_compose(tmp_path):
+    """The same silent-drop bug applied to --old/--new + --verify."""
+    real = tmp_path / "newdata"
+    real.mkdir()
+    (real / "S1.fastq.gz").write_bytes(b"")
+    _write_samplesheet(tmp_path / "samplesheet.valid.csv", "/olddata/S1.fastq.gz")
+    (tmp_path / "commands.sh").write_text(
+        "python skill.py \\\n"
+        f"    --output {tmp_path / 'out'} \\\n",
+        encoding="utf-8",
+    )
+    _write_minimal_bundle_files(tmp_path)
+
+    rc = main(["--old", "/olddata", "--new", str(real), "--verify"], bundle_dir=tmp_path)
+
+    sheet = (tmp_path / "samplesheet.valid.csv").read_text(encoding="utf-8")
+    assert str(real) in sheet, "--old/--new remap was silently dropped by --verify"
+    assert rc == 0
+
+
+def test_main_rejects_half_a_prefix_pair(tmp_path):
+    """--old without --new (or vice versa) must fail loudly, not be silently ignored."""
+    _bundle_for_main(tmp_path, old_output="/original/output")
+    for argv in (["--old", "/a"], ["--new", "/b"], ["--refs-old", "/a"], ["--refs-new", "/b"]):
+        with pytest.raises(SystemExit) as exc:
+            main(argv, bundle_dir=tmp_path)
+        assert exc.value.code != 0

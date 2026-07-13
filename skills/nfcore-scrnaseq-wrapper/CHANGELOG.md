@@ -6,6 +6,38 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Fixed
+
+- **`remap_paths.py`: combining actions no longer discards one of them silently.**
+  `main()` dispatched through a chain of early returns, so only the first matching flag
+  ever ran. Here `--output-dir` came first, so `--output-dir <new> --verify` printed the
+  self-relocation hint and then silently dropped `--verify`: the user asked for a
+  readiness check, never got one, and saw exit code 0 implying all was well. (The
+  rnaseq/sarek bundles had the mirror image — `--verify` ran first and silently discarded
+  the `--output-dir` rewrite, then reported a stale bundle as "ready to replay".)
+
+  Requested actions now compose and all of them run, in the order the module docstring
+  already documented: `--repair-bundle`, then the remaps (`--old/--new`,
+  `--refs-old/--refs-new`), then `--output-dir`, and `--verify` **last** — so `--verify`
+  always reports on the bundle as it now stands, never on a pre-rewrite snapshot. The
+  first failing step sets the exit code, but later steps still run so a single invocation
+  surfaces every problem.
+
+  Half a prefix pair (`--old` without `--new`, or `--refs-old` without `--refs-new`) is
+  now a hard error instead of falling through to the help text and exiting non-zero with
+  no explanation — the same silent-drop class of bug.
+
+  `main()` also takes `argv`/`bundle_dir` so this dispatch is directly testable; regression
+  tests pin that `--output-dir … --verify` both rewrites and verifies.
+- **`clawbio.py run <pipeline> --help` now shows the wrapper's own help for every nf-core
+  pipeline, not just sarek.** The launcher declares only a subset of each wrapper's flags as
+  argparse options and forwards the rest through a per-skill allowlist, so rendering the
+  launcher's own help hides flags that genuinely work. `--allow-remote-inputs` was the case
+  in point: supported by all three wrappers, but discoverable via `--help` only for
+  `sarek-pipeline`, because help delegation was hardcoded to that one skill. It now applies
+  to every entry in `_NFCORE_PIPELINE_SKILLS`, which is what the delegation was introduced
+  to do -- keep the launcher's help from drifting away from the wrapper parser.
+
 ### Documentation
 
 - **The `validation.*` / `validationSchemaIgnoreParams` warning is documented as upstream,

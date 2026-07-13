@@ -6,7 +6,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from remap_paths import cmd_output_dir_hint, cmd_remap, remap_csv, verify_paths
+import pytest
+
+from remap_paths import cmd_output_dir_hint, cmd_remap, main, remap_csv, verify_paths
 
 
 def test_cmd_output_dir_hint_is_accepted_noop(capsys):
@@ -525,3 +527,43 @@ def test_repair_bundle_does_not_overwrite_existing_valid_checksums(tmp_path):
     assert (bundle / "checksums.sha256").read_bytes() == before, (
         "an existing checksums.sha256 must not be overwritten when only stubs are missing"
     )
+
+
+# ── main(): requested actions must compose, never be silently dropped ─────────
+
+
+def _bundle_for_main(bundle: Path) -> Path:
+    bundle.mkdir(parents=True, exist_ok=True)
+    fastq = bundle / "S1.fastq.gz"
+    fastq.write_bytes(b"")
+    (bundle / "samplesheet.valid.csv").write_text(
+        f"sample,fastq_1,fastq_2\nS1,{fastq},\n", encoding="utf-8"
+    )
+    return bundle
+
+
+def test_main_output_dir_and_verify_compose(tmp_path, capsys):
+    """`--output-dir X --verify` must print the relocation hint AND still verify.
+
+    The dispatch used to be a chain of early returns with --output-dir first, so the
+    hint short-circuited and --verify was silently discarded: the user asked for a
+    readiness check and got none, with a zero exit code implying all was well. (The
+    rnaseq/sarek bundles had the mirror image of this bug, dropping --output-dir.)
+    """
+    bundle = _bundle_for_main(tmp_path / "reproducibility")
+
+    rc = main(["--output-dir", "/somewhere/new", "--verify"], bundle_dir=bundle)
+
+    out = capsys.readouterr().out
+    assert "self-relocating" in out, "the --output-dir hint should still be shown"
+    assert "FASTQ paths" in out, "--verify was silently dropped by --output-dir"
+    assert rc == 0
+
+
+def test_main_rejects_half_a_prefix_pair(tmp_path):
+    """--old without --new (or vice versa) must fail loudly, not be silently ignored."""
+    bundle = _bundle_for_main(tmp_path / "reproducibility")
+    for argv in (["--old", "/a"], ["--new", "/b"], ["--refs-old", "/a"], ["--refs-new", "/b"]):
+        with pytest.raises(SystemExit) as exc:
+            main(argv, bundle_dir=bundle)
+        assert exc.value.code != 0

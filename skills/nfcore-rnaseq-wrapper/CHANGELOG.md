@@ -8,6 +8,38 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ### Fixed
 
+- **`remap_paths.py`: combining actions no longer discards one of them silently.**
+  `main()` dispatched through a chain of early returns, so only the first matching flag
+  ever ran. `--output-dir <new> --verify` therefore rewrote nothing and then reported the
+  bundle "ready to replay" while `commands.sh` still pointed at the **old** output
+  directory — a confident green light on a stale bundle, which is worse than an error.
+  (The scrnaseq bundle had the mirror image: `--output-dir` short-circuited first and
+  `--verify` was dropped, so the requested readiness check never ran yet still exited 0.)
+
+  Requested actions now compose and all of them run, in the order the module docstring
+  already documented: `--repair-bundle`, then the remaps (`--old/--new`,
+  `--refs-old/--refs-new`), then `--output-dir`, and `--verify` **last** — so `--verify`
+  always reports on the bundle as it now stands, never on a pre-rewrite snapshot. The
+  first failing step sets the exit code, but later steps still run so a single invocation
+  surfaces every problem.
+
+  Half a prefix pair (`--old` without `--new`, or `--refs-old` without `--refs-new`) is
+  now a hard error instead of falling through to the help text and exiting non-zero with
+  no explanation — the same silent-drop class of bug.
+
+  `main()` also takes `argv`/`bundle_dir` so this dispatch is directly testable; regression
+  tests pin that `--output-dir … --verify` both rewrites and verifies.
+- **`clawbio.py run <pipeline> --help` now shows the wrapper's own help for every nf-core
+  pipeline, not just sarek.** The launcher declares only a subset of each wrapper's flags as
+  argparse options and forwards the rest through a per-skill allowlist, so rendering the
+  launcher's own help hides flags that genuinely work. `--allow-remote-inputs` was the case
+  in point: supported by all three wrappers, but discoverable via `--help` only for
+  `sarek-pipeline`, because help delegation was hardcoded to that one skill. It now applies
+  to every entry in `_NFCORE_PIPELINE_SKILLS`, which is what the delegation was introduced
+  to do -- keep the launcher's help from drifting away from the wrapper parser.
+
+### Fixed
+
 - **A `--demo` run's reproducibility bundle is now replayable.** After a successful
   `--demo` run, `bash reproducibility/commands.sh` re-invoked the wrapper against the
   now-populated output directory and died with `OUTPUT_DIR_NOT_EMPTY`. The error's own
