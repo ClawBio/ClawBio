@@ -6,6 +6,79 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Fixed
+
+- **`remap_paths.py`: combining actions no longer discards one of them silently.**
+  `main()` dispatched through a chain of early returns, so only the first matching flag
+  ever ran. `--output-dir <new> --verify` therefore rewrote nothing and then reported the
+  bundle "ready to replay" while `commands.sh` still pointed at the **old** output
+  directory — a confident green light on a stale bundle, which is worse than an error.
+  (The scrnaseq bundle had the mirror image: `--output-dir` short-circuited first and
+  `--verify` was dropped, so the requested readiness check never ran yet still exited 0.)
+
+  Requested actions now compose and all of them run, in the order the module docstring
+  already documented: `--repair-bundle`, then the remaps (`--old/--new`,
+  `--refs-old/--refs-new`), then `--output-dir`, and `--verify` **last** — so `--verify`
+  always reports on the bundle as it now stands, never on a pre-rewrite snapshot. The
+  first failing step sets the exit code, but later steps still run so a single invocation
+  surfaces every problem.
+
+  Half a prefix pair (`--old` without `--new`, or `--refs-old` without `--refs-new`) is
+  now a hard error instead of falling through to the help text and exiting non-zero with
+  no explanation — the same silent-drop class of bug.
+
+  `main()` also takes `argv`/`bundle_dir` so this dispatch is directly testable; regression
+  tests pin that `--output-dir … --verify` both rewrites and verifies.
+
+### Documentation
+
+- **The `prov.*` / `validation.*` config keys are documented as pipeline-owned, with a
+  regression guard.** A review reported the bundle's `commands.sh` emitting
+  unrecognised-config warnings for `prov.enabled` and `prov.formats.bco.file`, and
+  attributed them to the wrapper. They are not the wrapper's: nf-core/sarek 3.8.1's own
+  `nextflow.config` declares `plugins { … nf-prov@1.2.2, nf-schema@2.6.1 }` and, alongside
+  them, the matching `prov { enabled = true; formats { bco { file = "…/pipeline_info/manifest_${params.trace_report_suffix}.bco.json" } } }`
+  and `validation { defaultIgnoreParams = [...] }` scopes. Those scopes are owned by the
+  plugins, so Nextflow reports them as unrecognised only when a plugin is not active —
+  an engine/environment condition, not a bundle defect.
+
+  Verified: the wrapper writes none of these keys (`params.yaml` carries only the audited
+  CLI surface) and `commands.sh` runs the pinned pipeline unmodified, so a plain upstream
+  `nextflow run nf-core/sarek -r 3.8.1` behaves identically. No wrapper change is warranted.
+
+  Documented as a Gotcha in SKILL.md, and pinned by a new regression test
+  (`test_params_never_carry_upstream_plugin_config_scopes`) asserting the wrapper never
+  writes `prov` / `validation` / `validationSchemaIgnoreParams` / `monochromeLogs` into
+  `params.yaml`. Injecting those to silence a warning would override the pipeline's own
+  provenance configuration — the wrong fix.
+- **Timestamped `pipeline_info/` reports documented.** Upstream sarek names its execution
+  report, timeline, trace, DAG and nf-prov BCO manifest with `${params.trace_report_suffix}`
+  (the run's start timestamp), so re-running `commands.sh` in place adds a new set of report
+  files next to the previous run's rather than overwriting them. That is upstream nf-core
+  behaviour and is deliberate — those files are each execution's audit trail — and it does
+  not invalidate `checksums.sha256`, which pins only the bundle's own artefacts. Recorded as
+  a Gotcha with an explicit warning not to "clean" it by pinning `trace_report_suffix`, which
+  would make a replay silently overwrite the original run's execution evidence.
+
+### Fixed
+
+- **`--demo` no longer discards `--resume`, so an interrupted demo can be resumed.**
+  `_apply_demo_overrides` force-cleared `--resume` on every demo run. Because the upstream
+  `-profile test` streams its reads and references from remote URLs, a demo is quite likely
+  to be interrupted mid-run (a flaky download, a cancelled session) — and that left the user
+  in a dead end: the half-populated output directory made preflight raise
+  `OUTPUT_DIR_NOT_EMPTY`, whose fix text says to "re-run with `--resume` against a compatible
+  manifest", which the demo override then silently threw away. The only escape was to delete
+  the directory and recompute from scratch.
+
+  The force-clear had no basis in the upstream documentation: Nextflow's `-resume` is
+  orthogonal to `-profile test`, and nf-core documents no incompatibility between them. It is
+  now left alone, matching `nfcore-scrnaseq-wrapper`, which never cleared it.
+
+  Demo/real drift stays blocked, with no new field needed: `params["profile"]` records the
+  *composed* profile (which carries the `test` token for a demo) and is already compared via
+  `_RESUME_TRACKED_FIELDS`.
+
 ### Documentation
 
 - **`split_fastq` gotcha: demo-vs-normal difference is a profile effect, not a thread/CPU

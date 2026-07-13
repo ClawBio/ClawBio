@@ -641,6 +641,52 @@ def test_resume_legacy_manifest_without_arm_rejects_arm_true(tmp_path, monkeypat
     assert exc.value.details["field"] == "arm"
 
 
+def test_resume_rejects_demo_drift_against_real_manifest(tmp_path, monkeypatch):
+    """Resuming a real run's output dir with --demo must fail with a clear error.
+
+    --demo composes the upstream `test` profile, which supplies its own samplesheet
+    AND its own bundled references. Attaching that to a real run's manifest would
+    swap both inputs and references underneath the resume, so the demo flag is part
+    of the resume compatibility contract — exactly like aligner/profile/arm.
+    """
+    _mock_env(monkeypatch)
+    out = tmp_path / "out"
+    _write_manifest(out, {**_MATCHING_MANIFEST, "demo": False})
+    with pytest.raises(SkillError) as exc:
+        _run(_args(tmp_path, resume=True, output=str(out), demo=True), _samplesheet(tmp_path))
+    assert exc.value.error_code == ErrorCode.INVALID_RESUME_STATE
+    assert exc.value.details["field"] == "demo"
+
+
+def test_resume_rejects_real_run_against_demo_manifest(tmp_path, monkeypatch):
+    """The mirror case: a real run must not resume a demo output dir."""
+    _mock_env(monkeypatch)
+    out = tmp_path / "out"
+    _write_manifest(out, {**_MATCHING_MANIFEST, "demo": True})
+    with pytest.raises(SkillError) as exc:
+        _run(_args(tmp_path, resume=True, output=str(out), demo=False), _samplesheet(tmp_path))
+    assert exc.value.error_code == ErrorCode.INVALID_RESUME_STATE
+    assert exc.value.details["field"] == "demo"
+
+
+def test_resume_accepts_matching_demo_flag(tmp_path, monkeypatch):
+    """Replaying a demo bundle in place (bash reproducibility/commands.sh) resumes the
+    demo run, so a demo manifest resumed with --demo must be accepted."""
+    _mock_env(monkeypatch)
+    out = tmp_path / "out"
+    _write_manifest(out, {**_MATCHING_MANIFEST, "demo": True})
+    assert _run(_args(tmp_path, resume=True, output=str(out), demo=True), _samplesheet(tmp_path))["ok"] is True
+
+
+def test_resume_legacy_manifest_without_demo_treats_as_false(tmp_path, monkeypatch):
+    """Manifests written before the demo key existed must still resume a real run."""
+    _mock_env(monkeypatch)
+    out = tmp_path / "out"
+    # _MATCHING_MANIFEST intentionally omits the 'demo' key — same as old manifests.
+    _write_manifest(out, _MATCHING_MANIFEST)
+    assert _run(_args(tmp_path, resume=True, output=str(out), demo=False), _samplesheet(tmp_path))["ok"] is True
+
+
 def test_resume_params_checksum_rejects_manifest_checksum_mismatch(tmp_path):
     payload = {"outdir": "/tmp/out/upstream/results", "aligner": "star_salmon"}
     repro = tmp_path / "reproducibility"

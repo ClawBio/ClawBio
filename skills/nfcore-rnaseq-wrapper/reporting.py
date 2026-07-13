@@ -163,11 +163,13 @@ _BOOLEAN_FLAGS = (
 _PORTABILITY_NOTICE = """\
 
 # ── Portability notice ────────────────────────────────────────────────────────
-# Input paths in samplesheet.valid.csv are absolute (required by Nextflow).
-# This covers FASTQ paths for fresh runs and BAM paths for reprocessing runs.
-# Before replaying on a different machine:
+# Input paths in samplesheet.valid.csv are machine-specific. Local inputs are
+# absolute (required by Nextflow): FASTQ paths for fresh runs, BAM paths for
+# reprocessing runs. A run started with --allow-remote-inputs instead carries
+# remote URIs (http(s)://, s3://, gs://, ...) that resolve from anywhere and need
+# no remapping. Before replaying on a different machine:
 #
-#   1. Remap FASTQ/BAM paths in samplesheet.valid.csv:
+#   1. Remap any local FASTQ/BAM paths in samplesheet.valid.csv (skip for remote URIs):
 #        python3 reproducibility/remap_paths.py --old /original/prefix --new /new/prefix
 #
 #   2. Remap reference/index paths in commands.sh (if references moved):
@@ -593,12 +595,16 @@ def _apply_idempotent_resume(content: str, output_dir: Path) -> str:
     bundle (reproducibility/manifest.json present); a fresh or `remap_paths.py
     --output-dir`-relocated output directory has no manifest and runs normally.
 
-    Skipped when the command already carries `--resume` (the run always resumes) or is a
-    `--demo` replay (the test profile is not combined with --resume).
+    This applies to `--demo` bundles too: a successful demo run populates its own
+    output dir, so its bundle needs the guard just as much as a real run's. `-resume`
+    is orthogonal to `-profile test` (nf-core documents no incompatibility) and the
+    demo run's work tree and Nextflow cache both persist under the output dir.
+
+    Skipped only when the command already carries `--resume` (the run always resumes).
     """
     if _REPLAY_INVOCATION_LINE not in content:
         return content
-    if "\n    --resume" in content or "\n    --demo" in content:
+    if "\n    --resume" in content:
         return content
     manifest = f"{output_dir.as_posix()}/reproducibility/manifest.json"
     guard = (

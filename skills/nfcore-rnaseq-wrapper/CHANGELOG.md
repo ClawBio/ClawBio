@@ -6,8 +6,77 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Fixed
+
+- **`remap_paths.py`: combining actions no longer discards one of them silently.**
+  `main()` dispatched through a chain of early returns, so only the first matching flag
+  ever ran. `--output-dir <new> --verify` therefore rewrote nothing and then reported the
+  bundle "ready to replay" while `commands.sh` still pointed at the **old** output
+  directory — a confident green light on a stale bundle, which is worse than an error.
+  (The scrnaseq bundle had the mirror image: `--output-dir` short-circuited first and
+  `--verify` was dropped, so the requested readiness check never ran yet still exited 0.)
+
+  Requested actions now compose and all of them run, in the order the module docstring
+  already documented: `--repair-bundle`, then the remaps (`--old/--new`,
+  `--refs-old/--refs-new`), then `--output-dir`, and `--verify` **last** — so `--verify`
+  always reports on the bundle as it now stands, never on a pre-rewrite snapshot. The
+  first failing step sets the exit code, but later steps still run so a single invocation
+  surfaces every problem.
+
+  Half a prefix pair (`--old` without `--new`, or `--refs-old` without `--refs-new`) is
+  now a hard error instead of falling through to the help text and exiting non-zero with
+  no explanation — the same silent-drop class of bug.
+
+  `main()` also takes `argv`/`bundle_dir` so this dispatch is directly testable; regression
+  tests pin that `--output-dir … --verify` both rewrites and verifies.
+- **`clawbio.py run <pipeline> --help` now shows the wrapper's own help for every nf-core
+  pipeline, not just sarek.** The launcher declares only a subset of each wrapper's flags as
+  argparse options and forwards the rest through a per-skill allowlist, so rendering the
+  launcher's own help hides flags that genuinely work. `--allow-remote-inputs` was the case
+  in point: supported by all three wrappers, but discoverable via `--help` only for
+  `sarek-pipeline`, because help delegation was hardcoded to that one skill. It now applies
+  to every entry in `_NFCORE_PIPELINE_SKILLS`, which is what the delegation was introduced
+  to do -- keep the launcher's help from drifting away from the wrapper parser.
+
+### Fixed
+
+- **A `--demo` run's reproducibility bundle is now replayable.** After a successful
+  `--demo` run, `bash reproducibility/commands.sh` re-invoked the wrapper against the
+  now-populated output directory and died with `OUTPUT_DIR_NOT_EMPTY`. The error's own
+  suggested fix (`--resume`) could not work either, because `_apply_demo_overrides`
+  force-cleared `--resume` for every demo run — leaving the bundle in a dead end.
+
+  Root cause was that force-clear, which had no basis in the upstream documentation:
+  Nextflow's `-resume` is orthogonal to `-profile test` and nf-core documents no
+  incompatibility between them. Everything a resume needs already persisted inside the
+  demo run's own output directory — the work tree (`upstream/work`) and the Nextflow
+  session cache (`.nextflow/`) — and the demo samplesheet stub is content-stable, so its
+  checksum matches on replay.
+
+  `--demo` no longer touches `--resume`, and the idempotent-replay guard already emitted
+  into `commands.sh` for real runs is now emitted for demo bundles too: it adds
+  `--resume` when the target output directory already holds a completed run of this
+  bundle (`reproducibility/manifest.json` present), and stays out of the way for a fresh
+  or `remap_paths.py --output-dir`-relocated directory.
+
+### Added
+
+- **`demo` is now part of the resume compatibility contract.** The reproducibility
+  manifest records `demo`, and preflight compares it like `aligner`/`profile`/`arm`.
+  `--demo` composes the upstream `test` profile, which brings *both* its own samplesheet
+  and its own bundled references, so resuming across the demo/real boundary would swap
+  both underneath the run. This previously surfaced (if at all) as an opaque
+  `params_checksum` mismatch; it is now rejected precisely, naming the `demo` field.
+  Manifests written before this key existed are treated as `demo: false`, so older
+  output directories still resume.
+
 ### Documentation
 
+- **Bundle replay documented as a Gotcha.** SKILL.md now states that an in-place replay
+  is idempotent (including for `--demo`), explains why the rnaseq bundle needs the guard
+  when the sarek/scrnaseq bundles do not (rnaseq's `commands.sh` re-invokes the wrapper;
+  theirs invoke Nextflow directly, which tolerates a populated output dir), and warns
+  against "fixing" a replay by deleting the output directory.
 - **`remap_paths.py --output-dir` documented as a Gotcha.** SKILL.md now explains that
   relocating the bundle's output directory uses `python3 reproducibility/remap_paths.py
   --output-dir <new-path>` (the rnaseq bundle bakes `--output` into `commands.sh`),

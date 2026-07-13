@@ -213,3 +213,80 @@ def test_bundle_remap_roundtrip_simulates_another_machine(tmp_path: Path):
     assert remap_paths.verify_paths(ss) == [], "all paths must resolve after remap"
     # The rewrite preserved LF endings (cross-OS byte stability — no CRLF).
     assert b"\r" not in ss.read_bytes()
+
+
+def test_module_docstring_does_not_claim_all_inputs_are_absolute():
+    """The remap_paths.py header must not state unconditionally that every
+    samplesheet input path is stored as an absolute path. nf-core/sarek accepts
+    remote data URLs (passed through unchanged), which this helper's verify step
+    already skips — so the blanket claim is false and self-contradictory with the
+    header's own note that remote URIs are skipped. Mirrors the rnaseq fix.
+    """
+    doc = remap_paths.__doc__ or ""
+    # The absolute-path statement must be scoped to local inputs, not unconditional.
+    assert "Local samplesheet input paths" in doc
+    # The remote-input case must be acknowledged in the header intro itself.
+    assert "passed through unchanged" in doc
+
+
+# ── main(): requested actions must compose, never be silently dropped ─────────
+
+
+def _bundle_for_main(bundle: Path, *, old_output: str) -> None:
+    """A bundle whose commands.sh points --output at ``old_output``."""
+    bundle.mkdir(parents=True, exist_ok=True)
+    fastq = bundle / "S1.fastq.gz"
+    fastq.write_bytes(b"")
+    (bundle / "samplesheet.valid.csv").write_text(
+        "patient,sample,lane,fastq_1,fastq_2\n"
+        f"P1,S1,1,{fastq},\n",
+        encoding="utf-8",
+    )
+    (bundle / "commands.sh").write_text(
+        "nextflow run nf-core/sarek \\\n"
+        f"    --output {old_output} \\\n",
+        encoding="utf-8",
+    )
+
+
+def test_main_output_dir_and_verify_compose(tmp_path: Path):
+    """`--output-dir X --verify` must rewrite --output AND then verify.
+
+    The dispatch used to be a chain of early returns with --verify ahead of
+    --output-dir, so combining them silently discarded the rewrite and then reported
+    the bundle as ready to replay while commands.sh still pointed at the OLD output
+    directory — a confident green light on a stale bundle.
+    """
+    bundle = tmp_path / "reproducibility"
+    new_output = tmp_path / "relocated_run"
+    _bundle_for_main(bundle, old_output="/original/output")
+
+    remap_paths.main(["--output-dir", str(new_output), "--verify"], bundle_dir=bundle)
+
+    content = (bundle / "commands.sh").read_text(encoding="utf-8")
+    assert str(new_output) in content, "--output-dir rewrite was silently dropped by --verify"
+    assert "/original/output" not in content
+
+
+def test_main_verify_reports_on_the_rewritten_bundle(tmp_path: Path, capsys):
+    """--verify must run AFTER the rewrite, so it never reports the stale output dir."""
+    bundle = tmp_path / "reproducibility"
+    new_output = tmp_path / "relocated_run"
+    _bundle_for_main(bundle, old_output="/original/output")
+
+    remap_paths.main(["--output-dir", str(new_output), "--verify"], bundle_dir=bundle)
+
+    out = capsys.readouterr().out
+    assert "/original/output" not in out, "--verify reported on the stale, pre-rewrite bundle"
+
+
+def test_main_rejects_half_a_prefix_pair(tmp_path: Path):
+    """--old without --new (or vice versa) must fail loudly, not be silently ignored."""
+    import pytest
+
+    bundle = tmp_path / "reproducibility"
+    _bundle_for_main(bundle, old_output="/original/output")
+    for argv in (["--old", "/a"], ["--new", "/b"], ["--refs-old", "/a"], ["--refs-new", "/b"]):
+        with pytest.raises(SystemExit) as exc:
+            remap_paths.main(argv, bundle_dir=bundle)
+        assert exc.value.code != 0

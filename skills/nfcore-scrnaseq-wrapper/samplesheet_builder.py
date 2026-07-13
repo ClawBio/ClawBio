@@ -121,7 +121,11 @@ def validate_and_normalize_samplesheet(
 
     return {
         "normalized_path": output_path,
-        "sample_count": len(normalized_rows),
+        # Count SAMPLES, not CSV rows: a lane-split sample occupies several rows but is
+        # one sample (nf-core concatenates them). This value is written into the
+        # provenance bundle and preferred by report.md, so counting rows overstated the
+        # run in its own audit trail. `sample_names` is already deduplicated above.
+        "sample_count": len(sample_names),
         "sample_names": sample_names,
         "fastq_paths": fastq_paths,
         "sample_types": sorted(
@@ -242,7 +246,15 @@ def _unknown_columns(fieldnames: list[str]) -> list[str]:
 
 
 def _build_output_columns(fieldnames: list[str]) -> list[str]:
-    extra_columns = [name for name in fieldnames if name not in _BASE_OUTPUT_COLUMNS]
+    # This file is passed directly to nf-core/scrnaseq, so emit only headers in
+    # the pinned 4.1.0 assets/schema_input.json contract. Unsupported input
+    # metadata remains visible through ``unknown_columns`` without reaching
+    # nf-schema, which would report every such header as unidentified.
+    extra_columns = [
+        name
+        for name in fieldnames
+        if name not in _BASE_OUTPUT_COLUMNS and name in SUPPORTED_SAMPLE_COLUMNS
+    ]
     return list(dict.fromkeys([*_BASE_OUTPUT_COLUMNS, *extra_columns]))
 
 
@@ -278,7 +290,12 @@ def _normalize_rows(
         )
         _reject_duplicate_fastq_row(seen_rows, line_number, sample, resolved_fastqs)
         normalized_rows.append(normalized)
-        sample_names.append(sample)
+        # One entry per SAMPLE, not per row. nf-core/scrnaseq documents re-sequencing a
+        # sample across lanes by repeating the `sample` identifier on several rows (the
+        # pipeline concatenates the reads), so rows > samples is normal and every row is
+        # still written to the normalized sheet. Parity with nfcore-rnaseq-wrapper.
+        if sample not in sample_names:
+            sample_names.append(sample)
         fastq_paths.extend(resolved_fastqs.values())
 
     return normalized_rows, sample_names, fastq_paths

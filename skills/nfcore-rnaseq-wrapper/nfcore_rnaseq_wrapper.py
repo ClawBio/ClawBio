@@ -697,9 +697,16 @@ def _apply_demo_overrides(args: argparse.Namespace) -> None:
 
     * `--aligner` is forced to `star_salmon` (warn if the user requested another).
     * `--input` is dropped (the test profile provides its own samplesheet).
-    * `--resume` is disabled (resume against a synthetic test run is not useful).
     * All reference/index flags are cleared (the test profile bundles its own refs;
       a partial override — e.g. only --fasta — would desync samples from refs).
+
+    `--resume` is deliberately NOT touched. Nextflow's `-resume` is orthogonal to
+    `-profile test` (nf-core documents no incompatibility), and a demo run keeps both
+    the things a resume needs inside its own output dir: the work tree
+    (`<output>/upstream/work`) and the Nextflow session cache (`<output>/.nextflow`).
+    Stripping it here used to make a demo bundle's reproducibility/commands.sh
+    unreplayable — the replay hit OUTPUT_DIR_NOT_EMPTY and the suggested `--resume`
+    fix was then silently discarded.
 
     Centralising the override here keeps preflight, samplesheet preparation,
     and params construction consistent — every downstream stage sees the same
@@ -720,12 +727,6 @@ def _apply_demo_overrides(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
         args.input = None
-    if getattr(args, "resume", False):
-        print(
-            "WARNING: --demo disables --resume; demo runs cannot resume from a prior synthetic run.",
-            file=sys.stderr,
-        )
-        args.resume = False
     cleared = [field for field in _DEMO_CLEARED_REFERENCE_FIELDS if getattr(args, field, None)]
     if cleared:
         flags = ", ".join("--" + field.replace("_", "-") for field in cleared)
@@ -924,8 +925,10 @@ def _prepare_demo_samplesheet(
     *,
     staging_dir: Path | None,
 ) -> tuple[Path, Path, dict[str, object]]:
-    # Demo overrides (aligner=star_salmon, input cleared, resume disabled) are
-    # applied centrally in ``_apply_demo_overrides`` before this point.
+    # Demo overrides (aligner=star_salmon, input cleared, reference flags cleared) are
+    # applied centrally in ``_apply_demo_overrides`` before this point. The samplesheet
+    # written here is a fixed, content-stable stub, so its checksum is identical across
+    # runs — which is what lets a demo bundle resume itself on an in-place replay.
     normalized_samplesheet = _final_samplesheet_path(output_dir, demo=True)
     staged_samplesheet = _staged_samplesheet_path(output_dir, staging_dir=staging_dir, demo=True)
     _write_demo_samplesheet(staged_samplesheet)

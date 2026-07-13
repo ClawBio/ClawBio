@@ -296,6 +296,10 @@ def write_reproducibility_manifest(
         "pseudo_aligner": getattr(args, "pseudo_aligner", None),
         "profile": getattr(args, "profile", ""),
         "prokaryotic": bool(getattr(args, "prokaryotic", False)),
+        # `demo` composes the upstream `test` profile, which supplies its own samplesheet
+        # AND its own bundled references — resuming across the demo/real boundary would
+        # swap both underneath the run, so it is part of the resume compatibility contract.
+        "demo": bool(getattr(args, "demo", False)),
         # `arm` affects the generated .nextflow_macos_docker.config (platform flag
         # presence) — drift between runs would silently change container architecture.
         "arm": bool(getattr(args, "arm", False)),

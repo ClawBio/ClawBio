@@ -805,7 +805,7 @@ def _prepare_user_samplesheet(
         preset=args.preset,
     )
     samplesheet_summary["normalized_path"] = normalized_samplesheet
-    _warn_about_preserved_unknown_columns(samplesheet_summary)
+    _warn_about_omitted_unknown_columns(samplesheet_summary)
     return normalized_samplesheet, staged_samplesheet, samplesheet_summary
 
 
@@ -823,13 +823,14 @@ def _staged_samplesheet_path(
     return _final_samplesheet_path(output_dir, demo=demo)
 
 
-def _warn_about_preserved_unknown_columns(
+def _warn_about_omitted_unknown_columns(
     samplesheet_summary: dict[str, object],
 ) -> None:
     unknown_columns = samplesheet_summary.get("unknown_columns", [])
     if unknown_columns:
         print(
-            f"WARNING: samplesheet contains unrecognised columns that will be preserved: {unknown_columns}",
+            "WARNING: samplesheet contains columns outside the nf-core/scrnaseq "
+            f"4.1.0 input schema; they are omitted from the normalized upstream sheet: {unknown_columns}",
             file=sys.stderr,
         )
 

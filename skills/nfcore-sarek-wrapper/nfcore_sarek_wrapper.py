@@ -846,7 +846,12 @@ def _validate_wrapper_flags(args: argparse.Namespace) -> None:
 
 
 def _apply_demo_overrides(args: argparse.Namespace) -> None:
-    """When --demo is set, clear reference flags + force test-friendly defaults."""
+    """When --demo is set, clear reference flags + force test-friendly defaults.
+
+    Clears --input and every reference/index flag (the upstream `test` profile ships its
+    own samplesheet and matched references, and a partial override would desynchronise
+    them). Does NOT touch --resume — see the note at the bottom of this function.
+    """
     if not args.demo:
         return
     cleared: list[str] = []
@@ -886,12 +891,14 @@ def _apply_demo_overrides(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
         args.input = None
-    if args.resume:
-        print(
-            "WARNING: --demo disables --resume; demo runs cannot resume from a prior synthetic run.",
-            file=sys.stderr,
-        )
-        args.resume = False
+    # --resume is deliberately NOT cleared here. Nextflow's -resume is orthogonal to
+    # -profile test (nf-core documents no incompatibility), and a demo keeps everything a
+    # resume needs inside its own output dir. Clearing it left an interrupted demo — a
+    # common outcome, since the test profile streams its data over the network — in a dead
+    # end: the half-populated output dir makes preflight raise OUTPUT_DIR_NOT_EMPTY, whose
+    # fix text points at --resume, which this override then silently threw away.
+    # Demo/real drift stays blocked: params["profile"] records the *composed* profile
+    # (carrying the `test` token) and is compared via _RESUME_TRACKED_FIELDS.
 
 
 def _auto_disable_igenomes_for_custom_fasta(args: argparse.Namespace) -> str | None:

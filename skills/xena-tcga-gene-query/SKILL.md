@@ -46,7 +46,6 @@ metadata:
       description: Directory with commands.sh and run.json describing the exact API calls
   dependencies:
     python: ">=3.10"
-    packages: []
   demo_data:
     - path: examples/demo_output.md
       description: Example output from running diff-expr, corr, and survival queries via demo mode

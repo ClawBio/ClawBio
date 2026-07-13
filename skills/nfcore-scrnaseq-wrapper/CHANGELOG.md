@@ -6,6 +6,95 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Fixed
+
+- **A lane-split sample is now counted once, not once per row.** The samplesheet summary
+  counted raw CSV rows (`sample_count = len(normalized_rows)`) and appended to
+  `sample_names` with no duplicate guard. nf-core/scrnaseq documents re-sequencing a sample
+  across lanes by repeating the `sample` identifier on several rows — *"The `sample`
+  identifiers have to be the same when you have re-sequenced the same sample more than
+  once"*, and the pipeline *"concatenate[s] the raw reads before performing any downstream
+  analysis"* — so rows > samples is normal and expected. A 2-sample sheet with one sample
+  split over two lanes therefore reported **3** samples and listed the split sample twice.
+
+  This was not purely cosmetic. The value is written into the provenance bundle
+  (`inputs.json` → `sample_count`) and is *preferred* by `report.md` over the samples
+  actually detected in the outputs, so the run's own audit trail claimed more samples than
+  the run had — while the pipeline itself merged the lanes correctly, making the
+  discrepancy invisible at execution time.
+
+  `sample_names` is now deduplicated and `sample_count` is `len(sample_names)`, matching
+  `nfcore-rnaseq-wrapper` and `nfcore-sarek-wrapper`, which both already did this;
+  scrnaseq was the only outlier. Every lane row is still written to the normalized
+  samplesheet unchanged, so the pipeline concatenates them exactly as before — only the
+  reported/recorded count changes.
+- **`remap_paths.py`: combining actions no longer discards one of them silently.**
+  `main()` dispatched through a chain of early returns, so only the first matching flag
+  ever ran. Here `--output-dir` came first, so `--output-dir <new> --verify` printed the
+  self-relocation hint and then silently dropped `--verify`: the user asked for a
+  readiness check, never got one, and saw exit code 0 implying all was well. (The
+  rnaseq/sarek bundles had the mirror image — `--verify` ran first and silently discarded
+  the `--output-dir` rewrite, then reported a stale bundle as "ready to replay".)
+
+  Requested actions now compose and all of them run, in the order the module docstring
+  already documented: `--repair-bundle`, then the remaps (`--old/--new`,
+  `--refs-old/--refs-new`), then `--output-dir`, and `--verify` **last** — so `--verify`
+  always reports on the bundle as it now stands, never on a pre-rewrite snapshot. The
+  first failing step sets the exit code, but later steps still run so a single invocation
+  surfaces every problem.
+
+  Half a prefix pair (`--old` without `--new`, or `--refs-old` without `--refs-new`) is
+  now a hard error instead of falling through to the help text and exiting non-zero with
+  no explanation — the same silent-drop class of bug.
+
+  `main()` also takes `argv`/`bundle_dir` so this dispatch is directly testable; regression
+  tests pin that `--output-dir … --verify` both rewrites and verifies.
+- **`clawbio.py run <pipeline> --help` now shows the wrapper's own help for every nf-core
+  pipeline, not just sarek.** The launcher declares only a subset of each wrapper's flags as
+  argparse options and forwards the rest through a per-skill allowlist, so rendering the
+  launcher's own help hides flags that genuinely work. `--allow-remote-inputs` was the case
+  in point: supported by all three wrappers, but discoverable via `--help` only for
+  `sarek-pipeline`, because help delegation was hardcoded to that one skill. It now applies
+  to every entry in `_NFCORE_PIPELINE_SKILLS`, which is what the delegation was introduced
+  to do -- keep the launcher's help from drifting away from the wrapper parser.
+
+### Documentation
+
+- **The `validation.*` / `validationSchemaIgnoreParams` warning is documented as upstream,
+  with a regression guard.** A review reported the bundle's `commands.sh` emitting
+  unrecognised-config warnings for `validation.defaultIgnoreParams` and
+  `validation.monochromeLogs`, and attributed them to the wrapper. They are not the
+  wrapper's: nf-core/scrnaseq 4.1.0's own `nextflow.config` declares
+  `plugins { id 'nf-schema@2.5.1' }` and, directly beneath it, the matching
+  `validation { defaultIgnoreParams = ["genomes"]; monochromeLogs = params.monochrome_logs }`
+  scope, plus a `monochromeLogs = null` param that upstream itself annotates
+  `// TODO temporary workaround a warning` (with a matching ignored lint check in its
+  `.nf-core.yml`). nf-schema surfaces this as
+  `WARN: The following invalid input values have been detected: * --validationSchemaIgnoreParams: genomes`.
+
+  Verified against a real run: the wrapper's `params.yaml` contains none of these keys
+  (only the audited CLI surface), the plugin loads correctly
+  (`Plugins declared=[nf-schema@2.5.1]`), and the run's `.nextflow.log` contains zero
+  "unknown config attribute" entries — the identical warning appears on a plain upstream
+  `nextflow run nf-core/scrnaseq -r 4.1.0`. No wrapper change is warranted; the warning is
+  harmless and belongs to the pipeline.
+
+  Documented as a Gotcha in SKILL.md, and pinned by a new regression test
+  (`test_params_never_carry_upstream_plugin_config_scopes`) asserting the wrapper never
+  writes `validation` / `validationSchemaIgnoreParams` / `monochromeLogs` / `prov` into
+  `params.yaml`. Injecting those to silence the warning would override the pipeline's own
+  config through `-params-file` — the wrong fix, and the one a future reader is most likely
+  to reach for.
+
+### Fixed
+
+- **Normalized replay samplesheets now match the nf-core/scrnaseq 4.1.0 input
+  schema exactly.** Unsupported metadata headers are reported but omitted from
+  `reproducibility/samplesheet.valid.csv`, preventing nf-schema's unidentified-
+  header warning during replay. This specifically removes the non-schema
+  `protocol` column; the effective protocol remains the documented global
+  `--protocol` pipeline parameter.
+
 ### Added
 
 - **Bundle `remap_paths.py` gains `--repair-bundle` (crash-recovery parity).** The

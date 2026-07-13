@@ -62,13 +62,6 @@ SUPPORTED_SAMPLE_COLUMNS = {
     "sample_type",
     "fastq_barcode",
     "feature_type",
-    # `protocol` is not in nf-core/scrnaseq 4.1.0's schema_input.json, but the
-    # pipeline's own example samplesheet (assets/samplesheet.csv) ships a
-    # `protocol` column, so a user copying it should not be warned that it is
-    # unrecognised. It is preserved in the normalized samplesheet as before; the
-    # effective protocol is still taken from the --protocol flag (a global
-    # pipeline parameter), not this column.
-    "protocol",
 }
 REQUIRED_SAMPLE_COLUMNS = ("sample", "fastq_1", "fastq_2")
 SUPPORTED_SAMPLE_TYPE_VALUES = {"atac", "gex"}

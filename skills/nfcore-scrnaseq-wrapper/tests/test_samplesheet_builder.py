@@ -362,10 +362,8 @@ def test_non_cellranger_preset_does_not_warn_about_expected_cells(tmp_path, caps
     assert "Cell Ranger v7" not in capsys.readouterr().out
 
 
-def test_protocol_column_is_recognised_not_flagged_unknown(tmp_path):
-    """nf-core/scrnaseq 4.1.0 ships an example samplesheet (assets/samplesheet.csv)
-    with a `protocol` column, so the wrapper must not warn that it is an
-    unrecognised column (it is preserved as before, just not flagged)."""
+def test_protocol_column_is_reported_and_omitted_from_upstream_sheet(tmp_path):
+    """Protocol is a global 4.1.0 parameter, not an input-schema column."""
     r1 = tmp_path / "a_R1.fastq.gz"
     r2 = tmp_path / "a_R2.fastq.gz"
     r1.write_text("x", encoding="utf-8")
@@ -375,5 +373,75 @@ def test_protocol_column_is_recognised_not_flagged_unknown(tmp_path):
         f"sample,fastq_1,fastq_2,protocol,expected_cells\nsampleA,{r1},{r2},10XV2,1000\n",
         encoding="utf-8",
     )
-    result = validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv")
-    assert "protocol" not in result["unknown_columns"]
+    normalized = tmp_path / "normalized.csv"
+    result = validate_and_normalize_samplesheet(src, normalized)
+    assert "protocol" in result["unknown_columns"]
+    assert "protocol" not in normalized.read_text(encoding="utf-8").splitlines()[0]
+
+
+def test_unknown_metadata_columns_are_omitted_from_upstream_sheet(tmp_path):
+    """The reproducibility sheet is an upstream input, not a metadata archive."""
+    r1 = tmp_path / "S_R1.fastq.gz"
+    r2 = tmp_path / "S_R2.fastq.gz"
+    r1.write_bytes(b"")
+    r2.write_bytes(b"")
+    sheet = tmp_path / "samples.csv"
+    sheet.write_text(
+        "sample,fastq_1,fastq_2,cohort\n"
+        f"S,{r1.name},{r2.name},discovery\n",
+        encoding="utf-8",
+    )
+    normalized = tmp_path / "normalized.csv"
+
+    result = validate_and_normalize_samplesheet(sheet, normalized)
+
+    assert result["unknown_columns"] == ["cohort"]
+    assert "cohort" not in normalized.read_text(encoding="utf-8").splitlines()[0]
+
+
+def test_multi_lane_sample_counted_once(tmp_path):
+    """A sample split across lanes is ONE sample, not one per row.
+
+    nf-core/scrnaseq documents re-sequencing the same sample across lanes by repeating
+    the `sample` identifier on multiple rows: "The sample identifiers have to be the same
+    when you have re-sequenced the same sample more than once", and the pipeline
+    "concatenate[s] the raw reads before performing any downstream analysis".
+
+    The summary counted raw CSV rows (`len(normalized_rows)`) and appended to
+    `sample_names` with no duplicate guard, so a 2-sample sheet with one sample split
+    over two lanes reported 3 samples and listed the split sample twice. That count is
+    not merely cosmetic: it is written into the provenance bundle (inputs.json
+    `sample_count`) and is preferred by report.md over the samples actually detected in
+    the outputs — so the audit trail claimed more samples than the run had.
+
+    nfcore-rnaseq-wrapper already deduplicates (`if sample not in sample_names`) and
+    counts `len(sample_names)`; this pins the same contract here.
+    """
+    lane1_r1 = tmp_path / "s1_L001_R1.fastq.gz"
+    lane1_r2 = tmp_path / "s1_L001_R2.fastq.gz"
+    lane2_r1 = tmp_path / "s1_L002_R1.fastq.gz"
+    lane2_r2 = tmp_path / "s1_L002_R2.fastq.gz"
+    other_r1 = tmp_path / "s2_R1.fastq.gz"
+    other_r2 = tmp_path / "s2_R2.fastq.gz"
+    for f in (lane1_r1, lane1_r2, lane2_r1, lane2_r2, other_r1, other_r2):
+        _touch_fastq(f)
+
+    src = tmp_path / "samplesheet.csv"
+    src.write_text(
+        "sample,fastq_1,fastq_2\n"
+        f"sampleA,{lane1_r1},{lane1_r2}\n"
+        f"sampleA,{lane2_r1},{lane2_r2}\n"
+        f"sampleB,{other_r1},{other_r2}\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "normalized.csv"
+    result = validate_and_normalize_samplesheet(src, out)
+
+    assert result["sample_count"] == 2, "a lane-split sample must count once, not per row"
+    assert result["sample_names"] == ["sampleA", "sampleB"], "sample_names must not repeat"
+
+    # All three rows must still reach the pipeline: nf-core concatenates them.
+    rows = list(csv.DictReader(out.read_text(encoding="utf-8").splitlines()))
+    assert len(rows) == 3, "every lane row must be preserved for the pipeline to concatenate"
+    # And every FASTQ is still staged.
+    assert len(result["fastq_paths"]) == 6

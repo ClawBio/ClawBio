@@ -2,10 +2,11 @@
 """
 remap_paths.py — Make this reproducibility bundle portable across machines.
 
-Samplesheet input paths (fastq_1, fastq_2, spring_1, spring_2, bam, bai,
-cram, crai, vcf, table) are stored as absolute paths (required by
-Nextflow). Reference/index paths are stored in params.yaml, not in
-commands.sh. Before replaying on a different machine:
+Local samplesheet input paths (fastq_1, fastq_2, spring_1, spring_2, bam, bai,
+cram, crai, vcf, table) are stored as absolute paths (required by Nextflow);
+remote data URLs (s3://, https://, ...) are passed through unchanged and need no
+remapping. Reference/index paths are stored in params.yaml, not in commands.sh.
+Before replaying on a different machine:
 
   1. Remap input data paths in the samplesheet (if data moved):
        python3 remap_paths.py --old /original/data/dir --new /new/data/dir
@@ -753,7 +754,7 @@ def cmd_repair_bundle(bundle_dir: Path | None = None) -> int:
     return 0
 
 
-def main() -> int:
+def main(argv: list[str] | None = None, *, bundle_dir: Path | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Make this reproducibility bundle portable across machines.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -786,20 +787,52 @@ examples:
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without modifying files")
     parser.add_argument("--verify", action="store_true", help="Check all paths exist on this machine")
     parser.add_argument("--repair-bundle", action="store_true", help="Regenerate missing bundle files (manifest.json, checksums.sha256, environment.yml)")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+
+    # A prefix remap needs BOTH halves. Accepting one silently (the old dispatch fell
+    # through to print_help) hides a typo behind a "nothing to do" exit.
+    if (args.old is None) != (args.new is None):
+        parser.error("--old and --new must be given together")
+    if (args.refs_old is None) != (args.refs_new is None):
+        parser.error("--refs-old and --refs-new must be given together")
+
+    requested = (
+        args.repair_bundle
+        or args.verify
+        or args.output_dir is not None
+        or args.old is not None
+        or args.refs_old is not None
+    )
+    if not requested:
+        parser.print_help()
+        return 1
+
+    # Every requested action runs, in the order the module docstring documents: repair the
+    # bundle, apply the remaps, then verify LAST so --verify reports on the bundle as it
+    # now stands. The previous dispatch was a chain of early returns with --verify ahead of
+    # --output-dir, so `--output-dir X --verify` silently dropped the rewrite and then
+    # reported the bundle ready to replay while commands.sh still pointed at the old output
+    # directory — a green light on a stale bundle. Actions compose; none is discarded. The
+    # first non-zero step decides the exit code, but later steps still run so the user sees
+    # every problem in one pass.
+    exit_code = 0
+
+    def _record(rc: int) -> None:
+        nonlocal exit_code
+        if exit_code == 0 and rc != 0:
+            exit_code = rc
 
     if args.repair_bundle:
-        return cmd_repair_bundle()
-    if args.verify:
-        return cmd_verify()
+        _record(cmd_repair_bundle(bundle_dir=bundle_dir))
+    if args.old is not None:
+        _record(cmd_remap(args.old, args.new, dry_run=args.dry_run, bundle_dir=bundle_dir))
+    if args.refs_old is not None:
+        _record(cmd_remap_references(args.refs_old, args.refs_new, dry_run=args.dry_run, bundle_dir=bundle_dir))
     if args.output_dir is not None:
-        return cmd_update_output(args.output_dir, dry_run=args.dry_run)
-    if args.old is not None and args.new is not None:
-        return cmd_remap(args.old, args.new, dry_run=args.dry_run)
-    if args.refs_old is not None and args.refs_new is not None:
-        return cmd_remap_references(args.refs_old, args.refs_new, dry_run=args.dry_run)
-    parser.print_help()
-    return 1
+        _record(cmd_update_output(args.output_dir, dry_run=args.dry_run, bundle_dir=bundle_dir))
+    if args.verify:
+        _record(cmd_verify(bundle_dir=bundle_dir))
+    return exit_code
 
 
 def _format_output_value(new_output_dir: str, *, old_value: str) -> str:
