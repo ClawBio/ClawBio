@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from clawbio import cli
+
 CLAWBIO = Path(__file__).resolve().parents[1] / "clawbio.py"
 
 
@@ -21,6 +23,22 @@ def test_parser_constructs_without_error():
     """Parser must build cleanly — no duplicate-flag argparse.ArgumentError."""
     result = _run("list")
     assert result.returncode == 0, result.stderr
+
+
+def test_list_includes_skill_md_only_directories(monkeypatch, tmp_path, capsys):
+    """Listing exposes skills that are usable by agents but not CLI-runnable."""
+    skill_dir = tmp_path / "agent-only-skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text("# Agent-only skill\n", encoding="utf-8")
+    monkeypatch.setattr(cli, "SKILLS_DIR", tmp_path)
+    monkeypatch.setattr(cli, "SKILLS", {})
+
+    listed = cli.list_skills()
+
+    assert listed == {}
+    output = capsys.readouterr().out
+    assert "agent-only-skill" in output
+    assert "SKILL.md only" in output
 
 
 def test_run_help_exits_zero():

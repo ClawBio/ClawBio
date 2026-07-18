@@ -1222,6 +1222,18 @@ FULL_PROFILE_PIPELINE = ["pharmgx", "nutrigx", "prs", "compare"]
 # --------------------------------------------------------------------------- #
 
 
+def _skill_md_only_directories() -> list[Path]:
+    """Return agent-readable skills that are not registered with the CLI."""
+    registered_directories = {info["script"].parent.resolve() for info in SKILLS.values()}
+    return [
+        path
+        for path in sorted(SKILLS_DIR.iterdir())
+        if path.is_dir()
+        and (path / "SKILL.md").is_file()
+        and path.resolve() not in registered_directories
+    ]
+
+
 def list_skills() -> dict:
     """Print available skills and return the registry dict."""
     print(f"{BOLD}ClawBio Skills{RESET}")
@@ -1231,6 +1243,10 @@ def list_skills() -> dict:
         status = f"{GREEN}OK{RESET}" if script_exists else f"{RED}MISSING{RESET}"
         print(f"  {BOLD}{name:<15}{RESET} {info['description']}")
         print(f"  {'':15} {DIM}script: {info['script'].name}{RESET} [{status}]")
+        print()
+    for skill_dir in _skill_md_only_directories():
+        print(f"  {BOLD}{skill_dir.name:<15}{RESET} Agent-readable skill")
+        print(f"  {'':15} {DIM}SKILL.md only (not available via clawbio run){RESET}")
         print()
     print(f"{DIM}Run a skill:  clawbio run <skill> --demo{RESET}")
     print(f"{DIM}With input:   clawbio run <skill> --input <file>{RESET}")
