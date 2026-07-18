@@ -1,0 +1,9 @@
+# BENCHMARK: population-equity-auditor v0.1.0
+# PAYLOAD: input.txt
+# GROUND_TRUTH_COUNT: 5
+# COUNT_TOLERANCE: 0
+# FINDING_CATEGORY: correct
+# FINDING: PEA-01 basic correct output
+# HAZARD_METRIC: Tool produces correct variant count from clean input
+# DERIVATION: 5 non-comment, non-empty lines in input file
+# CITATION: Synthetic test data

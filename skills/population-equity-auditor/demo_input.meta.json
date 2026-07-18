@@ -1,0 +1,1 @@
+{"cohort_id":"demo","assay":"WGS","caller":"synthetic-demonstration","build":"GRCh38","variant_classes":["SNV"],"subpopulation_sizes":{"POP_A":30,"POP_B":16,"POP_C":16,"POP_D":12,"POP_E":30,"POP_F":16,"POP_G":30},"notes":"Synthetic demonstration cohort. NOT real patient data. Replace with your own annotated cohort + metadata."}

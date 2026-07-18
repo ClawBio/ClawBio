@@ -1,0 +1,5 @@
+# Malformed input: wrong number of columns, mixed delimiters
+chr6	29942470
+chr6 31353872 C T 1/1
+
+chr6	32609227	G		0/1

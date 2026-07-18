@@ -1,0 +1,7 @@
+{
+  "source_url": "https://ftp.clinicalgenome.org/ClinGen_gene_curation_list_GRCh38.tsv",
+  "sha256": "2e8df5990bdb0c635c94ab930ed0df1187577b8f00fc8f3e4740694c693f5858",
+  "n_bytes": 246777,
+  "description": "ClinGen Dosage Sensitivity gene curation list (Haploinsufficiency + Triplosensitivity scores). HI=3 sufficient evidence for AD haploinsufficiency (PVS1 applicable); HI=30 gene associated with AR phenotype; HI=40 dosage sensitivity unlikely.",
+  "retrieval": "HARNESS/pvs1_gene_mechanism.py refresh"
+}

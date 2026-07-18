@@ -1,0 +1,8 @@
+# BENCHMARK: population-equity-auditor v0.1.0
+# PAYLOAD: input.txt
+# EXPECTED_EXIT_CODE: 1
+# FINDING_CATEGORY: crash
+# FINDING: PEA-03 malformed input causes crash
+# HAZARD_METRIC: Tool should exit non-zero on malformed input with clear error message
+# DERIVATION: Input contains lines with wrong column count; tool should reject
+# CITATION: Synthetic test data

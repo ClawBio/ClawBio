@@ -1,0 +1,8 @@
+# BENCHMARK: population-equity-auditor v0.1.0
+# PAYLOAD: input.txt
+# GROUND_TRUTH_COUNT: 0
+# FINDING_CATEGORY: correct_with_warnings
+# FINDING: PEA-02 empty input handled gracefully
+# HAZARD_METRIC: Tool handles empty input without crashing
+# DERIVATION: Input file contains only comments and blank lines, 0 data lines
+# CITATION: Synthetic test data

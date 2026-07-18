@@ -1,0 +1,2 @@
+# Synthetic empty test input for population-equity-auditor
+# No data lines follow

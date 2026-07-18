@@ -1033,6 +1033,15 @@ SKILLS = {
         "allowed_extra_flags": {"--genes", "--assembly"},
         "accepts_genotypes": False,
     },
+    "population-equity-auditor": {
+        "script": SKILLS_DIR / "population-equity-auditor" / "population_equity_auditor.py",
+        "demo_args": ["--demo"],
+        "description": ("Audit a cohort for reference-panel referral inflation: gnomAD-blind vs "
+                        "population-aware ACMG re-classification, ancestry-stratified, with a "
+                        "never-suppress-pathogenic safety invariant"),
+        "allowed_extra_flags": set(),
+        "accepts_genotypes": False,
+    },
     "llm-bench": {
         "script": SKILLS_DIR / "llm-biobank-bench" / "llm_biobank_bench.py",
         "demo_args": ["--demo"],
