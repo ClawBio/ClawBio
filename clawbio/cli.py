@@ -1234,32 +1234,46 @@ def _skill_md_only_directories() -> list[Path]:
     ]
 
 
+
+
 def list_skills() -> dict:
     """Print available skills and return the registry dict."""
     print(f"{BOLD}ClawBio Skills{RESET}")
-    print(f"{'═' * 55}")
+    print(f"{'═' * 60}")
+    
+    # Registered skills
+    print(f"{BOLD}Registered Skills{RESET} ({len(SKILLS)}):")
     for name, info in SKILLS.items():
         script_exists = info["script"].exists()
         status = f"{GREEN}OK{RESET}" if script_exists else f"{RED}MISSING{RESET}"
-        print(f"  {BOLD}{name:<15}{RESET} {info['description']}")
-        print(f"  {'':15} {DIM}script: {info['script'].name}{RESET} [{status}]")
+        print(f"  {BOLD}{name:<20}{RESET} {info['description']}")
+        print(f"  {'':20} {DIM}script: {info['script'].name}{RESET} [{status}]")
         print()
-    for skill_dir in _skill_md_only_directories():
-        print(f"  {BOLD}{skill_dir.name:<15}{RESET} Agent-readable skill")
-        print(f"  {'':15} {DIM}SKILL.md only (not available via clawbio run){RESET}")
-        print()
+    
+    # Agent-readable skills (SKILL.md only)
+    md_only = _skill_md_only_directories()
+    if md_only:
+        print(f"{BOLD}Agent-Readable Skills{RESET} ({len(md_only)}):")
+        for skill_dir in md_only:
+            has_script = any(
+                f.suffix == ".py" and f.name != "__init__.py"
+                for f in sorted(skill_dir.rglob("*.py"))
+                if "tests" not in str(f.relative_to(skill_dir)).split("/")[0:1]
+                and "__pycache__" not in str(f)
+            )
+            indicator = f"{GREEN}has script{RESET}" if has_script else f"{YELLOW}spec only{RESET}"
+            print(f"  {DIM}{skill_dir.name:<20}{RESET} Agent-readable skill")
+            print(f"  {'':20} {DIM}[{indicator}] — SKILL.md only (not via clawbio run){RESET}")
+            print()
+    
+    total = len(SKILLS) + len(md_only)
+    print(f"{DIM}Total: {total} skills ({len(SKILLS)} registered, {len(md_only)} agent-readable){RESET}")
+    print()
     print(f"{DIM}Run a skill:  clawbio run <skill> --demo{RESET}")
     print(f"{DIM}With input:   clawbio run <skill> --input <file>{RESET}")
     print(f"{DIM}Upload once:  clawbio upload --input <file> --patient-id PT001{RESET}")
     print(f"{DIM}Full profile: clawbio run full-profile --profile profiles/PT001.json{RESET}")
     return SKILLS
-
-
-# --------------------------------------------------------------------------- #
-# upload_profile
-# --------------------------------------------------------------------------- #
-
-
 def upload_profile(
     input_path: str,
     patient_id: str = "",
