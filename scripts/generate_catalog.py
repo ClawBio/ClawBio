@@ -438,7 +438,7 @@ def build_catalog() -> list[dict]:
         # Check for Python scripts and tests
         has_script = any(
             f.suffix == ".py" and f.name != "__init__.py" and "test" not in f.name.lower()
-            for f in skill_dir.rglob("*.py")
+            for f in sorted(skill_dir.rglob("*.py"))
             if "tests" not in str(f.relative_to(skill_dir)).split("/")[0:1]
             and "__pycache__" not in str(f)
         )
