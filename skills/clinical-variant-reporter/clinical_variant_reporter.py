@@ -210,7 +210,11 @@ def _extract_evidence_from_vep(vep_result: dict, record: VcfRecord) -> VariantEv
             sigs = cv.get("clin_sig", "")
             if sigs and not clinvar_sig:
                 clinvar_sig = sigs
-                clinvar_stars = cv.get("clin_sig_allele", {}).get("review_status_stars", 0)
+                # VEP returns clin_sig_allele as a dict for some variants and a
+                # string (e.g. "T:pathogenic") for others; only read stars from a dict.
+                clin_sig_allele = cv.get("clin_sig_allele", {})
+                if isinstance(clin_sig_allele, dict):
+                    clinvar_stars = clin_sig_allele.get("review_status_stars", 0)
 
         freq_data = cv.get("frequencies", {})
         if freq_data:

@@ -409,3 +409,42 @@ class TestVepLivePath:
         assert params.get("transcript_version") == 1, (
             f"Expected transcript_version=1 in VEP params, got: {params}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Regression — VEP clin_sig_allele may be a string, not a dict
+# ---------------------------------------------------------------------------
+class TestClinSigAlleleTypeGuard:
+    """VEP returns colocated_variants[].clin_sig_allele as a dict for some
+    variants and a string (e.g. "T:pathogenic") for others. Extraction must not
+    crash on the string form (previously AttributeError: 'str' has no 'get')."""
+
+    def _record(self):
+        from clinical_variant_reporter import VcfRecord
+        return VcfRecord(chrom="13", pos=32339267, id="rs886040553",
+                         ref="A", alt="T", qual=".", filt="PASS", info={})
+
+    def _vep(self, clin_sig_allele):
+        return {
+            "most_severe_consequence": "stop_gained",
+            "transcript_consequences": [
+                {"gene_symbol": "BRCA2", "impact": "HIGH",
+                 "consequence_terms": ["stop_gained"],
+                 "transcript_id": "ENST00000544455.6"}
+            ],
+            "colocated_variants": [
+                {"clin_sig": ["pathogenic"], "clin_sig_allele": clin_sig_allele}
+            ],
+        }
+
+    def test_string_clin_sig_allele_does_not_crash(self):
+        from clinical_variant_reporter import _extract_evidence_from_vep
+        ev = _extract_evidence_from_vep(self._vep("T:pathogenic"), self._record())
+        assert ev.gene == "BRCA2"
+        assert ev.clinvar_review_stars == 0  # defaults gracefully when not a dict
+
+    def test_dict_clin_sig_allele_still_reads_stars(self):
+        from clinical_variant_reporter import _extract_evidence_from_vep
+        ev = _extract_evidence_from_vep(
+            self._vep({"review_status_stars": 3}), self._record())
+        assert ev.clinvar_review_stars == 3
