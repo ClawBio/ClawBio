@@ -41,6 +41,39 @@ def test_list_includes_skill_md_only_directories(monkeypatch, tmp_path, capsys):
     assert "SKILL.md only" in output
 
 
+
+def test_list_skills_shows_section_headings(monkeypatch, tmp_path, capsys):
+    """list_skills() shows Registered and Agent-Readable section headings."""
+    # Create a registered skill
+    registered_dir = tmp_path / "registered-skill"
+    registered_dir.mkdir()
+    (registered_dir / "SKILL.md").write_text("# Registered\n", encoding="utf-8")
+    (registered_dir / "run.py").write_text("print('hello')\n", encoding="utf-8")
+    
+    # Create an agent-only skill
+    agent_dir = tmp_path / "agent-only-skill"
+    agent_dir.mkdir()
+    (agent_dir / "SKILL.md").write_text("# Agent only\n", encoding="utf-8")
+    
+    from clawbio import cli
+    monkeypatch.setattr(cli, "SKILLS_DIR", tmp_path)
+    monkeypatch.setattr(cli, "SKILLS", {
+        "test-skill": {
+            "script": registered_dir / "run.py",
+            "description": "Test skill for unit testing",
+        }
+    })
+    
+    listed = cli.list_skills()
+    output = capsys.readouterr().out
+    
+    assert listed == {"test-skill": cli.SKILLS["test-skill"]}
+    assert "Registered Skills (1)" in output
+    assert "Agent-Readable Skills (1)" in output
+    assert "Total: 2 skills" in output
+    assert "test-skill" in output
+    assert "agent-only-skill" in output
+
 def test_run_help_exits_zero():
     result = _run("run", "--help")
     assert result.returncode == 0, result.stderr
