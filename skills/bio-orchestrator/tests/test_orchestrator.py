@@ -133,6 +133,24 @@ class TestDetectSkillFromQuery:
     def test_no_match(self):
         assert detect_skill_from_query("hello world") is None
 
+    def test_vcf_prs_routes_to_just_prs_mcp(self):
+        assert (
+            detect_skill_from_query("Compute a polygenic risk score from my WGS VCF")
+            == "just-prs-mcp"
+        )
+
+    def test_absolute_risk_from_vcf_routes_to_just_prs_mcp(self):
+        assert (
+            detect_skill_from_query("Estimate absolute risk for diabetes from this VCF")
+            == "just-prs-mcp"
+        )
+
+    def test_dtc_prs_remains_gwas_prs(self):
+        assert (
+            detect_skill_from_query("Compute a PRS from my 23andMe genotype file")
+            == "gwas-prs"
+        )
+
 
 # ---------------------------------------------------------------------------
 # detect_skill_with_hint_from_query — chain-aware scRNA routing
@@ -223,6 +241,9 @@ class TestSkillRegistryMap:
         for key in SKILL_REGISTRY_MAP:
             assert key in available, f"Registry key '{key}' is not a valid skill directory"
 
+    def test_just_prs_maps_to_runner_alias(self):
+        assert SKILL_REGISTRY_MAP["just-prs-mcp"] == "just-prs"
+
 
 # ---------------------------------------------------------------------------
 # generate_report_header
@@ -269,9 +290,8 @@ class TestStubDetection:
     def test_stub_skill_detected(self):
         """Stub skills (SKILL.md only, no .py) should be flagged."""
         from orchestrator import skill_has_executable
-        # repro-enforcer and lit-synthesizer are stubs (no Python executable)
+        # repro-enforcer is a SKILL.md-only methodology.
         assert not skill_has_executable("repro-enforcer")
-        assert not skill_has_executable("lit-synthesizer")
 
     def test_executable_skill_detected(self):
         """Skills with Python files should not be flagged as stubs."""

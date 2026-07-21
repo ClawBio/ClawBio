@@ -2181,6 +2181,48 @@
       "chaining_partners": []
     },
     {
+      "name": "just-prs-mcp",
+      "cli_alias": "just-prs",
+      "description": "Compute evidence-aware polygenic risk scores from a local VCF or WGS file through the validated just-prs engine and a pinned local just-prs MCP server.",
+      "version": "0.1.0",
+      "status": "mvp",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run just-prs --demo",
+      "dependencies": [
+        "python>=3.11",
+        "fastmcp>=3.4.4,<4",
+        "typer>=0.27.0,<1"
+      ],
+      "tags": [
+        "polygenic-risk-score",
+        "personal-genomics",
+        "model-quality"
+      ],
+      "trigger_keywords": [
+        "compute PRS from VCF",
+        "WGS polygenic risk score",
+        "absolute genetic risk from VCF",
+        "just-prs"
+      ],
+      "chaining_partners": [
+        "wgs-prs",
+        "gwas-prs",
+        "profile-report"
+      ]
+    },
+    {
       "name": "labstep",
       "cli_alias": null,
       "description": "Query and display Labstep electronic lab notebook data — experiments, protocols, resources, and inventory — via labstepPy.  Supports offline demo mode with synthetic biology data.",

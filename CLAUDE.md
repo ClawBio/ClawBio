@@ -62,7 +62,8 @@ When the user asks a question, match it to a skill and act:
 | MultiQC, aggregate QC, QC report, FastQC summary, multi-sample QC, sequencing QC report, combine QC results | `skills/multiqc-reporter/` | Run `multiqc_reporter.py` |
 | Lab notebook, experiments, protocols, inventory, Labstep | `skills/labstep/` | Run `labstep.py` |
 | ClinPGx database, gene-drug lookup, PharmGKB query, CPIC guideline database, FDA drug label PGx, "look up gene on ClinPGx" | `skills/clinpgx/` | Run `clinpgx.py` |
-| GWAS polygenic risk scores, PRS, "what's my risk for diabetes", PGS Catalog, polygenic | `skills/gwas-prs/` | Run `gwas_prs.py` |
+| DTC polygenic risk scores, 23andMe PRS, AncestryDNA PRS, PGS Catalog score on chip data | `skills/gwas-prs/` | Run `gwas_prs.py` |
+| VCF/WGS polygenic risk, absolute genetic risk from VCF, multi-model PRS consensus, just-prs | `skills/just-prs-mcp/` | Run `just_prs_mcp_bridge.py` |
 | GWAS variant lookup, rsID search, "look up rs3798220", variant associations, PheWAS, variant eQTL, federated variant query | `skills/gwas-lookup/` | Run `gwas_lookup.py` |
 | Epigenetic age, methylation clocks, PyAging, Horvath, GrimAge, DunedinPACE, GEO methylation | `skills/methylation-clock/` | Run `methylation_clock.py` |
 | Personal genomic profile report, "my profile", unified report, profile summary | `skills/profile-report/` | Run `profile_report.py` |
@@ -95,7 +96,7 @@ When the user asks a question, match it to a skill and act:
 
 ## How to Use a Skill
 
-### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx, claw-metagenomics, genome-compare, bio-orchestrator, variant-annotation, bioconductor-bridge, clinical-trial-finder, data-extractor, illumina-bridge, pubmed-summariser, omics-target-evidence-mapper, target-validation-scorer, nfcore-scrnaseq-wrapper, nfcore-rnaseq-wrapper, nfcore-sarek-wrapper, scrna-orchestrator, scrna-embedding, diff-visualizer, proteomics-de, struct-predictor, clinical-variant-reporter, multiqc-reporter, labstep, clinpgx, gwas-prs, gwas-lookup, methylation-clock, profile-report, ukb-navigator, galaxy-bridge, flow-bio, rnaseq-de, protocols-io, soul2dna, genome-match, recombinator, fine-mapping, cell-detection, wes-clinical-report-en, wes-clinical-report-es, proteomics-clock, sample-qc-triage, crispr-screen-triage, marker-dominance-mapper, busco-assessor, fastreer, polars-bio, ancestry-risk-profiler)
+### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx, claw-metagenomics, genome-compare, bio-orchestrator, variant-annotation, bioconductor-bridge, clinical-trial-finder, data-extractor, illumina-bridge, pubmed-summariser, omics-target-evidence-mapper, target-validation-scorer, nfcore-scrnaseq-wrapper, nfcore-rnaseq-wrapper, nfcore-sarek-wrapper, scrna-orchestrator, scrna-embedding, diff-visualizer, proteomics-de, struct-predictor, clinical-variant-reporter, multiqc-reporter, labstep, clinpgx, gwas-prs, just-prs-mcp, gwas-lookup, methylation-clock, profile-report, ukb-navigator, galaxy-bridge, flow-bio, rnaseq-de, protocols-io, soul2dna, genome-match, recombinator, fine-mapping, cell-detection, wes-clinical-report-en, wes-clinical-report-es, proteomics-clock, sample-qc-triage, crispr-screen-triage, marker-dominance-mapper, busco-assessor, fastreer, polars-bio, ancestry-risk-profiler)
 1. Read the skill's `SKILL.md` for domain context
 2. Run the Python script with correct CLI arguments (see below)
 3. Show the user the output — open any generated figures and explain results
@@ -148,6 +149,13 @@ python skills/gwas-prs/gwas_prs.py \
 python skills/gwas-prs/gwas_prs.py \
   --input <23andme_file> --pgs-id PGS000013 --output <report_dir>
 python skills/gwas-prs/gwas_prs.py --demo --output /tmp/prs_demo
+
+# Evidence-aware PRS from a local VCF/WGS callset through local stdio MCP
+uv sync --extra just-prs
+uv run --extra just-prs clawbio.py run just-prs \
+  --input <sample.vcf.gz> --trait "type 2 diabetes" \
+  --superpopulation EUR --prs-profile curated --top-n 5 --output <report_dir>
+uv run --extra just-prs clawbio.py run just-prs --demo --output /tmp/just_prs_demo
 
 
 # GWAS Lookup — federated variant query across 9 genomic databases

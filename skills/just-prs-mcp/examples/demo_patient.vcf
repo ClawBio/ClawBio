@@ -1,0 +1,8 @@
+##fileformat=VCFv4.2
+##reference=GRCh38
+##contig=<ID=1,length=248956422>
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	DEMO
+1	10177	rs367896724	A	AC	100	PASS	.	GT	0/1
+1	10352	rs555500075	T	TA	100	PASS	.	GT	0/0
+1	10505	rs548419688	A	T	100	PASS	.	GT	1/1
