@@ -959,10 +959,10 @@ def detect_format(lines: list[str]) -> str:
 
 # Known GRCh38 positions for key PGx SNPs (used for reference genome mismatch detection)
 _GRCH38_POSITIONS = {
-    "rs4244285": 96541616,   # CYP2C19*2
+    "rs4244285": 94781859,   # CYP2C19*2 (was 96541616, the GRCh37 position)
     "rs3892097": 42128945,   # CYP2D6*4
-    "rs1799853": 96702047,   # CYP2C9*2
-    "rs9923231": 31107689,   # VKORC1
+    "rs1799853": 94942290,   # CYP2C9*2 (was 96702047, the GRCh37 position)
+    "rs9923231": 31096368,   # VKORC1 (was 31107689, the GRCh37 position)
     "rs1801133": 11796321,   # MTHFR C677T
 }
 

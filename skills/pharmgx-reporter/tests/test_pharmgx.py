@@ -687,3 +687,27 @@ def test_html_report_without_enrichment():
     body = html.split("<body>")[1]
     assert "badge-evidence-high" not in body
     assert "evidence-rec-source" not in body
+
+
+# Regression: _GRCH38_POSITIONS must hold true GRCh38 coordinates, so real GRCh38
+# (e.g. WGS-derived) input is detected as GRCh38 and not rejected as a GRCh37 mismatch.
+# Three positions were previously GRCh37 values, which blocked all GRCh38 diplotype calls.
+def test_grch38_reference_positions_are_grch38():
+    import importlib.util, sys
+    from pathlib import Path
+    d = Path(__file__).resolve().parent.parent
+    sys.path.insert(0, str(d))
+    spec = importlib.util.spec_from_file_location("pgx_mod", d / "pharmgx_reporter.py")
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    truth_grch38 = {
+        "rs4244285": 94781859,   # CYP2C19*2
+        "rs3892097": 42128945,   # CYP2D6*4
+        "rs1799853": 94942290,   # CYP2C9*2
+        "rs9923231": 31096368,   # VKORC1
+        "rs1801133": 11796321,   # MTHFR C677T
+    }
+    for rsid, pos in truth_grch38.items():
+        assert mod._GRCH38_POSITIONS[rsid] == pos, f"{rsid} not GRCh38"
+    # a genotype set at true GRCh38 positions must be detected as GRCh38, not GRCh37
+    positions = {rsid: {"pos": pos} for rsid, pos in truth_grch38.items()}
+    assert mod.detect_reference_genome(positions) == "GRCh38"
