@@ -12,6 +12,22 @@ import pytest
 from clawbio import mcp_server
 
 
+class TestPackagedPaths:
+    """Regression: v0.6.0 shipped broken because mcp_server computed its own
+    skills path. In an installed wheel skills/ lives inside the package, not
+    beside it, so every tool failed with FileNotFoundError. cli.py already
+    handles both layouts; mcp_server must reuse it rather than reimplement it.
+    """
+
+    def test_skills_dir_is_the_cli_constant_not_a_reimplementation(self):
+        from clawbio import cli
+
+        assert mcp_server.SKILLS_DIR is cli.SKILLS_DIR
+
+    def test_catalog_path_exists(self):
+        assert mcp_server.CATALOG_PATH.is_file()
+
+
 class TestCatalog:
     def test_catalog_skills_loads_every_skill(self):
         skills = mcp_server.catalog_skills()

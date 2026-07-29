@@ -26,12 +26,13 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 
+from clawbio.cli import SKILLS_DIR
 from clawbio.cli import run_skill as _cli_run_skill
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SKILLS_DIR = REPO_ROOT / "skills"
+# SKILLS_DIR must come from cli.py, which resolves both layouts: in a source
+# checkout skills/ sits beside the package, in an installed wheel it is bundled
+# inside it. Computing a path here instead broke every tool in v0.6.0.
 CATALOG_PATH = SKILLS_DIR / "catalog.json"
 
 ALLOW_LOCAL_FILES_ENV = "CLAWBIO_MCP_ALLOW_LOCAL_FILES"

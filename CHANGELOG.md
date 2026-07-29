@@ -5,6 +5,16 @@ All notable changes to ClawBio are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-07-29
+
+### Fixed
+- The MCP server was unusable when installed from PyPI. `mcp_server.py` computed
+  its own `skills/` path relative to the package parent, which is correct only in
+  a source checkout; an installed wheel bundles `skills/` *inside* the package.
+  Every tool failed with `FileNotFoundError` on `catalog.json`. It now reuses
+  `clawbio.cli.SKILLS_DIR`, which already resolves both layouts. v0.6.0 is
+  broken for MCP use and should be skipped; the CLI was unaffected.
+
 ## [0.6.0] - 2026-07-29
 
 ### Added
