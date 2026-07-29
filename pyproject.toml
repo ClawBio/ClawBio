@@ -56,6 +56,10 @@ dependencies = [
     "scipy>=1.10",
 ]
 
+[project.optional-dependencies]
+# Pinned below 2.0: mcp 2.0.0 removed mcp.server.fastmcp (now mcp.server.mcpserver).
+mcp = ["mcp>=1.9,<2"]
+
 [project.scripts]
 clawbio = "clawbio.cli:main"
 

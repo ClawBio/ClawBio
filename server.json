@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "io.github.clawbio/clawbio",
+  "description": "Bioinformatics-native AI agent skill library: pharmacogenomics, GWAS, variant interpretation, ancestry, single-cell and RNA-seq. Local-first and reproducible; runs demo data by default and never sends genomic data off the machine.",
+  "repository": {
+    "url": "https://github.com/ClawBio/ClawBio",
+    "source": "github"
+  },
+  "version": "0.6.0",
+  "websiteUrl": "https://clawbio.ai",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "clawbio",
+      "version": "0.6.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "CLAWBIO_MCP_ALLOW_LOCAL_FILES",
+          "description": "Set to 1 to allow skills to read and write local files. Unset, the server runs demo data only, so adding it to a client config cannot by itself grant an agent access to a patient genome.",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}
