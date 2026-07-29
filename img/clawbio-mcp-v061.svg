@@ -6,7 +6,7 @@
   <text x="1150" y="66" text-anchor="end" font-family="SF Mono, Menlo, Consolas, monospace" font-size="17" font-weight="500" letter-spacing="1.5" fill="#8b949e">clawbio.ai</text>
   <line x1="0" y1="112" x2="1200" y2="112" stroke="#30363d" stroke-width="1"/>
 
-  <text x="62" y="176" font-family="SF Mono, Menlo, Consolas, monospace" font-size="16" font-weight="600" letter-spacing="4" fill="#3fb950">RELEASE v0.6.0 &#183; MODEL CONTEXT PROTOCOL</text>
+  <text x="62" y="176" font-family="SF Mono, Menlo, Consolas, monospace" font-size="16" font-weight="600" letter-spacing="4" fill="#3fb950">RELEASE v0.6.1 &#183; MODEL CONTEXT PROTOCOL</text>
 
   <text x="60" y="244" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="60" font-weight="800" fill="#3fb950" letter-spacing="-1.5">Genomics skills, in your editor</text>
 

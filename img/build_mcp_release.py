@@ -1,8 +1,9 @@
-"""Build the ClawBio v0.6.0 MCP release tile, matching docs.clawbio.ai.
+"""Build the ClawBio MCP release tile, matching docs.clawbio.ai.
 
 Sibling of build_stats_hero.py; shares its palette, raptor treatment and card
 system. Unlike that one, this is a frozen release graphic: the numbers are the
-v0.6.0 claims and should not drift after publication.
+release claims and should not drift after publication. Bump VERSION on a
+release and the filenames follow.
 
     python3 build_mcp_release.py
 
@@ -16,7 +17,9 @@ from pathlib import Path
 
 HERE = Path(os.path.dirname(os.path.abspath(__file__)))
 RAPTOR = HERE / "clawbio-logo.jpeg"
-OUT_SVG = HERE / "clawbio-mcp-v060.svg"
+VERSION = "0.6.1"
+SLUG = "v" + VERSION.replace(".", "")
+OUT_SVG = HERE / f"clawbio-mcp-{SLUG}.svg"
 REPO = "ClawBio/ClawBio"
 
 W, H = 1200, 627
@@ -85,7 +88,7 @@ def main() -> None:
   <text x="{W-50}" y="66" text-anchor="end" font-family="{MONO}" font-size="17" font-weight="500" letter-spacing="1.5" fill="{MUTED}">clawbio.ai</text>
   <line x1="0" y1="112" x2="{W}" y2="112" stroke="{BORDER}" stroke-width="1"/>
 
-  <text x="62" y="176" font-family="{MONO}" font-size="16" font-weight="600" letter-spacing="4" fill="{GREEN}">RELEASE v0.6.0 &#183; MODEL CONTEXT PROTOCOL</text>
+  <text x="62" y="176" font-family="{MONO}" font-size="16" font-weight="600" letter-spacing="4" fill="{GREEN}">RELEASE v{VERSION} &#183; MODEL CONTEXT PROTOCOL</text>
 
   <text x="60" y="244" font-family="{SANS}" font-size="60" font-weight="800" fill="{GREEN}" letter-spacing="-1.5">Genomics skills, in your editor</text>
 
@@ -103,7 +106,7 @@ def main() -> None:
     OUT_SVG.write_text(svg)
     print(f"wrote {OUT_SVG.name}")
     for scale, suffix in ((1, ""), (2, "@2x")):
-        png = HERE / f"clawbio-mcp-v060{suffix}.png"
+        png = HERE / f"clawbio-mcp-{SLUG}{suffix}.png"
         subprocess.run(["rsvg-convert", "-w", str(W * scale), "-h", str(H * scale),
                         "-o", str(png), str(OUT_SVG)], check=True)
         print(f"wrote {png.name}")
