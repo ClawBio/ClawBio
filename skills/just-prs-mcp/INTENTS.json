@@ -7,7 +7,7 @@
     "just-prs",
     "vcf prs",
     "wgs prs",
-    "absolute genetic risk"
+    "evidence-aware PRS"
   ],
   "routes": [
     {

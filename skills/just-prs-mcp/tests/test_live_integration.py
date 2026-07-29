@@ -53,7 +53,7 @@ def test_real_uvx_mcp_scores_public_pgs_model(tmp_path: Path) -> None:
     assert completed.returncode == 0, completed.stderr
     result = json.loads((output_dir / "result.json").read_text(encoding="utf-8"))
     assert result["ok"] is True
-    assert result["datasets"]["just-prs-mcp"] == "0.2.0"
+    assert result["datasets"]["just-prs-mcp"] == "0.3.1"
     assert result["datasets"]["PGS Catalog"] == "live public metadata/scoring files"
     assert result["data"]["trait_id"] == "MONDO_0005148"
     assert result["data"]["n_requested"] == 1

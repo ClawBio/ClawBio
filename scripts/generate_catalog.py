@@ -345,7 +345,7 @@ TRIGGER_KEYWORDS: dict[str, list[str]] = {
     "gwas-lookup": ["GWAS", "variant lookup", "rsID", "PheWAS", "eQTL"],
     "bigquery-public": ["bigquery", "public dataset", "sql", "public data", "cloud query"],
     "gwas-prs": ["polygenic risk", "PRS", "PGS Catalog", "risk score"],
-    "just-prs-mcp": ["VCF PRS", "WGS polygenic risk", "absolute genetic risk", "just-prs"],
+    "just-prs-mcp": ["VCF PRS", "WGS polygenic risk", "evidence-aware PRS", "just-prs"],
     "profile-report": ["profile report", "unified report", "my profile", "genomic profile"],
     "genome-compare": ["genome comparison", "IBS", "George Church", "Corpasome", "pairwise"],
     "equity-scorer": ["HEIM", "equity", "FST", "heterozygosity", "population representation"],

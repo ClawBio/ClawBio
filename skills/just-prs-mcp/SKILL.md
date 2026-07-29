@@ -5,7 +5,7 @@ description: >-
   through the validated just-prs engine and a pinned local just-prs MCP server.
 license: MIT
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
   author: Anton Kulaga
   domain: genomics
   tags:
@@ -63,7 +63,7 @@ metadata:
     trigger_keywords:
       - compute PRS from VCF
       - WGS polygenic risk score
-      - absolute genetic risk from VCF
+      - evidence-aware PRS from VCF
       - just-prs
 ---
 
@@ -77,7 +77,7 @@ polygenic scoring of local VCF and WGS genotypes.
 **Fire this skill when the user says any of:**
 - "compute PRS from my VCF"
 - "score this WGS genome for type 2 diabetes"
-- "estimate absolute genetic risk from this VCF"
+- "run an evidence-aware PRS report from this VCF"
 - "use just-prs on my genome"
 - "compare the PRS models for this trait"
 
@@ -125,8 +125,10 @@ disease, or replace the DTC-oriented `gwas-prs` skill.
    trait term, EFO/MONDO trait ID, or PGS ID.
 2. **Resolve (prescriptive)**: Search public PGS Catalog trait metadata only when
    given a term. Stop on ambiguity and require `--trait-id`.
-3. **Compute (prescriptive)**: Launch `just-prs-mcp==0.2.0` with local stdio in
-   essentials mode. Pass the resolved local path, never VCF bytes.
+3. **Compute (prescriptive)**: Launch `just-prs-mcp==0.3.1` with local stdio in
+   essentials mode. Pass the resolved local path, never VCF bytes. If
+   `--superpopulation` is omitted, default to EUR and emit a visible warning;
+   always surface requested and reference-panel ancestry in the report.
 4. **Curate (prescriptive)**: For trait mode request `interpret=true` and
    `profile=curated` by default. Preserve the upstream filter summary and failures.
 5. **Interpret (prescriptive)**: Re-request each shortlisted percentile to obtain
@@ -261,6 +263,9 @@ it with `PRS_MCP_CACHE_DIR` when a controlled shared cache is required.
 - **You will want to interpret a missing absolute-risk result as average risk.
   Do not. Here is why.** Missing prevalence or effect-size evidence means the
   estimate is unavailable, not normal.
+- **You will want to omit ancestry because EUR is the default. Do not. Here is
+  why.** Silent EUR-referenced percentiles are an equity failure mode; warn when
+  the default is applied and name the reference-panel ancestry in the report.
 - **You will want to treat an empty curated row list as a failed run. Do not.
   Here is why.** The engine may have scored models and then explicitly removed
   every one for weak evidence or coverage; inspect `n_filtered` and

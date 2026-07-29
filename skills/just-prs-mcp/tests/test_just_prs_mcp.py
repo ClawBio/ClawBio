@@ -76,7 +76,7 @@ def test_server_launch_is_pinned_and_local(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert command == [
         "uvx",
-        "just-prs-mcp@0.2.0",
+        "just-prs-mcp@0.3.1",
         "stdio",
         "--mode",
         "essentials",
@@ -85,6 +85,81 @@ def test_server_launch_is_pinned_and_local(monkeypatch: pytest.MonkeyPatch) -> N
     assert env["PRS_CACHE_DIR"] == "/tmp/clawbio-prs-cache"
     assert "UNRELATED_SERVICE_API_KEY" not in env
     assert all("http://" not in value and "https://" not in value for value in command)
+
+
+def test_omitted_superpopulation_defaults_to_eur_with_disclosure_flag() -> None:
+    resolved, defaulted = bridge.normalize_superpopulation(None)
+    assert resolved == "EUR"
+    assert defaulted is True
+
+    explicit, explicit_defaulted = bridge.normalize_superpopulation("eur")
+    assert explicit == "EUR"
+    assert explicit_defaulted is False
+
+    auto, auto_defaulted = bridge.normalize_superpopulation("auto")
+    assert auto == "AUTO"
+    assert auto_defaulted is False
+
+
+def test_report_discloses_reference_panel_ancestry_and_eur_default(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    data = bridge.map_trait_report(
+        load_trait_report(),
+        superpopulation="EUR",
+        absolute_risks={},
+        superpopulation_defaulted=True,
+    )
+
+    result = bridge.write_bundle(
+        tmp_path / "ancestry",
+        data,
+        input_path=DEMO_VCF,
+        demo=False,
+        superpopulation="EUR",
+        superpopulation_defaulted=True,
+    )
+    report = (tmp_path / "ancestry" / "report.md").read_text(encoding="utf-8")
+
+    assert result["data"]["superpopulation_defaulted"] is True
+    assert "Requested ancestry" in report
+    assert "EUR (default — not explicitly chosen)" in report
+    assert "Reference panel ancestry" in report
+    assert "| Reference ancestry |" in report
+    assert "| EUR |" in report
+    assert "WARNING" in report
+    assert "EUR-referenced" in report
+    assert "population prevalence baseline" in report.lower()
+    assert "**Requested ancestry**: EUR (default — not explicitly chosen)" in report
+    assert "**Reference panel ancestry**:" in report
+
+    bridge.emit_superpopulation_default_warning("EUR")
+    err = capsys.readouterr().err
+    assert "WARNING" in err
+    assert "EUR" in err
+    assert "explicitly" in err.lower()
+
+
+def test_explicit_superpopulation_skips_default_warning(tmp_path: Path) -> None:
+    data = bridge.map_trait_report(
+        load_trait_report(),
+        superpopulation="SAS",
+        absolute_risks={},
+        superpopulation_defaulted=False,
+    )
+    bridge.write_bundle(
+        tmp_path / "explicit",
+        data,
+        input_path=DEMO_VCF,
+        demo=False,
+        superpopulation="SAS",
+        superpopulation_defaulted=False,
+    )
+    report = (tmp_path / "explicit" / "report.md").read_text(encoding="utf-8")
+    assert "EUR (default — not explicitly chosen)" not in report
+    assert "**Requested ancestry**: SAS" in report
+    header = report.split("## Interpretation")[0]
+    assert "WARNING" not in header
 
 
 def test_demo_vcf_declares_genotype_format() -> None:
@@ -464,7 +539,7 @@ def test_skill_metadata_conforms_to_clawbio_template() -> None:
     openclaw = metadata["metadata"]["openclaw"]
 
     assert metadata["name"] == "just-prs-mcp"
-    assert metadata["metadata"]["version"] == "0.1.0"
+    assert metadata["metadata"]["version"] == "0.1.1"
     assert metadata["metadata"]["author"]
     assert metadata["metadata"]["inputs"][0]["required"] is True
     assert metadata["metadata"]["outputs"]

@@ -1852,9 +1852,12 @@ def main():
     run_parser.add_argument("--pgs-id", default=None, help="PGS Catalog score ID for PRS skill")
     run_parser.add_argument(
         "--superpopulation",
-        choices=["AFR", "AMR", "EAS", "EUR", "SAS"],
+        choices=["AFR", "AMR", "EAS", "EUR", "SAS", "AUTO"],
         default=None,
-        help="1000 Genomes reference superpopulation for just-prs",
+        help=(
+            "1000 Genomes reference superpopulation for just-prs "
+            "(AUTO infers ancestry; omit to default EUR with a warning)"
+        ),
     )
     run_parser.add_argument(
         "--prs-profile",

@@ -29,12 +29,13 @@ from clawbio.common.textio import write_text_lf  # noqa: E402
 from mcp_client import JustPrsMcpClient, McpCallError  # noqa: E402
 
 SKILL_NAME = "just-prs-mcp"
-SKILL_VERSION = "0.1.0"
-JUST_PRS_MCP_VERSION = "0.2.0"
+SKILL_VERSION = "0.1.1"
+JUST_PRS_MCP_VERSION = "0.3.1"
 _SKILL_DIR = Path(__file__).resolve().parent
 _DEMO_REPORT = _SKILL_DIR / "tests" / "fixtures" / "demo_trait_report.json"
 _DEMO_VCF = _SKILL_DIR / "examples" / "demo_patient.vcf"
-_SUPERPOPULATIONS = {"AFR", "AMR", "EAS", "EUR", "SAS"}
+_SUPERPOPULATIONS = {"AFR", "AMR", "EAS", "EUR", "SAS", "AUTO"}
+_DEFAULT_SUPERPOPULATION = "EUR"
 _CHILD_ENV_ALLOWLIST = {
     "PATH",
     "HOME",
@@ -81,6 +82,29 @@ class ToolClient(Protocol):
 
 class AmbiguousTraitError(ValueError):
     """Trait search returned multiple plausible ontology records."""
+
+
+def normalize_superpopulation(value: str | None) -> tuple[str, bool]:
+    """Resolve ancestry choice; omitted values default to EUR with disclosure."""
+    if value is None or not str(value).strip():
+        return _DEFAULT_SUPERPOPULATION, True
+    resolved = str(value).strip().upper()
+    if resolved not in _SUPERPOPULATIONS:
+        raise ValueError(
+            "--superpopulation must be AFR, AMR, EAS, EUR, SAS, or AUTO."
+        )
+    return resolved, False
+
+
+def emit_superpopulation_default_warning(superpopulation: str) -> None:
+    """Warn on stderr when EUR was applied because ancestry was omitted."""
+    typer.echo(
+        "WARNING: --superpopulation was omitted, so percentiles and absolute-risk "
+        f"figures use the {_DEFAULT_SUPERPOPULATION} reference panel by default. "
+        "Pass --superpopulation explicitly (AFR/AMR/EAS/EUR/SAS) or AUTO to avoid "
+        f"silent {superpopulation}-referenced interpretation.",
+        err=True,
+    )
 
 
 def server_command() -> list[str]:
@@ -192,6 +216,7 @@ def map_trait_report(
     *,
     superpopulation: str,
     absolute_risks: dict[str, dict[str, Any]],
+    superpopulation_defaulted: bool = False,
 ) -> dict[str, Any]:
     """Map the upstream trait report without flattening away uncertainty."""
     scores: list[dict[str, Any]] = []
@@ -236,6 +261,13 @@ def map_trait_report(
         }
         scores.append(score)
 
+    panel_ancestries = sorted(
+        {
+            str(score["reference_panel_ancestry"])
+            for score in scores
+            if score.get("reference_panel_ancestry")
+        }
+    )
     return {
         "trait_id": report.get("trait_id"),
         "trait": report.get("label"),
@@ -243,6 +275,13 @@ def map_trait_report(
         "detected_genome_build": report.get("detected_genome_build"),
         "build_mismatch": bool(report.get("build_mismatch", False)),
         "profile": report.get("profile"),
+        "requested_superpopulation": superpopulation,
+        "superpopulation_defaulted": superpopulation_defaulted,
+        "reference_panel_ancestry": (
+            panel_ancestries[0]
+            if len(panel_ancestries) == 1
+            else (", ".join(panel_ancestries) if panel_ancestries else None)
+        ),
         "n_requested": report.get("n_requested", 0),
         "n_scored": report.get("n_scored", 0),
         "n_failed": report.get("n_failed", 0),
@@ -267,13 +306,16 @@ async def _absolute_risks_for_rows(
         if row.get("status") != "scored" or row.get("score") is None:
             continue
         pgs_id = str(row["pgs_id"])
+        panel = superpopulation
+        if panel == "AUTO":
+            panel = str(row.get("reference_panel_ancestry") or _DEFAULT_SUPERPOPULATION)
         try:
             percentile = await client.call_tool(
                 "percentile",
                 {
                     "prs_score": row["score"],
                     "pgs_id": pgs_id,
-                    "superpopulation": superpopulation,
+                    "superpopulation": panel,
                     "weight_mass_coverage": row.get("weight_mass_coverage"),
                 },
             )
@@ -333,6 +375,7 @@ async def analyze_with_client(
     profile: str,
     top_n: int,
     limit: int | None,
+    superpopulation_defaulted: bool = False,
 ) -> dict[str, Any]:
     """Run the live MCP workflow using only the input's resolved local path."""
     resolved_input = input_path.expanduser().resolve()
@@ -389,6 +432,7 @@ async def analyze_with_client(
             pseudo_report,
             superpopulation=superpopulation,
             absolute_risks=risks,
+            superpopulation_defaulted=superpopulation_defaulted,
         )
 
     resolved_trait_id = trait_id
@@ -426,6 +470,7 @@ async def analyze_with_client(
         report,
         superpopulation=superpopulation,
         absolute_risks=risks,
+        superpopulation_defaulted=superpopulation_defaulted,
     )
 
 
@@ -452,6 +497,12 @@ def _report_markdown(
     demo: bool,
 ) -> str:
     agreement = data["model_agreement"]
+    requested = str(data.get("requested_superpopulation") or _DEFAULT_SUPERPOPULATION)
+    if data.get("superpopulation_defaulted"):
+        requested_label = f"{requested} (default — not explicitly chosen)"
+    else:
+        requested_label = requested
+    panel_ancestry = data.get("reference_panel_ancestry") or "unknown"
     header = generate_report_header(
         title="just-prs Polygenic Risk Report",
         skill_name=SKILL_NAME,
@@ -462,35 +513,52 @@ def _report_markdown(
             "Trait": str(data.get("trait") or "unknown"),
             "Trait ontology ID": str(data.get("trait_id") or "single score"),
             "Genome build": str(data.get("genome_build") or "unknown"),
+            "Requested ancestry": requested_label,
+            "Reference panel ancestry": str(panel_ancestry),
         },
     )
-    lines = [
-        header,
-        "## Summary",
-        "",
-        str(data.get("upstream_summary") or "PRS computation complete."),
-        "",
-        f"- Scored models: **{data.get('n_scored', 0)}**",
-        f"- Failed models: **{data.get('n_failed', 0)}**",
-        f"- Curated out: **{data.get('n_filtered', 0)}**",
-        f"- Build mismatch: **{data.get('build_mismatch', False)}**",
-        "",
-        "## Model agreement",
-        "",
-        f"- Reliable models: **{agreement['reliable_models']}**",
-        f"- Verdict: **{agreement['verdict']}**",
-        f"- Reliable percentile range: **{_format_number(agreement['percentile_min'])}–"
-        f"{_format_number(agreement['percentile_max'])}**",
-        f"- Descriptive percentile spread: **{_format_number(agreement['percentile_spread'])}**",
-        "",
-        "This is a descriptive comparison of reliable models, not a clinical "
-        "confidence threshold.",
-        "",
-        "## Score details",
-        "",
-        "| PGS ID | Status | Percentile | Reliable | C_wt | Match rate | Quality | Absolute risk |",
-        "|---|---|---:|---|---:|---:|---|---|",
-    ]
+    lines = [header]
+    if data.get("superpopulation_defaulted"):
+        lines.extend(
+            [
+                "> **WARNING:** `--superpopulation` was omitted, so percentiles and "
+                f"absolute-risk figures are **EUR-referenced** by default. Pass "
+                "`--superpopulation` explicitly (AFR/AMR/EAS/EUR/SAS) or `AUTO` if "
+                "this ancestry assumption is wrong.",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "## Summary",
+            "",
+            str(data.get("upstream_summary") or "PRS computation complete."),
+            "",
+            f"- Scored models: **{data.get('n_scored', 0)}**",
+            f"- Failed models: **{data.get('n_failed', 0)}**",
+            f"- Curated out: **{data.get('n_filtered', 0)}**",
+            f"- Build mismatch: **{data.get('build_mismatch', False)}**",
+            f"- Requested ancestry: **{requested_label}**",
+            f"- Reference panel ancestry: **{panel_ancestry}**",
+            "",
+            "## Model agreement",
+            "",
+            f"- Reliable models: **{agreement['reliable_models']}**",
+            f"- Verdict: **{agreement['verdict']}**",
+            f"- Reliable percentile range: **{_format_number(agreement['percentile_min'])}–"
+            f"{_format_number(agreement['percentile_max'])}**",
+            f"- Descriptive percentile spread: **{_format_number(agreement['percentile_spread'])}**",
+            "",
+            "This is a descriptive comparison of reliable models, not a clinical "
+            "confidence threshold.",
+            "",
+            "## Score details",
+            "",
+            "| PGS ID | Status | Percentile | Reference ancestry | Reliable | C_wt | "
+            "Match rate | Quality | Absolute risk |",
+            "|---|---|---:|---|---|---:|---:|---|---|",
+        ]
+    )
     for score in data["scores"]:
         risk = score["absolute_risk"]
         risk_text = (
@@ -499,12 +567,13 @@ def _report_markdown(
             else risk.get("status", "unavailable")
         )
         lines.append(
-            "| [{pgs}]({url}) | {status} | {pct} | {reliable} | {coverage} | "
+            "| [{pgs}]({url}) | {status} | {pct} | {ancestry} | {reliable} | {coverage} | "
             "{match_rate} | {quality} | {risk} |".format(
                 pgs=score["pgs_id"],
                 url=score["pgs_catalog_url"],
                 status=score.get("status") or "unknown",
                 pct=_format_number(score.get("percentile")),
+                ancestry=score.get("reference_panel_ancestry") or "n/a",
                 reliable=score.get("percentile_reliable"),
                 coverage=_format_fraction(score.get("weight_mass_coverage")),
                 match_rate=_format_fraction(score.get("match_rate")),
@@ -519,6 +588,9 @@ def _report_markdown(
             "",
             "- A PRS measures genetic predisposition, not the trait itself and not a diagnosis.",
             "- Percentiles are meaningful only when the reference-panel ancestry is appropriate.",
+            "- Absolute-risk percentages may use a single-population prevalence baseline "
+            "upstream, so they can be ancestry-inconsistent with an ancestry-stratified "
+            "percentile even when both numbers are shown.",
             "- Low C_wt, unreliable percentiles, model disagreement, and build mismatches must not be hidden.",
             "- Lifestyle, environment, age, family history, and genetic factors outside the model also matter.",
             "",
@@ -645,6 +717,7 @@ def write_bundle(
     trait_id: str | None = None,
     pgs_id: str | None = None,
     superpopulation: str = "EUR",
+    superpopulation_defaulted: bool = False,
     profile: str = "curated",
     top_n: int = 5,
     limit: int | None = None,
@@ -654,27 +727,46 @@ def write_bundle(
     if warn_before_overwrite:
         _warn_before_overwrite(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    payload = dict(data)
+    payload["requested_superpopulation"] = superpopulation
+    payload["superpopulation_defaulted"] = superpopulation_defaulted
+    if "reference_panel_ancestry" not in payload:
+        panel_ancestries = sorted(
+            {
+                str(score["reference_panel_ancestry"])
+                for score in payload.get("scores", [])
+                if score.get("reference_panel_ancestry")
+            }
+        )
+        payload["reference_panel_ancestry"] = (
+            panel_ancestries[0]
+            if len(panel_ancestries) == 1
+            else (", ".join(panel_ancestries) if panel_ancestries else None)
+        )
     report_path = output_dir / "report.md"
     write_text_lf(
         report_path,
-        _report_markdown(data, input_path=input_path, demo=demo),
+        _report_markdown(payload, input_path=input_path, demo=demo),
     )
-    scores_path = _write_scores_csv(output_dir, data["scores"])
+    scores_path = _write_scores_csv(output_dir, payload["scores"])
     input_checksum = sha256_file(input_path)
-    ok = int(data.get("n_scored", 0)) > 0
+    ok = int(payload.get("n_scored", 0)) > 0
     result_path = write_result_json(
         output_dir=output_dir,
         skill=SKILL_NAME,
         version=SKILL_VERSION,
         summary={
-            "trait": data.get("trait"),
-            "trait_id": data.get("trait_id"),
-            "models_scored": data.get("n_scored", 0),
-            "models_failed": data.get("n_failed", 0),
-            "reliable_models": data["model_agreement"]["reliable_models"],
+            "trait": payload.get("trait"),
+            "trait_id": payload.get("trait_id"),
+            "models_scored": payload.get("n_scored", 0),
+            "models_failed": payload.get("n_failed", 0),
+            "reliable_models": payload["model_agreement"]["reliable_models"],
+            "requested_superpopulation": superpopulation,
+            "superpopulation_defaulted": superpopulation_defaulted,
+            "reference_panel_ancestry": payload.get("reference_panel_ancestry"),
             "demo": demo,
         },
-        data=data,
+        data=payload,
         input_checksum=input_checksum,
         datasets={
             "just-prs-mcp": JUST_PRS_MCP_VERSION,
@@ -716,8 +808,20 @@ def run_demo(output_dir: Path) -> dict[str, Any]:
         for row in report["rows"]
         if row.get("status") == "scored"
     }
-    data = map_trait_report(report, superpopulation="EUR", absolute_risks=risks)
-    return write_bundle(output_dir, data, input_path=_DEMO_VCF, demo=True)
+    data = map_trait_report(
+        report,
+        superpopulation="EUR",
+        absolute_risks=risks,
+        superpopulation_defaulted=False,
+    )
+    return write_bundle(
+        output_dir,
+        data,
+        input_path=_DEMO_VCF,
+        demo=True,
+        superpopulation="EUR",
+        superpopulation_defaulted=False,
+    )
 
 
 async def _run_live(
@@ -732,6 +836,7 @@ async def _run_live(
     top_n: int,
     limit: int | None,
     timeout_seconds: int,
+    superpopulation_defaulted: bool = False,
 ) -> dict[str, Any]:
     _warn_before_overwrite(output_dir)
     log_path = output_dir / "reproducibility" / "mcp.stderr.log"
@@ -752,6 +857,7 @@ async def _run_live(
             profile=profile,
             top_n=top_n,
             limit=limit,
+            superpopulation_defaulted=superpopulation_defaulted,
         )
     return write_bundle(
         output_dir,
@@ -762,6 +868,7 @@ async def _run_live(
         trait_id=trait_id,
         pgs_id=pgs_id,
         superpopulation=superpopulation,
+        superpopulation_defaulted=superpopulation_defaulted,
         profile=profile,
         top_n=top_n,
         limit=limit,
@@ -776,8 +883,13 @@ def main(
     trait: str | None = typer.Option(None, "--trait", help="Trait search term."),
     trait_id: str | None = typer.Option(None, "--trait-id", help="Exact EFO or MONDO ID."),
     pgs_id: str | None = typer.Option(None, "--pgs-id", help="Exact PGS Catalog score ID."),
-    superpopulation: str = typer.Option(
-        "EUR", "--superpopulation", help="1000 Genomes ancestry: AFR/AMR/EAS/EUR/SAS."
+    superpopulation: str | None = typer.Option(
+        None,
+        "--superpopulation",
+        help=(
+            "1000 Genomes ancestry: AFR/AMR/EAS/EUR/SAS, or AUTO to infer. "
+            "Defaults to EUR with a visible warning when omitted."
+        ),
     ),
     profile: str = typer.Option("curated", "--profile", help="curated or all."),
     top_n: int = typer.Option(5, "--top-n", min=1, help="Maximum returned trait models."),
@@ -805,9 +917,14 @@ def main(
     selectors = [bool(trait), bool(trait_id), bool(pgs_id)]
     if sum(selectors) != 1:
         raise typer.BadParameter("Provide exactly one of --trait, --trait-id, or --pgs-id.")
-    superpopulation = superpopulation.upper()
-    if superpopulation not in _SUPERPOPULATIONS:
-        raise typer.BadParameter("--superpopulation must be AFR, AMR, EAS, EUR, or SAS.")
+    try:
+        resolved_superpopulation, superpopulation_defaulted = normalize_superpopulation(
+            superpopulation
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    if superpopulation_defaulted:
+        emit_superpopulation_default_warning(resolved_superpopulation)
     if profile not in {"curated", "all"}:
         raise typer.BadParameter("--profile must be curated or all.")
 
@@ -819,17 +936,21 @@ def main(
                 trait=trait,
                 trait_id=trait_id,
                 pgs_id=pgs_id,
-                superpopulation=superpopulation,
+                superpopulation=resolved_superpopulation,
                 profile=profile,
                 top_n=top_n,
                 limit=limit,
                 timeout_seconds=timeout_seconds,
+                superpopulation_defaulted=superpopulation_defaulted,
             )
         )
-    except (McpCallError, AmbiguousTraitError, ValueError) as exc:
+    except (AmbiguousTraitError, McpCallError, ValueError) as exc:
         typer.echo(f"ERROR: {exc}", err=True)
         raise typer.Exit(code=1) from exc
+
     typer.echo(json.dumps(result["summary"], indent=2))
+    if not result.get("ok", False):
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

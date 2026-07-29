@@ -63,7 +63,7 @@ When the user asks a question, match it to a skill and act:
 | Lab notebook, experiments, protocols, inventory, Labstep | `skills/labstep/` | Run `labstep.py` |
 | ClinPGx database, gene-drug lookup, PharmGKB query, CPIC guideline database, FDA drug label PGx, "look up gene on ClinPGx" | `skills/clinpgx/` | Run `clinpgx.py` |
 | DTC polygenic risk scores, 23andMe PRS, AncestryDNA PRS, PGS Catalog score on chip data | `skills/gwas-prs/` | Run `gwas_prs.py` |
-| VCF/WGS polygenic risk, absolute genetic risk from VCF, multi-model PRS consensus, just-prs | `skills/just-prs-mcp/` | Run `just_prs_mcp_bridge.py` |
+| VCF/WGS polygenic risk, evidence-aware PRS from VCF, multi-model PRS consensus, just-prs | `skills/just-prs-mcp/` | Run `just_prs_mcp_bridge.py` |
 | GWAS variant lookup, rsID search, "look up rs3798220", variant associations, PheWAS, variant eQTL, federated variant query | `skills/gwas-lookup/` | Run `gwas_lookup.py` |
 | Epigenetic age, methylation clocks, PyAging, Horvath, GrimAge, DunedinPACE, GEO methylation | `skills/methylation-clock/` | Run `methylation_clock.py` |
 | Personal genomic profile report, "my profile", unified report, profile summary | `skills/profile-report/` | Run `profile_report.py` |
