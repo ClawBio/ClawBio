@@ -1806,6 +1806,12 @@ def main():
     # list
     sub.add_parser("list", help="List available skills")
 
+    # mcp
+    sub.add_parser(
+        "mcp",
+        help="Run ClawBio as an MCP server over stdio (Cursor, Zed, VS Code, Claude Desktop)",
+    )
+
     # upload
     upload_parser = sub.add_parser("upload", help="Upload genetic data and create a patient profile")
     upload_parser.add_argument("--input", required=True, dest="input_path", help="Path to genetic data file")
@@ -2225,6 +2231,11 @@ def main():
 
     if args.command == "list":
         list_skills()
+
+    elif args.command == "mcp":
+        from clawbio.mcp_server import serve
+
+        serve()
 
     elif args.command == "upload":
         result = upload_profile(

@@ -5,6 +5,46 @@ All notable changes to ClawBio are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-07-29
+
+### Added
+- **MCP server** (`clawbio mcp`): ClawBio is now usable from any Model Context Protocol
+  client, including Cursor, Zed, VS Code agent mode and Claude Desktop, not just Claude
+  Code. Runs locally over stdio; no hosted endpoint exists by design, so genomic data
+  never traverses a third-party server. Three tools:
+  - `clawbio_list_skills(query)` searches the catalog and flags each result `runnable`,
+    since agent-readable (`SKILL.md`-only) skills cannot be executed.
+  - `clawbio_describe_skill(name)` returns the full `SKILL.md` contract; accepts a skill
+    name or CLI alias.
+  - `clawbio_run_skill(...)` executes a skill and returns its structured result.
+
+  Install with the new optional extra, or run without installing:
+
+      pip install 'clawbio[mcp]'
+      uvx --from 'clawbio[mcp]' clawbio mcp
+
+  **Demo data only by default.** Passing `input_path` or `output_dir` is refused unless
+  `CLAWBIO_MCP_ALLOW_LOCAL_FILES=1` is set. Adding an MCP server to a client config is a
+  low-friction, easily-forgotten action and must not silently grant an agent read access
+  to a patient genome. Documented at
+  [docs.clawbio.ai/reference/mcp](https://docs.clawbio.ai/reference/mcp/).
+- `server.json` manifest for publication to the official MCP Registry.
+
+### Fixed
+- `skills/catalog.json` was stale at 94 skills; `llm-bench` (`skills/llm-biobank-bench/`)
+  was CLI-registered but absent from it. Regenerated to the true **95 skills** (29 MVP,
+  66 planned), which also fixes the failing `test_checked_in_catalog_is_current`.
+- Public skill and test counts were inconsistent across `README.md`, `llms.txt` and
+  `index.html` (variously 78, 88 and 94 skills; 2,318 and 4,183 tests). All now derive
+  from `skills/catalog.json` and agree: 95 skills, 89 with runnable demo data, 8,182
+  Galaxy tools, 4,217 tests. `llms.txt` records the commands that regenerate them.
+- README described 88 skills as "production-ready"; that figure is the catalog's
+  `has_demo` count, and the `maturity_tier` evidence records 10 `ci-validated` and 38
+  `tested`. Reworded to "with runnable demo data", which is what the field measures.
+
+### Changed
+- The `[mcp]` extra pins `mcp>=1.9,<2`: `mcp` 2.0.0 removed `mcp.server.fastmcp`.
+
 ## [Unreleased]
 
 ### New Skills
