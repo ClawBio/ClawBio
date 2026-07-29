@@ -127,7 +127,7 @@
       <div style="background:var(--bg3,#161b22);border:1px solid var(--border);border-radius:8px;padding:0.7rem 1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1rem;color:var(--accent);text-align:left;white-space:nowrap;overflow-x:auto;">
         <span style="color:var(--text-muted);user-select:none;">$ </span>pip install clawbio
       </div>
-      <p style="color:var(--text-muted);font-size:0.82rem;margin:0.6rem 0 0;">🚀 New in v0.5.2: now on <a href="https://pypi.org/project/clawbio/" target="_blank" style="color:var(--accent);">PyPI</a>, plus a <code style="font-size:0.78rem;">conda install -c bioconda clawbio</code> recipe.</p>
+      <p style="color:var(--text-muted);font-size:0.82rem;margin:0.6rem 0 0;">🚀 New in <a href="https://github.com/ClawBio/ClawBio/releases/tag/v0.6.1" target="_blank" style="color:var(--accent);">v0.6.1</a>: an <a href="#mcp" style="color:var(--accent);">MCP server</a>, so every skill runs inside Cursor, Zed, VS Code and Claude Desktop.</p>
     </div>
     <div class="hero-ctas">
       <a class="btn btn-primary" href="https://github.com/ClawBio/ClawBio" target="_blank">⭐ View on GitHub</a>
@@ -145,6 +145,51 @@
         <source src="https://github.com/ClawBio/ClawBio/releases/download/v0.2.0/david-nutrigx-demo.mp4" type="video/mp4">
       </video>
       <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.75rem;">NutriGx Advisor — community-contributed skill running locally on raw genetic data</p>
+    </div>
+  </section>
+
+  <section id="mcp" style="padding:3.5rem 2rem;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+    <div style="max-width:1000px;margin:0 auto;">
+      <div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.8rem;font-weight:600;letter-spacing:0.22em;color:var(--accent);text-transform:uppercase;margin-bottom:0.9rem;">New in v0.6.1 · Model Context Protocol</div>
+      <h2 style="font-size:2.1rem;line-height:1.15;margin:0 0 1rem;">Genomics skills, in your editor</h2>
+      <p style="color:var(--text-muted);max-width:760px;margin:0 0 2rem;font-size:1.02rem;line-height:1.65;">
+        ClawBio speaks <a href="https://modelcontextprotocol.io" target="_blank" style="color:var(--accent);">MCP</a>, so the skill library is callable from Cursor, Zed, VS Code agent mode and Claude Desktop, not just Claude Code.
+        Most bioinformatics MCP servers retrieve records. This one executes: it runs the real skill on your machine and hands back the report,
+        the structured result, and a <code style="font-size:0.85rem;">commands.sh</code> with SHA-256 checksums, so the analysis can be replayed without the agent that produced it.
+      </p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;align-items:start;">
+        <div>
+          <div style="background:var(--bg3,#161b22);border:1px solid var(--border);border-radius:8px;padding:0.7rem 1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.95rem;color:var(--accent);text-align:left;overflow-x:auto;white-space:nowrap;">
+            <span style="color:var(--text-muted);user-select:none;">$ </span>uvx --from 'clawbio[mcp]' clawbio mcp
+          </div>
+          <p style="color:var(--text-muted);font-size:0.86rem;margin:0.9rem 0 1.4rem;line-height:1.6;">
+            No install required. Add the same three lines to your client's config and restart it.
+          </p>
+          <ul style="list-style:none;padding:0;margin:0;color:var(--text-muted);font-size:0.92rem;line-height:1.9;">
+            <li>✅ <strong style="color:var(--text);">95 skills</strong>, each flagged runnable or spec-only</li>
+            <li>🔒 <strong style="color:var(--text);">Demo data only</strong> until you opt in explicitly</li>
+            <li>🏠 <strong style="color:var(--text);">Local stdio</strong>. No hosted endpoint, by design</li>
+          </ul>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.3rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.82rem;line-height:1.75;overflow-x:auto;">
+<pre style="margin:0;color:var(--text-muted);"><span style="color:#8b949e">// Cursor, Claude Desktop, VS Code, Zed</span>
+{
+  <span style="color:var(--accent2)">"mcpServers"</span>: {
+    <span style="color:var(--accent2)">"clawbio"</span>: {
+      <span style="color:var(--accent2)">"command"</span>: <span style="color:var(--accent)">"uvx"</span>,
+      <span style="color:var(--accent2)">"args"</span>: [<span style="color:var(--accent)">"--from"</span>, <span style="color:var(--accent)">"clawbio[mcp]"</span>,
+               <span style="color:var(--accent)">"clawbio"</span>, <span style="color:var(--accent)">"mcp"</span>]
+    }
+  }
+}</pre>
+        </div>
+      </div>
+
+      <div class="hero-ctas" style="margin-top:2rem;">
+        <a class="btn btn-primary" href="https://docs.clawbio.ai/reference/mcp/" target="_blank">📄 MCP setup guide</a>
+        <a class="btn btn-secondary" href="https://github.com/ClawBio/ClawBio/releases/tag/v0.6.1" target="_blank">🏷️ Release notes</a>
+      </div>
     </div>
   </section>
   <section class="problem-bg">
@@ -885,7 +930,7 @@
   <section class="cta-section">
     <div class="section-inner">
       <h2>Get started in 30 seconds</h2>
-      <p>Install with pip, conda, or as a Claude Code plugin. Every skill includes demo data.</p>
+      <p>Install with pip, conda, as a Claude Code plugin, or as an MCP server in any AI editor. Every skill includes demo data.</p>
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1.5rem;font-family:monospace;font-size:0.9rem;text-align:left;max-width:540px;margin:0 auto 2rem;line-height:2;">
         <span style="color:#8b949e"># Option 1: pip (recommended)</span><br>
         <span style="color:var(--accent2)">pip install clawbio</span><br>
@@ -894,7 +939,9 @@
         <span style="color:var(--accent2)">conda install -c bioconda clawbio</span><br><br>
         <span style="color:#8b949e"># Option 3: Claude Code plugin</span><br>
         <span style="color:var(--accent2)">/plugin marketplace add ClawBio/ClawBio</span><br>
-        <span style="color:var(--accent2)">/plugin install clawbio</span>
+        <span style="color:var(--accent2)">/plugin install clawbio</span><br><br>
+        <span style="color:#8b949e"># Option 4: MCP server (Cursor, Zed, VS Code, Claude Desktop)</span><br>
+        <span style="color:var(--accent2)">uvx --from 'clawbio[mcp]' clawbio mcp</span>
       </div>
       <div class="hero-ctas">
         <a class="btn btn-primary" href="https://github.com/ClawBio/ClawBio" target="_blank">⭐ Star on GitHub</a>
