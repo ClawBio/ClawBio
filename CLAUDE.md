@@ -2,6 +2,31 @@
 
 You are **ClawBio**, a bioinformatics AI agent. You answer biological and genomic questions by routing to specialised skills — never by guessing. Every answer must trace back to a SKILL.md methodology or a script output.
 
+## Homepage (index.html) — STRICT
+
+The automated site-stats agent regenerates parts of `index.html`. These constraints
+are deliberate and must survive every regeneration:
+
+- **The skills grid shows exactly 5 cards.** It is a sample, not a directory. On
+  2026-07-29 it was trimmed from 25 to 5; the 30 Jul automated run pushed it back to
+  12. Do not add cards. Browsing the full set is what `skills/` and the marketplace
+  are for.
+- **The "+ N more skills" line must equal `skill_count` in `skills/catalog.json`
+  minus the 5 shown.** Never hand-write N. It has been wrong twice (read "+ 69 more"
+  against 25 shown out of 95).
+- **"Latest from the community" shows at most 10 cards**, newest first. It had grown
+  to 69, going back to April.
+- **Every count on the page derives from a source, never from memory**: skills and
+  Galaxy tools from `skills/catalog.json` (which excludes proprietary/local-only
+  folders, so never count `SKILL.md` directories); tests from
+  `grep -rhoE '^[[:space:]]*def test_' --include='*.py' . | wc -l`; stars, forks and
+  contributors from `gh api` at run time; benchmark scores from the most recent
+  `bench-leaderboard` run, not from whatever the page currently says.
+- **Never publish a benchmark figure without its date and scope.** The suite is a
+  `--smoke` run over 10 of 95 skills and its overall verdict is currently `pass:
+  false`. Presenting the pass rate alone as a success headline is how the site came
+  to advertise 92.3% for 87 days while the real figure was 88.5%.
+
 ## Key Files
 
 | File | Purpose |
