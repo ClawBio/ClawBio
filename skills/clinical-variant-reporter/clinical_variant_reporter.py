@@ -42,6 +42,7 @@ DISCLAIMER = (
 VEP_REST_URL = "https://rest.ensembl.org/vep/homo_sapiens/region"
 VEP_BATCH_SIZE = 200
 VEP_RATE_LIMIT_SECONDS = 0.07  # ~15 requests/second
+ENSEMBL_INFO_SOFTWARE_URL = "https://rest.ensembl.org/info/software"
 
 
 # ---------------------------------------------------------------------------
@@ -266,6 +267,21 @@ def _extract_evidence_from_vep(vep_result: dict, record: VcfRecord) -> VariantEv
         is_synonymous=consequence in SYNONYMOUS_CONSEQUENCES,
         is_inframe_indel=consequence in INFRAME_CONSEQUENCES,
     )
+
+
+def _fetch_ensembl_release() -> int | None:
+    """Query the Ensembl release actually queried, for the Data Sources report section."""
+    try:
+        import requests
+        resp = requests.get(
+            ENSEMBL_INFO_SOFTWARE_URL,
+            headers={"Content-Type": "application/json"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return resp.json().get("release")
+    except Exception:
+        return None
 
 
 def annotate_variants_vep(
@@ -513,8 +529,14 @@ def _write_markdown_report(
     lines.append("")
     lines.append("| Source | Version / Release |")
     lines.append("|--------|-------------------|")
-    lines.append("| ClinVar | 2025-03-01 release (via Ensembl VEP REST) |")
-    lines.append("| gnomAD | v4.1 (via Ensembl VEP colocated variants) |")
+    if demo:
+        lines.append("| ClinVar | 2025-03-01 release (demo cache) |")
+        lines.append("| gnomAD | v4.1 (demo cache) |")
+    else:
+        release = _fetch_ensembl_release()
+        release_label = f"Ensembl release {release}" if release is not None else "Ensembl release unavailable"
+        lines.append(f"| ClinVar | bundled with {release_label} (via Ensembl VEP REST) |")
+        lines.append(f"| gnomAD | bundled with {release_label} (via Ensembl VEP colocated variants) |")
     lines.append("| Ensembl VEP | REST API, assembly %s |" % assembly)
     lines.append("| ACMG SF list | v3.2 (Miller et al., 2023; 81 genes) |")
     lines.append("")

@@ -448,3 +448,47 @@ class TestClinSigAlleleTypeGuard:
         ev = _extract_evidence_from_vep(
             self._vep({"review_status_stars": 3}), self._record())
         assert ev.clinvar_review_stars == 3
+
+
+# ---------------------------------------------------------------------------
+# Regression — Data Sources table hardcoded stale ClinVar/gnomAD versions
+# ---------------------------------------------------------------------------
+class TestDataSourcesVersioning:
+    """The Data Sources section must reflect the Ensembl release actually
+    queried in live mode, and label demo mode as a cache rather than
+    implying a live query (issue #303)."""
+
+    def _report_text(self, tmp_path, demo):
+        from clinical_variant_reporter import generate_report
+        generate_report([], tmp_path, demo=demo)
+        return (tmp_path / "report.md").read_text()
+
+    def test_live_mode_reports_fetched_ensembl_release(self, tmp_path, monkeypatch):
+        from unittest.mock import MagicMock
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"release": 999}
+
+        import requests
+        monkeypatch.setattr(requests, "get", lambda *a, **k: mock_response)
+
+        text = self._report_text(tmp_path, demo=False)
+        assert "Ensembl release 999" in text
+        assert "2025-03-01 release" not in text
+        assert "v4.1" not in text
+
+    def test_live_mode_degrades_gracefully_when_fetch_fails(self, tmp_path, monkeypatch):
+        import requests
+
+        def raise_connection_error(*args, **kwargs):
+            raise requests.exceptions.ConnectionError("no network")
+
+        monkeypatch.setattr(requests, "get", raise_connection_error)
+
+        text = self._report_text(tmp_path, demo=False)
+        assert "Ensembl release unavailable" in text
+
+    def test_demo_mode_labels_as_demo_cache(self, tmp_path):
+        text = self._report_text(tmp_path, demo=True)
+        assert "ClinVar | 2025-03-01 release (demo cache)" in text
+        assert "gnomAD | v4.1 (demo cache)" in text
