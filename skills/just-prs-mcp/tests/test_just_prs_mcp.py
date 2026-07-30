@@ -608,3 +608,147 @@ def test_typer_cli_help_and_validation() -> None:
     )
     assert invalid.returncode != 0
     assert "trait" in (invalid.stdout + invalid.stderr).lower()
+
+
+# ---------------------------------------------------------------------------
+# AUTO ancestry: the silent-EUR path
+#
+# `--superpopulation AUTO` asks the upstream engine which reference panel a
+# model was built against. When it cannot say, the bridge falls back to EUR.
+# That fallback must be as loud as the omitted-flag fallback already is:
+# an undisclosed EUR reference is the equity failure the skill's own Gotchas
+# section forbids.
+# ---------------------------------------------------------------------------
+
+
+def load_ancestry_blind_trait_report() -> dict[str, Any]:
+    """Trait report whose models do not declare a reference-panel ancestry."""
+    report = load_trait_report()
+    for row in report.get("rows", []):
+        row["reference_panel_ancestry"] = None
+    return report
+
+
+class AncestryBlindClient(FakeClient):
+    """Upstream that never reports which panel a percentile came from."""
+
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+        result = await super().call_tool(name, arguments)
+        if name == "percentile":
+            result = dict(result)
+            result["reference_panel_ancestry"] = None
+        return result
+
+
+def _auto_run(client: FakeClient) -> dict[str, Any]:
+    return asyncio.run(
+        bridge.analyze_with_client(
+            client=client,
+            input_path=DEMO_VCF,
+            trait="type 2 diabetes",
+            trait_id=None,
+            pgs_id=None,
+            superpopulation="AUTO",
+            profile="curated",
+            top_n=5,
+            limit=2,
+        )
+    )
+
+
+def test_auto_ancestry_records_the_panel_actually_applied() -> None:
+    """When upstream does report a panel, AUTO must record which one it used."""
+    result = _auto_run(FakeClient(load_trait_report()))
+    scored = [s for s in result["scores"] if s.get("status") != "failed"]
+    assert scored, "expected at least one scored model"
+    for score in scored:
+        assert score["requested_superpopulation"] == "AUTO"
+        # AUTO resolved from upstream evidence, so it is not a silent default.
+        assert score["superpopulation_applied"] == "EUR"
+        assert score["superpopulation_auto_defaulted"] is False
+
+
+def test_auto_ancestry_fallback_to_eur_is_disclosed() -> None:
+    """Upstream cannot say which panel: EUR is applied and must be flagged."""
+    result = _auto_run(AncestryBlindClient(load_ancestry_blind_trait_report()))
+    scored = [s for s in result["scores"] if s.get("status") != "failed"]
+    assert scored
+    assert any(s["superpopulation_auto_defaulted"] for s in scored)
+    for score in scored:
+        if score["superpopulation_auto_defaulted"]:
+            assert score["superpopulation_applied"] == "EUR"
+    assert result["superpopulation_defaulted"] is True
+
+
+def test_auto_ancestry_fallback_warns_and_banners(tmp_path: Path) -> None:
+    """The undisclosed-EUR fallback reaches stderr and the report body."""
+    result = _auto_run(AncestryBlindClient(load_ancestry_blind_trait_report()))
+    bundle = tmp_path / "out"
+    bridge.write_bundle(
+        bundle,
+        result,
+        input_path=DEMO_VCF,
+        demo=False,
+        superpopulation="AUTO",
+        superpopulation_defaulted=result["superpopulation_defaulted"],
+    )
+    report = (bundle / "report.md").read_text(encoding="utf-8")
+    assert "EUR" in report
+    assert "AUTO" in report
+    assert "WARNING" in report
+
+
+def test_auto_ancestry_is_not_presented_as_inferred_from_the_sample() -> None:
+    """AUTO reads the model's panel; it never infers the patient's ancestry."""
+    text = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    assert "does not" in text.lower()
+    # The CLI help must not claim the sample's ancestry is inferred.
+    help_text = bridge.SUPERPOPULATION_HELP
+    assert "infers ancestry" not in help_text.lower()
+
+
+def test_build_mismatch_withholds_absolute_risk() -> None:
+    """SKILL.md says a build-mismatched score must not be interpreted.
+
+    A coordinate-build mismatch means the upstream matcher was comparing the
+    sample against scoring positions from another assembly, so the raw score,
+    its percentile and any absolute risk derived from it are not interpretable.
+    """
+    report = load_trait_report()
+    report["build_mismatch"] = True
+    mapped = bridge.map_trait_report(
+        report,
+        superpopulation="EUR",
+        absolute_risks={
+            "PGS000014": {
+                "status": "available",
+                "absolute_risk": 0.21,
+                "population_prevalence": 0.12,
+                "risk_ratio": 1.75,
+            }
+        },
+    )
+    assert mapped["build_mismatch"] is True
+    for score in mapped["scores"]:
+        assert score["absolute_risk"]["status"] != "available"
+        if score["absolute_risk"]["status"] == "withheld":
+            assert "build" in score["absolute_risk"]["reason"].lower()
+
+
+def test_build_mismatch_banner_appears_in_report(tmp_path: Path) -> None:
+    report = load_trait_report()
+    report["build_mismatch"] = True
+    mapped = bridge.map_trait_report(
+        report, superpopulation="EUR", absolute_risks={}
+    )
+    bridge.write_bundle(
+        tmp_path / "mismatch",
+        mapped,
+        input_path=DEMO_VCF,
+        demo=False,
+        superpopulation="EUR",
+        superpopulation_defaulted=False,
+    )
+    body = (tmp_path / "mismatch" / "report.md").read_text(encoding="utf-8")
+    assert "build" in body.lower()
+    assert "WARNING" in body

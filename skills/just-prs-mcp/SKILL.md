@@ -271,14 +271,20 @@ it with `PRS_MCP_CACHE_DIR` when a controlled shared cache is required.
   every one for weak evidence or coverage; inspect `n_filtered` and
   `filter_summary` so the exclusion is visible.
 - Do not silently accept trait-search ambiguity; require a stable ontology ID.
-- Do not interpret a build-mismatched score until the coordinate build is resolved.
+- Do not interpret a build-mismatched score until the coordinate build is
+  resolved. This is enforced, not merely advised: on `build_mismatch`, absolute
+  risk is withheld and the report opens with a warning.
 - Do not use a VCF fixture with sample genotypes unless it declares the `GT`
   FORMAT header; real readers correctly omit an undeclared genotype field.
 
 ## Safety
 
 - **Local-first**: The VCF remains on the machine. The bridge passes only its
-  resolved path to a local stdio child process and has no upload path.
+  resolved path to a local stdio child process and has no upload path of its
+  own. Note the trust boundary: `uvx` fetches and runs the pinned third-party
+  `just-prs-mcp` package, and that process is what actually reads the genome.
+  ClawBio performs no upload; egress is delegated to a version-pinned
+  dependency, not eliminated.
 - **Credential isolation**: The child receives an allow-listed runtime, network,
   and cache environment; unrelated API keys and service credentials are not forwarded.
 - **Network egress**: Live runs fetch only public PGS Catalog metadata, scoring

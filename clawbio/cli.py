@@ -1855,8 +1855,9 @@ def main():
         choices=["AFR", "AMR", "EAS", "EUR", "SAS", "AUTO"],
         default=None,
         help=(
-            "1000 Genomes reference superpopulation for just-prs "
-            "(AUTO infers ancestry; omit to default EUR with a warning)"
+            "1000 Genomes reference panel for just-prs (AUTO uses the panel each "
+            "PGS model was built against, not the sample's ancestry, and falls "
+            "back to EUR with a warning; omit to default EUR with a warning)"
         ),
     )
     run_parser.add_argument(

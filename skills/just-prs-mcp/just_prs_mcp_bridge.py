@@ -84,6 +84,15 @@ class AmbiguousTraitError(ValueError):
     """Trait search returned multiple plausible ontology records."""
 
 
+SUPERPOPULATION_HELP = (
+    "1000 Genomes reference panel: AFR/AMR/EAS/EUR/SAS, or AUTO to use the panel "
+    "each PGS model was built against. AUTO reads the model's reference panel; it "
+    "does not infer this sample's ancestry, and falls back to EUR (with a warning) "
+    "when the engine does not report one. Defaults to EUR with a visible warning "
+    "when omitted."
+)
+
+
 def normalize_superpopulation(value: str | None) -> tuple[str, bool]:
     """Resolve ancestry choice; omitted values default to EUR with disclosure."""
     if value is None or not str(value).strip():
@@ -219,6 +228,12 @@ def map_trait_report(
     superpopulation_defaulted: bool = False,
 ) -> dict[str, Any]:
     """Map the upstream trait report without flattening away uncertainty."""
+    # A coordinate-build mismatch means the sample was matched against scoring
+    # positions from another assembly. The raw score, its percentile and any
+    # absolute risk derived from it are then uninterpretable, so absolute risk
+    # is withheld rather than printed beside a mismatch flag the reader has to
+    # notice for themselves.
+    build_mismatch = bool(report.get("build_mismatch", False))
     scores: list[dict[str, Any]] = []
     for row in report.get("rows", []):
         pgs_id = str(row.get("pgs_id", ""))
@@ -241,6 +256,11 @@ def map_trait_report(
             "percentile_reliable": row.get("percentile_reliable"),
             "percentile_caveat": row.get("percentile_caveat"),
             "requested_superpopulation": superpopulation,
+            "superpopulation_applied": row.get("superpopulation_applied")
+            or (None if superpopulation == "AUTO" else superpopulation),
+            "superpopulation_auto_defaulted": bool(
+                row.get("superpopulation_auto_defaulted", False)
+            ),
             "reference_panel_ancestry": row.get("reference_panel_ancestry"),
             "quality_label": row.get("quality_label"),
             "quality_summary": row.get("quality_summary"),
@@ -259,6 +279,15 @@ def map_trait_report(
             ),
             "error": row.get("error"),
         }
+        if build_mismatch and score["absolute_risk"].get("status") == "available":
+            score["absolute_risk"] = {
+                "status": "withheld",
+                "reason": (
+                    "Genome build mismatch between the input and the scoring "
+                    "file, so the score this risk derives from is not "
+                    "interpretable. Re-run with matching coordinate builds."
+                ),
+            }
         scores.append(score)
 
     panel_ancestries = sorted(
@@ -276,7 +305,16 @@ def map_trait_report(
         "build_mismatch": bool(report.get("build_mismatch", False)),
         "profile": report.get("profile"),
         "requested_superpopulation": superpopulation,
-        "superpopulation_defaulted": superpopulation_defaulted,
+        # An AUTO request that fell back to EUR for want of upstream evidence is
+        # a silent EUR default in every sense that matters to the reader, so it
+        # raises the same disclosure flag as an omitted --superpopulation.
+        "superpopulation_defaulted": bool(superpopulation_defaulted)
+        or any(score.get("superpopulation_auto_defaulted") for score in scores),
+        "superpopulation_auto_defaulted_models": [
+            score["pgs_id"]
+            for score in scores
+            if score.get("superpopulation_auto_defaulted")
+        ],
         "reference_panel_ancestry": (
             panel_ancestries[0]
             if len(panel_ancestries) == 1
@@ -307,8 +345,20 @@ async def _absolute_risks_for_rows(
             continue
         pgs_id = str(row["pgs_id"])
         panel = superpopulation
+        auto_defaulted = False
         if panel == "AUTO":
-            panel = str(row.get("reference_panel_ancestry") or _DEFAULT_SUPERPOPULATION)
+            # AUTO asks the upstream engine which reference panel this model was
+            # built against. It does NOT infer the sample's ancestry. When the
+            # engine cannot say, EUR is applied, and that must be disclosed:
+            # an undisclosed EUR reference silently mis-scores everyone else.
+            reported = row.get("reference_panel_ancestry")
+            if reported:
+                panel = str(reported)
+            else:
+                panel = _DEFAULT_SUPERPOPULATION
+                auto_defaulted = True
+        row["superpopulation_applied"] = panel
+        row["superpopulation_auto_defaulted"] = auto_defaulted
         try:
             percentile = await client.call_tool(
                 "percentile",
@@ -498,7 +548,13 @@ def _report_markdown(
 ) -> str:
     agreement = data["model_agreement"]
     requested = str(data.get("requested_superpopulation") or _DEFAULT_SUPERPOPULATION)
-    if data.get("superpopulation_defaulted"):
+    auto_defaulted_models = data.get("superpopulation_auto_defaulted_models") or []
+    if auto_defaulted_models:
+        requested_label = (
+            f"{requested} (resolved to {_DEFAULT_SUPERPOPULATION} — upstream did "
+            "not report a reference panel)"
+        )
+    elif data.get("superpopulation_defaulted"):
         requested_label = f"{requested} (default — not explicitly chosen)"
     else:
         requested_label = requested
@@ -518,7 +574,32 @@ def _report_markdown(
         },
     )
     lines = [header]
-    if data.get("superpopulation_defaulted"):
+    if data.get("build_mismatch"):
+        lines.extend(
+            [
+                "> **WARNING:** the input and the scoring files use different "
+                "genome builds. Variants were matched across assemblies, so the "
+                "scores below are not interpretable and absolute risk has been "
+                "withheld. Re-run with matching coordinate builds before reading "
+                "anything into these numbers.",
+                "",
+            ]
+        )
+    if auto_defaulted_models:
+        lines.extend(
+            [
+                "> **WARNING:** `--superpopulation AUTO` could not be resolved for "
+                f"{', '.join(auto_defaulted_models)}: the scoring engine did not "
+                "report which reference panel those models were built against. "
+                f"They fell back to **{_DEFAULT_SUPERPOPULATION}**, so those "
+                "percentiles and absolute-risk figures are EUR-referenced. Pass "
+                "`--superpopulation` explicitly (AFR/AMR/EAS/EUR/SAS) if that "
+                "assumption is wrong. AUTO reads the model's reference panel; it "
+                "does not infer this sample's ancestry.",
+                "",
+            ]
+        )
+    elif data.get("superpopulation_defaulted"):
         lines.extend(
             [
                 "> **WARNING:** `--superpopulation` was omitted, so percentiles and "
@@ -886,10 +967,7 @@ def main(
     superpopulation: str | None = typer.Option(
         None,
         "--superpopulation",
-        help=(
-            "1000 Genomes ancestry: AFR/AMR/EAS/EUR/SAS, or AUTO to infer. "
-            "Defaults to EUR with a visible warning when omitted."
-        ),
+        help=SUPERPOPULATION_HELP,
     ),
     profile: str = typer.Option("curated", "--profile", help="curated or all."),
     top_n: int = typer.Option(5, "--top-n", min=1, help="Maximum returned trait models."),
