@@ -689,25 +689,159 @@ def test_html_report_without_enrichment():
     assert "evidence-rec-source" not in body
 
 
-# Regression: _GRCH38_POSITIONS must hold true GRCh38 coordinates, so real GRCh38
-# (e.g. WGS-derived) input is detected as GRCh38 and not rejected as a GRCh37 mismatch.
-# Three positions were previously GRCh37 values, which blocked all GRCh38 diplotype calls.
-def test_grch38_reference_positions_are_grch38():
-    import importlib.util, sys
-    from pathlib import Path
-    d = Path(__file__).resolve().parent.parent
-    sys.path.insert(0, str(d))
-    spec = importlib.util.spec_from_file_location("pgx_mod", d / "pharmgx_reporter.py")
-    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
-    truth_grch38 = {
-        "rs4244285": 94781859,   # CYP2C19*2
-        "rs3892097": 42128945,   # CYP2D6*4
-        "rs1799853": 94942290,   # CYP2C9*2
-        "rs9923231": 31096368,   # VKORC1
-        "rs1801133": 11796321,   # MTHFR C677T
-    }
-    for rsid, pos in truth_grch38.items():
-        assert mod._GRCH38_POSITIONS[rsid] == pos, f"{rsid} not GRCh38"
-    # a genotype set at true GRCh38 positions must be detected as GRCh38, not GRCh37
-    positions = {rsid: {"pos": pos} for rsid, pos in truth_grch38.items()}
-    assert mod.detect_reference_genome(positions) == "GRCh38"
+# --------------------------------------------------------------------------
+# Reference-build detection
+#
+# Expected coordinates are asserted against dbSNP/Ensembl (see the citation
+# block on _PGX_BUILD_POSITIONS), NOT read back from the module under test.
+# Deriving them from the module would be tautological: the test would pass for
+# any pair of values, including the GRCh37 contamination it exists to catch.
+# --------------------------------------------------------------------------
+
+# rsid -> (chrom, GRCh37 pos, GRCh38 pos). Verified against Ensembl REST
+# (rest.ensembl.org for GRCh38, grch37.rest.ensembl.org for GRCh37).
+_BUILD_TRUTH = {
+    "rs4244285":  ("10", 96541616, 94781859),   # CYP2C19*2
+    "rs3892097":  ("22", 42524947, 42128945),   # CYP2D6*4
+    "rs1799853":  ("10", 96702047, 94942290),   # CYP2C9*2
+    "rs9923231":  ("16", 31107689, 31096368),   # VKORC1 -1639G>A
+    "rs1801133":  ("1",  11856378, 11796321),   # MTHFR C677T
+}
+
+
+def _positions(build_index, rsids=None, chrom=True):
+    """Build a positions dict at GRCh37 (index 1) or GRCh38 (index 2)."""
+    out = {}
+    for rsid, row in _BUILD_TRUTH.items():
+        if rsids is not None and rsid not in rsids:
+            continue
+        out[rsid] = {"pos": row[build_index]}
+        if chrom:
+            out[rsid]["chrom"] = row[0]
+    return out
+
+
+def test_build_table_holds_both_builds_with_correct_coordinates():
+    """Each panel SNP carries the true GRCh37 and GRCh38 coordinate."""
+    from pharmgx_reporter import _PGX_BUILD_POSITIONS
+    for rsid, (chrom, pos37, pos38) in _BUILD_TRUTH.items():
+        entry = _PGX_BUILD_POSITIONS[rsid]
+        assert entry["chrom"] == chrom, f"{rsid} wrong chromosome"
+        assert entry["GRCh37"] == pos37, f"{rsid} GRCh37 coordinate wrong"
+        assert entry["GRCh38"] == pos38, f"{rsid} GRCh38 coordinate wrong"
+        assert pos37 != pos38, f"{rsid} builds must differ to be discriminative"
+
+
+def test_grch38_input_detected_as_grch38():
+    from pharmgx_reporter import detect_reference_genome
+    assert detect_reference_genome(_positions(2)) == "GRCh38"
+
+
+def test_grch37_input_detected_as_grch37_not_unknown():
+    """The assertion that fails against a GRCh37-contaminated table."""
+    from pharmgx_reporter import detect_reference_genome
+    assert detect_reference_genome(_positions(1)) == "GRCh37"
+
+
+def test_single_snp_is_enough_to_identify_the_build():
+    """A sparse targeted panel must not silently fall through to GRCh38."""
+    from pharmgx_reporter import detect_reference_genome
+    assert detect_reference_genome(_positions(1, {"rs9923231"})) == "GRCh37"
+    assert detect_reference_genome(_positions(2, {"rs9923231"})) == "GRCh38"
+
+
+def test_right_position_on_wrong_chromosome_is_not_a_match():
+    from pharmgx_reporter import detect_reference_genome
+    pos = _positions(2)
+    for rsid in pos:
+        pos[rsid]["chrom"] = "21"       # no panel SNP lives on chr21
+    assert detect_reference_genome(pos) == "unknown_build"
+
+
+def test_chromosome_prefixes_and_missing_chrom_are_tolerated():
+    from pharmgx_reporter import detect_reference_genome
+    prefixed = _positions(2)
+    for rsid in prefixed:
+        prefixed[rsid]["chrom"] = "chr" + prefixed[rsid]["chrom"]
+    assert detect_reference_genome(prefixed) == "GRCh38"
+    assert detect_reference_genome(_positions(2, chrom=False)) == "GRCh38"
+
+
+def test_coordinates_matching_neither_build_are_unknown():
+    from pharmgx_reporter import detect_reference_genome
+    junk = {rsid: {"chrom": row[0], "pos": 12345} for rsid, row in _BUILD_TRUTH.items()}
+    assert detect_reference_genome(junk) == "unknown_build"
+
+
+def test_no_usable_positions_returns_none():
+    from pharmgx_reporter import detect_reference_genome
+    assert detect_reference_genome({}) is None
+    assert detect_reference_genome({"rs4244285": {"pos": 0}}) is None
+    assert detect_reference_genome({"rs9999999": {"pos": 123}}) is None
+
+
+def test_demo_file_is_grch37_and_still_yields_real_diplotypes():
+    """End-to-end: allele calling is rsID-based, so GRCh37 input is callable.
+
+    The demo is genuine GRCh37 23andMe data. Detecting its build must not
+    collapse every gene to Indeterminate.
+    """
+    from pharmgx_reporter import call_diplotype, call_phenotype
+    _, _, pgx, ref_genome = parse_file(str(DEMO))
+    assert ref_genome == "GRCh37"
+
+    calls = {gene: call_diplotype(gene, pgx) for gene in GENE_DEFS}
+    # No gene may be withheld for a build reason.
+    assert not [g for g, d in calls.items() if "build" in d.lower()]
+    # CYP2C9 *1/*2 is determinate in this sample and is the call the blanket
+    # GRCh37 override used to destroy.
+    assert "Indeterminate" not in calls["CYP2C9"]
+    assert "Indeterminate" not in call_phenotype("CYP2C9", calls["CYP2C9"])
+    # Remaining Indeterminates must be scientific (e.g. CYP2C19 *2/*17 phase
+    # ambiguity), never coordinate-related.
+    determinate = [g for g, d in calls.items() if "Indeterminate" not in d]
+    assert len(determinate) >= 8, f"only {len(determinate)} genes called: {calls}"
+
+
+def test_grch38_lifted_demo_yields_the_same_calls_as_grch37(tmp_path):
+    """Build affects only the reported build, never the calls."""
+    from pharmgx_reporter import call_diplotype
+    lifted = []
+    for line in DEMO.read_text().splitlines():
+        parts = line.split("\t")
+        if len(parts) == 4 and parts[0] in _BUILD_TRUTH:
+            parts[2] = str(_BUILD_TRUTH[parts[0]][2])
+            line = "\t".join(parts)
+        lifted.append(line)
+    target = tmp_path / "demo_grch38.txt"
+    target.write_text("\n".join(lifted) + "\n")
+
+    _, _, pgx37, ref37 = parse_file(str(DEMO))
+    _, _, pgx38, ref38 = parse_file(str(target))
+    assert (ref37, ref38) == ("GRCh37", "GRCh38")
+    for gene in GENE_DEFS:
+        assert call_diplotype(gene, pgx37) == call_diplotype(gene, pgx38), gene
+
+
+def test_unknown_build_still_forces_indeterminate_end_to_end(tmp_path):
+    """Coordinates matching no known build remain a hard stop."""
+    corrupt = []
+    for line in DEMO.read_text().splitlines():
+        parts = line.split("\t")
+        if len(parts) == 4 and parts[0] in _BUILD_TRUTH:
+            parts[2] = "999999"
+            line = "\t".join(parts)
+        corrupt.append(line)
+    target = tmp_path / "corrupt.txt"
+    target.write_text("\n".join(corrupt) + "\n")
+
+    _, _, _, ref_genome = parse_file(str(target))
+    assert ref_genome == "unknown_build"
+
+    result = subprocess.run(
+        [sys.executable, str(Path(__file__).parent.parent / "pharmgx_reporter.py"),
+         "--input", str(target), "--output", str(tmp_path / "out")],
+        capture_output=True, text=True,
+    )
+    combined = (result.stdout + result.stderr).lower()
+    assert "unknown_build" in combined

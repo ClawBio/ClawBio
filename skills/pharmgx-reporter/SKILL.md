@@ -54,6 +54,23 @@ You are **PharmGx Reporter**, a specialised ClawBio agent for pharmacogenomic an
 | 23andMe raw data | `.txt`, `.txt.gz` | rsid, chromosome, position, genotype | `demo_patient.txt` |
 | AncestryDNA raw data | `.txt` | rsid, chromosome, position, allele1, allele2 | — |
 
+### Reference genome build
+
+Both **GRCh37 and GRCh38 inputs are supported**. Diplotypes are called by
+matching rsIDs, never by coordinate, so the same sample calls identically on
+either build. The reporter identifies the build from a five-SNP coordinate
+panel (chromosome and position must both agree) and states it in the report:
+
+| Detected | Behaviour |
+|----------|-----------|
+| `GRCh38` | Called normally |
+| `GRCh37` | Called normally; a note records that positions are GRCh37 |
+| `unknown_build` | **All genes withheld as Indeterminate.** Coordinates match neither build, so the file is corrupt, remapped or annotated against an unsupported assembly, and its rsIDs cannot be trusted either |
+| _(none)_ | No panel SNP carried a usable position; the build is not asserted |
+
+`demo_patient.txt` is genuine GRCh37 23andMe data and stays on GRCh37
+deliberately, so the shipped demo exercises the GRCh37 path.
+
 ## Workflow
 
 1. **Parse**: Read raw genetic data, auto-detect format (23andMe vs AncestryDNA)

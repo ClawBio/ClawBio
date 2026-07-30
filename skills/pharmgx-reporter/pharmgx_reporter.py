@@ -957,47 +957,91 @@ def detect_format(lines: list[str]) -> str:
         os.unlink(tmp)
 
 
-# Known GRCh38 positions for key PGx SNPs (used for reference genome mismatch detection)
-_GRCH38_POSITIONS = {
-    "rs4244285": 94781859,   # CYP2C19*2 (was 96541616, the GRCh37 position)
-    "rs3892097": 42128945,   # CYP2D6*4
-    "rs1799853": 94942290,   # CYP2C9*2 (was 96702047, the GRCh37 position)
-    "rs9923231": 31096368,   # VKORC1 (was 31107689, the GRCh37 position)
-    "rs1801133": 11796321,   # MTHFR C677T
+# Reference coordinates for key PGx SNPs, used only to identify which genome
+# build the input file is annotated against. Allele calling itself is rsID-based
+# and does not use these positions.
+#
+# Source: Ensembl release 112 / dbSNP b156.
+#   GRCh38: https://rest.ensembl.org/variation/human/<rsid>
+#   GRCh37: https://grch37.rest.ensembl.org/variation/human/<rsid>
+# Verified 2026-07-30. Both builds are stored so that a GRCh37 file is
+# positively identified rather than inferred from "did not match GRCh38",
+# which cannot distinguish an older build from a corrupt one.
+_PGX_BUILD_POSITIONS = {
+    "rs4244285":  {"chrom": "10", "GRCh37": 96541616, "GRCh38": 94781859},  # CYP2C19*2
+    "rs3892097":  {"chrom": "22", "GRCh37": 42524947, "GRCh38": 42128945},  # CYP2D6*4
+    "rs1799853":  {"chrom": "10", "GRCh37": 96702047, "GRCh38": 94942290},  # CYP2C9*2
+    "rs9923231":  {"chrom": "16", "GRCh37": 31107689, "GRCh38": 31096368},  # VKORC1 -1639G>A
+    "rs1801133":  {"chrom": "1",  "GRCh37": 11856378, "GRCh38": 11796321},  # MTHFR C677T
 }
+
+# Backwards-compatible view: GRCh38 coordinates only.
+_GRCH38_POSITIONS = {k: v["GRCh38"] for k, v in _PGX_BUILD_POSITIONS.items()}
 
 # Tolerance for position comparison (exact match expected within same build)
 _POS_TOLERANCE = 0
 
+_BUILDS = ("GRCh38", "GRCh37")
+
+
+def _normalise_chrom(value) -> str | None:
+    """Normalise 'chr10', '10', 10 -> '10'. Returns None if unusable."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text.lower().startswith("chr"):
+        text = text[3:]
+    return text or None
+
 
 def detect_reference_genome(positions: dict) -> str | None:
-    """Detect reference genome build from SNP positions.
+    """Identify the genome build the input coordinates are annotated against.
 
-    Returns "GRCh37_mismatch" if positions suggest GRCh37 coordinates,
-    "GRCh38" if they match GRCh38, or None if insufficient data.
+    Returns:
+        "GRCh38"        coordinates match GRCh38
+        "GRCh37"        coordinates match GRCh37 (callable: calls are rsID-based)
+        "unknown_build" coordinates match neither build, or the evidence is tied
+        None            no panel SNP carried a usable position
+
+    A single unambiguous panel SNP is sufficient. Where a chromosome is
+    supplied it must also agree, so a coincidental position collision on the
+    wrong chromosome is not counted as a match.
     """
-    matches_38 = 0
-    mismatches = 0
+    votes = {build: 0 for build in _BUILDS}
     checked = 0
 
-    for rsid, expected_38 in _GRCH38_POSITIONS.items():
-        if rsid in positions:
-            actual_pos = positions[rsid].get("pos")
-            if actual_pos is not None and actual_pos > 0:
-                checked += 1
-                if abs(actual_pos - expected_38) <= _POS_TOLERANCE:
-                    matches_38 += 1
-                else:
-                    mismatches += 1
+    for rsid, entry in _PGX_BUILD_POSITIONS.items():
+        if rsid not in positions:
+            continue
+        record = positions[rsid] or {}
+        actual_pos = record.get("pos")
+        if actual_pos is None or actual_pos <= 0:
+            continue
+
+        # A chromosome, when present, must agree. When absent, judge on position
+        # alone rather than discarding the SNP.
+        actual_chrom = _normalise_chrom(record.get("chrom"))
+        if actual_chrom is not None and actual_chrom != entry["chrom"]:
+            checked += 1
+            continue
+
+        checked += 1
+        for build in _BUILDS:
+            if abs(actual_pos - entry[build]) <= _POS_TOLERANCE:
+                votes[build] += 1
 
     if checked == 0:
         return None
-    # Require strong evidence of mismatch: at least 2 mismatches AND at least
-    # as many mismatches as matches. A single mismatch out of few checked
-    # positions may be a test-case artifact or chromosome model difference.
-    if mismatches >= 2 and mismatches >= matches_38:
-        return "GRCh37_mismatch"
-    return "GRCh38"
+
+    best = max(votes, key=lambda build: votes[build])
+    if votes[best] == 0:
+        # Positions present but matching no known build: a corrupt, remapped or
+        # mis-annotated file. This is the case that must not be interpreted.
+        return "unknown_build"
+    runner_up = max(votes[b] for b in _BUILDS if b != best)
+    if votes[best] == runner_up:
+        return "unknown_build"
+    return best
 
 
 def parse_file(path):
@@ -1008,7 +1052,7 @@ def parse_file(path):
 
     Returns:
         (fmt, total_snps, pgx_dict, ref_genome) where pgx_dict maps rsid -> {genotype, gene, allele, effect}
-        and ref_genome is "GRCh38", "GRCh37_mismatch", or None.
+        and ref_genome is "GRCh38", "GRCh37", "unknown_build", or None.
     """
     from clawbio.common.parsers import detect_format as _detect_fmt
 
@@ -2110,9 +2154,15 @@ def main():
         print("WARNING: Could not detect input file format. Results may be unreliable.",
               file=sys.stderr)
 
-    if ref_genome == "GRCh37_mismatch":
-        print("WARNING: Input coordinates appear to use GRCh37 (not GRCh38). "
-              "Some gene results may be affected.", file=sys.stderr)
+    if ref_genome == "GRCh37":
+        print("NOTE: Input coordinates are GRCh37. Diplotype calls are matched "
+              "by rsID, so calls are unaffected; positions in this report are "
+              "GRCh37.", file=sys.stderr)
+    elif ref_genome == "unknown_build":
+        print("WARNING: Input coordinates could not be matched to GRCh37 or "
+              "GRCh38 (unknown_build). The file may be corrupt or annotated "
+              "against an unsupported assembly; results are withheld.",
+              file=sys.stderr)
 
     if len(pgx_snps) == 0:
         print("ERROR: No pharmacogenomic SNPs found in this file.", file=sys.stderr)
@@ -2127,20 +2177,22 @@ def main():
         phenotype = call_phenotype(gene, diplotype)
         profiles[gene] = {"diplotype": diplotype, "phenotype": phenotype}
 
-    # If reference genome is GRCh37, mark all genes as Indeterminate
-    # because SNP coordinates may not match, leading to incorrect allele calls.
-    if ref_genome == "GRCh37_mismatch":
+    # Genotypes are matched to the PGx panel by rsID, not by coordinate, so a
+    # GRCh37 file calls identically to the same sample on GRCh38. Only a file
+    # whose coordinates match no known build is withheld: that signals a
+    # corrupt or mis-annotated input whose rsIDs cannot be trusted either.
+    if ref_genome == "unknown_build":
         for gene in profiles:
             profiles[gene] = {
-                "diplotype": "Indeterminate (GRCh37 input detected; GRCh38 expected)",
-                "phenotype": "Indeterminate (reference genome mismatch)",
+                "diplotype": "Indeterminate (coordinates match no known build)",
+                "phenotype": "Indeterminate (unrecognised reference genome)",
             }
 
     # UGT1A1: If the SV marker SNP (rs8175347) is missing from input,
     # mark UGT1A1 as incomplete/Indeterminate since the key allele (*28)
     # cannot be assessed. rs8175347 is a TA-repeat polymorphism that most
     # DTC platforms omit entirely, making any UGT1A1 call without it unreliable.
-    if "UGT1A1" in profiles and ref_genome != "GRCh37_mismatch":
+    if "UGT1A1" in profiles and ref_genome != "unknown_build":
         ugt_sv_rsid = "rs8175347"
         ugt_snp_rsid = "rs4148323"
         has_sv = ugt_sv_rsid in pgx_snps
