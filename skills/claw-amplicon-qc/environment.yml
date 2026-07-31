@@ -1,0 +1,14 @@
+name: amplicon-qc
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - python>=3.10
+  - r-base=4.4
+  - bioconductor-dada2
+  - bioconductor-shortread
+  - bioconductor-biostrings
+  - r-optparse
+  - seqkit
+  - cutadapt
