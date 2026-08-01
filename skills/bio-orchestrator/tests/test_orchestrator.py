@@ -315,3 +315,54 @@ class TestKeywordDisambiguation:
         """'diversity' without 'variant' should still route to equity-scorer."""
         from orchestrator import detect_skill_from_query
         assert detect_skill_from_query("compute diversity metrics") == "equity-scorer"
+
+
+# ---------------------------------------------------------------------------
+# PRS routing must not pre-empt annotation or pipeline skills
+#
+# The VCF/WGS PRS detector sits near the top of the routing chain, so a query
+# that mentions a risk score AND a competing primary intent (variant
+# annotation, ACMG classification, a named nf-core pipeline) was claimed by
+# just-prs-mcp, hijacking clinical and pipeline skills.
+# ---------------------------------------------------------------------------
+
+def test_pure_prs_vcf_query_still_routes_to_just_prs():
+    skill, _ = detect_skill_with_hint_from_query(
+        "compute a polygenic risk score from my VCF"
+    )
+    assert skill == "just-prs-mcp"
+
+    skill, _ = detect_skill_with_hint_from_query("run just-prs on this genome")
+    assert skill == "just-prs-mcp"
+
+
+def test_dtc_prs_query_still_routes_to_gwas_prs():
+    skill, _ = detect_skill_with_hint_from_query(
+        "polygenic risk score from my 23andMe file"
+    )
+    assert skill == "gwas-prs"
+
+
+def test_annotation_intent_is_not_hijacked_by_prs():
+    skill, _ = detect_skill_with_hint_from_query(
+        "annotate my VCF and give me a clinical risk score"
+    )
+    assert skill != "just-prs-mcp", (
+        "variant annotation must win over an incidental risk-score mention"
+    )
+
+
+def test_named_pipeline_intent_is_not_hijacked_by_prs():
+    skill, _ = detect_skill_with_hint_from_query(
+        "run sarek on my WGS then give me a risk score"
+    )
+    assert skill != "just-prs-mcp", (
+        "a named nf-core pipeline must win over an incidental risk-score mention"
+    )
+
+
+def test_acmg_classification_is_not_hijacked_by_prs():
+    skill, _ = detect_skill_with_hint_from_query(
+        "classify the variants in my VCF with ACMG and report absolute risk"
+    )
+    assert skill != "just-prs-mcp"

@@ -220,6 +220,16 @@ ILLUMINA_SAMPLE_SHEET_NAMES = {"samplesheet.csv"}
 ILLUMINA_VCF_SUFFIXES = {".vcf", ".vcf.gz"}
 PRS_INTENT_TERMS = ("prs", "polygenic risk", "risk score", "absolute risk")
 PRS_VCF_TERMS = ("vcf", "wgs", "whole genome")
+# Intents that own the query outright. A risk score mentioned alongside any of
+# these is a secondary ask, so PRS routing must not claim it: doing so hijacks
+# the annotation, clinical-reporting and pipeline skills.
+PRS_COMPETING_TERMS = (
+    "annotate", "annotation", "acmg", "clinvar", "classify", "classification",
+    "pathogenic", "clinical report", "variant report",
+    "sarek", "nf-core", "nfcore", "nextflow", "rnaseq", "rna-seq",
+    "scrna", "single cell", "single-cell", "10x", "fastq", "align", "call variants",
+    "variant calling",
+)
 PRS_DTC_TERMS = ("23andme", "ancestrydna", "ancestry dna", "dtc", "genotype file")
 
 
@@ -331,8 +341,11 @@ def detect_skill_with_hint_from_query(query: str) -> tuple[str | None, str]:
             "Detected a DTC genotype PRS workflow; use `gwas-prs` for "
             "23andMe/AncestryDNA-style inputs.",
         )
+    has_competing_intent = any(term in query_lower for term in PRS_COMPETING_TERMS)
     if "just-prs" in query_lower or (
-        has_prs_intent and any(term in query_lower for term in PRS_VCF_TERMS)
+        has_prs_intent
+        and not has_competing_intent
+        and any(term in query_lower for term in PRS_VCF_TERMS)
     ):
         return (
             "just-prs-mcp",
