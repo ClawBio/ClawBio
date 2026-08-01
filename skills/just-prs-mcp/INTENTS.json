@@ -1,0 +1,31 @@
+{
+  "schema": "clawbio.skill_intents.v1",
+  "skill": "just-prs",
+  "entrypoint": "just_prs_mcp_bridge.py",
+  "description": "Compute evidence-aware PRS reports from local VCF/WGS files through just-prs-mcp.",
+  "aliases": [
+    "just-prs",
+    "vcf prs",
+    "wgs prs",
+    "evidence-aware PRS"
+  ],
+  "routes": [
+    {
+      "intent_id": "demo_report",
+      "description": "Run the deterministic offline just-prs bridge demo.",
+      "trigger_terms": [
+        "just prs demo",
+        "vcf prs demo",
+        "wgs prs demo"
+      ],
+      "demo_policy": "only_when_explicit",
+      "plan": [
+        {
+          "kind": "skill_run",
+          "skill": "just-prs",
+          "demo": true
+        }
+      ]
+    }
+  ]
+}

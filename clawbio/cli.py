@@ -450,6 +450,23 @@ SKILLS = {
         "allowed_extra_flags": {"--trait", "--pgs-id", "--min-overlap", "--max-variants", "--build"},
         "accepts_genotypes": True,
     },
+    "just-prs": {
+        "script": SKILLS_DIR / "just-prs-mcp" / "just_prs_mcp_bridge.py",
+        "demo_args": ["--demo"],
+        "description": "Evidence-aware VCF/WGS PRS through a pinned local just-prs MCP server",
+        "default_timeout_seconds": 3900,
+        "allowed_extra_flags": {
+            "--trait",
+            "--trait-id",
+            "--pgs-id",
+            "--superpopulation",
+            "--profile",
+            "--top-n",
+            "--limit",
+            "--timeout-seconds",
+        },
+        "accepts_genotypes": False,
+    },
     "clinpgx": {
         "script": SKILLS_DIR / "clinpgx" / "clinpgx.py",
         "demo_args": ["--demo"],
@@ -1831,7 +1848,36 @@ def main():
     run_parser.add_argument("--drug", default=None, help="Drug name for single-drug lookup (drugphoto skill)")
     run_parser.add_argument("--dose", default=None, help="Visible dose from packaging (e.g. '50mg')")
     run_parser.add_argument("--trait", default=None, help="Trait search term for PRS skill")
+    run_parser.add_argument("--trait-id", default=None, help="Exact EFO/MONDO trait ID for just-prs")
     run_parser.add_argument("--pgs-id", default=None, help="PGS Catalog score ID for PRS skill")
+    run_parser.add_argument(
+        "--superpopulation",
+        choices=["AFR", "AMR", "EAS", "EUR", "SAS", "AUTO"],
+        default=None,
+        help=(
+            "1000 Genomes reference panel for just-prs (AUTO uses the panel each "
+            "PGS model was built against, not the sample's ancestry, and falls "
+            "back to EUR with a warning; omit to default EUR with a warning)"
+        ),
+    )
+    run_parser.add_argument(
+        "--prs-profile",
+        choices=["curated", "all"],
+        default=None,
+        help="Model curation profile for just-prs",
+    )
+    run_parser.add_argument(
+        "--top-n",
+        type=int,
+        default=None,
+        help="Maximum number of returned just-prs models",
+    )
+    run_parser.add_argument(
+        "--prs-limit",
+        type=int,
+        default=None,
+        help="Maximum number of just-prs models computed before curation",
+    )
     run_parser.add_argument("--gene", default=None, help="Gene symbol for ClinPGx skill")
     run_parser.add_argument("--genes", default=None, help="Comma-separated gene symbols for ClinPGx")
     run_parser.add_argument("--rsid", default=None, help="rsID for GWAS lookup skill (e.g. rs3798220)")
@@ -2561,8 +2607,18 @@ def main():
             extra.extend(["--dose", args.dose])
         if getattr(args, "trait", None):
             extra.extend(["--trait", args.trait])
+        if getattr(args, "trait_id", None):
+            extra.extend(["--trait-id", args.trait_id])
         if getattr(args, "pgs_id", None):
             extra.extend(["--pgs-id", args.pgs_id])
+        if getattr(args, "superpopulation", None):
+            extra.extend(["--superpopulation", args.superpopulation])
+        if getattr(args, "prs_profile", None):
+            extra.extend(["--profile", args.prs_profile])
+        if getattr(args, "top_n", None) is not None:
+            extra.extend(["--top-n", str(args.top_n)])
+        if getattr(args, "prs_limit", None) is not None:
+            extra.extend(["--limit", str(args.prs_limit)])
         if getattr(args, "gene", None):
             extra.extend(["--gene", args.gene])
         if getattr(args, "genes", None):

@@ -119,6 +119,7 @@ KEYWORD_MAP: dict[str, str] = {
     "polygenic": "gwas-prs",
     "risk score": "gwas-prs",
     "polygenic risk": "gwas-prs",
+    "just-prs": "just-prs-mcp",
     "gwas lookup": "gwas-lookup",
     "variant lookup": "gwas-lookup",
     "rs lookup": "gwas-lookup",
@@ -217,6 +218,19 @@ SCRNA_EMBEDDING_TERMS = (
 
 ILLUMINA_SAMPLE_SHEET_NAMES = {"samplesheet.csv"}
 ILLUMINA_VCF_SUFFIXES = {".vcf", ".vcf.gz"}
+PRS_INTENT_TERMS = ("prs", "polygenic risk", "risk score", "absolute risk")
+PRS_VCF_TERMS = ("vcf", "wgs", "whole genome")
+# Intents that own the query outright. A risk score mentioned alongside any of
+# these is a secondary ask, so PRS routing must not claim it: doing so hijacks
+# the annotation, clinical-reporting and pipeline skills.
+PRS_COMPETING_TERMS = (
+    "annotate", "annotation", "acmg", "clinvar", "classify", "classification",
+    "pathogenic", "clinical report", "variant report",
+    "sarek", "nf-core", "nfcore", "nextflow", "rnaseq", "rna-seq",
+    "scrna", "single cell", "single-cell", "10x", "fastq", "align", "call variants",
+    "variant calling",
+)
+PRS_DTC_TERMS = ("23andme", "ancestrydna", "ancestry dna", "dtc", "genotype file")
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +334,23 @@ def detect_skill_from_query(query: str) -> str | None:
 def detect_skill_with_hint_from_query(query: str) -> tuple[str | None, str]:
     """Determine which skill matches a natural language query and explain chain-aware routing."""
     query_lower = query.lower()
+    has_prs_intent = any(term in query_lower for term in PRS_INTENT_TERMS)
+    if has_prs_intent and any(term in query_lower for term in PRS_DTC_TERMS):
+        return (
+            "gwas-prs",
+            "Detected a DTC genotype PRS workflow; use `gwas-prs` for "
+            "23andMe/AncestryDNA-style inputs.",
+        )
+    has_competing_intent = any(term in query_lower for term in PRS_COMPETING_TERMS)
+    if "just-prs" in query_lower or (
+        has_prs_intent
+        and not has_competing_intent
+        and any(term in query_lower for term in PRS_VCF_TERMS)
+    ):
+        return (
+            "just-prs-mcp",
+            "Detected a VCF/WGS PRS workflow; use the local-stdio `just-prs` bridge.",
+        )
     wants_embedding = any(term in query_lower for term in SCRNA_EMBEDDING_TERMS)
     wants_downstream = any(term in query_lower for term in SCRNA_DOWNSTREAM_TERMS)
     has_latent_artifact = any(term in query_lower for term in SCRNA_LATENT_ARTIFACT_TERMS)
@@ -513,6 +544,7 @@ SKILL_REGISTRY_MAP: dict[str, str] = {
     "scrna-embedding": "scrna-embedding",
     "genome-compare": "compare",
     "gwas-prs": "prs",
+    "just-prs-mcp": "just-prs",
     "clinpgx": "clinpgx",
     "gwas-lookup": "gwas",
     "profile-report": "profile",
