@@ -273,7 +273,7 @@ class TestDemoMode:
 
     def test_demo_classification_counts(self, demo_vcf_path):
         records = parse_vcf(demo_vcf_path)
-        classified = run_classification(records, demo=True)
+        classified, _ = run_classification(records, demo=True)
         assert len(classified) == 20
 
         counts: dict[str, int] = {}
@@ -289,7 +289,7 @@ class TestDemoMode:
     def test_demo_expected_classifications(self, demo_vcf_path):
         """Validate each demo variant against its EXPECTED INFO field."""
         records = parse_vcf(demo_vcf_path)
-        classified = run_classification(records, demo=True)
+        classified, _ = run_classification(records, demo=True)
 
         expected_map = {
             "Pathogenic": "Pathogenic",
@@ -310,7 +310,7 @@ class TestDemoMode:
 
     def test_demo_secondary_findings_screening(self, demo_vcf_path):
         records = parse_vcf(demo_vcf_path)
-        classified = run_classification(records, demo=True)
+        classified, _ = run_classification(records, demo=True)
 
         sf_variants = [cv for cv in classified if cv.is_secondary_finding]
         non_sf = [cv for cv in classified if not cv.is_secondary_finding]
@@ -320,7 +320,7 @@ class TestDemoMode:
 
     def test_demo_report_generation(self, demo_vcf_path, tmp_path):
         records = parse_vcf(demo_vcf_path)
-        classified = run_classification(records, demo=True)
+        classified, _ = run_classification(records, demo=True)
         generate_report(classified, tmp_path, demo=True)
 
         assert (tmp_path / "report.md").exists()
@@ -342,7 +342,7 @@ class TestDemoMode:
     def test_demo_transcripts_are_versioned(self, demo_vcf_path):
         """HGVS v21.1 requires versioned transcript accessions (e.g. ENST00000357654.9)."""
         records = parse_vcf(demo_vcf_path)
-        classified = run_classification(records, demo=True)
+        classified, _ = run_classification(records, demo=True)
         import re
         versioned_pattern = re.compile(r"^ENST\d+\.\d+$")
         for cv in classified:
@@ -355,7 +355,7 @@ class TestDemoMode:
 
     def test_gene_filter(self, demo_vcf_path):
         records = parse_vcf(demo_vcf_path)
-        classified = run_classification(records, demo=True, gene_filter={"BRCA1", "TP53"})
+        classified, _ = run_classification(records, demo=True, gene_filter={"BRCA1", "TP53"})
         genes = {cv.evidence.gene for cv in classified}
         assert genes <= {"BRCA1", "TP53"}
         assert len(classified) >= 2
@@ -454,41 +454,182 @@ class TestClinSigAlleleTypeGuard:
 # Regression — Data Sources table hardcoded stale ClinVar/gnomAD versions
 # ---------------------------------------------------------------------------
 class TestDataSourcesVersioning:
-    """The Data Sources section must reflect the Ensembl release actually
-    queried in live mode, and label demo mode as a cache rather than
-    implying a live query (issue #303)."""
+    """The Data Sources section must reflect the ClinVar/dbSNP version Ensembl
+    actually served for the run, keep gnomAD's own hardcoded version (Ensembl's
+    variation endpoint does not list gnomAD), and label demo mode as a cache
+    rather than implying a live query (issue #303)."""
 
-    def _report_text(self, tmp_path, demo):
+    def _report_text(self, tmp_path, demo, source_versions=None):
         from clinical_variant_reporter import generate_report
-        generate_report([], tmp_path, demo=demo)
+        generate_report([], tmp_path, demo=demo, source_versions=source_versions)
         return (tmp_path / "report.md").read_text()
 
-    def test_live_mode_reports_fetched_ensembl_release(self, tmp_path, monkeypatch):
-        from unittest.mock import MagicMock
-
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"release": 999}
-
-        import requests
-        monkeypatch.setattr(requests, "get", lambda *a, **k: mock_response)
-
-        text = self._report_text(tmp_path, demo=False)
-        assert "Ensembl release 999" in text
+    def test_live_mode_reports_real_clinvar_version_and_keeps_gnomad(self, tmp_path):
+        # source_versions is threaded in from annotation time (see
+        # TestAnnotateCapturesSourceVersions below), not fetched by generate_report.
+        text = self._report_text(
+            tmp_path, demo=False,
+            source_versions={"clinvar": "09/2025", "dbsnp": "156", "omim": "09/2025"},
+        )
+        assert "ClinVar | 09/2025 (via Ensembl VEP colocated variants)" in text
+        assert "gnomAD | v4.1 (via Ensembl VEP colocated variants)" in text
         assert "2025-03-01 release" not in text
-        assert "v4.1" not in text
 
-    def test_live_mode_degrades_gracefully_when_fetch_fails(self, tmp_path, monkeypatch):
+    def test_live_mode_suppresses_claim_when_nothing_annotated(self, tmp_path):
+        text = self._report_text(tmp_path, demo=False, source_versions=None)
+        assert "unavailable (no variant was successfully annotated this run)" in text
+        assert "v4.1" not in text
+        assert "09/2025" not in text
+
+    def test_live_mode_flags_missing_clinvar_entry_even_if_annotation_ran(self, tmp_path):
+        # Some annotation succeeded (source_versions is not None) but Ensembl's
+        # response happened to carry no ClinVar entry this run.
+        text = self._report_text(tmp_path, demo=False, source_versions={"dbsnp": "156"})
+        assert "ClinVar | unavailable (Ensembl did not report a ClinVar version this run)" in text
+        assert "gnomAD | v4.1 (via Ensembl VEP colocated variants)" in text
+
+    def test_demo_mode_labels_as_demo_cache(self, tmp_path, monkeypatch):
         import requests
 
-        def raise_connection_error(*args, **kwargs):
-            raise requests.exceptions.ConnectionError("no network")
+        def fail_if_called(*args, **kwargs):
+            raise AssertionError("demo mode must not touch the network")
 
-        monkeypatch.setattr(requests, "get", raise_connection_error)
+        monkeypatch.setattr(requests, "get", fail_if_called)
 
-        text = self._report_text(tmp_path, demo=False)
-        assert "Ensembl release unavailable" in text
-
-    def test_demo_mode_labels_as_demo_cache(self, tmp_path):
         text = self._report_text(tmp_path, demo=True)
         assert "ClinVar | 2025-03-01 release (demo cache)" in text
         assert "gnomAD | v4.1 (demo cache)" in text
+
+    def test_demo_pipeline_makes_zero_network_calls(self, tmp_path, monkeypatch):
+        """End-to-end demo mode (parse -> classify -> report) must stay fully
+        offline: patch both requests.get and requests.post to fail loudly."""
+        import requests
+        from clinical_variant_reporter import (
+            generate_report, parse_vcf, run_classification,
+        )
+
+        def fail_if_called(*args, **kwargs):
+            raise AssertionError("demo pipeline must not touch the network")
+
+        monkeypatch.setattr(requests, "get", fail_if_called)
+        monkeypatch.setattr(requests, "post", fail_if_called)
+
+        demo_vcf = SKILL_DIR / "example_data" / "giab_acmg_panel.vcf"
+        records = parse_vcf(demo_vcf)
+        classified, source_versions = run_classification(records, demo=True)
+        assert source_versions is None
+        generate_report(classified, tmp_path, demo=True, source_versions=source_versions)
+        assert (tmp_path / "report.md").exists()
+
+
+# ---------------------------------------------------------------------------
+# Regression — annotation-time provenance: version capture must be tied to
+# whether VEP annotation actually succeeded, not to report-generation time
+# ---------------------------------------------------------------------------
+class TestAnnotateCapturesSourceVersions:
+    """annotate_variants_vep must capture Ensembl's data-source versions once,
+    only when at least one VEP batch actually succeeded, so a report can never
+    claim provenance for annotation that never happened (issue #303 review)."""
+
+    def _vcf_record(self):
+        from clinical_variant_reporter import VcfRecord
+        return VcfRecord(chrom="1", pos=100, id=".", ref="A", alt="G",
+                          qual=".", filt="PASS", info={})
+
+    def _mock_vep_success(self):
+        from unittest.mock import MagicMock
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = [{
+            "input": "1 100 100 A/G 1",
+            "most_severe_consequence": "missense_variant",
+            "transcript_consequences": [{
+                "gene_symbol": "FAKEGENE", "impact": "MODERATE",
+                "consequence_terms": ["missense_variant"],
+                "transcript_id": "ENST00000000001.3",
+            }],
+        }]
+        return resp
+
+    def test_source_versions_captured_when_batch_succeeds(self, monkeypatch):
+        from unittest.mock import MagicMock
+        import requests
+        from clinical_variant_reporter import annotate_variants_vep
+
+        monkeypatch.setattr(requests, "post", lambda *a, **k: self._mock_vep_success())
+        monkeypatch.setattr("clinical_variant_reporter.VEP_RATE_LIMIT_SECONDS", 0)
+
+        info_resp = MagicMock()
+        info_resp.json.return_value = [
+            {"name": "ClinVar", "version": "09/2025"},
+            {"name": "dbSNP", "version": "156"},
+            {"name": "OMIM", "version": "09/2025"},
+        ]
+        monkeypatch.setattr(requests, "get", lambda *a, **k: info_resp)
+
+        evidence_list, source_versions = annotate_variants_vep([self._vcf_record()])
+        assert len(evidence_list) == 1
+        assert source_versions == {"clinvar": "09/2025", "dbsnp": "156", "omim": "09/2025"}
+
+    def test_source_versions_none_when_every_batch_fails(self, monkeypatch):
+        import requests
+        from clinical_variant_reporter import annotate_variants_vep
+
+        def raise_timeout(*args, **kwargs):
+            raise requests.exceptions.Timeout("no response")
+
+        def fail_if_called(*args, **kwargs):
+            raise AssertionError("version fetch must not run when nothing was annotated")
+
+        monkeypatch.setattr(requests, "post", raise_timeout)
+        monkeypatch.setattr(requests, "get", fail_if_called)
+        monkeypatch.setattr("clinical_variant_reporter.VEP_RATE_LIMIT_SECONDS", 0)
+
+        evidence_list, source_versions = annotate_variants_vep([self._vcf_record()])
+        assert len(evidence_list) == 1  # unannotated placeholder, still returned
+        assert source_versions is None
+
+
+# ---------------------------------------------------------------------------
+# Regression — _fetch_ensembl_data_versions error handling and parsing
+# ---------------------------------------------------------------------------
+class TestFetchEnsemblDataVersions:
+    """The live-mode version fetch must name the exception and warn on stderr
+    (matching the VEP handler's style), and must not crash on a 4xx/5xx
+    response, a non-JSON body, or a payload missing the ClinVar entry."""
+
+    def test_http_error_returns_none_and_warns(self, monkeypatch, capsys):
+        import requests
+        from clinical_variant_reporter import _fetch_ensembl_data_versions
+
+        def raise_http_error(*args, **kwargs):
+            raise requests.exceptions.HTTPError("500 Server Error")
+
+        monkeypatch.setattr(requests, "get", raise_http_error)
+
+        assert _fetch_ensembl_data_versions() is None
+        assert "WARNING" in capsys.readouterr().err
+
+    def test_non_json_body_returns_none(self, monkeypatch):
+        from unittest.mock import MagicMock
+        import requests
+        from clinical_variant_reporter import _fetch_ensembl_data_versions
+
+        resp = MagicMock()
+        resp.json.side_effect = ValueError("not JSON")
+        monkeypatch.setattr(requests, "get", lambda *a, **k: resp)
+
+        assert _fetch_ensembl_data_versions() is None
+
+    def test_payload_missing_clinvar_entry(self, monkeypatch):
+        from unittest.mock import MagicMock
+        import requests
+        from clinical_variant_reporter import _fetch_ensembl_data_versions
+
+        resp = MagicMock()
+        resp.json.return_value = [{"name": "dbSNP", "version": "156"}]
+        monkeypatch.setattr(requests, "get", lambda *a, **k: resp)
+
+        versions = _fetch_ensembl_data_versions()
+        assert versions == {"dbsnp": "156"}
+        assert "clinvar" not in versions

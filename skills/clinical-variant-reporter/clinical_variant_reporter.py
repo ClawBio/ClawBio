@@ -42,7 +42,9 @@ DISCLAIMER = (
 VEP_REST_URL = "https://rest.ensembl.org/vep/homo_sapiens/region"
 VEP_BATCH_SIZE = 200
 VEP_RATE_LIMIT_SECONDS = 0.07  # ~15 requests/second
-ENSEMBL_INFO_SOFTWARE_URL = "https://rest.ensembl.org/info/software"
+ENSEMBL_INFO_VARIATION_URL = "https://rest.ensembl.org/info/variation/homo_sapiens"
+GNOMAD_VERSION_LABEL = "v4.1"  # info/variation does not list gnomAD; no live source exists
+DEMO_CLINVAR_LABEL = "2025-03-01 release"
 
 
 # ---------------------------------------------------------------------------
@@ -269,26 +271,43 @@ def _extract_evidence_from_vep(vep_result: dict, record: VcfRecord) -> VariantEv
     )
 
 
-def _fetch_ensembl_release() -> int | None:
-    """Query the Ensembl release actually queried, for the Data Sources report section."""
+def _fetch_ensembl_data_versions() -> dict[str, str] | None:
+    """Query the live source versions bundled with Ensembl's variation data
+    (ClinVar, dbSNP, OMIM), for the Data Sources report section. gnomAD is not
+    listed by this endpoint and stays a hardcoded constant (GNOMAD_VERSION_LABEL)."""
     try:
         import requests
         resp = requests.get(
-            ENSEMBL_INFO_SOFTWARE_URL,
+            ENSEMBL_INFO_VARIATION_URL,
             headers={"Content-Type": "application/json"},
             timeout=10,
         )
         resp.raise_for_status()
-        return resp.json().get("release")
-    except Exception:
+        sources = resp.json()
+    except Exception as exc:
+        print(f"WARNING: could not fetch Ensembl data source versions ({exc}).", file=sys.stderr)
         return None
+
+    versions: dict[str, str] = {}
+    name_to_key = {"ClinVar": "clinvar", "dbSNP": "dbsnp", "OMIM": "omim"}
+    for src in sources if isinstance(sources, list) else []:
+        key = name_to_key.get(src.get("name", ""))
+        if key and src.get("version"):
+            versions[key] = src["version"]
+    return versions or None
 
 
 def annotate_variants_vep(
     records: list[VcfRecord],
     assembly: str = "GRCh38",
-) -> list[VariantEvidence]:
-    """Annotate variants via Ensembl VEP REST API and return evidence objects."""
+) -> tuple[list[VariantEvidence], dict[str, str] | None]:
+    """Annotate variants via Ensembl VEP REST API.
+
+    Returns (evidence_list, source_versions). source_versions is fetched once,
+    only if at least one VEP batch succeeded, so a run where every batch fails
+    never stamps a report with data-source versions for annotation that never
+    happened.
+    """
     try:
         import requests
     except ImportError:
@@ -296,6 +315,7 @@ def annotate_variants_vep(
         sys.exit(1)
 
     evidence_list: list[VariantEvidence] = []
+    any_batch_succeeded = False
 
     for batch_start in range(0, len(records), VEP_BATCH_SIZE):
         batch = records[batch_start:batch_start + VEP_BATCH_SIZE]
@@ -320,6 +340,7 @@ def annotate_variants_vep(
                 ))
             continue
 
+        any_batch_succeeded = True
         result_map: dict[str, dict] = {}
         for vr in vep_results:
             loc = vr.get("input", "")
@@ -337,7 +358,8 @@ def annotate_variants_vep(
 
         time.sleep(VEP_RATE_LIMIT_SECONDS)
 
-    return evidence_list
+    source_versions = _fetch_ensembl_data_versions() if any_batch_succeeded else None
+    return evidence_list, source_versions
 
 
 # ---------------------------------------------------------------------------
@@ -348,13 +370,19 @@ def run_classification(
     demo: bool = False,
     gene_filter: set[str] | None = None,
     assembly: str = "GRCh38",
-) -> list[ClassifiedVariant]:
-    """Run the full ACMG classification pipeline on VCF records."""
+) -> tuple[list[ClassifiedVariant], dict[str, str] | None]:
+    """Run the full ACMG classification pipeline on VCF records.
+
+    Returns (classified, source_versions); source_versions is always None in
+    demo mode and is the Ensembl data-source versions captured at annotation
+    time in live mode (None if annotation never succeeded).
+    """
     if demo:
         cache = load_demo_evidence_cache()
         evidence_list = [build_evidence_from_cache(r, cache) for r in records]
+        source_versions = None
     else:
-        evidence_list = annotate_variants_vep(records, assembly=assembly)
+        evidence_list, source_versions = annotate_variants_vep(records, assembly=assembly)
 
     if gene_filter:
         evidence_list = [e for e in evidence_list if e.gene in gene_filter]
@@ -372,7 +400,7 @@ def run_classification(
         if not audit.passed:
             cv.classification = ABSTAIN_LABEL
         classified.append(cv)
-    return classified
+    return classified, source_versions
 
 
 # ---------------------------------------------------------------------------
@@ -382,14 +410,52 @@ CLASS_ORDER = ["Pathogenic", "Likely Pathogenic", "Uncertain Significance", "Lik
 CLASS_SHORT = {"Pathogenic": "P", "Likely Pathogenic": "LP", "Uncertain Significance": "VUS", "Likely Benign": "LB", "Benign": "B"}
 
 
+def _data_source_versions_for_report(
+    demo: bool, source_versions: dict[str, str] | None,
+) -> dict[str, str]:
+    """Single source of truth for the Data Sources table, result.json and
+    database_versions.json, so the three can't drift independently.
+
+    Never performs a network call: source_versions must already be captured
+    (annotate_variants_vep, at annotation time) or None.
+    """
+    if demo:
+        return {
+            "ClinVar": f"{DEMO_CLINVAR_LABEL} (demo cache)",
+            "gnomAD": f"{GNOMAD_VERSION_LABEL} (demo cache)",
+        }
+
+    if not source_versions:
+        note = "unavailable (no variant was successfully annotated this run)"
+        return {"ClinVar": note, "gnomAD": note}
+
+    clinvar_v = source_versions.get("clinvar")
+    clinvar_label = (
+        f"{clinvar_v} (via Ensembl VEP colocated variants)" if clinvar_v
+        else "unavailable (Ensembl did not report a ClinVar version this run)"
+    )
+    return {
+        "ClinVar": clinvar_label,
+        "gnomAD": f"{GNOMAD_VERSION_LABEL} (via Ensembl VEP colocated variants)",
+    }
+
+
 def generate_report(
     classified: list[ClassifiedVariant],
     output_dir: Path,
     demo: bool = False,
     assembly: str = "GRCh38",
     input_path: str = "demo",
+    source_versions: dict[str, str] | None = None,
 ) -> None:
-    """Generate all output files: report.md, result.json, tables/, figures/, reproducibility/."""
+    """Generate all output files: report.md, result.json, tables/, figures/, reproducibility/.
+
+    source_versions is the Ensembl data-source versions captured at annotation
+    time (see annotate_variants_vep / run_classification); this function makes
+    no network call of its own, so regenerating a report from stored
+    ClassifiedVariant objects without passing source_versions again correctly
+    shows "unavailable" rather than re-fetching today's release for an old run.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "tables").mkdir(exist_ok=True)
     (output_dir / "figures").mkdir(exist_ok=True)
@@ -402,13 +468,14 @@ def generate_report(
         counts[cv.classification] = counts.get(cv.classification, 0) + 1
 
     sf_variants = [cv for cv in classified if cv.is_secondary_finding]
+    data_sources = _data_source_versions_for_report(demo, source_versions)
 
-    _write_markdown_report(classified, counts, sf_variants, output_dir, timestamp, demo, assembly, input_path)
+    _write_markdown_report(classified, counts, sf_variants, output_dir, timestamp, demo, assembly, input_path, data_sources)
     _write_classification_table(classified, output_dir)
     _write_secondary_findings_table(sf_variants, output_dir)
-    _write_result_json(classified, counts, sf_variants, output_dir, timestamp, demo, assembly)
+    _write_result_json(classified, counts, sf_variants, output_dir, timestamp, demo, assembly, data_sources)
     _write_classification_figure(counts, output_dir)
-    _write_reproducibility(output_dir, demo, assembly, input_path, timestamp)
+    _write_reproducibility(output_dir, demo, assembly, input_path, timestamp, data_sources)
 
 
 def _write_markdown_report(
@@ -420,6 +487,7 @@ def _write_markdown_report(
     demo: bool,
     assembly: str,
     input_path: str,
+    data_sources: dict[str, str],
 ) -> None:
     lines: list[str] = []
     lines.append("# Clinical Variant Report — ACMG/AMP Classification")
@@ -529,14 +597,8 @@ def _write_markdown_report(
     lines.append("")
     lines.append("| Source | Version / Release |")
     lines.append("|--------|-------------------|")
-    if demo:
-        lines.append("| ClinVar | 2025-03-01 release (demo cache) |")
-        lines.append("| gnomAD | v4.1 (demo cache) |")
-    else:
-        release = _fetch_ensembl_release()
-        release_label = f"Ensembl release {release}" if release is not None else "Ensembl release unavailable"
-        lines.append(f"| ClinVar | bundled with {release_label} (via Ensembl VEP REST) |")
-        lines.append(f"| gnomAD | bundled with {release_label} (via Ensembl VEP colocated variants) |")
+    lines.append(f"| ClinVar | {data_sources['ClinVar']} |")
+    lines.append(f"| gnomAD | {data_sources['gnomAD']} |")
     lines.append("| Ensembl VEP | REST API, assembly %s |" % assembly)
     lines.append("| ACMG SF list | v3.2 (Miller et al., 2023; 81 genes) |")
     lines.append("")
@@ -603,6 +665,7 @@ def _write_result_json(
     timestamp: str,
     demo: bool,
     assembly: str,
+    data_sources: dict[str, str],
 ) -> None:
     result = {
         "tool": "ClawBio Clinical Variant Reporter",
@@ -612,6 +675,7 @@ def _write_result_json(
         "assembly": assembly,
         "timestamp": timestamp,
         "mode": "demo" if demo else "live",
+        "data_source_versions": data_sources,
         "total_variants": len(classified),
         "classification_counts": counts,
         "secondary_findings_count": len(sf_variants),
@@ -677,6 +741,7 @@ def _write_reproducibility(
     assembly: str,
     input_path: str,
     timestamp: str,
+    data_sources: dict[str, str],
 ) -> None:
     cmd = f"python {Path(__file__).name}"
     if demo:
@@ -694,6 +759,7 @@ def _write_reproducibility(
         "sf_list": "ACMG SF v3.2 (Miller et al. 2023)",
         "sf_gene_count": len(ACMG_SF_V32_GENES),
         "annotation_backend": "demo_cache" if demo else "Ensembl VEP REST (GRCh38)",
+        "data_source_versions": data_sources,
         "generated": timestamp,
     }
     (output_dir / "reproducibility" / "database_versions.json").write_text(
@@ -746,12 +812,15 @@ def main() -> None:
         print(f"[CVR] Filtering to genes: {', '.join(sorted(gene_filter))}")
 
     print(f"[CVR] Running ACMG classification ({'demo mode' if args.demo else 'live mode'})...")
-    classified = run_classification(
+    classified, source_versions = run_classification(
         records, demo=args.demo, gene_filter=gene_filter, assembly=args.assembly,
     )
 
     print(f"[CVR] Generating report in: {output_dir}")
-    generate_report(classified, output_dir, demo=args.demo, assembly=args.assembly, input_path=input_label)
+    generate_report(
+        classified, output_dir, demo=args.demo, assembly=args.assembly,
+        input_path=input_label, source_versions=source_versions,
+    )
 
     counts = {}
     for cv in classified:
