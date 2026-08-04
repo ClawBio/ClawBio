@@ -123,7 +123,7 @@ python tests/benchmark/benchmark_scorer.py --genes "APP,BIN1,CLU,TREM2,GAPDH"
 python tests/benchmark/mock_api_server.py &
 ```
 
-**74 benchmark tests** at v0.5.0 baseline, all green. The public leaderboard now tracks **168 / 182 tests passing (92.3%)** across 10 audited skills, up from 80 / 140 (57.1%) at the original audit. See [benchmarks.html](https://clawbio.ai/benchmarks.html) for the live leaderboard and [CHANGELOG.md](CHANGELOG.md) for full details.
+**74 benchmark tests** at v0.5.0 baseline, all green. The public leaderboard now tracks **161 / 182 tests passing (88.5%)** across 10 audited skills, up from 80 / 140 (57.1%) at the original audit. See [benchmarks.html](https://clawbio.ai/benchmarks.html) for the live leaderboard and [CHANGELOG.md](CHANGELOG.md) for full details.
 
 ---
 
