@@ -335,6 +335,7 @@ MVP_FOLDERS = {
     "llm-biobank-bench",
     "analyze-fasta",
     "phylogenetics-builder",
+    "deepspot-m",
 }
 
 # Known trigger keywords for orchestrator routing
@@ -405,6 +406,7 @@ CHAINING: dict[str, list[str]] = {
     "marker-dominance-mapper": ["scrna-orchestrator", "diff-visualizer"],
     "analyze-fasta": ["struct-predictor", "variant-annotation", "pubmed-summariser"],
     "phylogenetics-builder": ["profile-report"],
+    "deepspot-m": ["marker-dominance-mapper", "diff-visualizer"],
 }
 
 
