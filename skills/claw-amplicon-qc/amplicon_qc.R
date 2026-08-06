@@ -82,11 +82,16 @@ opt$fwd_primer <- toupper(opt$fwd_primer)
 opt$rev_primer <- toupper(opt$rev_primer)
 
 for (tool in c("seqkit", "cutadapt")) {
-  chk <- suppressWarnings(system2(tool, args = "--version",
-                                  stdout = TRUE, stderr = TRUE))
-  if (inherits(chk, "try-error") || length(chk) == 0) {
-    stop(tool, " not found on PATH. Install with: conda install -c bioconda ",
-         tool, call. = FALSE)
+  # CRITICAL 3: use Sys.which() rather than the previous try-error check.
+  # system2() with stdout=TRUE never returns a try-error object, so
+  # inherits(chk, "try-error") could never fire — the check was decorative.
+  # Sys.which() returns "" when a tool is not on PATH.
+  if (Sys.which(tool) == "") {
+    stop(tool, " not found on PATH.\n",
+         "  Install with: conda install -c bioconda ", tool, "\n",
+         "  If already installed, activate the conda env first:\n",
+         "    conda activate amplicon-qc",
+         call. = FALSE)
   }
 }
 
@@ -125,27 +130,50 @@ if (length(all_fastq) == 0) {
        call. = FALSE)
 }
 
-# Try Pattern A first (Illumina default: SAMPLE_R1_..., SAMPLE_R2_...)
-fnFs_A <- grep("_R1[_.]", basename(all_fastq), value = FALSE)
-fnRs_A <- grep("_R2[_.]", basename(all_fastq), value = FALSE)
+# CRITICAL 2: pair R1 and R2 by sample name, not by sort position.
+#
+# The previous approach sorted R1 and R2 vectors independently and zipped
+# them positionally, relying on the two sorts producing aligned orderings.
+# That silently fails if:
+#   - A sample is missing R1 or R2 (counts stay equal if a different sample
+#     is also missing its other partner — sample A's R1 pairs with sample B's R2)
+#   - Filenames sort in different orders on the two sides (inconsistent
+#     capitalisation, padding, or locale collation)
+#   - A stray non-sample file matches the R1 or R2 glob
+#
+# The audit noted this matters when the skill is pointed at data the user
+# did not generate (collaborator tarballs, SRA dumps, provider deliveries).
+# On healthy data (matched R1/R2 partners), this fix produces identical
+# outputs to the previous approach — verified across three datasets during
+# the audit fixes.
 
-# Then Pattern B (prefix: R1_SAMPLE, R2_SAMPLE)
-fnFs_B <- grep("^R1_",    basename(all_fastq), value = FALSE)
-fnRs_B <- grep("^R2_",    basename(all_fastq), value = FALSE)
+# Detect naming pattern and set up per-pattern sample-name extraction
+# Pattern A (Illumina default): SAMPLE_R1_..., SAMPLE_R2_...
+# Pattern B (prefix):           R1_SAMPLE,    R2_SAMPLE
+r1_A_idx <- grep("_R1[_.]", basename(all_fastq))
+r2_A_idx <- grep("_R2[_.]", basename(all_fastq))
+r1_B_idx <- grep("^R1_",    basename(all_fastq))
+r2_B_idx <- grep("^R2_",    basename(all_fastq))
 
-if (length(fnFs_A) > 0 && length(fnRs_A) > 0) {
-  fnFs <- sort(all_fastq[fnFs_A])
-  fnRs <- sort(all_fastq[fnRs_A])
+if (length(r1_A_idx) > 0 && length(r2_A_idx) > 0) {
+  r1_paths <- all_fastq[r1_A_idx]
+  r2_paths <- all_fastq[r2_A_idx]
   naming_pattern <- "Illumina default (SAMPLE_R1_..., SAMPLE_R2_...)"
-  # Sample name = strip everything from _R1 onwards
-  sample_names <- gsub("_R1[_.].*", "", basename(fnFs))
-} else if (length(fnFs_B) > 0 && length(fnRs_B) > 0) {
-  fnFs <- sort(all_fastq[fnFs_B])
-  fnRs <- sort(all_fastq[fnRs_B])
+  # Sample name = strip _R1/_R2 and everything after
+  extract_sample_name <- function(paths, which_read) {
+    pat <- sprintf("_R%d[_.].*", which_read)
+    gsub(pat, "", basename(paths))
+  }
+} else if (length(r1_B_idx) > 0 && length(r2_B_idx) > 0) {
+  r1_paths <- all_fastq[r1_B_idx]
+  r2_paths <- all_fastq[r2_B_idx]
   naming_pattern <- "Prefix (R1_SAMPLE, R2_SAMPLE)"
-  # Sample name = strip R1_ prefix and file extension
-  sample_names <- gsub("^R1_", "", basename(fnFs))
-  sample_names <- gsub("\\.(fastq|fq)(\\.gz)?$", "", sample_names, ignore.case = TRUE)
+  # Sample name = strip R1_/R2_ prefix and file extension
+  extract_sample_name <- function(paths, which_read) {
+    pat <- sprintf("^R%d_", which_read)
+    n <- gsub(pat, "", basename(paths))
+    gsub("\\.(fastq|fq)(\\.gz)?$", "", n, ignore.case = TRUE)
+  }
 } else {
   stop("No paired-end FASTQ files found in ", opt$raw,
        "\nExpected either:",
@@ -154,21 +182,92 @@ if (length(fnFs_A) > 0 && length(fnRs_A) > 0) {
        call. = FALSE)
 }
 
-if (length(fnFs) != length(fnRs)) {
-  stop("Unequal number of R1 and R2 files: ",
-       length(fnFs), " R1 vs ", length(fnRs), " R2", call. = FALSE)
+# Extract sample names for R1 and R2 files, independently
+r1_names <- extract_sample_name(r1_paths, 1)
+r2_names <- extract_sample_name(r2_paths, 2)
+
+# ASSERTION 1: no duplicate sample names on the R1 side
+r1_dupes <- unique(r1_names[duplicated(r1_names)])
+if (length(r1_dupes) > 0) {
+  stop("Duplicate R1 sample names detected — same sample appears twice:\n  ",
+       paste(r1_dupes, collapse = ", "),
+       "\nThis usually means leftover files from a previous run. ",
+       "Clean up the raw folder and try again.",
+       call. = FALSE)
 }
 
+# ASSERTION 2: no duplicate sample names on the R2 side
+r2_dupes <- unique(r2_names[duplicated(r2_names)])
+if (length(r2_dupes) > 0) {
+  stop("Duplicate R2 sample names detected — same sample appears twice:\n  ",
+       paste(r2_dupes, collapse = ", "),
+       "\nThis usually means leftover files from a previous run. ",
+       "Clean up the raw folder and try again.",
+       call. = FALSE)
+}
+
+# ASSERTION 3: every R1 sample has an R2 partner, and vice versa
+r1_without_r2 <- setdiff(r1_names, r2_names)
+r2_without_r1 <- setdiff(r2_names, r1_names)
+if (length(r1_without_r2) > 0 || length(r2_without_r1) > 0) {
+  msg <- "R1/R2 pairing failed: some samples have no partner.\n"
+  if (length(r1_without_r2) > 0) {
+    msg <- paste0(msg, "  R1 files with no matching R2:\n    ",
+                  paste(r1_without_r2, collapse = "\n    "), "\n")
+  }
+  if (length(r2_without_r1) > 0) {
+    msg <- paste0(msg, "  R2 files with no matching R1:\n    ",
+                  paste(r2_without_r1, collapse = "\n    "), "\n")
+  }
+  msg <- paste0(msg,
+                "Every sample must have both an R1 and R2 file. ",
+                "Fix the raw folder and try again.")
+  stop(msg, call. = FALSE)
+}
+
+# Build fnFs/fnRs by name-join — alignment guaranteed by construction,
+# not by hope that two independent sorts agree.
+sample_names <- sort(r1_names)
+fnFs <- r1_paths[match(sample_names, r1_names)]
+fnRs <- r2_paths[match(sample_names, r2_names)]
+
+# Sanity check: verify alignment holds after the join. If any of these fail,
+# the pairing logic itself has a bug (should be impossible given the above
+# assertions, but defensive checking is cheap).
+stopifnot(
+  length(fnFs) == length(fnRs),
+  length(fnFs) == length(sample_names),
+  identical(extract_sample_name(fnFs, 1), sample_names),
+  identical(extract_sample_name(fnRs, 2), sample_names)
+)
+
 cat("Detected naming pattern:", naming_pattern, "\n")
-cat("Discovered", length(fnFs), "sample pairs.\n\n")
+cat("Discovered", length(fnFs), "sample pairs (paired by sample name).\n\n")
 
 ################################################################################
 ## PART 3: HELPER — run seqkit stats and parse the output
 ################################################################################
 
 run_seqkit_stats <- function(files, output_file) {
-  system2("seqkit", args = c("stats", "-a", "-T", files),
-          stdout = output_file, stderr = "")
+  # CRITICAL 1: shQuote() every path passed as an argument to system2().
+  # system2 pastes args into a shell string, so unquoted paths with spaces
+  # or shell metacharacters break the call (or execute embedded commands).
+  # stdout=output_file is quoted internally by system2, so it is safe as-is.
+  #
+  # CRITICAL 3: capture stderr into a temp file so the message is visible
+  # if seqkit fails, and check the exit status. Previously stderr="" threw
+  # all error messages in the bin, and the integer return value was ignored
+  # — a failed seqkit call would produce an empty output file, downstream
+  # code would parse an empty table, and the run would continue silently.
+  stderr_file <- tempfile()
+  on.exit(unlink(stderr_file), add = TRUE)
+  status <- system2("seqkit", args = c("stats", "-a", "-T", shQuote(files)),
+                    stdout = output_file, stderr = stderr_file)
+  if (status != 0) {
+    err_msg <- paste(readLines(stderr_file, warn = FALSE), collapse = "\n")
+    stop("seqkit failed (exit code ", status, "):\n", err_msg,
+         call. = FALSE)
+  }
   read.table(output_file, sep = "\t", header = TRUE,
              stringsAsFactors = FALSE, check.names = FALSE)
 }
@@ -264,8 +363,21 @@ fnRs.cut <- file.path(trimmed_fp, basename(fnRs))
 cutadapt_log <- file.path(opt$output, "04_cutadapt_log.txt")
 if (file.exists(cutadapt_log)) file.remove(cutadapt_log)
 
+# CRITICAL 3: track cutadapt success/failure per sample. Previously the return
+# value of system2() was discarded — a failed cutadapt run wrote nothing but
+# the loop continued to the next sample and the report showed NA/0 for that
+# sample without any indication that cutadapt itself had errored.
+# Behavior (b): on failure, warn loudly, skip this sample from Stage 5 seqkit
+# and downstream stats, mark the sample in the report, continue.
+failed_samples  <- character(0)
+successful_idx  <- integer(0)
+
 for (i in seq_along(fnFs)) {
   cat(sprintf("  [%d/%d] %s\n", i, length(fnFs), sample_names[i]))
+  # CRITICAL 1: shQuote() every path argument. Primer sequences are already
+  # validated by the IUPAC regex allowlist upstream; --minimum-length is an
+  # integer coerced by optparse. Only the four paths carry shell-injection
+  # risk (or, more commonly, spaces in output dirs like "/mnt/d/Research Data/").
   args_vec <- c(
     "-g", FWD, "-a", REV.RC,
     "-G", REV, "-A", FWD.RC,
@@ -273,16 +385,34 @@ for (i in seq_along(fnFs)) {
     "--nextseq-trim=20",
     "-n", "2",
     "-j", "0",
-    "-o", fnFs.cut[i],
-    "-p", fnRs.cut[i],
-    fnFs.filtN[i], fnRs.filtN[i]
+    "-o", shQuote(fnFs.cut[i]),
+    "-p", shQuote(fnRs.cut[i]),
+    shQuote(fnFs.filtN[i]), shQuote(fnRs.filtN[i])
   )
   cat("\n\n===== Sample:", sample_names[i], "=====\n",
       file = cutadapt_log, append = TRUE)
-  system2("cutadapt", args = args_vec,
-          stdout = cutadapt_log, stderr = cutadapt_log, wait = TRUE)
+  # CRITICAL 3: capture the integer exit status. Cutadapt returns 0 on success,
+  # non-zero on error. stdout+stderr already go to cutadapt_log so any error
+  # message is preserved in the log for post-mortem investigation.
+  status <- system2("cutadapt", args = args_vec,
+                    stdout = cutadapt_log, stderr = cutadapt_log, wait = TRUE)
+  if (status != 0) {
+    warning("Cutadapt failed on sample '", sample_names[i],
+            "' (exit code ", status, "). Skipping this sample. ",
+            "See ", cutadapt_log, " for the per-sample cutadapt output.",
+            call. = FALSE, immediate. = TRUE)
+    failed_samples <- c(failed_samples, sample_names[i])
+  } else {
+    successful_idx <- c(successful_idx, i)
+  }
 }
 cat("\n")
+
+if (length(failed_samples) > 0) {
+  cat("  ⚠ Cutadapt failed on", length(failed_samples), "sample(s):",
+      paste(failed_samples, collapse = ", "), "\n")
+  cat("  These samples are excluded from downstream stats but appear in the report.\n\n")
+}
 
 ################################################################################
 ## PART 8: STAGE 5 — SEQKIT AFTER CUTADAPT
@@ -293,12 +423,59 @@ cat("  Stage 5/5 — seqkit stats on primer-trimmed reads\n")
 cat("─────────────────────────────────────────────────────────\n")
 
 trimmed_stats_file <- file.path(opt$output, "03_trimmed_stats.txt")
-trimmed_stats      <- run_seqkit_stats(c(fnFs.cut, fnRs.cut), trimmed_stats_file)
-trimmed_counts     <- seqkit_reads_by_file(trimmed_stats)
+
+# CRITICAL 3: only feed seqkit files that actually exist. If cutadapt failed
+# on a sample above (behavior b: skip and continue), that sample's trimmed
+# output was never written, and passing a missing path to seqkit would abort
+# the whole Stage 5 with a confusing error. Filtering by file.exists() makes
+# Stage 5 robust to any reason a file might be absent, not just cutadapt
+# failure.
+existing_trimmed <- c(fnFs.cut, fnRs.cut)
+existing_trimmed <- existing_trimmed[file.exists(existing_trimmed)]
+
+if (length(existing_trimmed) == 0) {
+  stop("Cutadapt failed on every sample — no trimmed FASTQ files exist. ",
+       "See ", cutadapt_log, " for per-sample diagnostics.",
+       call. = FALSE)
+}
+
+trimmed_stats  <- run_seqkit_stats(existing_trimmed, trimmed_stats_file)
+trimmed_counts <- seqkit_reads_by_file(trimmed_stats)
 
 cat("  Total reads after primer trimming:",
     format(sum(trimmed_counts), big.mark = ","), "\n")
 cat("  Stats saved to: ", trimmed_stats_file, "\n\n")
+
+# CRITICAL 3: 100%-data-loss backstop. If cutadapt "succeeded" on every sample
+# (exit code 0) but discarded >99% of reads across the whole run, this is a
+# configuration error (wrong primers, wrong --min-length for the read length,
+# wrong --nextseq-trim for the platform), not a per-sample data-quality issue.
+# Aborting here beats writing a report full of zeros — which is exactly what
+# happened on the pre-trimmed raw2 dataset before this check existed.
+if (length(successful_idx) > 0) {
+  successful_bn <- basename(fnFs)[successful_idx]
+  total_in  <- sum(filtN_counts  [successful_bn], na.rm = TRUE)
+  total_out <- sum(trimmed_counts[successful_bn], na.rm = TRUE)
+  if (total_in > 0 && (total_out / total_in) < 0.01) {
+    stop(
+      "CONFIGURATION ERROR: >99% of reads discarded at the primer-trim stage ",
+      "across all successful samples.\n",
+      "  Reads in (post-N-filter): ", format(total_in,  big.mark = ","), "\n",
+      "  Reads out (post-cutadapt): ", format(total_out, big.mark = ","), "\n",
+      "  Retention: ", sprintf("%.2f%%", 100 * total_out / total_in), "\n\n",
+      "This is almost certainly one of:\n",
+      "  1. Wrong primers specified. Verify against your library prep records.\n",
+      "  2. Data already primer-trimmed by the sequencing facility.\n",
+      "     Check with: zcat <one_R1.fastq.gz> | head -2\n",
+      "     If reads don't start with your forward primer, this skill is not the\n",
+      "     right tool — go directly to DADA2 quality filtering.\n",
+      "  3. --min-length (", opt$min_length,
+      " bp) too high for the actual read length after quality trimming.\n\n",
+      "See ", cutadapt_log, " for per-sample cutadapt diagnostics.",
+      call. = FALSE
+    )
+  }
+}
 
 ################################################################################
 ## PART 9: RETENTION ANALYSIS + AUTOMATIC FLAGS
@@ -316,6 +493,16 @@ per_sample <- data.frame(
   stringsAsFactors = FALSE
 )
 
+# CRITICAL 3: cutadapt_failed is a first-class flag. For samples where
+# cutadapt errored out (behavior b: skipped, no trimmed file produced), the
+# lookup above returned NA for after_cut. Force to 0 so retention shows 0%
+# (matching reality — zero reads survived) rather than NA propagating through
+# the flag logic. Failed samples will naturally also trip extreme_drop /
+# low_read_count / high_overall_loss because 0% retention crosses all three
+# thresholds — that's correct behaviour, the sample really did drop out.
+per_sample$flag_cutadapt_failed <- per_sample$sample %in% failed_samples
+per_sample$after_cut[per_sample$flag_cutadapt_failed] <- 0
+
 per_sample$pct_after_N   <- 100 * per_sample$after_N   / pmax(per_sample$raw,     1)
 per_sample$pct_after_cut <- 100 * per_sample$after_cut / pmax(per_sample$after_N, 1)
 per_sample$pct_overall   <- 100 * per_sample$after_cut / pmax(per_sample$raw,     1)
@@ -326,15 +513,19 @@ per_sample$flag_low_read_count   <- per_sample$after_cut < 1000
 per_sample$flag_high_overall_loss <- per_sample$pct_overall < 70
 
 flagged_samples <- per_sample$sample[
+  per_sample$flag_cutadapt_failed |
   per_sample$flag_extreme_drop |
   per_sample$flag_low_read_count |
   per_sample$flag_high_overall_loss
 ]
 
-cat("  Samples processed: ", nrow(per_sample), "\n")
-cat("  Samples flagged:   ", length(flagged_samples), "\n")
+cat("  Samples processed successfully: ",
+    nrow(per_sample) - length(failed_samples), "\n")
+cat("  Samples failed (cutadapt):      ", length(failed_samples), "\n")
+cat("  Samples flagged:                ", length(flagged_samples), "\n")
 if (length(flagged_samples) > 0) {
-  cat("  Flagged:           ", paste(flagged_samples, collapse = ", "), "\n")
+  cat("  Flagged:                        ",
+      paste(flagged_samples, collapse = ", "), "\n")
 }
 cat("\n")
 
@@ -345,6 +536,11 @@ cat("\n")
 sample_records <- lapply(seq_len(nrow(per_sample)), function(i) {
   s <- per_sample[i, ]
   flags <- c()
+  # CRITICAL 3: emit cutadapt_failed first so downstream consumers of
+  # qc_summary.json see it before the other flags. A sample that failed
+  # cutadapt will typically also carry extreme_drop / low_read_count /
+  # high_overall_loss, but the cutadapt_failed flag is the actionable one.
+  if (s$flag_cutadapt_failed)   flags <- c(flags, "cutadapt_failed")
   if (s$flag_extreme_drop)      flags <- c(flags, "extreme_drop")
   if (s$flag_low_read_count)    flags <- c(flags, "low_read_count")
   if (s$flag_high_overall_loss) flags <- c(flags, "high_overall_loss")
@@ -389,6 +585,12 @@ summary_json_file <- file.path(opt$output, "qc_summary.json")
 write_json(summary_json, summary_json_file, auto_unbox = TRUE, pretty = TRUE)
 
 # Human-readable report.md
+# CRITICAL 3: Summary now distinguishes successful from failed samples, and a
+# 'Failed Samples' section always renders — showing 'None' on healthy runs, so
+# readers get in the habit of looking at that section and don't miss failures
+# the first time they occur.
+n_successful <- nrow(per_sample) - length(failed_samples)
+
 report_lines <- c(
   "# claw-amplicon-qc — QC Report",
   "",
@@ -406,11 +608,27 @@ report_lines <- c(
   "",
   "## Summary",
   "",
-  sprintf("- Samples processed: **%d**", nrow(per_sample)),
+  sprintf("- Samples processed successfully: **%d**", n_successful),
+  sprintf("- Samples failed (cutadapt): **%d**", length(failed_samples)),
   sprintf("- Samples flagged: **%d**", length(flagged_samples)),
   sprintf("- Total raw reads: %s", format(sum(per_sample$raw), big.mark = ",")),
   sprintf("- Total reads after N-filter: %s", format(sum(per_sample$after_N), big.mark = ",")),
   sprintf("- Total reads after primer trim: %s", format(sum(per_sample$after_cut), big.mark = ",")),
+  "",
+  "## Failed Samples",
+  "",
+  if (length(failed_samples) == 0) {
+    "None. All samples processed successfully through cutadapt."
+  } else {
+    paste(c(
+      sprintf("The following %d sample(s) failed at the cutadapt stage and are",
+              length(failed_samples)),
+      "excluded from downstream stats. See `04_cutadapt_log.txt` for the",
+      "per-sample cutadapt output.",
+      "",
+      paste(sprintf("- `%s`", failed_samples), collapse = "\n")
+    ), collapse = "\n")
+  },
   "",
   "## Per-sample retention",
   "",
@@ -421,6 +639,8 @@ report_lines <- c(
 for (i in seq_len(nrow(per_sample))) {
   s <- per_sample[i, ]
   flags <- c()
+  # CRITICAL 3: emit cutadapt_failed first (same ordering as JSON)
+  if (s$flag_cutadapt_failed)   flags <- c(flags, "cutadapt_failed")
   if (s$flag_extreme_drop)      flags <- c(flags, "extreme_drop")
   if (s$flag_low_read_count)    flags <- c(flags, "low_read_count")
   if (s$flag_high_overall_loss) flags <- c(flags, "high_overall_loss")
