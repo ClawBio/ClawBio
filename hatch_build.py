@@ -23,7 +23,7 @@ from pathlib import Path
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 # Skills whose full demo payload ships so their --demo runs offline out of the box.
-HEADLINE_SKILLS = {"pharmgx-reporter", "drug-photo", "gwas-lookup"}
+HEADLINE_SKILLS = {"pharmgx-reporter", "drug-photo", "gwas-lookup", "just-prs-mcp"}
 
 # Logic/source files included for every skill regardless of size.
 LOGIC_SUFFIXES = {".md", ".py", ".yaml", ".yml", ".sh", ".cff", ".toml", ".cfg"}
