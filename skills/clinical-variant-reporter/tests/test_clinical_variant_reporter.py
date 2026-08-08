@@ -334,10 +334,16 @@ class TestDemoMode:
         assert "ACMG" in report_text
         assert "Pathogenic" in report_text
         assert "ClawBio is a research" in report_text
+        assert "Gene-Disease Context" in report_text
+        assert "Hereditary breast and ovarian cancer" in report_text
+        assert "Autosomal dominant" in report_text
 
         result = json.loads((tmp_path / "result.json").read_text())
         assert result["total_variants"] == 20
         assert result["framework"] == "ACMG/AMP 2015 (Richards et al., PMID 25741868)"
+        brca1 = next(v for v in result["variants"] if v["gene"] == "BRCA1")
+        assert brca1["condition"] == "Hereditary breast and ovarian cancer"
+        assert brca1["inheritance"] == "Autosomal dominant"
 
     def test_demo_transcripts_are_versioned(self, demo_vcf_path):
         """HGVS v21.1 requires versioned transcript accessions (e.g. ENST00000357654.9)."""

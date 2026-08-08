@@ -43,6 +43,33 @@ VEP_REST_URL = "https://rest.ensembl.org/vep/homo_sapiens/region"
 VEP_BATCH_SIZE = 200
 VEP_RATE_LIMIT_SECONDS = 0.07  # ~15 requests/second
 
+# Gene-level context for the curated demonstration panel. These labels provide
+# the disease and inheritance frame required to interpret an ACMG/AMP result;
+# they do not assert that every variant in the gene causes the named condition.
+GENE_DISEASE_CONTEXT = {
+    "APC": ("Familial adenomatous polyposis", "Autosomal dominant"),
+    "BRCA1": ("Hereditary breast and ovarian cancer", "Autosomal dominant"),
+    "BRCA2": ("Hereditary breast and ovarian cancer", "Autosomal dominant"),
+    "CDH1": ("Hereditary diffuse gastric cancer", "Autosomal dominant"),
+    "DPYD": (
+        "Dihydropyrimidine dehydrogenase deficiency and fluoropyrimidine toxicity",
+        "Autosomal recessive; drug response is genotype-dependent",
+    ),
+    "HFE": ("HFE-related haemochromatosis", "Autosomal recessive"),
+    "LDLR": ("Familial hypercholesterolaemia", "Autosomal dominant"),
+    "MLH1": ("Lynch syndrome", "Autosomal dominant"),
+    "MSH2": ("Lynch syndrome", "Autosomal dominant"),
+    "NF2": ("NF2-related schwannomatosis", "Autosomal dominant"),
+    "PTEN": ("PTEN hamartoma tumour syndrome", "Autosomal dominant"),
+    "RYR2": ("Catecholaminergic polymorphic ventricular tachycardia", "Autosomal dominant"),
+    "SCN5A": ("Inherited cardiac arrhythmia syndrome", "Autosomal dominant"),
+    "TP53": ("Li-Fraumeni syndrome", "Autosomal dominant"),
+}
+
+
+def gene_disease_context(gene: str) -> tuple[str, str]:
+    return GENE_DISEASE_CONTEXT.get(gene, ("Not specified", "Not specified"))
+
 
 # ---------------------------------------------------------------------------
 # VCF parsing (lightweight, no pysam dependency)
@@ -423,6 +450,21 @@ def _write_markdown_report(
         lines.append(f"| {cls} | {counts.get(cls, 0)} |")
     lines.append("")
 
+    lines.append("## Gene-Disease Context")
+    lines.append("")
+    lines.append(
+        "ACMG/AMP classifications are disease-specific. The table below states the "
+        "gene-level context used for this curated demonstration; it does not make "
+        "each observed variant causative for the named condition."
+    )
+    lines.append("")
+    lines.append("| Gene | Condition | Inheritance |")
+    lines.append("|------|-----------|-------------|")
+    for gene in sorted({cv.evidence.gene for cv in classified}):
+        condition, inheritance = gene_disease_context(gene)
+        lines.append(f"| {gene} | {condition} | {inheritance} |")
+    lines.append("")
+
     actionable = [cv for cv in classified if cv.classification in ("Pathogenic", "Likely Pathogenic")]
     if actionable:
         lines.append("## Actionable Variants (Pathogenic / Likely Pathogenic)")
@@ -601,6 +643,8 @@ def _write_result_json(
                 "alt": cv.evidence.alt,
                 "rsid": cv.evidence.rsid,
                 "gene": cv.evidence.gene,
+                "condition": gene_disease_context(cv.evidence.gene)[0],
+                "inheritance": gene_disease_context(cv.evidence.gene)[1],
                 "consequence": cv.evidence.consequence,
                 "classification": cv.classification,
                 "abstained": cv.classification == ABSTAIN_LABEL,
