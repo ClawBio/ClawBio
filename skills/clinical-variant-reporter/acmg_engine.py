@@ -128,6 +128,9 @@ class VariantEvidence:
     sift_prediction: str = ""
     polyphen_prediction: str = ""
     spliceai_max_delta: float | None = None
+    revel_score: float | None = None
+    pvs1_strength: StrengthLevel | None = None
+    vcep_profile: str = ""
 
     is_lof: bool = False
     is_missense: bool = False
@@ -218,13 +221,17 @@ def _eval_pm2(ev: VariantEvidence) -> EvidenceCriterion:
 def _eval_pvs1(ev: VariantEvidence) -> EvidenceCriterion:
     """PVS1: Null variant (nonsense, frameshift, canonical ±1,2 splice, initiation codon)."""
     triggered = ev.is_lof or ev.consequence in LOF_CONSEQUENCES
+    strength: StrengthLevel = ev.pvs1_strength or "very_strong"
     return EvidenceCriterion(
         code="PVS1",
         triggered=triggered,
-        strength="very_strong",
+        strength=strength,
         direction="pathogenic",
         source=f"consequence={ev.consequence}",
-        detail="Loss-of-function variant in a gene where LoF is a known mechanism of disease"
+        detail=(
+            "Loss-of-function variant with PVS1 strength set by curated decision-tree evidence "
+            f"to {strength}"
+        )
         if triggered else f"Not a LoF variant type (consequence={ev.consequence})",
     )
 
@@ -278,28 +285,47 @@ def _eval_pm4(ev: VariantEvidence) -> EvidenceCriterion:
 
 
 def _eval_pp3(ev: VariantEvidence) -> EvidenceCriterion:
-    """PP3: Multiple lines of computational evidence support a deleterious effect."""
+    """PP3: one calibrated computational predictor supports a deleterious effect."""
+    if ev.revel_score is not None and ev.is_missense:
+        if ev.revel_score >= 0.932:
+            strength: StrengthLevel = "strong"
+            triggered = True
+        elif ev.revel_score >= 0.773:
+            strength = "moderate"
+            triggered = True
+        elif ev.revel_score >= 0.644:
+            strength = "supporting"
+            triggered = True
+        else:
+            strength = "supporting"
+            triggered = False
+        return EvidenceCriterion(
+            code="PP3",
+            triggered=triggered,
+            strength=strength,
+            direction="pathogenic",
+            source=f"REVEL={ev.revel_score:.3f}",
+            detail=(
+                "Single calibrated REVEL score evaluated using Pejaver 2022 thresholds"
+            ),
+        )
+
+    # Legacy caches do not yet contain REVEL. Use CADD as one fallback signal
+    # and keep the evidence at Supporting strength rather than counting several
+    # correlated predictors as independent ACMG criteria.
     sources: list[str] = []
-    support_count = 0
 
     if ev.cadd_phred is not None and ev.cadd_phred >= THRESHOLD_CADD_PATHOGENIC:
         sources.append(f"CADD={ev.cadd_phred:.1f}≥{THRESHOLD_CADD_PATHOGENIC}")
-        support_count += 1
-    if ev.sift_prediction.lower() in ("deleterious", "deleterious_low_confidence"):
-        sources.append(f"SIFT={ev.sift_prediction}")
-        support_count += 1
-    if ev.polyphen_prediction.lower() in ("probably_damaging", "possibly_damaging"):
-        sources.append(f"PolyPhen={ev.polyphen_prediction}")
-        support_count += 1
 
-    triggered = support_count >= 1 and ev.is_missense
+    triggered = bool(sources) and ev.is_missense
     return EvidenceCriterion(
         code="PP3",
         triggered=triggered,
         strength="supporting",
         direction="pathogenic",
         source="; ".join(sources) if sources else "No in silico data available",
-        detail=f"{support_count} predictor(s) support deleterious effect"
+        detail="One computational predictor supports deleterious effect"
         if triggered else "In silico predictors do not support deleterious effect or not a missense variant",
     )
 

@@ -168,6 +168,9 @@ def build_evidence_from_cache(record: VcfRecord, cache: dict[str, dict]) -> Vari
         sift_prediction=cached.get("sift_prediction", ""),
         polyphen_prediction=cached.get("polyphen_prediction", ""),
         spliceai_max_delta=cached.get("spliceai_max_delta"),
+        revel_score=cached.get("revel_score"),
+        pvs1_strength=cached.get("pvs1_strength"),
+        vcep_profile=cached.get("vcep_profile", ""),
         is_lof=cached.get("is_lof", False),
         is_missense=cached.get("is_missense", False),
         is_synonymous=cached.get("is_synonymous", False),
@@ -359,9 +362,12 @@ def run_classification(
     demo: bool = False,
     gene_filter: set[str] | None = None,
     assembly: str = "GRCh38",
+    evidence_cache: dict[str, dict] | None = None,
 ) -> list[ClassifiedVariant]:
     """Run the full ACMG classification pipeline on VCF records."""
-    if demo:
+    if evidence_cache is not None:
+        evidence_list = [build_evidence_from_cache(r, evidence_cache) for r in records]
+    elif demo:
         cache = load_demo_evidence_cache()
         evidence_list = [build_evidence_from_cache(r, cache) for r in records]
     else:
@@ -435,6 +441,18 @@ def _write_markdown_report(
     lines: list[str] = []
     lines.append("# Clinical Variant Report — ACMG/AMP Classification")
     lines.append("")
+
+    vcep_profiles = sorted({cv.evidence.vcep_profile for cv in classified if cv.evidence.vcep_profile})
+    if vcep_profiles:
+        lines.append("## Variant Curation Expert Panel Profiles")
+        lines.append("")
+        lines.append(
+            "Gene-specific interpretation profiles represented in this evidence set: "
+            + ", ".join(vcep_profiles)
+            + ". Profile-specific evidence must be supplied in the offline cache; "
+            "the reporter does not infer missing VCEP evidence."
+        )
+        lines.append("")
     lines.append(f"**Generated**: {timestamp}")
     lines.append(f"**Input**: {input_path}")
     lines.append(f"**Assembly**: {assembly}")
@@ -645,6 +663,7 @@ def _write_result_json(
                 "gene": cv.evidence.gene,
                 "condition": gene_disease_context(cv.evidence.gene)[0],
                 "inheritance": gene_disease_context(cv.evidence.gene)[1],
+                "vcep_profile": cv.evidence.vcep_profile or None,
                 "consequence": cv.evidence.consequence,
                 "classification": cv.classification,
                 "abstained": cv.classification == ABSTAIN_LABEL,
@@ -653,7 +672,11 @@ def _write_result_json(
                     for v in getattr(cv, "audit_violations", [])
                 ],
                 "is_secondary_finding": cv.is_secondary_finding,
-                "triggered_criteria": cv.triggered_codes,
+                "triggered_criteria": [
+                    {"code": criterion.code, "strength": criterion.strength}
+                    for criterion in cv.criteria
+                    if criterion.triggered
+                ],
                 "evidence_summary": cv.evidence_summary,
             }
             for cv in classified
@@ -735,6 +758,11 @@ def main() -> None:
     parser.add_argument("--demo", action="store_true", help="Run with built-in GIAB demo panel")
     parser.add_argument("--genes", type=str, help="Comma-separated gene list to filter (e.g. BRCA1,BRCA2)")
     parser.add_argument("--assembly", type=str, default="GRCh38", choices=["GRCh37", "GRCh38"])
+    parser.add_argument(
+        "--evidence-cache",
+        type=str,
+        help="Offline JSON evidence cache for deterministic review and benchmark inputs",
+    )
 
     args = parser.parse_args()
 
@@ -767,9 +795,23 @@ def main() -> None:
         gene_filter = {g.strip() for g in args.genes.split(",")}
         print(f"[CVR] Filtering to genes: {', '.join(sorted(gene_filter))}")
 
-    print(f"[CVR] Running ACMG classification ({'demo mode' if args.demo else 'live mode'})...")
+    evidence_cache = None
+    if args.evidence_cache:
+        cache_path = Path(args.evidence_cache)
+        if not cache_path.exists():
+            print(f"ERROR: Evidence cache not found: {cache_path}", file=sys.stderr)
+            sys.exit(1)
+        with open(cache_path) as fh:
+            evidence_cache = json.load(fh)
+
+    mode_label = "demo mode" if args.demo else ("offline evidence mode" if evidence_cache else "live mode")
+    print(f"[CVR] Running ACMG classification ({mode_label})...")
     classified = run_classification(
-        records, demo=args.demo, gene_filter=gene_filter, assembly=args.assembly,
+        records,
+        demo=args.demo,
+        gene_filter=gene_filter,
+        assembly=args.assembly,
+        evidence_cache=evidence_cache,
     )
 
     print(f"[CVR] Generating report in: {output_dir}")

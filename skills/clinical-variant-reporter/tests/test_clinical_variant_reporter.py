@@ -159,6 +159,62 @@ class TestCombiningRules:
 # Unit tests — criteria evaluation
 # ---------------------------------------------------------------------------
 class TestCriteriaEvaluation:
+    def test_pvs1_uses_curated_strength_modification(self):
+        ev = VariantEvidence(
+            chrom="chr1", pos=100, ref="A", alt="AT",
+            consequence="splice_donor_variant", is_lof=True,
+            pvs1_strength="moderate",
+        )
+        pvs1 = next(c for c in evaluate_criteria(ev) if c.code == "PVS1")
+        assert pvs1.triggered is True
+        assert pvs1.strength == "moderate"
+
+    def test_pp3_uses_one_calibrated_revel_score_at_moderate_strength(self):
+        ev = VariantEvidence(
+            chrom="chr1", pos=100, ref="A", alt="G",
+            consequence="missense_variant", is_missense=True,
+            revel_score=0.80,
+            cadd_phred=35.0,
+            sift_prediction="deleterious",
+            polyphen_prediction="probably_damaging",
+        )
+        pp3 = next(c for c in evaluate_criteria(ev) if c.code == "PP3")
+        assert pp3.triggered is True
+        assert pp3.strength == "moderate"
+        assert pp3.source == "REVEL=0.800"
+
+    def test_offline_evidence_cache_supports_targeted_reproducible_classification(self):
+        record = type("Record", (), {
+            "chrom": "chr1", "pos": 100, "ref": "A", "alt": "G",
+            "id": "rs-test", "info": {},
+        })()
+        cache = {
+            "chr1:100:A:G": {
+                "gene": "BRCA1", "consequence": "missense_variant",
+                "is_missense": True, "revel_score": 0.80,
+            }
+        }
+
+        classified = run_classification([record], evidence_cache=cache)
+
+        pp3 = next(c for c in classified[0].criteria if c.code == "PP3")
+        assert pp3.triggered is True
+        assert pp3.strength == "moderate"
+
+    def test_result_json_preserves_criterion_strength_and_vcep_profile(self, tmp_path):
+        ev = VariantEvidence(
+            chrom="chr17", pos=100, ref="A", alt="G", gene="BRCA1",
+            consequence="missense_variant", is_missense=True,
+            revel_score=0.80, vcep_profile="ENIGMA",
+        )
+        generate_report([classify_variant(ev)], tmp_path, input_path="targeted.vcf")
+        result = json.loads((tmp_path / "result.json").read_text())
+
+        variant = result["variants"][0]
+        assert variant["vcep_profile"] == "ENIGMA"
+        assert {"code": "PP3", "strength": "moderate"} in variant["triggered_criteria"]
+        assert "ENIGMA" in (tmp_path / "report.md").read_text()
+
     def test_ba1_triggered_when_af_above_5_percent(self):
         ev = VariantEvidence(chrom="chr1", pos=100, ref="A", alt="G", gnomad_af=0.12)
         criteria = evaluate_criteria(ev)
