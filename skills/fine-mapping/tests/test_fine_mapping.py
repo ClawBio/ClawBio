@@ -700,6 +700,30 @@ class TestSuSiEInf:
         observed = _variance_diagonal(dsq, sigmasq=1.0, tausq=5e-5)
         np.testing.assert_allclose(observed, np.array([1.0, 1.05, 1.25]))
 
+    def test_invalid_mom_solution_resets_tausq(self):
+        from fine_mapping_core.susie_inf import _validated_mom_solution
+
+        sigmasq, tausq = _validated_mom_solution(
+            np.array([1.0, -1e-5]), x0=5000.0, n=5000
+        )
+        assert sigmasq == 1.0
+        assert tausq == 0.0
+
+    def test_null_locus_keeps_null_weighted_diffuse_pips(self):
+        from fine_mapping_core.susie_inf import run_susie_inf
+
+        z = np.array([0.1, -0.05, 0.08, -0.12, 0.03])
+        result = run_susie_inf(
+            z=z,
+            R=np.eye(5),
+            n=5000,
+            L=3,
+            est_tausq=True,
+            null_weight=0.25,
+        )
+        assert result["tausq"] == 0.0
+        np.testing.assert_allclose(result["pip"], np.full(5, 0.385), atol=0.03)
+
     def test_cred_inf_returns_list_of_index_lists(self):
         """cred_inf returns a list where each element is a list of SNP indices."""
         from fine_mapping_core.susie_inf import run_susie_inf, cred_inf

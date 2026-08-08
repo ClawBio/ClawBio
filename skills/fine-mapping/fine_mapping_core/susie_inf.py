@@ -42,6 +42,13 @@ def _variance_diagonal(Dsq: np.ndarray, sigmasq: float, tausq: float) -> np.ndar
     return tausq * Dsq + sigmasq
 
 
+def _validated_mom_solution(sol: np.ndarray, x0: float, n: int) -> tuple[float, float]:
+    """Accept positive MoM components or apply the documented tau squared fallback."""
+    if sol[0] > 0 and sol[1] > 0:
+        return float(sol[0]), float(sol[1])
+    return float(x0 / n), 0.0
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -194,32 +201,10 @@ def run_susie_inf(
             converged = True
             break
 
-    # Prune inactive effects: exclude effects with near-zero ssq AND
-    # near-uniform alpha from PIP computation. When null_weight is active,
-    # the null component in alpha normalization already down-weights
-    # inactive effects, so pruning is less critical. When est_tausq is
-    # active, use aggressive pruning to prevent background inflation.
-    active_mask = np.ones(L, dtype=bool)
-    if est_tausq:
-        # With infinitesimal component, aggressively prune effects whose
-        # ssq has been shrunk below threshold by the optimizer.
-        uniform_alpha = 1.0 / p
-        ssq_threshold = max(ssq_init * 0.01, 1e-6)
-        for l in range(L):
-            alpha_max = alpha[:, l].max()
-            is_uniform = alpha_max < uniform_alpha * 3.0
-            is_tiny_ssq = ssq[l] < ssq_threshold
-            if is_uniform and is_tiny_ssq:
-                active_mask[l] = False
-
-    # Collapse per-effect alpha into marginal PIPs (active effects only).
-    # When no effects are active (all pruned), assign uniform PIPs (1/p)
-    # representing maximum uncertainty, consistent with the prior.
-    if active_mask.any():
-        alpha_active = alpha[:, active_mask]
-        pip = 1.0 - np.prod(1.0 - alpha_active, axis=1)
-    else:
-        pip = np.full(p, 1.0 / p)
+    # Collapse every single-effect posterior into marginal PIPs. The null
+    # component already down-weights inactive effects during normalisation;
+    # post-hoc pruning changes the model and miscalibrates null-locus PIPs.
+    pip = 1.0 - np.prod(1.0 - alpha, axis=1)
     pip = np.clip(pip, 0.0, 1.0)
 
     return {
@@ -286,12 +271,9 @@ def _mom_update(
     if est_tausq:
         try:
             sol = scipy.linalg.solve(A, x)
-            if sol[0] > 0 and sol[1] > 0:
-                sigmasq, tausq = float(sol[0]), float(sol[1])
-            else:
-                sigmasq = float(x[0] / n)
+            sigmasq, tausq = _validated_mom_solution(sol, x[0], n)
         except np.linalg.LinAlgError:
-            sigmasq = float(x[0] / n)
+            sigmasq, tausq = float(x[0] / n), 0.0
     elif est_sigmasq:
         new_sigma = (x[0] - A[0, 1] * tausq) / n
         if new_sigma > 0:
