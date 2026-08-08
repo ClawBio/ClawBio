@@ -37,6 +37,11 @@ import scipy.special
 from scipy.optimize import minimize_scalar
 
 
+def _variance_diagonal(Dsq: np.ndarray, sigmasq: float, tausq: float) -> np.ndarray:
+    """Return the SuSiE-inf variance diagonal without suppressing small tau squared."""
+    return tausq * Dsq + sigmasq
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -105,7 +110,7 @@ def run_susie_inf(
     yty = n * meansq                              # y'y
 
     # Initialise variance diagonal and weighted quantities
-    var = tausq * Dsq + sigmasq                   # (p,) diagonal in eigenbasis
+    var = _variance_diagonal(Dsq, sigmasq, tausq)  # (p,) diagonal in eigenbasis
     diag_XtOX = np.sum(V ** 2 * (Dsq / var), axis=1)   # diag(X'ΩX)
     XtOy = V @ (VtXty / var)                     # X'Ωy
 
@@ -177,12 +182,10 @@ def run_susie_inf(
                 n, V, Dsq, VtXty, Xty, yty,
                 est_sigmasq=est_sigmasq, est_tausq=est_tausq,
             )
-            # Only apply tausq to the variance structure if it exceeds a
-            # minimum threshold. Tiny tausq estimates (< 1e-3) spread
-            # posterior weight across eigenvectors without meaningfully
-            # modelling a polygenic background, degrading SER quality.
-            effective_tausq = tausq if tausq >= 1e-3 else 0.0
-            var = effective_tausq * Dsq + sigmasq
+            # A positive tau squared is part of the fitted variance model.
+            # Do not zero small estimates: realistic polygenic components can
+            # be in the 1e-5 to 1e-4 range and still change posterior weights.
+            var = _variance_diagonal(Dsq, sigmasq, tausq)
             diag_XtOX = np.sum(V ** 2 * (Dsq / var), axis=1)
             XtOy = V @ (VtXty / var)
 

@@ -692,6 +692,14 @@ class TestSuSiEInf:
         # tausq should be non-negative
         assert result["tausq"] >= 0.0
 
+    def test_small_positive_tausq_is_applied_without_hidden_threshold(self):
+        """Realistic SuSiE-inf tau squared estimates must affect variance."""
+        from fine_mapping_core.susie_inf import _variance_diagonal
+
+        dsq = np.array([0.0, 1000.0, 5000.0])
+        observed = _variance_diagonal(dsq, sigmasq=1.0, tausq=5e-5)
+        np.testing.assert_allclose(observed, np.array([1.0, 1.05, 1.25]))
+
     def test_cred_inf_returns_list_of_index_lists(self):
         """cred_inf returns a list where each element is a list of SNP indices."""
         from fine_mapping_core.susie_inf import run_susie_inf, cred_inf
