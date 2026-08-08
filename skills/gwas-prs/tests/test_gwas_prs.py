@@ -379,3 +379,49 @@ class TestReportGeneration:
         assert "PGS000013" in report
         assert "PGS000004" in report
         assert "Type 2 diabetes" in report
+
+
+def test_below_overlap_writes_structured_no_score_result(tmp_path):
+    """A safe abstention must remain machine-readable for agents and audits."""
+    import subprocess
+    import sys
+
+    input_path = tmp_path / "no_overlap.txt"
+    input_path.write_text(
+        "# rsid\tchromosome\tposition\tgenotype\n"
+        "rs999999\t1\t100\tAA\n"
+    )
+    output_dir = tmp_path / "out"
+    script = Path(__file__).resolve().parents[1] / "gwas_prs.py"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--input",
+            str(input_path),
+            "--pgs-id",
+            "PGS000013",
+            "--output",
+            str(output_dir),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert json.loads((output_dir / "prs_results.json").read_text()) == []
+    envelope = json.loads((output_dir / "result.json").read_text())
+    assert envelope["summary"]["scores_calculated"] == 0
+    assert envelope["data"]["skipped_scores"] == [
+        {
+            "pgs_id": "PGS000013",
+            "trait": "Type 2 diabetes",
+            "status": "not_scored",
+            "reason": "overlap_below_threshold",
+            "variants_used": 0,
+            "variants_total": 8,
+            "overlap_fraction": 0.0,
+            "minimum_overlap": 0.5,
+        }
+    ]

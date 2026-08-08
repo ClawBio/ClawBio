@@ -1271,6 +1271,7 @@ def main():
     # Step 3: Calculate PRS for each scoring file
     # -----------------------------------------------------------
     all_results: list[dict] = []
+    skipped_results: list[dict] = []
 
     for sf in scoring_files:
         pgs_id = sf["pgs_id"]
@@ -1301,6 +1302,16 @@ def main():
                 f"  Skipping: overlap {prs['overlap_fraction'] * 100:.1f}% "
                 f"below --min-overlap {args.min_overlap * 100:.0f}%"
             )
+            skipped_results.append({
+                "pgs_id": pgs_id,
+                "trait": trait,
+                "status": "not_scored",
+                "reason": "overlap_below_threshold",
+                "variants_used": prs["variants_used"],
+                "variants_total": prs["variants_total"],
+                "overlap_fraction": prs["overlap_fraction"],
+                "minimum_overlap": args.min_overlap,
+            })
             continue
 
         print(f"  Raw PRS: {prs['raw_score']:.6f}")
@@ -1330,6 +1341,26 @@ def main():
 
     if not all_results:
         print("No scores produced results. Check input file and overlap.")
+        if args.output:
+            output_dir = Path(args.output)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            (output_dir / "prs_results.json").write_text("[]\n")
+            write_result_json(
+                output_dir=output_dir,
+                skill="gwas-prs",
+                version="0.2.0",
+                summary={
+                    "scores_calculated": 0,
+                    "scores_skipped": len(skipped_results),
+                    "reason": "overlap_below_threshold",
+                },
+                data={
+                    "input_info": input_info,
+                    "results": [],
+                    "skipped_scores": skipped_results,
+                },
+                input_checksum=sha256_hex(str(input_path)) if input_path.exists() else "",
+            )
         sys.exit(0)
 
     # -----------------------------------------------------------
