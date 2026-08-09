@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic genomics: the definition — ClawBio</title>
+  <meta name="description" content="The four necessary conditions for agentic genomics, the perturbation test that operationalises them, and the three validation tiers, as published in Cell Genomics.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="ClawBio">
+  <meta property="og:title" content="Agentic genomics: the definition">
+  <meta property="og:description" content="Four necessary conditions, one empirical test, three validation tiers. Published in Cell Genomics, DOI 10.1016/j.xgen.2026.101305.">
+  <meta property="og:url" content="https://clawbio.ai/definitions/">
+  <meta property="og:image" content="https://raw.githubusercontent.com/ClawBio/ClawBio/main/img/clawbio-social-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@manuelcorpas">
+  <meta name="twitter:title" content="Agentic genomics: the definition">
+  <meta name="twitter:description" content="Four necessary conditions, one empirical test, three validation tiers. Published in Cell Genomics, DOI 10.1016/j.xgen.2026.101305.">
+  <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+  <link rel="canonical" href="https://clawbio.ai/definitions/">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+      --text: #e6edf3; --text-muted: #8b949e; --accent: #3fb950; --accent2: #58a6ff;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; line-height: 1.65; }
+    nav { position: sticky; top: 0; z-index: 100; background: rgba(13,17,23,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .nav-logo { display: flex; align-items: center; gap: 0.6rem; font-weight: 700; font-size: 1.15rem; text-decoration: none; color: var(--text); }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; }
+    .nav-links a:hover { color: var(--text); }
+    .wrap { max-width: 820px; margin: 0 auto; padding: 3.5rem 1.5rem 5rem; }
+    h1 { font-size: clamp(1.9rem, 4vw, 2.6rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 0.9rem; }
+    h2 { font-size: 1.45rem; font-weight: 700; margin: 3rem 0 1rem; scroll-margin-top: 80px; }
+    h3 { font-size: 1.1rem; font-weight: 650; margin: 2rem 0 0.5rem; scroll-margin-top: 80px; color: var(--text); }
+    p { margin-bottom: 1rem; color: var(--text); }
+    .lede { font-size: 1.1rem; color: var(--text-muted); margin-bottom: 2rem; }
+    .eyebrow { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.7rem; }
+    a { color: var(--accent2); }
+    blockquote { border-left: 3px solid var(--accent); background: var(--bg2); padding: 1rem 1.2rem; margin: 1rem 0 1.2rem; border-radius: 0 6px 6px 0; }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cond { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem 1.4rem; margin-bottom: 1rem; scroll-margin-top: 80px; }
+    .cond-n { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.4rem; }
+    .cond h3 { margin: 0 0 0.5rem; font-size: 1.12rem; }
+    .note { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; font-size: 0.94rem; color: var(--text-muted); margin: 1.5rem 0; }
+    .note strong { color: var(--text); }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: 0.94rem; display: block; overflow-x: auto; }
+    th, td { text-align: left; padding: 0.65rem 0.8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--text-muted); font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    ul { margin: 0 0 1rem 1.2rem; } li { margin-bottom: 0.4rem; }
+    pre { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; font-size: 0.85rem; margin-bottom: 1rem; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .ver { font-size: 0.82rem; color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 0.2rem 0.7rem; display: inline-block; margin-bottom: 1.5rem; }
+    footer { border-top: 1px solid var(--border); padding: 2rem 1.5rem 3rem; color: var(--text-muted); font-size: 0.88rem; }
+    footer .wrap { padding: 0; max-width: 820px; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="nav-logo" href="/"><span>🦖</span> ClawBio</a>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/definitions/" style="color:var(--accent);font-weight:600;">Definitions</a></li>
+      <li><a href="/benchmarks.html">Benchmarks</a></li>
+      <li><a href="https://github.com/ClawBio/ClawBio">GitHub</a></li>
+    </ul>
+  </nav>
+
+  <div class="wrap">
+    <div class="eyebrow">Reference definition</div>
+    <h1>Agentic genomics</h1>
+    <p class="lede">Four necessary conditions, one empirical test that operationalises them, and three validation tiers. This page is the citable reference for the definition published in <em>Cell Genomics</em>.</p>
+    <div class="ver">Page v1.0 &middot; 27 July 2026</div>
+
+    <p>The definition below is quoted from Corpas, Guio and Fatumo, <em>Agentic genomics: From pipeline automation to autonomous validation</em>, <em>Cell Genomics</em> 6, 101305 (2026), <a href="https://doi.org/10.1016/j.xgen.2026.101305">doi:10.1016/j.xgen.2026.101305</a>. The article is open access under CC BY-NC-ND. Short quotations are reproduced here with attribution; for the full text, the tables and the figures, read the article.</p>
+
+    <h2 id="definition">The definition</h2>
+    <blockquote>
+      <p>Agentic genomics is the use of autonomous AI agents, powered by large language models (LLMs) and operating within domain-constrained skill libraries, to discover, plan, execute, and iteratively refine multi-step genomic analyses, where the agent exercises runtime decision-making over tool selection, parameterization, error handling, and output evaluation.</p>
+    </blockquote>
+
+    <h2 id="conditions">The four necessary conditions</h2>
+    <p>The article states that these four conditions are <em>jointly</em> necessary. A system meeting only a subset falls into one of the adjacent categories listed below rather than qualifying as agentic genomics.</p>
+
+    <div class="cond" id="c1-autonomy">
+      <span class="cond-n">Condition 1</span>
+      <h3>Autonomy</h3>
+      <blockquote><p>The agent must make decisions during execution, not merely follow a static workflow specification.</p></blockquote>
+    </div>
+
+    <div class="cond" id="c2-domain-constraint">
+      <span class="cond-n">Condition 2</span>
+      <h3>Domain constraint</h3>
+      <blockquote><p>The agent must operate within a structured library of validated operations (skills), not generate code <em>ad hoc</em> from a general-purpose model.</p></blockquote>
+    </div>
+
+    <div class="cond" id="c3-iterative-refinement">
+      <span class="cond-n">Condition 3</span>
+      <h3>Iterative refinement</h3>
+      <blockquote><p>The agent must be capable of evaluating intermediate results and modifying its approach accordingly, including error diagnosis and self-repair.</p></blockquote>
+    </div>
+
+    <div class="cond" id="c4-natural-language">
+      <span class="cond-n">Condition 4</span>
+      <h3>Natural-language mediation</h3>
+      <blockquote><p>The interface between the researcher and the analysis must be natural language, enabling researchers without programming expertise to direct complex analyses.</p></blockquote>
+    </div>
+
+    <div class="note" id="skill-terminology">
+      <strong>On the word "skill".</strong> The article is explicit that this is not a claim to own a term. It notes that different ecosystems use convergent but non-identical vocabulary, "tools" in the Anthropic and OpenAI function-calling literatures, "actions" in some autonomous-agent frameworks, and "skills" in ClawBio and several adjacent projects, and states that "skill" is used throughout "for definiteness, not to assert a universal standard; the structural argument applies equally to any unit that encapsulates a validated, semantically discoverable, agent-invokable operation." Condition 2 is a requirement for validated, discoverable, invokable units. It is not a requirement to use any particular library, including this one.
+    </div>
+
+    <h2 id="perturbation-test">The perturbation test</h2>
+    <p>The conditions are meant to be checkable rather than argued about. The article gives one empirical test:</p>
+    <blockquote>
+      <p>A system fails to qualify if, when presented with identical input under perturbed intermediate outputs (e.g., a tool returning an unexpected error or an anomalous result), it does not alter its execution strategy.</p>
+    </blockquote>
+    <p>Two points about applying it honestly. The perturbation must be to an <em>intermediate</em> output during a running analysis, not to the input, because perturbing the input tests a different property. And the published criterion is binary: a system that halts safely without changing strategy fails it, exactly as a system that continues silently does. Those are different failures in practice, and separating them requires an extension to the published criterion rather than a reinterpretation of it. Any such extension should be declared as a change.</p>
+
+    <h2 id="exclusions">What agentic genomics is not</h2>
+    <p>The article rules out four adjacent categories explicitly. Each is useful; none satisfies all four conditions.</p>
+    <table>
+      <thead><tr><th>Category</th><th>Why it does not qualify</th></tr></thead>
+      <tbody>
+        <tr><td>Workflow automation<br><span style="color:var(--text-muted)">Nextflow, Snakemake, Galaxy</span></td><td>The workflow is specified in advance by a human developer. The manager executes a fixed graph; it does not decide at runtime which tools to use, nor adapt when intermediate results are unexpected. Agentic genomics builds <em>on</em> this infrastructure and is not a replacement for it.</td></tr>
+        <tr><td>AutoML and automated pipeline selection</td><td>Search over a predefined space of architectures or hyperparameters, within constraints set by a human engineer. It optimises within a search space rather than formulating the analysis strategy.</td></tr>
+        <tr><td>LLM-assisted scripting<br><span style="color:var(--text-muted)">"vibe coding"</span></td><td>The model produces code, the human executes and evaluates it. No autonomous execution, no runtime adaptation, no domain constraint.</td></tr>
+        <tr><td>General-purpose AI copilots</td><td>Information retrieval systems that answer questions or summarise literature. They do not execute multi-step analyses against real data.</td></tr>
+      </tbody>
+    </table>
+    <p>The distinguishing feature, in the article's words, is that the agent acts: it executes tools, reads their output, decides what to do next, and delivers results. The researcher's role shifts from constructing the analysis to evaluating it.</p>
+
+    <h2 id="validation-tiers">The three validation tiers</h2>
+    <p>The article proposes a tiered validation framework rather than a single pass or fail. The tiers are summarised here; the full criteria are in Table 2 of the article.</p>
+    <table>
+      <thead><tr><th>Tier</th><th>In short</th></tr></thead>
+      <tbody>
+        <tr id="tier-research-grade"><td><strong>Research-grade</strong></td><td>Reproducible and documented, with the analysis and its provenance recoverable. Suitable for exploratory research.</td></tr>
+        <tr id="tier-benchmarked"><td><strong>Benchmarked</strong></td><td>Performance characterised against reference datasets by a party independent of the system's authors.</td></tr>
+        <tr id="tier-clinical-grade"><td><strong>Clinical-grade</strong></td><td>Validated to the standards required for clinical use, which are set by regulators and accredited laboratories.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      <strong>This is not regulatory conformity assessment.</strong> Assessing a system against this definition says whether it fits a published academic definition. It confers no approval, no accreditation and no certification, and it does not indicate fitness for clinical use. Fitness for clinical use is determined by regulators and accredited laboratories. The article carries the same disclaimer.
+    </div>
+
+    <h2 id="conformance">Testing a system against this definition</h2>
+    <p>A draft protocol that operationalises the perturbation test, including fault classes, a reporting rubric, and the governance rules under which any assessment is published, is being developed in the open at <a href="https://github.com/ClawBio/ClawBench">ClawBio/ClawBench</a>. It is a draft for comment and is not a standard. Comments are welcome as issues on that repository.</p>
+    <p>ClawBio's own skills are assessed first, and non-passing results are published. Under the tier definitions above, a system cannot claim the benchmarked tier on the strength of its own authors' benchmarking, and that constraint applies to ClawBio.</p>
+
+    <h2 id="cite">How to cite</h2>
+    <p>Cite the article, not this page.</p>
+    <pre><code>@article{corpas2026agentic,
+  title   = {Agentic genomics: From pipeline automation to autonomous validation},
+  author  = {Corpas, Manuel and Guio, Heinner and Fatumo, Segun},
+  journal = {Cell Genomics},
+  volume  = {6},
+  pages   = {101305},
+  year    = {2026},
+  doi     = {10.1016/j.xgen.2026.101305}
+}</code></pre>
+    <p>Corpas M, Guio H, Fatumo S. Agentic genomics: From pipeline automation to autonomous validation. <em>Cell Genomics</em>. 2026;6:101305. doi:10.1016/j.xgen.2026.101305</p>
+
+    <h2 id="interests">Declaration of interests</h2>
+    <p>ClawBio is an open-source project founded by Manuel Corpas, who is a co-author of the article quoted on this page. A definition authored by the maintainer of a skill library, whose second condition concerns validated skill libraries, carries an obvious conflict. Three things are done about it rather than said about it: the terminology disclaimer above is the article's own and is reproduced in full; ClawBio is assessed against the definition before anyone else is, with failures published; and no ClawBio component is described as benchmarked on the basis of benchmarking performed by its authors. The article's full Declaration of Interests is published with it.</p>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <p>ClawBio &middot; <a href="/">clawbio.ai</a> &middot; <a href="https://github.com/ClawBio/ClawBio">GitHub</a> &middot; <a href="/benchmarks.html">Benchmarks</a></p>
+      <p style="margin-top:0.6rem;">Quotations from Corpas et al., <em>Cell Genomics</em> 6, 101305 (2026), open access under CC BY-NC-ND, reproduced with attribution.</p>
+    </div>
+  </footer>
+</body>
+</html>
