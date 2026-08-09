@@ -480,6 +480,9 @@ def build_catalog() -> list[dict]:
             "cli_alias": cli_alias,
             "description": skill_meta.get("description", ""),
             "version": str(skill_meta.get("version", "0.1.0")),
+            # Surfaced so catalog consumers can see a non-permissive skill
+            # without opening its SKILL.md.
+            "license": str(skill_meta.get("license", "")),
             "status": status,
             "maturity_tier": maturity_tier,
             "maturity_evidence": maturity_evidence,

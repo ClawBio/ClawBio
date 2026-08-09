@@ -9,6 +9,7 @@
       "cli_alias": "affprot",
       "description": "Unified analysis pipeline for affinity-based proteomics platforms — Olink (PEA, NPX) and SomaLogic SomaScan (SOMAmer, RFU). Platform-aware QC, normalisation, differential abundance, volcano plots, heatmaps, and PCA.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -53,6 +54,7 @@
       "cli_alias": "analyze-fasta",
       "description": "Analyze a single FASTA file (nucleotide or protein), compute sequence-level metrics (GC, ORFs, MW, pI, GRAVY, secondary-structure fractions) with Biopython, and write a Markdown report plus structured JSON for downstream chaining.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -108,6 +110,7 @@
       "cli_alias": null,
       "description": "Infers genetic super-population ancestry from a 23andMe/AncestryDNA file and computes ancestry-stratified odds ratios with an exploratory Ancestry Elevation Score (AES) showing where ancestry-specific GWAS effect sizes diverge from European reference estimates.",
       "version": "1.3.1",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -152,6 +155,7 @@
       "cli_alias": null,
       "description": "Detect Neanderthal and Denisovan introgression segments from modern human genomes",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -185,6 +189,7 @@
       "cli_alias": null,
       "description": "Given an article DOI or PubMed ID, discover and download the genomics data files deposited by the authors (VCF, FASTA, H5AD, CSV, JSON, BAM, etc.) from public repositories such as GEO, ENA, Zenodo, Figshare, Dryad, and OSF.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -241,6 +246,7 @@
       "cli_alias": null,
       "description": "Search scientific papers via the BGPT MCP server and retrieve structured experimental data — methods, results, conclusions, quality scores, and 25+ metadata fields per paper.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -290,6 +296,7 @@
       "cli_alias": "bigquery",
       "description": "Run read-only SQL against BigQuery public datasets with local result capture, cost safeguards, and reproducibility outputs.",
       "version": "0.2.1",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -327,6 +334,7 @@
       "cli_alias": null,
       "description": "Meta-agent that routes bioinformatics requests to specialised sub-skills. Handles file type detection, analysis planning, report generation, and reproducibility export.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -356,6 +364,7 @@
       "cli_alias": "bioc",
       "description": "Bioconductor package discovery, workflow recommendation, setup inspection, and starter code generation grounded in official Bioconductor containers and BiocManager.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -408,6 +417,7 @@
       "cli_alias": "bioqc",
       "description": "Automated sequencing quality control and advanced visualization wrapping FastQC, MultiQC, and custom chart generation. Exposes an MCP stdio server for live AI integration alongside a ClawBio CLI runner.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -451,6 +461,7 @@
       "cli_alias": null,
       "description": "Genome, transcriptome, and protein completeness assessment via BUSCO v6. Agentic lineage routing from organism description, all three BUSCO modes, auto-lineage support, and full demo mode without the BUSCO binary.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -504,6 +515,7 @@
       "cli_alias": null,
       "description": "Cell segmentation in fluorescence microscopy images. Supports Cellpose/cpsam (Cellpose 4.0) with additional backends planned. Produces segmentation masks, per-cell morphology metrics (area, diameter, centroid, eccentricity), overlay figures, and a report.md.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -546,6 +558,7 @@
       "cli_alias": "celltype-specificity-profiler",
       "description": "Given a gene and a single-cell atlas, compute how cell-type-specific its expression is — the tau specificity index, Sarle's expression bimodality coefficient, and the cell types that drive the signal; a pure analytic transform that chains downstream of scrna-embedding.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -598,6 +611,7 @@
       "cli_alias": null,
       "description": "Ancestry decomposition PCA against the Simons Genome Diversity Project",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -637,6 +651,7 @@
       "cli_alias": "metagenomics",
       "description": "Shotgun metagenomics profiling — taxonomy, resistome, and functional pathways",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -676,6 +691,7 @@
       "cli_alias": null,
       "description": "Methylation cycle analysis — enzymatic activity profiles, Net Methylation Capacity, BH4 axis estimates, compound heterozygosity detection from SNP genotype data.",
       "version": "0.1.3",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -715,6 +731,7 @@
       "cli_alias": null,
       "description": "Semantic Similarity Index for disease research literature using PubMedBERT embeddings",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "spec-only",
       "maturity_evidence": {
@@ -755,6 +772,7 @@
       "cli_alias": null,
       "description": "Eval-driven skill tuning. Given a task and an LLM-judge rubric, iteratively rewrites a SKILL.md until a downstream executor agent performs well against the judge. Low-code: all evaluation is LLM-as-judge, not deterministic Python.",
       "version": "1.0.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "scripted",
       "maturity_evidence": {
@@ -796,6 +814,7 @@
       "cli_alias": null,
       "description": "Find clinical trials for a gene, variant, or condition from ClinicalTrials.gov + EUCTR, with FHIR R4 output",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -840,6 +859,7 @@
       "cli_alias": "acmg",
       "description": "Classify germline variants from VCF/BCF files according to the ACMG/AMP 2015 28-criteria evidence framework and generate clinical-grade interpretation reports with per-variant evidence audit trails and ACMG SF v3.2 secondary findings screening.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -886,6 +906,7 @@
       "cli_alias": "clinpgx",
       "description": "Query the ClinPGx API for pharmacogenomic gene-drug data, clinical annotations, CPIC guidelines, and FDA drug labels",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -920,6 +941,7 @@
       "cli_alias": "cnv-acmg",
       "description": "Classify structural variants / copy-number variants (deletions and duplications) using the ClinGen / ACMG 2019 (Riggs et al. 2020) point framework and return a five-tier classification with a per-section evidence trail. Germline CNV interpretation, not SNV/indel.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -959,6 +981,7 @@
       "cli_alias": "crispr-triage",
       "description": "Deterministic CRISPR screen hit ranking from local guide-level count tables",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -998,6 +1021,7 @@
       "cli_alias": "data-extract",
       "description": "Extract numerical data from scientific figure images using Claude vision + OpenCV calibration. Supports 26+ plot types including bar charts, scatter plots, forest plots, Kaplan-Meier curves, box plots, and more.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1023,6 +1047,7 @@
       "cli_alias": null,
       "description": "Summarise pre-computed differential expression results with ranked gene lists, biological themes, and publication-ready interpretation.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "spec-only",
       "maturity_evidence": {
@@ -1060,8 +1085,9 @@
     {
       "name": "deepspot-m",
       "cli_alias": "deepspot-m",
-      "description": "Transcriptome-wide virtual spatial transcriptomics from H&E histology with DeepSpot-M. Scores a 224x224 tile and returns per-gene log1p-CPM values for any HGNC symbols you ask for, with a ranked CSV, a report and a reproducibility bundle.",
-      "version": "0.1.0",
+      "description": "Transcriptome-wide virtual spatial transcriptomics from H&E histology with DeepSpot-M. Scores a 224x224 tile and returns per-gene log1p-CPM values for any HGNC symbols you ask for, with a CSV, a report and a reproducibility bundle.",
+      "version": "0.2.0",
+      "license": "PolyForm-Noncommercial-1.0.0",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1079,7 +1105,7 @@
       "demo_command": "python clawbio.py run deepspot-m --demo",
       "dependencies": [
         "python>=3.11",
-        "deepspotm>=1.0",
+        "deepspotm>=1.0,<2",
         "Pillow>=9.0"
       ],
       "tags": [
@@ -1107,6 +1133,7 @@
       "cli_alias": "diffviz",
       "description": "Rich downstream visualisation and reporting for bulk RNA-seq differential expression and scRNA marker/contrast outputs.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1149,6 +1176,7 @@
       "cli_alias": "dnasp",
       "description": "Full reimplementation of DnaSP 6 for population genetics analysis of aligned DNA sequences. Covers nucleotide diversity, haplotype statistics, neutrality tests (Tajima's D, Fu & Li's D*/F*, R2), linkage disequilibrium (D, D', R², ZnS, Za, ZZ), minimum recombination (Rm), mismatch distribution, InDel polymorphism, between-population divergence (Dxy, Da, fixed/shared sites), outgroup-based Fu & Li D/F tests (fuliout), the HKA multi-locus neutrality test (hka), the McDonald-Kreitman test (mk), Ka/Ks (dN/dS) via the Nei-Gojobori (1986) method (kaks), Fu's Fs test (fufs), the site frequency spectrum (sfs, folded and outgroup-unfolded), transition/transversion ratio (tstv), and codon usage bias  -  RSCU (Sharp & Li 1987) and ENC (Wright 1990) (codon). Accepts FASTA or NEXUS input; outputs DnaSP-compatible TSV and a Markdown report.",
       "version": "0.4.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1232,6 +1260,7 @@
       "cli_alias": "drugphoto",
       "description": "Medication photo to personalised PGx dosage card via Claude vision — snap a pill, get genotype-informed guidance",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1269,6 +1298,7 @@
       "cli_alias": "repurposing",
       "description": "Objective-driven pooled viability screen analysis: QC, hit calling, context-selectivity, biomarker sweep, and ranked repurposing candidates. Format-agnostic via schema.yaml + objective.yaml; includes offline demo.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1316,6 +1346,7 @@
       "cli_alias": "eqtl-region",
       "description": "Fetch a region of cis-eQTL summary statistics from EBI eQTL Catalogue v7+\nvia tabix-on-FTP. Use when an agent needs eQTL beta / SE / p-value for\nevery variant in a window around a gene's TSS for one specific dataset\n(study × tissue × quantification method). Input: dataset_id, chromosome,\nstart, end, optional molecular_trait_id. Output: harmonised TSV slice.\n",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1359,6 +1390,7 @@
       "cli_alias": "equity",
       "description": "Compute HEIM diversity and equity metrics from VCF or ancestry data. Generates heterozygosity, FST, PCA plots, and a composite HEIM Equity Score with markdown reports.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -1392,6 +1424,7 @@
       "cli_alias": "fastreer",
       "description": "Phylogenetic distance matrices and trees from VCF or FASTA data using the fastreeR hybrid Java/Python toolkit (VCF2TREE, VCF2DIST, DIST2TREE, FASTA2DIST).",
       "version": "0.1.0",
+      "license": "GPL-3.0",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1444,6 +1477,7 @@
       "cli_alias": null,
       "description": "Statistical fine-mapping of GWAS loci using SuSiE, SuSiE-inf, and Approximate Bayes Factors to identify credible sets and posterior inclusion probabilities (PIPs) for causal variant discovery. SuSiE-inf adds an infinitesimal polygenic component for improved calibration at well-powered loci.",
       "version": "0.2.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -1495,6 +1529,7 @@
       "cli_alias": "flow",
       "description": "Flow.bio API bridge — authenticate, browse pipelines/samples/projects, search, upload data, launch pipeline executions, and check run status on any Flow instance.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1542,6 +1577,7 @@
       "cli_alias": "galaxy",
       "description": "Galaxy tool discovery, intelligent recommendation, and execution — 8,000+ bioinformatics tools from usegalaxy.org with multi-signal scoring and workflow suggestions",
       "version": "0.2.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1590,6 +1626,7 @@
       "cli_alias": "compare",
       "description": "Compare your genome to George Church (PGP-1) and estimate ancestry composition via IBS and EM admixture",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -1631,6 +1668,7 @@
       "cli_alias": null,
       "description": "Score genetic compatibility across all male-female pairings in a Genomebook generation",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "scripted",
       "maturity_evidence": {
@@ -1669,6 +1707,7 @@
       "cli_alias": null,
       "description": "Predict gene and transcript structure (intervals, exons, strand) from a DNA sequence using the Genomic Intelligence DNA Annotation model, via the hosted /v1/tasks/annotation/predict API. Async-only — the pipeline takes ~20 s for ~20 kbp.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -1717,6 +1756,7 @@
       "cli_alias": null,
       "description": "Predict chromatin state — histone marks, DNase, TF binding — across 919 tracks (DeepSEA-style) for DNA sequences, via the hosted Genomic Intelligence /v1/tasks/chromatin/predict API.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -1769,6 +1809,7 @@
       "cli_alias": null,
       "description": "Predict enhancer activity in DNA sequences using the Genomic Intelligence G0 DeepSTARR model, via the hosted /v1/tasks/enhancer/predict API. Returns per-window activity scores.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -1818,6 +1859,7 @@
       "cli_alias": null,
       "description": "Predict tissue / cell-type expression (log TPM + TPM) from a 9,198 bp TSS-centered DNA sequence using the Genomic Intelligence G0 Expression model, via the hosted /v1/tasks/expression/predict API. The model is conditioned on a free-text cell-type / assay description.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -1865,6 +1907,7 @@
       "cli_alias": null,
       "description": "Detect promoter regions in DNA sequences using the Genomic Intelligence G0 transformer (GENA-LM BERT Large), via the hosted /v1/tasks/promoter/predict API. Returns per-window promoter probabilities and called regions.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -1913,6 +1956,7 @@
       "cli_alias": null,
       "description": "Detect splice donor and acceptor sites in DNA sequences using the Genomic Intelligence G0 BigBird transformer, via the hosted /v1/tasks/splice/predict API. Returns per-position site probabilities and called sites.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -1962,6 +2006,7 @@
       "cli_alias": "gwas-region",
       "description": "Fetch a region of GWAS summary statistics from the NHGRI-EBI GWAS Catalog\nharmonised collection via tabix-on-FTP. Use when an agent needs GWAS beta /\nSE / p-value for every variant in a window for one specific study (GCST\naccession). Input: accession, chromosome, start, end. Output: harmonised\nTSV slice in canonical format.\n",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2005,6 +2050,7 @@
       "cli_alias": "gwas",
       "description": "Federated variant lookup across 9 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, eQTL Catalogue, and more.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -2040,6 +2086,7 @@
       "cli_alias": "gwas-pipe",
       "description": "End-to-end GWAS automation wrapping PLINK2 for genotype QC and REGENIE for two-step whole-genome regression association testing. Produces Manhattan plots, QQ plots, clumped lead variants, and structured summary statistics.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2083,6 +2130,7 @@
       "cli_alias": "prs",
       "description": "Calculate polygenic risk scores from DTC genetic data using the PGS Catalog",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -2116,6 +2164,7 @@
       "cli_alias": null,
       "description": "HLA allele typing from WGS/WES VCF data",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -2152,6 +2201,7 @@
       "cli_alias": "illumina",
       "description": "Import DRAGEN-exported Illumina result bundles into ClawBio for local tertiary analysis and downstream routing.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2191,6 +2241,7 @@
       "cli_alias": "just-prs",
       "description": "Compute evidence-aware polygenic risk scores from a local VCF or WGS file through the validated just-prs engine and a pinned local just-prs MCP server.",
       "version": "0.1.1",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2233,6 +2284,7 @@
       "cli_alias": null,
       "description": "Query and display Labstep electronic lab notebook data — experiments, protocols, resources, and inventory — via labstepPy.  Supports offline demo mode with synthetic biology data.",
       "version": "0.2.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -2275,6 +2327,7 @@
       "cli_alias": "ld-region",
       "description": "Compute pairwise r² between a lead variant and every variant in a window\nusing the 1000 Genomes Phase 3 GRCh38 reference panel, ancestry-stratified.\nUse when an agent needs LD coloring for a regional plot or LD pruning\naround a candidate causal variant. Single client (on-demand region fetch\nfrom EBI 1000G FTP); no multi-GB cold-start.\n",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2319,6 +2372,7 @@
       "cli_alias": null,
       "description": "Search PubMed and bioRxiv for bioinformatics literature, synthesise results into a structured report, and build a citation graph — all locally, with a reproducibility bundle.\n",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -2364,6 +2418,7 @@
       "cli_alias": "locuscompare-region",
       "description": "Render a 4-panel regional LocusCompare diagnostic for one (lead variant,\nexposure study, outcome study) tuple - overlays GWAS Manhattan, QTL Manhattan,\nGENCODE gene track, and cross-trait scatter colored by LD r². Use when an\nagent needs visual confirmation that two GWAS / QTL signals share the same\ncausal variant (the Liu 2019 LocusCompare convention). Inputs: lead variant +\ntwo pre-fetched harmonised sumstats slices (or eQTL Catalogue / GWAS Catalog\nidentifiers for bundled fetch). Output: PNG + JSON manifest.\n",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2416,6 +2471,7 @@
       "cli_alias": "marker-map",
       "description": "Deterministic marker-dominance region mapping from local spot-count CSVs",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2454,6 +2510,7 @@
       "cli_alias": "mr",
       "description": "Two-sample Mendelian Randomisation from GWAS summary statistics with IVW, MR-Egger, weighted median/mode, and full sensitivity analysis (Cochran Q, Egger intercept, Steiger, F-statistic, leave-one-out).",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2504,6 +2561,7 @@
       "cli_alias": "methylation",
       "description": "Compute epigenetic age from DNA methylation arrays using PyAging clocks from GEO accessions or local files.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2547,6 +2605,7 @@
       "cli_alias": null,
       "description": "Aggregates QC reports from any bioinformatics tool outputs (FastQC, fastp, STAR, Picard, samtools, etc.) into a single MultiQC HTML report plus a ClawBio markdown summary with per-sample QC metrics.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -2593,6 +2652,7 @@
       "cli_alias": null,
       "description": "Download genomes, genes, virus sequences, and taxonomy data from NCBI using the datasets and dataformat CLI tools.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "spec-only",
       "maturity_evidence": {
@@ -2648,6 +2708,7 @@
       "cli_alias": "rnaseq-pipeline",
       "description": "Wrapper skill for running nf-core/rnaseq bulk RNA-seq preprocessing from FASTQ or BAM inputs with strict preflight, reproducibility outputs, and downstream handoff to ClawBio bulk RNA-seq DE skills.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2697,6 +2758,7 @@
       "cli_alias": "sarek-pipeline",
       "description": "ClawBio wrapper around nf-core/sarek 3.8.1 covering mapping through annotation for germline, tumor-only, and somatic paired analyses.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -2754,6 +2816,7 @@
       "cli_alias": "scrnaseq-pipeline",
       "description": "Wrapper skill for running nf-core/scrnaseq 4.1.0 upstream single-cell RNA-seq preprocessing from FASTQ with strict preflight, reproducibility outputs, and downstream handoff to ClawBio scRNA skills.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2810,6 +2873,7 @@
       "cli_alias": "nutrigx",
       "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -2861,6 +2925,7 @@
       "cli_alias": null,
       "description": "Aggregate public target-level evidence across omics and translational sources for research triage.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -2898,6 +2963,7 @@
       "cli_alias": null,
       "description": "Interactive Goeminne proteomic aging clock with organ filters and per-protein contribution breakdown (protein NPX × coefficient). Agent- and demo-friendly.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -2942,6 +3008,7 @@
       "cli_alias": "pathway-enricher",
       "description": "Gene-set pathway enrichment analysis using Enrichr — queries KEGG, GO (BP/MF/CC), Reactome, WikiPathways, MSigDB, and Disease Ontology. Produces ranked pathway tables, interactive bubble charts, and a reproducible Markdown report.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2967,6 +3034,7 @@
       "cli_alias": "pharmgx",
       "description": "Pharmacogenomic report from DTC genetic data (23andMe/AncestryDNA) — 12 genes, 31 SNPs, 51 drugs",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -3009,6 +3077,7 @@
       "cli_alias": "phylo",
       "description": "End-to-end ML phylogenetic tree inference — MSA, trimming, ModelFinder, IQ-TREE2/RAxML-NG.",
       "version": "0.2.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -3054,6 +3123,7 @@
       "cli_alias": null,
       "description": "Fast genomic interval operations (overlap, nearest, merge, coverage, cluster, complement, subtract, count-overlaps), multi-format bioinformatics I/O, DataFusion SQL, and pileup on Polars DataFrames via polars-bio. A scalable bioframe/bedtools alternative.",
       "version": "0.1.0",
+      "license": "Apache-2.0",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -3106,6 +3176,7 @@
       "cli_alias": "profile",
       "description": "Unified personal genomic profile report — reads a PatientProfile JSON and synthesizes all skill results into a single \"Your Genomic Profile\" document.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -3146,6 +3217,7 @@
       "cli_alias": null,
       "description": "Compute organ-specific biological age from Olink proteomic data using Goeminne et al. (2025) elastic net aging clocks.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -3194,6 +3266,7 @@
       "cli_alias": null,
       "description": "Differential expression analysis for label-free quantitative (LFQ) intensity data with standard MaxQuant and DIA-NN output. Workflow includes preprocessing, imputation, and statistical testing.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -3221,6 +3294,7 @@
       "cli_alias": "protocols-io",
       "description": "Search, browse, and retrieve scientific protocols from protocols.io via REST API. Client token authentication for private protocols. Use when user mentions protocols.io, lab protocols, DOI lookup, protocol search, protocol steps, or scientific methods.",
       "version": "0.2.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -3261,6 +3335,7 @@
       "cli_alias": null,
       "description": "Search PubMed for a gene name or disease term and generate a structured research briefing of the top recent English-language papers.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -3295,6 +3370,7 @@
       "cli_alias": "rdoutlier",
       "description": "Blood RNA-seq expression-outlier detection for rare-disease diagnostics. Cases scored against a control reference panel; outliers ranked and filtered by a haploinsufficient disease-gene panel.",
       "version": "0.1.0",
+      "license": "",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -3330,6 +3406,7 @@
       "cli_alias": null,
       "description": "Count rare, high-impact loss-of-function variants carried in a VCF, annotated with molecular consequence and population allele frequency",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -3368,6 +3445,7 @@
       "cli_alias": null,
       "description": "Produce offspring genomes from parent pairs via meiotic recombination, mutation, and clinical evaluation",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "scripted",
       "maturity_evidence": {
@@ -3408,6 +3486,7 @@
       "cli_alias": null,
       "description": "Export any bioinformatics analysis as a reproducible bundle with Conda environment, Singularity container definition, and Nextflow pipeline.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "spec-only",
       "maturity_evidence": {
@@ -3433,6 +3512,7 @@
       "cli_alias": "rnaseq",
       "description": "Differential expression analysis for bulk RNA-seq and pseudo-bulk count matrices with QC, PCA, and contrast testing.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -3480,6 +3560,7 @@
       "cli_alias": "sample-qc",
       "description": "Deterministic multi-sample QC triage for identity, sex, contamination, and batch-shift outliers",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -3520,6 +3601,7 @@
       "cli_alias": "scrna-embedding",
       "description": "Local scVI/scANVI-based single-cell latent embedding and batch-aware integration from raw-count .h5ad or 10x Matrix Market input, with stable integrated AnnData export for downstream latent analysis.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -3567,6 +3649,7 @@
       "cli_alias": "scrna",
       "description": "Local Scanpy pipeline for single-cell RNA-seq QC, optional doublet detection, clustering, marker discovery, optional CellTypist annotation, optional latent downstream mode from integrated.h5ad/X_scvi, and optional dataset-level plus within-cluster contrastive marker analysis from raw-count .h5ad or 10x Matrix Market input.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -3616,6 +3699,7 @@
       "cli_alias": null,
       "description": "NGS read QC, alignment, and BAM processing pipeline. Wraps FastQC, BWA/Bowtie2/Minimap2, SAMtools, and MultiQC for automated read-to-BAM workflows.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -3669,6 +3753,7 @@
       "cli_alias": null,
       "description": "Scaffold a new ClawBio skill from a spec file (JSON/YAML) or interactively — generates SKILL.md, Python skeleton, tests, and updates catalog.json",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -3708,6 +3793,7 @@
       "cli_alias": null,
       "description": "Compile SOUL.md character profiles into synthetic diploid genomes (.genome.json) via trait-to-allele mapping",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "scripted",
       "maturity_evidence": {
@@ -3745,6 +3831,7 @@
       "cli_alias": null,
       "description": "Protein structure prediction with Boltz-2. Accepts YAML inputs (single protein or multi-chain complex), runs boltz predict, extracts per-residue pLDDT and PAE confidence, and writes a markdown report with figures.",
       "version": "0.2.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -3770,6 +3857,7 @@
       "cli_alias": null,
       "description": "Evidence-grounded target validation scoring with GO/NO-GO decisions for drug discovery campaigns",
       "version": "1.0.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -3811,6 +3899,7 @@
       "cli_alias": null,
       "description": "Build, query, and analyse biomedical knowledge graphs in TuringDB, a columnar graph database with git-like versioning.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -3863,6 +3952,7 @@
       "cli_alias": null,
       "description": "Semantic search across UK Biobank's 12,000+ data fields and publications — find the right variables for your research question.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "mvp",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -3895,6 +3985,7 @@
       "cli_alias": "ukb-ppp-region",
       "description": "Fetch a regional slice of plasma pQTL summary statistics from the UK\nBiobank Pharma Proteomics Project (UKB-PPP; Sun 2023 Nature) for a\nspecific (protein, ancestry) measurement. Use when an agent needs\nper-variant beta / SE / p-value around a coloc-lead variant for\ndownstream colocalisation, Mendelian randomisation, or regional\nplotting against a pQTL exposure. The canonical use case is the\ncis-window around the protein's coding gene TSS, but UKB-PPP releases\nfull-genome summary stats per protein so any GRCh38 window (including\ntrans loci) is supported when the user supplies an explicit\n(chromosome, start_bp, end_bp). Input: protein_label (HGNC or\nUniProt), ancestry, chromosome, start_bp, end_bp. Output: harmonised\nTSV slice + manifest + human-readable report.\n",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -3938,6 +4029,7 @@
       "cli_alias": null,
       "description": "Annotate VCF variants with Ensembl VEP REST, ClinVar significance, gnomAD/population frequency context, and prioritized variant ranking.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -3978,6 +4070,7 @@
       "cli_alias": null,
       "description": "Annotate VCF variants with Ensembl VEP, ClinVar, and gnomAD. Ranks variants by impact (HIGH/MODERATE/LOW/MODIFIER) and generates a reproducible report.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -4024,6 +4117,7 @@
       "cli_alias": null,
       "description": "Generates professional clinical PDF reports in English from WES (Whole Exome Sequencing) data with clinical interpretation summary, pharmacogenomic alerts, and follow-up recommendations.",
       "version": "1.0.0",
+      "license": "PROPRIETARY",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -4063,6 +4157,7 @@
       "cli_alias": null,
       "description": "End-to-end WGS to polygenic risk score pipeline. Takes paired-end FASTQ files (or a pre-existing VCF) through nf-core/sarek for variant calling, applies VCF QC (normalisation, hard filtering, Ti/Tv and Het/Hom checks), then computes polygenic risk scores via the PGS Catalog. Fills the FASTQ to VCF gap upstream of the gwas-prs skill.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
@@ -4112,6 +4207,7 @@
       "cli_alias": null,
       "description": "Query TCGA tumor biology through the ucscxenatoolspy API. Supports tumor-vs-normal differential expression, gene-gene correlation, survival association, and cancer catalogue browsing across 30+ TCGA cancer types.",
       "version": "0.1.0",
+      "license": "MIT",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {

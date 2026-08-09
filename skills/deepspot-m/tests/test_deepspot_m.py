@@ -1,7 +1,10 @@
 """Tests for the deepspot-m virtual spatial transcriptomics skill.
 
 Every test here runs without torch, without deepspotm and without the gated
-model weights, so the suite is green on a base ClawBio checkout.
+model weights, so the suite is green on a base ClawBio checkout. The live
+prediction path is covered by injecting a stub `deepspotm` and `torch` into
+sys.modules, so the gene resolution, the pinned revision and the tensor
+handling are all exercised even though CI has no weights.
 """
 from __future__ import annotations
 
@@ -9,6 +12,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -43,6 +47,87 @@ def demo_output(tmp_path_factory, module):
 
 
 # ---------------------------------------------------------------------------
+# A stub model stack, so the live path is exercised without weights
+# ---------------------------------------------------------------------------
+
+
+class _FakeTensor:
+    """Minimal stand-in for the (1, n_genes) tensor predict_genes returns."""
+
+    def __init__(self, values):
+        self._values = list(values)
+
+    def squeeze(self, _dim):
+        return self
+
+    def tolist(self):
+        return list(self._values)
+
+
+class _FakeBatch:
+    def __init__(self, tile):
+        self.tile = tile
+
+    def unsqueeze(self, _dim):
+        return self
+
+
+class _FakeModel:
+    """Mimics the parts of DeepSpotM the skill actually touches."""
+
+    # Deliberately mixed case, including an HGNC symbol with lower-case 'orf'.
+    gene_names = ["EPCAM", "COL1A1", "PTPRC", "C9orf72", "MKI67", "TP53"]
+
+    def __init__(self):
+        self.eval_called = False
+        self.seen_genes = None
+
+    def eval(self):
+        self.eval_called = True
+        return self
+
+    def predict_genes(self, batch, genes):
+        # Upstream raises KeyError for anything outside the panel.
+        missing = [g for g in genes if g not in self.gene_names]
+        if missing:
+            raise KeyError(f"{len(missing)} gene(s) not in the model panel: {missing}")
+        self.seen_genes = list(genes)
+        return _FakeTensor(float(self.gene_names.index(g)) for g in genes)
+
+
+def install_stub_stack(monkeypatch, calls: dict):
+    """Put a fake `deepspotm` and `torch` on sys.modules and record the call."""
+    model = _FakeModel()
+
+    class _FakeDeepSpotM:
+        @staticmethod
+        def from_pretrained(repo, *, source, revision=None, **kwargs):
+            calls["repo"] = repo
+            calls["source"] = source
+            calls["revision"] = revision
+            calls["offline"] = __import__("os").environ.get("HF_HUB_OFFLINE")
+            return model, _FakeBatch
+
+    deepspotm = types.ModuleType("deepspotm")
+    deepspotm.DeepSpotM = _FakeDeepSpotM
+
+    class _NoGrad:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    torch = types.ModuleType("torch")
+    torch.no_grad = _NoGrad
+
+    monkeypatch.setitem(sys.modules, "deepspotm", deepspotm)
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    calls["model"] = model
+    return model
+
+
+# ---------------------------------------------------------------------------
 # Tile validation
 # ---------------------------------------------------------------------------
 
@@ -64,12 +149,17 @@ def test_bundled_demo_tile_is_224_square(module):
 
 
 # ---------------------------------------------------------------------------
-# Gene panel and embedding sources
+# Gene symbols: case-fold to look up, emit what the panel calls it
 # ---------------------------------------------------------------------------
 
 
-def test_parse_genes_normalises_and_deduplicates(module):
-    assert module.parse_genes(" braf , cd37 ,BRAF, COL1A1 ") == ["BRAF", "CD37", "COL1A1"]
+def test_parse_genes_deduplicates_without_destroying_case(module):
+    """HGNC keeps 'orf' lower case, so parse_genes must not upper-case."""
+    assert module.parse_genes(" c9orf72 , CD37 ,C9ORF72, COL1A1 ") == [
+        "c9orf72",
+        "CD37",
+        "COL1A1",
+    ]
 
 
 def test_parse_genes_defaults_to_the_bundled_panel(module):
@@ -79,6 +169,19 @@ def test_parse_genes_defaults_to_the_bundled_panel(module):
 def test_parse_genes_rejects_an_empty_list(module):
     with pytest.raises(ValueError):
         module.parse_genes(" , , ")
+
+
+def test_resolve_genes_returns_the_panel_spelling(module):
+    panel = ["EPCAM", "C9orf72", "COL1A1"]
+    assert module.resolve_genes(["c9orf72", "epcam"], panel) == ["C9orf72", "EPCAM"]
+
+
+def test_resolve_genes_reports_off_panel_symbols(module):
+    with pytest.raises(ValueError) as exc:
+        module.resolve_genes(["EPCAM", "NOTAGENE"], ["EPCAM", "COL1A1"])
+    message = str(exc.value)
+    assert "NOTAGENE" in message
+    assert "EPCAM" not in message.split("not in the released panel")[1]
 
 
 def test_five_embedding_sources_are_supported(module):
@@ -97,6 +200,217 @@ def test_demo_mode_refuses_genes_outside_the_fixture(module):
     with pytest.raises(ValueError) as exc:
         module.load_demo_expression(["EPCAM", "NOTAGENE"])
     assert "NOTAGENE" in str(exc.value)
+
+
+def test_demo_mode_resolves_genes_case_insensitively(module):
+    assert module.load_demo_expression(["epcam"]) == {"EPCAM": pytest.approx(5.82)}
+
+
+# ---------------------------------------------------------------------------
+# The live prediction path, against a stub model stack
+# ---------------------------------------------------------------------------
+
+
+def test_predict_expression_maps_panel_symbols_onto_scores(module, monkeypatch):
+    calls: dict = {}
+    model = install_stub_stack(monkeypatch, calls)
+
+    scores = module.predict_expression(object(), ["c9orf72", "EPCAM"], "scgpt")
+
+    # Keys come back as the panel spells them, not as the user typed them.
+    assert list(scores) == ["C9orf72", "EPCAM"]
+    assert scores == {"C9orf72": 3.0, "EPCAM": 0.0}
+    assert model.eval_called is True
+    assert model.seen_genes == ["C9orf72", "EPCAM"]
+
+
+def test_predict_expression_pins_the_weight_revision(module, monkeypatch):
+    calls: dict = {}
+    install_stub_stack(monkeypatch, calls)
+
+    module.predict_expression(object(), ["EPCAM"], "evo2")
+
+    assert calls["repo"] == module.MODEL_REPO
+    assert calls["source"] == "evo2"
+    assert calls["revision"] == module.MODEL_REVISION
+    assert len(module.MODEL_REVISION) == 40
+
+
+def test_predict_expression_stays_offline_unless_download_is_allowed(module, monkeypatch):
+    calls: dict = {}
+    install_stub_stack(monkeypatch, calls)
+
+    module.predict_expression(object(), ["EPCAM"], "scgpt")
+    assert calls["offline"] == "1"
+
+    module.predict_expression(object(), ["EPCAM"], "scgpt", allow_download=True)
+    assert calls["offline"] != "1"
+
+
+def test_predict_expression_turns_an_off_panel_symbol_into_a_readable_error(module, monkeypatch):
+    calls: dict = {}
+    install_stub_stack(monkeypatch, calls)
+
+    with pytest.raises(ValueError) as exc:
+        module.predict_expression(object(), ["NOTAGENE"], "scgpt")
+    assert "NOTAGENE" in str(exc.value)
+
+
+def test_an_off_panel_gene_exits_cleanly_rather_than_tracebacking(module):
+    """KeyError from genes_to_indices must be caught like every other input error."""
+    assert KeyError in module.INPUT_ERRORS
+
+
+def test_a_missing_model_stack_points_at_requirements_and_demo(module, monkeypatch):
+    monkeypatch.setitem(sys.modules, "deepspotm", None)
+    with pytest.raises(RuntimeError) as exc:
+        module.predict_expression(object(), ["EPCAM"], "scgpt")
+    message = str(exc.value)
+    assert "skills/deepspot-m/requirements.txt" in message
+    assert "huggingface-cli login" in message
+    assert "--demo" in message
+
+
+# ---------------------------------------------------------------------------
+# Microns per pixel is measured or declared, never assumed
+# ---------------------------------------------------------------------------
+
+
+def test_the_module_asserts_no_default_microns_per_pixel(module):
+    """0.5 um/px appears nowhere upstream, so the skill must not hardcode it."""
+    assert not hasattr(module, "TARGET_MPP")
+
+
+def test_pixel_size_is_none_without_resolution_metadata(module):
+    tile = module.load_tile(module.DEMO_TILE)
+    assert module.read_pixel_size_um(tile) is None
+
+
+def test_pixel_size_is_read_from_tiff_resolution_tags(module, tmp_path):
+    from PIL import Image
+
+    path = tmp_path / "tile.tif"
+    # 50000 pixels per inch -> 25400 / 50000 = 0.508 microns per pixel.
+    Image.new("RGB", (224, 224), (200, 150, 190)).save(path, dpi=(50000, 50000))
+
+    tile = Image.open(path)
+    assert module.read_pixel_size_um(tile) == pytest.approx(0.508, abs=1e-3)
+
+
+def test_an_implausible_resolution_tag_is_ignored(module, tmp_path):
+    from PIL import Image
+
+    path = tmp_path / "screen.tif"
+    # 72 dpi is a print/screen resolution, not a microscopy one: 353 um/px.
+    Image.new("RGB", (224, 224), (200, 150, 190)).save(path, dpi=(72, 72))
+
+    tile = Image.open(path)
+    assert module.read_pixel_size_um(tile) is None
+
+
+def test_declared_mpp_must_be_positive(module):
+    parser = module.build_parser()
+    args = parser.parse_args(["--demo", "--output", "/tmp/x", "--mpp", "0.5"])
+    assert args.mpp == 0.5
+    with pytest.raises(ValueError):
+        module.validate_mpp(0.0)
+    with pytest.raises(ValueError):
+        module.validate_mpp(-1.0)
+
+
+def test_demo_records_an_undeclared_pixel_size_as_null(demo_output):
+    payload = json.loads((demo_output / "result.json").read_text(encoding="utf-8"))
+    assert payload["microns_per_pixel"] is None
+    assert payload["microns_per_pixel_source"] is None
+
+    report = (demo_output / "report.md").read_text(encoding="utf-8")
+    assert "not declared" in report
+    assert "0.5 microns per pixel" not in report
+
+
+def test_a_declared_mpp_wins_over_image_metadata_but_says_so(module, tmp_path):
+    from PIL import Image
+
+    path = tmp_path / "tile.tif"
+    Image.new("RGB", (224, 224), (200, 150, 190)).save(path, dpi=(50000, 50000))
+    tile = Image.open(path)
+
+    resolved, source = module.resolve_pixel_size(tile, declared=0.42)
+    assert resolved == 0.42
+    assert "--mpp" in source
+    assert "0.508" in source  # the metadata it disagreed with
+
+    resolved, source = module.resolve_pixel_size(tile, declared=None)
+    assert resolved == pytest.approx(0.508, abs=1e-3)
+    assert "resolution tags" in source
+
+
+# ---------------------------------------------------------------------------
+# Tiles that do not look like H&E
+# ---------------------------------------------------------------------------
+
+
+def test_a_stained_tile_raises_no_tile_warnings(module):
+    tile = module.load_tile(module.DEMO_TILE)
+    assessment = module.assess_tile(tile)
+    assert assessment["warnings"] == []
+    assert assessment["mean_pixel"] < module.WHITE_MEAN_DEFAULT
+    assert assessment["mean_saturation"] > module.MIN_SATURATION_DEFAULT
+
+
+def test_a_near_white_tile_is_flagged_as_background(module):
+    from PIL import Image
+
+    tile = Image.new("RGB", (224, 224), (250, 248, 250))
+    warnings = module.assess_tile(tile)["warnings"]
+    assert any("background" in w for w in warnings)
+
+
+def test_a_greyscale_tile_is_flagged_as_not_h_and_e(module):
+    from PIL import Image
+
+    tile = Image.new("RGB", (224, 224), (120, 120, 120))
+    warnings = module.assess_tile(tile)["warnings"]
+    assert any("H&E" in w for w in warnings)
+
+
+def test_skip_background_refuses_to_score_a_blank_tile(tmp_path):
+    from PIL import Image
+
+    tile = tmp_path / "blank.png"
+    Image.new("RGB", (224, 224), (250, 248, 250)).save(tile)
+
+    result = subprocess.run(
+        [
+            sys.executable, str(MODULE_PATH),
+            "--input", str(tile),
+            "--skip-background",
+            "--output", str(tmp_path / "out"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert "background" in result.stderr
+
+
+def test_tile_warnings_travel_into_the_report(module, tmp_path):
+    """A warning is useless if it only ever reaches the terminal."""
+    from PIL import Image
+
+    tile = Image.new("RGB", (224, 224), (250, 248, 250))
+    rows = [{"gene": "EPCAM", "expression": 5.0, "unit": "log1p-CPM", "rank": 1}]
+    meta = module.build_meta(
+        demo=False, tile_label="blank.png", source="scgpt", genes=["EPCAM"],
+        mpp=None, mpp_source=None, assessment=module.assess_tile(tile),
+    )
+    out = tmp_path / "out"
+    out.mkdir()
+    report = module.write_report(out, rows, meta).read_text(encoding="utf-8")
+    assert "background" in report
+
+    payload = json.loads(module.write_result_json(out, rows, meta).read_text(encoding="utf-8"))
+    assert any("background" in w for w in payload["tile_warnings"])
 
 
 # ---------------------------------------------------------------------------
@@ -121,16 +435,16 @@ def test_demo_result_json_reports_log1p_cpm(demo_output, module):
     payload = json.loads((demo_output / "result.json").read_text(encoding="utf-8"))
     assert payload["unit"] == "log1p-CPM"
     assert payload["model"] == "ratschlab/DeepSpotM"
+    assert payload["model_revision"] == module.MODEL_REVISION
     assert payload["tile_size_px"] == 224
     assert set(payload["expression"]) == set(module.DEFAULT_GENES)
-    assert all(row["unit"] == "log1p-CPM" for row in payload["ranked"])
 
 
-def test_demo_gene_table_has_one_row_per_gene(demo_output, module):
+def test_demo_gene_table_keeps_rank_as_a_secondary_column(demo_output, module):
     lines = (demo_output / "tables" / "gene_expression.csv").read_text(
         encoding="utf-8"
     ).strip().splitlines()
-    assert lines[0] == "rank,gene,expression,unit"
+    assert lines[0] == "gene,expression,unit,rank"
     assert len(lines) == len(module.DEFAULT_GENES) + 1
 
 
@@ -146,13 +460,160 @@ def test_demo_environment_pins_conda_forge_and_nodefaults(demo_output):
     env = (demo_output / "reproducibility" / "environment.yml").read_text(encoding="utf-8")
     assert "conda-forge" in env
     assert "nodefaults" in env
-    assert "deepspotm>=1.0" in env
+    assert "deepspotm>=1.0,<2" in env
 
 
-def test_ranking_is_descending(demo_output):
+# ---------------------------------------------------------------------------
+# What the report claims
+# ---------------------------------------------------------------------------
+
+
+def test_values_are_reported_in_the_order_they_were_requested(module, tmp_path):
+    """No cross-gene ranking in the headline: the model predicts relative
+    expression, so ordering genes within one tile mostly recovers each gene's
+    training-set mean."""
+    out = tmp_path / "ordered"
+    module.main(["--demo", "--genes", "MKI67,EPCAM,CD68", "--output", str(out)])
+
+    payload = json.loads((out / "result.json").read_text(encoding="utf-8"))
+    assert payload["genes"] == ["MKI67", "EPCAM", "CD68"]
+    assert list(payload["expression"]) == ["MKI67", "EPCAM", "CD68"]
+
+    table = (out / "report.md").read_text(encoding="utf-8").split("| Gene | Expression")[1]
+    assert table.index("MKI67") < table.index("EPCAM") < table.index("CD68")
+
+
+def test_the_report_no_longer_headlines_the_highest_gene(demo_output):
+    report = (demo_output / "report.md").read_text(encoding="utf-8")
+    assert "holds the highest value" not in report
+    assert "| Rank |" not in report
+
+
+def test_the_report_explains_that_cross_gene_ordering_tracks_average_abundance(demo_output):
+    report = (demo_output / "report.md").read_text(encoding="utf-8")
+    assert "## How to Read These Values" in report
+    assert "average abundance" in report
+    assert "relative expression rather than absolute counts" in report
+
+
+@pytest.mark.parametrize(
+    "limitation",
+    [
+        "Trained on a finite set of cancer indications.",
+        "Performance on unseen tissue types, stains, scanners or resolutions may degrade.",
+        "Predicts relative expression rather than absolute counts.",
+        "Under-sequenced genes are predicted less reliably.",
+        "Trained on oncology cohorts, so it is not representative of healthy tissue "
+        "or non-oncology contexts.",
+    ],
+)
+def test_every_upstream_limitation_reaches_the_report(demo_output, limitation):
+    report = (demo_output / "report.md").read_text(encoding="utf-8")
+    assert limitation in report
+
+
+@pytest.mark.parametrize(
+    "limitation",
+    [
+        "Trained on a finite set of cancer indications.",
+        "Performance on unseen tissue types, stains, scanners or resolutions may degrade.",
+        "Predicts relative expression rather than absolute counts.",
+        "Under-sequenced genes are predicted less reliably.",
+        "Trained on oncology cohorts, so it is not representative of healthy tissue "
+        "or non-oncology contexts.",
+    ],
+)
+def test_every_upstream_limitation_reaches_skill_md(limitation):
+    skill_md = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    assert limitation in skill_md
+
+
+def test_skill_md_does_not_assert_an_unsourced_pixel_size():
+    skill_md = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    assert "0.5 microns per pixel" not in skill_md
+    assert "(source: DeepSpot-M model card)" not in skill_md
+
+
+def test_skill_md_example_output_is_a_real_demo_run():
+    """The block used to show fixture numbers dressed up as a model run."""
+    skill_md = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    block = skill_md.split("## Example Output")[1].split("\n## ")[0]
+    assert "(demo)" in block
+    assert "Fixture Expression" in block
+    assert "**Tile**: tile.png" not in block
+
+
+def test_skill_md_declares_the_upstream_authorship():
+    skill_md = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    assert "Kalin Nonchev" in skill_md
+
+
+# ---------------------------------------------------------------------------
+# The non-commercial term travels with the numbers
+# ---------------------------------------------------------------------------
+
+
+def test_a_real_run_stamps_the_weights_licence_on_its_outputs(module, tmp_path):
+    """Upstream puts NonCommercial on 'the weights or their outputs', so a
+    forwarded report has to carry the restriction with it."""
+    out = tmp_path / "real"
+    out.mkdir()
+    meta = module.build_meta(
+        demo=False, tile_label="tile.png", source="scgpt", genes=["EPCAM"],
+        mpp=None, mpp_source=None,
+        assessment={"mean_pixel": 180.0, "mean_saturation": 0.3, "warnings": []},
+    )
+    rows = [{"gene": "EPCAM", "expression": 5.0, "unit": "log1p-CPM", "rank": 1}]
+
+    report = module.write_report(out, rows, meta).read_text(encoding="utf-8")
+    payload = json.loads(module.write_result_json(out, rows, meta).read_text(encoding="utf-8"))
+
+    assert "CC-BY-NC-SA-4.0" in report
+    assert "non-commercial" in report
+    assert payload["weights_license"] == "CC-BY-NC-SA-4.0"
+    assert "10.64898" in payload["output_license_note"]
+
+
+def test_the_demo_run_claims_no_weights_licence(demo_output):
+    """Fixture values never touched the weights, so the stamp would be a lie."""
     payload = json.loads((demo_output / "result.json").read_text(encoding="utf-8"))
-    values = [row["expression"] for row in payload["ranked"]]
-    assert values == sorted(values, reverse=True)
+    assert "weights_license" not in payload
+    assert "CC-BY-NC-SA-4.0" not in (demo_output / "report.md").read_text(encoding="utf-8")
+
+
+def test_skill_md_states_that_the_restriction_covers_outputs():
+    skill_md = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    assert "the weights or their outputs" in skill_md
+
+
+# ---------------------------------------------------------------------------
+# Input paths do not ride along into shareable artefacts
+# ---------------------------------------------------------------------------
+
+
+def test_the_report_records_the_tile_name_not_its_directory(module, tmp_path):
+    from PIL import Image
+
+    secret = tmp_path / "PATIENT_12345"
+    secret.mkdir()
+    tile = secret / "slide.png"
+    Image.new("RGB", (224, 224), (200, 150, 190)).save(tile)
+
+    out = tmp_path / "out"
+    out.mkdir()
+    meta = module.build_meta(
+        demo=False, tile_label=module.tile_label(str(tile)), source="scgpt",
+        genes=["EPCAM"], mpp=None, mpp_source=None,
+        assessment=module.assess_tile(module.load_tile(tile)),
+    )
+    rows = [{"gene": "EPCAM", "expression": 5.0, "unit": "log1p-CPM", "rank": 1}]
+
+    report = module.write_report(out, rows, meta).read_text(encoding="utf-8")
+    payload = module.write_result_json(out, rows, meta).read_text(encoding="utf-8")
+
+    assert "PATIENT_12345" not in report
+    assert "PATIENT_12345" not in payload
+    assert "slide.png" in report
 
 
 # ---------------------------------------------------------------------------
@@ -174,16 +635,6 @@ def test_a_wrong_sized_tile_exits_with_a_readable_message(tmp_path):
     assert result.returncode == 1
     assert "224x224" in result.stderr
     assert "256x256" in result.stderr
-
-
-def test_a_missing_model_stack_points_at_requirements_and_demo(module, monkeypatch):
-    monkeypatch.setitem(sys.modules, "deepspotm", None)
-    with pytest.raises(RuntimeError) as exc:
-        module.predict_expression(object(), ["EPCAM"], "scgpt")
-    message = str(exc.value)
-    assert "skills/deepspot-m/requirements.txt" in message
-    assert "huggingface-cli login" in message
-    assert "--demo" in message
 
 
 # ---------------------------------------------------------------------------
