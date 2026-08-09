@@ -43,3 +43,6 @@ docs/superpowers/
 **/superpowers/plans/
 **/superpowers/specs/
 PR-AUDITS/
+
+# Local Corpas-Core session logs, never publish
+*-session.md
