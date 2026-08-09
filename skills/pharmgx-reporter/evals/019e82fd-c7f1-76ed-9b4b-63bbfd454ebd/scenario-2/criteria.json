@@ -1,0 +1,66 @@
+{
+  "context": "Tests whether the agent correctly auto-detects AncestryDNA format (vs 23andMe), processes the allele1/allele2 column structure, covers the 12-gene panel, and produces the three required output files.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "AncestryDNA format detected",
+      "description": "The report file contains text indicating the detected format is 'ancestrydna' or 'AncestryDNA' (not '23andme' or unknown)",
+      "max_score": 15
+    },
+    {
+      "name": "report.md present",
+      "description": "A file named report.md exists under pgx_output/",
+      "max_score": 8
+    },
+    {
+      "name": "result.json present",
+      "description": "A file named result.json exists under pgx_output/",
+      "max_score": 8
+    },
+    {
+      "name": "reproducibility/commands.sh present",
+      "description": "A file named commands.sh exists under pgx_output/reproducibility/",
+      "max_score": 8
+    },
+    {
+      "name": "Gene profile table present",
+      "description": "report.md contains a Gene Profiles table with Diplotype and Phenotype columns",
+      "max_score": 8
+    },
+    {
+      "name": "CYP2C19 profiled",
+      "description": "report.md includes a row for CYP2C19 in the gene profiles section",
+      "max_score": 5
+    },
+    {
+      "name": "CYP2D6 profiled",
+      "description": "report.md includes a row for CYP2D6 in the gene profiles section",
+      "max_score": 5
+    },
+    {
+      "name": "VKORC1 profiled",
+      "description": "report.md includes a row for VKORC1 in the gene profiles section",
+      "max_score": 5
+    },
+    {
+      "name": "Drug recommendation table present",
+      "description": "report.md contains a Complete Drug Recommendations section with multiple drug entries",
+      "max_score": 8
+    },
+    {
+      "name": "Panel limitations section",
+      "description": "report.md contains a Panel Limitations section that mentions CNVs or structural variants that cannot be detected",
+      "max_score": 10
+    },
+    {
+      "name": "Medical disclaimer",
+      "description": "report.md contains a disclaimer stating the report is for research or educational purposes only",
+      "max_score": 10
+    },
+    {
+      "name": "No external packages used",
+      "description": "The solution does not install pip packages (no pip install commands) to process the file — uses Python standard library only",
+      "max_score": 10
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "context": "Tests whether the agent produces the correct output directory structure (report.md, result.json, reproducibility/commands.sh), includes the required report sections (gene profile table, drug summary, clinical alerts), classifies drugs into AVOID/CAUTION/STANDARD/INSUFFICIENT, and includes a medical disclaimer.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "report.md present",
+      "description": "A file named report.md exists inside the output directory",
+      "max_score": 5
+    },
+    {
+      "name": "result.json present",
+      "description": "A file named result.json exists inside the output directory",
+      "max_score": 5
+    },
+    {
+      "name": "commands.sh present",
+      "description": "A file named commands.sh exists inside output_directory/reproducibility/",
+      "max_score": 10
+    },
+    {
+      "name": "Gene profile table",
+      "description": "report.md contains a gene profile table listing genes and their diplotypes/phenotypes",
+      "max_score": 10
+    },
+    {
+      "name": "Drug summary section",
+      "description": "report.md contains a drug summary or drug recommendations section",
+      "max_score": 10
+    },
+    {
+      "name": "Clinical alerts section",
+      "description": "report.md contains a clinical alerts or actionable alerts section",
+      "max_score": 10
+    },
+    {
+      "name": "AVOID classification used",
+      "description": "report.md or result.json uses the classification label AVOID (or avoid) for at least one drug",
+      "max_score": 10
+    },
+    {
+      "name": "CAUTION classification used",
+      "description": "report.md or result.json uses the classification label CAUTION (or caution) for at least one drug",
+      "max_score": 10
+    },
+    {
+      "name": "STANDARD classification used",
+      "description": "report.md or result.json uses the classification label STANDARD (or standard) for at least one drug",
+      "max_score": 10
+    },
+    {
+      "name": "Medical disclaimer",
+      "description": "report.md contains a disclaimer section stating the report is for research/educational purposes and should not replace clinical advice",
+      "max_score": 10
+    },
+    {
+      "name": "No external packages",
+      "description": "pharmgx_tool.py does NOT import any non-standard-library packages (e.g. no pandas, numpy, biopython, requests)",
+      "max_score": 10
+    }
+  ]
+}

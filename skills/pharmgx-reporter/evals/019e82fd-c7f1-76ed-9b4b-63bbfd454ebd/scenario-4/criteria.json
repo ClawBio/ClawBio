@@ -1,0 +1,56 @@
+{
+  "context": "Tests whether the agent uses the api.py programmatic interface (run() function) rather than only the CLI, and whether the warfarin multi-gene special case (CYP2C9 + VKORC1) is correctly captured in both the API output and the CLI report.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "pgx_analysis.py uses api.py",
+      "description": "pgx_analysis.py imports from api (e.g. 'from api import run' or 'import api') rather than calling subprocess or os.system to run the CLI",
+      "max_score": 15
+    },
+    {
+      "name": "api run() called",
+      "description": "pgx_analysis.py calls the run() function from the api module with a genotypes dictionary argument",
+      "max_score": 12
+    },
+    {
+      "name": "analysis_result.json present",
+      "description": "A file named analysis_result.json is present in the working directory",
+      "max_score": 8
+    },
+    {
+      "name": "analysis_result.json has gene_profiles",
+      "description": "analysis_result.json contains a 'gene_profiles' key with gene-level data",
+      "max_score": 8
+    },
+    {
+      "name": "analysis_result.json has drug_recommendations",
+      "description": "analysis_result.json contains a 'drug_recommendations' key with categorised drug data",
+      "max_score": 8
+    },
+    {
+      "name": "Warfarin multi-gene in API output",
+      "description": "analysis_result.json (or pgx_analysis.py output) references both CYP2C9 and VKORC1 in the context of Warfarin",
+      "max_score": 12
+    },
+    {
+      "name": "Warfarin AVOID in CLI report",
+      "description": "The cli_report/report.md file classifies Warfarin as AVOID (patient has CYP2C9 *1/*3 + VKORC1 AA = high sensitivity)",
+      "max_score": 15
+    },
+    {
+      "name": "cli_report/report.md present",
+      "description": "A file named report.md exists under cli_report/",
+      "max_score": 8
+    },
+    {
+      "name": "cli_report/result.json present",
+      "description": "A file named result.json exists under cli_report/",
+      "max_score": 7
+    },
+    {
+      "name": "Medical disclaimer in CLI report",
+      "description": "cli_report/report.md contains a disclaimer about research/educational use only",
+      "max_score": 7
+    }
+  ]
+}
