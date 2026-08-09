@@ -6,31 +6,33 @@
   <text x="1150" y="66" text-anchor="end" font-family="SF Mono, Menlo, Consolas, monospace" font-size="17" font-weight="500" letter-spacing="1.5" fill="#8b949e">clawbio.ai</text>
   <line x1="0" y1="112" x2="1200" y2="112" stroke="#30363d" stroke-width="1"/>
 
-  <text x="62" y="176" font-family="SF Mono, Menlo, Consolas, monospace" font-size="16" font-weight="600" letter-spacing="4" fill="#3fb950">RELEASE v0.6.1 &#183; MODEL CONTEXT PROTOCOL</text>
+  <text x="62" y="190" font-family="SF Mono, Menlo, Consolas, monospace" font-size="16" font-weight="600" letter-spacing="4" fill="#3fb950">OPEN INFRASTRUCTURE</text>
 
-  <text x="60" y="244" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="60" font-weight="800" fill="#3fb950" letter-spacing="-1.5">Genomics skills, in your editor</text>
+  <text x="60" y="256" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="62" font-weight="800" fill="#3fb950" letter-spacing="-1.5">1,057 GitHub stars</text>
 
-  <text x="62" y="292" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="25" font-weight="400" fill="#8b949e">Not another database wrapper. Validated analyses that run,</text>
-  <text x="62" y="326" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="25" font-weight="400" fill="#e6edf3">and ship a reproducibility bundle every time.</text>
+  <text x="62" y="310" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="27" font-weight="400" fill="#8b949e">The bioinformatics-native AI agent skill library.</text>
+  <text x="62" y="350" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="27" font-weight="400" fill="#e6edf3">Trustworthy. Auditable. Agentic genomics.</text>
 
-  <rect x="54" y="378" width="338" height="160" rx="10" fill="#3fb950" opacity="0.10"/>
-  <rect x="60" y="384" width="326" height="148" rx="10" fill="#161b22" stroke="#3fb950" stroke-width="1"/>
-  <text x="84" y="456" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="48" font-weight="800" fill="#3fb950" letter-spacing="-1">95</text>
-  <text x="86" y="488" font-family="SF Mono, Menlo, Consolas, monospace" font-size="15" font-weight="500" letter-spacing="2.2" fill="#8b949e">SKILLS</text>
-  <text x="86" y="508" font-family="SF Mono, Menlo, Consolas, monospace" font-size="12.5" font-weight="500" letter-spacing="1.6" fill="#6e7681">CALLABLE BY ANY AGENT</text>
+  <rect x="54" y="374" width="338" height="168" rx="10" fill="#3fb950" opacity="0.10"/>
+  <rect x="60" y="380" width="326" height="156" rx="10" fill="#161b22" stroke="#3fb950" stroke-width="1"/>
+  <text x="88" y="458" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="52" font-weight="800" fill="#3fb950" letter-spacing="-1">96</text>
+  <text x="90" y="492" font-family="SF Mono, Menlo, Consolas, monospace" font-size="17" font-weight="500" letter-spacing="2.5" fill="#8b949e">SKILLS</text>
+  <text x="90" y="512" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" font-weight="500" letter-spacing="2" fill="#6e7681">AUDITABLE, VERSIONED</text>
 
-  <rect x="416" y="384" width="326" height="148" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
-  <text x="440" y="456" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="48" font-weight="800" fill="#3fb950" letter-spacing="-1">4</text>
-  <text x="442" y="488" font-family="SF Mono, Menlo, Consolas, monospace" font-size="15" font-weight="500" letter-spacing="2.2" fill="#8b949e">CLIENTS</text>
-  <text x="442" y="508" font-family="SF Mono, Menlo, Consolas, monospace" font-size="12.5" font-weight="500" letter-spacing="1.6" fill="#6e7681">CURSOR / ZED / VS CODE / CLAUDE</text>
+  <rect x="416" y="380" width="326" height="156" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <text x="444" y="458" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="52" font-weight="800" fill="#3fb950" letter-spacing="-1">50</text>
+  <text x="446" y="492" font-family="SF Mono, Menlo, Consolas, monospace" font-size="17" font-weight="500" letter-spacing="2.5" fill="#8b949e">CONTRIBUTORS</text>
+  <text x="446" y="512" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" font-weight="500" letter-spacing="2" fill="#6e7681">AND GROWING</text>
 
-  <rect x="772" y="384" width="326" height="148" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
-  <text x="796" y="456" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="48" font-weight="800" fill="#3fb950" letter-spacing="-1">0</text>
-  <text x="798" y="488" font-family="SF Mono, Menlo, Consolas, monospace" font-size="15" font-weight="500" letter-spacing="2.2" fill="#8b949e">HOSTED SERVERS</text>
-  <text x="798" y="508" font-family="SF Mono, Menlo, Consolas, monospace" font-size="12.5" font-weight="500" letter-spacing="1.6" fill="#6e7681">RUNS ON YOUR MACHINE</text>
+  <rect x="772" y="380" width="326" height="156" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <text x="800" y="458" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="52" font-weight="800" fill="#3fb950" letter-spacing="-1">3,644</text>
+  <text x="802" y="492" font-family="SF Mono, Menlo, Consolas, monospace" font-size="17" font-weight="500" letter-spacing="2.5" fill="#8b949e">CLONES</text>
+  <text x="802" y="512" font-family="SF Mono, Menlo, Consolas, monospace" font-size="14" font-weight="500" letter-spacing="2" fill="#6e7681">LAST 14 DAYS</text>
 
-  <rect x="60" y="556" width="700" height="46" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
-  <text x="80" y="585" font-family="SF Mono, Menlo, Consolas, monospace" font-size="18" font-weight="500" fill="#3fb950"><tspan fill="#8b949e">$</tspan><tspan dx="11">uvx --from 'clawbio[mcp]' clawbio mcp</tspan></text>
-
-  <text x="1150" y="585" text-anchor="end" font-family="SF Mono, Menlo, Consolas, monospace" font-size="16" font-weight="500" letter-spacing="1" fill="#8b949e">github.com/ClawBio/ClawBio  &#183;  <tspan fill="#58a6ff">MIT</tspan></text>
+  <g transform="translate(60,560)">
+    <rect x="0" y="0" width="312" height="44" rx="8" fill="#3fb950"/>
+    <path d="M22,8 L26,17.5 L36,18.3 L28.4,24.9 L30.8,34.6 L22,29.4 L13.2,34.6 L15.6,24.9 L8,18.3 L18,17.5 Z" fill="#0d1117"/>
+    <text x="46" y="29" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#0b2a13">Star us on GitHub</text>
+  </g>
+  <text x="392" y="589" font-family="SF Mono, Menlo, Consolas, monospace" font-size="17" font-weight="500" letter-spacing="1" fill="#8b949e">github.com/ClawBio/ClawBio  &#183;  <tspan fill="#58a6ff">MIT licensed</tspan></text>
 </svg>
