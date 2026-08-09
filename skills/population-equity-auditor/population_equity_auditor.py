@@ -499,10 +499,11 @@ def write_report(result: dict, output_dir: Path) -> None:
     ]
     for v in result["variants"]:
         if v["false_actionable"]:
+            gnomad_af = "absent" if v["gnomad_af"] is None else f"{v['gnomad_af']:.2e}"
+            cohort_af = "n/a" if v["cohort_af"] is None else f"{v['cohort_af']:.3f}"
             md.append(
                 f"| {v['gene']} | {v['consequence']} | "
-                f"{'absent' if v['gnomad_af'] is None else f'{v['gnomad_af']:.2e}'} | "
-                f"{'n/a' if v['cohort_af'] is None else f'{v['cohort_af']:.3f}'} | "
+                f"{gnomad_af} | {cohort_af} | "
                 f"{v['class_naive_blind']} | {v['class_naive_blind_pm2sup']} | "
                 f"{v['class_trustworthy']} | {', '.join(v['corrected_by'])} | "
                 f"{v.get('inheritance_note') or ''} |")

@@ -115,7 +115,7 @@ output_directory/
 
 ## Safety
 
-- **Local-first**: Genetic data never leaves the machine
+- **Local-first**: In a direct local CLI or Python run, genetic data stays on the machine and no network call is made. This privacy property holds only for that data path: driving the skill through a connected model, a remote service, a logging layer or a messaging adapter changes the threat model, and any such surface must be treated as trusted before genetic data reaches it.
 - **Disclaimer**: Every report includes the ClawBio medical disclaimer
 - **CPIC-grounded**: All gene–drug mappings trace to published CPIC guidelines
 - **No hallucinated associations**: Only the 31 validated SNPs are used
