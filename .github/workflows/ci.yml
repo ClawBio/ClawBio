@@ -109,7 +109,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --locked
+          # --all-extras: skill-level deps live in [project.optional-dependencies]
+          # (just-prs declares typer and fastmcp). A plain sync omits them, so
+          # skills/just-prs-mcp/tests failed to import typer and took the whole
+          # job down with it on any PR that reached those tests.
+          uv sync --locked --all-extras
           uv pip install pytest requests
 
       - name: Test ClawBio CLI
@@ -157,8 +161,17 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          base="${{ github.event.pull_request.base.sha }}"
-          changed=$(git diff --name-only "$base" HEAD -- 'skills/*' \
+          # Diff the PR head against its FORK POINT, not against the base tip.
+          # actions/checkout resolves a pull_request to refs/pull/N/merge, so
+          # HEAD is a merge commit containing main's later commits too, and
+          # pull_request.base.sha is the base tip as of when the PR was opened.
+          # Using either directly attributes everything merged into main since
+          # to the PR: on #327 that turned one touched skill into five, and an
+          # unrelated skill's broken import was reported as the PR's failure.
+          head="${{ github.event.pull_request.head.sha }}"
+          base=$(git merge-base "${{ github.event.pull_request.base.sha }}" "$head")
+          echo "Diffing $base..$head"
+          changed=$(git diff --name-only "$base" "$head" -- 'skills/*' \
                     | cut -d/ -f2 | sort -u)
           if [ -z "$changed" ]; then
             echo "No skills touched by this PR."
@@ -166,6 +179,11 @@ jobs:
           fi
           status=0
           for skill in $changed; do
+            # skills/ holds files as well as skill dirs (catalog.json), and a
+            # deleted skill still shows up in the diff.
+            if [ ! -d "skills/$skill" ]; then
+              continue
+            fi
             if [ -d "skills/$skill/tests" ]; then
               echo "::group::pytest skills/$skill/tests"
               uv run pytest "skills/$skill/tests" -v || status=1
