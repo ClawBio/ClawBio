@@ -39,12 +39,26 @@ DISCLAIMER = (
     "professional before making any medical decisions."
 )
 
-VEP_REST_URL = "https://rest.ensembl.org/vep/homo_sapiens/region"
+VEP_REST_HOST = "https://rest.ensembl.org"
+VEP_REST_HOST_GRCH37 = "https://grch37.rest.ensembl.org"
+VEP_REST_PATH = "/vep/homo_sapiens/region"
+ENSEMBL_INFO_VARIATION_PATH = "/info/variation/homo_sapiens"
+VEP_REST_URL = VEP_REST_HOST + VEP_REST_PATH
 VEP_BATCH_SIZE = 200
 VEP_RATE_LIMIT_SECONDS = 0.07  # ~15 requests/second
-ENSEMBL_INFO_VARIATION_URL = "https://rest.ensembl.org/info/variation/homo_sapiens"
+ENSEMBL_INFO_VARIATION_URL = VEP_REST_HOST + ENSEMBL_INFO_VARIATION_PATH
 GNOMAD_VERSION_LABEL = "v4.1"  # info/variation does not list gnomAD; no live source exists
 DEMO_CLINVAR_LABEL = "2025-03-01 release"
+
+
+def _ensembl_rest_host(assembly: str) -> str:
+    """The main Ensembl REST host always serves GRCh38 and silently ignores
+    an ``assembly`` query parameter; GRCh37 data (and its ClinVar/dbSNP/OMIM
+    versions, which the two hosts do not agree on) lives only on the separate
+    grch37.rest.ensembl.org mirror. Both the VEP annotation POST and the
+    data-source version GET must route through this, so a GRCh37 run never
+    certifies data, or a version, that actually came from the GRCh38 host."""
+    return VEP_REST_HOST_GRCH37 if assembly == "GRCh37" else VEP_REST_HOST
 
 
 # ---------------------------------------------------------------------------
@@ -271,15 +285,20 @@ def _extract_evidence_from_vep(vep_result: dict, record: VcfRecord) -> VariantEv
     )
 
 
-def _fetch_ensembl_data_versions() -> dict[str, str] | None:
+def _fetch_ensembl_data_versions(assembly: str = "GRCh38") -> dict[str, str] | None:
     """Query the live source versions bundled with Ensembl's variation data
     (ClinVar, dbSNP, OMIM), for the Data Sources report section. gnomAD is not
-    listed by this endpoint and stays a hardcoded constant (GNOMAD_VERSION_LABEL)."""
+    listed by this endpoint and stays a hardcoded constant (GNOMAD_VERSION_LABEL).
+
+    Uses the same assembly-selected host as the VEP annotation call
+    (_ensembl_rest_host) — see that function's docstring for why a GRCh37 run
+    must not hit the GRCh38 host here either.
+    """
     try:
         import requests
         resp = requests.get(
-            ENSEMBL_INFO_VARIATION_URL,
-            headers={"Content-Type": "application/json"},
+            _ensembl_rest_host(assembly) + ENSEMBL_INFO_VARIATION_PATH,
+            headers={"Accept": "application/json"},  # GET, not a body: Accept, not Content-Type
             timeout=10,
         )
         resp.raise_for_status()
@@ -303,10 +322,18 @@ def annotate_variants_vep(
 ) -> tuple[list[VariantEvidence], dict[str, str] | None]:
     """Annotate variants via Ensembl VEP REST API.
 
-    Returns (evidence_list, source_versions). source_versions is fetched once,
-    only if at least one VEP batch succeeded, so a run where every batch fails
-    never stamps a report with data-source versions for annotation that never
-    happened.
+    Returns (evidence_list, source_versions). source_versions distinguishes
+    two failure states rather than collapsing both to None:
+      - None: no VEP batch succeeded this run (nothing was annotated), so a
+        report must not make any data-source claim at all.
+      - {} (empty dict): at least one VEP batch succeeded, but the separate
+        Ensembl data-source version lookup itself failed. Annotation is real;
+        the version check is what's missing.
+      - a non-empty dict: the lookup succeeded (individual sources may still
+        be absent from Ensembl's response).
+
+    The POST is routed through the assembly-selected host (_ensembl_rest_host)
+    so a GRCh37 run does not silently get GRCh38 annotations from the main host.
     """
     try:
         import requests
@@ -316,6 +343,7 @@ def annotate_variants_vep(
 
     evidence_list: list[VariantEvidence] = []
     any_batch_succeeded = False
+    vep_url = _ensembl_rest_host(assembly) + VEP_REST_PATH
 
     for batch_start in range(0, len(records), VEP_BATCH_SIZE):
         batch = records[batch_start:batch_start + VEP_BATCH_SIZE]
@@ -323,7 +351,7 @@ def annotate_variants_vep(
 
         try:
             resp = requests.post(
-                VEP_REST_URL,
+                vep_url,
                 json={"variants": regions},
                 headers={"Content-Type": "application/json", "Accept": "application/json"},
                 params={"assembly": assembly, "transcript_version": 1},
@@ -358,7 +386,14 @@ def annotate_variants_vep(
 
         time.sleep(VEP_RATE_LIMIT_SECONDS)
 
-    source_versions = _fetch_ensembl_data_versions() if any_batch_succeeded else None
+    if not any_batch_succeeded:
+        source_versions = None
+    else:
+        fetched = _fetch_ensembl_data_versions(assembly=assembly)
+        # Annotation succeeded even if this lookup didn't: {} (not None) marks
+        # "tried and failed" so the report can't confuse this with "nothing
+        # was annotated" (see _data_source_versions_for_report).
+        source_versions = fetched if fetched is not None else {}
     return evidence_list, source_versions
 
 
@@ -413,11 +448,22 @@ CLASS_SHORT = {"Pathogenic": "P", "Likely Pathogenic": "LP", "Uncertain Signific
 def _data_source_versions_for_report(
     demo: bool, source_versions: dict[str, str] | None,
 ) -> dict[str, str]:
-    """Single source of truth for the Data Sources table, result.json and
-    database_versions.json, so the three can't drift independently.
+    """Prose labels for the Markdown Data Sources table. Never performs a
+    network call: source_versions must already be captured
+    (annotate_variants_vep, at annotation time), and is one of three states
+    that each get their own label rather than collapsing into one sentence:
 
-    Never performs a network call: source_versions must already be captured
-    (annotate_variants_vep, at annotation time) or None.
+      - None: no VEP batch succeeded this run, so no claim can be made about
+        any source, including gnomAD's hardcoded constant.
+      - {} (empty dict): at least one VEP batch succeeded, but the separate
+        Ensembl data-source version lookup itself failed (network/HTTP/JSON
+        error) — annotation is real, only the version check is missing.
+      - a non-empty dict: the lookup succeeded; an individual source can
+        still be absent from Ensembl's response (e.g. no ClinVar entry),
+        reported per-source rather than as a run-wide failure.
+
+    See _structured_data_source_versions for the machine-readable form used
+    by result.json / database_versions.json.
     """
     if demo:
         return {
@@ -425,9 +471,17 @@ def _data_source_versions_for_report(
             "gnomAD": f"{GNOMAD_VERSION_LABEL} (demo cache)",
         }
 
-    if not source_versions:
+    gnomad_label = f"{GNOMAD_VERSION_LABEL} (hardcoded; Ensembl serves no gnomAD version endpoint)"
+
+    if source_versions is None:
         note = "unavailable (no variant was successfully annotated this run)"
         return {"ClinVar": note, "gnomAD": note}
+
+    if not source_versions:
+        return {
+            "ClinVar": "unavailable (annotation succeeded, but the Ensembl version lookup failed)",
+            "gnomAD": gnomad_label,
+        }
 
     clinvar_v = source_versions.get("clinvar")
     clinvar_label = (
@@ -436,7 +490,31 @@ def _data_source_versions_for_report(
     )
     return {
         "ClinVar": clinvar_label,
-        "gnomAD": f"{GNOMAD_VERSION_LABEL} (via Ensembl VEP colocated variants)",
+        "gnomAD": gnomad_label,
+    }
+
+
+def _structured_data_source_versions(
+    demo: bool, source_versions: dict[str, str] | None,
+) -> dict[str, str | None]:
+    """Machine-readable counterpart to _data_source_versions_for_report, for
+    result.json / database_versions.json: real values or null, never prose,
+    so the audit trail can be parsed rather than grepped (review on #303/#327:
+    'data_source_versions currently receives English prose ... emit the
+    structured form there and keep prose for the Markdown table')."""
+    if demo:
+        return {
+            "clinvar": DEMO_CLINVAR_LABEL,
+            "dbsnp": None,
+            "omim": None,
+            "gnomad": GNOMAD_VERSION_LABEL,
+        }
+    sv = source_versions or {}
+    return {
+        "clinvar": sv.get("clinvar"),
+        "dbsnp": sv.get("dbsnp"),
+        "omim": sv.get("omim"),
+        "gnomad": GNOMAD_VERSION_LABEL,
     }
 
 
@@ -469,13 +547,14 @@ def generate_report(
 
     sf_variants = [cv for cv in classified if cv.is_secondary_finding]
     data_sources = _data_source_versions_for_report(demo, source_versions)
+    structured_versions = _structured_data_source_versions(demo, source_versions)
 
     _write_markdown_report(classified, counts, sf_variants, output_dir, timestamp, demo, assembly, input_path, data_sources)
     _write_classification_table(classified, output_dir)
     _write_secondary_findings_table(sf_variants, output_dir)
-    _write_result_json(classified, counts, sf_variants, output_dir, timestamp, demo, assembly, data_sources)
+    _write_result_json(classified, counts, sf_variants, output_dir, timestamp, demo, assembly, structured_versions)
     _write_classification_figure(counts, output_dir)
-    _write_reproducibility(output_dir, demo, assembly, input_path, timestamp, data_sources)
+    _write_reproducibility(output_dir, demo, assembly, input_path, timestamp, structured_versions)
 
 
 def _write_markdown_report(
@@ -665,7 +744,7 @@ def _write_result_json(
     timestamp: str,
     demo: bool,
     assembly: str,
-    data_sources: dict[str, str],
+    data_source_versions: dict[str, str | None],
 ) -> None:
     result = {
         "tool": "ClawBio Clinical Variant Reporter",
@@ -675,7 +754,7 @@ def _write_result_json(
         "assembly": assembly,
         "timestamp": timestamp,
         "mode": "demo" if demo else "live",
-        "data_source_versions": data_sources,
+        "data_source_versions": data_source_versions,
         "total_variants": len(classified),
         "classification_counts": counts,
         "secondary_findings_count": len(sf_variants),
@@ -741,7 +820,7 @@ def _write_reproducibility(
     assembly: str,
     input_path: str,
     timestamp: str,
-    data_sources: dict[str, str],
+    data_source_versions: dict[str, str | None],
 ) -> None:
     cmd = f"python {Path(__file__).name}"
     if demo:
@@ -759,7 +838,7 @@ def _write_reproducibility(
         "sf_list": "ACMG SF v3.2 (Miller et al. 2023)",
         "sf_gene_count": len(ACMG_SF_V32_GENES),
         "annotation_backend": "demo_cache" if demo else "Ensembl VEP REST (GRCh38)",
-        "data_source_versions": data_sources,
+        "data_source_versions": data_source_versions,
         "generated": timestamp,
     }
     (output_dir / "reproducibility" / "database_versions.json").write_text(
