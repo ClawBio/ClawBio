@@ -16,7 +16,9 @@ metadata:
   - carrier-screening
   openclaw:
     emoji: "🩺"
-    os: [darwin, linux]
+    os:
+    - darwin
+    - linux
     trigger_keywords:
     - variant prioritisation
     - clinical variants
