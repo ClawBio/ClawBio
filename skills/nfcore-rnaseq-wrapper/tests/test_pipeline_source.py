@@ -77,6 +77,35 @@ def test_local_checkout_manifest_version_ignores_nextflow_version(tmp_path):
     assert result["manifest_version"] == "3.20.0"
 
 
+def test_local_checkout_manifest_version_ignores_custom_config_version(tmp_path):
+    """A real nf-core config declares `custom_config_version` above the manifest block.
+
+    The synthetic fixture used by the tests above does not, which is why the previous
+    regex could read `master` from every real checkout while these tests stayed green.
+    """
+    local = tmp_path / "rnaseq"
+    local.mkdir(parents=True)
+    (local / "main.nf").write_text("// main", encoding="utf-8")
+    (local / "nextflow.config").write_text(
+        "params {\n"
+        "    version                    = false\n"
+        "    custom_config_version      = 'master'\n"
+        "    custom_config_base         = \"https://example.invalid/${params.custom_config_version}\"\n"
+        "}\n"
+        "manifest {\n"
+        "    name            = 'nf-core/rnaseq'\n"
+        "    version         = '3.26.0'\n"
+        "    nextflowVersion = '!>=25.04.3'\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    assets = local / "assets"
+    assets.mkdir()
+    (assets / "schema_input.json").write_text("{}", encoding="utf-8")
+    result = resolve_pipeline_source(requested_version="3.26.0", local_pipeline_dir=local)
+    assert result["manifest_version"] == "3.26.0"
+
+
 def test_local_checkout_manifest_version_empty_when_absent(tmp_path):
     local = tmp_path / "rnaseq"
     _make_valid_local_checkout(local)  # config has no manifest block

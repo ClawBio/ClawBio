@@ -21,9 +21,12 @@ from schemas import DEFAULT_LOCAL_PIPELINE_DIR, DEFAULT_REMOTE_PIPELINE, PIPELIN
 _GIT_TIMEOUT = 10
 
 # Matches `version = '3.26.0'` inside the manifest block of nextflow.config.
-# nextflow.config also carries `nextflowVersion`; the trailing-boundary group
-# (`\b`) prevents `nextflowVersion` from matching the bare `version` key.
-_MANIFEST_VERSION_RE = re.compile(r"(?<![A-Za-z])version\s*=\s*['\"]([^'\"]+)['\"]")
+# The lookbehind must reject every identifier that merely ends in `version`.
+# Excluding letters alone is not enough: nf-core configs declare
+# `custom_config_version = 'master'` in the params block, which sits above the
+# manifest, so that key matched first and every local checkout was reported as
+# version `master`. Excluding `_` as well also keeps `nextflowVersion` out.
+_MANIFEST_VERSION_RE = re.compile(r"(?<![A-Za-z_])version\s*=\s*['\"]([^'\"]+)['\"]")
 
 
 def _path_has_whitespace(path: Path) -> bool:
