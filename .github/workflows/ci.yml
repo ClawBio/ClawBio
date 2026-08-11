@@ -184,13 +184,39 @@ jobs:
             if [ ! -d "skills/$skill" ]; then
               continue
             fi
-            if [ -d "skills/$skill/tests" ]; then
+            if [ ! -d "skills/$skill/tests" ]; then
+              echo "WARNING: skills/$skill has no tests/ directory"
+              continue
+            fi
+            # Pick the runner from what tests/ actually contains. pytest exits
+            # 5 when it collects nothing, so running it unconditionally fails
+            # every skill whose tests are not Python. On #329 (an R skill with
+            # a run_test.sh harness) pytest collected 0 items, the job went
+            # red, and the harness that would really have tested it never ran
+            # — a maintainer-side red tick on a contributor's PR, which is the
+            # same class of misattribution the merge-base fix above addresses.
+            pycount=$(find "skills/$skill/tests" \
+                        \( -name 'test_*.py' -o -name '*_test.py' \) | wc -l)
+            if [ "$pycount" -gt 0 ]; then
               echo "::group::pytest skills/$skill/tests"
               uv run pytest "skills/$skill/tests" -v || status=1
               echo "::endgroup::"
-            else
-              echo "WARNING: skills/$skill has no tests/ directory"
+              continue
             fi
+            harness=$(find "skills/$skill/tests" -maxdepth 1 -name '*.sh' \
+                        | sort | head -1)
+            if [ -n "$harness" ]; then
+              # A shell harness needs the skill's own toolchain (R, cutadapt,
+              # seqkit, ...) which this workflow does not provision. Say so
+              # explicitly: reporting a pass nobody earned would be worse, and
+              # failing on a toolchain the contributor cannot install here
+              # would block the PR for a maintainer-side gap.
+              msg="NOT VERIFIED: skills/$skill ships $harness, which needs a toolchain this workflow does not install. Its tests did not run."
+            else
+              msg="NOT VERIFIED: skills/$skill has a tests/ directory with neither Python tests nor a shell harness."
+            fi
+            echo "::warning::$msg"
+            echo "- $msg" >> "$GITHUB_STEP_SUMMARY"
           done
           exit $status
 
