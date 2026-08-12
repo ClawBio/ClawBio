@@ -536,7 +536,7 @@ class TestDataSourcesVersioning:
             tmp_path, demo=False,
             source_versions={"clinvar": "09/2025", "dbsnp": "156", "omim": "09/2025"},
         )
-        assert "ClinVar | 09/2025 (via Ensembl VEP colocated variants)" in text
+        assert "ClinVar | 09/2025 (via Ensembl /info/variation/homo_sapiens)" in text
         assert "gnomAD | v4.1 (hardcoded; Ensembl serves no gnomAD version endpoint)" in text
         assert "2025-03-01 release" not in text
 
@@ -634,6 +634,17 @@ class TestStructuredDataSourceVersions:
         assert result["data_source_versions"] == {
             "clinvar": None, "dbsnp": None, "omim": None, "gnomad": "v4.1",
         }
+
+    def test_annotation_backend_stamps_the_assembly_actually_used(self, tmp_path):
+        # review #327: annotation_backend hardcoded "GRCh38" regardless of
+        # the assembly argument, so a GRCh37 run's own database_versions.json
+        # contradicted its GRCh37 data_source_versions (a ClinVar version
+        # that host never served, stamped under a GRCh38 backend label).
+        generate_report([], tmp_path, demo=False, assembly="GRCh37")
+        db_versions = json.loads(
+            (tmp_path / "reproducibility" / "database_versions.json").read_text()
+        )
+        assert db_versions["annotation_backend"] == "Ensembl VEP REST (GRCh37)"
 
     def test_demo_mode_structured_versions(self, tmp_path):
         generate_report([], tmp_path, demo=True)

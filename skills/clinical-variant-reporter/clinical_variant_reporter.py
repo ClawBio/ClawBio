@@ -46,7 +46,6 @@ ENSEMBL_INFO_VARIATION_PATH = "/info/variation/homo_sapiens"
 VEP_REST_URL = VEP_REST_HOST + VEP_REST_PATH
 VEP_BATCH_SIZE = 200
 VEP_RATE_LIMIT_SECONDS = 0.07  # ~15 requests/second
-ENSEMBL_INFO_VARIATION_URL = VEP_REST_HOST + ENSEMBL_INFO_VARIATION_PATH
 GNOMAD_VERSION_LABEL = "v4.1"  # info/variation does not list gnomAD; no live source exists
 DEMO_CLINVAR_LABEL = "2025-03-01 release"
 
@@ -485,7 +484,7 @@ def _data_source_versions_for_report(
 
     clinvar_v = source_versions.get("clinvar")
     clinvar_label = (
-        f"{clinvar_v} (via Ensembl VEP colocated variants)" if clinvar_v
+        f"{clinvar_v} (via Ensembl /info/variation/homo_sapiens)" if clinvar_v
         else "unavailable (Ensembl did not report a ClinVar version this run)"
     )
     return {
@@ -837,7 +836,7 @@ def _write_reproducibility(
         "acmg_framework": "Richards et al. 2015 (PMID 25741868)",
         "sf_list": "ACMG SF v3.2 (Miller et al. 2023)",
         "sf_gene_count": len(ACMG_SF_V32_GENES),
-        "annotation_backend": "demo_cache" if demo else "Ensembl VEP REST (GRCh38)",
+        "annotation_backend": "demo_cache" if demo else f"Ensembl VEP REST ({assembly})",
         "data_source_versions": data_source_versions,
         "generated": timestamp,
     }
