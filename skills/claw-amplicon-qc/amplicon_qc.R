@@ -86,6 +86,27 @@ option_list <- list(
                            "Default 70. Lower for amplicon regions near",
                            "the edge of the read length (e.g. V3-V4 at",
                            "2x300 where overlap is tight).")),
+  # DEFECT 2: rm.phix was silently TRUE via DADA2's default. Now explicit
+  # and opt-out. PhiX is a sequencing control that shouldn't appear in
+  # biological data; default TRUE matches standard practice, --no-phix-removal
+  # opts out for users who need the raw output.
+  make_option(c("--no-phix-removal"), action = "store_true", default = FALSE,
+              dest = "no_phix_removal",
+              help = paste("Skip PhiX removal in Stage 2 filterAndTrim.",
+                           "Default: PhiX is removed (rm.phix=TRUE)."
+                           )),
+  # DEFECT 4: mixed-orientation reads (some libraries have ~50% R1s starting
+  # with the forward primer and ~50% with the reverse). With anchored 5'
+  # primers plus --discard-untrimmed downstream, those reverse-oriented
+  # reads get silently discarded. The pre-flight orientation check aborts
+  # if mixed orientation is detected; this flag lets the user proceed anyway
+  # if they understand and accept the ~50% data loss.
+  make_option(c("--allow-mixed-orientation"), action = "store_true", default = FALSE,
+              dest = "allow_mixed_orientation",
+              help = paste("Continue when the pre-flight orientation check",
+                           "detects mixed-orientation reads. Default: abort.",
+                           "Use only if you understand your reads are mixed",
+                           "and accept ~50% data loss.")),
   # CRITICAL 4: --demo mode. Runs the pipeline end-to-end on a tiny bundled
   # fixture with hardcoded 515F/806R primers and --min-length 200. The user
   # only needs to supply --output. All other content flags are refused when
@@ -202,7 +223,7 @@ if (!dir.exists(opt$output)) dir.create(opt$output, recursive = TRUE)
 start_time <- Sys.time()
 
 cat("─────────────────────────────────────────────────────────\n")
-cat("  claw-amplicon-qc v0.1.0\n")
+cat("  claw-amplicon-qc v0.1.5\n")
 cat("─────────────────────────────────────────────────────────\n")
 cat("  Raw folder:    ", opt$raw,        "\n")
 cat("  Output folder: ", opt$output,     "\n")
@@ -347,6 +368,141 @@ cat("Detected naming pattern:", naming_pattern, "\n")
 cat("Discovered", length(fnFs), "sample pairs (paired by sample name).\n\n")
 
 ################################################################################
+## PART 2.5: PRIMER ORIENTATION PREFLIGHT (DEFECT 4)
+##
+## Some sequencing runs — older 454-derived protocols, some ONT amplicon
+## workflows, libraries with poor orientation control — produce paired-end
+## reads where roughly half of R1 sequences start with the FORWARD primer
+## and half start with the REVERSE primer instead. Downstream, with anchored
+## 5' primers plus --discard-untrimmed, the reverse-oriented ~50% get
+## silently discarded. Retention drops to ~50%, the 99%-loss backstop
+## doesn't fire, the report shows a plausible-looking result while half
+## the data disappeared without explanation.
+##
+## This preflight samples the first ~1000 R1 reads per sample, counts how
+## many begin with FWD versus REV (allowing IUPAC ambiguity and 1 mismatch,
+## matching cutadapt's tolerance), and aborts with a clear message if the
+## split is problematic.
+##
+## Bonus: also catches the "primers not present at all" scenario (pre-
+## trimmed data, wrong primers) earlier than the CRITICAL 3 100%-loss
+## backstop — ~3 seconds instead of ~60.
+################################################################################
+
+cat("─────────────────────────────────────────────────────────\n")
+cat("  Preflight — primer orientation check\n")
+cat("─────────────────────────────────────────────────────────\n")
+
+.check_orientation <- function(fastq_file, fwd_primer, rev_primer,
+                                n_sample = 1000) {
+  fq <- readFastq(fastq_file, qualityType = "Auto")
+  fq <- fq[seq_len(min(length(fq), n_sample))]
+  reads <- sread(fq)
+  n_total <- length(reads)
+  if (n_total == 0) return(list(n_total = 0, fwd = 0, rev = 0))
+  fwd_len <- nchar(fwd_primer)
+  rev_len <- nchar(rev_primer)
+  starts_fwd <- subseq(reads, 1, pmin(width(reads), fwd_len))
+  starts_rev <- subseq(reads, 1, pmin(width(reads), rev_len))
+  fwd_matches <- vcountPattern(fwd_primer, starts_fwd,
+                                max.mismatch = 1, fixed = FALSE)
+  rev_matches <- vcountPattern(rev_primer, starts_rev,
+                                max.mismatch = 1, fixed = FALSE)
+  list(n_total = n_total,
+       fwd = sum(fwd_matches > 0),
+       rev = sum(rev_matches > 0))
+}
+
+orientation_counts <- lapply(fnFs, function(f) {
+  # Note: FWD/REV as variables aren't assigned until later in the script,
+  # so we use opt$fwd_primer / opt$rev_primer directly here. They hold the
+  # same values.
+  .check_orientation(f, opt$fwd_primer, opt$rev_primer)
+})
+
+n_sampled <- sum(vapply(orientation_counts, `[[`, integer(1), "n_total"))
+n_fwd     <- sum(vapply(orientation_counts, `[[`, integer(1), "fwd"))
+n_rev     <- sum(vapply(orientation_counts, `[[`, integer(1), "rev"))
+
+pct_fwd <- if (n_sampled > 0) 100 * n_fwd / n_sampled else 0
+pct_rev <- if (n_sampled > 0) 100 * n_rev / n_sampled else 0
+
+cat(sprintf("  Reads sampled (across %d samples): %s\n",
+            length(fnFs), format(n_sampled, big.mark = ",")))
+cat(sprintf("  R1 starting with forward primer: %s (%.1f%%)\n",
+            format(n_fwd, big.mark = ","), pct_fwd))
+cat(sprintf("  R1 starting with reverse primer: %s (%.1f%%)\n",
+            format(n_rev, big.mark = ","), pct_rev))
+
+orientation_summary <- list(
+  reads_sampled       = n_sampled,
+  r1_starts_with_fwd  = n_fwd,
+  r1_starts_with_rev  = n_rev,
+  pct_fwd             = round(pct_fwd, 2),
+  pct_rev             = round(pct_rev, 2)
+)
+
+# Categorise the run
+if (pct_fwd < 5 && pct_rev < 5) {
+  orientation_summary$verdict <- "primers_not_detected"
+  stop(
+    "Primers not detected at the start of R1 reads.\n",
+    "  Forward primer matches at position 1: ", sprintf("%.1f%%", pct_fwd), "\n",
+    "  Reverse primer matches at position 1: ", sprintf("%.1f%%", pct_rev), "\n\n",
+    "This usually means one of:\n",
+    "  1. Wrong primers specified. Verify against your library prep records.\n",
+    "  2. Data has already been primer-trimmed by the sequencing facility.\n",
+    "     Check with: zcat <one_R1.fastq.gz> | head -2\n",
+    "     If reads don't start with your forward primer, this skill is not\n",
+    "     the right tool — go directly to DADA2 quality filtering.\n",
+    "\nAborting.",
+    call. = FALSE
+  )
+} else if (pct_rev >= 80 && pct_fwd < 20) {
+  orientation_summary$verdict <- "all_reversed"
+  stop(
+    "Reads appear to be REVERSED — R1 files start with the reverse primer,\n",
+    "not the forward primer.\n",
+    "  Forward primer matches: ", sprintf("%.1f%%", pct_fwd), "\n",
+    "  Reverse primer matches: ", sprintf("%.1f%%", pct_rev), "\n\n",
+    "This usually means R1 and R2 got swapped upstream. Either rename your\n",
+    "files (swap R1 and R2 in the filenames) or swap the --fwd-primer and\n",
+    "--rev-primer arguments.",
+    call. = FALSE
+  )
+} else if (pct_fwd >= 80 && pct_rev < 20) {
+  orientation_summary$verdict <- "consistent_forward"
+  cat("  Orientation: consistent forward-oriented. OK.\n\n")
+} else {
+  # Mixed orientation
+  orientation_summary$verdict <- "mixed"
+  msg <- paste0(
+    "Mixed-orientation reads detected.\n",
+    "  Reads starting with forward primer: ", sprintf("%.1f%%", pct_fwd), "\n",
+    "  Reads starting with reverse primer: ", sprintf("%.1f%%", pct_rev), "\n\n",
+    "This means roughly half of your R1 reads have the forward primer at\n",
+    "position 1 and half have the reverse primer. With anchored 5' primers\n",
+    "and --discard-untrimmed, the pipeline will discard the reverse-oriented\n",
+    "reads (~", sprintf("%.0f%%", pct_rev), " of your data).\n\n",
+    "This is usually a library-prep issue — the amplicon was PCR'd without\n",
+    "strict orientation control.\n\n",
+    "Options:\n",
+    "  1. Reorient the data upstream using seqkit or DADA2's orient.fwd.\n",
+    "  2. Rerun this skill with --allow-mixed-orientation, accepting ~",
+    sprintf("%.0f%%", pct_rev), " data loss."
+  )
+  if (!isTRUE(opt$allow_mixed_orientation)) {
+    stop(msg, "\n\nAborting to prevent silent data loss.", call. = FALSE)
+  } else {
+    warning(msg,
+            "\n\nContinuing because --allow-mixed-orientation is set. ",
+            "Reverse-oriented reads will be discarded at Stage 4.",
+            call. = FALSE, immediate. = TRUE)
+    cat("\n")
+  }
+}
+
+################################################################################
 ## PART 3: HELPER — run seqkit stats and parse the output
 ################################################################################
 
@@ -403,6 +559,10 @@ cat("  Stats saved to: ", raw_stats_file, "\n\n")
 cat("─────────────────────────────────────────────────────────\n")
 cat("  Stage 2/5 — Removing reads containing N bases\n")
 cat("─────────────────────────────────────────────────────────\n")
+cat("  maxN threshold:       ", opt$max_n, "\n")
+cat("  PhiX removal:         ", if (opt$no_phix_removal) "OFF" else "ON",  "\n")
+cat("  Quality trimming:      OFF (deferred to downstream DADA2 skill)\n")
+cat("  Minimum length filter: OFF (--min-length applies at Stage 4 only)\n")
 
 filtN_fp <- file.path(opt$output, "filtN")
 if (!dir.exists(filtN_fp)) dir.create(filtN_fp, recursive = TRUE)
@@ -410,13 +570,24 @@ if (!dir.exists(filtN_fp)) dir.create(filtN_fp, recursive = TRUE)
 fnFs.filtN <- file.path(filtN_fp, basename(fnFs))
 fnRs.filtN <- file.path(filtN_fp, basename(fnRs))
 
-is_windows  <- Sys.info()[["sysname"]] == "Windows"
+# Small item: previously computed is_windows but never used — removed.
 multithread <- FALSE
 
+# DEFECT 2: filterAndTrim() has several parameters with silently-applied
+# DADA2 defaults that contradict this skill's stated promise ("Stage 2 is
+# N-removal only; quality filtering is deferred"). Explicitly override to
+# make Stage 2 genuinely maxN-only:
+#   - truncQ = 0   (was defaulting to 2 = quality-trim tail below Q2)
+#   - minLen = 0   (was defaulting to 20 = discard reads <20bp post-trim)
+#   - rm.phix      (was defaulting to TRUE, now explicit + CLI-configurable
+#                   via --no-phix-removal)
 filterAndTrim(
   fnFs, fnFs.filtN,
   fnRs, fnRs.filtN,
   maxN        = opt$max_n,
+  truncQ      = 0,
+  minLen      = 0,
+  rm.phix     = !opt$no_phix_removal,
   multithread = multithread,
   compress    = TRUE,
   verbose     = TRUE
@@ -511,10 +682,27 @@ for (i in seq_along(fnFs)) {
   cat("\n\n===== Sample:", sample_names[i], "=====\n",
       file = cutadapt_log, append = TRUE)
   # CRITICAL 3: capture the integer exit status. Cutadapt returns 0 on success,
-  # non-zero on error. stdout+stderr already go to cutadapt_log so any error
-  # message is preserved in the log for post-mortem investigation.
+  # non-zero on error.
+  #
+  # DEFECT 1 (re-audit, second attempt): the previous fix used file.append()
+  # which behaved inconsistently on WSL's /mnt/ mounts (DrvFs/9P): on the
+  # bundled test fixture (/tmp/, native ext4) it worked; on real datasets in
+  # /mnt/d/ it silently ended up with only the last sample's content in the
+  # master log — exactly the failure mode we were trying to fix.
+  # Switching to readLines() + cat(..., append=TRUE), which is pure R I/O
+  # and portable across filesystems. Verified end-to-end on WSL /mnt/d/.
+  sample_log <- tempfile(pattern = paste0("cutadapt_", i, "_"),
+                          fileext = ".log")
   status <- system2("cutadapt", args = args_vec,
-                    stdout = cutadapt_log, stderr = cutadapt_log, wait = TRUE)
+                    stdout = sample_log, stderr = sample_log, wait = TRUE)
+  if (file.exists(sample_log)) {
+    lines <- readLines(sample_log, warn = FALSE)
+    if (length(lines) > 0) {
+      cat(lines, file = cutadapt_log, sep = "\n", append = TRUE)
+      cat("\n",  file = cutadapt_log,             append = TRUE)
+    }
+    unlink(sample_log)
+  }
   if (status != 0) {
     warning("Cutadapt failed on sample '", sample_names[i],
             "' (exit code ", status, "). Skipping this sample. ",
@@ -751,7 +939,7 @@ runtime  <- as.numeric(difftime(end_time, start_time, units = "secs"))
 
 summary_json <- list(
   skill         = "claw-amplicon-qc",
-  version       = "0.1.0",
+  version       = "0.1.5",
   timestamp_utc = format(end_time, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
   runtime_secs  = round(runtime, 1),
   inputs = list(
@@ -760,6 +948,12 @@ summary_json <- list(
     fwd_primer    = opt$fwd_primer,
     rev_primer    = opt$rev_primer,
     min_length    = opt$min_length
+  ),
+  # DEFECT 4: emit preflight results so downstream consumers can see the
+  # orientation verdict (consistent_forward / all_reversed / mixed /
+  # primers_not_detected) and the raw counts backing it.
+  preflight = list(
+    primer_orientation = orientation_summary
   ),
   totals = list(
     samples              = nrow(per_sample),

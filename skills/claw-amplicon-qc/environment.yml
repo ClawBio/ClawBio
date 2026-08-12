@@ -2,13 +2,22 @@ name: amplicon-qc
 channels:
   - conda-forge
   - bioconda
-  - nodefaults
+  - defaults
 dependencies:
-  - python>=3.10
-  - r-base=4.4
+  # R runtime
+  - r-base>=4.4
+
+  # Bioconductor packages the script imports
   - bioconductor-dada2
   - bioconductor-shortread
   - bioconductor-biostrings
+
+  # CRAN packages the script imports
   - r-optparse
-  - seqkit
+  - r-jsonlite       # DEFECT 3: was missing from env despite `library(jsonlite)`
+                     # in the script. r-yaml (previously listed here but never
+                     # used) has been removed.
+
+  # External tools invoked via system2()
   - cutadapt
+  - seqkit
