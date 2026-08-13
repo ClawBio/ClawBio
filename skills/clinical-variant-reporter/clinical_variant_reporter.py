@@ -508,7 +508,14 @@ def _structured_data_source_versions(
             "omim": None,
             "gnomad": GNOMAD_VERSION_LABEL,
         }
-    sv = source_versions or {}
+    # source_versions is None only when no VEP batch succeeded this run, i.e.
+    # nothing was annotated -- report.md's prose form says as much for gnomAD
+    # too (_data_source_versions_for_report's `note` branch), so the
+    # structured form must not assert the hardcoded gnomAD constant here
+    # either (review on #327, blocking item 2: the two artefacts disagreed).
+    if source_versions is None:
+        return {"clinvar": None, "dbsnp": None, "omim": None, "gnomad": None}
+    sv = source_versions
     return {
         "clinvar": sv.get("clinvar"),
         "dbsnp": sv.get("dbsnp"),

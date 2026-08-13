@@ -635,6 +635,21 @@ class TestStructuredDataSourceVersions:
             "clinvar": None, "dbsnp": None, "omim": None, "gnomad": "v4.1",
         }
 
+    def test_live_mode_nulls_gnomad_too_when_nothing_annotated(self, tmp_path):
+        # source_versions is None: no VEP batch succeeded this run, so no
+        # source-version claim can be made at all -- including gnomAD's
+        # hardcoded constant. report.md already says "unavailable (no
+        # variant was successfully annotated this run)" for both ClinVar and
+        # gnomAD in this case (_data_source_versions_for_report's `note`
+        # branch); result.json previously still asserted the gnomAD constant
+        # here, so the two artefacts of one run disagreed on whether a
+        # gnomAD claim may be made (review on #327, blocking item 2).
+        generate_report([], tmp_path, demo=False, source_versions=None)
+        result = json.loads((tmp_path / "result.json").read_text())
+        assert result["data_source_versions"] == {
+            "clinvar": None, "dbsnp": None, "omim": None, "gnomad": None,
+        }
+
     def test_annotation_backend_stamps_the_assembly_actually_used(self, tmp_path):
         # review #327: annotation_backend hardcoded "GRCh38" regardless of
         # the assembly argument, so a GRCh37 run's own database_versions.json
@@ -714,8 +729,13 @@ class TestAnnotateCapturesSourceVersions:
         # The suite must not pass identically if the code reverts to the old
         # /info/rest endpoint (review on #327, blocking item 3): assert the
         # actual URL called, not just that requests.get was called at all.
+        # Pinned against the LITERAL path, not just ENSEMBL_INFO_VARIATION_PATH --
+        # a constant-relative-only assertion stays green even if the constant
+        # itself regresses to the wrong endpoint (mutation-tested on review:
+        # changing the constant to "/info/software" left 72 tests unchanged).
         assert len(captured_args) == 1
         called_url = captured_args[0][0] if captured_args[0] else captured_kwargs[0].get("url")
+        assert called_url == "https://rest.ensembl.org/info/variation/homo_sapiens"
         assert called_url == VEP_REST_HOST + ENSEMBL_INFO_VARIATION_PATH
         assert captured_kwargs[0].get("timeout") == 10
 
