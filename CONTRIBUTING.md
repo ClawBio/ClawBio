@@ -97,6 +97,54 @@ Follow the [ClawHub submission guide](https://clawhub.ai/docs/submit).
 4. **Documented**: Include example queries, expected outputs, and dependency lists.
 5. **Safe**: Minimal permissions. Warn before destructive actions. No hardcoded credentials.
 
+## Licensing
+
+Two separate things carry licences, and conflating them is how people get
+this wrong. Declare both.
+
+### 1. Your skill code: MIT or Apache-2.0
+
+```yaml
+license: MIT
+```
+
+ClawBio is the open trust layer for agentic genomics. A trust layer that
+hospitals, diagnostics companies and pharma cannot build on is not a trust
+layer, and a single restrictively-licensed file triggers legal review of the
+whole repository rather than of that one skill. So contributed skill code is
+expected to be permissive.
+
+Anything else is an exception. Ask in the PR and say why; we grant them (the
+catalog already carries a few) but they are declared, not assumed.
+
+### 2. Models, weights and reference data: declare, do not relicense
+
+If your skill downloads or requires a third-party model, weights, or a
+reference dataset, declare its terms separately:
+
+```yaml
+license: MIT                          # your wrapper code
+model_license: cc-by-nc-sa-4.0        # the weights it downloads
+data_license: CC0-1.0                 # any bundled reference data
+```
+
+**Putting MIT on a wrapper does not make non-commercial weights commercially
+usable.** The restriction lives in the artefact, not in your code, and no
+licence in this repository can grant rights over someone else's model. Marking
+the wrapper MIT while staying silent about NC weights publishes a promise that
+is false, which is worse for a downstream user than an honest restriction.
+
+Equally, do not apply a non-commercial licence to your *own* wrapper code
+because the weights are non-commercial. That adds a second, redundant
+restriction on top of one that already binds, and it propagates the limit to
+code that did not need it.
+
+Many academic genomics models are non-commercial, and skills wrapping them are
+welcome. Declare the fields honestly and the catalog will carry the signal.
+
+Omit `model_license` / `data_license` if your skill has no such dependency.
+The most restrictive of the three fields governs any given use; see `LICENSE`.
+
 ## Naming Conventions
 
 - Skill folder: lowercase, hyphens (`vcf-annotator`, not `VCF_Annotator`)
