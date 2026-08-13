@@ -87,3 +87,62 @@ def test_fallback_demo_script_selection_is_deterministic():
         ).name
         == "turingdb_graph.py"
     )
+
+
+# --- Upstream artefact licences are declared separately from the wrapper's own
+# licence. Putting MIT on a wrapper does not make non-commercial weights
+# commercially usable, so the catalog must carry the artefact terms as their
+# own fields rather than letting `license` imply anything about them.
+
+def test_normalize_carries_model_and_data_licences():
+    generate_catalog = _load_generate_catalog_module()
+
+    normalized = generate_catalog.normalize_skill_metadata(
+        {
+            "name": "demo",
+            "license": "MIT",
+            "model_license": "cc-by-nc-sa-4.0",
+            "data_license": "CC0-1.0",
+        }
+    )
+
+    assert normalized["license"] == "MIT"
+    assert normalized["model_license"] == "cc-by-nc-sa-4.0"
+    assert normalized["data_license"] == "CC0-1.0"
+
+
+def test_normalize_defaults_artefact_licences_to_empty():
+    """A skill with no third-party artefact declares nothing; absence is not
+    a claim that the artefact is permissive."""
+    generate_catalog = _load_generate_catalog_module()
+
+    normalized = generate_catalog.normalize_skill_metadata(
+        {"name": "demo", "license": "MIT"}
+    )
+
+    assert normalized["model_license"] == ""
+    assert normalized["data_license"] == ""
+
+
+def test_frontmatter_parser_reads_artefact_licences():
+    """Both fields survive frontmatter parsing end to end."""
+    generate_catalog = _load_generate_catalog_module()
+
+    raw = "\n".join(
+        [
+            "---",
+            "name: demo",
+            "description: A demo skill",
+            "license: MIT",
+            "model_license: cc-by-nc-sa-4.0",
+            "data_license: CC0-1.0",
+            "---",
+            "",
+            "## Trigger",
+        ]
+    )
+
+    parsed = generate_catalog.parse_yaml_frontmatter(raw)
+
+    assert parsed["model_license"] == "cc-by-nc-sa-4.0"
+    assert parsed["data_license"] == "CC0-1.0"
