@@ -1,0 +1,41 @@
+{
+  "_comment": [
+    "Per-harness pass rates recorded from a real CI run. The scientific-audit",
+    "job fails if any harness drops below its rate here (see #342).",
+    "These are NOT targets. Seven harnesses are below 100% and that debt is",
+    "tracked in #106. Raising a number is a reviewable commit; lowering one",
+    "should be treated as a bug report, not routine maintenance."
+  ],
+  "recorded_from": {
+    "clawbio_commit": "056826d",
+    "benchmark_suite_version": "0.1.5",
+    "date": "2026-08-13",
+    "mode": "smoke",
+    "overall_pass_rate": 87.9,
+    "bench_own_verdict_pass": false
+  },
+  "harnesses": {
+    "bio-orchestrator": 98.1,
+    "claw-metagenomics": 100.0,
+    "clawbio-finemapping": 95.0,
+    "clinical-variant-reporter": 80.0,
+    "cvr-acmg-correctness": 69.2,
+    "cvr-variant-identity": 100.0,
+    "equity-scorer": 100.0,
+    "gwas-prs": 62.5,
+    "nutrigx-advisor": 0.0,
+    "pharmgx-reporter": 95.5
+  },
+  "harness_errors": {
+    "bio-orchestrator": 0,
+    "claw-metagenomics": 0,
+    "clawbio-finemapping": 1,
+    "clinical-variant-reporter": 0,
+    "cvr-acmg-correctness": 0,
+    "cvr-variant-identity": 0,
+    "equity-scorer": 0,
+    "gwas-prs": 0,
+    "nutrigx-advisor": 0,
+    "pharmgx-reporter": 0
+  }
+}

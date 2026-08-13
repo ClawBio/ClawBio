@@ -152,6 +152,14 @@ jobs:
       - name: Run bot security tests
         run: uv run pytest bot/tests/test_security.py -v
 
+      # Repo-level tests were never run by this job. The steps above name skill
+      # test files individually, so `tests/` was invisible to CI: both
+      # test_generate_catalog.py and the bench-baseline gate's own tests could
+      # have gone red on main without anything reporting it. A gate whose tests
+      # do not run is the #342 problem one level up. (See also #337.)
+      - name: Run repo-level tests
+        run: uv run pytest tests/ -v
+
       # The steps above are a hardcoded allowlist, so a NEW skill's tests never
       # run: ClawBio#329 shipped a test that cannot pass and CI was still green,
       # and ClawBio#324's just-prs suite never executed here at all. Any skill
@@ -265,6 +273,12 @@ jobs:
       - name: Install clawbio-bench
         run: uv pip install "clawbio-bench @ git+https://github.com/biostochastics/clawbio_bench.git@49a0f11a8393b87a90f0721261a9bec5d52b61db"
 
+      # The bench's own exit code is intentionally not the gate: it returns
+      # non-zero whenever `overall.pass` is false, which is true today for
+      # seven harnesses of pre-existing debt (#106). Gating on it would block
+      # every unrelated PR, and the `|| true` that this job carried for months
+      # (#342) would go straight back on. So the bench is allowed to report,
+      # and the *baseline comparison* below is the gate.
       - name: Run scientific correctness audit (smoke)
         run: |
           mkdir -p results
@@ -295,3 +309,18 @@ jobs:
           else
             echo "Bench ran but no markdown summary was generated. Check artifacts." >> $GITHUB_STEP_SUMMARY
           fi
+
+      # THE GATE (#342). Everything above this point is `|| true` or
+      # `if: always()`, so without this step the job cannot fail and its green
+      # tick carries no information. Deliberately NOT `if: always()`: it must
+      # run, and a missing report exits 2 rather than passing quietly.
+      - name: Fail on regression against the committed baseline
+        run: |
+          REPORT=$(ls -t results/suite/*/aggregate_report.json 2>/dev/null | head -1)
+          if [ -z "$REPORT" ]; then
+            echo "::error::The bench produced no aggregate_report.json. Treating as failure, not as a pass."
+            exit 2
+          fi
+          uv run python scripts/check_bench_baseline.py "$REPORT" \
+            --baseline bench_baseline.json \
+            --summary "$GITHUB_STEP_SUMMARY"
