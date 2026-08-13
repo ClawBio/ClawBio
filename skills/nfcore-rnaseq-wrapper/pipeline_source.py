@@ -20,10 +20,44 @@ from schemas import DEFAULT_LOCAL_PIPELINE_DIR, DEFAULT_REMOTE_PIPELINE, PIPELIN
 
 _GIT_TIMEOUT = 10
 
-# Matches `version = '3.26.0'` inside the manifest block of nextflow.config.
-# nextflow.config also carries `nextflowVersion`; the trailing-boundary group
-# (`\b`) prevents `nextflowVersion` from matching the bare `version` key.
-_MANIFEST_VERSION_RE = re.compile(r"(?<![A-Za-z])version\s*=\s*['\"]([^'\"]+)['\"]")
+# Matches `version = '3.26.0'` *within the manifest block only* (ClawBio#333).
+#
+# Scanning the whole file is unsafe. nf-core's standard config template sets
+# `custom_config_version = 'master'` in the params block, and pipelines such as
+# sarek add tool-version keys like `vep_version = "111.0-0"`, both several
+# hundred lines ABOVE the manifest block. `re.search` returns the first match,
+# so a file-wide scan reported 'master' (or a plausible-looking '111.0-0') for a
+# genuinely correct checkout on every nf-core pipeline tested.
+#
+# A leading-boundary lookbehind alone is not sufficient: it does not exclude a
+# dotted `params.version = '...'`, a commented-out `// version = '...'`, or a
+# `version` key belonging to some other block. Scoping to the manifest block
+# handles all of those, and any future `*_version` key, by construction.
+_MANIFEST_BLOCK_RE = re.compile(r"(?m)^[ \t]*manifest[ \t]*\{")
+_LINE_COMMENT_RE = re.compile(r"//[^\n]*")
+_MANIFEST_VERSION_RE = re.compile(r"(?<![A-Za-z_.])version\s*=\s*['\"]([^'\"]+)['\"]")
+
+
+def _manifest_block(text: str) -> str:
+    """Return the brace-balanced body of the top-level `manifest { ... }` block.
+
+    Returns "" when there is no manifest block or its braces never balance;
+    callers treat "" as "unknown version", never as a mismatch.
+    """
+    match = _MANIFEST_BLOCK_RE.search(text)
+    if not match:
+        return ""
+    start = text.index("{", match.start())
+    depth = 0
+    for index in range(start, len(text)):
+        char = text[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : index + 1]
+    return ""
 
 
 def _path_has_whitespace(path: Path) -> bool:
@@ -41,7 +75,8 @@ def _read_manifest_version(local_dir: Path) -> str:
         text = config_path.read_text(encoding="utf-8")
     except (OSError, UnicodeError):
         return ""
-    match = _MANIFEST_VERSION_RE.search(text)
+    block = _LINE_COMMENT_RE.sub("", _manifest_block(text))
+    match = _MANIFEST_VERSION_RE.search(block)
     return match.group(1).strip() if match else ""
 
 
