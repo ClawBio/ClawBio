@@ -206,7 +206,7 @@ output_directory/
 
 ## Safety
 
-- **Local-first**: All classification logic runs locally. Only variant coordinates and alleles are sent to public Ensembl VEP REST — no patient identifiers or phenotype data ever leave the machine
+- **Local-first**: All classification logic runs locally. Only variant coordinates and alleles are sent to public Ensembl VEP REST. In live mode, the Data Sources report section also queries Ensembl's `info/variation/homo_sapiens` endpoint (no variant data in that request) to report the actual ClinVar/dbSNP/OMIM versions bundled with the release — no patient identifiers or phenotype data ever leave the machine
 - **Disclaimer**: Every report includes the ClawBio medical disclaimer
 - **No hallucinated science**: Every classification traces to specific evidence codes, database entries, and published thresholds
 - **Audit trail**: Full evidence provenance logged to `reproducibility/database_versions.json`
