@@ -118,7 +118,7 @@ class VariantEvidence:
     hgvsp: str = ""
     transcript: str = ""
 
-    clinvar_significance: str = ""
+    clinvar_significance: str | list[str] = ""
     clinvar_review_stars: int = 0
 
     gnomad_af: float | None = None
@@ -162,6 +162,23 @@ class ClassifiedVariant:
 # ---------------------------------------------------------------------------
 # Criteria evaluation
 # ---------------------------------------------------------------------------
+def _clinvar_terms(significance: str | list[str]) -> set[str]:
+    """Normalize ClinVar's string and list forms into comparable terms."""
+    values = significance if isinstance(significance, list) else significance.split(",")
+    return {value.strip().lower().replace(" ", "_") for value in values if value.strip()}
+
+
+def _clinvar_directions(significance: str | list[str]) -> tuple[bool, bool]:
+    """Return pathogenic and benign flags, rejecting conflicting assertions."""
+    terms = _clinvar_terms(significance)
+    pathogenic = {"pathogenic", "likely_pathogenic"}
+    benign = {"benign", "likely_benign"}
+    conflicting = "conflicting_interpretations" in terms or (
+        bool(terms & pathogenic) and bool(terms & benign)
+    )
+    return bool(terms & pathogenic) and not conflicting, bool(terms & benign) and not conflicting
+
+
 def _eval_ba1(ev: VariantEvidence) -> EvidenceCriterion:
     """BA1: gnomAD AF > 5% → stand-alone benign."""
     triggered = ev.gnomad_af is not None and ev.gnomad_af > THRESHOLD_BA1_AF
@@ -231,8 +248,7 @@ def _eval_pvs1(ev: VariantEvidence) -> EvidenceCriterion:
 
 def _eval_ps1(ev: VariantEvidence) -> EvidenceCriterion:
     """PS1: Same amino acid change as an established pathogenic variant in ClinVar."""
-    clinvar_lower = ev.clinvar_significance.lower()
-    is_pathogenic_clinvar = "pathogenic" in clinvar_lower and "conflicting" not in clinvar_lower
+    is_pathogenic_clinvar, _ = _clinvar_directions(ev.clinvar_significance)
     triggered = (
         ev.is_missense
         and is_pathogenic_clinvar
@@ -306,8 +322,7 @@ def _eval_pp3(ev: VariantEvidence) -> EvidenceCriterion:
 
 def _eval_pp5(ev: VariantEvidence) -> EvidenceCriterion:
     """PP5: Reputable source reports variant as pathogenic."""
-    clinvar_lower = ev.clinvar_significance.lower()
-    is_pathogenic = "pathogenic" in clinvar_lower and "conflicting" not in clinvar_lower
+    is_pathogenic, _ = _clinvar_directions(ev.clinvar_significance)
     triggered = is_pathogenic and ev.clinvar_review_stars >= CLINVAR_MIN_STARS
     return EvidenceCriterion(
         code="PP5",
@@ -349,8 +364,7 @@ def _eval_bp4(ev: VariantEvidence) -> EvidenceCriterion:
 
 def _eval_bp6(ev: VariantEvidence) -> EvidenceCriterion:
     """BP6: Reputable source reports variant as benign."""
-    clinvar_lower = ev.clinvar_significance.lower()
-    is_benign = ("benign" in clinvar_lower or "likely benign" in clinvar_lower) and "pathogenic" not in clinvar_lower
+    _, is_benign = _clinvar_directions(ev.clinvar_significance)
     triggered = is_benign and ev.clinvar_review_stars >= CLINVAR_MIN_STARS
     return EvidenceCriterion(
         code="BP6",
