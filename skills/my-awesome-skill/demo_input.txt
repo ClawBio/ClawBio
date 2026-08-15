@@ -1,0 +1,6 @@
+# Synthetic demo data for my-awesome-skill
+# This is NOT real patient data
+rsid    chromosome  position    genotype
+rs1234567   1   12345678    AG
+rs2345678   2   23456789    CC
+rs3456789   3   34567890    TT
