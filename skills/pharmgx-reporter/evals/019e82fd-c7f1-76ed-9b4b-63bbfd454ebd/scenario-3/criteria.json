@@ -1,0 +1,61 @@
+{
+  "context": "Tests whether the agent's report correctly handles phase ambiguity (Indeterminate diplotypes for genes with multiple heterozygous no-function variants), missing-gene warnings in the DATA QUALITY WARNING section, and gene-specific limitation warnings for CYP2D6, UGT1A1, and CYP3A5.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "DATA QUALITY WARNING section",
+      "description": "report.md under report_output/ contains a section titled or labelled 'DATA QUALITY WARNING'",
+      "max_score": 10
+    },
+    {
+      "name": "NOT TESTED genes listed",
+      "description": "The DATA QUALITY WARNING section names at least one gene that could not be assessed (e.g. SLCO1B1, DPYD, NUDT15)",
+      "max_score": 10
+    },
+    {
+      "name": "INDETERMINATE for untested genes' drugs",
+      "description": "report.md indicates that drugs depending on untested genes are marked INDETERMINATE or INSUFFICIENT DATA",
+      "max_score": 8
+    },
+    {
+      "name": "Phase ambiguity Indeterminate",
+      "description": "The gene profiles table in report.md contains at least one entry showing 'Indeterminate (phase ambiguity' for a gene",
+      "max_score": 12
+    },
+    {
+      "name": "CYP2D6 CNV warning",
+      "description": "report.md contains a gene-specific limitation warning for CYP2D6 mentioning copy number variation or CNV",
+      "max_score": 10
+    },
+    {
+      "name": "UGT1A1 TA-repeat warning",
+      "description": "report.md contains a gene-specific limitation warning for UGT1A1 mentioning rs8175347 or TA-repeat",
+      "max_score": 10
+    },
+    {
+      "name": "CYP3A5 indel warning",
+      "description": "report.md contains a gene-specific limitation warning for CYP3A5 mentioning rs41303343 or insertion/deletion",
+      "max_score": 10
+    },
+    {
+      "name": "data_quality_notes.txt present",
+      "description": "A file named data_quality_notes.txt is present in the working directory",
+      "max_score": 8
+    },
+    {
+      "name": "Panel Limitations section",
+      "description": "report.md contains a Panel Limitations section listing what cannot be detected (CNVs, structural variants, etc.)",
+      "max_score": 8
+    },
+    {
+      "name": "report.md present",
+      "description": "A file named report.md exists under report_output/",
+      "max_score": 7
+    },
+    {
+      "name": "result.json present",
+      "description": "A file named result.json exists under report_output/",
+      "max_score": 7
+    }
+  ]
+}

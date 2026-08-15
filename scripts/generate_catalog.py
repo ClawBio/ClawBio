@@ -58,7 +58,10 @@ def parse_yaml_frontmatter(text: str) -> dict:
         if desc_match:
             result["description"] = _strip(desc_match.group(1))
 
-        for field in ("version", "author", "domain", "license"):
+        for field in (
+            "version", "author", "domain", "license",
+            "model_license", "data_license",
+        ):
             match = re.search(rf"^{field}:\s*(.+)", raw, re.MULTILINE)
             if match:
                 result[field] = _strip(match.group(1))
@@ -137,6 +140,12 @@ def normalize_skill_metadata(raw: dict) -> dict:
         "name": raw.get("name", ""),
         "description": raw.get("description", ""),
         "license": raw.get("license", ""),
+        # Declared separately from `license` on purpose. A permissive
+        # wrapper licence grants no rights over third-party weights or
+        # reference data, which are frequently non-commercial. Empty means
+        # "no such dependency declared", never "permissive".
+        "model_license": raw.get("model_license", ""),
+        "data_license": raw.get("data_license", ""),
         "version": raw.get("version", metadata.get("version", "0.1.0")),
         "author": raw.get("author", metadata.get("author", "")),
         "domain": raw.get("domain", metadata.get("domain", "")),
@@ -494,6 +503,14 @@ def build_catalog() -> list[dict]:
             "tags": tags,
             "trigger_keywords": trigger_keywords,
             "chaining_partners": CHAINING.get(folder_name, []),
+            # Three separate fields, because they restrict independently and
+            # the most restrictive governs. `license` covers the skill's own
+            # code; the other two cover third-party weights and reference data
+            # the skill pulls at runtime, over which no licence in this repo
+            # can grant rights. Empty means "none declared", not "permissive".
+            "license": str(skill_meta.get("license", "")),
+            "model_license": str(skill_meta.get("model_license", "")),
+            "data_license": str(skill_meta.get("data_license", "")),
         }
         entries.append(entry)
 

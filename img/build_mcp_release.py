@@ -75,7 +75,7 @@ def main() -> None:
     cards = "\n".join([
         stat_card(x0, cy, cw, ch, "95", "SKILLS", "CALLABLE BY ANY AGENT", highlight=True),
         stat_card(x0 + (cw + gap), cy, cw, ch, "4", "CLIENTS", "CURSOR / ZED / VS CODE / CLAUDE"),
-        stat_card(x0 + 2 * (cw + gap), cy, cw, ch, "0", "BYTES UPLOADED", "LOCAL STDIO, NO SERVER"),
+        stat_card(x0 + 2 * (cw + gap), cy, cw, ch, "0", "HOSTED SERVERS", "RUNS ON YOUR MACHINE"),
     ])
 
     cmd = "uvx --from 'clawbio[mcp]' clawbio mcp"

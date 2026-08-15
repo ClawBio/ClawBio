@@ -1,0 +1,66 @@
+{
+  "context": "Tests whether the agent produces the correct three-file output structure, buckets drugs into AVOID/CAUTION/STANDARD/INSUFFICIENT, includes the mandatory disclaimer, and generates a reproducibility record — all core skill outputs from the PharmGx Reporter.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "report.md present",
+      "description": "A file named report.md exists under the output directory",
+      "max_score": 8
+    },
+    {
+      "name": "result.json present",
+      "description": "A file named result.json exists under the output directory",
+      "max_score": 8
+    },
+    {
+      "name": "reproducibility/commands.sh present",
+      "description": "A file named commands.sh exists under output/reproducibility/ (the exact subdirectory path from the skill spec)",
+      "max_score": 10
+    },
+    {
+      "name": "AVOID bucket",
+      "description": "report.md contains a section or label using the word AVOID (upper-case) for drug recommendations",
+      "max_score": 8
+    },
+    {
+      "name": "CAUTION bucket",
+      "description": "report.md contains a section or label using the word CAUTION (upper-case) for drug recommendations",
+      "max_score": 8
+    },
+    {
+      "name": "STANDARD bucket",
+      "description": "report.md contains a section or label using the word STANDARD (upper-case) for drug recommendations",
+      "max_score": 8
+    },
+    {
+      "name": "INSUFFICIENT/INDETERMINATE bucket",
+      "description": "report.md contains a section or label for INSUFFICIENT or INDETERMINATE drugs",
+      "max_score": 8
+    },
+    {
+      "name": "Gene profile table",
+      "description": "report.md contains a table with at least the columns Gene, Diplotype, and Phenotype",
+      "max_score": 10
+    },
+    {
+      "name": "Drug table present",
+      "description": "report.md contains a table listing multiple drugs with their Gene and Status columns",
+      "max_score": 8
+    },
+    {
+      "name": "Medical disclaimer",
+      "description": "report.md contains text stating this is for research/educational purposes only and is NOT a diagnostic device",
+      "max_score": 10
+    },
+    {
+      "name": "SHA-256 checksum",
+      "description": "report.md contains a SHA-256 checksum of the input file",
+      "max_score": 7
+    },
+    {
+      "name": "12 genes covered",
+      "description": "The gene profile table in report.md lists at least 10 of the 12 expected genes (CYP2C19, CYP2D6, CYP2C9, VKORC1, SLCO1B1, DPYD, TPMT, UGT1A1, CYP3A5, CYP2B6, NUDT15, CYP1A2)",
+      "max_score": 7
+    }
+  ]
+}

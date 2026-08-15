@@ -117,7 +117,7 @@ def test_run_classification_hard_abstains_on_identity_mismatch():
     rec = VcfRecord(chrom=chrom, pos=pos, id=".", ref=ref, alt=alt,
                     qual=".", filt="PASS",
                     info={"GENE": "BRCA1", "EXPECTED_HGVSP": "p.Thr67Ile"})
-    out = run_classification([rec], demo=True)
+    out, _ = run_classification([rec], demo=True)
     assert len(out) == 1
     assert out[0].classification == ABSTAIN_LABEL
     assert "IDENTITY_MISMATCH" in [v.code for v in out[0].audit_violations]

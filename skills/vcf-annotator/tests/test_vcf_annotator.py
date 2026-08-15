@@ -5,6 +5,7 @@ Run with: pytest skills/vcf-annotator/tests/test_vcf_annotator.py -v
 
 import csv
 import json
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -215,3 +216,52 @@ class TestDemoData:
         impacts = [v["impact"] for v in DEMO_ANNOTATIONS]
         ranks   = [IMPACT_RANK.get(i, 5) for i in impacts]
         assert ranks == sorted(ranks)
+
+
+# ── CLI entry point ────────────────────────────────────────────────────────────
+#
+# These invoke the script the way a user does, in a subprocess. Importing
+# functions directly cannot catch a missing import inside main(), which is how
+# `import argparse` stayed absent behind 28 green tests.
+
+SCRIPT = Path(__file__).parent.parent / "vcf_annotator.py"
+
+
+class TestCLI:
+    def test_help_exits_zero(self):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--help"],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, (
+            f"--help failed with exit {result.returncode}:\n{result.stderr}"
+        )
+        assert "--input" in result.stdout
+
+    def test_no_args_errors_cleanly(self):
+        """Missing --input/--demo must be an argparse error, not a traceback."""
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 2
+        assert "Traceback" not in result.stderr
+
+    def test_demo_runs_end_to_end(self, tmp_path):
+        out = tmp_path / "report"
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--demo", "--output", str(out)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, (
+            f"--demo failed with exit {result.returncode}:\n{result.stderr}"
+        )
+        assert (out / "report.md").exists()
+
+    def test_missing_input_file_exits_one(self, tmp_path):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--input", str(tmp_path / "nope.vcf")],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 1
+        assert "not found" in result.stderr.lower()

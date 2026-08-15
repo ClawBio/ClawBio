@@ -43,13 +43,28 @@ _remove_skill_dir_from_sys_path()
 _requires_git = pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
 
 
+# Mirrors the shape of a real nf-core nextflow.config: the standard template sets
+# `custom_config_version` (and pipelines such as sarek add tool-version keys like
+# `vep_version`) in the params block, ~300 lines ABOVE the manifest block. A
+# file-wide version scan therefore reads one of those instead of manifest.version
+# (ClawBio#333). Keeping this preamble in the shared fixture means every test in
+# this module exercises the real config shape rather than a thin idealised one.
+_NFCORE_PARAMS_PREAMBLE = (
+    "params {\n"
+    "    version                 = false\n"
+    "    vep_version             = \"111.0-0\"\n"
+    "    custom_config_version   = 'master'\n"
+    "    custom_config_base      = \"https://raw.githubusercontent.com/nf-core/configs/${params.custom_config_version}\"\n"
+    "}\n"
+)
+
+
 def _make_valid_local_checkout(path: Path, *, manifest_version: str | None = None) -> None:
     path.mkdir(parents=True, exist_ok=True)
     (path / "main.nf").write_text("// main", encoding="utf-8")
-    if manifest_version is None:
-        config_text = "// config"
-    else:
-        config_text = (
+    config_text = _NFCORE_PARAMS_PREAMBLE
+    if manifest_version is not None:
+        config_text += (
             "manifest {\n"
             "    name = 'nf-core/rnaseq'\n"
             f"    version = '{manifest_version}'\n"
@@ -75,6 +90,91 @@ def test_local_checkout_manifest_version_ignores_nextflow_version(tmp_path):
     result = resolve_pipeline_source(requested_version="3.26.0", local_pipeline_dir=local)
     # Must read manifest.version, not manifest.nextflowVersion.
     assert result["manifest_version"] == "3.20.0"
+
+
+def test_local_checkout_manifest_version_ignores_custom_config_version(tmp_path):
+    """ClawBio#333: `custom_config_version = 'master'` precedes the manifest block.
+
+    A file-wide scan returns 'master' and the pinned-version gate then rejects a
+    genuinely correct checkout, pushing users towards
+    --allow-pipeline-version-override, which would also mask a real mismatch.
+    """
+    local = tmp_path / "rnaseq"
+    _make_valid_local_checkout(local, manifest_version="3.26.0")
+    config_text = (local / "nextflow.config").read_text(encoding="utf-8")
+    assert "custom_config_version   = 'master'" in config_text, "fixture must carry the real trap"
+    assert config_text.index("custom_config_version") < config_text.index("manifest {")
+
+    result = resolve_pipeline_source(requested_version="3.26.0", local_pipeline_dir=local)
+    assert result["manifest_version"] == "3.26.0"
+
+
+def test_local_checkout_manifest_version_ignores_tool_version_keys(tmp_path):
+    """nf-core/sarek carries `vep_version = "111.0-0"` above the manifest block.
+
+    Worse than the 'master' case: '111.0-0' reads as a plausible pipeline version,
+    so the resulting mismatch error misdirects debugging rather than looking absurd.
+    """
+    local = tmp_path / "rnaseq"
+    _make_valid_local_checkout(local, manifest_version="3.26.0")
+    result = resolve_pipeline_source(requested_version="3.26.0", local_pipeline_dir=local)
+    assert result["manifest_version"] != "111.0-0"
+    assert result["manifest_version"] == "3.26.0"
+
+
+def test_local_checkout_manifest_version_ignores_dotted_assignment(tmp_path):
+    """`params.version = '9.9.9'` is not the manifest version.
+
+    A leading-boundary lookbehind alone does not exclude this, because the
+    preceding character is '.', which is why the fix scopes to the manifest block.
+    """
+    local = tmp_path / "rnaseq"
+    _make_valid_local_checkout(local, manifest_version="3.26.0")
+    config = local / "nextflow.config"
+    config.write_text("params.version = '9.9.9'\n" + config.read_text(encoding="utf-8"), encoding="utf-8")
+    result = resolve_pipeline_source(requested_version="3.26.0", local_pipeline_dir=local)
+    assert result["manifest_version"] == "3.26.0"
+
+
+def test_local_checkout_manifest_version_ignores_commented_out_version(tmp_path):
+    """A commented-out version above the manifest block must not win."""
+    local = tmp_path / "rnaseq"
+    _make_valid_local_checkout(local, manifest_version="3.26.0")
+    config = local / "nextflow.config"
+    config.write_text("// version = '0.0.1-dev'\n" + config.read_text(encoding="utf-8"), encoding="utf-8")
+    result = resolve_pipeline_source(requested_version="3.26.0", local_pipeline_dir=local)
+    assert result["manifest_version"] == "3.26.0"
+
+
+def test_local_checkout_manifest_version_ignores_comment_inside_manifest(tmp_path):
+    """A commented-out version *inside* the manifest block must not win either."""
+    local = tmp_path / "rnaseq"
+    _make_valid_local_checkout(local, manifest_version="3.26.0")
+    config = local / "nextflow.config"
+    config.write_text(
+        config.read_text(encoding="utf-8").replace(
+            "manifest {\n", "manifest {\n    // version = '0.0.1-dev'\n"
+        ),
+        encoding="utf-8",
+    )
+    result = resolve_pipeline_source(requested_version="3.26.0", local_pipeline_dir=local)
+    assert result["manifest_version"] == "3.26.0"
+
+
+def test_local_checkout_manifest_version_handles_nested_braces(tmp_path):
+    """The manifest scan must be brace-balanced, not stop at the first '}'."""
+    local = tmp_path / "rnaseq"
+    _make_valid_local_checkout(local, manifest_version="3.26.0")
+    config = local / "nextflow.config"
+    config.write_text(
+        config.read_text(encoding="utf-8").replace(
+            "manifest {\n    name = 'nf-core/rnaseq'\n",
+            "manifest {\n    name = 'nf-core/rnaseq'\n    defaultBranch = \"${x ? 'a' : 'b'}\"\n",
+        ),
+        encoding="utf-8",
+    )
+    result = resolve_pipeline_source(requested_version="3.26.0", local_pipeline_dir=local)
+    assert result["manifest_version"] == "3.26.0"
 
 
 def test_local_checkout_manifest_version_empty_when_absent(tmp_path):

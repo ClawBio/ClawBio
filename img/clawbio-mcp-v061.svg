@@ -26,8 +26,8 @@
 
   <rect x="772" y="384" width="326" height="148" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
   <text x="796" y="456" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="48" font-weight="800" fill="#3fb950" letter-spacing="-1">0</text>
-  <text x="798" y="488" font-family="SF Mono, Menlo, Consolas, monospace" font-size="15" font-weight="500" letter-spacing="2.2" fill="#8b949e">BYTES UPLOADED</text>
-  <text x="798" y="508" font-family="SF Mono, Menlo, Consolas, monospace" font-size="12.5" font-weight="500" letter-spacing="1.6" fill="#6e7681">LOCAL STDIO, NO SERVER</text>
+  <text x="798" y="488" font-family="SF Mono, Menlo, Consolas, monospace" font-size="15" font-weight="500" letter-spacing="2.2" fill="#8b949e">HOSTED SERVERS</text>
+  <text x="798" y="508" font-family="SF Mono, Menlo, Consolas, monospace" font-size="12.5" font-weight="500" letter-spacing="1.6" fill="#6e7681">RUNS ON YOUR MACHINE</text>
 
   <rect x="60" y="556" width="700" height="46" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
   <text x="80" y="585" font-family="SF Mono, Menlo, Consolas, monospace" font-size="18" font-weight="500" fill="#3fb950"><tspan fill="#8b949e">$</tspan><tspan dx="11">uvx --from 'clawbio[mcp]' clawbio mcp</tspan></text>

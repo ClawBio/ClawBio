@@ -1,0 +1,1 @@
+{ "description": "AncestryDNA format auto-detection and full report", "include": ["./inputs"] }

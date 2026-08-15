@@ -109,7 +109,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --locked
+          # --all-extras: skill-level deps live in [project.optional-dependencies]
+          # (just-prs declares typer and fastmcp). A plain sync omits them, so
+          # skills/just-prs-mcp/tests failed to import typer and took the whole
+          # job down with it on any PR that reached those tests.
+          uv sync --locked --all-extras
           uv pip install pytest requests
 
       - name: Test ClawBio CLI
@@ -148,6 +152,14 @@ jobs:
       - name: Run bot security tests
         run: uv run pytest bot/tests/test_security.py -v
 
+      # Repo-level tests were never run by this job. The steps above name skill
+      # test files individually, so `tests/` was invisible to CI: both
+      # test_generate_catalog.py and the bench-baseline gate's own tests could
+      # have gone red on main without anything reporting it. A gate whose tests
+      # do not run is the #342 problem one level up. (See also #337.)
+      - name: Run repo-level tests
+        run: uv run pytest tests/ -v
+
       # The steps above are a hardcoded allowlist, so a NEW skill's tests never
       # run: ClawBio#329 shipped a test that cannot pass and CI was still green,
       # and ClawBio#324's just-prs suite never executed here at all. Any skill
@@ -157,8 +169,17 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          base="${{ github.event.pull_request.base.sha }}"
-          changed=$(git diff --name-only "$base" HEAD -- 'skills/*' \
+          # Diff the PR head against its FORK POINT, not against the base tip.
+          # actions/checkout resolves a pull_request to refs/pull/N/merge, so
+          # HEAD is a merge commit containing main's later commits too, and
+          # pull_request.base.sha is the base tip as of when the PR was opened.
+          # Using either directly attributes everything merged into main since
+          # to the PR: on #327 that turned one touched skill into five, and an
+          # unrelated skill's broken import was reported as the PR's failure.
+          head="${{ github.event.pull_request.head.sha }}"
+          base=$(git merge-base "${{ github.event.pull_request.base.sha }}" "$head")
+          echo "Diffing $base..$head"
+          changed=$(git diff --name-only "$base" "$head" -- 'skills/*' \
                     | cut -d/ -f2 | sort -u)
           if [ -z "$changed" ]; then
             echo "No skills touched by this PR."
@@ -166,13 +187,44 @@ jobs:
           fi
           status=0
           for skill in $changed; do
-            if [ -d "skills/$skill/tests" ]; then
+            # skills/ holds files as well as skill dirs (catalog.json), and a
+            # deleted skill still shows up in the diff.
+            if [ ! -d "skills/$skill" ]; then
+              continue
+            fi
+            if [ ! -d "skills/$skill/tests" ]; then
+              echo "WARNING: skills/$skill has no tests/ directory"
+              continue
+            fi
+            # Pick the runner from what tests/ actually contains. pytest exits
+            # 5 when it collects nothing, so running it unconditionally fails
+            # every skill whose tests are not Python. On #329 (an R skill with
+            # a run_test.sh harness) pytest collected 0 items, the job went
+            # red, and the harness that would really have tested it never ran
+            # — a maintainer-side red tick on a contributor's PR, which is the
+            # same class of misattribution the merge-base fix above addresses.
+            pycount=$(find "skills/$skill/tests" \
+                        \( -name 'test_*.py' -o -name '*_test.py' \) | wc -l)
+            if [ "$pycount" -gt 0 ]; then
               echo "::group::pytest skills/$skill/tests"
               uv run pytest "skills/$skill/tests" -v || status=1
               echo "::endgroup::"
-            else
-              echo "WARNING: skills/$skill has no tests/ directory"
+              continue
             fi
+            harness=$(find "skills/$skill/tests" -maxdepth 1 -name '*.sh' \
+                        | sort | head -1)
+            if [ -n "$harness" ]; then
+              # A shell harness needs the skill's own toolchain (R, cutadapt,
+              # seqkit, ...) which this workflow does not provision. Say so
+              # explicitly: reporting a pass nobody earned would be worse, and
+              # failing on a toolchain the contributor cannot install here
+              # would block the PR for a maintainer-side gap.
+              msg="NOT VERIFIED: skills/$skill ships $harness, which needs a toolchain this workflow does not install. Its tests did not run."
+            else
+              msg="NOT VERIFIED: skills/$skill has a tests/ directory with neither Python tests nor a shell harness."
+            fi
+            echo "::warning::$msg"
+            echo "- $msg" >> "$GITHUB_STEP_SUMMARY"
           done
           exit $status
 
@@ -221,6 +273,12 @@ jobs:
       - name: Install clawbio-bench
         run: uv pip install "clawbio-bench @ git+https://github.com/biostochastics/clawbio_bench.git@49a0f11a8393b87a90f0721261a9bec5d52b61db"
 
+      # The bench's own exit code is intentionally not the gate: it returns
+      # non-zero whenever `overall.pass` is false, which is true today for
+      # seven harnesses of pre-existing debt (#106). Gating on it would block
+      # every unrelated PR, and the `|| true` that this job carried for months
+      # (#342) would go straight back on. So the bench is allowed to report,
+      # and the *baseline comparison* below is the gate.
       - name: Run scientific correctness audit (smoke)
         run: |
           mkdir -p results
@@ -251,3 +309,18 @@ jobs:
           else
             echo "Bench ran but no markdown summary was generated. Check artifacts." >> $GITHUB_STEP_SUMMARY
           fi
+
+      # THE GATE (#342). Everything above this point is `|| true` or
+      # `if: always()`, so without this step the job cannot fail and its green
+      # tick carries no information. Deliberately NOT `if: always()`: it must
+      # run, and a missing report exits 2 rather than passing quietly.
+      - name: Fail on regression against the committed baseline
+        run: |
+          REPORT=$(ls -t results/suite/*/aggregate_report.json 2>/dev/null | head -1)
+          if [ -z "$REPORT" ]; then
+            echo "::error::The bench produced no aggregate_report.json. Treating as failure, not as a pass."
+            exit 2
+          fi
+          uv run python scripts/check_bench_baseline.py "$REPORT" \
+            --baseline bench_baseline.json \
+            --summary "$GITHUB_STEP_SUMMARY"

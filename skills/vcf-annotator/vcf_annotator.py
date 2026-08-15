@@ -9,6 +9,7 @@ Usage:
     python vcf_annotator.py --demo --output /tmp/demo
 """
 
+import argparse
 import os
 import csv
 import hashlib

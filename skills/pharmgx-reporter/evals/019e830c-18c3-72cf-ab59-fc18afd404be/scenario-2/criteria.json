@@ -1,0 +1,61 @@
+{
+  "context": "Tests whether the agent correctly implements the multi-gene warfarin recommendation using both CYP2C9 and VKORC1, produces the required output directory structure, and includes a medical disclaimer.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "CYP2C9 gene in report",
+      "description": "report.md or result.json includes CYP2C9 gene profile information",
+      "max_score": 8
+    },
+    {
+      "name": "VKORC1 gene in report",
+      "description": "report.md or result.json includes VKORC1 gene profile information",
+      "max_score": 8
+    },
+    {
+      "name": "Warfarin uses both genes",
+      "description": "The warfarin drug entry in report.md or result.json references both CYP2C9 and VKORC1 (not just one gene)",
+      "max_score": 12
+    },
+    {
+      "name": "Warfarin classification present",
+      "description": "report.md or result.json contains a classification for warfarin (one of: standard, caution, avoid, indeterminate)",
+      "max_score": 12
+    },
+    {
+      "name": "report.md present",
+      "description": "warfarin_report/report.md exists",
+      "max_score": 8
+    },
+    {
+      "name": "result.json present",
+      "description": "warfarin_report/result.json exists",
+      "max_score": 8
+    },
+    {
+      "name": "commands.sh present",
+      "description": "warfarin_report/reproducibility/commands.sh exists",
+      "max_score": 10
+    },
+    {
+      "name": "Disclaimer in report",
+      "description": "report.md contains a disclaimer stating this is for research/educational use and not a substitute for clinical advice",
+      "max_score": 10
+    },
+    {
+      "name": "CPIC reference",
+      "description": "report.md or result.json mentions CPIC or cpicpgx.org as the source of drug-gene guidelines",
+      "max_score": 8
+    },
+    {
+      "name": "Drug summary section",
+      "description": "report.md contains a drug summary or drug recommendations table",
+      "max_score": 8
+    },
+    {
+      "name": "No external packages",
+      "description": "warfarin_analysis.py does NOT import any non-standard-library packages",
+      "max_score": 8
+    }
+  ]
+}
