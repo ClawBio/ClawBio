@@ -223,7 +223,7 @@ if (!dir.exists(opt$output)) dir.create(opt$output, recursive = TRUE)
 start_time <- Sys.time()
 
 cat("─────────────────────────────────────────────────────────\n")
-cat("  claw-amplicon-qc v0.1.5\n")
+cat("  claw-amplicon-qc v0.2.0\n")
 cat("─────────────────────────────────────────────────────────\n")
 cat("  Raw folder:    ", opt$raw,        "\n")
 cat("  Output folder: ", opt$output,     "\n")
@@ -404,10 +404,19 @@ cat("─────────────────────────
   rev_len <- nchar(rev_primer)
   starts_fwd <- subseq(reads, 1, pmin(width(reads), fwd_len))
   starts_rev <- subseq(reads, 1, pmin(width(reads), rev_len))
+  # B2 fix (re-audit): fixed = "subject" rather than fixed = FALSE.
+  # With fixed = FALSE, IUPAC codes in the SUBJECT (the read) also expand —
+  # so an N in the read matches any primer base, and an all-N read counted
+  # as both a forward AND a reverse match. On the same reads. That inflated
+  # both orientation counters on any dataset with N-heavy reads at the 5'
+  # end (the preflight runs before N-removal, so those reads are still in
+  # the pool). fixed = "subject" keeps IUPAC expansion in the primer (Y
+  # still matches C/T, etc.) but treats N in the read literally.
+  # Verified with a standalone diagnostic — see tests/preflight_diagnostic.R.
   fwd_matches <- vcountPattern(fwd_primer, starts_fwd,
-                                max.mismatch = 1, fixed = FALSE)
+                                max.mismatch = 1, fixed = "subject")
   rev_matches <- vcountPattern(rev_primer, starts_rev,
-                                max.mismatch = 1, fixed = FALSE)
+                                max.mismatch = 1, fixed = "subject")
   list(n_total = n_total,
        fwd = sum(fwd_matches > 0),
        rev = sum(rev_matches > 0))
@@ -666,6 +675,13 @@ for (i in seq_along(fnFs)) {
     # unmodified and poison DADA2's error learning downstream. This matches
     # standard amplicon-QC practice (astrobiomike tutorial, QIIME2, etc.).
     "--discard-untrimmed",
+    # B3 fix (re-audit): make --pair-filter=any explicit. This is cutadapt's
+    # current default, but the default has changed in the past and could
+    # change again. "any" means the pair is discarded if EITHER mate failed
+    # the filter (i.e., primer wasn't found in either R1 OR R2). That's the
+    # strict interpretation we want for amplicon QC — a healthy pair needs
+    # BOTH primers detected. Explicit here so intent is visible.
+    "--pair-filter=any",
     # Method fix: --nextseq-trim is a two-colour chemistry setting
     # (NextSeq / NovaSeq) that aggressively trims 3' G's on the assumption
     # they're dark-cycle artifacts. It's inappropriate for MiSeq four-colour
@@ -939,7 +955,7 @@ runtime  <- as.numeric(difftime(end_time, start_time, units = "secs"))
 
 summary_json <- list(
   skill         = "claw-amplicon-qc",
-  version       = "0.1.5",
+  version       = "0.2.0",
   timestamp_utc = format(end_time, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
   runtime_secs  = round(runtime, 1),
   inputs = list(
@@ -981,6 +997,11 @@ n_successful <- nrow(per_sample) - length(failed_samples)
 
 report_lines <- c(
   "# claw-amplicon-qc — QC Report",
+  "",
+  # Fix 5 (re-audit): standard ClawBio disclaimer, always rendered
+  # immediately after the title. Matches the convention used across
+  # other ClawBio skills.
+  "> **Disclaimer:** ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.",
   "",
   sprintf("**Run timestamp:** %s", summary_json$timestamp_utc),
   sprintf("**Runtime:** %.1f seconds", runtime),
