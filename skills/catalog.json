@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 95,
+  "skill_count": 96,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -590,6 +590,57 @@
         "cell-type-specific expression",
         "expression specificity",
         "marker gene specificity"
+      ],
+      "chaining_partners": []
+    },
+    {
+      "name": "claw-amplicon-qc",
+      "cli_alias": null,
+      "description": "16S/18S rRNA amplicon preprocessing — from raw paired-end FASTQ files through N removal and primer trimming, producing outputs ready for DADA2 quality filtering and denoising. Deliberately stops before quality-filtering decisions that require researcher judgment.",
+      "version": "0.2.0",
+      "status": "planned",
+      "maturity_tier": "spec-only",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": false,
+        "has_tests": false,
+        "has_demo": false,
+        "cli_registered": false,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": false,
+      "has_tests": false,
+      "has_demo": false,
+      "demo_command": null,
+      "dependencies": [
+        "dada2",
+        "ShortRead",
+        "Biostrings",
+        "optparse",
+        "jsonlite"
+      ],
+      "tags": [
+        "amplicon",
+        "16S",
+        "18S",
+        "DADA2",
+        "cutadapt",
+        "quality-control",
+        "environmental",
+        "microbiome"
+      ],
+      "trigger_keywords": [
+        "16S amplicon QC",
+        "16S primer trimming",
+        "amplicon preprocessing",
+        "amplicon QC",
+        "cutadapt primer trimming",
+        "DADA2 preprocessing",
+        "remove primers from FASTQ",
+        "18S amplicon QC",
+        "microbiome QC",
+        "rRNA amplicon preprocessing"
       ],
       "chaining_partners": []
     },
