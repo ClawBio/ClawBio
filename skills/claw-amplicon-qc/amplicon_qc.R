@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 ################################################################################
-##                    CLAW-AMPLICON-QC — v0.1                                 ##
+##                    CLAW-AMPLICON-QC — v0.2.0                               ##
 ##                                                                            ##
 ##   Non-interactive amplicon preprocessing skill for the ClawBio ecosystem. ##
 ##   Measures raw reads with seqkit, removes reads containing N bases,       ##
