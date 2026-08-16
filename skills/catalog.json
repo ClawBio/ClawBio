@@ -935,45 +935,6 @@
       "data_license": ""
     },
     {
-      "name": "clinical-variant-prioritizer",
-      "cli_alias": null,
-      "description": "Screen a genotype set (array or WGS-derived) against OMIM-morbid, ACMG-SF and Hereditary-Cancer gene panels and prioritise carried variants by ClinVar significance, gnomAD frequency, inheritance model and zygosity, following the pathogenicity-screening method of Corpas et al. 2021 (Whole Genome Interpretation for a Family of Five).",
-      "version": "0.1.0",
-      "status": "planned",
-      "maturity_tier": "tested",
-      "maturity_evidence": {
-        "has_skill_md": true,
-        "has_script": true,
-        "has_tests": true,
-        "has_demo": true,
-        "cli_registered": false,
-        "ci_tested": false,
-        "benchmark_validated": false
-      },
-      "has_script": true,
-      "has_tests": true,
-      "has_demo": true,
-      "demo_command": "python skills/clinical-variant-prioritizer/prioritize.py --demo",
-      "dependencies": [],
-      "tags": [
-        "clinical-genomics",
-        "variant-prioritisation",
-        "clinvar",
-        "acmg",
-        "pathogenicity",
-        "carrier-screening"
-      ],
-      "trigger_keywords": [
-        "variant prioritisation",
-        "clinical variants",
-        "pathogenic variant",
-        "ClinVar",
-        "carrier status",
-        "disease risk variants"
-      ],
-      "chaining_partners": []
-    },
-    {
       "name": "clinical-variant-reporter",
       "cli_alias": "acmg",
       "description": "Classify germline variants from VCF/BCF files according to the ACMG/AMP 2015 28-criteria evidence framework and generate clinical-grade interpretation reports with per-variant evidence audit trails and ACMG SF v3.2 secondary findings screening.",
