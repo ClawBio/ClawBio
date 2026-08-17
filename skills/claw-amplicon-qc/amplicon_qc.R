@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 ################################################################################
-##                    CLAW-AMPLICON-QC — v0.2.0                               ##
+##                    CLAW-AMPLICON-QC — v0.2.1                               ##
 ##                                                                            ##
 ##   Non-interactive amplicon preprocessing skill for the ClawBio ecosystem. ##
 ##   Measures raw reads with seqkit, removes reads containing N bases,       ##
@@ -223,7 +223,7 @@ if (!dir.exists(opt$output)) dir.create(opt$output, recursive = TRUE)
 start_time <- Sys.time()
 
 cat("─────────────────────────────────────────────────────────\n")
-cat("  claw-amplicon-qc v0.2.0\n")
+cat("  claw-amplicon-qc v0.2.1\n")
 cat("─────────────────────────────────────────────────────────\n")
 cat("  Raw folder:    ", opt$raw,        "\n")
 cat("  Output folder: ", opt$output,     "\n")
@@ -305,6 +305,56 @@ if (length(r1_A_idx) > 0 && length(r2_A_idx) > 0) {
        call. = FALSE)
 }
 
+# HIGH-1 fix (re-audit round 3): after pattern detection picks a winning
+# glob, check for FASTQ files in the folder that weren't captured. Silently
+# ignoring them means a full sample can vanish when a user merges deliveries
+# from two facilities using different naming conventions.
+#
+# Split orphans into two classes:
+#   (a) Undetermined_* — standard bcl2fastq output for reads whose indexes
+#       couldn't be assigned. Every raw Illumina delivery has one. Warn but
+#       proceed; researchers may legitimately want to inspect it separately.
+#   (b) Everything else — suggests mixed naming conventions or a bad merge.
+#       Abort with the full orphan listing so the user can see exactly what
+#       is being ignored.
+all_basenames    <- basename(all_fastq)
+kept_basenames   <- c(basename(r1_paths), basename(r2_paths))
+orphan_basenames <- setdiff(all_basenames, kept_basenames)
+
+if (length(orphan_basenames) > 0) {
+  is_undetermined  <- grepl("^Undetermined", orphan_basenames, ignore.case = TRUE)
+  undetermined     <- orphan_basenames[is_undetermined]
+  real_orphans     <- orphan_basenames[!is_undetermined]
+
+  if (length(undetermined) > 0) {
+    warning(
+      "Skipping ", length(undetermined),
+      " Undetermined_* file(s) (standard bcl2fastq unassigned-index output):\n  ",
+      paste(undetermined, collapse = "\n  "),
+      "\nThese are not treated as samples. Inspect separately if needed.",
+      call. = FALSE, immediate. = TRUE
+    )
+  }
+
+  if (length(real_orphans) > 0) {
+    stop(
+      "Detected naming pattern: ", naming_pattern, "\n",
+      "The following FASTQ file(s) in the raw folder do NOT match this pattern ",
+      "and would be silently dropped:\n  ",
+      paste(real_orphans, collapse = "\n  "),
+      "\n\nThis usually means the folder contains a mix of naming conventions ",
+      "(for example, merged deliveries from two sequencing facilities).\n\n",
+      "Silent data loss on merged-delivery folders is a real failure mode, so ",
+      "aborting rather than dropping these files.\n\n",
+      "Fix: separate the folder into per-convention subfolders (one for ",
+      "SAMPLE_R1_... and one for R1_SAMPLE...) and run this skill once per ",
+      "subfolder. Or rename the mismatched files to the winning convention ",
+      "and re-run.",
+      call. = FALSE
+    )
+  }
+}
+
 # Extract sample names for R1 and R2 files, independently
 r1_names <- extract_sample_name(r1_paths, 1)
 r2_names <- extract_sample_name(r2_paths, 2)
@@ -346,6 +396,58 @@ if (length(r1_without_r2) > 0 || length(r2_without_r1) > 0) {
                 "Every sample must have both an R1 and R2 file. ",
                 "Fix the raw folder and try again.")
   stop(msg, call. = FALSE)
+}
+
+# HIGH-1 fix (re-audit round 3): check for orphan files — anything in
+# all_fastq that wasn't captured by the winning naming-pattern glob.
+# Previously these were silently dropped with no count, no warning, no
+# mention in the report. A user merging deliveries from two facilities
+# using different naming conventions would lose entire samples without
+# noticing. We now report every orphan, separated into two buckets:
+#
+#   - "Benign" orphans matching known non-sample patterns like
+#     Undetermined_* (the unassigned-index bin that every Illumina
+#     bcl2fastq run produces). These are noted for transparency but
+#     don't warrant alarm.
+#
+#   - "Unexpected" orphans that don't match anything recognisable —
+#     these are the dangerous case (mixed naming conventions) and get
+#     a loud warning listing every file, with a suggestion to split by
+#     convention before rerunning.
+#
+# We warn rather than abort because forcing an abort on Undetermined
+# would be user-hostile — Undetermined is a legitimate output of every
+# raw sequencing delivery. The warning gives the researcher room to
+# inspect, decide, and rerun with cleaned inputs if the orphans are
+# unexpected.
+captured   <- c(basename(r1_paths), basename(r2_paths))
+all_bn     <- basename(all_fastq)
+orphans    <- setdiff(all_bn, captured)
+if (length(orphans) > 0) {
+  benign_pattern <- "^Undetermined"
+  benign_orphans     <- orphans[grepl(benign_pattern, orphans)]
+  unexpected_orphans <- orphans[!grepl(benign_pattern, orphans)]
+
+  if (length(benign_orphans) > 0) {
+    cat("Note: ignoring",  length(benign_orphans),
+        "expected non-sample file(s):\n  ",
+        paste(benign_orphans, collapse = "\n  "), "\n\n", sep = "")
+  }
+
+  if (length(unexpected_orphans) > 0) {
+    warning(
+      "Unexpected orphan file(s) found in the raw folder — these did NOT ",
+      "match the detected naming pattern (\"", naming_pattern, "\") and ",
+      "will NOT be processed:\n  ",
+      paste(unexpected_orphans, collapse = "\n  "),
+      "\n\nThis can happen when a folder mixes naming conventions ",
+      "(e.g. deliveries from two sequencing facilities). Every orphan ",
+      "here represents data that will not be in the report. ",
+      "If any of these files are actual samples, split the folder by ",
+      "naming convention and rerun each subset separately.",
+      call. = FALSE, immediate. = TRUE)
+    cat("\n")
+  }
 }
 
 # Build fnFs/fnRs by name-join — alignment guaranteed by construction,
@@ -451,7 +553,32 @@ orientation_summary <- list(
   pct_rev             = round(pct_rev, 2)
 )
 
-# Categorise the run
+# Categorise the run.
+#
+# HIGH-2 fix (re-audit round 3): the previous logic had four branches
+# (primers_not_detected, all_reversed, consistent_forward, and a catch-all
+# mixed) — anything not fitting the first three landed in "mixed" and got
+# the --allow-mixed-orientation prescription regardless of whether that
+# advice actually helped. Example failure: pct_fwd = 60, pct_rev = 0.5
+# was reported as "roughly half reverse-primered" when it was really
+# "forward primer weakly detected, reverse essentially absent". Users who
+# followed the mixed-orientation advice then lost ~40% of reads to
+# --discard-untrimmed with an explanation that had nothing to do with
+# their actual problem.
+#
+# New branches (using max() instead of sum() to sidestep the potential
+# double-counting when a single read matches both primers under 1-mismatch
+# tolerance):
+#
+#   primers_not_detected    max(fwd, rev) < 5    almost nothing at position 1
+#   primers_low_detection   max(fwd, rev) < 30   weak detection either way
+#   all_reversed            rev >= 80, fwd < 20  clean, files probably swapped
+#   consistent_forward      fwd >= 80, rev < 20  clean, proceed
+#   mixed_orientation       fwd >= 30, rev >= 30 both meaningful, real mixed case
+#   orientation_ambiguous   otherwise            partial/uneven, needs inspection
+#
+# --allow-mixed-orientation is ONLY offered in the mixed_orientation
+# branch, where it actually addresses the problem.
 if (pct_fwd < 5 && pct_rev < 5) {
   orientation_summary$verdict <- "primers_not_detected"
   stop(
@@ -465,6 +592,23 @@ if (pct_fwd < 5 && pct_rev < 5) {
     "     If reads don't start with your forward primer, this skill is not\n",
     "     the right tool — go directly to DADA2 quality filtering.\n",
     "\nAborting.",
+    call. = FALSE
+  )
+} else if (max(pct_fwd, pct_rev) < 30) {
+  orientation_summary$verdict <- "primers_low_detection"
+  stop(
+    "Primers detected on very few reads at position 1.\n",
+    "  Forward primer matches: ", sprintf("%.1f%%", pct_fwd), "\n",
+    "  Reverse primer matches: ", sprintf("%.1f%%", pct_rev), "\n\n",
+    "This is NOT mixed orientation (which would show both around 50%). ",
+    "Low detection like this usually means:\n",
+    "  1. Wrong primer sequences specified (typo, wrong variant).\n",
+    "  2. Data partially primer-trimmed — some reads still have primers, most don't.\n",
+    "  3. Unusual library preparation (dual-index chemistry, adapter contamination).\n\n",
+    "Do NOT proceed with --allow-mixed-orientation — that flag addresses ",
+    "a different failure mode and would just discard the reads-with-primer.\n\n",
+    "Verify your primer sequences against the library-prep protocol, or ",
+    "inspect the raw reads directly.\n\nAborting.",
     call. = FALSE
   )
 } else if (pct_rev >= 80 && pct_fwd < 20) {
@@ -482,17 +626,17 @@ if (pct_fwd < 5 && pct_rev < 5) {
 } else if (pct_fwd >= 80 && pct_rev < 20) {
   orientation_summary$verdict <- "consistent_forward"
   cat("  Orientation: consistent forward-oriented. OK.\n\n")
-} else {
-  # Mixed orientation
-  orientation_summary$verdict <- "mixed"
+} else if (pct_fwd >= 30 && pct_rev >= 30) {
+  # True mixed orientation — both primers meaningfully present at position 1
+  orientation_summary$verdict <- "mixed_orientation"
   msg <- paste0(
     "Mixed-orientation reads detected.\n",
     "  Reads starting with forward primer: ", sprintf("%.1f%%", pct_fwd), "\n",
     "  Reads starting with reverse primer: ", sprintf("%.1f%%", pct_rev), "\n\n",
-    "This means roughly half of your R1 reads have the forward primer at\n",
-    "position 1 and half have the reverse primer. With anchored 5' primers\n",
-    "and --discard-untrimmed, the pipeline will discard the reverse-oriented\n",
-    "reads (~", sprintf("%.0f%%", pct_rev), " of your data).\n\n",
+    "Both primer orientations are meaningfully present at position 1 of R1. ",
+    "With anchored 5' primers and --discard-untrimmed, the pipeline will ",
+    "discard the reverse-oriented reads (~", sprintf("%.0f%%", pct_rev),
+    " of your data).\n\n",
     "This is usually a library-prep issue — the amplicon was PCR'd without\n",
     "strict orientation control.\n\n",
     "Options:\n",
@@ -509,6 +653,25 @@ if (pct_fwd < 5 && pct_rev < 5) {
             call. = FALSE, immediate. = TRUE)
     cat("\n")
   }
+} else {
+  # Partial detection, uneven split, or asymmetric case that doesn't fit
+  # any clean pattern. Not mixed enough to warrant --allow-mixed-orientation,
+  # not consistent enough to proceed silently.
+  orientation_summary$verdict <- "orientation_ambiguous"
+  stop(
+    "Primer orientation is ambiguous.\n",
+    "  Forward primer matches: ", sprintf("%.1f%%", pct_fwd), "\n",
+    "  Reverse primer matches: ", sprintf("%.1f%%", pct_rev), "\n\n",
+    "This doesn't match any expected pattern:\n",
+    "  - Not consistent forward (would need fwd >= 80%, rev < 20%).\n",
+    "  - Not all reversed (would need rev >= 80%, fwd < 20%).\n",
+    "  - Not mixed orientation (would need both >= 30%).\n\n",
+    "Inspect the data manually before proceeding. Common causes: partial ",
+    "primer-trimming upstream, degenerate primer collisions with the reference, ",
+    "or unusual library-prep chemistry. --allow-mixed-orientation is NOT ",
+    "the right fix for this case.\n\nAborting.",
+    call. = FALSE
+  )
 }
 
 ################################################################################
@@ -955,7 +1118,7 @@ runtime  <- as.numeric(difftime(end_time, start_time, units = "secs"))
 
 summary_json <- list(
   skill         = "claw-amplicon-qc",
-  version       = "0.2.0",
+  version       = "0.2.1",
   timestamp_utc = format(end_time, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
   runtime_secs  = round(runtime, 1),
   inputs = list(
