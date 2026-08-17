@@ -7,7 +7,7 @@ description: >-
   decisions that require researcher judgment.
 license: MIT
 metadata:
-  version: "0.2.0"
+  version: "0.2.1"
   author: Zabiulla
   domain: genomics
   tags:
@@ -289,35 +289,33 @@ Passes 17 assertion checks: prerequisites, output files, output directories, sam
 
 ## Algorithm / Methodology
 
-Several methodological choices are baked into this skill. Understanding them helps a researcher — or an orchestrating LLM — know when the defaults are appropriate.
+Methodological choices baked into this skill:
 
-**N removal happens before primer trimming, not with quality filtering.** Cutadapt cannot detect primer sequences in reads containing ambiguous bases. This is not an optimisation, it is a hard prerequisite. Combining N removal with quality filtering (as some tutorials do) makes it impossible to attribute per-stage losses.
+**N removal happens before primer trimming.** Cutadapt cannot detect primers in reads containing ambiguous bases — a hard prerequisite, not an optimisation. Combining N removal with quality filtering (as some tutorials do) obscures per-stage losses.
 
-**Quality filtering is deliberately deferred to a later skill.** `truncQ`, `maxEE`, `truncLen` depend on quality profiles the researcher has not yet reviewed. Applying defaults here would be either too lenient (wasting downstream compute) or too aggressive (discarding recoverable data). Deferring keeps the human in the loop.
+**Quality filtering is deferred to a later skill.** `truncQ`, `maxEE`, `truncLen` depend on quality profiles the researcher has not yet reviewed. Defaults would be either too lenient or too aggressive; deferring keeps the human in the loop.
 
-**All four primer positions are trimmed explicitly.** Each paired-end read may contain primer sequence at both ends — the primer that primed the read at 5', and the reverse-complement of the opposite primer at 3' if the read reads through the amplicon. Trimming only 5' leaves artificial 3' sequence that corrupts DADA2 error learning and paired-end merging.
+**All four primer positions are trimmed explicitly.** Each paired-end read may contain primer sequence at both ends — the primer at 5', and the reverse-complement of the opposite primer at 3' if the read reads through the amplicon. Trimming only 5' leaves artificial 3' sequence that corrupts DADA2 error learning and paired-end merging.
 
-**5' primers are anchored (`-g ^FWD`, `-G ^REV`).** Without anchoring, cutadapt can match a partial primer motif buried mid-read and truncate real biology. For degenerate primers this is especially likely.
+**5' primers are anchored (`-g ^FWD`, `-G ^REV`).** Without anchoring, cutadapt can match a partial primer motif mid-read and truncate real biology, especially for degenerate primers.
 
-**`--discard-untrimmed` is on.** Reads where cutadapt couldn't find a primer are dropped rather than passed through untouched. Primer-free reads (adapter dimer, contamination, primer-region errors) would otherwise poison DADA2's error learning.
+**`--discard-untrimmed` is on.** Reads where cutadapt couldn't find a primer are dropped, not passed through untouched. Primer-free reads would otherwise poison DADA2's error learning.
 
-**`--pair-filter=any` is explicit.** A pair is discarded if either mate failed primer detection — the strict interpretation. This is cutadapt's current default but explicit here to guard against future upstream changes.
+**`--pair-filter=any` is explicit.** A pair is discarded if either mate failed primer detection — the strict interpretation. Matches cutadapt's current default, but explicit here to guard against future upstream changes.
 
-**`--nextseq-trim` is opt-in, not default.** The flag is a two-colour chemistry setting (NextSeq/NovaSeq) that aggressively trims 3' Gs assuming they are dark-cycle artifacts. It is scientifically wrong for MiSeq four-colour chemistry, where Gs are real. Default: flag omitted entirely.
+**`--nextseq-trim` is opt-in, not default.** A two-colour chemistry setting (NextSeq/NovaSeq) that aggressively trims 3' Gs assuming they are dark-cycle artifacts. Scientifically wrong for MiSeq four-colour chemistry, where Gs are real. Default: flag omitted entirely.
 
-**`filterAndTrim` at Stage 2 is genuinely N-removal-only.** DADA2's defaults for `truncQ` and `minLen` are explicitly overridden to 0, matching this skill's stated behaviour. `rm.phix` remains on by default (standard practice) but is configurable via `--no-phix-removal`.
+**`filterAndTrim` at Stage 2 is N-removal-only.** DADA2's defaults for `truncQ` and `minLen` are explicitly overridden to 0. `rm.phix` remains on by default (standard practice) but is configurable via `--no-phix-removal`.
 
-**Baseline read statistics are captured before any transformation.** This is the reference against which every downstream loss is measured.
+**`min_length` is a required user input, not a default.** The appropriate value depends on amplicon region and expected paired-end overlap. A generic default would silently fail for non-V4 primer pairs.
 
-**`min_length` is a required user input, not a hardcoded default.** The appropriate minimum length after primer trimming depends on the amplicon region and expected paired-end overlap. A generic default would silently fail for non-V4 primer pairs.
+**Anomaly flags are informational, not blocking.** The skill completes normally when flags fire. The decision to exclude a flagged sample belongs to the downstream skill or the researcher.
 
-**Anomaly flags are informational, not blocking.** When a sample loses more reads than expected, the skill still completes normally and records the flag. The decision to exclude a flagged sample belongs to the downstream skill or the researcher.
+**Key thresholds (all CLI-configurable):**
 
-**Key thresholds / parameters (all CLI-configurable):**
-
-- `--max-n = 0` — DADA2 filterAndTrim maxN. Source: cutadapt requires N-free reads for primer detection.
-- `--extreme-drop-threshold = 50` — percent retention at any single stage that fires the `extreme_drop` flag.
-- `--low-count-threshold = 1000` — reads below which `low_read_count` fires. Lower for low-biomass sample types.
+- `--max-n = 0` — DADA2 filterAndTrim maxN. Cutadapt requires N-free reads for primer detection.
+- `--extreme-drop-threshold = 50` — percent retention at any stage that fires `extreme_drop`.
+- `--low-count-threshold = 1000` — reads below which `low_read_count` fires. Lower for low-biomass samples.
 - `--overall-retention-threshold = 70` — overall percent below which `high_overall_loss` fires.
 
 ### Automatic Flags
@@ -346,7 +344,7 @@ Either-side logic means a flag fires if R1 or R2 crosses the threshold — R2-sp
 Captured from a real `--demo` invocation. Reproducible: `Rscript amplicon_qc.R --demo --output /tmp/demo`.
 
 ```
-  claw-amplicon-qc v0.2.0
+  claw-amplicon-qc v0.2.1
   Raw folder:     /path/to/tests/fixtures
   Output folder:  /tmp/demo
   Fwd primer:     GTGYCAGCMGCCGCGGTAA
@@ -358,15 +356,22 @@ Discovered 1 sample pairs (paired by sample name).
 
   Preflight — primer orientation check
   Reads sampled (across 1 samples): 500
-  R1 starting with forward primer: 498 (99.6%)
-  R1 starting with reverse primer: 2 (0.4%)
+  R1 starting with forward primer: 494 (98.8%)
+  R1 starting with reverse primer: 0 (0.0%)
   Orientation: consistent forward-oriented. OK.
+
+  Stage 1/5 — Baseline seqkit stats on raw reads
+  Total raw reads: 1,000
 
   Stage 2/5 — Removing reads containing N bases
   maxN threshold:        0
   PhiX removal:          ON
   Quality trimming:      OFF (deferred to downstream DADA2 skill)
   Minimum length filter: OFF (--min-length applies at Stage 4 only)
+Read in 500 paired-sequences, output 497 (99.4%) filtered paired-sequences.
+
+  Stage 3/5 — seqkit stats on N-filtered reads
+  Total reads after N removal: 994
 
   Stage 4/5 — Primer trimming with Cutadapt
   Fwd: GTGYCAGCMGCCGCGGTAA   Fwd RC: TTACCGCGGCKGCTGRCAC
@@ -374,9 +379,18 @@ Discovered 1 sample pairs (paired by sample name).
   Min length after trimming: 200 bp
   [1/1] demo
 
+  Stage 5/5 — seqkit stats on primer-trimmed reads
+  Total reads after primer trimming: 984
+
+  Retention analysis + anomaly flagging
+  Samples processed successfully:  1
+  Samples failed (cutadapt):       0
+  Samples flagged:                 1
+  Flagged:                         demo
+
   claw-amplicon-qc — complete
   Samples processed:  1
-  Samples failed:     0
+  Samples flagged:    1
   Runtime:            1.3 s
 ```
 
