@@ -6,9 +6,11 @@ variants it was *not* entitled to rank — with the check, the value and the sou
 behind every refusal.
 
 ```bash
+sh skills/abstention-ledger/verify.sh .        # tests, demo, lint, secrets
 python3 skills/abstention-ledger/abstention_ledger.py --demo --output /tmp/al
-python3 skills/abstention-ledger/tests/test_abstention_ledger.py
 ```
+
+Upstream pull request: **[ClawBio/ClawBio#347](https://github.com/ClawBio/ClawBio/pull/347)**
 
 ---
 
@@ -175,11 +177,34 @@ are not claiming to have dodged one. The gate is demonstrated instead on the
 synthetic demo row in *BRCA2*, where it fires alone, and asserted by
 `test_demo_end_to_end`.
 
-Version honesty, which the report also prints: the bundled list is ACMG SF
-**v3.2**. The current statement is **v3.3**, 84 genes, adding `ABCD1`,
-`CYP27A1`, `PLN` (Lee K, Abul-Husn NS, et al., *Genet Med* 2025;27(8):101454).
-Screening against a superseded list is exactly the class of error this skill
-exists to name, so the version travels with every result.
+### We checked whether our own list is stale, instead of assuming
+
+The bundled list is ACMG SF **v3.2**. Screening against a superseded list is
+exactly the class of error this skill exists to name — so leaving that
+unexamined would be the project failing its own standard. But the honest way to
+establish "v3.3 is current" is not to recall it. `check_sf_version.py` fetches
+evidence through Tavily and records what came back:
+
+```
+CONFIRMED: evidence names ACMG SF v3.3 with 84 genes; the bundled list is v3.2
+with 81. Genes named as added: ABCD1, CYP27A1, PLN.
+```
+
+Sources retrieved and checked to resolve:
+[*Genet Med* 2025;27(8):101454](https://www.gimjournal.org/article/S1098-3600(25)00101-7/fulltext) ·
+[PMC12318660](https://pmc.ncbi.nlm.nih.gov/articles/PMC12318660) ·
+[ClinGen ACMG SF](https://search.clinicalgenome.org/kb/genes/acmgsf)
+
+**And the consequence for this input: none.** None of the three added genes
+appears among the 96 distinct gene symbols in the file, so the version gap
+changes no verdict here. We are reporting a limitation we looked for and did not
+find, not one we found and fixed.
+
+Three outcomes are possible and all three are reported as themselves —
+`CONFIRMED`, `UP_TO_DATE`, or `SF_LIST_VERSION_UNVERIFIED` when there is no key,
+the fetch fails, or the snippets do not settle it. `UNVERIFIED` is a normal
+result, not an error, and it never falls back to a remembered answer. That is
+this skill's own argument applied one level up.
 
 ---
 
@@ -351,6 +376,8 @@ Enum offered : ['rare_high_impact_variants', 'vcf_annotator',
 | `skills/abstention-ledger/abstention_ledger.py` | CLI, segregation, sample-map resolution, rendering |
 | `skills/abstention-ledger/fetch_evidence.py` | Build-matched GRCh37 evidence layer, cached |
 | `skills/abstention-ledger/lint_claims.py` | Fails the build on a prohibited claim |
+| `skills/abstention-ledger/check_sf_version.py` | Live check that the SF gene list is current; fail-closed |
+| `skills/abstention-ledger/verify.sh` | The gate: tests, demo, lint, secret scan — non-zero on failure |
 | `skills/abstention-ledger/SKILL.md` | Skill contract, reason codes, domain decisions |
 | `skills/abstention-ledger/INTENTS.json` | Routing descriptor for the ClawBio runner |
 | `out/run1/`, `out/gap/`, `out/demo/` | Committed artefacts: reports, ledger, tables, checksums |
