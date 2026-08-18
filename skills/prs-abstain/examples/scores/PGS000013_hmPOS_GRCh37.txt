@@ -1,0 +1,14 @@
+#pgs_id=PGS000013
+#pgs_name=PRS for type 2 diabetes (Vassy et al. 2014)
+#trait_reported=Type 2 diabetes
+#genome_build=GRCh37
+#variants_number=8
+rsID	chr_name	chr_position	effect_allele	other_allele	effect_weight	allelefrequency_effect
+rs7903146	10	114758349	T	C	0.31	0.28
+rs1801282	3	12393125	C	G	0.14	0.88
+rs5219	11	17409572	T	C	0.07	0.36
+rs13266634	8	118184783	C	T	0.05	0.70
+rs10811661	9	22134094	T	C	0.17	0.83
+rs4402960	3	185511687	T	G	0.11	0.30
+rs12255372	10	114808902	T	G	0.26	0.27
+rs1111875	10	94462882	C	T	0.08	0.56

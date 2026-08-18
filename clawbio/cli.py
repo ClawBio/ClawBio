@@ -453,6 +453,17 @@ SKILLS = {
         },
         "accepts_genotypes": True,
     },
+    "prs-abstain": {
+        "script": SKILLS_DIR / "prs-abstain" / "prs_abstain.py",
+        "demo_args": ["--demo"],
+        "description": "Gate PRS percentiles on ancestry transferability; refuse when uninterpretable",
+        "allowed_extra_flags": {
+            "--reference-panel", "--individuals", "--prs-results", "--ref-pop", "--k-sd",
+            "--min-markers", "--pcs", "--no-figures", "--scores", "--genotype",
+            "--population-af", "--af-population", "--min-weight-coverage", "--min-effective-n",
+            "--ld-window-kb", "--no-pdf",
+        },
+    },
     "just-prs": {
         "script": SKILLS_DIR / "just-prs-mcp" / "just_prs_mcp_bridge.py",
         "demo_args": ["--demo"],

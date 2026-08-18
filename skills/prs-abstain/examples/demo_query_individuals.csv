@@ -1,0 +1,4 @@
+sample_id,population,PC1,PC2,PC3,PC4,n_markers_shared,sex
+EUR_001,EUR,-3.005020,-2.385174,-2.002224,0.345164,480,female
+AFR_001,AFR,6.588584,-2.403258,-2.206847,3.186610,480,male
+DEMO_PATIENT,,,,,,0,unknown
