@@ -1933,7 +1933,7 @@
     {
       "name": "gi-expression",
       "cli_alias": null,
-      "description": "Predict tissue / cell-type expression (log TPM + TPM) from a 9,198 bp TSS-centered DNA sequence using the Genomic Intelligence G0 Expression model, via the hosted /v1/tasks/expression/predict API. The model is conditioned on a free-text cell-type / assay description.",
+      "description": "Predict tissue / cell-type expression (log TPM + TPM) from a 9,198 bp TSS-centered DNA sequence — or from a longer locus plus a --tss-index — using the Genomic Intelligence G0 Expression model, via the hosted /v1/tasks/expression/predict API. The model is conditioned on a free-text cell-type / assay description.",
       "version": "0.1.0",
       "status": "planned",
       "maturity_tier": "tested",

@@ -26,6 +26,54 @@ DISCLAIMER = (
     "professional before making any medical decisions."
 )
 
+# /v1/tasks/expression/predict scores exactly one TSS-centred window of
+# 9,198 bp (radius 4,599). Longer submissions are allowed up to 500 kbp
+# provided ``tss_index`` says where to cut; everything else is a 422.
+# Mirrors EXPRESSION_MIN_BP / EXPRESSION_MAX_BP / EXPRESSION_TSS_RADIUS
+# in the API. Contract: https://docs.genomicintelligence.ai
+EXPRESSION_WINDOW_BP = 9198
+EXPRESSION_TSS_RADIUS = EXPRESSION_WINDOW_BP // 2  # 4599
+EXPRESSION_MAX_BP = 500_000
+
+
+def validate_expression_input(sequence: str, tss_index: Optional[int]) -> Optional[str]:
+    """Check an expression submission against the API contract locally.
+
+    Returns ``None`` when the request would be accepted, otherwise the
+    operator-facing reason. Called before the client is built so an
+    off-window FASTA costs no API key, no request, and no 422.
+
+    ``sequence`` must already be the whitespace-stripped nucleotide string
+    (``read_fasta`` returns exactly that) — the API counts length and
+    interprets ``tss_index`` on the stripped string, not on file characters.
+    """
+    n = len(sequence)
+    if n < EXPRESSION_WINDOW_BP:
+        return (
+            f"sequence is {n:,} bp; expression needs at least {EXPRESSION_WINDOW_BP} bp — "
+            f"the model scores exactly one TSS-centred window of that size "
+            f"(TSS ± {EXPRESSION_TSS_RADIUS}). Submit at least a full window, or submit a "
+            f"longer locus and pass --tss-index."
+        )
+    if n > EXPRESSION_MAX_BP:
+        return f"sequence is {n:,} bp; the maximum is {EXPRESSION_MAX_BP} bp"
+    if tss_index is None:
+        if n != EXPRESSION_WINDOW_BP:
+            return (
+                f"--tss-index is required unless the sequence is exactly "
+                f"{EXPRESSION_WINDOW_BP} bp (got {n:,} bp); it is the 0-based TSS offset "
+                f"into the sequence, counted after whitespace is stripped"
+            )
+        return None
+    low, high = EXPRESSION_TSS_RADIUS, n - EXPRESSION_TSS_RADIUS
+    if not low <= tss_index <= high:
+        return (
+            f"--tss-index {tss_index} is outside the allowed range [{low}, {high}] for a "
+            f"{n:,} bp sequence — the model needs a full ±{EXPRESSION_TSS_RADIUS} bp window "
+            f"around the TSS; submit more flanking sequence"
+        )
+    return None
+
 
 def _parse_args(task: str) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=f"ClawBio gi-{task}: {task} prediction via Genomic Intelligence API.")
@@ -34,6 +82,7 @@ def _parse_args(task: str) -> argparse.Namespace:
     p.add_argument("--demo", action="store_true", help="Run with the bundled example FASTA")
     p.add_argument("--model", type=str, default=None, help="Override default model name")
     p.add_argument("--description", type=str, default=None, help="Cell type / assay context (required by gi-expression; ignored by other tasks)")
+    p.add_argument("--tss-index", type=int, default=None, dest="tss_index", help="0-based TSS offset into the sequence, counted after whitespace is stripped (gi-expression only; required unless the sequence is exactly 9198 bp)")
     p.add_argument("--api-key", type=str, default=None, help="Override GI_API_KEY env (otherwise uses env; raises if unset — see each SKILL.md Authentication section)")
     p.add_argument("--base-url", type=str, default=None, help="Override GI_BASE_URL (default: https://api.genomicintelligence.ai)")
     return p.parse_args()
@@ -76,6 +125,12 @@ def _summarize(task: str, body: Dict[str, Any]) -> Dict[str, Any]:
         pred = data.get("prediction") or {}
         out["log_tpm"] = pred.get("expression_log_tpm")
         out["tpm"] = pred.get("expression_tpm")
+        # Windowing provenance — the API cuts the scored 9,198 bp window
+        # itself, so this is the only way to confirm it cut where you meant.
+        inp = data.get("input") or {}
+        out["tss_index"] = inp.get("tss_index")
+        out["scored_window"] = inp.get("scored_window")
+        out["submitted_sequence_length"] = inp.get("submitted_sequence_length")
     elif task == "annotation":
         out["transcripts_found"] = summary.get("total_transcripts", summary.get("transcripts_found"))
         out["transcripts"] = data.get("transcripts") or []
@@ -137,6 +192,14 @@ def _write_report(task: str, summary: Dict[str, Any], body: Dict[str, Any], outp
             lines.append(f"- Predicted expression: **{log_tpm:.4f} log(TPM+1)**" + (f" ≈ {tpm:.2f} TPM" if isinstance(tpm, (int, float)) else ""))
         else:
             lines.append("- See `result.json` for the full prediction payload.")
+        window = summary.get("scored_window")
+        if window:
+            submitted = summary.get("submitted_sequence_length")
+            lines.append(
+                f"- Scored window: **[{window[0]}, {window[1]})** (TSS index {summary.get('tss_index')}"
+                + (f", of {submitted:,} bp submitted" if isinstance(submitted, int) else "")
+                + ") — check this is the window you meant; an offset that is merely wrong still returns a confident result."
+            )
     elif task == "annotation":
         lines.append(f"- Transcripts found: **{summary.get('transcripts_found') or 0}**")
         tx = (summary.get("transcripts") or [])[:20]
@@ -188,6 +251,13 @@ def run_skill(*, task: str, demo_path: Path, async_mode: bool = False, default_m
     if not sequence:
         print(f"Error: parsed an empty sequence from {input_path}", file=sys.stderr)
         return 1
+    if task == "expression":
+        problem = validate_expression_input(sequence, args.tss_index)
+        if problem:
+            print(f"Error: {problem}", file=sys.stderr)
+            return 1
+    elif args.tss_index is not None:
+        print(f"Warning: --tss-index applies only to gi-expression; ignoring it for {task}", file=sys.stderr)
 
     client = Client(api_key=args.api_key, base_url=args.base_url)
     model = args.model or default_model
@@ -195,11 +265,13 @@ def run_skill(*, task: str, demo_path: Path, async_mode: bool = False, default_m
     if args.description is not None:
         options["description"] = args.description
 
+    tss_index = args.tss_index if task == "expression" else None
+
     print(f"[gi-{task}] sequence_name={sequence_name} length={len(sequence):,} bp model={model or 'default'} mode={'async' if async_mode else 'sync'}", file=sys.stderr)
     started = time.monotonic()
     try:
         if async_mode:
-            job_id = client.submit_async(task, sequence=sequence, sequence_name=sequence_name, model=model, options=options or None)
+            job_id = client.submit_async(task, sequence=sequence, sequence_name=sequence_name, model=model, options=options or None, tss_index=tss_index)
             print(f"[gi-{task}] submitted job_id={job_id}", file=sys.stderr)
             def _progress(p: Dict[str, Any]) -> None:
                 pct = p.get("percent")
@@ -208,7 +280,7 @@ def run_skill(*, task: str, demo_path: Path, async_mode: bool = False, default_m
                     print(f"  {pct:>3}% {msg}", file=sys.stderr)
             body = client.wait_for_job(job_id, on_progress=_progress)
         else:
-            body = client.predict(task, sequence=sequence, sequence_name=sequence_name, model=model, options=options or None)
+            body = client.predict(task, sequence=sequence, sequence_name=sequence_name, model=model, options=options or None, tss_index=tss_index)
     except GIError as e:
         print(f"[gi-{task}] API error: {e}", file=sys.stderr)
         return 2

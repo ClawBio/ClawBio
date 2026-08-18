@@ -100,6 +100,29 @@ class Client:
             raise GIError(resp.status_code, body)
         return body
 
+    @staticmethod
+    def _build_body(
+        sequence: str,
+        sequence_name: str,
+        model: Optional[str],
+        options: Optional[Dict[str, Any]],
+        tss_index: Optional[int],
+    ) -> Dict[str, Any]:
+        """Assemble a predict body. ``tss_index`` is expression-only.
+
+        The API rejects unknown top-level fields on the expression route
+        (``additionalProperties: false``), so optional fields are only
+        included when set.
+        """
+        body: Dict[str, Any] = {"sequence": sequence, "sequence_name": sequence_name}
+        if model is not None:
+            body["model"] = model
+        if options is not None:
+            body["options"] = options
+        if tss_index is not None:
+            body["tss_index"] = tss_index
+        return body
+
     def health(self) -> Dict[str, Any]:
         r = self._session.get(f"{self.base_url}/health", timeout=self.timeout)
         return self._check(r)
@@ -111,12 +134,9 @@ class Client:
         sequence_name: str = "sequence",
         model: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
+        tss_index: Optional[int] = None,
     ) -> Dict[str, Any]:
-        body: Dict[str, Any] = {"sequence": sequence, "sequence_name": sequence_name}
-        if model is not None:
-            body["model"] = model
-        if options is not None:
-            body["options"] = options
+        body = self._build_body(sequence, sequence_name, model, options, tss_index)
         r = self._session.post(
             f"{self.base_url}/v1/tasks/{task}/predict",
             json=body,
@@ -131,12 +151,9 @@ class Client:
         sequence_name: str = "sequence",
         model: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
+        tss_index: Optional[int] = None,
     ) -> str:
-        body: Dict[str, Any] = {"sequence": sequence, "sequence_name": sequence_name}
-        if model is not None:
-            body["model"] = model
-        if options is not None:
-            body["options"] = options
+        body = self._build_body(sequence, sequence_name, model, options, tss_index)
         r = self._session.post(
             f"{self.base_url}/v1/tasks/{task}/predict",
             headers={"Prefer": "respond-async"},
