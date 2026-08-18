@@ -1181,6 +1181,13 @@ SKILLS = {
         "allowed_extra_flags": {"--dosage-map", "--gene-model"},
         "accepts_genotypes": False,
     },
+    "abstention-ledger": {
+        "script": SKILLS_DIR / "abstention-ledger" / "abstention_ledger.py",
+        "demo_args": ["--demo"],
+        "description": "Abstention ledger: legacy SnpEff EFF parsing plus per-record reasons a variant was withheld from ranking",
+        "allowed_extra_flags": {"--vcf", "--evidence"},
+        "accepts_genotypes": False,
+    },
     "fastreer": {
         "script": SKILLS_DIR / "fastreer" / "fastreer.py",
         "demo_args": ["--demo"],

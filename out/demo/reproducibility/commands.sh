@@ -10,4 +10,4 @@ python3 skills/abstention-ledger/abstention_ledger.py \
     --input /Users/m/Claude/clawbio/ClawBio/skills/abstention-ledger/examples/demo_segregation.tsv \
     --vcf <vcf> \
     --evidence out/vep_grch37_cache.json \
-    --output out/demo
+    --output ../out/demo

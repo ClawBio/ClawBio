@@ -1,0 +1,13 @@
+gene,locus,consequence,zygosity,population_af,rarity,clnsig
+ENPP1,6:132203615 G>A,splice_donor,het,9.045e-07,ultra_rare,
+DDX56,7:44610376 G>A,nonsense,het,2.99e-05,ultra_rare,
+ZNF675,19:23844937 CA>C,frameshift,het,4.474e-05,ultra_rare,
+FAM218A,4:165878621 G>A,nonsense,het,8.964e-05,ultra_rare,
+CCDC66,3:56653839 CTG>C,frameshift,het,0.0001789,ultra_rare,
+SPAG11A,8:7718227 C>CT,frameshift,het,0.0001849,ultra_rare,
+POLR3C,1:145606274 C>T,splice_donor,het,0.0002914,ultra_rare,
+FAM228A,2:24413293 CA>C,frameshift,het,0.001309,rare,
+OR2G6,1:248685789 T>TC,frameshift,het,0.001558,rare,
+ZP3,7:76069617 TG>T,frameshift,het,0.002091,rare,
+RBM23,14:23371267 CA>C,frameshift,het,0.003401,rare,
+RBM23,14:23371269 GCA>G,frameshift,het,0.003401,rare,

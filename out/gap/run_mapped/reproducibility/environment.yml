@@ -1,0 +1,6 @@
+name: rare-high-impact-variants
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.11
+  # pure Python standard library; no third-party runtime dependencies

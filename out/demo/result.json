@@ -1,8 +1,8 @@
 {
  "input": "demo_segregation.tsv",
- "input_sha256": "107ddd25564d0f3a9f6835c1ed5fc433e1a87c27e9035d756e409f2bed586367",
- "records": 8,
- "withheld": 4,
+ "input_sha256": "1fd4bdf6fefa517c3438ace9b2b9ec267b8b218e6dcb5628417250c10c52e1d3",
+ "records": 9,
+ "withheld": 5,
  "reviewable": 4,
  "sample_map": {
   "status": "not_checked",
@@ -20,22 +20,22 @@
   "as_labelled": {
    "tally": {
     "paternal": 4,
-    "maternal": 4,
+    "maternal": 5,
     "ambiguous": 0,
     "no_carrier_parent": 0
    },
    "mismatches_vs_supplied": 0,
-   "total": 8
+   "total": 9
   },
   "sister_mother_swapped": {
    "tally": {
     "paternal": 3,
     "maternal": 3,
     "ambiguous": 1,
-    "no_carrier_parent": 1
+    "no_carrier_parent": 2
    },
-   "mismatches_vs_supplied": 2,
-   "total": 8
+   "mismatches_vs_supplied": 3,
+   "total": 9
   }
  },
  "cohort_abstentions": [
@@ -49,13 +49,13 @@
    "code": "UNPHASED",
    "claim_blocked": "Any statement about two variants being on the same or opposite copies.",
    "because": "Parent-of-origin here is Mendelian deduction from genotypes, not molecular phase. Without phase, the two-hit question about a gene is not merely unanswered \u2014 it is unaskable from this file.",
-   "evidence": "All 8 records have son genotype in ['0/1']; origin is inferred from which parent carries, and the data page labels the column UNPHASED."
+   "evidence": "All 9 records have son genotype in ['0/1']; origin is inferred from which parent carries, and the data page labels the column UNPHASED."
   },
   {
    "code": "SELECTION_BIAS",
    "claim_blocked": "Any count, burden or per-gene total presented as describing this pedigree.",
    "because": "The file contains only records where the son carries and exactly one parent carries. Every variant where both parents carry, and every variant the son does not carry, was removed upstream. Totals computed here describe the filter, not the family.",
-   "evidence": "8/8 records have exactly one carrier parent, by construction."
+   "evidence": "9/9 records have exactly one carrier parent, by construction."
   },
   {
    "code": "HISTORICAL_ANNOTATION",
@@ -70,9 +70,15 @@
    "evidence": "Sample roles resolved from genotypes: SON=SON, FATHER=FATHER, SISTER=SISTER, MOTHER=MOTHER"
   }
  ],
+ "screening": {
+  "sf_list_size": 81,
+  "sf_source": "ACMG_SF_V32_GENES from skills/clinical-variant-reporter/acmg_engine.py (81 genes, ACMG SF v3.2)",
+  "sf_hits": 1
+ },
  "evidence_layer": {
   "status": "absent"
  },
+ "disclaimer": "ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.",
  "variants": [
   {
    "variant_id": "1:1000100 rsDEMO1 C>T",
@@ -255,6 +261,32 @@
    "hits": [],
    "codes": [],
    "verdict": "REVIEWABLE"
+  },
+  {
+   "variant_id": "13:13000900 rsDEMO9 C>T",
+   "chrom": "13",
+   "pos": "13000900",
+   "rsid": "rsDEMO9",
+   "genes": [
+    "BRCA2"
+   ],
+   "supplied_impact": "HIGH",
+   "supplied_origin": "maternal",
+   "derived_origin": "maternal",
+   "current_impact": "",
+   "frequency_display": "",
+   "transcript_count": 1,
+   "hits": [
+    {
+     "code": "SECONDARY_FINDING_NO_CONSENT",
+     "evidence": "BRCA2 on the ACMG secondary-findings list; returning a finding here would be opportunistic screening of a named person with no phenotype, no clinical relationship and no documented opt-out",
+     "source": "ACMG_SF_V32_GENES from skills/clinical-variant-reporter/acmg_engine.py (81 genes, ACMG SF v3.2)"
+    }
+   ],
+   "codes": [
+    "SECONDARY_FINDING_NO_CONSENT"
+   ],
+   "verdict": "WITHHELD"
   }
  ]
 }

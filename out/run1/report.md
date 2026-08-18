@@ -85,6 +85,11 @@ These are properties of the dataset. They bound every claim below.
 | `ANNOTATION_SUPERSEDED` | 4 |
 | `NO_FREQUENCY_RECORD` | 2 |
 
+### Checks that ran and found nothing
+
+- **ACMG secondary findings:** all 68 records screened against 81 genes — **0 hits**. Source: ACMG_SF_V32_GENES from skills/clinical-variant-reporter/acmg_engine.py (81 genes, ACMG SF v3.2).
+  This file contains no gene on that list. Worth stating plainly rather than leaving implicit: the actionable-secondary-finding problem does not arise here, and we are not reporting that we avoided one.
+
 ## 5. Review list
 
 Ordered by how complete the assembled evidence is, **not** by how severe the consequence appears. Every entry remains subject to section 3.
@@ -175,3 +180,7 @@ Ordered by how complete the assembled evidence is, **not** by how severe the con
 ---
 
 *Any tool can output a ranking. This one ships the check, the value and the source for everything it declined to rank.*
+
+## Disclaimer
+
+ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.

@@ -20,9 +20,41 @@ able to run. That is a statement about our evidence, not about the variant.
 
 from __future__ import annotations
 
+import pathlib
+import sys
 from dataclasses import dataclass, field
 
 from legacy_eff import EffSummary
+
+# --------------------------------------------------------------------------
+# Reuse the library's own ACMG secondary-findings list rather than retyping it.
+#
+# skills/clinical-variant-reporter/acmg_engine.py imports only dataclasses and
+# typing: no network, no key, no VEP call. Importing it is cheap and it means the
+# gene set we screen against is the one the library already ships, not a copy of
+# ours that can drift from it.
+#
+# Failure is explicit. If the import does not resolve we set the list to None and
+# the gate reports SF_LIST_UNAVAILABLE instead of quietly passing every record,
+# because "we did not check" and "nothing matched" are different claims.
+# --------------------------------------------------------------------------
+_CVR = pathlib.Path(__file__).resolve().parents[1] / "clinical-variant-reporter"
+ACMG_SF_GENES: frozenset[str] | None
+ACMG_SF_SOURCE: str
+
+try:
+    if str(_CVR) not in sys.path:
+        sys.path.append(str(_CVR))
+    from acmg_engine import ACMG_SF_V32_GENES as _SF  # type: ignore[import-not-found]
+
+    ACMG_SF_GENES = _SF
+    ACMG_SF_SOURCE = (
+        "ACMG_SF_V32_GENES from skills/clinical-variant-reporter/acmg_engine.py "
+        f"({len(_SF)} genes, ACMG SF v3.2)"
+    )
+except Exception as _exc:  # noqa: BLE001 - any import failure must be reported, not hidden
+    ACMG_SF_GENES = None
+    ACMG_SF_SOURCE = f"unavailable: {type(_exc).__name__}: {_exc}"
 
 # --------------------------------------------------------------------------
 # Cohort-level abstentions
@@ -239,6 +271,47 @@ def non_proband_carriers(genotypes: dict[str, str]) -> list[str]:
     ]
 
 
+def gate_secondary_finding(genes: list[str]) -> GateHit | None:
+    """Withhold findings in ACMG secondary-findings genes.
+
+    This is the gate that costs us something, and it is the reason the skill has
+    the name it does. A variant in one of these genes is the *most* clinically
+    actionable category in the whole file — which is exactly why returning it
+    here would be wrong.
+
+    ACMG's framework is a policy for clinical sequencing. It presupposes a
+    clinical context, a pre-test conversation, and a documented opportunity to
+    opt out of secondary findings. This dataset has none of the three: no
+    phenotype, no clinical relationship, and no evidence that any family member
+    was asked. A CC BY licence permits redistributing the data; it does not
+    manufacture consent to be told what the data implies about a named person.
+
+    So actionability does not override provenance. It is the argument *for*
+    withholding, not against it.
+    """
+    if ACMG_SF_GENES is None:
+        return GateHit(
+            code="SF_LIST_UNAVAILABLE",
+            evidence=(
+                "could not load the ACMG secondary-findings gene list, so this record was "
+                "not screened; absence of a hit here is not evidence of absence"
+            ),
+            source=ACMG_SF_SOURCE,
+        )
+    hits = sorted({g for g in genes if g.upper() in ACMG_SF_GENES})
+    if not hits:
+        return None
+    return GateHit(
+        code="SECONDARY_FINDING_NO_CONSENT",
+        evidence=(
+            f"{', '.join(hits)} on the ACMG secondary-findings list; returning a finding here "
+            "would be opportunistic screening of a named person with no phenotype, no clinical "
+            "relationship and no documented opt-out"
+        ),
+        source=ACMG_SF_SOURCE,
+    )
+
+
 def evaluate_variant(record: dict, summary: EffSummary) -> VariantVerdict:
     """Run every Tier-1 gate over one record."""
     v = VariantVerdict(
@@ -249,6 +322,7 @@ def evaluate_variant(record: dict, summary: EffSummary) -> VariantVerdict:
     for hit in (
         gate_transcript_artifact(summary),
         gate_low_complexity(summary.genes, record["chrom"], int(record["pos"])),
+        gate_secondary_finding(summary.genes),
     ):
         if hit is not None:
             v.hits.append(hit)

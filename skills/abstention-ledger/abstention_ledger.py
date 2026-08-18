@@ -181,9 +181,14 @@ def load_evidence(path: pathlib.Path | None) -> dict:
 
     by_key: dict[str, dict] = {}
     for rec in blob.get("records", []):
-        chrom, start = str(rec.get("seq_region_name", "")), rec.get("start")
-        allele = rec.get("allele_string", "")
-        key = f"{chrom}:{start}:{allele}"
+        # Keyed on the response's `input` field, which echoes our query verbatim.
+        # Exact by construction. A (chrom, start) key is not: VEP normalises
+        # indels and shifts `start` for insertions, so an exact positional join
+        # drops them and a tolerant one can match a neighbour. `eff_to_info.py`
+        # uses the same key, so the two modules cannot report different counts.
+        key = rec.get("input")
+        if not key:
+            continue
 
         freqs: dict[str, float] = {}
         for col in rec.get("colocated_variants", []) or []:
@@ -222,13 +227,12 @@ def load_evidence(path: pathlib.Path | None) -> dict:
 
 
 def match_evidence(rec: dict, evidence: dict) -> dict | None:
+    """Exact join on the query string we sent. See load_evidence for why."""
     if evidence.get("status") != "ok":
         return None
-    for key, val in evidence["by_key"].items():
-        chrom, start, _allele = key.split(":", 2)
-        if chrom == rec["chrom"] and abs(int(start) - int(rec["pos"])) <= 1:
-            return val
-    return None
+    ident = rec["rsid"] if rec["rsid"] and rec["rsid"] != "." else "."
+    key = f"{rec['chrom']} {rec['pos']} {ident} {rec['ref']} {rec['alt']} . . ."
+    return evidence["by_key"].get(key)
 
 
 COMMON_THRESHOLD = 0.01
@@ -290,6 +294,13 @@ def evidence_gates(rec: dict, ev: dict | None, supplied_impact: str) -> list[dic
 # --------------------------------------------------------------------------
 
 BANNED = ("rare", "pathogenic", "diagnostic", "de novo", "compound het")
+
+# Mandated verbatim by CLAUDE.md safety rule 2 — every report carries it.
+DISCLAIMER = (
+    "ClawBio is a research and educational tool. It is not a medical device and does "
+    "not provide clinical diagnoses. Consult a healthcare professional before making "
+    "any medical decisions."
+)
 
 
 def write_tsv(path: pathlib.Path, header: list[str], rows: list[list]) -> None:
@@ -395,6 +406,26 @@ def render_report(ctx: dict) -> str:
     for code, n in sorted(code_counts.items(), key=lambda kv: -kv[1]):
         a(f"| `{code}` | {n} |")
     a("")
+    # A check that ran and found nothing is a result, not an absence of work.
+    # Reporting only the gates that fired would leave a reader unable to tell
+    # "screened, clean" apart from "never screened".
+    scr = ctx["screening"]
+    a("### Checks that ran and found nothing")
+    a("")
+    if scr["sf_list_size"]:
+        a(
+            f"- **ACMG secondary findings:** all {len(verdicts)} records screened against "
+            f"{scr['sf_list_size']} genes — **{scr['sf_hits']} hits**. Source: {scr['sf_source']}."
+        )
+        if scr["sf_hits"] == 0:
+            a(
+                "  This file contains no gene on that list. Worth stating plainly rather than "
+                "leaving implicit: the actionable-secondary-finding problem does not arise here, "
+                "and we are not reporting that we avoided one."
+            )
+    else:
+        a(f"- **ACMG secondary findings: not screened.** {scr['sf_source']}")
+    a("")
 
     # 5. review list
     a("## 5. Review list")
@@ -468,6 +499,10 @@ def render_report(ctx: dict) -> str:
         "everything it declined to rank.*"
     )
     a("")
+    a("## Disclaimer")
+    a("")
+    a(DISCLAIMER)
+    a("")
     return "\n".join(L)
 
 
@@ -526,6 +561,16 @@ def analyse(
             }
         )
 
+    # Record checks that ran, not only the ones that fired. Without this a reader
+    # cannot distinguish "screened, nothing found" from "never screened".
+    from gates import ACMG_SF_GENES, ACMG_SF_SOURCE  # noqa: PLC0415
+
+    screening = {
+        "sf_list_size": len(ACMG_SF_GENES) if ACMG_SF_GENES else 0,
+        "sf_source": ACMG_SF_SOURCE,
+        "sf_hits": sum(1 for v in verdicts if "SECONDARY_FINDING_NO_CONSENT" in v["codes"]),
+    }
+
     ctx = {
         "input_name": tsv.name,
         "input_sha256": hashlib.sha256(tsv.read_bytes()).hexdigest(),
@@ -534,6 +579,7 @@ def analyse(
         "segregation": segregation,
         "evidence": evidence,
         "cohort": cohort,
+        "screening": screening,
         "verdicts": verdicts,
     }
 
@@ -570,7 +616,9 @@ def analyse(
         "sample_map": sample_map,
         "segregation": segregation,
         "cohort_abstentions": cohort,
+        "screening": screening,
         "evidence_layer": {k: v for k, v in evidence.items() if k != "by_key"},
+        "disclaimer": DISCLAIMER,
         "variants": verdicts,
     }
     (outdir / "result.json").write_text(json.dumps(summary_json, indent=1))

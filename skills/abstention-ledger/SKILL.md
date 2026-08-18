@@ -79,12 +79,33 @@ metadata:
 
 ## Trigger
 
-Use when a variant table must produce a defensible review list *and* an explicit
-account of what it cannot support — family segregation data, legacy-annotated
-VCFs, teaching datasets without phenotype, or any input where a reviewer will ask
-"why is this variant not on the list?"
+**Fire when:**
 
-Also the only skill in this library that reads the classic SnpEff `EFF` field.
+- A variant table must yield a review list *and* an explicit account of what it
+  cannot support.
+- The input carries a legacy SnpEff `EFF` column. This is the only skill in the
+  library that parses it; every other skill reads `MC`, `Consequence` or `ANN`.
+- A family segregation table needs its parent-of-origin labels re-derived rather
+  than trusted.
+- Someone asks "why is this variant *not* on the list?", "what can this data not
+  support?", or "which of these were you not entitled to rank?".
+- Sample-to-role assignment is uncertain or contradicted by its documentation.
+- A reviewer needs a transcript-level view because `max(impact)` is hiding a
+  disagreement.
+
+**Do NOT fire when:**
+
+- The question is what a variant *means clinically*. Route to
+  `clinical-variant-reporter` for ACMG/AMP classification.
+- The input is a modern `ANN=`/VEP-annotated VCF with no `EFF` column and no
+  pedigree — `vcf-annotator` or `variant-annotation` fit better.
+- Copy-number or structural variants are the subject. Route to
+  `cnv-acmg-classifier`.
+- A phenotype and HPO terms exist and phenotype-driven ranking is wanted. This
+  skill cannot do it, and no skill in the library currently can.
+- The user wants a ranked shortlist *without* the withheld set. Refusing to
+  separate the two is the whole point; do not fire and then suppress half the
+  output.
 
 ## Why This Exists
 
@@ -218,13 +239,73 @@ disagreement), 1 further withheld on position (extended MHC), 4 reviewable.
   report states rather than hides.
 - **`REVIEWABLE` is a claim about our evidence, not about the variant.**
 
+## Example Output
+
+Real excerpt from `report.md` on the four-person teaching pedigree:
+
+```markdown
+# Abstention Ledger
+
+Records: **68**
+Assembly: GRCh37/b37 (contigs without chr prefix)
+
+**61 of 68 records are withheld from the review list.** 7 survived every check.
+
+## 1. Which sample is which person
+
+Resolved from genotypes: **1 of 24** possible assignments of sample IDs to family
+roles reproduces every genotype in the table.
+
+| Role assignment          | paternal | maternal | ambiguous | no carrier parent | disagreements |
+|--------------------------|----------|----------|-----------|-------------------|---------------|
+| as labelled              | 30       | 38       | 0         | 0                 | **0 / 68**    |
+| sister and mother swapped| 11       | 25       | 19        | 13                | **32 / 68**   |
+
+## 4. Per-record gates
+
+| Reason code                   | Records |
+|-------------------------------|---------|
+| `FREQUENCY_DOCUMENTED_COMMON` | 54      |
+| `TRANSCRIPT_ARTIFACT`         | 22      |
+| `LOW_COMPLEXITY_LOCUS`        | 19      |
+| `ANNOTATION_SUPERSEDED`       | 4       |
+| `NO_FREQUENCY_RECORD`         | 2       |
+
+### Checks that ran and found nothing
+
+- **ACMG secondary findings:** all 68 records screened against 81 genes — **0 hits**.
+```
+
+And one ledger row, showing the shape of a refusal:
+
+```
+variant_id  22:32875190 rs11107 G>A
+genes       FBXO7
+verdict     WITHHELD
+codes       TRANSCRIPT_ARTIFACT
+evidence    supplied max impact HIGH is not reproduced across transcripts of the
+            same gene — FBXO7: NM_012179.3=MODERATE(NON_SYNONYMOUS_CODING);
+            NM_001033024.1=MODERATE(NON_SYNONYMOUS_CODING);
+            NM_001257990.1=HIGH(START_LOST)
+source      legacy EFF field of the input record, parsed per transcript
+```
+
 ## Safety Rules
+
+Per ClawBio safety rule 2, every generated report carries the standard
+disclaimer verbatim: *"ClawBio is a research and educational tool. It is not a
+medical device and does not provide clinical diagnoses. Consult a healthcare
+professional before making any medical decisions."* It is asserted by
+`tests/test_abstention_ledger.py`, not left to reviewer discipline.
 
 - Never assert that a variant causes, or is likely to cause, disease.
 - Never describe a frequency as low without a documented value.
 - Never present an inferred parent-of-origin label as molecular phase.
 - Never let a failed network call become an empty result: fetch failures are
   recorded with their reason, and downstream records carry `NO_EVIDENCE_LAYER`.
+- Never let an unrun check look like a passed one. If the secondary-findings list
+  fails to load, records carry `SF_LIST_UNAVAILABLE`; if no evidence layer was
+  fetched, the report says `not checked` rather than `no record found`.
 - Demo data is synthetic. Do not ship real individual genotypes in this
   directory.
 
@@ -263,6 +344,39 @@ The evidence layer uses one batched HTTP POST and caches the result to disk.
 - b37 contigs have no `chr` prefix. Annotators defaulting to UCSC naming return
   nothing rather than erroring.
 - A supplied parent-of-origin column is a label, not a measurement. Re-derive it.
+
+## Chaining Partners
+
+| Skill | Direction | How |
+|---|---|---|
+| `rare-high-impact-variants` | downstream | `eff_to_info.py` translates legacy `EFF` into the `MC`/`GENEINFO` keys it reads, so it works on legacy-annotated input instead of silently returning zero. `prove_gap.py` measures the before and after. |
+| `clinical-variant-reporter` | upstream | We import its `ACMG_SF_V32_GENES` and `is_secondary_finding_gene` rather than keeping a second copy of the list. Route to it for actual ACMG/AMP classification. |
+| `cnv-acmg-classifier` | sibling | Handles what this skill structurally cannot see. An SNV-only input should carry an explicit note that copy-number evidence was never examined. |
+| `nfcore-sarek-wrapper` | upstream | Produces the VCF; annotate, then feed the segregation table here. |
+| `rare-disease-rnaseq` | sibling | Expression outliers are the tie-breaker this skill lacks. Where a record is withheld for want of evidence, RNA is one way to get some. |
+| `lit-synthesizer`, `clinical-trial-finder` | downstream | Only for records that reached `REVIEWABLE`. Running literature search over a withheld variant manufactures the significance the ledger just declined to assign. |
+
+## Maintenance
+
+**Review cadence:** whenever the ACMG SF list version changes, or the Ensembl
+GRCh37 REST parameter surface changes.
+
+**Staleness signals:**
+
+- `ACMG_SF_V32_GENES` is ACMG SF **v3.2** (81 genes). The current statement is
+  **v3.3** (84 genes; added `ABCD1`, `CYP27A1`, `PLN`). When the upstream skill
+  updates, this skill inherits it — screening against a superseded list is exactly
+  the class of error this skill exists to name, so the version is printed in every
+  report rather than assumed.
+- `LOW_COMPLEXITY_FAMILIES` is a curated prefix list, not a coordinate track. If
+  reviewers start disagreeing with its calls, replace it with a real segmental
+  duplication / repeat-masker overlap.
+- `fetch_evidence.PARAMS` is verified parameter by parameter against the live
+  endpoint. If a fetch starts returning 503, suspect a parameter before an outage.
+
+**Deprecation criteria:** retire the `legacy_eff.py` half if upstream skills gain
+native `EFF` support. The gates stay useful regardless of annotation format, so
+they should be split out rather than retired with it.
 
 ## Citations
 

@@ -7,3 +7,4 @@ variant_id	chrom	pos	rsid	supplied_origin	derived_origin	agrees
 4:4000600 rsDEMO6 G>C	4	4000600	rsDEMO6	maternal	maternal	True
 5:5000700 rsDEMO7 A>T	5	5000700	rsDEMO7	paternal	paternal	True
 7:7000800 CG>C	7	7000800	.	maternal	maternal	True
+13:13000900 rsDEMO9 C>T	13	13000900	rsDEMO9	maternal	maternal	True

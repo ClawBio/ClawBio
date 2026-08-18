@@ -76,6 +76,11 @@
    "evidence": "Sample roles resolved from genotypes: SON=ISDBM322015, FATHER=ISDBM322016, SISTER=ISDBM322017, MOTHER=ISDBM322018"
   }
  ],
+ "screening": {
+  "sf_list_size": 81,
+  "sf_source": "ACMG_SF_V32_GENES from skills/clinical-variant-reporter/acmg_engine.py (81 genes, ACMG SF v3.2)",
+  "sf_hits": 0
+ },
  "evidence_layer": {
   "status": "ok",
   "frequency_source": "gnomAD exomes r2.1.1 via Ensembl GRCh37 REST (exome-only)",
@@ -83,6 +88,7 @@
   "endpoint": "https://grch37.rest.ensembl.org/vep/human/region",
   "returned": 68
  },
+ "disclaimer": "ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.",
  "variants": [
   {
    "variant_id": "1:11906068 rs5065 A>G",

@@ -134,7 +134,7 @@ def test_origin_inference() -> None:
 def test_demo_end_to_end() -> None:
     tsv = SKILL / "examples" / "demo_segregation.tsv"
     records = load_tsv(tsv)
-    check("demo has 8 records", len(records) == 8, str(len(records)))
+    check("demo has 9 records", len(records) == 9, str(len(records)))
 
     seg = reproduce_segregation(records)
     check("demo labels reproduce exactly", seg["as_labelled"]["mismatches_vs_supplied"] == 0,
@@ -147,9 +147,18 @@ def test_demo_end_to_end() -> None:
         check("result written", (out / "result.json").exists())
         check("ledger table written", (out / "tables" / "abstention_ledger.tsv").exists())
         check("checksums written", (out / "reproducibility" / "checksums.sha256").exists())
-        check("4 withheld in demo", result["withheld"] == 4, str(result["withheld"]))
+        check("5 withheld in demo", result["withheld"] == 5, str(result["withheld"]))
         check("4 reviewable in demo", result["reviewable"] == 4, str(result["reviewable"]))
         check("json round-trips", isinstance(json.loads((out / "result.json").read_text()), dict))
+        # CLAUDE.md safety rule 2: the disclaimer is mandatory in every report.
+        check("disclaimer present", "not a medical device" in (out / "report.md").read_text())
+        # The BRCA2 demo row must trip the secondary-findings gate, and only that gate.
+        brca = [v for v in result["variants"] if "BRCA2" in v["genes"]]
+        check("BRCA2 row present", len(brca) == 1, str(len(brca)))
+        check("BRCA2 trips SF gate only", brca and brca[0]["codes"] == ["SECONDARY_FINDING_NO_CONSENT"],
+              str(brca[0]["codes"]) if brca else "none")
+        check("SF screening recorded", result["screening"]["sf_list_size"] > 0,
+              str(result["screening"]))
         # Without an evidence layer the report must say "not checked", never
         # "no record found" — the latter claims we looked.
         review_section = (out / "report.md").read_text().split("## 5.")[1].split("## 6.")[0]

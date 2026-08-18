@@ -1,0 +1,37 @@
+{
+  "schema": "clawbio.skill_intents.v1",
+  "skill": "abstention-ledger",
+  "description": "Plan abstention-ledger runs: legacy SnpEff EFF parsing and per-record reasons a variant was withheld from ranking.",
+  "aliases": [
+    "abstention-ledger",
+    "abstention ledger",
+    "abstention list",
+    "legacy EFF",
+    "SnpEff EFF",
+    "what can this data not support",
+    "which variants were you not entitled to rank",
+    "withheld variants",
+    "parent of origin",
+    "segregation table"
+  ],
+  "routes": [
+    {
+      "intent_id": "demo_report",
+      "description": "Run the abstention ledger demo on synthetic pedigree data.",
+      "trigger_terms": [
+        "abstention ledger demo",
+        "abstention-ledger demo",
+        "abstention list demo",
+        "legacy eff demo"
+      ],
+      "demo_policy": "only_when_explicit",
+      "plan": [
+        {
+          "kind": "skill_run",
+          "skill": "abstention-ledger",
+          "demo": true
+        }
+      ]
+    }
+  ]
+}

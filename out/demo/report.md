@@ -1,11 +1,11 @@
 # Abstention Ledger
 
 Input: `demo_segregation.tsv`  
-SHA-256: `107ddd25564d0f3a9f6835c1ed5fc433e1a87c27e9035d756e409f2bed586367`  
-Records: **8**  
+SHA-256: `1fd4bdf6fefa517c3438ace9b2b9ec267b8b218e6dcb5628417250c10c52e1d3`  
+Records: **9**  
 Assembly: GRCh37/b37 (contigs without chr prefix)
 
-**4 of 8 records are withheld from the review list.** 4 survived every check we were able to run.
+**5 of 9 records are withheld from the review list.** 4 survived every check we were able to run.
 
 ---
 
@@ -19,8 +19,8 @@ We re-derive each label from the genotypes rather than reading the supplied colu
 
 | Role assignment | paternal | maternal | ambiguous | no carrier parent | disagreements with supplied label |
 |---|---|---|---|---|---|
-| as labelled | 4 | 4 | 0 | 0 | **0 / 8** |
-| sister mother swapped | 3 | 3 | 1 | 1 | **2 / 8** |
+| as labelled | 4 | 5 | 0 | 0 | **0 / 9** |
+| sister mother swapped | 3 | 3 | 1 | 2 | **3 / 9** |
 
 The second row is what happens if the sister and mother columns are exchanged. It is not a hypothetical: the published description of this dataset orders the samples in a way that produces exactly that swap. Records with no carrier parent are impossible under the dataset's own stated filter, which is how the mistake announces itself.
 
@@ -42,7 +42,7 @@ These are properties of the dataset. They bound every claim below.
 
 **Why:** Parent-of-origin here is Mendelian deduction from genotypes, not molecular phase. Without phase, the two-hit question about a gene is not merely unanswered — it is unaskable from this file.
 
-**Checked against:** All 8 records have son genotype in ['0/1']; origin is inferred from which parent carries, and the data page labels the column UNPHASED.
+**Checked against:** All 9 records have son genotype in ['0/1']; origin is inferred from which parent carries, and the data page labels the column UNPHASED.
 
 ### `SELECTION_BIAS`
 
@@ -50,7 +50,7 @@ These are properties of the dataset. They bound every claim below.
 
 **Why:** The file contains only records where the son carries and exactly one parent carries. Every variant where both parents carry, and every variant the son does not carry, was removed upstream. Totals computed here describe the filter, not the family.
 
-**Checked against:** 8/8 records have exactly one carrier parent, by construction.
+**Checked against:** 9/9 records have exactly one carrier parent, by construction.
 
 ### `HISTORICAL_ANNOTATION`
 
@@ -74,6 +74,11 @@ These are properties of the dataset. They bound every claim below.
 |---|---|
 | `LOW_COMPLEXITY_LOCUS` | 3 |
 | `TRANSCRIPT_ARTIFACT` | 2 |
+| `SECONDARY_FINDING_NO_CONSENT` | 1 |
+
+### Checks that ran and found nothing
+
+- **ACMG secondary findings:** all 9 records screened against 81 genes — **1 hits**. Source: ACMG_SF_V32_GENES from skills/clinical-variant-reporter/acmg_engine.py (81 genes, ACMG SF v3.2).
 
 ## 5. Review list
 
@@ -94,6 +99,7 @@ Ordered by how complete the assembled evidence is, **not** by how severe the con
 | `3:3000400 T>TA` | OR2DEMO1 | `LOW_COMPLEXITY_LOCUS` | `LOW_COMPLEXITY_LOCUS`: OR2DEMO1: olfactory receptor family; largest human paralogous family, high cross-mapping |
 | `6:31000500 rsDEMO5 C>A` | DEMOGENE5 | `LOW_COMPLEXITY_LOCUS` | `LOW_COMPLEXITY_LOCUS`: 6:31000500 lies in the extended MHC (6:28477797-33448354, GRCh37); reference-allele bias |
 | `4:4000600 rsDEMO6 G>C` | MUCDEMO2 | `TRANSCRIPT_ARTIFACT`, `LOW_COMPLEXITY_LOCUS` | `TRANSCRIPT_ARTIFACT`: supplied max impact HIGH is not reproduced across transcripts of the same gene — MUCDEMO2: NM_000006.2=HIGH(FRAME_SHIFT); NM_000006.3=MODIFIER(INTRON)<br>`LOW_COMPLEXITY_LOCUS`: MUCDEMO2: mucin; long VNTR domains, assembly and alignment both unstable |
+| `13:13000900 rsDEMO9 C>T` | BRCA2 | `SECONDARY_FINDING_NO_CONSENT` | `SECONDARY_FINDING_NO_CONSENT`: BRCA2 on the ACMG secondary-findings list; returning a finding here would be opportunistic screening of a named person with no phenotype, no clinical relationship and no documented opt-out |
 
 ## 7. Limits of the evidence layer we added
 
@@ -102,3 +108,7 @@ Ordered by how complete the assembled evidence is, **not** by how severe the con
 ---
 
 *Any tool can output a ranking. This one ships the check, the value and the source for everything it declined to rank.*
+
+## Disclaimer
+
+ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.
