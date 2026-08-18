@@ -50,3 +50,4 @@ PR-AUDITS/
 # hackathon local secrets
 .env
 .env.local
+out/
