@@ -72,6 +72,19 @@ SKILLS: dict[str, dict] = {
             "population stated in the report when interpreting any percentile."
         ),
     },
+    "abstention_ledger": {
+        "script": "skills/abstention-ledger/abstention_ledger.py",
+        "args": ["--demo"],
+        "report": "report.md",
+        "description": (
+            "Parse legacy SnpEff EFF annotations per transcript and return an abstention "
+            "ledger for a family segregation table: which records survived every check, "
+            "which are withheld, and the checked value behind each refusal. Use this when "
+            "asked what a dataset does NOT support, or when a variant table carries an EFF "
+            "column that other skills cannot read. Reports transcript-severity "
+            "disagreement, which a max(impact) pipeline hides."
+        ),
+    },
 }
 
 SYSTEM_PROMPT = """You are a genomics analyst working through ClawBio skills.

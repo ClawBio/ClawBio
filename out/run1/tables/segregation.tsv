@@ -1,0 +1,69 @@
+variant_id	chrom	pos	rsid	supplied_origin	derived_origin	agrees
+1:11906068 rs5065 A>G	1	11906068	rs5065	paternal	paternal	True
+1:12939546 C>CG	1	12939546	.	paternal	paternal	True
+1:20501582 rs12139100 G>A	1	20501582	rs12139100	maternal	maternal	True
+1:24710405 rs12090888 A>G	1	24710405	rs12090888	maternal	maternal	True
+1:145606274 C>T	1	145606274	.	paternal	paternal	True
+1:152323132 rs12568784 G>T	1	152323132	rs12568784	paternal	paternal	True
+1:156354347 rs11303415 TC>T	1	156354347	rs11303415	maternal	maternal	True
+1:223285200 rs5744168 G>A	1	223285200	rs5744168	maternal	maternal	True
+1:248685789 T>TC	1	248685789	.	maternal	maternal	True
+2:24413293 CA>C	2	24413293	.	paternal	paternal	True
+2:44528267 rs146761937 GT>G	2	44528267	rs146761937	maternal	maternal	True
+2:61361325 rs142269591 TG>T	2	61361325	rs142269591	maternal	maternal	True
+2:69659126 rs4453725 A>T	2	69659126	rs4453725	paternal	paternal	True
+3:56653839 CTG>C	3	56653839	.	maternal	maternal	True
+3:195453017 rs144288174 GC>G	3	195453017	rs144288174	maternal	maternal	True
+4:88231392 rs35784587 T>TA	4	88231392	rs35784587	paternal	paternal	True
+4:165878621 G>A	4	165878621	.	paternal	paternal	True
+5:134782450 rs12520799 T>A	5	134782450	rs12520799	maternal	maternal	True
+5:135272373 rs35444976 C>CA	5	135272373	rs35444976	maternal	maternal	True
+5:140772898 rs3214276 GC>G	5	140772898	rs3214276	paternal	paternal	True
+5:180582256 rs140598308 TTGTC>T	5	180582256	rs140598308	maternal	maternal	True
+6:31106500 rs111966729 T>TC	6	31106500	rs111966729	paternal	paternal	True
+6:31124849 rs115419545 C>T	6	31124849	rs115419545	maternal	maternal	True
+6:31125257 rs72856718 C>A	6	31125257	rs72856718	paternal	paternal	True
+6:132203615 G>A	6	132203615	.	maternal	maternal	True
+6:154567863 rs34427887 C>T	6	154567863	rs34427887	maternal	maternal	True
+7:44610376 G>A	7	44610376	.	paternal	paternal	True
+7:76069617 TG>T	7	76069617	.	maternal	maternal	True
+8:7718227 C>CT	8	7718227	.	maternal	maternal	True
+8:39872935 rs4503083 T>A	8	39872935	rs4503083	maternal	maternal	True
+9:125391241 rs1476860 G>A	9	125391241	rs1476860	maternal	maternal	True
+9:125391770 rs72541201 C>CA	9	125391770	rs72541201	paternal	paternal	True
+10:27702256 rs112067123 G>GC	10	27702256	rs112067123	paternal	paternal	True
+10:32740798 C>CT	10	32740798	.	paternal	paternal	True
+10:33136818 TAA>T	10	33136818	.	maternal	maternal	True
+10:124214355 rs2736911 C>T	10	124214355	rs2736911	maternal	maternal	True
+11:4389404 rs74427348 AG>A	11	4389404	rs74427348	maternal	maternal	True
+11:4790873 rs34672924 CG>C	11	4790873	rs34672924	maternal	maternal	True
+11:5877979 rs12419602 T>A	11	5877979	rs12419602	paternal	paternal	True
+11:48266736 rs7120775 C>G	11	48266736	rs7120775	paternal	paternal	True
+11:48286231 rs10838851 T>A	11	48286231	rs10838851	paternal	paternal	True
+11:61165731 rs11382548 C>CA	11	61165731	rs11382548	maternal	maternal	True
+11:61165741 rs10897158 G>C	11	61165741	rs10897158	maternal	maternal	True
+11:118949277 rs36008744 C>G	11	118949277	rs36008744	paternal	paternal	True
+12:51723598 rs60311818 A>AG	12	51723598	rs60311818	maternal	maternal	True
+12:54734289 rs11170877 A>G	12	54734289	rs11170877	paternal	paternal	True
+12:55820958 rs57387180 CA>C	12	55820958	rs57387180	paternal	paternal	True
+13:31531009 rs12857479 G>A	13	31531009	rs12857479	paternal	paternal	True
+14:23371267 CA>C	14	23371267	.	maternal	maternal	True
+14:23371269 GCA>G	14	23371269	.	maternal	maternal	True
+14:51378590 rs11356035 CT>C	14	51378590	rs11356035	maternal	maternal	True
+14:96730313 G>A	14	96730313	.	maternal	maternal	True
+15:31294714 rs3784589 C>A	15	31294714	rs3784589	paternal	paternal	True
+16:1306559 rs3830782 AG>A	16	1306559	rs3830782	maternal	maternal	True
+16:81056441 rs3743503 T>G	16	81056441	rs3743503	paternal	paternal	True
+17:42979026 rs74349463 T>C	17	42979026	rs74349463	maternal	maternal	True
+17:45468858 rs118004742 T>G	17	45468858	rs118004742	maternal	maternal	True
+17:72588806 rs545652 C>A	17	72588806	rs545652	maternal	maternal	True
+19:6897464 rs330880 C>G	19	6897464	rs330880	paternal	paternal	True
+19:23844937 CA>C	19	23844937	.	paternal	paternal	True
+19:52004791 rs67024588 G>GC	19	52004791	rs67024588	maternal	maternal	True
+19:52803669 rs3217319 CTG>C	19	52803669	rs3217319	maternal	maternal	True
+19:55019261 rs61737751 C>T	19	55019261	rs61737751	maternal	maternal	True
+20:31756954 rs17124277 G>A	20	31756954	rs17124277	paternal	paternal	True
+21:11029596 rs138714104 AC>A	21	11029596	rs138714104	maternal	maternal	True
+21:31744127 rs877346 A>T	21	31744127	rs877346	paternal	paternal	True
+22:32875190 rs11107 G>A	22	32875190	rs11107	paternal	paternal	True
+22:41257834 T>TA	22	41257834	.	paternal	paternal	True

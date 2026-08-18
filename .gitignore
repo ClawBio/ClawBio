@@ -46,3 +46,7 @@ PR-AUDITS/
 
 # Local Corpas-Core session logs, never publish
 *-session.md
+
+# hackathon local secrets
+.env
+.env.local

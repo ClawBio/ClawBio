@@ -1,0 +1,9 @@
+variant_id	genes	verdict	reason_codes	evidence	source
+1:1000100 rsDEMO1 C>T	DEMOGENE1	REVIEWABLE			
+1:1000200 rsDEMO2 G>A	DEMOGENE2	REVIEWABLE			
+2:2000300 rsDEMO3 A>G	DEMOGENE3	WITHHELD	TRANSCRIPT_ARTIFACT	supplied max impact HIGH is not reproduced across transcripts of the same gene — DEMOGENE3: NM_000003.9=HIGH(START_LOST); NM_000003.1=MODERATE(NON_SYNONYMOUS_CODING)	legacy EFF field of the input record, parsed per transcript
+3:3000400 T>TA	OR2DEMO1	WITHHELD	LOW_COMPLEXITY_LOCUS	OR2DEMO1: olfactory receptor family; largest human paralogous family, high cross-mapping	curated gene-family list in gates.LOW_COMPLEXITY_FAMILIES
+6:31000500 rsDEMO5 C>A	DEMOGENE5	WITHHELD	LOW_COMPLEXITY_LOCUS	6:31000500 lies in the extended MHC (6:28477797-33448354, GRCh37); reference-allele bias	curated gene-family list in gates.LOW_COMPLEXITY_FAMILIES
+4:4000600 rsDEMO6 G>C	MUCDEMO2	WITHHELD	TRANSCRIPT_ARTIFACT;LOW_COMPLEXITY_LOCUS	supplied max impact HIGH is not reproduced across transcripts of the same gene — MUCDEMO2: NM_000006.2=HIGH(FRAME_SHIFT); NM_000006.3=MODIFIER(INTRON) || MUCDEMO2: mucin; long VNTR domains, assembly and alignment both unstable	legacy EFF field of the input record, parsed per transcript || curated gene-family list in gates.LOW_COMPLEXITY_FAMILIES
+5:5000700 rsDEMO7 A>T	DEMOGENE7	REVIEWABLE			
+7:7000800 CG>C	DEMOGENE8	REVIEWABLE			
