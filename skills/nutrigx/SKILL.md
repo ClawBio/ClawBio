@@ -199,10 +199,11 @@ Outputs a structured Markdown report with:
 
 ### 5. Reproducibility Bundle (`repro_bundle.py`)
 
-Exports to the output directory (not committed to the repo):
+Delegates to the shared `clawbio.common.reproducibility` layer and exports to
+`<output_dir>/reproducibility/` (not committed to the repo):
 - `commands.sh` — full CLI to reproduce analysis
 - `environment.yml` — pinned conda environment
-- `checksums.txt` — SHA-256 checksums of input and output files
+- `checksums.sha256` — SHA-256 checksums of input and output files
 - `provenance.json` — timestamp and ClawBio version tag
 
 ---

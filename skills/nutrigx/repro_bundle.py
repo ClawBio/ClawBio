@@ -1,88 +1,75 @@
 """
 repro_bundle.py — Creates reproducibility artefacts for NutriGx Advisor
-Outputs: commands.sh, environment.yml, checksums.txt
+
+Delegates to the shared clawbio.common reproducibility layer.
+Outputs (in <output_dir>/reproducibility/): commands.sh, environment.yml,
+checksums.sha256, provenance.json
 """
 
-import hashlib
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
-CONDA_ENV = """name: nutrigx
-channels:
-  - conda-forge
-  - defaults
-dependencies:
-  - python=3.11
-  - numpy>=1.26
-  - pandas>=2.2
-  - matplotlib>=3.8
-  - seaborn>=0.13
-  - pip
-  - pip:
-    - clawbio==0.1.0
-"""
+from clawbio.common.checksums import sha256_file  # noqa: E402
+from clawbio.common.reproducibility import (  # noqa: E402
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 
-
-def sha256_file(filepath: str) -> str:
-    h = hashlib.sha256()
-    try:
-        with open(filepath, "rb") as f:
-            for chunk in iter(lambda: f.read(8192), b""):
-                h.update(chunk)
-        return h.hexdigest()
-    except FileNotFoundError:
-        return "FILE_NOT_FOUND"
+VERSION = "0.1.0"
 
 
 def create_reproducibility_bundle(input_file: str, output_dir: str, panel_path: str, args: dict):
     output_dir = Path(output_dir)
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # commands.sh
-    cmd_args = " ".join(f"--{k.replace('_', '-')} {v}" for k, v in args.items() if v and k != "synthetic")
-    commands = f"""#!/usr/bin/env bash
-# NutriGx Advisor — Reproducibility Script
-# Generated: {timestamp}
-# ClawBio NutriGx Advisor v0.1.0
+    cmd_args = " ".join(
+        f"--{k.replace('_', '-')} {v}" for k, v in args.items() if v and k != "synthetic"
+    )
+    write_commands_sh(
+        output_dir,
+        f"# NutriGx Advisor — Reproducibility Script\n"
+        f"# Generated: {timestamp}\n"
+        f"# ClawBio NutriGx Advisor v{VERSION}\n"
+        f"set -euo pipefail\n"
+        f"\n"
+        f"# 1. Create conda environment\n"
+        f"conda env create -f environment.yml\n"
+        f"conda activate nutrigx\n"
+        f"\n"
+        f"# 2. Run analysis\n"
+        f"python nutrigx.py {cmd_args}\n"
+        f"\n"
+        f"# 3. Verify checksums\n"
+        f"sha256sum -c checksums.sha256",
+    )
 
-set -euo pipefail
+    write_environment_yml(
+        output_dir,
+        env_name="nutrigx",
+        python_version="3.11",
+        conda_deps=["numpy>=1.26", "pandas>=2.2", "matplotlib>=3.8", "seaborn>=0.13"],
+        pip_deps=["clawbio==0.1.0"],
+    )
 
-# 1. Create conda environment
-conda env create -f environment.yml
-conda activate nutrigx
+    write_checksums(
+        [input_file, panel_path, output_dir / "nutrigx_report.md"],
+        output_dir,
+    )
 
-# 2. Run analysis
-python nutrigx.py {cmd_args}
-
-# 3. Verify checksums
-sha256sum -c checksums.txt
-"""
-    (output_dir / "commands.sh").write_text(commands)
-
-    # environment.yml
-    (output_dir / "environment.yml").write_text(CONDA_ENV)
-
-    # checksums.txt
-    files_to_checksum = [
-        input_file,
-        panel_path,
-        str(output_dir / "nutrigx_report.md"),
-    ]
-    checksum_lines = [f"# NutriGx Advisor checksums — {timestamp}"]
-    for fp in files_to_checksum:
-        chk = sha256_file(fp)
-        checksum_lines.append(f"{chk}  {Path(fp).name}")
-
-    (output_dir / "checksums.txt").write_text("\n".join(checksum_lines) + "\n")
-
-    # provenance.json
     provenance = {
         "tool": "ClawBio NutriGx Advisor",
-        "version": "0.1.0",
+        "version": VERSION,
         "timestamp": timestamp,
         "input_file": Path(input_file).name,
         "args": args,
     }
-    (output_dir / "provenance.json").write_text(json.dumps(provenance, indent=2))
+    (output_dir / "reproducibility" / "provenance.json").write_text(
+        json.dumps(provenance, indent=2)
+    )
