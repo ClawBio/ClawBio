@@ -38,6 +38,11 @@ if str(_PROJECT_ROOT) not in sys.path:
 from clawbio.common.parsers import parse_vcf_matrix
 from clawbio.common.checksums import sha256_file as _sha256_file
 from clawbio.common.report import write_result_json, DISCLAIMER as _DISCLAIMER
+from clawbio.common.reproducibility import (
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -67,6 +72,41 @@ POP_COLOURS = {
     "MID": "#CC79A7",
     "UNKNOWN": "#999999",
 }
+
+
+# ===================================================================
+# REPRODUCIBILITY BUNDLE (delegates to shared library)
+# ===================================================================
+
+def _write_repro_bundle(
+    output_dir: Path,
+    input_path: Path,
+    pop_map_path: Optional[Path],
+    weights: Tuple[float, ...],
+) -> None:
+    """Write commands.sh, environment.yml, and checksums.sha256 to
+    <output_dir>/reproducibility/ via clawbio.common.reproducibility."""
+    cmd = "python skills/equity-scorer/equity_scorer.py --input %s" % input_path
+    if pop_map_path is not None:
+        cmd += " --pop-map %s" % pop_map_path
+    cmd += " --output %s --weights %s" % (
+        output_dir,
+        ",".join("%.2f" % w for w in weights),
+    )
+    write_commands_sh(output_dir, cmd)
+
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-equity-scorer",
+        conda_deps=["numpy", "pandas", "matplotlib", "scikit-learn"],
+        pip_deps=[],
+    )
+
+    checksum_targets = [input_path]
+    if pop_map_path is not None:
+        checksum_targets.append(pop_map_path)
+    checksum_targets += [output_dir / "report.md", output_dir / "result.json"]
+    write_checksums(checksum_targets, output_dir)
 
 
 # ===================================================================
@@ -1005,6 +1045,8 @@ def run_vcf_pipeline(
         input_checksum=sha256_file(str(vcf_path)) if vcf_path.exists() else "",
     )
 
+    _write_repro_bundle(output_dir, vcf_path, pop_map_path, weights)
+
     print("\nDone.")
     print("  HEIM Score: %s/100 (%s)" % (heim_result["heim_score"], heim_result["rating"]))
     print("  Report: %s" % report_path)
@@ -1086,6 +1128,8 @@ def run_csv_pipeline(
         data=heim_result,
         input_checksum=sha256_file(str(csv_path)) if csv_path.exists() else "",
     )
+
+    _write_repro_bundle(output_dir, csv_path, None, weights)
 
     print("HEIM Score: %s/100 (%s)" % (heim_result["heim_score"], heim_result["rating"]))
     print("Report: %s" % report_path)
