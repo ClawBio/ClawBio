@@ -1220,6 +1220,13 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "provcheck": {
+        "script": SKILLS_DIR / "claim-provenance-check" / "claim_provenance_check.py",
+        "demo_args": ["--demo"],
+        "description": "Bind every citation in a claim to a retrieved evidence row and report which evidence classes were reached, refusing invented citations with no partial credit.",
+        "allowed_extra_flags": set(),
+        "accepts_genotypes": False,
+    },
 }
 
 try:
