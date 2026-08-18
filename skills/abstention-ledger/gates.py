@@ -39,22 +39,54 @@ from legacy_eff import EffSummary
 # because "we did not check" and "nothing matched" are different claims.
 # --------------------------------------------------------------------------
 _CVR = pathlib.Path(__file__).resolve().parents[1] / "clinical-variant-reporter"
-ACMG_SF_GENES: frozenset[str] | None
-ACMG_SF_SOURCE: str
+_SNAPSHOT = pathlib.Path(__file__).resolve().parent / "data" / "acmg_sf_v32_snapshot.json"
 
-try:
-    if str(_CVR) not in sys.path:
-        sys.path.append(str(_CVR))
-    from acmg_engine import ACMG_SF_V32_GENES as _SF  # type: ignore[import-not-found]
+ACMG_SF_GENES: frozenset[str] | None = None
+ACMG_SF_SOURCE: str = "not loaded"
 
-    ACMG_SF_GENES = _SF
-    ACMG_SF_SOURCE = (
-        "ACMG_SF_V32_GENES from skills/clinical-variant-reporter/acmg_engine.py "
-        f"({len(_SF)} genes, ACMG SF v3.2)"
-    )
-except Exception as _exc:  # noqa: BLE001 - any import failure must be reported, not hidden
-    ACMG_SF_GENES = None
-    ACMG_SF_SOURCE = f"unavailable: {type(_exc).__name__}: {_exc}"
+
+def _load_sf_genes() -> tuple[frozenset[str] | None, str]:
+    """Prefer the library's list; fall back to a snapshot; otherwise fail closed.
+
+    The import is the primary path on purpose — a second copy of a curated gene
+    list is a thing that drifts. But this skill is also distributed on its own,
+    where `clinical-variant-reporter` is not on disk, and in that situation a
+    silent None would turn every record into SF_LIST_UNAVAILABLE and quietly
+    withhold the entire file. That is fail-closed in the letter and useless in
+    the spirit.
+
+    So there is a vendored snapshot with its provenance recorded, used only when
+    the import misses. Whichever path was taken is written into every report, so
+    a reader can see which list actually screened their data.
+    """
+    try:
+        if str(_CVR) not in sys.path:
+            sys.path.append(str(_CVR))
+        from acmg_engine import ACMG_SF_V32_GENES as _sf  # type: ignore[import-not-found]
+
+        return _sf, (
+            "ACMG_SF_V32_GENES imported from skills/clinical-variant-reporter/acmg_engine.py "
+            f"({len(_sf)} genes, ACMG SF v3.2)"
+        )
+    except Exception as import_exc:  # noqa: BLE001 - report the reason, never hide it
+        try:
+            import json
+
+            blob = json.loads(_SNAPSHOT.read_text())
+            genes = frozenset(g.upper() for g in blob["genes"])
+            return genes, (
+                f"{blob['version']} ({len(genes)} genes) from the vendored snapshot "
+                f"{_SNAPSHOT.name} — the library module was not importable "
+                f"({type(import_exc).__name__}). Provenance: {blob['provenance']}"
+            )
+        except Exception as snap_exc:  # noqa: BLE001
+            return None, (
+                f"unavailable: library import failed ({type(import_exc).__name__}: {import_exc}) "
+                f"and snapshot failed ({type(snap_exc).__name__}: {snap_exc})"
+            )
+
+
+ACMG_SF_GENES, ACMG_SF_SOURCE = _load_sf_genes()
 
 # --------------------------------------------------------------------------
 # Cohort-level abstentions
