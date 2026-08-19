@@ -2,9 +2,10 @@
 
 Every test here runs without torch, without deepspotm and without the gated
 model weights, so the suite is green on a base ClawBio checkout. The live
-prediction path is covered by injecting a stub `deepspotm` and `torch` into
-sys.modules, so the gene resolution, the pinned revision and the tensor
-handling are all exercised even though CI has no weights.
+prediction path is covered by injecting a stub `deepspotm`, `torch` and
+`huggingface_hub` into sys.modules, so the gene resolution, the pinned revision,
+the download gate and the tensor handling are all exercised even though CI has
+no weights.
 """
 from __future__ import annotations
 
@@ -95,8 +96,13 @@ class _FakeModel:
         return _FakeTensor(float(self.gene_names.index(g)) for g in genes)
 
 
-def install_stub_stack(monkeypatch, calls: dict):
-    """Put a fake `deepspotm` and `torch` on sys.modules and record the call."""
+def install_stub_stack(monkeypatch, calls: dict, snapshot="/hf-cache/snapshots/pinned"):
+    """Put a fake `deepspotm`, `torch` and `huggingface_hub` on sys.modules.
+
+    The fake `hf_hub_download` records the arguments the gate depends on, so the
+    tests can check that the skill asked the library to stay local rather than
+    that it set an environment variable the library had already read.
+    """
     model = _FakeModel()
 
     class _FakeDeepSpotM:
@@ -105,11 +111,22 @@ def install_stub_stack(monkeypatch, calls: dict):
             calls["repo"] = repo
             calls["source"] = source
             calls["revision"] = revision
-            calls["offline"] = __import__("os").environ.get("HF_HUB_OFFLINE")
             return model, _FakeBatch
 
     deepspotm = types.ModuleType("deepspotm")
     deepspotm.DeepSpotM = _FakeDeepSpotM
+
+    def _fake_hf_hub_download(repo_id, filename, *, revision=None,
+                              local_files_only=False, **kwargs):
+        calls["download_repo"] = repo_id
+        calls["download_revision"] = revision
+        calls["local_files_only"] = local_files_only
+        calls.setdefault("downloaded", []).append(filename)
+        return f"{snapshot}/{filename}"
+
+    huggingface_hub = types.ModuleType("huggingface_hub")
+    huggingface_hub.hf_hub_download = _fake_hf_hub_download
+    monkeypatch.setitem(sys.modules, "huggingface_hub", huggingface_hub)
 
     class _NoGrad:
         def __enter__(self):
@@ -225,26 +242,77 @@ def test_predict_expression_maps_panel_symbols_onto_scores(module, monkeypatch):
 
 
 def test_predict_expression_pins_the_weight_revision(module, monkeypatch):
+    """The pin now rides on the download, which is the call that can reach out."""
     calls: dict = {}
     install_stub_stack(monkeypatch, calls)
 
     module.predict_expression(object(), ["EPCAM"], "evo2")
 
-    assert calls["repo"] == module.MODEL_REPO
+    assert calls["download_repo"] == module.MODEL_REPO
     assert calls["source"] == "evo2"
-    assert calls["revision"] == module.MODEL_REVISION
+    assert calls["download_revision"] == module.MODEL_REVISION
     assert len(module.MODEL_REVISION) == 40
 
 
 def test_predict_expression_stays_offline_unless_download_is_allowed(module, monkeypatch):
+    """The gate has to be an argument to the library, not an environment variable.
+
+    huggingface_hub reads HF_HUB_OFFLINE once at import, and `deepspotm` imports
+    it before the skill gets a say, so setting the variable at call time proved
+    nothing about what the library would do.
+    """
     calls: dict = {}
     install_stub_stack(monkeypatch, calls)
 
     module.predict_expression(object(), ["EPCAM"], "scgpt")
-    assert calls["offline"] == "1"
+    assert calls["local_files_only"] is True
 
     module.predict_expression(object(), ["EPCAM"], "scgpt", allow_download=True)
-    assert calls["offline"] != "1"
+    assert calls["local_files_only"] is False
+
+
+def test_predict_expression_loads_the_resolved_directory_not_the_repo_id(module, monkeypatch):
+    """Handing upstream a repo id would let its own loader fetch, ungated."""
+    calls: dict = {}
+    install_stub_stack(monkeypatch, calls, snapshot="/hf-cache/snapshots/abc123")
+
+    module.predict_expression(object(), ["EPCAM"], "scgpt")
+
+    assert calls["repo"] == "/hf-cache/snapshots/abc123"
+    assert calls["repo"] != module.MODEL_REPO
+    # A directory carries no revision, so none is passed on.
+    assert calls["revision"] is None
+    assert calls["downloaded"] == list(module.MODEL_FILES)
+
+
+def test_resolve_checkpoint_dir_rejects_a_split_snapshot(module, monkeypatch):
+    """The directory is what gets loaded, so it has to hold all three files."""
+    huggingface_hub = types.ModuleType("huggingface_hub")
+    huggingface_hub.hf_hub_download = (
+        lambda repo_id, filename, **kwargs: f"/hf-cache/{filename}/{filename}"
+    )
+    monkeypatch.setitem(sys.modules, "huggingface_hub", huggingface_hub)
+
+    with pytest.raises(RuntimeError) as exc:
+        module._resolve_checkpoint_dir(allow_download=False)
+    assert "single directory" in str(exc.value)
+
+
+def test_predict_expression_explains_a_cold_cache_without_downloading(module, monkeypatch):
+    """Offline miss is the common first run; the message has to say what to do."""
+    calls: dict = {}
+    install_stub_stack(monkeypatch, calls)
+
+    def _cold(repo_id, filename, *, revision=None, local_files_only=False, **kwargs):
+        raise OSError("not found in the local cache")
+
+    sys.modules["huggingface_hub"].hf_hub_download = _cold
+
+    with pytest.raises(RuntimeError) as exc:
+        module.predict_expression(object(), ["EPCAM"], "scgpt")
+    message = str(exc.value)
+    assert "--allow-download" in message
+    assert module.MODEL_REPO in message
 
 
 def test_predict_expression_turns_an_off_panel_symbol_into_a_readable_error(module, monkeypatch):
@@ -411,6 +479,61 @@ def test_tile_warnings_travel_into_the_report(module, tmp_path):
 
     payload = json.loads(module.write_result_json(out, rows, meta).read_text(encoding="utf-8"))
     assert any("background" in w for w in payload["tile_warnings"])
+
+
+def test_replay_command_carries_the_thresholds_that_decide_scoring(module, tmp_path):
+    """report.md calls this the exact command, so a raised threshold has to survive.
+
+    --white-mean and --min-saturation gate whether a tile is scored at all. A
+    bundle that omitted a raised --white-mean would refuse to score the very
+    tile the original run scored.
+    """
+    out = tmp_path / "out"
+    out.mkdir()
+    table = out / "genes.csv"
+    table.write_text("gene,expression\n", encoding="utf-8")
+
+    parser = module.build_parser()
+    args = parser.parse_args([
+        "--input", "tile.png",
+        "--white-mean", "245",
+        "--min-saturation", "0.01",
+        "--output", str(out),
+    ])
+    meta = module.build_meta(
+        demo=False, tile_label="tile.png", source="scgpt", genes=["EPCAM"],
+        mpp=None, mpp_source=None, assessment={"mean_pixel": 200.0,
+                                               "mean_saturation": 0.3,
+                                               "warnings": []},
+    )
+    module.write_reproducibility(out, table, meta, str(tmp_path / "tile.png"), args)
+
+    # The bundle puts one argument per line, and argparse parsed these as floats.
+    tokens = (out / "reproducibility" / "commands.sh").read_text(encoding="utf-8").split()
+    assert tokens[tokens.index("--white-mean") + 2] == "245.0"
+    assert tokens[tokens.index("--min-saturation") + 2] == "0.01"
+
+
+def test_replay_command_stays_quiet_about_default_thresholds(module, tmp_path):
+    """Defaults are already the default; spelling them out is just noise."""
+    out = tmp_path / "out"
+    out.mkdir()
+    table = out / "genes.csv"
+    table.write_text("gene,expression\n", encoding="utf-8")
+
+    parser = module.build_parser()
+    args = parser.parse_args(["--input", "tile.png", "--output", str(out)])
+    meta = module.build_meta(
+        demo=False, tile_label="tile.png", source="scgpt", genes=["EPCAM"],
+        mpp=None, mpp_source=None, assessment={"mean_pixel": 200.0,
+                                               "mean_saturation": 0.3,
+                                               "warnings": []},
+    )
+    module.write_reproducibility(out, table, meta, str(tmp_path / "tile.png"), args)
+
+    command = (out / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+    assert "--white-mean" not in command
+    assert "--min-saturation" not in command
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,8 @@
 ---
 name: deepspot-m
 description: Transcriptome-wide virtual spatial transcriptomics from H&E histology with DeepSpot-M. Scores a 224x224 tile and returns per-gene log1p-CPM values for any HGNC symbols you ask for, with a CSV, a report and a reproducibility bundle.
-license: PolyForm-Noncommercial-1.0.0
+license: MIT
+model_license: cc-by-nc-sa-4.0
 metadata:
   version: "0.2.0"
   author: Kalin Nonchev
@@ -208,7 +209,7 @@ DeepSpot-M is a multimodal foundation model that maps a histology tile to spatia
 - Embedding sources: `evo2`, `orthrus`, `prott5`, `scgpt`, `apertus`; default `scgpt`
 - Pinned checkpoint: Hugging Face revision `86113ee431248c892d25cf55e1f8017cccec2926`
 
-Applied to TCGA, the model produced a virtual spatial transcriptomics atlas of 28,664 slides across 32 cancer types.
+Applied to TCGA, the model produced a virtual spatial transcriptomics atlas of 28,664 slides across 32 cancer types. That atlas was generated with cancer-specific finetuned models. This skill pins the base checkpoint and runs it zero-shot, so it is not the configuration those numbers came from and should not be read as a description of your run.
 
 ## Example Queries
 
@@ -302,13 +303,15 @@ output_directory/
 Installing `deepspotm` pulls in `torch`, `lightning`, `timm`, `peft`, `transformers`, `safetensors`, `huggingface_hub`, `pandas` and `numpy`. Both packages import lazily inside the prediction function, so the skill loads and runs its demo without them.
 
 **Licensing and access**, stated plainly because it decides whether you may use this:
-- Upstream code is [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/). Non-commercial use only.
+- This skill's own wrapper code is MIT. That grants nothing over the weights; the fields below are the ones that restrict you.
+- Upstream code is [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/). Non-commercial use only. You install `deepspotm` yourself and accept that directly; nothing from upstream is vendored here.
 - Model weights are CC-BY-NC-SA-4.0. Non-commercial, ShareAlike, with attribution.
 - **The NonCommercial term covers the outputs too.** Upstream's `WEIGHTS_LICENSE.md` applies it to "the weights or their outputs", so the numbers this skill writes are themselves non-commercial and require attribution. Real runs stamp that on `report.md` and `result.json`; demo runs do not, because fixture values never touched the weights.
 - ShareAlike bites if you fine-tune: derived weights must be redistributed under CC-BY-NC-SA-4.0. This skill only runs inference, so it does not trigger that.
 - The restriction comes from DeepSpot-M itself, not its parts. Per upstream's `THIRD_PARTY_LICENSES.md`, the Midnight backbone and all five gene-embedding sources (Evo 2, Orthrus, ProtT5, Apertus, scGPT) are MIT or Apache-2.0.
 - Weights are gated on Hugging Face with **manual approval**. Request access on the model page, wait for a human to grant or refuse it, then run `huggingface-cli login`. Approval is not guaranteed and access can be declined.
-- The skill loads from the local Hugging Face cache by default. The first fetch needs `--allow-download`; nothing reaches the network without it.
+- **The gate terms are narrower than the licence alone.** Access is granted "only to individuals whose affiliations are exclusively academic or public non-profit research institutions". A concurrent commercial affiliation — employment, consulting, advisory roles, internships or founding roles at a company or startup — makes you ineligible, and research performed at, for, funded by or in collaboration with a commercial entity counts as commercial use. Internal evaluation, benchmarking and proof-of-concept work in a commercial setting are covered by that, so check your own affiliation before requesting access.
+- The skill loads from the local Hugging Face cache by default. It resolves `config.json`, `model.safetensors` and `tokens.csv` itself, passing `local_files_only=True` to huggingface_hub, and hands upstream the resulting directory rather than the repo id. The first fetch needs `--allow-download`; nothing reaches the network without it.
 - Nothing from upstream is vendored here. ClawBio ships a wrapper; you install `deepspotm` yourself and accept its terms directly.
 
 ## Gotchas
@@ -330,7 +333,7 @@ Installing `deepspotm` pulls in `torch`, `lightning`, `timm`, `peft`, `transform
 
 Every report reproduces these, so they travel with the numbers rather than staying in this file.
 
-- **Local-first**: Tiles are read from disk and scored on the local machine. Nothing is uploaded. The model loads from the local Hugging Face cache unless `--allow-download` is passed, which permits the one-time gated weight download and nothing else.
+- **Local-first**: Tiles are read from disk and scored on the local machine. Nothing is uploaded. The model loads from the local Hugging Face cache unless `--allow-download` is passed, which permits the one-time gated weight download and nothing else. The gate is enforced by passing `local_files_only` to huggingface_hub on each of the three checkpoint files, not by setting `HF_HUB_OFFLINE`, which the library reads once at import and would already have read by then.
 - **Paths**: `report.md` and `result.json` record the tile's file name only, never the directory it came from, because those two files get forwarded. `reproducibility/commands.sh` keeps the full path, since replaying the run is the one thing that needs it. Scrub it before sharing a bundle from a patient directory.
 - **Disclaimer**: Every report ends with the ClawBio disclaimer: *ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
 - **Research use**: Upstream marks the model research use only, not for clinical or diagnostic use. This skill inherits that.

@@ -12,7 +12,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import contextlib
 import csv
 import datetime
 import json
@@ -49,6 +48,12 @@ MODEL_REPO = "ratschlab/DeepSpotM"
 # repo moves independently of the PyPI package, so a floating fetch would change
 # results silently. Bump deliberately; see ## Maintenance in SKILL.md.
 MODEL_REVISION = "86113ee431248c892d25cf55e1f8017cccec2926"
+
+# The three files upstream's loader reads, in the order it reads them. Named here
+# so the skill can resolve them itself and keep the download gate honest; see
+# _resolve_checkpoint_dir.
+MODEL_FILES = ("config.json", "model.safetensors", "tokens.csv")
+
 EXPRESSION_UNIT = "log1p-CPM"
 
 # Upstream's WEIGHTS_LICENSE.md puts the NonCommercial term on "the weights or
@@ -316,21 +321,42 @@ def assess_tile(
 # ---------------------------------------------------------------------------
 
 
-@contextlib.contextmanager
-def _hub_offline(offline: bool):
-    """Pin huggingface_hub to the local cache for the duration of a load."""
-    if not offline:
-        yield
-        return
-    previous = os.environ.get("HF_HUB_OFFLINE")
-    os.environ["HF_HUB_OFFLINE"] = "1"
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop("HF_HUB_OFFLINE", None)
-        else:
-            os.environ["HF_HUB_OFFLINE"] = previous
+def _resolve_checkpoint_dir(allow_download: bool) -> str:
+    """Put the pinned checkpoint on disk and return the directory holding it.
+
+    Upstream's loader calls `hf_hub_download(repo_id, fn, revision=revision)` with
+    no `local_files_only`, so handing it a repo id fetches whatever is missing.
+    `HF_HUB_OFFLINE` cannot be used to stop that from here: huggingface_hub reads
+    it once, at import, into `constants.HF_HUB_OFFLINE`, and `deepspotm` imports
+    the library before this function ever runs. Resolving the three files here,
+    with the flag passed explicitly, is what makes --allow-download mean anything.
+
+    `DeepSpotM.from_pretrained` takes a local directory as well as a repo id, and
+    builds the vision backbone from a config bundled in the package
+    (`backbone_pretrained=False`), so once these three files are cached the load
+    itself touches no network.
+    """
+    from huggingface_hub import hf_hub_download
+
+    resolved = [
+        hf_hub_download(
+            MODEL_REPO,
+            filename,
+            revision=MODEL_REVISION,
+            local_files_only=not allow_download,
+        )
+        for filename in MODEL_FILES
+    ]
+
+    # One repo at one pinned revision lands in one snapshot directory. Checked
+    # rather than assumed, because the directory is what gets loaded.
+    directories = {os.path.dirname(path) for path in resolved}
+    if len(directories) != 1:
+        raise RuntimeError(
+            f"Expected {', '.join(MODEL_FILES)} to resolve into a single directory, "
+            f"got {sorted(directories)}."
+        )
+    return directories.pop()
 
 
 def predict_expression(
@@ -358,20 +384,21 @@ def predict_expression(
         ) from exc
 
     try:
-        with _hub_offline(not allow_download):
-            model, image_processor = DeepSpotM.from_pretrained(
-                MODEL_REPO, source=source, revision=MODEL_REVISION
-            )
+        checkpoint_dir = _resolve_checkpoint_dir(allow_download)
     except Exception as exc:
         if allow_download:
             raise
         raise RuntimeError(
-            f"Could not load {MODEL_REPO} at revision {MODEL_REVISION[:12]} from the "
+            f"Could not read {MODEL_REPO} at revision {MODEL_REVISION[:12]} from the "
             f"local Hugging Face cache ({exc}). The weights are gated: request access "
             f"on https://huggingface.co/{MODEL_REPO}, run 'huggingface-cli login', then "
             "re-run with --allow-download to fetch them once. Use --demo to inspect "
             "the output format without any of that."
         ) from exc
+
+    # The revision is pinned above, on the download; a directory has no revision
+    # to pass on.
+    model, image_processor = DeepSpotM.from_pretrained(checkpoint_dir, source=source)
 
     model.eval()
 
@@ -638,6 +665,12 @@ def write_reproducibility(
         cmd_args += ["--source", str(meta["source"])]
         if meta["microns_per_pixel"] is not None and args.mpp is not None:
             cmd_args += ["--mpp", str(args.mpp)]
+        # Both thresholds feed the tile assessment, so a bundle that drops a
+        # non-default one can refuse to score a tile the original run scored.
+        if args.white_mean != WHITE_MEAN_DEFAULT:
+            cmd_args += ["--white-mean", str(args.white_mean)]
+        if args.min_saturation != MIN_SATURATION_DEFAULT:
+            cmd_args += ["--min-saturation", str(args.min_saturation)]
         if args.skip_background:
             cmd_args.append("--skip-background")
         if args.allow_download:
