@@ -137,7 +137,7 @@ python clawbio.py run gi-promoter --demo
 python clawbio.py run gi-promoter --demo
 ```
 
-Bundled fixture is the TP53 locus (19 kbp, GRCh38). Expect ~20 windows, near-zero promoter calls at the default 0.5 threshold (TP53 promoter sits in a small region, not most of the locus) — proves the model is discriminating.
+Bundled fixture is the TP53 locus (25.8 kbp, GRCh38, gene-sense). Expect ~26 windows and only a small minority called as promoters at the default 0.5 threshold — 4 at the time of writing — because the TP53 promoter occupies a small part of the locus, not most of it. The point is the ratio, not the exact count: a model calling most windows would not be discriminating. Treat the figure as indicative and re-measure rather than asserting it.
 
 ## Authentication
 
@@ -170,7 +170,8 @@ export GI_API_KEY=gi_yourkeyhere
 - **Length bounds are 300–500,000 bp**, published as `minLength` / `maxLength` on `PromoterPredictRequest` and counted after whitespace is stripped. Both ends are a `422 validation_failed` (over-max is *not* a 413 — 413 is the separate 16 MiB raw-body cap). The skill rejects either locally before spending a request.
 - **300 bp is admission control, not regime.** A 400 bp sequence is accepted and scored, but the default `g0-promoter-2000bp` has a 2000 bp context window, so anything shorter is scored against a window padded out to 2000 bp. Compare your length against the model's `bio_spec.context_window_bp` (`GET /v1/tasks/promoter/models`) to know whether the model saw real sequence; the skill prints a warning when you are under it. The `*-300bp` models have a 300 bp context window, so they are in regime at the floor.
 - **Don't pre-window the sequence yourself.** Submit the full region — the API stride/window. Pre-windowing inflates rate-limit usage and gives identical results.
-- **Strand matters — submit gene-sense.** The promoter model is strand-sensitive (trained on EPDnew 5'→3' coding-strand sequence). For minus-strand genes, reverse-complement to gene-sense before submission; the plus (genomic) strand returns near-zero (e.g. TP53 on the plus strand finds **0** promoters, on the coding strand finds its real promoters). The bundled TP53 fixture is already gene-sense.
+- **Strand matters — submit gene-sense.** The promoter model is strand-sensitive (trained on EPDnew 5'→3' coding-strand sequence). For minus-strand genes, reverse-complement to gene-sense before submission. Measured on the bundled TP53 fixture: gene-sense scores 4 promoter windows with a top score of 0.92; the genomic strand scores **0** windows above the 0.5 threshold, with a maximum of 0.32 anywhere in the locus. The bundled TP53 fixture is already gene-sense.
+- **An empty promoter result is weak evidence of a strand error — and this does not generalise.** Because the promoter score collapses below threshold on the wrong strand (above), an unexpectedly empty result is worth re-checking orientation. Do not carry that heuristic to other tasks: `gi-splice` returns a full set of high-confidence sites on the wrong strand, so there an empty result means no sites, never a strand error.
 - **The hackathon key is shared.** If you hit `429`, you're sharing 50 concurrent / 120 rpm with everyone else. Set `GI_API_KEY` to your own key for serious work.
 - **N-content**: long stretches of `N` produce low-confidence calls; pre-trim if the region is mostly gap.
 

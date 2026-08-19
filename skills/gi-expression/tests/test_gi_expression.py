@@ -108,7 +108,14 @@ def test_demo_mode_predicts_high_hbb_k562_expression(tmp_path):
     assert result.returncode == 0, f"stderr: {result.stderr}"
     body = json.loads((tmp_path / "result.json").read_text())
     log_tpm = body["summary"].get("log_tpm")
-    assert log_tpm is not None and log_tpm > 2.0, (
-        f"HBB-in-K562 should report log(TPM+1) > 2.0; got {log_tpm}. "
+    # The floor sits well below the current gene-sense value and well above the
+    # wrong-strand one, because this test exists to catch a strand/plumbing
+    # regression, not to pin a prediction. Measured 2026-08-19 on the bundled
+    # fixture: gene-sense 0.95, genomic strand 0.06. Absolute values move when
+    # the model checkpoint changes -- an earlier `> 2.0` here went stale and
+    # failed against production. If this fires, re-measure both strands before
+    # touching the number.
+    assert log_tpm is not None and log_tpm > 0.3, (
+        f"HBB-in-K562 should score well above the wrong-strand level; got {log_tpm}. "
         "Check that the FASTA is RC'd to gene-sense and the default description is reaching the API."
     )
