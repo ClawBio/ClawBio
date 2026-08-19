@@ -63,9 +63,9 @@ class GIError(RuntimeError):
         self.status = status
         self.code = err.get("code", "http_error")
         self.message = err.get("message", "")
-        # The envelope declares request_id required, but 413 sync_too_large
-        # omits it today. The X-Request-Id header is set on every response,
-        # so fall back to it — support tickets always need a correlation id.
+        # Prefer the envelope's request_id; every error response carries it.
+        # Fall back to the X-Request-Id header for robustness (e.g. a non-JSON
+        # body from a proxy) — support tickets always need a correlation id.
         self.request_id = err.get("request_id") or (headers or {}).get("X-Request-Id")
         self.details = err.get("details")
         rid = self.request_id or "unset"
@@ -121,7 +121,10 @@ class Client:
         try:
             body = resp.json()
         except ValueError:
-            body = {"error": {"code": "non_json", "message": resp.text[:200]}}
+            # http_error is a published enum value; the response arrived with a
+            # status and body, it just was not JSON. Client-origin errors carry
+            # no request_id, which distinguishes them from server codes.
+            body = {"error": {"code": "http_error", "message": resp.text[:200]}}
         if not resp.ok:
             raise GIError(resp.status_code, body, resp.headers)
         return body
@@ -222,7 +225,7 @@ class Client:
             try:
                 body = r.json()
             except ValueError:
-                body = {"error": {"code": "non_json", "message": r.text[:200]}}
+                body = {"error": {"code": "http_error", "message": r.text[:200]}}
             raise GIError(r.status_code, body, r.headers)
 
 
