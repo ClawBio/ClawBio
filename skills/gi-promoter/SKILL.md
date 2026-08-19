@@ -149,7 +149,7 @@ The skill requires a Genomic Intelligence partner key in `GI_API_KEY`. Resolutio
 
 ### Quick start — ClawBio hackathon key
 
-A shared hackathon-tier key ships in `.env.example` at the repo root (50 concurrent / 120 rpm, opt-in only). From wherever the ClawBio files live on your machine:
+A shared hackathon-tier key ships in `.env.example` at the repo root (opt-in only). Caps are per-key and are not published as a fixed number — read `RateLimit-Limit` / `RateLimit-Remaining` on any response for the live allowance. From wherever the ClawBio files live on your machine:
 
 ```bash
 # Repo root (git clone) — or ~/.claude/plugins/cache/clawbio/clawbio/<version>/ for plugin installs
@@ -172,7 +172,7 @@ export GI_API_KEY=gi_yourkeyhere
 - **Don't pre-window the sequence yourself.** Submit the full region — the API stride/window. Pre-windowing inflates rate-limit usage and gives identical results.
 - **Strand matters — submit gene-sense.** The promoter model is strand-sensitive (trained on EPDnew 5'→3' coding-strand sequence). For minus-strand genes, reverse-complement to gene-sense before submission. Measured on the bundled TP53 fixture: gene-sense scores 4 promoter windows with a top score of 0.92; the genomic strand scores **0** windows above the 0.5 threshold, with a maximum of 0.32 anywhere in the locus. The bundled TP53 fixture is already gene-sense.
 - **An empty promoter result is weak evidence of a strand error — and this does not generalise.** Because the promoter score collapses below threshold on the wrong strand (above), an unexpectedly empty result is worth re-checking orientation. Do not carry that heuristic to other tasks: `gi-splice` returns a full set of high-confidence sites on the wrong strand, so there an empty result means no sites, never a strand error.
-- **The hackathon key is shared.** If you hit `429`, you're sharing 50 concurrent / 120 rpm with everyone else. Set `GI_API_KEY` to your own key for serious work.
+- **The hackathon key is shared.** If you hit `429`, you are sharing one key's caps with everyone else. Those caps are per-key and can be retuned server-side, so don't hardcode a number — `RateLimit-Limit` on any response is the live per-minute burst allowance and `Retry-After` on a `429` is the wait. Set `GI_API_KEY` to your own key for serious work.
 - **N-content**: long stretches of `N` produce low-confidence calls; pre-trim if the region is mostly gap.
 
 ## Output Structure
