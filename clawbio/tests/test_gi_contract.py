@@ -149,3 +149,40 @@ def test_a_long_fasta_header_is_truncated_to_the_schema_cap(tmp_path, monkeypatc
         capture_output=True, text=True, timeout=60,
     )
     assert "truncated to 128 characters" in result.stderr
+
+
+class TestInputRefusal:
+    """The client refuses malformed FASTA instead of silently repairing it.
+
+    Both behaviours shipped: non-ACGTN characters were deleted (shifting every
+    downstream coordinate) and multi-record files were concatenated into one
+    chimeric sequence. Each produced a confident, well-formed, wrong result.
+    """
+
+    def _write(self, tmp_path, content):
+        p = tmp_path / "in.fa"
+        p.write_text(content)
+        return p
+
+    def test_accepts_clean_single_record(self, tmp_path):
+        from clawbio.gi.gi_client import read_fasta
+        name, seq = read_fasta(self._write(tmp_path, ">chr1 desc\nACGT\nacgt\n"))
+        assert name == "chr1" and seq == "ACGTACGT"
+
+    def test_rejects_iupac_ambiguity(self, tmp_path):
+        import pytest
+        from clawbio.gi.gi_client import FastaError, read_fasta
+        with pytest.raises(FastaError) as exc:
+            read_fasta(self._write(tmp_path, ">x\nACGTRYKM\n"))
+        assert "outside ACGTN" in str(exc.value) and "IUPAC" in str(exc.value)
+
+    def test_rejects_multi_record(self, tmp_path):
+        import pytest
+        from clawbio.gi.gi_client import FastaError, read_fasta
+        with pytest.raises(FastaError) as exc:
+            read_fasta(self._write(tmp_path, ">a\nACGT\n>b\nTTTT\n"))
+        assert "single FASTA record" in str(exc.value)
+
+    def test_fasta_error_is_value_error(self):
+        from clawbio.gi.gi_client import FastaError
+        assert issubclass(FastaError, ValueError)

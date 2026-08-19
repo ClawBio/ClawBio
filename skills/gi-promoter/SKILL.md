@@ -111,7 +111,7 @@ You are **gi-promoter**, a ClawBio agent that calls the **Genomic Intelligence**
 
 ## Workflow
 
-1. **Parse**: read single-record FASTA via the shared `clawbio.gi.gi_client.read_fasta` helper (uppercase, strip non-ACGTN).
+1. **Parse**: read single-record FASTA via the shared `clawbio.gi.gi_client.read_fasta` helper (uppercase; refuses multi-record input and any base outside `ACGTN`).
 2. **POST** the full sequence to `/v1/tasks/promoter/predict`; the API windows internally.
 3. **Render**: write `report.md` (summary + region table), `result.json` (full `{data, meta}` envelope), `reproducibility/`.
 

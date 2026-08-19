@@ -18,7 +18,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from clawbio.gi.gi_client import Client, GIError, read_fasta
+import requests
+
+from clawbio.gi.gi_client import Client, FastaError, GIError, read_fasta
 
 DISCLAIMER = (
     "ClawBio is a research and educational tool. It is not a medical "
@@ -332,7 +334,11 @@ def run_skill(*, task: str, demo_path: Path, async_mode: bool = False, default_m
     """Skill entry-point. Returns process exit code."""
     args = _parse_args(task)
     input_path = _resolve_input(args, demo_path, task)
-    sequence_name, sequence = read_fasta(input_path)
+    try:
+        sequence_name, sequence = read_fasta(input_path)
+    except FastaError as e:
+        print(f"[gi-{task}] invalid input — {e}", file=sys.stderr)
+        return 1
     if not sequence:
         print(f"Error: parsed an empty sequence from {input_path}", file=sys.stderr)
         return 1
@@ -389,6 +395,21 @@ def run_skill(*, task: str, demo_path: Path, async_mode: bool = False, default_m
             body = client.predict(task, sequence=sequence, sequence_name=sequence_name, model=model, options=options or None, tss_index=tss_index)
     except GIError as e:
         print(f"[gi-{task}] API error: {e}", file=sys.stderr)
+        return 2
+    except requests.RequestException as e:
+        # Connection refused, DNS failure, TLS error, read timeout — routine
+        # for a hosted service and not the caller's bug. Surface a diagnostic
+        # rather than a traceback that reads like a client defect.
+        print(f"[gi-{task}] network error reaching the API: {type(e).__name__}: {e}", file=sys.stderr)
+        return 2
+    except TimeoutError as e:
+        # Raised by wait_for_job when a job outlives its deadline.
+        print(f"[gi-{task}] timed out waiting for the job: {e}", file=sys.stderr)
+        return 2
+    except KeyError as e:
+        # A 2xx whose body is missing a field we index (e.g. data.job_id on an
+        # async submit). Malformed upstream response, not a usage error.
+        print(f"[gi-{task}] unexpected API response shape: missing {e}", file=sys.stderr)
         return 2
     elapsed_ms = (time.monotonic() - started) * 1000.0
     summary = _summarize(task, body)

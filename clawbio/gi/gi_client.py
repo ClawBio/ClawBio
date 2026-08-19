@@ -41,6 +41,21 @@ MISSING_KEY_MESSAGE = (
 )
 
 
+# IUPAC ambiguity codes. Listed so the parser can say *why* it is refusing:
+# these are legitimate FASTA content the model cannot score, which is a
+# different problem from a stray character and deserves a different hint.
+_IUPAC_AMBIGUITY = "RYSWKMBDHV"
+
+
+class FastaError(ValueError):
+    """Malformed FASTA input, rejected rather than silently repaired.
+
+    Subclasses ``ValueError`` so a caller doing broad input validation still
+    catches it, while callers that want to distinguish input problems from
+    API problems can catch this specifically.
+    """
+
+
 class GIError(RuntimeError):
     """Non-2xx response from the API. Mirrors the ``{error}`` envelope.
 
@@ -231,24 +246,68 @@ class Client:
 
 
 def read_fasta(path) -> tuple[str, str]:
-    """Tiny FASTA parser (single record). Returns (sequence_name, sequence).
+    """Parse a single-record FASTA. Returns (sequence_name, sequence).
 
-    Concatenates all non-header lines; uppercases; strips whitespace and
-    non-ACGTN characters. Sufficient for the demo fixtures bundled in
-    each gi-* skill; users with multi-record FASTA should pre-process.
+    Rejects malformed input rather than repairing it. Earlier versions
+    silently deleted every character outside ``ACGTN`` and concatenated a
+    multi-record file into one chimeric sequence under the first record's
+    name. Both are unrecoverable once they happen: deleting an IUPAC
+    ambiguity code shifts every base after it, so the model scores a
+    sequence the caller never supplied and returns a confident result with
+    nothing to indicate the substitution.
+
+    Whitespace, blank lines and lowercase input are still handled — those
+    are formatting, not content.
+
+    Raises:
+        FastaError: more than one record, or a base outside ``ACGTN``.
     """
     from pathlib import Path
     name = None
+    record_names: list[str] = []
     seq_parts: list[str] = []
+    offenders: dict[str, int] = {}
     with open(Path(path)) as fh:
-        for line in fh:
+        for lineno, line in enumerate(fh, start=1):
             line = line.strip()
             if not line:
                 continue
             if line.startswith(">"):
+                header = line[1:].split()[0] if line[1:].split() else "sequence"
+                record_names.append(header)
                 if name is None:
-                    name = line[1:].split()[0] or "sequence"
+                    name = header
                 continue
-            seq_parts.append("".join(c for c in line.upper() if c in "ACGTN"))
-    seq = "".join(seq_parts)
-    return name or "sequence", seq
+            upper = line.upper()
+            for char in upper:
+                if char not in "ACGTN":
+                    offenders.setdefault(char, lineno)
+            seq_parts.append(upper)
+
+    if len(record_names) > 1:
+        shown = ", ".join(record_names[:3])
+        more = f", … ({len(record_names)} total)" if len(record_names) > 3 else ""
+        raise FastaError(
+            f"{path}: expected a single FASTA record, found {len(record_names)} "
+            f"({shown}{more}). Concatenating them would submit a chimeric "
+            f"sequence under one name — split the file and submit one record "
+            f"per request."
+        )
+
+    if offenders:
+        detail = ", ".join(
+            f"{char!r} (first at line {lineno})"
+            for char, lineno in sorted(offenders.items(), key=lambda kv: kv[1])[:5]
+        )
+        ambiguity = sorted(c for c in offenders if c in _IUPAC_AMBIGUITY)
+        hint = (
+            " IUPAC ambiguity codes cannot be scored; resolve them to explicit "
+            "bases or submit a different region."
+            if ambiguity
+            else " Remove or resolve them before submitting."
+        )
+        raise FastaError(
+            f"{path}: sequence contains characters outside ACGTN: {detail}.{hint}"
+        )
+
+    return name or "sequence", "".join(seq_parts)
