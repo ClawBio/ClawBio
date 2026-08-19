@@ -50,7 +50,7 @@ metadata:
     - fa
     - fasta
     - fna
-    description: Single-record FASTA. Any length; the API windows automatically (default model uses 2000 bp context, 1000 bp stride).
+    description: Single-record FASTA, 300–500,000 bp (whitespace stripped). The API windows automatically (default model uses 2000 bp context, 1000 bp stride).
     required: false
   outputs:
   - name: report
@@ -77,7 +77,7 @@ metadata:
 
 # 🧬 gi-promoter
 
-You are **gi-promoter**, a ClawBio agent that calls the **Genomic Intelligence** promoter-prediction model. Given a DNA sequence (any length), it returns per-window promoter probabilities and called regions, all in a few hundred milliseconds via the hosted API.
+You are **gi-promoter**, a ClawBio agent that calls the **Genomic Intelligence** promoter-prediction model. Given a DNA sequence of 300–500,000 bp, it returns per-window promoter probabilities and called regions, all in a few hundred milliseconds via the hosted API.
 
 > ⚠️ **Remote inference — opt-in required.** Unlike most ClawBio skills, this skill uploads your FASTA sequence to the hosted Genomic Intelligence API at `https://api.genomicintelligence.ai`. Prefer a browser? The same models run interactively at <https://genomicintelligence.ai>. **Do not submit identifiable patient data** without an appropriate data-use agreement. Key setup: see [Authentication](#authentication) below.
 
@@ -106,6 +106,8 @@ You are **gi-promoter**, a ClawBio agent that calls the **Genomic Intelligence**
 ## API Backed
 
 `POST https://api.genomicintelligence.ai/v1/tasks/promoter/predict` — default model `g0-promoter-2000bp` (GENA-LM BERT Large, 2000 bp context, 1000 bp prediction window). Override with `--model g0-promoter-large-300bp` (faster) or `--model dnabert-promoter-2000bp` (DNABERT, 6-mer tokenization).
+
+> **Contract note (2026-08-19).** The API publishes one operation per task, each with its own request schema — per-task `minLength`/`maxLength` on `sequence`, and a typed, closed `options` object (an unknown option key is a `422 validation_failed`, not a silent ignore). The URL above is byte-identical to what this skill already posted; only the published document changed. The bounds quoted in this file are live on the GI DEV service (`2026.08.19.4`) and reach `api.genomicintelligence.ai` at the next promotion — until then PROD is the more permissive of the two and this skill's local gate is the stricter. The authority is always the served schema: `GET https://api.genomicintelligence.ai/v1/openapi.json`.
 
 ## Workflow
 
@@ -165,6 +167,8 @@ export GI_API_KEY=gi_yourkeyhere
 
 ## Gotchas
 
+- **Length bounds are 300–500,000 bp**, published as `minLength` / `maxLength` on `PromoterPredictRequest` and counted after whitespace is stripped. Both ends are a `422 validation_failed` (over-max is *not* a 413 — 413 is the separate 16 MiB raw-body cap). The skill rejects either locally before spending a request.
+- **300 bp is admission control, not regime.** A 400 bp sequence is accepted and scored, but the default `g0-promoter-2000bp` has a 2000 bp context window, so anything shorter is scored against a window padded out to 2000 bp. Compare your length against the model's `bio_spec.context_window_bp` (`GET /v1/tasks/promoter/models`) to know whether the model saw real sequence; the skill prints a warning when you are under it. The `*-300bp` models have a 300 bp context window, so they are in regime at the floor.
 - **Don't pre-window the sequence yourself.** Submit the full region — the API stride/window. Pre-windowing inflates rate-limit usage and gives identical results.
 - **Strand matters — submit gene-sense.** The promoter model is strand-sensitive (trained on EPDnew 5'→3' coding-strand sequence). For minus-strand genes, reverse-complement to gene-sense before submission; the plus (genomic) strand returns near-zero (e.g. TP53 on the plus strand finds **0** promoters, on the coding strand finds its real promoters). The bundled TP53 fixture is already gene-sense.
 - **The hackathon key is shared.** If you hit `429`, you're sharing 50 concurrent / 120 rpm with everyone else. Set `GI_API_KEY` to your own key for serious work.

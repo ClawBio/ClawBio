@@ -50,7 +50,7 @@ metadata:
     - fa
     - fasta
     - fna
-    description: Single-record FASTA (genomic region; can be tens to hundreds of kbp).
+    description: Single-record FASTA (genomic region), 1,000–500,000 bp (whitespace stripped) — tens to hundreds of kbp is the normal case.
     required: false
   outputs:
   - name: report
@@ -103,6 +103,8 @@ You are **gi-annotation**, a ClawBio agent that calls the **Genomic Intelligence
 ## API Backed
 
 `POST https://api.genomicintelligence.ai/v1/tasks/annotation/predict` with `Prefer: respond-async` — annotation is **async-only**. The pipeline streams progress through `GET /v1/tasks/jobs/{job_id}` (typically: load → gene-boundaries → gene-intervals → transcripts).
+
+> **Contract note (2026-08-19).** The API publishes one operation per task, each with its own request schema — per-task `minLength`/`maxLength` on `sequence`, and a typed, closed `options` object (an unknown option key is a `422 validation_failed`, not a silent ignore). The URL above is byte-identical to what this skill already posted; only the published document changed. The bounds quoted in this file are live on the GI DEV service (`2026.08.19.4`) and reach `api.genomicintelligence.ai` at the next promotion — until then PROD is the more permissive of the two and this skill's local gate is the stricter. The authority is always the served schema: `GET https://api.genomicintelligence.ai/v1/openapi.json`.
 
 ## Workflow
 
@@ -161,7 +163,8 @@ Bundled fixture is the TP53 locus (19 kbp). Expect ~5 transcripts (TP53 has mult
 ## Gotchas
 
 - **Async-only.** Don't expect a sync response. The runner handles polling automatically.
-- **Long input is normal.** The model handles tens-to-hundreds of kbp; longer regions take proportionally more time.
+- **Length bounds are 1,000–500,000 bp**, published as `minLength` / `maxLength` on `AnnotationPredictRequest` and counted after whitespace is stripped. Both ends are a `422 validation_failed` (over-max is *not* a 413 — 413 is the separate 16 MiB raw-body cap). The skill rejects either locally before spending a request. The 1,000 bp floor is the highest of the six tasks: the gene finder needs a region, not a single exon.
+- **Long input is normal.** The model handles tens-to-hundreds of kbp up to the 500 kbp cap; longer regions take proportionally more time. Annotation reports `bio_spec.context_window_bp: null` — there is no sliding-window regime caveat here, unlike promoter / splice / enhancer / chromatin.
 - **First-call cold-start.** The annotation pipeline is the heaviest GI model — first request after a cold service takes ~30+ s; subsequent calls are warm.
 - **The model is trained on human + a few other vertebrates.** Bacterial / fungal / plant predictions are out of distribution.
 - **Hackathon key is shared.** Async jobs count toward concurrent caps too — under heavy hackathon load, you may queue.

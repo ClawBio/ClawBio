@@ -50,7 +50,7 @@ metadata:
     - fa
     - fasta
     - fna
-    description: Single-record FASTA (any length; API windows automatically).
+    description: Single-record FASTA, 50–500,000 bp (whitespace stripped); the API windows automatically.
     required: false
   outputs:
   - name: report
@@ -105,6 +105,8 @@ You are **gi-enhancer**, a ClawBio agent that calls the **Genomic Intelligence**
 
 `POST https://api.genomicintelligence.ai/v1/tasks/enhancer/predict` — default model `g0-deepstarr`.
 
+> **Contract note (2026-08-19).** The API publishes one operation per task, each with its own request schema — per-task `minLength`/`maxLength` on `sequence`, and a typed, closed `options` object (an unknown option key is a `422 validation_failed`, not a silent ignore). The URL above is byte-identical to what this skill already posted; only the published document changed. The bounds quoted in this file are live on the GI DEV service (`2026.08.19.4`) and reach `api.genomicintelligence.ai` at the next promotion — until then PROD is the more permissive of the two and this skill's local gate is the stricter. The authority is always the served schema: `GET https://api.genomicintelligence.ai/v1/openapi.json`.
+
 ## Workflow
 
 1. **Parse**: single-record FASTA.
@@ -156,6 +158,8 @@ Bundled fixture is the Drosophila *eve* (even-skipped) locus (chr2R:9972000-9982
 ## Gotchas
 
 - **DeepSTARR was trained on Drosophila S2 cells.** Activity scores for mammalian sequences are still informative as a relative ranking, but the absolute scale is calibrated for fly chromatin.
+- **Length bounds are 50–500,000 bp**, published as `minLength` / `maxLength` on `EnhancerPredictRequest` and counted after whitespace is stripped. Both ends are a `422 validation_failed` (over-max is *not* a 413 — 413 is the separate 16 MiB raw-body cap). The skill rejects either locally before spending a request.
+- **50 bp is admission control, not a meaningful enhancer size.** It is the strictest floor any enhancer model needs (`dnabert-deepstarr` tolerates 16). The models' context window is 249 bp, so 50–248 bp is accepted and scored — against a window padded out to 249 bp. Compare your length against `bio_spec.context_window_bp` (`GET /v1/tasks/enhancer/models`) to know whether the model saw real sequence; the skill warns when you are under it.
 - **Pre-windowing is unnecessary** — the API strides internally.
 - **Hackathon key is shared** — `GI_API_KEY` for heavier use.
 

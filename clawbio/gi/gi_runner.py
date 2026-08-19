@@ -26,14 +26,102 @@ DISCLAIMER = (
     "professional before making any medical decisions."
 )
 
-# /v1/tasks/expression/predict scores exactly one TSS-centred window of
-# 9,198 bp (radius 4,599). Longer submissions are allowed up to 500 kbp
-# provided ``tss_index`` says where to cut; everything else is a 422.
-# Mirrors EXPRESSION_MIN_BP / EXPRESSION_MAX_BP / EXPRESSION_TSS_RADIUS
-# in the API. Contract: https://docs.genomicintelligence.ai
-EXPRESSION_WINDOW_BP = 9198
+# --- Sequence-length contract -------------------------------------------
+#
+# Every task has its own admission floor, published as ``minLength`` on that
+# task's request schema and enforced before any model loads. The values below
+# are a LOCAL MIRROR so a too-short FASTA costs no API key, no request and no
+# 422; the authority is the served schema at
+# ``GET https://api.genomicintelligence.ai/v1/openapi.json`` (server-side:
+# ``gpu_service/core/limits.py``). Settled 2026-08-19.
+#
+# Floors are admission control, not biology: they are the strictest thing any
+# model for that task needs, and they say nothing about whether the model saw
+# real sequence. See TASK_CONTEXT_WINDOW_BP below.
+TASK_MIN_BP: Dict[str, int] = {
+    "promoter": 300,
+    "splice": 100,
+    "enhancer": 50,
+    "chromatin": 200,
+    "annotation": 1000,
+    "expression": 9198,
+}
+REQUEST_MAX_BP = 500_000
+
+# ``sequence_name`` is a display-only field, ``maxLength: 128`` on every
+# per-task request schema.
+SEQUENCE_NAME_MAX_CHARS = 128
+
+# Extra operator-facing context appended to a too-short rejection.
+TASK_MIN_BP_HINT: Dict[str, str] = {
+    "expression": (
+        "the model scores exactly one TSS-centred window of that size "
+        "(TSS ± 4599). Submit at least a full window, or submit a longer "
+        "locus and pass --tss-index."
+    ),
+    "annotation": "the gene finder needs a genomic region, not a single exon.",
+}
+
+# The default model's own sliding window, from ``bio_spec.context_window_bp``
+# on ``GET /v1/tasks/{task}/models``. A request above the floor but shorter
+# than this is ACCEPTED and scored — against a window padded out to the
+# context window. So the floor admits, and this is what tells you whether the
+# model saw real sequence. ``None`` = no sliding window (annotation and
+# expression report ``context_window_bp: null``).
+TASK_CONTEXT_WINDOW_BP: Dict[str, Optional[int]] = {
+    "promoter": 2000,  # default g0-promoter-2000bp; the *-300bp models are 300
+    "splice": 15000,
+    "enhancer": 249,
+    "chromatin": 1000,
+    "annotation": None,
+    "expression": None,
+}
+
+# Expression scores exactly one TSS-centred 9,198 bp window (radius 4,599),
+# cut server-side; a longer locus is allowed up to REQUEST_MAX_BP provided
+# ``tss_index`` says where to cut. Unlike the other tasks, expression does not
+# pad — its floor and its window are the same number.
+EXPRESSION_WINDOW_BP = TASK_MIN_BP["expression"]
 EXPRESSION_TSS_RADIUS = EXPRESSION_WINDOW_BP // 2  # 4599
-EXPRESSION_MAX_BP = 500_000
+EXPRESSION_MAX_BP = REQUEST_MAX_BP  # kept as an alias; the cap is task-wide
+
+
+def validate_sequence_length(task: str, sequence: str) -> Optional[str]:
+    """Check a sequence against the task's published length bounds.
+
+    Returns ``None`` when the request would be accepted, otherwise the
+    operator-facing reason. Both bounds are ``422 validation_failed`` at the
+    API (over-max is *not* a 413 — 413 is the 16 MiB raw-body cap), and both
+    are counted on the whitespace-stripped nucleotide string.
+    """
+    n = len(sequence)
+    floor = TASK_MIN_BP.get(task)
+    if floor is not None and n < floor:
+        hint = TASK_MIN_BP_HINT.get(task)
+        msg = f"sequence is {n:,} bp; {task} needs at least {floor} bp"
+        return f"{msg} — {hint}" if hint else msg
+    if n > REQUEST_MAX_BP:
+        return f"sequence is {n:,} bp; the maximum is {REQUEST_MAX_BP} bp"
+    return None
+
+
+def regime_note(task: str, sequence_length: int) -> Optional[str]:
+    """Warn when the submission is in range but shorter than the model's window.
+
+    Not an error: the API accepts it and returns a score. The model simply
+    sees the sequence padded out to its context window, so the result is a
+    padded-window score rather than a full-context one.
+    """
+    context = TASK_CONTEXT_WINDOW_BP.get(task)
+    if context is None or sequence_length >= context:
+        return None
+    return (
+        f"sequence is {sequence_length:,} bp, shorter than the default {task} "
+        f"model's {context:,} bp context window — the API accepts and scores it, "
+        f"but against a window padded out to {context:,} bp. Treat the result as "
+        f"a padded-window score. Check bio_spec.context_window_bp on "
+        f"GET /v1/tasks/{task}/models if you passed --model."
+    )
 
 
 def validate_expression_input(sequence: str, tss_index: Optional[int]) -> Optional[str]:
@@ -46,17 +134,14 @@ def validate_expression_input(sequence: str, tss_index: Optional[int]) -> Option
     ``sequence`` must already be the whitespace-stripped nucleotide string
     (``read_fasta`` returns exactly that) — the API counts length and
     interprets ``tss_index`` on the stripped string, not on file characters.
+
+    The length bounds come from :func:`validate_sequence_length`; what is
+    expression-specific is the ``tss_index`` rule.
     """
     n = len(sequence)
-    if n < EXPRESSION_WINDOW_BP:
-        return (
-            f"sequence is {n:,} bp; expression needs at least {EXPRESSION_WINDOW_BP} bp — "
-            f"the model scores exactly one TSS-centred window of that size "
-            f"(TSS ± {EXPRESSION_TSS_RADIUS}). Submit at least a full window, or submit a "
-            f"longer locus and pass --tss-index."
-        )
-    if n > EXPRESSION_MAX_BP:
-        return f"sequence is {n:,} bp; the maximum is {EXPRESSION_MAX_BP} bp"
+    problem = validate_sequence_length("expression", sequence)
+    if problem:
+        return problem
     if tss_index is None:
         if n != EXPRESSION_WINDOW_BP:
             return (
@@ -251,21 +336,42 @@ def run_skill(*, task: str, demo_path: Path, async_mode: bool = False, default_m
     if not sequence:
         print(f"Error: parsed an empty sequence from {input_path}", file=sys.stderr)
         return 1
+    # ``sequence_name`` is capped at 128 chars in every request schema; a long
+    # FASTA header would otherwise be a 422 over a display-only field.
+    if len(sequence_name) > SEQUENCE_NAME_MAX_CHARS:
+        sequence_name = sequence_name[:SEQUENCE_NAME_MAX_CHARS]
+        print(f"Warning: FASTA name truncated to {SEQUENCE_NAME_MAX_CHARS} characters (API limit)", file=sys.stderr)
+    # Length gate first, for every task: each has its own published floor, and
+    # rejecting locally costs no API key, no request and no 422.
     if task == "expression":
         problem = validate_expression_input(sequence, args.tss_index)
-        if problem:
-            print(f"Error: {problem}", file=sys.stderr)
-            return 1
-    elif args.tss_index is not None:
-        print(f"Warning: --tss-index applies only to gi-expression; ignoring it for {task}", file=sys.stderr)
+    else:
+        problem = validate_sequence_length(task, sequence)
+        if args.tss_index is not None:
+            print(f"Warning: --tss-index applies only to gi-expression; ignoring it for {task}", file=sys.stderr)
+    if problem:
+        print(f"Error: {problem}", file=sys.stderr)
+        return 1
+    note = regime_note(task, len(sequence))
+    if note:
+        print(f"Warning: {note}", file=sys.stderr)
 
-    client = Client(api_key=args.api_key, base_url=args.base_url)
     model = args.model or default_model
     options: Dict[str, Any] = dict(default_options or {})
     if args.description is not None:
-        options["description"] = args.description
+        # ``options`` is typed and closed per task (additionalProperties:
+        # false). Only expression declares ``description``; forwarding it
+        # anywhere else is a hard 422 extra_forbidden, not a silent ignore.
+        if task == "expression":
+            options["description"] = args.description
+        else:
+            print(f"Warning: --description applies only to gi-expression; ignoring it for {task}", file=sys.stderr)
 
     tss_index = args.tss_index if task == "expression" else None
+
+    # Built last: everything above is local validation, so a bad request never
+    # needs a key.
+    client = Client(api_key=args.api_key, base_url=args.base_url)
 
     print(f"[gi-{task}] sequence_name={sequence_name} length={len(sequence):,} bp model={model or 'default'} mode={'async' if async_mode else 'sync'}", file=sys.stderr)
     started = time.monotonic()

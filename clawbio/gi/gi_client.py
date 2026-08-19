@@ -42,7 +42,16 @@ MISSING_KEY_MESSAGE = (
 
 
 class GIError(RuntimeError):
-    """Non-2xx response from the API. Mirrors the ``{error}`` envelope."""
+    """Non-2xx response from the API. Mirrors the ``{error}`` envelope.
+
+    Branch on ``code`` (a closed enum in the schema — treat an unlisted value
+    as a generic failure, not a parse error), never on ``details``: the
+    ``details`` payload is keyed on ``code`` and a 422 currently arrives as a
+    bare list of FastAPI errors where the schema declares an object, so it is
+    carried through verbatim for display only. In particular the expression
+    ``tss_index`` checks are a whole-body validator and report at
+    ``loc: ["body"]``, never ``body.tss_index``.
+    """
 
     def __init__(self, status: int, body: Dict[str, Any]):
         err = (body or {}).get("error", {}) if isinstance(body, dict) else {}
@@ -70,7 +79,17 @@ def resolve_api_key(explicit: Optional[str] = None) -> str:
 
 
 class Client:
-    """Thin synchronous client for /v1/tasks/{task}/predict."""
+    """Thin synchronous client for the six per-task predict operations.
+
+    Since 2026-08-19 the API publishes one operation per task — ``POST
+    /v1/tasks/promoter/predict``, ``…/splice/…``, ``…/enhancer/…``,
+    ``…/chromatin/…``, ``…/annotation/…``, ``…/expression/…`` — each with its
+    own request schema (different ``minLength``, different ``options`` class).
+    The URLs are byte-identical to the templated ones this client already
+    built, so the f-string below is unchanged and still correct; only the
+    published document changed. An unrecognised ``task`` segment is a ``404
+    not_found``, not a 422.
+    """
 
     def __init__(
         self,
@@ -110,9 +129,12 @@ class Client:
     ) -> Dict[str, Any]:
         """Assemble a predict body. ``tss_index`` is expression-only.
 
-        The API rejects unknown top-level fields on the expression route
-        (``additionalProperties: false``), so optional fields are only
-        included when set.
+        Every per-task request model is ``additionalProperties: false``, and
+        so is every per-task ``options`` model, so an unknown key is a hard
+        ``422 validation_failed`` (``type: extra_forbidden``) rather than a
+        silent ignore. Optional fields are therefore only included when set,
+        and ``tss_index`` — declared on ``ExpressionPredictRequest`` alone —
+        must stay unset for the other five tasks.
         """
         body: Dict[str, Any] = {"sequence": sequence, "sequence_name": sequence_name}
         if model is not None:

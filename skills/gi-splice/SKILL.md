@@ -50,7 +50,7 @@ metadata:
     - fa
     - fasta
     - fna
-    description: Single-record FASTA, typically a gene body (5'UTR → 3'UTR including introns).
+    description: Single-record FASTA, 100–500,000 bp (whitespace stripped), typically a gene body (5'UTR → 3'UTR including introns).
     required: false
   outputs:
   - name: report
@@ -105,6 +105,8 @@ You are **gi-splice**, a ClawBio agent that calls the **Genomic Intelligence** s
 ## API Backed
 
 `POST https://api.genomicintelligence.ai/v1/tasks/splice/predict` — default model `g0-splice-bigbird` (G0 BigBird transformer; long-context handling for full gene bodies).
+
+> **Contract note (2026-08-19).** The API publishes one operation per task, each with its own request schema — per-task `minLength`/`maxLength` on `sequence`, and a typed, closed `options` object (an unknown option key is a `422 validation_failed`, not a silent ignore). The URL above is byte-identical to what this skill already posted; only the published document changed. The bounds quoted in this file are live on the GI DEV service (`2026.08.19.4`) and reach `api.genomicintelligence.ai` at the next promotion — until then PROD is the more permissive of the two and this skill's local gate is the stricter. The authority is always the served schema: `GET https://api.genomicintelligence.ai/v1/openapi.json`.
 
 ## Workflow
 
@@ -161,6 +163,8 @@ export GI_API_KEY=gi_yourkeyhere
 
 ## Gotchas
 
+- **Length bounds are 100–500,000 bp**, published as `minLength` / `maxLength` on `SplicePredictRequest` and counted after whitespace is stripped. Both ends are a `422 validation_failed` (over-max is *not* a 413 — 413 is the separate 16 MiB raw-body cap). The skill rejects either locally before spending a request.
+- **100 bp is admission control, not regime.** `g0-splice-bigbird` has a 15,000 bp context window (`bio_spec.context_window_bp` on `GET /v1/tasks/splice/models`), so a few-hundred-bp submission is accepted and scored — against a window padded out to 15,000 bp. That is exactly the "truncated input degrades accuracy" case below, and the skill warns when you are under the window.
 - **Submit gene-sense, not genomic-sense.** Minus-strand genes need RC'd input. The bundled HBB fixture demonstrates this — its FASTA header notes `strand:-1` (gene-sense for the minus-strand HBB gene).
 - **Full gene body, not just an exon.** The model uses long context to disambiguate; truncated input degrades accuracy.
 - **Donor/acceptor pairs.** The model emits independent site calls. Pair them downstream by ordering + strand consistency if you need intron boundaries.

@@ -51,7 +51,7 @@ metadata:
     - fa
     - fasta
     - fna
-    description: Single-record FASTA (any length; API windows automatically).
+    description: Single-record FASTA, 200–500,000 bp (whitespace stripped); the API windows automatically.
     required: false
   outputs:
   - name: report
@@ -108,6 +108,8 @@ You are **gi-chromatin**, a ClawBio agent that calls the **Genomic Intelligence*
 
 `POST https://api.genomicintelligence.ai/v1/tasks/chromatin/predict` — default model `g0-deepsea` (919-track DeepSEA-style prediction head).
 
+> **Contract note (2026-08-19).** The API publishes one operation per task, each with its own request schema — per-task `minLength`/`maxLength` on `sequence`, and a typed, closed `options` object (an unknown option key is a `422 validation_failed`, not a silent ignore). The URL above is byte-identical to what this skill already posted; only the published document changed. The bounds quoted in this file are live on the GI DEV service (`2026.08.19.4`) and reach `api.genomicintelligence.ai` at the next promotion — until then PROD is the more permissive of the two and this skill's local gate is the stricter. The authority is always the served schema: `GET https://api.genomicintelligence.ai/v1/openapi.json`.
+
 ## Workflow
 
 1. **Parse**: single-record FASTA.
@@ -160,6 +162,8 @@ Bundled fixture is an active-promoter region from chr19. Expect dense annotation
 
 - **Big response.** 919 tracks × N windows → multi-MB `result.json`. The report.md summarizes; mine `result.json` programmatically for specific tracks.
 - **Track labels are in the response.** Don't hardcode track indices — read the names from `data.tracks`.
+- **Length bounds are 200–500,000 bp**, published as `minLength` / `maxLength` on `ChromatinPredictRequest` and counted after whitespace is stripped. Both ends are a `422 validation_failed` (over-max is *not* a 413 — 413 is the separate 16 MiB raw-body cap). The skill rejects either locally before spending a request.
+- **200 bp is admission control, not regime.** The model's context window is 1,000 bp (`bio_spec.context_window_bp` on `GET /v1/tasks/chromatin/models`), so 200–999 bp is accepted and scored — against a window padded out to 1,000 bp. The skill warns when you are under it.
 - **Pre-windowing is unnecessary** — API strides internally.
 - **Hackathon key is shared** — `GI_API_KEY` for heavier use.
 
