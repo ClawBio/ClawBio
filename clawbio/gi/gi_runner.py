@@ -32,8 +32,8 @@ DISCLAIMER = (
 # task's request schema and enforced before any model loads. The values below
 # are a LOCAL MIRROR so a too-short FASTA costs no API key, no request and no
 # 422; the authority is the served schema at
-# ``GET https://api.genomicintelligence.ai/v1/openapi.json`` (server-side:
-# ``gpu_service/core/limits.py``). Settled 2026-08-19.
+# ``GET https://api.genomicintelligence.ai/v1/openapi.json``. Re-read it if a
+# rejection here disagrees with the server. Settled 2026-08-19.
 #
 # Floors are admission control, not biology: they are the strictest thing any
 # model for that task needs, and they say nothing about whether the model saw

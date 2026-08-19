@@ -46,10 +46,11 @@ class GIError(RuntimeError):
 
     Branch on ``code`` (a closed enum in the schema — treat an unlisted value
     as a generic failure, not a parse error), never on ``details``: the
-    ``details`` payload is keyed on ``code`` and a 422 currently arrives as a
-    bare list of FastAPI errors where the schema declares an object, so it is
-    carried through verbatim for display only. In particular the expression
-    ``tss_index`` checks are a whole-body validator and report at
+    ``details`` payload is keyed on ``code`` and its shape varies by release, so
+    it is carried through verbatim for display only. A 422 carries the declared
+    ``{"errors": [...]}`` object; releases before gpu_service 2026.08.19.5 sent a
+    bare list instead, which is why nothing here parses it. In particular the
+    expression ``tss_index`` checks are a whole-body validator and report at
     ``loc: ["body"]``, never ``body.tss_index``.
     """
 
