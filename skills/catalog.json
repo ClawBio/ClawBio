@@ -1775,7 +1775,7 @@
     {
       "name": "gi-annotation",
       "cli_alias": null,
-      "description": "Predict gene and transcript structure (intervals, exons, strand) from a DNA sequence using the Genomic Intelligence DNA Annotation model, via the hosted /v1/tasks/annotation/predict API. Async-only — the pipeline takes ~20 s for ~20 kbp.",
+      "description": "Predict gene and transcript structure (intervals, exons, strand) from a DNA sequence using the Genomic Intelligence DNA Annotation model, via the hosted /v1/tasks/annotation/predict API. Submitted asynchronously — the pipeline takes ~20 s for ~20 kbp.",
       "version": "0.1.0",
       "status": "planned",
       "maturity_tier": "tested",

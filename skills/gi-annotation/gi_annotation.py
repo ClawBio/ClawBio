@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """gi-annotation: DNA annotation (gene/transcript) via Genomic Intelligence /v1/tasks/annotation/predict.
 
-Annotation is async-only on the GI API; this skill submits via
-``Prefer: respond-async`` and polls until terminal (~20 s for ~20 kbp).
+The GI API accepts either delivery mode on every task; this skill always
+submits via ``Prefer: respond-async`` and polls until terminal, because the
+annotation pipeline is long-running (~20 s for ~20 kbp).
 """
 
 from __future__ import annotations

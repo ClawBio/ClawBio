@@ -4,7 +4,8 @@ Invokes the skill CLI as a subprocess and returns the parsed
 ``result.json`` so programmatic callers (`ClawBio` runner, the
 orchestrator) get the same output shape as a CLI invocation.
 
-Note: gi-annotation is async on the GI API; the underlying CLI handles
+Note: this skill always submits annotation asynchronously (the API accepts
+either mode); the underlying CLI handles
 the submit → poll → render cycle transparently. A demo run typically
 takes ~8–25 s depending on GPU warmth.
 """
