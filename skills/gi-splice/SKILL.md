@@ -168,6 +168,7 @@ export GI_API_KEY=gi_yourkeyhere
 - **Submit gene-sense, not genomic-sense.** Minus-strand genes need RC'd input. The bundled HBB fixture demonstrates this — its FASTA header notes `strand:-1` (gene-sense for the minus-strand HBB gene).
 - **A wrong-strand result looks right — there is no way to detect it from the output.** Do not assume a bad strand shows up as an empty or low-confidence result. On the bundled HBB fixture at the default 0.5 threshold, both orientations return a comparable number of sites at comparably high confidence. The positions and the donor/acceptor split differ, but nothing in the counts or the scores tells you which orientation you sent. Get the strand right on input — you will not catch it afterwards.
 - **Full gene body, not just an exon.** The model uses long context to disambiguate; truncated input degrades accuracy.
+- **A called site's `start`/`end` is a token span, not a junction base.** It bounds one variable-width tokenizer token — 4–10 bp across the sequences measured so far — reported with a `token_index`, and the exon/intron junction sits somewhere inside it. Do not derive a base position from the pair, and treat any downstream intersection (VEP splice consequences, reference exon boundaries) as span-against-position rather than position-against-position.
 - **Donor/acceptor pairs.** The model emits independent site calls. Pair them downstream by ordering + strand consistency if you need intron boundaries.
 - **Hackathon key is shared** — `GI_API_KEY` for serious work.
 
