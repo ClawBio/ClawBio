@@ -259,7 +259,8 @@ def read_fasta(path) -> tuple[str, str]:
     are formatting, not content.
 
     Raises:
-        FastaError: more than one record, or a base outside ``ACGTN``.
+        FastaError: more than one record, a base outside ``ACGTN``, or
+            sequence appearing before the first header.
     """
     from pathlib import Path
     name = None
@@ -277,7 +278,20 @@ def read_fasta(path) -> tuple[str, str]:
                 if name is None:
                     name = header
                 continue
-            upper = line.upper()
+            if name is None:
+                raise FastaError(
+                    f"{path}: sequence on line {lineno} before any '>' header. "
+                    f"Those bases would be scored under the first record's name, "
+                    f"and the coordinates returned would not describe what you "
+                    f"submitted. Add a header, or remove the stray lines."
+                )
+            # Whitespace anywhere in the line is formatting, not content: the
+            # API strips newlines, spaces and tabs before measuring length, so
+            # a space-grouped body (10-base blocks from a viewer or Sanger
+            # output) must parse here too. Stripping it moves nothing in
+            # coordinate space, which is what separates it from an ambiguity
+            # code we refuse to guess at.
+            upper = "".join(line.split()).upper()
             for char in upper:
                 if char not in "ACGTN":
                     offenders.setdefault(char, lineno)
