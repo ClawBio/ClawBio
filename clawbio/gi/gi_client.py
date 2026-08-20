@@ -208,7 +208,24 @@ class Client:
             timeout=self.timeout,
         )
         body = self._check(r)
-        return body["data"]["job_id"]
+        # An async submit reads data.job_id, so a malformed 2xx has to fail here
+        # rather than downstream: a missing data key raised KeyError and a
+        # non-object data raised TypeError, neither of which reads as a bad
+        # response to the caller.
+        data = body.get("data") if isinstance(body, dict) else None
+        job_id = data.get("job_id") if isinstance(data, dict) else None
+        if not isinstance(job_id, str) or not job_id:
+            raise GIError(
+                r.status_code,
+                {
+                    "error": {
+                        "code": "http_error",
+                        "message": "async submit returned no job_id in data",
+                    }
+                },
+                r.headers,
+            )
+        return job_id
 
     def get_job(self, job_id: str) -> requests.Response:
         return self._session.get(
