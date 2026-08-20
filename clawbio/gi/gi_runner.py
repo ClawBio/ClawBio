@@ -258,10 +258,23 @@ def _write_report(task: str, summary: Dict[str, Any], body: Dict[str, Any], outp
         sites = (summary.get("sites") or [])[:20]
         if sites:
             lines.append("")
-            lines.append("| Position | Kind | Strand | Probability |")
-            lines.append("|---|---|---|---|")
+            # Field names are the API's: name / start / end / site_type / score.
+            # This table read position/kind/probability, which the API has never
+            # returned, so three of four columns rendered as "-" in every report.
+            # Span rather than a single position: start/end bound one
+            # variable-width tokenizer token and the junction lies inside it, so
+            # printing one endpoint states a boundary the response does not give.
+            lines.append("| Site | Span (bp) | Type | Strand | Score |")
+            lines.append("|---|---|---|---|---|")
             for s in sites:
-                lines.append(f"| {s.get('position','-')} | {s.get('kind','-')} | {s.get('strand','-')} | {s.get('probability','-')} |")
+                start, end = s.get("start"), s.get("end")
+                span = f"{start}-{end}" if start is not None and end is not None else "-"
+                score = s.get("score")
+                score = f"{score:.4f}" if isinstance(score, (int, float)) else (score or "-")
+                lines.append(
+                    f"| {s.get('name','-')} | {span} | {s.get('site_type','-')} | "
+                    f"{s.get('strand','-')} | {score} |"
+                )
     elif task == "enhancer":
         lines.append(f"- Windows processed: **{summary.get('windows_processed') or 0}**")
         dev = summary.get("dev_score_max"); hk = summary.get("hk_score_max")

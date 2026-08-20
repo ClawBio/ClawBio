@@ -56,7 +56,7 @@ metadata:
   - name: report
     type: file
     format: md
-    description: Markdown report — sequence + model metadata, called splice sites (position, kind, strand, probability).
+    description: Markdown report — sequence + model metadata, called splice sites (name, span, type, strand, score).
   - name: result
     type: file
     format: json
@@ -176,7 +176,7 @@ export GI_API_KEY=gi_yourkeyhere
 
 ```
 output_dir/
-├── report.md              # Site table (position, kind, strand, probability)
+├── report.md              # Site table (name, span, type, strand, score)
 ├── result.json            # Full {data, meta} envelope
 └── reproducibility/
     ├── command.sh
