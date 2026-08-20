@@ -63,9 +63,9 @@ class GIError(RuntimeError):
     as a generic failure, not a parse error), never on ``details``: the
     ``details`` payload is keyed on ``code`` and its shape varies by release, so
     it is carried through verbatim for display only. A 422 carries the declared
-    ``{"errors": [...]}`` object; releases before api 2026.08.19.5 sent a
-    bare list instead, which is why nothing here parses it. In particular the
-    expression ``tss_index`` checks are a whole-body validator and report at
+    ``{"errors": [...]}`` object; older responses sent a bare array instead,
+    which is why nothing here parses it. In particular, the expression
+    ``tss_index`` checks are a whole-body validator and report at
     ``loc: ["body"]``, never ``body.tss_index``.
     """
 
@@ -104,14 +104,13 @@ def resolve_api_key(explicit: Optional[str] = None) -> str:
 class Client:
     """Thin synchronous client for the six per-task predict operations.
 
-    Since 2026-08-19 the API publishes one operation per task — ``POST
+    The API publishes one operation per task — ``POST
     /v1/tasks/promoter/predict``, ``…/splice/…``, ``…/enhancer/…``,
     ``…/chromatin/…``, ``…/annotation/…``, ``…/expression/…`` — each with its
     own request schema (different ``minLength``, different ``options`` class).
-    The URLs are byte-identical to the templated ones this client already
-    built, so the f-string below is unchanged and still correct; only the
-    published document changed. An unrecognised ``task`` segment is a ``404
-    not_found``, not a 422.
+    The paths differ only in that one segment, so the f-string below builds
+    them all; it is not a claim that they share a contract. An unrecognised
+    ``task`` segment is a ``404 not_found``, not a 422.
     """
 
     def __init__(

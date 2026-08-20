@@ -82,7 +82,7 @@ metadata:
 
 You are **gi-chromatin**, a ClawBio agent that calls the **Genomic Intelligence** chromatin-annotation model (DeepSEA-style, 919 tracks: histone marks + DNase + TF binding across ENCODE cell types).
 
-> ⚠️ **Remote inference — opt-in required.** Unlike most ClawBio skills, this skill uploads your FASTA sequence to the hosted Genomic Intelligence API at `https://api.genomicintelligence.ai`. Prefer a browser? The same models run interactively at <https://genomicintelligence.ai>. **Do not submit identifiable patient data** without an appropriate data-use agreement. Key setup: see [Authentication](#authentication) below.
+> ⚠️ **Remote inference — opt-in required.** Unlike most ClawBio skills, this skill uploads your FASTA sequence to the hosted Genomic Intelligence API at `https://api.genomicintelligence.ai`. The same models also run interactively at <https://genomicintelligence.ai>. **Do not submit identifiable patient data** without an appropriate data-use agreement. Key setup: see [Authentication](#authentication) below.
 
 ## Trigger
 
@@ -106,9 +106,9 @@ You are **gi-chromatin**, a ClawBio agent that calls the **Genomic Intelligence*
 
 ## API Backed
 
-`POST https://api.genomicintelligence.ai/v1/tasks/chromatin/predict` — default model `g0-deepsea` (919-track DeepSEA-style prediction head).
+`POST https://api.genomicintelligence.ai/v1/tasks/chromatin/predict`. Omit `model` and the API resolves the default — a 919-track DeepSEA-style prediction head. `GET /v1/tasks/chromatin/models` is the current list.
 
-> **Contract note (2026-08-19).** The API publishes one operation per task, each with its own request schema — per-task `minLength`/`maxLength` on `sequence`, and a typed, closed `options` object (an unknown option key is a `422 validation_failed`, not a silent ignore). The URL above is byte-identical to what this skill already posted; only the published document changed. The bounds quoted in this file are live on `api.genomicintelligence.ai` as of api `2026.08.19.5`. The authority is always the served schema: `GET https://api.genomicintelligence.ai/v1/openapi.json`.
+> **Contract note.** The Genomic Intelligence API publishes one operation per task, each with its own request schema: per-task `minLength`/`maxLength` on `sequence`, and a typed, closed `options` object (an unknown option key is a `422 validation_failed`, not a silent ignore). The bounds quoted in this file are the published ones, but the authority is always the served schema: `GET https://api.genomicintelligence.ai/v1/openapi.json`.
 
 ## Workflow
 
@@ -161,10 +161,10 @@ Bundled fixture is an active-promoter region from chr19. Expect dense annotation
 ## Gotchas
 
 - **Big response.** 919 tracks × N windows → multi-MB `result.json`. The report.md summarizes; mine `result.json` programmatically for specific tracks.
-- **Track labels are in the response.** Don't hardcode track indices — read the names from `data.tracks`.
+- **Track labels are in the response.** Do not hardcode track indices — read the names from `data.tracks`.
 - **Length bounds are 200–500,000 bp**, published as `minLength` / `maxLength` on `ChromatinPredictRequest` and counted after whitespace is stripped. Both ends are a `422 validation_failed` (over-max is *not* a 413 — 413 is the separate 16 MiB raw-body cap). The skill rejects either locally before spending a request.
 - **200 bp is admission control, not regime.** The model's context window is 1,000 bp (`bio_spec.context_window_bp` on `GET /v1/tasks/chromatin/models`), so 200–999 bp is accepted and scored — against a window padded out to 1,000 bp. The skill warns when you are under it.
-- **Pre-windowing is unnecessary** — API strides internally.
+- **Pre-windowing is unnecessary** — the API windows and strides internally.
 - **Hackathon key is shared** — `GI_API_KEY` for heavier use.
 
 ## Output Structure
@@ -186,4 +186,4 @@ Chains with: `gi-enhancer` (cross-validate enhancer calls against H3K27ac), `gi-
 
 ## Safety
 
-Research tool. Not a clinical assay.
+Research and development use. Not for clinical or diagnostic decisions.

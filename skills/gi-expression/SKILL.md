@@ -78,7 +78,7 @@ metadata:
 
 You are **gi-expression**, a ClawBio agent that calls the **Genomic Intelligence** sequence-to-expression model. Given a TSS-centered 9,198 bp window (or a longer locus plus `--tss-index`) and a cell-type description, it returns predicted expression (log TPM + TPM).
 
-> ⚠️ **Remote inference — opt-in required.** Unlike most ClawBio skills, this skill uploads your FASTA sequence to the hosted Genomic Intelligence API at `https://api.genomicintelligence.ai`. Prefer a browser? The same models run interactively at <https://genomicintelligence.ai>. **Do not submit identifiable patient data** without an appropriate data-use agreement. Key setup: see [Authentication](#authentication) below.
+> ⚠️ **Remote inference — opt-in required.** Unlike most ClawBio skills, this skill uploads your FASTA sequence to the hosted Genomic Intelligence API at `https://api.genomicintelligence.ai`. The same models also run interactively at <https://genomicintelligence.ai>. **Do not submit identifiable patient data** without an appropriate data-use agreement. Key setup: see [Authentication](#authentication) below.
 
 ## Trigger
 
@@ -101,15 +101,15 @@ You are **gi-expression**, a ClawBio agent that calls the **Genomic Intelligence
 
 ## API Backed
 
-`POST https://api.genomicintelligence.ai/v1/tasks/expression/predict` — default model `g0-expression`.
+`POST https://api.genomicintelligence.ai/v1/tasks/expression/predict`. Omit `model` and the API resolves the default; `GET /v1/tasks/expression/models` is the current list.
 
-> **Contract note (2026-08-19).** The API publishes one operation per task, each with its own request schema — per-task `minLength`/`maxLength` on `sequence`, and a typed, closed `options` object (an unknown option key is a `422 validation_failed`, not a silent ignore). The URL above is byte-identical to what this skill already posted; only the published document changed. The bounds quoted in this file are live on `api.genomicintelligence.ai` as of api `2026.08.19.5`. The authority is always the served schema: `GET https://api.genomicintelligence.ai/v1/openapi.json`.
+> **Contract note.** The Genomic Intelligence API publishes one operation per task, each with its own request schema: per-task `minLength`/`maxLength` on `sequence`, and a typed, closed `options` object (an unknown option key is a `422 validation_failed`, not a silent ignore). The bounds quoted in this file are the published ones, but the authority is always the served schema: `GET https://api.genomicintelligence.ai/v1/openapi.json`.
 
 ## Workflow
 
 1. **Parse**: single-record FASTA, gene-sense. Either exactly 9,198 bp TSS-centered, or 9,198–500,000 bp with `--tss-index`. Anything else is rejected locally before the request is sent.
 2. **Build options**: `{"description": "assay term name is polyA plus RNA-seq. biosample summary is Homo sapiens K562."}` by default; override via `--description "..."`.
-3. **POST** to `/v1/tasks/expression/predict` (its own operation and request schema since 2026-08-18 — no longer the generic `/v1/tasks/{task}/predict` body).
+3. **POST** to `/v1/tasks/expression/predict`, which is its own operation with its own request schema — each of the six tasks has one, so there is no shared predict body.
 4. **Render**: `report.md` (headline log TPM plus the scored window the API actually used) + `result.json` + `reproducibility/`.
 
 ## CLI Reference
@@ -166,17 +166,17 @@ export GI_API_KEY=gi_yourkeyhere
 python clawbio.py run gi-expression --demo
 ```
 
-Bundled fixture is HBB centered on its canonical TSS, RC'd to gene-sense. With the skill's default K562 description it returned 0.95 log(TPM+1) ≈ 1.58 TPM when last measured (2026-08-19).
+Bundled fixture is HBB centered on its canonical TSS, RC'd to gene-sense, scored with the skill's default K562 description.
 
-> Treat that figure as indicative and re-measure rather than assert it. Predicted values move when the model checkpoint changes, and a previous revision of this page pinned ~2.86 log(TPM+1) ≈ 16 TPM as verified-still-current when it no longer reproduced. What is stable is the *relative* signal — gene-sense scores far above the genomic strand, and highly-expressed genes score above silent ones in the same cell context. Do not build assertions on an absolute value read from documentation.
+> Read the predicted value from your own run rather than from this page. Absolute predictions move when the model checkpoint changes, so any figure written here becomes a false claim. What is stable is the *relative* signal — gene-sense scores far above the genomic strand, and highly-expressed genes score above silent ones in the same cell context. Do not build assertions on an absolute value read from documentation.
 
 ## Gotchas
 
 - **9,198 bp is a floor, not a fixed size.** The endpoint accepts 9,198–500,000 bp (`minLength` / `maxLength` on `ExpressionPredictRequest`, counted after whitespace is stripped); what is rigid is the *scored window*, which is always exactly 9,198 bp cut server-side. Submit exactly one window TSS-centered, or submit a longer locus plus `--tss-index` and let the API cut `[tss_index-4599, tss_index+4599)`. Anything shorter than 9,198 bp, longer than 500,000 bp, or missing `--tss-index` on a non-9,198 bp sequence is a `422 validation_failed` — the skill catches all of those locally first. Over-max is a 422, *not* a 413; 413 is the separate 16 MiB raw-body cap. Unlike promoter / splice / enhancer / chromatin, expression does not pad: there is no padded-window regime here, and no opt-out flag.
 - **A `tss_index` error reports at `loc: ["body"]`, never `body.tss_index`.** Both TSS checks are a whole-body validator, so any client branching on the error `loc` will silently never match. Match on `error.code` (`validation_failed`) and use `message` for display only — and read `error.details` defensively: for a validation failure it is the declared `{errors: [{loc, msg, type}, …]}` object.
 - **A wrong `--tss-index` does not error — it lies.** Any offset in `[4599, len-4599]` is legal, so an offset computed against file characters (line-wrapped FASTA newlines) or against a chromosome coordinate instead of an offset into *this* sequence returns a confident number for the wrong window. Always check the "Scored window" line in `report.md` (`meta.task_specific_counts.scored_window` in the response). Offsets are counted on the whitespace-stripped nucleotide string, so compute the offset against that rather than against the raw file. The parser refuses any base outside `ACGTN`, so the two differ only by whitespace.
-- **Gene-sense is mandatory.** Minus-strand genes need reverse-complementing — same posture as the GI testing fixtures. On the bundled HBB fixture the genomic strand scored 0.06 log(TPM+1) against 0.95 gene-sense (2026-08-19) — an order of magnitude, though the absolute values move with the checkpoint. The wrong strand returns a well-formed low number, not an error.
-- **`description` wording changes the answer.** It is a free-text conditioning input, not an enum, so paraphrases are not equivalent: on the same fixture, `"K562"` scored 1.38, `"K562 cells"` 0.70, and the canonical assay-format string 0.95. Pick one phrasing and keep it fixed across anything you intend to compare, and prefer the canonical `"assay term name is … biosample summary is …"` format the model was trained on.
+- **Gene-sense is mandatory.** Minus-strand genes need reverse-complementing. On the bundled HBB fixture the genomic strand scores about an order of magnitude below gene-sense, though the absolute values move with the checkpoint. The wrong strand returns a well-formed low number, not an error.
+- **`description` wording changes the answer.** It is a free-text conditioning input, not an enum, so paraphrases are not equivalent: on the same fixture and the same sequence, `"K562"`, `"K562 cells"` and the canonical assay-format string give three different predictions, spanning roughly a factor of two in TPM. Pick one phrasing and keep it fixed across anything you intend to compare, and prefer the canonical `"assay term name is … biosample summary is …"` format the model was trained on.
 - **`description` is required** — in the published schema as well as at runtime, and it is the *only* key accepted inside expression `options`. The model is conditioned on it; "assay term name is polyA plus RNA-seq. biosample summary is Homo sapiens [tissue]." is the canonical format.
 - **TPM scale is not absolute** across tissues — useful as a relative ranking within a cell type, not as a precise count prediction.
 - **Hackathon key is shared** — `GI_API_KEY` for heavier use.
@@ -200,4 +200,4 @@ Chains with: `gi-promoter` → `gi-expression` (validate predicted promoters by 
 
 ## Safety
 
-Research tool. Not a clinical assay. Predictions are model outputs, not measurements.
+Research and development use. Not for clinical or diagnostic decisions. Predictions are model outputs, not measurements.

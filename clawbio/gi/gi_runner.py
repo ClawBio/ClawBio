@@ -35,7 +35,7 @@ DISCLAIMER = (
 # are a LOCAL MIRROR so a too-short FASTA costs no API key, no request and no
 # 422; the authority is the served schema at
 # ``GET https://api.genomicintelligence.ai/v1/openapi.json``. Re-read it if a
-# rejection here disagrees with the server. Settled 2026-08-19.
+# rejection here disagrees with the server.
 #
 # Floors are admission control, not biology: they are the strictest thing any
 # model for that task needs, and they say nothing about whether the model saw
@@ -71,7 +71,7 @@ TASK_MIN_BP_HINT: Dict[str, str] = {
 # model saw real sequence. ``None`` = no sliding window (annotation and
 # expression report ``context_window_bp: null``).
 TASK_CONTEXT_WINDOW_BP: Dict[str, Optional[int]] = {
-    "promoter": 2000,  # default g0-promoter-2000bp; the *-300bp models are 300
+    "promoter": 2000,  # the default model; 300 bp-context models exist too
     "splice": 15000,
     "enhancer": 249,
     "chromatin": 1000,

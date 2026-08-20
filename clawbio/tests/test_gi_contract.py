@@ -3,7 +3,7 @@
 These are pure-local: they exercise the gate that keeps a badly sized FASTA
 from ever reaching the Genomic Intelligence API, so they need no key and no
 network. The numbers mirror the published request schemas (one ``minLength``
-per task since 2026-08-19); if the API moves, these fail first.
+per task); if the API moves, these fail first.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def test_every_task_has_a_floor_and_a_context_entry():
 
 
 def test_floors_match_the_published_minlength():
-    """Mirrors ``minLength`` on each task's request schema (DEV 2026.08.19.4)."""
+    """Mirrors ``minLength`` on each task's request schema."""
     assert TASK_MIN_BP == {
         "promoter": 300,
         "splice": 100,
@@ -65,9 +65,9 @@ def test_over_the_shared_maximum_is_rejected(task):
 
 
 def test_a_short_promoter_sequence_is_not_rejected_by_the_old_one_bp_rule():
-    """The pre-2026-08-19 contract published minLength 1 for every task.
+    """An earlier contract published a single 1 bp floor for every task.
 
-    300 bp is now the promoter floor, and 299 bp must fail locally rather than
+    300 bp is the promoter floor, and 299 bp must fail locally rather than
     cost a request.
     """
     assert validate_sequence_length("promoter", "A" * 299) is not None
