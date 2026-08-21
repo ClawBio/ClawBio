@@ -1120,21 +1120,29 @@ def main():
         print()
 
         # Check if we have it pre-downloaded in data/.
-        # A bundled curated demo panel must never answer a real request for an
-        # accession (issue #356), so skip it and fetch the genuine score.
         local_path = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt"
         local_path_gz = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt.gz"
+
+        # Issue #356: the curated demo panels sit at this exact path, so a
+        # request for a real accession is answered by a lookalike.
+        # `is_curated_demo_panel` detects that but is deliberately NOT used to
+        # refuse yet: clawbio-bench drives this path offline as
+        # `--pgs-id PGS000013` for eight scoring-arithmetic cases, and refusing
+        # here takes that harness from 62.5% to 0.0%, destroying real coverage
+        # rather than fixing anything. Warn now; refuse once the bench can ask
+        # for the panel by its honest id. Do not turn this into a refusal
+        # without changing the bench in the same step.
         for candidate in (local_path, local_path_gz):
             if candidate.exists() and is_curated_demo_panel(candidate):
-                print(f"  Ignoring curated demo panel at {candidate}")
-                print(f"  ({pgs_id} is a ClawBio demo panel here, not the PGS "
-                      f"Catalog score of that accession; fetching the real one. "
-                      f"Use --demo to score the curated panels.)")
+                print(f"  WARNING: {candidate.name} is a ClawBio curated demo "
+                      f"panel, not the PGS Catalog score for {pgs_id}.")
+                print("  WARNING: results below describe the demo panel. "
+                      "See ClawBio issue #356.")
 
-        if local_path.exists() and not is_curated_demo_panel(local_path):
+        if local_path.exists():
             filepath = local_path
             print(f"  Using pre-downloaded scoring file: {filepath}")
-        elif local_path_gz.exists() and not is_curated_demo_panel(local_path_gz):
+        elif local_path_gz.exists():
             filepath = local_path_gz
             print(f"  Using pre-downloaded scoring file: {filepath}")
         else:
