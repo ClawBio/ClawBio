@@ -39,9 +39,11 @@ from clawbio.common.parsers import parse_vcf_matrix
 from clawbio.common.checksums import sha256_file as _sha256_file
 from clawbio.common.report import write_result_json, DISCLAIMER as _DISCLAIMER
 from clawbio.common.reproducibility import (
+    ReproCommand,
+    ReproPath,
     write_checksums,
-    write_commands_sh,
     write_environment_yml,
+    write_portable_commands_sh,
 )
 
 # ---------------------------------------------------------------------------
@@ -78,6 +80,22 @@ POP_COLOURS = {
 # REPRODUCIBILITY BUNDLE (delegates to shared library)
 # ===================================================================
 
+def _repro_path(value: Path, *, output_dir: Path) -> ReproPath:
+    """Classify a path for portable reproducibility command rendering."""
+    value = value.resolve()
+    try:
+        value.relative_to(_PROJECT_ROOT)
+        return ReproPath(value, anchor="repo_root")
+    except ValueError:
+        pass
+
+    try:
+        value.relative_to(output_dir.resolve())
+        return ReproPath(value, anchor="output_dir")
+    except ValueError:
+        return ReproPath(value, anchor="auto")
+
+
 def _write_repro_bundle(
     output_dir: Path,
     input_path: Path,
@@ -86,27 +104,52 @@ def _write_repro_bundle(
 ) -> None:
     """Write commands.sh, environment.yml, and checksums.sha256 to
     <output_dir>/reproducibility/ via clawbio.common.reproducibility."""
-    cmd = "python skills/equity-scorer/equity_scorer.py --input %s" % input_path
+    args: list = ["--input", _repro_path(input_path, output_dir=output_dir)]
     if pop_map_path is not None:
-        cmd += " --pop-map %s" % pop_map_path
-    cmd += " --output %s --weights %s" % (
+        args += ["--pop-map", _repro_path(pop_map_path, output_dir=output_dir)]
+    args += [
+        "--output", ReproPath(output_dir, anchor="output_dir"),
+        # str() round-trips floats exactly; rounding here would record a
+        # different command than the one that ran.
+        "--weights", ",".join(str(w) for w in weights),
+    ]
+    write_portable_commands_sh(
         output_dir,
-        ",".join("%.2f" % w for w in weights),
+        ReproCommand(
+            script_path=Path("skills/equity-scorer/equity_scorer.py"),
+            args=args,
+            comment="Replay this ClawBio equity-scorer run",
+        ),
+        repo_root=_PROJECT_ROOT,
     )
-    write_commands_sh(output_dir, cmd)
 
+    # Version bounds mirror SKILL.md "Dependencies". pip_deps stays empty:
+    # the script imports clawbio.common via its own sys.path insert, so the
+    # environment needs no installed clawbio package.
     write_environment_yml(
         output_dir,
         env_name="clawbio-equity-scorer",
-        conda_deps=["numpy", "pandas", "matplotlib", "scikit-learn"],
+        conda_deps=[
+            "numpy>=1.24",
+            "pandas>=2.0",
+            "matplotlib>=3.7",
+            "scikit-learn>=1.3",
+        ],
         pip_deps=[],
+        python_version="3.11",
     )
 
-    checksum_targets = [input_path]
-    if pop_map_path is not None:
-        checksum_targets.append(pop_map_path)
-    checksum_targets += [output_dir / "report.md", output_dir / "result.json"]
-    write_checksums(checksum_targets, output_dir)
+    # Checksum the derived numerical/graphical artefacts only, labelled
+    # relative to output_dir so `cd <output_dir> && sha256sum -c` works.
+    # report.md and result.json embed wall-clock timestamps and would never
+    # re-verify; inputs live outside output_dir and are excluded (result.json
+    # already records the input digest as input_checksum).
+    checksum_targets: list = []
+    for sub in ("tables", "figures"):
+        subdir = output_dir / sub
+        if subdir.is_dir():
+            checksum_targets.extend(p for p in sorted(subdir.iterdir()) if p.is_file())
+    write_checksums(checksum_targets, output_dir, anchor=output_dir)
 
 
 # ===================================================================
