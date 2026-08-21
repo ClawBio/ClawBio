@@ -25,6 +25,7 @@ nothing and still read as correct in review.
 from __future__ import annotations
 
 import copy
+import json
 import sys
 
 import pytest
@@ -467,6 +468,120 @@ class TestGIErrorsOwnFields:
             _client(resp).predict("promoter", "ACGT" * 100)
         assert exc.value.request_id is None
         assert "request_id=unset" in str(exc.value)
+
+
+class TestTheRateLimitHeadersAreNotDiscarded:
+    """Six SKILL.md files tell the reader to consult these; nothing kept them.
+
+    The caps are per-key and are retuned server-side rather than published as
+    a fixed number, so the headers are the only statement of the live
+    allowance. ``GIError`` captured ``X-Request-Id`` and nothing else, and
+    ``result.json`` holds the parsed body, which does not carry headers -- so
+    a user following the documentation had nowhere to look.
+
+    Header names here are the lowercase wire form measured against PROD on
+    2026-08-21, not the canonical capitalisation, because that is what a
+    caller actually receives.
+    """
+
+    LIVE_HEADERS = {
+        "ratelimit-limit": "200",
+        "ratelimit-policy": "200;w=60",
+        "ratelimit-remaining": "199",
+        "ratelimit-reset": "1",
+        "x-request-id": "d6bc8156-0eb4-4451-843d-84ba7c6eebcf",
+    }
+
+    def test_the_lowercase_wire_form_is_normalised(self):
+        out = gi_client.rate_limit_from(self.LIVE_HEADERS)
+        assert out == {
+            "RateLimit-Limit": "200",
+            "RateLimit-Remaining": "199",
+            "RateLimit-Reset": "1",
+            "RateLimit-Policy": "200;w=60",
+        }
+
+    def test_a_header_the_response_did_not_send_is_omitted_not_nulled(self):
+        """``/health`` sends none of these, and no 2xx observed sends
+        ``Retry-After``. An invented null would read as a measured zero."""
+        assert "Retry-After" not in gi_client.rate_limit_from(self.LIVE_HEADERS)
+        assert gi_client.rate_limit_from({}) == {}
+        assert gi_client.rate_limit_from(None) == {}
+
+    def test_a_429_states_the_allowance_in_its_message(self):
+        """The one status where the numbers are the message rather than noise.
+
+        gi-promoter/SKILL.md says `Retry-After` on a 429 is the wait; before
+        this the runner printed the error line with neither.
+        """
+        resp = _Resp({"error": {"code": "rate_limited", "message": "slow down"}},
+                     status_code=429)
+        resp.headers = dict(self.LIVE_HEADERS, **{"retry-after": "30", "ratelimit-remaining": "0"})
+        with pytest.raises(gi_client.GIError) as exc:
+            _client(resp).predict("promoter", "ACGT" * 100)
+        assert exc.value.rate_limit["RateLimit-Remaining"] == "0"
+        assert exc.value.rate_limit["Retry-After"] == "30"
+        assert "Retry-After: 30" in str(exc.value)
+
+    def test_a_422_carries_them_without_burying_its_own_message(self):
+        """A validation error's message says what to fix; the numbers do not."""
+        resp = _Resp(
+            {"error": {"code": "validation_failed", "message": "sequence is 4 bp"}},
+            status_code=422,
+        )
+        resp.headers = dict(self.LIVE_HEADERS)
+        with pytest.raises(gi_client.GIError) as exc:
+            _client(resp).predict("promoter", "ACGT")
+        assert exc.value.rate_limit["RateLimit-Limit"] == "200"
+        assert "RateLimit-Limit" not in str(exc.value)
+        assert "sequence is 4 bp" in str(exc.value)
+
+    def test_a_successful_call_leaves_the_allowance_on_the_client(self):
+        body = {"data": {"summary": {"total_windows": 3}}, "meta": {"request_id": "r"}}
+        resp = _Resp(body)
+        resp.headers = dict(self.LIVE_HEADERS)
+        c = _client(resp)
+        c.predict("promoter", "ACGT" * 100)
+        assert c.last_rate_limit["RateLimit-Remaining"] == "199"
+
+    def test_health_sends_none_and_that_is_recorded_as_none(self):
+        """Measured: /health carries no rate-limit headers at all."""
+        c = _client(_Resp({"status": "ok"}))
+        c.health()
+        assert c.last_rate_limit == {}
+
+    def test_result_json_records_them_end_to_end(self, tmp_path, monkeypatch):
+        """Through run_skill and a real Client, which is where it has to work.
+
+        Stubbing gi_runner.Client would intercept above the client attribute
+        this reads, so the seam is the session.
+        """
+        resp = _Resp(
+            {"data": {"summary": {"promoter_windows": 1, "total_windows": 4}},
+             "meta": {"request_id": "req-1"}},
+        )
+        resp.headers = dict(self.LIVE_HEADERS)
+
+        def _make_client(*a, **kw):
+            return _client(resp)
+
+        fa = tmp_path / "in.fa"
+        fa.write_text(">seq\n" + "ACGT" * 100 + "\n")
+        monkeypatch.setattr(gi_runner, "Client", _make_client)
+        monkeypatch.setenv("GI_API_KEY", "gi_test")
+        monkeypatch.setattr(
+            sys, "argv",
+            ["gi_promoter.py", "--input", str(fa), "--output", str(tmp_path / "out")],
+        )
+        assert gi_runner.run_skill(task="promoter", demo_path=tmp_path / "demo.fa") == 0
+        result = json.loads((tmp_path / "out" / "result.json").read_text())
+        assert result["rate_limit"] == {
+            "RateLimit-Limit": "200",
+            "RateLimit-Remaining": "199",
+            "RateLimit-Reset": "1",
+            "RateLimit-Policy": "200;w=60",
+        }
+        assert "RateLimit-*" in (tmp_path / "out" / "report.md").read_text()
 
 
 class TestTheSpliceTableReadsTheFieldNamesTheApiSends:

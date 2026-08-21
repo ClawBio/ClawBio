@@ -41,6 +41,43 @@ MISSING_KEY_MESSAGE = (
 )
 
 
+# The draft-RFC rate-limit family, plus ``Retry-After``. Measured against PROD
+# on 2026-08-21: every ``/v1/tasks/…`` response carries ``ratelimit-limit``,
+# ``ratelimit-policy`` (``200;w=60``), ``ratelimit-remaining`` and
+# ``ratelimit-reset``; ``/health`` carries none of them. The wire form is
+# lowercase, so the lookup below normalises rather than indexing — a
+# ``requests`` response is case-insensitive but a plain mapping is not.
+RATE_LIMIT_HEADERS = (
+    "RateLimit-Limit",
+    "RateLimit-Remaining",
+    "RateLimit-Reset",
+    "RateLimit-Policy",
+    "Retry-After",
+)
+
+
+def rate_limit_from(headers: Optional[Mapping[str, str]]) -> Dict[str, str]:
+    """Pull the rate-limit headers out of a response, if it sent any.
+
+    The six ``gi-*`` SKILL.md files tell the reader to read these for the live
+    allowance, because the caps are per-key and are retuned server-side rather
+    than published as a fixed number. Nothing was keeping them: ``GIError``
+    captured only ``X-Request-Id`` and ``result.json`` holds the parsed body,
+    so by the time a caller could look, the headers were gone.
+
+    Returns canonical capitalisation whatever the wire used, and omits a
+    header the response did not send rather than inventing a null for it.
+    """
+    if not headers:
+        return {}
+    lowered = {str(k).lower(): v for k, v in dict(headers).items()}
+    return {
+        name: lowered[name.lower()]
+        for name in RATE_LIMIT_HEADERS
+        if lowered.get(name.lower()) is not None
+    }
+
+
 # IUPAC ambiguity codes. Listed so the parser can say *why* it is refusing:
 # these are legitimate FASTA content the model cannot score, which is a
 # different problem from a stray character and deserves a different hint.
@@ -84,8 +121,16 @@ class GIError(RuntimeError):
         # body from a proxy) — support tickets always need a correlation id.
         self.request_id = err.get("request_id") or (headers or {}).get("X-Request-Id")
         self.details = err.get("details")
+        self.rate_limit = rate_limit_from(headers)
         rid = self.request_id or "unset"
-        super().__init__(f"[{status} {self.code}] {self.message} (request_id={rid})")
+        # Carried on every error, shown only on a 429. On a 422 the numbers
+        # bury the message that says what was actually wrong with the request;
+        # on a 429 they are the message. The success path surfaces them
+        # through ``result.json`` instead.
+        allowance = ""
+        if status == 429 and self.rate_limit:
+            allowance = " [" + ", ".join(f"{k}: {v}" for k, v in self.rate_limit.items()) + "]"
+        super().__init__(f"[{status} {self.code}] {self.message} (request_id={rid}){allowance}")
 
 
 def resolve_api_key(explicit: Optional[str] = None) -> str:
@@ -122,6 +167,10 @@ class Client:
         self.api_key = resolve_api_key(api_key)
         self.base_url = (base_url or os.environ.get("GI_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self.timeout = timeout
+        # The rate-limit headers from the most recent response, so the caller
+        # can record them after a *successful* call too. Empty until the first
+        # response, and empty again after a ``/health`` check, which sends none.
+        self.last_rate_limit: Dict[str, str] = {}
         self._session = requests.Session()
         self._session.headers.update(
             {
@@ -133,6 +182,7 @@ class Client:
         )
 
     def _check(self, resp: requests.Response) -> Dict[str, Any]:
+        self.last_rate_limit = rate_limit_from(resp.headers)
         try:
             body = resp.json()
         except ValueError:
@@ -295,6 +345,10 @@ class Client:
                     raise TimeoutError(f"job {job_id} did not finish within {max_wait}s")
                 time.sleep(poll_interval)
                 continue
+            # This branch builds the error itself rather than going through
+            # _check, so it has to record the allowance itself too. A 429 while
+            # polling is exactly the case the headers are for.
+            self.last_rate_limit = rate_limit_from(r.headers)
             try:
                 body = r.json()
             except ValueError:

@@ -308,9 +308,16 @@ def _summarize(task: str, body: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def _write_report(task: str, summary: Dict[str, Any], body: Dict[str, Any], output_dir: Path, input_path: Path, sequence_name: str, sequence_length: int, elapsed_ms: float) -> None:
+def _write_report(task: str, summary: Dict[str, Any], body: Dict[str, Any], output_dir: Path, input_path: Path, sequence_name: str, sequence_length: int, elapsed_ms: float, rate_limit: Optional[Dict[str, str]] = None) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "result.json").write_text(json.dumps({"summary": summary, "full_response": body}, indent=2))
+    # ``rate_limit`` is the response's own RateLimit-* headers, which every
+    # gi SKILL.md tells the reader to consult for the live per-key allowance
+    # and which nothing here used to keep: the parsed body does not carry
+    # them, so writing only ``full_response`` discarded them.
+    (output_dir / "result.json").write_text(json.dumps(
+        {"summary": summary, "full_response": body, "rate_limit": rate_limit or {}},
+        indent=2,
+    ))
 
     meta = _as_obj(body.get("meta"), "meta")
     model = summary.get("model") or "—"
@@ -398,7 +405,7 @@ def _write_report(task: str, summary: Dict[str, Any], body: Dict[str, Any], outp
         "## Reproducibility",
         "",
         f"- `reproducibility/command.sh` — exact invocation",
-        f"- `result.json` — full `{{data, meta}}` response from the API",
+        f"- `result.json` — the full `{{data, meta}}` response, the summary this report was built from, and the `RateLimit-*` headers that response carried",
         "",
         "## API",
         "",
@@ -515,7 +522,9 @@ def run_skill(*, task: str, demo_path: Path, async_mode: bool = False, default_m
     # worse than exiting 2 with the offending field named.
     try:
         summary = _summarize(task, body)
-        _write_report(task, summary, body, args.output, input_path, sequence_name, len(sequence), elapsed_ms)
+        # getattr because gi_runner.Client is the monkeypatch seam the suites
+        # replace, and a test double is not obliged to carry the attribute.
+        _write_report(task, summary, body, args.output, input_path, sequence_name, len(sequence), elapsed_ms, rate_limit=getattr(client, "last_rate_limit", None))
     except ResponseShapeError as e:
         print(f"[gi-{task}] unexpected API response shape: {e}", file=sys.stderr)
         return 2
