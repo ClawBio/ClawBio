@@ -111,6 +111,31 @@ def test_normalize_carries_model_and_data_licences():
     assert normalized["data_license"] == "CC0-1.0"
 
 
+def test_normalize_reads_artefact_licences_nested_under_metadata():
+    """Where new skills have to put them.
+
+    The agentskills spec allows six top-level frontmatter keys and
+    `agentskills validate` fails a skill on any other, so `model_license`
+    beside `license` is not a legal placement. `metadata` is the free-form key.
+    """
+    generate_catalog = _load_generate_catalog_module()
+
+    normalized = generate_catalog.normalize_skill_metadata(
+        {
+            "name": "demo",
+            "license": "MIT",
+            "metadata": {
+                "model_license": "cc-by-nc-sa-4.0",
+                "data_license": "CC0-1.0",
+            },
+        }
+    )
+
+    assert normalized["license"] == "MIT"
+    assert normalized["model_license"] == "cc-by-nc-sa-4.0"
+    assert normalized["data_license"] == "CC0-1.0"
+
+
 def test_normalize_defaults_artefact_licences_to_empty():
     """A skill with no third-party artefact declares nothing; absence is not
     a claim that the artefact is permissive."""
@@ -146,3 +171,32 @@ def test_frontmatter_parser_reads_artefact_licences():
 
     assert parsed["model_license"] == "cc-by-nc-sa-4.0"
     assert parsed["data_license"] == "CC0-1.0"
+
+
+def test_frontmatter_parser_reads_nested_artefact_licences():
+    """The no-yaml fallback path has to find them under `metadata` too."""
+    generate_catalog = _load_generate_catalog_module()
+
+    raw = "\n".join(
+        [
+            "---",
+            "name: demo",
+            "description: A demo skill",
+            "license: MIT",
+            "metadata:",
+            "  model_license: cc-by-nc-sa-4.0",
+            "  data_license: CC0-1.0",
+            "---",
+            "",
+            "## Trigger",
+        ]
+    )
+
+    normalized = generate_catalog.normalize_skill_metadata(
+        generate_catalog.parse_yaml_frontmatter(raw)
+    )
+
+    # `license` still resolves to the wrapper licence, not to `model_license`.
+    assert normalized["license"] == "MIT"
+    assert normalized["model_license"] == "cc-by-nc-sa-4.0"
+    assert normalized["data_license"] == "CC0-1.0"

@@ -62,7 +62,10 @@ def parse_yaml_frontmatter(text: str) -> dict:
             "version", "author", "domain", "license",
             "model_license", "data_license",
         ):
-            match = re.search(rf"^{field}:\s*(.+)", raw, re.MULTILINE)
+            # `^\s*` so a field nested under `metadata:` is found too. `\s*`
+            # cannot bridge into another key: `^\s*license:` does not match the
+            # line `model_license: ...`, because `^` anchors at the line start.
+            match = re.search(rf"^\s*{field}:\s*(.+)", raw, re.MULTILINE)
             if match:
                 result[field] = _strip(match.group(1))
 
@@ -144,8 +147,12 @@ def normalize_skill_metadata(raw: dict) -> dict:
         # wrapper licence grants no rights over third-party weights or
         # reference data, which are frequently non-commercial. Empty means
         # "no such dependency declared", never "permissive".
-        "model_license": raw.get("model_license", ""),
-        "data_license": raw.get("data_license", ""),
+        # Nested under `metadata` in new skills: the agentskills spec rejects any
+        # top-level frontmatter key outside the six it names, so a declaration
+        # there fails `agentskills validate`. Top-level is still read for the
+        # skills written before that was known.
+        "model_license": raw.get("model_license", metadata.get("model_license", "")),
+        "data_license": raw.get("data_license", metadata.get("data_license", "")),
         "version": raw.get("version", metadata.get("version", "0.1.0")),
         "author": raw.get("author", metadata.get("author", "")),
         "domain": raw.get("domain", metadata.get("domain", "")),
@@ -344,6 +351,7 @@ MVP_FOLDERS = {
     "llm-biobank-bench",
     "analyze-fasta",
     "phylogenetics-builder",
+    "deepspot-m",
 }
 
 # Known trigger keywords for orchestrator routing
@@ -414,6 +422,7 @@ CHAINING: dict[str, list[str]] = {
     "marker-dominance-mapper": ["scrna-orchestrator", "diff-visualizer"],
     "analyze-fasta": ["struct-predictor", "variant-annotation", "pubmed-summariser"],
     "phylogenetics-builder": ["profile-report"],
+    "deepspot-m": ["marker-dominance-mapper", "diff-visualizer"],
 }
 
 

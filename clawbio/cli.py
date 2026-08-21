@@ -1167,6 +1167,22 @@ SKILLS = {
         "allowed_extra_flags": set(),
         "accepts_genotypes": False,
     },
+    "deepspot-m": {
+        "script": SKILLS_DIR / "deepspot-m" / "deepspot_m.py",
+        "demo_args": ["--demo"],
+        "description": "DeepSpot-M virtual spatial transcriptomics (per-gene log1p-CPM from a 224x224 H&E tile)",
+        "allowed_extra_flags": {
+            "--genes",
+            "--source",
+            "--mpp",
+            "--white-mean",
+            "--min-saturation",
+            "--skip-background",
+            "--allow-download",
+        },
+        "allowed_extra_flags_without_values": {"--skip-background", "--allow-download"},
+        "accepts_genotypes": False,
+    },
     "marker-map": {
         "script": SKILLS_DIR / "marker-dominance-mapper" / "marker_dominance_mapper.py",
         "demo_args": ["--demo"],
