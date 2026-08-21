@@ -145,6 +145,43 @@ class Client:
         return body
 
     @staticmethod
+    def _require_envelope(body: Any, resp: requests.Response) -> Dict[str, Any]:
+        """A prediction or job result carries a ``{data, meta}`` object.
+
+        Only for those two. ``/health`` is deliberately un-enveloped and must
+        not be checked here.
+
+        ``data`` must be an object *and* non-empty. All three call sites read
+        content out of it — a prediction payload, ``data.job_id``, a finished
+        job's result — so ``{"data": {}}`` is malformed for every one of them.
+        Only ``submit_async`` used to catch any of this, via its ``job_id``
+        check; on the sync and job-result paths a 200 with no usable ``data``
+        reached the report writer, which wrote a zero-valued report and printed
+        an OK line with no prediction in it.
+
+        A 2xx that did not parse as JSON is refused here too: ``_check``
+        substitutes an ``{"error": ...}`` dict for an unparseable body, which
+        has no ``data`` key and so cannot be mistaken for a result.
+        """
+        data = body.get("data") if isinstance(body, dict) else None
+        if not isinstance(data, dict) or not data:
+            raise GIError(
+                resp.status_code,
+                {
+                    "error": {
+                        "code": "http_error",
+                        "message": (
+                            "expected a JSON object with a non-empty object "
+                            f"'data' key, got {type(body).__name__} with data="
+                            + ("empty object" if isinstance(data, dict) else type(data).__name__)
+                        ),
+                    }
+                },
+                resp.headers,
+            )
+        return body
+
+    @staticmethod
     def _build_body(
         sequence: str,
         sequence_name: str,
@@ -189,7 +226,7 @@ class Client:
             json=body,
             timeout=self.timeout,
         )
-        return self._check(r)
+        return self._require_envelope(self._check(r), r)
 
     def submit_async(
         self,
@@ -207,13 +244,13 @@ class Client:
             json=body,
             timeout=self.timeout,
         )
-        body = self._check(r)
         # An async submit reads data.job_id, so a malformed 2xx has to fail here
         # rather than downstream: a missing data key raised KeyError and a
         # non-object data raised TypeError, neither of which reads as a bad
-        # response to the caller.
-        data = body.get("data") if isinstance(body, dict) else None
-        job_id = data.get("job_id") if isinstance(data, dict) else None
+        # response to the caller. The envelope check now covers those, and the
+        # job_id check stays because a non-empty `data` can still lack it.
+        body = self._require_envelope(self._check(r), r)
+        job_id = body["data"].get("job_id")
         if not isinstance(job_id, str) or not job_id:
             raise GIError(
                 r.status_code,
@@ -243,7 +280,11 @@ class Client:
         while True:
             r = self.get_job(job_id)
             if r.status_code == 200:
-                return r.json()
+                # A finished job's body is the same {data, meta} envelope as a
+                # sync predict, and it went straight to the report writer
+                # unchecked — including a 200 that was not JSON at all, which
+                # raised ValueError out of `.json()` here.
+                return self._require_envelope(self._check(r), r)
             if r.status_code == 202:
                 if on_progress is not None:
                     try:

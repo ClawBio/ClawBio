@@ -187,20 +187,80 @@ def _resolve_input(args: argparse.Namespace, demo_path: Path, task: str) -> Path
     return args.input_file
 
 
+class ResponseShapeError(RuntimeError):
+    """A 2xx body whose nested fields contradict their documented types.
+
+    Distinct from ``GIError``, which covers what the API itself reported. This
+    is a well-formed envelope carrying a field the contract says is an object
+    or an array and that arrived as something else.
+    """
+
+
+def _as_obj(v: Any, field: str) -> Dict[str, Any]:
+    """Read a response field documented as an object.
+
+    ``Client._require_envelope`` guarantees ``data`` is a non-empty object; it
+    deliberately does not police per-task fields nested inside it, because it
+    is shared by six tasks and must not encode any one task's schema. So the
+    checking happens here.
+
+    Absent or null is legitimate — a task that has no ``prediction`` omits it —
+    and becomes ``{}``. A field that is *present with the wrong type* is a
+    malformed response and is reported as one.
+
+    Two failure modes pull in opposite directions here. The ``x or {}`` idiom
+    this replaces handled null and absent but not a truthy wrong type: a
+    ``summary`` arriving as a string passed ``or {}`` untouched and then raised
+    AttributeError on ``.get``, in the report writer, which runs after
+    ``run_skill``'s try/except has closed — a traceback that reads as a client
+    bug. Substituting ``{}`` for it instead fixes the traceback and creates
+    something worse: a zero-valued report written to disk and an OK line on
+    stderr, so a bad response is indistinguishable from a real prediction of
+    nothing. Raising a typed error that ``run_skill`` turns into the same
+    diagnostic it gives any other malformed response is neither.
+    """
+    if v is None:
+        return {}
+    if not isinstance(v, dict):
+        raise ResponseShapeError(f"{field} should be an object, got {type(v).__name__}")
+    return v
+
+
+def _as_objs(v: Any, field: str) -> list:
+    """Same, for a field documented as an array of objects.
+
+    A truthy non-list (a bare string) is iterable, so ``or []`` let it through
+    and the row loop iterated its characters; non-object elements fail the same
+    way. Neither is silently dropped — an array whose elements are the wrong
+    type is a malformed response, and a report missing rows it should have had
+    is exactly the silent wrong answer this is here to prevent.
+    """
+    if v is None:
+        return []
+    if not isinstance(v, list):
+        raise ResponseShapeError(f"{field} should be an array, got {type(v).__name__}")
+    for i, x in enumerate(v):
+        if not isinstance(x, dict):
+            raise ResponseShapeError(
+                f"{field}[{i}] should be an object, got {type(x).__name__}"
+            )
+    return v
+
+
 def _summarize(task: str, body: Dict[str, Any]) -> Dict[str, Any]:
     """Pick the most useful headline numbers per task from `data`."""
-    data = body.get("data") or {}
-    summary = data.get("summary") or {}
+    data = _as_obj(body.get("data"), "data")
+    summary = _as_obj(data.get("summary"), "data.summary")
     out: Dict[str, Any] = {"task": task, "model": data.get("model")}
     if task == "promoter":
         out["promoter_windows"] = summary.get("promoter_windows")
         out["total_windows"] = summary.get("total_windows")
-        out["regions"] = data.get("regions") or []
+        out["regions"] = _as_objs(data.get("regions"), "data.regions")
     elif task == "splice":
         out["sites_found"] = summary.get("total_sites", summary.get("sites_found"))
         out["donor_sites"] = summary.get("donor_sites")
         out["acceptor_sites"] = summary.get("acceptor_sites")
-        out["sites"] = data.get("sites") or []
+        out["sites"] = _as_objs(data.get("sites"), "data.sites")
     elif task == "enhancer":
         out["windows_processed"] = summary.get("total_windows", summary.get("windows_processed"))
         out["dev_score_max"] = summary.get("dev_score_max")
@@ -209,18 +269,18 @@ def _summarize(task: str, body: Dict[str, Any]) -> Dict[str, Any]:
         out["windows_processed"] = summary.get("total_windows", summary.get("windows_processed"))
         out["total_annotations"] = summary.get("total_annotations")
     elif task == "expression":
-        pred = data.get("prediction") or {}
+        pred = _as_obj(data.get("prediction"), "data.prediction")
         out["log_tpm"] = pred.get("expression_log_tpm")
         out["tpm"] = pred.get("expression_tpm")
         # Windowing provenance — the API cuts the scored 9,198 bp window
         # itself, so this is the only way to confirm it cut where you meant.
-        inp = data.get("input") or {}
+        inp = _as_obj(data.get("input"), "data.input")
         out["tss_index"] = inp.get("tss_index")
         out["scored_window"] = inp.get("scored_window")
         out["submitted_sequence_length"] = inp.get("submitted_sequence_length")
     elif task == "annotation":
         out["transcripts_found"] = summary.get("total_transcripts", summary.get("transcripts_found"))
-        out["transcripts"] = data.get("transcripts") or []
+        out["transcripts"] = _as_objs(data.get("transcripts"), "data.transcripts")
     out["raw_summary"] = summary
     return out
 
@@ -229,7 +289,7 @@ def _write_report(task: str, summary: Dict[str, Any], body: Dict[str, Any], outp
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "result.json").write_text(json.dumps({"summary": summary, "full_response": body}, indent=2))
 
-    meta = body.get("meta") or {}
+    meta = _as_obj(body.get("meta"), "meta")
     model = summary.get("model") or "—"
     lines = [
         f"# gi-{task} report",
@@ -246,7 +306,7 @@ def _write_report(task: str, summary: Dict[str, Any], body: Dict[str, Any], outp
     ]
     if task == "promoter":
         lines.append(f"- Promoter windows: **{summary.get('promoter_windows', 0)}** / {summary.get('total_windows', 0)} total")
-        regions = summary.get("regions") or []
+        regions = _as_objs(summary.get("regions"), "data.regions")
         if regions:
             lines.append("")
             lines.append("| Window | Start | End | Probability |")
@@ -255,7 +315,7 @@ def _write_report(task: str, summary: Dict[str, Any], body: Dict[str, Any], outp
                 lines.append(f"| {r.get('window_index','-')} | {r.get('start','-')} | {r.get('end','-')} | {r.get('probability','-'):.3f} |" if isinstance(r.get('probability'), (int, float)) else f"| {r.get('window_index','-')} | {r.get('start','-')} | {r.get('end','-')} | {r.get('probability','-')} |")
     elif task == "splice":
         lines.append(f"- Splice sites found: **{summary.get('sites_found') or 0}** ({summary.get('donor_sites') or 0} donor + {summary.get('acceptor_sites') or 0} acceptor)")
-        sites = (summary.get("sites") or [])[:20]
+        sites = _as_objs(summary.get("sites"), "data.sites")[:20]
         if sites:
             lines.append("")
             # Field names are the API's: name / start / end / site_type / score.
@@ -302,7 +362,7 @@ def _write_report(task: str, summary: Dict[str, Any], body: Dict[str, Any], outp
             )
     elif task == "annotation":
         lines.append(f"- Transcripts found: **{summary.get('transcripts_found') or 0}**")
-        tx = (summary.get("transcripts") or [])[:20]
+        tx = _as_objs(summary.get("transcripts"), "data.transcripts")[:20]
         if tx:
             lines.append("")
             lines.append("| Transcript | Start | End | Strand |")
@@ -425,7 +485,16 @@ def run_skill(*, task: str, demo_path: Path, async_mode: bool = False, default_m
         print(f"[gi-{task}] unexpected API response shape: missing {e}", file=sys.stderr)
         return 2
     elapsed_ms = (time.monotonic() - started) * 1000.0
-    summary = _summarize(task, body)
-    _write_report(task, summary, body, args.output, input_path, sequence_name, len(sequence), elapsed_ms)
+    # The summary and the report writer run outside the block above, so their
+    # own view of a malformed response needs its own handler. Without one a
+    # wrong-typed nested field either raised a traceback or — once the helpers
+    # coerced it — wrote a zero-valued report and printed the OK line. Both are
+    # worse than exiting 2 with the offending field named.
+    try:
+        summary = _summarize(task, body)
+        _write_report(task, summary, body, args.output, input_path, sequence_name, len(sequence), elapsed_ms)
+    except ResponseShapeError as e:
+        print(f"[gi-{task}] unexpected API response shape: {e}", file=sys.stderr)
+        return 2
     print(f"[gi-{task}] OK — wrote {args.output}/report.md ({elapsed_ms:.0f} ms wall)", file=sys.stderr)
     return 0
