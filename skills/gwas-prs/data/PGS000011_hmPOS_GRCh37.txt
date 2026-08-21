@@ -1,8 +1,16 @@
-#pgs_id=PGS000011
-#pgs_name=PRS for atrial fibrillation (Tada et al. 2014)
+#clawbio_panel=curated_demo
+#clawbio_panel_id=CLAWBIO-AF-12
+#clawbio_pmid=25123217
+#panel_name=Curated demo panel: atrial fibrillation (12 loci)
 #trait_reported=Atrial fibrillation
+#source_publication=Tada H et al. (2014) Stroke PMID:25123217
 #genome_build=GRCh37
 #variants_number=12
+#note=Illustrative panel of established trait-associated loci, curated for
+#note=ClawBio offline demos. This is NOT a PGS Catalog scoring file and it
+#note=carries no PGS Catalog accession. The filename retains PGS000011 for
+#note=backward compatibility only; that accession belongs to a different
+#note=published score. See ClawBio issue #356. Do not cite this file.
 rsID	chr_name	chr_position	effect_allele	other_allele	effect_weight	allelefrequency_effect
 rs2200733	4	111710169	T	C	0.26	0.15
 rs10033464	4	111714145	T	C	0.14	0.15

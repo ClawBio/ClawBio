@@ -1,8 +1,16 @@
-#pgs_id=PGS000013
-#pgs_name=PRS for type 2 diabetes (Vassy et al. 2014)
+#clawbio_panel=curated_demo
+#clawbio_panel_id=CLAWBIO-T2D-8
+#clawbio_pmid=24520119
+#panel_name=Curated demo panel: type 2 diabetes (8 loci)
 #trait_reported=Type 2 diabetes
+#source_publication=Vassy JL et al. (2014) Diabetes PMID:24520119
 #genome_build=GRCh37
 #variants_number=8
+#note=Illustrative panel of established trait-associated loci, curated for
+#note=ClawBio offline demos. This is NOT a PGS Catalog scoring file and it
+#note=carries no PGS Catalog accession. The filename retains PGS000013 for
+#note=backward compatibility only; that accession belongs to a different
+#note=published score. See ClawBio issue #356. Do not cite this file.
 rsID	chr_name	chr_position	effect_allele	other_allele	effect_weight	allelefrequency_effect
 rs7903146	10	114758349	T	C	0.31	0.28
 rs1801282	3	12393125	C	G	0.14	0.88

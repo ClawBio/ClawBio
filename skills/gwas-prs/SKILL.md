@@ -42,13 +42,30 @@ When the user asks for a polygenic risk score calculation:
 
 1. **Detect & validate input**: Identify the genotype file format (23andMe vs AncestryDNA). Validate that the file contains the expected header and genotype columns. Report the total number of SNPs in the file.
 
-2. **Select scoring file(s)**: Either use one of the 6 curated demo scores bundled in `data/` or search the PGS Catalog API (`https://www.pgscatalog.org/rest/`) for a trait-specific score. Curated scores available:
-   - PGS000013 — Type 2 diabetes (8 variants)
-   - PGS000011 — Atrial fibrillation (12 variants)
-   - PGS000004 — Coronary artery disease (46 variants)
-   - PGS000001 — Breast cancer (77 variants)
-   - PGS000057 — Prostate cancer (147 variants)
-   - PGS000039 — BMI (97 variants)
+2. **Select scoring file(s)**: Either use one of the 6 curated demo panels bundled in `data/` or search the PGS Catalog API (`https://www.pgscatalog.org/rest/`) for a trait-specific score.
+
+   > **The bundled panels are not PGS Catalog scores.** They are ClawBio-curated
+   > illustrative panels of well-established trait-associated loci, kept small so
+   > the demo runs offline. Each is keyed by a PGS accession for backward
+   > compatibility only, and **that accession belongs to a different published
+   > score**. Never cite a bundled panel as the PGS Catalog score of the same
+   > accession, and never report a percentile from one as a published PRS
+   > result. See issue #356.
+
+   Curated demo panels available:
+
+   | Key (legacy) | Panel id | Trait | Loci | Source publication |
+   |---|---|---|---|---|
+   | PGS000013 | CLAWBIO-T2D-8 | Type 2 diabetes | 8 | Vassy JL et al. (2014) *Diabetes*, PMID 24520119 |
+   | PGS000011 | CLAWBIO-AF-12 | Atrial fibrillation | 12 | Tada H et al. (2014) *Stroke*, PMID 25123217 |
+   | PGS000004 | CLAWBIO-CAD-46 | Coronary artery disease | 46 | Abraham G et al. (2016) *Eur Heart J*, PMID 27655226 |
+   | PGS000001 | CLAWBIO-BC-77 | Breast cancer | 77 | Mavaddat N et al. (2015) *J Natl Cancer Inst*, PMID 25855707 |
+   | PGS000057 | CLAWBIO-PC-147 | Prostate cancer | 147 | Schumacher FR et al. (2018) *Nat Genet*, PMID 29892016 |
+   | PGS000039 | CLAWBIO-BMI-97 | BMI | 97 | Locke AE et al. (2015) *Nature*, PMID 25673413 |
+
+   Requesting one of these accessions **without** `--demo` fetches the genuine
+   PGS Catalog score over the network; the bundled panel is deliberately
+   ignored so it cannot stand in for the real thing.
 
 3. **Parse scoring file**: Read the PGS harmonised scoring file. Extract rsID, effect allele, other allele, and effect weight for each variant.
 
@@ -135,7 +152,7 @@ Missing genotypes (variant not in patient file) are excluded from the sum. The c
 
 ## Reference Distributions
 
-Population reference distributions for the 6 curated scores are stored in `curated_scores.json`. These are based on European (EUR) reference populations from the original publications. Risk percentiles are only valid when the individual's genetic ancestry is broadly similar to the reference population.
+Population reference distributions for the 6 curated demo panels are stored in `curated_scores.json`, which is generated from `CURATED_SCORES` in `gwas_prs.py` and pinned against it by `tests/test_score_provenance.py`. Edit the Python dict, not the JSON. These distributions are based on European (EUR) reference populations. Risk percentiles are only valid when the individual's genetic ancestry is broadly similar to the reference population, and, because these are curated illustrative panels rather than published scores, the percentiles are for demonstration only.
 
 **Ancestry caveat**: PRS performance varies across ancestries. Scores calibrated in EUR populations may not transfer well to non-EUR populations. Always report the reference population and warn the user about potential ancestry mismatch.
 

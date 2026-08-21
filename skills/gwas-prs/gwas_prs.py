@@ -61,15 +61,31 @@ SKILL_DIR = Path(__file__).resolve().parent
 DATA_DIR = SKILL_DIR / "data"
 
 # ---------------------------------------------------------------------------
-# Curated scores — offline demo scoring with reference distributions
+# Curated demo panels: offline scoring with reference distributions
 # ---------------------------------------------------------------------------
+#
+# These six entries are ClawBio-curated illustrative panels of well-established
+# trait-associated loci. They are NOT PGS Catalog scoring files, and the PGS
+# accession used as each key belongs to a DIFFERENT published score (issue
+# #356). The keys are retained for backward compatibility with downstream
+# skills; `curated_panel_id` is the honest identifier and `pgs_catalog_id` is
+# deliberately None.
+#
+# Every `pmid` below was resolved against PubMed on 2026-08-21. Three earlier
+# citations named papers that had nothing to do with the trait: a
+# ventilator-pneumonia nursing paper, the ExAC paper, and a body-fat
+# distribution meta-analysis. Do not edit a citation without re-resolving it;
+# `tests/test_score_provenance.py` pins them.
 
 CURATED_SCORES: dict[str, dict] = {
     "PGS000013": {
-        "name": "PGS000013",
+        "name": "Curated demo panel: type 2 diabetes (8 loci)",
+        "curated_panel_id": "CLAWBIO-T2D-8",
+        "pgs_catalog_id": None,
         "trait": "Type 2 diabetes",
         "variants_count": 8,
-        "publication": "Vassy et al. (2014) Ann Intern Med",
+        "publication": "Vassy JL et al. (2014) Diabetes",
+        "pmid": "24520119",
         "reference_distribution": {
             "mean": 1.12,
             "sd": 0.30,
@@ -77,10 +93,13 @@ CURATED_SCORES: dict[str, dict] = {
         },
     },
     "PGS000011": {
-        "name": "PGS000011",
+        "name": "Curated demo panel: atrial fibrillation (12 loci)",
+        "curated_panel_id": "CLAWBIO-AF-12",
+        "pgs_catalog_id": None,
         "trait": "Atrial fibrillation",
         "variants_count": 12,
-        "publication": "Tada et al. (2014) Circ Cardiovasc Genet",
+        "publication": "Tada H et al. (2014) Stroke",
+        "pmid": "25123217",
         "reference_distribution": {
             "mean": 0.65,
             "sd": 0.23,
@@ -88,10 +107,13 @@ CURATED_SCORES: dict[str, dict] = {
         },
     },
     "PGS000004": {
-        "name": "PGS000004",
+        "name": "Curated demo panel: coronary artery disease (46 loci)",
+        "curated_panel_id": "CLAWBIO-CAD-46",
+        "pgs_catalog_id": None,
         "trait": "Coronary artery disease",
         "variants_count": 46,
-        "publication": "Abraham et al. (2016) Eur Heart J",
+        "publication": "Abraham G et al. (2016) Eur Heart J",
+        "pmid": "27655226",
         "reference_distribution": {
             "mean": 2.84,
             "sd": 0.28,
@@ -99,10 +121,13 @@ CURATED_SCORES: dict[str, dict] = {
         },
     },
     "PGS000001": {
-        "name": "PGS000001",
+        "name": "Curated demo panel: breast cancer (77 loci)",
+        "curated_panel_id": "CLAWBIO-BC-77",
+        "pgs_catalog_id": None,
         "trait": "Breast cancer",
         "variants_count": 77,
-        "publication": "Mavaddat et al. (2015) J Natl Cancer Inst",
+        "publication": "Mavaddat N et al. (2015) J Natl Cancer Inst",
+        "pmid": "25855707",
         "reference_distribution": {
             "mean": 4.23,
             "sd": 0.54,
@@ -110,10 +135,13 @@ CURATED_SCORES: dict[str, dict] = {
         },
     },
     "PGS000057": {
-        "name": "PGS000057",
+        "name": "Curated demo panel: prostate cancer (147 loci)",
+        "curated_panel_id": "CLAWBIO-PC-147",
+        "pgs_catalog_id": None,
         "trait": "Prostate cancer",
         "variants_count": 147,
-        "publication": "Schumacher et al. (2018) Nat Genet",
+        "publication": "Schumacher FR et al. (2018) Nat Genet",
+        "pmid": "29892016",
         "reference_distribution": {
             "mean": 7.11,
             "sd": 0.56,
@@ -121,10 +149,13 @@ CURATED_SCORES: dict[str, dict] = {
         },
     },
     "PGS000039": {
-        "name": "PGS000039",
+        "name": "Curated demo panel: body mass index (97 loci)",
+        "curated_panel_id": "CLAWBIO-BMI-97",
+        "pgs_catalog_id": None,
         "trait": "BMI",
         "variants_count": 97,
-        "publication": "Locke et al. (2015) Nature",
+        "publication": "Locke AE et al. (2015) Nature",
+        "pmid": "25673413",
         "reference_distribution": {
             "mean": 2.89,
             "sd": 0.25,
@@ -392,6 +423,34 @@ parse_genotype_file = load_genotypes
 # ---------------------------------------------------------------------------
 # Scoring file parser — PGS Catalog harmonized TSV
 # ---------------------------------------------------------------------------
+
+CURATED_PANEL_MARKER = "#clawbio_panel=curated_demo"
+
+
+def is_curated_demo_panel(filepath: str | Path) -> bool:
+    """True if `filepath` is a bundled ClawBio demo panel, not a catalog score.
+
+    The demo panels live at the same path the download cache uses, so without
+    this check a request for a real accession is answered from the local
+    lookalike and never reaches the API. That is issue #356: `--pgs-id
+    PGS000013` returned an 8-variant type 2 diabetes panel in place of the
+    real PGS000013 (Khera 2018, coronary artery disease, 6,630,150 variants).
+
+    Reads only the leading comment block, so it is cheap on large real files
+    and safe on a missing or unreadable path.
+    """
+    path = Path(filepath)
+    try:
+        opener = gzip.open if path.suffix == ".gz" else open
+        with opener(path, "rt") as handle:  # type: ignore[operator]
+            for line in handle:
+                if not line.startswith("#"):
+                    return False
+                if line.strip() == CURATED_PANEL_MARKER:
+                    return True
+    except (OSError, EOFError, UnicodeDecodeError):
+        return False
+    return False
 
 
 def parse_scoring_file(filepath: str | Path) -> list[dict]:
@@ -1060,14 +1119,22 @@ def main():
         print(f"GWAS-PRS: fetching score {pgs_id}")
         print()
 
-        # Check if we have it pre-downloaded in data/
+        # Check if we have it pre-downloaded in data/.
+        # A bundled curated demo panel must never answer a real request for an
+        # accession (issue #356), so skip it and fetch the genuine score.
         local_path = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt"
         local_path_gz = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt.gz"
+        for candidate in (local_path, local_path_gz):
+            if candidate.exists() and is_curated_demo_panel(candidate):
+                print(f"  Ignoring curated demo panel at {candidate}")
+                print(f"  ({pgs_id} is a ClawBio demo panel here, not the PGS "
+                      f"Catalog score of that accession; fetching the real one. "
+                      f"Use --demo to score the curated panels.)")
 
-        if local_path.exists():
+        if local_path.exists() and not is_curated_demo_panel(local_path):
             filepath = local_path
             print(f"  Using pre-downloaded scoring file: {filepath}")
-        elif local_path_gz.exists():
+        elif local_path_gz.exists() and not is_curated_demo_panel(local_path_gz):
             filepath = local_path_gz
             print(f"  Using pre-downloaded scoring file: {filepath}")
         else:

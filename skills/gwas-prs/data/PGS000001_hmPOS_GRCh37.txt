@@ -1,8 +1,16 @@
-#pgs_id=PGS000001
-#pgs_name=PRS for breast cancer (Mavaddat et al. 2015)
+#clawbio_panel=curated_demo
+#clawbio_panel_id=CLAWBIO-BC-77
+#clawbio_pmid=25855707
+#panel_name=Curated demo panel: breast cancer (77 loci)
 #trait_reported=Breast cancer
+#source_publication=Mavaddat N et al. (2015) J Natl Cancer Inst PMID:25855707
 #genome_build=GRCh37
 #variants_number=77
+#note=Illustrative panel of established trait-associated loci, curated for
+#note=ClawBio offline demos. This is NOT a PGS Catalog scoring file and it
+#note=carries no PGS Catalog accession. The filename retains PGS000001 for
+#note=backward compatibility only; that accession belongs to a different
+#note=published score. See ClawBio issue #356. Do not cite this file.
 rsID	chr_name	chr_position	effect_allele	other_allele	effect_weight	allelefrequency_effect
 rs2981582	10	123337335	A	G	0.26	0.38
 rs3803662	16	52586341	A	G	0.20	0.25

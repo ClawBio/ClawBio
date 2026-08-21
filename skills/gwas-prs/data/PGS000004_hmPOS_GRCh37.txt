@@ -1,8 +1,16 @@
-#pgs_id=PGS000004
-#pgs_name=PRS for coronary artery disease (Abraham et al. 2016)
+#clawbio_panel=curated_demo
+#clawbio_panel_id=CLAWBIO-CAD-46
+#clawbio_pmid=27655226
+#panel_name=Curated demo panel: coronary artery disease (46 loci)
 #trait_reported=Coronary artery disease
+#source_publication=Abraham G et al. (2016) Eur Heart J PMID:27655226
 #genome_build=GRCh37
 #variants_number=46
+#note=Illustrative panel of established trait-associated loci, curated for
+#note=ClawBio offline demos. This is NOT a PGS Catalog scoring file and it
+#note=carries no PGS Catalog accession. The filename retains PGS000004 for
+#note=backward compatibility only; that accession belongs to a different
+#note=published score. See ClawBio issue #356. Do not cite this file.
 rsID	chr_name	chr_position	effect_allele	other_allele	effect_weight	allelefrequency_effect
 rs11206510	1	55496039	T	C	0.09	0.82
 rs515135	2	21263900	G	A	0.08	0.79
