@@ -186,3 +186,36 @@ class TestInputRefusal:
     def test_fasta_error_is_value_error(self):
         from clawbio.gi.gi_client import FastaError
         assert issubclass(FastaError, ValueError)
+
+
+class TestBundledFixtureHeadersAreOneBasedInclusive:
+    """Every demo header's coordinate span must equal its own base count.
+
+    The headers are documentation a user reads to derive an offset, and
+    --tss-index makes offsets load-bearing: an offset taken from a header that
+    is one out lands one base off, and the API answers confidently either way.
+    expression_hbb_k562.fa stated chr11:5222472-5231670, which is 9,199 bases
+    1-based inclusive for a 9,198 base file, because its start was 0-based
+    while the other five were 1-based.
+
+    Settled against GRCh38 rather than by moving whichever end looked wrong:
+    the file is the exact reverse complement of Ensembl's
+    chr11:5222473-5231670, so the start moved, not the end. This asserts the
+    arithmetic for all six, which is the part that can drift again.
+    """
+
+    @pytest.mark.parametrize("task", TASKS)
+    def test_header_span_matches_the_base_count(self, task):
+        import re
+        fixtures = sorted((REPO_ROOT / "skills" / f"gi-{task}" / "example_data").glob("*.fa"))
+        assert fixtures, f"gi-{task} has no bundled fixture"
+        for fa in fixtures:
+            lines = fa.read_text().splitlines()
+            header, bases = lines[0], "".join(l.strip() for l in lines[1:])
+            m = re.search(r":(\d+)-(\d+)", header)
+            assert m, f"{fa.name}: header states no coordinate span"
+            start, end = int(m.group(1)), int(m.group(2))
+            assert end - start + 1 == len(bases), (
+                f"{fa.name}: header spans {end - start + 1} bases 1-based inclusive "
+                f"but the file holds {len(bases)}"
+            )
