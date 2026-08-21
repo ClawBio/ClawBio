@@ -1,6 +1,6 @@
 ---
 name: gi-annotation
-description: Predict gene and transcript structure (intervals, exons, strand) from a DNA sequence using the Genomic Intelligence DNA Annotation model, via the hosted /v1/tasks/annotation/predict API. Async-only
+description: Predict gene and transcript structure (intervals, exons, strand) from a DNA sequence using the Genomic Intelligence DNA Annotation model, via the hosted /v1/tasks/annotation/predict API. Submitted asynchronously
   — the pipeline takes ~20 s for ~20 kbp.
 license: MIT
 metadata:
@@ -50,7 +50,7 @@ metadata:
     - fa
     - fasta
     - fna
-    description: Single-record FASTA (genomic region; can be tens to hundreds of kbp).
+    description: Single-record FASTA (genomic region), 1,000–500,000 bp (whitespace stripped) — tens to hundreds of kbp is the normal case.
     required: false
   outputs:
   - name: report
@@ -79,7 +79,7 @@ metadata:
 
 You are **gi-annotation**, a ClawBio agent that calls the **Genomic Intelligence** DNA annotation pipeline. Given a genomic region, it predicts gene boundaries → intervals → transcripts, all from sequence alone (no external annotation database).
 
-> ⚠️ **Remote inference — opt-in required.** Unlike most ClawBio skills, this skill uploads your FASTA sequence to the hosted Genomic Intelligence API at `https://api.genomicintelligence.ai`. Prefer a browser? The same models run interactively at <https://genomicintelligence.ai>. **Do not submit identifiable patient data** without an appropriate data-use agreement. Key setup: see [Authentication](#authentication) below.
+> ⚠️ **Remote inference — opt-in required.** Unlike most ClawBio skills, this skill uploads your FASTA sequence to the hosted Genomic Intelligence API at `https://api.genomicintelligence.ai`. The same models also run interactively at <https://genomicintelligence.ai>. **Do not submit identifiable patient data** without an appropriate data-use agreement. Key setup: see [Authentication](#authentication) below.
 
 ## Trigger
 
@@ -102,7 +102,9 @@ You are **gi-annotation**, a ClawBio agent that calls the **Genomic Intelligence
 
 ## API Backed
 
-`POST https://api.genomicintelligence.ai/v1/tasks/annotation/predict` with `Prefer: respond-async` — annotation is **async-only**. The pipeline streams progress through `GET /v1/tasks/jobs/{job_id}` (typically: load → gene-boundaries → gene-intervals → transcripts).
+`POST https://api.genomicintelligence.ai/v1/tasks/annotation/predict` with `Prefer: respond-async`. The API accepts either delivery mode on every task; this skill always submits async because the pipeline is long-running. The pipeline streams progress through `GET /v1/tasks/jobs/{job_id}` (typically: load → gene-boundaries → gene-intervals → transcripts).
+
+> **Contract note.** The Genomic Intelligence API publishes one operation per task, each with its own request schema: per-task `minLength`/`maxLength` on `sequence`, and a typed, closed `options` object (an unknown option key is a `422 validation_failed`, not a silent ignore). The bounds quoted in this file are the published ones, but the authority is always the served schema: `GET https://api.genomicintelligence.ai/v1/openapi.json`.
 
 ## Workflow
 
@@ -134,7 +136,7 @@ The skill requires a Genomic Intelligence partner key in `GI_API_KEY`. Resolutio
 
 ### Quick start — ClawBio hackathon key
 
-A shared hackathon-tier key ships in `.env.example` at the repo root (50 concurrent / 120 rpm, opt-in only). From wherever the ClawBio files live on your machine:
+A shared hackathon-tier key ships in `.env.example` at the repo root (opt-in only). Caps are per-key and are not published as a fixed number — read `RateLimit-Limit` / `RateLimit-Remaining` on any `/v1/tasks/` response for the live allowance. The runner keeps them for you: they are in `result.json` under `rate_limit`, and a `429` names them on the error line. From wherever the ClawBio files live on your machine:
 
 ```bash
 # Repo root (git clone) — or ~/.claude/plugins/cache/clawbio/clawbio/<version>/ for plugin installs
@@ -156,12 +158,13 @@ export GI_API_KEY=gi_yourkeyhere
 python clawbio.py run gi-annotation --demo
 ```
 
-Bundled fixture is the TP53 locus (19 kbp). Expect ~5 transcripts (TP53 has multiple annotated isoforms) and a ~20 s wall time.
+Bundled fixture is the TP53 locus (19 kbp). Expect several transcripts — TP53 has multiple annotated isoforms — and a wall time of roughly 20 s.
 
 ## Gotchas
 
-- **Async-only.** Don't expect a sync response. The runner handles polling automatically.
-- **Long input is normal.** The model handles tens-to-hundreds of kbp; longer regions take proportionally more time.
+- **Always submitted async.** This skill sends `Prefer: respond-async` and polls, so it never returns a synchronous response — though the API itself serves annotation synchronously when the header is omitted. Delivery mode is a per-request choice, not a property of the task.
+- **Length bounds are 1,000–500,000 bp**, published as `minLength` / `maxLength` on `AnnotationPredictRequest` and counted after whitespace is stripped. Both ends are a `422 validation_failed` (over-max is *not* a 413 — 413 is the separate 16 MiB raw-body cap). The skill rejects either locally before spending a request. The 1,000 bp floor is the highest of the six tasks: the gene finder needs a region, not a single exon.
+- **Long input is normal.** The model handles tens-to-hundreds of kbp up to the 500 kbp cap; longer regions take proportionally more time. Annotation reports `bio_spec.context_window_bp: null` — there is no sliding-window regime caveat here, unlike promoter / splice / enhancer / chromatin.
 - **First-call cold-start.** The annotation pipeline is the heaviest GI model — first request after a cold service takes ~30+ s; subsequent calls are warm.
 - **The model is trained on human + a few other vertebrates.** Bacterial / fungal / plant predictions are out of distribution.
 - **Hackathon key is shared.** Async jobs count toward concurrent caps too — under heavy hackathon load, you may queue.
@@ -185,4 +188,4 @@ Chains with: `gi-promoter` (validate predicted TSSes), `gi-splice` (cross-check 
 
 ## Safety
 
-Research tool. Not a clinical assay. Predicted gene structures are model outputs, not curated reference annotations — for clinical interpretation, anchor to RefSeq / Ensembl.
+Research and development use. Not for clinical or diagnostic decisions. Predicted gene structures are model outputs, not curated reference annotations — for clinical interpretation, anchor to RefSeq / Ensembl.
