@@ -9,6 +9,7 @@ no weights.
 """
 from __future__ import annotations
 
+import csv
 import importlib.util
 import json
 import subprocess
@@ -234,11 +235,78 @@ def test_predict_expression_maps_panel_symbols_onto_scores(module, monkeypatch):
 
     scores = module.predict_expression(object(), ["c9orf72", "EPCAM"], "scgpt")
 
-    # Keys come back as the panel spells them, not as the user typed them.
+    # Keys come back as the panel spells them, not as the user typed them, and
+    # in the order they were requested.
     assert list(scores) == ["C9orf72", "EPCAM"]
     assert scores == {"C9orf72": 3.0, "EPCAM": 0.0}
     assert model.eval_called is True
-    assert model.seen_genes == ["C9orf72", "EPCAM"]
+    # Upstream is asked in panel-index order, whatever order the caller used.
+    assert model.seen_genes == ["EPCAM", "C9orf72"]
+
+
+def test_upstream_is_asked_in_panel_index_order_whatever_the_caller_typed(
+    module, monkeypatch
+):
+    """A reversed round trip, so the order contract is pinned rather than assumed.
+
+    `predict_genes` returns a bare vector. Whether its values follow the request
+    order or the panel's index order is a convention upstream never states, and
+    `requirements.txt` admits any 1.x. Sorting into panel-index order before the
+    call makes the two the same list.
+    """
+    calls: dict = {}
+    model = install_stub_stack(monkeypatch, calls)
+
+    forward = module.predict_expression(object(), ["MKI67", "EPCAM"], "scgpt")
+    asked_forward = list(model.seen_genes)
+    reverse = module.predict_expression(object(), ["EPCAM", "MKI67"], "scgpt")
+
+    # EPCAM is panel index 0, MKI67 index 4. Both callers ask the same question.
+    assert asked_forward == ["EPCAM", "MKI67"]
+    assert list(model.seen_genes) == ["EPCAM", "MKI67"]
+
+    # The caller still gets their own order back, with the same values in it.
+    assert list(forward) == ["MKI67", "EPCAM"]
+    assert list(reverse) == ["EPCAM", "MKI67"]
+    assert forward == reverse == {"EPCAM": 0.0, "MKI67": 4.0}
+
+
+def test_a_model_returning_panel_index_order_maps_onto_the_right_genes(
+    module, monkeypatch
+):
+    """The failure this guards against, made real.
+
+    This fake gathers by panel index, which is what `genes_to_indices` plus a
+    vectorised gather would do, and ignores the order the genes arrived in.
+    Under the old `dict(zip(requested, scores))` every gene took a neighbour's
+    value with a plausible magnitude, a clean rank and nothing raised.
+    """
+    calls: dict = {}
+    model = install_stub_stack(monkeypatch, calls)
+    panel = list(model.gene_names)
+
+    def _gather_by_panel_index(_batch, genes):
+        model.seen_genes = list(genes)
+        gathered = sorted(genes, key=panel.index)
+        return _FakeTensor(float(panel.index(gene)) for gene in gathered)
+
+    monkeypatch.setattr(model, "predict_genes", _gather_by_panel_index)
+
+    scores = module.predict_expression(object(), ["MKI67", "EPCAM"], "scgpt")
+
+    assert scores == {"MKI67": 4.0, "EPCAM": 0.0}
+
+
+def test_a_short_result_vector_raises_instead_of_truncating(module, monkeypatch):
+    """zip stops at the shorter list, so a length mismatch has to be an error."""
+    calls: dict = {}
+    model = install_stub_stack(monkeypatch, calls)
+    monkeypatch.setattr(
+        model, "predict_genes", lambda _batch, _genes: _FakeTensor([1.0])
+    )
+
+    with pytest.raises(RuntimeError, match=r"1 value\(s\) for 2 requested"):
+        module.predict_expression(object(), ["MKI67", "EPCAM"], "scgpt")
 
 
 def test_predict_expression_pins_the_weight_revision(module, monkeypatch):
@@ -394,6 +462,80 @@ def test_demo_records_an_undeclared_pixel_size_as_null(demo_output):
     report = (demo_output / "report.md").read_text(encoding="utf-8")
     assert "not declared" in report
     assert "0.5 microns per pixel" not in report
+
+
+def test_a_forty_x_pixel_size_is_flagged_as_the_wrong_field_of_view(module):
+    """224x224 is a pixel count, not a field of view.
+
+    A tile cut at 40x has the same pixel dimensions as one cut at 20x and covers
+    a quarter of the tissue, so validate_tile_size cannot see the difference.
+    The pixel size is the only datum that can, and the run already has it.
+    """
+    warning = module.field_of_view_warning(0.25)
+
+    assert warning is not None
+    assert "0.25" in warning
+    assert "20x" in warning
+
+
+def test_a_twenty_x_pixel_size_raises_no_field_of_view_warning(module):
+    assert module.field_of_view_warning(0.5) is None
+    assert module.field_of_view_warning(None) is None
+
+
+def test_the_field_of_view_warning_reaches_the_report_and_result_json(module, tmp_path):
+    out = tmp_path / "fov"
+    out.mkdir()
+    meta = module.build_meta(
+        demo=False, tile_label="tile.png", source="scgpt", genes=["EPCAM"],
+        mpp=0.25, mpp_source="declared with --mpp",
+        assessment={"mean_pixel": 180.0, "mean_saturation": 0.3, "warnings": []},
+    )
+    rows = [{"gene": "EPCAM", "expression": 5.0, "unit": "log1p-CPM", "rank": 1}]
+
+    report = module.write_report(out, rows, meta).read_text(encoding="utf-8")
+    payload = json.loads(
+        module.write_result_json(out, rows, meta).read_text(encoding="utf-8")
+    )
+
+    assert "20x" in report
+    assert payload["microns_per_pixel_warning"] is not None
+    assert "20x" in payload["microns_per_pixel_warning"]
+
+
+def test_a_plausible_pixel_size_leaves_the_warning_null(module, tmp_path):
+    out = tmp_path / "fov-ok"
+    out.mkdir()
+    meta = module.build_meta(
+        demo=False, tile_label="tile.png", source="scgpt", genes=["EPCAM"],
+        mpp=0.5, mpp_source="declared with --mpp",
+        assessment={"mean_pixel": 180.0, "mean_saturation": 0.3, "warnings": []},
+    )
+    rows = [{"gene": "EPCAM", "expression": 5.0, "unit": "log1p-CPM", "rank": 1}]
+    payload = json.loads(
+        module.write_result_json(out, rows, meta).read_text(encoding="utf-8")
+    )
+
+    assert payload["microns_per_pixel_warning"] is None
+
+
+def test_the_field_of_view_band_is_not_presented_as_an_upstream_figure(module):
+    """Upstream publishes no pixel size. The band is a scanner convention for
+    what '~20x' produces, and the warning has to say which of the two it is."""
+    warning = module.field_of_view_warning(0.25)
+
+    assert "model card" not in warning
+    assert not hasattr(module, "TARGET_MPP")
+
+
+def test_the_field_of_view_warning_reaches_the_operator_on_stderr(
+    module, tmp_path, capsys
+):
+    """A caveat only in the report is a caveat the operator finds afterwards."""
+    out = tmp_path / "fov-stderr"
+    module.main(["--demo", "--mpp", "0.25", "--output", str(out)])
+
+    assert "20x" in capsys.readouterr().err
 
 
 def test_a_declared_mpp_wins_over_image_metadata_but_says_so(module, tmp_path):
@@ -567,8 +709,66 @@ def test_demo_gene_table_keeps_rank_as_a_secondary_column(demo_output, module):
     lines = (demo_output / "tables" / "gene_expression.csv").read_text(
         encoding="utf-8"
     ).strip().splitlines()
-    assert lines[0] == "gene,expression,unit,rank"
+    assert lines[0] == ",".join(module.GENE_TABLE_FIELDS)
+    assert lines[0].split(",")[:4] == ["gene", "expression_log1p_cpm", "unit", "rank"]
     assert len(lines) == len(module.DEFAULT_GENES) + 1
+
+
+def test_the_demo_gene_csv_marks_every_row_as_fixture_values(demo_output, module):
+    """The CSV is the output built to be detached.
+
+    SKILL.md points diff-visualizer at `tables/gene_expression.csv`, so it can
+    leave this directory without report.md and result.json and become a heatmap
+    on its own. If it does not say the numbers came from the bundled fixture,
+    nothing downstream can.
+    """
+    with open(
+        demo_output / "tables" / "gene_expression.csv", newline="", encoding="utf-8"
+    ) as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert len(rows) == len(module.DEFAULT_GENES)
+    for row in rows:
+        assert row["provenance"] == "demo_fixture"
+        assert row["model"] == module.MODEL_REPO
+        assert row["model_revision"] == module.MODEL_REVISION
+        assert row["unit"] == module.EXPRESSION_UNIT
+
+
+def test_a_real_run_gene_csv_is_marked_as_model_output(module, tmp_path):
+    """And the same columns say the opposite when a model actually ran."""
+    out = tmp_path / "real-csv"
+    out.mkdir()
+    meta = module.build_meta(
+        demo=False, tile_label="tile.png", source="scgpt", genes=["EPCAM"],
+        mpp=None, mpp_source=None,
+        assessment={"mean_pixel": 180.0, "mean_saturation": 0.3, "warnings": []},
+    )
+    rows = [{"gene": "EPCAM", "expression": 5.0, "unit": "log1p-CPM", "rank": 1}]
+
+    path = module.write_gene_table(rows, meta, out)
+    with open(path, newline="", encoding="utf-8") as handle:
+        row = next(iter(csv.DictReader(handle)))
+
+    assert row["provenance"] == "model_prediction"
+    assert row["expression_log1p_cpm"] == "5.0"
+    assert row["model_revision"] == module.MODEL_REVISION
+
+
+def test_result_json_records_that_no_uncertainty_was_computed(demo_output):
+    """Absent uncertainty reads as high confidence unless something says otherwise.
+
+    The checkpoint returns a bare point estimate per gene: no interval, no
+    variance, no out-of-distribution score. A well-stained tile from an organ
+    the model never saw passes both tile checks and comes back looking exactly
+    like a tile from the training distribution.
+    """
+    payload = json.loads((demo_output / "result.json").read_text(encoding="utf-8"))
+    interpretation = payload["interpretation"]
+
+    assert "per_gene_uncertainty" in interpretation
+    assert interpretation["per_gene_uncertainty"] is None
+    assert "not that the estimate is certain" in interpretation["uncertainty_note"]
 
 
 def test_demo_report_is_tagged_demo_and_carries_the_disclaimer(demo_output):

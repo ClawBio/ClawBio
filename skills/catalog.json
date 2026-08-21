@@ -1178,7 +1178,7 @@
       "name": "deepspot-m",
       "cli_alias": "deepspot-m",
       "description": "Transcriptome-wide virtual spatial transcriptomics from H&E histology with DeepSpot-M. Scores a 224x224 tile and returns per-gene log1p-CPM values for any HGNC symbols you ask for, with a CSV, a report and a reproducibility bundle.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {

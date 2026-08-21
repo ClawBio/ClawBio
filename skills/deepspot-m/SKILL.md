@@ -2,9 +2,12 @@
 name: deepspot-m
 description: Transcriptome-wide virtual spatial transcriptomics from H&E histology with DeepSpot-M. Scores a 224x224 tile and returns per-gene log1p-CPM values for any HGNC symbols you ask for, with a CSV, a report and a reproducibility bundle.
 license: MIT
-model_license: cc-by-nc-sa-4.0
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
+  # The weights carry their own terms. Nested under `metadata` because the
+  # agentskills spec allows no other top-level key than the six it names, and
+  # a top-level `model_license` fails `agentskills validate`.
+  model_license: cc-by-nc-sa-4.0
   author: Kalin Nonchev
   domain: spatial-transcriptomics
   tags:
@@ -132,7 +135,7 @@ One skill, one task. This skill scores a single H&E tile and writes gene values.
 
 Tiles must be exactly 224x224 pixels. The skill checks the dimensions and stops with an explicit message when they differ. Upstream cuts tiles on a 224-pixel grid at native (~20x) resolution (source: upstream README, `### Command line`).
 
-**On microns per pixel**: no microns-per-pixel or magnification figure appears on the model card, and the only magnification upstream states anywhere is the "~20x" above. So the skill never assumes a pixel size. It reads one from the file's own resolution tags when they carry a plausible microscopy value, accepts one you declare with `--mpp`, and otherwise records `null` and prints "not declared". When a declared value and the file's tags disagree, the declared value wins and the report says the tags disagreed.
+**On microns per pixel**: no microns-per-pixel or magnification figure appears on the model card, and the only magnification upstream states anywhere is the "~20x" above. So the skill never assumes a pixel size. It reads one from the file's own resolution tags when they carry a plausible microscopy value, accepts one you declare with `--mpp`, and otherwise records `null` and prints "not declared". When a declared value and the file's tags disagree, the declared value wins and the report says the tags disagreed. A pixel size outside 0.4-0.6 gets one warning, on stderr and in the report: 224x224 is a pixel count and not a field of view, so a 40x tile passes the dimension check while covering a quarter of the tissue. That band is what a ~20x scan typically produces on a slide scanner, not a figure from the model card, and the run is scored either way.
 
 ## Workflow
 
@@ -178,7 +181,7 @@ python clawbio.py run deepspot-m --demo
 |------|---------|---------|
 | `--genes` | 10 gene marker panel | Comma separated HGNC symbols to score |
 | `--source` | `scgpt` | Frozen gene embedding space |
-| `--mpp` | unset | Declared microns per pixel; recorded, never assumed |
+| `--mpp` | unset | Declared microns per pixel; recorded, never assumed. Outside 0.4-0.6 the run warns that the field of view does not read as ~20x, and scores anyway |
 | `--skip-background` | off | Refuse rather than warn when a tile fails the checks |
 | `--white-mean` | `220` | Mean pixel above which a tile counts as background (upstream's default) |
 | `--min-saturation` | `0.05` | Mean HSV saturation below which a tile is flagged as not H&E |
@@ -287,20 +290,39 @@ output_directory/
 ├── report.md                      # Per-gene report with limitations attached
 ├── result.json                    # Per-gene values and run parameters
 ├── tables/
-│   └── gene_expression.csv        # gene, expression, unit, rank
+│   └── gene_expression.csv        # see columns below
 └── reproducibility/
     ├── commands.sh                # Exact command to reproduce
     ├── environment.yml            # conda-forge + nodefaults env snapshot
     └── checksums.sha256           # SHA-256 digests of the outputs
 ```
 
+### `tables/gene_expression.csv`
+
+| Column | Meaning |
+|--------|---------|
+| `gene` | HGNC symbol, spelled the way the model panel spells it |
+| `expression_log1p_cpm` | The value. The unit is in the column name because this file gets read on its own |
+| `unit` | `log1p-CPM`, repeated per row |
+| `rank` | Position by descending value *within this tile*. Convenience only; see the cross-gene caveat below |
+| `provenance` | `model_prediction`, or `demo_fixture` for a `--demo` run |
+| `model` | `ratschlab/DeepSpotM` |
+| `model_revision` | The pinned checkpoint commit |
+
+The provenance columns repeat on every row rather than sitting in a header
+comment, because this is the output designed to travel: chained to
+`diff-visualizer` it becomes a heatmap somewhere else entirely, and a plot built
+from a `--demo` run has to be able to say that no model was ever loaded.
+
 ## Dependencies
 
 **Required** (in `skills/deepspot-m/requirements.txt`, installed per skill rather than repo wide):
 - `deepspotm` >= 1.0, < 2; the model, its loader and the image processor
 - `Pillow` >= 9.0; tile loading, dimension checks and the tile quality checks
+- `huggingface_hub` >= 0.30; resolving the three checkpoint files with `local_files_only`
+- `torch` >= 2.0; the `no_grad` scope around the forward pass
 
-Installing `deepspotm` pulls in `torch`, `lightning`, `timm`, `peft`, `transformers`, `safetensors`, `huggingface_hub`, `pandas` and `numpy`. Both packages import lazily inside the prediction function, so the skill loads and runs its demo without them.
+`huggingface_hub` and `torch` arrive as `deepspotm` dependencies, but the skill imports both directly, so they are declared rather than assumed. Without them the failure surfaces as an `ImportError` an operator has to read as a cold weight cache. Installing `deepspotm` also pulls in `lightning`, `timm`, `peft`, `transformers`, `safetensors`, `pandas` and `numpy`. Every one of them imports lazily inside the prediction function, so the skill loads and runs its demo without any of them.
 
 **Licensing and access**, stated plainly because it decides whether you may use this:
 - This skill's own wrapper code is MIT. That grants nothing over the weights; the fields below are the ones that restrict you.
@@ -324,6 +346,8 @@ Installing `deepspotm` pulls in `torch`, `lightning`, `timm`, `peft`, `transform
 - **You will want to ask for every gene at once. Do not, unless you need them.** `predict_genes` computes only the queries you pass, so a four gene request is much faster than the full panel.
 - **You will want to treat `--source` as cosmetic. It is not.** The five embedding spaces are distinct frozen models, so the same tile scored under `evo2` and under `scgpt` gives different numbers. Record the source alongside the values, which `result.json` does for you.
 - **Values are log1p-CPM, not raw counts.** Do not feed them into a tool that expects integer counts, and do not exponentiate them twice.
+- **You will want to read a value as confident because nothing says otherwise. Do not.** The checkpoint returns one point estimate per gene and no interval, variance or out-of-distribution score. `result.json` carries `per_gene_uncertainty: null` to say so explicitly, because an absent key reads as high confidence. A well-stained tile from an organ the model never saw passes both tile checks and returns numbers that look ordinary.
+- **You will want to assume the stain was normalised. It was not.** Tiles go to upstream's `image_processor` exactly as they came off the scanner; this skill applies no stain normalisation, and neither does upstream's loader. Upstream names unseen stains and scanners as a degradation mode, so a cohort scanned elsewhere is a real source of drift.
 
 ## Safety
 

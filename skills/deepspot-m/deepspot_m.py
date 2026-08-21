@@ -104,12 +104,23 @@ MIN_SATURATION_DEFAULT = 0.05
 # magnification the model wants.
 PLAUSIBLE_MPP_RANGE = (0.05, 5.0)
 
+# What "~20x" comes out as on a slide scanner, in microns per pixel. This is a
+# scanner convention, not a figure from the model card: upstream publishes no
+# pixel size at all, only the "~20x" above. It exists to warn, never to resize,
+# refuse or rescale, because 224x224 is a pixel count and not a field of view. A
+# tile cut at 40x has identical pixel dimensions and covers a quarter of the
+# tissue, and validate_tile_size cannot tell the two apart.
+TWENTY_X_MPP_RANGE = (0.4, 0.6)
+
 DEFAULT_GENES = (
     "EPCAM", "KRT19", "COL1A1", "VIM", "ACTA2",
     "PTPRC", "CD68", "CD3D", "CD8A", "MKI67",
 )
 
-PIP_DEPS = ["deepspotm>=1.0,<2", "Pillow>=9.0"]
+# What environment.yml pins. Kept in step with requirements.txt, which lists
+# huggingface_hub and torch because this file imports both directly rather than
+# leaning on them arriving as deepspotm dependencies.
+PIP_DEPS = ["deepspotm>=1.0,<2", "Pillow>=9.0", "huggingface_hub>=0.30", "torch>=2.0"]
 
 # Everything main() turns into a one-line message rather than a traceback.
 # KeyError is in here because upstream's genes_to_indices raises it for a symbol
@@ -176,6 +187,28 @@ def resolve_genes(requested: list[str], panel) -> list[str]:
     return resolved
 
 
+def panel_order(canonical: list[str], panel) -> list[str]:
+    """Sort resolved symbols into the model panel's own index order.
+
+    `predict_genes` hands back a bare vector with no symbols attached, so mapping
+    it onto names rests on a convention upstream never states: values in the order
+    the genes were requested, or in panel-index order. Its documented entry point
+    is `genes_to_indices`, and resolving to indices then gathering is the natural
+    vectorised implementation, which yields the second. `requirements.txt` admits
+    any `deepspotm` 1.x, so a minor release could change which one holds, and the
+    failure is silent: every gene keeps a plausible magnitude and a clean rank
+    while carrying another gene's value.
+
+    Requesting the genes already in panel-index order collapses the two
+    conventions onto the same list, so the mapping is right under either. The
+    caller's order is restored afterwards.
+    """
+    index: dict[str, int] = {}
+    for position, symbol in enumerate(panel):
+        index.setdefault(str(symbol), position)
+    return sorted(canonical, key=lambda gene: index[gene])
+
+
 def validate_tile_size(width: int, height: int) -> None:
     """Accept only a square tile of exactly TILE_SIZE pixels per side."""
     if width != TILE_SIZE or height != TILE_SIZE:
@@ -211,6 +244,34 @@ def validate_mpp(value: float) -> float:
     if not (value > 0) or value != value or value in (float("inf"), float("-inf")):
         raise ValueError(f"--mpp must be a positive number of microns per pixel, got {value}.")
     return value
+
+
+def field_of_view_warning(mpp: float | None) -> str | None:
+    """Say so when a declared pixel size implies the wrong magnification.
+
+    The 224x224 check is strict about pixel dimensions and blind to how much
+    tissue they cover. The pixel size is the only datum in the run that can see
+    it, and until now it was recorded and never read.
+    """
+    if mpp is None:
+        return None
+
+    low, high = TWENTY_X_MPP_RANGE
+    if low <= mpp <= high:
+        return None
+
+    covered = TILE_SIZE * mpp
+    expected = TILE_SIZE * (low + high) / 2
+    magnification = "higher" if mpp < low else "lower"
+    return (
+        f"{mpp:.4g} microns per pixel is outside the {low}-{high} that a ~20x scan "
+        f"typically produces, so this tile covers {covered:.0f} x {covered:.0f} "
+        f"microns rather than roughly {expected:.0f} x {expected:.0f}. "
+        f"That reads as a {magnification} magnification than the model was trained "
+        "on. The pixel dimensions are identical either way, so nothing else in "
+        "this run can catch it. Scored anyway; the band is a scanner convention "
+        "and upstream publishes no pixel size."
+    )
 
 
 def read_pixel_size_um(image) -> float | None:
@@ -403,13 +464,24 @@ def predict_expression(
     model.eval()
 
     canonical = resolve_genes(genes, model.gene_names)
+    ordered = panel_order(canonical, model.gene_names)
 
     batch = image_processor(tile).unsqueeze(0)
     with torch.no_grad():
-        values = model.predict_genes(batch, canonical)
+        values = model.predict_genes(batch, ordered)
 
     scores = [float(v) for v in values.squeeze(0).tolist()]
-    return dict(zip(canonical, scores))
+    if len(scores) != len(ordered):
+        raise RuntimeError(
+            f"deepspotm returned {len(scores)} value(s) for {len(ordered)} requested "
+            f"gene(s) ({', '.join(ordered)}). Refusing to zip them: the shorter list "
+            "would silently truncate the longer one and every gene past the cut would "
+            "either vanish or take another gene's value."
+        )
+
+    scored = dict(zip(ordered, scores))
+    # Back into the order the caller asked for; `ordered` was the panel's order.
+    return {gene: scored[gene] for gene in canonical}
 
 
 def load_demo_expression(genes: list[str]) -> dict[str, float]:
@@ -483,6 +555,7 @@ def build_meta(
         "tile_size_px": TILE_SIZE,
         "microns_per_pixel": mpp,
         "microns_per_pixel_source": mpp_source,
+        "microns_per_pixel_warning": field_of_view_warning(mpp),
         "requested_genes": list(genes),
         "tile_mean_pixel": assessment["mean_pixel"],
         "tile_mean_saturation": assessment["mean_saturation"],
@@ -495,15 +568,52 @@ def build_meta(
 # ---------------------------------------------------------------------------
 
 
-def write_gene_table(rows: list[dict[str, object]], output_dir: Path) -> Path:
-    """Write tables/gene_expression.csv."""
+GENE_TABLE_FIELDS = (
+    "gene",
+    "expression_log1p_cpm",
+    "unit",
+    "rank",
+    "provenance",
+    "model",
+    "model_revision",
+)
+
+
+def write_gene_table(
+    rows: list[dict[str, object]],
+    meta: dict[str, object],
+    output_dir: Path,
+) -> Path:
+    """Write tables/gene_expression.csv, provenance on every row.
+
+    This is the output built to be detached: SKILL.md names diff-visualizer as a
+    consumer, and a CSV that says only `expression` cannot tell a heatmap whether
+    its numbers came from the checkpoint or from the ten hand-written values in
+    examples/demo_expression.json. report.md and result.json both carry that
+    distinction; the file most likely to travel without them has to carry it too.
+    Repeating the stamp on every row rather than in a header comment keeps it
+    through a read_csv that would drop a comment line.
+    """
     tables_dir = output_dir / "tables"
     tables_dir.mkdir(parents=True, exist_ok=True)
     path = tables_dir / "gene_expression.csv"
+    provenance = "demo_fixture" if meta["demo"] else "model_prediction"
+
     with open(path, "w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["gene", "expression", "unit", "rank"])
+        writer = csv.DictWriter(handle, fieldnames=list(GENE_TABLE_FIELDS))
         writer.writeheader()
-        writer.writerows(rows)
+        for row in rows:
+            writer.writerow(
+                {
+                    "gene": row["gene"],
+                    "expression_log1p_cpm": row["expression"],
+                    "unit": row["unit"],
+                    "rank": row["rank"],
+                    "provenance": provenance,
+                    "model": MODEL_REPO,
+                    "model_revision": MODEL_REVISION,
+                }
+            )
     return path
 
 
@@ -527,6 +637,17 @@ def write_result_json(
                 "Values are comparable for one gene across tiles. Comparing "
                 "different genes within one tile largely recovers each gene's "
                 "average abundance in the training data."
+            ),
+            # Stated rather than omitted. A consumer that finds no uncertainty
+            # key reads the point estimates as confident ones, and a tile from
+            # an organ the model never trained on passes both tile checks and
+            # comes back looking like any other.
+            "per_gene_uncertainty": None,
+            "uncertainty_note": (
+                "The checkpoint returns one point estimate per gene and no "
+                "confidence, interval, variance or out-of-distribution score. "
+                "null here means none was computed, not that the estimate is "
+                "certain."
             ),
             "upstream_limitations": list(UPSTREAM_LIMITATIONS),
         },
@@ -582,9 +703,16 @@ def write_report(
             "",
         ]
 
-    if meta["tile_warnings"]:
+    tile_checks = list(meta["tile_warnings"])
+    # The field-of-view warning is kept out of tile_warnings on purpose:
+    # --skip-background refuses to score on those, and a pixel size that reads
+    # as 40x is a caveat on the result, not a reason to withhold it.
+    if meta.get("microns_per_pixel_warning"):
+        tile_checks.append(meta["microns_per_pixel_warning"])
+
+    if tile_checks:
         lines += ["## Tile Checks", ""]
-        lines += [f"- {warning}" for warning in meta["tile_warnings"]]
+        lines += [f"- {warning}" for warning in tile_checks]
         lines += [""]
 
     heading = "Fixture Expression" if meta["demo"] else "Predicted Expression"
@@ -793,6 +921,12 @@ def main(argv: list[str] | None = None) -> None:
 
         for warning in assessment["warnings"]:
             print(f"[deepspot-m] Warning: {warning}", file=sys.stderr)
+
+        # Not folded into assessment["warnings"]: those decide --skip-background,
+        # and a pixel size reading as 40x is a caveat, not grounds for refusing.
+        scale_warning = field_of_view_warning(mpp)
+        if scale_warning:
+            print(f"[deepspot-m] Warning: {scale_warning}", file=sys.stderr)
         if args.skip_background and assessment["warnings"]:
             raise ValueError(
                 "Refusing to score this tile: "
@@ -833,7 +967,7 @@ def main(argv: list[str] | None = None) -> None:
         assessment=assessment,
     )
 
-    gene_table = write_gene_table(rows, output_dir)
+    gene_table = write_gene_table(rows, meta, output_dir)
     write_result_json(output_dir, rows, meta)
     write_report(output_dir, rows, meta)
     write_reproducibility(output_dir, gene_table, meta, args.input, args)
