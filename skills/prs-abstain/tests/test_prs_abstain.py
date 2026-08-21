@@ -651,3 +651,40 @@ class TestFailClosed:
         gated = pa.gate_scores([score], dec, cal, sex="female", integrity=integ)[0]
         assert gated["percentile"] is None
         assert any("Score integrity" in r for r in gated["withheld_reasons"])
+
+
+class TestCoverageCounting:
+    """A no-call or an incompatible call must not count toward weight coverage."""
+
+    def _sdef(self):
+        import prs_abstain as pa
+
+        return pa.ScoreDefinition("PGST", "test trait", "GRCh37", [
+            {"rsid": "rs1", "chr": "1", "pos": "100", "effect_allele": "A",
+             "other_allele": "G", "weight": 1.0, "af_reference": None},
+            {"rsid": "rs2", "chr": "2", "pos": "200", "effect_allele": "C",
+             "other_allele": "T", "weight": 1.0, "af_reference": None},
+        ])
+
+    def test_no_call_is_not_covered(self):
+        import prs_abstain as pa
+
+        a = pa.audit_score(self._sdef(), {"rs1": "AG", "rs2": "--"})
+        assert a.n_matched == 1
+        assert a.weight_coverage == pytest.approx(0.5)
+        assert any(m["rsid"] == "rs2" for m in a.missing_top)
+
+    def test_incompatible_alleles_are_not_covered(self):
+        import prs_abstain as pa
+
+        # rs2 declares C/T; a G call matches neither the pair nor its complement pair alone
+        a = pa.audit_score(self._sdef(), {"rs1": "AA", "rs2": "GC"})
+        assert a.n_matched == 1
+
+    def test_strand_complement_call_is_covered(self):
+        import prs_abstain as pa
+
+        # rs1 declares A/G; T/C is the same site read from the other strand
+        a = pa.audit_score(self._sdef(), {"rs1": "TC", "rs2": "CT"})
+        assert a.n_matched == 2
+        assert a.weight_coverage == pytest.approx(1.0)

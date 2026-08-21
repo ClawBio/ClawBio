@@ -324,13 +324,38 @@ def expected_mean(score: ScoreDefinition, af_key: str = "af_reference",
     return total if seen else None
 
 
+_COMPLEMENT = str.maketrans("ACGT", "TGCA")
+
+
+def _call_usable(call: str | None, effect_allele: str, other_allele: str) -> bool:
+    """A variant is covered only by a real, allele-compatible call.
+
+    A no-call ('--', '00', or anything carrying no ACGT base) is not a call,
+    and a call whose bases match neither the declared allele pair nor its
+    strand complement cannot be assigned to the effect allele. Both count as
+    uncovered: the fail-closed direction, since coverage feeds the 0.90 gate.
+    """
+    if call is None:
+        return False
+    bases = {c for c in call.upper() if c in "ACGT"}
+    if not bases:
+        return False
+    declared = {a for a in (effect_allele, other_allele) if a}
+    if not declared:
+        return False
+    return bases <= declared or bases <= {a.translate(_COMPLEMENT) for a in declared}
+
+
 def audit_score(score: ScoreDefinition, genotype: dict[str, str]) -> ScoreAudit:
     """Variant-level integrity of one score against one genotype."""
     weights = [abs(v["weight"]) for v in score.variants]
     w_total = sum(weights) or 1e-12
-    matched = [v for v in score.variants if v["rsid"] in genotype]
+    matched = [v for v in score.variants
+               if _call_usable(genotype.get(v["rsid"]),
+                               v["effect_allele"], v["other_allele"])]
+    covered_ids = {v["rsid"] for v in matched}
     w_cov = sum(abs(v["weight"]) for v in matched)
-    missing = sorted((v for v in score.variants if v["rsid"] not in genotype),
+    missing = sorted((v for v in score.variants if v["rsid"] not in covered_ids),
                      key=lambda v: -abs(v["weight"]))
     pal = [v for v in score.variants if (v["effect_allele"], v["other_allele"]) in PALINDROMIC]
     eff_n = (w_total ** 2) / sum(w * w for w in weights) if weights else 0.0
