@@ -3,14 +3,20 @@
 #clawbio_pmid=29892016
 #panel_name=Curated demo panel: prostate cancer (147 loci)
 #trait_reported=Prostate cancer
-#source_publication=Schumacher FR et al. (2018) Nat Genet PMID:29892016
+#trait_id=EFO_0001663
+#loci_reference=Schumacher FR et al. (2018) Nat Genet PMID:29892016
+#weights=approximate; NOT the published betas from the loci reference.
+#weights=The reference above identifies where the loci come from, not the
+#weights=effect sizes. Vassy 2014 is a 62-locus score and Abraham 2016 is
+#weights=49,310 SNPs, against 8 and 46 loci here.
 #genome_build=GRCh37
 #variants_number=147
 #note=Illustrative panel of established trait-associated loci, curated for
-#note=ClawBio offline demos. This is NOT a PGS Catalog scoring file and it
-#note=carries no PGS Catalog accession. The filename retains PGS000057 for
-#note=backward compatibility only; that accession belongs to a different
-#note=published score. See ClawBio issue #356. Do not cite this file.
+#note=ClawBio offline demos. This is NOT a PGS Catalog scoring file.
+#note=The accession PGS000057 belongs to a DIFFERENT published score in the
+#note=PGS Catalog. It is retained in this filename for backward compatibility
+#note=only. Do not cite this file as that accession.
+#note=See ClawBio issue #356.
 rsID	chr_name	chr_position	effect_allele	other_allele	effect_weight	allelefrequency_effect
 rs1447295	8	128554220	A	C	0.18	0.11
 rs6983267	8	128413305	G	T	0.15	0.50

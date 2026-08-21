@@ -190,3 +190,157 @@ class TestCuratedPanelsNeverShadowARealScore:
         assert ENGINE.is_curated_demo_panel(genuine_like) != ENGINE.is_curated_demo_panel(
             SKILL_DIR / "demo_patient_prs.txt"
         )
+
+
+# ---------------------------------------------------------------------------
+# Round 2, from the adversarial re-audit of this PR.
+#
+# The first pass shipped four defects of exactly the classes this repo has been
+# flagging in contributor PRs all week: a doc asserting behaviour the code does
+# not have, a mitigation that only reaches stdout, a guard applied to one of two
+# call sites, and a behavioural change with no test. These pin all four.
+# ---------------------------------------------------------------------------
+
+import subprocess
+import sys
+
+
+class TestDocsDescribeTheCodeThatExists:
+    def test_skill_md_does_not_claim_the_panel_is_ignored(self):
+        """The refusal was reverted; the sentence promising it must go too.
+
+        A planner reads SKILL.md to decide whether it needs --demo. Telling it
+        a bare --pgs-id fetches the genuine score, when the bundled panel is
+        actually served, is a false assurance and worse than saying nothing.
+        """
+        text = (SKILL_DIR / "SKILL.md").read_text().lower()
+        for claim in (
+            "is deliberately ignored",
+            "fetches the genuine",
+            "cannot stand in for the real thing",
+        ):
+            assert claim not in text, f"SKILL.md still promises: {claim!r}"
+
+    def test_skill_md_does_not_call_the_json_generated_without_a_generator(self):
+        text = (SKILL_DIR / "SKILL.md").read_text()
+        if "generated from" in text:
+            assert (SKILL_DIR / "generate_curated_scores.py").exists(), (
+                "SKILL.md calls curated_scores.json generated; ship the generator"
+            )
+
+
+class TestBothCallSitesAreGuarded:
+    """Round 1 guarded the --pgs-id lookup and left the --trait one open.
+
+    There are three cache lookups. The demo branch is legitimately unguarded,
+    because scoring the curated panels is the whole point of --demo. The other
+    two answer a request for a specific accession and must warn.
+    """
+
+    def _lookup_sites(self):
+        lines = (SKILL_DIR / "gwas_prs.py").read_text().splitlines()
+        return [
+            i for i, ln in enumerate(lines)
+            if '= DATA_DIR / f"{' in ln and "_gz" not in ln
+        ]
+
+    def test_there_are_exactly_three_known_lookups(self):
+        """If a fourth appears, this test fails and someone reads the next one."""
+        assert len(self._lookup_sites()) == 3
+
+    def test_every_non_demo_lookup_warns_before_using_the_file(self):
+        lines = (SKILL_DIR / "gwas_prs.py").read_text().splitlines()
+        unguarded = []
+        for i in self._lookup_sites():
+            preceding = "\n".join(lines[max(0, i - 12):i])
+            if "args.demo" in preceding or "curated scores (no API calls)" in preceding:
+                continue  # the demo branch, guarded by intent
+            if "is_curated_demo_panel(" not in "\n".join(lines[i:i + 20]):
+                unguarded.append(i + 1)
+        assert unguarded == [], (
+            f"cache lookups that can serve a panel unannounced: lines {unguarded}"
+        )
+
+
+class TestTheMitigationActuallyRuns:
+    """Deleting the warning block used to leave all 78 tests green."""
+
+    def _run(self, tmp_path, *args):
+        return subprocess.run(
+            [sys.executable, str(SKILL_DIR / "gwas_prs.py"),
+             "--input", str(SKILL_DIR / "demo_patient_prs.txt"),
+             "--output", str(tmp_path), *args],
+            capture_output=True, text=True, timeout=120,
+        )
+
+    def test_pgs_id_path_warns_on_stdout(self, tmp_path):
+        proc = self._run(tmp_path, "--pgs-id", "PGS000013")
+        combined = proc.stdout + proc.stderr
+        assert "curated demo panel" in combined.lower()
+
+    def test_pgs_id_path_marks_the_report(self, tmp_path):
+        self._run(tmp_path, "--pgs-id", "PGS000013")
+        report = (tmp_path / "prs_report.md").read_text().lower()
+        assert "curated demo panel" in report
+
+    def test_pgs_id_path_marks_result_json(self, tmp_path):
+        self._run(tmp_path, "--pgs-id", "PGS000013")
+        data = json.loads((tmp_path / "result.json").read_text())
+        assert data["summary"]["curated_demo_panel"] is True
+        assert data["summary"]["pgs_catalog_id"] is None
+
+    def test_report_does_not_claim_pgs_catalog_provenance_for_a_panel(self, tmp_path):
+        self._run(tmp_path, "--pgs-id", "PGS000013")
+        report = (tmp_path / "prs_report.md").read_text()
+        assert "**Scoring files**: PGS Catalog" not in report
+
+
+class TestPanelHeadersDoNotOverclaimTheWeights:
+    @pytest.mark.parametrize("pgs_id", PANEL_IDS)
+    def test_no_header_implies_the_weights_are_the_papers(self, pgs_id):
+        """`#source_publication=` reads as "these weights come from here".
+
+        They do not: the real PGS000001 shares 60 of 77 rsIDs with the bundled
+        panel and 31 of those 60 weights differ by more than 0.02. Vassy 2014
+        is a 62-locus score against an 8-locus panel; Abraham 2016 is 49,310
+        SNPs against 46.
+        """
+        text = _panel_path(pgs_id).read_text()
+        assert "#source_publication=" not in text
+        assert "#loci_reference=" in text
+        assert "approximate" in text.lower()
+
+
+class TestPerPanelAccessionTruth:
+    """PGS000001 really is the cited paper's accession. Five of six are not."""
+
+    def test_pgs000001_is_not_described_as_a_different_score(self):
+        text = _panel_path("PGS000001").read_text()
+        assert "belongs to a different" not in text
+
+    @pytest.mark.parametrize(
+        "pgs_id", ["PGS000004", "PGS000011", "PGS000013", "PGS000039", "PGS000057"]
+    )
+    def test_the_other_five_say_so(self, pgs_id):
+        text = _panel_path(pgs_id).read_text()
+        assert "different" in text.lower()
+
+
+class TestThePinCoversEveryField:
+    """The round-1 pin compared 4 fields, so the JSON could carry a fabricated
+    citation, or re-assert PGS Catalog identity, and stay green."""
+
+    def test_panel_ids_come_from_the_engine_not_a_hardcoded_list(self):
+        assert set(PANEL_IDS) == set(CURATED)
+
+    @pytest.mark.parametrize("field", [
+        "publication", "name", "curated_panel_id", "pgs_catalog_id", "trait_id",
+    ])
+    def test_json_and_engine_agree_on(self, field):
+        data = json.loads((SKILL_DIR / "curated_scores.json").read_text())
+        for pgs_id in CURATED:
+            assert data[pgs_id][field] == CURATED[pgs_id][field], pgs_id
+
+    def test_trait_id_was_not_silently_dropped(self):
+        for pgs_id, meta in CURATED.items():
+            assert str(meta.get("trait_id", "")).startswith("EFO_"), pgs_id
