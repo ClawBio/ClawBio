@@ -24,6 +24,7 @@ nothing and still read as correct in review.
 
 from __future__ import annotations
 
+import copy
 import sys
 
 import pytest
@@ -249,6 +250,100 @@ class TestNestedFieldsOfTheWrongType:
         )
         report = (tmp_path / "report.md").read_text()
         assert "req-1" in report and "0.900" in report
+
+
+# Recorded from a live POST /v1/tasks/expression/predict on 2026-08-21 against
+# PROD (contract revision 5), submitting skills/gi-expression/example_data/
+# expression_hbb_k562.fa with the skill's own default options. Trimmed to the
+# keys under test; the values are verbatim.
+#
+# The windowing pair is echoed in BOTH places, with identical values:
+# data.input, which also carries submitted_sequence_length, and
+# meta.task_specific_counts, which does not. gi-expression/SKILL.md named only
+# the meta path while the report reads data.input, so the two disagreed on
+# paper and nothing pinned either. Both are real; this pins both, so a future
+# response that drops one fails here rather than in a user's report.
+LIVE_EXPRESSION_BODY = {
+    "data": {
+        "task": "expression",
+        "model": "g0-expression",
+        "input": {
+            "sequence_length": 9198,
+            "tss_index": 4599,
+            "scored_window": [0, 9198],
+            "submitted_sequence_length": 9198,
+        },
+        "summary": {"expression_log_tpm": 0.9492, "expression_tpm": 1.5837},
+        "prediction": {
+            "expression_log_tpm": 0.9492,
+            "expression_tpm": 1.5837,
+            "unit": "log(TPM+1)",
+        },
+    },
+    "meta": {
+        "request_id": "req-live",
+        "inference_time_ms": 88,
+        "task_specific_counts": {
+            "task": "expression",
+            "tss_index": 4599,
+            "scored_window": [0, 9198],
+        },
+    },
+}
+
+
+class TestTheExpressionWindowingProvenanceSurvivesToTheReport:
+    """The "Scored window" line is the only defence against a wrong --tss-index.
+
+    SKILL.md says an offset that is merely wrong "does not error, it lies", and
+    points the reader at this line. Nothing asserted it end to end, so the path
+    the runner reads could have gone stale silently -- which is exactly the
+    failure 4077ee4 fixed for the splice table, where the report read field
+    names the API had never returned and rendered as "-" for months.
+    """
+
+    def test_both_documented_paths_are_present_in_a_live_response(self):
+        counts = LIVE_EXPRESSION_BODY["meta"]["task_specific_counts"]
+        inp = LIVE_EXPRESSION_BODY["data"]["input"]
+        assert inp["scored_window"] == counts["scored_window"] == [0, 9198]
+        assert inp["tss_index"] == counts["tss_index"] == 4599
+        # Only data.input carries this, which is why the runner reads there.
+        assert "submitted_sequence_length" not in counts
+
+    def test_summarize_picks_up_the_window(self):
+        out = gi_runner._summarize("expression", LIVE_EXPRESSION_BODY)
+        assert out["tss_index"] == 4599
+        assert out["scored_window"] == [0, 9198]
+        assert out["submitted_sequence_length"] == 9198
+        assert out["log_tpm"] == 0.9492
+
+    def test_the_report_states_the_scored_window(self, tmp_path):
+        summary = gi_runner._summarize("expression", LIVE_EXPRESSION_BODY)
+        gi_runner._write_report(
+            "expression", summary, LIVE_EXPRESSION_BODY, tmp_path,
+            tmp_path / "in.fa", "hbb", 9198, 12.0,
+        )
+        report = (tmp_path / "report.md").read_text()
+        assert "Scored window" in report
+        assert "[0, 9198)" in report
+        assert "TSS index 4599" in report
+
+    def test_a_wrong_typed_window_is_refused_not_indexed(self, tmp_path):
+        """A dict here used to raise KeyError(0) out of the report writer.
+
+        ``window[0]`` on ``{"start": ..., "end": ...}`` raises, and it raises
+        inside the one block whose stated purpose is refusing wrong-typed
+        response fields -- so the runner's ResponseShapeError diagnostic was
+        bypassed by an uncaught KeyError.
+        """
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        body["data"]["input"]["scored_window"] = {"start": 0, "end": 9198}
+        summary = gi_runner._summarize("expression", body)
+        with pytest.raises(gi_runner.ResponseShapeError, match="scored_window"):
+            gi_runner._write_report(
+                "expression", summary, body, tmp_path,
+                tmp_path / "in.fa", "hbb", 9198, 12.0,
+            )
 
 
 class TestTheRunnerExitsTwoRatherThanReportingNothing:

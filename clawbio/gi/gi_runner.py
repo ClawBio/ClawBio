@@ -247,6 +247,29 @@ def _as_objs(v: Any, field: str) -> list:
     return v
 
 
+def _as_bounds(v: Any, field: str) -> Optional[list]:
+    """Same, for a field documented as a two-element [start, end) pair.
+
+    ``scored_window`` was read positionally with no guard, inside the very
+    block that exists to refuse wrong-typed response fields: a dict is truthy,
+    so ``window[0]`` raised an uncaught ``KeyError(0)`` past ``run_skill``'s
+    handler rather than the named diagnostic every other field gets. A short
+    list is the same hazard one index along.
+    """
+    if v is None:
+        return None
+    if not isinstance(v, (list, tuple)):
+        raise ResponseShapeError(f"{field} should be an array, got {type(v).__name__}")
+    if len(v) != 2:
+        raise ResponseShapeError(f"{field} should have 2 elements, got {len(v)}")
+    for i, x in enumerate(v):
+        if not isinstance(x, int) or isinstance(x, bool):
+            raise ResponseShapeError(
+                f"{field}[{i}] should be an integer, got {type(x).__name__}"
+            )
+    return list(v)
+
+
 def _summarize(task: str, body: Dict[str, Any]) -> Dict[str, Any]:
     """Pick the most useful headline numbers per task from `data`."""
     data = _as_obj(body.get("data"), "data")
@@ -352,7 +375,7 @@ def _write_report(task: str, summary: Dict[str, Any], body: Dict[str, Any], outp
             lines.append(f"- Predicted expression: **{log_tpm:.4f} log(TPM+1)**" + (f" ≈ {tpm:.2f} TPM" if isinstance(tpm, (int, float)) else ""))
         else:
             lines.append("- See `result.json` for the full prediction payload.")
-        window = summary.get("scored_window")
+        window = _as_bounds(summary.get("scored_window"), "data.input.scored_window")
         if window:
             submitted = summary.get("submitted_sequence_length")
             lines.append(
