@@ -42,13 +42,49 @@ When the user asks for a polygenic risk score calculation:
 
 1. **Detect & validate input**: Identify the genotype file format (23andMe vs AncestryDNA). Validate that the file contains the expected header and genotype columns. Report the total number of SNPs in the file.
 
-2. **Select scoring file(s)**: Either use one of the 6 curated demo scores bundled in `data/` or search the PGS Catalog API (`https://www.pgscatalog.org/rest/`) for a trait-specific score. Curated scores available:
-   - PGS000013 — Type 2 diabetes (8 variants)
-   - PGS000011 — Atrial fibrillation (12 variants)
-   - PGS000004 — Coronary artery disease (46 variants)
-   - PGS000001 — Breast cancer (77 variants)
-   - PGS000057 — Prostate cancer (147 variants)
-   - PGS000039 — BMI (97 variants)
+2. **Select scoring file(s)**: Either use one of the 6 curated demo panels bundled in `data/` or search the PGS Catalog API (`https://www.pgscatalog.org/rest/`) for a trait-specific score.
+
+   > **The bundled panels are not PGS Catalog scores.** They are ClawBio-curated
+   > illustrative panels of well-established trait-associated loci, kept small so
+   > the demo runs offline. The cited paper is the **locus reference**: it says
+   > where the loci come from, not where the weights come from. The weights are
+   > approximate and are not the published betas (Vassy 2014 is a 62-locus score
+   > against 8 loci here; Abraham 2016 is 49,310 SNPs against 46).
+   >
+   > Each panel is keyed by a PGS accession for backward compatibility. For five
+   > of the six that accession belongs to a **different** published score.
+   > PGS000001 is the exception: that accession really is Mavaddat 2015 PRS77_BC,
+   > same trait and same variant count, but the bundled file is still a lossy
+   > derivative of it, sharing 60 of 77 rsIDs with 31 of those 60 weights
+   > differing by more than 0.02.
+   >
+   > Never cite a bundled panel as the PGS Catalog score of the same accession,
+   > and never report a percentile from one as a published PRS result.
+   > See issue #356.
+
+   Curated demo panels available:
+
+   | Key (legacy) | Panel id | Trait | Loci | Source publication |
+   |---|---|---|---|---|
+   | PGS000013 | CLAWBIO-T2D-8 | Type 2 diabetes | 8 | Vassy JL et al. (2014) *Diabetes*, PMID 24520119 |
+   | PGS000011 | CLAWBIO-AF-12 | Atrial fibrillation | 12 | Tada H et al. (2014) *Stroke*, PMID 25123217 |
+   | PGS000004 | CLAWBIO-CAD-46 | Coronary artery disease | 46 | Abraham G et al. (2016) *Eur Heart J*, PMID 27655226 |
+   | PGS000001 | CLAWBIO-BC-77 | Breast cancer | 77 | Mavaddat N et al. (2015) *J Natl Cancer Inst*, PMID 25855707 |
+   | PGS000057 | CLAWBIO-PC-147 | Prostate cancer | 147 | Schumacher FR et al. (2018) *Nat Genet*, PMID 29892016 |
+   | PGS000039 | CLAWBIO-BMI-97 | BMI | 97 | Locke AE et al. (2015) *Nature*, PMID 25673413 |
+
+   > **Requesting one of these accessions without `--demo` currently scores the
+   > bundled panel, not the PGS Catalog score.** The panels sit in the download
+   > cache path, so `--pgs-id PGS000013` is answered locally and never reaches
+   > the API. The run warns on stdout, marks the Score Details table, sets
+   > `curated_demo_panel: true` in `result.json`, and suppresses the PGS Catalog
+   > provenance line in the report, but it does **not** refuse. Refusing would
+   > take the `clawbio-bench` `gwas-prs` harness from 62.5% to 0.0%, since it
+   > drives this path offline for eight scoring-arithmetic cases, so the refusal
+   > lands together with an upstream change letting the bench ask for the panel
+   > by its `curated_panel_id`. Until then, treat any result whose
+   > `curated_demo_panel` is true as a demo, whatever the accession says.
+   > See ClawBio issue #356.
 
 3. **Parse scoring file**: Read the PGS harmonised scoring file. Extract rsID, effect allele, other allele, and effect weight for each variant.
 
@@ -135,7 +171,7 @@ Missing genotypes (variant not in patient file) are excluded from the sum. The c
 
 ## Reference Distributions
 
-Population reference distributions for the 6 curated scores are stored in `curated_scores.json`. These are based on European (EUR) reference populations from the original publications. Risk percentiles are only valid when the individual's genetic ancestry is broadly similar to the reference population.
+Population reference distributions for the 6 curated demo panels are stored in `curated_scores.json`, which is generated from `CURATED_SCORES` in `gwas_prs.py` by `generate_curated_scores.py` and pinned against it field by field by `tests/test_score_provenance.py`. Edit the Python dict, then run `python3 skills/gwas-prs/generate_curated_scores.py`; `--check` fails if the committed file is stale. These distributions are based on European (EUR) reference populations. Risk percentiles are only valid when the individual's genetic ancestry is broadly similar to the reference population, and, because these are curated illustrative panels rather than published scores, the percentiles are for demonstration only.
 
 **Ancestry caveat**: PRS performance varies across ancestries. Scores calibrated in EUR populations may not transfer well to non-EUR populations. Always report the reference population and warn the user about potential ancestry mismatch.
 

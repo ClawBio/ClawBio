@@ -61,15 +61,45 @@ SKILL_DIR = Path(__file__).resolve().parent
 DATA_DIR = SKILL_DIR / "data"
 
 # ---------------------------------------------------------------------------
-# Curated scores — offline demo scoring with reference distributions
+# Curated demo panels: offline scoring with reference distributions
 # ---------------------------------------------------------------------------
+#
+# These six entries are ClawBio-curated illustrative panels of well-established
+# trait-associated loci. They are NOT PGS Catalog scoring files. `curated_panel_id`
+# is the honest identifier; the PGS accession is retained as the dict key only for
+# backward compatibility with downstream skills (issue #356).
+#
+# `pgs_catalog_id` is per panel, not a blanket None. For five of the six the
+# accession belongs to an entirely DIFFERENT published score, so it is None.
+# PGS000001 is the exception: that accession really is Mavaddat 2015 PRS77_BC,
+# the same trait and the same variant count as this panel, so recording None
+# there would discard a true mapping. The bundled file is still not the
+# published score; it shares 60 of 77 rsIDs and 31 of those 60 weights differ
+# by more than 0.02, so treat it as a lossy derivative, not a copy.
+#
+# `publication` is the LOCUS reference, not the source of the weights. The
+# weights here are approximate and are not the published betas: Vassy 2014 is a
+# 62-locus score against this 8-locus panel, and Abraham 2016 is 49,310 SNPs
+# against 46. clawbio-bench's own ground truth attributes the T2D betas to
+# Morris 2012 / Mahajan 2018. Do not let a reader infer the weights came from
+# the cited paper.
+#
+# Every `pmid` below was resolved against PubMed on 2026-08-21. Three earlier
+# citations named papers that had nothing to do with the trait: a
+# ventilator-pneumonia nursing paper, the ExAC paper, and a body-fat
+# distribution meta-analysis. Do not edit a citation without re-resolving it;
+# `tests/test_score_provenance.py` pins them.
 
 CURATED_SCORES: dict[str, dict] = {
     "PGS000013": {
-        "name": "PGS000013",
+        "name": "Curated demo panel: type 2 diabetes (8 loci)",
+        "curated_panel_id": "CLAWBIO-T2D-8",
+        "pgs_catalog_id": None,
+        "trait_id": "EFO_0001360",
         "trait": "Type 2 diabetes",
         "variants_count": 8,
-        "publication": "Vassy et al. (2014) Ann Intern Med",
+        "publication": "Vassy JL et al. (2014) Diabetes",
+        "pmid": "24520119",
         "reference_distribution": {
             "mean": 1.12,
             "sd": 0.30,
@@ -77,10 +107,14 @@ CURATED_SCORES: dict[str, dict] = {
         },
     },
     "PGS000011": {
-        "name": "PGS000011",
+        "name": "Curated demo panel: atrial fibrillation (12 loci)",
+        "curated_panel_id": "CLAWBIO-AF-12",
+        "pgs_catalog_id": None,
+        "trait_id": "EFO_0000275",
         "trait": "Atrial fibrillation",
         "variants_count": 12,
-        "publication": "Tada et al. (2014) Circ Cardiovasc Genet",
+        "publication": "Tada H et al. (2014) Stroke",
+        "pmid": "25123217",
         "reference_distribution": {
             "mean": 0.65,
             "sd": 0.23,
@@ -88,10 +122,14 @@ CURATED_SCORES: dict[str, dict] = {
         },
     },
     "PGS000004": {
-        "name": "PGS000004",
+        "name": "Curated demo panel: coronary artery disease (46 loci)",
+        "curated_panel_id": "CLAWBIO-CAD-46",
+        "pgs_catalog_id": None,
+        "trait_id": "EFO_0001645",
         "trait": "Coronary artery disease",
         "variants_count": 46,
-        "publication": "Abraham et al. (2016) Eur Heart J",
+        "publication": "Abraham G et al. (2016) Eur Heart J",
+        "pmid": "27655226",
         "reference_distribution": {
             "mean": 2.84,
             "sd": 0.28,
@@ -99,10 +137,14 @@ CURATED_SCORES: dict[str, dict] = {
         },
     },
     "PGS000001": {
-        "name": "PGS000001",
+        "name": "Curated demo panel: breast cancer (77 loci)",
+        "curated_panel_id": "CLAWBIO-BC-77",
+        "pgs_catalog_id": "PGS000001",
+        "trait_id": "EFO_0000305",
         "trait": "Breast cancer",
         "variants_count": 77,
-        "publication": "Mavaddat et al. (2015) J Natl Cancer Inst",
+        "publication": "Mavaddat N et al. (2015) J Natl Cancer Inst",
+        "pmid": "25855707",
         "reference_distribution": {
             "mean": 4.23,
             "sd": 0.54,
@@ -110,10 +152,14 @@ CURATED_SCORES: dict[str, dict] = {
         },
     },
     "PGS000057": {
-        "name": "PGS000057",
+        "name": "Curated demo panel: prostate cancer (147 loci)",
+        "curated_panel_id": "CLAWBIO-PC-147",
+        "pgs_catalog_id": None,
+        "trait_id": "EFO_0001663",
         "trait": "Prostate cancer",
         "variants_count": 147,
-        "publication": "Schumacher et al. (2018) Nat Genet",
+        "publication": "Schumacher FR et al. (2018) Nat Genet",
+        "pmid": "29892016",
         "reference_distribution": {
             "mean": 7.11,
             "sd": 0.56,
@@ -121,10 +167,14 @@ CURATED_SCORES: dict[str, dict] = {
         },
     },
     "PGS000039": {
-        "name": "PGS000039",
+        "name": "Curated demo panel: body mass index (97 loci)",
+        "curated_panel_id": "CLAWBIO-BMI-97",
+        "pgs_catalog_id": None,
+        "trait_id": "EFO_0004340",
         "trait": "BMI",
         "variants_count": 97,
-        "publication": "Locke et al. (2015) Nature",
+        "publication": "Locke AE et al. (2015) Nature",
+        "pmid": "25673413",
         "reference_distribution": {
             "mean": 2.89,
             "sd": 0.25,
@@ -392,6 +442,34 @@ parse_genotype_file = load_genotypes
 # ---------------------------------------------------------------------------
 # Scoring file parser — PGS Catalog harmonized TSV
 # ---------------------------------------------------------------------------
+
+CURATED_PANEL_MARKER = "#clawbio_panel=curated_demo"
+
+
+def is_curated_demo_panel(filepath: str | Path) -> bool:
+    """True if `filepath` is a bundled ClawBio demo panel, not a catalog score.
+
+    The demo panels live at the same path the download cache uses, so without
+    this check a request for a real accession is answered from the local
+    lookalike and never reaches the API. That is issue #356: `--pgs-id
+    PGS000013` returned an 8-variant type 2 diabetes panel in place of the
+    real PGS000013 (Khera 2018, coronary artery disease, 6,630,150 variants).
+
+    Reads only the leading comment block, so it is cheap on large real files
+    and safe on a missing or unreadable path.
+    """
+    path = Path(filepath)
+    try:
+        opener = gzip.open if path.suffix == ".gz" else open
+        with opener(path, "rt") as handle:  # type: ignore[operator]
+            for line in handle:
+                if not line.startswith("#"):
+                    return False
+                if line.strip() == CURATED_PANEL_MARKER:
+                    return True
+    except (OSError, EOFError, UnicodeDecodeError):
+        return False
+    return False
 
 
 def parse_scoring_file(filepath: str | Path) -> list[dict]:
@@ -787,8 +865,18 @@ def generate_report(
         lines.append("|----------|-------|")
         lines.append(f"| **PGS ID** | {pgs_id} |")
         lines.append(f"| **Trait** | {trait} |")
+        if r.get("curated_demo_panel"):
+            # Issue #356. Stated here as well as in the provenance footer,
+            # because a reader who skims takes the table and stops.
+            lines.append(
+                f"| **Source** | ClawBio curated demo panel "
+                f"`{r.get('curated_panel_id') or 'curated_demo'}`, "
+                f"NOT the PGS Catalog score `{pgs_id}` |"
+            )
         if metadata.get("publication"):
-            lines.append(f"| **Publication** | {metadata['publication']} |")
+            label = ("Loci reference" if r.get("curated_demo_panel")
+                     else "Publication")
+            lines.append(f"| **{label}** | {metadata['publication']} |")
         lines.append(
             f"| **Variants in score** | {prs['variants_total']} |"
         )
@@ -892,8 +980,21 @@ def generate_report(
         "Hardy-Weinberg equilibrium."
     )
     lines.append("")
-    lines.append("**Scoring files**: PGS Catalog "
-                 "(https://www.pgscatalog.org/)")
+    # Issue #356: do not assert PGS Catalog provenance for a curated panel.
+    # The warning used to reach stdout only, which is the one channel no
+    # downstream consumer, and no reader of this file, ever sees.
+    if any(r.get("curated_demo_panel") for r in results):
+        lines.append(
+            "**Scoring files**: ClawBio curated demo panel, NOT a PGS Catalog "
+            "score. The loci are established trait associations but the weights "
+            "are approximate and are not the published betas. The accession in "
+            "the filename is retained for backward compatibility and, for five "
+            "of the six panels, belongs to a different published score. Do not "
+            "cite these results as a published PRS. See ClawBio issue #356."
+        )
+    else:
+        lines.append("**Scoring files**: PGS Catalog "
+                     "(https://www.pgscatalog.org/)")
     lines.append("")
     lines.append("**Genome build**: " + args.build)
     lines.append("")
@@ -1060,9 +1161,25 @@ def main():
         print(f"GWAS-PRS: fetching score {pgs_id}")
         print()
 
-        # Check if we have it pre-downloaded in data/
+        # Check if we have it pre-downloaded in data/.
         local_path = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt"
         local_path_gz = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt.gz"
+
+        # Issue #356: the curated demo panels sit at this exact path, so a
+        # request for a real accession is answered by a lookalike.
+        # `is_curated_demo_panel` detects that but is deliberately NOT used to
+        # refuse yet: clawbio-bench drives this path offline as
+        # `--pgs-id PGS000013` for eight scoring-arithmetic cases, and refusing
+        # here takes that harness from 62.5% to 0.0%, destroying real coverage
+        # rather than fixing anything. Warn now; refuse once the bench can ask
+        # for the panel by its honest id. Do not turn this into a refusal
+        # without changing the bench in the same step.
+        for candidate in (local_path, local_path_gz):
+            if candidate.exists() and is_curated_demo_panel(candidate):
+                print(f"  WARNING: {candidate.name} is a ClawBio curated demo "
+                      f"panel, not the PGS Catalog score for {pgs_id}.")
+                print("  WARNING: results below describe the demo panel. "
+                      "See ClawBio issue #356.")
 
         if local_path.exists():
             filepath = local_path
@@ -1208,6 +1325,18 @@ def main():
             local_path = DATA_DIR / f"{sid}_hmPOS_{args.build}.txt"
             local_path_gz = DATA_DIR / f"{sid}_hmPOS_{args.build}.txt.gz"
 
+            # Issue #356, second call site. The --trait path had the identical
+            # shadowing shortcut and no warning at all, and it is the path a
+            # user is more likely to take. Worse here than on --pgs-id, because
+            # the surrounding code then attaches the live API's `publication`
+            # and `variants_count` to a file that has neither.
+            for candidate in (local_path, local_path_gz):
+                if candidate.exists() and is_curated_demo_panel(candidate):
+                    print(f"  WARNING: {candidate.name} is a ClawBio curated "
+                          f"demo panel, not the PGS Catalog score for {sid}.")
+                    print("  WARNING: results below describe the demo panel. "
+                          "See ClawBio issue #356.")
+
             if local_path.exists():
                 filepath = local_path
             elif local_path_gz.exists():
@@ -1318,6 +1447,11 @@ def main():
         else:
             print("  Percentile: N/A (no reference distribution available)")
 
+        # Issue #356: carry the panel marker on the result itself, so every
+        # durable artefact can state it. Derived from the file that was
+        # actually scored, not from the accession, so it stays true whichever
+        # path (--demo, --pgs-id, --trait) selected it.
+        curated = is_curated_demo_panel(sf["filepath"])
         all_results.append({
             "pgs_id": pgs_id,
             "trait": trait,
@@ -1325,6 +1459,13 @@ def main():
             "percentile_info": pct_info,
             "metadata": metadata,
             "scoring_variants": scoring_variants,
+            "curated_demo_panel": curated,
+            "curated_panel_id": (
+                CURATED_SCORES.get(pgs_id, {}).get("curated_panel_id") if curated else None
+            ),
+            "pgs_catalog_id": (
+                CURATED_SCORES.get(pgs_id, {}).get("pgs_catalog_id") if curated else pgs_id
+            ),
         })
         print()
 
@@ -1401,6 +1542,12 @@ def main():
                 "scores_calculated": len(all_results),
                 "trait": first.get("trait", ""),
                 "pgs_id": first.get("pgs_id", ""),
+                # Issue #356: a consumer reading this envelope, for example
+                # profile-report, must be able to tell a curated panel from a
+                # PGS Catalog score without reading our stdout.
+                "curated_demo_panel": bool(first.get("curated_demo_panel")),
+                "curated_panel_id": first.get("curated_panel_id"),
+                "pgs_catalog_id": first.get("pgs_catalog_id"),
                 "raw_score": first.get("prs", {}).get("raw_score"),
                 "percentile": first_pct.get("percentile"),
                 "risk_category": first_pct.get("risk_category"),
