@@ -521,3 +521,65 @@ class TestPDF:
         r = run_cli(["--demo", "--output", str(tmp_path), "--no-pdf"])
         assert r.returncode == 0, r.stderr
         assert not (tmp_path / "report_clinician.pdf").exists()
+
+
+# ── Added at maintainer review (PR #348): boundary + parser tests ─────────────
+
+class TestDecisionBoundaries:
+    def _cal(self):
+        import prs_abstain as pa
+
+        panel = pa.load_reference_panel(EXAMPLES / "demo_reference_pcs.csv")
+        return pa, pa.calibrate(panel, ref_pop="EUR", k_sd=3.0)
+
+    def test_distance_exactly_at_threshold_reports(self):
+        """decide() refuses on dist > threshold, so the boundary itself reports."""
+        pa, cal = self._cal()
+        pcs = list(cal.centroid)
+        pcs[0] += cal.threshold  # exactly threshold away, along PC1
+        d = pa.decide(pa.Individual("EDGE", "EUR", pcs, 480), cal, min_markers=30)
+        assert d.distance == pytest.approx(cal.threshold, abs=1e-9)
+        assert d.verdict == "REPORT"
+
+    def test_exactly_min_markers_passes_marker_gate(self):
+        """decide() refuses on n < min_markers, so exactly 30 markers passes."""
+        pa, cal = self._cal()
+        ind = pa.Individual("EDGE30", "EUR", list(cal.centroid), 30)
+        d = pa.decide(ind, cal, min_markers=30)
+        assert d.verdict == "REPORT"
+
+
+class TestScoreFileParsing:
+    def test_authentic_pgs_catalog_file_parses_by_header_name(self):
+        """A genuine harmonised download: different column order, hm_* columns,
+        full-precision weights, no allele-frequency column."""
+        import prs_abstain as pa
+
+        defs = pa.load_score_definitions(SKILL_DIR / "tests" / "fixtures")
+        s = defs["PGS000001"]
+        assert len(s.variants) == 77
+        v = s.variants[0]
+        assert v["rsid"] == "rs78540526"
+        assert v["chr"] == "11" and v["pos"] == "69331418"  # from hm_chr / hm_pos
+        assert v["weight"] == pytest.approx(0.16220387987485377)
+        assert v["af_reference"] is None  # real files often carry no AF column
+        assert pa.expected_mean(s) is None  # and expected_mean must say so, not crash
+
+    def test_malformed_weight_is_an_error_not_a_silent_skip(self, tmp_path):
+        import prs_abstain as pa
+
+        bad = tmp_path / "PGS999999_hmPOS_GRCh37.txt"
+        bad.write_text(
+            "#pgs_id=PGS999999\n"
+            "rsID\tchr_name\teffect_allele\tother_allele\teffect_weight\tlocus_name\n"
+            "rs1\t1\tA\tG\tCCND1\tx\n")
+        with pytest.raises(ValueError, match="PGS999999.*effect_weight"):
+            pa.load_score_definitions(tmp_path)
+
+    def test_missing_required_column_is_named_in_the_error(self, tmp_path):
+        import prs_abstain as pa
+
+        bad = tmp_path / "PGS999998.txt"
+        bad.write_text("#pgs_id=PGS999998\nfoo\tbar\n1\t2\n")
+        with pytest.raises(ValueError, match="required column"):
+            pa.load_score_definitions(tmp_path)

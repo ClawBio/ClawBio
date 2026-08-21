@@ -178,6 +178,20 @@ python skills/prs-abstain/prs_abstain.py --demo --output /tmp/prs-abstain-demo
 python skills/prs-abstain/prs_abstain.py --demo --output /tmp/d --ref-pop EUR --k-sd 3.0 --min-markers 30
 ```
 
+### Useful flags
+
+| Flag | Default | What it does |
+|---|---|---|
+| `--ref-pop` | `EUR` | Population the score is centred on |
+| `--k-sd` | `3.0` | Threshold = mean + k·sd of within-reference spread |
+| `--min-markers` | `30` | Below this, ancestry is undeterminable (Kosoy 2009) |
+| `--min-weight-coverage` | `0.90` | Fraction of a score's total weight that must be genotyped |
+| `--min-effective-n` | `10` | Warn below this many independent contributions |
+| `--af-population` | `AFR` | Population column to re-centre on |
+| `--ld-window-kb` | `250` | Group variants this close as potentially correlated |
+| `--no-figures` | off | Skip plots (runs without matplotlib) |
+| `--no-pdf` | off | Skip PDF rendering |
+
 ## Demo
 
 ```bash
@@ -222,17 +236,17 @@ SNP by SNP rather than stopping at a distance threshold.
 ```markdown
 | Individual | Verdict | Distance | Threshold | Markers |
 |------------|---------|----------|-----------|---------|
-| EUR_001 | **REPORT** | 1.44 | 3.47 | 480 |
-| AFR_001 | **REFUSE_DISTANT** | 9.87 | 3.47 | 480 |
+| EUR_001 | **REPORT** | 1.74 | 3.47 | 480 |
+| AFR_001 | **REFUSE_DISTANT** | 10.38 | 3.47 | 480 |
 | DEMO_PATIENT | **REFUSE_UNDETERMINABLE** | n/a | 3.47 | 0 |
 
 ### AFR_001 — REFUSE_DISTANT
 
-**Why**: Distance to the EUR centroid is 9.87, beyond the threshold of 3.47.
+**Why**: Distance to the EUR centroid is 10.38, beyond the threshold of 3.47.
 
 | PGS ID | Trait | Raw score | Percentile | Note |
 |--------|-------|-----------|------------|------|
-| PGS000013 | Type 2 diabetes | 0.8000 | **WITHHELD** | Withheld: REFUSE_DISTANT. |
+| PGS000013 | Type 2 diabetes | 0.8000 | **WITHHELD** | Ancestry gate: REFUSE_DISTANT. |
 ```
 
 ## Output Structure

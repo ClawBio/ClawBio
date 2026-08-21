@@ -154,34 +154,93 @@ class AFShift:
     per_variant: list[dict[str, Any]] = field(default_factory=list)
 
 
+# Column-name fallback chains, in preference order. Harmonised PGS Catalog
+# downloads carry hm_* columns whose values supersede the author-submitted
+# ones; files without harmonised columns fall through to the submitted names.
+_SCORE_COLUMNS = {
+    "rsid": ("hm_rsID", "rsID"),
+    "chr": ("hm_chr", "chr_name"),
+    "pos": ("hm_pos", "chr_position"),
+    "effect_allele": ("effect_allele",),
+    "other_allele": ("other_allele", "hm_inferOtherAllele", "reference_allele"),
+    "weight": ("effect_weight",),
+    "af_reference": ("allelefrequency_effect",),
+}
+_REQUIRED_SCORE_FIELDS = ("rsid", "effect_allele", "weight")
+
+
+def _resolve_columns(header_names: list[str], fp: Path) -> dict[str, int]:
+    """Map logical field -> column index by header name, never by position."""
+    index = {name: i for i, name in enumerate(header_names)}
+    resolved: dict[str, int] = {}
+    for field_, candidates in _SCORE_COLUMNS.items():
+        for cand in candidates:
+            if cand in index:
+                resolved[field_] = index[cand]
+                break
+    missing = [f for f in _REQUIRED_SCORE_FIELDS if f not in resolved]
+    if missing:
+        raise ValueError(
+            f"{fp.name}: cannot locate required column(s) {missing} in header "
+            f"{header_names!r}. Recognised names per field: "
+            + "; ".join(f"{f}: {list(_SCORE_COLUMNS[f])}" for f in missing))
+    return resolved
+
+
 def load_score_definitions(path: Path) -> dict[str, ScoreDefinition]:
-    """Load PGS Catalog scoring files from a directory."""
+    """Load PGS Catalog scoring files from a directory.
+
+    Columns are resolved by header name (harmonised hm_* names preferred),
+    never by position: authentic PGS Catalog harmonised files and the bundled
+    demo files order their columns differently. A malformed effect weight is
+    an error naming the file and line, not a silent skip.
+    """
     out: dict[str, ScoreDefinition] = {}
     for fp in sorted(Path(path).glob("*.txt")):
         hdr: dict[str, str] = {}
+        cols: dict[str, int] | None = None
         variants: list[dict[str, Any]] = []
-        for line in fp.read_text().splitlines():
+        for lineno, line in enumerate(fp.read_text().splitlines(), start=1):
             if line.startswith("#"):
                 if "=" in line:
                     k, v = line[1:].split("=", 1)
                     hdr[k.strip()] = v.strip()
                 continue
-            if line.startswith("rsID"):
+            if not line.strip():
                 continue
-            parts = line.split("\t")
-            if len(parts) < 6:
+            parts = line.rstrip("\n").split("\t")
+            if cols is None:
+                cols = _resolve_columns(parts, fp)
                 continue
+
+            def cell(field_: str) -> str | None:
+                i = cols.get(field_)
+                if i is None or i >= len(parts):
+                    return None
+                v = parts[i].strip()
+                return v or None
+
+            raw_weight = cell("weight")
+            if raw_weight is None:
+                raise ValueError(f"{fp.name}:{lineno}: missing effect_weight")
+            try:
+                weight = float(raw_weight)
+            except ValueError:
+                raise ValueError(
+                    f"{fp.name}:{lineno}: effect_weight {raw_weight!r} is not "
+                    f"numeric") from None
             af = None
-            if len(parts) > 6 and parts[6].strip():
+            raw_af = cell("af_reference")
+            if raw_af is not None:
                 try:
-                    af = float(parts[6])
+                    af = float(raw_af)
                 except ValueError:
                     af = None
             variants.append({
-                "rsid": parts[0], "chr": parts[1], "pos": parts[2],
-                "effect_allele": parts[3].strip().upper(),
-                "other_allele": parts[4].strip().upper(),
-                "weight": float(parts[5]), "af_reference": af,
+                "rsid": cell("rsid"), "chr": cell("chr"), "pos": cell("pos"),
+                "effect_allele": (cell("effect_allele") or "").upper(),
+                "other_allele": (cell("other_allele") or "").upper(),
+                "weight": weight, "af_reference": af,
             })
         if variants:
             pid = hdr.get("pgs_id", fp.stem.split("_")[0])
@@ -1179,6 +1238,9 @@ KNOWN_LIMITATIONS = [
     "Ancestry is taken as supplied PC coordinates. The skill does not verify that the "
     "coordinates came from a panel appropriate to the individual, and a projection computed "
     "against an unsuitable panel will be confidently wrong.",
+    "n_markers_shared is trusted from the individuals CSV and never cross-checked, not even "
+    "against the genotype file when one is supplied. Absent or non-numeric values fail "
+    "closed, but an inflated value passes the marker gate unconditionally.",
     "Distance is Euclidean in unscaled PC space. If the reference cluster is elongated, "
     "Mahalanobis distance would be the correct metric; Euclidean over-refuses along the "
     "narrow axis and under-refuses along the broad one.",
@@ -1315,7 +1377,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if af_table:
             rec = curated_sd.get(pid, {})
             raw, z = rec.get("raw_score"), rec.get("z_score")
-            sd_ref = abs((raw - expected_mean(sdef)) / z) if (raw is not None and z) else None
+            em = expected_mean(sdef)
+            sd_ref = abs((raw - em) / z) if (raw is not None and z and em is not None) else None
             sh = af_shift(sdef, af_table, sd=sd_ref or 1.0, population=args.af_population)
             if sh is not None:
                 shifts[pid] = sh
