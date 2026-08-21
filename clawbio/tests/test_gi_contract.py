@@ -183,6 +183,29 @@ class TestInputRefusal:
             read_fasta(self._write(tmp_path, ">a\nACGT\n>b\nTTTT\n"))
         assert "single FASTA record" in str(exc.value)
 
+    def test_rejects_sequence_before_the_first_header(self, tmp_path):
+        """Bases ahead of the first ``>`` used to be absorbed into record one.
+
+        They were then scored under that record's name, so every coordinate
+        the API returned was shifted by the length of the pre-header block and
+        nothing in the report said so. That is the same class as the deleted
+        ambiguity code: a confident, well-formed, wrong answer. Refusing is
+        the only recoverable response, and the refusal itself was untested.
+        """
+        import pytest
+        from clawbio.gi.gi_client import FastaError, read_fasta
+        with pytest.raises(FastaError) as exc:
+            read_fasta(self._write(tmp_path, "ACGTACGT\n>x\nTTTT\n"))
+        message = str(exc.value)
+        assert "before any '>' header" in message
+        assert "line 1" in message
+
+    def test_a_leading_blank_line_is_not_a_pre_header_record(self, tmp_path):
+        """Blank lines are formatting. Only bases before the header are content."""
+        from clawbio.gi.gi_client import read_fasta
+        name, seq = read_fasta(self._write(tmp_path, "\n\n>x\nACGT\n"))
+        assert name == "x" and seq == "ACGT"
+
     def test_fasta_error_is_value_error(self):
         from clawbio.gi.gi_client import FastaError
         assert issubclass(FastaError, ValueError)

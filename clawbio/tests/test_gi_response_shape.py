@@ -395,3 +395,141 @@ class TestTheRunnerExitsTwoRatherThanReportingNothing:
         )
         assert code == 0
         assert (tmp_path / "out" / "report.md").exists()
+
+
+class TestGIErrorsOwnFields:
+    """``GIError``'s two load-bearing attributes, which nothing was holding.
+
+    ``code`` is the one the class docstring tells callers to branch on, and it
+    was renamed from ``non_json`` to ``http_error`` on this branch -- a
+    breaking change for anyone who had branched on the old value, and the
+    suite would not have noticed either the rename or a revert of it. The
+    ``X-Request-Id`` fallback exists for exactly the non-JSON case, where the
+    envelope that normally carries ``request_id`` is not there to read, and
+    that is the case a support ticket needs a correlation id most.
+    """
+
+    def test_a_non_json_body_is_reported_as_http_error(self):
+        resp = _Resp(_NOT_JSON, status_code=502, text="<html>gateway</html>")
+        with pytest.raises(gi_client.GIError) as exc:
+            _client(resp).predict("promoter", "ACGT" * 100)
+        assert exc.value.code == "http_error"
+        assert exc.value.status == 502
+        assert "gateway" in exc.value.message
+
+    def test_an_error_body_that_is_not_our_envelope_still_gets_a_code(self):
+        """A different line from the one above.
+
+        ``_check`` writes ``http_error`` into a synthetic envelope when the
+        body will not parse; ``GIError.__init__`` defaults to it when the body
+        parsed but carries no ``error`` key -- a proxy or framework error page
+        is often perfectly good JSON. Both spell the same published enum value
+        and each needs its own test, or one can be renamed without the other.
+        """
+        resp = _Resp({"detail": "Not Found"}, status_code=404)
+        with pytest.raises(gi_client.GIError) as exc:
+            _client(resp).predict("promoter", "ACGT" * 100)
+        assert exc.value.code == "http_error"
+
+    def test_a_code_the_api_sent_is_carried_through_unchanged(self):
+        """``http_error`` is the default, not an override."""
+        resp = _Resp(
+            {"error": {"code": "validation_failed", "message": "sequence is 4 bp"}},
+            status_code=422,
+        )
+        with pytest.raises(gi_client.GIError) as exc:
+            _client(resp).predict("promoter", "ACGT")
+        assert exc.value.code == "validation_failed"
+
+    def test_the_request_id_falls_back_to_the_header(self):
+        resp = _Resp(_NOT_JSON, status_code=503, text="upstream unavailable")
+        resp.headers = {"X-Request-Id": "req-from-header"}
+        with pytest.raises(gi_client.GIError) as exc:
+            _client(resp).predict("promoter", "ACGT" * 100)
+        assert exc.value.request_id == "req-from-header"
+        assert "req-from-header" in str(exc.value)
+
+    def test_the_envelope_request_id_wins_over_the_header(self):
+        """Every error envelope carries one; the header is only the fallback."""
+        resp = _Resp(
+            {"error": {"code": "rate_limited", "message": "slow down",
+                       "request_id": "req-from-body"}},
+            status_code=429,
+        )
+        resp.headers = {"X-Request-Id": "req-from-header"}
+        with pytest.raises(gi_client.GIError) as exc:
+            _client(resp).predict("promoter", "ACGT" * 100)
+        assert exc.value.request_id == "req-from-body"
+
+    def test_no_request_id_anywhere_still_produces_a_readable_message(self):
+        resp = _Resp(_NOT_JSON, status_code=500, text="boom")
+        with pytest.raises(gi_client.GIError) as exc:
+            _client(resp).predict("promoter", "ACGT" * 100)
+        assert exc.value.request_id is None
+        assert "request_id=unset" in str(exc.value)
+
+
+class TestTheSpliceTableReadsTheFieldNamesTheApiSends:
+    """Every shipped splice report rendered three of its four columns as "-".
+
+    The renderer read ``position`` / ``kind`` / ``probability``; the API
+    returns ``name`` / ``start`` / ``end`` / ``site_type`` / ``score``, and
+    only ``strand`` overlapped. A missing key renders as a dash rather than
+    raising, so nothing failed -- and nothing tested it, which means reverting
+    the fix would leave the suite green and the reports empty again.
+
+    The rendered row is the only place the field names are observable, so
+    that is what these assert.
+    """
+
+    BODY = {
+        "data": {
+            "summary": {"total_sites": 2, "donor_sites": 1, "acceptor_sites": 1},
+            "sites": [
+                {"name": "site_1", "start": 2324, "end": 2330,
+                 "site_type": "donor", "strand": "+", "score": 0.9871},
+                {"name": "site_2", "start": 4110, "end": 4117,
+                 "site_type": "acceptor", "strand": "+", "score": 0.4432},
+            ],
+        },
+        "meta": {"request_id": "req-splice"},
+    }
+
+    def _report(self, tmp_path, body):
+        summary = gi_runner._summarize("splice", body)
+        gi_runner._write_report(
+            "splice", summary, body, tmp_path, tmp_path / "in.fa", "hbb", 5000, 12.0,
+        )
+        return (tmp_path / "report.md").read_text()
+
+    def _row(self, report, needle):
+        rows = [l for l in report.splitlines() if needle in l]
+        assert len(rows) == 1, f"expected one row containing {needle!r}, got {len(rows)}"
+        return rows[0]
+
+    def test_every_column_carries_its_value(self, tmp_path):
+        row = self._row(self._report(tmp_path, self.BODY), "site_1")
+        assert "2324-2330" in row      # start/end, not the old `position`
+        assert "donor" in row          # site_type, not the old `kind`
+        assert "0.9871" in row         # score, not the old `probability`
+        assert "| + |" in row          # strand, the one name that never changed
+
+    def test_the_span_is_a_span_and_not_one_endpoint(self, tmp_path):
+        """start/end bound one variable-width token with the junction inside it
+        (GI-054), so printing a single endpoint states a boundary the response
+        does not give."""
+        row = self._row(self._report(tmp_path, self.BODY), "site_2")
+        assert "4110-4117" in row
+
+    def test_the_pre_fix_field_names_would_render_nothing(self, tmp_path):
+        """The shape every shipped report actually saw, pinned as the failure.
+
+        Without this, a revert of the renamed columns is invisible: the table
+        still renders, just with no data in it.
+        """
+        body = copy.deepcopy(self.BODY)
+        body["data"]["sites"] = [
+            {"position": 2324, "kind": "donor", "strand": "+", "probability": 0.9871}
+        ]
+        report = self._report(tmp_path, body)
+        assert "| - | - | - | + | - |" in report
