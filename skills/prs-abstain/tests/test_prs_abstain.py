@@ -583,3 +583,71 @@ class TestScoreFileParsing:
         bad.write_text("#pgs_id=PGS999998\nfoo\tbar\n1\t2\n")
         with pytest.raises(ValueError, match="required column"):
             pa.load_score_definitions(tmp_path)
+
+
+# ── Added at maintainer review (PR #348): fail-closed behaviour ───────────────
+
+class TestFailClosed:
+    def _cal_and_report_decision(self):
+        import prs_abstain as pa
+
+        panel = pa.load_reference_panel(EXAMPLES / "demo_reference_pcs.csv")
+        cal = pa.calibrate(panel, ref_pop="EUR", k_sd=3.0)
+        ind = pa.Individual("EUR_001", "EUR", [-3.005, -2.385, -2.002, 0.345], 480,
+                            sex="female")
+        return pa, cal, pa.decide(ind, cal, min_markers=30)
+
+    def test_missing_reference_population_withholds_percentile(self):
+        """Absent provenance metadata must fail closed, not default to EUR."""
+        pa, cal, dec = self._cal_and_report_decision()
+        assert dec.verdict == "REPORT"
+        score = {"pgs_id": "PGSX", "trait": "Type 2 diabetes", "raw_score": 1.0,
+                 "percentile": 50.0, "z_score": 0.0}  # no reference_population
+        gated = pa.gate_scores([score], dec, cal, sex="female")[0]
+        assert gated["percentile"] is None
+        assert any("provenance" in r.lower() for r in gated["withheld_reasons"])
+        # the note must not assert an origin that was never established
+        assert "Reported against" not in gated["note"]
+
+    def test_declared_reference_population_still_reports(self):
+        pa, cal, dec = self._cal_and_report_decision()
+        score = {"pgs_id": "PGSX", "trait": "Type 2 diabetes", "raw_score": 1.0,
+                 "percentile": 50.0, "z_score": 0.0, "reference_population": "EUR"}
+        gated = pa.gate_scores([score], dec, cal, sex="female")[0]
+        assert gated["percentile"] == 50.0
+        assert "Reported against the EUR reference distribution." in gated["note"]
+
+    def test_absent_or_unreadable_trait_fails_closed(self):
+        import prs_abstain as pa
+
+        for trait in (None, "", "   ", "unknown", "NR"):
+            app = pa.check_applicability({"trait": trait}, "female")
+            assert not app.applicable, f"trait {trait!r} must fail closed"
+        # and a recognised non-sex-specific trait still passes
+        assert pa.check_applicability({"trait": "Coronary artery disease"}, None).applicable
+
+    def test_integrity_tier_runs_without_genotype(self):
+        """Duplicate positions are a property of the file alone and must block
+        even when no genotype was supplied; the skipped genotype-dependent
+        checks must be recorded, not silent."""
+        import prs_abstain as pa
+
+        defs = pa.load_score_definitions(EXAMPLES / "scores")
+        sdef = defs["PGS000001"]  # carries the chr1:114448389 duplicate pair
+        ld = pa.ld_audit(sdef)
+        assert ld.duplicate_positions, "fixture must contain the duplicate pair"
+        v = pa.integrity_verdict(None, ld=ld)
+        assert not v.passed
+        assert any("Data integrity" in r for r in v.reasons)
+        assert any("genotype-dependent integrity checks" in w for w in v.warnings)
+
+    def test_integrity_reasons_reach_the_gate_without_genotype(self):
+        pa, cal, dec = self._cal_and_report_decision()
+        defs = pa.load_score_definitions(EXAMPLES / "scores")
+        sdef = defs["PGS000001"]
+        integ = {"PGS000001": pa.integrity_verdict(None, ld=pa.ld_audit(sdef))}
+        score = {"pgs_id": "PGS000001", "trait": "Breast cancer", "raw_score": 1.0,
+                 "percentile": 94.0, "z_score": 1.5, "reference_population": "EUR"}
+        gated = pa.gate_scores([score], dec, cal, sex="female", integrity=integ)[0]
+        assert gated["percentile"] is None
+        assert any("Score integrity" in r for r in gated["withheld_reasons"])

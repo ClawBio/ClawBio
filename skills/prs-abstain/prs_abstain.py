@@ -278,9 +278,18 @@ def load_population_af(path: Path) -> dict[str, dict[str, float]]:
 
 
 def check_applicability(score: dict[str, Any] | ScoreDefinition, sex: str | None) -> Applicability:
-    """Refuse sex-specific scores for the wrong or unstated sex."""
+    """Refuse sex-specific scores for the wrong or unstated sex.
+
+    Fails closed on an absent or empty trait: a score whose trait cannot be
+    read cannot be shown to be sex-appropriate, and the harm this gate exists
+    to prevent is a sex-specific score reaching the wrong sex.
+    """
     trait = (score.trait if isinstance(score, ScoreDefinition) else score.get("trait", "")) or ""
     t = trait.lower()
+    if not t.strip() or t.strip() in ("unknown", "none", "null", "nr", "na"):
+        return Applicability(False, (
+            "Trait is absent or unreadable, so sex-applicability cannot be assessed. "
+            "Unrecognised fails closed rather than assuming the score applies."))
     sex_norm = (sex or "").strip().lower() or None
     if sex_norm in ("unknown", "unspecified", "na", ""):
         sex_norm = None
@@ -422,12 +431,19 @@ def _mk_cluster(chrom: str, members: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def integrity_verdict(audit: ScoreAudit, min_weight_coverage: float = 0.90,
+def integrity_verdict(audit: ScoreAudit | None, min_weight_coverage: float = 0.90,
                       min_effective_n: float = 10.0,
                       max_palindromic_share: float = 0.10,
                       ld: "LDAudit | None" = None,
                       max_clustered_weight_share: float = 0.30) -> IntegrityVerdict:
-    """A score computed on too little of itself is not that score."""
+    """A score computed on too little of itself is not that score.
+
+    Runs with or without a genotype-level audit. Duplicate positions, weight
+    concentration and clustering are properties of the scoring file alone and
+    are always checked; the genotype-dependent checks (weight coverage, strand
+    ambiguity against calls) are skipped WITH a recorded warning when no
+    genotype was supplied, never silently.
+    """
     reasons, warnings = [], []
     if ld is not None and ld.duplicate_positions:
         pairs = "; ".join(
@@ -436,21 +452,30 @@ def integrity_verdict(audit: ScoreAudit, min_weight_coverage: float = 0.90,
             f"Data integrity: {len(ld.duplicate_positions)} genomic position(s) carry more than "
             f"one scored variant ({pairs}). This is either a coordinate error or the same locus "
             f"counted twice, and both corrupt the sum. Verify the scoring file before use.")
-    if audit.weight_coverage < min_weight_coverage:
+    if audit is None:
+        warnings.append(
+            "No genotype was supplied, so the genotype-dependent integrity checks (weight "
+            f"coverage >= {min_weight_coverage:.0%}, strand-ambiguity against calls) were not "
+            "performed. The file-level checks above still apply.")
+    elif audit.weight_coverage < min_weight_coverage:
         reasons.append(
             f"Only {audit.weight_coverage:.1%} of this score's total effect weight was "
             f"genotyped (minimum {min_weight_coverage:.0%}). {audit.weight_at_risk:.3f} of "
             f"{audit.weight_total:.3f} weight is missing, so the raw score is biased downward "
             f"by an unknown amount rather than merely noisy.")
-    eff = ld.effective_n_ld if ld is not None else audit.effective_n
-    if eff < min_effective_n:
+    eff = (ld.effective_n_ld if ld is not None
+           else audit.effective_n if audit is not None else None)
+    if eff is not None and eff < min_effective_n:
         detail = (f"{eff:.1f} after grouping variants that sit within {ld.window_kb:g} kb of each "
-                  f"other (was {audit.effective_n:.1f} assuming independence)"
+                  f"other" + (f" (was {audit.effective_n:.1f} assuming independence)"
+                              if audit is not None else "")
                   if ld is not None else f"{eff:.1f}")
+        concentration = (f" The top variant carries {audit.top1_share:.1%} of the weight."
+                         if audit is not None else "")
         warnings.append(
-            f"Effective number of independent contributions is {detail}. The top variant carries "
-            f"{audit.top1_share:.1%} of the weight. A score this concentrated moves sharply with "
-            f"a single allele-frequency or correlation difference between populations.")
+            f"Effective number of independent contributions is {detail}.{concentration} A score "
+            f"this concentrated moves sharply with a single allele-frequency or correlation "
+            f"difference between populations.")
     if ld is not None and ld.clustered_weight_share > max_clustered_weight_share:
         top = next((c for c in ld.clusters if len(c["rsids"]) > 1), None)
         where = (f" The largest such group is {', '.join(top['rsids'])} on chr{top['chr']} "
@@ -460,7 +485,7 @@ def integrity_verdict(audit: ScoreAudit, min_weight_coverage: float = 0.90,
             f"close enough together to be correlated rather than independent.{where} Correlation "
             f"between such variants differs between populations, so this part of the score does "
             f"not transfer at face value.")
-    if audit.palindromic_share > max_palindromic_share:
+    if audit is not None and audit.palindromic_share > max_palindromic_share:
         warnings.append(
             f"{audit.palindromic_n} of {audit.n_total} variants "
             f"({audit.palindromic_share:.1%}) are strand-ambiguous (A/T or C/G). Effect-allele "
@@ -710,7 +735,12 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
         if decision.verdict != "REPORT":
             reasons.append(f"Ancestry gate: {decision.verdict}.")
 
-        if score_pop is not None and score_pop != cal.reference_population:
+        if score_pop is None:
+            reasons.append(
+                "Reference provenance: this score does not declare a reference_population, so "
+                "the population its percentile is centred on is unknown. A percentile of "
+                "unknown provenance cannot be released; absent metadata fails closed.")
+        elif score_pop != cal.reference_population:
             reasons.append(
                 f"Reference mismatch: this score is centred on {score_pop} but the gate was "
                 f"calibrated against {cal.reference_population}; transferability to "
@@ -724,8 +754,9 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
                 f"reference mean by {shift.shift_sd:+.2f} sd, i.e. this percentile is off by "
                 f"roughly that much before any individual-level error.")
 
-        note = ("Reported against the "
-                f"{score_pop or cal.reference_population} reference distribution."
+        # allow implies score_pop is declared: the provenance check above
+        # fails closed, so this note can never assert an unestablished origin.
+        note = (f"Reported against the {score_pop} reference distribution."
                 if allow else " ".join(reasons))
         if warnings:
             note = (note + " | Caveats: " + " ".join(warnings)).strip()
@@ -1241,6 +1272,9 @@ KNOWN_LIMITATIONS = [
     "n_markers_shared is trusted from the individuals CSV and never cross-checked, not even "
     "against the genotype file when one is supplied. Absent or non-numeric values fail "
     "closed, but an inflated value passes the marker gate unconditionally.",
+    "Sex-specificity is detected by keyword match over the free-text trait. An absent or "
+    "unreadable trait fails closed, but a sex-specific trait phrased outside the keyword "
+    "list is treated as not sex-specific.",
     "Distance is Euclidean in unscaled PC space. If the reference cluster is elongated, "
     "Mahalanobis distance would be the correct metric; Euclidean over-refuses along the "
     "narrow axis and under-refuses along the broad one.",
@@ -1371,9 +1405,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         lds[pid] = ld_audit(sdef, window_kb=args.ld_window_kb)
         if genotype:
             audits[pid] = audit_score(sdef, genotype)
-            integrity[pid] = integrity_verdict(
-                audits[pid], min_weight_coverage=args.min_weight_coverage,
-                min_effective_n=args.min_effective_n, ld=lds[pid])
+        # File-level integrity always runs; without a genotype the verdict
+        # records which checks were skipped instead of skipping the tier.
+        integrity[pid] = integrity_verdict(
+            audits.get(pid), min_weight_coverage=args.min_weight_coverage,
+            min_effective_n=args.min_effective_n, ld=lds[pid])
         if af_table:
             rec = curated_sd.get(pid, {})
             raw, z = rec.get("raw_score"), rec.get("z_score")
