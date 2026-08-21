@@ -225,7 +225,7 @@ For the complete list including pharmacogenomics extensions, single-cell tooling
 
 ### Hosted inference — Genomic Intelligence
 
-Six skills (`gi-promoter`, `gi-splice`, `gi-enhancer`, `gi-chromatin`, `gi-expression`, `gi-annotation`) wrap [Genomic Intelligence](https://genomicintelligence.ai) — a DNA language-model platform providing transformer-based inference for promoter, splice-site, enhancer, chromatin-accessibility, expression, and annotation prediction. Unlike most ClawBio skills these call a hosted API (`api.genomicintelligence.ai`); a shared hackathon key ships in `.env.example` (50 concurrent / 120 rpm, opt-in only).
+Six skills (`gi-promoter`, `gi-splice`, `gi-enhancer`, `gi-chromatin`, `gi-expression`, `gi-annotation`) wrap [Genomic Intelligence](https://genomicintelligence.ai) — a DNA language-model platform providing transformer-based inference for promoter, splice-site, enhancer, chromatin-accessibility, expression, and annotation prediction. Unlike most ClawBio skills these call a hosted API (`api.genomicintelligence.ai`); a shared hackathon key ships in `.env.example` (opt-in only; caps are per-key — read the `RateLimit-*` response headers for the live allowance).
 
 You can also run the same models interactively at <https://genomicintelligence.ai> — a browser UI with gene search and IGV/JBrowse viewers, no setup required. API reference: <https://docs.genomicintelligence.ai>. Questions, errors, or production-tier keys: **contact@genomicintelligence.ai**.
 

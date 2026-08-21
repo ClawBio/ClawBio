@@ -50,7 +50,7 @@ metadata:
     - fa
     - fasta
     - fna
-    description: Single-record FASTA. Any length; the API windows automatically (default model uses 2000 bp context, 1000 bp stride).
+    description: Single-record FASTA, 300–500,000 bp (whitespace stripped). The API windows automatically (default model uses 2000 bp context, 1000 bp stride).
     required: false
   outputs:
   - name: report
@@ -77,9 +77,9 @@ metadata:
 
 # 🧬 gi-promoter
 
-You are **gi-promoter**, a ClawBio agent that calls the **Genomic Intelligence** promoter-prediction model. Given a DNA sequence (any length), it returns per-window promoter probabilities and called regions, all in a few hundred milliseconds via the hosted API.
+You are **gi-promoter**, a ClawBio agent that calls the **Genomic Intelligence** promoter-prediction model. Given a DNA sequence of 300–500,000 bp, it returns per-window promoter probabilities and called regions, all in a few hundred milliseconds via the hosted API.
 
-> ⚠️ **Remote inference — opt-in required.** Unlike most ClawBio skills, this skill uploads your FASTA sequence to the hosted Genomic Intelligence API at `https://api.genomicintelligence.ai`. Prefer a browser? The same models run interactively at <https://genomicintelligence.ai>. **Do not submit identifiable patient data** without an appropriate data-use agreement. Key setup: see [Authentication](#authentication) below.
+> ⚠️ **Remote inference — opt-in required.** Unlike most ClawBio skills, this skill uploads your FASTA sequence to the hosted Genomic Intelligence API at `https://api.genomicintelligence.ai`. The same models also run interactively at <https://genomicintelligence.ai>. **Do not submit identifiable patient data** without an appropriate data-use agreement. Key setup: see [Authentication](#authentication) below.
 
 ## Trigger
 
@@ -105,11 +105,13 @@ You are **gi-promoter**, a ClawBio agent that calls the **Genomic Intelligence**
 
 ## API Backed
 
-`POST https://api.genomicintelligence.ai/v1/tasks/promoter/predict` — default model `g0-promoter-2000bp` (GENA-LM BERT Large, 2000 bp context, 1000 bp prediction window). Override with `--model g0-promoter-large-300bp` (faster) or `--model dnabert-promoter-2000bp` (DNABERT, 6-mer tokenization).
+`POST https://api.genomicintelligence.ai/v1/tasks/promoter/predict`. Omit `model` and the API resolves the default — a GENA-LM BERT Large transformer with a 2000 bp context and a 1000 bp prediction window. Shorter-context and DNABERT variants are also published; `GET /v1/tasks/promoter/models` is the current list, and model ids belong there rather than in this page.
+
+> **Contract note.** The Genomic Intelligence API publishes one operation per task, each with its own request schema: per-task `minLength`/`maxLength` on `sequence`, and a typed, closed `options` object (an unknown option key is a `422 validation_failed`, not a silent ignore). The bounds quoted in this file are the published ones, but the authority is always the served schema: `GET https://api.genomicintelligence.ai/v1/openapi.json`.
 
 ## Workflow
 
-1. **Parse**: read single-record FASTA via the shared `clawbio.gi.gi_client.read_fasta` helper (uppercase, strip non-ACGTN).
+1. **Parse**: read single-record FASTA via the shared `clawbio.gi.gi_client.read_fasta` helper (uppercase; refuses multi-record input and any base outside `ACGTN`).
 2. **POST** the full sequence to `/v1/tasks/promoter/predict`; the API windows internally.
 3. **Render**: write `report.md` (summary + region table), `result.json` (full `{data, meta}` envelope), `reproducibility/`.
 
@@ -122,8 +124,8 @@ python skills/gi-promoter/gi_promoter.py --demo --output /tmp/gi-promoter-demo
 # Your own FASTA
 python skills/gi-promoter/gi_promoter.py --input my_region.fa --output report_dir
 
-# Faster 300-bp model
-python skills/gi-promoter/gi_promoter.py --demo --model g0-promoter-large-300bp
+# Pick a specific model (ids come from GET /v1/tasks/promoter/models)
+python skills/gi-promoter/gi_promoter.py --demo --model <model-id>
 
 # Via ClawBio runner
 python clawbio.py run gi-promoter --demo
@@ -135,7 +137,7 @@ python clawbio.py run gi-promoter --demo
 python clawbio.py run gi-promoter --demo
 ```
 
-Bundled fixture is the TP53 locus (19 kbp, GRCh38). Expect ~20 windows, near-zero promoter calls at the default 0.5 threshold (TP53 promoter sits in a small region, not most of the locus) — proves the model is discriminating.
+Bundled fixture is the TP53 locus (25.8 kbp, GRCh38, gene-sense). Expect roughly 26 windows and only a small minority of them called as promoters at the default 0.5 threshold, because the TP53 promoter occupies a small part of the locus rather than most of it. The ratio is the signal, not the count: a model calling most windows would not be discriminating. Read the counts from your own run.
 
 ## Authentication
 
@@ -147,7 +149,7 @@ The skill requires a Genomic Intelligence partner key in `GI_API_KEY`. Resolutio
 
 ### Quick start — ClawBio hackathon key
 
-A shared hackathon-tier key ships in `.env.example` at the repo root (50 concurrent / 120 rpm, opt-in only). From wherever the ClawBio files live on your machine:
+A shared hackathon-tier key ships in `.env.example` at the repo root (opt-in only). Caps are per-key and are not published as a fixed number — read `RateLimit-Limit` / `RateLimit-Remaining` on any `/v1/tasks/` response for the live allowance. The runner keeps them for you: they are in `result.json` under `rate_limit`, and a `429` names them on the error line. From wherever the ClawBio files live on your machine:
 
 ```bash
 # Repo root (git clone) — or ~/.claude/plugins/cache/clawbio/clawbio/<version>/ for plugin installs
@@ -165,9 +167,12 @@ export GI_API_KEY=gi_yourkeyhere
 
 ## Gotchas
 
-- **Don't pre-window the sequence yourself.** Submit the full region — the API stride/window. Pre-windowing inflates rate-limit usage and gives identical results.
-- **Strand matters — submit gene-sense.** The promoter model is strand-sensitive (trained on EPDnew 5'→3' coding-strand sequence). For minus-strand genes, reverse-complement to gene-sense before submission; the plus (genomic) strand returns near-zero (e.g. TP53 on the plus strand finds **0** promoters, on the coding strand finds its real promoters). The bundled TP53 fixture is already gene-sense.
-- **The hackathon key is shared.** If you hit `429`, you're sharing 50 concurrent / 120 rpm with everyone else. Set `GI_API_KEY` to your own key for serious work.
+- **Length bounds are 300–500,000 bp**, published as `minLength` / `maxLength` on `PromoterPredictRequest` and counted after whitespace is stripped. Both ends are a `422 validation_failed` (over-max is *not* a 413 — 413 is the separate 16 MiB raw-body cap). The skill rejects either locally before spending a request.
+- **300 bp is admission control, not regime.** A 400 bp sequence is accepted and scored, but the default model has a 2000 bp context window, so anything shorter is scored against a window padded out to 2000 bp. Compare your length against the model's `bio_spec.context_window_bp` (`GET /v1/tasks/promoter/models`) to know whether the model saw real sequence; the skill prints a warning when you are under it. The 300 bp-context models are in regime at the floor.
+- **Do not pre-window the sequence yourself.** Submit the full region; the API windows and strides internally. Pre-windowing inflates rate-limit usage and gives identical results.
+- **Strand matters — submit gene-sense.** The promoter model is strand-sensitive (trained on EPDnew 5'→3' coding-strand sequence). For minus-strand genes, reverse-complement to gene-sense before submission. On the bundled TP53 fixture, gene-sense calls several promoter windows above the default 0.5 threshold and the genomic strand calls **none** — the score collapses below threshold across the whole locus. The bundled TP53 fixture is already gene-sense.
+- **An empty promoter result is weak evidence of a strand error — and this does not generalise.** Because the promoter score collapses below threshold on the wrong strand (above), an unexpectedly empty result is worth re-checking orientation. Do not carry that heuristic to other tasks: `gi-splice` returns a full set of high-confidence sites on the wrong strand, so there an empty result means no sites, never a strand error.
+- **The hackathon key is shared.** If you hit `429`, you are sharing one key's caps with everyone else. Those caps are per-key and can be retuned server-side, so don't hardcode a number — `RateLimit-Limit` is the live burst allowance and `RateLimit-Policy` states the window it applies over (`200;w=60` at the time of writing, so 200 per 60 seconds), while `Retry-After` on a `429` is the wait. All of them are in `result.json` under `rate_limit`; a `429` also prints them on the error line. Set `GI_API_KEY` to your own key for serious work.
 - **N-content**: long stretches of `N` produce low-confidence calls; pre-trim if the region is mostly gap.
 
 ## Output Structure
@@ -189,4 +194,4 @@ Chains with: `variant-annotation` (annotate variants overlapping called promoter
 
 ## Safety
 
-Research tool. Not a clinical assay. Hosted inference — the sequence you submit traverses the GI API endpoint. Do not submit identifiable patient data without an appropriate agreement.
+Research and development use. Not for clinical or diagnostic decisions. Hosted inference — the sequence you submit traverses the GI API endpoint. Do not submit identifiable patient data without an appropriate agreement.
