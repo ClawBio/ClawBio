@@ -98,13 +98,10 @@ Neglected tropical diseases (NTDs) are significantly more semantically isolated 
 05-05-heim-sem-integrate.py # Merge with biobank + clinical trial dimensions
 ```
 
-### Demo (works out of the box)
+## Status
 
-```bash
-python semantic_sim.py --demo --output demo_report
-```
-
-The demo uses pre-computed embeddings and metrics for 175 GBD diseases and generates the full 4-panel figure instantly.
+**Not yet implemented.** `semantic_sim.py` and the `05-00..05-05` pipeline scripts described
+above are not present in this repository yet; there is no runnable demo.
 
 ## Example Output
 

@@ -381,9 +381,8 @@ Computes a Semantic Isolation Index for diseases using 13.1M PubMed abstracts an
 - **Temporal Drift**: how research focus evolves over time
 - Publication-quality **4-panel figure**
 
-```bash
-python semantic_sim.py --demo --output sem_report
-```
+**Status: not yet implemented.** `semantic_sim.py` and the pipeline scripts behind it are not
+in this repository yet (see `skills/claw-semantic-sim/SKILL.md`); there is no runnable demo.
 
 **Key finding**: Neglected tropical diseases are **+38% more semantically isolated** (P < 0.0001, Cohen's d = 0.84). 14 of the 25 most isolated diseases are Global South priority conditions. Knowledge silos kill innovation — a malaria immunology breakthrough could help leishmaniasis, but the literatures don't talk to each other.
 
