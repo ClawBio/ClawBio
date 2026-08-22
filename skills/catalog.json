@@ -763,7 +763,7 @@
       "cli_alias": null,
       "description": "Semantic Similarity Index for disease research literature using PubMedBERT embeddings",
       "version": "0.1.0",
-      "status": "mvp",
+      "status": "planned",
       "maturity_tier": "spec-only",
       "maturity_evidence": {
         "has_skill_md": true,
@@ -1358,7 +1358,7 @@
       "cli_alias": "drugphoto",
       "description": "Medication photo to personalised PGx dosage card via Claude vision — snap a pill, get genotype-informed guidance",
       "version": "0.1.0",
-      "status": "mvp",
+      "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
@@ -4445,15 +4445,15 @@
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
-        "has_demo": false,
+        "has_demo": true,
         "cli_registered": false,
         "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
       "has_tests": true,
-      "has_demo": false,
-      "demo_command": null,
+      "has_demo": true,
+      "demo_command": "python skills/xena-tcga-gene-query/scripts/query_tcga_api.py --demo",
       "dependencies": [
         "python>=3.10"
       ],
