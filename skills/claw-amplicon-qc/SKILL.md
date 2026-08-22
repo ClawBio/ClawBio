@@ -7,7 +7,7 @@ description: >-
   decisions that require researcher judgment.
 license: MIT
 metadata:
-  version: "0.2.1"
+  version: "0.2.2"
   author: Zabiulla
   domain: genomics
   tags:
@@ -48,37 +48,45 @@ metadata:
   outputs:
     - name: filtN
       type: directory
-      format: [fastq.gz]
+      format:
+        - fastq.gz
       description: FASTQ files after removal of reads containing N bases.
     - name: cutadapt_trimmed
       type: directory
-      format: [fastq.gz]
+      format:
+        - fastq.gz
       description: Primer-trimmed FASTQ files, ready for downstream DADA2 quality filtering.
     - name: raw_stats
       type: file
-      format: [tsv]
+      format:
+        - tsv
       description: seqkit statistics on raw input FASTQ (baseline before any transformation).
     - name: filtN_stats
       type: file
-      format: [tsv]
+      format:
+        - tsv
       description: seqkit statistics on N-filtered FASTQ.
     - name: trimmed_stats
       type: file
-      format: [tsv]
+      format:
+        - tsv
       description: seqkit statistics on primer-trimmed FASTQ.
     - name: cutadapt_log
       type: file
-      format: [txt]
+      format:
+        - txt
       description: Per-sample Cutadapt log with primer detection and trimming details.
     - name: report
       type: file
-      format: [md]
+      format:
+        - md
       description: >-
         Human-readable QC report — samples processed, retention rates, failed
         samples, and flagged anomalies.
     - name: qc_summary
       type: file
-      format: [json]
+      format:
+        - json
       description: >-
         Machine-readable structured summary with per-sample stats, retention
         rates, and flags. Consumable by downstream skills or wrappers.
@@ -173,8 +181,7 @@ You are **claw-amplicon-qc**, a specialised ClawBio agent for 16S/18S rRNA ampli
 
 If you ask a general-purpose AI to "run 16S QC," it will typically:
 
-- Combine N removal and quality filtering into a single step, hiding which reads were lost to which criterion
-- Apply DADA2 quality parameters (`maxEE`, `truncQ`) before the researcher has reviewed quality profiles
+- Apply DADA2 quality parameters (`maxEE`, `truncQ`) before the researcher has reviewed quality profiles, and combine N removal with quality filtering into a single step that hides which reads were lost to which criterion
 - Skip primer sanity checks and produce silent failures downstream if primers were missed
 - Fail to distinguish between the forward primer and its reverse-complement, breaking 3' trimming
 - Not track per-sample read survival across stages, hiding problematic samples
@@ -195,18 +202,14 @@ This skill does the boring, mechanical preprocessing correctly, keeps every meth
 
 ## Input Formats
 
-| Format | Extension | Required | Example |
-|--------|-----------|----------|---------|
-| Paired-end FASTQ, gzipped | `.fastq.gz` | Matched R1/R2 pairs | `sample_R1_001.fastq.gz` + `sample_R2_001.fastq.gz` |
-| Paired-end FASTQ, gzipped short-form | `.fq.gz` | Matched R1/R2 pairs | `sample_R1.fq.gz` + `sample_R2.fq.gz` |
-| Paired-end FASTQ, uncompressed | `.fastq` / `.fq` | Matched R1/R2 pairs | Same as above without `.gz` |
+Paired-end FASTQ, matched R1/R2 pairs. Accepted extensions: `.fastq.gz`, `.fq.gz`, `.fastq`, `.fq`.
 
 **Naming patterns accepted:**
 
 - **Pattern A (Illumina default):** `SAMPLE_R1_...fastq.gz` + `SAMPLE_R2_...fastq.gz`
 - **Pattern B (prefix):** `R1_SAMPLE.fastq.gz` + `R2_SAMPLE.fastq.gz`
 
-The skill auto-detects which pattern is in use. Files must arrive in matched R1/R2 pairs — mispaired or orphan inputs are detected at file discovery and rejected with a clear error. Sample names are extracted from filenames deterministically and used as report row IDs.
+The skill auto-detects which pattern is in use. Mispaired or orphan inputs are rejected at file discovery.
 
 ## Workflow
 
@@ -231,7 +234,7 @@ Rscript skills/claw-amplicon-qc/amplicon_qc.R \
     --raw /path/to/raw_fastq_folder \
     --output /path/to/output_folder \
     --fwd-primer GTGYCAGCMGCCGCGGTAA \
-    --rev-primer GGACTACHVGGGTWTCTAAT \
+    --rev-primer GGACTACNVGGGTWTCTAAT \
     --min-length 200
 
 # Demo mode (bundled fixture, no user files needed)
@@ -267,7 +270,6 @@ Rscript skills/claw-amplicon-qc/amplicon_qc.R --demo --output /tmp/demo
 |--------|---------|----------|---------|----------|
 | V3–V4 | 341F | `CCTACGGGNGGCWGCAG` | 806R (Caporaso) | `GGACTACHVGGGTWTCTAAT` |
 | V4 | 515F (Parada) | `GTGYCAGCMGCCGCGGTAA` | 806R (Apprill/EMP) | `GGACTACNVGGGTWTCTAAT` |
-| V1–V2 | 27F | `AGAGTTTGATCMTGGCTCAG` | 338R | `TGCTGCCTCCCGTAGGAGT` |
 
 ## Demo
 
@@ -289,8 +291,6 @@ Passes 17 assertion checks: prerequisites, output files, output directories, sam
 
 ## Algorithm / Methodology
 
-Methodological choices baked into this skill:
-
 **N removal happens before primer trimming.** Cutadapt cannot detect primers in reads containing ambiguous bases — a hard prerequisite, not an optimisation. Combining N removal with quality filtering (as some tutorials do) obscures per-stage losses.
 
 **Quality filtering is deferred to a later skill.** `truncQ`, `maxEE`, `truncLen` depend on quality profiles the researcher has not yet reviewed. Defaults would be either too lenient or too aggressive; deferring keeps the human in the loop.
@@ -299,17 +299,13 @@ Methodological choices baked into this skill:
 
 **5' primers are anchored (`-g ^FWD`, `-G ^REV`).** Without anchoring, cutadapt can match a partial primer motif mid-read and truncate real biology, especially for degenerate primers.
 
-**`--discard-untrimmed` is on.** Reads where cutadapt couldn't find a primer are dropped, not passed through untouched. Primer-free reads would otherwise poison DADA2's error learning.
-
-**`--pair-filter=any` is explicit.** A pair is discarded if either mate failed primer detection — the strict interpretation. Matches cutadapt's current default, but explicit here to guard against future upstream changes.
+**Cutadapt runs in strict mode: `--discard-untrimmed` + `--pair-filter=any`.** Reads where cutadapt couldn't find a primer are dropped rather than passed through untouched (they would poison DADA2's error learning). A pair is discarded if either mate failed primer detection. `--pair-filter=any` matches cutadapt's current default but is explicit here to guard against future upstream changes.
 
 **`--nextseq-trim` is opt-in, not default.** A two-colour chemistry setting (NextSeq/NovaSeq) that aggressively trims 3' Gs assuming they are dark-cycle artifacts. Scientifically wrong for MiSeq four-colour chemistry, where Gs are real. Default: flag omitted entirely.
 
 **`filterAndTrim` at Stage 2 is N-removal-only.** DADA2's defaults for `truncQ` and `minLen` are explicitly overridden to 0. `rm.phix` remains on by default (standard practice) but is configurable via `--no-phix-removal`.
 
-**`min_length` is a required user input, not a default.** The appropriate value depends on amplicon region and expected paired-end overlap. A generic default would silently fail for non-V4 primer pairs.
-
-**Anomaly flags are informational, not blocking.** The skill completes normally when flags fire. The decision to exclude a flagged sample belongs to the downstream skill or the researcher.
+**`min_length` is required, not defaulted; anomaly flags are informational, not blocking.** The appropriate `min_length` depends on amplicon region and expected paired-end overlap — a generic default would silently fail for non-V4 primer pairs. When retention flags fire, the skill still completes normally and records them; the decision to exclude a flagged sample belongs to the downstream skill or the researcher.
 
 **Key thresholds (all CLI-configurable):**
 
@@ -344,11 +340,11 @@ Either-side logic means a flag fires if R1 or R2 crosses the threshold — R2-sp
 Captured from a real `--demo` invocation. Reproducible: `Rscript amplicon_qc.R --demo --output /tmp/demo`.
 
 ```
-  claw-amplicon-qc v0.2.1
+  claw-amplicon-qc v0.2.2
   Raw folder:     /path/to/tests/fixtures
   Output folder:  /tmp/demo
   Fwd primer:     GTGYCAGCMGCCGCGGTAA
-  Rev primer:     GGACTACHVGGGTWTCTAAT
+  Rev primer:     GGACTACNVGGGTWTCTAAT
   Min length:     200
 
 Detected naming pattern: Illumina default (SAMPLE_R1_..., SAMPLE_R2_...)
@@ -375,12 +371,12 @@ Read in 500 paired-sequences, output 497 (99.4%) filtered paired-sequences.
 
   Stage 4/5 — Primer trimming with Cutadapt
   Fwd: GTGYCAGCMGCCGCGGTAA   Fwd RC: TTACCGCGGCKGCTGRCAC
-  Rev: GGACTACHVGGGTWTCTAAT   Rev RC: ATTAGAWACCCBDGTAGTCC
+  Rev: GGACTACNVGGGTWTCTAAT   Rev RC: ATTAGAWACCCBNGTAGTCC
   Min length after trimming: 200 bp
   [1/1] demo
 
   Stage 5/5 — seqkit stats on primer-trimmed reads
-  Total reads after primer trimming: 984
+  Total reads after primer trimming: 980
 
   Retention analysis + anomaly flagging
   Samples processed successfully:  1
@@ -455,11 +451,7 @@ conda create -n amplicon-qc -c conda-forge -c bioconda \
 
 **Spaces in output paths are safe internally, but shells may still stumble.** The script `shQuote()`s all paths before passing to `system2()`, so `/mnt/d/Research Data/` works fine when invoked directly. If you're wrapping the call in a shell script, quote the path there too.
 
-**`--nextseq-trim` was default in earlier versions but is now opt-in.** If you have saved commands from before 0.2.0 that omit `--nextseq-trim`, the current behaviour (no NextSeq trimming) will differ from before (aggressive 3' G trimming). This mostly *raises* retention on MiSeq data. If you're comparing runs across versions, note this.
-
 **Mixed-orientation libraries abort by default.** Some legitimate library preparations (some ONT amplicon protocols, older 454-derived workflows) produce reads where ~50% of R1 starts with the forward primer and ~50% starts with the reverse. The pre-flight aborts to prevent silent 50% data loss. Use `--allow-mixed-orientation` to proceed if you understand the trade-off.
-
-**`qc_summary.json` schema changed in 0.2.0.** Per-sample count fields are now nested `{R1, R2, pair}` rather than flat integers. Downstream consumers written against 0.1.x need updating. The top-level `totals` keys are stable.
 
 ## Safety
 

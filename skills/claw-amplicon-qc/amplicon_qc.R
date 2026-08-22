@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 ################################################################################
-##                    CLAW-AMPLICON-QC — v0.2.1                               ##
+##                    CLAW-AMPLICON-QC — v0.2.2                               ##
 ##                                                                            ##
 ##   Non-interactive amplicon preprocessing skill for the ClawBio ecosystem. ##
 ##   Measures raw reads with seqkit, removes reads containing N bases,       ##
@@ -167,7 +167,11 @@ if (isTRUE(opt$demo)) {
   # See tests/fixtures/README.md for provenance.
   opt$raw        <- demo_dir
   opt$fwd_primer <- "GTGYCAGCMGCCGCGGTAA"
-  opt$rev_primer <- "GGACTACHVGGGTWTCTAAT"
+  # ROUND-5 fix (Blocker 2): canonical Apprill/EMP 806R uses N (not H) at
+  # position 8 — H excludes G, N allows any base. Marine data is 62% G at
+  # this position; using H spends the entire cutadapt error budget on a
+  # known primer-definition mismatch, leaving no tolerance for real error.
+  opt$rev_primer <- "GGACTACNVGGGTWTCTAAT"
   opt$min_length <- 200L
   cat("─────────────────────────────────────────────────────────\n")
   cat("  --demo mode: using bundled fixture\n")
@@ -223,7 +227,7 @@ if (!dir.exists(opt$output)) dir.create(opt$output, recursive = TRUE)
 start_time <- Sys.time()
 
 cat("─────────────────────────────────────────────────────────\n")
-cat("  claw-amplicon-qc v0.2.1\n")
+cat("  claw-amplicon-qc v0.2.2\n")
 cat("─────────────────────────────────────────────────────────\n")
 cat("  Raw folder:    ", opt$raw,        "\n")
 cat("  Output folder: ", opt$output,     "\n")
@@ -270,6 +274,28 @@ if (length(all_fastq) == 0) {
 # outputs to the previous approach — verified across three datasets during
 # the audit fixes.
 
+# ROUND-5 fix (Blocker 1): filter Undetermined_* files upfront, BEFORE
+# pattern detection. The grep pattern _R1[_.] at line ~280 catches names
+# like Undetermined_S0_L001_R1_001.fastq.gz because that filename contains
+# _R1_. Without this filter, Undetermined files (standard bcl2fastq
+# unassigned-index output, 5-20% of a MiSeq run) get processed as regular
+# samples and silently inflate run-level totals. Filtering here means the
+# file never enters the pipeline as a sample. List each skipped file so
+# researchers see exactly what got dropped — usually just one pair; more
+# is itself a warning sign about the sequencing run's index balance.
+undetermined_mask <- grepl("^Undetermined", basename(all_fastq),
+                           ignore.case = TRUE)
+if (any(undetermined_mask)) {
+  undetermined_files <- basename(all_fastq[undetermined_mask])
+  message(
+    "Skipping ", length(undetermined_files),
+    " Undetermined_* file(s) — standard bcl2fastq unassigned-index",
+    " output, not sample data:\n  ",
+    paste(undetermined_files, collapse = "\n  ")
+  )
+  all_fastq <- all_fastq[!undetermined_mask]
+}
+
 # Detect naming pattern and set up per-pattern sample-name extraction
 # Pattern A (Illumina default): SAMPLE_R1_..., SAMPLE_R2_...
 # Pattern B (prefix):           R1_SAMPLE,    R2_SAMPLE
@@ -309,50 +335,29 @@ if (length(r1_A_idx) > 0 && length(r2_A_idx) > 0) {
 # glob, check for FASTQ files in the folder that weren't captured. Silently
 # ignoring them means a full sample can vanish when a user merges deliveries
 # from two facilities using different naming conventions.
-#
-# Split orphans into two classes:
-#   (a) Undetermined_* — standard bcl2fastq output for reads whose indexes
-#       couldn't be assigned. Every raw Illumina delivery has one. Warn but
-#       proceed; researchers may legitimately want to inspect it separately.
-#   (b) Everything else — suggests mixed naming conventions or a bad merge.
-#       Abort with the full orphan listing so the user can see exactly what
-#       is being ignored.
+# (Note: Undetermined_* files are filtered upstream at line ~277, so they
+# never appear in the orphan set here. This block only catches mixed
+# naming conventions.)
 all_basenames    <- basename(all_fastq)
 kept_basenames   <- c(basename(r1_paths), basename(r2_paths))
 orphan_basenames <- setdiff(all_basenames, kept_basenames)
 
 if (length(orphan_basenames) > 0) {
-  is_undetermined  <- grepl("^Undetermined", orphan_basenames, ignore.case = TRUE)
-  undetermined     <- orphan_basenames[is_undetermined]
-  real_orphans     <- orphan_basenames[!is_undetermined]
-
-  if (length(undetermined) > 0) {
-    warning(
-      "Skipping ", length(undetermined),
-      " Undetermined_* file(s) (standard bcl2fastq unassigned-index output):\n  ",
-      paste(undetermined, collapse = "\n  "),
-      "\nThese are not treated as samples. Inspect separately if needed.",
-      call. = FALSE, immediate. = TRUE
-    )
-  }
-
-  if (length(real_orphans) > 0) {
-    stop(
-      "Detected naming pattern: ", naming_pattern, "\n",
-      "The following FASTQ file(s) in the raw folder do NOT match this pattern ",
-      "and would be silently dropped:\n  ",
-      paste(real_orphans, collapse = "\n  "),
-      "\n\nThis usually means the folder contains a mix of naming conventions ",
-      "(for example, merged deliveries from two sequencing facilities).\n\n",
-      "Silent data loss on merged-delivery folders is a real failure mode, so ",
-      "aborting rather than dropping these files.\n\n",
-      "Fix: separate the folder into per-convention subfolders (one for ",
-      "SAMPLE_R1_... and one for R1_SAMPLE...) and run this skill once per ",
-      "subfolder. Or rename the mismatched files to the winning convention ",
-      "and re-run.",
-      call. = FALSE
-    )
-  }
+  stop(
+    "Detected naming pattern: ", naming_pattern, "\n",
+    "The following FASTQ file(s) in the raw folder do NOT match this pattern ",
+    "and would be silently dropped:\n  ",
+    paste(orphan_basenames, collapse = "\n  "),
+    "\n\nThis usually means the folder contains a mix of naming conventions ",
+    "(for example, merged deliveries from two sequencing facilities).\n\n",
+    "Silent data loss on merged-delivery folders is a real failure mode, so ",
+    "aborting rather than dropping these files.\n\n",
+    "Fix: separate the folder into per-convention subfolders (one for ",
+    "SAMPLE_R1_... and one for R1_SAMPLE...) and run this skill once per ",
+    "subfolder. Or rename the mismatched files to the winning convention ",
+    "and re-run.",
+    call. = FALSE
+  )
 }
 
 # Extract sample names for R1 and R2 files, independently
@@ -403,51 +408,26 @@ if (length(r1_without_r2) > 0 || length(r2_without_r1) > 0) {
 # Previously these were silently dropped with no count, no warning, no
 # mention in the report. A user merging deliveries from two facilities
 # using different naming conventions would lose entire samples without
-# noticing. We now report every orphan, separated into two buckets:
-#
-#   - "Benign" orphans matching known non-sample patterns like
-#     Undetermined_* (the unassigned-index bin that every Illumina
-#     bcl2fastq run produces). These are noted for transparency but
-#     don't warrant alarm.
-#
-#   - "Unexpected" orphans that don't match anything recognisable —
-#     these are the dangerous case (mixed naming conventions) and get
-#     a loud warning listing every file, with a suggestion to split by
-#     convention before rerunning.
-#
-# We warn rather than abort because forcing an abort on Undetermined
-# would be user-hostile — Undetermined is a legitimate output of every
-# raw sequencing delivery. The warning gives the researcher room to
-# inspect, decide, and rerun with cleaned inputs if the orphans are
-# unexpected.
+# noticing. We now warn about every orphan.
+# (Note: Undetermined_* files are filtered upstream at line ~277 by the
+# ROUND-5 Blocker 1 fix, so they never appear as orphans here. This block
+# only catches mixed naming conventions.)
 captured   <- c(basename(r1_paths), basename(r2_paths))
 all_bn     <- basename(all_fastq)
 orphans    <- setdiff(all_bn, captured)
 if (length(orphans) > 0) {
-  benign_pattern <- "^Undetermined"
-  benign_orphans     <- orphans[grepl(benign_pattern, orphans)]
-  unexpected_orphans <- orphans[!grepl(benign_pattern, orphans)]
-
-  if (length(benign_orphans) > 0) {
-    cat("Note: ignoring",  length(benign_orphans),
-        "expected non-sample file(s):\n  ",
-        paste(benign_orphans, collapse = "\n  "), "\n\n", sep = "")
-  }
-
-  if (length(unexpected_orphans) > 0) {
-    warning(
-      "Unexpected orphan file(s) found in the raw folder — these did NOT ",
-      "match the detected naming pattern (\"", naming_pattern, "\") and ",
-      "will NOT be processed:\n  ",
-      paste(unexpected_orphans, collapse = "\n  "),
-      "\n\nThis can happen when a folder mixes naming conventions ",
-      "(e.g. deliveries from two sequencing facilities). Every orphan ",
-      "here represents data that will not be in the report. ",
-      "If any of these files are actual samples, split the folder by ",
-      "naming convention and rerun each subset separately.",
-      call. = FALSE, immediate. = TRUE)
-    cat("\n")
-  }
+  warning(
+    "Unexpected orphan file(s) found in the raw folder — these did NOT ",
+    "match the detected naming pattern (\"", naming_pattern, "\") and ",
+    "will NOT be processed:\n  ",
+    paste(orphans, collapse = "\n  "),
+    "\n\nThis can happen when a folder mixes naming conventions ",
+    "(e.g. deliveries from two sequencing facilities). Every orphan ",
+    "here represents data that will not be in the report. ",
+    "If any of these files are actual samples, split the folder by ",
+    "naming convention and rerun each subset separately.",
+    call. = FALSE, immediate. = TRUE)
+  cat("\n")
 }
 
 # Build fnFs/fnRs by name-join — alignment guaranteed by construction,
@@ -1118,7 +1098,7 @@ runtime  <- as.numeric(difftime(end_time, start_time, units = "secs"))
 
 summary_json <- list(
   skill         = "claw-amplicon-qc",
-  version       = "0.2.1",
+  version       = "0.2.2",
   timestamp_utc = format(end_time, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
   runtime_secs  = round(runtime, 1),
   inputs = list(
