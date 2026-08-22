@@ -214,17 +214,110 @@ jobs:
             harness=$(find "skills/$skill/tests" -maxdepth 1 -name '*.sh' \
                         | sort | head -1)
             if [ -n "$harness" ]; then
-              # A shell harness needs the skill's own toolchain (R, cutadapt,
-              # seqkit, ...) which this workflow does not provision. Say so
-              # explicitly: reporting a pass nobody earned would be worse, and
-              # failing on a toolchain the contributor cannot install here
-              # would block the PR for a maintainer-side gap.
-              msg="NOT VERIFIED: skills/$skill ships $harness, which needs a toolchain this workflow does not install. Its tests did not run."
+              # Handed to the skill-harness job below, which provisions the
+              # skill's own environment.yml and actually runs it. Skipped here
+              # rather than reported NOT VERIFIED, so the two jobs do not
+              # contradict each other in the same run.
+              msg="DEFERRED: skills/$skill ships $harness; the skill-harness job runs it."
             else
               msg="NOT VERIFIED: skills/$skill has a tests/ directory with neither Python tests nor a shell harness."
             fi
             echo "::warning::$msg"
             echo "- $msg" >> "$GITHUB_STEP_SUMMARY"
+          done
+          exit $status
+
+  # Issue #360. A skill whose tests are a shell harness was never actually
+  # verified by anything: the `test` job correctly declined to run pytest
+  # against it, but nothing else picked it up, so #329 went five remediation
+  # rounds with its 17 assertions never executing here. Reporting NOT VERIFIED
+  # was honest, but honest-and-unverified is still unverified.
+  #
+  # This job provisions the skill's OWN environment.yml rather than hardcoding
+  # a toolchain, so it works for any future non-Python skill without further
+  # edits. It is gated on a PR actually touching such a skill, because a
+  # Bioconductor solve is minutes of runner time and most PRs need none of it.
+  skill-harness:
+    name: skill-harness
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Find skills whose harness this PR should run
+        id: detect
+        run: |
+          set -euo pipefail
+          head="${{ github.event.pull_request.head.sha }}"
+          base=$(git merge-base "${{ github.event.pull_request.base.sha }}" "$head")
+          changed=$(git diff --name-only "$base" "$head" -- 'skills/*' \
+                    | cut -d/ -f2 | sort -u)
+          runnable=""
+          for skill in $changed; do
+            [ -d "skills/$skill" ] || continue
+            # Guard the directory before find touches it. Under `set -o
+            # pipefail` a find on a missing path makes the whole substitution
+            # non-zero, and `set -e` then kills the step: any skill without a
+            # tests/ directory would have failed this job on most PRs.
+            [ -d "skills/$skill/tests" ] || continue
+            harness=$(find "skills/$skill/tests" -maxdepth 1 -name '*.sh' \
+                        | sort | head -1)
+            [ -n "$harness" ] || continue
+            # No environment.yml is not an error: a harness can legitimately be
+            # pure bash needing nothing. It runs bare, and fails on its own
+            # terms if it does need something. Accusing a contributor of a
+            # missing file their skill may not need is the expensive mistake.
+            runnable="$runnable $skill"
+          done
+          echo "skills=$(echo $runnable | xargs)" >> "$GITHUB_OUTPUT"
+          if [ -z "$(echo $runnable | xargs)" ]; then
+            echo "No skill in this PR ships a shell harness." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install micromamba
+        if: steps.detect.outputs.skills != ''
+        run: |
+          set -euo pipefail
+          curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
+            | tar -xvj -C /usr/local bin/micromamba
+          micromamba --version
+
+      - name: Run each harness in its own declared environment
+        if: steps.detect.outputs.skills != ''
+        run: |
+          set -euo pipefail
+          export MAMBA_ROOT_PREFIX=/tmp/mamba
+          status=0
+          for skill in ${{ steps.detect.outputs.skills }}; do
+            env_file="skills/$skill/environment.yml"
+            harness=$(find "skills/$skill/tests" -maxdepth 1 -name '*.sh' | sort | head -1)
+            if [ ! -f "$env_file" ]; then
+              echo "::group::$skill: bash $harness (no environment.yml; running bare)"
+              bash "$harness" || status=1
+              echo "::endgroup::"
+              continue
+            fi
+            echo "::group::$skill: create env from $env_file"
+            # Name the env after the skill rather than trusting the file's own
+            # `name:`, so two skills cannot collide in one runner.
+            if ! micromamba create -y -n "env-$skill" -f "$env_file"; then
+              # A declared environment that will not solve means nobody can run
+              # this skill as documented, so it is a real failure rather than a
+              # skip. claw-amplicon-qc (#329) pins `r-base>=4.4` while the
+              # bioconda builds of dada2, ShortRead and Biostrings resolve only
+              # against r-base 4.1.3, so its environment.yml has never been
+              # buildable and five review rounds never noticed.
+              echo "::error::skills/$skill: environment.yml did not solve, so its documented environment cannot be built."
+              status=1
+              echo "::endgroup::"
+              continue
+            fi
+            echo "::endgroup::"
+            echo "::group::$skill: bash $harness"
+            micromamba run -n "env-$skill" bash "$harness" || status=1
+            echo "::endgroup::"
           done
           exit $status
 
