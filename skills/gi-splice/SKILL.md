@@ -50,13 +50,13 @@ metadata:
     - fa
     - fasta
     - fna
-    description: Single-record FASTA, typically a gene body (5'UTR → 3'UTR including introns).
+    description: Single-record FASTA, 100–500,000 bp (whitespace stripped), typically a gene body (5'UTR → 3'UTR including introns).
     required: false
   outputs:
   - name: report
     type: file
     format: md
-    description: Markdown report — sequence + model metadata, called splice sites (position, kind, strand, probability).
+    description: Markdown report — sequence + model metadata, called splice sites (name, span, type, strand, score).
   - name: result
     type: file
     format: json
@@ -80,7 +80,7 @@ metadata:
 
 You are **gi-splice**, a ClawBio agent that calls the **Genomic Intelligence** splice-site model. Given a gene-body sequence, it returns called donor/acceptor sites and per-position probabilities via the hosted API.
 
-> ⚠️ **Remote inference — opt-in required.** Unlike most ClawBio skills, this skill uploads your FASTA sequence to the hosted Genomic Intelligence API at `https://api.genomicintelligence.ai`. Prefer a browser? The same models run interactively at <https://genomicintelligence.ai>. **Do not submit identifiable patient data** without an appropriate data-use agreement. Key setup: see [Authentication](#authentication) below.
+> ⚠️ **Remote inference — opt-in required.** Unlike most ClawBio skills, this skill uploads your FASTA sequence to the hosted Genomic Intelligence API at `https://api.genomicintelligence.ai`. The same models also run interactively at <https://genomicintelligence.ai>. **Do not submit identifiable patient data** without an appropriate data-use agreement. Key setup: see [Authentication](#authentication) below.
 
 ## Trigger
 
@@ -104,7 +104,9 @@ You are **gi-splice**, a ClawBio agent that calls the **Genomic Intelligence** s
 
 ## API Backed
 
-`POST https://api.genomicintelligence.ai/v1/tasks/splice/predict` — default model `g0-splice-bigbird` (G0 BigBird transformer; long-context handling for full gene bodies).
+`POST https://api.genomicintelligence.ai/v1/tasks/splice/predict`. Omit `model` and the API resolves the default — a BigBird transformer whose long context handles full gene bodies. `GET /v1/tasks/splice/models` is the current list.
+
+> **Contract note.** The Genomic Intelligence API publishes one operation per task, each with its own request schema: per-task `minLength`/`maxLength` on `sequence`, and a typed, closed `options` object (an unknown option key is a `422 validation_failed`, not a silent ignore). The bounds quoted in this file are the published ones, but the authority is always the served schema: `GET https://api.genomicintelligence.ai/v1/openapi.json`.
 
 ## Workflow
 
@@ -131,7 +133,7 @@ python clawbio.py run gi-splice --demo
 python clawbio.py run gi-splice --demo
 ```
 
-Bundled fixture is HBB (β-globin) gene body, reverse-complemented to gene-sense. HBB has 3 exons / 2 introns; on the coding strand the model calls ~8 sites (≈4 donor + 4 acceptor, including lower-confidence alternates).
+Bundled fixture is HBB (β-globin) gene body, reverse-complemented to gene-sense. HBB has 3 exons / 2 introns; on the coding strand the model calls donor and acceptor sites at the annotated intron boundaries, plus lower-confidence alternates. Read the counts and scores from your own run.
 
 ## Authentication
 
@@ -143,7 +145,7 @@ The skill requires a Genomic Intelligence partner key in `GI_API_KEY`. Resolutio
 
 ### Quick start — ClawBio hackathon key
 
-A shared hackathon-tier key ships in `.env.example` at the repo root (50 concurrent / 120 rpm, opt-in only). From wherever the ClawBio files live on your machine:
+A shared hackathon-tier key ships in `.env.example` at the repo root (opt-in only). Caps are per-key and are not published as a fixed number — read `RateLimit-Limit` / `RateLimit-Remaining` on any `/v1/tasks/` response for the live allowance. The runner keeps them for you: they are in `result.json` under `rate_limit`, and a `429` names them on the error line. From wherever the ClawBio files live on your machine:
 
 ```bash
 # Repo root (git clone) — or ~/.claude/plugins/cache/clawbio/clawbio/<version>/ for plugin installs
@@ -161,8 +163,12 @@ export GI_API_KEY=gi_yourkeyhere
 
 ## Gotchas
 
+- **Length bounds are 100–500,000 bp**, published as `minLength` / `maxLength` on `SplicePredictRequest` and counted after whitespace is stripped. Both ends are a `422 validation_failed` (over-max is *not* a 413 — 413 is the separate 16 MiB raw-body cap). The skill rejects either locally before spending a request.
+- **100 bp is admission control, not regime.** The default splice model has a 15,000 bp context window (`bio_spec.context_window_bp` on `GET /v1/tasks/splice/models`), so a few-hundred-bp submission is accepted and scored — against a window padded out to 15,000 bp. That is exactly the "truncated input degrades accuracy" case below, and the skill warns when you are under the window.
 - **Submit gene-sense, not genomic-sense.** Minus-strand genes need RC'd input. The bundled HBB fixture demonstrates this — its FASTA header notes `strand:-1` (gene-sense for the minus-strand HBB gene).
+- **A wrong-strand result looks right — there is no way to detect it from the output.** Do not assume a bad strand shows up as an empty or low-confidence result. On the bundled HBB fixture at the default 0.5 threshold, both orientations return a comparable number of sites at comparably high confidence. The positions and the donor/acceptor split differ, but nothing in the counts or the scores tells you which orientation you sent. Get the strand right on input — you will not catch it afterwards.
 - **Full gene body, not just an exon.** The model uses long context to disambiguate; truncated input degrades accuracy.
+- **A called site's `start`/`end` is a token span, not a junction base.** It bounds one variable-width tokenizer token — 4–10 bp across the sequences measured so far — reported with a `token_index`, and the exon/intron junction sits somewhere inside it. Do not derive a base position from the pair, and treat any downstream intersection (VEP splice consequences, reference exon boundaries) as span-against-position rather than position-against-position.
 - **Donor/acceptor pairs.** The model emits independent site calls. Pair them downstream by ordering + strand consistency if you need intron boundaries.
 - **Hackathon key is shared** — `GI_API_KEY` for serious work.
 
@@ -170,7 +176,7 @@ export GI_API_KEY=gi_yourkeyhere
 
 ```
 output_dir/
-├── report.md              # Site table (position, kind, strand, probability)
+├── report.md              # Site table (name, span, type, strand, score)
 ├── result.json            # Full {data, meta} envelope
 └── reproducibility/
     ├── command.sh
@@ -185,4 +191,4 @@ Chains with: `variant-annotation` (intersect calls with VEP splice consequences)
 
 ## Safety
 
-Research tool. Not a clinical assay.
+Research and development use. Not for clinical or diagnostic decisions.

@@ -1,0 +1,8 @@
+deepspotm>=1.0,<2
+Pillow>=9.0
+# Both are imported directly by the skill: huggingface_hub to resolve the three
+# checkpoint files with local_files_only, torch for the no_grad scope. They
+# arrive as deepspotm dependencies, but a direct import that is not declared
+# fails as an ImportError the operator has to read as a cold cache.
+huggingface_hub>=0.30
+torch>=2.0

@@ -1,8 +1,22 @@
-#pgs_id=PGS000004
-#pgs_name=PRS for coronary artery disease (Abraham et al. 2016)
+#clawbio_panel=curated_demo
+#clawbio_panel_id=CLAWBIO-CAD-46
+#clawbio_pmid=27655226
+#panel_name=Curated demo panel: coronary artery disease (46 loci)
 #trait_reported=Coronary artery disease
+#trait_id=EFO_0001645
+#loci_reference=Abraham G et al. (2016) Eur Heart J PMID:27655226
+#weights=approximate; NOT the published betas from the loci reference.
+#weights=The reference above identifies where the loci come from, not the
+#weights=effect sizes. Vassy 2014 is a 62-locus score and Abraham 2016 is
+#weights=49,310 SNPs, against 8 and 46 loci here.
 #genome_build=GRCh37
 #variants_number=46
+#note=Illustrative panel of established trait-associated loci, curated for
+#note=ClawBio offline demos. This is NOT a PGS Catalog scoring file.
+#note=The accession PGS000004 belongs to a DIFFERENT published score in the
+#note=PGS Catalog. It is retained in this filename for backward compatibility
+#note=only. Do not cite this file as that accession.
+#note=See ClawBio issue #356.
 rsID	chr_name	chr_position	effect_allele	other_allele	effect_weight	allelefrequency_effect
 rs11206510	1	55496039	T	C	0.09	0.82
 rs515135	2	21263900	G	A	0.08	0.79

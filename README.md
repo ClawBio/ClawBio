@@ -72,7 +72,7 @@ uv run python clawbio.py run pharmgx --demo
 
 ## What ClawBio Does Today
 
-**97 skills (91 with runnable demo data) + 8,182 Galaxy tools + 4,289 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
+**97 skills (91 with runnable demo data) + 8,182 Galaxy tools + 4,336 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
 > **v0.5.0 released** (4 Apr 2026): Validation and Benchmark Infrastructure. AD ground truth benchmark, mock API server for offline testing, swappable fine-mapping pipeline (SuSiE vs ABF), 74 benchmark tests, red/green TDD mandate. [Release notes](https://github.com/ClawBio/ClawBio/releases/tag/v0.5.0). DOI: [10.5281/zenodo.19420648](https://doi.org/10.5281/zenodo.19420648).
 
 Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card — on your machine, in seconds:
@@ -225,7 +225,7 @@ For the complete list including pharmacogenomics extensions, single-cell tooling
 
 ### Hosted inference — Genomic Intelligence
 
-Six skills (`gi-promoter`, `gi-splice`, `gi-enhancer`, `gi-chromatin`, `gi-expression`, `gi-annotation`) wrap [Genomic Intelligence](https://genomicintelligence.ai) — a DNA language-model platform providing transformer-based inference for promoter, splice-site, enhancer, chromatin-accessibility, expression, and annotation prediction. Unlike most ClawBio skills these call a hosted API (`api.genomicintelligence.ai`); a shared hackathon key ships in `.env.example` (50 concurrent / 120 rpm, opt-in only).
+Six skills (`gi-promoter`, `gi-splice`, `gi-enhancer`, `gi-chromatin`, `gi-expression`, `gi-annotation`) wrap [Genomic Intelligence](https://genomicintelligence.ai) — a DNA language-model platform providing transformer-based inference for promoter, splice-site, enhancer, chromatin-accessibility, expression, and annotation prediction. Unlike most ClawBio skills these call a hosted API (`api.genomicintelligence.ai`); a shared hackathon key ships in `.env.example` (opt-in only; caps are per-key — read the `RateLimit-*` response headers for the live allowance).
 
 You can also run the same models interactively at <https://genomicintelligence.ai> — a browser UI with gene search and IGV/JBrowse viewers, no setup required. API reference: <https://docs.genomicintelligence.ai>. Questions, errors, or production-tier keys: **contact@genomicintelligence.ai**.
 

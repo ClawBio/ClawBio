@@ -18,12 +18,14 @@ _SKILL_DIR = Path(__file__).resolve().parent
 _SCRIPT = _SKILL_DIR / "gi_expression.py"
 
 
-def run(input_path: Optional[str] = None, output_dir: Optional[str] = None, demo: bool = False, description: Optional[str] = None) -> Dict[str, Any]:
+def run(input_path: Optional[str] = None, output_dir: Optional[str] = None, demo: bool = False, description: Optional[str] = None, tss_index: Optional[int] = None) -> Dict[str, Any]:
     """Run gi-expression and return the parsed ``result.json``.
 
     Either ``input_path`` or ``demo=True`` must be provided. ``description``
     overrides the default K562 cell-type prompt the expression model is
-    conditioned on.
+    conditioned on. ``tss_index`` is the 0-based TSS offset into the
+    whitespace-stripped sequence — required unless the FASTA holds exactly
+    one 9,198 bp window.
     """
     out = Path(output_dir) if output_dir else Path(tempfile.mkdtemp(prefix="gi-expression-"))
     cmd = [sys.executable, str(_SCRIPT), "--output", str(out)]
@@ -33,5 +35,7 @@ def run(input_path: Optional[str] = None, output_dir: Optional[str] = None, demo
         cmd.extend(["--input", str(input_path)])
     if description is not None:
         cmd.extend(["--description", description])
+    if tss_index is not None:
+        cmd.extend(["--tss-index", str(tss_index)])
     subprocess.run(cmd, check=True)
     return json.loads((out / "result.json").read_text())

@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 96,
+  "skill_count": 97,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -1175,6 +1175,54 @@
       "data_license": ""
     },
     {
+      "name": "deepspot-m",
+      "cli_alias": "deepspot-m",
+      "description": "Transcriptome-wide virtual spatial transcriptomics from H&E histology with DeepSpot-M. Scores a 224x224 tile and returns per-gene log1p-CPM values for any HGNC symbols you ask for, with a CSV, a report and a reproducibility bundle.",
+      "version": "0.3.0",
+      "status": "mvp",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run deepspot-m --demo",
+      "dependencies": [
+        "python>=3.11",
+        "deepspotm>=1.0,<2",
+        "Pillow>=9.0"
+      ],
+      "tags": [
+        "spatial-transcriptomics",
+        "histology",
+        "gene-expression",
+        "foundation-model",
+        "digital-pathology",
+        "h-and-e"
+      ],
+      "trigger_keywords": [
+        "virtual spatial transcriptomics",
+        "gene expression from histology",
+        "spatial transcriptomics from H&E",
+        "predict gene expression from a tissue image",
+        "DeepSpot-M"
+      ],
+      "chaining_partners": [
+        "marker-dominance-mapper",
+        "diff-visualizer"
+      ],
+      "license": "MIT",
+      "model_license": "cc-by-nc-sa-4.0",
+      "data_license": ""
+    },
+    {
       "name": "diff-visualizer",
       "cli_alias": "diffviz",
       "description": "Rich downstream visualisation and reporting for bulk RNA-seq differential expression and scRNA marker/contrast outputs.",
@@ -1775,7 +1823,7 @@
     {
       "name": "gi-annotation",
       "cli_alias": null,
-      "description": "Predict gene and transcript structure (intervals, exons, strand) from a DNA sequence using the Genomic Intelligence DNA Annotation model, via the hosted /v1/tasks/annotation/predict API. Async-only — the pipeline takes ~20 s for ~20 kbp.",
+      "description": "Predict gene and transcript structure (intervals, exons, strand) from a DNA sequence using the Genomic Intelligence DNA Annotation model, via the hosted /v1/tasks/annotation/predict API. Submitted asynchronously — the pipeline takes ~20 s for ~20 kbp.",
       "version": "0.1.0",
       "status": "planned",
       "maturity_tier": "tested",
@@ -1933,7 +1981,7 @@
     {
       "name": "gi-expression",
       "cli_alias": null,
-      "description": "Predict tissue / cell-type expression (log TPM + TPM) from a 9,198 bp TSS-centered DNA sequence using the Genomic Intelligence G0 Expression model, via the hosted /v1/tasks/expression/predict API. The model is conditioned on a free-text cell-type / assay description.",
+      "description": "Predict tissue / cell-type expression (log TPM + TPM) from a 9,198–500,000 bp TSS-centered DNA sequence (longer than one 9,198 bp window needs --tss-index) using the Genomic Intelligence G0 Expression model, via the hosted /v1/tasks/expression/predict API. The model is conditioned on a free-text cell-type / assay description.",
       "version": "0.1.0",
       "status": "planned",
       "maturity_tier": "tested",
