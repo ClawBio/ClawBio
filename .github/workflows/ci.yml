@@ -257,8 +257,13 @@ jobs:
           runnable=""
           for skill in $changed; do
             [ -d "skills/$skill" ] || continue
+            # Guard the directory before find touches it. Under `set -o
+            # pipefail` a find on a missing path makes the whole substitution
+            # non-zero, and `set -e` then kills the step: any skill without a
+            # tests/ directory would have failed this job on most PRs.
+            [ -d "skills/$skill/tests" ] || continue
             harness=$(find "skills/$skill/tests" -maxdepth 1 -name '*.sh' \
-                        2>/dev/null | sort | head -1)
+                        | sort | head -1)
             [ -n "$harness" ] || continue
             # No environment.yml is not an error: a harness can legitimately be
             # pure bash needing nothing. It runs bare, and fails on its own
