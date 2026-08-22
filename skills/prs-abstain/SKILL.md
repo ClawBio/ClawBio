@@ -5,8 +5,8 @@ description: >-
   ancestry transferability, withholding the percentile when it would be
   uninterpretable and attributing the error to individual SNPs.
 license: MIT
-data_license: CC0-1.0
 metadata:
+  data_license: CC0-1.0
   version: "0.3.0"
   author: ClawBio Hackathon Berlin 2026
   domain: population-genetics
