@@ -447,8 +447,6 @@ conda create -n amplicon-qc -c conda-forge -c bioconda \
 
 **Extraction blanks trigger `low_read_count`, correctly.** Blanks are supposed to have almost nothing in them. The default 1000-read floor will fire on them. Not a bug; it means the flag logic works. Either accept the flags on blanks, lower `--low-count-threshold`, or use a metadata scheme to exclude blanks before running.
 
-**Sample names inherit filename suffixes.** A file named `B4_sub_R1_001.fastq.gz` produces sample name `B4_sub` (the `_R1_...` suffix is stripped, but everything before it is kept verbatim). If your files include suffixes like `_sub` or `_downsampled` from prior processing, those end up in report row labels. Rename upstream if you want clean sample IDs.
-
 **Spaces in output paths are safe internally, but shells may still stumble.** The script `shQuote()`s all paths before passing to `system2()`, so `/mnt/d/Research Data/` works fine when invoked directly. If you're wrapping the call in a shell script, quote the path there too.
 
 **Mixed-orientation libraries abort by default.** Some legitimate library preparations (some ONT amplicon protocols, older 454-derived workflows) produce reads where ~50% of R1 starts with the forward primer and ~50% starts with the reverse. The pre-flight aborts to prevent silent 50% data loss. Use `--allow-mixed-orientation` to proceed if you understand the trade-off.
