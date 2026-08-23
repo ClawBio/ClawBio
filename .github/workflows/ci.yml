@@ -305,11 +305,24 @@ jobs:
             if ! micromamba create -y -n "env-$skill" -f "$env_file"; then
               # A declared environment that will not solve means nobody can run
               # this skill as documented, so it is a real failure rather than a
-              # skip. claw-amplicon-qc (#329) pins `r-base>=4.4` while the
-              # bioconda builds of dada2, ShortRead and Biostrings resolve only
-              # against r-base 4.1.3, so its environment.yml has never been
-              # buildable and five review rounds never noticed.
-              echo "::error::skills/$skill: environment.yml did not solve, so its documented environment cannot be built."
+              # skip.
+              #
+              # This comment previously cited claw-amplicon-qc (#329) as an
+              # example whose environment.yml "has never been buildable". That
+              # was WRONG and is corrected here. The solve that produced it ran
+              # `--platform linux-64` from macOS, where the `__glibc` virtual
+              # package is unset ("glibc version not found (virtual package
+              # skipped)"), which makes every glibc-linked build unsatisfiable
+              # and yields a conflict trace that reads exactly like a genuine
+              # pin conflict. With CONDA_OVERRIDE_GLIBC set, that same file
+              # solves. It was the third false finding this project has raised
+              # against that one contributor.
+              #
+              # This job runs on ubuntu-latest, where `__glibc` is set
+              # natively, so the artefact cannot occur here. Anyone reproducing
+              # a failure from this job on macOS must set CONDA_OVERRIDE_GLIBC
+              # before concluding the environment is broken.
+              echo "::error::skills/$skill: environment.yml did not solve on this Linux runner, so its documented environment cannot be built. If reproducing on macOS, set CONDA_OVERRIDE_GLIBC first: a cross-platform solve without it fails for an unrelated reason."
               status=1
               echo "::endgroup::"
               continue
