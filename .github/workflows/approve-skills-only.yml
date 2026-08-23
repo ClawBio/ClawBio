@@ -1,0 +1,50 @@
+name: Approve skills-only CI
+
+# Issue #360. Fork PRs from first-time contributors park in `action_required`,
+# where they surface through `gh pr checks` as "no checks reported" and read
+# exactly like a pass. Five PRs sat in that state in one week, and #329 went
+# five remediation rounds with CI never having run against it at all.
+#
+# GitHub has no path-scoped approval policy, so the narrowing lives in
+# `scripts/approve_skills_only_runs.py` rather than in a repository setting.
+# Read that file's docstring before widening anything here: it is explicit
+# about what the boundary is worth and what it is not.
+#
+# This workflow must only ever run from the default branch. `schedule` and
+# `workflow_dispatch` both do. Never add `pull_request`: a fork could then
+# propose a change to this file and have it approve itself.
+
+on:
+  schedule:
+    # Every 15 minutes. A contributor pushing and waiting a quarter of an hour
+    # for CI to start is a far better failure mode than the current one, where
+    # they may wait indefinitely and read the silence as success.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  # `actions: write` is what approves a queued run. `pull-requests: read` is
+  # what lets the script see which files a PR touches, which IS the boundary,
+  # so it cannot be dropped. Nothing here needs write access to contents.
+  actions: write
+  pull-requests: read
+  contents: read
+
+concurrency:
+  # Two overlapping runs would race on the same queued workflow runs. Do not
+  # cancel in progress: an approval half-done is worse than one that finishes.
+  group: approve-skills-only
+  cancel-in-progress: false
+
+jobs:
+  approve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Approve queued runs for skills-only PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/approve_skills_only_runs.py
