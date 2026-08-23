@@ -120,7 +120,7 @@
   </nav>
   <a href="/benchmarks.html" style="display:block;background:linear-gradient(90deg,#238636,#1f6feb);color:#fff;text-align:center;padding:0.7rem 1rem;font-size:0.95rem;font-weight:600;text-decoration:none;">📊 Public Benchmark Leaderboard | 161/182 passing (88.5%), 26 Jul 2026 | nutrigx-advisor regressed to 0/10 and is being investigated | Every failure documented &rarr;</a>
   <section class="hero">
-    <div class="hero-badge">📊 Publicly benchmarked · 1,112 stars · 97 skills · 50 contributors · 4,336 tests</div>
+    <div class="hero-badge">📊 Publicly benchmarked · 1,112 stars · 97 skills · 50 contributors · 4,539 tests</div>
     <h1>The first <em>bioinformatics-native</em><br>AI agent skill library</h1>
     <p>ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call.</p>
     <div style="max-width:440px;margin:0 auto 2rem;">
@@ -252,7 +252,7 @@
   <section id="skills" style="background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
     <div class="section-inner">
       <div class="section-label">Skills Library</div>
-      <div class="section-title">97 skills · 91 with runnable demo data · 4,336 tests · 161 / 182 publicly benchmarked passing</div>
+      <div class="section-title">97 skills · 91 with runnable demo data · 4,539 tests · 161 / 182 publicly benchmarked passing</div>
       <p class="section-sub">Each skill includes demo data so you can try it immediately without your own files.</p>
       <div class="skills-grid">
         <div class="skill-card"><div><div class="skill-name">💊 PharmGx Reporter</div><div class="skill-desc">Pharmacogenomic report from 23andMe/AncestryDNA: 12 genes, 31 SNPs, 51 drugs, CPIC guidelines.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
@@ -345,6 +345,34 @@
       <div class="section-title">Latest from the community</div>
       <div style="display:grid;gap:0.75rem;max-width:700px;">
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">📄</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Docs: CI false claim about #329 environment.yml corrected.</strong> A documentation fix removing an inaccurate statement that PR #329 included a committed environment.yml alongside the CI scripts, which it did not.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #363 · merged · 23 August 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">⚙️</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: auto-approve queued runs for PRs that touch only skills/.</strong> CI workflows now automatically approve queued workflow runs for pull requests that exclusively modify files under skills/, reducing manual intervention for skill-only contributions.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #362 · merged · 23 August 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix: catalog and CI no longer assume every skill is Python.</strong> The catalog generator and CI test-scoping scripts previously treated all skills as Python-backed, causing incorrect maturity tier detection and false CI failures for skills implemented in other languages or as spec-only entries.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #361 · merged · 22 August 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix: claw-semantic-sim drops the false "works out of the box" demo claim.</strong> The skill's SKILL.md falsely stated that a runnable demo was available out of the box. The claim has been removed to accurately reflect the current implementation status.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #358 · merged · 22 August 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">🔬</span>
           <div>
             <div style="font-weight:600;font-size:0.95rem;">New skill: <strong>deepspot-m</strong> — transcriptome-wide virtual spatial transcriptomics from H&amp;E histology tiles. Predicts spatial gene expression across the full transcriptome from standard haematoxylin and eosin images using the DeepSpot-M model, without needing spatial sequencing. Contributed by @KalinNonchev. Total: 97 skills.</div>
@@ -384,34 +412,6 @@
           <div>
             <div style="font-weight:600;font-size:0.95rem;"><strong>Artefact licences separated from wrapper licence, with explicit policy.</strong> Model weights, reference databases, and third-party artefacts used by skills now carry their own stated licences, distinct from the MIT wrapper code. A new policy document makes clear which artefacts require separate registration or acceptance of terms.</div>
             <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #339 · merged · 13 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix: vcf-annotator CLI corrected; Token Factory agent example added for Berlin.</strong> Resolves a broken CLI entrypoint in the VCF annotator skill. Also adds a new Token Factory agent example targeted at the Berlin contributor community, demonstrating how to chain skills inside an OpenClaw agent.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #336 · merged · 13 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix: nf-core/rnaseq wrapper now reads manifest.version from the manifest block only.</strong> The wrapper was reading <code style="background:var(--bg3);padding:0.1rem 0.3rem;border-radius:3px;font-size:0.82rem;">custom_config_version</code> from unscoped pipeline config, producing incorrect version strings. Scope is now locked to the <code style="background:var(--bg3);padding:0.1rem 0.3rem;border-radius:3px;font-size:0.82rem;">manifest</code> block. Contributed by @danilomonge.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #334 · merged · 13 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🧬</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix: clinical-variant-reporter now reports the live Ensembl release in its Data Sources table.</strong> The reporter previously hardcoded the Ensembl release it was developed against. It now queries the Ensembl REST API at run time and records the live release number in the report's Data Sources table, keeping provenance accurate. Contributed by @AmirF194.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #327 · merged · 13 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🧪</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: scope changed-skill tests to the PR's own diff, install extras.</strong> Tightens the changed-skill test runner so it anchors the diff to the PR's own commits rather than comparing against main, eliminating false failures when unrelated skills change on main between merges. Also installs any <code style="background:var(--bg3);padding:0.1rem 0.3rem;border-radius:3px;font-size:0.82rem;">[extra]</code> dependencies declared in <code style="background:var(--bg3);padding:0.1rem 0.3rem;border-radius:3px;font-size:0.82rem;">pyproject.toml</code> before running skill tests, so optional imports no longer cause CI failures for contributors who declare extras correctly.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #332 · merged · 9 August 2026</div>
           </div>
         </div>
       </div>
