@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 97,
+  "skill_count": 98,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -3519,6 +3519,49 @@
       "license": "MIT",
       "model_license": "",
       "data_license": ""
+    },
+    {
+      "name": "prs-abstain",
+      "cli_alias": "prs-abstain",
+      "description": "Gates polygenic risk score percentiles on trait applicability, score integrity and ancestry transferability, withholding the percentile when it would be uninterpretable and attributing the error to individual SNPs.",
+      "version": "0.4.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run prs-abstain --demo",
+      "dependencies": [
+        "python>=3.10",
+        "matplotlib>=3.5"
+      ],
+      "tags": [
+        "polygenic-risk-score",
+        "ancestry",
+        "abstention",
+        "health-equity",
+        "transferability"
+      ],
+      "trigger_keywords": [
+        "should this polygenic score be reported",
+        "PRS ancestry transferability",
+        "refuse to report percentile",
+        "polygenic score abstention",
+        "is this PRS valid for this ancestry"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": "CC0-1.0"
     },
     {
       "name": "pubmed-summariser",
