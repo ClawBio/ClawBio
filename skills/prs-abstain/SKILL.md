@@ -7,7 +7,7 @@ description: >-
 license: MIT
 metadata:
   data_license: CC0-1.0
-  version: "0.3.0"
+  version: "0.4.0"
   author: ClawBio Hackathon Berlin 2026
   domain: population-genetics
   tags:
@@ -166,12 +166,20 @@ infer ancestry, does not compute polygenic scores, and does not diagnose.
 ## CLI Reference
 
 ```bash
-# Standard usage
+# Standard usage. Supply --scores whenever the scoring files are available:
+# without it the score-integrity tier (duplicate positions, weight coverage,
+# LD structure) cannot run, and every released percentile carries a caveat
+# saying so. A score listed in prs_results.json with no matching scoring
+# file among --scores is withheld outright.
 python skills/prs-abstain/prs_abstain.py \
   --reference-panel panel.csv --individuals people.csv \
-  --prs-results prs_results.json --output report_dir
+  --prs-results prs_results.json --scores scores_dir/ --output report_dir
 
 # Demo mode (synthetic data, no user files needed)
+# The bundled files in examples/scores/ are byte-for-byte copies of the
+# ClawBio curated demo panels from skills/gwas-prs/data/ (post-#357 headers:
+# CLAWBIO-* panel ids, explicitly NOT PGS Catalog scoring files). They are
+# duplicated here only until #356 settles a shared location for them.
 python skills/prs-abstain/prs_abstain.py --demo --output /tmp/prs-abstain-demo
 
 # Tuning
@@ -246,7 +254,7 @@ SNP by SNP rather than stopping at a distance threshold.
 
 | PGS ID | Trait | Raw score | Percentile | Note |
 |--------|-------|-----------|------------|------|
-| PGS000013 | Type 2 diabetes | 0.8000 | **WITHHELD** | Ancestry gate: REFUSE_DISTANT. |
+| CLAWBIO-T2D-8 | Type 2 diabetes | 0.8000 | **WITHHELD** | Ancestry gate: REFUSE_DISTANT. |
 ```
 
 ## Output Structure
@@ -308,8 +316,8 @@ output_directory/
   tag chosen in a European cohort commonly tags the causal variant more weakly elsewhere and the
   transferred weight overstates the true effect. Identical frequencies do not rescue this.
 - **The model will want to quote `effective_n` as if the variants were independent. Do not.**
-  Use the LD-grouped figure. On the bundled scores the two differ sharply: PGS000057 falls from
-  122.5 to 35.9 once variants within 250 kb are grouped, and PGS000013's top two weights are one
+  Use the LD-grouped figure. On the bundled scores the two differ sharply: CLAWBIO-PC-147 falls from
+  122.5 to 35.9 once variants within 250 kb are grouped, and CLAWBIO-T2D-8's top two weights are one
   locus (TCF7L2) carrying 48% of the score.
 - **The model will want to report physical clustering as if it measured LD. Do not.** Proximity
   is a lower bound on correlation: it catches correlated variants that sit close together and
@@ -351,8 +359,8 @@ number is a policy choice rather than a published value, it says so.
 | Duplicate genomic positions | Block the score | Two scored variants at one coordinate is a lift-over error or a locus counted twice; both corrupt the sum | This is a defect in the input file, not a property of the person, so it blocks rather than warns |
 
 **The mechanism these decisions serve.** For every curated score tested, the reference mean
-equals `Sum(2 * AF_ref(i) * w(i))` to within rounding (verified: PGS000013 1.1186 vs 1.12;
-PGS000004 2.8428 vs 2.84; PGS000057 7.1080 vs 7.11). The percentile is centred on a European
+equals `Sum(2 * AF_ref(i) * w(i))` to within rounding (verified: CLAWBIO-T2D-8 1.1186 vs 1.12;
+CLAWBIO-CAD-46 2.8428 vs 2.84; CLAWBIO-PC-147 7.1080 vs 7.11). The percentile is centred on a European
 allele-frequency calculation, so re-centring on another population moves the mean by
 `Sum(2 * (AF_pop - AF_ref) * w)`. That sum decomposes per variant, which is why the audit runs
 SNP by SNP instead of stopping at a distance threshold.
