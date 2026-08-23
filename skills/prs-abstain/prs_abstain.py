@@ -188,7 +188,7 @@ def _resolve_columns(header_names: list[str], fp: Path) -> dict[str, int]:
 
 
 def load_score_definitions(path: Path) -> dict[str, ScoreDefinition]:
-    """Load PGS Catalog scoring files from a directory.
+    """Load scoring files (authentic PGS Catalog or ClawBio curated panels).
 
     Columns are resolved by header name (harmonised hm_* names preferred),
     never by position: authentic PGS Catalog harmonised files and the bundled
@@ -210,7 +210,15 @@ def load_score_definitions(path: Path) -> dict[str, ScoreDefinition]:
                 continue
             parts = line.rstrip("\n").split("\t")
             if cols is None:
-                cols = _resolve_columns(parts, fp)
+                try:
+                    cols = _resolve_columns(parts, fp)
+                except ValueError as exc:
+                    # Not a scoring file at all (e.g. a stray README.txt).
+                    # Skipping is safe because the gate fails closed on any
+                    # score id this file would have declared.
+                    print(f"Warning: skipping {fp.name}: {exc}", file=sys.stderr)
+                    variants = []
+                    break
                 continue
 
             def cell(field_: str) -> str | None:
@@ -609,6 +617,14 @@ def load_query_individuals(path: Path, pcs: Sequence[str] = DEFAULT_PCS) -> list
     return out
 
 
+def score_id(rec: dict[str, Any]) -> str | None:
+    """The identity of a score result: the curated panel id when the record
+    declares one (post-#357 gwas-prs output), else the pgs_id field. For
+    curated panels the pgs_id field is a legacy file label, not a PGS Catalog
+    attribution, and must not be used as the display identity."""
+    return rec.get("curated_panel_id") or rec.get("pgs_id")
+
+
 def load_prs_results(path: Path) -> list[dict[str, Any]]:
     data = json.loads(Path(path).read_text())
     if isinstance(data, dict):
@@ -757,7 +773,7 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
     """
     gated: list[dict[str, Any]] = []
     for s_ in scores:
-        pid = s_.get("pgs_id")
+        pid = score_id(s_)
         score_pop = s_.get("reference_population")
         reasons: list[str] = []
         warnings: list[str] = []
@@ -767,26 +783,28 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
             reasons.append(f"Not applicable: {app.reason}")
 
         # A missing IntegrityVerdict is handled the way integrity_verdict
-        # handles a missing audit: recorded, never a silent pass. Two cases:
-        # scoring files were supplied but none matched this score (fails
-        # closed: an inspectable claim that was never inspected), and no
-        # scoring files were supplied at all (caveat: the tier could not run,
-        # and the note says so on every score it did not check).
+        # handles a missing audit: recorded, never a silent pass. Two cases
+        # reach here: definitions were loaded but none declares this score's
+        # id (fails closed: an inspectable claim that was never inspected),
+        # and --scores was not given at all (caveat on every released score:
+        # the tier could not run and the note says so). A --scores directory
+        # that yields no definitions never reaches this gate: main() refuses
+        # to run it.
         integ = (integrity or {}).get(pid)
         if integ is not None:
             reasons.extend(f"Score integrity: {r}" for r in integ.reasons)
             warnings.extend(integ.warnings)
         elif integrity:
             reasons.append(
-                f"Score integrity: no scoring file matching {pid} was found among the "
-                f"supplied score definitions, so its variants, weights and duplicate "
-                f"positions were never inspected. A score whose definition cannot be "
-                f"checked fails closed.")
+                f"Score integrity: none of the supplied scoring files declares the id "
+                f"{pid}, so this score's variants, weights and duplicate positions were "
+                f"never inspected. A score whose definition cannot be checked fails "
+                f"closed. (If this is a ClawBio curated panel result produced before "
+                f"prs_results.json carried curated_panel_id, regenerate it.)")
         else:
             warnings.append(
                 "Score integrity was not verified: no scoring files were supplied "
-                "(--scores), so the duplicate-position, weight-coverage and LD checks "
-                "did not run on this score.")
+                "(--scores), so its file-level checks did not run.")
 
         if decision.verdict != "REPORT":
             reasons.append(f"Ancestry gate: {decision.verdict}.")
@@ -821,7 +839,7 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
         note = (f"Reported against the {score_pop} reference distribution."
                 if allow else " ".join(reasons))
         if warnings:
-            note = (note + " | Caveats: " + " ".join(warnings)).strip()
+            note = (note + " Caveats: " + " ".join(warnings)).strip()
 
         audit = (audits or {}).get(pid)
         gated.append({
@@ -1125,7 +1143,13 @@ def _write_clinician_report(outdir: Path, cal: Calibration, results: list[dict[s
         a("|---|---|---|")
         for x in sc:
             if x["percentile"] is not None:
-                status = "Released"
+                caveats = x.get("caveats") or []
+                if any("integrity was not verified" in c.lower() for c in caveats):
+                    status = "Released — score file not checked (see note below)"
+                elif caveats:
+                    status = "Released, with caution (see the full report)"
+                else:
+                    status = "Released"
                 pct = f"{x['percentile']:.0f}th"
             else:
                 status = _plain_withheld(x)
@@ -1138,6 +1162,15 @@ def _write_clinician_report(outdir: Path, cal: Calibration, results: list[dict[s
         if fig in figures:
             a(f"![{d['sample_id']}]({fig})\n")
 
+    if any("integrity was not verified" in c.lower()
+           for r in results for x in r["scores"] for c in x.get("caveats") or []):
+        a("## A note on results marked 'score file not checked'\n")
+        a("One of the checks listed above, whether the score's own definition file is "
+          "internally sound (no marker counted twice, nothing missing), could not be "
+          "performed in this run because the score definition files were not made "
+          "available to the tool. The percentiles are still released, but they rest on "
+          "files this review never inspected. To close that gap, re-run the review with "
+          "the score definition files included.\n")
     a("## Limitations you should know before using this\n")
     a("- The ancestry comparison uses a small demonstration reference panel. It is not a "
       "clinical-grade ancestry test.\n"
@@ -1169,6 +1202,8 @@ def _plain_withheld(x: dict[str, Any]) -> str:
     joined = " ".join(reasons).lower()
     if "not applicable" in joined:
         return "Withheld: trait does not apply to this person"
+    if "never inspected" in joined:
+        return "Withheld: the score's definition file was not available for checking"
     if "score integrity" in joined:
         return "Withheld: too little of the score was measured"
     if "ancestry gate" in joined:
@@ -1306,15 +1341,24 @@ def _write_technical_report(outdir: Path, cal: Calibration, results: list[dict[s
         d, sc = r["decision"], r["scores"]
         a(f"### {d['sample_id']}\n")
         a(f"{d['reason']}\n")
-        a("| PGS | trait | raw | percentile | weight cov | eff_n | shift sd | note |")
+        # The full notes go below the table, never truncated: a table cell
+        # cut mid-sentence loses the operative clause, and an untruncated
+        # cell breaks the PDF page. The cell carries a short status only.
+        a("| PGS | trait | raw | percentile | weight cov | eff_n | shift sd | status |")
         a("|---|---|---|---|---|---|---|---|")
         for x in sc:
             pct = "WITHHELD" if x["percentile"] is None else f"{x['percentile']:.1f}"
             wc = "n/a" if x["weight_coverage"] is None else f"{x['weight_coverage']:.0%}"
             en = "n/a" if x["effective_n"] is None else f"{x['effective_n']:.0f}"
             sh = "n/a" if x["af_shift_sd"] is None else f"{x['af_shift_sd']:+.2f}"
+            status = ("released" if x["percentile"] is not None else "withheld")
+            if x["caveats"]:
+                status += f", {len(x['caveats'])} caveat(s)"
             a(f"| {x['pgs_id']} | {x['trait']} | {x['raw_score']:.4f} | {pct} | {wc} | "
-              f"{en} | {sh} | {x['note'][:160]} |")
+              f"{en} | {sh} | {status} |")
+        a("")
+        for x in sc:
+            a(f"- **{x['pgs_id']}**: {x['note']}")
         a("")
 
     a("## 6. Known limitations\n")
@@ -1455,7 +1499,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     individuals = load_query_individuals(args.individuals, pcs)
     scores = load_prs_results(args.prs_results)
 
-    score_defs = load_score_definitions(args.scores) if args.scores else {}
+    score_defs = {}
+    if args.scores:
+        try:
+            score_defs = load_score_definitions(args.scores)
+        except ValueError as exc:
+            print(f"Cannot load score definitions: {exc}", file=sys.stderr)
+            return 2
+        if not score_defs:
+            # Fails closed: --scores was supplied, so the user expects the
+            # integrity tier to run. Releasing percentiles with a caveat that
+            # claims no files were supplied would be both permissive and false.
+            print(f"No usable scoring files found in {args.scores}; refusing to "
+                  f"release percentiles whose integrity tier was requested but "
+                  f"could not run.", file=sys.stderr)
+            return 2
     genotype = load_genotype(args.genotype) if args.genotype else {}
     af_table = load_population_af(args.population_af) if args.population_af else {}
 
@@ -1463,7 +1521,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     lds: dict[str, LDAudit] = {}
     integrity: dict[str, IntegrityVerdict] = {}
     shifts: dict[str, AFShift] = {}
-    curated_sd = {s_.get("pgs_id"): s_ for s_ in scores}
+    curated_sd = {score_id(s_): s_ for s_ in scores}
     for pid, sdef in score_defs.items():
         lds[pid] = ld_audit(sdef, window_kb=args.ld_window_kb)
         if genotype:

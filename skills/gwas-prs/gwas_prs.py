@@ -1602,6 +1602,13 @@ def main():
                 "reference_population": r["percentile_info"].get(
                     "reference_population"
                 ),
+                # Issue #356: prs_results.json is a durable artefact, so it
+                # carries the panel marker too. Downstream consumers (e.g.
+                # prs-abstain) key curated panels by curated_panel_id; the
+                # legacy pgs_id field stays for compatibility but is a file
+                # label, not a PGS Catalog attribution, when curated is true.
+                "curated_demo_panel": r["curated_demo_panel"],
+                "curated_panel_id": r["curated_panel_id"],
             }
             json_results.append(jr)
 

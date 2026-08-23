@@ -7,8 +7,7 @@
 #loci_reference=Tada H et al. (2014) Stroke PMID:25123217
 #weights=approximate; NOT the published betas from the loci reference.
 #weights=The reference above identifies where the loci come from, not the
-#weights=effect sizes. Vassy 2014 is a 62-locus score and Abraham 2016 is
-#weights=49,310 SNPs, against 8 and 46 loci here.
+#weights=effect sizes, and the weights here are illustrative approximations.
 #genome_build=GRCh37
 #variants_number=12
 #note=Illustrative panel of established trait-associated loci, curated for

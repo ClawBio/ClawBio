@@ -33,8 +33,14 @@ metadata:
       type: file
       format:
         - json
-      description: gwas-prs prs_results.json carrying raw scores and reference_population per score
+      description: gwas-prs prs_results.json carrying raw scores, reference_population and (for curated panels) curated_panel_id per score
       required: true
+    - name: scores
+      type: file
+      format:
+        - txt
+      description: Directory of scoring files (authentic PGS Catalog or ClawBio curated panels); optional, but without it the score-integrity tier cannot run and every released percentile carries a caveat saying so
+      required: false
   outputs:
     - name: report_clinician
       type: file
@@ -66,9 +72,9 @@ metadata:
     - path: examples/demo_query_individuals.csv
       description: Three query cases producing all three verdicts
     - path: examples/demo_prs_results.json
-      description: Synthetic gwas-prs output, six EUR-referenced scores
+      description: Synthetic gwas-prs output, six EUR-referenced curated panels carrying both the legacy pgs_id file label and curated_panel_id
   endpoints:
-    cli: python skills/prs-abstain/prs_abstain.py --reference-panel {reference_panel} --individuals {individuals} --prs-results {prs_results} --output {output_dir}
+    cli: python skills/prs-abstain/prs_abstain.py --reference-panel {reference_panel} --individuals {individuals} --prs-results {prs_results} --scores {scores} --output {output_dir}
   openclaw:
     requires:
       bins:
@@ -169,8 +175,9 @@ infer ancestry, does not compute polygenic scores, and does not diagnose.
 # Standard usage. Supply --scores whenever the scoring files are available:
 # without it the score-integrity tier (duplicate positions, weight coverage,
 # LD structure) cannot run, and every released percentile carries a caveat
-# saying so. A score listed in prs_results.json with no matching scoring
-# file among --scores is withheld outright.
+# saying so. A score listed in prs_results.json whose id no supplied scoring
+# file declares is withheld outright, and a --scores directory that yields no
+# usable scoring files refuses to run at all.
 python skills/prs-abstain/prs_abstain.py \
   --reference-panel panel.csv --individuals people.csv \
   --prs-results prs_results.json --scores scores_dir/ --output report_dir
@@ -254,7 +261,7 @@ SNP by SNP rather than stopping at a distance threshold.
 
 | PGS ID | Trait | Raw score | Percentile | Note |
 |--------|-------|-----------|------------|------|
-| CLAWBIO-T2D-8 | Type 2 diabetes | 0.8000 | **WITHHELD** | Ancestry gate: REFUSE_DISTANT. |
+| CLAWBIO-T2D-8 | Type 2 diabetes | 0.8000 | **WITHHELD** | Ancestry gate: REFUSE_DISTANT. Caveats: Effective number of independent contributions is 3.5 after grouping variants that sit within 250 kb of each other (was 6.0 assuming independence). [... the caveat text continues: weight concentration, LD clustering, strand ambiguity, +1.28 sd AFR re-centring] |
 ```
 
 ## Output Structure
@@ -272,7 +279,7 @@ output_directory/
 ├── tables/
 │   ├── decisions.csv            # One row per individual
 │   ├── gated_scores.csv         # One row per individual x score
-│   ├── variant_audit.csv        # Per-score coverage and concentration (optional; needs --genotype)
+│   ├── variant_audit.csv        # Per-score coverage and concentration (optional; needs --scores and --genotype)
 │   └── af_shift_per_variant.csv # Per-SNP percentile shift (optional; needs --population-af)
 └── reproducibility/
     ├── commands.sh              # Exact command to reproduce

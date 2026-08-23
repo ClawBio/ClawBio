@@ -2291,7 +2291,8 @@
       ],
       "chaining_partners": [
         "profile-report",
-        "gwas-lookup"
+        "gwas-lookup",
+        "prs-abstain"
       ],
       "license": "MIT",
       "model_license": "",
@@ -3526,14 +3527,14 @@
       "description": "Gates polygenic risk score percentiles on trait applicability, score integrity and ancestry transferability, withholding the percentile when it would be uninterpretable and attributing the error to individual SNPs.",
       "version": "0.4.0",
       "status": "planned",
-      "maturity_tier": "cli-registered",
+      "maturity_tier": "ci-validated",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
+        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3558,7 +3559,10 @@
         "polygenic score abstention",
         "is this PRS valid for this ancestry"
       ],
-      "chaining_partners": [],
+      "chaining_partners": [
+        "gwas-prs",
+        "just-prs-mcp"
+      ],
       "license": "MIT",
       "model_license": "",
       "data_license": "CC0-1.0"

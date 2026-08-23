@@ -576,13 +576,20 @@ class TestScoreFileParsing:
         with pytest.raises(ValueError, match="PGS999999.*effect_weight"):
             pa.load_score_definitions(tmp_path)
 
-    def test_missing_required_column_is_named_in_the_error(self, tmp_path):
+    def test_missing_required_column_is_named_in_the_error(self, tmp_path, capsys):
         import prs_abstain as pa
 
         bad = tmp_path / "PGS999998.txt"
         bad.write_text("#pgs_id=PGS999998\nfoo\tbar\n1\t2\n")
-        with pytest.raises(ValueError, match="required column"):
-            pa.load_score_definitions(tmp_path)
+        # A file whose columns cannot be resolved is not treated as a scoring
+        # file: skipped with a stderr warning naming the missing columns. Any
+        # score expecting it then fails closed at the gate, and main() refuses
+        # to run at all if no usable file remains (tested through the CLI in
+        # TestGateWiringThroughTheCli).
+        defs = pa.load_score_definitions(tmp_path)
+        captured = capsys.readouterr()
+        assert defs == {}
+        assert "required column" in captured.err and "PGS999998.txt" in captured.err
 
 
 # ── Added at maintainer review (PR #348): fail-closed behaviour ───────────────
@@ -746,7 +753,8 @@ class TestGateWiringThroughTheCli:
         rep = [d for d in res["decisions"] if d["verdict"] == "REPORT"][0]
         af12 = next(s for s in rep["scores"] if s["pgs_id"] == "CLAWBIO-AF-12")
         assert af12["percentile"] is None
-        assert any("no scoring file matching" in x for x in af12["withheld_reasons"])
+        assert any("never inspected" in x and "fails closed" in x
+                   for x in af12["withheld_reasons"])
 
 
 class TestScoreIdProvenance:
@@ -809,7 +817,7 @@ class TestSdProvenance:
         quotient over a silently substituted sd of 1.0."""
         import shutil
         results = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
-        t2d = next(r for r in results if r["pgs_id"] == "CLAWBIO-T2D-8")
+        t2d = next(r for r in results if r["curated_panel_id"] == "CLAWBIO-T2D-8")
         t2d["z_score"] = 0.0
         t2d["raw_score"] = 1.1186  # exactly the reference mean
         rf = tmp_path / "prs_results.json"
@@ -827,3 +835,95 @@ class TestSdProvenance:
         t2d_gated = next(s for s in rep["scores"] if s["pgs_id"] == "CLAWBIO-T2D-8")
         assert t2d_gated["af_shift_sd"] is None
         assert any("cannot be expressed in sd" in c for c in t2d_gated["caveats"])
+
+
+class TestProducerConsumerChain:
+    """The boundary none of the earlier tests crossed: real gwas-prs output
+    fed to prs-abstain. Round-2 audit found the id-provenance fix applied at
+    this consumer while the documented producer still emitted legacy PGS-file
+    labels, so the documented chain withheld everything with a false reason."""
+
+    def test_gwas_prs_demo_output_flows_through_the_gate(self, tmp_path):
+        gwas = SKILL_DIR.parent / "gwas-prs"
+        gout = tmp_path / "gwas_out"
+        r1 = subprocess.run(
+            [sys.executable, str(gwas / "gwas_prs.py"), "--demo",
+             "--output", str(gout)],
+            capture_output=True, text=True)
+        assert r1.returncode == 0, r1.stderr
+        results_file = gout / "prs_results.json"
+        assert results_file.exists()
+        recs = json.loads(results_file.read_text())
+        assert all(rec.get("curated_panel_id") for rec in recs), \
+            "gwas-prs demo output must carry curated_panel_id (#356)"
+
+        out = tmp_path / "abstain_out"
+        r2 = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                      "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
+                      "--prs-results", str(results_file),
+                      "--scores", str(gwas / "data"),
+                      "--output", str(out), "--no-figures", "--no-pdf"])
+        assert r2.returncode == 0, r2.stderr
+        res = json.loads((out / "result.json").read_text())
+        rep = [d for d in res["decisions"] if d["verdict"] == "REPORT"][0]
+        # Every score must match its definition file: the fail-closed
+        # "never inspected" reason would mean the chain is broken again.
+        for s in rep["scores"]:
+            assert not any("never inspected" in x for x in s["withheld_reasons"]), s
+        # And the integrity tier actually ran on those definitions: the
+        # duplicate-position panel is withheld, by its panel id.
+        bc = next(s for s in rep["scores"] if s["pgs_id"] == "CLAWBIO-BC-77")
+        assert bc["percentile"] is None
+        assert any("more than one scored variant" in x for x in bc["withheld_reasons"])
+
+    def test_notes_never_contain_pipes(self, tmp_path):
+        """A '|' inside a note splits every markdown table row it lands in,
+        and the PDF renderer then clips the fragment off. Guard the invariant
+        at the source."""
+        r = run_cli(["--demo", "--output", str(tmp_path), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        res = json.loads((tmp_path / "result.json").read_text())
+        for d in res["decisions"]:
+            for s in d["scores"]:
+                assert "|" not in s["note"], s["pgs_id"]
+
+
+class TestUnusableScoresDirFailsClosed:
+    def _args(self, out, scores_dir):
+        return ["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
+                "--prs-results", str(EXAMPLES / "demo_prs_results.json"),
+                "--scores", str(scores_dir),
+                "--output", str(out), "--no-figures", "--no-pdf"]
+
+    def test_empty_scores_dir_refuses_cleanly(self, tmp_path):
+        """--scores pointing at an empty directory must not release anything,
+        and must not claim '--scores was not supplied'."""
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        r = run_cli(self._args(tmp_path / "out", empty))
+        assert r.returncode == 2
+        assert "No usable scoring files" in r.stderr
+        assert "Traceback" not in r.stderr
+        assert not (tmp_path / "out" / "result.json").exists()
+
+    def test_dir_with_only_a_readme_refuses_cleanly(self, tmp_path):
+        d = tmp_path / "scores"
+        d.mkdir()
+        (d / "README.txt").write_text("These are my scoring files.\nSee below.\n")
+        r = run_cli(self._args(tmp_path / "out", d))
+        assert r.returncode == 2
+        assert "No usable scoring files" in r.stderr
+        assert "Traceback" not in r.stderr
+
+    def test_headerless_scoring_file_refuses_cleanly_via_cli(self, tmp_path):
+        d = tmp_path / "scores"
+        d.mkdir()
+        (d / "PGS000099_hmPOS_GRCh37.txt").write_text(
+            "#trait_reported=x\n"
+            "rsID\tchr_name\tchr_position\teffect_allele\tother_allele\teffect_weight\n"
+            "rs1\t1\t100\tA\tG\t0.5\n")
+        r = run_cli(self._args(tmp_path / "out", d))
+        assert r.returncode == 2
+        assert "Cannot load score definitions" in r.stderr
+        assert "Traceback" not in r.stderr
