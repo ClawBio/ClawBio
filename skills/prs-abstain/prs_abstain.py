@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 SKILL_DIR = Path(__file__).resolve().parent
 EXAMPLES = SKILL_DIR / "examples"
@@ -150,7 +150,7 @@ class AFShift:
     n_variants_with_af: int
     coverage: float
     shift_raw: float
-    shift_sd: float
+    shift_sd: float | None  # None when the reference sd could not be derived
     per_variant: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -243,7 +243,17 @@ def load_score_definitions(path: Path) -> dict[str, ScoreDefinition]:
                 "weight": weight, "af_reference": af,
             })
         if variants:
-            pid = hdr.get("pgs_id", fp.stem.split("_")[0])
+            # An identifier is provenance: it comes from an explicit header
+            # (#pgs_id for authentic PGS Catalog files, #clawbio_panel_id for
+            # ClawBio curated demo panels) and is never derived from the
+            # filename. A file named PGS000013_*.txt whose header says
+            # CLAWBIO-T2D-8 is the curated panel, not the accession.
+            pid = hdr.get("pgs_id") or hdr.get("clawbio_panel_id")
+            if pid is None:
+                raise ValueError(
+                    f"{fp.name}: neither #pgs_id nor #clawbio_panel_id header is "
+                    f"present, so this file cannot be attributed to a score. "
+                    f"Refusing to derive an identifier from the filename.")
             out[pid] = ScoreDefinition(pid, hdr.get("trait_reported", "unknown"),
                                        hdr.get("genome_build"), variants)
     return out
@@ -519,12 +529,16 @@ def integrity_verdict(audit: ScoreAudit | None, min_weight_coverage: float = 0.9
 
 
 def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, float]],
-             sd: float, population: str = "AFR") -> AFShift | None:
+             sd: float | None, population: str = "AFR") -> AFShift | None:
     """Decompose the percentile error into per-variant contributions.
 
     The reference mean is Sum(2*AF_ref*w). Re-centring on `population` moves it by
     Sum(2*(AF_pop - AF_ref)*w). Dividing by the reference sd gives the shift in sd
-    units, which maps directly onto a percentile error.
+    units, which maps directly onto a percentile error. When `sd` is None (it
+    could not be derived from the results file, e.g. z_score absent or exactly
+    0), shift_sd is None rather than a quotient over a fabricated unit sd:
+    a quantity must not be presented in units whose provenance was never
+    established.
     """
     per: list[dict[str, Any]] = []
     for v in score.variants:
@@ -545,7 +559,7 @@ def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, float]],
     return AFShift(
         pgs_id=score.pgs_id, population=population.upper(), n_variants_with_af=len(per),
         coverage=round(len(per) / len(score.variants), 4),
-        shift_raw=shift_raw, shift_sd=(shift_raw / sd) if sd else float("nan"),
+        shift_raw=shift_raw, shift_sd=(shift_raw / sd) if sd else None,
         per_variant=per,
     )
 
@@ -752,10 +766,27 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
         if not app.applicable:
             reasons.append(f"Not applicable: {app.reason}")
 
+        # A missing IntegrityVerdict is handled the way integrity_verdict
+        # handles a missing audit: recorded, never a silent pass. Two cases:
+        # scoring files were supplied but none matched this score (fails
+        # closed: an inspectable claim that was never inspected), and no
+        # scoring files were supplied at all (caveat: the tier could not run,
+        # and the note says so on every score it did not check).
         integ = (integrity or {}).get(pid)
         if integ is not None:
             reasons.extend(f"Score integrity: {r}" for r in integ.reasons)
             warnings.extend(integ.warnings)
+        elif integrity:
+            reasons.append(
+                f"Score integrity: no scoring file matching {pid} was found among the "
+                f"supplied score definitions, so its variants, weights and duplicate "
+                f"positions were never inspected. A score whose definition cannot be "
+                f"checked fails closed.")
+        else:
+            warnings.append(
+                "Score integrity was not verified: no scoring files were supplied "
+                "(--scores), so the duplicate-position, weight-coverage and LD checks "
+                "did not run on this score.")
 
         if decision.verdict != "REPORT":
             reasons.append(f"Ancestry gate: {decision.verdict}.")
@@ -773,7 +804,13 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
 
         allow = not reasons
         shift = (shifts or {}).get(pid)
-        if shift is not None and abs(shift.shift_sd) > 0.5:
+        if shift is not None and shift.shift_sd is None:
+            warnings.append(
+                f"Re-centring on {shift.population} allele frequencies moves the reference "
+                f"mean by {shift.shift_raw:+.4f} in raw-score units, but the reference sd "
+                f"could not be derived from the results file, so this shift cannot be "
+                f"expressed in sd or percentile terms.")
+        if shift is not None and shift.shift_sd is not None and abs(shift.shift_sd) > 0.5:
             warnings.append(
                 f"Re-centring on {shift.population} allele frequencies would move the "
                 f"reference mean by {shift.shift_sd:+.2f} sd, i.e. this percentile is off by "
@@ -796,7 +833,8 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
             "withheld_reasons": reasons, "caveats": warnings, "note": note,
             "weight_coverage": audit.weight_coverage if audit else None,
             "effective_n": audit.effective_n if audit else None,
-            "af_shift_sd": round(shift.shift_sd, 4) if shift else None,
+            "af_shift_sd": (round(shift.shift_sd, 4)
+                            if shift and shift.shift_sd is not None else None),
         })
     return gated
 
@@ -1195,7 +1233,7 @@ def _write_technical_report(outdir: Path, cal: Calibration, results: list[dict[s
             top = sh.per_variant[0] if sh.per_variant else None
             drv = (f"{top['rsid']} ({top['delta_mean']:+.4f})" if top else "n/a")
             a(f"| {pid} | {sh.n_variants_with_af} | {sh.coverage:.0%} | {sh.shift_raw:+.4f} | "
-              f"{sh.shift_sd:+.3f} | {drv} |")
+              f"{('n/a (sd underivable)' if sh.shift_sd is None else format(sh.shift_sd, '+.3f'))} | {drv} |")
         a("")
         a("### Top per-variant contributions to the shift\n")
         for pid, sh in sorted(shifts.items()):
@@ -1439,8 +1477,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             rec = curated_sd.get(pid, {})
             raw, z = rec.get("raw_score"), rec.get("z_score")
             em = expected_mean(sdef)
-            sd_ref = abs((raw - em) / z) if (raw is not None and z and em is not None) else None
-            sh = af_shift(sdef, af_table, sd=sd_ref or 1.0, population=args.af_population)
+            # z_score of exactly 0.0 (an individual at the reference mean) gives
+            # 0/0: the sd is underivable, not 1.0. Propagate None; af_shift then
+            # reports the raw shift without inventing sd units for it.
+            sd_ref = (abs((raw - em) / z)
+                      if (raw is not None and z is not None and em is not None and z != 0)
+                      else None)
+            sh = af_shift(sdef, af_table, sd=sd_ref, population=args.af_population)
             if sh is not None:
                 shifts[pid] = sh
 

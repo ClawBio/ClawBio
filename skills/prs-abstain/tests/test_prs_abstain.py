@@ -314,36 +314,36 @@ class TestScoreIntegrity:
     def test_weight_coverage_full_when_all_genotyped(self):
         import prs_abstain as pa
         gt = pa.load_genotype(EXAMPLES / "demo_genotype.txt")
-        a = pa.audit_score(self._defs()["PGS000013"], gt)
+        a = pa.audit_score(self._defs()["CLAWBIO-T2D-8"], gt)
         assert a.weight_coverage == pytest.approx(1.0)
 
     def test_missing_variants_reduce_weight_coverage(self):
         import prs_abstain as pa
         gt = pa.load_genotype(EXAMPLES / "demo_genotype.txt")
         thin = {k: v for i, (k, v) in enumerate(gt.items()) if i % 2 == 0}
-        a = pa.audit_score(self._defs()["PGS000013"], thin)
+        a = pa.audit_score(self._defs()["CLAWBIO-T2D-8"], thin)
         assert a.weight_coverage < 1.0
         assert a.weight_at_risk > 0
 
     def test_concentration_detects_fragile_score(self):
         import prs_abstain as pa
         gt = pa.load_genotype(EXAMPLES / "demo_genotype.txt")
-        t2d = pa.audit_score(self._defs()["PGS000013"], gt)   # 8 variants
-        bmi = pa.audit_score(self._defs()["PGS000039"], gt)   # 97 variants
+        t2d = pa.audit_score(self._defs()["CLAWBIO-T2D-8"], gt)   # 8 variants
+        bmi = pa.audit_score(self._defs()["CLAWBIO-BMI-97"], gt)   # 97 variants
         assert t2d.effective_n < 10 < bmi.effective_n
         assert t2d.top1_share > bmi.top1_share
 
     def test_palindromic_variants_are_counted(self):
         import prs_abstain as pa
         gt = pa.load_genotype(EXAMPLES / "demo_genotype.txt")
-        a = pa.audit_score(self._defs()["PGS000013"], gt)
+        a = pa.audit_score(self._defs()["CLAWBIO-T2D-8"], gt)
         assert a.palindromic_n >= 1
 
     def test_low_weight_coverage_refuses(self):
         import prs_abstain as pa
         gt = pa.load_genotype(EXAMPLES / "demo_genotype.txt")
         thin = {k: v for i, (k, v) in enumerate(gt.items()) if i % 4 == 0}
-        a = pa.audit_score(self._defs()["PGS000013"], thin)
+        a = pa.audit_score(self._defs()["CLAWBIO-T2D-8"], thin)
         assert pa.integrity_verdict(a, min_weight_coverage=0.90).passed is False
 
 
@@ -352,14 +352,14 @@ class TestAFShift:
         """The curated EUR mean is Sum 2*AF*w. This is the whole mechanism."""
         import prs_abstain as pa
         defs = pa.load_score_definitions(Path(__file__).resolve().parents[1] / "examples" / "scores")
-        assert pa.expected_mean(defs["PGS000013"]) == pytest.approx(1.12, abs=0.01)
-        assert pa.expected_mean(defs["PGS000004"]) == pytest.approx(2.84, abs=0.01)
+        assert pa.expected_mean(defs["CLAWBIO-T2D-8"]) == pytest.approx(1.12, abs=0.01)
+        assert pa.expected_mean(defs["CLAWBIO-CAD-46"]) == pytest.approx(2.84, abs=0.01)
 
     def test_af_shift_quantifies_percentile_error(self):
         import prs_abstain as pa
         defs = pa.load_score_definitions(Path(__file__).resolve().parents[1] / "examples" / "scores")
         af = pa.load_population_af(EXAMPLES / "demo_population_af.tsv")
-        sh = pa.af_shift(defs["PGS000013"], af, sd=0.30)
+        sh = pa.af_shift(defs["CLAWBIO-T2D-8"], af, sd=0.30)
         assert sh is not None
         assert sh.n_variants_with_af > 0
         assert isinstance(sh.shift_sd, float)
@@ -368,13 +368,13 @@ class TestAFShift:
     def test_af_shift_returns_none_without_af_data(self):
         import prs_abstain as pa
         defs = pa.load_score_definitions(Path(__file__).resolve().parents[1] / "examples" / "scores")
-        assert pa.af_shift(defs["PGS000013"], {}, sd=0.30) is None
+        assert pa.af_shift(defs["CLAWBIO-T2D-8"], {}, sd=0.30) is None
 
     def test_per_variant_contributions_sum_to_total_shift(self):
         import prs_abstain as pa
         defs = pa.load_score_definitions(Path(__file__).resolve().parents[1] / "examples" / "scores")
         af = pa.load_population_af(EXAMPLES / "demo_population_af.tsv")
-        sh = pa.af_shift(defs["PGS000013"], af, sd=0.30)
+        sh = pa.af_shift(defs["CLAWBIO-T2D-8"], af, sd=0.30)
         assert sum(v["delta_mean"] for v in sh.per_variant) == pytest.approx(sh.shift_raw, abs=1e-9)
 
 
@@ -420,52 +420,52 @@ class TestLDAudit:
     def test_detects_correlated_pair_in_t2d_score(self):
         """rs7903146 and rs12255372 are both TCF7L2, ~50 kb apart."""
         import prs_abstain as pa
-        ld = pa.ld_audit(self._defs()["PGS000013"], window_kb=250)
+        ld = pa.ld_audit(self._defs()["CLAWBIO-T2D-8"], window_kb=250)
         assert ld.n_clusters_multi == 1
         members = [set(c["rsids"]) for c in ld.clusters if len(c["rsids"]) > 1]
         assert {"rs7903146", "rs12255372"} in members
 
     def test_effective_n_falls_when_ld_accounted_for(self):
         import prs_abstain as pa
-        ld = pa.ld_audit(self._defs()["PGS000013"], window_kb=250)
+        ld = pa.ld_audit(self._defs()["CLAWBIO-T2D-8"], window_kb=250)
         assert ld.effective_n_ld < ld.effective_n_independent
         assert ld.effective_n_ld == pytest.approx(3.55, abs=0.1)
 
     def test_clustered_weight_share_reported(self):
         import prs_abstain as pa
-        ld = pa.ld_audit(self._defs()["PGS000013"], window_kb=250)
+        ld = pa.ld_audit(self._defs()["CLAWBIO-T2D-8"], window_kb=250)
         assert ld.clustered_weight_share == pytest.approx(0.48, abs=0.02)
 
     def test_duplicate_positions_flagged_as_data_error(self):
         import prs_abstain as pa
-        ld = pa.ld_audit(self._defs()["PGS000001"], window_kb=250)
+        ld = pa.ld_audit(self._defs()["CLAWBIO-BC-77"], window_kb=250)
         assert ld.duplicate_positions
         assert any("rs11552449" in d["rsids"] for d in ld.duplicate_positions)
 
     def test_clean_score_has_no_duplicates(self):
         import prs_abstain as pa
-        assert not pa.ld_audit(self._defs()["PGS000013"], window_kb=250).duplicate_positions
+        assert not pa.ld_audit(self._defs()["CLAWBIO-T2D-8"], window_kb=250).duplicate_positions
 
     def test_duplicate_positions_block_the_score(self):
         import prs_abstain as pa
         gt = pa.load_genotype(EXAMPLES / "demo_genotype.txt")
         defs = self._defs()
-        au = pa.audit_score(defs["PGS000001"], gt)
-        ld = pa.ld_audit(defs["PGS000001"], window_kb=250)
+        au = pa.audit_score(defs["CLAWBIO-BC-77"], gt)
+        ld = pa.ld_audit(defs["CLAWBIO-BC-77"], window_kb=250)
         assert pa.integrity_verdict(au, ld=ld).passed is False
 
     def test_ld_warning_uses_corrected_effective_n(self):
         import prs_abstain as pa
         gt = pa.load_genotype(EXAMPLES / "demo_genotype.txt")
         defs = self._defs()
-        au = pa.audit_score(defs["PGS000013"], gt)
-        ld = pa.ld_audit(defs["PGS000013"], window_kb=250)
+        au = pa.audit_score(defs["CLAWBIO-T2D-8"], gt)
+        ld = pa.ld_audit(defs["CLAWBIO-T2D-8"], window_kb=250)
         v = pa.integrity_verdict(au, ld=ld, min_effective_n=10.0)
         assert any("3.5" in w or "3.6" in w for w in v.warnings)
 
     def test_window_size_changes_clustering(self):
         import prs_abstain as pa
-        d = self._defs()["PGS000013"]
+        d = self._defs()["CLAWBIO-T2D-8"]
         assert pa.ld_audit(d, window_kb=10).n_clusters_multi == 0
         assert pa.ld_audit(d, window_kb=250).n_clusters_multi == 1
 
@@ -633,7 +633,7 @@ class TestFailClosed:
         import prs_abstain as pa
 
         defs = pa.load_score_definitions(EXAMPLES / "scores")
-        sdef = defs["PGS000001"]  # carries the chr1:114448389 duplicate pair
+        sdef = defs["CLAWBIO-BC-77"]  # carries the chr1:114448389 duplicate pair
         ld = pa.ld_audit(sdef)
         assert ld.duplicate_positions, "fixture must contain the duplicate pair"
         v = pa.integrity_verdict(None, ld=ld)
@@ -644,9 +644,9 @@ class TestFailClosed:
     def test_integrity_reasons_reach_the_gate_without_genotype(self):
         pa, cal, dec = self._cal_and_report_decision()
         defs = pa.load_score_definitions(EXAMPLES / "scores")
-        sdef = defs["PGS000001"]
-        integ = {"PGS000001": pa.integrity_verdict(None, ld=pa.ld_audit(sdef))}
-        score = {"pgs_id": "PGS000001", "trait": "Breast cancer", "raw_score": 1.0,
+        sdef = defs["CLAWBIO-BC-77"]
+        integ = {"CLAWBIO-BC-77": pa.integrity_verdict(None, ld=pa.ld_audit(sdef))}
+        score = {"pgs_id": "CLAWBIO-BC-77", "trait": "Breast cancer", "raw_score": 1.0,
                  "percentile": 94.0, "z_score": 1.5, "reference_population": "EUR"}
         gated = pa.gate_scores([score], dec, cal, sex="female", integrity=integ)[0]
         assert gated["percentile"] is None
@@ -688,3 +688,117 @@ class TestCoverageCounting:
         a = pa.audit_score(self._sdef(), {"rs1": "TC", "rs2": "CT"})
         assert a.n_matched == 2
         assert a.weight_coverage == pytest.approx(1.0)
+
+
+# ── Gate wiring through the CLI ───────────────────────────────────────────────
+# Round-2 review: the integrity tier failed open on the documented standard
+# command because every prior CLI test passed --demo (which supplies both
+# --genotype and --scores) and the unit tests sat on either side of the
+# wiring. These tests go through main() with each input deliberately absent.
+
+class TestGateWiringThroughTheCli:
+    def _standard(self, tmp_path, *extra):
+        return ["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
+                "--prs-results", str(EXAMPLES / "demo_prs_results.json"),
+                "--output", str(tmp_path), "--no-figures", "--no-pdf", *extra]
+
+    def _eur_scores(self, tmp_path):
+        res = json.loads((tmp_path / "result.json").read_text())
+        rep = [d for d in res["decisions"] if d["verdict"] == "REPORT"]
+        assert rep, "expected at least one REPORT individual in the demo data"
+        return rep[0]["scores"]
+
+    def test_scores_without_genotype_still_blocks_duplicate_positions(self, tmp_path):
+        """--scores given, --genotype absent: the file-level integrity checks
+        must still run and CLAWBIO-BC-77 (duplicate chr1:114448389 pair) must
+        be withheld, through main(), on a REPORT-verdict individual."""
+        r = run_cli(self._standard(tmp_path, "--scores", str(EXAMPLES / "scores")))
+        assert r.returncode == 0, r.stderr
+        bc = next(s for s in self._eur_scores(tmp_path) if s["pgs_id"] == "CLAWBIO-BC-77")
+        assert bc["percentile"] is None
+        assert any("duplicate" in x.lower() or "more than one scored variant" in x.lower()
+                   for x in bc["withheld_reasons"])
+
+    def test_no_scores_means_no_silent_integrity_pass(self, tmp_path):
+        """The documented standard command (no --scores): every released
+        percentile must carry the integrity-not-verified caveat rather than
+        passing the tier silently."""
+        r = run_cli(self._standard(tmp_path))
+        assert r.returncode == 0, r.stderr
+        released = [s for s in self._eur_scores(tmp_path) if s["percentile"] is not None]
+        assert released, "demo data should release at least one percentile here"
+        for s in released:
+            assert any("integrity was not verified" in c.lower() for c in s["caveats"]), s["pgs_id"]
+            assert "integrity was not verified" in s["note"].lower()
+
+    def test_score_with_no_matching_scoring_file_is_withheld(self, tmp_path):
+        """--scores supplied but a prs_results entry has no matching file:
+        that score fails closed instead of skipping the tier."""
+        import shutil
+        subset = tmp_path / "subset_scores"
+        subset.mkdir()
+        shutil.copy(EXAMPLES / "scores" / "PGS000013_hmPOS_GRCh37.txt", subset)
+        out = tmp_path / "out"
+        r = run_cli(self._standard(out, "--scores", str(subset)))
+        assert r.returncode == 0, r.stderr
+        res = json.loads((out / "result.json").read_text())
+        rep = [d for d in res["decisions"] if d["verdict"] == "REPORT"][0]
+        af12 = next(s for s in rep["scores"] if s["pgs_id"] == "CLAWBIO-AF-12")
+        assert af12["percentile"] is None
+        assert any("no scoring file matching" in x for x in af12["withheld_reasons"])
+
+
+class TestScoreIdProvenance:
+    def test_panel_id_comes_from_the_header_not_the_filename(self):
+        """Post-#357 curated panels carry #clawbio_panel_id and no #pgs_id.
+        The id must be the header's, never re-derived from a filename that
+        still says PGS000013."""
+        import prs_abstain as pa
+
+        defs = pa.load_score_definitions(EXAMPLES / "scores")
+        assert "CLAWBIO-T2D-8" in defs
+        assert not any(k.startswith("PGS") for k in defs)
+
+    def test_file_with_no_id_header_is_refused(self, tmp_path):
+        import prs_abstain as pa
+
+        f = tmp_path / "PGS000099_hmPOS_GRCh37.txt"
+        f.write_text("#trait_reported=x\n"
+                     "rsID\tchr_name\tchr_position\teffect_allele\tother_allele\teffect_weight\n"
+                     "rs1\t1\t100\tA\tG\t0.5\n")
+        with pytest.raises(ValueError, match="filename"):
+            pa.load_score_definitions(tmp_path)
+
+
+class TestSdProvenance:
+    def test_zero_z_score_propagates_none_not_unit_sd(self):
+        """z_score == 0.0 (an individual exactly at the mean) makes the sd
+        underivable; the shift must not silently be printed in 'sd' units."""
+        import prs_abstain as pa
+
+        defs = pa.load_score_definitions(EXAMPLES / "scores")
+        af = {v["rsid"]: {"AFR": 0.5} for v in defs["CLAWBIO-T2D-8"].variants}
+        sh = pa.af_shift(defs["CLAWBIO-T2D-8"], af, sd=None)
+        assert sh is not None
+        assert sh.shift_sd is None
+        assert sh.shift_raw != 0
+
+    def test_unknown_sd_becomes_a_caveat_not_a_quotient(self):
+        import prs_abstain as pa
+
+        sh = pa.AFShift(pgs_id="CLAWBIO-T2D-8", population="AFR", n_variants_with_af=8,
+                        coverage=1.0, shift_raw=0.4, shift_sd=None)
+        cal = pa.Calibration(reference_population="EUR", pcs_used=("PC1",), centroid=[0.0],
+                             n=10, mean=1.0, sd=0.5, k_sd=3.0, threshold=2.5,
+                             within_max=2.0, nearest_other=9.9)
+        dec = pa.Decision(sample_id="X", verdict="REPORT", distance=1.0, threshold=2.5,
+                          reason="", remedy="", n_markers_shared=500,
+                          declared_population="EUR")
+        score = {"pgs_id": "CLAWBIO-T2D-8", "trait": "Type 2 diabetes", "raw_score": 1.0,
+                 "percentile": 50.0, "z_score": 0.0, "reference_population": "EUR"}
+        gated = pa.gate_scores([score], dec, cal, sex="female",
+                               integrity={"CLAWBIO-T2D-8": pa.IntegrityVerdict(True, [], [])},
+                               shifts={"CLAWBIO-T2D-8": sh})
+        assert gated[0]["af_shift_sd"] is None
+        assert any("cannot be expressed in sd" in c for c in gated[0]["caveats"])
