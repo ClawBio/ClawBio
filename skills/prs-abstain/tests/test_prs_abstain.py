@@ -802,3 +802,28 @@ class TestSdProvenance:
                                shifts={"CLAWBIO-T2D-8": sh})
         assert gated[0]["af_shift_sd"] is None
         assert any("cannot be expressed in sd" in c for c in gated[0]["caveats"])
+
+    def test_zero_z_score_through_main_yields_no_sd_units(self, tmp_path):
+        """Through main(), not the unit: a results file whose z_score is exactly
+        0.0 must produce af_shift_sd None plus the raw-units caveat, never a
+        quotient over a silently substituted sd of 1.0."""
+        import shutil
+        results = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
+        t2d = next(r for r in results if r["pgs_id"] == "CLAWBIO-T2D-8")
+        t2d["z_score"] = 0.0
+        t2d["raw_score"] = 1.1186  # exactly the reference mean
+        rf = tmp_path / "prs_results.json"
+        rf.write_text(json.dumps(results))
+        out = tmp_path / "out"
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
+                     "--prs-results", str(rf),
+                     "--scores", str(EXAMPLES / "scores"),
+                     "--population-af", str(EXAMPLES / "demo_population_af.tsv"),
+                     "--output", str(out), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        res = json.loads((out / "result.json").read_text())
+        rep = [d for d in res["decisions"] if d["verdict"] == "REPORT"][0]
+        t2d_gated = next(s for s in rep["scores"] if s["pgs_id"] == "CLAWBIO-T2D-8")
+        assert t2d_gated["af_shift_sd"] is None
+        assert any("cannot be expressed in sd" in c for c in t2d_gated["caveats"])
