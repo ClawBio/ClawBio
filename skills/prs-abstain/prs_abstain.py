@@ -1078,6 +1078,16 @@ def _write_clinician_report(outdir: Path, cal: Calibration, results: list[dict[s
       "Where it does not, the percentile is withheld and the reason is given. The "
       "underlying genetic sum is still shown, because that part is always valid.\n")
 
+    if cal.threshold_exceeds_nearest_other:
+        a("## Read this first\n")
+        a(f"This run was configured with an unusually permissive similarity threshold "
+          f"({cal.threshold:.2f}, wider than the distance to the closest person from any "
+          f"other ancestry group, {cal.nearest_other:.2f}). At this setting the safeguard "
+          f"that withholds percentiles for people the reference group does not fit was "
+          f"effectively switched off. Treat every result marked Released in this document "
+          f"as uncalibrated: the percentile may be quoted for someone the comparison group "
+          f"does not actually fit. Re-run with the default threshold before using any of "
+          f"these results.\n")
     a("## What this means\n")
     a("- A **released** result can be read normally, with the usual caveats of any risk score.\n"
       "- A **withheld** result is not a borderline or a low number. It means the comparison "

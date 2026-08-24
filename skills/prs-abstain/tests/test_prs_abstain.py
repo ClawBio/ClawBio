@@ -513,9 +513,29 @@ class TestPDF:
         assert "not evidence of low risk" in text
 
     def test_skill_still_runs_without_reportlab(self, tmp_path):
-        """PDF is a bonus artefact; its absence must not break the run."""
-        import prs_abstain as pa
-        assert hasattr(pa, "_write_pdfs")
+        """PDF is a bonus artefact; its absence must not break the run.
+        Measured for real: the CLI runs in a subprocess whose import of
+        reportlab is forced to fail, and must still exit 0 with the markdown
+        reports written and no PDFs."""
+        import textwrap
+        blocker = tmp_path / "blocker"
+        blocker.mkdir()
+        (blocker / "reportlab").mkdir()
+        (blocker / "reportlab" / "__init__.py").write_text(
+            textwrap.dedent("""
+            raise ImportError("reportlab deliberately unavailable for this test")
+            """))
+        import os
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(blocker) + os.pathsep + env.get("PYTHONPATH", "")
+        out = tmp_path / "out"
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT), "--demo", "--output", str(out),
+             "--no-figures"],
+            capture_output=True, text=True, env=env)
+        assert r.returncode == 0, r.stderr
+        assert (out / "report_clinician.md").exists()
+        assert not list(out.glob("*.pdf"))
 
     def test_no_pdf_flag_skips_generation(self, tmp_path):
         r = run_cli(["--demo", "--output", str(tmp_path), "--no-pdf"])
@@ -927,3 +947,61 @@ class TestUnusableScoresDirFailsClosed:
         assert r.returncode == 2
         assert "Cannot load score definitions" in r.stderr
         assert "Traceback" not in r.stderr
+
+
+class TestClinicianSurfaceParity:
+    """The clinician report is the surface where an omission costs most.
+    Round-3 review: JSON and technical report warned about threshold
+    overreach and integrity caveats while the clinician document printed a
+    clean 'Released'. These tests pin every clinician-facing branch through
+    the CLI."""
+
+    def test_threshold_overreach_reaches_the_clinician_report(self, tmp_path):
+        """--k-sd 20 disables the abstention rule (threshold 39.7 exceeds the
+        nearest non-EUR panel member at 7.3788, so AFR_001 at 10.3770 gets
+        REPORT). The clinician document must say so before any Released row."""
+        r = run_cli(["--demo", "--output", str(tmp_path), "--k-sd", "20",
+                     "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        res = json.loads((tmp_path / "result.json").read_text())
+        assert res["calibration"]["threshold_exceeds_nearest_other"] is True
+        afr = next(d for d in res["decisions"] if d["sample_id"] == "AFR_001")
+        assert afr["verdict"] == "REPORT"  # the failure scenario is real
+        clin = (tmp_path / "report_clinician.md").read_text()
+        assert "Read this first" in clin
+        assert "uncalibrated" in clin
+        # And the warning precedes the results table.
+        assert clin.index("Read this first") < clin.index("## Results")
+
+    def test_default_threshold_prints_no_overreach_warning(self, tmp_path):
+        r = run_cli(["--demo", "--output", str(tmp_path),
+                     "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        clin = (tmp_path / "report_clinician.md").read_text()
+        assert "Read this first" not in clin
+        assert "uncalibrated" not in clin
+
+    def test_no_scores_branches_render_in_the_clinician_report(self, tmp_path):
+        """The three no-scores rendering branches: status cell, dedicated
+        note section, and the note's remedy sentence. Every other clinician
+        test drives --demo, which always supplies scores."""
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
+                     "--prs-results", str(EXAMPLES / "demo_prs_results.json"),
+                     "--output", str(tmp_path), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        clin = (tmp_path / "report_clinician.md").read_text()
+        assert "Released — score file not checked (see note below)" in clin
+        assert "## A note on results marked 'score file not checked'" in clin
+        assert "re-run the review with" in clin.lower()
+        # The JSON caveat and the clinician surface agree: every released
+        # score with the caveat has the marked status, none says plain
+        # 'Released'.
+        res = json.loads((tmp_path / "result.json").read_text())
+        rep = [d for d in res["decisions"] if d["verdict"] == "REPORT"][0]
+        n_unchecked = sum(1 for s in rep["scores"]
+                          if s["percentile"] is not None and
+                          any("integrity was not verified" in c.lower()
+                              for c in s["caveats"]))
+        assert n_unchecked > 0
+        assert clin.count("score file not checked (see note below)") == n_unchecked
