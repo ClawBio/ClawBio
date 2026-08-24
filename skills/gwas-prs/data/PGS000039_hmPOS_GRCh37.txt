@@ -1,8 +1,22 @@
-#pgs_id=PGS000039
-#pgs_name=PRS for BMI (Khera et al. 2019)
-#trait_reported=Body mass index
+#clawbio_panel=curated_demo
+#clawbio_panel_id=CLAWBIO-BMI-97
+#clawbio_pmid=25673413
+#panel_name=Curated demo panel: body mass index (97 loci)
+#trait_reported=BMI
+#trait_id=EFO_0004340
+#loci_reference=Locke AE et al. (2015) Nature PMID:25673413
+#weights=approximate; NOT the published betas from the loci reference.
+#weights=The reference above identifies where the loci come from, not the
+#weights=effect sizes. Vassy 2014 is a 62-locus score and Abraham 2016 is
+#weights=49,310 SNPs, against 8 and 46 loci here.
 #genome_build=GRCh37
 #variants_number=97
+#note=Illustrative panel of established trait-associated loci, curated for
+#note=ClawBio offline demos. This is NOT a PGS Catalog scoring file.
+#note=The accession PGS000039 belongs to a DIFFERENT published score in the
+#note=PGS Catalog. It is retained in this filename for backward compatibility
+#note=only. Do not cite this file as that accession.
+#note=See ClawBio issue #356.
 rsID	chr_name	chr_position	effect_allele	other_allele	effect_weight	allelefrequency_effect
 rs1558902	16	53803574	A	T	0.09	0.42
 rs9939609	16	53820527	A	T	0.08	0.42

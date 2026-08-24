@@ -1,8 +1,8 @@
 """Central audit log for ClawBio.
 
-Aligns with OpenTelemetry GenAI semantic conventions:
-  https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/
-  opentelemetry-semantic-conventions 0.62b1
+Aligns with OpenTelemetry GenAI semantic conventions (pre-stable):
+  https://github.com/open-telemetry/semantic-conventions-genai
+Re-verify the gen_ai.* attribute names once that repo tags a release.
 """
 
 from __future__ import annotations

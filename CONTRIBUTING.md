@@ -124,9 +124,17 @@ reference dataset, declare its terms separately:
 
 ```yaml
 license: MIT                          # your wrapper code
-model_license: cc-by-nc-sa-4.0        # the weights it downloads
-data_license: CC0-1.0                 # any bundled reference data
+metadata:
+  model_license: cc-by-nc-sa-4.0      # the weights it downloads
+  data_license: CC0-1.0               # any bundled reference data
 ```
+
+The two extra fields go under `metadata`, not beside `license`. The
+agentskills spec allows only `name`, `description`, `license`, `allowed-tools`,
+`compatibility` and `metadata` at the top level, and `agentskills validate`
+fails the skill on anything else; `metadata` is the free-form key. The catalog
+generator reads both placements, so older skills that declare them at the top
+level keep working.
 
 **Putting MIT on a wrapper does not make non-commercial weights commercially
 usable.** The restriction lives in the artefact, not in your code, and no

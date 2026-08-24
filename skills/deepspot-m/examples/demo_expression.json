@@ -1,0 +1,19 @@
+{
+  "kind": "demo_fixture",
+  "note": "Synthetic offline stand-in for a DeepSpot-M gene panel readout on demo_tile.png. These numbers are fixture data, not model output. Run with --input and an installed deepspotm package for a real prediction.",
+  "unit": "log1p-CPM",
+  "source": "scgpt",
+  "tile": "demo_tile.png",
+  "expression": {
+    "EPCAM": 5.82,
+    "KRT19": 5.41,
+    "COL1A1": 4.97,
+    "VIM": 4.63,
+    "ACTA2": 3.88,
+    "PTPRC": 3.42,
+    "CD68": 2.91,
+    "CD3D": 2.14,
+    "CD8A": 1.76,
+    "MKI67": 1.35
+  }
+}
