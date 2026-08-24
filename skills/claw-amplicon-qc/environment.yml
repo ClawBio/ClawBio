@@ -7,13 +7,12 @@ dependencies:
   - r-base>=4.4
 
   # Bioconductor packages the script imports.
-  # Version pins are load-bearing here: bioconda ships both r41_* builds
-  # (against r-base 4.1.3) and r44_* builds (against r-base 4.4.x) for
-  # these packages. Without a version pin, the solver may pick an r41_*
-  # build and silently downgrade r-base to 4.1.3 to satisfy it, breaking
-  # the >=4.4 constraint. The version pins below correspond to the
-  # Bioconductor 3.20 release cycle, which only exists as r44_* builds
-  # and therefore forces the solver into the R 4.4 lineage.
+  # Version floors are documentary rather than load-bearing. Both the
+  # pinned and unpinned versions of this yml solve to the same current
+  # Bioconductor 3.20+ combination (dada2 >= 1.34, ShortRead >= 1.64,
+  # Biostrings >= 2.74) with r-base 4.4+. Keeping the floors as a
+  # published minimum in case bioconda metadata shifts in future and
+  # the solver starts preferring older releases.
   - bioconductor-dada2>=1.34
   - bioconductor-shortread>=1.64
   - bioconductor-biostrings>=2.74
