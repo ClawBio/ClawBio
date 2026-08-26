@@ -739,7 +739,7 @@ class TestAnnotateCapturesSourceVersions:
         assert called_url == VEP_REST_HOST + ENSEMBL_INFO_VARIATION_PATH
         assert captured_kwargs[0].get("timeout") == 10
 
-    def test_source_versions_none_when_every_batch_fails(self, monkeypatch):
+    def test_batch_failure_raises_before_version_fetch(self, monkeypatch):
         import requests
         from clinical_variant_reporter import annotate_variants_vep
 
@@ -753,9 +753,117 @@ class TestAnnotateCapturesSourceVersions:
         monkeypatch.setattr(requests, "get", fail_if_called)
         monkeypatch.setattr("clinical_variant_reporter.VEP_RATE_LIMIT_SECONDS", 0)
 
-        evidence_list, source_versions = annotate_variants_vep([self._vcf_record()])
-        assert len(evidence_list) == 1  # unannotated placeholder, still returned
-        assert source_versions is None
+        with pytest.raises(RuntimeError, match="VEP annotation failed for a batch of 1 variants"):
+            annotate_variants_vep([self._vcf_record()])
+
+    def test_complete_annotation_success_still_returns_evidence_and_versions(self, monkeypatch):
+        from unittest.mock import MagicMock
+        import requests
+        from clinical_variant_reporter import VcfRecord, annotate_variants_vep
+
+        records = [
+            self._vcf_record(),
+            VcfRecord(chrom="2", pos=200, id=".", ref="C", alt="T", qual=".", filt="PASS", info={}),
+        ]
+
+        resp = MagicMock()
+        resp.raise_for_status.return_value = None
+        resp.json.return_value = [
+            {
+                "input": "1 100 100 A/G 1",
+                "most_severe_consequence": "missense_variant",
+                "transcript_consequences": [{"gene_symbol": "GENE1", "consequence_terms": ["missense_variant"]}],
+            },
+            {
+                "input": "2 200 200 C/T 1",
+                "most_severe_consequence": "synonymous_variant",
+                "transcript_consequences": [{"gene_symbol": "GENE2", "consequence_terms": ["synonymous_variant"]}],
+            },
+        ]
+        info_resp = MagicMock()
+        info_resp.json.return_value = [{"name": "ClinVar", "version": "09/2025"}]
+
+        monkeypatch.setattr(requests, "post", lambda *a, **k: resp)
+        monkeypatch.setattr(requests, "get", lambda *a, **k: info_resp)
+        monkeypatch.setattr("clinical_variant_reporter.VEP_RATE_LIMIT_SECONDS", 0)
+
+        evidence_list, source_versions = annotate_variants_vep(records)
+
+        assert [ev.gene for ev in evidence_list] == ["GENE1", "GENE2"]
+        assert source_versions == {"clinvar": "09/2025"}
+
+    def test_partial_batch_failure_raises_instead_of_returning_partial_results(self, monkeypatch):
+        import requests
+        from clinical_variant_reporter import VcfRecord, annotate_variants_vep
+
+        records = [
+            self._vcf_record(),
+            VcfRecord(chrom="2", pos=200, id=".", ref="C", alt="T", qual=".", filt="PASS", info={}),
+        ]
+        calls = {"count": 0}
+
+        def post_once_then_fail(*args, **kwargs):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                return self._mock_vep_success()
+            raise requests.exceptions.ConnectionError("transient VEP outage")
+
+        def fail_if_called(*args, **kwargs):
+            raise AssertionError("version fetch must not run after a failed annotation batch")
+
+        monkeypatch.setattr("clinical_variant_reporter.VEP_BATCH_SIZE", 1)
+        monkeypatch.setattr("clinical_variant_reporter.VEP_RATE_LIMIT_SECONDS", 0)
+        monkeypatch.setattr(requests, "post", post_once_then_fail)
+        monkeypatch.setattr(requests, "get", fail_if_called)
+
+        with pytest.raises(RuntimeError, match="batch starting at index 1"):
+            annotate_variants_vep(records)
+
+    def test_malformed_vep_json_raises_instead_of_classifying_unannotated(self, monkeypatch):
+        from unittest.mock import MagicMock
+        import requests
+        from clinical_variant_reporter import annotate_variants_vep
+
+        resp = MagicMock()
+        resp.raise_for_status.return_value = None
+        resp.json.return_value = {"error": "not the expected list payload"}
+
+        monkeypatch.setattr(requests, "post", lambda *a, **k: resp)
+        monkeypatch.setattr(requests, "get", lambda *a, **k: None)
+        monkeypatch.setattr("clinical_variant_reporter.VEP_RATE_LIMIT_SECONDS", 0)
+
+        with pytest.raises(RuntimeError, match="Malformed VEP response"):
+            annotate_variants_vep([self._vcf_record()])
+
+    def test_cli_propagates_annotation_failure_without_writing_report(self, monkeypatch, tmp_path):
+        import requests
+        import clinical_variant_reporter
+
+        vcf_path = tmp_path / "input.vcf"
+        vcf_path.write_text(
+            "##fileformat=VCFv4.2\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+            "1\t100\t.\tA\tG\t.\tPASS\t.\n",
+            encoding="utf-8",
+        )
+        output_dir = tmp_path / "out"
+
+        def raise_timeout(*args, **kwargs):
+            raise requests.exceptions.Timeout("no response")
+
+        monkeypatch.setattr(requests, "post", raise_timeout)
+        monkeypatch.setattr(requests, "get", lambda *a, **k: None)
+        monkeypatch.setattr("clinical_variant_reporter.VEP_RATE_LIMIT_SECONDS", 0)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["clinical_variant_reporter.py", "--input", str(vcf_path), "--output", str(output_dir)],
+        )
+
+        with pytest.raises(RuntimeError, match="VEP annotation failed"):
+            clinical_variant_reporter.main()
+
+        assert not (output_dir / "result.json").exists()
 
     def test_source_versions_empty_dict_when_annotation_succeeds_but_lookup_fails(self, monkeypatch):
         """The bug behind blocking item 1: before this fix, a failed version
