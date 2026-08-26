@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 97,
+  "skill_count": 98,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -1056,6 +1056,52 @@
         "structural variant interpretation",
         "ClinGen dosage sensitivity",
         "deletion duplication pathogenic"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "completeness-aware-caller",
+      "cli_alias": null,
+      "description": "Three-state gene-presence calls (present / absent / cannot-conclude) and ANI-ranking gates for incomplete genomes and MAGs. Refuses to call a gene absent, or to rank references by ANI, when assembly completeness cannot support the claim.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "tested",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": false,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/completeness-aware-caller/completeness_aware_caller.py --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "comparative-genomics",
+        "completeness",
+        "metagenomics",
+        "mag",
+        "ani",
+        "abstention"
+      ],
+      "trigger_keywords": [
+        "is this gene really absent",
+        "completeness-aware",
+        "can I trust this MAG",
+        "gene absence incomplete genome",
+        "cannot conclude",
+        "abstention genomics",
+        "MAG interpretation",
+        "ANI confidence"
       ],
       "chaining_partners": [],
       "license": "MIT",
