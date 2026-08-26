@@ -14,6 +14,11 @@ Use --dry-run to exercise the tool wiring with no API call and no spend.
 
 Only skills in SKILLS below can be run, and only with the flags listed there.
 The model chooses among them; it cannot compose an arbitrary command line.
+
+When run without --dry-run, the report text returned by a ClawBio skill is sent
+to Nebius as tool output in the model conversation. The whitelist currently pins
+every skill to --demo, so repo-bundled demo data is used and patient input paths
+cannot reach the subprocesses.
 """
 from __future__ import annotations
 
@@ -34,6 +39,8 @@ DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1/"
 DEFAULT_MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507"
 
 # Whitelist. Every entry was run end to end on 2026-08-12.
+# Keep these args demo-only: reports are sent to Nebius, so do not add real
+# patient input paths here.
 SKILLS: dict[str, dict] = {
     "rare_high_impact_variants": {
         "script": "skills/rare-high-impact-variants/rare_high_impact_variants.py",
