@@ -462,9 +462,10 @@ cat("Discovered", length(fnFs), "sample pairs (paired by sample name).\n\n")
 ## the data disappeared without explanation.
 ##
 ## This preflight samples the first ~1000 R1 reads per sample, counts how
-## many begin with FWD versus REV (allowing IUPAC ambiguity and 1 mismatch,
-## matching cutadapt's tolerance), and aborts with a clear message if the
-## split is problematic.
+## many begin with FWD versus REV (allowing IUPAC ambiguity and 1 mismatch —
+## slightly stricter than cutadapt's default -e 0.1, which allows 2 errors
+## on a 20 bp primer; we accept the conservative bias), and aborts with a
+## clear message if the split is problematic.
 ##
 ## Bonus: also catches the "primers not present at all" scenario (pre-
 ## trimmed data, wrong primers) earlier than the CRITICAL 3 100%-loss
