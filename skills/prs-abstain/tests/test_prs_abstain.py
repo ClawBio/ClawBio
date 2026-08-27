@@ -274,8 +274,10 @@ class TestStressRegressions:
         assert "not defensible" in r.stderr
 
     def test_threshold_that_swallows_other_populations_is_flagged(self, tmp_path):
-        """k large enough to admit non-reference individuals must warn loudly."""
-        r = run_cli(["--demo", "--output", str(tmp_path), "--k-sd", "20"])
+        """k large enough to admit non-reference individuals must warn loudly
+        even under the explicit override (without it, main() refuses to run)."""
+        r = run_cli(["--demo", "--output", str(tmp_path), "--k-sd", "20",
+                     "--allow-threshold-overreach"])
         assert r.returncode == 0, r.stderr
         res = json.loads((tmp_path / "result.json").read_text())
         assert res["calibration"]["threshold_exceeds_nearest_other"] is True
@@ -566,6 +568,23 @@ class TestDecisionBoundaries:
         pa, cal = self._cal()
         ind = pa.Individual("EDGE30", "EUR", list(cal.centroid), 30)
         d = pa.decide(ind, cal, min_markers=30)
+        assert d.verdict == "REPORT"
+
+    def test_inflated_marker_declaration_fails_closed(self):
+        """Round-4 review: n_markers_shared was trusted unconditionally. A
+        declaration above the genotype's valid-call count is not credible."""
+        pa, cal = self._cal()
+        ind = pa.Individual("INFLATED", "EUR", list(cal.centroid), 500)
+        d = pa.decide(ind, cal, min_markers=30, max_credible_markers=415)
+        assert d.verdict == "REFUSE_UNDETERMINABLE"
+        assert "exceeds the 415 valid calls" in d.reason
+        assert d.distance is None  # distance is never computed past a failed gate
+
+    def test_marker_declaration_at_the_call_count_passes(self):
+        """The cap is an upper bound: exactly at the call count is credible."""
+        pa, cal = self._cal()
+        ind = pa.Individual("ATCAP", "EUR", list(cal.centroid), 415)
+        d = pa.decide(ind, cal, min_markers=30, max_credible_markers=415)
         assert d.verdict == "REPORT"
 
 
@@ -959,9 +978,10 @@ class TestClinicianSurfaceParity:
     def test_threshold_overreach_reaches_the_clinician_report(self, tmp_path):
         """--k-sd 20 disables the abstention rule (threshold 39.7 exceeds the
         nearest non-EUR panel member at 7.3788, so AFR_001 at 10.3770 gets
-        REPORT). The clinician document must say so before any Released row."""
+        REPORT). Reachable only under the explicit override; the clinician
+        document must still say so before any Released row."""
         r = run_cli(["--demo", "--output", str(tmp_path), "--k-sd", "20",
-                     "--no-figures", "--no-pdf"])
+                     "--allow-threshold-overreach", "--no-figures", "--no-pdf"])
         assert r.returncode == 0, r.stderr
         res = json.loads((tmp_path / "result.json").read_text())
         assert res["calibration"]["threshold_exceeds_nearest_other"] is True
@@ -972,6 +992,17 @@ class TestClinicianSurfaceParity:
         assert "uncalibrated" in clin
         # And the warning precedes the results table.
         assert clin.index("Read this first") < clin.index("## Results")
+
+    def test_threshold_overreach_without_override_fails_closed(self, tmp_path):
+        """Round-4 review: overreach warned on every surface but never changed
+        a verdict. Without the explicit override flag, main() must refuse to
+        run rather than release percentiles under a gate that no longer gates."""
+        r = run_cli(["--demo", "--output", str(tmp_path), "--k-sd", "20",
+                     "--no-figures", "--no-pdf"])
+        assert r.returncode == 2
+        assert "no longer an abstention rule" in r.stderr
+        assert "--allow-threshold-overreach" in r.stderr
+        assert not (tmp_path / "result.json").exists()
 
     def test_default_threshold_prints_no_overreach_warning(self, tmp_path):
         r = run_cli(["--demo", "--output", str(tmp_path),

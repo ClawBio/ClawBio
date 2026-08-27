@@ -199,7 +199,8 @@ python skills/prs-abstain/prs_abstain.py --demo --output /tmp/d --ref-pop EUR --
 |---|---|---|
 | `--ref-pop` | `EUR` | Population the score is centred on |
 | `--k-sd` | `3.0` | Threshold = mean + k·sd of within-reference spread |
-| `--min-markers` | `30` | Below this, ancestry is undeterminable (Kosoy 2009) |
+| `--min-markers` | `30` | Below this, ancestry is undeterminable (above the 24-AIM subset validated in Kosoy 2009) |
+| `--allow-threshold-overreach` | off | Without it, a threshold wider than the nearest non-reference individual is a hard error |
 | `--min-weight-coverage` | `0.90` | Fraction of a score's total weight that must be genotyped |
 | `--min-effective-n` | `10` | Warn below this many independent contributions |
 | `--af-population` | `AFR` | Population column to re-centre on |
@@ -231,8 +232,8 @@ European allele-frequency calculation, so re-centring on another population move
 SNP by SNP rather than stopping at a distance threshold.
 
 **Key thresholds / parameters**:
-- Minimum shared markers: 30 (source: Kosoy et al. 2009, Hum Mutat 30:69-78; the same bound
-  used by `ancestry-risk-profiler`)
+- Minimum shared markers: 30, set above the 24-AIM subset validated in Kosoy et al. 2009
+  (Hum Mutat 30:69-78); the same bound used by `ancestry-risk-profiler`
 - k: 3.0 sd (policy choice; on the bundled demo panel this yields 3.47, which sits inside an
   empirically empty gap between 3.14 and 7.38)
 - Minimum weight coverage: 0.90 of total |effect weight| genotyped (policy choice)
@@ -356,9 +357,9 @@ number is a policy choice rather than a published value, it says so.
 
 | Decision | Value | Basis | If wrong |
 |---|---|---|---|
-| Minimum ancestry-informative markers | 30 | Kosoy et al. 2009 (PMID 18683858), the lower bound for reliable continental assignment; the same bound `ancestry-risk-profiler` uses | Too low, we place people we cannot place; too high, we refuse people we could serve |
+| Minimum ancestry-informative markers | 30 | Set above the 24-AIM subset validated in Kosoy et al. 2009 (PMID 18683858); the same bound `ancestry-risk-profiler` uses | Too low, we place people we cannot place; too high, we refuse people we could serve |
 | Ancestry distance metric | Euclidean over PC1–PC4 | Scree plot of the reference panel flattens after PC3; PC1–PC4 captures the continental axes | Mahalanobis is correct for an elongated cluster; Euclidean over-refuses on the narrow axis |
-| Abstention threshold | mean + 3 sd of within-reference distance | Policy choice, placed inside an empirically empty gap (reference max 3.14, nearest other 7.38) | Widening it admits other populations; the skill detects this and prints THRESHOLD OVERREACH |
+| Abstention threshold | mean + 3 sd of within-reference distance | Policy choice, placed inside an empirically empty gap (reference max 3.14, nearest other 7.38) | Widening it admits other populations; the skill refuses to run under overreach unless `--allow-threshold-overreach` is passed, and then prints THRESHOLD OVERREACH on every surface |
 | Minimum weight coverage | 0.90 of total \|effect weight\| | Policy choice. Missing variants remove weight from the sum, so the bias is downward and systematic, not noise | Below this the raw score understates risk by an unknown amount |
 | Effective-n warning | < 10 independent contributions | Inverse Herfindahl of \|weight\|; below ~10 a single allele-frequency difference moves the score materially | Concentrated scores are the ones that fail first across ancestries |
 | LD proximity window | 250 kb | Physical-distance proxy for correlation. Real r² needs a haplotype panel this skill does not bundle | Proximity is a lower bound: it misses correlated variants that sit far apart, so effective_n stays an overestimate |
@@ -423,8 +424,8 @@ are both present, or when the user questions whether a percentile should be repo
 
 ## Citations
 
-- [Kosoy et al. 2009, Hum Mutat 30:69-78](https://pubmed.ncbi.nlm.nih.gov/18683858/); minimum
-  marker count for reliable continental ancestry assignment.
+- [Kosoy et al. 2009, Hum Mutat 30:69-78](https://pubmed.ncbi.nlm.nih.gov/18683858/); validated
+  continental assignment with AIM subsets down to 24. The skill's floor of 30 sits above it.
 - [Martin et al. 2019, Nat Genet 51:584-591](https://pubmed.ncbi.nlm.nih.gov/30926966/);
   polygenic score transferability collapses outside the discovery population.
 - [PGS Catalog](https://www.pgscatalog.org/); source of the scores and their reference populations.

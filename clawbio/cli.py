@@ -461,8 +461,9 @@ SKILLS = {
             "--reference-panel", "--individuals", "--prs-results", "--ref-pop", "--k-sd",
             "--min-markers", "--pcs", "--no-figures", "--scores", "--genotype",
             "--population-af", "--af-population", "--min-weight-coverage", "--min-effective-n",
-            "--ld-window-kb", "--no-pdf",
+            "--ld-window-kb", "--no-pdf", "--allow-threshold-overreach",
         },
+        "accepts_genotypes": True,
     },
     "just-prs": {
         "script": SKILLS_DIR / "just-prs-mcp" / "just_prs_mcp_bridge.py",

@@ -36,8 +36,9 @@ NOT_REASSURANCE = (
     "A withheld percentile is **not evidence of low risk**. It means this score "
     "cannot be interpreted for this individual, not that their risk is average or low."
 )
-# Kosoy et al. 2009 (Hum Mutat 30:69-78): lower bound of markers for reliable
-# continental assignment. Same bound used by ancestry-risk-profiler.
+# Kosoy et al. 2009 (Hum Mutat 30:69-78, PMID 18683858) validated continental
+# assignment with AIM subsets as small as 24; 30 sits deliberately above that
+# validated floor. Same bound used by ancestry-risk-profiler.
 DEFAULT_MIN_MARKERS = 30
 
 
@@ -690,8 +691,15 @@ def calibrate(
 
 # ── Decision ──────────────────────────────────────────────────────────────────
 
-def decide(individual: Individual, cal: Calibration, min_markers: int = DEFAULT_MIN_MARKERS) -> Decision:
-    """Three outcomes. Marker sufficiency is checked before distance, always."""
+def decide(individual: Individual, cal: Calibration, min_markers: int = DEFAULT_MIN_MARKERS,
+           max_credible_markers: int | None = None) -> Decision:
+    """Three outcomes. Marker sufficiency is checked before distance, always.
+
+    max_credible_markers, when supplied, is the number of valid calls in the
+    genotype file: a declared n_markers_shared above it is not credible and
+    fails closed, since an individual cannot share more markers with any panel
+    than they have genotyped.
+    """
     common = dict(
         sample_id=individual.sample_id,
         threshold=cal.threshold,
@@ -707,12 +715,30 @@ def decide(individual: Individual, cal: Calibration, min_markers: int = DEFAULT_
             reason=(
                 f"Ancestry could not be determined: {n if n is not None else 'unknown'} markers "
                 f"shared with the reference panel, below the minimum of {min_markers} "
-                f"(Kosoy et al. 2009). Placement in PC space is not possible, so distance to the "
+                f"(set above the 24-AIM subset validated in Kosoy et al. 2009). Placement in PC "
+                f"space is not possible, so distance to the "
                 f"{cal.reference_population} reference was never computed."
             ),
             remedy=(
                 "Genotype more ancestry-informative markers, or supply PC coordinates derived "
                 "from a panel that overlaps this individual's markers."
+            ),
+            **common,
+        )
+
+    if max_credible_markers is not None and n > max_credible_markers:
+        return Decision(
+            verdict="REFUSE_UNDETERMINABLE",
+            distance=None,
+            reason=(
+                f"Declared n_markers_shared={n} exceeds the {max_credible_markers} valid calls "
+                f"in the supplied genotype file. An individual cannot share more markers with "
+                f"the reference panel than they have genotyped, so the declaration is not "
+                f"credible and the marker gate cannot be trusted."
+            ),
+            remedy=(
+                "Correct n_markers_shared to the true overlap with the reference panel, or "
+                "verify that the genotype file belongs to this individual."
             ),
             **common,
         )
@@ -1386,9 +1412,11 @@ KNOWN_LIMITATIONS = [
     "Ancestry is taken as supplied PC coordinates. The skill does not verify that the "
     "coordinates came from a panel appropriate to the individual, and a projection computed "
     "against an unsuitable panel will be confidently wrong.",
-    "n_markers_shared is trusted from the individuals CSV and never cross-checked, not even "
-    "against the genotype file when one is supplied. Absent or non-numeric values fail "
-    "closed, but an inflated value passes the marker gate unconditionally.",
+    "n_markers_shared is declared in the individuals CSV. When a genotype file is supplied, "
+    "declarations above the number of valid calls fail closed, but that is an upper bound "
+    "only: the reference panel carries no marker list, so the true AIM overlap cannot be "
+    "computed, and a single --genotype is assumed to speak for every queried individual. "
+    "An inflated declaration at or below the call count still passes.",
     "Sex-specificity is detected by keyword match over the free-text trait. An absent or "
     "unreadable trait fails closed, but a sex-specific trait phrased outside the keyword "
     "list is treated as not sex-specific.",
@@ -1463,7 +1491,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     p.add_argument("--ref-pop", default="EUR", help="Reference population to gate against")
     p.add_argument("--k-sd", type=float, default=3.0, help="Threshold = mean + k*sd (default 3.0)")
     p.add_argument("--min-markers", type=int, default=DEFAULT_MIN_MARKERS,
-                   help=f"Minimum shared markers (default {DEFAULT_MIN_MARKERS}, Kosoy 2009)")
+                   help=f"Minimum shared markers (default {DEFAULT_MIN_MARKERS}, above the "
+                        f"24-AIM subset validated in Kosoy 2009)")
+    p.add_argument("--allow-threshold-overreach", action="store_true",
+                   help="Proceed even when the threshold exceeds the nearest non-reference "
+                        "individual. Without this flag, overreach is a hard error: a radius "
+                        "that admits other populations is no longer an abstention rule.")
     p.add_argument("--pcs", default=",".join(DEFAULT_PCS), help="Comma-separated PC columns")
     p.add_argument("--scores", type=Path, help="Directory of PGS Catalog scoring files")
     p.add_argument("--genotype", type=Path, help="23andMe/AncestryDNA genotype file")
@@ -1505,6 +1538,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         cal = calibrate(panel, ref_pop=args.ref_pop, k_sd=args.k_sd, pcs=pcs)
     except CalibrationError as exc:
         print(f"Calibration failed: {exc}", file=sys.stderr)
+        return 2
+    if cal.threshold_exceeds_nearest_other and not args.allow_threshold_overreach:
+        print(f"Calibration failed: threshold {cal.threshold:.2f} (k={cal.k_sd:g}) exceeds "
+              f"the nearest non-{cal.reference_population} individual at "
+              f"{cal.nearest_other:.2f}, so the gate would admit other populations and is no "
+              f"longer an abstention rule. Lower --k-sd, or pass --allow-threshold-overreach "
+              f"to proceed with the overreach warning on every surface.", file=sys.stderr)
         return 2
     individuals = load_query_individuals(args.individuals, pcs)
     scores = load_prs_results(args.prs_results)
@@ -1555,9 +1595,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             if sh is not None:
                 shifts[pid] = sh
 
+    # A genotype file bounds every credible marker declaration: no individual
+    # can share more markers with the panel than there are valid calls.
+    genotype_call_cap = (sum(1 for g in genotype.values() if g and g != "--")
+                         if genotype else None)
+
     results, pairs = [], []
     for ind in individuals:
-        dec = decide(ind, cal, min_markers=args.min_markers)
+        dec = decide(ind, cal, min_markers=args.min_markers,
+                     max_credible_markers=genotype_call_cap)
         gated = gate_scores(scores, dec, cal, sex=ind.sex,
                             audits=audits, integrity=integrity, shifts=shifts)
         results.append({"decision": dec.__dict__, "scores": gated})
