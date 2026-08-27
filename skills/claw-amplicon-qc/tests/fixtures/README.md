@@ -14,7 +14,7 @@ Original dataset: CC-BY 4.0 (astrobiomike / Michael D. Lee).
 
 - Platform: Illumina MiSeq 2×300 paired-end
 - Region: 16S rRNA V4
-- Primers: 515F (GTGCCAGCMGCCGCGGTAA) and 806R (GGACTACHVGGGTWTCTAAT), attached
+- Primers: 515F (GTGYCAGCMGCCGCGGTAA) and 806R (GGACTACNVGGGTWTCTAAT), attached
 - Reads: 500 pairs
 - Size: ~50KB per file
 
