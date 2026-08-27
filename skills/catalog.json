@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 95,
+  "skill_count": 97,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -46,7 +46,10 @@
         "plasma proteomics",
         "ADAT"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "analyze-fasta",
@@ -101,7 +104,10 @@
         "struct-predictor",
         "variant-annotation",
         "pubmed-summariser"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "ancestry-risk-profiler",
@@ -145,7 +151,10 @@
         "KCNQ1 East Asian diabetes",
         "genetic super-population disease risk"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "archaic-introgression",
@@ -178,7 +187,10 @@
         "hmmix",
         "introgressed segments"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "article-data-fetcher",
@@ -234,7 +246,10 @@
         "get files from zenodo",
         "fetch data from figshare"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "bgpt-mcp",
@@ -283,7 +298,10 @@
         "full-text data",
         "methods and results"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "bigquery-public",
@@ -320,7 +338,10 @@
         "bigquery public data",
         "public genomics dataset"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "bio-orchestrator",
@@ -349,7 +370,10 @@
         "which skill",
         "orchestrator"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "bioconductor-bridge",
@@ -401,7 +425,10 @@
         "scrna-orchestrator",
         "diff-visualizer",
         "bio-orchestrator"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "bioqc-mcp",
@@ -444,7 +471,10 @@
         "sequencing quality control",
         "generate chart qc"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "busco-assessor",
@@ -497,7 +527,10 @@
         "BUSCO bacteria",
         "run BUSCO"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "cell-detection",
@@ -539,7 +572,10 @@
         "cell counting",
         "segmentation mask"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "celltype-specificity-profiler",
@@ -591,7 +627,10 @@
         "expression specificity",
         "marker gene specificity"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "claw-ancestry-pca",
@@ -630,7 +669,10 @@
       ],
       "chaining_partners": [
         "genome-compare"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "claw-metagenomics",
@@ -669,7 +711,10 @@
         "HUMAnN3",
         "microbiome"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "claw-methylation-cycle",
@@ -708,14 +753,17 @@
         "metilación",
         "neurotransmitter synthesis"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "claw-semantic-sim",
       "cli_alias": null,
       "description": "Semantic Similarity Index for disease research literature using PubMedBERT embeddings",
       "version": "0.1.0",
-      "status": "mvp",
+      "status": "planned",
       "maturity_tier": "spec-only",
       "maturity_evidence": {
         "has_skill_md": true,
@@ -748,7 +796,10 @@
       ],
       "chaining_partners": [
         "equity-scorer"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "clawpathy-autoresearch",
@@ -789,7 +840,10 @@
         "replicate paper",
         "reproduce paper"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "clinical-trial-finder",
@@ -833,7 +887,10 @@
         "rsID",
         "variant"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "clinical-variant-prioritizer",
@@ -872,7 +929,10 @@
         "carrier status",
         "disease risk variants"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "clinical-variant-reporter",
@@ -918,7 +978,10 @@
         "ACMG SF",
         "variant interpretation"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "clinpgx",
@@ -952,7 +1015,10 @@
       "chaining_partners": [
         "pharmgx-reporter",
         "gwas-lookup"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "cnv-acmg-classifier",
@@ -991,7 +1057,10 @@
         "ClinGen dosage sensitivity",
         "deletion duplication pathogenic"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "crispr-screen-triage",
@@ -1030,7 +1099,10 @@
       "chaining_partners": [
         "target-validation-scorer",
         "omics-target-evidence-mapper"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "data-extractor",
@@ -1055,7 +1127,10 @@
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "de-summary",
@@ -1094,7 +1169,58 @@
         "volcano summary",
         "gene expression summary"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "deepspot-m",
+      "cli_alias": "deepspot-m",
+      "description": "Transcriptome-wide virtual spatial transcriptomics from H&E histology with DeepSpot-M. Scores a 224x224 tile and returns per-gene log1p-CPM values for any HGNC symbols you ask for, with a CSV, a report and a reproducibility bundle.",
+      "version": "0.3.0",
+      "status": "mvp",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run deepspot-m --demo",
+      "dependencies": [
+        "python>=3.11",
+        "deepspotm>=1.0,<2",
+        "Pillow>=9.0"
+      ],
+      "tags": [
+        "spatial-transcriptomics",
+        "histology",
+        "gene-expression",
+        "foundation-model",
+        "digital-pathology",
+        "h-and-e"
+      ],
+      "trigger_keywords": [
+        "virtual spatial transcriptomics",
+        "gene expression from histology",
+        "spatial transcriptomics from H&E",
+        "predict gene expression from a tissue image",
+        "DeepSpot-M"
+      ],
+      "chaining_partners": [
+        "marker-dominance-mapper",
+        "diff-visualizer"
+      ],
+      "license": "MIT",
+      "model_license": "cc-by-nc-sa-4.0",
+      "data_license": ""
     },
     {
       "name": "diff-visualizer",
@@ -1136,7 +1262,10 @@
       "chaining_partners": [
         "rnaseq-de",
         "scrna-orchestrator"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "dnasp",
@@ -1219,14 +1348,17 @@
         "singleton excess",
         "minor allele frequency distribution"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "drug-photo",
       "cli_alias": "drugphoto",
       "description": "Medication photo to personalised PGx dosage card via Claude vision — snap a pill, get genotype-informed guidance",
       "version": "0.1.0",
-      "status": "mvp",
+      "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
@@ -1256,7 +1388,10 @@
       ],
       "chaining_partners": [
         "pharmgx-reporter"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "drug-repurposing-screen",
@@ -1303,7 +1438,10 @@
         "pooled viability analysis",
         "context-selective compound"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "eqtl-catalogue-region-fetch",
@@ -1346,7 +1484,10 @@
         "cis-eqtl region pull",
         "GTEx eqtl region"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "equity-scorer",
@@ -1379,7 +1520,10 @@
       ],
       "chaining_partners": [
         "claw-semantic-sim"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "fastreer",
@@ -1431,7 +1575,10 @@
         "cosine distance VCF",
         "sample phylogeny"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "GPL-3.0",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "fine-mapping",
@@ -1482,7 +1629,10 @@
         "fine map locus",
         "causal SNP"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "flow-bio",
@@ -1529,7 +1679,10 @@
         "flow upload",
         "run on flow"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "galaxy-bridge",
@@ -1577,7 +1730,10 @@
         "claw-metagenomics",
         "equity-scorer",
         "vcf-annotator"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "genome-compare",
@@ -1618,7 +1774,10 @@
       "chaining_partners": [
         "claw-ancestry-pca",
         "profile-report"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "genome-match",
@@ -1656,12 +1815,15 @@
         "heterozygosity score",
         "breeding pairs"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "gi-annotation",
       "cli_alias": null,
-      "description": "Predict gene and transcript structure (intervals, exons, strand) from a DNA sequence using the Genomic Intelligence DNA Annotation model, via the hosted /v1/tasks/annotation/predict API. Async-only — the pipeline takes ~20 s for ~20 kbp.",
+      "description": "Predict gene and transcript structure (intervals, exons, strand) from a DNA sequence using the Genomic Intelligence DNA Annotation model, via the hosted /v1/tasks/annotation/predict API. Submitted asynchronously — the pipeline takes ~20 s for ~20 kbp.",
       "version": "0.1.0",
       "status": "planned",
       "maturity_tier": "tested",
@@ -1704,7 +1866,10 @@
         "gi annotation",
         "genomic intelligence annotation"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "gi-chromatin",
@@ -1756,7 +1921,10 @@
         "gi chromatin",
         "genomic intelligence chromatin"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "gi-enhancer",
@@ -1805,12 +1973,15 @@
         "gi enhancer",
         "genomic intelligence enhancer"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "gi-expression",
       "cli_alias": null,
-      "description": "Predict tissue / cell-type expression (log TPM + TPM) from a 9,198 bp TSS-centered DNA sequence using the Genomic Intelligence G0 Expression model, via the hosted /v1/tasks/expression/predict API. The model is conditioned on a free-text cell-type / assay description.",
+      "description": "Predict tissue / cell-type expression (log TPM + TPM) from a 9,198–500,000 bp TSS-centered DNA sequence (longer than one 9,198 bp window needs --tss-index) using the Genomic Intelligence G0 Expression model, via the hosted /v1/tasks/expression/predict API. The model is conditioned on a free-text cell-type / assay description.",
       "version": "0.1.0",
       "status": "planned",
       "maturity_tier": "tested",
@@ -1852,7 +2023,10 @@
         "G0 expression",
         "genomic intelligence expression"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "gi-promoter",
@@ -1900,7 +2074,10 @@
         "G0 promoter",
         "GENA-LM promoter"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "gi-splice",
@@ -1949,7 +2126,10 @@
         "G0 splice",
         "genomic intelligence splice"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "gwas-catalog-region-fetch",
@@ -1992,7 +2172,10 @@
         "GCST harmonised tabix",
         "GWAS catalog tabix"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "gwas-lookup",
@@ -2027,7 +2210,10 @@
         "clinpgx",
         "gwas-prs",
         "lit-synthesizer"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "gwas-pipeline",
@@ -2070,7 +2256,10 @@
         "polygenic",
         "case-control"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "gwas-prs",
@@ -2103,7 +2292,10 @@
       "chaining_partners": [
         "profile-report",
         "gwas-lookup"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "hla-typing",
@@ -2139,7 +2331,10 @@
         "typing",
         "from"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "illumina-bridge",
@@ -2178,7 +2373,55 @@
         "sample sheet",
         "samplesheet"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "just-prs-mcp",
+      "cli_alias": "just-prs",
+      "description": "Compute evidence-aware polygenic risk scores from a local VCF or WGS file through the validated just-prs engine and a pinned local just-prs MCP server.",
+      "version": "0.1.1",
+      "status": "mvp",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run just-prs --demo",
+      "dependencies": [
+        "python>=3.11",
+        "fastmcp>=3.4.4,<4",
+        "typer>=0.27.0,<1"
+      ],
+      "tags": [
+        "polygenic-risk-score",
+        "personal-genomics",
+        "model-quality"
+      ],
+      "trigger_keywords": [
+        "compute PRS from VCF",
+        "WGS polygenic risk score",
+        "evidence-aware PRS from VCF",
+        "just-prs"
+      ],
+      "chaining_partners": [
+        "wgs-prs",
+        "gwas-prs",
+        "profile-report"
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "labstep",
@@ -2220,7 +2463,10 @@
         "lab inventory",
         "LIMS"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "ld-1000g-region-compute",
@@ -2264,7 +2510,10 @@
         "locuszoom ld coloring",
         "1000 genomes ld panel"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "lit-synthesizer",
@@ -2309,7 +2558,10 @@
         "pubmed search",
         "recent papers on"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "locuscompare-region-render",
@@ -2361,7 +2613,10 @@
         "colocalization plot for a lead variant",
         "regional plot for coloc lead"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "marker-dominance-mapper",
@@ -2399,7 +2654,10 @@
       "chaining_partners": [
         "scrna-orchestrator",
         "diff-visualizer"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "mendelian-randomisation",
@@ -2449,7 +2707,10 @@
         "drug target validation MR",
         "GWAS causal"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "methylation-clock",
@@ -2492,7 +2753,10 @@
         "GEO",
         "GSE"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "multiqc-reporter",
@@ -2538,7 +2802,10 @@
         "combine QC",
         "QC aggregation"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "ncbi-datasets",
@@ -2593,7 +2860,10 @@
         "GCF",
         "GCA"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "nfcore-rnaseq-wrapper",
@@ -2642,7 +2912,10 @@
         "rnaseq-de",
         "diff-visualizer",
         "bio-orchestrator"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "nfcore-sarek-wrapper",
@@ -2699,7 +2972,10 @@
         "variant-annotation",
         "clinical-variant-reporter",
         "bio-orchestrator"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "nfcore-scrnaseq-wrapper",
@@ -2755,7 +3031,10 @@
         "scrna-orchestrator",
         "scrna-embedding",
         "bio-orchestrator"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "nutrigx",
@@ -2806,7 +3085,10 @@
       "chaining_partners": [
         "profile-report",
         "pharmgx-reporter"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "omics-target-evidence-mapper",
@@ -2843,7 +3125,10 @@
         "omics evidence",
         "gene disease mapper"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "organ-aging-studio",
@@ -2887,7 +3172,10 @@
         "Goeminne clock explain",
         "which proteins drive organ age"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "pathway-enricher",
@@ -2912,7 +3200,10 @@
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "pharmgx-reporter",
@@ -2954,7 +3245,10 @@
         "drug-photo",
         "profile-report",
         "clinpgx"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "phylogenetics-builder",
@@ -2999,7 +3293,10 @@
       ],
       "chaining_partners": [
         "profile-report"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "polars-bio",
@@ -3051,7 +3348,10 @@
         "BigBed",
         "genomic pileup depth"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "Apache-2.0",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "profile-report",
@@ -3091,7 +3391,10 @@
         "nutrigx",
         "gwas-prs",
         "genome-compare"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "proteomics-clock",
@@ -3139,7 +3442,10 @@
         "plasma protein aging",
         "organ-specific aging"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "proteomics-de",
@@ -3166,7 +3472,10 @@
       "trigger_keywords": [
         "Differential expression analysis of proteomics data from MaxQuant or DIA-NN output"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "protocols-io",
@@ -3206,7 +3515,10 @@
         "protocol DOI",
         "methods repository"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "pubmed-summariser",
@@ -3240,7 +3552,10 @@
         "gene papers",
         "disease papers"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "rare-disease-rnaseq",
@@ -3275,7 +3590,10 @@
         "haploinsufficiency"
       ],
       "trigger_keywords": [],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "rare-high-impact-variants",
@@ -3313,7 +3631,10 @@
         "rare,",
         "high-impact"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "recombinator",
@@ -3353,7 +3674,10 @@
         "genomebook breed",
         "next generation"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "repro-enforcer",
@@ -3378,7 +3702,10 @@
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "rnaseq-de",
@@ -3425,7 +3752,10 @@
       ],
       "chaining_partners": [
         "diff-visualizer"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "sample-qc-triage",
@@ -3465,7 +3795,10 @@
       "chaining_partners": [
         "multiqc-reporter",
         "seq-wrangler"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "scrna-embedding",
@@ -3512,7 +3845,10 @@
       ],
       "chaining_partners": [
         "scrna-orchestrator"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "scrna-orchestrator",
@@ -3561,7 +3897,10 @@
         "doublet",
         "celltypist"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "seq-wrangler",
@@ -3614,7 +3953,10 @@
         "sort and index bam",
         "process fastq"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "skill-builder",
@@ -3653,7 +3995,10 @@
         "build a skill",
         "make a skill"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "soul2dna",
@@ -3690,7 +4035,10 @@
         "synthetic genome",
         "character genome"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "struct-predictor",
@@ -3715,7 +4063,10 @@
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "target-validation-scorer",
@@ -3756,7 +4107,10 @@
         "evaluate drug target",
         "GO NO-GO decision for target"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "turingdb-graph",
@@ -3808,7 +4162,10 @@
         "comorbidity analysis",
         "comedication analysis"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "ukb-navigator",
@@ -3840,7 +4197,10 @@
       ],
       "chaining_partners": [
         "llm-biobank-bench"
-      ]
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "ukb-ppp-region-fetch",
@@ -3883,7 +4243,10 @@
         "protein qtl summary stats",
         "plasma pqtl regional fetch"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "variant-annotation",
@@ -3923,7 +4286,10 @@
         "annotate variants",
         "pathogenic variants"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "vcf-annotator",
@@ -3969,7 +4335,10 @@
         "annotate my vcf",
         "what variants are pathogenic"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "wes-clinical-report-en",
@@ -4008,7 +4377,10 @@
         "Novogene report english",
         "WES report PDF"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "PROPRIETARY",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "wgs-prs",
@@ -4057,7 +4429,10 @@
         "WGS pipeline",
         "raw sequencing to risk scores"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "xena-tcga-gene-query",
@@ -4070,15 +4445,15 @@
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
-        "has_demo": false,
+        "has_demo": true,
         "cli_registered": false,
         "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
       "has_tests": true,
-      "has_demo": false,
-      "demo_command": null,
+      "has_demo": true,
+      "demo_command": "python skills/xena-tcga-gene-query/scripts/query_tcga_api.py --demo",
       "dependencies": [
         "python>=3.10"
       ],
@@ -4107,7 +4482,10 @@
         "生存分析",
         "预后"
       ],
-      "chaining_partners": []
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     }
   ]
 }
