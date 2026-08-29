@@ -321,13 +321,14 @@ def annotate_variants_vep(
 ) -> tuple[list[VariantEvidence], dict[str, str] | None]:
     """Annotate variants via Ensembl VEP REST API.
 
-    Returns (evidence_list, source_versions). source_versions distinguishes
-    two failure states rather than collapsing both to None:
-      - None: no VEP batch succeeded this run (nothing was annotated), so a
-        report must not make any data-source claim at all.
-      - {} (empty dict): at least one VEP batch succeeded, but the separate
-        Ensembl data-source version lookup itself failed. Annotation is real;
-        the version check is what's missing.
+    Returns (evidence_list, source_versions). A VEP batch failure aborts the
+    run rather than returning placeholder evidence that can be misclassified.
+    source_versions still distinguishes successful annotation states:
+      - None: no annotation was attempted, so a report must not make any
+        data-source claim at all.
+      - {} (empty dict): annotation succeeded, but the separate Ensembl
+        data-source version lookup itself failed. Annotation is real; the
+        version check is what's missing.
       - a non-empty dict: the lookup succeeded (individual sources may still
         be absent from Ensembl's response).
 
@@ -359,13 +360,16 @@ def annotate_variants_vep(
             resp.raise_for_status()
             vep_results = resp.json()
         except Exception as exc:
-            print(f"WARNING: VEP batch failed ({exc}). Marking {len(batch)} variants as unannotated.", file=sys.stderr)
-            for rec in batch:
-                evidence_list.append(VariantEvidence(
-                    chrom=rec.chrom, pos=rec.pos, ref=rec.ref, alt=rec.alt,
-                    gene=rec.info.get("GENE", ""),
-                ))
-            continue
+            raise RuntimeError(
+                f"VEP annotation failed for a batch of {len(batch)} variants "
+                f"(batch starting at index {batch_start})."
+            ) from exc
+
+        if not isinstance(vep_results, list) or not all(isinstance(vr, dict) for vr in vep_results):
+            raise RuntimeError(
+                f"Malformed VEP response for a batch of {len(batch)} variants "
+                f"(batch starting at index {batch_start})."
+            )
 
         any_batch_succeeded = True
         result_map: dict[str, dict] = {}
