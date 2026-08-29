@@ -15,6 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from vcf_annotator import (
     DEMO_ANNOTATIONS,
+    DEMO_VCF_CONTENT,
     IMPACT_RANK,
     generate_report,
     parse_vcf,
@@ -216,6 +217,27 @@ class TestDemoData:
         impacts = [v["impact"] for v in DEMO_ANNOTATIONS]
         ranks   = [IMPACT_RANK.get(i, 5) for i in impacts]
         assert ranks == sorted(ranks)
+
+    def test_demo_grch38_coordinates(self):
+        expected = {
+            "rs80357382": ("17", "43106457"),
+            "rs429358": ("19", "44908684"),
+            "rs1801133": ("1", "11796321"),
+        }
+        by_id = {v["id"]: v for v in DEMO_ANNOTATIONS}
+        for rsid, (chrom, pos) in expected.items():
+            assert by_id[rsid]["chrom"] == chrom
+            assert by_id[rsid]["pos"] == pos
+        vcf = DEMO_VCF_CONTENT
+        assert "19\t44908684\trs429358" in vcf
+        assert "1\t11796321\trs1801133" in vcf
+        assert "17\t43106457\trs80357382" in vcf
+
+    def test_demo_brca1_is_missense_not_duplication(self):
+        brca1 = next(v for v in DEMO_ANNOTATIONS if v["id"] == "rs80357382")
+        assert brca1["consequence"] == "missense_variant"
+        assert brca1["impact"] == "MODERATE"
+        assert "dup" not in brca1["hgvs"].lower()
 
 
 # ── CLI entry point ────────────────────────────────────────────────────────────
