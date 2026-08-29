@@ -68,6 +68,7 @@ def test_environment_yml_pins_skill_versions(tmp_path):
     content = (out / "reproducibility" / "environment.yml").read_text()
     assert "name: clawbio-equity-scorer" in content
     # Version bounds from SKILL.md "Dependencies"
+    assert "biopython>=1.82" in content
     assert "pandas>=2.0" in content
     assert "numpy>=1.24" in content
     assert "scikit-learn>=1.3" in content
@@ -88,27 +89,49 @@ def test_checksums_verify_from_output_dir(tmp_path):
         assert digest == sha256_file(target), "digest mismatch for %s" % label
 
 
+VCF_MANIFEST = {
+    "tables/population_summary.csv",
+    "tables/fst_matrix.csv",
+    "tables/heterozygosity.csv",
+    "tables/heim_score.json",
+    "figures/heim_gauge.png",
+    "figures/ancestry_bar.png",
+    "figures/heterozygosity.png",
+    "figures/fst_heatmap.png",
+    "figures/pca_plot.png",
+}
+
+CSV_MANIFEST = {
+    "tables/population_summary.csv",
+    "tables/heim_score.json",
+    "figures/heim_gauge.png",
+    "figures/ancestry_bar.png",
+}
+
+
 def test_checksums_cover_derived_artefacts(tmp_path):
     out = run_vcf(tmp_path)
+    # Exact set: a truncated manifest AND a manifest padded with stale or
+    # foreign entries must both go red. Out-of-tree inputs and the
+    # wall-clock-stamped report.md/result.json are deliberately outside
+    # the envelope (they either never resolve from output_dir or never
+    # re-verify), so set equality also pins their absence.
+    assert set(read_checksums(out)) == VCF_MANIFEST
+
+
+def test_manifest_ignores_artefacts_from_previous_runs(tmp_path):
+    """Re-running a different pipeline into the same output directory must
+    not certify leftovers: the manifest names this run's outputs instead of
+    globbing whatever tables/ and figures/ happen to contain."""
+    out = tmp_path / "out"
+    run_vcf_pipeline(DEMO_VCF, DEMO_MAP, out, DEFAULT_WEIGHTS)
+    run_csv_pipeline(DEMO_CSV, out, DEFAULT_WEIGHTS)
     entries = read_checksums(out)
-    for rel in (
-        "tables/population_summary.csv",
-        "tables/fst_matrix.csv",
-        "tables/heterozygosity.csv",
-        "tables/heim_score.json",
-        "figures/heim_gauge.png",
-        "figures/ancestry_bar.png",
-        "figures/heterozygosity.png",
-        "figures/fst_heatmap.png",
-        "figures/pca_plot.png",
-    ):
-        assert rel in entries, "missing from manifest: %s" % rel
-    # Out-of-tree inputs and wall-clock-stamped outputs must not be listed:
-    # they either never resolve from output_dir or never re-verify.
-    assert DEMO_VCF.name not in entries
-    assert DEMO_MAP.name not in entries
-    assert "report.md" not in entries
-    assert "result.json" not in entries
+    assert set(entries) == CSV_MANIFEST
+    # The stale VCF-run artefacts are still on disk — that is the trap.
+    assert (out / "tables" / "fst_matrix.csv").exists()
+    for label, digest in entries.items():
+        assert digest == sha256_file(out / label)
 
 
 def test_checksums_reproduce_on_replay(tmp_path):
@@ -131,7 +154,43 @@ def test_csv_pipeline_writes_bundle(tmp_path):
     assert '"$CLAWBIO_ROOT/examples/sample_ancestry.csv"' in content
     assert "--pop-map" not in content
     entries = read_checksums(out)
-    assert "tables/population_summary.csv" in entries
-    assert "tables/heim_score.json" in entries
+    assert set(entries) == CSV_MANIFEST
     for label, digest in entries.items():
         assert digest == sha256_file(out / label)
+
+
+def test_out_of_repo_inputs_do_not_leak_paths(tmp_path):
+    """A user-supplied input outside the repo must not be recorded as a bare
+    absolute path in commands.sh — that would disclose the local filesystem
+    location of a cohort file in a deposited bundle. It is rendered as
+    "$INPUT_DIR/<name>" with the variable required at replay time."""
+    import shutil
+
+    external = tmp_path / "cohort data"
+    external.mkdir()
+    vcf = external / "my cohort.vcf"
+    pop_map = external / "my map.csv"
+    shutil.copy(DEMO_VCF, vcf)
+    shutil.copy(DEMO_MAP, pop_map)
+
+    out = tmp_path / "out"
+    run_vcf_pipeline(vcf, pop_map, out, DEFAULT_WEIGHTS)
+    content = (out / "reproducibility" / "commands.sh").read_text()
+
+    assert str(external) not in content
+    assert '"$INPUT_DIR/my cohort.vcf"' in content
+    assert '"$POP_MAP_DIR/my map.csv"' in content
+    # Replay must fail loudly if the variables are unset, not guess a path.
+    assert "${INPUT_DIR:?" in content
+    assert "${POP_MAP_DIR:?" in content
+
+
+def test_sha256_file_matches_known_digest(tmp_path):
+    """Pin sha256_file byte semantics against a known-good constant so the
+    manifest digests are anchored to more than the helper's own output."""
+    fixture = tmp_path / "fixture.txt"
+    fixture.write_bytes(b"ClawBio reproducibility fixture\n")
+    assert (
+        sha256_file(fixture)
+        == "01acddcefb698fd0b67f17afaa30db2ad84d923f776a7625aa0ca56586d4b54c"
+    )

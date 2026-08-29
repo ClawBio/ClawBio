@@ -80,8 +80,20 @@ POP_COLOURS = {
 # REPRODUCIBILITY BUNDLE (delegates to shared library)
 # ===================================================================
 
-def _repro_path(value: Path, *, output_dir: Path) -> ReproPath:
-    """Classify a path for portable reproducibility command rendering."""
+def _repro_input_arg(
+    value: Path,
+    *,
+    output_dir: Path,
+    var_name: str,
+    preflight: list,
+):
+    """Classify an input path for portable reproducibility command rendering.
+
+    Inputs outside the repo must not be recorded as absolute paths: a
+    deposited bundle would disclose the local filesystem location of a
+    cohort file. They are rendered as "$<var_name>/<basename>" with a
+    preflight line requiring the variable at replay time.
+    """
     value = value.resolve()
     try:
         value.relative_to(_PROJECT_ROOT)
@@ -93,7 +105,11 @@ def _repro_path(value: Path, *, output_dir: Path) -> ReproPath:
         value.relative_to(output_dir.resolve())
         return ReproPath(value, anchor="output_dir")
     except ValueError:
-        return ReproPath(value, anchor="auto")
+        preflight.append(
+            ': "${%s:?Set %s to the directory containing %s}"'
+            % (var_name, var_name, value.name)
+        )
+        return '"$%s/%s"' % (var_name, value.name)
 
 
 def _write_repro_bundle(
@@ -101,12 +117,26 @@ def _write_repro_bundle(
     input_path: Path,
     pop_map_path: Optional[Path],
     weights: Tuple[float, ...],
+    checksum_paths: List[Path],
 ) -> None:
     """Write commands.sh, environment.yml, and checksums.sha256 to
     <output_dir>/reproducibility/ via clawbio.common.reproducibility."""
-    args: list = ["--input", _repro_path(input_path, output_dir=output_dir)]
+    preflight: list = []
+    args: list = [
+        "--input",
+        _repro_input_arg(
+            input_path, output_dir=output_dir, var_name="INPUT_DIR",
+            preflight=preflight,
+        ),
+    ]
     if pop_map_path is not None:
-        args += ["--pop-map", _repro_path(pop_map_path, output_dir=output_dir)]
+        args += [
+            "--pop-map",
+            _repro_input_arg(
+                pop_map_path, output_dir=output_dir, var_name="POP_MAP_DIR",
+                preflight=preflight,
+            ),
+        ]
     args += [
         "--output", ReproPath(output_dir, anchor="output_dir"),
         # str() round-trips floats exactly; rounding here would record a
@@ -119,6 +149,7 @@ def _write_repro_bundle(
             script_path=Path("skills/equity-scorer/equity_scorer.py"),
             args=args,
             comment="Replay this ClawBio equity-scorer run",
+            preflight=preflight,
         ),
         repo_root=_PROJECT_ROOT,
     )
@@ -130,6 +161,7 @@ def _write_repro_bundle(
         output_dir,
         env_name="clawbio-equity-scorer",
         conda_deps=[
+            "biopython>=1.82",
             "numpy>=1.24",
             "pandas>=2.0",
             "matplotlib>=3.7",
@@ -143,13 +175,12 @@ def _write_repro_bundle(
     # relative to output_dir so `cd <output_dir> && sha256sum -c` works.
     # report.md and result.json embed wall-clock timestamps and would never
     # re-verify; inputs live outside output_dir and are excluded (result.json
-    # already records the input digest as input_checksum).
-    checksum_targets: list = []
-    for sub in ("tables", "figures"):
-        subdir = output_dir / sub
-        if subdir.is_dir():
-            checksum_targets.extend(p for p in sorted(subdir.iterdir()) if p.is_file())
-    write_checksums(checksum_targets, output_dir, anchor=output_dir)
+    # already records the input digest as input_checksum). The caller names
+    # this run's outputs explicitly — globbing tables/ and figures/ would
+    # certify stale artefacts left behind by a previous run into the same
+    # directory. Figures skipped at runtime (no matplotlib) are skipped by
+    # write_checksums too.
+    write_checksums(checksum_paths, output_dir, anchor=output_dir)
 
 
 # ===================================================================
@@ -1088,7 +1119,20 @@ def run_vcf_pipeline(
         input_checksum=sha256_file(str(vcf_path)) if vcf_path.exists() else "",
     )
 
-    _write_repro_bundle(output_dir, vcf_path, pop_map_path, weights)
+    _write_repro_bundle(
+        output_dir, vcf_path, pop_map_path, weights,
+        checksum_paths=[
+            tables_dir / "population_summary.csv",
+            tables_dir / "fst_matrix.csv",
+            tables_dir / "heterozygosity.csv",
+            tables_dir / "heim_score.json",
+            figures_dir / "heim_gauge.png",
+            figures_dir / "ancestry_bar.png",
+            figures_dir / "heterozygosity.png",
+            figures_dir / "fst_heatmap.png",
+            figures_dir / "pca_plot.png",
+        ],
+    )
 
     print("\nDone.")
     print("  HEIM Score: %s/100 (%s)" % (heim_result["heim_score"], heim_result["rating"]))
@@ -1172,7 +1216,15 @@ def run_csv_pipeline(
         input_checksum=sha256_file(str(csv_path)) if csv_path.exists() else "",
     )
 
-    _write_repro_bundle(output_dir, csv_path, None, weights)
+    _write_repro_bundle(
+        output_dir, csv_path, None, weights,
+        checksum_paths=[
+            tables_dir / "population_summary.csv",
+            tables_dir / "heim_score.json",
+            figures_dir / "heim_gauge.png",
+            figures_dir / "ancestry_bar.png",
+        ],
+    )
 
     print("HEIM Score: %s/100 (%s)" % (heim_result["heim_score"], heim_result["rating"]))
     print("Report: %s" % report_path)
