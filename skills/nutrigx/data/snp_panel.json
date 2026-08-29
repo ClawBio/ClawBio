@@ -32,7 +32,7 @@
   {"rsid": "rs1229984", "gene": "ADH1B",  "ref_allele": "G", "risk_allele": "A", "nutrient_domain": "alcohol", "weight": 0.80, "effect_direction": "altered_acetaldehyde_accumulation", "pmid": "14685153"},
   {"rsid": "rs671",     "gene": "ALDH2",  "ref_allele": "G", "risk_allele": "A", "nutrient_domain": "alcohol", "weight": 0.90, "effect_direction": "impaired_acetaldehyde_clearance", "pmid": "12042820"},
 
-  {"rsid": "rs4988235", "gene": "MCM6",   "ref_allele": "G", "risk_allele": "A", "nutrient_domain": "lactose", "weight": 0.95, "effect_direction": "lactase_non_persistence", "pmid": "12369657"},
+  {"rsid": "rs4988235", "gene": "MCM6",   "ref_allele": "A", "risk_allele": "G", "nutrient_domain": "lactose", "weight": 0.95, "effect_direction": "lactase_non_persistence", "inheritance": "dominant_protective", "pmid": "11788828"},
 
   {"rsid": "rs4880",    "gene": "SOD2",   "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "antioxidant", "weight": 0.55, "effect_direction": "decreased_mitochondrial_antioxidant", "pmid": "14607993"},
   {"rsid": "rs1050450", "gene": "GPX1",   "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "antioxidant", "weight": 0.50, "effect_direction": "decreased_glutathione_peroxidase", "pmid": "11786716"},

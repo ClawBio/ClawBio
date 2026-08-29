@@ -132,7 +132,7 @@ The Bio Orchestrator should route to this skill when the user says anything like
 
 | Gene    | SNP        | Sensitivity          | Effect                          |
 |---------|------------|----------------------|---------------------------------|
-| MCM6    | rs4988235  | Lactose intolerance  | Non-persistence of lactase      |
+| MCM6    | rs4988235  | Lactose intolerance  | Risk allele G (GRCh38 plus / -13910C) is non-persistence; persistence allele A (-13910T) is dominant |
 | HLA-DQ2 | Proxy SNPs | Coeliac / gluten     | HLA-DQA1/DQB1 risk haplotypes   |
 
 ### Antioxidant & Detoxification
@@ -168,10 +168,14 @@ For each SNP in the panel:
 
 ### 3. Risk Scoring (`score_variants.py`)
 
-Each SNP is scored on a **0 / 0.5 / 1.0** scale:
+Each SNP is scored on a **0 / 0.5 / 1.0** scale by default:
 - `0.0` — homozygous reference (lowest risk)
 - `0.5` — heterozygous
 - `1.0` — homozygous risk allele
+
+Lactose (`rs4988235`) uses `inheritance: dominant_protective`. One copy of the
+persistence allele is enough, so AA and AG score as persistent (0.0) and only
+GG scores as non-persistence (1.0).
 
 Composite **Nutrient Risk Scores** (0–10) are computed per nutrient domain by
 summing weighted SNP scores. Weights are derived from reported effect sizes
@@ -313,6 +317,7 @@ Key literature underpinning the SNP panel and scoring algorithm:
 - Lecerf JM & de Lorgeril M (2011). Dietary cholesterol: from physiology to cardiovascular risk. *Br J Nutr*.
 - Tanaka T et al. (2009). Genome-wide association study of plasma polyunsaturated fatty acids in the InCHIANTI Study. *PLoS Genet* (FADS1/2).
 - Cornelis MC et al. (2006). Coffee, CYP1A2 genotype, and risk of myocardial infarction. *JAMA*.
+- Enattah NS et al. (2002). Identification of a variant associated with adult-type hypolactasia. *Nat Genet* 30:233–237. PMID 11788828.
 
 ---
 

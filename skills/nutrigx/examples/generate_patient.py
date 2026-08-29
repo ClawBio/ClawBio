@@ -67,7 +67,7 @@ RISK_ALLELE_FREQS = {
     "rs4410790":  0.41,   # AHR
     "rs1229984":  0.05,   # ADH1B (mainly East Asian: ~0.70; European: ~0.05)
     "rs671":      0.00,   # ALDH2 (essentially absent in Europeans; ~0.30 East Asian)
-    "rs4988235":  0.35,   # MCM6 lactase non-persistence
+    "rs4988235":  0.35,   # MCM6 lactase non-persistence (G on GRCh38 plus)
     "rs4880":     0.47,   # SOD2
     "rs1050450":  0.28,   # GPX1
     "rs1800566":  0.22,   # NQO1
@@ -131,7 +131,7 @@ REF_ALLELES = {
     "rs4410790":  "C",
     "rs1229984":  "G",
     "rs671":      "G",
-    "rs4988235":  "G",
+    "rs4988235":  "A",
     "rs4880":     "T",
     "rs1050450":  "C",
     "rs1800566":  "C",
@@ -162,7 +162,7 @@ RISK_ALLELES = {
     "rs4410790":  "T",
     "rs1229984":  "A",
     "rs671":      "A",
-    "rs4988235":  "A",
+    "rs4988235":  "G",
     "rs4880":     "C",
     "rs1050450":  "T",
     "rs1800566":  "T",
