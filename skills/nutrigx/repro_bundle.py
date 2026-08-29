@@ -21,12 +21,18 @@ from clawbio.common.reproducibility import (  # noqa: E402
     write_commands_sh,
     write_environment_yml,
 )
+from clawbio.common.textio import write_text_lf  # noqa: E402
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 def create_reproducibility_bundle(input_file: str, output_dir: str, panel_path: str, args: dict):
     output_dir = Path(output_dir)
+    report_path = output_dir / "nutrigx_report.md"
+    if not report_path.exists():
+        raise FileNotFoundError(
+            f"cannot build reproducibility bundle: {report_path} was not generated"
+        )
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     cmd_args = " ".join(
@@ -46,8 +52,8 @@ def create_reproducibility_bundle(input_file: str, output_dir: str, panel_path: 
         f"# 2. Run analysis\n"
         f"python nutrigx.py {cmd_args}\n"
         f"\n"
-        f"# 3. Verify checksums\n"
-        f"sha256sum -c checksums.sha256",
+        f"# 3. Verify output checksums (labels are relative to the output directory)\n"
+        f'( cd "$(dirname "$0")/.." && sha256sum -c reproducibility/checksums.sha256 )',
     )
 
     write_environment_yml(
@@ -58,18 +64,21 @@ def create_reproducibility_bundle(input_file: str, output_dir: str, panel_path: 
         pip_deps=["clawbio==0.1.0"],
     )
 
-    write_checksums(
-        [input_file, panel_path, output_dir / "nutrigx_report.md"],
-        output_dir,
-    )
+    # Manifest covers outputs only, labelled relative to output_dir so that
+    # `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256` passes.
+    # Inputs are attested below in provenance.json instead.
+    write_checksums([report_path], output_dir, anchor=output_dir)
 
     provenance = {
         "tool": "ClawBio NutriGx Advisor",
         "version": VERSION,
         "timestamp": timestamp,
         "input_file": Path(input_file).name,
+        "input_sha256": sha256_file(input_file),
+        "panel_sha256": sha256_file(panel_path),
         "args": args,
     }
-    (output_dir / "reproducibility" / "provenance.json").write_text(
-        json.dumps(provenance, indent=2)
+    write_text_lf(
+        output_dir / "reproducibility" / "provenance.json",
+        json.dumps(provenance, indent=2) + "\n",
     )

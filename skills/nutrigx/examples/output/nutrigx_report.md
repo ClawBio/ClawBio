@@ -262,7 +262,7 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 ## Reproducibility
 
 This report was generated deterministically. See `commands.sh` and `environment.yml`
-in the output directory to reproduce this analysis on any machine.
+in the `reproducibility/` subdirectory to reproduce this analysis on any machine.
 
 ## References
 

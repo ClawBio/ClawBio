@@ -4,7 +4,7 @@ description: Personalised nutrition report from consumer genetic data (23andMe, 
   SNPs and generates actionable dietary guidance, all computed locally.
 license: MIT
 metadata:
-  version: 0.1.0
+  version: 0.2.0
   author: David de Lorenzo
   tags:
   - nutrigenomics
@@ -203,8 +203,12 @@ Delegates to the shared `clawbio.common.reproducibility` layer and exports to
 `<output_dir>/reproducibility/` (not committed to the repo):
 - `commands.sh` — full CLI to reproduce analysis
 - `environment.yml` — pinned conda environment
-- `checksums.sha256` — SHA-256 checksums of input and output files
-- `provenance.json` — timestamp and ClawBio version tag
+- `checksums.sha256` — SHA-256 checksums of output files, labelled relative to
+  the output directory (verify with `cd <output_dir> && sha256sum -c
+  reproducibility/checksums.sha256`); files that fail to generate abort the
+  bundle rather than being silently omitted
+- `provenance.json` — timestamp, ClawBio version tag, and SHA-256 checksums of
+  the input file and SNP panel
 
 ---
 
@@ -242,7 +246,8 @@ skills/nutrigx/
 │   └── snp_panel.json            ← curated SNP definitions
 ├── tests/
 │   ├── synthetic_patient.csv     ← fixed 23andMe-format test data (for pytest)
-│   └── test_nutrigx.py           ← pytest suite
+│   ├── test_nutrigx.py           ← pytest suite
+│   └── test_repro_bundle.py      ← reproducibility bundle tests
 └── examples/
     ├── generate_patient.py       ← random patient generator (demo use)
     ├── data/                     ← generated patient files land here (gitignored)

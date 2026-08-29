@@ -62,29 +62,45 @@ def test_environment_yml_in_reproducibility_dir(tmp_path):
     assert "clawbio==0.1.0" in content
 
 
-def test_checksums_match_common_sha256(tmp_path):
+def test_checksums_are_outputs_only_and_resolve_from_output_dir(tmp_path):
     output_dir = make_bundle(tmp_path)
     checksum_path = output_dir / "reproducibility" / "checksums.sha256"
     assert checksum_path.exists()
     lines = checksum_path.read_text().strip().splitlines()
-    entries = dict(reversed(line.split("  ", 1)) for line in lines)
-    assert entries[SYNTHETIC.name] == common_sha256_file(SYNTHETIC)
-    assert entries[PANEL.name] == common_sha256_file(PANEL)
-    assert "nutrigx_report.md" in entries
+    assert lines, "manifest must not be empty"
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        target = output_dir / label
+        assert target.exists(), f"label {label!r} must resolve from output_dir"
+        assert common_sha256_file(target) == digest
+    labels = [line.split("  ", 1)[1] for line in lines]
+    assert "nutrigx_report.md" in labels
+    # Inputs are attested in provenance.json, not the sha256sum manifest.
+    assert SYNTHETIC.name not in labels
+    assert PANEL.name not in labels
 
 
-def test_checksums_skip_missing_files(tmp_path):
+def test_commands_sh_verify_step_resolves(tmp_path):
+    output_dir = make_bundle(tmp_path)
+    content = (output_dir / "reproducibility" / "commands.sh").read_text()
+    assert "sha256sum -c reproducibility/checksums.sha256" in content
+    assert "sha256sum -c checksums.sha256" not in content
+
+
+def test_missing_report_raises(tmp_path):
     output_dir = tmp_path / "out"
     output_dir.mkdir()  # no nutrigx_report.md on disk
-    repro_bundle.create_reproducibility_bundle(
-        input_file=str(SYNTHETIC),
-        output_dir=str(output_dir),
-        panel_path=str(PANEL),
-        args={},
-    )
-    content = (output_dir / "reproducibility" / "checksums.sha256").read_text()
-    assert "nutrigx_report.md" not in content
-    assert "FILE_NOT_FOUND" not in content
+    try:
+        repro_bundle.create_reproducibility_bundle(
+            input_file=str(SYNTHETIC),
+            output_dir=str(output_dir),
+            panel_path=str(PANEL),
+            args={},
+        )
+    except FileNotFoundError as exc:
+        assert "nutrigx_report.md" in str(exc)
+    else:
+        raise AssertionError("bundle built without the report it must attest")
 
 
 def test_provenance_json(tmp_path):
@@ -94,5 +110,24 @@ def test_provenance_json(tmp_path):
     prov = json.loads(prov_path.read_text())
     assert prov["tool"] == "ClawBio NutriGx Advisor"
     assert prov["input_file"] == SYNTHETIC.name
+    assert prov["input_sha256"] == common_sha256_file(SYNTHETIC)
+    assert prov["panel_sha256"] == common_sha256_file(PANEL)
     assert "timestamp" in prov
     assert "args" in prov
+    assert b"\r" not in prov_path.read_bytes(), "provenance.json must be LF-only"
+
+
+def test_version_is_consistent():
+    assert repro_bundle.VERSION == "0.2.0"
+    skill_md = (SKILL_DIR / "SKILL.md").read_text()
+    assert "version: 0.2.0" in skill_md
+    nutrigx_src = (SKILL_DIR / "nutrigx.py").read_text()
+    assert 'version="0.1.0"' not in nutrigx_src
+    assert "version=VERSION" in nutrigx_src
+
+
+def test_report_footer_points_at_reproducibility_dir():
+    import generate_report as gr
+
+    src = Path(gr.__file__).read_text()
+    assert "`reproducibility/` subdirectory" in src
