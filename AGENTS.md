@@ -53,7 +53,8 @@ Tests must pass on Python 3.10, 3.11, and 3.12. CI runs all three via GitHub Act
 - **Naming**: Skill folders use lowercase-hyphens (`gwas-lookup`). Python files use lowercase_underscores (`gwas_lookup.py`).
 - **Imports**: Sibling modules loaded via `importlib.util.spec_from_file_location` — no package structure.
 - **CLI**: Every skill script accepts `--input`, `--output`, and `--demo`. Use `argparse`.
-- **Output**: Skills write to `<output_dir>/report.md` (primary), plus `figures/`, `tables/`, `reproducibility/` subdirectories as needed. Return a `result.json` with structured findings.
+- **Output**: Skills write to `<output_dir>/report.md` (primary), plus `figures/` and `tables/` subdirectories as needed. Return a `result.json` with structured findings.
+- **Reproducibility**: Every skill with a Python implementation writes `<output_dir>/reproducibility/` (`commands.sh`, `environment.yml`, `checksums.sha256`) using `clawbio.common.reproducibility` — `write_commands_sh`, `write_environment_yml`, `write_checksums`. Do not hand-roll these writers. Label checksums relative to the output directory (`anchor=output_dir`) so `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256` resolves.
 - **Dependencies**: Add to `requirements.txt` for core deps. Skill-specific heavy deps go in the skill's SKILL.md YAML `install` section.
 
 ## Project Structure
@@ -118,12 +119,13 @@ Even skills without Python scripts are usable — an AI agent reads the SKILL.md
 2. **Copy the template**: `cp templates/SKILL-TEMPLATE.md skills/<your-skill-name>/SKILL.md`
 3. **Fill in SKILL.md**: Complete all YAML frontmatter fields and every Markdown section
 4. **Add Python implementation** (optional): Main script accepting `--input`, `--output`, `--demo`
-5. **Add demo data**: Include a small synthetic dataset for `--demo` mode
-6. **Add tests**: Create `tests/test_<name>.py` with at least demo-mode coverage
-7. **Register in `clawbio.py`**: Add an entry to the `SKILLS` dict with script path, demo_args, description, and allowed_extra_flags
-8. **Register in `pytest.ini`**: Add the test path to `testpaths`
-9. **Regenerate catalog**: `python scripts/generate_catalog.py`
-10. **Verify**: `python clawbio.py list` shows the skill; `python -m pytest` passes
+5. **Write the reproducibility bundle** (if step 4 applies): Call `clawbio.common.reproducibility` helpers so the run writes `<output_dir>/reproducibility/`, and keep that directory listed in the SKILL.md `## Output Structure` tree — do not prune it to make `TestOutputContract` pass
+6. **Add demo data**: Include a small synthetic dataset for `--demo` mode
+7. **Add tests**: Create `tests/test_<name>.py` with at least demo-mode coverage
+8. **Register in `clawbio.py`**: Add an entry to the `SKILLS` dict with script path, demo_args, description, and allowed_extra_flags
+9. **Register in `pytest.ini`**: Add the test path to `testpaths`
+10. **Regenerate catalog**: `python scripts/generate_catalog.py`
+11. **Verify**: `python clawbio.py list` shows the skill; `python -m pytest` passes
 
 ## How to Modify an Existing Skill
 
