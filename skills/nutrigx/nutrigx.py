@@ -25,7 +25,7 @@ from clawbio.common.checksums import sha256_hex
 from extract_genotypes import extract_snp_genotypes
 from score_variants import compute_nutrient_risk_scores
 from generate_report import generate_report
-from repro_bundle import create_reproducibility_bundle
+from repro_bundle import VERSION, create_reproducibility_bundle
 
 
 def main():
@@ -149,7 +149,7 @@ def main():
     write_result_json(
         output_dir=output_dir,
         skill="nutrigx",
-        version="0.2.0",
+        version=VERSION,
         summary={
             "total_variants_loaded": len(genotype_table),
             "panel_snps_tested": total_tested,
