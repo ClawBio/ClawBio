@@ -120,7 +120,7 @@
   </nav>
   <a href="/benchmarks.html" style="display:block;background:linear-gradient(90deg,#238636,#1f6feb);color:#fff;text-align:center;padding:0.7rem 1rem;font-size:0.95rem;font-weight:600;text-decoration:none;">📊 Public Benchmark Leaderboard | 161/182 passing (88.5%), 26 Jul 2026 | nutrigx-advisor regressed to 0/10 and is being investigated | Every failure documented &rarr;</a>
   <section class="hero">
-    <div class="hero-badge">📊 Publicly benchmarked · 1,120 stars · 97 skills · 50 contributors · 4,541 tests</div>
+    <div class="hero-badge">📊 Publicly benchmarked · 1,120 stars · 97 skills · 50 contributors · 4,570 tests</div>
     <h1>The first <em>bioinformatics-native</em><br>AI agent skill library</h1>
     <p>ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call.</p>
     <div style="max-width:440px;margin:0 auto 2rem;">
@@ -252,7 +252,7 @@
   <section id="skills" style="background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
     <div class="section-inner">
       <div class="section-label">Skills Library</div>
-      <div class="section-title">97 skills · 92 with runnable demo data · 4,541 tests · 161 / 182 publicly benchmarked passing</div>
+      <div class="section-title">97 skills · 92 with runnable demo data · 4,570 tests · 161 / 182 publicly benchmarked passing</div>
       <p class="section-sub">Each skill includes demo data so you can try it immediately without your own files.</p>
       <div class="skills-grid">
         <div class="skill-card"><div><div class="skill-name">💊 PharmGx Reporter</div><div class="skill-desc">Pharmacogenomic report from 23andMe/AncestryDNA: 12 genes, 31 SNPs, 51 drugs, CPIC guidelines.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
@@ -345,17 +345,59 @@
       <div class="section-title">Latest from the community</div>
       <div style="display:grid;gap:0.75rem;max-width:700px;">
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🔧</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Refactor: SHA-256 helpers delegated to clawbio.common.checksums.</strong> Checksum utilities previously duplicated across skills are now centralised in a shared module, reducing maintenance burden and ensuring consistent hashing behaviour. Contributed by @camlloyd.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #351 · merged · 26 August 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(catalog): sync nutrigx version.</strong> The catalog entry for nutrigx had a stale version string that did not match the implementation; now kept in sync automatically.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #377 · merged · 30 August 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(nutrigx): correct rs4988235 lactose polarity and dominance.</strong> The lactose-persistence variant rs4988235 was encoded with the wrong risk polarity and an incorrect dominance model, leading to inverted dietary guidance for heterozygous carriers. Contributed by @krudo-taco.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #376 · merged · 30 August 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">⚙️</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Feat(scaffold): generate a working reproducibility bundle for new skills.</strong> The skill scaffolding tool now produces a fully wired reproducibility bundle alongside each new skill, so contributors get correct replay command stubs and checksum hooks from the first commit. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #374 · merged · 30 August 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">📄</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Docs: CI false claim about #329 environment.yml corrected.</strong> A documentation fix removing an inaccurate statement that PR #329 included a committed environment.yml alongside the CI scripts, which it did not.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #363 · merged · 23 August 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Docs: disclose Nebius report upload behaviour.</strong> The skill documentation now explicitly states when and how Nebius-backed skills upload report data, ensuring users have full visibility before invoking those skills. Contributed by @krudo-taco.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #366 · merged · 30 August 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(rnaseq-de): keep gene IDs on nf-core count handoff.</strong> Gene identifiers were being dropped when DESeq2 received count matrices from nf-core/rnaseq, producing unlabelled rows in the differential expression output. Contributed by @krudo-taco.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #371 · merged · 29 August 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix: fail closed on VEP annotation batch failures.</strong> The variant annotation skill previously continued silently when a VEP batch call failed partway through, returning a partial result without warning. It now fails closed and surfaces the error. Contributed by @krudo-taco.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #368 · merged · 29 August 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🔧</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Refactor: nutrigx reproducibility bundle delegates to clawbio.common.</strong> The nutrigx skill now uses the shared reproducibility helpers rather than its own inline implementation, in line with the broader checksum centralisation effort. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #350 · merged · 29 August 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🔧</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Refactor: SHA-256 helpers delegated to clawbio.common.checksums.</strong> Checksum utilities previously duplicated across skills are now centralised in a shared module, reducing maintenance burden and ensuring consistent hashing behaviour. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #351 · merged · 26 August 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
@@ -366,52 +408,10 @@
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix: catalog and CI no longer assume every skill is Python.</strong> The catalog generator and CI test-scoping scripts previously treated all skills as Python-backed, causing incorrect maturity tier detection and false CI failures for skills implemented in other languages or as spec-only entries.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #361 · merged · 22 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix: claw-semantic-sim drops the false "works out of the box" demo claim.</strong> The skill's SKILL.md falsely stated that a runnable demo was available out of the box. The claim has been removed to accurately reflect the current implementation status.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #358 · merged · 22 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix: gwas-prs panel citations corrected; demo panels no longer shadow real PGS Catalog scores.</strong> Demo PGS panels were being prioritised over live PGS Catalog lookups for matching traits, causing real scores to be silently skipped. Panel citations now correctly reference the originating PGS Catalog study.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #357 · merged · 21 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix: correct strand guidance and stale expression values in the gi-* skills.</strong> The gi-promoter, gi-splice, gi-enhancer, gi-chromatin, gi-expression, and gi-annotation skills contained stale expression values and incorrect strand orientation guidance. All six skills have been updated with validated guidance. Contributed by @boldakov.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #354 · merged · 21 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">🔬</span>
           <div>
             <div style="font-weight:600;font-size:0.95rem;">New skill: <strong>deepspot-m</strong> — transcriptome-wide virtual spatial transcriptomics from H&amp;E histology tiles. Predicts spatial gene expression across the full transcriptome from standard haematoxylin and eosin images using the DeepSpot-M model, without needing spatial sequencing. Contributed by @KalinNonchev. Total: 97 skills.</div>
             <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #331 · merged · 21 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">📄</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Docs: audit.py updated to point to the relocated GenAI semantic conventions repository.</strong> The audit script was referencing an old repository path for the GenAI OpenTelemetry semantic conventions, causing 404 errors during CI audits. The reference is now updated to the current location.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #349 · merged · 21 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🔬</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Scientific audit can now fail: gate on a committed bench baseline.</strong> The scientific-audit workflow now compares benchmark results against a committed baseline rather than always reporting pass. A benchmark regression blocks the pull request, preventing inflated pass-rate headlines on the public leaderboard.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #343 · merged · 13 August 2026</div>
           </div>
         </div>
       </div>
