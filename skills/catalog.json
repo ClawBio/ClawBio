@@ -2265,7 +2265,7 @@
       "name": "gwas-prs",
       "cli_alias": "prs",
       "description": "Calculate polygenic risk scores from DTC genetic data using the PGS Catalog",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
