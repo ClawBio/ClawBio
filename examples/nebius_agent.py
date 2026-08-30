@@ -14,6 +14,11 @@ Use --dry-run to exercise the tool wiring with no API call and no spend.
 
 Only skills in SKILLS below can be run, and only with the flags listed there.
 The model chooses among them; it cannot compose an arbitrary command line.
+
+When run without --dry-run, the report text returned by a ClawBio skill is sent
+to Nebius as tool output in the model conversation. The whitelist currently pins
+every skill to --demo, so repo-bundled demo data is used and patient input paths
+cannot reach the subprocesses.
 """
 from __future__ import annotations
 
@@ -34,6 +39,9 @@ DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1/"
 DEFAULT_MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507"
 
 # Whitelist. Every entry was run end to end on 2026-08-12.
+# Keep these args demo-only: reports are sent to Nebius, so do not add real
+# patient input paths here. `_require_demo_only_whitelist` enforces that at
+# import time so a later edit cannot silently add `--input`.
 SKILLS: dict[str, dict] = {
     "rare_high_impact_variants": {
         "script": "skills/rare-high-impact-variants/rare_high_impact_variants.py",
@@ -74,6 +82,23 @@ SKILLS: dict[str, dict] = {
     },
 }
 
+
+def _require_demo_only_whitelist(skills: dict[str, dict]) -> None:
+    """Refuse to start if any whitelist entry can point at patient input."""
+    bad: list[str] = []
+    for name, spec in skills.items():
+        args = list(spec.get("args") or [])
+        if "--demo" not in args or "--input" in args:
+            bad.append(name)
+    if bad:
+        raise SystemExit(
+            "SKILLS whitelist must pin every entry to --demo and must not "
+            f"include --input (reports are sent to Nebius). Offending: {', '.join(bad)}"
+        )
+
+
+_require_demo_only_whitelist(SKILLS)
+
 SYSTEM_PROMPT = """You are a genomics analyst working through ClawBio skills.
 
 Rules you must follow:
@@ -88,6 +113,7 @@ Being explicit about what you cannot conclude is worth more than a confident ans
 
 def run_skill(name: str) -> str:
     """Run one whitelisted skill and return its report text."""
+    _require_demo_only_whitelist(SKILLS)
     spec = SKILLS.get(name)
     if spec is None:
         return f"ERROR: unknown skill {name!r}. Available: {', '.join(SKILLS)}"
