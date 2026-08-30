@@ -95,7 +95,7 @@ class Decision:
 # the EUR reference mean equals Sum(2 * AF_EUR * w) to within rounding. The
 # percentile is therefore centred on a European allele-frequency calculation.
 # Re-centring on another population's frequencies shifts the mean by
-# Sum(2 * (AF_ref - AF_pop) * w), and that sum decomposes variant by variant.
+# Sum(2 * (AF_pop - AF_ref) * w), and that sum decomposes variant by variant.
 # ══════════════════════════════════════════════════════════════════════════════
 
 PALINDROMIC = {("A", "T"), ("T", "A"), ("C", "G"), ("G", "C")}
@@ -855,10 +855,22 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
                 f"could not be derived from the results file, so this shift cannot be "
                 f"expressed in sd or percentile terms.")
         if shift is not None and shift.shift_sd is not None and abs(shift.shift_sd) > 0.5:
-            warnings.append(
-                f"Re-centring on {shift.population} allele frequencies would move the "
-                f"reference mean by {shift.shift_sd:+.2f} sd, i.e. this percentile is off by "
-                f"roughly that much before any individual-level error.")
+            # Round-5 review: for an individual who passed the gate in the score's
+            # own reference population, the shift is a portability bound on the
+            # score, not an error in their percentile. Only an individual declaring
+            # the re-centred population earns the stronger claim.
+            if decision.declared_population and decision.declared_population == shift.population:
+                warnings.append(
+                    f"Re-centring on {shift.population} allele frequencies would move the "
+                    f"reference mean by {shift.shift_sd:+.2f} sd; for an individual declaring "
+                    f"{shift.population} ancestry the released percentile would be off by "
+                    f"roughly that much before any individual-level error.")
+            else:
+                warnings.append(
+                    f"If re-centred on {shift.population} allele frequencies, the reference "
+                    f"mean would move by {shift.shift_sd:+.2f} sd - a bound on this score's "
+                    f"portability to {shift.population} populations, not an error in this "
+                    f"individual's percentile.")
 
         # allow implies score_pop is declared: the provenance check above
         # fails closed, so this note can never assert an unestablished origin.
@@ -1417,6 +1429,10 @@ KNOWN_LIMITATIONS = [
     "only: the reference panel carries no marker list, so the true AIM overlap cannot be "
     "computed, and a single --genotype is assumed to speak for every queried individual. "
     "An inflated declaration at or below the call count still passes.",
+    "Scores attach to individuals only through a sample_id join. Results without sample_id "
+    "are accepted for exactly one individual and refused otherwise; the join trusts the "
+    "identifiers as declared - a mislabelled sample_id in the results file is undetectable "
+    "here.",
     "Sex-specificity is detected by keyword match over the free-text trait. An absent or "
     "unreadable trait fails closed, but a sex-specific trait phrased outside the keyword "
     "list is treated as not sex-specific.",
@@ -1600,11 +1616,40 @@ def main(argv: Sequence[str] | None = None) -> int:
     genotype_call_cap = (sum(1 for g in genotype.values() if g and g != "--")
                          if genotype else None)
 
+    # Round-5 review: one results file was silently gated against every
+    # individual. Scores attach to a person only through an explicit
+    # sample_id join; without one, more than one individual is a refusal -
+    # cross-attribution is the exact failure this skill exists to prevent.
+    keyed = [s_ for s_ in scores if s_.get("sample_id")]
+    scores_by_sample: dict[str, list[dict[str, Any]]] = {}
+    if keyed and len(keyed) != len(scores):
+        print("PRS results mix records with and without sample_id; the unkeyed records "
+              "cannot be attributed to anyone. Refusing rather than guessing.",
+              file=sys.stderr)
+        return 2
+    if keyed:
+        for s_ in scores:
+            scores_by_sample.setdefault(str(s_["sample_id"]), []).append(s_)
+        unmatched = [i.sample_id for i in individuals if i.sample_id not in scores_by_sample]
+        if unmatched:
+            print(f"No PRS results carry sample_id for {', '.join(unmatched)}: attribution "
+                  f"is impossible for them. Refusing rather than cross-attributing another "
+                  f"individual's scores.", file=sys.stderr)
+            return 2
+    elif len(individuals) > 1:
+        print(f"The PRS results file carries no sample_id and the individuals CSV has "
+              f"{len(individuals)} rows. gwas-prs output describes one genotype; gating it "
+              f"against several people would attach the same numbers to all of them - the "
+              f"exact cross-attribution this skill exists to prevent. Add sample_id to each "
+              f"results record, or gate one individual per run.", file=sys.stderr)
+        return 2
+
     results, pairs = [], []
     for ind in individuals:
         dec = decide(ind, cal, min_markers=args.min_markers,
                      max_credible_markers=genotype_call_cap)
-        gated = gate_scores(scores, dec, cal, sex=ind.sex,
+        ind_scores = scores_by_sample.get(ind.sample_id, scores) if keyed else scores
+        gated = gate_scores(ind_scores, dec, cal, sex=ind.sex,
                             audits=audits, integrity=integrity, shifts=shifts)
         results.append({"decision": dec.__dict__, "scores": gated})
         pairs.append((ind, dec))

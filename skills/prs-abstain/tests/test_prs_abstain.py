@@ -12,6 +12,7 @@ import pytest
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SCRIPT = SKILL_DIR / "prs_abstain.py"
 EXAMPLES = SKILL_DIR / "examples"
+FIXTURES = SKILL_DIR / "tests" / "fixtures"
 
 sys.path.insert(0, str(SKILL_DIR))
 
@@ -112,7 +113,10 @@ class TestGating:
 
         panel = pa.load_reference_panel(EXAMPLES / "demo_reference_pcs.csv")
         cal = pa.calibrate(panel, ref_pop="EUR", k_sd=3.0)
-        scores = pa.load_prs_results(EXAMPLES / "demo_prs_results.json")
+        # The demo results are keyed per sample (Round 5); unit-level gating
+        # takes the individual's own records, as main() now joins them.
+        scores = [s_ for s_ in pa.load_prs_results(EXAMPLES / "demo_prs_results.json")
+                  if s_.get("sample_id") == verdict_individual.sample_id]
         d = pa.decide(verdict_individual, cal, min_markers=30)
         return pa, pa.gate_scores(scores, d, cal), d
 
@@ -856,9 +860,11 @@ class TestSdProvenance:
         quotient over a silently substituted sd of 1.0."""
         import shutil
         results = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
-        t2d = next(r for r in results if r["curated_panel_id"] == "CLAWBIO-T2D-8")
-        t2d["z_score"] = 0.0
-        t2d["raw_score"] = 1.1186  # exactly the reference mean
+        # The demo results are keyed per sample; sd derivation falls back to any
+        # record of the score, so every copy must sit exactly at the mean.
+        for t2d in (r for r in results if r["curated_panel_id"] == "CLAWBIO-T2D-8"):
+            t2d["z_score"] = 0.0
+            t2d["raw_score"] = 1.1186  # exactly the reference mean
         rf = tmp_path / "prs_results.json"
         rf.write_text(json.dumps(results))
         out = tmp_path / "out"
@@ -897,8 +903,10 @@ class TestProducerConsumerChain:
             "gwas-prs demo output must carry curated_panel_id (#356)"
 
         out = tmp_path / "abstain_out"
+        # gwas-prs output carries no sample_id, so it may be gated against
+        # exactly one individual (Round-5 review: cross-attribution refusal).
         r2 = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
-                      "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
+                      "--individuals", str(FIXTURES / "single_individual_eur.csv"),
                       "--prs-results", str(results_file),
                       "--scores", str(gwas / "data"),
                       "--output", str(out), "--no-figures", "--no-pdf"])
@@ -914,6 +922,46 @@ class TestProducerConsumerChain:
         bc = next(s for s in rep["scores"] if s["pgs_id"] == "CLAWBIO-BC-77")
         assert bc["percentile"] is None
         assert any("more than one scored variant" in x for x in bc["withheld_reasons"])
+
+    def test_unkeyed_results_with_many_individuals_refuse(self, tmp_path):
+        """Round-5 review: one prs_results.json was silently gated against every
+        row of the individuals CSV. Without sample_id, >1 individual must refuse."""
+        recs = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
+        unkeyed = [{k: v for k, v in r.items() if k != "sample_id"} for r in recs[:6]]
+        f = tmp_path / "unkeyed.json"
+        f.write_text(json.dumps(unkeyed))
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
+                     "--prs-results", str(f),
+                     "--output", str(tmp_path / "out"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 2
+        assert "cross-attribution" in r.stderr
+        assert not (tmp_path / "out" / "result.json").exists()
+
+    def test_unkeyed_results_with_one_individual_pass(self, tmp_path):
+        recs = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
+        unkeyed = [{k: v for k, v in r.items() if k != "sample_id"} for r in recs[:6]]
+        f = tmp_path / "unkeyed.json"
+        f.write_text(json.dumps(unkeyed))
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(FIXTURES / "single_individual_eur.csv"),
+                     "--prs-results", str(f),
+                     "--output", str(tmp_path / "out"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+
+    def test_keyed_results_missing_an_individual_refuse(self, tmp_path):
+        """A keyed file that covers only some individuals must not fall back to
+        cross-attributing someone else's records to the uncovered ones."""
+        recs = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
+        only_eur = [r for r in recs if r.get("sample_id") == "EUR_001"]
+        f = tmp_path / "partial.json"
+        f.write_text(json.dumps(only_eur))
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
+                     "--prs-results", str(f),
+                     "--output", str(tmp_path / "out"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 2
+        assert "AFR_001" in r.stderr and "DEMO_PATIENT" in r.stderr
 
     def test_notes_never_contain_pipes(self, tmp_path):
         """A '|' inside a note splits every markdown table row it lands in,

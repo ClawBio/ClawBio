@@ -148,6 +148,12 @@ infer ancestry, does not compute polygenic scores, and does not diagnose.
 |--------|-----------|-----------------|---------|
 | Reference panel | `.csv` | sample_id, population, PC1..PCn | `examples/demo_reference_pcs.csv` |
 | Query individuals | `.csv` | sample_id, PC1..PCn, n_markers_shared | `examples/demo_query_individuals.csv` |
+
+Scores attach to individuals only through a `sample_id` join. Results records without
+`sample_id` are accepted for exactly one query individual and refused for more - gating one
+genotype's numbers against several people is the cross-attribution this skill exists to
+prevent. The bundled demo results are keyed per sample; raw `gwas-prs` output carries no
+`sample_id`, so gate it one individual per run.
 | PRS results | `.json` | pgs_id, raw_score, percentile, reference_population | `examples/demo_prs_results.json` |
 
 ## Workflow
@@ -252,8 +258,8 @@ SNP by SNP rather than stopping at a distance threshold.
 ```markdown
 | Individual | Verdict | Distance | Threshold | Markers |
 |------------|---------|----------|-----------|---------|
-| EUR_001 | **REPORT** | 1.74 | 3.47 | 480 |
-| AFR_001 | **REFUSE_DISTANT** | 10.38 | 3.47 | 480 |
+| EUR_001 | **REPORT** | 1.74 | 3.47 | 400 |
+| AFR_001 | **REFUSE_DISTANT** | 10.38 | 3.47 | 400 |
 | DEMO_PATIENT | **REFUSE_UNDETERMINABLE** | n/a | 3.47 | 0 |
 
 ### AFR_001 — REFUSE_DISTANT
