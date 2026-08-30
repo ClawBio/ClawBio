@@ -456,6 +456,7 @@ SKILLS = {
     "prs-abstain": {
         "script": SKILLS_DIR / "prs-abstain" / "prs_abstain.py",
         "demo_args": ["--demo"],
+        "no_input_required": True,
         "description": "Gate PRS percentiles on ancestry transferability; refuse when uninterpretable",
         "allowed_extra_flags": {
             "--reference-panel", "--individuals", "--prs-results", "--ref-pop", "--k-sd",

@@ -564,7 +564,9 @@ class TestDecisionBoundaries:
         pcs = list(cal.centroid)
         pcs[0] += cal.threshold  # exactly threshold away, along PC1
         d = pa.decide(pa.Individual("EDGE", "EUR", pcs, 480), cal, min_markers=30)
-        assert d.distance == pytest.approx(cal.threshold, abs=1e-9)
+        # Decision.distance is rounded for display; the comparison itself runs
+        # unrounded, and the boundary (dist == threshold) reports.
+        assert d.distance == pytest.approx(cal.threshold, abs=1e-4)
         assert d.verdict == "REPORT"
 
     def test_exactly_min_markers_passes_marker_gate(self):
@@ -1084,3 +1086,159 @@ class TestClinicianSurfaceParity:
                               for c in s["caveats"]))
         assert n_unchecked > 0
         assert clin.count("score file not checked (see note below)") == n_unchecked
+
+
+class TestRound6Sentinels:
+    """One test per confirmed finding of the four-lens adversarial review
+    (statistical, format, clinical, integration), so none can return silently."""
+
+    def _cal(self):
+        import prs_abstain as pa
+        panel = pa.load_reference_panel(EXAMPLES / "demo_reference_pcs.csv")
+        return pa, pa.calibrate(panel, ref_pop="EUR", k_sd=3.0)
+
+    def test_overreach_property_fires_at_equality(self):
+        import prs_abstain as pa
+        cal = pa.Calibration("EUR", ("PC1",), [0.0], 10, 1.0, 0.1, 3.0,
+                             threshold=1.5, within_max=1.2, nearest_other=1.5)
+        assert cal.threshold_exceeds_nearest_other is True
+
+    def test_overreach_not_masked_by_rounding(self):
+        import prs_abstain as pa
+        cal = pa.Calibration("EUR", ("PC1",), [0.0], 10, 1.0, 0.1, 3.0,
+                             threshold=1.234563, within_max=1.2, nearest_other=1.234558)
+        assert cal.threshold_exceeds_nearest_other is True
+
+    def test_expected_mean_partial_af_coverage_is_none(self):
+        import prs_abstain as pa
+        sdef = pa.ScoreDefinition("X", "t", None, [
+            {"rsid": "rs1", "weight": 1.0, "af_reference": 0.5,
+             "effect_allele": "A", "other_allele": "G", "chr": "1", "pos": 1},
+            {"rsid": "rs2", "weight": 1.0, "af_reference": None,
+             "effect_allele": "A", "other_allele": "G", "chr": "1", "pos": 2},
+        ])
+        assert pa.expected_mean(sdef) is None
+
+    def test_call_cap_excludes_00_no_calls(self, tmp_path):
+        import prs_abstain as pa
+        g = tmp_path / "g.txt"
+        g.write_text("# h\n" + "".join(f"rs{i}\t1\t{i}\t00\n" for i in range(50))
+                     + "".join(f"rsx{i}\t1\t{i+99}\tAG\n" for i in range(10)))
+        geno = pa.load_genotype(g)
+        cap = sum(1 for v in geno.values() if v and any(c in "ACGT" for c in v.upper()))
+        assert cap == 10
+
+    def test_zero_weights_do_not_crash_audit(self, tmp_path):
+        import prs_abstain as pa
+        sdef = pa.ScoreDefinition("X", "t", None, [
+            {"rsid": "rs1", "weight": 0.0, "af_reference": None,
+             "effect_allele": "A", "other_allele": "G", "chr": "1", "pos": 1},
+        ])
+        au = pa.audit_score(sdef, {"rs1": "AG"})
+        assert au.effective_n == 0.0
+
+    def test_male_breast_cancer_is_male_specific(self):
+        import prs_abstain as pa
+        assert pa.check_applicability({"trait": "Male breast cancer"}, sex="female").applicable is False
+        assert pa.check_applicability({"trait": "Male breast cancer"}, sex="male").applicable is True
+        assert pa.check_applicability({"trait": "Female breast cancer"}, sex="female").applicable is True
+        assert pa.check_applicability({"trait": "Breast cancer"}, sex="female").applicable is True
+
+    def test_duplicate_sample_id_rows_refuse(self, tmp_path):
+        csvf = tmp_path / "ind.csv"
+        csvf.write_text("sample_id,population,PC1,PC2,PC3,PC4,n_markers_shared,sex\n"
+                        "DUP,EUR,-3.0,-2.4,-2.0,0.3,400,female\n"
+                        "DUP,AFR,6.6,-2.4,-2.2,3.2,400,male\n")
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(csvf),
+                     "--prs-results", str(EXAMPLES / "demo_prs_results.json"),
+                     "--output", str(tmp_path / "o"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 2 and "Duplicate sample_id" in r.stderr
+
+    def test_af_caveat_population_match_is_case_insensitive(self):
+        import prs_abstain as pa
+        pa_, cal = self._cal()
+        ind = pa.Individual("X", "afr", list(cal.centroid), 400)
+        d = pa.decide(ind, cal, min_markers=30)
+        sh = pa.AFShift("PGS1", "AFR", 1, 1.0, -0.9, -0.9, [])
+        gated = pa.gate_scores([{"pgs_id": "PGS1", "trait": "T", "raw_score": 1.0,
+                                 "percentile": 80.0, "z_score": 1.0,
+                                 "reference_population": "EUR"}],
+                               d, cal, shifts={"PGS1": sh})
+        assert any("off by roughly" in c for c in gated[0]["caveats"])
+
+    def test_min_markers_zero_is_an_error(self, tmp_path):
+        r = run_cli(["--demo", "--output", str(tmp_path), "--min-markers", "0",
+                     "--no-figures", "--no-pdf"])
+        assert r.returncode == 2
+        assert "disables the marker gate" in r.stderr
+
+    def test_nan_weight_scores_dir_fails_closed(self, tmp_path):
+        d = tmp_path / "scores"; d.mkdir()
+        (d / "P.txt").write_text("#pgs_id=PGSNAN\n#trait_reported=x\n"
+            "rsID\tchr_name\tchr_position\teffect_allele\tother_allele\teffect_weight\n"
+            "rs1\t1\t100\tA\tG\tnan\n")
+        r = run_cli(["--demo", "--output", str(tmp_path / "o"), "--scores", str(d),
+                     "--no-figures", "--no-pdf"])
+        assert r.returncode == 2
+        assert "Cannot load score definitions" in r.stderr
+
+    def test_space_separated_genotype_fails_closed(self, tmp_path):
+        g = tmp_path / "g.txt"
+        g.write_text("rs1 1 100 AG\nrs2 1 200 CT\n")
+        r = run_cli(["--demo", "--output", str(tmp_path / "o"), "--genotype", str(g),
+                     "--no-figures", "--no-pdf"])
+        assert r.returncode == 2
+        assert "Cannot load genotype file" in r.stderr
+
+    def test_pipe_in_trait_cannot_spoof_report_columns(self, tmp_path):
+        import prs_abstain as pa
+        recs = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
+        recs[0]["trait"] = "Prostate cancer | 99.9th | Released"
+        f = tmp_path / "r.json"; f.write_text(json.dumps(recs))
+        loaded = pa.load_prs_results(f)
+        assert "|" not in loaded[0]["trait"]
+
+    def test_falsy_sample_id_is_keyed_not_cross_attributed(self, tmp_path):
+        recs = [{"pgs_id": "PGS000013", "trait": "T", "raw_score": 1.0,
+                 "percentile": 97.0, "z_score": 1.0, "reference_population": "EUR",
+                 "sample_id": 0}]
+        f = tmp_path / "r.json"; f.write_text(json.dumps(recs))
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(FIXTURES / "single_individual_eur.csv"),
+                     "--prs-results", str(f),
+                     "--output", str(tmp_path / "o"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 2
+        assert "EUR_001" in r.stderr
+
+    def test_string_percentile_is_a_clean_load_error(self, tmp_path):
+        recs = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
+        recs[0]["percentile"] = "97.0"
+        f = tmp_path / "r.json"; f.write_text(json.dumps(recs))
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(FIXTURES / "single_individual_eur.csv"),
+                     "--prs-results", str(f),
+                     "--output", str(tmp_path / "o"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 2
+        assert "Traceback" not in r.stderr
+        assert not (tmp_path / "o" / "result.json").exists()
+
+    def test_bom_individuals_csv_parses(self, tmp_path):
+        csvf = tmp_path / "ind.csv"
+        csvf.write_bytes(b"\xef\xbb\xbf" + (FIXTURES / "single_individual_eur.csv").read_bytes())
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(csvf),
+                     "--prs-results", str(EXAMPLES / "demo_prs_results.json"),
+                     "--output", str(tmp_path / "o"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+
+    def test_estimated_reference_population_gets_provenance_reason(self):
+        import prs_abstain as pa
+        pa_, cal = self._cal()
+        ind = pa.Individual("EUR_001", "EUR", list(cal.centroid), 400)
+        d = pa.decide(ind, cal, min_markers=30)
+        gated = pa.gate_scores([{"pgs_id": "P", "trait": "T", "raw_score": 1.0,
+                                 "percentile": 50.0, "z_score": 0.5,
+                                 "reference_population": "estimated (allele freq)"}], d, cal)
+        assert gated[0]["percentile"] is None
+        assert any("estimated from allele frequencies" in x for x in gated[0]["withheld_reasons"])

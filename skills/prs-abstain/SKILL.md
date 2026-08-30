@@ -148,13 +148,17 @@ infer ancestry, does not compute polygenic scores, and does not diagnose.
 |--------|-----------|-----------------|---------|
 | Reference panel | `.csv` | sample_id, population, PC1..PCn | `examples/demo_reference_pcs.csv` |
 | Query individuals | `.csv` | sample_id, PC1..PCn, n_markers_shared | `examples/demo_query_individuals.csv` |
-
+| PRS results | `.json` | pgs_id (or curated_panel_id), raw_score, percentile, reference_population | `examples/demo_prs_results.json` |
 Scores attach to individuals only through a `sample_id` join. Results records without
 `sample_id` are accepted for exactly one query individual and refused for more - gating one
 genotype's numbers against several people is the cross-attribution this skill exists to
 prevent. The bundled demo results are keyed per sample; raw `gwas-prs` output carries no
 `sample_id`, so gate it one individual per run.
-| PRS results | `.json` | pgs_id, raw_score, percentile, reference_population | `examples/demo_prs_results.json` |
+
+A `reference_population` of `estimated (allele freq)` (gwas-prs Tier-2 output) is a method
+label, not a cohort: such percentiles are withheld with a dedicated provenance reason,
+since an allele-frequency-estimated reference has no cohort distribution to gate against.
+
 
 ## Workflow
 

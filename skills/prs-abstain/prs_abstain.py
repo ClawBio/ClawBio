@@ -14,6 +14,7 @@ import argparse
 import csv
 import json
 import math
+import re
 import statistics as st
 import sys
 from dataclasses import dataclass, field
@@ -71,8 +72,11 @@ class Calibration:
 
     @property
     def threshold_exceeds_nearest_other(self) -> bool:
-        """True when the threshold is wide enough to admit non-reference individuals."""
-        return self.nearest_other is not None and self.threshold > self.nearest_other
+        """True when the threshold is wide enough to admit non-reference individuals.
+
+        >= because decide() releases at dist <= threshold: a threshold equal to
+        the nearest non-reference distance already admits that individual."""
+        return self.nearest_other is not None and self.threshold >= self.nearest_other
 
 
 @dataclass
@@ -234,6 +238,8 @@ def load_score_definitions(path: Path) -> dict[str, ScoreDefinition]:
                 raise ValueError(f"{fp.name}:{lineno}: missing effect_weight")
             try:
                 weight = float(raw_weight)
+                if not math.isfinite(weight):
+                    raise ValueError(raw_weight)
             except ValueError:
                 raise ValueError(
                     f"{fp.name}:{lineno}: effect_weight {raw_weight!r} is not "
@@ -271,12 +277,19 @@ def load_score_definitions(path: Path) -> dict[str, ScoreDefinition]:
 def load_genotype(path: Path) -> dict[str, str]:
     """Load a 23andMe/AncestryDNA-style genotype file into {rsid: genotype}."""
     out: dict[str, str] = {}
+    data_lines = 0
     for line in Path(path).read_text().splitlines():
         if line.startswith("#") or not line.strip():
             continue
         parts = line.split("\t")
+        data_lines += 1
         if len(parts) >= 4:
             out[parts[0]] = parts[3].strip().upper()
+    if data_lines and not out:
+        raise ValueError(
+            f"{path}: {data_lines} data line(s) but none parsed as tab-separated "
+            f"rsid/chr/pos/genotype. A space-separated or reformatted export would "
+            f"silently disable the genotype tiers; refusing instead.")
     return out
 
 
@@ -312,8 +325,11 @@ def check_applicability(score: dict[str, Any] | ScoreDefinition, sex: str | None
     sex_norm = (sex or "").strip().lower() or None
     if sex_norm in ("unknown", "unspecified", "na", ""):
         sex_norm = None
+    male_override = re.search(r"(?<![a-z])male breast", t) is not None
     for required_sex, keywords in SEX_SPECIFIC.items():
-        if any(k in t for k in keywords):
+        if required_sex == "female" and male_override:
+            continue
+        if any(k in t for k in keywords) or (required_sex == "male" and male_override):
             if sex_norm is None:
                 return Applicability(False, (
                     f"{trait} is a sex-specific trait and no sex was recorded for this "
@@ -340,7 +356,9 @@ def expected_mean(score: ScoreDefinition, af_key: str = "af_reference",
             continue
         total += 2 * af * v["weight"]
         seen += 1
-    return total if seen else None
+    # Full coverage or nothing: a mean summed over a subset of variants is not
+    # the score's expectation, and downstream it silently mis-derives sd.
+    return total if seen == len(score.variants) and seen else None
 
 
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
@@ -377,7 +395,7 @@ def audit_score(score: ScoreDefinition, genotype: dict[str, str]) -> ScoreAudit:
     missing = sorted((v for v in score.variants if v["rsid"] not in covered_ids),
                      key=lambda v: -abs(v["weight"]))
     pal = [v for v in score.variants if (v["effect_allele"], v["other_allele"]) in PALINDROMIC]
-    eff_n = (w_total ** 2) / sum(w * w for w in weights) if weights else 0.0
+    eff_n = _effective_n(weights)
     return ScoreAudit(
         pgs_id=score.pgs_id, n_total=len(score.variants), n_matched=len(matched),
         weight_total=round(w_total, 6), weight_covered=round(w_cov, 6),
@@ -590,7 +608,7 @@ def _to_float(value: str | None) -> float | None:
 def load_reference_panel(path: Path, pcs: Sequence[str] = DEFAULT_PCS) -> list[Individual]:
     """Load labelled reference individuals with PC coordinates."""
     out: list[Individual] = []
-    with Path(path).open(newline="") as handle:
+    with Path(path).open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle)
         missing = [c for c in ("sample_id", "population", *pcs) if c not in (reader.fieldnames or [])]
         if missing:
@@ -607,7 +625,7 @@ def load_reference_panel(path: Path, pcs: Sequence[str] = DEFAULT_PCS) -> list[I
 
 def load_query_individuals(path: Path, pcs: Sequence[str] = DEFAULT_PCS) -> list[Individual]:
     out: list[Individual] = []
-    with Path(path).open(newline="") as handle:
+    with Path(path).open(newline="", encoding="utf-8-sig") as handle:
         for row in csv.DictReader(handle):
             coords = [_to_float(row.get(p)) for p in pcs]
             coords = None if any(c is None for c in coords) else coords
@@ -632,6 +650,22 @@ def load_prs_results(path: Path) -> list[dict[str, Any]]:
         data = data.get("scores") or data.get("results") or []
     if not isinstance(data, list):
         raise ValueError(f"unrecognised PRS results structure in {path}")
+    for i, rec in enumerate(data):
+        if not isinstance(rec, dict):
+            raise ValueError(f"record {i} is not an object")
+        for fld in ("raw_score", "percentile", "z_score"):
+            v = rec.get(fld)
+            if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float))):
+                raise ValueError(
+                    f"record {i}: {fld} must be numeric or null, got {v!r}. A stringly "
+                    f"number would crash mid-report after outputs are already written.")
+        for fld in ("trait", "pgs_id", "note"):
+            v = rec.get(fld)
+            if isinstance(v, str) and "|" in v:
+                # A pipe splits every markdown table row it lands in, and the PDF
+                # renderer then truncates the row - the withheld/released column
+                # can be spoofed by input text. Neutralise at ingestion.
+                rec[fld] = v.replace("|", "/")
     return data
 
 
@@ -679,12 +713,14 @@ def calibrate(
         pcs_used=tuple(pcs),
         centroid=[round(c, 6) for c in centroid],
         n=len(ref),
-        mean=round(mean, 4),
-        sd=round(sd, 4),
+        # Full precision: the overreach comparison runs on these values, and
+        # rounding before comparing masked a genuine overreach inside 1e-4.
+        mean=mean,
+        sd=sd,
         k_sd=k_sd,
-        threshold=round(threshold, 4),
-        within_max=round(within[-1], 4),
-        nearest_other=round(nearest_other, 4) if nearest_other is not None else None,
+        threshold=threshold,
+        within_max=within[-1],
+        nearest_other=nearest_other if nearest_other is not None else None,
         other_populations={k: round(v, 4) for k, v in sorted(by_pop.items())},
     )
 
@@ -840,6 +876,11 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
                 "Reference provenance: this score does not declare a reference_population, so "
                 "the population its percentile is centred on is unknown. A percentile of "
                 "unknown provenance cannot be released; absent metadata fails closed.")
+        elif score_pop.lower().startswith("estimated"):
+            reasons.append(
+                "Reference provenance: this score's reference distribution was estimated "
+                "from allele frequencies rather than drawn from a named cohort, so its "
+                "percentile has no cohort reference population to gate against.")
         elif score_pop != cal.reference_population:
             reasons.append(
                 f"Reference mismatch: this score is centred on {score_pop} but the gate was "
@@ -859,7 +900,8 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
             # own reference population, the shift is a portability bound on the
             # score, not an error in their percentile. Only an individual declaring
             # the re-centred population earns the stronger claim.
-            if decision.declared_population and decision.declared_population == shift.population:
+            if (decision.declared_population
+                    and decision.declared_population.upper() == shift.population.upper()):
                 warnings.append(
                     f"Re-centring on {shift.population} allele frequencies would move the "
                     f"reference mean by {shift.shift_sd:+.2f} sd; for an individual declaring "
@@ -898,7 +940,8 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
 # ── Figures ───────────────────────────────────────────────────────────────────
 
 def _write_figures(outdir: Path, panel: list[Individual], cal: Calibration,
-                   decisions: list[tuple[Individual, Decision]]) -> list[str]:
+                   decisions: list[tuple[Individual, Decision]],
+                   min_markers: int = DEFAULT_MIN_MARKERS) -> list[str]:
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -987,8 +1030,8 @@ def _write_figures(outdir: Path, panel: list[Individual], cal: Calibration,
         ax2.text(0, 0.28, f"VERDICT: {dec.verdict}", fontsize=11, weight="bold",
                  color=VERDICT_COLOUR[dec.verdict])
         checks = [
-            (f"markers >= {DEFAULT_MIN_MARKERS}",
-             (ind.n_markers_shared or 0) >= DEFAULT_MIN_MARKERS),
+            (f"markers >= {min_markers}",
+             (ind.n_markers_shared or 0) >= min_markers),
             ("placeable in PC space", bool(ind.pcs)),
             (f"distance <= {cal.threshold:.2f}",
              dec.distance is not None and dec.distance <= cal.threshold),
@@ -998,7 +1041,8 @@ def _write_figures(outdir: Path, panel: list[Individual], cal: Calibration,
                      fontsize=9, family="monospace",
                      color="#2E8B7A" if ok else "#C1443C")
         fig.tight_layout()
-        name = f"figures/individual_{ind.sample_id}.png"
+        safe_id = re.sub(r"[^A-Za-z0-9._-]", "_", str(ind.sample_id)) or "unnamed"
+        name = f"figures/individual_{safe_id}.png"
         fig.savefig(outdir / name, dpi=150)
         plt.close(fig)
         written.append(name)
@@ -1402,7 +1446,8 @@ def _write_technical_report(outdir: Path, cal: Calibration, results: list[dict[s
             status = ("released" if x["percentile"] is not None else "withheld")
             if x["caveats"]:
                 status += f", {len(x['caveats'])} caveat(s)"
-            a(f"| {x['pgs_id']} | {x['trait']} | {x['raw_score']:.4f} | {pct} | {wc} | "
+            raw = "n/a" if x["raw_score"] is None else f"{x['raw_score']:.4f}"
+            a(f"| {x['pgs_id']} | {x['trait']} | {raw} | {pct} | {wc} | "
               f"{en} | {sh} | {status} |")
         a("")
         for x in sc:
@@ -1530,17 +1575,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     if args.demo:
-        args.reference_panel = EXAMPLES / "demo_reference_pcs.csv"
-        args.individuals = EXAMPLES / "demo_query_individuals.csv"
-        args.prs_results = EXAMPLES / "demo_prs_results.json"
-        args.scores = EXAMPLES / "scores"
-        args.genotype = EXAMPLES / "demo_genotype.txt"
-        args.population_af = EXAMPLES / "demo_population_af.tsv"
+        # Defaults, not overrides: an explicitly supplied path wins, so
+        # "--demo --scores mydir" no longer silently discards mydir.
+        args.reference_panel = args.reference_panel or EXAMPLES / "demo_reference_pcs.csv"
+        args.individuals = args.individuals or EXAMPLES / "demo_query_individuals.csv"
+        args.prs_results = args.prs_results or EXAMPLES / "demo_prs_results.json"
+        args.scores = args.scores or EXAMPLES / "scores"
+        args.genotype = args.genotype or EXAMPLES / "demo_genotype.txt"
+        args.population_af = args.population_af or EXAMPLES / "demo_population_af.tsv"
     missing = [n for n, v in [("--reference-panel", args.reference_panel),
                               ("--individuals", args.individuals),
                               ("--prs-results", args.prs_results)] if v is None]
     if missing:
         p.error(f"missing required arguments {missing} (or use --demo)")
+
+    if args.min_markers < 1:
+        p.error(f"--min-markers {args.min_markers} disables the marker gate entirely; "
+                f"the minimum is 1")
+    if args.min_markers < 24:
+        print(f"WARNING: --min-markers {args.min_markers} is below the 24-AIM subset "
+              f"validated in Kosoy et al. 2009; continental assignment below that floor "
+              f"is unvalidated.", file=sys.stderr)
 
     pcs = tuple(c.strip() for c in args.pcs.split(",") if c.strip())
     outdir = Path(args.output)
@@ -1563,7 +1618,18 @@ def main(argv: Sequence[str] | None = None) -> int:
               f"to proceed with the overreach warning on every surface.", file=sys.stderr)
         return 2
     individuals = load_query_individuals(args.individuals, pcs)
-    scores = load_prs_results(args.prs_results)
+    ids = [i.sample_id for i in individuals]
+    dups = sorted({x for x in ids if ids.count(x) > 1})
+    if dups:
+        print(f"Duplicate sample_id row(s) in the individuals CSV: {', '.join(dups)}. "
+              f"Two declared persons under one identifier would receive each other's "
+              f"scores and figures; refusing.", file=sys.stderr)
+        return 2
+    try:
+        scores = load_prs_results(args.prs_results)
+    except (ValueError, json.JSONDecodeError) as exc:
+        print(f"Cannot load PRS results: {exc}", file=sys.stderr)
+        return 2
 
     score_defs = {}
     if args.scores:
@@ -1580,7 +1646,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                   f"release percentiles whose integrity tier was requested but "
                   f"could not run.", file=sys.stderr)
             return 2
-    genotype = load_genotype(args.genotype) if args.genotype else {}
+    try:
+        genotype = load_genotype(args.genotype) if args.genotype else {}
+    except ValueError as exc:
+        print(f"Cannot load genotype file: {exc}", file=sys.stderr)
+        return 2
     af_table = load_population_af(args.population_af) if args.population_af else {}
 
     audits: dict[str, ScoreAudit] = {}
@@ -1613,14 +1683,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # A genotype file bounds every credible marker declaration: no individual
     # can share more markers with the panel than there are valid calls.
-    genotype_call_cap = (sum(1 for g in genotype.values() if g and g != "--")
+    genotype_call_cap = (sum(1 for g in genotype.values()
+                             if g and any(c in "ACGT" for c in g.upper()))
                          if genotype else None)
 
     # Round-5 review: one results file was silently gated against every
     # individual. Scores attach to a person only through an explicit
     # sample_id join; without one, more than one individual is a refusal -
     # cross-attribution is the exact failure this skill exists to prevent.
-    keyed = [s_ for s_ in scores if s_.get("sample_id")]
+    keyed = [s_ for s_ in scores if "sample_id" in s_ and s_["sample_id"] is not None]
     scores_by_sample: dict[str, list[dict[str, Any]]] = {}
     if keyed and len(keyed) != len(scores):
         print("PRS results mix records with and without sample_id; the unkeyed records "
@@ -1629,7 +1700,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     if keyed:
         for s_ in scores:
-            scores_by_sample.setdefault(str(s_["sample_id"]), []).append(s_)
+            scores_by_sample.setdefault(str(s_["sample_id"]).strip(), []).append(s_)
         unmatched = [i.sample_id for i in individuals if i.sample_id not in scores_by_sample]
         if unmatched:
             print(f"No PRS results carry sample_id for {', '.join(unmatched)}: attribution "
@@ -1654,7 +1725,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         results.append({"decision": dec.__dict__, "scores": gated})
         pairs.append((ind, dec))
 
-    figures = [] if args.no_figures else _write_figures(outdir, panel, cal, pairs)
+    figures = [] if args.no_figures else _write_figures(outdir, panel, cal, pairs,
+                                                        min_markers=args.min_markers)
 
     with (outdir / "tables" / "decisions.csv").open("w", newline="") as fh:
         w = csv.writer(fh)
@@ -1671,11 +1743,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 w.writerow([r["decision"]["sample_id"], s["pgs_id"], s["trait"],
                             s["raw_score"], s["percentile"], s["note"]])
 
-    cmd = "python " + " ".join([str(Path(__file__).name), *(argv or sys.argv[1:])])
-    (outdir / "reproducibility" / "commands.sh").write_text(f"#!/usr/bin/env bash\nset -euo pipefail\n{cmd}\n")
+    cmd = "python " + " ".join([str(Path(__file__).resolve()), *(argv or sys.argv[1:])])
+    (outdir / "reproducibility" / "commands.sh").write_text(
+        f"#!/usr/bin/env bash\nset -euo pipefail\n"
+        f"# Recorded from cwd: relative arguments resolve from here.\ncd {Path.cwd()}\n{cmd}\n")
     (outdir / "reproducibility" / "environment.yml").write_text(
         "name: prs-abstain\nchannels:\n  - conda-forge\n  - nodefaults\n"
-        "dependencies:\n  - python>=3.10\n  - matplotlib\n"
+        "dependencies:\n  - python>=3.10\n  - matplotlib\n  - reportlab>=4.0\n  - pillow\n"
     )
     json.dump(
         {
@@ -1687,12 +1761,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "pcs_used": list(cal.pcs_used),
                 "centroid": cal.centroid,
                 "n": cal.n,
-                "mean": cal.mean,
-                "sd": cal.sd,
+                "mean": round(cal.mean, 4),
+                "sd": round(cal.sd, 4),
                 "k_sd": cal.k_sd,
-                "threshold": cal.threshold,
-                "within_max": cal.within_max,
-                "nearest_other": cal.nearest_other,
+                "threshold": round(cal.threshold, 4),
+                "within_max": round(cal.within_max, 4),
+                "nearest_other": round(cal.nearest_other, 4) if cal.nearest_other is not None else None,
                 "threshold_exceeds_nearest_other": cal.threshold_exceeds_nearest_other,
                 "min_markers": args.min_markers,
             },
