@@ -157,3 +157,48 @@ def test_empty_input_exits_cleanly(tmp_path):
     assert "ERROR" in result.stderr, (
         f"Should print ERROR message, got stderr: {result.stderr}"
     )
+
+
+def _lactose_score(genotype: str) -> dict:
+    panel = load_panel()
+    calls = extract_snp_genotypes({"rs4988235": genotype}, panel)
+    scores = compute_nutrient_risk_scores(calls, panel)
+    return {
+        "call": calls["rs4988235"],
+        "score": scores["lactose"],
+    }
+
+
+def test_rs4988235_panel_polarity_and_citation():
+    entry = next(s for s in load_panel() if s["rsid"] == "rs4988235")
+    assert entry["ref_allele"] == "A"
+    assert entry["risk_allele"] == "G"
+    assert entry["pmid"] == "11788828"
+    assert entry["inheritance"] == "dominant_protective"
+
+
+def test_rs4988235_aa_and_tt_are_persistent():
+    for genotype in ("AA", "TT"):
+        result = _lactose_score(genotype)
+        assert result["call"]["status"] == "found"
+        assert result["call"]["risk_count"] == 0
+        assert result["score"]["category"] == "Low"
+        assert result["score"]["score"] == 0.0
+
+
+def test_rs4988235_ag_and_ct_are_persistent_dominant():
+    for genotype in ("AG", "GA", "CT", "TC"):
+        result = _lactose_score(genotype)
+        assert result["call"]["status"] == "found"
+        assert result["call"]["risk_count"] == 1
+        assert result["score"]["category"] == "Low"
+        assert result["score"]["score"] == 0.0
+
+
+def test_rs4988235_gg_and_cc_are_non_persistent():
+    for genotype in ("GG", "CC"):
+        result = _lactose_score(genotype)
+        assert result["call"]["status"] == "found"
+        assert result["call"]["risk_count"] == 2
+        assert result["score"]["category"] == "Elevated"
+        assert result["score"]["score"] == 10.0
