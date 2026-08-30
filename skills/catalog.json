@@ -3040,7 +3040,7 @@
       "name": "nutrigx",
       "cli_alias": "nutrigx",
       "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
