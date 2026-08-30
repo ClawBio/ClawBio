@@ -248,11 +248,15 @@ output_directory/
 ├── report.md              # Primary markdown report
 ├── result.json            # Machine-readable results
 ├── tables/
-│   └── results.csv        # Tabular data
+│   └── results.csv        # Tabular data (optional)
 └── reproducibility/
     ├── commands.sh         # Exact commands to reproduce
-    └── environment.yml     # Environment snapshot
+    ├── environment.yml     # Environment snapshot
+    └── checksums.sha256    # SHA-256 of outputs, relative to output_directory
 ```
+
+Verify the run with
+`cd <output_directory> && sha256sum -c reproducibility/checksums.sha256`.
 
 ## Dependencies
 
@@ -317,6 +321,16 @@ import sys
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = SKILL_DIR.parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
+
 {f'DISCLAIMER = ("{DISCLAIMER}")'}
 
 
@@ -355,8 +369,45 @@ def run_analysis(data: dict) -> dict:
     }}
 
 
-def write_report(result: dict, output_dir: Path) -> None:
-    """Write report.md and result.json to output_dir."""
+def write_reproducibility_bundle(output_dir: Path, invocation: str) -> None:
+    """Write output_dir/reproducibility/ via the shared clawbio.common layer.
+
+    Do not hand-roll these writers: the shared helpers keep line endings, the
+    checksum format and the bundle layout identical across every ClawBio skill.
+    """
+    write_commands_sh(
+        output_dir,
+        "# {title} - reproducibility\\n"
+        "set -euo pipefail\\n"
+        "\\n"
+        "# 1. Recreate the environment\\n"
+        "conda env create -f environment.yml\\n"
+        "conda activate {name}\\n"
+        "\\n"
+        "# 2. Re-run the analysis\\n"
+        f"python {py_name}.py {{invocation}}\\n"
+        "\\n"
+        "# 3. Verify output checksums (labels are relative to the output directory)\\n"
+        '( cd "$(dirname "$0")/.." && sha256sum -c reproducibility/checksums.sha256 )',
+    )
+    write_environment_yml(
+        output_dir,
+        env_name="{name}",
+        python_version="3.11",
+        conda_deps=["pandas>=2.0"],
+        pip_deps=[],
+    )
+    # anchor=output_dir keeps labels relative, so `cd <output_dir> &&
+    # sha256sum -c reproducibility/checksums.sha256` resolves every entry.
+    write_checksums(
+        [output_dir / "report.md", output_dir / "result.json"],
+        output_dir,
+        anchor=output_dir,
+    )
+
+
+def write_report(result: dict, output_dir: Path, invocation: str = "--demo") -> None:
+    """Write report.md, result.json and the reproducibility bundle to output_dir."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # result.json
@@ -394,8 +445,12 @@ def write_report(result: dict, output_dir: Path) -> None:
     with open(output_dir / "report.md", "w") as f:
         f.write("\\n".join(report))
 
+    # Written last: checksums must cover the finished report and result.
+    write_reproducibility_bundle(output_dir, invocation)
+
     print(f"Report written to {{output_dir / 'report.md'}}")
     print(f"Results written to {{output_dir / 'result.json'}}")
+    print(f"Reproducibility bundle written to {{output_dir / 'reproducibility'}}")
 
 
 def run_demo(output_dir: Path) -> None:
@@ -406,7 +461,7 @@ def run_demo(output_dir: Path) -> None:
         sys.exit(1)
     data = validate_input(demo_input)
     result = run_analysis(data)
-    write_report(result, output_dir)
+    write_report(result, output_dir, invocation=f"--demo --output {{output_dir}}")
 
 
 def main():
@@ -418,7 +473,10 @@ def main():
         data = validate_input(args.input_file)
         result = run_analysis(data)
         output = args.output or args.input_file.parent / "output"
-        write_report(result, output)
+        write_report(
+            result, output,
+            invocation=f"--input {{args.input_file}} --output {{output}}",
+        )
     else:
         print("Error: provide --input <file> or --demo", file=sys.stderr)
         sys.exit(1)
@@ -786,6 +844,9 @@ def scaffold(name: str, description: str, force: bool = False,
         ("Section: ## Agent Boundary", "## Agent Boundary" in skill_md),
         ("File: demo data exists", (skill_dir / "demo_input.txt").exists()),
         ("File: tests/ with test file", (skill_dir / "tests" / f"test_{py_name}.py").exists()),
+        ("File: reproducibility bundle via clawbio.common",
+         "clawbio.common.reproducibility" in (skill_dir / f"{py_name}.py").read_text()
+         and "reproducibility/" in skill_md),
         (f"Line count: {skill_md_lines} < 500", skill_md_lines < 500),
     ]
 
