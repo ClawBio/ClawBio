@@ -53,7 +53,7 @@ DEMO_VCF_CONTENT = """##fileformat=VCFv4.2
 ##reference=GRCh38
 ##FILTER=<ID=PASS,Description="All filters passed">
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
-17\t43106457\trs80357382\tT\tA\t.\tPASS\t.
+17\t43063931\trs55770810\tG\tA\t.\tPASS\t.
 13\t32316461\trs80359550\tC\tT\t.\tPASS\t.
 7\t117548628\trs113993960\tCTTT\tC\t.\tPASS\t.
 19\t44908684\trs429358\tT\tC\t.\tPASS\t.
@@ -99,19 +99,19 @@ DEMO_ANNOTATIONS = [
     },
     {
         "chrom": "17",
-        "pos": "43106457",
-        "id": "rs80357382",
-        "ref": "T",
+        "pos": "43063931",
+        "id": "rs55770810",
+        "ref": "G",
         "alt": "A",
         "gene": "BRCA1",
         "consequence": "missense_variant",
         "impact": "MODERATE",
         "clinvar_significance": "Pathogenic",
         "clinvar_condition": "Hereditary breast and ovarian cancer syndrome",
-        "gnomad_af": 0.000008,
-        "gnomad_af_afr": 0.0,
-        "gnomad_af_eur": 0.000012,
-        "hgvs": "NP_009225.1:p.Arg1699Trp",
+        "gnomad_af": 0.000024,
+        "gnomad_af_afr": None,
+        "gnomad_af_eur": None,
+        "hgvs": "NM_007294.4:c.5095C>T (p.Arg1699Trp)",
         "sift": "deleterious",
         "polyphen": "probably_damaging",
     },
@@ -363,7 +363,7 @@ def generate_report(
         f"**Input**: {input_label}  ",
         f"**Date**: {now}  ",
         f"**Total variants**: {total}  ",
-        f"**HIGH impact**: {high} | **MODERATE**: {mod} | **LOW**: {low}  ",
+        f"**HIGH impact**: {high} | **MODERATE**: {mod} | **LOW**: {low}<br>",
         f"**ClinVar Pathogenic/Likely Pathogenic**: {path_count}",
         "",
         "---",

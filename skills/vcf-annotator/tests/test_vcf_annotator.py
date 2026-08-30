@@ -26,7 +26,7 @@ from vcf_annotator import (
 SAMPLE_VCF = """##fileformat=VCFv4.2
 ##reference=GRCh38
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
-17\t43044295\trs80357382\tG\tA\t.\tPASS\t.
+17\t43063931\trs55770810\tG\tA\t.\tPASS\t.
 13\t32316461\trs80359550\tC\tT\t.\tPASS\t.
 chr7\t117548628\t.\tCTTT\tC\t.\tPASS\t.
 """
@@ -70,7 +70,7 @@ class TestParseVCF:
 
     def test_rsid_preserved(self, sample_vcf):
         variants = parse_vcf(sample_vcf)
-        assert variants[0]["id"] == "rs80357382"
+        assert variants[0]["id"] == "rs55770810"
 
     def test_skips_header_lines(self, sample_vcf):
         variants = parse_vcf(sample_vcf)
@@ -220,7 +220,7 @@ class TestDemoData:
 
     def test_demo_grch38_coordinates(self):
         expected = {
-            "rs80357382": ("17", "43106457"),
+            "rs55770810": ("17", "43063931"),
             "rs429358": ("19", "44908684"),
             "rs1801133": ("1", "11796321"),
         }
@@ -231,13 +231,15 @@ class TestDemoData:
         vcf = DEMO_VCF_CONTENT
         assert "19\t44908684\trs429358" in vcf
         assert "1\t11796321\trs1801133" in vcf
-        assert "17\t43106457\trs80357382" in vcf
+        assert "17\t43063931\trs55770810\tG\tA" in vcf
 
     def test_demo_brca1_is_missense_not_duplication(self):
-        brca1 = next(v for v in DEMO_ANNOTATIONS if v["id"] == "rs80357382")
+        brca1 = next(v for v in DEMO_ANNOTATIONS if v["id"] == "rs55770810")
+        assert (brca1["chrom"], brca1["pos"]) == ("17", "43063931")
+        assert (brca1["ref"], brca1["alt"]) == ("G", "A")
         assert brca1["consequence"] == "missense_variant"
         assert brca1["impact"] == "MODERATE"
-        assert "dup" not in brca1["hgvs"].lower()
+        assert brca1["hgvs"] == "NM_007294.4:c.5095C>T (p.Arg1699Trp)"
 
 
 # ── CLI entry point ────────────────────────────────────────────────────────────
