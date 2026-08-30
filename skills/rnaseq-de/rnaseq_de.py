@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import math
 import sys
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -241,6 +242,9 @@ def de_simple(
     return result
 
 
+_LN2 = math.log(2)
+
+
 def _try_de_pydeseq2(
     counts: pd.DataFrame,
     metadata: pd.DataFrame,
@@ -250,6 +254,7 @@ def _try_de_pydeseq2(
     denominator: str,
 ) -> tuple[pd.DataFrame, dict[str, str | bool]] | None:
     try:
+        import pydeseq2
         from pydeseq2.dds import DeseqDataSet
         from pydeseq2.ds import DeseqStats
     except Exception:
@@ -282,25 +287,60 @@ def _try_de_pydeseq2(
             refit_cooks=True,
         )
 
-    dds.deseq2()
-    stats = DeseqStats(dds, contrast=[factor, numerator, denominator])
-    stats.summary()
+    try:
+        dds.deseq2()
+        stats = DeseqStats(dds, contrast=[factor, numerator, denominator])
+        stats.summary()
+    except Exception as exc:
+        # Some pydeseq2 releases crash inside their own machinery on valid
+        # input (e.g. 0.5.0/0.5.1 with recent anndata raise a bare IndexError
+        # in fit_genewise_dispersions). Surface why the backend died instead
+        # of letting an opaque internal traceback escape (issue #365).
+        raise RuntimeError(
+            f"The pydeseq2 backend failed (pydeseq2 "
+            f"{getattr(pydeseq2, '__version__', 'unknown')}): "
+            f"{type(exc).__name__}: {exc}. "
+            "If this persists, rerun with --backend simple for Welch-t "
+            "statistics instead of DESeq2."
+        ) from exc
+
     shrinkage = {
         "lfc_shrinkage_applied": False,
         "lfc_shrinkage_coeff": "",
         "lfc_shrinkage_note": "",
     }
+    # DeseqStats.lfc_shrink(coeff) REPLACES results_df["log2FoldChange"]
+    # with that single coefficient's column. That is only the requested
+    # contrast when the design's reference level is the contrast denominator
+    # and the coefficient is exactly factor[T.numerator]. Shrink only when
+    # both hold; otherwise publish the unshrunk Wald MLE for the requested
+    # contrast and say so loudly (issue #365, defect 4).
     coeff = _resolve_shrinkage_coeff(dds, factor, numerator)
-    if coeff:
+    if not coeff:
+        shrinkage["lfc_shrinkage_note"] = (
+            "No pydeseq2 coefficient exactly matches the requested contrast "
+            f"(expected '{factor}[T.{numerator}]' with '{denominator}' as the "
+            "reference level); publishing the unshrunk Wald MLE for the "
+            "requested contrast."
+        )
+        warnings.warn(shrinkage["lfc_shrinkage_note"], stacklevel=2)
+    elif not _coefficient_matches_contrast(stats, dds, coeff):
+        shrinkage["lfc_shrinkage_note"] = (
+            f"Resolved coefficient '{coeff}' does not reproduce the requested "
+            "contrast's MLE log2FoldChange; refusing LFC shrinkage and "
+            "publishing the unshrunk Wald MLE for the requested contrast."
+        )
+        warnings.warn(shrinkage["lfc_shrinkage_note"], stacklevel=2)
+    else:
         try:
             stats.lfc_shrink(coeff=coeff)
             shrinkage["lfc_shrinkage_applied"] = True
             shrinkage["lfc_shrinkage_coeff"] = coeff
         except Exception as exc:
             shrinkage["lfc_shrinkage_note"] = f"Attempted LFC shrinkage with '{coeff}' but failed: {exc}"
-    else:
-        shrinkage["lfc_shrinkage_note"] = "Could not identify a PyDESeq2 coefficient for LFC shrinkage."
-    res = _require_gene_column(stats.results_df.reset_index())
+    res = _require_gene_column(
+        stats.results_df.reset_index(), identifier_name=counts.index.name
+    )
     if "baseMean" not in res.columns:
         base_mean = (counts.div(counts.sum(axis=0), axis=1) * 1_000_000.0).mean(axis=1)
         res = res.merge(base_mean.rename("baseMean"), left_on="gene", right_index=True, how="left")
@@ -309,12 +349,15 @@ def _try_de_pydeseq2(
     return res[keep].sort_values("padj", ascending=True), shrinkage
 
 
-def _require_gene_column(results: pd.DataFrame) -> pd.DataFrame:
+def _require_gene_column(
+    results: pd.DataFrame, identifier_name: str | None = None
+) -> pd.DataFrame:
     """Return DE results with a non-empty `gene` column, or fail closed."""
     res = results.copy()
     if "gene" not in res.columns:
-        for name in (*_GENE_ID_COLUMNS, "index"):
-            if name in res.columns:
+        hints = (*_GENE_ID_COLUMNS, str(identifier_name) if identifier_name else None, "index")
+        for name in hints:
+            if name and name in res.columns:
                 res = res.rename(columns={name: "gene"})
                 break
     if "gene" not in res.columns:
@@ -328,19 +371,41 @@ def _require_gene_column(results: pd.DataFrame) -> pd.DataFrame:
 
 
 def _resolve_shrinkage_coeff(dds: object, factor: str, numerator: str) -> str:
+    """Return the LFC coefficient that is exactly ``factor[T.numerator]``.
+
+    Exact match only. Fuzzy suffix/substring matching can silently resolve a
+    *different level's* coefficient (e.g. levels 'A' and 'AB'), which
+    ``DeseqStats.lfc_shrink`` would then publish in place of the requested
+    contrast (issue #365). When the exact column is absent — meaning the
+    numerator is not a fitted non-reference level — return "" so the caller
+    keeps the unshrunk MLE for the requested contrast.
+    """
     lfc_table = getattr(getattr(dds, "varm", {}), "get", lambda *_args, **_kwargs: None)("LFC")
     columns = [str(col) for col in getattr(lfc_table, "columns", [])]
     preferred = f"{factor}[T.{numerator}]"
-    if preferred in columns:
-        return preferred
-    suffix = f"[T.{numerator}]"
-    for col in columns:
-        if col.startswith(f"{factor}[") and col.endswith(suffix):
-            return col
-    for col in columns:
-        if col != "Intercept" and col.startswith(f"{factor}[") and numerator in col:
-            return col
-    return ""
+    return preferred if preferred in columns else ""
+
+
+def _coefficient_matches_contrast(stats: object, dds: object, coeff: str) -> bool:
+    """True only if ``coeff``'s MLE column equals the requested contrast's MLE.
+
+    ``DeseqStats.lfc_shrink(coeff)`` replaces ``results_df["log2FoldChange"]``
+    with that single coefficient's column, so shrinking is safe only when the
+    column *is* the requested contrast. Comparing the two MLE vectors verifies
+    this against the fitted model itself, without depending on pydeseq2's
+    column-naming or reference-level conventions (issue #365, defect 4).
+    """
+    try:
+        lfc_table = dds.varm["LFC"]
+        coeff_mle = np.asarray(lfc_table[coeff], dtype=float) / _LN2
+        contrast_mle = np.asarray(stats.results_df["log2FoldChange"], dtype=float)
+        if coeff_mle.shape != contrast_mle.shape:
+            return False
+        return bool(
+            np.allclose(coeff_mle, contrast_mle, rtol=1e-6, atol=1e-8, equal_nan=True)
+        )
+    except Exception:
+        return False
 
 
 def run_de(
