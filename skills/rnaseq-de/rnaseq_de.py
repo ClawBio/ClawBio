@@ -54,13 +54,28 @@ def parse_contrast(contrast: str) -> tuple[str, str, str]:
     return parts[0], parts[1], parts[2]
 
 
+_GENE_ID_COLUMNS = ("gene_id", "Geneid", "gene", "GENEID", "GeneID")
+_GENE_NAME_COLUMNS = ("gene_name", "gene_symbol", "GeneName", "symbol")
+
+
+def _select_gene_id_column(columns: pd.Index) -> str:
+    for name in _GENE_ID_COLUMNS:
+        if name in columns:
+            return name
+    if len(columns) == 0:
+        raise ValueError("Count matrix is missing a gene identifier column")
+    return str(columns[0])
+
+
 def load_counts(path: Path) -> pd.DataFrame:
     sep = _sep_for(path)
     df = pd.read_csv(path, sep=sep)
     if df.shape[1] < 3:
         raise ValueError("Count matrix must have one gene column and at least two samples")
-    gene_col = df.columns[0]
-    counts = df.set_index(gene_col)
+    gene_col = _select_gene_id_column(df.columns)
+    drop = [col for col in _GENE_NAME_COLUMNS if col in df.columns and col != gene_col]
+    counts = df.drop(columns=drop).set_index(gene_col)
+    counts.index.name = gene_col
     counts = counts.apply(pd.to_numeric, errors="coerce")
     if counts.isna().any().any():
         raise ValueError("Count matrix contains non-numeric entries")
@@ -285,13 +300,31 @@ def _try_de_pydeseq2(
             shrinkage["lfc_shrinkage_note"] = f"Attempted LFC shrinkage with '{coeff}' but failed: {exc}"
     else:
         shrinkage["lfc_shrinkage_note"] = "Could not identify a PyDESeq2 coefficient for LFC shrinkage."
-    res = stats.results_df.reset_index().rename(columns={"index": "gene"})
+    res = _require_gene_column(stats.results_df.reset_index())
     if "baseMean" not in res.columns:
         base_mean = (counts.div(counts.sum(axis=0), axis=1) * 1_000_000.0).mean(axis=1)
         res = res.merge(base_mean.rename("baseMean"), left_on="gene", right_index=True, how="left")
     cols = ["gene", "baseMean", "log2FoldChange", "pvalue", "padj"]
     keep = [col for col in cols if col in res.columns]
     return res[keep].sort_values("padj", ascending=True), shrinkage
+
+
+def _require_gene_column(results: pd.DataFrame) -> pd.DataFrame:
+    """Return DE results with a non-empty `gene` column, or fail closed."""
+    res = results.copy()
+    if "gene" not in res.columns:
+        for name in (*_GENE_ID_COLUMNS, "index"):
+            if name in res.columns:
+                res = res.rename(columns={name: "gene"})
+                break
+    if "gene" not in res.columns:
+        raise ValueError("Differential expression results are missing gene identifiers")
+    if res["gene"].isna().any():
+        raise ValueError("Differential expression results are missing gene identifiers")
+    genes = res["gene"].astype(str).str.strip()
+    if (genes == "").any() or (genes.str.lower() == "nan").any():
+        raise ValueError("Differential expression results are missing gene identifiers")
+    return res
 
 
 def _resolve_shrinkage_coeff(dds: object, factor: str, numerator: str) -> str:

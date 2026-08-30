@@ -8,6 +8,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from rnaseq_de import (
+    _require_gene_column,
     align_and_validate,
     compute_qc,
     de_simple,
@@ -147,3 +148,60 @@ def test_pydeseq2_reports_lfc_shrinkage(tmp_path):
     assert result_data["summary"]["backend_used"] == "pydeseq2"
     assert result_data["summary"]["lfc_shrinkage_applied"] is True
     assert result_data["summary"]["lfc_shrinkage_coeff"].startswith("condition[")
+
+
+def test_load_counts_accepts_nfcore_gene_name_column(tmp_path):
+    path = tmp_path / "salmon.merged.gene_counts.tsv"
+    path.write_text(
+        "gene_id\tgene_name\tctrl_1\tctrl_2\ttrt_1\ttrt_2\n"
+        "ENSG0001\tGeneA\t48\t52\t310\t295\n"
+        "ENSG0002\tGeneB\t250\t240\t42\t38\n",
+        encoding="utf-8",
+    )
+    counts = load_counts(path)
+    assert list(counts.index) == ["ENSG0001", "ENSG0002"]
+    assert list(counts.columns) == ["ctrl_1", "ctrl_2", "trt_1", "trt_2"]
+    assert counts.loc["ENSG0001", "trt_1"] == 310
+
+
+def test_require_gene_column_keeps_named_index():
+    results = pd.DataFrame(
+        {"log2FoldChange": [1.2]},
+        index=pd.Index(["ENSG0001"], name="gene_id"),
+    )
+    out = _require_gene_column(results.reset_index())
+    assert list(out["gene"]) == ["ENSG0001"]
+
+
+def test_require_gene_column_fails_when_identifier_missing():
+    results = pd.DataFrame({"log2FoldChange": [1.2], "padj": [0.01]})
+    with pytest.raises(ValueError, match="missing gene identifiers"):
+        _require_gene_column(results)
+
+
+def test_run_analysis_nfcore_counts_keep_gene_ids(tmp_path):
+    counts_path = tmp_path / "counts.tsv"
+    meta_path = tmp_path / "metadata.csv"
+    counts_path.write_text(
+        "gene_id\tgene_name\tctrl_1\tctrl_2\ttrt_1\ttrt_2\n"
+        "ENSG0001\tGeneA\t48\t52\t310\t295\n"
+        "ENSG0002\tGeneB\t250\t240\t42\t38\n"
+        "ENSG0003\tGeneC\t90\t86\t92\t88\n",
+        encoding="utf-8",
+    )
+    meta_path.write_text(
+        "sample_id,condition\nctrl_1,control\nctrl_2,control\ntrt_1,treated\ntrt_2,treated\n",
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "nfcore_handoff"
+    run_analysis(
+        counts_path=counts_path,
+        metadata_path=meta_path,
+        formula="~ condition",
+        contrast="condition,treated,control",
+        output_dir=out_dir,
+        backend="simple",
+    )
+    de_df = pd.read_csv(out_dir / "tables" / "de_results.csv")
+    assert set(de_df["gene"]) == {"ENSG0001", "ENSG0002", "ENSG0003"}
+    assert de_df["gene"].notna().all()

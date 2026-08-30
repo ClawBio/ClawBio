@@ -7,14 +7,19 @@ an output directory, creates the file, and returns its Path.
 
 import argparse
 import csv
-import hashlib
 import html as _html
 import json
+import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from constants import (
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.checksums import sha256_file as _sha256  # noqa: E402
+from constants import (  # noqa: E402
     CSV_COLUMNS,
     DEFAULT_PAGE_SIZE,
     DISCLAIMER,
@@ -37,16 +42,6 @@ from constants import (
 def count_recruiting(trials: list[dict]) -> int:
     """Count trials with RECRUITING status."""
     return sum(1 for t in trials if t["status"] == "RECRUITING")
-
-
-def _sha256(path: Path) -> str:
-    """Return hex SHA-256 digest of a file.  Reads in 8KB chunks to handle
-    large files without loading everything into memory."""
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -18,6 +17,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from clawbio.common.checksums import sha256_file as _sha256  # noqa: E402
 from clawbio.common.reproducibility import (  # noqa: E402
     ReproCommand,
     ReproPath,
@@ -53,14 +53,6 @@ def parse_metadata_cols(metadata_cols: str | None) -> list[str]:
     if not metadata_cols:
         return ["gender", "tissue_type", "dataset"]
     return [item.strip() for item in metadata_cols.split(",") if item.strip()]
-
-
-def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def _load_dataframe(path: Path) -> pd.DataFrame:
