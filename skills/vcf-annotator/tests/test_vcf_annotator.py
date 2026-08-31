@@ -15,6 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from vcf_annotator import (
     DEMO_ANNOTATIONS,
+    DEMO_VCF_CONTENT,
     IMPACT_RANK,
     generate_report,
     parse_vcf,
@@ -25,7 +26,7 @@ from vcf_annotator import (
 SAMPLE_VCF = """##fileformat=VCFv4.2
 ##reference=GRCh38
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
-17\t43044295\trs80357382\tG\tA\t.\tPASS\t.
+17\t43063931\trs55770810\tG\tA\t.\tPASS\t.
 13\t32316461\trs80359550\tC\tT\t.\tPASS\t.
 chr7\t117548628\t.\tCTTT\tC\t.\tPASS\t.
 """
@@ -69,7 +70,7 @@ class TestParseVCF:
 
     def test_rsid_preserved(self, sample_vcf):
         variants = parse_vcf(sample_vcf)
-        assert variants[0]["id"] == "rs80357382"
+        assert variants[0]["id"] == "rs55770810"
 
     def test_skips_header_lines(self, sample_vcf):
         variants = parse_vcf(sample_vcf)
@@ -216,6 +217,86 @@ class TestDemoData:
         impacts = [v["impact"] for v in DEMO_ANNOTATIONS]
         ranks   = [IMPACT_RANK.get(i, 5) for i in impacts]
         assert ranks == sorted(ranks)
+
+    def test_demo_grch38_coordinates(self):
+        expected = {
+            "rs55770810": ("17", "43063931"),
+            "rs429358": ("19", "44908684"),
+            "rs1801133": ("1", "11796321"),
+        }
+        by_id = {v["id"]: v for v in DEMO_ANNOTATIONS}
+        for rsid, (chrom, pos) in expected.items():
+            assert by_id[rsid]["chrom"] == chrom
+            assert by_id[rsid]["pos"] == pos
+        vcf = DEMO_VCF_CONTENT
+        assert "19\t44908684\trs429358" in vcf
+        assert "1\t11796321\trs1801133" in vcf
+        assert "17\t43063931\trs55770810\tG\tA" in vcf
+
+    def test_demo_brca1_is_missense_not_duplication(self):
+        brca1 = next(v for v in DEMO_ANNOTATIONS if v["id"] == "rs55770810")
+        assert (brca1["chrom"], brca1["pos"]) == ("17", "43063931")
+        assert (brca1["ref"], brca1["alt"]) == ("G", "A")
+        assert brca1["consequence"] == "missense_variant"
+        assert brca1["impact"] == "MODERATE"
+        assert brca1["hgvs"] == "NM_007294.4:c.5095C>T (p.Arg1699Trp)"
+
+    def test_demo_vcf_rows_match_annotations(self):
+        """Every DEMO_ANNOTATIONS record must agree with its DEMO_VCF_CONTENT
+        row. Cross-artifact consistency: the VCF and the annotation table are
+        maintained separately, so echoing either one cannot catch drift.
+        """
+        rows = {}
+        for line in DEMO_VCF_CONTENT.splitlines():
+            if line.startswith("#") or not line.strip():
+                continue
+            chrom, pos, rsid, ref, alt = line.split("\t")[:5]
+            rows[rsid] = (chrom, pos, ref, alt)
+        for v in DEMO_ANNOTATIONS:
+            assert v["id"] in rows, f"{v['id']} missing from demo VCF"
+            assert rows[v["id"]] == (v["chrom"], v["pos"], v["ref"], v["alt"]), (
+                f"{v['id']}: VCF row {rows[v['id']]} disagrees with annotation "
+                f"{(v['chrom'], v['pos'], v['ref'], v['alt'])}"
+            )
+
+    def test_demo_brca1_hgvs_matches_genomic_alleles(self):
+        """Derive, do not echo: for a minus-strand gene the genomic REF/ALT
+        must be the complement of the cDNA substitution, and the cDNA position
+        must be the first base of the codon named by the protein change.
+
+        External anchors (verified 2026-08-30, live):
+          - ClinVar VCV000055396 = NM_007294.4:c.5095C>T (p.Arg1699Trp),
+            dbSNP rs55770810, GRCh38 chr17:43063931
+          - Ensembl VEP colocates rs55770810 (G/A) at 17:43063931,
+            codon Cgg/Tgg (Arg->Trp)
+        These checks would have failed on the audited inconsistent record
+        (17:43106457 T>A labelled p.Arg1699Trp): complement of c.5095C>T is
+        G>A, not T>A.
+        """
+        import re
+
+        complement = {"A": "T", "C": "G", "G": "C", "T": "A"}
+        brca1 = next(v for v in DEMO_ANNOTATIONS if v["gene"] == "BRCA1")
+        m = re.search(r"c\.(\d+)([ACGT])>([ACGT])", brca1["hgvs"])
+        assert m, f"HGVS lacks a cDNA substitution: {brca1['hgvs']}"
+        c_pos, c_ref, c_alt = int(m.group(1)), m.group(2), m.group(3)
+        p = re.search(r"p\.\w+?(\d+)\w+?", brca1["hgvs"])
+        assert p, f"HGVS lacks a protein residue number: {brca1['hgvs']}"
+        residue = int(p.group(1))
+
+        # BRCA1 is on the minus strand: genomic alleles complement the cDNA.
+        assert brca1["ref"] == complement[c_ref], (
+            f"minus-strand REF should complement c.{c_pos}{c_ref}>{c_alt}: "
+            f"expected {complement[c_ref]}, got {brca1['ref']}"
+        )
+        assert brca1["alt"] == complement[c_alt], (
+            f"minus-strand ALT should complement c.{c_pos}{c_ref}>{c_alt}: "
+            f"expected {complement[c_alt]}, got {brca1['alt']}"
+        )
+        # c.5095 is the first base of codon 1699: 3k - 2.
+        assert 3 * residue - 2 == c_pos, (
+            f"cDNA position {c_pos} is not the first base of codon {residue}"
+        )
 
 
 # ── CLI entry point ────────────────────────────────────────────────────────────

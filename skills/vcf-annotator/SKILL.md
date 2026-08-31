@@ -188,16 +188,16 @@ CFTR, APOE, MTHFR) with ClinVar classifications and gnomAD frequencies.
 **Input**: demo_variants.vcf
 **Date**: 2026-04-19 10:00 UTC
 **Total variants**: 5
-**HIGH impact**: 3 | **MODERATE**: 2 | **LOW**: 0
+**HIGH impact**: 2 | **MODERATE**: 3 | **LOW**: 0
 **ClinVar Pathogenic/Likely Pathogenic**: 3
 
 ## Variant Table
 
 | # | Gene  | Variant             | Consequence       | Impact   | ClinVar    | gnomAD AF |
 |---|-------|---------------------|-------------------|----------|------------|-----------|
-| 1 | BRCA1 | 17:43044295 G>A     | missense_variant  | HIGH     | Pathogenic | 0.000008  |
-| 2 | BRCA2 | 13:32316461 C>T     | stop_gained       | HIGH     | Pathogenic | 0.000004  |
-| 3 | CFTR  | 7:117548628 CTTT>C  | frameshift_variant| HIGH     | Pathogenic | 0.021000  |
+| 1 | BRCA2 | 13:32316461 C>T     | stop_gained       | HIGH     | Pathogenic | 0.000004  |
+| 2 | CFTR  | 7:117548628 CTTT>C  | frameshift_variant| HIGH     | Pathogenic | 0.021000  |
+| 3 | BRCA1 | 17:43063931 G>A     | missense_variant  | MODERATE | Pathogenic | 0.000024  |
 ```
 
 ## Output Structure

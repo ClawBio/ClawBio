@@ -149,6 +149,9 @@ jobs:
       - name: Run Skill Builder tests
         run: uv run pytest skills/skill-builder/tests/test_skill_builder.py -v
 
+      - name: Run VCF Annotator tests
+        run: uv run pytest skills/vcf-annotator/tests/test_vcf_annotator.py -v
+
       - name: Run bot security tests
         run: uv run pytest bot/tests/test_security.py -v
 

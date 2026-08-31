@@ -4297,14 +4297,14 @@
       "description": "Annotate VCF variants with Ensembl VEP, ClinVar, and gnomAD. Ranks variants by impact (HIGH/MODERATE/LOW/MODIFIER) and generates a reproducible report.",
       "version": "0.1.0",
       "status": "planned",
-      "maturity_tier": "tested",
+      "maturity_tier": "ci-validated",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
+        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
