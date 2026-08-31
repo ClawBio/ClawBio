@@ -267,6 +267,8 @@ class TestReportGeneration:
         arp.generate_report(risks, ancestry_result, tmp_path)
         text = (tmp_path / "ancestry_risk_report.md").read_text()
         assert "gwas-prs" in text
+        assert "--panel-id CLAWBIO-T2D-8" in text
+        assert "PGS000013" not in text
 
     def test_report_no_absolute_lifetime_risk_claim(self, tmp_path):
         """Report must not present absolute lifetime risk %% claims (double-counting removed)."""

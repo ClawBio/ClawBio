@@ -447,7 +447,10 @@ SKILLS = {
         "script": SKILLS_DIR / "gwas-prs" / "gwas_prs.py",
         "demo_args": ["--demo"],
         "description": "GWAS Polygenic Risk Score calculator (PGS Catalog, 3000+ scores)",
-        "allowed_extra_flags": {"--trait", "--pgs-id", "--min-overlap", "--max-variants", "--build"},
+        "allowed_extra_flags": {
+            "--trait", "--pgs-id", "--panel-id", "--min-overlap",
+            "--max-variants", "--build",
+        },
         "accepts_genotypes": True,
     },
     "just-prs": {
@@ -1867,6 +1870,11 @@ def main():
     run_parser.add_argument("--trait-id", default=None, help="Exact EFO/MONDO trait ID for just-prs")
     run_parser.add_argument("--pgs-id", default=None, help="PGS Catalog score ID for PRS skill")
     run_parser.add_argument(
+        "--panel-id",
+        default=None,
+        help="ClawBio curated panel ID for PRS skill (e.g. CLAWBIO-T2D-8)",
+    )
+    run_parser.add_argument(
         "--superpopulation",
         choices=["AFR", "AMR", "EAS", "EUR", "SAS", "AUTO"],
         default=None,
@@ -2627,6 +2635,8 @@ def main():
             extra.extend(["--trait-id", args.trait_id])
         if getattr(args, "pgs_id", None):
             extra.extend(["--pgs-id", args.pgs_id])
+        if getattr(args, "panel_id", None):
+            extra.extend(["--panel-id", args.panel_id])
         if getattr(args, "superpopulation", None):
             extra.extend(["--superpopulation", args.superpopulation])
         if getattr(args, "prs_profile", None):

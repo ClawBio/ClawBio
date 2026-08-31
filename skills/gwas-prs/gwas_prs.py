@@ -7,7 +7,8 @@ using the PGS Catalog REST API and pre-curated scoring files.
 
 Usage:
     python gwas_prs.py --input <23andme_file> --trait "type 2 diabetes" --output <dir>
-    python gwas_prs.py --input <23andme_file> --pgs-id PGS000013 --output <dir>
+    python gwas_prs.py --input <23andme_file> --pgs-id PGS000031 --output <dir>
+    python gwas_prs.py --input <23andme_file> --panel-id CLAWBIO-T2D-8 --output <dir>
     python gwas_prs.py --demo --output /tmp/prs_demo
 """
 
@@ -65,9 +66,10 @@ DATA_DIR = SKILL_DIR / "data"
 # ---------------------------------------------------------------------------
 #
 # These six entries are ClawBio-curated illustrative panels of well-established
-# trait-associated loci. They are NOT PGS Catalog scoring files. `curated_panel_id`
-# is the honest identifier; the PGS accession is retained as the dict key only for
-# backward compatibility with downstream skills (issue #356).
+# trait-associated loci. They are NOT PGS Catalog scoring files. The
+# ``CLAWBIO-*`` id is the dictionary key and canonical identity. Historical PGS
+# accessions remain metadata so old output can be recognised without presenting
+# the panel as that Catalog score (issue #356).
 #
 # `pgs_catalog_id` is per panel, not a blanket None. For five of the six the
 # accession belongs to an entirely DIFFERENT published score, so it is None.
@@ -91,9 +93,10 @@ DATA_DIR = SKILL_DIR / "data"
 # `tests/test_score_provenance.py` pins them.
 
 CURATED_SCORES: dict[str, dict] = {
-    "PGS000013": {
+    "CLAWBIO-T2D-8": {
         "name": "Curated demo panel: type 2 diabetes (8 loci)",
         "curated_panel_id": "CLAWBIO-T2D-8",
+        "legacy_pgs_id": "PGS000013",
         "pgs_catalog_id": None,
         "trait_id": "EFO_0001360",
         "trait": "Type 2 diabetes",
@@ -106,9 +109,10 @@ CURATED_SCORES: dict[str, dict] = {
             "population": "EUR",
         },
     },
-    "PGS000011": {
+    "CLAWBIO-AF-12": {
         "name": "Curated demo panel: atrial fibrillation (12 loci)",
         "curated_panel_id": "CLAWBIO-AF-12",
+        "legacy_pgs_id": "PGS000011",
         "pgs_catalog_id": None,
         "trait_id": "EFO_0000275",
         "trait": "Atrial fibrillation",
@@ -121,9 +125,10 @@ CURATED_SCORES: dict[str, dict] = {
             "population": "EUR",
         },
     },
-    "PGS000004": {
+    "CLAWBIO-CAD-46": {
         "name": "Curated demo panel: coronary artery disease (46 loci)",
         "curated_panel_id": "CLAWBIO-CAD-46",
+        "legacy_pgs_id": "PGS000004",
         "pgs_catalog_id": None,
         "trait_id": "EFO_0001645",
         "trait": "Coronary artery disease",
@@ -136,9 +141,10 @@ CURATED_SCORES: dict[str, dict] = {
             "population": "EUR",
         },
     },
-    "PGS000001": {
+    "CLAWBIO-BC-77": {
         "name": "Curated demo panel: breast cancer (77 loci)",
         "curated_panel_id": "CLAWBIO-BC-77",
+        "legacy_pgs_id": "PGS000001",
         "pgs_catalog_id": "PGS000001",
         "trait_id": "EFO_0000305",
         "trait": "Breast cancer",
@@ -151,9 +157,10 @@ CURATED_SCORES: dict[str, dict] = {
             "population": "EUR",
         },
     },
-    "PGS000057": {
+    "CLAWBIO-PC-147": {
         "name": "Curated demo panel: prostate cancer (147 loci)",
         "curated_panel_id": "CLAWBIO-PC-147",
+        "legacy_pgs_id": "PGS000057",
         "pgs_catalog_id": None,
         "trait_id": "EFO_0001663",
         "trait": "Prostate cancer",
@@ -166,9 +173,10 @@ CURATED_SCORES: dict[str, dict] = {
             "population": "EUR",
         },
     },
-    "PGS000039": {
+    "CLAWBIO-BMI-97": {
         "name": "Curated demo panel: body mass index (97 loci)",
         "curated_panel_id": "CLAWBIO-BMI-97",
+        "legacy_pgs_id": "PGS000039",
         "pgs_catalog_id": None,
         "trait_id": "EFO_0004340",
         "trait": "BMI",
@@ -181,6 +189,15 @@ CURATED_SCORES: dict[str, dict] = {
             "population": "EUR",
         },
     },
+}
+
+# The pinned clawbio_bench revision in CI still invokes the T2D panel as
+# ``--pgs-id PGS000013`` and searches that field in ``prs_results.json``.
+# Keep exactly this one explicit compatibility alias until the benchmark can
+# request ``CLAWBIO-T2D-8``. The other five historical accessions follow the
+# real PGS Catalog path.
+LEGACY_PGS_PANEL_COMPAT = {
+    "PGS000013": "CLAWBIO-T2D-8",
 }
 
 
@@ -446,6 +463,14 @@ parse_genotype_file = load_genotypes
 CURATED_PANEL_MARKER = "#clawbio_panel=curated_demo"
 
 
+def curated_panel_path(panel_id: str, build: str = "GRCh37") -> Path:
+    """Return the bundled file for a canonical ``CLAWBIO-*`` panel id."""
+    normalized = panel_id.strip().upper()
+    if normalized not in CURATED_SCORES:
+        raise KeyError(normalized)
+    return DATA_DIR / f"{normalized}_{build}.txt"
+
+
 def is_curated_demo_panel(filepath: str | Path) -> bool:
     """True if `filepath` is a bundled ClawBio demo panel, not a catalog score.
 
@@ -689,7 +714,7 @@ def _assign_risk_category(percentile: float) -> str:
 
 def estimate_percentile(
     raw_score: float,
-    pgs_id: str,
+    score_id: str,
     scoring_variants: list[dict],
 ) -> dict:
     """Estimate percentile rank using a tiered approach.
@@ -712,7 +737,7 @@ def estimate_percentile(
     }
 
     # Tier 1: Curated reference distribution
-    curated = CURATED_SCORES.get(pgs_id)
+    curated = CURATED_SCORES.get(score_id)
     if curated and "reference_distribution" in curated:
         ref = curated["reference_distribution"]
         mean = ref["mean"]
@@ -773,7 +798,7 @@ def generate_report(
 
     Args:
         results: List of per-score result dicts, each containing:
-            pgs_id, trait, prs (from calculate_prs), percentile_info
+            score_id, pgs_id, trait, prs (from calculate_prs), percentile_info
             (from estimate_percentile), metadata, scoring_variants.
         input_info: Dict with format, total_snps, filepath.
         args: CLI args namespace.
@@ -800,14 +825,14 @@ def generate_report(
     lines.append("## Summary")
     lines.append("")
     lines.append(
-        "| PGS ID | Trait | Raw Score | Percentile | Risk Category | Overlap |"
+        "| Score ID | Trait | Raw Score | Percentile | Risk Category | Overlap |"
     )
     lines.append(
         "|--------|-------|-----------|------------|---------------|---------|"
     )
 
     for r in results:
-        pgs_id = r["pgs_id"]
+        score_id = r["score_id"]
         trait = r.get("trait", "Unknown")
         prs = r["prs"]
         pct_info = r["percentile_info"]
@@ -820,7 +845,7 @@ def generate_report(
         risk = pct_info.get("risk_category") or "N/A"
         overlap = f"{prs['overlap_fraction'] * 100:.1f}%"
         lines.append(
-            f"| {pgs_id} | {trait} | {raw} | {pct} | {risk} | {overlap} |"
+            f"| {score_id} | {trait} | {raw} | {pct} | {risk} | {overlap} |"
         )
 
     lines.append("")
@@ -838,7 +863,7 @@ def generate_report(
         for r in low_overlap:
             prs = r["prs"]
             lines.append(
-                f"- **{r['pgs_id']}** ({r.get('trait', '')}): "
+                f"- **{r['score_id']}** ({r.get('trait', '')}): "
                 f"{prs['variants_used']}/{prs['variants_total']} variants "
                 f"({prs['overlap_fraction'] * 100:.1f}% overlap)"
             )
@@ -851,28 +876,36 @@ def generate_report(
     lines.append("")
 
     for r in results:
-        pgs_id = r["pgs_id"]
+        score_id = r["score_id"]
+        pgs_id = r.get("pgs_id")
         trait = r.get("trait", "Unknown")
         prs = r["prs"]
         pct_info = r["percentile_info"]
         metadata = r.get("metadata", {})
 
-        lines.append(f"### {pgs_id} — {trait}")
+        lines.append(f"### {score_id} — {trait}")
         lines.append("")
 
         # Metadata table
         lines.append("| Property | Value |")
         lines.append("|----------|-------|")
-        lines.append(f"| **PGS ID** | {pgs_id} |")
+        lines.append(f"| **Score ID** | {score_id} |")
+        if pgs_id and not r.get("curated_demo_panel"):
+            lines.append(f"| **PGS Catalog ID** | {pgs_id} |")
         lines.append(f"| **Trait** | {trait} |")
         if r.get("curated_demo_panel"):
             # Issue #356. Stated here as well as in the provenance footer,
             # because a reader who skims takes the table and stops.
             lines.append(
                 f"| **Source** | ClawBio curated demo panel "
-                f"`{r.get('curated_panel_id') or 'curated_demo'}`, "
-                f"NOT the PGS Catalog score `{pgs_id}` |"
+                f"`{r.get('curated_panel_id') or score_id}`, "
+                "NOT a PGS Catalog score |"
             )
+            if r.get("legacy_pgs_id"):
+                lines.append(
+                    f"| **Historical alias** | `{r['legacy_pgs_id']}` "
+                    "(compatibility only; not Catalog identity) |"
+                )
         if metadata.get("publication"):
             label = ("Loci reference" if r.get("curated_demo_panel")
                      else "Publication")
@@ -987,10 +1020,10 @@ def generate_report(
         lines.append(
             "**Scoring files**: ClawBio curated demo panel, NOT a PGS Catalog "
             "score. The loci are established trait associations but the weights "
-            "are approximate and are not the published betas. The accession in "
-            "the filename is retained for backward compatibility and, for five "
-            "of the six panels, belongs to a different published score. Do not "
-            "cite these results as a published PRS. See ClawBio issue #356."
+            "are approximate and are not the published betas. Curated panels "
+            "use `CLAWBIO-*` identifiers and filenames; historical PGS accessions "
+            "are provenance metadata only. Do not cite these results as a "
+            "published PRS. See ClawBio issue #356."
         )
     else:
         lines.append("**Scoring files**: PGS Catalog "
@@ -1049,7 +1082,11 @@ def main():
     )
     parser.add_argument(
         "--pgs-id",
-        help="Specific PGS Catalog score ID (e.g., PGS000013)",
+        help="Specific PGS Catalog score ID (e.g., PGS000031)",
+    )
+    parser.add_argument(
+        "--panel-id",
+        help="Bundled ClawBio curated panel ID (e.g., CLAWBIO-T2D-8)",
     )
     parser.add_argument(
         "--output", "-o",
@@ -1091,11 +1128,19 @@ def main():
 
     args = parser.parse_args()
 
-    # Validate: need at least one of --demo, --trait, or --pgs-id
-    if not any([args.demo, args.trait, args.pgs_id]):
+    selectors = [args.demo, args.trait, args.pgs_id, args.panel_id]
+    if sum(bool(value) for value in selectors) > 1:
+        print(
+            "Error: choose exactly one of --demo, --trait, --pgs-id, "
+            "or --panel-id"
+        )
+        sys.exit(1)
+
+    if not any(selectors):
         parser.print_help()
         print(
-            "\nError: provide at least one of --demo, --trait, or --pgs-id"
+            "\nError: provide at least one of --demo, --trait, --pgs-id, "
+            "or --panel-id"
         )
         sys.exit(1)
 
@@ -1113,7 +1158,7 @@ def main():
     # Step 1: Determine which scoring files to use
     # -----------------------------------------------------------
     scoring_files: list[dict] = []
-    # Each entry: {pgs_id, trait, filepath, metadata}
+    # Each entry: {score_id, pgs_id, trait, filepath, metadata}
 
     if args.demo:
         # Demo mode: use built-in demo patient + curated scores
@@ -1127,20 +1172,16 @@ def main():
         print(f"  Demo patient: {demo_patient}")
         print()
 
-        for pgs_id, meta in CURATED_SCORES.items():
-            scoring_path = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt"
-            # Also check for gzipped version
-            scoring_path_gz = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt.gz"
-            if scoring_path.exists():
-                fpath = scoring_path
-            elif scoring_path_gz.exists():
-                fpath = scoring_path_gz
-            else:
-                print(f"  WARNING: Scoring file not found for {pgs_id}, "
-                      f"skipping")
+        for panel_id, meta in CURATED_SCORES.items():
+            fpath = curated_panel_path(panel_id, args.build)
+            if not fpath.exists():
+                print(f"  WARNING: Scoring file not found for {panel_id}, skipping")
                 continue
             scoring_files.append({
-                "pgs_id": pgs_id,
+                "score_id": panel_id,
+                "pgs_id": None,
+                "legacy_pgs_id": meta["legacy_pgs_id"],
+                "legacy_pgs_compatibility": False,
                 "trait": meta["trait"],
                 "filepath": fpath,
                 "metadata": {
@@ -1148,9 +1189,41 @@ def main():
                     "variants_count": meta.get("variants_count", 0),
                 },
             })
-            print(f"  Loaded curated score: {pgs_id} ({meta['trait']})")
+            print(f"  Loaded curated panel: {panel_id} ({meta['trait']})")
 
         print()
+
+    elif args.panel_id:
+        panel_id = args.panel_id.strip().upper()
+        meta = CURATED_SCORES.get(panel_id)
+        if meta is None:
+            available = ", ".join(sorted(CURATED_SCORES))
+            print(
+                f"Error: unknown curated panel ID {panel_id!r}. "
+                f"Available panels: {available}"
+            )
+            sys.exit(1)
+
+        filepath = curated_panel_path(panel_id, args.build)
+        if not filepath.exists():
+            print(f"Error: curated panel file not found: {filepath}")
+            sys.exit(1)
+
+        print(f"GWAS-PRS: using curated panel {panel_id}")
+        print("  This is an illustrative ClawBio panel, not a PGS Catalog score.")
+        print()
+        scoring_files.append({
+            "score_id": panel_id,
+            "pgs_id": None,
+            "legacy_pgs_id": meta["legacy_pgs_id"],
+            "legacy_pgs_compatibility": False,
+            "trait": meta["trait"],
+            "filepath": filepath,
+            "metadata": {
+                "publication": meta.get("publication", ""),
+                "variants_count": meta.get("variants_count", 0),
+            },
+        })
 
     elif args.pgs_id:
         # Specific PGS ID mode
@@ -1158,81 +1231,90 @@ def main():
         if not pgs_id.startswith("PGS"):
             pgs_id = "PGS" + pgs_id.lstrip("0")
 
-        print(f"GWAS-PRS: fetching score {pgs_id}")
-        print()
-
-        # Check if we have it pre-downloaded in data/.
-        local_path = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt"
-        local_path_gz = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt.gz"
-
-        # Issue #356: the curated demo panels sit at this exact path, so a
-        # request for a real accession is answered by a lookalike.
-        # `is_curated_demo_panel` detects that but is deliberately NOT used to
-        # refuse yet: clawbio-bench drives this path offline as
-        # `--pgs-id PGS000013` for eight scoring-arithmetic cases, and refusing
-        # here takes that harness from 62.5% to 0.0%, destroying real coverage
-        # rather than fixing anything. Warn now; refuse once the bench can ask
-        # for the panel by its honest id. Do not turn this into a refusal
-        # without changing the bench in the same step.
-        for candidate in (local_path, local_path_gz):
-            if candidate.exists() and is_curated_demo_panel(candidate):
-                print(f"  WARNING: {candidate.name} is a ClawBio curated demo "
-                      f"panel, not the PGS Catalog score for {pgs_id}.")
-                print("  WARNING: results below describe the demo panel. "
-                      "See ClawBio issue #356.")
-
-        if local_path.exists():
-            filepath = local_path
-            print(f"  Using pre-downloaded scoring file: {filepath}")
-        elif local_path_gz.exists():
-            filepath = local_path_gz
-            print(f"  Using pre-downloaded scoring file: {filepath}")
-        else:
-            # Fetch metadata from API
-            try:
-                print(f"  Fetching metadata for {pgs_id}...")
-                meta = client.get_score_metadata(pgs_id)
-            except requests.HTTPError as e:
-                print(f"Error: could not fetch {pgs_id}: {e}")
+        compat_panel_id = LEGACY_PGS_PANEL_COMPAT.get(pgs_id)
+        if compat_panel_id:
+            meta = CURATED_SCORES[compat_panel_id]
+            filepath = curated_panel_path(compat_panel_id, args.build)
+            if not filepath.exists():
+                print(f"Error: curated panel file not found: {filepath}")
                 sys.exit(1)
-
-            trait_name = "Unknown"
-            trait_efo = meta.get("trait_efo", [])
-            if trait_efo:
-                trait_name = trait_efo[0].get("label", "Unknown")
-            elif meta.get("trait_reported"):
-                trait_name = ", ".join(meta["trait_reported"])
-
-            variant_count = meta.get("variants_number", 0)
-            print(f"  Trait: {trait_name}")
-            print(f"  Variants: {variant_count}")
-
-            if variant_count > args.max_variants:
-                print(
-                    f"  Skipping: {variant_count} variants exceeds "
-                    f"--max-variants {args.max_variants}"
-                )
-                sys.exit(0)
-
-            # Download scoring file
-            try:
-                filepath = client.download_scoring_file(
-                    pgs_id, build=args.build
-                )
-            except requests.HTTPError as e:
-                print(f"Error downloading scoring file for {pgs_id}: {e}")
-                sys.exit(1)
-
-        # Build metadata
-        trait = "Unknown"
-        publication = ""
-        if pgs_id in CURATED_SCORES:
-            trait = CURATED_SCORES[pgs_id]["trait"]
-            publication = CURATED_SCORES[pgs_id].get("publication", "")
+            print(
+                f"GWAS-PRS: benchmark compatibility maps {pgs_id} to "
+                f"curated panel {compat_panel_id}"
+            )
+            print(
+                "  WARNING: this is not the PGS Catalog score. Use "
+                f"--panel-id {compat_panel_id} for normal curated-panel runs."
+            )
+            print("  See ClawBio issue #356.")
+            print()
+            scoring_files.append({
+                "score_id": compat_panel_id,
+                "pgs_id": pgs_id,
+                "legacy_pgs_id": pgs_id,
+                "legacy_pgs_compatibility": True,
+                "trait": meta["trait"],
+                "filepath": filepath,
+                "metadata": {
+                    "publication": meta.get("publication", ""),
+                    "variants_count": meta.get("variants_count", 0),
+                },
+            })
         else:
-            # Try API metadata if we fetched it
+            print(f"GWAS-PRS: fetching score {pgs_id}")
+            print()
+            local_path = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt"
+            local_path_gz = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt.gz"
+            for candidate in (local_path, local_path_gz):
+                if candidate.exists() and is_curated_demo_panel(candidate):
+                    print(
+                        f"Error: refusing curated panel at PGS Catalog cache "
+                        f"path {candidate}. Use --panel-id instead."
+                    )
+                    sys.exit(1)
+
+            meta_data = None
+            if local_path.exists():
+                filepath = local_path
+                print(f"  Using pre-downloaded scoring file: {filepath}")
+            elif local_path_gz.exists():
+                filepath = local_path_gz
+                print(f"  Using pre-downloaded scoring file: {filepath}")
+            else:
+                try:
+                    print(f"  Fetching metadata for {pgs_id}...")
+                    meta_data = client.get_score_metadata(pgs_id)
+                except requests.HTTPError as e:
+                    print(f"Error: could not fetch {pgs_id}: {e}")
+                    sys.exit(1)
+
+                trait_name = "Unknown"
+                trait_efo = meta_data.get("trait_efo", [])
+                if trait_efo:
+                    trait_name = trait_efo[0].get("label", "Unknown")
+                elif meta_data.get("trait_reported"):
+                    trait_name = ", ".join(meta_data["trait_reported"])
+                variant_count = meta_data.get("variants_number", 0)
+                print(f"  Trait: {trait_name}")
+                print(f"  Variants: {variant_count}")
+                if variant_count > args.max_variants:
+                    print(
+                        f"  Skipping: {variant_count} variants exceeds "
+                        f"--max-variants {args.max_variants}"
+                    )
+                    sys.exit(0)
+                try:
+                    filepath = client.download_scoring_file(
+                        pgs_id, build=args.build
+                    )
+                except requests.HTTPError as e:
+                    print(f"Error downloading scoring file for {pgs_id}: {e}")
+                    sys.exit(1)
+
+            trait = "Unknown"
+            publication = ""
             try:
-                meta_data = client.get_score_metadata(pgs_id)
+                meta_data = meta_data or client.get_score_metadata(pgs_id)
                 trait_efo = meta_data.get("trait_efo", [])
                 if trait_efo:
                     trait = trait_efo[0].get("label", "Unknown")
@@ -1247,16 +1329,16 @@ def main():
                     )
             except Exception:
                 pass
-
-        scoring_files.append({
-            "pgs_id": pgs_id,
-            "trait": trait,
-            "filepath": filepath,
-            "metadata": {
-                "publication": publication,
-            },
-        })
-        print()
+            scoring_files.append({
+                "score_id": pgs_id,
+                "pgs_id": pgs_id,
+                "legacy_pgs_id": None,
+                "legacy_pgs_compatibility": False,
+                "trait": trait,
+                "filepath": filepath,
+                "metadata": {"publication": publication},
+            })
+            print()
 
     elif args.trait:
         # Trait search mode
@@ -1325,17 +1407,16 @@ def main():
             local_path = DATA_DIR / f"{sid}_hmPOS_{args.build}.txt"
             local_path_gz = DATA_DIR / f"{sid}_hmPOS_{args.build}.txt.gz"
 
-            # Issue #356, second call site. The --trait path had the identical
-            # shadowing shortcut and no warning at all, and it is the path a
-            # user is more likely to take. Worse here than on --pgs-id, because
-            # the surrounding code then attaches the live API's `publication`
-            # and `variants_count` to a file that has neither.
+            invalid_cache_entry = False
             for candidate in (local_path, local_path_gz):
                 if candidate.exists() and is_curated_demo_panel(candidate):
-                    print(f"  WARNING: {candidate.name} is a ClawBio curated "
-                          f"demo panel, not the PGS Catalog score for {sid}.")
-                    print("  WARNING: results below describe the demo panel. "
-                          "See ClawBio issue #356.")
+                    print(
+                        f"  WARNING: refusing curated panel at PGS Catalog "
+                        f"cache path {candidate}; use --panel-id instead."
+                    )
+                    invalid_cache_entry = True
+            if invalid_cache_entry:
+                continue
 
             if local_path.exists():
                 filepath = local_path
@@ -1360,7 +1441,10 @@ def main():
                 )
 
             scoring_files.append({
+                "score_id": sid,
                 "pgs_id": sid,
+                "legacy_pgs_id": None,
+                "legacy_pgs_compatibility": False,
                 "trait": trait_label,
                 "filepath": filepath,
                 "metadata": {
@@ -1402,12 +1486,13 @@ def main():
     all_results: list[dict] = []
 
     for sf in scoring_files:
-        pgs_id = sf["pgs_id"]
+        score_id = sf["score_id"]
+        pgs_id = sf.get("pgs_id")
         trait = sf["trait"]
         filepath = sf["filepath"]
         metadata = sf["metadata"]
 
-        print(f"Scoring {pgs_id} ({trait})...")
+        print(f"Scoring {score_id} ({trait})...")
 
         # Parse scoring file
         scoring_variants = parse_scoring_file(filepath)
@@ -1436,7 +1521,7 @@ def main():
 
         # Estimate percentile
         pct_info = estimate_percentile(
-            prs["raw_score"], pgs_id, scoring_variants
+            prs["raw_score"], score_id, scoring_variants
         )
         if pct_info["percentile"] is not None:
             print(
@@ -1452,7 +1537,9 @@ def main():
         # actually scored, not from the accession, so it stays true whichever
         # path (--demo, --pgs-id, --trait) selected it.
         curated = is_curated_demo_panel(sf["filepath"])
+        curated_meta = CURATED_SCORES.get(score_id, {}) if curated else {}
         all_results.append({
+            "score_id": score_id,
             "pgs_id": pgs_id,
             "trait": trait,
             "prs": prs,
@@ -1460,11 +1547,13 @@ def main():
             "metadata": metadata,
             "scoring_variants": scoring_variants,
             "curated_demo_panel": curated,
-            "curated_panel_id": (
-                CURATED_SCORES.get(pgs_id, {}).get("curated_panel_id") if curated else None
+            "curated_panel_id": score_id if curated else None,
+            "legacy_pgs_id": curated_meta.get("legacy_pgs_id"),
+            "legacy_pgs_compatibility": bool(
+                sf.get("legacy_pgs_compatibility")
             ),
             "pgs_catalog_id": (
-                CURATED_SCORES.get(pgs_id, {}).get("pgs_catalog_id") if curated else pgs_id
+                curated_meta.get("pgs_catalog_id") if curated else pgs_id
             ),
         })
         print()
@@ -1494,7 +1583,13 @@ def main():
         json_results = []
         for r in all_results:
             jr = {
+                "score_id": r["score_id"],
                 "pgs_id": r["pgs_id"],
+                "curated_demo_panel": bool(r["curated_demo_panel"]),
+                "curated_panel_id": r["curated_panel_id"],
+                "legacy_pgs_id": r["legacy_pgs_id"],
+                "legacy_pgs_compatibility": r["legacy_pgs_compatibility"],
+                "pgs_catalog_id": r["pgs_catalog_id"],
                 "trait": r["trait"],
                 "raw_score": r["prs"]["raw_score"],
                 "variants_used": r["prs"]["variants_used"],
@@ -1516,14 +1611,14 @@ def main():
 
         # Write per-variant CSV for detailed analysis
         csv_lines = [
-            "pgs_id,rsid,effect_allele,genotype,dosage,weight,contribution,status"
+            "score_id,rsid,effect_allele,genotype,dosage,weight,contribution,status"
         ]
         for r in all_results:
             for v in r["prs"]["per_variant"]:
                 gt = v["genotype"] if v["genotype"] else ""
                 dosage = str(v["dosage"]) if v["dosage"] is not None else ""
                 csv_lines.append(
-                    f"{r['pgs_id']},{v['rsid']},{v['effect_allele']},"
+                    f"{r['score_id']},{v['rsid']},{v['effect_allele']},"
                     f"{gt},{dosage},{v['weight']:.6f},"
                     f"{v['contribution']:.6f},{v['status']}"
                 )
@@ -1541,12 +1636,17 @@ def main():
             summary={
                 "scores_calculated": len(all_results),
                 "trait": first.get("trait", ""),
-                "pgs_id": first.get("pgs_id", ""),
+                "score_id": first.get("score_id"),
+                "pgs_id": first.get("pgs_id"),
                 # Issue #356: a consumer reading this envelope, for example
                 # profile-report, must be able to tell a curated panel from a
                 # PGS Catalog score without reading our stdout.
                 "curated_demo_panel": bool(first.get("curated_demo_panel")),
                 "curated_panel_id": first.get("curated_panel_id"),
+                "legacy_pgs_id": first.get("legacy_pgs_id"),
+                "legacy_pgs_compatibility": first.get(
+                    "legacy_pgs_compatibility", False
+                ),
                 "pgs_catalog_id": first.get("pgs_catalog_id"),
                 "raw_score": first.get("prs", {}).get("raw_score"),
                 "percentile": first_pct.get("percentile"),
@@ -1580,7 +1680,7 @@ def main():
             else "N/A"
         )
         print(
-            f"  {r['pgs_id']:12s} {r['trait']:<30s} "
+            f"  {r['score_id']:16s} {r['trait']:<30s} "
             f"Score: {r['prs']['raw_score']:.4f}  "
             f"Percentile: {pct_str}"
         )

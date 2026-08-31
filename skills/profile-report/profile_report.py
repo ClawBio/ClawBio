@@ -97,6 +97,17 @@ def get_completed_skills(profile: dict) -> list[str]:
     return [s for s in ALL_SKILLS if s in results and results[s]]
 
 
+def _get_prs_scores(results: dict) -> list[dict]:
+    """Return PRS rows from demo profiles or current gwas-prs envelopes."""
+    prs_data = _get_nested(results, "prs", "data", "data")
+    if not isinstance(prs_data, dict):
+        return []
+    scores = prs_data.get("scores")
+    if scores is None:
+        scores = prs_data.get("results")
+    return scores if isinstance(scores, list) else []
+
+
 # ---------------------------------------------------------------------------
 # Section renderers
 # ---------------------------------------------------------------------------
@@ -123,9 +134,8 @@ def render_executive_summary(profile: dict) -> str:
         lines.append("- **Pharmacogenomics**: Not yet assessed")
 
     # PRS summary
-    prs_data = _get_nested(results, "prs", "data", "data")
-    if prs_data and "scores" in prs_data:
-        scores = prs_data["scores"]
+    scores = _get_prs_scores(results)
+    if scores:
         trait_summaries = []
         for score in scores:
             trait = score.get("trait", "Unknown")
@@ -309,19 +319,38 @@ def render_prs_section(profile: dict) -> str:
 
     lines = ["## Polygenic Risk Scores", ""]
 
-    scores = prs.get("scores", [])
+    scores = _get_prs_scores(results)
     if scores:
-        lines.append("| PGS ID | Trait | Raw Score | Percentile | Risk Category |")
-        lines.append("|--------|-------|-----------|------------|---------------|")
+        has_curated_panels = any(
+            score.get("curated_demo_panel")
+            or score.get("curated_panel_id")
+            or str(score.get("score_id", "")).startswith("CLAWBIO-")
+            for score in scores
+        )
+        if has_curated_panels:
+            lines.append(
+                "> **Curated demo panel**: `CLAWBIO-*` rows are illustrative "
+                "ClawBio panels, not a PGS Catalog score. They use approximate "
+                "weights and must not be presented as a published PRS result."
+            )
+            lines.append("")
+
+        lines.append("| Score ID | Trait | Raw Score | Percentile | Risk Category |")
+        lines.append("|----------|-------|-----------|------------|---------------|")
         for score in scores:
-            pgs_id = score.get("pgs_id", "—")
+            score_id = (
+                score.get("score_id")
+                or score.get("curated_panel_id")
+                or score.get("pgs_id")
+                or "—"
+            )
             trait = score.get("trait", "—")
             raw = score.get("raw_score")
             raw_str = f"{raw:.4f}" if raw is not None else "—"
             percentile = score.get("percentile")
             pct_str = f"{percentile:.0f}th" if percentile is not None else "—"
             category = score.get("risk_category", "—")
-            lines.append(f"| {pgs_id} | {trait} | {raw_str} | {pct_str} | {category} |")
+            lines.append(f"| {score_id} | {trait} | {raw_str} | {pct_str} | {category} |")
         lines.append("")
 
         # Per-trait detail
@@ -329,9 +358,14 @@ def render_prs_section(profile: dict) -> str:
             percentile = score.get("percentile")
             if percentile is not None and percentile >= 90:
                 trait = score.get("trait", "Unknown")
-                pgs_id = score.get("pgs_id", "")
+                score_id = (
+                    score.get("score_id")
+                    or score.get("curated_panel_id")
+                    or score.get("pgs_id")
+                    or ""
+                )
                 lines.append(
-                    f"> **Elevated risk**: {trait} at {percentile:.0f}th percentile ({pgs_id}). "
+                    f"> **Elevated risk**: {trait} at {percentile:.0f}th percentile ({score_id}). "
                     f"This is a statistical association, not a diagnosis."
                 )
                 lines.append("")
@@ -601,7 +635,13 @@ def _synthetic_prs() -> dict:
             "data": {
                 "scores": [
                     {
-                        "pgs_id": "PGS000013",
+                        "score_id": "CLAWBIO-T2D-8",
+                        "curated_panel_id": "CLAWBIO-T2D-8",
+                        "pgs_id": None,
+                        "curated_demo_panel": True,
+                        "legacy_pgs_id": "PGS000013",
+                        "legacy_pgs_compatibility": False,
+                        "pgs_catalog_id": None,
                         "trait": "Type 2 diabetes",
                         "raw_score": 0.83,
                         "z_score": -0.97,
@@ -611,7 +651,13 @@ def _synthetic_prs() -> dict:
                         "variants_total": 8,
                     },
                     {
-                        "pgs_id": "PGS000011",
+                        "score_id": "CLAWBIO-AF-12",
+                        "curated_panel_id": "CLAWBIO-AF-12",
+                        "pgs_id": None,
+                        "curated_demo_panel": True,
+                        "legacy_pgs_id": "PGS000011",
+                        "legacy_pgs_compatibility": False,
+                        "pgs_catalog_id": None,
                         "trait": "Atrial fibrillation",
                         "raw_score": 1.12,
                         "z_score": 2.04,
@@ -621,7 +667,13 @@ def _synthetic_prs() -> dict:
                         "variants_total": 12,
                     },
                     {
-                        "pgs_id": "PGS000004",
+                        "score_id": "CLAWBIO-CAD-46",
+                        "curated_panel_id": "CLAWBIO-CAD-46",
+                        "pgs_id": None,
+                        "curated_demo_panel": True,
+                        "legacy_pgs_id": "PGS000004",
+                        "legacy_pgs_compatibility": False,
+                        "pgs_catalog_id": None,
                         "trait": "Coronary artery disease",
                         "raw_score": 2.91,
                         "z_score": 0.25,
@@ -631,7 +683,13 @@ def _synthetic_prs() -> dict:
                         "variants_total": 46,
                     },
                     {
-                        "pgs_id": "PGS000001",
+                        "score_id": "CLAWBIO-BC-77",
+                        "curated_panel_id": "CLAWBIO-BC-77",
+                        "pgs_id": None,
+                        "curated_demo_panel": True,
+                        "legacy_pgs_id": "PGS000001",
+                        "legacy_pgs_compatibility": False,
+                        "pgs_catalog_id": "PGS000001",
                         "trait": "Breast cancer",
                         "raw_score": 4.01,
                         "z_score": -0.41,
@@ -641,7 +699,13 @@ def _synthetic_prs() -> dict:
                         "variants_total": 77,
                     },
                     {
-                        "pgs_id": "PGS000057",
+                        "score_id": "CLAWBIO-PC-147",
+                        "curated_panel_id": "CLAWBIO-PC-147",
+                        "pgs_id": None,
+                        "curated_demo_panel": True,
+                        "legacy_pgs_id": "PGS000057",
+                        "legacy_pgs_compatibility": False,
+                        "pgs_catalog_id": None,
                         "trait": "Prostate cancer",
                         "raw_score": 7.45,
                         "z_score": 0.61,
@@ -651,7 +715,13 @@ def _synthetic_prs() -> dict:
                         "variants_total": 147,
                     },
                     {
-                        "pgs_id": "PGS000039",
+                        "score_id": "CLAWBIO-BMI-97",
+                        "curated_panel_id": "CLAWBIO-BMI-97",
+                        "pgs_id": None,
+                        "curated_demo_panel": True,
+                        "legacy_pgs_id": "PGS000039",
+                        "legacy_pgs_compatibility": False,
+                        "pgs_catalog_id": None,
                         "trait": "Body mass index",
                         "raw_score": 2.76,
                         "z_score": -0.52,

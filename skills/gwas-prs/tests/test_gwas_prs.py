@@ -303,7 +303,8 @@ class TestReportGeneration:
         """Helper to build minimal results list for report generation."""
         return [
             {
-                "pgs_id": "PGS000013",
+                "score_id": "CLAWBIO-T2D-8",
+                "pgs_id": None,
                 "trait": "Type 2 diabetes",
                 "prs": {
                     "raw_score": 0.57,
@@ -323,7 +324,8 @@ class TestReportGeneration:
                 "metadata": {"publication": "Vassy et al. (2014)"},
             },
             {
-                "pgs_id": "PGS000004",
+                "score_id": "CLAWBIO-CAD-46",
+                "pgs_id": None,
                 "trait": "Coronary artery disease",
                 "prs": {
                     "raw_score": 0.32,
@@ -376,6 +378,6 @@ class TestReportGeneration:
         report = gwas_prs.generate_report(
             results, self._make_input_info(), self._make_args()
         )
-        assert "PGS000013" in report
-        assert "PGS000004" in report
+        assert "CLAWBIO-T2D-8" in report
+        assert "CLAWBIO-CAD-46" in report
         assert "Type 2 diabetes" in report
