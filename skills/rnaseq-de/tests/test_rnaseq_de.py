@@ -2,13 +2,17 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import rnaseq_de
 from rnaseq_de import (
     _require_gene_column,
+    _resolve_shrinkage_coeff,
+    _try_de_pydeseq2,
     align_and_validate,
     compute_qc,
     de_simple,
@@ -205,3 +209,170 @@ def test_run_analysis_nfcore_counts_keep_gene_ids(tmp_path):
     de_df = pd.read_csv(out_dir / "tables" / "de_results.csv")
     assert set(de_df["gene"]) == {"ENSG0001", "ENSG0002", "ENSG0003"}
     assert de_df["gene"].notna().all()
+
+
+# ---------------------------------------------------------------------------
+# Issue #365, defect 4: the published log2FoldChange must reflect the
+# requested contrast. DeseqStats.lfc_shrink(coeff) replaces the published
+# LFC with a single coefficient's column, so shrinkage is only safe when
+# that coefficient *is* the requested contrast.
+# ---------------------------------------------------------------------------
+
+
+def _make_nb_dataset(
+    n_genes: int = 240,
+    per_group: int = 4,
+    de_fraction: float = 0.25,
+    seed: int = 41,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Negative-binomial counts with a known effect direction per gene."""
+    rng = np.random.default_rng(seed)
+    genes = [f"ENSG{i:06d}" for i in range(n_genes)]
+    base = rng.gamma(2.0, 60.0, size=n_genes)
+    # even genes up in treatment, odd genes down, the rest near-null via fraction
+    de = rng.random(n_genes) < de_fraction
+    up = de & (np.arange(n_genes) % 2 == 0)
+    down = de & (np.arange(n_genes) % 2 == 1)
+    lfc = np.zeros(n_genes)
+    lfc[up] = 2.5
+    lfc[down] = -2.5
+    samples = [f"ctrl_{i}" for i in range(per_group)] + [f"trt_{i}" for i in range(per_group)]
+    conds = ["control"] * per_group + ["treated"] * per_group
+    counts = np.zeros((n_genes, 2 * per_group))
+    for j, cond in enumerate(conds):
+        mu = base * (2 ** lfc if cond == "treated" else 1.0)
+        counts[:, j] = rng.negative_binomial(10, 10 / (10 + mu))
+    cts = pd.DataFrame(counts.astype(int), index=pd.Index(genes, name="gene_id"), columns=samples)
+    meta = pd.DataFrame({"condition": conds}, index=pd.Index(samples, name="sample_id"))
+    return cts, meta
+
+
+def test_pydeseq2_lfc_reflects_requested_contrast(tmp_path):
+    """End-to-end acceptance test from #365: nf-core native counts in, gene
+    column populated out, and published log2FoldChange tracking ratios of the
+    normalized group means (correlation near 1, not ~0.33)."""
+    pytest.importorskip("pydeseq2")
+    cts, meta = _make_nb_dataset()
+    counts_path = tmp_path / "salmon.merged.gene_counts.tsv"
+    nfcore = cts.reset_index()  # gene_id becomes the first column
+    nfcore.insert(1, "gene_name", [f"SYM{i}" for i in range(len(cts))])
+    nfcore.to_csv(counts_path, sep="\t", index=False)
+    meta_path = tmp_path / "design.csv"
+    meta.to_csv(meta_path)
+
+    out_dir = tmp_path / "out"
+    result = run_analysis(
+        counts_path=counts_path,
+        metadata_path=meta_path,
+        formula="~ condition",
+        contrast="condition,treated,control",
+        output_dir=out_dir,
+        backend="pydeseq2",
+    )
+    assert result["backend_used"] == "pydeseq2"
+
+    de_df = pd.read_csv(out_dir / "tables" / "de_results.csv")
+    norm = pd.read_csv(out_dir / "tables" / "normalized_counts.csv", index_col=0)
+    # defect 1+2 regression: identifiers survive the handoff
+    assert de_df["gene"].notna().all()
+    assert set(de_df["gene"]) <= set(cts.index)
+    assert len(de_df) > 100
+    # defect 4: published LFC tracks the normalized group-mean ratios
+    meta_groups = meta["condition"].reindex(norm.columns)
+    naive = (
+        np.log2(norm.loc[:, meta_groups == "treated"].mean(axis=1) + 1)
+        - np.log2(norm.loc[:, meta_groups == "control"].mean(axis=1) + 1)
+    )
+    published = de_df.set_index("gene")["log2FoldChange"].reindex(naive.index)
+    assert published.corr(naive) > 0.9
+    top5 = de_df.head(5)
+    assert (top5["log2FoldChange"].abs() > 0.5).all(), (
+        f"top genes by padj carry near-zero effect sizes: {list(top5['log2FoldChange'])}"
+    )
+
+
+def test_pydeseq2_refuses_shrinkage_on_mismatched_coefficient(monkeypatch):
+    """A resolved coefficient that is not the requested contrast must never
+    replace the published LFC, even if a (buggy or future) resolver hands one
+    back that exists in the fitted model."""
+    pytest.importorskip("pydeseq2")
+    rng = np.random.default_rng(17)
+    n_genes = 120
+    genes = [f"ENSG{i:06d}" for i in range(n_genes)]
+    base = rng.gamma(2.0, 60.0, size=n_genes)
+    lfc = np.where(np.arange(n_genes) % 2 == 0, 2.0, -2.0)  # trtA effect only
+    samples = (
+        [f"ctl_{i}" for i in range(4)]
+        + [f"trtA_{i}" for i in range(4)]
+        + [f"trtB_{i}" for i in range(4)]
+    )
+    conds = ["control"] * 4 + ["trtA"] * 4 + ["trtB"] * 4
+    counts = np.zeros((n_genes, 12))
+    for j, c in enumerate(conds):
+        mu = base * (2 ** lfc if c == "trtA" else 1.0)
+        counts[:, j] = rng.negative_binomial(10, 10 / (10 + mu))
+    cts = pd.DataFrame(counts.astype(int), index=pd.Index(genes, name="gene_id"), columns=samples)
+    meta = pd.DataFrame({"condition": conds}, index=pd.Index(samples, name="sample_id"))
+
+    # simulate a resolver that hands back the WRONG level's coefficient
+    monkeypatch.setattr(rnaseq_de, "_resolve_shrinkage_coeff", lambda dds, f, n: "condition[T.trtB]")
+    with pytest.warns(UserWarning, match="does not reproduce the requested contrast"):
+        res, shrinkage = _try_de_pydeseq2(cts, meta, ["condition"], "condition", "trtA", "control")
+
+    assert shrinkage["lfc_shrinkage_applied"] is False
+    assert "unshrunk Wald MLE" in shrinkage["lfc_shrinkage_note"]
+    # the published LFC is still the requested contrast (trtA vs control):
+    # even genes were designed up in trtA, odd genes down
+    by_gene = res.set_index("gene")["log2FoldChange"]
+    up_genes = [g for i, g in enumerate(genes) if i % 2 == 0]
+    down_genes = [g for i, g in enumerate(genes) if i % 2 == 1]
+    assert (by_gene.reindex(up_genes) > 0).mean() > 0.9
+    assert (by_gene.reindex(down_genes) < 0).mean() > 0.9
+
+
+def test_resolve_shrinkage_coeff_exact_match_only():
+    """The resolver must return '' rather than a substring-matching column
+    for a different level (the sign-flip trap from #365)."""
+    pytest.importorskip("pydeseq2")
+
+    class FakeLFC:
+        pass
+
+    fake_dds = FakeLFC()
+    fake_dds.varm = {
+        "LFC": pd.DataFrame(
+            columns=["Intercept", "condition[T.AB]"],
+            index=["g1", "g2"],
+        )
+    }
+    # numerator 'A' is the reference level here (no condition[T.A] column);
+    # 'A' is a substring of 'condition[T.AB]' and the old resolver fell for it
+    assert _resolve_shrinkage_coeff(fake_dds, "condition", "A") == ""
+    assert _resolve_shrinkage_coeff(fake_dds, "condition", "AB") == "condition[T.AB]"
+    assert _resolve_shrinkage_coeff(fake_dds, "condition", "missing") == ""
+
+
+def test_pydeseq2_internal_failure_is_reported_clearly(monkeypatch, tmp_path):
+    """A crash inside pydeseq2 must surface as a clear RuntimeError naming the
+    backend and the simple-backend escape hatch, not a bare IndexError."""
+    pytest.importorskip("pydeseq2")
+    from pydeseq2.dds import DeseqDataSet
+
+    def _boom(self):
+        raise IndexError("too many indices for array")
+
+    monkeypatch.setattr(DeseqDataSet, "deseq2", _boom)
+    cts, meta = _make_nb_dataset(n_genes=60)
+    counts_path = tmp_path / "counts.csv"
+    meta_path = tmp_path / "meta.csv"
+    cts.to_csv(counts_path)
+    meta.to_csv(meta_path)
+    with pytest.raises(RuntimeError, match="pydeseq2 backend failed.*--backend simple"):
+        run_analysis(
+            counts_path=counts_path,
+            metadata_path=meta_path,
+            formula="~ condition",
+            contrast="condition,treated,control",
+            output_dir=tmp_path / "out",
+            backend="pydeseq2",
+        )
