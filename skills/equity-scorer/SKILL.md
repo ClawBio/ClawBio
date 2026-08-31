@@ -127,8 +127,15 @@ equity_report/
 └── reproducibility/
     ├── commands.sh          # Commands to re-run
     ├── environment.yml      # Conda export
-    └── checksums.sha256     # Input file checksums
+    └── checksums.sha256     # Output artefact checksums (tables/ + figures/)
 ```
+
+Verify with `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256`.
+The manifest names the run's derived tables and figures only: `report.md` and
+`result.json` embed wall-clock timestamps and would never re-verify, so they
+are deliberately outside the envelope (every number in `result.json` is still
+covered via the byte-identical `tables/heim_score.json`). Input files are not
+listed — input provenance is recorded as `input_checksum` in `result.json`.
 
 ## Example Report Output
 
