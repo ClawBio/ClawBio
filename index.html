@@ -120,7 +120,7 @@
   </nav>
   <a href="/benchmarks.html" style="display:block;background:linear-gradient(90deg,#238636,#1f6feb);color:#fff;text-align:center;padding:0.7rem 1rem;font-size:0.95rem;font-weight:600;text-decoration:none;">📊 Public Benchmark Leaderboard | 161/182 passing (88.5%), 26 Jul 2026 | nutrigx-advisor regressed to 0/10 and is being investigated | Every failure documented &rarr;</a>
   <section class="hero">
-    <div class="hero-badge">📊 Publicly benchmarked · 1,120 stars · 97 skills · 50 contributors · 4,570 tests</div>
+    <div class="hero-badge">📊 Publicly benchmarked · 1,122 stars · 97 skills · 50 contributors · 4,588 tests</div>
     <h1>The first <em>bioinformatics-native</em><br>AI agent skill library</h1>
     <p>ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call.</p>
     <div style="max-width:440px;margin:0 auto 2rem;">
@@ -252,7 +252,7 @@
   <section id="skills" style="background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
     <div class="section-inner">
       <div class="section-label">Skills Library</div>
-      <div class="section-title">97 skills · 92 with runnable demo data · 4,570 tests · 161 / 182 publicly benchmarked passing</div>
+      <div class="section-title">97 skills · 92 with runnable demo data · 4,588 tests · 161 / 182 publicly benchmarked passing</div>
       <p class="section-sub">Each skill includes demo data so you can try it immediately without your own files.</p>
       <div class="skills-grid">
         <div class="skill-card"><div><div class="skill-name">💊 PharmGx Reporter</div><div class="skill-desc">Pharmacogenomic report from 23andMe/AncestryDNA: 12 genes, 31 SNPs, 51 drugs, CPIC guidelines.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
@@ -327,7 +327,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr style="border-bottom:1px solid var(--border);background:rgba(63,185,80,0.05);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">ClawBio</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,120</td><td style="padding:0.6rem 1rem;text-align:right;">256</td><td style="padding:0.6rem 1rem;text-align:right;">97</td></tr>
+            <tr style="border-bottom:1px solid var(--border);background:rgba(63,185,80,0.05);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">ClawBio</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,122</td><td style="padding:0.6rem 1rem;text-align:right;">256</td><td style="padding:0.6rem 1rem;text-align:right;">97</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/FreedomIntelligence/OpenClaw-Medical-Skills" target="_blank" style="color:var(--accent2);">OpenClaw-Medical-Skills</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,037</td><td style="padding:0.6rem 1rem;text-align:right;">123</td><td style="padding:0.6rem 1rem;text-align:right;">869</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/GPTomics/bioSkills" target="_blank" style="color:var(--accent2);">bioSkills</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">331</td><td style="padding:0.6rem 1rem;text-align:right;">52</td><td style="padding:0.6rem 1rem;text-align:right;">425</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/wu-yc/LabClaw" target="_blank" style="color:var(--accent2);">LabClaw</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">317</td><td style="padding:0.6rem 1rem;text-align:right;">54</td><td style="padding:0.6rem 1rem;text-align:right;">211</td></tr>
@@ -344,6 +344,27 @@
       <div class="section-label">Recent Updates</div>
       <div class="section-title">Latest from the community</div>
       <div style="display:grid;gap:0.75rem;max-width:700px;">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(rnaseq-de): verify LFC shrinkage matches the requested contrast.</strong> Log-fold-change shrinkage was being applied to the wrong contrast in some multi-factor designs, producing incorrect shrunken estimates in the differential expression output. Contributed by @krudo-taco.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #378 · merged · 31 August 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">⚙️</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: run vcf-annotator tests on the main allowlist.</strong> The vcf-annotator test suite is now included in the main CI allowlist, ensuring annotation correctness is checked on every push rather than only in scheduled runs. Contributed by @krudo-taco.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #370 · merged · 31 August 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">⚙️</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Feat: equity-scorer writes reproducibility bundle via clawbio.common.</strong> The equity-scorer skill now emits a full reproducibility bundle using the shared clawbio.common helpers, matching the pattern adopted across other MVP skills. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #352 · merged · 31 August 2026</div>
+          </div>
+        </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
           <div>
@@ -391,27 +412,6 @@
           <div>
             <div style="font-weight:600;font-size:0.95rem;"><strong>Refactor: nutrigx reproducibility bundle delegates to clawbio.common.</strong> The nutrigx skill now uses the shared reproducibility helpers rather than its own inline implementation, in line with the broader checksum centralisation effort. Contributed by @camlloyd.</div>
             <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #350 · merged · 29 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🔧</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Refactor: SHA-256 helpers delegated to clawbio.common.checksums.</strong> Checksum utilities previously duplicated across skills are now centralised in a shared module, reducing maintenance burden and ensuring consistent hashing behaviour. Contributed by @camlloyd.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #351 · merged · 26 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">⚙️</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: auto-approve queued runs for PRs that touch only skills/.</strong> CI workflows now automatically approve queued workflow runs for pull requests that exclusively modify files under skills/, reducing manual intervention for skill-only contributions.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #362 · merged · 23 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🔬</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;">New skill: <strong>deepspot-m</strong> — transcriptome-wide virtual spatial transcriptomics from H&amp;E histology tiles. Predicts spatial gene expression across the full transcriptome from standard haematoxylin and eosin images using the DeepSpot-M model, without needing spatial sequencing. Contributed by @KalinNonchev. Total: 97 skills.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #331 · merged · 21 August 2026</div>
           </div>
         </div>
       </div>
