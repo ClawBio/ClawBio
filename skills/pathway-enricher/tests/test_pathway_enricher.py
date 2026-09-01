@@ -111,15 +111,20 @@ def test_parse_gene_file_lowercases_normalised(tmp_path: Path) -> None:
 # Unit tests — Enrichr API helpers (mocked)
 # ---------------------------------------------------------------------------
 
-def test_post_gene_list_calls_correct_url() -> None:
-    """_post_gene_list posts to the Enrichr /addList endpoint."""
+def test_post_gene_list_uses_multipart_form_data() -> None:
+    """_post_gene_list follows Enrichr's multipart upload contract."""
     mock_req = _make_mock_requests()
     with patch.object(pe, "requests", mock_req):
         uid = pe._post_gene_list(["APOE", "BIN1"])
     assert uid == "12345"
-    mock_req.post.assert_called_once()
-    call_url = mock_req.post.call_args[0][0]
-    assert "addList" in call_url
+    mock_req.post.assert_called_once_with(
+        f"{pe.ENRICHR_BASE}/addList",
+        files={
+            "list": (None, "APOE\nBIN1"),
+            "description": (None, "ClawBio gene set"),
+        },
+        timeout=30,
+    )
 
 
 def test_query_library_parses_rows() -> None:
