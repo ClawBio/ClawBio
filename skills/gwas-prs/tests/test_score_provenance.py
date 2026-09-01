@@ -2,8 +2,9 @@
 
 Context (issue #356). The six files under ``skills/gwas-prs/data/`` are
 ClawBio-curated illustrative panels of well-established trait-associated loci.
-They are *not* PGS Catalog scoring files, even though they were named with the
-PGS Catalog harmonised convention and keyed by real PGS accessions.
+They are *not* PGS Catalog scoring files. They once used the PGS Catalog
+harmonised filename convention and real accessions as keys; issue #356 moved
+those accessions to provenance metadata and made ``CLAWBIO-*`` ids canonical.
 
 Two classes of defect followed from that, and these tests pin both shut:
 
@@ -46,19 +47,19 @@ CURATED = ENGINE.CURATED_SCORES
 # Do not edit without re-resolving the PMID; a citation that names the wrong
 # paper is the defect this file exists to prevent.
 VERIFIED = {
-    "PGS000013": ("Type 2 diabetes", 8, "24520119", "Vassy", "Diabetes"),
-    "PGS000011": ("Atrial fibrillation", 12, "25123217", "Tada", "Stroke"),
-    "PGS000004": ("Coronary artery disease", 46, "27655226", "Abraham", "Eur Heart J"),
-    "PGS000001": ("Breast cancer", 77, "25855707", "Mavaddat", "J Natl Cancer Inst"),
-    "PGS000057": ("Prostate cancer", 147, "29892016", "Schumacher", "Nat Genet"),
-    "PGS000039": ("BMI", 97, "25673413", "Locke", "Nature"),
+    "CLAWBIO-T2D-8": ("Type 2 diabetes", 8, "24520119", "Vassy", "Diabetes", "PGS000013"),
+    "CLAWBIO-AF-12": ("Atrial fibrillation", 12, "25123217", "Tada", "Stroke", "PGS000011"),
+    "CLAWBIO-CAD-46": ("Coronary artery disease", 46, "27655226", "Abraham", "Eur Heart J", "PGS000004"),
+    "CLAWBIO-BC-77": ("Breast cancer", 77, "25855707", "Mavaddat", "J Natl Cancer Inst", "PGS000001"),
+    "CLAWBIO-PC-147": ("Prostate cancer", 147, "29892016", "Schumacher", "Nat Genet", "PGS000057"),
+    "CLAWBIO-BMI-97": ("BMI", 97, "25673413", "Locke", "Nature", "PGS000039"),
 }
 
 PANEL_IDS = sorted(VERIFIED)
 
 
-def _panel_path(pgs_id: str) -> Path:
-    return DATA_DIR / f"{pgs_id}_hmPOS_GRCh37.txt"
+def _panel_path(panel_id: str) -> Path:
+    return ENGINE.curated_panel_path(panel_id, "GRCh37")
 
 
 def _headers(path: Path) -> dict[str, str]:
@@ -73,15 +74,15 @@ def _headers(path: Path) -> dict[str, str]:
 
 
 class TestCitationsAreReal:
-    @pytest.mark.parametrize("pgs_id", PANEL_IDS)
-    def test_pmid_matches_the_verified_paper(self, pgs_id):
-        expected_pmid = VERIFIED[pgs_id][2]
-        assert CURATED[pgs_id]["pmid"] == expected_pmid
+    @pytest.mark.parametrize("panel_id", PANEL_IDS)
+    def test_pmid_matches_the_verified_paper(self, panel_id):
+        expected_pmid = VERIFIED[panel_id][2]
+        assert CURATED[panel_id]["pmid"] == expected_pmid
 
-    @pytest.mark.parametrize("pgs_id", PANEL_IDS)
-    def test_publication_names_the_right_author_and_journal(self, pgs_id):
-        _, _, _, author, journal = VERIFIED[pgs_id]
-        publication = CURATED[pgs_id]["publication"]
+    @pytest.mark.parametrize("panel_id", PANEL_IDS)
+    def test_publication_names_the_right_author_and_journal(self, panel_id):
+        _, _, _, author, journal, _ = VERIFIED[panel_id]
+        publication = CURATED[panel_id]["publication"]
         assert author in publication
         assert journal in publication
 
@@ -117,10 +118,10 @@ class TestTheTwoSourcesAgree:
         data = json.loads((SKILL_DIR / "curated_scores.json").read_text())
         assert sorted(data) == sorted(CURATED)
 
-    @pytest.mark.parametrize("pgs_id", PANEL_IDS)
-    def test_json_and_engine_agree_on_every_shared_field(self, pgs_id):
+    @pytest.mark.parametrize("panel_id", PANEL_IDS)
+    def test_json_and_engine_agree_on_every_shared_field(self, panel_id):
         data = json.loads((SKILL_DIR / "curated_scores.json").read_text())
-        j, c = data[pgs_id], CURATED[pgs_id]
+        j, c = data[panel_id], CURATED[panel_id]
         assert j["trait"] == c["trait"]
         assert j["variants_count"] == c["variants_count"]
         assert j["pmid"] == c["pmid"]
@@ -128,32 +129,32 @@ class TestTheTwoSourcesAgree:
 
 
 class TestPanelFilesDeclareWhatTheyAre:
-    @pytest.mark.parametrize("pgs_id", PANEL_IDS)
-    def test_file_is_marked_as_a_curated_panel_not_a_catalog_download(self, pgs_id):
-        headers = _headers(_panel_path(pgs_id))
+    @pytest.mark.parametrize("panel_id", PANEL_IDS)
+    def test_file_is_marked_as_a_curated_panel_not_a_catalog_download(self, panel_id):
+        headers = _headers(_panel_path(panel_id))
         assert headers.get("clawbio_panel") == "curated_demo"
 
-    @pytest.mark.parametrize("pgs_id", PANEL_IDS)
-    def test_file_header_agrees_with_the_engine(self, pgs_id):
-        trait, count, pmid, _, _ = VERIFIED[pgs_id]
-        headers = _headers(_panel_path(pgs_id))
+    @pytest.mark.parametrize("panel_id", PANEL_IDS)
+    def test_file_header_agrees_with_the_engine(self, panel_id):
+        trait, count, pmid, _, _, _ = VERIFIED[panel_id]
+        headers = _headers(_panel_path(panel_id))
         assert headers["trait_reported"] == trait
         assert int(headers["variants_number"]) == count
         assert headers["clawbio_pmid"] == pmid
 
-    @pytest.mark.parametrize("pgs_id", PANEL_IDS)
-    def test_declared_variant_count_matches_the_actual_rows(self, pgs_id):
-        path = _panel_path(pgs_id)
+    @pytest.mark.parametrize("panel_id", PANEL_IDS)
+    def test_declared_variant_count_matches_the_actual_rows(self, panel_id):
+        path = _panel_path(panel_id)
         rows = [
             ln for ln in path.read_text().splitlines()
             if ln and not ln.startswith("#")
         ]
         # first non-comment line is the column header
-        assert len(rows) - 1 == VERIFIED[pgs_id][1]
+        assert len(rows) - 1 == VERIFIED[panel_id][1]
 
-    @pytest.mark.parametrize("pgs_id", PANEL_IDS)
-    def test_file_does_not_claim_to_be_a_pgs_catalog_score(self, pgs_id):
-        text = _panel_path(pgs_id).read_text()
+    @pytest.mark.parametrize("panel_id", PANEL_IDS)
+    def test_file_does_not_claim_to_be_a_pgs_catalog_score(self, panel_id):
+        text = _panel_path(panel_id).read_text()
         assert "#pgs_id=" not in text, (
             "a curated panel must not present a PGS Catalog accession as its own id"
         )
@@ -166,9 +167,9 @@ class TestCuratedPanelsNeverShadowARealScore:
     in answer to a real request for that accession.
     """
 
-    @pytest.mark.parametrize("pgs_id", PANEL_IDS)
-    def test_bundled_panels_are_recognised_as_curated(self, pgs_id):
-        assert ENGINE.is_curated_demo_panel(_panel_path(pgs_id)) is True
+    @pytest.mark.parametrize("panel_id", PANEL_IDS)
+    def test_bundled_panels_are_recognised_as_curated(self, panel_id):
+        assert ENGINE.is_curated_demo_panel(_panel_path(panel_id)) is True
 
     def test_a_genuine_catalog_file_is_not_flagged(self, tmp_path):
         genuine = tmp_path / "PGS000013_hmPOS_GRCh37.txt"
@@ -186,8 +187,8 @@ class TestCuratedPanelsNeverShadowARealScore:
     def test_guard_would_fail_if_deleted(self):
         """If `is_curated_demo_panel` always returned False the bundled panels
         would be served as catalog scores again, so assert it discriminates."""
-        genuine_like = DATA_DIR / "PGS000013_hmPOS_GRCh37.txt"
-        assert ENGINE.is_curated_demo_panel(genuine_like) != ENGINE.is_curated_demo_panel(
+        curated = _panel_path("CLAWBIO-T2D-8")
+        assert ENGINE.is_curated_demo_panel(curated) != ENGINE.is_curated_demo_panel(
             SKILL_DIR / "demo_patient_prs.txt"
         )
 
@@ -232,9 +233,8 @@ class TestDocsDescribeTheCodeThatExists:
 class TestBothCallSitesAreGuarded:
     """Round 1 guarded the --pgs-id lookup and left the --trait one open.
 
-    There are three cache lookups. The demo branch is legitimately unguarded,
-    because scoring the curated panels is the whole point of --demo. The other
-    two answer a request for a specific accession and must warn.
+    There are two PGS Catalog cache lookups: direct ``--pgs-id`` and
+    ``--trait``. Both must refuse a curated panel placed in a Catalog path.
     """
 
     def _lookup_sites(self):
@@ -246,15 +246,12 @@ class TestBothCallSitesAreGuarded:
 
     def test_there_are_exactly_three_known_lookups(self):
         """If a fourth appears, this test fails and someone reads the next one."""
-        assert len(self._lookup_sites()) == 3
+        assert len(self._lookup_sites()) == 2
 
     def test_every_non_demo_lookup_warns_before_using_the_file(self):
         lines = (SKILL_DIR / "gwas_prs.py").read_text().splitlines()
         unguarded = []
         for i in self._lookup_sites():
-            preceding = "\n".join(lines[max(0, i - 12):i])
-            if "args.demo" in preceding or "curated scores (no API calls)" in preceding:
-                continue  # the demo branch, guarded by intent
             if "is_curated_demo_panel(" not in "\n".join(lines[i:i + 20]):
                 unguarded.append(i + 1)
         assert unguarded == [], (
@@ -276,7 +273,7 @@ class TestTheMitigationActuallyRuns:
     def test_pgs_id_path_warns_on_stdout(self, tmp_path):
         proc = self._run(tmp_path, "--pgs-id", "PGS000013")
         combined = proc.stdout + proc.stderr
-        assert "curated demo panel" in combined.lower()
+        assert "benchmark compatibility" in combined.lower()
 
     def test_pgs_id_path_marks_the_report(self, tmp_path):
         self._run(tmp_path, "--pgs-id", "PGS000013")
@@ -296,8 +293,8 @@ class TestTheMitigationActuallyRuns:
 
 
 class TestPanelHeadersDoNotOverclaimTheWeights:
-    @pytest.mark.parametrize("pgs_id", PANEL_IDS)
-    def test_no_header_implies_the_weights_are_the_papers(self, pgs_id):
+    @pytest.mark.parametrize("panel_id", PANEL_IDS)
+    def test_no_header_implies_the_weights_are_the_papers(self, panel_id):
         """`#source_publication=` reads as "these weights come from here".
 
         They do not: the real PGS000001 shares 60 of 77 rsIDs with the bundled
@@ -305,7 +302,7 @@ class TestPanelHeadersDoNotOverclaimTheWeights:
         is a 62-locus score against an 8-locus panel; Abraham 2016 is 49,310
         SNPs against 46.
         """
-        text = _panel_path(pgs_id).read_text()
+        text = _panel_path(panel_id).read_text()
         assert "#source_publication=" not in text
         assert "#loci_reference=" in text
         assert "approximate" in text.lower()
@@ -315,14 +312,14 @@ class TestPerPanelAccessionTruth:
     """PGS000001 really is the cited paper's accession. Five of six are not."""
 
     def test_pgs000001_is_not_described_as_a_different_score(self):
-        text = _panel_path("PGS000001").read_text()
+        text = _panel_path("CLAWBIO-BC-77").read_text()
         assert "belongs to a different" not in text
 
     @pytest.mark.parametrize(
-        "pgs_id", ["PGS000004", "PGS000011", "PGS000013", "PGS000039", "PGS000057"]
+        "panel_id", ["CLAWBIO-CAD-46", "CLAWBIO-AF-12", "CLAWBIO-T2D-8", "CLAWBIO-BMI-97", "CLAWBIO-PC-147"]
     )
-    def test_the_other_five_say_so(self, pgs_id):
-        text = _panel_path(pgs_id).read_text()
+    def test_the_other_five_say_so(self, panel_id):
+        text = _panel_path(panel_id).read_text()
         assert "different" in text.lower()
 
 
@@ -334,13 +331,13 @@ class TestThePinCoversEveryField:
         assert set(PANEL_IDS) == set(CURATED)
 
     @pytest.mark.parametrize("field", [
-        "publication", "name", "curated_panel_id", "pgs_catalog_id", "trait_id",
+        "publication", "name", "curated_panel_id", "legacy_pgs_id", "pgs_catalog_id", "trait_id",
     ])
     def test_json_and_engine_agree_on(self, field):
         data = json.loads((SKILL_DIR / "curated_scores.json").read_text())
-        for pgs_id in CURATED:
-            assert data[pgs_id][field] == CURATED[pgs_id][field], pgs_id
+        for panel_id in CURATED:
+            assert data[panel_id][field] == CURATED[panel_id][field], panel_id
 
     def test_trait_id_was_not_silently_dropped(self):
-        for pgs_id, meta in CURATED.items():
-            assert str(meta.get("trait_id", "")).startswith("EFO_"), pgs_id
+        for panel_id, meta in CURATED.items():
+            assert str(meta.get("trait_id", "")).startswith("EFO_"), panel_id

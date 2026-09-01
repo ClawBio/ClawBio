@@ -42,7 +42,7 @@ When the user asks for a polygenic risk score calculation:
 
 1. **Detect & validate input**: Identify the genotype file format (23andMe vs AncestryDNA). Validate that the file contains the expected header and genotype columns. Report the total number of SNPs in the file.
 
-2. **Select scoring file(s)**: Either use one of the 6 curated demo panels bundled in `data/` or search the PGS Catalog API (`https://www.pgscatalog.org/rest/`) for a trait-specific score.
+2. **Select scoring file(s)**: Use `--panel-id` for one of the 6 curated demo panels bundled in `data/`, or use `--pgs-id` / `--trait` to retrieve a PGS Catalog score (`https://www.pgscatalog.org/rest/`).
 
    > **The bundled panels are not PGS Catalog scores.** They are ClawBio-curated
    > illustrative panels of well-established trait-associated loci, kept small so
@@ -51,12 +51,12 @@ When the user asks for a polygenic risk score calculation:
    > approximate and are not the published betas (Vassy 2014 is a 62-locus score
    > against 8 loci here; Abraham 2016 is 49,310 SNPs against 46).
    >
-   > Each panel is keyed by a PGS accession for backward compatibility. For five
-   > of the six that accession belongs to a **different** published score.
-   > PGS000001 is the exception: that accession really is Mavaddat 2015 PRS77_BC,
-   > same trait and same variant count, but the bundled file is still a lossy
-   > derivative of it, sharing 60 of 77 rsIDs with 31 of those 60 weights
-   > differing by more than 0.02.
+   > Each panel is keyed and stored by its `CLAWBIO-*` panel id. The historical
+   > PGS accession is provenance metadata only. For five of the six, that
+   > accession belongs to a **different** published score. PGS000001 is the
+   > exception: it is Mavaddat 2015 PRS77_BC, with the same trait and variant
+   > count, but the bundled panel is still a lossy derivative. It shares 60 of
+   > 77 rsIDs, and 31 of those 60 weights differ by more than 0.02.
    >
    > Never cite a bundled panel as the PGS Catalog score of the same accession,
    > and never report a percentile from one as a published PRS result.
@@ -64,27 +64,22 @@ When the user asks for a polygenic risk score calculation:
 
    Curated demo panels available:
 
-   | Key (legacy) | Panel id | Trait | Loci | Source publication |
+   | Panel id | Historical accession | Trait | Loci | Loci reference |
    |---|---|---|---|---|
-   | PGS000013 | CLAWBIO-T2D-8 | Type 2 diabetes | 8 | Vassy JL et al. (2014) *Diabetes*, PMID 24520119 |
-   | PGS000011 | CLAWBIO-AF-12 | Atrial fibrillation | 12 | Tada H et al. (2014) *Stroke*, PMID 25123217 |
-   | PGS000004 | CLAWBIO-CAD-46 | Coronary artery disease | 46 | Abraham G et al. (2016) *Eur Heart J*, PMID 27655226 |
-   | PGS000001 | CLAWBIO-BC-77 | Breast cancer | 77 | Mavaddat N et al. (2015) *J Natl Cancer Inst*, PMID 25855707 |
-   | PGS000057 | CLAWBIO-PC-147 | Prostate cancer | 147 | Schumacher FR et al. (2018) *Nat Genet*, PMID 29892016 |
-   | PGS000039 | CLAWBIO-BMI-97 | BMI | 97 | Locke AE et al. (2015) *Nature*, PMID 25673413 |
+   | CLAWBIO-T2D-8 | PGS000013 | Type 2 diabetes | 8 | Vassy JL et al. (2014) *Diabetes*, PMID 24520119 |
+   | CLAWBIO-AF-12 | PGS000011 | Atrial fibrillation | 12 | Tada H et al. (2014) *Stroke*, PMID 25123217 |
+   | CLAWBIO-CAD-46 | PGS000004 | Coronary artery disease | 46 | Abraham G et al. (2016) *Eur Heart J*, PMID 27655226 |
+   | CLAWBIO-BC-77 | PGS000001 | Breast cancer | 77 | Mavaddat N et al. (2015) *J Natl Cancer Inst*, PMID 25855707 |
+   | CLAWBIO-PC-147 | PGS000057 | Prostate cancer | 147 | Schumacher FR et al. (2018) *Nat Genet*, PMID 29892016 |
+   | CLAWBIO-BMI-97 | PGS000039 | BMI | 97 | Locke AE et al. (2015) *Nature*, PMID 25673413 |
 
-   > **Requesting one of these accessions without `--demo` currently scores the
-   > bundled panel, not the PGS Catalog score.** The panels sit in the download
-   > cache path, so `--pgs-id PGS000013` is answered locally and never reaches
-   > the API. The run warns on stdout, marks the Score Details table, sets
-   > `curated_demo_panel: true` in `result.json`, and suppresses the PGS Catalog
-   > provenance line in the report, but it does **not** refuse. Refusing would
-   > take the `clawbio-bench` `gwas-prs` harness from 62.5% to 0.0%, since it
-   > drives this path offline for eight scoring-arithmetic cases, so the refusal
-   > lands together with an upstream change letting the bench ask for the panel
-   > by its `curated_panel_id`. Until then, treat any result whose
-   > `curated_demo_panel` is true as a demo, whatever the accession says.
-   > See ClawBio issue #356.
+   > The panel files use names such as `CLAWBIO-T2D-8_GRCh37.txt`; they no
+   > longer occupy PGS Catalog download-cache paths. `--trait` and all PGS
+   > accessions except PGS000013 therefore use genuine Catalog data. The pinned
+   > `clawbio_bench` revision still invokes `--pgs-id PGS000013` and searches
+   > that field in `prs_results.json`, so that single call is an explicit,
+   > marked compatibility alias for `CLAWBIO-T2D-8`. Normal panel runs must use
+   > `--panel-id CLAWBIO-T2D-8`. See issue #356.
 
 3. **Parse scoring file**: Read the PGS harmonised scoring file. Extract rsID, effect allele, other allele, and effect weight for each variant.
 
@@ -107,6 +102,7 @@ When the user asks for a polygenic risk score calculation:
 
 - "Calculate my polygenic risk scores from this 23andMe file"
 - "What is my genetic risk for type 2 diabetes?"
+- "Run the CLAWBIO-T2D-8 illustrative panel"
 - "Run PRS for all available traits using my genotype data"
 - "Search the PGS Catalog for Alzheimer's disease scores"
 - "Show me a demo PRS report"
@@ -131,11 +127,15 @@ The report includes:
 - Methodology notes and references
 - Safety disclaimer
 
-### scores.csv Columns
+### `prs_results.json` identity fields
 
 | Column | Description |
 |---|---|
-| pgs_id | PGS Catalog identifier |
+| score_id | Canonical score identity: `CLAWBIO-*` for curated panels or `PGS*` for Catalog scores |
+| pgs_id | PGS Catalog identifier; null for normal curated-panel runs |
+| curated_panel_id | Canonical panel id when `curated_demo_panel` is true |
+| legacy_pgs_id | Historical accession once used for the bundled panel |
+| legacy_pgs_compatibility | True only for the pinned PGS000013 benchmark compatibility path |
 | trait | Trait name |
 | raw_prs | Sum of dosage * weight |
 | z_score | (PRS - mean) / SD |
@@ -184,10 +184,10 @@ For scores beyond the 6 curated ones, query the PGS Catalog REST API:
 GET https://www.pgscatalog.org/rest/score/search?trait_id=EFO_0001360
 
 # Get scoring file metadata
-GET https://www.pgscatalog.org/rest/score/PGS000013
+GET https://www.pgscatalog.org/rest/score/PGS000031
 
 # Download harmonised scoring file
-GET https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000013/ScoringFiles/Harmonized/PGS000013_hmPOS_GRCh37.txt.gz
+GET https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000031/ScoringFiles/Harmonized/PGS000031_hmPOS_GRCh37.txt.gz
 ```
 
 ## Safety

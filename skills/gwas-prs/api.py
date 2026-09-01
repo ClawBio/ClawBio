@@ -12,7 +12,7 @@ Usage:
 
     result = run(
         genotypes={"rs7903146": "CT", "rs1801282": "CG", ...},
-        options={"pgs_id": "PGS000013", "build": "GRCh37"},
+        options={"curated_panel_id": "CLAWBIO-T2D-8", "build": "GRCh37"},
     )
 """
 
@@ -41,51 +41,66 @@ def run(genotypes: dict[str, str], options: dict | None = None) -> dict:
     Args:
         genotypes: Mapping of rsid -> genotype string (e.g. {"rs7903146": "CT"}).
         options: Optional settings dict. Recognised keys:
-            - pgs_id (str): Specific PGS Catalog score ID (e.g. "PGS000013").
-                            If omitted, all curated scores are used.
+            - curated_panel_id (str): Specific bundled panel ID (for example
+              ``CLAWBIO-T2D-8``). If omitted, all curated panels are used.
+            - pgs_id (str): Deprecated benchmark-compatibility alias. Only the
+              explicitly pinned alias in ``LEGACY_PGS_PANEL_COMPAT`` is
+              accepted; this local API does not download Catalog scores.
             - build (str): Genome build, "GRCh37" (default) or "GRCh38".
             - min_overlap (float): Minimum SNP overlap fraction (default 0.5).
 
     Returns:
         Dict with keys:
-            - results: list of per-score dicts (pgs_id, trait, raw_score,
+            - results: list of per-score dicts (score_id, pgs_id, trait, raw_score,
               percentile, risk_category, overlap_fraction, ...)
             - scores_calculated: int
             - disclaimer: str
     """
     options = options or {}
     build = options.get("build", "GRCh37")
+    curated_panel_id = options.get("curated_panel_id")
     pgs_id = options.get("pgs_id")
     min_overlap = options.get("min_overlap", 0.5)
-
-    skill_dir = Path(__file__).resolve().parent
-    data_dir = skill_dir / "data"
 
     # Determine which scoring files to use
     scoring_entries: list[dict] = []
 
-    if pgs_id:
-        pgs_id = pgs_id.strip().upper()
-        if not pgs_id.startswith("PGS"):
-            pgs_id = "PGS" + pgs_id.lstrip("0")
-        ids_to_score = [pgs_id]
+    if curated_panel_id and pgs_id:
+        raise ValueError("provide curated_panel_id or pgs_id, not both")
+
+    legacy_compat = False
+    output_pgs_id = None
+    if curated_panel_id:
+        panel_id = curated_panel_id.strip().upper()
+        if panel_id not in _engine.CURATED_SCORES:
+            raise ValueError(f"unknown curated panel ID: {panel_id}")
+        ids_to_score = [panel_id]
+    elif pgs_id:
+        normalized_pgs_id = pgs_id.strip().upper()
+        if not normalized_pgs_id.startswith("PGS"):
+            normalized_pgs_id = "PGS" + normalized_pgs_id.lstrip("0")
+        panel_id = _engine.LEGACY_PGS_PANEL_COMPAT.get(normalized_pgs_id)
+        if panel_id is None:
+            raise ValueError(
+                "the local gwas-prs API accepts canonical curated_panel_id; "
+                f"{normalized_pgs_id} is not a supported compatibility alias"
+            )
+        ids_to_score = [panel_id]
+        legacy_compat = True
+        output_pgs_id = normalized_pgs_id
     else:
         # Default: all curated scores
         ids_to_score = list(_engine.CURATED_SCORES.keys())
 
-    for sid in ids_to_score:
-        scoring_path = data_dir / f"{sid}_hmPOS_{build}.txt"
-        scoring_path_gz = data_dir / f"{sid}_hmPOS_{build}.txt.gz"
-        if scoring_path.exists():
-            fpath = scoring_path
-        elif scoring_path_gz.exists():
-            fpath = scoring_path_gz
-        else:
+    for panel_id in ids_to_score:
+        fpath = _engine.curated_panel_path(panel_id, build)
+        if not fpath.exists():
             continue
 
-        meta = _engine.CURATED_SCORES.get(sid, {})
+        meta = _engine.CURATED_SCORES[panel_id]
         scoring_entries.append({
-            "pgs_id": sid,
+            "score_id": panel_id,
+            "pgs_id": output_pgs_id if legacy_compat else None,
             "trait": meta.get("trait", "Unknown"),
             "filepath": fpath,
             "metadata": {
@@ -107,11 +122,21 @@ def run(genotypes: dict[str, str], options: dict | None = None) -> dict:
             continue
 
         pct_info = _engine.estimate_percentile(
-            prs["raw_score"], sf["pgs_id"], scoring_variants
+            prs["raw_score"], sf["score_id"], scoring_variants
         )
 
         all_results.append({
+            "score_id": sf["score_id"],
             "pgs_id": sf["pgs_id"],
+            "curated_demo_panel": True,
+            "curated_panel_id": sf["score_id"],
+            "legacy_pgs_id": _engine.CURATED_SCORES[
+                sf["score_id"]
+            ]["legacy_pgs_id"],
+            "legacy_pgs_compatibility": legacy_compat,
+            "pgs_catalog_id": _engine.CURATED_SCORES[
+                sf["score_id"]
+            ].get("pgs_catalog_id"),
             "trait": sf["trait"],
             "raw_score": prs["raw_score"],
             "variants_used": prs["variants_used"],

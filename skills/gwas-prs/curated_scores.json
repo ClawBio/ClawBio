@@ -1,7 +1,8 @@
 {
-  "PGS000013": {
+  "CLAWBIO-T2D-8": {
     "name": "Curated demo panel: type 2 diabetes (8 loci)",
     "curated_panel_id": "CLAWBIO-T2D-8",
+    "legacy_pgs_id": "PGS000013",
     "pgs_catalog_id": null,
     "trait_id": "EFO_0001360",
     "trait": "Type 2 diabetes",
@@ -14,9 +15,10 @@
       "population": "EUR"
     }
   },
-  "PGS000011": {
+  "CLAWBIO-AF-12": {
     "name": "Curated demo panel: atrial fibrillation (12 loci)",
     "curated_panel_id": "CLAWBIO-AF-12",
+    "legacy_pgs_id": "PGS000011",
     "pgs_catalog_id": null,
     "trait_id": "EFO_0000275",
     "trait": "Atrial fibrillation",
@@ -29,9 +31,10 @@
       "population": "EUR"
     }
   },
-  "PGS000004": {
+  "CLAWBIO-CAD-46": {
     "name": "Curated demo panel: coronary artery disease (46 loci)",
     "curated_panel_id": "CLAWBIO-CAD-46",
+    "legacy_pgs_id": "PGS000004",
     "pgs_catalog_id": null,
     "trait_id": "EFO_0001645",
     "trait": "Coronary artery disease",
@@ -44,9 +47,10 @@
       "population": "EUR"
     }
   },
-  "PGS000001": {
+  "CLAWBIO-BC-77": {
     "name": "Curated demo panel: breast cancer (77 loci)",
     "curated_panel_id": "CLAWBIO-BC-77",
+    "legacy_pgs_id": "PGS000001",
     "pgs_catalog_id": "PGS000001",
     "trait_id": "EFO_0000305",
     "trait": "Breast cancer",
@@ -59,9 +63,10 @@
       "population": "EUR"
     }
   },
-  "PGS000057": {
+  "CLAWBIO-PC-147": {
     "name": "Curated demo panel: prostate cancer (147 loci)",
     "curated_panel_id": "CLAWBIO-PC-147",
+    "legacy_pgs_id": "PGS000057",
     "pgs_catalog_id": null,
     "trait_id": "EFO_0001663",
     "trait": "Prostate cancer",
@@ -74,9 +79,10 @@
       "population": "EUR"
     }
   },
-  "PGS000039": {
+  "CLAWBIO-BMI-97": {
     "name": "Curated demo panel: body mass index (97 loci)",
     "curated_panel_id": "CLAWBIO-BMI-97",
+    "legacy_pgs_id": "PGS000039",
     "pgs_catalog_id": null,
     "trait_id": "EFO_0004340",
     "trait": "BMI",

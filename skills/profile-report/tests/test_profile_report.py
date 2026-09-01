@@ -63,7 +63,13 @@ def full_profile(mock_profile: dict) -> dict:
             "data": {
                 "scores": [
                     {
-                        "pgs_id": "PGS000013",
+                        "score_id": "CLAWBIO-T2D-8",
+                        "curated_panel_id": "CLAWBIO-T2D-8",
+                        "pgs_id": None,
+                        "curated_demo_panel": True,
+                        "legacy_pgs_id": "PGS000013",
+                        "legacy_pgs_compatibility": False,
+                        "pgs_catalog_id": None,
                         "trait": "Type 2 diabetes",
                         "raw_score": 0.83,
                         "z_score": -0.97,
@@ -73,7 +79,13 @@ def full_profile(mock_profile: dict) -> dict:
                         "variants_total": 8,
                     },
                     {
-                        "pgs_id": "PGS000011",
+                        "score_id": "CLAWBIO-AF-12",
+                        "curated_panel_id": "CLAWBIO-AF-12",
+                        "pgs_id": None,
+                        "curated_demo_panel": True,
+                        "legacy_pgs_id": "PGS000011",
+                        "legacy_pgs_compatibility": False,
+                        "pgs_catalog_id": None,
                         "trait": "Atrial fibrillation",
                         "raw_score": 1.12,
                         "z_score": 2.04,
@@ -163,9 +175,72 @@ class TestRenderPrs:
         """Test PRS section renders score table."""
         result = pr.render_prs_section(full_profile)
         assert "## Polygenic Risk Scores" in result
-        assert "PGS000013" in result
+        assert "CLAWBIO-T2D-8" in result
         assert "Type 2 diabetes" in result
         assert "Elevated risk" in result  # 98th percentile AF
+        assert "curated demo panel" in result.lower()
+        assert "not a pgs catalog score" in result.lower()
+        assert "approximate weights" in result.lower()
+
+    def test_synthetic_demo_uses_curated_panel_ids(self):
+        scores = pr._synthetic_prs()["data"]["data"]["scores"]
+        assert {score["score_id"] for score in scores} == {
+            "CLAWBIO-T2D-8",
+            "CLAWBIO-AF-12",
+            "CLAWBIO-CAD-46",
+            "CLAWBIO-BC-77",
+            "CLAWBIO-PC-147",
+            "CLAWBIO-BMI-97",
+        }
+        assert all(score["pgs_id"] is None for score in scores)
+        assert all(score["curated_demo_panel"] is True for score in scores)
+        assert all(score["legacy_pgs_compatibility"] is False for score in scores)
+        assert {score["legacy_pgs_id"] for score in scores} == {
+            "PGS000013", "PGS000011", "PGS000004",
+            "PGS000001", "PGS000057", "PGS000039",
+        }
+
+    def test_static_demo_preserves_panel_provenance(self):
+        profile = json.loads((SKILL_DIR / "demo_full_profile.json").read_text())
+        scores = profile["skill_results"]["prs"]["data"]["data"]["scores"]
+        assert all(score["curated_demo_panel"] is True for score in scores)
+        assert all("legacy_pgs_id" in score for score in scores)
+        assert all("pgs_catalog_id" in score for score in scores)
+
+    def test_real_gwas_prs_result_envelope_shape(self):
+        profile = {
+            "skill_results": {
+                "prs": {
+                    "data": {
+                        "data": {
+                            "results": [
+                                {
+                                    "score_id": "CLAWBIO-T2D-8",
+                                    "pgs_id": None,
+                                    "curated_demo_panel": True,
+                                    "curated_panel_id": "CLAWBIO-T2D-8",
+                                    "legacy_pgs_id": "PGS000013",
+                                    "legacy_pgs_compatibility": False,
+                                    "pgs_catalog_id": None,
+                                    "trait": "Type 2 diabetes",
+                                    "raw_score": 0.8,
+                                    "percentile": 14.3,
+                                    "risk_category": "Low",
+                                    "variants_used": 8,
+                                    "variants_total": 8,
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+        section = pr.render_prs_section(profile)
+        summary = pr.render_executive_summary(profile)
+        assert "CLAWBIO-T2D-8" in section
+        assert "curated demo panel" in section.lower()
+        assert "Type 2 diabetes" in summary
 
     def test_without_data(self, empty_profile: dict):
         """Test PRS section shows placeholder when no data."""

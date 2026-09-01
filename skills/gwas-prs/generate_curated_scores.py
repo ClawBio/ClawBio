@@ -29,6 +29,7 @@ TARGET = SKILL_DIR / "curated_scores.json"
 FIELDS = (
     "name",
     "curated_panel_id",
+    "legacy_pgs_id",
     "pgs_catalog_id",
     "trait_id",
     "trait",

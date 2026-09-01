@@ -1134,7 +1134,13 @@
         "data": {
           "scores": [
             {
-              "pgs_id": "PGS000013",
+              "score_id": "CLAWBIO-T2D-8",
+              "curated_panel_id": "CLAWBIO-T2D-8",
+              "pgs_id": null,
+              "curated_demo_panel": true,
+              "legacy_pgs_id": "PGS000013",
+              "legacy_pgs_compatibility": false,
+              "pgs_catalog_id": null,
               "trait": "Type 2 diabetes",
               "raw_score": 0.83,
               "z_score": -0.97,
@@ -1144,7 +1150,13 @@
               "variants_total": 8
             },
             {
-              "pgs_id": "PGS000011",
+              "score_id": "CLAWBIO-AF-12",
+              "curated_panel_id": "CLAWBIO-AF-12",
+              "pgs_id": null,
+              "curated_demo_panel": true,
+              "legacy_pgs_id": "PGS000011",
+              "legacy_pgs_compatibility": false,
+              "pgs_catalog_id": null,
               "trait": "Atrial fibrillation",
               "raw_score": 1.12,
               "z_score": 2.04,
@@ -1154,7 +1166,13 @@
               "variants_total": 12
             },
             {
-              "pgs_id": "PGS000004",
+              "score_id": "CLAWBIO-CAD-46",
+              "curated_panel_id": "CLAWBIO-CAD-46",
+              "pgs_id": null,
+              "curated_demo_panel": true,
+              "legacy_pgs_id": "PGS000004",
+              "legacy_pgs_compatibility": false,
+              "pgs_catalog_id": null,
               "trait": "Coronary artery disease",
               "raw_score": 2.91,
               "z_score": 0.25,
@@ -1164,7 +1182,13 @@
               "variants_total": 46
             },
             {
-              "pgs_id": "PGS000001",
+              "score_id": "CLAWBIO-BC-77",
+              "curated_panel_id": "CLAWBIO-BC-77",
+              "pgs_id": null,
+              "curated_demo_panel": true,
+              "legacy_pgs_id": "PGS000001",
+              "legacy_pgs_compatibility": false,
+              "pgs_catalog_id": "PGS000001",
               "trait": "Breast cancer",
               "raw_score": 4.01,
               "z_score": -0.41,
@@ -1174,7 +1198,13 @@
               "variants_total": 77
             },
             {
-              "pgs_id": "PGS000057",
+              "score_id": "CLAWBIO-PC-147",
+              "curated_panel_id": "CLAWBIO-PC-147",
+              "pgs_id": null,
+              "curated_demo_panel": true,
+              "legacy_pgs_id": "PGS000057",
+              "legacy_pgs_compatibility": false,
+              "pgs_catalog_id": null,
               "trait": "Prostate cancer",
               "raw_score": 7.45,
               "z_score": 0.61,
@@ -1184,7 +1214,13 @@
               "variants_total": 147
             },
             {
-              "pgs_id": "PGS000039",
+              "score_id": "CLAWBIO-BMI-97",
+              "curated_panel_id": "CLAWBIO-BMI-97",
+              "pgs_id": null,
+              "curated_demo_panel": true,
+              "legacy_pgs_id": "PGS000039",
+              "legacy_pgs_compatibility": false,
+              "pgs_catalog_id": null,
               "trait": "Body mass index",
               "raw_score": 2.76,
               "z_score": -0.52,

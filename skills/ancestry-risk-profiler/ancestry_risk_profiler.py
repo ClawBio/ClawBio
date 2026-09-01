@@ -557,8 +557,9 @@ def generate_report(
         ">   ancestry attenuates it. **AES has not been externally validated and is not a clinical",
         ">   risk score.** Use it as a signal to explore further, not a probability.",
         ">",
-        "> For validated absolute lifetime risk estimates, use `gwas-prs` with an",
-        "> ancestry-appropriate PGS Catalog score (e.g. `--pgs-id PGS000013` for Type 2 Diabetes).",
+        "> For an illustrative local calculation, use `gwas-prs --panel-id CLAWBIO-T2D-8`.",
+        "> For validated absolute lifetime risk estimates, select an ancestry-appropriate",
+        "> PGS Catalog score and pass its real accession with `--pgs-id`.",
         "",
     ]
 

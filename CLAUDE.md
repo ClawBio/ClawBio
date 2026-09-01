@@ -172,7 +172,9 @@ python skills/clinpgx/clinpgx.py --demo --output <report_dir>
 python skills/gwas-prs/gwas_prs.py \
   --input <23andme_file> --trait "type 2 diabetes" --output <report_dir>
 python skills/gwas-prs/gwas_prs.py \
-  --input <23andme_file> --pgs-id PGS000013 --output <report_dir>
+  --input <23andme_file> --panel-id CLAWBIO-T2D-8 --output <report_dir>
+python skills/gwas-prs/gwas_prs.py \
+  --input <23andme_file> --pgs-id <real_pgs_catalog_id> --output <report_dir>
 python skills/gwas-prs/gwas_prs.py --demo --output /tmp/prs_demo
 
 # Evidence-aware PRS from a local VCF/WGS callset through local stdio MCP
