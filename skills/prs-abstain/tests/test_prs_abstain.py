@@ -397,6 +397,39 @@ class TestDualReports:
         for jargon in ("centroid", "euclidean", "herfindahl", "eigenvector"):
             assert jargon not in text, f"clinician report contains jargon: {jargon}"
 
+    def test_clinician_ancestry_sentence_follows_ref_pop(self, tmp_path):
+        """The ancestry sentence is derived from cal.reference_population, not
+        hardcoded: under a non-EUR reference the clinician document must not
+        claim a European comparison group (audit round 8, point 1)."""
+        import prs_abstain as pa
+        cal = pa.Calibration(
+            reference_population="AFR", pcs_used=("PC1", "PC2"), centroid=[0.0, 0.0],
+            n=10, mean=0.0, sd=1.0, k_sd=3.0, threshold=3.0,
+            within_max=2.0, nearest_other=5.0)
+        pa._write_clinician_report(tmp_path, cal, [], [], min_markers=100)
+        text = (tmp_path / "report_clinician.md").read_text()
+        assert "African ancestry" in text
+        assert "European ancestry" not in text
+
+    def test_default_demo_still_names_the_european_reference(self, tmp_path):
+        run_cli(["--demo", "--output", str(tmp_path)])
+        text = (tmp_path / "report_clinician.md").read_text()
+        assert "European ancestry" in text
+
+    def test_duplicate_position_withhold_gets_its_own_plain_reason(self):
+        """A 'Score integrity' withhold caused by duplicated genomic positions
+        must not be relabelled as low coverage (audit round 8, point 2)."""
+        import prs_abstain as pa
+        dup = {"withheld_reasons": [
+            "Score integrity: Data integrity: 1 genomic position(s) carry more than "
+            "one scored variant (chr1:100 (rs1, rs2)). This is either a coordinate "
+            "error or the same locus counted twice, and both corrupt the sum."]}
+        cov = {"withheld_reasons": [
+            "Score integrity: weight coverage 0.40 below the 0.90 floor"]}
+        assert "more than once" in pa._plain_withheld(dup)
+        assert "too little" not in pa._plain_withheld(dup)
+        assert pa._plain_withheld(cov) == "Withheld: too little of the score was measured"
+
     def test_clinician_report_states_plain_action(self, tmp_path):
         run_cli(["--demo", "--output", str(tmp_path)])
         text = (tmp_path / "report_clinician.md").read_text().lower()

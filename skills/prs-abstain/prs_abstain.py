@@ -1141,6 +1141,17 @@ def _verdict_plain(verdict: str) -> str:
     }.get(verdict, verdict)
 
 
+_POP_LABELS = {
+    "EUR": "European", "AFR": "African", "EAS": "East Asian",
+    "SAS": "South Asian", "AMR": "Admixed American",
+}
+
+
+def _pop_label(code: str) -> str:
+    """Human-readable ancestry label for a reference-population code."""
+    return _POP_LABELS.get(code, code)
+
+
 def _write_clinician_report(outdir: Path, cal: Calibration, results: list[dict[str, Any]],
                             figures: list[str], min_markers: int,
                             lds: dict[str, LDAudit] | None = None) -> None:
@@ -1154,8 +1165,8 @@ def _write_clinician_report(outdir: Path, cal: Calibration, results: list[dict[s
     a("## What this document is\n")
     a("A polygenic score adds up many small genetic effects to place someone on a risk "
       "scale. That placement only means something when it is compared against a group the "
-      "person actually resembles. Every score reviewed here was built and calibrated in "
-      "people of European ancestry.\n")
+      "person actually resembles. Every percentile in this document is computed against "
+      f"a reference group of {_pop_label(cal.reference_population)} ancestry.\n")
     a("This tool checks, for each person and each score, whether the comparison holds. "
       "Where it does not, the percentile is withheld and the reason is given. The "
       "underlying genetic sum is still shown, because that part is always valid.\n")
@@ -1297,6 +1308,9 @@ def _plain_withheld(x: dict[str, Any]) -> str:
     if "never inspected" in joined:
         return "Withheld: the score's definition file was not available for checking"
     if "score integrity" in joined:
+        if "more than one scored variant" in joined:
+            return ("Withheld: the score file lists the same position in the genome more "
+                    "than once, so the sum cannot be trusted")
         return "Withheld: too little of the score was measured"
     if "ancestry gate" in joined:
         return "Withheld: ancestry comparison does not hold"
