@@ -59,12 +59,12 @@ The DnaSP skill computes the standard diversity, neutrality, linkage, and diverg
 | `indel` | InDel events, InDel haplotypes, k(i), π(i), θ(i), Tajima's D(i) |
 | `divergence` | Dxy, Da, fixed differences, shared & private polymorphisms |
 | `fuliout` | Fu & Li D/F using an outgroup sequence to polarise mutations |
-| `hka` | HKA test  -  multi-locus neutrality test (Hudson, Kreitman & Aguadé 1987) |
+| `hka` | HKA test  -  two-locus neutrality test (Hudson, Kreitman & Aguadé 1987) |
 | `mk` | McDonald-Kreitman test  -  adaptive evolution via Pn/Ps vs Dn/Ds (McDonald & Kreitman 1991) |
 | `kaks` | Ka/Ks (dN/dS)  -  pairwise synonymous and nonsynonymous substitution rates (Nei & Gojobori 1986) |
 | `fufs` | Fu's Fs test  -  haplotype-frequency neutrality test (Fu 1997; Ewens sampling formula) |
 | `sfs` | Site frequency spectrum  -  folded (always) and unfolded with `--outgroup` |
-| `tstv` | Transition/transversion ratio (Ts/Tv)  -  substitution pattern across all pairwise comparisons |
+| `tstv` | Transition/transversion ratio (Ts/Tv)  -  one change per biallelic segregating site |
 | `codon` | Codon usage bias  -  RSCU (Sharp & Li 1987) and ENC (Wright 1990) for in-frame coding alignments |
 | `faywu` | Fay & Wu's H (2000) + Zeng's E (2006)  -  requires `--outgroup`; tests for selective sweeps via high-frequency derived alleles |
 | `fst` | Population differentiation  -  pairwise Hudson Fst (Hudson et al. 1992); requires `--pop-file` or `--input2` |
@@ -117,7 +117,7 @@ python skills/dnasp/dnasp.py \
     --outgroup OutSeq \
     --output results/
 
-# HKA test (multi-locus TSV file)
+# HKA test (two-locus TSV file)
 python skills/dnasp/dnasp.py \
     --analysis hka \
     --hka-file loci.tsv \
@@ -683,16 +683,16 @@ Subtracts the average within-population diversity from the gross between-populat
 
 Reference: Nei (1987), eq. 10.20 (net nucleotide divergence).
 
-#### Fixed differences, shared polymorphisms, private polymorphisms (Hey 1991)
+#### Fixed / shared / exclusive sites (DnaSP `Divergencia.vb::Mod3BuscaShareFixDifferences`)
 
-Each site (after complete deletion) is classified into one of the following categories:
+Each site (after complete deletion across both populations) is classified:
 
-- **Fixed difference**  -  each population is monomorphic at this site, but they carry different alleles. These sites accumulated after the populations split.
-- **Shared polymorphism**  -  the same alleles are segregating in both populations. These sites were polymorphic in the common ancestor.
-- **Private polymorphism (Pop 1)**  -  site is polymorphic in Pop 1 but the Pop 1 alleles do not overlap with Pop 2.
-- **Private polymorphism (Pop 2)**  -  site is polymorphic in Pop 2 but the Pop 2 alleles do not overlap with Pop 1.
+- **Fixed-difference site (Sf)**  -  the two populations share no allele. Counted as a *site*. Any within-population variation on top of it is exclusive.
+- **Exclusive mutations (Sx1, Sx2)**  -  a site polymorphic in exactly one population contributes (n_alleles − 1) mutations to that population's Sx.
+- **Shared mutations (Ss)**  -  a site polymorphic in *both* populations is split into shared and exclusive mutations by a lookup on (alleles in pop1, alleles in pop2, alleles in the union), plus the quadriallelic cases.
 
-Reference: Hey (1991), *Genetics* 128:831-840.
+Ss, Sx1, Sx2 are **mutation** counts; total mutations in a population = Sx + Ss.
+Reference: Hey (1991); DnaSP 6 source (`Divergencia.vb`).
 
 **Interpretation:**
 - Many fixed differences + few shared → long divergence time, likely little ongoing gene flow
@@ -715,39 +715,54 @@ The standard Fu & Li D\* and F\* tests use folded (unrooted) data  -  a singleto
 
 #### Outgroup polarisation algorithm
 
-For each alignment column, after applying **complete deletion** across all ingroup sequences *and* the outgroup:
+The **orientable-site set** matches DnaSP 6's `SitioIesInformativo` gate: a column
+is used only when the outgroup base is a clean nucleotide, no ingroup sequence has
+a gap/ambiguous base there, and the outgroup (ancestral) allele is present among
+the ingroup states (unless the ingroup is monomorphic). For each such column:
 
-1. Identify the ancestral allele as the nucleotide carried by the outgroup sequence.
-2. If the ancestral allele is absent from all ingroup sequences at that column, skip the column (uninformative for polarisation).
-3. Count derived alleles: any ingroup allele that differs from the outgroup allele.
-4. **η (eta)**  -  total derived mutations at this site = number of derived ingroup alleles (counting each sequence carrying a derived allele). Summed across all informative sites.
-5. **η_e (eta_e, external mutations)**  -  derived mutations in exactly one ingroup sequence (derived singletons). These occur at the external branches of the genealogy.
+1. The ancestral allele is the nucleotide carried by the outgroup.
+2. Derived alleles are any ingroup alleles differing from it.
+3. **η (eta)**  -  total derived mutations = Σ (number of distinct derived alleles)
+   over orientable polymorphic sites (a triallelic site contributes 2, etc.).
+4. **η_e (eta_e, external mutations)**  -  derived alleles carried by exactly one
+   ingroup sequence (mutations on external branches).
+5. **k̄**  -  mean pairwise difference count, computed over the *same*
+   orientable-site set (DnaSP accumulates `rp1` only inside `SitioIesInformativo`),
+   so k̄, η and η_e cannot drift apart.
 
-#### D and F statistics (Fu & Li 1993)
-
-Using η and η\_e as defined above:
+#### D and F statistics (Fu & Li 1993; DnaSP `FULI.vb`)
 
 ```
-D = (η_e − η/Aₙ) / √(u_D·η + v_D·η²)
+D = (η − Aₙ·η_e) / √(u_D·η + v_D·η²)
+F = (k̄ − η_e)    / √(u_F·η + v_F·η²)
 ```
 
+with Aₙ = Σ 1/i (i = 1..n−1), Bₙ = Σ 1/i², and (matching DnaSP's `Mod12FuLiOutgroupNew`):
+
 ```
-F = (k̄ − η_e) / √(u_F·η + v_F·η²)
+c_n = 2·(n·Aₙ − 2(n−1)) / ((n−1)(n−2))
+v_D = 1 + (Aₙ²/(Bₙ+Aₙ²))·(c_n − (n+1)/(n−1))
+u_D = Aₙ − 1 − v_D
+v_F = (c_n + 2(n²+n+3)/(9n(n−1)) − 2/(n−1)) / (Aₙ²+Bₙ)
+u_F = (1 + (n+1)/(3(n−1)) − 4·(n+1)/(n−1)²·((Aₙ+1/n) − 2n/(n+1))) / Aₙ − v_F
 ```
 
-where k̄ is the mean pairwise difference count and Aₙ = Σ 1/i for i = 1 to n−1 (the same harmonic number used in θ_W). Variance coefficients u\_D, v\_D, u\_F, v\_F follow Simonsen et al. (1995) Appendix A. The exact outgroup-specific coefficients from Appendix B differ only slightly for small n and may be substituted once validated against DnaSP 6 output.
+Negative D or F indicates an excess of external (singleton) mutations. Only the
+"total mutations" mode is implemented (DnaSP's default); the "use S" mode with its
+singleton/external discounting is not.
 
-**Requirements:** n ≥ 3, η > 0. Returns `n.a.` if the sequence named by `--outgroup` is not found in the alignment, or if no informative sites remain after polarisation.
+**Requirements:** n ≥ 4, η > 0. Returns `n.a.` if the sequence named by
+`--outgroup` is not found, or no orientable sites remain.
 
 #### Interpretation
 
 | Statistic | Interpretation |
 |---|---|
 | D < 0 | Excess derived singletons → expansion or purifying selection on derived alleles |
-| D > 0 | Deficit of derived singletons → balancing selection |
+| D > 0 | Deficit of derived singletons → balancing selection or subdivision |
 | D ≈ 0 | Consistent with neutrality + constant size |
-| F < 0 | k̄ smaller than expected given η_e → purifying selection or expansion |
-| F > 0 | k̄ larger than expected → balancing selection |
+| F < 0 | Excess external mutations relative to k̄ → expansion or purifying selection |
+| F > 0 | Deficit of external mutations → balancing selection |
 
 D and F (with outgroup) are generally more sensitive than D\* and F\* when an outgroup can polarise mutations reliably.
 
@@ -781,58 +796,56 @@ Run with `--analysis hka --hka-file loci.tsv`. The HKA test does not use a seque
 
 Hudson, Kreitman & Aguadé (1987) showed that under strict neutrality, the ratio of within-species polymorphism (S) to between-species divergence (D) should be the same across all loci. A locus under positive selection will have elevated D relative to S; a locus under balancing selection will have elevated S relative to D.
 
+This is the **DnaSP 6 two-locus model** (`HKA.vb::HKAResolEcuacion`, case 1):
+one species' polymorphism plus divergence to a sister species, at **exactly two
+loci**.
+
 #### HKA locus file format
 
-The `--hka-file` argument points to a tab-separated file with one row per locus:
+Whitespace-separated, exactly two loci, `#` comments, optional header:
 
 ```
-# locus_name  n_seqs  S_poly  D_diverg
-locus_A       20      12      8
-locus_B       18      3       25
-locus_C       22      9       11
+# locus   n    S    L_poly   D    L_div   chrom
+Adh       81   9    4052     210  4052    A
+5flank    81   8    3200     78   3200    A
 ```
-
-Columns:
 
 | Column | Description |
 |---|---|
-| `locus_name` | Identifier string (used in output) |
-| `n_seqs` | Number of ingroup sequences at this locus |
-| `S_poly` | Number of segregating sites (polymorphisms within species) |
-| `D_diverg` | Number of fixed differences between species |
-
-Lines beginning with `#` are treated as comments and ignored. A header line beginning with `#` is therefore valid. Lines containing only whitespace are skipped.
+| `locus` | identifier |
+| `n` | ingroup sample size |
+| `S` | segregating sites within the ingroup |
+| `L_poly` | sites analysed within the ingroup |
+| `D` | differences to the sister species |
+| `L_div` | sites analysed for divergence (optional; defaults to `L_poly`) |
+| `chrom` | optional  -  `A` (1.0, default), `X`/`Z` (0.75), `Y`/`W` (0.25) |
 
 #### Statistical model
 
-Under neutrality, for locus i with n_i ingroup sequences:
+Parameters: θ₁, θ₂ (per site) and a scaled divergence time T. With aₙᵢ = Σ 1/j
+(j = 1..nᵢ−1), bₙᵢ = Σ 1/j², and a chromosome factor sexᵢ:
 
 ```
-E[Sᵢ] = θ̂ᵢ · fᵢ    where fᵢ = Σ 1/j  (j = 1 to nᵢ−1)   (a₁ for locus i)
-E[Dᵢ] = θ̂ᵢ · (1 + 2T̂)
+E[Sᵢ]   = aₙᵢ·sexᵢ·θᵢ·Lᵢ
+E[Dᵢ]   = (T + sexᵢ)·θᵢ·Ldivᵢ
 ```
 
-The MLE of the relative mutation rates θ̂ᵢ and the divergence time T̂ (in units of 2N generations) are estimated jointly. Because the θ̂ᵢ can be eliminated analytically, T̂ satisfies the constraint:
+DnaSP eliminates θ₂ and T analytically, leaving a **quadratic in θ₁**
+(coefficients from `HKAResolEcuacion`). θ₁ is the positive root; θ₂ and T follow.
+A root that produces a negative θ is rejected; if no positive-θ solution exists
+the test is not run and `HKAStats.error` is set  -  no divergence time is
+fabricated.
+
+#### Chi-square statistic (HKA 1987; `HKAJiCuadrado`)
 
 ```
-Σᵢ Dᵢ / (1 + 2T̂) = Σᵢ (Sᵢ + Dᵢ) / (fᵢ + 1 + 2T̂)
+Var[Sᵢ] = E[Sᵢ] + sexᵢ²·bₙᵢ·θᵢ²·Lᵢ²          (the bₙ term)
+Var[Dᵢ] = E[Dᵢ] + sexᵢ²·θᵢ²·Ldivᵢ²
+χ²      = Σᵢ (Sᵢ − E[Sᵢ])²/Var[Sᵢ] + (Dᵢ − E[Dᵢ])²/Var[Dᵢ]
 ```
 
-T̂ is found by bisection over [0, 1000]. Once T̂ is known:
-
-```
-θ̂ᵢ = (Sᵢ + Dᵢ) / (fᵢ + 1 + 2T̂)
-E[Sᵢ] = θ̂ᵢ · fᵢ
-E[Dᵢ] = θ̂ᵢ · (1 + 2T̂)
-```
-
-#### Chi-square statistic
-
-```
-χ² = Σᵢ [ (Sᵢ − E[Sᵢ])² / E[Sᵢ] + (Dᵢ − E[Dᵢ])² / E[Dᵢ] ]
-```
-
-with **df = k − 1** where k is the number of loci. The p-value uses the regularised incomplete gamma function Q(df/2, χ²/2), computed without scipy using a series expansion (x < a+1) or Lentz continued fraction (x ≥ a+1).
+with **df = 1**. The p-value uses the regularised incomplete gamma function
+Q(1/2, χ²/2), computed without scipy.
 
 **Requirements:** k ≥ 2 loci. Returns `n.a.` for p-value if df < 1. Each locus must have n ≥ 2 sequences (for fᵢ > 0).
 
@@ -840,7 +853,7 @@ with **df = k − 1** where k is the number of loci. The p-value uses the regula
 
 | Result | Interpretation |
 |---|---|
-| p ≥ 0.05 | Fail to reject neutrality  -  polymorphism/divergence ratios consistent across loci |
+| p ≥ 0.05 | Fail to reject neutrality  -  polymorphism/divergence ratio consistent between the two loci |
 | p < 0.05 | At least one locus deviates significantly  -  candidate for selection |
 | Large (Sᵢ − E[Sᵢ])² | That locus has unusual polymorphism → possible balancing selection |
 | Large (Dᵢ − E[Dᵢ])² | That locus has unusual divergence → possible positive selection |
@@ -1029,30 +1042,35 @@ P(K_n = k) = |s(n, k)| × θ^k / θ^(n)
 
 where |s(n, k)| = unsigned Stirling number of the first kind, and θ^(n) = θ(θ+1)…(θ+n−1) is the rising factorial (Pochhammer symbol). Unsigned Stirling numbers are computed by the recurrence |s(n+1, k)| = n × |s(n, k)| + |s(n, k−1)| using Python arbitrary-precision integers.
 
-The CDF:
+Evaluated in **log space** (`math.log` of the exact Stirling integer) so the
+central coefficients  -  which exceed float range for n ≳ 171  -  do not overflow.
+
+**Upper tail (Fu 1997):**
 
 ```
-S_k = P(K_n ≤ H | θ_π, n) = Σ_{k=1}^{H} P(K_n = k)
+S' = P(K_n ≥ H | θ_π, n) = Σ_{k=H}^{n} P(K_n = k)
 ```
 
 **Fs statistic:**
 
 ```
-Fs = ln( S_k / (1 − S_k) )
+Fs = ln( S' / (1 − S') )
 ```
 
-This is a logit transformation of S_k. Fs << 0 means the observed haplotype count is improbably low given the nucleotide diversity.
+Fs << 0 means the observed haplotype count is improbably *high* given the
+nucleotide diversity  -  the signature of population expansion or hitchhiking.
 
 #### Interpretation
 
 | Result | Interpretation |
 |---|---|
-| Fs << 0, S_k ≤ 0.02 | Significant  -  far fewer haplotypes than expected; population expansion or positive selection |
-| Fs < 0, S_k > 0.02 | Non-significant departure; consistent with neutrality |
+| Fs << 0 | More haplotypes than expected; population expansion or genetic hitchhiking |
 | Fs ≈ 0 | Observed haplotypes match neutral expectation |
-| Fs > 0 | More haplotypes than expected; balancing selection or subdivision |
+| Fs > 0 | Fewer haplotypes than expected; balancing selection or subdivision |
 
-**Significance threshold:** Fu (1997) recommended S_k ≤ 0.02 (not the usual 0.05) because Fs is anti-conservative.
+**No significance level is reported.** S' is the Ewens upper-tail probability, not
+a P-value  -  θ_π is estimated from the data, so a formal test needs coalescent
+simulation of the null (planned for v0.5.0).
 
 **Requirements:** n ≥ 2, H ≥ 1, k > 0. If k = 0 (all sequences identical), θ_π = 0 and the result is degenerate.
 
@@ -1145,7 +1163,12 @@ python skills/dnasp/dnasp.py \
 
 ### Transition/Transversion ratio
 
-Run with `--analysis tstv`. Works on any alignment  -  coding or non-coding. Ts/Tv is computed across all n(n−1)/2 pairwise comparisons at every clean (non-gap, unambiguous ATCG) column.
+Run with `--analysis tstv`. Works on any alignment. Matching DnaSP 6
+(`Mutational.vb::Mod31Compute_1`), **one change is counted per biallelic
+segregating column**  -  not summed over sequence pairs  -  so the ratio does not
+depend on sample size. Multiallelic columns are excluded. With `--outgroup`,
+columns the outgroup cannot orient are also excluded (the ratio is unchanged for
+the survivors, since Ts/Tv classification is polarity-independent).
 
 #### Substitution classification
 
@@ -1161,14 +1184,14 @@ Run with `--analysis tstv`. Works on any alignment  -  coding or non-coding. Ts/
 #### Formulas
 
 ```
-n_pairs = n(n−1)/2
+for each biallelic segregating column (skip monomorphic, multiallelic,
+and  -  with an outgroup  -  columns the outgroup cannot orient):
+    a, b = the two alleles present
+    n_transitions   += 1  if a, b are the same chemical class (A/G or C/T)
+    n_transversions += 1  otherwise
 
-n_transitions   = Σ over all pairs and all clean columns: 1 if (same chemical class and a ≠ b)
-n_transversions = Σ over all pairs and all clean columns: 1 if (different chemical class)
-
-ts_tv       = n_transitions / n_transversions   (None if n_transversions = 0)
-ts_per_site = n_transitions  / (n_pairs × L_net)
-tv_per_site = n_transversions / (n_pairs × L_net)
+ts_tv = n_transitions / n_transversions      (None if n_transversions = 0)
+n_sites = n_transitions + n_transversions
 ```
 
 #### Interpretation
@@ -1177,12 +1200,12 @@ tv_per_site = n_transversions / (n_pairs × L_net)
 |-------|----------------|
 | ≈ 2 | Typical nuclear DNA  -  transitions are inherently more mutable |
 | > 10 | Mitochondrial DNA or highly conserved regions |
-| < 0.5 | Possible saturation of transitions (high divergence) or non-neutral substitution patterns |
-| None | No transversions observed (all differences are transitions)  -  common for closely related sequences |
+| < 1 | Transversion excess  -  genuine for AT-rich / fast-evolving non-coding DNA, or transitional saturation |
+| None | No transversions observed (all differences are transitions) |
 
 #### Output
 
-- `report.md`  -  table of Ts, Tv, Ts/Tv, ts_per_site, tv_per_site, L_net.
+- `report.md`  -  Ts, Tv, Ts/Tv, biallelic sites classified, exclusions, L_net.
 - No separate figure; pair with `ld` or `divergence` for a comprehensive substitution analysis.
 
 #### Example
@@ -1404,7 +1427,7 @@ All calculations use **complete deletion**: any column where any sequence (in an
 
 Fst is clamped to [0, 1]: negative values (which can arise when π_s > π_t due to sampling with small n) are set to 0. If π_t = 0 (no between-population variation at any site), Fst is reported as `None`.
 
-For analyses with more than 2 populations, all pairwise Fst values are computed and a mean Fst across all pairs is reported.
+For analyses with more than 2 populations, all pairwise Fst values are computed and an unweighted mean Fst across all pairs is reported.
 
 #### Interpretation (Wright 1978 thresholds)
 
@@ -1498,7 +1521,7 @@ Markdown narrative including:
 - HKA test summary with per-locus breakdown (if `--analysis hka`)
 - McDonald-Kreitman table (Pn, Ps, Dn, Ds) and derived statistics (if `--analysis mk`)
 - Ka/Ks summary (S_sites, N_sites, Ks, Ka, ω) (if `--analysis kaks`)
-- Fu's Fs table (θ_π, H, S_k, Fs) with significance note (if `--analysis fufs`)
+- Fu's Fs table (θ_π, H, S', Fs)  -  no significance level (if `--analysis fufs`)
 - SFS tables  -  folded and unfolded (if `--analysis sfs`)
 - Transition/Transversion table (Ts, Tv, Ts/Tv, per-site rates, L_net) (if `--analysis tstv`)
 - Codon Usage section  -  ENC, n_codons, and full RSCU table grouped by amino acid (if `--analysis codon`)

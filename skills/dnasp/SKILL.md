@@ -6,7 +6,7 @@ description: >-
   tests (Tajima's D, Fu & Li's D*/F*, R2), linkage disequilibrium (D, D', R²,
   ZnS, Za, ZZ), minimum recombination (Rm), mismatch distribution, InDel
   polymorphism, between-population divergence (Dxy, Da, fixed/shared sites),
-  outgroup-based Fu & Li D/F tests (fuliout), the HKA multi-locus neutrality
+  outgroup-based Fu & Li D/F tests (fuliout), the HKA two-locus neutrality
   test (hka), the McDonald-Kreitman test (mk), Ka/Ks (dN/dS) via the
   Nei-Gojobori (1986) method (kaks), Fu's Fs test (fufs), the site frequency
   spectrum (sfs, folded and outgroup-unfolded), transition/transversion ratio
@@ -15,7 +15,7 @@ description: >-
   Markdown report.
 license: MIT
 metadata:
-  version: "0.4.0"
+  version: "0.4.1"
   author: David De Lorenzo
   domain: molecular-evolution
   tags:
@@ -71,9 +71,8 @@ metadata:
         - tsv
         - txt
       description: >-
-        HKA locus file: tab-separated (locus<TAB>S<TAB>D<TAB>n) where S = segregating
-        sites in ingroup, D = fixed differences to outgroup, n = ingroup sample size.
-        Required for --analysis hka.
+        HKA locus file: whitespace-separated, exactly two loci, columns
+        locus n S L_poly D [L_div] [chrom]. Required for --analysis hka.
       required: false
     - name: analyses
       type: string
@@ -161,7 +160,7 @@ metadata:
       - outgroup polarised mutations
       - HKA test neutrality
       - Hudson Kreitman Aguade
-      - multi-locus neutrality
+      - two-locus neutrality
       - polymorphism divergence ratio
       - McDonald-Kreitman test
       - MK test
@@ -203,9 +202,9 @@ Full statistical reference: [`docs/index.md`](docs/index.md)  -  read it when yo
 - Recombination, Rm, four-gamete test, minimum recombination events
 - Mismatch distribution, raggedness, population expansion signature
 - InDel polymorphism, insertion deletion diversity
-- Divergence between populations, Dxy, Da, net divergence, fixed differences, shared polymorphisms
+- Divergence between populations, Dxy, Da, net divergence, fixed / shared / exclusive sites
 - Fu & Li D/F with outgroup, outgroup-based neutrality test, polarised mutations
-- HKA test, Hudson-Kreitman-Aguadé, multi-locus neutrality, polymorphism/divergence ratio
+- HKA test, Hudson-Kreitman-Aguadé, two-locus neutrality, polymorphism/divergence ratio
 - McDonald-Kreitman test, MK test, adaptive evolution, neutrality index, direction of selection, α (alpha)
 - Ka/Ks, dN/dS, omega, synonymous substitution rate, nonsynonymous substitution rate, Nei-Gojobori, coding sequence divergence
 - Fu's Fs, Fu 1997 neutrality test, haplotype frequency neutrality
@@ -236,7 +235,7 @@ Use this table to map what the user *says* to the `--analysis` values to pass to
 | "InDel", "insertion deletion", "indel polymorphism", "gap diversity" | `indel` | No |
 | "divergence", "Dxy", "Da", "net divergence", "fixed differences", "between populations" | `divergence` | `--input2` or `--pop-file` |
 | "Fu & Li with outgroup", "outgroup-polarised", "external mutations", "ancestral allele" | `fuliout` | `--outgroup <seq_name>` |
-| "HKA test", "Hudson-Kreitman-Aguadé", "multi-locus neutrality", "polymorphism/divergence ratio" | `hka` | `--hka-file <file>` |
+| "HKA test", "Hudson-Kreitman-Aguadé", "two-locus neutrality", "polymorphism/divergence ratio" | `hka` | `--hka-file <file>` |
 | "McDonald-Kreitman", "MK test", "adaptive evolution", "neutrality index", "Pn Ps Dn Ds", "alpha MK", "DoS", "direction of selection" | `mk` | `--outgroup <seq_name>`; alignment must be in-frame coding sequence |
 | "Ka/Ks", "dN/dS", "omega", "synonymous substitution rate", "nonsynonymous rate", "Nei-Gojobori" | `kaks` | alignment must be in-frame coding sequence |
 | "Fu's Fs", "Fu 1997", "haplotype frequency test", "Fs neutrality" | `fufs` | No extra flags; uses π and H from polymorphism |
@@ -259,10 +258,10 @@ Before running any analysis, collect:
 2. **Which analysis module(s)**  -  if ambiguous (e.g. "analyse my sequences"), ask what they want to test (diversity? LD? divergence? all?).
 3. **Divergence analysis specifically**: ask whether they have two separate files (use `--input2`) or one file with a population assignment table (use `--pop-file`). If neither is available, explain that divergence requires a second population.
 4. **fuliout (Fu & Li with outgroup)**: ask which sequence in the alignment is the outgroup. The outgroup name is passed as `--outgroup <seq_name>`. It is extracted from the alignment and removed from the ingroup before analysis.
-5. **hka analysis**: ask for the HKA locus file path (TSV with columns: locus, S, D, n). If the user wants to compute S and D from actual alignments, help them build the file first, then run `--analysis hka --hka-file <path>`.
+5. **hka analysis**: ask for the HKA locus file path (whitespace-separated, exactly two loci, columns `locus n S L_poly D [L_div] [chrom]`). If the user needs to compute S and D from alignments, help them build the file first, then run `--analysis hka --hka-file <path>`.
 6. **mk (McDonald-Kreitman) analysis**: confirm (a) which sequence in the alignment is the outgroup (`--outgroup <seq_name>`) and (b) that the alignment is an in-frame coding sequence (length divisible by 3, no internal stop codons). The alignment must include both ingroup sequences and the outgroup.
 7. **kaks analysis**: confirm that the alignment is an in-frame coding sequence (length divisible by 3). No outgroup required. Warn the user if omega = Ka/Ks is undefined (Ks = 0 or Ka/Ks numerically saturated).
-8. **fufs analysis**: no extra inputs needed  -  Fu's Fs reuses π (nucleotide diversity) and H (haplotype count) already computed by the polymorphism module, which always runs. Confirm the user understands the conventional significance threshold is Fs < 0 with S_k ≤ 0.02.
+8. **fufs analysis**: no extra inputs needed  -  Fu's Fs reuses π (nucleotide diversity) and H (haplotype count) already computed by the polymorphism module. It reports Fs and S′ but no significance level; a formal test needs coalescent simulation (planned for v0.5.0).
 9. **sfs analysis**: folded SFS is always computed. Ask whether they have an outgroup in the alignment to produce the unfolded SFS (`--outgroup <seq_name>`). If so, the same outgroup used for fuliout/mk can be reused.
 10. **tstv analysis**: no extra inputs needed. Works on any alignment (coding or non-coding). Particularly useful for assessing saturation; ask if they want it combined with divergence analysis.
 11. **codon analysis**: requires an in-frame coding alignment (no 5′ UTR). Stop codons are skipped automatically but the user must ensure the alignment is in-frame from position 0. Pair with `kaks` for a comprehensive coding evolution analysis.
@@ -424,7 +423,7 @@ python skills/dnasp/dnasp.py \
 | `--input2` | path |  -  | Second population alignment (for `divergence`) |
 | `--pop-file` | path |  -  | Population assignment TSV (alternative to `--input2`) |
 | `--outgroup` | string |  -  | Sequence name to use as outgroup (for `fuliout` and `mk`) |
-| `--hka-file` | path |  -  | HKA locus file (TSV: locus, S, D, n) for `hka` |
+| `--hka-file` | path |  -  | HKA locus file (2 loci: `locus n S L_poly D [L_div] [chrom]`) for `hka` |
 | `--analysis` | string | `polymorphism` | Comma-separated analyses or `all` |
 | `--output` | path | `./dnasp_out/` | Output directory |
 | `--window` | int | 0 | Sliding window size (bp); 0 = disabled |
@@ -445,23 +444,25 @@ seq4	Pop_Europe
 
 ### HKA locus file format (`--hka-file`)
 
-Tab-separated, one row per locus, `#` lines are comments, header row optional:
+Whitespace-separated, **exactly two loci**, `#` lines are comments, header row optional:
 
 ```
-# locus   S   D   n
-ACE        5  10  10
-G6PD       2   8  12
-white     12  18  10
+# locus   n    S    L_poly   D    L_div   chrom
+Adh       81   9    4052     210  4052    A
+5flank    81   8    3200     78   3200    A
 ```
 
 Columns:
 
-- **locus**: any identifier string
-- **S**: segregating sites in the ingroup sample (count, not rate)
-- **D**: fixed differences between ingroup and outgroup/sister species (count)
+- **locus**: identifier
 - **n**: ingroup sample size (number of sequences)
+- **S**: segregating sites within the ingroup
+- **L_poly**: sites analysed within the ingroup
+- **D**: differences to the sister species (divergence)
+- **L_div**: sites analysed for divergence (optional; defaults to L_poly)
+- **chrom**: optional  -  `A` autosomal (default), `X`/`Z` (factor 0.75), `Y`/`W` (0.25)
 
-To build this file from alignments: use `--analysis polymorphism` on each ingroup alignment (read S from `results.tsv`), then count fixed differences between ingroup consensus and outgroup sequence manually or with a separate tool.
+To build this file: run `--analysis polymorphism` on each ingroup alignment (S, sites from `results.tsv`), and count divergent sites to the sister species separately.
 
 ---
 
@@ -474,14 +475,14 @@ To build this file from alignments: use `--analysis polymorphism` on each ingrou
 | `recombination` | Recombination | Rm (min. recombination events, four-gamete test, Hudson & Kaplan 1985) |
 | `popsize` | Population Size History | Mismatch distribution, raggedness r, CV |
 | `indel` | InDel Polymorphism | InDel events, InDel haplotypes, k(i), π(i), θ(i), Tajima's D(i) |
-| `divergence` | Divergence | Dxy, Da, fixed differences, shared & private polymorphisms |
+| `divergence` | Divergence | Dxy, Da, fixed-difference sites (Sf), shared (Ss) & exclusive (Sx) mutations |
 | `fuliout` | Fu & Li D/F with outgroup | η (total derived), η_e (external/singleton derived), D, F (Fu & Li 1993) |
-| `hka` | HKA multi-locus test | MLE T̂, χ² neutrality test, per-locus θ̂, E[S], E[D] (Hudson et al. 1987) |
+| `hka` | HKA two-locus test | closed-form θ̂₁, θ̂₂, T̂; χ² (df 1) with HKA (1987) variances; error if no positive-θ solution |
 | `mk` | McDonald-Kreitman test | Pn, Ps, Dn, Ds counts; α (proportion adaptive substitutions); NI (neutrality index); DoS (direction of selection); Fisher's exact P |
 | `kaks` | Ka/Ks (dN/dS) | Nei-Gojobori (1986) pairwise averages: S sites, N sites, Ks (synonymous rate), Ka (nonsynonymous rate), ω = Ka/Ks |
-| `fufs` | Fu's Fs test | θ_π, S_k = P(K ≤ H \| θ, n) via Ewens sampling formula, Fs = ln(S_k/(1−S_k)); significant at 0.02 when Fs << 0 |
+| `fufs` | Fu's Fs test | θ_π; S′ = P(K ≥ H \| θ, n) via Ewens sampling formula (log space); Fs = ln(S′/(1−S′)); no significance level (needs coalescent simulation) |
 | `sfs` | Site frequency spectrum | Folded SFS (always); unfolded SFS with `--outgroup`; bar-chart figure (sfs.png) |
-| `tstv` | Transition/Transversion ratio | Ts (purine↔purine or pyrimidine↔pyrimidine), Tv (purine↔pyrimidine) counts across all pairs; Ts/Tv ratio; per-site rates |
+| `tstv` | Transition/Transversion ratio | one change per biallelic segregating site; Ts (A↔G, C↔T), Tv (purine↔pyrimidine); Ts/Tv ratio; optional outgroup polarisation |
 | `codon` | Codon usage bias | RSCU per codon (Sharp & Li 1987); ENC (Wright 1990) from 20 (max bias) to 61 (no bias); RSCU bar chart (codon_usage.png) |
 | `faywu` | Fay & Wu's H + Zeng's E | Outgroup-polarised neutrality tests. θ_H (Fay & Wu 2000), θ_L (Zeng et al. 2006), H = θ_π − θ_H, E = θ_L − θ_W. Requires `--outgroup`. |
 | `fst` | Population differentiation | Hudson et al. (1992) pairwise Fst = 1 − π_s/π_t for each pop pair; within-pop π, Dxy; mean Fst across pairs; Fst bar chart (fst.png). Requires `--pop-file`. |
@@ -537,21 +538,21 @@ All formulas match DnaSP 6. See `docs/index.md` for full derivations and referen
 
 **InDel module**: InDel event = maximal run of columns where the same subset of sequences carries gaps (diallelic option of DnaSP). Statistics on InDel haplotypes, k(i), π(i), θ_W(i), Tajima's D(i) computed as for nucleotide data.
 
-**Divergence module**: Dxy = average between-population differences per site (Nei 1987, eq. 10.20). Da = Dxy − (π₁ + π₂)/2 (net divergence). Fixed differences, shared polymorphisms, and private polymorphisms classified per Hey (1991). Complete deletion applied across both populations combined.
+**Divergence module**: Dxy = average between-population differences per site (Nei 1987, eq. 10.20). Da = Dxy − (π₁ + π₂)/2 (net divergence). Fixed / shared / exclusive sites classified as in DnaSP 6 (`Divergencia.vb::Mod3BuscaShareFixDifferences`): a site with no shared allele between the populations is a **fixed-difference site** (Sf, a site count), and any within-population variation on top of it is exclusive; a site polymorphic in exactly one population is **exclusive** to that population (Sx, counted as mutations = n_alleles − 1); a site polymorphic in both is split into shared (Ss) and exclusive mutations by a lookup on (alleles in pop1, alleles in pop2, alleles in the union). Ss / Sx1 / Sx2 are mutation counts; the total mutations in a population = Sx + Ss. Complete deletion applied across both populations combined.
 
-**Fu & Li outgroup module (fuliout)**: Outgroup sequence polarises each segregating site  -  allele matching outgroup is ancestral; others are derived. η = total derived mutations (outgroup-polarised); η_e = derived mutations in exactly 1 ingroup sequence (external/singletons on terminal branches). D = (η_e − η/aₙ) / √(uD·η + vD·η(η−1)); F = (k̄ − η_e) / √(uF·η + vF·η(η−1)); k̄ = mean pairwise differences computed over all clean ingroup sites. Variance coefficients follow Simonsen et al. (1995) Appendix B structure. Complete deletion applied to both ingroup sequences and outgroup simultaneously.
+**Fu & Li outgroup module (fuliout)**: Outgroup sequence polarises each segregating site  -  allele matching outgroup is ancestral; others derived. η = total derived mutations (outgroup-polarised); η_e = derived mutations in exactly 1 ingroup sequence (external branches). Formulas match DnaSP 6 (`FULI.vb::Mod12FuLiOutgroupNew`): D = (η − aₙ·η_e) / √(u_D·η + v_D·η²); F = (k̄ − η_e) / √(u_F·η + v_F·η²); c_n = 2(n·aₙ − 2(n−1))/((n−1)(n−2)); v_D = 1 + (aₙ²/(bₙ+aₙ²))(c_n − (n+1)/(n−1)); u_D = aₙ − 1 − v_D; v_F, u_F per Fu & Li (1993) / Simonsen et al. (1995). k̄ is the mean pairwise difference over the **orientable-site set only** (outgroup clean, ingroup clean, ancestral allele present)   -   the same column mask as η/η_e, matching DnaSP's `SitioIesInformativo` gate. Negative D or F → excess of external (singleton) mutations.
 
-**HKA test module**: Compares the ratio of polymorphism (S_i) to divergence (D_i) across k loci. Under neutrality all loci should share the same ratio. Model: E[S_i] = θ_i f_i, E[D_i] = θ_i(1+2T) where f_i = Σ 1/j (j=1..n_i−1) and T is the scaled divergence time. MLE of T found by bisection on Σ D_i/(1+2T) = Σ(S_i+D_i)/(f_i+1+2T). χ² = Σ[(S_i−E_S_i)²/E_S_i + (D_i−E_D_i)²/E_D_i] with df = k−1 (one parameter T estimated). P-value uses the regularised upper incomplete gamma function Q(df/2, χ²/2)  -  no scipy needed.
+**HKA test module (hka)**: The DnaSP 6 two-locus model (`HKA.vb::HKAResolEcuacion` case 1). Given one species' polymorphism (S_i, sample size n_i, L_i sites) and divergence to a sister species (D_i, L_div_i sites) at **exactly two loci**, the neutral model has parameters θ₁, θ₂ (per site) and a scaled divergence time T. θ₁ is the positive root of a quadratic in θ₁; θ₂ and T follow; roots giving a negative θ are rejected. Goodness of fit is χ² with **df = 1** using the HKA (1987) variances (`HKAJiCuadrado`): E[S_i] = aₙᵢ·sexᵢ·θᵢ·Lᵢ, Var[S_i] = E[S_i] + sexᵢ²·bₙᵢ·θᵢ²·Lᵢ² (the bₙ term); E[D_i] = (T + sexᵢ)·θᵢ·Ldivᵢ, Var[D_i] = E[D_i] + sexᵢ²·θᵢ²·Ldivᵢ². P-value via the regularised upper incomplete gamma Q(1/2, χ²/2)  -  no scipy. If the equations have no positive-θ solution the test is not run (HKAStats.error is set); no divergence time is fabricated.
 
 **McDonald-Kreitman test module (mk)**: For each codon (in-frame, complete deletion at codon level  -  any non-ATCG in any sequence skips that codon; stop codons skipped): determine ingroup variation and outgroup-vs-ingroup fixed differences. A site is **polymorphic** in the ingroup if ≥2 sequences differ at any codon position. A site is **fixed** if all ingroup sequences agree but the outgroup differs. Classify each codon-site pair as synonymous or nonsynonymous using the genetic code. Accumulate Pn (nonsynonymous polymorphisms), Ps (synonymous polymorphisms), Dn (nonsynonymous fixed differences), Ds (synonymous fixed differences). Derived statistics: α = 1 − (Ds·Pn)/(Dn·Ps); NI = (Pn/Ps)/(Dn/Ds); DoS = Dn/(Dn+Ds) − Pn/(Pn+Ps). Fisher's exact P computed via hypergeometric distribution using `math.lgamma` (no scipy needed); two-tailed (sum of all table probabilities ≤ observed probability).
 
-**Fu's Fs module (fufs)**: Estimates θ_π = k (mean pairwise differences, always available from the polymorphism module). Uses the Ewens sampling formula  -  the probability distribution of the number of distinct alleles K_n in a sample of n sequences under the infinite-alleles model with mutation rate θ. P(K_n = k) = |s(n, k)| × θ^k / θ^(n) where |s(n, k)| are unsigned Stirling numbers of the first kind (computed by DP with Python arbitrary-precision integers; no overflow) and θ^(n) = θ(θ+1)…(θ+n−1) is the Pochhammer rising factorial. S_k = P(K_n ≤ H_obs | θ_π, n) is the probability of observing H_obs or fewer haplotypes. Fs = ln(S_k / (1−S_k)). Significant at the conventional 0.02 level when Fs << 0 (S_k ≤ 0.02). No simulation or scipy required.
+**Fu's Fs module (fufs)**: Estimates θ_π = k (mean pairwise differences, from the polymorphism module). Uses the Ewens sampling formula for the number of distinct alleles K_n in a sample of n under the infinite-alleles model: P(K_n = k) = |s(n, k)| × θ^k / θ^(n), where |s(n, k)| are unsigned Stirling numbers of the first kind and θ^(n) is the rising factorial. Evaluated in **log space** (`math.log` of the exact Stirling integer) so the central coefficients, which exceed float range for n ≳ 171, do not overflow. S′ = P(K_n ≥ H_obs | θ_π, n)   -   the **upper** tail (Fu 1997). Fs = ln(S′ / (1 − S′)); large negative Fs → more haplotypes than expected → population expansion or hitchhiking. No significance level is reported: S′ is not a P-value because θ_π is estimated; a formal test needs coalescent simulation of the null (planned for v0.5.0).
 
-**SFS module (sfs)**: For each alignment column (after complete deletion of the ingroup), counts how many sequences carry each allele. Folded SFS: records sites by minor allele count i (1 ≤ i ≤ n//2)  -  the rarer allele. Unfolded SFS (requires `--outgroup`): for each clean column where the outgroup allele is present in the ingroup, counts the number of ingroup sequences carrying the derived allele (i = 1 to n−1). Gap/ambiguous bases in any ingroup sequence → column excluded; gap in outgroup → excluded from unfolded only (folded still counts clean ingroup columns). Produces folded and (optionally) unfolded bar-chart figures.
+**SFS module (sfs)**: For each alignment column (after complete deletion of the ingroup), counts how many sequences carry each allele. **Only biallelic columns contribute** (DnaSP `FULI.vb` gates on exactly two states); multiallelic columns are excluded and tallied in `n_multiallelic_excluded`. Folded SFS: records sites by minor allele count i (1 ≤ i ≤ n//2). Unfolded SFS (requires `--outgroup`): for each biallelic column where the outgroup allele is present in the ingroup, counts the ingroup sequences carrying the derived allele (i = 1 to n−1). Gap/ambiguous in any ingroup sequence → column excluded; gap in outgroup → excluded from unfolded only. Produces folded and (optionally) unfolded bar-chart figures.
 
 **Ka/Ks module (kaks)**: For each pair of ingroup sequences, count synonymous sites (S_ij = (S_i+S_j)/2) and nonsynonymous sites (N_ij = 3L_codon − S_ij) using the Nei-Gojobori (1986) method  -  per codon, each of the 3 positions contributes a fraction equal to the number of synonymous alternatives out of 3; summed across all clean codons. Count synonymous (sd) and nonsynonymous (nd) differences by pathway averaging over all k! orderings when codons differ at k positions; paths through stop codons excluded. Apply Jukes-Cantor correction: Ks = −3/4 · ln(1 − 4pS/3), Ka = −3/4 · ln(1 − 4pN/3). If pS ≥ 0.75 or pN ≥ 0.75, that pair is excluded from averages (saturated). Report mean Ks, Ka, and ω = Ka/Ks across all valid pairs. ω = None when Ks = 0 (no synonymous divergence).
 
-**Ts/Tv module (tstv)**: Classifies each pairwise nucleotide difference at every clean column (complete deletion across the full ingroup). A **transition** (Ts) is a change between two purines (A↔G) or two pyrimidines (C↔T)  -  same chemical class. A **transversion** (Tv) is a purine↔pyrimidine change (A↔C, A↔T, G↔C, G↔T). n_transitions and n_transversions accumulate across all n(n−1)/2 pairs and all clean sites. Ts/Tv = n_transitions/n_transversions; None if n_transversions = 0. Mean per-pair per-site rates: ts_per_site = n_transitions / (n_pairs × L_net), tv_per_site analogous.
+**Ts/Tv module (tstv)**: Counts **one change per biallelic segregating column**, as in DnaSP 6 (`Mutational.vb::Mod31Compute_1` / `RellenoMatrizCambios` / `CalculaTransitionTransversionRatio`)   -   not summed over sequence pairs, so the ratio does not depend on sample size. A **transition** (Ts) is A↔G or C↔T; a **transversion** (Tv) is any purine↔pyrimidine change. Multiallelic columns are excluded (`n_multiallelic_excluded`). With `--outgroup`, DnaSP's polarised mode also drops columns the outgroup cannot orient   -   outgroup gap, or outgroup allele not among the ingroup alleles (`n_unpolarisable_excluded`); the Ts/Tv classification is polarity-independent so the ratio is unchanged for the surviving columns. Ts/Tv = n_transitions / n_transversions; None when n_transversions = 0.
 
 **Fay & Wu / Zeng module (faywu)**: Requires `--outgroup`. Applies complete deletion including the outgroup. For each segregating site, the outgroup allele identifies the ancestral state; a site is **polarisable** when the ancestral allele appears in the ingroup. For each polarisable site with derived allele count i (1 ≤ i ≤ n−1), adds to ξ_i. Computes four per-site θ estimates from the unfolded SFS: θ_π = Σ ξ_i × 2i(n−i) / [n(n−1)] / L; θ_W = Σ ξ_i / a₁ / L (a₁ = Σ 1/k for k=1..n−1); θ_H = Σ ξ_i × 2i² / [n(n−1)] / L; θ_L = Σ ξ_i × i / (n−1) / L. H = θ_π − θ_H (Fay & Wu 2000); E = θ_L − θ_W (Zeng et al. 2006). H < 0 indicates an excess of high-frequency derived alleles (consistent with recent selective sweep). E < 0 indicates excess of low-frequency derived alleles relative to Watterson expectation.
 
@@ -564,12 +565,12 @@ All formulas match DnaSP 6. See `docs/index.md` for full derivations and referen
 - LD statistics: require ≥ 2 strictly biallelic sites.
 - Divergence: require ≥ 1 sequence per population and L_net > 0.
 - fuliout: requires n ≥ 4 ingroup sequences and η > 0 (at least one outgroup-polarised derived mutation).
-- hka: requires ≥ 2 valid loci (each with n ≥ 2). Returns HKAStats with chi2=0 if only 1 locus provided.
+- hka: requires exactly 2 loci, each with n ≥ 2 and positive site counts (L_poly, L_div). HKAStats.error is set (test not run) for the wrong number of loci, bad inputs, or equations with no positive-θ solution.
 - mk: requires n ≥ 2 ingroup sequences, alignment length divisible by 3 (in-frame coding), and `--outgroup <seq_name>`. Returns None if outgroup not provided or alignment not in-frame. α, NI, DoS are None when any denominator is zero.
 - kaks: requires n ≥ 2 sequences and alignment length divisible by 3 (in-frame coding). ω = None when Ks = 0. Pairs where pS or pN ≥ 0.75 (JC saturation) are excluded.
 - fufs: requires n ≥ 2 and H ≥ 1. If k = 0 (all sequences identical), Fs is defined but θ_π = 0 → degenerate. Uses polymorphism stats already computed; no additional inputs needed.
 - sfs: requires n ≥ 2. Folded SFS is always produced from the ingroup. Unfolded SFS requires `--outgroup` and at least one site where the outgroup allele appears in the ingroup.
-- tstv: requires n ≥ 2 and at least one clean (non-gap, unambiguous ATCG) column. Ts/Tv = None when n_transversions = 0 (all differences are transitions). Works on both coding and non-coding alignments.
+- tstv: requires n ≥ 2 and at least one biallelic segregating column. Multiallelic columns are excluded; with `--outgroup`, columns the outgroup cannot orient are excluded. Ts/Tv = None when n_transversions = 0.
 - codon: requires alignment length divisible by 3 (in-frame from position 0). ENC = None when any of the four degeneracy classes (2-fold, 3-fold, 4-fold, 6-fold) lacks sufficient amino acid observations (n_aa < 2 for all members of a class). For short alignments this is common; longer coding sequences (> 300 bp) are recommended for reliable ENC estimates.
 - faywu: requires `--outgroup` and at least one polarisable segregating site (site where the ancestral allele appears in the ingroup and a derived allele exists at 1 ≤ count ≤ n−1). Returns None for H and E when n_polarised = 0. Sites where the outgroup has a gap or non-ATCG character, or the ancestral allele is absent from the ingroup, are excluded.
 - fst: requires `--pop-file` with at least 2 populations. Fst = None for a pair when Dxy = 0 (no between-pop variation). fst_mean = None when all pairs have Dxy = 0. With only 1 population in the pop file, returns empty FstStats with a warning.
@@ -589,10 +590,10 @@ All formulas match DnaSP 6. See `docs/index.md` for full derivations and referen
 | Raggedness r small | Smooth mismatch distribution → consistent with population expansion | |
 | Da < 0 | Net divergence negative → within-population diversity exceeds between; can occur by chance | Da should be ≈ 0 under neutrality |
 | n_fixed >> n_shared | Populations are highly differentiated; long divergence time | |
-| Fu & Li D > 0 (outgroup) | Excess external (singleton) mutations → possibly purifying selection removing most lineages | Compare with no-outgroup D* |
-| Fu & Li D < 0 (outgroup) | Fewer singletons than expected → selective sweep or population expansion | |
-| HKA P < 0.05 | Ratio of polymorphism to divergence differs across loci → departure from neutral model | One locus may be under selection |
-| HKA P > 0.05 | Polymorphism/divergence ratio consistent across loci → consistent with neutral model | |
+| Fu & Li D or F < 0 (outgroup) | Excess external (singleton) mutations → selective sweep or population expansion | Compare with no-outgroup D*/F* |
+| Fu & Li D or F > 0 (outgroup) | Fewer singletons than expected → balancing selection or population subdivision | |
+| HKA P < 0.05 | Polymorphism/divergence ratio differs between the two loci → departure from neutrality | One locus may be under selection |
+| HKA P > 0.05 | Ratio consistent between the two loci → consistent with the neutral model | |
 | T̂ (HKA) large | Long divergence time relative to N_e | Calibrate with known mutation rate if possible |
 | MK Fisher P < 0.05 | Ratio of Pn/Ps differs from Dn/Ds → departure from neutral model | Could indicate positive selection (α > 0) or relaxed constraint |
 | α > 0 (MK) | Positive proportion of nonsynonymous fixations are adaptive | α is the fraction of substitutions driven to fixation by positive selection |
@@ -605,7 +606,7 @@ All formulas match DnaSP 6. See `docs/index.md` for full derivations and referen
 | ω ≈ 1 | Neutral evolution  -  synonymous and nonsynonymous rates similar | |
 | ω > 1 | Positive selection  -  nonsynonymous changes accumulate faster than synonymous | Rare; strong evidence of adaptive evolution |
 | ω = None | Ks = 0 (no synonymous divergence between sequences) or all pairs JC-saturated | Use with very short or very similar sequences |
-| Fs << 0 (Fu's Fs) | Far fewer haplotypes than expected given π → population expansion or positive selection | Significant at 0.02 level when S_k ≤ 0.02 |
+| Fs << 0 (Fu's Fs) | More haplotypes than expected given π → population expansion or genetic hitchhiking | No significance level reported (needs coalescent simulation) |
 | Fs ≈ 0 (Fu's Fs) | Haplotype count consistent with neutral expectation | |
 | Fs > 0 (Fu's Fs) | More haplotypes than expected → balancing selection or population subdivision | Rarely significant |
 | SFS singleton-heavy (i=1 dominant) | Excess rare variants → expansion, purifying selection, or recent bottleneck recovery | Consistent with negative Tajima's D |
@@ -613,7 +614,7 @@ All formulas match DnaSP 6. See `docs/index.md` for full derivations and referen
 | Unfolded SFS high at n−1 | Many near-fixed derived alleles → directional selection or recent sweep ancestry | |
 | Ts/Tv ≈ 2 | Typical transitional bias for nuclear DNA  -  transitions more mutable than transversions | Expected baseline; varies by locus and taxon |
 | Ts/Tv > 10 | Strong transition bias → common in mitochondrial DNA or highly constrained sequences | |
-| Ts/Tv < 0.5 | Transversion excess → substitution saturation at transitions, or non-neutral patterns | Check alignment quality; consider JC correction |
+| Ts/Tv < 1 | Transversion excess → can be genuine for AT-rich / fast-evolving non-coding DNA, or transitional saturation | Check base composition and alignment quality |
 | Ts/Tv = None | No transversions observed (all differences are transitions) | Normal for highly similar sequences |
 | ENC ≈ 61 | No codon usage bias  -  all synonymous codons used equally | Expected under neutral drift |
 | ENC 35-60 | Moderate codon usage bias | Moderate translational selection or mutational bias |
