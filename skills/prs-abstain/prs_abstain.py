@@ -89,6 +89,9 @@ class Decision:
     remedy: str
     n_markers_shared: int | None
     declared_population: str | None
+    # Machine-readable reason class, so the plain-language report can name the
+    # actual cause instead of collapsing every refusal onto one sentence.
+    cause: str | None = None
 
 
 
@@ -162,6 +165,7 @@ class AFShift:
     shift_sd: float | None  # None when the reference sd could not be derived
     per_variant: list[dict[str, Any]] = field(default_factory=list)
     sd_note: str = ""  # why sd was or was not derived (provenance, not arithmetic)
+    weight_coverage: float = 1.0  # share of |weight| that had a population frequency
 
 
 # Column-name fallback chains, in preference order. Harmonised PGS Catalog
@@ -256,6 +260,8 @@ def load_score_definitions(path: Path) -> dict[str, ScoreDefinition]:
                     af = float(raw_af)
                 except ValueError:
                     af = None
+                if af is not None and not math.isfinite(af):
+                    af = None  # a NaN frequency is a missing frequency, never a number
             variants.append({
                 "rsid": cell("rsid"), "chr": cell("chr"), "pos": cell("pos"),
                 "effect_allele": (cell("effect_allele") or "").upper(),
@@ -300,19 +306,48 @@ def load_genotype(path: Path) -> dict[str, str]:
     return out
 
 
-def load_population_af(path: Path) -> dict[str, dict[str, float]]:
-    """Load per-population effect-allele frequencies: {rsid: {pop: af}}."""
-    out: dict[str, dict[str, float]] = {}
+def load_population_af(path: Path) -> dict[str, dict[str, Any]]:
+    """Load per-population effect-allele frequencies: {rsid: {pop: af, "_allele": A}}.
+
+    Columns: rsid, population, frequency, and optionally the allele the
+    frequency refers to (4th column, or a header named allele /
+    effect_allele). Without it the table cannot say WHICH allele it counts,
+    and af_shift() then refuses any rsid whose effect allele differs between
+    the supplied scores. Non-finite or unparsable rows are counted and
+    reported on stderr rather than dropped silently.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    rejected = 0
+    allele_col: int | None = None
     for line in Path(path).read_text().splitlines():
         if line.startswith("#") or not line.strip():
             continue
-        parts = line.split("\t")
-        if len(parts) < 3 or parts[0].lower() == "rsid":
+        parts = [x.strip() for x in line.split("\t")]
+        if parts[0].lower() == "rsid":
+            for i, h in enumerate(parts):
+                if h.lower() in ("allele", "effect_allele"):
+                    allele_col = i
+            continue
+        if len(parts) < 3:
+            rejected += 1
             continue
         try:
-            out.setdefault(parts[0], {})[parts[1].strip().upper()] = float(parts[2])
+            af = float(parts[2])
         except ValueError:
+            rejected += 1
             continue
+        if not math.isfinite(af) or not (0.0 <= af <= 1.0):
+            rejected += 1
+            continue
+        entry = out.setdefault(parts[0], {})
+        entry[parts[1].upper()] = af
+        col = allele_col if allele_col is not None else (3 if len(parts) > 3 else None)
+        if col is not None and col < len(parts) and parts[col]:
+            entry["_allele"] = parts[col].upper()
+    if rejected:
+        print(f"Warning: {path}: {rejected} allele-frequency row(s) rejected (malformed, "
+              f"non-finite, or outside [0, 1]); they contribute nothing to re-centring.",
+              file=sys.stderr)
     return out
 
 
@@ -332,6 +367,9 @@ def check_applicability(score: dict[str, Any] | ScoreDefinition, sex: str | None
     sex_norm = (sex or "").strip().lower() or None
     if sex_norm in ("unknown", "unspecified", "na", ""):
         sex_norm = None
+    # Common single-letter and localised spellings; anything else stays as
+    # written and fails the match below (closed), rather than being guessed.
+    sex_norm = {"f": "female", "w": "female", "m": "male"}.get(sex_norm, sex_norm)
     male_override = re.search(r"(?<![a-z])male breast", t) is not None
     for required_sex, keywords in SEX_SPECIFIC.items():
         if required_sex == "female" and male_override:
@@ -580,7 +618,9 @@ def reference_sd(score: ScoreDefinition, rec: dict[str, Any]) -> tuple[float | N
         return None, ("reference sd not derived: this is not a curated panel and its "
                       "percentile was centred on a named reference cohort, so the file's "
                       "allele frequencies may be the source-GWAS frequencies rather than "
-                      "that cohort's; an sd derived from them would mis-scale the shift.")
+                      "that cohort's. The raw shift above is measured against those file "
+                      "frequencies, not against this percentile's reference mean, and an "
+                      "sd derived from them would mis-scale it.")
     raw, z = rec.get("raw_score"), rec.get("z_score")
     em = expected_mean(score)
     if raw is None or z is None or em is None or z == 0:
@@ -590,8 +630,11 @@ def reference_sd(score: ScoreDefinition, rec: dict[str, Any]) -> tuple[float | N
     return abs((raw - em) / z), f"reference sd derived from (raw, z, expected mean): {why}."
 
 
-def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, float]],
-             sd: float | None, population: str = "AFR") -> AFShift | None:
+def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, Any]],
+             sd: float | None, population: str = "AFR",
+             min_weight_coverage: float = 0.90,
+             ambiguous_rsids: set[str] | None = None
+) -> AFShift | None:
     """Decompose the percentile error into per-variant contributions.
 
     The reference mean is Sum(2*AF_ref*w). Re-centring on `population` moves it by
@@ -603,11 +646,29 @@ def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, float]],
     established.
     """
     per: list[dict[str, Any]] = []
+    skipped_allele = 0
+    w_total = sum(abs(v["weight"]) for v in score.variants) or 0.0
+    w_cov = 0.0
     for v in score.variants:
         af_ref = v.get("af_reference")
-        af_pop = af_table.get(v["rsid"], {}).get(population.upper())
+        tab = af_table.get(v["rsid"], {})
+        af_pop = tab.get(population.upper())
         if af_ref is None or af_pop is None:
             continue
+        # A frequency is a property of one allele. If the table names its
+        # allele and it is neither this score's effect allele nor its strand
+        # complement, or if the table names no allele and the rsid carries
+        # different effect alleles across the supplied scores, the row cannot
+        # be used for this score - using it would fabricate the sign of delta.
+        tab_allele = tab.get("_allele")
+        if tab_allele is not None:
+            if not _call_usable(tab_allele, v["effect_allele"], ""):
+                skipped_allele += 1
+                continue
+        elif ambiguous_rsids and v["rsid"] in ambiguous_rsids:
+            skipped_allele += 1
+            continue
+        w_cov += abs(v["weight"])
         delta = 2 * (af_pop - af_ref) * v["weight"]
         per.append({
             "rsid": v["rsid"], "weight": v["weight"], "af_reference": af_ref,
@@ -618,15 +679,35 @@ def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, float]],
         return None
     shift_raw = sum(p["delta_mean"] for p in per)
     per.sort(key=lambda p: -abs(p["delta_mean"]))
+    weight_coverage = round(w_cov / w_total, 4) if w_total else 0.0
+    sd_ok = sd is not None and math.isfinite(sd) and sd > 0
+    note = ""
+    # Same rule as expected_mean(): a shift summed over a subset of the
+    # score's weight is not the score's shift. Below the coverage floor it is
+    # reported in raw units with the gap named, never scaled to sd.
+    if weight_coverage < min_weight_coverage:
+        sd_ok = False
+        note = (f"allele frequencies were available for only {weight_coverage:.0%} of this "
+                f"score's total absolute weight ({len(per)} of {len(score.variants)} "
+                f"variants), so the shift covers part of the score and is not scaled to sd.")
+    if skipped_allele:
+        note = (note + " " if note else "") + (
+            f"{skipped_allele} variant(s) skipped because the frequency table's allele could "
+            f"not be matched to this score's effect allele.")
     return AFShift(
         pgs_id=score.pgs_id, population=population.upper(), n_variants_with_af=len(per),
         coverage=round(len(per) / len(score.variants), 4),
-        shift_raw=shift_raw, shift_sd=(shift_raw / sd) if sd else None,
-        per_variant=per,
+        shift_raw=shift_raw, shift_sd=(shift_raw / sd) if sd_ok else None,
+        per_variant=per, sd_note=note, weight_coverage=weight_coverage,
     )
 
 
 # ── Loading ───────────────────────────────────────────────────────────────────
+
+def _safe_id(sample_id: Any) -> str:
+    """Filename-safe form of a sample id; the one place this mapping lives."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", str(sample_id)) or "unnamed"
+
 
 def _to_float(value: str | None) -> float | None:
     if value is None:
@@ -635,9 +716,12 @@ def _to_float(value: str | None) -> float | None:
     if value == "":
         return None
     try:
-        return float(value)
+        f = float(value)
     except ValueError:
         return None
+    # "nan"/"inf" parse as floats; downstream every `x > threshold` on them is
+    # False, i.e. fail-open. A non-finite coordinate is a missing coordinate.
+    return f if math.isfinite(f) else None
 
 
 def load_reference_panel(path: Path, pcs: Sequence[str] = DEFAULT_PCS) -> list[Individual]:
@@ -735,6 +819,10 @@ def calibrate(
     within = sorted(_distance(s.pcs, centroid) for s in ref)
     mean, sd = st.mean(within), st.stdev(within)
     threshold = mean + k_sd * sd
+    if not all(math.isfinite(x) for x in (mean, sd, threshold)):
+        raise CalibrationError(
+            f"reference calibration for {ref_pop!r} is not finite (mean={mean}, sd={sd}); "
+            f"a NaN threshold admits everyone, so this run cannot proceed.")
 
     others = [s for s in panel if s.population != ref_pop and s.pcs]
     by_pop: dict[str, float] = {}
@@ -794,6 +882,7 @@ def decide(individual: Individual, cal: Calibration, min_markers: int = DEFAULT_
                 "Genotype more ancestry-informative markers, or supply PC coordinates derived "
                 "from a panel that overlaps this individual's markers."
             ),
+            cause="too_few_markers",
             **common,
         )
 
@@ -811,6 +900,7 @@ def decide(individual: Individual, cal: Calibration, min_markers: int = DEFAULT_
                 "Correct n_markers_shared to the true overlap with the reference panel, or "
                 "verify that the genotype file belongs to this individual."
             ),
+            cause="inflated_markers",
             **common,
         )
 
@@ -823,10 +913,24 @@ def decide(individual: Individual, cal: Calibration, min_markers: int = DEFAULT_
                 "as unplaceable, never as the origin."
             ),
             remedy="Run claw-ancestry-pca (or ancestry-risk-profiler) and supply the coordinates.",
+            cause="no_coordinates",
             **common,
         )
 
     dist = _distance(individual.pcs, cal.centroid)
+    if not math.isfinite(dist):
+        return Decision(
+            verdict="REFUSE_UNDETERMINABLE",
+            distance=None,
+            reason=(
+                "Distance to the reference centroid is not a finite number, so the "
+                "threshold cannot be applied. A non-finite distance is treated as "
+                "unplaceable, never as inside the threshold."
+            ),
+            remedy="Check the PC coordinates for this individual and the reference panel.",
+            cause="distance_not_finite",
+            **common,
+        )
     if dist > cal.threshold:
         return Decision(
             verdict="REFUSE_DISTANT",
@@ -1078,7 +1182,7 @@ def _write_figures(outdir: Path, panel: list[Individual], cal: Calibration,
                      fontsize=9, family="monospace",
                      color="#2E8B7A" if ok else "#C1443C")
         fig.tight_layout()
-        safe_id = re.sub(r"[^A-Za-z0-9._-]", "_", str(ind.sample_id)) or "unnamed"
+        safe_id = _safe_id(ind.sample_id)
         name = f"figures/individual_{safe_id}.png"
         fig.savefig(outdir / name, dpi=150)
         plt.close(fig)
@@ -1154,7 +1258,7 @@ def _write_report(outdir: Path, cal: Calibration, results: list[dict[str, Any]],
             raw = "n/a" if s["raw_score"] is None else f"{s['raw_score']:.4f}"
             a(f"| {s['pgs_id']} | {s['trait']} | {raw} | {pct} | {s['note']} |")
         a("")
-        fig = f"figures/individual_{d['sample_id']}.png"
+        fig = f"figures/individual_{_safe_id(d['sample_id'])}.png"
         if fig in figures:
             a(f"![{d['sample_id']}]({fig})\n")
 
@@ -1191,7 +1295,8 @@ def _pop_label(code: str) -> str:
 
 def _write_clinician_report(outdir: Path, cal: Calibration, results: list[dict[str, Any]],
                             figures: list[str], min_markers: int,
-                            lds: dict[str, LDAudit] | None = None) -> None:
+                            lds: dict[str, LDAudit] | None = None,
+                            demo_panel: bool = True) -> None:
     """Plain-language report. No jargon, no matrix algebra, no unexplained acronyms."""
     L: list[str] = []
     a = L.append
@@ -1286,6 +1391,8 @@ def _write_clinician_report(outdir: Path, cal: Calibration, results: list[dict[s
                 caveats = x.get("caveats") or []
                 if any("integrity was not verified" in c.lower() for c in caveats):
                     status = "Released — score file not checked (see note below)"
+                elif any("genotype-dependent" in c.lower() for c in caveats):
+                    status = "Released — marker coverage not checked for this person (see note below)"
                 elif caveats:
                     status = "Released, with caution (see the full report)"
                 else:
@@ -1298,7 +1405,7 @@ def _write_clinician_report(outdir: Path, cal: Calibration, results: list[dict[s
         a("")
         if any(x["percentile"] is None for x in sc):
             a("> A withheld percentile is **not evidence of low risk**.\n")
-        fig = f"figures/individual_{d['sample_id']}.png"
+        fig = f"figures/individual_{_safe_id(d['sample_id'])}.png"
         if fig in figures:
             a(f"![{d['sample_id']}]({fig})\n")
 
@@ -1311,10 +1418,23 @@ def _write_clinician_report(outdir: Path, cal: Calibration, results: list[dict[s
           "available to the tool. The percentiles are still released, but they rest on "
           "files this review never inspected. To close that gap, re-run the review with "
           "the score definition files included.\n")
+    if any("genotype-dependent" in c.lower()
+           for r in results for x in r["scores"] for c in x.get("caveats") or []):
+        a("## A note on results marked 'marker coverage not checked for this person'\n")
+        a("Whether enough of a score's markers were actually read can only be checked "
+          "against a person's own genotype file. In this run a genotype file was bound to "
+          "one person only; for everyone else that check was not performed and their "
+          "released percentiles rest on the declared marker count alone. To close that gap, "
+          "run the review once per person with their own genotype file.\n")
     a("## Limitations you should know before using this\n")
-    a("- The ancestry comparison uses a small demonstration reference panel. It is not a "
-      "clinical-grade ancestry test.\n"
-      "- People of mixed ancestry sit between the reference groups. This tool judges them by "
+    if demo_panel:
+        a("- The ancestry comparison uses a small demonstration reference panel. It is not a "
+          "clinical-grade ancestry test.")
+    else:
+        a(f"- The ancestry comparison uses a reference panel of n={cal.n} "
+          f"{_pop_label(cal.reference_population)} individuals supplied to this run. Whether "
+          f"that panel suits this person is not something the tool can verify.")
+    a("- People of mixed ancestry sit between the reference groups. This tool judges them by "
       "distance alone, which is not a validated approach for them.\n"
       "- A released percentile is a position in a distribution, not a probability of disease "
       "and not a diagnosis.\n"
@@ -1333,6 +1453,17 @@ def _plain_reason(d: dict[str, Any], cal: Calibration) -> str:
         return ("This person's genetic background sits well outside the group these scores "
                 "were built in. The scores can still be added up, but the resulting position "
                 "on the scale would not mean what it appears to mean.")
+    cause = d.get("cause")
+    if cause == "inflated_markers":
+        return ("The number of ancestry markers declared for this person is higher than the "
+                "number of markers actually read in their genotype file, so the declaration "
+                "cannot be trusted and no comparison was attempted.")
+    if cause == "no_coordinates":
+        return ("No ancestry coordinates were supplied for this person, so there was nothing "
+                "to compare against the reference group; no comparison was attempted.")
+    if cause == "distance_not_finite":
+        return ("The ancestry comparison for this person produced no usable number, so no "
+                "comparison was attempted.")
     return ("Too few ancestry markers were available to establish which group this person "
             "should be compared against, so no comparison was attempted at all.")
 
@@ -1340,8 +1471,14 @@ def _plain_reason(d: dict[str, Any], cal: Calibration) -> str:
 def _plain_withheld(x: dict[str, Any]) -> str:
     reasons = x.get("withheld_reasons") or []
     joined = " ".join(reasons).lower()
-    if "not applicable" in joined:
+    if "no sex was recorded" in joined:
+        return "Withheld: this score is sex-specific and no sex was recorded for this person"
+    if "absent or unreadable" in joined:
+        return "Withheld: the score's trait could not be read, so it is unclear whether it applies"
+    if "not applicable" in joined or "does not apply" in joined:
         return "Withheld: trait does not apply to this person"
+    if "reference provenance" in joined:
+        return "Withheld: the score does not state which group its percentile was computed against"
     if "never inspected" in joined:
         return "Withheld: the score's definition file was not available for checking"
     if "score integrity" in joined:
@@ -1357,11 +1494,14 @@ def _plain_withheld(x: dict[str, Any]) -> str:
 
 
 def _write_technical_report(outdir: Path, cal: Calibration, results: list[dict[str, Any]],
-                            audits: dict[str, ScoreAudit], shifts: dict[str, AFShift],
+                            audits: dict[str, ScoreAudit],
+                            shifts_by_sample: dict[str, dict[str, AFShift]],
                             figures: list[str], args_line: str, min_markers: int,
                             af_population: str | None,
                             lds: dict[str, LDAudit] | None = None,
-                            genotype_sample_id: str | None = None) -> None:
+                            genotype_sample_id: str | None = None,
+                            curated_ids: set[str] | None = None,
+                            af_rows: int | None = None) -> None:
     L: list[str] = []
     a = L.append
     a("# PRS abstention gate — technical report\n")
@@ -1369,11 +1509,19 @@ def _write_technical_report(outdir: Path, cal: Calibration, results: list[dict[s
       f"{datetime.now(timezone.utc).isoformat(timespec='seconds')}\n")
 
     a("## 1. Mechanism\n")
-    a("For every curated score in this dataset the reference mean satisfies\n")
-    a("```\nmean_ref  =  Sum_i  2 * AF_ref(i) * w(i)\n```\n")
-    a("to within rounding. The percentile is therefore not merely *derived from* a European "
-      "cohort; its centre **is** a European allele-frequency calculation. Re-centring on a "
-      "population with frequencies AF_pop moves the mean by\n")
+    pop_label = _pop_label(cal.reference_population)
+    if curated_ids:
+        a(f"For the curated scores in this run ({', '.join(sorted(curated_ids))}) the "
+          f"reference mean satisfies\n")
+        a("```\nmean_ref  =  Sum_i  2 * AF_ref(i) * w(i)\n```\n")
+        a(f"to within rounding. The percentile is therefore not merely *derived from* a "
+          f"{pop_label} cohort; its centre **is** a {pop_label} allele-frequency calculation. "
+          f"Re-centring on a population with frequencies AF_pop moves the mean by\n")
+    else:
+        a("No curated score is present in this run, so the identity mean_ref = Sum(2 * AF * w) "
+          "is not asserted for the supplied files: their allele-frequency column may be the "
+          "source-GWAS frequency rather than the reference cohort's. Re-centring is still "
+          "computed against the file's frequencies, in raw units only, as\n")
     a("```\ndelta_mean  =  Sum_i  2 * (AF_pop(i) - AF_ref(i)) * w(i)\n"
       "shift_sd    =  delta_mean / sd_ref\n```\n")
     a("This sum decomposes per variant, so the percentile error is attributable to specific "
@@ -1409,33 +1557,44 @@ def _write_technical_report(outdir: Path, cal: Calibration, results: list[dict[s
           f"{au.palindromic_n} ({au.palindromic_share:.0%}) |")
     a("")
 
-    if shifts:
+    if shifts_by_sample and any(shifts_by_sample.values()):
         a(f"## 4. Allele-frequency re-centring ({af_population})\n")
-        a("| PGS | variants with AF | AF coverage | delta_mean | shift (sd) | top driver |")
-        a("|---|---|---|---|---|---|")
-        for pid, sh in sorted(shifts.items()):
-            top = sh.per_variant[0] if sh.per_variant else None
-            drv = (f"{top['rsid']} ({top['delta_mean']:+.4f})" if top else "n/a")
-            a(f"| {pid} | {sh.n_variants_with_af} | {sh.coverage:.0%} | {sh.shift_raw:+.4f} | "
-              f"{('n/a (sd underivable)' if sh.shift_sd is None else format(sh.shift_sd, '+.3f'))} | {drv} |")
-        for pid, sh in sorted(shifts.items()):
-            if sh.shift_sd is None and sh.sd_note:
-                a(f"- {pid}: {sh.sd_note}")
-        a("")
-        a("### Top per-variant contributions to the shift\n")
-        for pid, sh in sorted(shifts.items()):
-            a(f"**{pid}** — five largest contributors\n")
-            a("| rsID | weight | AF ref | AF pop | dAF | contribution to mean |")
+        for sid, shifts in shifts_by_sample.items():
+            if not shifts:
+                continue
+            a(f"### {sid}\n")
+            a("| PGS | variants with AF | AF coverage | delta_mean | shift (sd) | top driver |")
             a("|---|---|---|---|---|---|")
-            for v in sh.per_variant[:5]:
-                a(f"| {v['rsid']} | {v['weight']:+.4f} | {v['af_reference']:.3f} | "
-                  f"{v['af_population']:.3f} | {v['af_delta']:+.3f} | {v['delta_mean']:+.5f} |")
+            for pid, sh in sorted(shifts.items()):
+                top = sh.per_variant[0] if sh.per_variant else None
+                drv = (f"{top['rsid']} ({top['delta_mean']:+.4f})" if top else "n/a")
+                a(f"| {pid} | {sh.n_variants_with_af} | {sh.coverage:.0%} | {sh.shift_raw:+.4f} | "
+                  f"{('n/a (sd underivable)' if sh.shift_sd is None else format(sh.shift_sd, '+.3f'))} | {drv} |")
+            for pid, sh in sorted(shifts.items()):
+                if sh.shift_sd is None and sh.sd_note:
+                    a(f"- {pid}: {sh.sd_note}")
             a("")
+            a("### Top per-variant contributions to the shift\n")
+            for pid, sh in sorted(shifts.items()):
+                a(f"**{pid}** — five largest contributors\n")
+                a("| rsID | weight | AF ref | AF pop | dAF | contribution to mean |")
+                a("|---|---|---|---|---|---|")
+                for v in sh.per_variant[:5]:
+                    a(f"| {v['rsid']} | {v['weight']:+.4f} | {v['af_reference']:.3f} | "
+                      f"{v['af_population']:.3f} | {v['af_delta']:+.3f} | {v['delta_mean']:+.5f} |")
+                a("")
     else:
         a("## 4. Allele-frequency re-centring\n")
-        a("No population allele-frequency table supplied, so the percentile shift could not "
-          "be quantified. This is a gap in the assessment, not evidence that the shift is "
-          "small. Supply `--population-af` with gnomAD or 1000 Genomes frequencies.\n")
+        if af_rows:
+            a(f"An allele-frequency table was supplied ({af_rows} rsid rows) but no scored "
+              f"variant had a usable {af_population or 'target-population'} frequency, so the "
+              f"percentile shift could not be quantified. Check the population code and the "
+              f"rsid overlap with the scoring files. This is a gap in the assessment, not "
+              f"evidence that the shift is small.\n")
+        else:
+            a("No population allele-frequency table supplied, so the percentile shift could not "
+              "be quantified. This is a gap in the assessment, not evidence that the shift is "
+              "small. Supply `--population-af` with gnomAD or 1000 Genomes frequencies.\n")
 
     if lds:
         a("## 4b. Linkage disequilibrium\n")
@@ -1546,8 +1705,8 @@ KNOWN_LIMITATIONS = [
     "Mahalanobis distance would be the correct metric; Euclidean over-refuses along the "
     "narrow axis and under-refuses along the broad one.",
     "Admixed individuals are the principal unhandled case. A single centroid and a single "
-    "radius cannot express partial membership, and the demo panel contains no admixed "
-    "samples to calibrate against.",
+    "radius cannot express partial membership; the bundled demo panel contains no admixed "
+    "samples, and a real panel must be checked for them before its threshold is trusted.",
     "The threshold is a policy choice placed inside an empirically empty gap. Real cohorts "
     "populate that gap and the clean separation will not reproduce.",
     "Allele-frequency re-centring requires an external population AF source. The bundled "
@@ -1562,8 +1721,11 @@ KNOWN_LIMITATIONS = [
     "Strand-ambiguous (A/T, C/G) variants are counted and reported but not resolved. "
     "Resolving them requires strand-aware allele frequencies.",
     "Genome build is read from the score header and not verified against the genotype file.",
-    "The reference sd is taken from the score's curated distribution and is assumed to hold "
-    "in the target population; in general it does not, so shift_sd is a first-order estimate.",
+    "The reference sd, when derivable, is |(raw - Sum(2*AF*w)) / z| from the individual's own "
+    "results record, and only for scores whose reference mean is known to be that sum "
+    "(curated panels, or percentiles centred on the allele-frequency expectation). It is "
+    "assumed to hold in the target population; in general it does not, so shift_sd is a "
+    "first-order estimate.",
     "Absolute risk is not computed. A percentile is a position in a distribution, not a "
     "probability, and calibration to absolute risk requires population incidence data.",
 ]
@@ -1685,6 +1847,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     individuals = load_query_individuals(args.individuals, pcs)
     ids = [i.sample_id for i in individuals]
+    # Figures are written under a filename-safe id; two ids that collapse to
+    # the same safe form would overwrite each other's figure, and the second
+    # report would embed the first person's plot.
+    distinct = sorted(set(ids))
+    safe_ids = [_safe_id(x) for x in distinct]
+    collisions = sorted({x for x in safe_ids if safe_ids.count(x) > 1})
+    if collisions:
+        print(f"sample_id values collide after filename sanitisation ({', '.join(collisions)}); "
+              f"their figures would overwrite each other. Rename them to differ in "
+              f"letters, digits, '.', '_' or '-'.", file=sys.stderr)
+        return 2
     dups = sorted({x for x in ids if ids.count(x) > 1})
     if dups:
         print(f"Duplicate sample_id row(s) in the individuals CSV: {', '.join(dups)}. "
@@ -1747,8 +1920,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     integrity_nogt: dict[str, IntegrityVerdict] = {}
     lds: dict[str, LDAudit] = {}
     integrity: dict[str, IntegrityVerdict] = {}
-    shifts: dict[str, AFShift] = {}
-    curated_sd = {score_id(s_): s_ for s_ in scores}
+    shifts_by_sample: dict[str, dict[str, AFShift]] = {}
+    # Round-9 sweep: an rsid whose effect allele differs between the supplied
+    # scores cannot be re-centred from an allele-less frequency table.
+    seen_alleles: dict[str, set[str]] = {}
+    for sdef in score_defs.values():
+        for v in sdef.variants:
+            seen_alleles.setdefault(v["rsid"], set()).add(v["effect_allele"])
+    ambiguous_rsids = {r for r, al in seen_alleles.items() if len(al) > 1}
     for pid, sdef in score_defs.items():
         lds[pid] = ld_audit(sdef, window_kb=args.ld_window_kb)
         if genotype:
@@ -1761,16 +1940,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         integrity_nogt[pid] = integrity_verdict(
             None, min_weight_coverage=args.min_weight_coverage,
             min_effective_n=args.min_effective_n, ld=lds[pid])
-        if af_table:
-            rec = curated_sd.get(pid, {})
-            # Round-9 review: the sd is derived only when the reference mean is
-            # known to be Sum(2*AF*w); otherwise it stays None with the reason
-            # attached, and the shift is reported in raw units only.
-            sd_ref, sd_note = reference_sd(sdef, rec)
-            sh = af_shift(sdef, af_table, sd=sd_ref, population=args.af_population)
-            if sh is not None:
-                sh.sd_note = sd_note
-                shifts[pid] = sh
 
     # A genotype file bounds every credible marker declaration: no individual
     # can share more markers with the panel than there are valid calls.
@@ -1811,11 +1980,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         is_bound = bound_id is not None and ind.sample_id == bound_id
         dec = decide(ind, cal, min_markers=args.min_markers,
                      max_credible_markers=genotype_call_cap if is_bound else None)
-        ind_scores = scores_by_sample.get(ind.sample_id, scores) if keyed else scores
+        # No fallback to the whole results list: an unmatched individual was
+        # refused above, and a silent default here would be cross-attribution.
+        ind_scores = scores_by_sample[ind.sample_id] if keyed else scores
+        # Round-9 sweep: the sd derivation used whichever record of a score
+        # came last in the file, then applied it to everyone. Each individual
+        # now derives it from their own record only.
+        ind_shifts: dict[str, AFShift] = {}
+        if af_table:
+            for pid, sdef in score_defs.items():
+                rec = next((r for r in ind_scores if score_id(r) == pid), None)
+                if rec is None:
+                    continue
+                sd_ref, sd_note = reference_sd(sdef, rec)
+                sh = af_shift(sdef, af_table, sd=sd_ref, population=args.af_population,
+                              min_weight_coverage=args.min_weight_coverage,
+                              ambiguous_rsids=ambiguous_rsids)
+                if sh is not None:
+                    sh.sd_note = (sh.sd_note + " " + sd_note).strip() if sh.sd_note else sd_note
+                    ind_shifts[pid] = sh
+        shifts_by_sample[ind.sample_id] = ind_shifts
         gated = gate_scores(ind_scores, dec, cal, sex=ind.sex,
                             audits=audits if is_bound else None,
                             integrity=integrity if is_bound else integrity_nogt,
-                            shifts=shifts)
+                            shifts=ind_shifts)
         results.append({"decision": dec.__dict__, "scores": gated})
         pairs.append((ind, dec))
 
@@ -1871,10 +2059,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         (outdir / "result.json").open("w"), indent=2,
     )
     _write_report(outdir, cal, results, figures, cmd, args.min_markers)
-    _write_clinician_report(outdir, cal, results, figures, args.min_markers, lds)
-    _write_technical_report(outdir, cal, results, audits, shifts, figures, cmd,
-                            args.min_markers, args.af_population if shifts else None, lds,
-                            genotype_sample_id=bound_id)
+    _write_clinician_report(outdir, cal, results, figures, args.min_markers, lds,
+                            demo_panel=(Path(args.reference_panel).resolve()
+                                        == (EXAMPLES / "demo_reference_pcs.csv").resolve()))
+    any_shift = any(shifts_by_sample.values())
+    _write_technical_report(outdir, cal, results, audits, shifts_by_sample, figures, cmd,
+                            args.min_markers, args.af_population if (af_table or any_shift) else None,
+                            lds, genotype_sample_id=bound_id,
+                            curated_ids={pid for pid, sd_ in score_defs.items() if sd_.curated},
+                            af_rows=len(af_table) if af_table else None)
     if audits:
         with (outdir / "tables" / "variant_audit.csv").open("w", newline="") as fh:
             w = csv.writer(fh)
@@ -1883,14 +2076,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             for pid, au in sorted(audits.items()):
                 w.writerow([bound_id, pid, au.n_total, au.n_matched, au.weight_coverage,
                             au.weight_at_risk, au.top1_share, au.effective_n, au.palindromic_n])
-    if shifts:
+    if any_shift:
         with (outdir / "tables" / "af_shift_per_variant.csv").open("w", newline="") as fh:
             w = csv.writer(fh)
-            w.writerow(["pgs_id", "rsid", "weight", "af_reference", "af_population",
+            w.writerow(["sample_id", "pgs_id", "rsid", "weight", "af_reference", "af_population",
                         "af_delta", "delta_mean"])
-            for pid, sh in sorted(shifts.items()):
+            for sid, shs in shifts_by_sample.items():
+              for pid, sh in sorted(shs.items()):
                 for v in sh.per_variant:
-                    w.writerow([pid, v["rsid"], v["weight"], v["af_reference"],
+                    w.writerow([sid, pid, v["rsid"], v["weight"], v["af_reference"],
                                 v["af_population"], v["af_delta"], v["delta_mean"]])
 
     pdfs = [] if args.no_pdf else _write_pdfs(outdir, results)

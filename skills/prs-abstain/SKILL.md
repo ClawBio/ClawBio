@@ -215,6 +215,7 @@ python skills/prs-abstain/prs_abstain.py --demo --output /tmp/d --ref-pop EUR --
 | `--genotype-sample-id` | none | Which individuals-CSV row the `--genotype` file belongs to; required when the CSV has more than one row, so one genotype never gates anyone else |
 | `--min-effective-n` | `10` | Warn below this many independent contributions |
 | `--af-population` | `AFR` | Population column to re-centre on |
+| `--population-af` | none | TSV `rsid, population, frequency[, allele]`. Name the allele the frequency counts; without it, any rsid whose effect allele differs between the supplied scores is skipped rather than re-centred with a guessed sign |
 | `--ld-window-kb` | `250` | Group variants this close as potentially correlated |
 | `--no-figures` | off | Skip plots (runs without matplotlib) |
 | `--no-pdf` | off | Skip PDF rendering |

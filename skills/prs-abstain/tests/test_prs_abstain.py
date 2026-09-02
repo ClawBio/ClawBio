@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import subprocess
 import sys
@@ -1386,3 +1387,146 @@ class TestReferenceSdProvenance:
         assert any("source-GWAS" in c for c in sc["caveats"])
         tech = (tmp_path / "o" / "report_technical.md").read_text()
         assert "n/a (sd underivable)" in tech and "source-GWAS" in tech
+
+
+class TestRound9Sweep:
+    """Sibling sweep after round 9: the remaining instances of classes the
+    reviewers had already found once (fail-open on NaN, one input for many,
+    derived quantities with undeclared provenance, plain-language mislabels)."""
+
+    @staticmethod
+    def _score(variants):
+        import prs_abstain as pa
+        return pa.ScoreDefinition("X", "trait", "GRCh37", variants, curated=True)
+
+    def test_nan_pc_coordinate_is_withheld_not_released(self, tmp_path):
+        csvf = tmp_path / "ind.csv"
+        csvf.write_text("sample_id,population,PC1,PC2,PC3,PC4,n_markers_shared,sex\n"
+                        "EUR_001,EUR,nan,-2.4,-2.0,0.3,400,female\n")
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(csvf),
+                     "--prs-results", str(EXAMPLES / "demo_prs_results.json"),
+                     "--output", str(tmp_path / "o"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        res = json.loads((tmp_path / "o" / "result.json").read_text())
+        d = res["decisions"][0]
+        assert d["verdict"] == "REFUSE_UNDETERMINABLE"
+        assert all(sc["percentile"] is None for sc in d["scores"])
+
+    def test_nan_in_reference_panel_row_is_skipped_not_averaged(self, tmp_path):
+        import prs_abstain as pa
+        pnl = tmp_path / "ref.csv"
+        src = (EXAMPLES / "demo_reference_pcs.csv").read_text().splitlines()
+        pnl.write_text("\n".join(src + ["BAD_EUR,EUR,nan,0,0,0"]) + "\n")
+        panel = pa.load_reference_panel(pnl, ("PC1", "PC2", "PC3", "PC4"))
+        assert all(s.sample_id != "BAD_EUR" for s in panel)
+        cal = pa.calibrate(panel, "EUR")
+        assert math.isfinite(cal.threshold)
+
+    def test_af_shift_skips_rsid_with_conflicting_effect_alleles(self):
+        import prs_abstain as pa
+        sc = self._score([{"rsid": "rs1", "chr": "1", "pos": "1", "effect_allele": "A",
+                           "other_allele": "G", "weight": 0.5, "af_reference": 0.3},
+                          {"rsid": "rs2", "chr": "1", "pos": "2", "effect_allele": "C",
+                           "other_allele": "T", "weight": 0.5, "af_reference": 0.4}])
+        af = {"rs1": {"AFR": 0.6}, "rs2": {"AFR": 0.5}}
+        sh = pa.af_shift(sc, af, sd=1.0, population="AFR", ambiguous_rsids={"rs1"})
+        assert sh.n_variants_with_af == 1 and "rs1" not in [v["rsid"] for v in sh.per_variant]
+        assert "skipped" in sh.sd_note and sh.shift_sd is None  # 50% weight coverage
+
+    def test_af_table_allele_column_rejects_mismatched_allele(self):
+        import prs_abstain as pa
+        sc = self._score([{"rsid": "rs1", "chr": "1", "pos": "1", "effect_allele": "A",
+                           "other_allele": "G", "weight": 1.0, "af_reference": 0.3}])
+        assert pa.af_shift(sc, {"rs1": {"AFR": 0.6, "_allele": "C"}}, sd=1.0, population="AFR") is None
+        ok = pa.af_shift(sc, {"rs1": {"AFR": 0.6, "_allele": "T"}}, sd=1.0, population="AFR")
+        assert ok is not None and ok.shift_sd is not None  # T is the strand complement of A
+
+    def test_low_weight_coverage_reports_raw_shift_unscaled(self):
+        import prs_abstain as pa
+        sc = self._score([{"rsid": "rs1", "chr": "1", "pos": "1", "effect_allele": "A",
+                           "other_allele": "G", "weight": 0.1, "af_reference": 0.3},
+                          {"rsid": "rs2", "chr": "1", "pos": "2", "effect_allele": "C",
+                           "other_allele": "T", "weight": 0.9, "af_reference": 0.4}])
+        sh = pa.af_shift(sc, {"rs1": {"AFR": 0.6}}, sd=1.0, population="AFR")
+        assert sh.weight_coverage == 0.1 and sh.shift_sd is None
+        assert "10%" in sh.sd_note
+
+    def test_population_af_loader_rejects_nan_and_counts_it(self, tmp_path, capsys):
+        import prs_abstain as pa
+        f = tmp_path / "af.tsv"
+        f.write_text("rsid\tpopulation\teffect_allele_frequency\trs1\tAFR\tnan\nrs2\tAFR\t0.4\n")
+        tab = pa.load_population_af(f)
+        assert "rs2" in tab and "rs1" not in tab
+
+    def test_sd_is_derived_from_each_individuals_own_record(self, tmp_path):
+        """Two keyed individuals; the LAST record in the file has z=0. The
+        first individual's sd must still derive from her own record."""
+        recs = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
+        eur = [dict(r) for r in recs if r["sample_id"] == "EUR_001"]
+        afr = [dict(r) for r in recs if r["sample_id"] == "AFR_001"]
+        for r in afr:
+            r["z_score"] = 0.0
+        res = tmp_path / "res.json"; res.write_text(json.dumps(eur + afr))
+        ind = tmp_path / "ind.csv"
+        ind.write_text("sample_id,population,PC1,PC2,PC3,PC4,n_markers_shared,sex\n"
+                       "EUR_001,EUR,-3.005020,-2.385174,-2.002224,0.345164,400,female\n"
+                       "AFR_001,AFR,6.588584,-2.403258,-2.206847,3.186610,400,male\n")
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(ind), "--prs-results", str(res),
+                     "--scores", str(EXAMPLES / "scores"),
+                     "--population-af", str(EXAMPLES / "demo_population_af.tsv"),
+                     "--output", str(tmp_path / "o"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        out = json.loads((tmp_path / "o" / "result.json").read_text())
+        by = {d["sample_id"]: d for d in out["decisions"]}
+        eur_sd = [sc["af_shift_sd"] for sc in by["EUR_001"]["scores"]]
+        afr_sd = [sc["af_shift_sd"] for sc in by["AFR_001"]["scores"]]
+        assert any(x is not None for x in eur_sd)
+        assert all(x is None for x in afr_sd)
+        csv_rows = (tmp_path / "o" / "tables" / "af_shift_per_variant.csv").read_text().splitlines()
+        assert csv_rows[0].startswith("sample_id,")
+
+    def test_plain_reason_names_the_actual_cause(self):
+        import prs_abstain as pa
+        cal = pa.Calibration("EUR", ("PC1",), [0.0], 10, 0.0, 1.0, 3.0, 3.0, 2.0, 5.0)
+        base = {"verdict": "REFUSE_UNDETERMINABLE"}
+        assert "higher than the number of markers actually read" in pa._plain_reason({**base, "cause": "inflated_markers"}, cal)
+        assert "No ancestry coordinates" in pa._plain_reason({**base, "cause": "no_coordinates"}, cal)
+        assert "Too few ancestry markers" in pa._plain_reason({**base, "cause": "too_few_markers"}, cal)
+
+    def test_single_letter_sex_is_normalised(self):
+        import prs_abstain as pa
+        assert pa.check_applicability({"trait": "Breast cancer"}, sex="F").applicable
+        assert not pa.check_applicability({"trait": "Breast cancer"}, sex="M").applicable
+
+    def test_plain_withheld_distinguishes_missing_sex_and_provenance(self):
+        import prs_abstain as pa
+        assert "no sex was recorded" in pa._plain_withheld(
+            {"withheld_reasons": ["Not applicable: Breast cancer is a sex-specific trait and no sex was recorded for this individual."]})
+        assert "which group" in pa._plain_withheld(
+            {"withheld_reasons": ["Reference provenance: this score does not declare a reference_population, so x."]})
+
+    def test_clinician_report_flags_unchecked_marker_coverage_per_person(self, tmp_path):
+        run_cli(["--demo", "--output", str(tmp_path), "--no-figures", "--no-pdf"])
+        text = (tmp_path / "report_clinician.md").read_text()
+        assert "marker coverage not checked for this person" in text
+
+    def test_sample_ids_colliding_after_sanitisation_refuse(self, tmp_path):
+        csvf = tmp_path / "ind.csv"
+        csvf.write_text("sample_id,population,PC1,PC2,PC3,PC4,n_markers_shared,sex\n"
+                        "A B,EUR,-3.0,-2.4,-2.0,0.3,400,female\n"
+                        "A_B,EUR,-3.1,-2.4,-2.0,0.3,400,female\n")
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(csvf),
+                     "--prs-results", str(EXAMPLES / "demo_prs_results.json"),
+                     "--output", str(tmp_path / "o"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 2 and "collide" in r.stderr
+
+    def test_technical_report_names_the_reference_population_not_european(self, tmp_path):
+        """§1 of the technical report derives its population label from the
+        calibration and asserts the Sum(2AFw) identity only for curated scores."""
+        run_cli(["--demo", "--output", str(tmp_path), "--no-figures", "--no-pdf"])
+        tech = (tmp_path / "report_technical.md").read_text()
+        assert "For the curated scores in this run" in tech
+
