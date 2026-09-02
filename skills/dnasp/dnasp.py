@@ -359,15 +359,16 @@ class KaKsStats:
 class FuFsStats:
     """Fu's Fs neutrality test (Fu 1997).
 
-    Fs = ln(S_k / (1 - S_k)) where S_k = P(K_n ≤ H | θ_π, n) under the
-    Ewens sampling formula (infinite-alleles model).
-    Significant at the 0.02 level (conventional threshold for Fs).
+    Fs = ln(S' / (1 - S')) where S' = P(K_n ≥ H | θ_π, n) under the Ewens
+    sampling formula (infinite-alleles model). Fs << 0 → excess of haplotypes
+    (population expansion / hitchhiking). S' is not a P-value (θ_π is
+    estimated); a formal test requires coalescent simulation of the null.
     """
     n: int = 0
     H: int = 0                        # observed number of haplotypes
     theta_pi: float = 0.0             # θ_π = k (mean pairwise differences)
-    S_k: Optional[float] = None       # P(K_n ≤ H | θ_π, n)  -  Ewens CDF
-    Fs: Optional[float] = None        # ln(S_k / (1 - S_k)); Fs << 0 → expansion/selection
+    S_k: Optional[float] = None       # S' = P(K_n ≥ H | θ_π, n)  -  Ewens upper tail
+    Fs: Optional[float] = None        # ln(S' / (1 - S')); Fs << 0 → expansion/selection
 
 
 @dataclass
@@ -1463,10 +1464,15 @@ def compute_fu_li_outgroup(seqs: list[str], outgroup: str) -> FuLiOutgroupStats:
     segregating site.  Derived mutations carried by exactly one ingroup
     sequence are 'external' (η_e); all derived mutations count as η.
 
-    Variance coefficients follow Simonsen et al. (1995), Appendix B.
-    Note: these are the same u/v structure as the no-outgroup Appendix A
-    formulas; the exact Appendix B coefficients (which differ slightly for
-    small n) can be substituted once validated against DnaSP 6 output.
+    Formulas: Fu & Li (1993) equations 22-25 (D) and 31-34 (F), in the form
+    given by Simonsen, Churchill & Aquadro (1995) Genetics 141:413-429.
+
+        D = (eta - a_n * eta_e) / sqrt(u_D * eta + v_D * eta**2)
+        F = (k_bar - eta_e)     / sqrt(u_F * eta + v_F * eta**2)
+
+    with eta the total number of outgroup-polarised derived mutations and
+    eta_e the subset carried by exactly one ingroup sequence (external branch).
+    Negative D or F indicates an excess of external (singleton) mutations.
 
     Parameters
     ----------
@@ -1492,32 +1498,30 @@ def compute_fu_li_outgroup(seqs: list[str], outgroup: str) -> FuLiOutgroupStats:
     if eta == 0:
         return FuLiOutgroupStats(n=n, eta=0, eta_e=0, k_bar=k_bar)
 
-    An = _harmonic(n, 1)   # Σ 1/i for i = 1..n-1
-    Bn = _harmonic(n, 2)   # Σ 1/i² for i = 1..n-1
+    a_n = _harmonic(n, 1)          # Σ 1/i for i = 1..n-1
+    b_n = _harmonic(n, 2)          # Σ 1/i² for i = 1..n-1
+    a_n1 = a_n + 1.0 / n           # Σ 1/i for i = 1..n
 
-    # Variance coefficients (Simonsen et al. 1995, Appendix B structure)
-    v_D = (Bn / An**2 - (2.0 / n) * (1.0 + 1.0 / An - An + An / n) - 1.0 / n**2)
-    v_D /= An**2 + Bn
-    v_D = max(v_D, 0.0)
-    u_D = ((n - 1.0) / n - 1.0 / An) / An - v_D
+    c_n = 2.0 * (n * a_n - 2.0 * (n - 1.0)) / ((n - 1.0) * (n - 2.0))
 
-    v_F = (2 * n**3 + 110 * n**2 - 255 * n + 153) / (9 * n**2 * (n - 1))
-    v_F += (2 * (n - 1) * An) / n**2
-    v_F -= 8 * Bn / n
-    v_F /= An**2 + Bn
-    v_F = max(v_F, 0.0)
-    u_F = (4 * n**2 + 19 * n + 3 - 12 * (n + 1) * (An + 1.0 / n)) / (3 * n * (n - 1))
-    u_F = u_F / An - v_F
+    v_D = 1.0 + (a_n**2 / (b_n + a_n**2)) * (c_n - (n + 1.0) / (n - 1.0))
+    u_D = a_n - 1.0 - v_D
 
-    # D statistic: compares η_e with expected η/aₙ under neutrality
-    num_D = eta_e - eta / An
-    denom_D_sq = u_D * eta + v_D * eta * (eta - 1)
-    D: Optional[float] = (num_D / math.sqrt(denom_D_sq)) if denom_D_sq > 0 else None
+    v_F = (c_n
+           + 2.0 * (n**2 + n + 3.0) / (9.0 * n * (n - 1.0))
+           - 2.0 / (n - 1.0)) / (a_n**2 + b_n)
+    u_F = (1.0
+           + (n + 1.0) / (3.0 * (n - 1.0))
+           - 4.0 * ((n + 1.0) / (n - 1.0)**2) * (a_n1 - 2.0 * n / (n + 1.0))) / a_n - v_F
 
-    # F statistic: compares mean pairwise differences with η_e
-    num_F = k_bar - eta_e
-    denom_F_sq = u_F * eta + v_F * eta * (eta - 1)
-    F: Optional[float] = (num_F / math.sqrt(denom_F_sq)) if denom_F_sq > 0 else None
+    denom_D_sq = u_D * eta + v_D * eta * eta
+    denom_F_sq = u_F * eta + v_F * eta * eta
+    D: Optional[float] = (
+        (eta - a_n * eta_e) / math.sqrt(denom_D_sq) if denom_D_sq > 0 else None
+    )
+    F: Optional[float] = (
+        (k_bar - eta_e) / math.sqrt(denom_F_sq) if denom_F_sq > 0 else None
+    )
 
     return FuLiOutgroupStats(n=n, eta=eta, eta_e=eta_e, k_bar=k_bar, D=D, F=F)
 
@@ -2051,38 +2055,66 @@ def _stirling1_unsigned(n: int) -> list[int]:
     return row
 
 
-def _ewens_cdf(k_max: int, n: int, theta: float) -> float:
-    """P(K_n ≤ k_max) under the Ewens sampling formula.
+def _ewens_log_terms(n: int, theta: float) -> list[float]:
+    """log P(K_n = k) for k = 0 .. n under the Ewens sampling formula.
 
     K_n is the number of distinct alleles in a sample of n sequences under
-    the infinite-alleles model with scaled mutation rate theta (= θ_π).
+    the infinite-alleles model with scaled mutation rate theta (= θ_π):
 
-    P(K_n = k) = |s(n, k)| × θ^k / [θ(θ+1)…(θ+n−1)]
+        P(K_n = k) = |s(n, k)| × θ^k / [θ(θ+1)…(θ+n−1)]
+
+    Evaluated in log space.  The central unsigned Stirling numbers |s(n, k)|
+    exceed float range for n ≳ 171, so float(|s(n, k)|) overflows; math.log of
+    the exact Python int does not.  Entry k = 0 (and any k > n) is -inf.
     """
+    stirling = _stirling1_unsigned(n)
+    log_theta = math.log(theta)
+    log_rising = math.fsum(math.log(theta + i) for i in range(n))
+    terms = [-math.inf] * (n + 1)
+    for k in range(1, n + 1):
+        if stirling[k] > 0:
+            terms[k] = math.log(stirling[k]) + k * log_theta - log_rising
+    return terms
+
+
+def _ewens_cdf(k_max: int, n: int, theta: float) -> float:
+    """P(K_n ≤ k_max) under the Ewens sampling formula."""
     if n < 1 or theta <= 0.0:
         return 1.0
     k_max = min(k_max, n)
-    stirling = _stirling1_unsigned(n)
-    # Rising factorial θ^(n) = θ(θ+1)…(θ+n−1)
-    rising: float = 1.0
-    for i in range(n):
-        rising *= theta + i
-    if rising == 0.0:
+    if k_max < 1:
+        return 0.0
+    terms = _ewens_log_terms(n, theta)
+    total = math.fsum(math.exp(terms[k]) for k in range(1, k_max + 1))
+    return min(1.0, max(0.0, total))
+
+
+def _ewens_sf(k_min: int, n: int, theta: float) -> float:
+    """P(K_n ≥ k_min) under the Ewens sampling formula (upper tail).
+
+    Summed directly rather than as 1 − _ewens_cdf(k_min − 1) to keep precision
+    when the observed allele count sits far in the upper tail.
+    """
+    if n < 1 or theta <= 0.0:
         return 1.0
-    prob_sum: float = 0.0
-    theta_pow: float = 1.0
-    for k in range(1, k_max + 1):
-        theta_pow *= theta   # θ^k
-        prob_sum += float(stirling[k]) * theta_pow / rising
-    return min(1.0, max(0.0, prob_sum))
+    if k_min <= 1:
+        return 1.0
+    if k_min > n:
+        return 0.0
+    terms = _ewens_log_terms(n, theta)
+    total = math.fsum(math.exp(terms[k]) for k in range(k_min, n + 1))
+    return min(1.0, max(0.0, total))
 
 
 def compute_fu_fs(seqs: list[str], H: int, k: float) -> FuFsStats:
-    """Fu's Fs neutrality test (Fu 1997).
+    """Fu's Fs neutrality test (Fu 1997, Genetics 147:915-925).
 
-    Uses the Ewens sampling formula to evaluate how extreme the observed
-    number of haplotypes H is given the nucleotide diversity estimate θ_π = k
-    (mean pairwise differences, which equals π × L_net).
+    Fs = ln(S' / (1 − S')), with S' = P(K_n ≥ H | θ_π) the Ewens-sampling-formula
+    probability of observing at least as many alleles as the H haplotypes seen,
+    given θ_π = k (mean pairwise differences). A large negative Fs means an
+    excess of haplotypes relative to neutral expectation - the signature of
+    population expansion or genetic hitchhiking. S' is not itself the P-value:
+    because θ_π is estimated, a formal test needs coalescent simulation.
 
     Parameters
     ----------
@@ -2092,22 +2124,22 @@ def compute_fu_fs(seqs: list[str], H: int, k: float) -> FuFsStats:
 
     Returns
     -------
-    FuFsStats with Fs, S_k, theta_pi filled.
+    FuFsStats with Fs, S_k (= S'), theta_pi filled.
     """
     n = len(seqs)
     result = FuFsStats(n=n, H=H, theta_pi=k)
     if n < 2 or H < 1:
         return result
 
-    S_k = _ewens_cdf(H, n, k)
-    result.S_k = S_k
+    S_prime = _ewens_sf(H, n, k)
+    result.S_k = S_prime
 
-    if S_k <= 0.0:
-        result.Fs = -1e308           # effectively -inf
-    elif S_k >= 1.0:
-        result.Fs = 1e308            # effectively +inf
+    if S_prime <= 0.0:
+        result.Fs = -1e308           # effectively -inf (extreme haplotype excess)
+    elif S_prime >= 1.0:
+        result.Fs = 1e308            # effectively +inf (extreme haplotype deficit)
     else:
-        result.Fs = math.log(S_k / (1.0 - S_k))
+        result.Fs = math.log(S_prime / (1.0 - S_prime))
 
     return result
 
@@ -3112,7 +3144,8 @@ def write_report(
             "> **Note**: D and F with outgroup differ from D\\* and F\\* (no outgroup): "
             "the outgroup polarises mutations as ancestral/derived, enabling counting "
             "of 'external' mutations on terminal branches only (η_e).  "
-            "Variance coefficients follow Simonsen et al. (1995) Appendix B.",
+            "D = (η − aₙ·η_e)/√(u_D·η + v_D·η²); F = (k̄ − η_e)/√(u_F·η + v_F·η²); "
+            "coefficients from Fu & Li (1993), Simonsen et al. (1995).",
             "",
         ]
 
@@ -3207,10 +3240,6 @@ def write_report(
     # ── Fu's Fs ──────────────────────────────────────────────────────────────
     fufs_s: Optional[FuFsStats] = results.get("fufs")
     if fufs_s is not None:
-        sig = ""
-        if fufs_s.Fs is not None:
-            if fufs_s.Fs < -1.61:    # S_k < 0.165 → conventional 0.02 threshold
-                sig = " (**significant at 0.02 level**  -  fewer haplotypes than expected)"
         lines += [
             "## Fu's Fs Test (Fu 1997)",
             "",
@@ -3219,15 +3248,16 @@ def write_report(
             f"| n (sequences) | {fufs_s.n} |",
             f"| H (observed haplotypes) | {fufs_s.H} |",
             f"| θ_π (= k, mean pairwise differences) | {_fmt(fufs_s.theta_pi, 4)} |",
-            f"| S_k = P(K ≤ H \\| θ_π, n) | {_fmt(fufs_s.S_k, 6)} |",
+            f"| S' = P(K ≥ H \\| θ_π, n) | {_fmt(fufs_s.S_k, 6)} |",
             f"| Fs | {_fmt(fufs_s.Fs, 4)} |",
             "",
-            f"> **Interpretation**: Fs = {_fmt(fufs_s.Fs, 4)}.{sig} "
-            "Large negative Fs indicates fewer haplotypes than expected given nucleotide "
-            "diversity  -  signature of recent population expansion or positive selection. "
-            "Use the conventional significance threshold Fs < 0 with S_k ≤ 0.02. "
-            "Fs > 0 (excess haplotypes) is rarely significant and usually arises from "
-            "balancing selection or population subdivision.",
+            f"> **Interpretation**: Fs = {_fmt(fufs_s.Fs, 4)}. "
+            "Large negative Fs indicates more haplotypes than expected given nucleotide "
+            "diversity  -  signature of recent population expansion or genetic hitchhiking. "
+            "Large positive Fs (a deficit of haplotypes) points to balancing selection or "
+            "population subdivision. No significance is reported: S' is the Ewens "
+            "upper-tail probability, not the P-value, and a formal test requires coalescent "
+            "simulation of the null because θ_π is estimated from the data.",
             "",
         ]
 
