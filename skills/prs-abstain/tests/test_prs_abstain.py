@@ -823,7 +823,7 @@ class TestGateWiringThroughTheCli:
         import shutil
         subset = tmp_path / "subset_scores"
         subset.mkdir()
-        shutil.copy(EXAMPLES / "scores" / "PGS000013_hmPOS_GRCh37.txt", subset)
+        shutil.copy(EXAMPLES / "scores" / "CLAWBIO-T2D-8_GRCh37.txt", subset)
         out = tmp_path / "out"
         r = run_cli(self._standard(out, "--scores", str(subset)))
         assert r.returncode == 0, r.stderr
@@ -1275,3 +1275,114 @@ class TestRound6Sentinels:
                                  "reference_population": "estimated (allele freq)"}], d, cal)
         assert gated[0]["percentile"] is None
         assert any("estimated from allele frequencies" in x for x in gated[0]["withheld_reasons"])
+
+
+class TestGenotypeBinding:
+    """Round-9 review: one --genotype was applied to every queried individual,
+    so a released percentile could rest on someone else's DNA. A genotype
+    binds to exactly one sample_id; the rest take the no-genotype path."""
+
+    def test_multi_individual_run_refuses_unbound_genotype(self, tmp_path):
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
+                     "--prs-results", str(EXAMPLES / "demo_prs_results.json"),
+                     "--scores", str(EXAMPLES / "scores"),
+                     "--genotype", str(EXAMPLES / "demo_genotype.txt"),
+                     "--output", str(tmp_path), "--no-figures", "--no-pdf"])
+        assert r.returncode == 2
+        assert "--genotype-sample-id" in r.stderr
+        assert not (tmp_path / "result.json").exists()
+
+    def test_unknown_genotype_sample_id_refuses(self, tmp_path):
+        r = run_cli(["--demo", "--output", str(tmp_path), "--genotype-sample-id", "NOBODY",
+                     "--no-figures", "--no-pdf"])
+        assert r.returncode == 2
+        assert "not in the individuals CSV" in r.stderr
+
+    def test_genotype_gates_only_the_bound_individual(self, tmp_path):
+        r = run_cli(["--demo", "--output", str(tmp_path), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        res = json.loads((tmp_path / "result.json").read_text())
+        by_id = {d["sample_id"]: d for d in res["decisions"]}
+        bound = by_id["DEMO_PATIENT"]["scores"]
+        others = [s for sid, d in by_id.items() if sid != "DEMO_PATIENT" for s in d["scores"]]
+        assert bound and all(s["weight_coverage"] is not None for s in bound)
+        assert others and all(s["weight_coverage"] is None for s in others)
+        assert all(any("genotype-dependent integrity checks" in c for c in s["caveats"])
+                   for s in others)
+        tech = (tmp_path / "report_technical.md").read_text()
+        assert "bound to **DEMO_PATIENT**" in tech
+        audit_csv = (tmp_path / "tables" / "variant_audit.csv").read_text().splitlines()
+        assert audit_csv[0].startswith("sample_id,")
+        assert all(row.startswith("DEMO_PATIENT,") for row in audit_csv[1:])
+
+
+class TestReferenceSdProvenance:
+    """Round-9 review: sd_ref = |(raw - expected_mean) / z| assumes the reference
+    mean is Sum(2*AF*w). True for curated panels; not for an authentic PGS
+    Catalog file whose allelefrequency_effect is the source-GWAS frequency."""
+
+    @staticmethod
+    def _score(curated):
+        import prs_abstain as pa
+        variants = [{"rsid": "rs1", "chr": "1", "pos": "1", "effect_allele": "A",
+                     "other_allele": "G", "weight": 0.5, "af_reference": 0.3},
+                    {"rsid": "rs2", "chr": "1", "pos": "2", "effect_allele": "C",
+                     "other_allele": "T", "weight": -0.2, "af_reference": 0.6}]
+        return pa.ScoreDefinition("X", "trait", "GRCh37", variants, curated=curated)
+
+    def test_authentic_catalog_file_against_named_cohort_does_not_derive_sd(self):
+        import prs_abstain as pa
+        sd, note = pa.reference_sd(self._score(curated=False),
+                                   {"raw_score": 0.9, "z_score": 1.2, "reference_population": "EUR"})
+        assert sd is None
+        assert "not derived" in note and "source-GWAS" in note
+
+    def test_curated_panel_derives_sd(self):
+        import prs_abstain as pa
+        sd, note = pa.reference_sd(self._score(curated=True),
+                                   {"raw_score": 0.9, "z_score": 1.2, "reference_population": "EUR"})
+        assert sd is not None and sd > 0
+        assert "curated panel" in note
+
+    def test_allele_frequency_centred_percentile_derives_sd(self):
+        import prs_abstain as pa
+        sd, _ = pa.reference_sd(self._score(curated=False),
+                                {"raw_score": 0.9, "z_score": 1.2,
+                                 "reference_population": "estimated (allele freq)"})
+        assert sd is not None
+
+    def test_loader_marks_curated_panels(self):
+        import prs_abstain as pa
+        defs = pa.load_score_definitions(EXAMPLES / "scores")
+        assert defs and all(d.curated for d in defs.values())
+
+    def test_unscaled_shift_carries_the_reason_into_the_caveat(self, tmp_path):
+        """An authentic-style file (pgs_id header, no clawbio_panel) gated against
+        a named cohort must print the raw shift with the provenance reason, never
+        a definite sd figure."""
+        import prs_abstain as pa
+        d = tmp_path / "scores"; d.mkdir()
+        (d / "PGS000099_hmPOS_GRCh37.txt").write_text(
+            "#pgs_id=PGS000099\n#trait_reported=T\n#genome_build=GRCh37\n"
+            "rsID\tchr_name\tchr_position\teffect_allele\tother_allele\teffect_weight\tallelefrequency_effect\n"
+            "rs4244285\t10\t96541616\tA\tG\t0.5\t0.3\n")
+        af = tmp_path / "af.tsv"
+        af.write_text("rsid\tpopulation\teffect_allele_frequency\nrs4244285\tAFR\t0.6\nrs4244285\tEUR\t0.3\n")
+        recs = [{"pgs_id": "PGS000099", "trait": "T", "raw_score": 1.0, "z_score": 1.5,
+                 "percentile": 90, "reference_population": "EUR", "sample_id": "EUR_001"}]
+        res = tmp_path / "res.json"; res.write_text(json.dumps(recs))
+        ind = tmp_path / "ind.csv"
+        ind.write_text("sample_id,population,PC1,PC2,PC3,PC4,n_markers_shared,sex\n"
+                       "EUR_001,EUR,-3.005020,-2.385174,-2.002224,0.345164,400,female\n")
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(ind), "--prs-results", str(res),
+                     "--scores", str(d), "--population-af", str(af),
+                     "--output", str(tmp_path / "o"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        out = json.loads((tmp_path / "o" / "result.json").read_text())
+        sc = out["decisions"][0]["scores"][0]
+        assert sc["af_shift_sd"] is None
+        assert any("source-GWAS" in c for c in sc["caveats"])
+        tech = (tmp_path / "o" / "report_technical.md").read_text()
+        assert "n/a (sd underivable)" in tech and "source-GWAS" in tech

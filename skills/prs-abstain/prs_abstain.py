@@ -117,6 +117,10 @@ class ScoreDefinition:
     trait: str
     build: str | None
     variants: list[dict[str, Any]]
+    # True for ClawBio curated panels (#clawbio_panel_id header): their
+    # reference mean is Sum(2*AF*w) over af_reference by construction. An
+    # authentic PGS Catalog file carries no such guarantee.
+    curated: bool = False
 
 
 @dataclass
@@ -157,6 +161,7 @@ class AFShift:
     shift_raw: float
     shift_sd: float | None  # None when the reference sd could not be derived
     per_variant: list[dict[str, Any]] = field(default_factory=list)
+    sd_note: str = ""  # why sd was or was not derived (provenance, not arithmetic)
 
 
 # Column-name fallback chains, in preference order. Harmonised PGS Catalog
@@ -270,7 +275,9 @@ def load_score_definitions(path: Path) -> dict[str, ScoreDefinition]:
                     f"present, so this file cannot be attributed to a score. "
                     f"Refusing to derive an identifier from the filename.")
             out[pid] = ScoreDefinition(pid, hdr.get("trait_reported", "unknown"),
-                                       hdr.get("genome_build"), variants)
+                                       hdr.get("genome_build"), variants,
+                                       curated=("clawbio_panel_id" in hdr
+                                                or "clawbio_panel" in hdr))
     return out
 
 
@@ -553,6 +560,34 @@ def integrity_verdict(audit: ScoreAudit | None, min_weight_coverage: float = 0.9
             f"({audit.palindromic_share:.1%}) are strand-ambiguous (A/T or C/G). Effect-allele "
             f"orientation cannot be verified from the genotype file alone.")
     return IntegrityVerdict(passed=not reasons, reasons=reasons, warnings=warnings)
+
+
+def reference_sd(score: ScoreDefinition, rec: dict[str, Any]) -> tuple[float | None, str]:
+    """Derive the reference sd as |(raw - expected_mean) / z|, but only when the
+    reference mean is known to be Sum(2*AF*w) over this file's af_reference.
+
+    That identity holds for curated panels by construction, and for any score
+    whose percentile gwas-prs centred on the allele-frequency expectation
+    ("estimated (allele freq)"). For an authentic PGS Catalog file gated
+    against a named reference cohort it does not: allelefrequency_effect is the
+    source-GWAS frequency, so an sd derived from it would mis-scale shift_sd
+    while both reports print it as a definite "+1.28 sd". Fails closed to None
+    with the reason, which the reports carry instead of the number.
+    """
+    pop = rec.get("reference_population")
+    centred_on_af = score.curated or pop == "estimated (allele freq)"
+    if not centred_on_af:
+        return None, ("reference sd not derived: this is not a curated panel and its "
+                      "percentile was centred on a named reference cohort, so the file's "
+                      "allele frequencies may be the source-GWAS frequencies rather than "
+                      "that cohort's; an sd derived from them would mis-scale the shift.")
+    raw, z = rec.get("raw_score"), rec.get("z_score")
+    em = expected_mean(score)
+    if raw is None or z is None or em is None or z == 0:
+        return None, "reference sd underivable: missing raw score, z score or expected mean, or z = 0."
+    why = ("curated panel" if score.curated
+           else "percentile centred on the allele-frequency expectation")
+    return abs((raw - em) / z), f"reference sd derived from (raw, z, expected mean): {why}."
 
 
 def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, float]],
@@ -895,6 +930,8 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
                 f"mean by {shift.shift_raw:+.4f} in raw-score units, but the reference sd "
                 f"could not be derived from the results file, so this shift cannot be "
                 f"expressed in sd or percentile terms.")
+        if shift is not None and shift.shift_sd is None and shift.sd_note:
+            warnings[-1] = warnings[-1] + " " + shift.sd_note
         if shift is not None and shift.shift_sd is not None and abs(shift.shift_sd) > 0.5:
             # Round-5 review: for an individual who passed the gate in the score's
             # own reference population, the shift is a portability bound on the
@@ -1323,7 +1360,8 @@ def _write_technical_report(outdir: Path, cal: Calibration, results: list[dict[s
                             audits: dict[str, ScoreAudit], shifts: dict[str, AFShift],
                             figures: list[str], args_line: str, min_markers: int,
                             af_population: str | None,
-                            lds: dict[str, LDAudit] | None = None) -> None:
+                            lds: dict[str, LDAudit] | None = None,
+                            genotype_sample_id: str | None = None) -> None:
     L: list[str] = []
     a = L.append
     a("# PRS abstention gate — technical report\n")
@@ -1355,6 +1393,11 @@ def _write_technical_report(outdir: Path, cal: Calibration, results: list[dict[s
     a("")
 
     a("## 3. Per-score integrity\n")
+    if genotype_sample_id:
+        a(f"Genotype-dependent checks (weight coverage, strand ambiguity, marker cap) were "
+          f"computed from the genotype bound to **{genotype_sample_id}** and gate that "
+          f"individual only; every other individual took the no-genotype path, with the "
+          f"skipped checks recorded as caveats.\n")
     a("`effective_n` is the inverse Herfindahl index of |weight|, i.e. the number of equally "
       "weighted variants that would produce the same concentration. Low values mark scores "
       "whose percentile is hostage to a handful of allele frequencies.\n")
@@ -1375,6 +1418,9 @@ def _write_technical_report(outdir: Path, cal: Calibration, results: list[dict[s
             drv = (f"{top['rsid']} ({top['delta_mean']:+.4f})" if top else "n/a")
             a(f"| {pid} | {sh.n_variants_with_af} | {sh.coverage:.0%} | {sh.shift_raw:+.4f} | "
               f"{('n/a (sd underivable)' if sh.shift_sd is None else format(sh.shift_sd, '+.3f'))} | {drv} |")
+        for pid, sh in sorted(shifts.items()):
+            if sh.shift_sd is None and sh.sd_note:
+                a(f"- {pid}: {sh.sd_note}")
         a("")
         a("### Top per-variant contributions to the shift\n")
         for pid, sh in sorted(shifts.items()):
@@ -1486,8 +1532,9 @@ KNOWN_LIMITATIONS = [
     "n_markers_shared is declared in the individuals CSV. When a genotype file is supplied, "
     "declarations above the number of valid calls fail closed, but that is an upper bound "
     "only: the reference panel carries no marker list, so the true AIM overlap cannot be "
-    "computed, and a single --genotype is assumed to speak for every queried individual. "
-    "An inflated declaration at or below the call count still passes.",
+    "computed. A --genotype file binds to exactly one sample_id (--genotype-sample-id, or the "
+    "sole row of the individuals CSV) and never gates anyone else. An inflated declaration at "
+    "or below the call count still passes.",
     "Scores attach to individuals only through a sample_id join. Results without sample_id "
     "are accepted for exactly one individual and refused otherwise; the join trusts the "
     "identifiers as declared - a mislabelled sample_id in the results file is undetectable "
@@ -1575,6 +1622,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     p.add_argument("--pcs", default=",".join(DEFAULT_PCS), help="Comma-separated PC columns")
     p.add_argument("--scores", type=Path, help="Directory of PGS Catalog scoring files")
     p.add_argument("--genotype", type=Path, help="23andMe/AncestryDNA genotype file")
+    p.add_argument("--genotype-sample-id", type=str, default=None,
+                   help="sample_id (from the individuals CSV) the --genotype file belongs to. "
+                        "Required when the CSV has more than one row: a genotype describes one "
+                        "person and never gates anyone else.")
     p.add_argument("--population-af", type=Path, help="TSV: rsid, population, effect_allele_frequency")
     p.add_argument("--af-population", default="AFR", help="Population column to re-centre on")
     p.add_argument("--min-weight-coverage", type=float, default=0.90,
@@ -1596,6 +1647,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.prs_results = args.prs_results or EXAMPLES / "demo_prs_results.json"
         args.scores = args.scores or EXAMPLES / "scores"
         args.genotype = args.genotype or EXAMPLES / "demo_genotype.txt"
+        args.genotype_sample_id = args.genotype_sample_id or "DEMO_PATIENT"
         args.population_af = args.population_af or EXAMPLES / "demo_population_af.tsv"
     missing = [n for n, v in [("--reference-panel", args.reference_panel),
                               ("--individuals", args.individuals),
@@ -1667,7 +1719,32 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     af_table = load_population_af(args.population_af) if args.population_af else {}
 
+    # Round-9 review: one --genotype was applied to every queried individual,
+    # so EUR_001's weight coverage and marker cap could come from
+    # DEMO_PATIENT's DNA. A genotype binds to exactly one sample_id; the
+    # other individuals take the no-genotype path (skipped checks recorded).
+    bound_id: str | None = None
+    if genotype:
+        ids = [i.sample_id for i in individuals]
+        if args.genotype_sample_id is not None:
+            if args.genotype_sample_id not in ids:
+                print(f"--genotype-sample-id {args.genotype_sample_id} is not in the "
+                      f"individuals CSV ({', '.join(ids)}); the genotype cannot be bound "
+                      f"to anyone. Refusing rather than guessing.", file=sys.stderr)
+                return 2
+            bound_id = args.genotype_sample_id
+        elif len(individuals) == 1:
+            bound_id = ids[0]
+        else:
+            print(f"--genotype describes one person, but the individuals CSV has "
+                  f"{len(individuals)} rows. Weight coverage and the marker cap would gate "
+                  f"every row on one genotype - the same cross-attribution this skill "
+                  f"refuses for scores. Pass --genotype-sample-id to bind it to one "
+                  f"individual.", file=sys.stderr)
+            return 2
+
     audits: dict[str, ScoreAudit] = {}
+    integrity_nogt: dict[str, IntegrityVerdict] = {}
     lds: dict[str, LDAudit] = {}
     integrity: dict[str, IntegrityVerdict] = {}
     shifts: dict[str, AFShift] = {}
@@ -1681,18 +1758,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         integrity[pid] = integrity_verdict(
             audits.get(pid), min_weight_coverage=args.min_weight_coverage,
             min_effective_n=args.min_effective_n, ld=lds[pid])
+        integrity_nogt[pid] = integrity_verdict(
+            None, min_weight_coverage=args.min_weight_coverage,
+            min_effective_n=args.min_effective_n, ld=lds[pid])
         if af_table:
             rec = curated_sd.get(pid, {})
-            raw, z = rec.get("raw_score"), rec.get("z_score")
-            em = expected_mean(sdef)
-            # z_score of exactly 0.0 (an individual at the reference mean) gives
-            # 0/0: the sd is underivable, not 1.0. Propagate None; af_shift then
-            # reports the raw shift without inventing sd units for it.
-            sd_ref = (abs((raw - em) / z)
-                      if (raw is not None and z is not None and em is not None and z != 0)
-                      else None)
+            # Round-9 review: the sd is derived only when the reference mean is
+            # known to be Sum(2*AF*w); otherwise it stays None with the reason
+            # attached, and the shift is reported in raw units only.
+            sd_ref, sd_note = reference_sd(sdef, rec)
             sh = af_shift(sdef, af_table, sd=sd_ref, population=args.af_population)
             if sh is not None:
+                sh.sd_note = sd_note
                 shifts[pid] = sh
 
     # A genotype file bounds every credible marker declaration: no individual
@@ -1731,11 +1808,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     results, pairs = [], []
     for ind in individuals:
+        is_bound = bound_id is not None and ind.sample_id == bound_id
         dec = decide(ind, cal, min_markers=args.min_markers,
-                     max_credible_markers=genotype_call_cap)
+                     max_credible_markers=genotype_call_cap if is_bound else None)
         ind_scores = scores_by_sample.get(ind.sample_id, scores) if keyed else scores
         gated = gate_scores(ind_scores, dec, cal, sex=ind.sex,
-                            audits=audits, integrity=integrity, shifts=shifts)
+                            audits=audits if is_bound else None,
+                            integrity=integrity if is_bound else integrity_nogt,
+                            shifts=shifts)
         results.append({"decision": dec.__dict__, "scores": gated})
         pairs.append((ind, dec))
 
@@ -1793,14 +1873,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     _write_report(outdir, cal, results, figures, cmd, args.min_markers)
     _write_clinician_report(outdir, cal, results, figures, args.min_markers, lds)
     _write_technical_report(outdir, cal, results, audits, shifts, figures, cmd,
-                            args.min_markers, args.af_population if shifts else None, lds)
+                            args.min_markers, args.af_population if shifts else None, lds,
+                            genotype_sample_id=bound_id)
     if audits:
         with (outdir / "tables" / "variant_audit.csv").open("w", newline="") as fh:
             w = csv.writer(fh)
-            w.writerow(["pgs_id", "n_total", "n_matched", "weight_coverage", "weight_at_risk",
-                        "top1_share", "effective_n", "palindromic_n"])
+            w.writerow(["sample_id", "pgs_id", "n_total", "n_matched", "weight_coverage",
+                        "weight_at_risk", "top1_share", "effective_n", "palindromic_n"])
             for pid, au in sorted(audits.items()):
-                w.writerow([pid, au.n_total, au.n_matched, au.weight_coverage,
+                w.writerow([bound_id, pid, au.n_total, au.n_matched, au.weight_coverage,
                             au.weight_at_risk, au.top1_share, au.effective_n, au.palindromic_n])
     if shifts:
         with (outdir / "tables" / "af_shift_per_variant.csv").open("w", newline="") as fh:

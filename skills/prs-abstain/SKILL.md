@@ -212,6 +212,7 @@ python skills/prs-abstain/prs_abstain.py --demo --output /tmp/d --ref-pop EUR --
 | `--min-markers` | `30` | Below this, ancestry is undeterminable (above the 24-AIM subset validated in Kosoy 2009) |
 | `--allow-threshold-overreach` | off | Without it, a threshold wider than the nearest non-reference individual is a hard error |
 | `--min-weight-coverage` | `0.90` | Fraction of a score's total weight that must be genotyped |
+| `--genotype-sample-id` | none | Which individuals-CSV row the `--genotype` file belongs to; required when the CSV has more than one row, so one genotype never gates anyone else |
 | `--min-effective-n` | `10` | Warn below this many independent contributions |
 | `--af-population` | `AFR` | Population column to re-centre on |
 | `--ld-window-kb` | `250` | Group variants this close as potentially correlated |
@@ -290,7 +291,7 @@ output_directory/
 ├── tables/
 │   ├── decisions.csv            # One row per individual
 │   ├── gated_scores.csv         # One row per individual x score
-│   ├── variant_audit.csv        # Per-score coverage and concentration (optional; needs --scores and --genotype)
+│   ├── variant_audit.csv        # Per-score coverage and concentration for the individual the --genotype is bound to
 │   └── af_shift_per_variant.csv # Per-SNP percentile shift (optional; needs --population-af)
 └── reproducibility/
     ├── commands.sh              # Exact command to reproduce
