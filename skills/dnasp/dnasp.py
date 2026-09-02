@@ -660,6 +660,16 @@ def _vcf_allele(idx: str, ref: str, alt1: str) -> str:
     return _VCF_GAP
 
 
+def _gt_ploidy(gt: str) -> Optional[int]:
+    """Number of alleles in a GT field, or None if it carries no phase/unphase
+    separator and is fully missing (`.`)."""
+    if "|" in gt or "/" in gt:
+        return len(re.split(r"[|/]", gt))
+    if gt in (".", ""):
+        return None
+    return 1
+
+
 def parse_vcf(
     path: Path, *, region: Optional[str] = None, merge: bool = False
 ) -> VCFPopulation:
@@ -729,17 +739,25 @@ def parse_vcf(
 
             gts = [f[si + j].split(":")[0] for j in range(len(sample_names))]
 
-            if ploidy == 0:
-                for g in gts:
-                    if "|" in g:
-                        ploidy = 2
-                        break
-                    if "/" in g:
-                        ploidy = 2
-                        break
-                    if g not in (".", ""):
-                        ploidy = 1
-                        break
+            # Ploidy is validated per genotype: mixed or polyploid input is
+            # rejected rather than silently decoded into gaps.
+            for g in gts:
+                p = _gt_ploidy(g)
+                if p is None:
+                    continue
+                if p > 2:
+                    raise ValueError(
+                        f"VCF has a polyploid genotype ({g!r}) at {chrom}:{f[1]}; "
+                        "only haploid and diploid data are supported."
+                    )
+                if ploidy == 0:
+                    ploidy = p
+                elif p != ploidy:
+                    raise ValueError(
+                        f"VCF mixes ploidy: {ploidy}n and {p}n genotypes "
+                        f"(e.g. {g!r} at {chrom}:{f[1]}). Split the file by ploidy "
+                        "and analyse each part separately."
+                    )
 
             if chrom not in included_by_chrom:
                 included_by_chrom[chrom] = [
@@ -4516,20 +4534,45 @@ def main(argv: Optional[list[str]] = None) -> int:
         if not vcf.alignments:
             print("Error: no usable variant sites in the VCF.", file=sys.stderr)
             return 1
-        vcf_pops: Optional[dict[str, str]] = None
-        if pop_assignments:
-            vcf_pops = {
-                hn: pop_assignments[hn.rsplit("_h", 1)[0] if vcf.ploidy == 2 else hn]
-                for hn in vcf.haplotype_names
-                if (hn.rsplit("_h", 1)[0] if vcf.ploidy == 2 else hn) in pop_assignments
-            }
+
+        def _vcf_base(hn: str) -> str:
+            return hn.rsplit("_h", 1)[0] if vcf.ploidy == 2 else hn
+
         multi = len(vcf.alignments) > 1
+        # Precompute collision-safe output subdirectory names.
+        sub_dirs: dict[str, Path] = {}
+        if multi:
+            taken: dict[str, str] = {}
+            for chrom in vcf.alignments:
+                safe = re.sub(r"[^\w.-]", "_", chrom) or "chrom"
+                if taken.get(safe, chrom) != chrom:
+                    safe = f"{safe}_{hashlib.sha1(chrom.encode()).hexdigest()[:6]}"
+                taken[safe] = chrom
+                sub_dirs[chrom] = args.output / safe
+
         for chrom, chrom_aln in vcf.alignments.items():
-            sub = args.output / re.sub(r"[^\w.-]", "_", chrom) if multi else args.output
+            sub = sub_dirs.get(chrom, args.output)
+            # Population map built per CHROM from that CHROM's actual samples.
+            chrom_pops: Optional[dict[str, str]] = None
+            if pop_assignments:
+                chrom_pops = {}
+                unassigned: list[str] = []
+                for nm in chrom_aln.names:
+                    base = _vcf_base(nm)
+                    if base in pop_assignments:
+                        chrom_pops[nm] = pop_assignments[base]
+                    elif base not in unassigned:
+                        unassigned.append(base)
+                if unassigned:
+                    print(
+                        f"  Warning ({chrom}): no population assignment for "
+                        f"{', '.join(unassigned)}  -  excluded from fst / divergence",
+                        file=sys.stderr,
+                    )
             print(f"\n=== {chrom}  ({chrom_aln.n} haplotypes x {chrom_aln.L} variant sites) ===")
             _run(
                 args.vcf, sub, args.window, step,
-                analyses, vcf_pops, aln2, cli_args,
+                analyses, chrom_pops, aln2, cli_args,
                 outgroup_name=args.outgroup, hka_loci=hka_loci,
                 preloaded_aln=chrom_aln, source_name=f"{args.vcf.name}#{chrom}",
             )
