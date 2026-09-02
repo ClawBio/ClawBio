@@ -115,12 +115,12 @@ RATE_LIMIT_DELAY = 0.5      # seconds between library queries
 def _post_gene_list(genes: list[str], description: str = "ClawBio gene set") -> str:
     """Upload a gene list to Enrichr and return the userListId."""
     payload = {
-        "list": "\n".join(genes),
-        "description": description,
+        "list": (None, "\n".join(genes)),
+        "description": (None, description),
     }
     resp = requests.post(
         f"{ENRICHR_BASE}/addList",
-        data=payload,
+        files=payload,
         timeout=30,
     )
     resp.raise_for_status()
