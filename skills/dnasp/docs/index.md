@@ -268,6 +268,36 @@ BEGIN DATA;
 END;
 ```
 
+### VCF (`--vcf`)
+
+A multi-sample VCF is converted to aligned haplotype sequences, following DnaSP 6
+(`Formularios/multifilefrmvcf.vb::readvcf`):
+
+- **One MSA per `CHROM`**   -   the analyses run once per CHROM, as in DnaSP's
+  VCF/RAD mode. `--region CHROM` runs only one; `--vcf-merge` pools all CHROMs
+  into one MSA (a deliberate genome-wide summary; not valid for π / Tajima's D /
+  SFS because it mixes unlinked regions).
+- **Biallelic SNPs only.** Indels, multi-base REF/ALT and multiallelic sites are
+  skipped (counts printed in the run summary).
+- FORMAT must begin with `GT`. **FILTER is ignored** (`q10`, `.`, `PASS` all
+  used), as in DnaSP.
+- **Diploid, phased** (`|`): two haplotype rows per sample, `<sample>_h1` /
+  `<sample>_h2`. **Unphased** (`/`): homozygous → the allele on both rows;
+  **heterozygous → both rows gap** (DnaSP cannot resolve phase). `.` → gap.
+- **Haploid** (`GT` = `0`/`1`): one row per sample.
+- **Per-CHROM sample set**: a sample whose GT starts with `.` at the *first*
+  retained variant of a CHROM is dropped from that whole MSA.
+- Population split: `--pop-file` keyed by base sample ID. DnaSP's `.SG.txt`
+  files (`sample<space>population`) work directly.
+
+This runs the **standard** modules on a VCF-derived alignment. It is not a port
+of DnaSP's RAD engine: no Achaz F\* variances, no per-MSA Mean row, no
+`.Hetz`/`.Btw`/`.GFlow` outputs. On the clean example `Data_Example_Diploid
+Phased.vcf` Scaffold_2, every comparable statistic matches DnaSP 6.0.60 exactly
+(π, θ_W, S, Hd, Tajima's D, Fu & Li D\*, R2, Fu's Fs); scaffolds containing the
+constructed edge cases (ALT=".", `A,T` multiallelic, `TG/CG` MNP) differ by a
+site or two because DnaSP's RAD engine handles those columns differently.
+
 ### Gap treatment
 
 DnaSP applies **complete deletion** by default: any alignment column that contains a gap (`-`), missing (`?`), or ambiguous (`N`) character in *any* sequence is excluded from all calculations. The number of net sites used (L\_net) is reported in the output and may be substantially smaller than the total alignment length if the data are gap-rich.

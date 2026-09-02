@@ -995,6 +995,100 @@ class TestLoadPopFile:
         result = dn.load_pop_file(p)
         assert result == {}
 
+    def test_space_separated(self, tmp_path):
+        # DnaSP's VCF .SG.txt files use a single space
+        p = tmp_path / "pops.SG.txt"
+        p.write_text("Indiv1P1 Population1\nIndiv2P1 Population1\nIndiv5P2 Population2\n")
+        result = dn.load_pop_file(p)
+        assert result == {"Indiv1P1": "Population1", "Indiv2P1": "Population1",
+                          "Indiv5P2": "Population2"}
+
+
+_VCF_HEADER = (
+    "##fileformat=VCFv4.2\n"
+    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\tS2\tS3\n"
+)
+
+
+class TestParseVCF:
+    def _write(self, tmp_path, body):
+        p = tmp_path / "x.vcf"
+        p.write_text(_VCF_HEADER + body)
+        return p
+
+    def test_phased_biallelic_two_haplotypes_per_sample(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"
+            "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0|0\t0|0\t0|1\n")
+        v = dn.parse_vcf(p)
+        assert v.ploidy == 2 and v.is_phased is True
+        aln = v.alignments["chr1"]
+        assert aln.names == ["S1_h1", "S1_h2", "S2_h1", "S2_h2", "S3_h1", "S3_h2"]
+        assert aln.seqs == ["AC", "AC", "AC", "GC", "GC", "GT"]
+
+    def test_one_msa_per_chrom(self, tmp_path):
+        p = self._write(tmp_path,
+            "chrA\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"
+            "chrB\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|1\t0|0\t0|0\n")
+        v = dn.parse_vcf(p)
+        assert set(v.alignments) == {"chrA", "chrB"}
+
+    def test_region_filter(self, tmp_path):
+        p = self._write(tmp_path,
+            "chrA\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"
+            "chrB\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|1\t0|0\t0|0\n")
+        v = dn.parse_vcf(p, region="chrB")
+        assert set(v.alignments) == {"chrB"}
+
+    def test_indels_and_multiallelic_skipped(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tAT\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"   # indel
+            "chr1\t20\t.\tG\tA,T\t.\tPASS\t.\tGT\t0|0\t0|1\t1|2\n"  # multiallelic
+            "chr1\t30\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n")   # kept
+        v = dn.parse_vcf(p)
+        assert v.n_indels_skipped == 1
+        assert v.n_multiallelic_skipped == 1
+        assert v.alignments["chr1"].L == 1
+
+    def test_unphased_het_becomes_gap(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0/0\t0/1\t1/1\n")
+        v = dn.parse_vcf(p)
+        assert v.ploidy == 2 and v.is_phased is False
+        # S2 is 0/1 (het, unphased) -> both haplotypes gap
+        assert v.alignments["chr1"].seqs == ["A", "A", "-", "-", "G", "G"]
+
+    def test_missing_gt_excludes_sample_from_chrom(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t.|.\t0|1\t1|1\n"
+            "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0|0\t0|0\t0|1\n")
+        v = dn.parse_vcf(p)
+        # S1 is .|. at the first variant of chr1 -> dropped from the whole MSA
+        assert v.alignments["chr1"].names == ["S2_h1", "S2_h2", "S3_h1", "S3_h2"]
+
+    def test_haploid_one_row_per_sample(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0\t1\t1\n"
+            "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0\t0\t1\n")
+        v = dn.parse_vcf(p)
+        assert v.ploidy == 1
+        assert v.alignments["chr1"].names == ["S1", "S2", "S3"]
+        assert v.alignments["chr1"].seqs == ["AC", "GC", "GT"]
+
+    def test_filter_field_ignored(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tq10\t.\tGT\t0|0\t0|1\t1|1\n")
+        v = dn.parse_vcf(p)  # q10 line still used, as in DnaSP
+        assert v.alignments["chr1"].L == 1
+
+    def test_merge_pools_all_chroms(self, tmp_path):
+        p = self._write(tmp_path,
+            "chrA\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"
+            "chrB\t10\t.\tC\tT\t.\tPASS\t.\tGT\t0|1\t0|0\t0|0\n")
+        v = dn.parse_vcf(p, merge=True)
+        assert set(v.alignments) == {"<merged>"}
+        assert v.alignments["<merged>"].L == 2
+
 
 class TestSplitAlignmentByPop:
     def _make_aln(self):
