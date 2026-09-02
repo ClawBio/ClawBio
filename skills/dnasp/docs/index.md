@@ -284,7 +284,9 @@ A multi-sample VCF is converted to aligned haplotype sequences, following DnaSP 
 - **Diploid, phased** (`|`): two haplotype rows per sample, `<sample>_h1` /
   `<sample>_h2`. **Unphased** (`/`): homozygous → the allele on both rows;
   **heterozygous → both rows gap** (DnaSP cannot resolve phase). `.` → gap.
-- **Haploid** (`GT` = `0`/`1`): one row per sample.
+- **Haploid** (`GT` = `0`/`1`): one row per sample. Ploidy is checked per
+  genotype; a VCF mixing haploid and diploid calls, or with a polyploid call, is
+  rejected.
 - **Per-CHROM sample set**: a sample whose GT starts with `.` at the *first*
   retained variant of a CHROM is dropped from that whole MSA.
 - Population split: `--pop-file` keyed by base sample ID. DnaSP's `.SG.txt`

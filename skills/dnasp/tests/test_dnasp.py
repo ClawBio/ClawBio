@@ -1089,6 +1089,50 @@ class TestParseVCF:
         assert set(v.alignments) == {"<merged>"}
         assert v.alignments["<merged>"].L == 2
 
+    def test_mixed_ploidy_rejected(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|1\t0\t1\n")  # S1 diploid, S2/S3 haploid
+        with pytest.raises(ValueError, match="mixes ploidy"):
+            dn.parse_vcf(p)
+
+    def test_polyploid_rejected(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|1|1\t0|0|0\t1|1|1\n")
+        with pytest.raises(ValueError, match="polyploid"):
+            dn.parse_vcf(p)
+
+    def test_sample_set_differs_per_chrom(self, tmp_path):
+        # S1 missing at the first variant of chrA but present on chrB
+        p = self._write(tmp_path,
+            "chrA\t10\t.\tA\tG\t.\tPASS\t.\tGT\t.|.\t0|1\t1|1\n"
+            "chrB\t10\t.\tC\tT\t.\tPASS\t.\tGT\t0|1\t0|0\t0|0\n")
+        v = dn.parse_vcf(p)
+        assert "S1_h1" not in v.alignments["chrA"].names
+        assert "S1_h1" in v.alignments["chrB"].names
+
+    def test_cli_pop_map_built_per_chrom(self, tmp_path, capsys):
+        vcf = self._write(tmp_path,
+            "chrA\t10\t.\tA\tG\t.\tPASS\t.\tGT\t.|.\t0|1\t1|1\n"
+            "chrB\t10\t.\tC\tT\t.\tPASS\t.\tGT\t0|1\t0|0\t1|1\n")
+        pops = tmp_path / "p.txt"
+        pops.write_text("S1 P1\nS2 P1\nS3 P2\n")
+        rc = dn.main(["--vcf", str(vcf), "--pop-file", str(pops),
+                      "--analysis", "fst", "--output", str(tmp_path / "out")])
+        assert rc == 0
+        # chrA drops S1 (missing there); chrB keeps all three
+        assert (tmp_path / "out" / "chrA" / "report.md").exists()
+        assert (tmp_path / "out" / "chrB" / "report.md").exists()
+
+    def test_cli_colliding_chrom_names_get_distinct_dirs(self, tmp_path):
+        vcf = self._write(tmp_path,
+            "a:b\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"
+            "a/b\t10\t.\tC\tT\t.\tPASS\t.\tGT\t0|1\t0|0\t0|0\n")
+        out = tmp_path / "out"
+        rc = dn.main(["--vcf", str(vcf), "--output", str(out)])
+        assert rc == 0
+        reports = list(out.rglob("report.md"))
+        assert len(reports) == 2  # not overwritten into one dir
+
 
 class TestSplitAlignmentByPop:
     def _make_aln(self):
