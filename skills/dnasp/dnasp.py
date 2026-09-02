@@ -32,7 +32,7 @@ Available analyses (--analysis flag):
   indel         : InDel polymorphism statistics
   divergence    : Dxy, Da, fixed/shared/private differences (needs --pop-file or --input2)
   fuliout       : Fu & Li D/F with outgroup (needs --outgroup)
-  hka           : HKA neutrality test across loci (needs --hka-file)
+  hka           : HKA two-locus neutrality test (needs --hka-file with 2 loci)
   mk            : McDonald-Kreitman test (needs --outgroup; coding alignment)
   kaks          : Ka/Ks (dN/dS) via Nei-Gojobori 1986 (coding alignment)
   fufs          : Fu's Fs neutrality test (Fu 1997; Ewens sampling formula)
@@ -311,22 +311,32 @@ class FuLiOutgroupStats:
 
 @dataclass
 class HKALocus:
-    """One locus for the HKA test."""
-    name: str = ""   # locus identifier
-    n: int = 0       # ingroup sample size
-    S: int = 0       # segregating sites within ingroup
-    D: int = 0       # fixed differences (divergence) to outgroup/sister species
+    """One locus for the HKA test (DnaSP 6 two-locus model, HKA 1987)."""
+    name: str = ""      # locus identifier
+    n: int = 0          # ingroup sample size
+    S: int = 0          # segregating sites within the ingroup
+    D: int = 0          # differences to the sister species (divergence)
+    L_poly: float = 0.0  # sites analysed within the ingroup
+    L_div: float = 0.0   # sites analysed for divergence (defaults to L_poly)
+    sex: float = 1.0     # 1.0 autosomal, 0.75 X/Z-linked, 0.25 Y/W-linked
 
 
 @dataclass
 class HKAStats:
-    """Results of the HKA test (Hudson, Kreitman & Aguadé 1987)."""
+    """Results of the HKA test (Hudson, Kreitman & Aguadé 1987).
+
+    DnaSP 6 restricts HKA to exactly two loci and solves the neutral model in
+    closed form (HKA.vb::HKAResolEcuacion, case 1).  error is set (and the test
+    not run) when the inputs are unusable or the equations have no positive
+    solution.
+    """
     n_loci: int = 0
-    T_hat: float = 0.0          # MLE divergence time (units of N_e generations)
+    T_hat: float = 0.0          # divergence time, units of 2N generations
     chi2: float = 0.0
     df: int = 0
     p_value: Optional[float] = None
     loci_results: list = field(default_factory=list)  # per-locus details (list of dicts)
+    error: Optional[str] = None
 
 
 @dataclass
@@ -1591,28 +1601,29 @@ def compute_fu_li_outgroup(seqs: list[str], outgroup: str) -> FuLiOutgroupStats:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def load_hka_file(path: Path) -> list[HKALocus]:
-    """Parse an HKA locus file.
+    """Parse an HKA locus file for the two-locus HKA test.
 
-    Expected format (TSV, header optional, lines starting with # ignored)::
+    Expected format (whitespace-separated, header optional, '#' comments)::
 
-        locus   S   D   n
-        ACE     5   10  10
-        G6PD    2   8   12
+        # locus   n    S    L_poly   D    L_div   chrom
+        Adh       81   9    4052     210  4052    A
+        5flank    81   8    3200     78   3200    A
 
     Columns:
-        locus : locus name (any string)
-        S     : segregating sites in ingroup (int)
-        D     : fixed differences vs outgroup/sister species (int)
-        n     : ingroup sample size (int)
+        locus  : locus name
+        n      : ingroup sample size
+        S      : segregating sites within the ingroup
+        L_poly : sites analysed within the ingroup
+        D      : differences to the sister species (divergence)
+        L_div  : sites analysed for divergence (optional; defaults to L_poly)
+        chrom  : optional; A (autosomal, default), X/Z (0.75), Y/W (0.25)
 
-    Parameters
-    ----------
-    path : Path
-
-    Returns
-    -------
-    list[HKALocus]
+    DnaSP's HKA uses exactly two loci; extra rows are still parsed and left for
+    compute_hka() to reject.
     """
+    _CHROM = {"A": 1.0, "AUTOSOMAL": 1.0,
+              "X": 0.75, "Z": 0.75, "XL": 0.75,
+              "Y": 0.25, "W": 0.25}
     loci: list[HKALocus] = []
     with open(path, encoding="utf-8") as fh:
         for raw in fh:
@@ -1620,104 +1631,168 @@ def load_hka_file(path: Path) -> list[HKALocus]:
             if not line or line.startswith("#"):
                 continue
             parts = line.split()
-            if len(parts) < 4:
+            if len(parts) < 5:
                 continue
-            if parts[1].lower() in ("s", "seg"):
+            if parts[1].lower() in ("n", "nseq", "samplesize"):
                 continue  # header row
             try:
-                loci.append(HKALocus(
-                    name=parts[0],
-                    S=int(parts[1]),
-                    D=int(parts[2]),
-                    n=int(parts[3]),
-                ))
+                n = int(parts[1])
+                S = int(parts[2])
+                L_poly = float(parts[3])
+                D = int(parts[4])
             except ValueError:
-                continue  # skip unparseable rows
+                continue
+            L_div = L_poly
+            sex = 1.0
+            if len(parts) >= 6:
+                try:
+                    L_div = float(parts[5])
+                except ValueError:
+                    sex = _CHROM.get(parts[5].upper(), 1.0)
+            if len(parts) >= 7:
+                sex = _CHROM.get(parts[6].upper(), 1.0)
+            loci.append(HKALocus(
+                name=parts[0], n=n, S=S, D=D,
+                L_poly=L_poly, L_div=L_div, sex=sex,
+            ))
     return loci
 
 
+def _hka_quadratic_roots(a: float, b: float, c: float) -> list[float]:
+    """Real roots of a x^2 + b x + c = 0, matching DnaSP's ResuelveEc2grado.
+
+    DnaSP zeroes coefficients that are negligible relative to their inputs; here
+    a plain magnitude tolerance is enough.  Returns [] when the discriminant is
+    negative, one root for the linear case, otherwise both roots.
+    """
+    if abs(a) < 1e-12:
+        if abs(b) < 1e-12:
+            return []
+        return [-c / b]
+    disc = b * b - 4.0 * a * c
+    if disc < 0.0:
+        return []
+    sq = math.sqrt(disc)
+    return [(-b + sq) / (2.0 * a), (-b - sq) / (2.0 * a)]
+
+
 def compute_hka(loci: list[HKALocus]) -> HKAStats:
-    """HKA neutrality test (Hudson, Kreitman & Aguadé 1987).
+    """HKA neutrality test (Hudson, Kreitman & Aguadé 1987), DnaSP 6 model.
 
-    Tests whether the ratio of polymorphism to divergence is uniform across
-    loci. The null model assumes the neutral model with a single underlying
-    θ_i per locus, a shared scaled divergence time T, and Poisson sampling.
+    DnaSP restricts HKA to exactly two loci and one species' polymorphism plus
+    between-species divergence.  The neutral model has parameters θ₁, θ₂ (per
+    site) and a scaled divergence time T; it is solved in closed form as a
+    quadratic in θ₁ (HKA.vb::HKAResolEcuacion, case 1), and the goodness of fit
+    is a χ² with 1 degree of freedom using the HKA (1987) variances
+    (HKA.vb::HKAJiCuadrado):
 
-    MLE of T is found by bisection on the constraint equation derived from
-    ∂log L / ∂T = 0::
-
-        Σ D_i / (1 + 2T) = Σ (S_i + D_i) / (f_i + 1 + 2T)
-
-    where f_i = Σ_{j=1}^{n_i - 1} 1/j (Watterson's harmonic number for
-    locus i).
+        E[Sᵢ]   = aₙᵢ · sexᵢ · θᵢ · Lᵢ
+        Var[Sᵢ] = E[Sᵢ] + sexᵢ² · bₙᵢ · θᵢ² · Lᵢ²
+        E[Dᵢ]   = (T + sexᵢ) · θᵢ · Ldivᵢ
+        Var[Dᵢ] = E[Dᵢ] + sexᵢ² · θᵢ² · Ldivᵢ²
 
     Parameters
     ----------
-    loci : list[HKALocus]
+    loci : list[HKALocus]   Exactly two, each with n, S, D and site counts.
 
     Returns
     -------
-    HKAStats
+    HKAStats   error is set (test not run) for the wrong number of loci, bad
+               inputs, or equations with no positive-θ solution.
     """
-    k = len(loci)
-    if k < 2:
-        return HKAStats(n_loci=k)
+    result = HKAStats(n_loci=len(loci))
+    if len(loci) != 2:
+        result.error = "HKA requires exactly two loci (DnaSP 6 model)."
+        return result
 
-    # Validate loci
-    valid = [loc for loc in loci if loc.n >= 2]
-    if len(valid) < 2:
-        return HKAStats(n_loci=k)
+    l1, l2 = loci
+    for loc in (l1, l2):
+        if loc.n < 2 or loc.L_poly <= 0 or (loc.L_div or loc.L_poly) <= 0:
+            result.error = (
+                "HKA requires n >= 2 and positive site counts (L_poly, L_div) "
+                "for both loci."
+            )
+            return result
 
-    fs = [_harmonic(loc.n, 1) for loc in valid]  # f_i per locus
+    n1, n2 = l1.n, l2.n
+    S1, S2 = float(l1.S), float(l2.S)
+    D1, D2 = float(l1.D), float(l2.D)
+    Lp1, Lp2 = l1.L_poly, l2.L_poly
+    Ld1, Ld2 = (l1.L_div or l1.L_poly), (l2.L_div or l2.L_poly)
+    sx1, sx2 = l1.sex, l2.sex
 
-    # MLE constraint: Σ D_i/(1+2T) = Σ (S_i+D_i)/(f_i+1+2T)
-    def _g(T: float) -> float:
-        left = sum(valid[i].D / (1.0 + 2.0 * T) for i in range(len(valid)))
-        right = sum(
-            (valid[i].S + valid[i].D) / (fs[i] + 1.0 + 2.0 * T)
-            for i in range(len(valid))
+    a1 = _harmonic(n1, 1)   # Σ 1/i, i = 1..n1-1
+    b1 = _harmonic(n1, 2)
+    a2 = _harmonic(n2, 1)
+    b2 = _harmonic(n2, 2)
+
+    # HKA.vb::HKAResolEcuacion, case 1
+    v1 = D1 + D2
+    v2 = D1 + S1
+    v3 = S1 + S2
+    v4 = (v3 * Ld2) / (a2 * Lp2 * sx2)
+    v5 = (a1 * Lp1 * sx1 * Ld2) / (a2 * Lp2 * sx2)
+    v6 = (((sx2 - sx1) * Ld1) - (a1 * Lp1 * sx1)) / Ld1
+    v7 = v2 / Ld1
+    v8 = a1 * Lp1 * sx1
+
+    coef_a = -((v5 * v6) + v8)
+    coef_b = (v4 * v6) - (v7 * v5) - v1 + v2
+    coef_c = v7 * v4
+
+    solutions: list[tuple[float, float, float]] = []
+    seen: set[float] = set()
+    for theta1 in _hka_quadratic_roots(coef_a, coef_b, coef_c):
+        if theta1 <= 0.0 or round(theta1, 12) in seen:
+            continue
+        seen.add(round(theta1, 12))
+        theta2 = (v3 - (v8 * theta1)) / (a2 * Lp2 * sx2)
+        T = ((v2 - (v8 * theta1)) / (Ld1 * theta1)) - sx1
+        if theta2 <= 0.0:
+            continue
+        solutions.append((theta1, theta2, T))
+
+    if not solutions:
+        result.error = (
+            "HKA equations have no positive-θ solution for these data "
+            "(the neutral two-locus model is not identifiable here)."
         )
-        return left - right
+        return result
 
-    T_hat = _bisect(_g, 0.0, 1000.0)
+    theta1, theta2, T_hat = solutions[0]
 
-    # MLE θ̂_i and expected values
-    theta_hats = [
-        (valid[i].S + valid[i].D) / (fs[i] + 1.0 + 2.0 * T_hat)
-        for i in range(len(valid))
-    ]
-    E_S = [theta_hats[i] * fs[i] for i in range(len(valid))]
-    E_D = [theta_hats[i] * (1.0 + 2.0 * T_hat) for i in range(len(valid))]
-
-    # Chi-square (Poisson variance approximation: Var[X] = E[X])
+    per = (
+        (a1, b1, sx1, S1, D1, Lp1, Ld1, theta1, l1.name, n1),
+        (a2, b2, sx2, S2, D2, Lp2, Ld2, theta2, l2.name, n2),
+    )
     chi2 = 0.0
     loci_results: list[dict] = []
-    for i, loc in enumerate(valid):
-        if E_S[i] > 0:
-            chi2 += (loc.S - E_S[i]) ** 2 / E_S[i]
-        if E_D[i] > 0:
-            chi2 += (loc.D - E_D[i]) ** 2 / E_D[i]
+    for a_n, b_n, sx, S, D, Lp, Ld, theta, name, n in per:
+        E_S = a_n * sx * theta * Lp
+        Var_S = E_S + sx * sx * b_n * theta * theta * Lp * Lp
+        E_D = (T_hat + sx) * theta * Ld
+        Var_D = E_D + sx * sx * theta * theta * Ld * Ld
+        if Var_S > 0:
+            chi2 += (S - E_S) ** 2 / Var_S
+        if Var_D > 0:
+            chi2 += (D - E_D) ** 2 / Var_D
         loci_results.append({
-            "name": loc.name,
-            "n": loc.n,
-            "S": loc.S,
-            "D": loc.D,
-            "theta_hat": theta_hats[i],
-            "E_S": E_S[i],
-            "E_D": E_D[i],
+            "name": name, "n": n, "S": S, "D": D,
+            "theta_hat": theta, "E_S": E_S, "E_D": E_D,
+            "Var_S": Var_S, "Var_D": Var_D,
         })
 
-    df = len(valid) - 1  # one parameter (T) estimated from data
-    p_value = _chi2_pvalue(chi2, df)
-
-    return HKAStats(
-        n_loci=k,
-        T_hat=T_hat,
-        chi2=chi2,
-        df=df,
-        p_value=p_value,
-        loci_results=loci_results,
-    )
+    result.T_hat = T_hat
+    result.chi2 = chi2
+    result.df = 1
+    result.p_value = _chi2_pvalue(chi2, 1)
+    result.loci_results = loci_results
+    if len(solutions) > 1:
+        result.error = (
+            f"note: {len(solutions)} positive solutions; reporting the first "
+            f"(θ₁={theta1:.5g})."
+        )
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3211,41 +3286,45 @@ def write_report(
         ]
 
     # ── HKA test ─────────────────────────────────────────────────────────────
-    if hka_s is not None and hka_s.n_loci >= 2:
-        sig_str = " (significant)" if (hka_s.p_value is not None and hka_s.p_value < 0.05) else ""
-        lines += [
-            "## HKA Test (Hudson, Kreitman & Aguadé 1987)",
-            "",
-            f"**Loci analysed**: {hka_s.n_loci}  ",
-            f"**Estimated divergence time** T̂ = {_fmt(hka_s.T_hat, 4)} (coalescent units)  ",
-            "",
-            "| Statistic | Value |",
-            "|-----------|-------|",
-            f"| χ² | {_fmt(hka_s.chi2, 4)} |",
-            f"| Degrees of freedom | {hka_s.df} |",
-            f"| P-value | {_fmt(hka_s.p_value, 6)}{sig_str} |",
-            "",
-        ]
-        if hka_s.loci_results:
+    if hka_s is not None:
+        lines += ["## HKA Test (Hudson, Kreitman & Aguadé 1987; two-locus)", ""]
+        if not hka_s.loci_results:
             lines += [
+                f"*HKA not run: {hka_s.error or 'insufficient input'}*",
+                "",
+            ]
+        else:
+            sig_str = " (significant)" if (hka_s.p_value is not None and hka_s.p_value < 0.05) else ""
+            lines += [
+                f"**Estimated divergence time** T̂ = {_fmt(hka_s.T_hat, 4)} (units of 2N generations)  ",
+                "",
+                "| Statistic | Value |",
+                "|-----------|-------|",
+                f"| χ² | {_fmt(hka_s.chi2, 4)} |",
+                f"| Degrees of freedom | {hka_s.df} |",
+                f"| P-value | {_fmt(hka_s.p_value, 6)}{sig_str} |",
+                "",
                 "### Per-locus results",
                 "",
-                "| Locus | n | S | D | θ̂ | E[S] | E[D] |",
-                "|-------|---|---|---|---|------|------|",
+                "| Locus | n | S | D | θ̂ (per site) | E[S] | E[D] |",
+                "|-------|---|---|---|--------------|------|------|",
             ]
             for lr in hka_s.loci_results:
                 lines.append(
                     f"| {lr['name']} | {lr['n']} | {lr['S']} | {lr['D']} "
-                    f"| {_fmt(lr['theta_hat'], 4)} | {_fmt(lr['E_S'], 2)} "
+                    f"| {_fmt(lr['theta_hat'], 6)} | {_fmt(lr['E_S'], 2)} "
                     f"| {_fmt(lr['E_D'], 2)} |"
                 )
             lines.append("")
-        lines += [
-            "> **Interpretation**: A significant P-value (< 0.05) indicates that the "
-            "ratio of polymorphism to divergence varies among loci, inconsistent with "
-            "the neutral model. This can signal positive selection at specific loci.",
-            "",
-        ]
+            if hka_s.error:
+                lines += [f"> {hka_s.error}", ""]
+            lines += [
+                "> **Interpretation**: a significant P-value (< 0.05) means the ratio "
+                "of polymorphism to divergence differs between the two loci, "
+                "inconsistent with neutrality (e.g. a selective sweep or balancing "
+                "selection at one locus). Variances follow HKA (1987).",
+                "",
+            ]
 
     # ── McDonald-Kreitman test ────────────────────────────────────────────────
     if mk_s is not None:
@@ -3978,8 +4057,11 @@ def _run(
         print(f"  Fu&Li D={_fmt(fuliout.D,4)}  F={_fmt(fuliout.F,4)}  eta={fuliout.eta}  eta_e={fuliout.eta_e}")
 
     hka = results.get("hka")
-    if hka is not None and hka.n_loci >= 2:
-        print(f"  HKA chi2={_fmt(hka.chi2,4)}  df={hka.df}  p={_fmt(hka.p_value,6)}  T_hat={_fmt(hka.T_hat,4)}")
+    if hka is not None:
+        if hka.loci_results:
+            print(f"  HKA chi2={_fmt(hka.chi2,4)}  df={hka.df}  p={_fmt(hka.p_value,6)}  T_hat={_fmt(hka.T_hat,4)}")
+        else:
+            print(f"  HKA not run: {hka.error}")
 
     mk = results.get("mk")
     if mk is not None:
@@ -4071,7 +4153,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  indel         InDel polymorphism statistics\n"
             "  divergence    Dxy, Da, fixed/shared differences (needs --input2 or --pop-file)\n"
             "  fuliout       Fu & Li D/F with outgroup (needs --outgroup)\n"
-            "  hka           HKA neutrality test across loci (needs --hka-file)\n"
+            "  hka           HKA two-locus neutrality test (needs --hka-file)\n"
             "  mk            McDonald-Kreitman test (needs --outgroup; coding aln)\n"
             "  kaks          Ka/Ks via Nei-Gojobori 1986 (coding alignment)\n"
             "  fufs          Fu's Fs neutrality test (Fu 1997)\n"

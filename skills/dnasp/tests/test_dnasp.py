@@ -1397,39 +1397,46 @@ class TestComputeFuLiOutgroup:
 class TestLoadHKAFile:
     def test_basic_parsing(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("# locus\tS\tD\tn\nlocus1\t5\t10\t10\nlocus2\t2\t8\t12\n")
+        f.write_text(
+            "# locus n S L_poly D L_div\n"
+            "locus1 10 5 400 10 400\n"
+            "locus2 12 2 300 8 300\n"
+        )
         loci = dn.load_hka_file(f)
         assert len(loci) == 2
         assert loci[0].name == "locus1"
-        assert loci[0].S == 5
-        assert loci[0].D == 10
-        assert loci[0].n == 10
+        assert (loci[0].n, loci[0].S, loci[0].D) == (10, 5, 10)
+        assert loci[0].L_poly == 400.0 and loci[0].L_div == 400.0
 
     def test_header_line_skipped(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("locus\tS\tD\tn\nlocus1\t5\t10\t10\n")
+        f.write_text("locus n S L_poly D L_div\nlocus1 10 5 400 10 400\n")
         loci = dn.load_hka_file(f)
         assert len(loci) == 1
 
     def test_comment_lines_skipped(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("# comment\nlocus1\t5\t10\t10\nlocus2\t3\t7\t8\n")
+        f.write_text("# comment\nlocus1 10 5 400 10 400\nlocus2 8 3 200 7 200\n")
         loci = dn.load_hka_file(f)
         assert len(loci) == 2
 
     def test_empty_file(self, tmp_path):
         f = tmp_path / "hka.tsv"
         f.write_text("")
-        loci = dn.load_hka_file(f)
-        assert loci == []
+        assert dn.load_hka_file(f) == []
 
-    def test_values_correct(self, tmp_path):
+    def test_ldiv_defaults_to_lpoly(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("locus_A\t7\t15\t20\n")
+        f.write_text("locus_A 20 7 500 15\n")
+        loc = dn.load_hka_file(f)[0]
+        assert loc.L_poly == 500.0 and loc.L_div == 500.0
+
+    def test_chromosome_factor(self, tmp_path):
+        f = tmp_path / "hka.tsv"
+        f.write_text("A 20 7 500 15 500 X\nB 20 3 500 9 500 A\n")
         loci = dn.load_hka_file(f)
-        assert loci[0].S == 7
-        assert loci[0].D == 15
-        assert loci[0].n == 20
+        assert loci[0].sex == 0.75
+        assert loci[1].sex == 1.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1437,113 +1444,97 @@ class TestLoadHKAFile:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestComputeHKA:
-    """Tests for the HKA neutrality test."""
+    """Two-locus HKA test, ported from DnaSP 6 (HKA.vb)."""
 
-    def _symmetric_loci(self):
-        """Two balanced loci: equal poly/div ratio → should not reject neutral."""
+    def _neutral_loci(self):
+        # n1 == n2, equal L, S1/D1 == S2/D2 -> a single (theta1, theta2, T)
+        # fits all four residuals exactly, so chi2 == 0.
         return [
-            dn.HKALocus(name="A", S=10, D=20, n=10),
-            dn.HKALocus(name="B", S=5, D=10, n=10),
+            dn.HKALocus(name="A", n=11, S=10, D=20, L_poly=1000, L_div=1000),
+            dn.HKALocus(name="B", n=11, S=5, D=10, L_poly=1000, L_div=1000),
         ]
 
-    def _asymmetric_loci(self):
-        """Loci with very different poly/div ratios → should reject neutral."""
+    def _selection_loci(self):
         return [
-            dn.HKALocus(name="X", S=30, D=2, n=20),   # excess polymorphism
-            dn.HKALocus(name="Y", S=1, D=25, n=20),    # excess divergence
-            dn.HKALocus(name="Z", S=15, D=12, n=20),   # balanced
+            dn.HKALocus(name="X", n=20, S=40, D=3, L_poly=1000, L_div=1000),
+            dn.HKALocus(name="Y", n=20, S=2, D=40, L_poly=1000, L_div=1000),
         ]
 
     def test_returns_hkastats(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        assert isinstance(result, dn.HKAStats)
+        assert isinstance(dn.compute_hka(self._neutral_loci()), dn.HKAStats)
 
-    def test_n_loci_recorded(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        assert result.n_loci == 2
+    def test_requires_exactly_two_loci(self):
+        one = dn.compute_hka(self._neutral_loci()[:1])
+        assert one.error is not None and not one.loci_results
+        three = dn.compute_hka(self._neutral_loci() + self._neutral_loci()[:1])
+        assert three.error is not None and not three.loci_results
 
-    def test_t_hat_positive(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        assert result.T_hat >= 0.0
+    def test_requires_site_counts(self):
+        loci = [dn.HKALocus(name="A", n=10, S=5, D=10),
+                dn.HKALocus(name="B", n=10, S=3, D=8)]
+        r = dn.compute_hka(loci)
+        assert r.error is not None and not r.loci_results
 
-    def test_chi2_non_negative(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        assert result.chi2 >= 0.0
+    def test_df_is_one(self):
+        assert dn.compute_hka(self._neutral_loci()).df == 1
 
-    def test_df_is_k_minus_1(self):
-        # 2 loci → df = 1
-        result = dn.compute_hka(self._symmetric_loci())
-        assert result.df == 1
-        # 3 loci → df = 2
-        result3 = dn.compute_hka(self._asymmetric_loci())
-        assert result3.df == 2
+    def test_neutral_data_chi2_zero(self):
+        r = dn.compute_hka(self._neutral_loci())
+        assert r.error is None
+        assert r.chi2 == pytest.approx(0.0, abs=1e-6)
+        assert r.p_value == pytest.approx(1.0, abs=1e-3)
 
-    def test_p_value_in_range(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        assert result.p_value is not None
-        assert 0.0 <= result.p_value <= 1.0
+    def test_expectations_match_inputs_under_neutrality(self):
+        r = dn.compute_hka(self._neutral_loci())
+        for lr, loc in zip(r.loci_results, self._neutral_loci()):
+            assert lr["E_S"] == pytest.approx(loc.S, abs=1e-6)
+            assert lr["E_D"] == pytest.approx(loc.D, abs=1e-6)
 
-    def test_balanced_loci_high_pvalue(self):
-        """Loci with identical poly/div ratios: chi2 ≈ 0, p ≈ 1."""
-        # Exactly proportional S and D → χ² should be ≈ 0
-        loci = [
-            dn.HKALocus(name="A", S=10, D=20, n=10),
-            dn.HKALocus(name="B", S=10, D=20, n=10),
-        ]
-        result = dn.compute_hka(loci)
-        assert result.chi2 == pytest.approx(0.0, abs=1e-6)
-        assert result.p_value == pytest.approx(1.0, abs=0.01)
+    def test_variance_includes_second_harmonic_term(self):
+        # HKA (1987): Var[S] = E[S] + b_n * theta^2 * L^2  > E[S]
+        r = dn.compute_hka(self._neutral_loci())
+        for lr in r.loci_results:
+            assert lr["Var_S"] > lr["E_S"]
 
-    def test_asymmetric_loci_lower_pvalue(self):
-        result = dn.compute_hka(self._asymmetric_loci())
-        # Very unbalanced loci should give small p-value
-        assert result.chi2 > 1.0
+    def test_selection_signal_rejects_neutrality(self):
+        r = dn.compute_hka(self._selection_loci())
+        assert r.error is None
+        assert r.chi2 > 10.0
+        assert r.p_value < 0.01
 
-    def test_loci_results_populated(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        assert len(result.loci_results) == 2
-        lr = result.loci_results[0]
-        assert "name" in lr
-        assert "S" in lr
-        assert "D" in lr
-        assert "theta_hat" in lr
-        assert "E_S" in lr
-        assert "E_D" in lr
+    def test_no_positive_solution_is_reported_not_fabricated(self):
+        # S = 0 at both loci: no positive-theta root.  Must NOT invent a T.
+        loci = [dn.HKALocus(name="A", n=10, S=0, D=5, L_poly=500, L_div=500),
+                dn.HKALocus(name="B", n=10, S=0, D=3, L_poly=500, L_div=500)]
+        r = dn.compute_hka(loci)
+        assert not r.loci_results
+        assert r.error is not None
+        assert r.T_hat == 0.0
 
     def test_theta_hat_positive(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        for lr in result.loci_results:
+        for lr in dn.compute_hka(self._neutral_loci()).loci_results:
             assert lr["theta_hat"] > 0.0
 
-    def test_fewer_than_two_loci(self):
-        result = dn.compute_hka([dn.HKALocus(name="A", S=5, D=10, n=10)])
-        assert result.n_loci == 1
-        assert result.chi2 == 0.0
-
     def test_run_analysis_hka(self, tmp_path):
-        """hka dispatched correctly from run_analysis."""
-        loci = [
-            dn.HKALocus(name="A", S=10, D=20, n=10),
-            dn.HKALocus(name="B", S=5, D=10, n=10),
-        ]
         f = tmp_path / "demo.fas"
         f.write_text(">s1\nAAAA\n>s2\nTAAA\n")
         aln = dn.parse_fasta(f)
-        results = dn.run_analysis(aln, analyses={"hka"}, hka_loci=loci)
-        assert "hka" in results
+        results = dn.run_analysis(
+            aln, analyses={"hka"}, hka_loci=self._neutral_loci()
+        )
         assert results["hka"] is not None
-        assert results["hka"].n_loci == 2
+        assert results["hka"].chi2 == pytest.approx(0.0, abs=1e-6)
 
-    def test_mle_t_hat_satisfies_constraint(self):
-        """The T_hat from bisection should satisfy the MLE constraint equation."""
-        loci = self._symmetric_loci()
-        result = dn.compute_hka(loci)
-        T = result.T_hat
-        # Constraint: Σ D_i/(1+2T) = Σ(S_i+D_i)/(f_i+1+2T)
-        fs = [dn._harmonic(loc.n, 1) for loc in loci]
-        left = sum(loc.D / (1 + 2*T) for loc in loci)
-        right = sum((loci[i].S + loci[i].D) / (fs[i] + 1 + 2*T) for i in range(len(loci)))
-        assert abs(left - right) < 1e-6
+    def test_load_and_compute_roundtrip(self, tmp_path):
+        f = tmp_path / "hka.tsv"
+        f.write_text(
+            "# locus n S L_poly D L_div\n"
+            "A 11 10 1000 20 1000\n"
+            "B 11 5 1000 10 1000\n"
+        )
+        r = dn.compute_hka(dn.load_hka_file(f))
+        assert r.error is None
+        assert r.chi2 == pytest.approx(0.0, abs=1e-6)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
