@@ -1304,13 +1304,8 @@ class TestComputeFuLiOutgroup:
         assert result.n == 4
 
     def test_excess_external_mutations_negative_d(self):
-        """
-        All derived mutations are singletons → η_e = η → D < 0
-        (D = η_e - η/aₙ; when η_e = η, D = η(1 - 1/aₙ) > 0 unless aₙ > 1 ...
-        Actually with n=5, aₙ ≈ 2.08, so η_e - η/aₙ = 1 - 1/2.08 ≈ +0.52 > 0)
-        Just test direction is sensible for a sweep-like scenario:
-        all singletons → D numerator > 0.
-        """
+        """All derived mutations are singletons → η_e = η → D = η − aₙη_e < 0
+        (aₙ > 1 for n ≥ 4), and F = k̄ − η_e < 0 too."""
         # All 4 derived mutations are singletons
         seqs = ["TAAAA", "ATAAA", "AATAA", "AAATA"]
         outgroup = "AAAAA"
@@ -1318,6 +1313,8 @@ class TestComputeFuLiOutgroup:
         assert result is not None
         assert result.eta == 4
         assert result.eta_e == 4
+        assert result.D is not None and result.D < 0
+        assert result.F is not None and result.F < 0
 
     def test_run_analysis_fuliout(self):
         """fuliout dispatched correctly from run_analysis."""
@@ -1913,6 +1910,25 @@ class TestEwensCdf:
         result = dn._ewens_cdf(1, 1, 2.0)
         assert result == pytest.approx(1.0)
 
+    def test_large_n_no_overflow(self):
+        # |s(n, k)| exceeds float range for n ≳ 171; log-space must not overflow
+        for n in (180, 300):
+            assert 0.0 <= dn._ewens_cdf(2, n, 1.0) <= 1.0
+            assert 0.0 <= dn._ewens_cdf(n, n, 1.0) <= 1.0
+            assert dn._ewens_cdf(n, n, 1.0) == pytest.approx(1.0, abs=1e-6)
+
+    def test_sf_complements_cdf(self):
+        n, theta = 12, 4.0
+        for k in range(2, n + 1):
+            assert dn._ewens_sf(k, n, theta) == pytest.approx(
+                1.0 - dn._ewens_cdf(k - 1, n, theta), abs=1e-9
+            )
+
+    def test_sf_large_n_no_overflow(self):
+        for n in (200, 300):
+            assert 0.0 <= dn._ewens_sf(2, n, 1.0) <= 1.0
+            assert 0.0 <= dn._ewens_sf(n, n, 1.0) <= 1.0
+
 
 class TestComputeFuFs:
     """compute_fu_fs: Fu's Fs neutrality test."""
@@ -1983,20 +1999,41 @@ class TestComputeFuFs:
         # Use large k (high diversity) but small H (few haplotypes)
         seqs = ['ATCG', 'ATCA', 'GCTA', 'GCTG', 'TTTT', 'CCCC']
         clean = self._make_clean(seqs)
-        # H=2 but with k=5.0 (high diversity), expect fewer haplotypes → negative Fs
+        # H=2 but k=5.0 (high diversity): a deficit of haplotypes → Fs > 0
         result = dn.compute_fu_fs(clean, H=2, k=5.0)
-        if result.Fs is not None:
-            # S_k should be small → Fs negative
-            assert result.S_k is not None
+        assert result.Fs is not None
+        assert result.Fs > 0
 
-    def test_Fs_increases_with_H(self):
-        # More haplotypes observed → S_k increases → Fs increases
+    def test_Fs_negative_when_excess_haplotypes(self):
+        # Every sequence a distinct haplotype but low pairwise diversity →
+        # more haplotypes than the Ewens formula expects → Fs < 0
+        seqs = ['A' * 20] + ['A' * i + 'T' + 'A' * (19 - i) for i in range(9)]
+        clean = self._make_clean(seqs)
+        result = dn.compute_fu_fs(clean, H=10, k=1.8)
+        assert result.Fs is not None
+        assert result.Fs < 0
+        assert result.S_k < 0.5
+
+    def test_Fs_decreases_with_H(self):
+        # More haplotypes observed → S' = P(K ≥ H) decreases → Fs decreases
         seqs = ['ATCG', 'ATCA', 'GCTA', 'GCTG']
         clean = self._make_clean(seqs)
         r1 = dn.compute_fu_fs(clean, H=1, k=2.0)
         r2 = dn.compute_fu_fs(clean, H=3, k=2.0)
         assert r1.S_k is not None and r2.S_k is not None
-        assert r2.S_k >= r1.S_k
+        assert r2.S_k <= r1.S_k
+        assert r2.Fs <= r1.Fs
+
+    def test_large_alignment_no_overflow(self):
+        # ~200 sequences: Stirling coefficients overflow float; log-space path
+        # must still return a finite Fs rather than raising OverflowError.
+        seqs = ['A' * 40] + [
+            'A' * i + 'T' + 'A' * (39 - i) for i in range(39)
+        ] * 5
+        clean = self._make_clean(seqs)
+        result = dn.compute_fu_fs(clean, H=40, k=1.5)
+        assert result.Fs is not None
+        assert math.isfinite(result.Fs) or abs(result.Fs) >= 1e307
 
     def test_run_analysis_dispatch(self, tmp_path):
         f = tmp_path / "aln.fas"
