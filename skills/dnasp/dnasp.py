@@ -23,6 +23,7 @@ Statistical formulas follow:
 Supported input formats:
   FASTA  (.fas, .fa, .fasta)  -  including DnaSP header style >'name'  [comment]
   NEXUS  (.nex, .nexus, .nxs)  -  interleaved or non-interleaved, with MATCHCHAR
+  VCF    (--vcf)  -  multi-sample; one MSA per CHROM; biallelic SNPs only
 
 Available analyses (--analysis flag):
   polymorphism  : π, k, S, Eta, H, Hd, θ_W, Tajima's D, Fu & Li D*/F*, R2  [default]
@@ -55,7 +56,7 @@ Usage:
 
 from __future__ import annotations
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"
 __author__  = "David De Lorenzo"
 __credits__ = [
     # Python reimplementation and ClawBio adaptation
@@ -596,17 +597,227 @@ def load_alignment(path: Path) -> Alignment:
 
 
 def load_pop_file(pop_file: Path) -> dict[str, str]:
-    """Read a population assignment file (tab-separated: seq_name<TAB>pop_name)."""
+    """Read a population assignment file: seq_name<whitespace>pop_name per line.
+
+    Accepts tab- or space-separated (DnaSP's VCF ``.SG.txt`` files use a space).
+    """
     assignments: dict[str, str] = {}
     with open(pop_file, encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            parts = line.split("\t")
+            parts = line.split()
             if len(parts) >= 2:
-                assignments[parts[0].strip()] = parts[1].strip()
+                assignments[parts[0]] = parts[1]
     return assignments
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VCF input  -  multi-sample VCF -> one MSA per CHROM
+# ─────────────────────────────────────────────────────────────────────────────
+
+@dataclass
+class VCFPopulation:
+    """A multi-sample VCF parsed as one aligned MSA per CHROM.
+
+    Conversion follows DnaSP 6 (Formularios/multifilefrmvcf.vb::readvcf), with a
+    biallelic-SNP restriction:
+      - FORMAT first sub-field must be GT;
+      - only single-base biallelic SNPs are used (indels, multi-base REF/ALT and
+        multiallelic sites are skipped and counted);
+      - one MSA per CHROM value;
+      - for each CHROM, the samples analysed are those whose GT at the FIRST
+        retained variant of that CHROM does not start with '.';
+      - diploid: phased '|' -> two haplotype rows; unphased '/' -> two rows
+        only when homozygous, otherwise both rows are gaps; '.' -> gaps;
+      - haploid: one row per sample.
+    Rows are one character per retained SNP.  DnaSP's RAD engine additionally
+    splits equal-length multi-base REF/ALT per position and drops multiallelic
+    columns downstream; those cases are not reproduced here, so a CHROM
+    containing them can differ from DnaSP by a site or two.
+    """
+    alignments: dict[str, Alignment]      # {chrom: Alignment}
+    sample_names: list[str]               # base sample IDs from the header
+    haplotype_names: list[str]            # <sample>_h1/<sample>_h2, or <sample>
+    ploidy: int                          # 1 or 2 (from the first genotype seen)
+    is_phased: bool                      # diploid and every retained GT used '|'
+    n_variants_total: int
+    n_indels_skipped: int                # ref or alt not a single base
+    n_non_gt_skipped: int
+    n_multiallelic_skipped: int
+
+
+_VCF_GAP = "-"
+
+
+def _vcf_allele(idx: str, ref: str, alt1: str) -> str:
+    """Map a GT allele index (biallelic: '0' or '1') to its nucleotide."""
+    if idx == "0":
+        return ref
+    if idx == "1":
+        return alt1
+    return _VCF_GAP
+
+
+def parse_vcf(
+    path: Path, *, region: Optional[str] = None, merge: bool = False
+) -> VCFPopulation:
+    """Parse a multi-sample VCF into one MSA per CHROM (DnaSP readvcf rules).
+
+    merge=True instead returns a single pooled MSA keyed ``"<merged>"`` that
+    concatenates every CHROM (haplotype rows are the union of all CHROMs; a
+    haplotype absent from a CHROM is gap-filled there).  Only use this for a
+    deliberate genome-wide summary  -  it mixes unlinked regions, which is not
+    valid for π, Tajima's D or the SFS.
+    """
+    header_cols: Optional[list[str]] = None
+    ci = ri = ai = fi = si = -1
+    sample_names: list[str] = []
+
+    ploidy = 0
+    any_slash = False
+    any_pipe = False
+    n_total = n_indel = n_non_gt = n_multi = n_kept = 0
+
+    # per-CHROM state
+    cols_by_chrom: dict[str, list[list[str]]] = {}   # chrom -> list of columns
+    included_by_chrom: dict[str, list[int]] = {}      # chrom -> sample indices
+
+    with open(path, encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.rstrip("\n")
+            if not line or line.startswith("##"):
+                continue
+            if line.startswith("#"):
+                header_cols = line.split("\t")
+                for want, setter in (("#CHROM", "c"), ("REF", "r"),
+                                     ("ALT", "a"), ("FORMAT", "f")):
+                    if want not in header_cols:
+                        raise ValueError(f"VCF header missing {want!r} column.")
+                ci = header_cols.index("#CHROM")
+                ri = header_cols.index("REF")
+                ai = header_cols.index("ALT")
+                fi = header_cols.index("FORMAT")
+                si = fi + 1
+                sample_names = header_cols[si:]
+                continue
+            if header_cols is None:
+                raise ValueError("VCF has no #CHROM header line.")
+
+            f = line.split("\t")
+            chrom = f[ci]
+            if region is not None and chrom != region:
+                continue
+            n_total += 1
+            ref = f[ri]
+            alts = [a for a in f[ai].split(",") if a not in (".", "")]
+            fmt0 = f[fi].split(":")[0]
+            if fmt0 != "GT":
+                n_non_gt += 1
+                continue
+            if len(alts) > 1:
+                n_multi += 1
+                continue
+            if len(ref) != 1 or (alts and len(alts[0]) != 1):
+                n_indel += 1
+                continue
+            if not alts:
+                continue  # ALT is '.'  -  monomorphic line, nothing to add
+            alt1 = alts[0]
+            n_kept += 1
+
+            gts = [f[si + j].split(":")[0] for j in range(len(sample_names))]
+
+            if ploidy == 0:
+                for g in gts:
+                    if "|" in g:
+                        ploidy = 2
+                        break
+                    if "/" in g:
+                        ploidy = 2
+                        break
+                    if g not in (".", ""):
+                        ploidy = 1
+                        break
+
+            if chrom not in included_by_chrom:
+                included_by_chrom[chrom] = [
+                    j for j, g in enumerate(gts) if not g.startswith(".")
+                ]
+                cols_by_chrom[chrom] = []
+
+            col: list[str] = []
+            for j in included_by_chrom[chrom]:
+                g = gts[j]
+                if ploidy == 2:
+                    sep = "|" if "|" in g else ("/" if "/" in g else None)
+                    if sep is None or "." in g:
+                        col += [_VCF_GAP, _VCF_GAP]
+                        continue
+                    a, b = g.split(sep)[:2]
+                    if sep == "|":
+                        any_pipe = True
+                        col += [_vcf_allele(a, ref, alt1), _vcf_allele(b, ref, alt1)]
+                    else:  # unphased: resolve only when homozygous
+                        any_slash = True
+                        if a == b:
+                            al = _vcf_allele(a, ref, alt1)
+                            col += [al, al]
+                        else:
+                            col += [_VCF_GAP, _VCF_GAP]
+                else:  # haploid
+                    col.append(_VCF_GAP if g in (".", "") else _vcf_allele(g, ref, alt1))
+            cols_by_chrom[chrom].append(col)
+
+    per_chrom: dict[str, Alignment] = {}
+    hap_names: list[str] = []
+    for chrom, cols in cols_by_chrom.items():
+        if not cols:
+            continue
+        inc = included_by_chrom[chrom]
+        if ploidy == 2:
+            names = [f"{sample_names[j]}_h{h}" for j in inc for h in (1, 2)]
+        else:
+            names = [sample_names[j] for j in inc]
+        seqs = ["".join(cols[c][r] for c in range(len(cols))) for r in range(len(names))]
+        per_chrom[chrom] = Alignment(names=names, seqs=seqs,
+                                     source=f"{path.name}#{chrom}")
+        if not hap_names:
+            hap_names = names
+
+    if merge and per_chrom:
+        all_names: list[str] = []
+        for a in per_chrom.values():
+            for nm in a.names:
+                if nm not in all_names:
+                    all_names.append(nm)
+        merged_seqs = []
+        for nm in all_names:
+            parts = []
+            for a in per_chrom.values():
+                if nm in a.names:
+                    parts.append(a.seqs[a.names.index(nm)])
+                else:
+                    parts.append(_VCF_GAP * a.L)
+            merged_seqs.append("".join(parts))
+        alignments = {"<merged>": Alignment(names=all_names, seqs=merged_seqs,
+                                            source=f"{path.name}#merged")}
+        hap_names = all_names
+    else:
+        alignments = per_chrom
+
+    return VCFPopulation(
+        alignments=alignments,
+        sample_names=sample_names,
+        haplotype_names=hap_names,
+        ploidy=ploidy or 2,
+        is_phased=(ploidy == 2 and any_pipe and not any_slash),
+        n_variants_total=n_total,
+        n_indels_skipped=n_indel,
+        n_non_gt_skipped=n_non_gt,
+        n_multiallelic_skipped=n_multi,
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3987,10 +4198,14 @@ def _run(
     cli_args: list[str],
     outgroup_name: Optional[str] = None,
     hka_loci: Optional[list[HKALocus]] = None,
+    preloaded_aln: Optional[Alignment] = None,
+    source_name: Optional[str] = None,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if input_path:
+    if preloaded_aln is not None:
+        aln = preloaded_aln
+    elif input_path:
         print(f"Loading alignment: {input_path}")
         aln = load_alignment(input_path)
     else:
@@ -3998,6 +4213,7 @@ def _run(
         tmp = output_dir / "demo_input.fas"
         aln = load_alignment(tmp)
 
+    src_label = source_name or (input_path.name if input_path else "demo")
     print(f"  {aln.n} sequences, {aln.L} sites")
 
     # Extract outgroup sequence from alignment (removes it from ingroup)
@@ -4113,7 +4329,7 @@ def _run(
 
     print(f"\nWriting output to: {output_dir}")
 
-    tsv = write_tsv(output_dir, input_path.name if input_path else "demo", rs, results["windows"])
+    tsv = write_tsv(output_dir, src_label, rs, results["windows"])
 
     result_files = [tsv]
     if ld is not None and ld.pairs:
@@ -4124,7 +4340,7 @@ def _run(
     if not HAS_MPL:
         print("  Note: matplotlib not installed  -  figures skipped.")
 
-    report = write_report(output_dir, input_path.name if input_path else "demo", aln, results, figs)
+    report = write_report(output_dir, src_label, aln, results, figs)
     result_files.append(report)
 
     write_reproducibility(output_dir, input_path, cli_args, result_files)
@@ -4184,10 +4400,20 @@ def build_parser() -> argparse.ArgumentParser:
             "  python dnasp.py --input coding.fas --analysis codon,tstv,kaks --output results/\n"
             "  python dnasp.py --input aln.fas --outgroup OG --analysis faywu --output results/\n"
             "  python dnasp.py --input aln.fas --pop-file pops.txt --analysis fst --output results/\n"
+            "  python dnasp.py --vcf samples.vcf --analysis polymorphism,fufs,sfs --output results/\n"
+            "  python dnasp.py --vcf samples.vcf --region chr2 --pop-file pops.SG.txt --analysis fst --output results/\n"
         ),
     )
     p.add_argument("--version", "-V", action="version", version=f"dnasp {__version__}")
     p.add_argument("--input", "-i", type=Path, help="Input alignment (FASTA or NEXUS)")
+    p.add_argument("--vcf", type=Path, default=None,
+                   help="Multi-sample VCF; analyses are run once per CHROM (one MSA each), "
+                        "as in DnaSP. Phased '|' -> two haplotype rows; unphased het -> gap.")
+    p.add_argument("--region", type=str, default=None,
+                   help="With --vcf: restrict to this CHROM only")
+    p.add_argument("--vcf-merge", action="store_true", dest="vcf_merge",
+                   help="With --vcf: pool every CHROM into one MSA (genome-wide summary only; "
+                        "not valid for π/Tajima's D/SFS  -  mixes unlinked regions)")
     p.add_argument("--input2", type=Path, help="Second population alignment (for --analysis divergence)")
     p.add_argument("--pop-file", type=Path, dest="pop_file",
                    help="Population assignment file (TSV: seq_name<TAB>population)")
@@ -4273,8 +4499,44 @@ def main(argv: Optional[list[str]] = None) -> int:
              outgroup_name="outgroup")
         return 0
 
+    if args.vcf:
+        if not args.vcf.exists():
+            print(f"Error: --vcf file not found: {args.vcf}", file=sys.stderr)
+            return 1
+        vcf = parse_vcf(args.vcf, region=args.region, merge=args.vcf_merge)
+        phase = ("phased" if vcf.is_phased
+                 else "unphased" if vcf.ploidy == 2 else "haploid")
+        print(
+            f"VCF: {len(vcf.sample_names)} samples ({phase}, ploidy {vcf.ploidy}); "
+            f"{len(vcf.alignments)} MSA(s); skipped "
+            f"{vcf.n_indels_skipped} indel/multi-base, "
+            f"{vcf.n_multiallelic_skipped} multiallelic, "
+            f"{vcf.n_non_gt_skipped} non-GT line(s)"
+        )
+        if not vcf.alignments:
+            print("Error: no usable variant sites in the VCF.", file=sys.stderr)
+            return 1
+        vcf_pops: Optional[dict[str, str]] = None
+        if pop_assignments:
+            vcf_pops = {
+                hn: pop_assignments[hn.rsplit("_h", 1)[0] if vcf.ploidy == 2 else hn]
+                for hn in vcf.haplotype_names
+                if (hn.rsplit("_h", 1)[0] if vcf.ploidy == 2 else hn) in pop_assignments
+            }
+        multi = len(vcf.alignments) > 1
+        for chrom, chrom_aln in vcf.alignments.items():
+            sub = args.output / re.sub(r"[^\w.-]", "_", chrom) if multi else args.output
+            print(f"\n=== {chrom}  ({chrom_aln.n} haplotypes x {chrom_aln.L} variant sites) ===")
+            _run(
+                args.vcf, sub, args.window, step,
+                analyses, vcf_pops, aln2, cli_args,
+                outgroup_name=args.outgroup, hka_loci=hka_loci,
+                preloaded_aln=chrom_aln, source_name=f"{args.vcf.name}#{chrom}",
+            )
+        return 0
+
     if not args.input:
-        parser.error("Provide --input <file> or --demo")
+        parser.error("Provide --input <file>, --vcf <file>, or --demo")
 
     if not args.input.exists():
         print(f"Error: input file not found: {args.input}", file=sys.stderr)

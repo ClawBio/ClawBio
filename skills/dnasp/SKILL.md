@@ -11,11 +11,11 @@ description: >-
   Nei-Gojobori (1986) method (kaks), Fu's Fs test (fufs), the site frequency
   spectrum (sfs, folded and outgroup-unfolded), transition/transversion ratio
   (tstv), and codon usage bias  -  RSCU (Sharp & Li 1987) and ENC (Wright 1990)
-  (codon). Accepts FASTA or NEXUS input; outputs DnaSP-compatible TSV and a
-  Markdown report.
+  (codon). Accepts pre-aligned FASTA/NEXUS or a multi-sample VCF (one MSA per
+  CHROM); outputs DnaSP-compatible TSV and a Markdown report.
 license: MIT
 metadata:
-  version: "0.4.1"
+  version: "0.5.0"
   author: David De Lorenzo
   domain: molecular-evolution
   tags:
@@ -39,6 +39,15 @@ metadata:
         Aligned DNA sequences (pre-aligned, equal-length). FASTA (including
         DnaSP-style >'name' [comment] headers) or NEXUS (MATCHCHAR, INTERLEAVE).
       required: true
+    - name: vcf
+      type: file
+      format:
+        - vcf
+      description: >-
+        Multi-sample VCF (--vcf). Converted to one aligned MSA per CHROM
+        (biallelic SNPs only; phased -> haplotype rows). Alternative to
+        --input. Optional --region CHROM, --vcf-merge to pool all CHROMs.
+      required: false
     - name: alignment2
       type: file
       format:
@@ -182,6 +191,10 @@ metadata:
       - allele frequency spectrum
       - singleton excess
       - minor allele frequency distribution
+      - VCF population genetics
+      - multi-sample VCF nucleotide diversity
+      - VCF to haplotypes
+      - population genomics from VCF
 ---
 
 #  DnaSP
@@ -208,6 +221,7 @@ Full statistical reference: [`docs/index.md`](docs/index.md)  -  read it when yo
 - McDonald-Kreitman test, MK test, adaptive evolution, neutrality index, direction of selection, α (alpha)
 - Ka/Ks, dN/dS, omega, synonymous substitution rate, nonsynonymous substitution rate, Nei-Gojobori, coding sequence divergence
 - Fu's Fs, Fu 1997 neutrality test, haplotype frequency neutrality
+- Population genetics from a VCF, multi-sample VCF, VCF to haplotypes, per-CHROM diversity from variant calls
 - Site frequency spectrum, SFS, folded SFS, unfolded SFS, allele frequency distribution, singleton excess, allele frequency class
 - Transition/transversion ratio, Ts/Tv, transition bias, Ts Tv, substitution pattern
 - Codon usage bias, RSCU, ENC, effective number of codons, synonymous codon usage, codon preference, codon adaptation, Sharp & Li, Wright 1990
@@ -420,6 +434,9 @@ python skills/dnasp/dnasp.py \
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `--input` | path |  -  | Alignment file (FASTA or NEXUS) |
+| `--vcf` | path |  -  | Multi-sample VCF; analyses run once per CHROM (one MSA each), as in DnaSP |
+| `--region` | string |  -  | With `--vcf`: restrict to this CHROM only |
+| `--vcf-merge` | flag |  -  | With `--vcf`: pool every CHROM into one MSA (genome-wide summary only  -  not valid for per-site statistics) |
 | `--input2` | path |  -  | Second population alignment (for `divergence`) |
 | `--pop-file` | path |  -  | Population assignment TSV (alternative to `--input2`) |
 | `--outgroup` | string |  -  | Sequence name to use as outgroup (for `fuliout` and `mk`) |
@@ -430,9 +447,36 @@ python skills/dnasp/dnasp.py \
 | `--step` | int | = window | Sliding window step (bp) |
 | `--demo` | flag |  -  | Run on built-in synthetic dataset |
 
+### VCF input (`--vcf`)
+
+Multi-sample VCF converted to aligned haplotype sequences, following DnaSP 6
+(`multifilefrmvcf.vb::readvcf`):
+
+- **One MSA per `CHROM`**   -   analyses are run once per CHROM, exactly as DnaSP's
+  VCF/RAD mode does. `--region CHROM` restricts to one; `--vcf-merge` pools all
+  CHROMs into a single MSA (a deliberate genome-wide summary only   -   it mixes
+  unlinked regions and is not valid for π, Tajima's D or the SFS).
+- **Biallelic SNPs only**: indels, multi-base REF/ALT, and multiallelic sites
+  are skipped (reported in the run summary).
+- **FORMAT** must start with `GT`. **FILTER is ignored** (as in DnaSP).
+- **Diploid**: phased `|` → two haplotype rows per sample (`<sample>_h1`,
+  `<sample>_h2`); unphased `/` → two rows only when homozygous, otherwise both
+  become gaps (DnaSP cannot phase them); `.` → gaps.
+- **Haploid** (`GT` = `0`/`1`): one row per sample.
+- **Per-CHROM sample set**: a sample whose GT starts with `.` at the first
+  retained variant of a CHROM is dropped from that whole MSA.
+- Population split: pass `--pop-file` keyed by base sample ID (DnaSP's
+  `.SG.txt` files work directly   -   `sample<space>population`).
+
+This is standard-mode analysis on a VCF-derived alignment; it is **not** a full
+port of DnaSP's RAD engine (no Achaz F\* variances, no per-MSA Mean row, no
+`.Hetz`/`.Btw`/`.GFlow` outputs, and DnaSP's downstream MNP/multiallelic site
+handling is not reproduced   -   a CHROM with those can differ from DnaSP by a site
+or two).
+
 ### Population file format (`--pop-file`)
 
-Tab-separated, one row per sequence, `#` lines are comments:
+Tab- or space-separated, one row per sequence, `#` lines are comments:
 
 ```
 # Population assignment
