@@ -922,6 +922,48 @@ class TestComputeDivergence:
         d = dn.compute_divergence(pop1, pop2, "p1", "p2")
         assert d.Dxy == pytest.approx(2 / 4, abs=1e-9)
 
+    # --- Mod3BuscaShareFixDifferences parity (VB) --------------------------------
+
+    def test_one_population_polymorphic_is_private_not_shared(self):
+        # pop1 {A,G}, pop2 {A}: only pop1 segregates -> private to pop1, NOT shared
+        pop1 = ["AC", "GC"]
+        pop2 = ["AC", "AC"]
+        d = dn.compute_divergence(pop1, pop2, "p1", "p2")
+        assert d.n_private1 == 1
+        assert d.n_private2 == 0
+        assert d.n_shared == 0
+        assert d.n_fixed == 0
+
+    def test_private_counts_are_mutations_not_sites(self):
+        # triallelic in pop1, monomorphic pop2 sharing A -> 2 private mutations
+        pop1 = ["A", "C", "G"]
+        pop2 = ["A", "A", "A"]
+        d = dn.compute_divergence(pop1, pop2, "p1", "p2")
+        assert d.n_private1 == 2
+        assert d.n_shared == 0
+
+    def test_fixed_difference_site_can_carry_private_mutation(self):
+        # pop1 {A,C} disjoint from pop2 {T}: 1 fixed-difference site + 1 private
+        pop1 = ["A", "C"]
+        pop2 = ["T", "T"]
+        d = dn.compute_divergence(pop1, pop2, "p1", "p2")
+        assert d.n_fixed == 1
+        assert d.n_private1 == 1
+
+    def test_both_biallelic_one_shared_allele(self):
+        # pop1 {A,G}, pop2 {G,T}: share G, union {A,G,T} -> (2,2,3): 1 private each
+        pop1 = ["A", "G"]
+        pop2 = ["G", "T"]
+        d = dn.compute_divergence(pop1, pop2, "p1", "p2")
+        assert (d.n_private1, d.n_private2, d.n_shared, d.n_fixed) == (1, 1, 0, 0)
+
+    def test_both_biallelic_same_pair_is_shared(self):
+        pop1 = ["A", "G", "A"]
+        pop2 = ["A", "G", "G"]
+        d = dn.compute_divergence(pop1, pop2, "p1", "p2")
+        assert d.n_shared == 1
+        assert d.n_private1 == 0 and d.n_private2 == 0
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Population file parsing and alignment splitting

@@ -292,10 +292,10 @@ class DivergenceStats:
     # Between populations
     Dxy: float = 0.0   # average pairwise differences between populations per site
     Da: float = 0.0    # net nucleotide differences (Da = Dxy - (Pi1+Pi2)/2)
-    n_fixed: int = 0           # fixed differences
-    n_shared: int = 0          # shared polymorphisms
-    n_private1: int = 0        # private to pop1
-    n_private2: int = 0        # private to pop2
+    n_fixed: int = 0           # fixed-difference SITES (Sf)
+    n_shared: int = 0          # shared MUTATIONS (Ss)
+    n_private1: int = 0        # MUTATIONS exclusive to pop1 (Sx1)
+    n_private2: int = 0        # MUTATIONS exclusive to pop2 (Sx2)
 
 
 @dataclass
@@ -1360,33 +1360,59 @@ def compute_divergence(
     # Da: net divergence (removes within-population diversity)
     stats.Da = stats.Dxy - (stats.Pi1 + stats.Pi2) / 2
 
-    # Fixed differences, shared polymorphisms, private polymorphisms
-    # (Hey 1991 classification at each site)
-    alleles1_per_site: list[frozenset] = []
-    alleles2_per_site: list[frozenset] = []
-    for pos in range(stats.L_net):
-        a1 = frozenset(s[pos] for s in c1 if s[pos] not in _GAP_CHARS)
-        a2 = frozenset(s[pos] for s in c2 if s[pos] not in _GAP_CHARS)
-        alleles1_per_site.append(a1)
-        alleles2_per_site.append(a2)
-
+    # Fixed / shared / private classification, ported from DnaSP 6
+    # (Divergencia.vb::Mod3BuscaShareFixDifferences).  Sf is a site count;
+    # Ss, Sx1, Sx2 are MUTATION counts.
     n_fixed = n_shared = n_private1 = n_private2 = 0
-    for a1, a2 in zip(alleles1_per_site, alleles2_per_site):
+    for pos in range(stats.L_net):
+        a1 = frozenset(s[pos] for s in c1 if s[pos] in "ATCG")
+        a2 = frozenset(s[pos] for s in c2 if s[pos] in "ATCG")
         if not a1 or not a2:
             continue
-        seg1 = len(a1) > 1
-        seg2 = len(a2) > 1
-        disjoint = a1.isdisjoint(a2)
-        if disjoint and not seg1 and not seg2:
-            n_fixed += 1           # fixed difference: one allele each, different
-        elif not disjoint and (seg1 or seg2):
-            shared = a1 & a2
-            if shared:
-                n_shared += 1      # shared polymorphism
-        elif seg1 and a1.isdisjoint(a2):
-            n_private1 += 1        # private to pop1
-        elif seg2 and a2.isdisjoint(a1):
-            n_private2 += 1        # private to pop2
+        na1, na2 = len(a1), len(a2)
+        seg1, seg2 = na1 > 1, na2 > 1
+        if not seg1 and not seg2 and a1 == a2:
+            continue  # monomorphic, same allele -> not a segregating site
+
+        if a1.isdisjoint(a2):
+            # No shared allele -> fixed-difference site; within-population
+            # variation on top of it is private.
+            n_fixed += 1
+            if seg1:
+                n_private1 += na1 - 1
+            if seg2:
+                n_private2 += na2 - 1
+        elif seg1 and not seg2:
+            n_private1 += na1 - 1        # polymorphic in pop1 only
+        elif seg2 and not seg1:
+            n_private2 += na2 - 1        # polymorphic in pop2 only
+        elif seg1 and seg2:
+            na3 = len(a1 | a2)
+            if na1 <= 3 and na2 <= 3:
+                _SHARE_TABLE = {
+                    (2, 2, 2): (1, 0, 0),
+                    (2, 2, 3): (0, 1, 1),
+                    (3, 3, 3): (2, 0, 0),
+                    (3, 3, 4): (1, 1, 1),
+                    (3, 2, 3): (1, 1, 0),
+                    (2, 3, 3): (1, 0, 1),
+                    (3, 2, 4): (0, 2, 1),
+                    (2, 3, 4): (0, 1, 2),
+                }
+                ds, dx1, dx2 = _SHARE_TABLE.get((na1, na2, na3), (0, 0, 0))
+                n_shared += ds
+                n_private1 += dx1
+                n_private2 += dx2
+            elif na1 == 4 and na2 == 4:
+                n_shared += 3
+            elif na1 == 4:
+                m = (na2 - 1) if na2 > 1 else 1
+                n_shared += m
+                n_private1 += 3 - m
+            elif na2 == 4:
+                m = (na1 - 1) if na1 > 1 else 1
+                n_shared += m
+                n_private2 += 3 - m
 
     stats.n_fixed = n_fixed
     stats.n_shared = n_shared
@@ -3151,10 +3177,13 @@ def write_report(
             "|-----------|-------|-----------|",
             f"| Dxy (nucleotide divergence) | {_fmt(div_s.Dxy, 6)} | Nei 1987, eq 10.20 |",
             f"| Da (net divergence) | {_fmt(div_s.Da, 6)} | Nei 1987 |",
-            f"| Fixed differences | {div_s.n_fixed} | Hey 1991 |",
-            f"| Shared polymorphisms | {div_s.n_shared} | |",
-            f"| Private to {div_s.pop1_name} | {div_s.n_private1} | |",
-            f"| Private to {div_s.pop2_name} | {div_s.n_private2} | |",
+            f"| Fixed differences (Sf, sites) | {div_s.n_fixed} | Hey 1991 |",
+            f"| Shared mutations (Ss) | {div_s.n_shared} | |",
+            f"| Mutations exclusive to {div_s.pop1_name} (Sx1) | {div_s.n_private1} | |",
+            f"| Mutations exclusive to {div_s.pop2_name} (Sx2) | {div_s.n_private2} | |",
+            "",
+            "> Sf counts sites with no shared allele; Ss / Sx are mutation counts "
+            "(DnaSP Divergencia.vb). Total mutations in a population = Sx + Ss.",
             "",
         ]
 
