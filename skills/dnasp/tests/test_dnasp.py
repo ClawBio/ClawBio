@@ -2039,14 +2039,13 @@ class TestComputeFuFs:
         assert result.Fs is not None
         assert isinstance(result.Fs, float)
 
-    def test_all_identical_H1(self):
-        # All same → H=1, k=0 → degenerate; Fs should be None (k=0 → theta=0)
+    def test_monomorphic_returns_none(self):
+        # No polymorphism (H = 1, k = 0) -> Fs undefined, as DnaSP reports n.a.
         seqs = ['ATCG', 'ATCG', 'ATCG']
         clean = self._make_clean(seqs)
         result = dn.compute_fu_fs(clean, H=1, k=0.0)
-        # k=0 → theta=0 → _ewens_cdf returns 1.0 → Fs should be +inf boundary
-        # S_k=1.0 → Fs=+inf; we represent as 1e308
-        assert result.Fs is not None
+        assert result.Fs is None
+        assert result.S_k is None
 
     def test_Fs_negative_when_fewer_haplotypes(self):
         # When H << expected haplotype count given theta, Fs << 0
@@ -2072,8 +2071,8 @@ class TestComputeFuFs:
         # More haplotypes observed → S' = P(K ≥ H) decreases → Fs decreases
         seqs = ['ATCG', 'ATCA', 'GCTA', 'GCTG']
         clean = self._make_clean(seqs)
-        r1 = dn.compute_fu_fs(clean, H=1, k=2.0)
-        r2 = dn.compute_fu_fs(clean, H=3, k=2.0)
+        r1 = dn.compute_fu_fs(clean, H=2, k=2.0)
+        r2 = dn.compute_fu_fs(clean, H=4, k=2.0)
         assert r1.S_k is not None and r2.S_k is not None
         assert r2.S_k <= r1.S_k
         assert r2.Fs <= r1.Fs

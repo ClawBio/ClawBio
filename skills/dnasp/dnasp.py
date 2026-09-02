@@ -2263,8 +2263,8 @@ def compute_fu_fs(seqs: list[str], H: int, k: float) -> FuFsStats:
     """
     n = len(seqs)
     result = FuFsStats(n=n, H=H, theta_pi=k)
-    if n < 2 or H < 1:
-        return result
+    if n < 2 or H < 2 or k <= 0.0:
+        return result  # no polymorphism -> Fs undefined (DnaSP reports n.a.)
 
     S_prime = _ewens_sf(H, n, k)
     result.S_k = S_prime
