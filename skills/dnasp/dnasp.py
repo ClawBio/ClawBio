@@ -392,20 +392,25 @@ class SFSStats:
 
 @dataclass
 class TsTvStats:
-    """Transition / transversion ratio across all pairwise comparisons.
+    """Transition / transversion ratio, one mutation per biallelic site.
 
-    Computed over clean (non-gap, unambiguous) columns only (complete deletion).
-    n_transitions and n_transversions are *total* counts summed over all pairs.
-    ts_per_site and tv_per_site are means per sequence pair per site.
-    ts_tv is None when n_transversions == 0 (all differences are transitions).
+    Matches DnaSP 6 (Mutational.vb::Mod31Compute_1): each biallelic segregating
+    column contributes exactly one change, classified transition (A<->G, C<->T)
+    or transversion.  Multiallelic columns are excluded; with an outgroup,
+    columns the outgroup cannot polarise (outgroup gap, or outgroup allele not
+    among the ingroup alleles) are excluded too.  This is independent of sample
+    size - duplicating a sequence does not change the counts.
+    ts_tv is None when n_transversions == 0.
     """
     n: int = 0          # number of ingroup sequences
-    L_net: int = 0      # number of clean columns used
-    n_transitions: int = 0      # total Ts across all pairs
-    n_transversions: int = 0    # total Tv across all pairs
+    L_net: int = 0      # number of fully clean (all-ATCG) ingroup columns
+    n_sites: int = 0    # biallelic segregating columns classified (Ts + Tv)
+    n_transitions: int = 0
+    n_transversions: int = 0
     ts_tv: Optional[float] = None       # Ts/Tv ratio; None if Tv == 0
-    ts_per_site: float = 0.0            # mean Ts per pair per site
-    tv_per_site: float = 0.0            # mean Tv per pair per site
+    n_multiallelic_excluded: int = 0
+    n_unpolarisable_excluded: int = 0   # only when an outgroup is supplied
+    polarised: bool = False             # whether an outgroup was used
 
 
 @dataclass
@@ -2244,69 +2249,62 @@ def compute_sfs(seqs: list[str], outgroup_seq: Optional[str] = None) -> SFSStats
 # Substitution pattern helpers (Group E: tstv, codon)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def compute_ts_tv(seqs: list[str]) -> TsTvStats:
-    """Compute transition/transversion ratio across all pairwise comparisons.
+def compute_ts_tv(
+    seqs: list[str], outgroup_seq: Optional[str] = None
+) -> TsTvStats:
+    """Transition / transversion ratio, one change per biallelic segregating site.
 
-    A transition (Ts) is a purine↔purine (A↔G) or pyrimidine↔pyrimidine (C↔T)
-    substitution.  A transversion (Tv) is a purine↔pyrimidine substitution.
-    Ambiguous or gap characters at either position are skipped (complete deletion
-    applied per-column: any gap in any sequence drops that column).
+    Reproduces DnaSP 6's Mod31Compute_1 / RellenoMatrizCambios /
+    CalculaTransitionTransversionRatio: build a per-site mutation count rather
+    than summing pairwise differences.
+
+    A transition is A<->G or C<->T; a transversion is any purine<->pyrimidine
+    change.  Ratio = transitions / transversions (None when Tv == 0).
 
     Parameters
     ----------
     seqs : list[str]
         Ingroup sequences (upper-case; equal length).
-
-    Returns
-    -------
-    TsTvStats
-        n_transitions / n_transversions are totals across all pairs.
-        ts_per_site / tv_per_site are means per pair per site.
-        ts_tv is None when n_transversions == 0.
+    outgroup_seq : str | None
+        Optional outgroup sequence.  When given, DnaSP's polarised mode is used:
+        columns where the outgroup has a gap, or where the outgroup allele is
+        not one of the two ingroup alleles, are excluded ("ambiguo").  The Ts/Tv
+        classification itself is polarity-independent, so the ratio is the same
+        with or without the outgroup for the columns that survive.
     """
-    result = TsTvStats(n=len(seqs))
+    result = TsTvStats(n=len(seqs), polarised=outgroup_seq is not None)
     if len(seqs) < 2:
         return result
 
     L = len(seqs[0])
-    clean_cols: list[int] = []
+    ts = tv = 0
     for col in range(L):
-        bases = [s[col] for s in seqs]
-        if all(b in _NUCLEOTIDES for b in bases):
-            clean_cols.append(col)
+        ing = [s[col] for s in seqs]
+        if any(b not in _NUCLEOTIDES for b in ing):
+            continue
+        result.L_net += 1
+        states = set(ing)
+        if len(states) < 2:
+            continue                       # monomorphic
+        if len(states) > 2:
+            result.n_multiallelic_excluded += 1
+            continue                       # DnaSP: multiple hits -> not treated
+        if outgroup_seq is not None:
+            og = outgroup_seq[col] if col < len(outgroup_seq) else "-"
+            if og not in _NUCLEOTIDES or og not in states:
+                result.n_unpolarisable_excluded += 1
+                continue
+        a, b = sorted(states)
+        if (a in _PURINES) == (b in _PURINES):
+            ts += 1
+        else:
+            tv += 1
 
-    result.L_net = len(clean_cols)
-    if not clean_cols:
-        return result
-
-    n_seqs = len(seqs)
-    total_ts = 0
-    total_tv = 0
-    n_pairs = n_seqs * (n_seqs - 1) // 2
-
-    for i in range(n_seqs - 1):
-        for j in range(i + 1, n_seqs):
-            for col in clean_cols:
-                a, b = seqs[i][col], seqs[j][col]
-                if a == b:
-                    continue
-                # Both already confirmed ATCG by clean_cols filter
-                if (a in _PURINES) == (b in _PURINES):
-                    total_ts += 1
-                else:
-                    total_tv += 1
-
-    result.n_transitions = total_ts
-    result.n_transversions = total_tv
-
-    if n_pairs > 0 and result.L_net > 0:
-        denom = n_pairs * result.L_net
-        result.ts_per_site = total_ts / denom
-        result.tv_per_site = total_tv / denom
-
-    if total_tv > 0:
-        result.ts_tv = total_ts / total_tv
-
+    result.n_transitions = ts
+    result.n_transversions = tv
+    result.n_sites = ts + tv
+    if tv > 0:
+        result.ts_tv = ts / tv
     return result
 
 
@@ -2857,7 +2855,7 @@ def run_analysis(
         results["sfs"] = compute_sfs(aln.seqs, outgroup)
 
     if "tstv" in analyses:
-        results["tstv"] = compute_ts_tv(clean)
+        results["tstv"] = compute_ts_tv(aln.seqs, outgroup)
 
     if "codon" in analyses:
         results["codon"] = compute_codon_usage(aln.seqs)
@@ -3348,24 +3346,34 @@ def write_report(
     tstv_s: Optional[TsTvStats] = results.get("tstv")
     if tstv_s is not None:
         ts_tv_str = _fmt(tstv_s.ts_tv, 4) if tstv_s.ts_tv is not None else "N/A (Tv = 0)"
+        excl_bits = []
+        if tstv_s.n_multiallelic_excluded:
+            excl_bits.append(f"{tstv_s.n_multiallelic_excluded} multiallelic")
+        if tstv_s.n_unpolarisable_excluded:
+            excl_bits.append(f"{tstv_s.n_unpolarisable_excluded} not polarisable by outgroup")
         lines += [
             "## Transition / Transversion Ratio",
             "",
             f"| Statistic | Value |",
             f"|-----------|-------|",
             f"| Sequences (n) | {tstv_s.n} |",
-            f"| Clean sites (L) | {tstv_s.L_net} |",
-            f"| Total transitions (Ts) | {tstv_s.n_transitions} |",
-            f"| Total transversions (Tv) | {tstv_s.n_transversions} |",
+            f"| Clean sites (all-ATCG columns) | {tstv_s.L_net} |",
+            f"| Biallelic sites classified | {tstv_s.n_sites} |",
+            f"| Transitions (Ts) | {tstv_s.n_transitions} |",
+            f"| Transversions (Tv) | {tstv_s.n_transversions} |",
             f"| Ts/Tv ratio | {ts_tv_str} |",
-            f"| Mean Ts per pair per site | {_fmt(tstv_s.ts_per_site, 5)} |",
-            f"| Mean Tv per pair per site | {_fmt(tstv_s.tv_per_site, 5)} |",
+            f"| Polarised by outgroup | {'yes' if tstv_s.polarised else 'no'} |",
+        ]
+        if excl_bits:
+            lines.append(f"| Sites excluded | {'; '.join(excl_bits)} |")
+        lines += [
             "",
-            "> **Interpretation**: Transitions (purine↔purine: A↔G; pyrimidine↔pyrimidine: C↔T) "
-            "are expected to outnumber transversions due to mutational bias. "
-            "Ts/Tv ≈ 2 is typical for nuclear DNA; mitochondrial DNA often shows Ts/Tv > 10. "
-            "Ts/Tv < 0.5 may indicate saturation or non-neutral evolution. "
-            "'N/A' is reported when no transversions are observed.",
+            "> **Interpretation**: one change is counted per biallelic segregating "
+            "site (as in DnaSP), so the ratio does not depend on sample size. "
+            "Transitions (A↔G, C↔T) usually outnumber transversions; Ts/Tv ≈ 2 is "
+            "typical for nuclear DNA, mitochondrial DNA often shows Ts/Tv > 10, and "
+            "low values can indicate mutational saturation. Multiallelic sites are "
+            "excluded. 'N/A' is reported when no transversions are observed.",
             "",
         ]
 
@@ -3836,7 +3844,7 @@ DEMO_DESCRIPTION = """\
 Demo alignment: 10 ingroup sequences + 1 outgroup × 300 bp (2 populations, in-frame CDS)
   Pop1: pop1_seq1-5  |  Pop2: pop2_seq1-5  |  Outgroup: outgroup
   Segregating sites S=5, haplotypes H=8, Hd≈0.9556, Tajima's D≈0.6789
-  Ts=77, Tv=16, Ts/Tv≈4.81  |  ENC≈23.00 (strong codon-usage bias)
+  Ts=4, Tv=1, Ts/Tv=4.0 (one change per biallelic site)  |  ENC≈23.00 (strong codon-usage bias)
   MK: Pn=2, Ps=3, Dn=1, Ds=1, NI≈0.667, α≈0.333
   KaKs: Ka≈0.00298, Ks≈0.02281, ω≈0.131
 """
@@ -3969,7 +3977,8 @@ def _run(
     if tstv is not None:
         ts_tv_str = f"{tstv.ts_tv:.4f}" if tstv.ts_tv is not None else "N/A"
         print(f"  TsTv Ts={tstv.n_transitions}  Tv={tstv.n_transversions}  Ts/Tv={ts_tv_str}"
-              f"  L_net={tstv.L_net}")
+              f"  sites={tstv.n_sites}  L_net={tstv.L_net}"
+              f"{'  polarised' if tstv.polarised else ''}")
 
     codon_r = results.get("codon")
     if codon_r is not None:

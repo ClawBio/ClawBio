@@ -2355,20 +2355,47 @@ class TestComputeTsTv:
         r = dn.compute_ts_tv(seqs)
         assert r.L_net == 4
 
-    def test_per_site_values(self):
-        """ts_per_site and tv_per_site sum correctly."""
-        seqs = ['AA', 'GA']  # 1 Ts at col 0; 1 pair; 2 sites
-        r = dn.compute_ts_tv(seqs)
-        assert abs(r.ts_per_site - 0.5) < 1e-9  # 1 Ts / (1 pair * 2 sites)
-        assert r.tv_per_site == 0.0
-
-    def test_three_sequences_pair_counting(self):
-        """With 3 seqs and 3 pairs, counts should accumulate across pairs."""
+    def test_one_change_per_biallelic_site(self):
+        """DnaSP counts one change per biallelic column, not per sequence pair."""
         seqs = ['AAA', 'GAA', 'AAG']
-        # pairs: (0,1) col0 A/G Ts; (0,2) col2 A/G Ts; (1,2) col0 G/A Ts + col2 A/G Ts
+        # col0 {A,G} -> 1 Ts; col2 {A,G} -> 1 Ts; col1 monomorphic
         r = dn.compute_ts_tv(seqs)
-        assert r.n_transitions == 4   # 1+1+2
+        assert r.n_transitions == 2
         assert r.n_transversions == 0
+        assert r.n_sites == 2
+
+    def test_counts_independent_of_sample_size(self):
+        """Duplicating a sequence must not change the counts (Codex regression)."""
+        base = ['ACGT', 'GCTT']          # col0 A/G Ts, col2 G/T Tv
+        r1 = dn.compute_ts_tv(base)
+        r2 = dn.compute_ts_tv(base + [base[0]] * 5)
+        assert (r1.n_transitions, r1.n_transversions) == (1, 1)
+        assert (r2.n_transitions, r2.n_transversions) == (1, 1)
+        assert r1.ts_tv == r2.ts_tv == 1.0
+
+    def test_triallelic_site_excluded(self):
+        seqs = ['AAAA', 'GAAA', 'CAAA', 'TCAA']
+        # col0 {A,G,C,T} -> multiallelic, excluded; col1 {A,C} -> 1 Tv
+        r = dn.compute_ts_tv(seqs)
+        assert r.n_multiallelic_excluded == 1
+        assert r.n_sites == 1
+        assert r.n_transversions == 1
+
+    def test_outgroup_unresolvable_site_excluded(self):
+        # col0 ingroup {A,G}; outgroup C (not an ingroup allele) -> excluded.
+        # col1 ingroup {C,T}; outgroup C -> kept, 1 transition.
+        seqs = ['AC', 'AT', 'GC', 'GT']
+        r = dn.compute_ts_tv(seqs, outgroup_seq='CC')
+        assert r.polarised is True
+        assert r.n_unpolarisable_excluded == 1
+        assert r.n_transitions == 1
+        assert r.n_transversions == 0
+
+    def test_outgroup_ratio_matches_unpolarised_on_surviving_sites(self):
+        seqs = ['ACGT', 'GCAT', 'ACGT', 'GCAT']   # col0 {A,G} Ts, col2 {G,A} Ts
+        r_no = dn.compute_ts_tv(seqs)
+        r_og = dn.compute_ts_tv(seqs, outgroup_seq='ACGT')
+        assert r_no.ts_tv == r_og.ts_tv
 
     def test_run_analysis_dispatch(self):
         """run_analysis must populate results['tstv'] when analysis='tstv'."""
