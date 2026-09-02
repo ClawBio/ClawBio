@@ -13,6 +13,8 @@ References:
 
 from __future__ import annotations
 
+import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -88,6 +90,146 @@ INFRAME_CONSEQUENCES: frozenset[str] = frozenset({
     "stop_lost",
 })
 
+# ---------------------------------------------------------------------------
+# ClinVar clinical-significance vocabulary
+# ---------------------------------------------------------------------------
+# ClinVar significance reaches the engine in two shapes. VEP REST returns
+# colocated_variants[].clin_sig as a JSON *list* of lower-case terms from the
+# Ensembl clinical-significance enum, aggregated over every ClinVar record at
+# the site. ClinVar's own strings are *scalars* that join several terms with
+# "/" (compound, "Pathogenic/Likely_pathogenic"), "|" (VCF CLNSIG multi-value),
+# ";" (variant_summary multi-value) or ", " (free text). Both shapes are
+# reduced to one ordered tuple of normalised terms before any rule reads them,
+# so no rule ever substring-matches a joined string: "benign, pathogenic"
+# must never read as pathogenic support (issue #328).
+CLINVAR_TERM_SEPARATORS = re.compile(r"[,;/|]")
+
+CLINVAR_PATHOGENIC_TERMS: frozenset[str] = frozenset({
+    "pathogenic",
+    "likely_pathogenic",
+    "pathogenic_low_penetrance",
+    "likely_pathogenic_low_penetrance",
+})
+
+CLINVAR_BENIGN_TERMS: frozenset[str] = frozenset({
+    "benign",
+    "likely_benign",
+})
+
+# Every spelling ClinVar and VEP have used for "submitters disagree". ClinVar
+# renamed "interpretations" to "classifications" in 2024 and VEP caches of both
+# vintages are in the wild, so both are kept deliberately. Anything else that
+# starts with the same stem is treated the same way, so the next rename does
+# not silently reopen the over-call this guards against.
+CLINVAR_CONFLICTING_TERMS: frozenset[str] = frozenset({
+    "conflicting_interpretations_of_pathogenicity",
+    "conflicting_classifications_of_pathogenicity",
+    "conflicting_data_from_submitters",
+})
+CLINVAR_CONFLICTING_STEM = "conflicting"
+
+
+def normalize_clinvar_terms(significance: str | Sequence[str] | None) -> tuple[str, ...]:
+    """Reduce a ClinVar significance value to an ordered tuple of unique terms.
+
+    Accepts the scalar string form and the list (any sequence) form. Each chunk is
+    split on every separator ClinVar or VEP use between terms, lower-cased,
+    whitespace is collapsed to "_", and stray leading/trailing underscores
+    (as in VEP's "pathogenic,_low_penetrance") are stripped. Order is kept and
+    duplicates are dropped. None and empty values yield an empty tuple.
+
+    Any other shape is a producer bug and raises rather than being coerced,
+    because a silently empty tuple would read as "no ClinVar evidence".
+    """
+    if significance is None:
+        chunks: list[str] = []
+    elif isinstance(significance, str):
+        chunks = [significance]
+    elif isinstance(significance, Sequence) and not isinstance(significance, (bytes, bytearray)):
+        chunks = [str(item) for item in significance if item is not None]
+    else:
+        raise TypeError(
+            "ClinVar significance must be a string, a sequence of strings or None, "
+            f"got {type(significance).__name__}"
+        )
+
+    terms: list[str] = []
+    for chunk in chunks:
+        for piece in CLINVAR_TERM_SEPARATORS.split(chunk):
+            term = "_".join(piece.split()).lower().strip("_")
+            if term and term not in terms:
+                terms.append(term)
+    return tuple(terms)
+
+
+@dataclass(frozen=True)
+class ClinVarAssertion:
+    """A ClinVar significance value reduced to its evidential meaning.
+
+    ``pathogenic_terms`` / ``benign_terms`` are the recognised directional
+    terms present; ``conflicting_terms`` are the explicit "submitters
+    disagree" tokens present. Every other term (uncertain significance, drug
+    response, risk factor, not provided, a value from a future release, ...)
+    is neutral: it neither supports nor blocks a direction.
+    """
+    terms: tuple[str, ...]
+    pathogenic_terms: tuple[str, ...]
+    benign_terms: tuple[str, ...]
+    conflicting_terms: tuple[str, ...]
+
+    @property
+    def is_conflicting(self) -> bool:
+        """True when ClinVar itself flags the record as conflicting, or when
+        pathogenic-family and benign-family terms are both present. The
+        second clause matters for VEP's aggregated list, which carries every
+        ClinVar record at the site (all alleles) without a conflicting token."""
+        return bool(self.conflicting_terms) or (bool(self.pathogenic_terms) and bool(self.benign_terms))
+
+    @property
+    def supports_pathogenic(self) -> bool:
+        return bool(self.pathogenic_terms) and not self.is_conflicting
+
+    @property
+    def supports_benign(self) -> bool:
+        return bool(self.benign_terms) and not self.is_conflicting
+
+    @property
+    def conflict_reason(self) -> str:
+        """Human-readable explanation for report detail text; "" when clean."""
+        if self.conflicting_terms:
+            return "ClinVar flags this record as conflicting (" + ", ".join(self.conflicting_terms) + ")"
+        if self.pathogenic_terms and self.benign_terms:
+            return (
+                "ClinVar assertions at this site conflict ("
+                + ", ".join(self.pathogenic_terms + self.benign_terms) + ")"
+            )
+        return ""
+
+
+def interpret_clinvar_significance(significance: str | Sequence[str] | None) -> ClinVarAssertion:
+    """Parse a ClinVar significance value (either shape) into a ClinVarAssertion."""
+    terms = normalize_clinvar_terms(significance)
+    return ClinVarAssertion(
+        terms=terms,
+        pathogenic_terms=tuple(t for t in terms if t in CLINVAR_PATHOGENIC_TERMS),
+        benign_terms=tuple(t for t in terms if t in CLINVAR_BENIGN_TERMS),
+        conflicting_terms=tuple(
+            t for t in terms
+            if t in CLINVAR_CONFLICTING_TERMS or t.startswith(CLINVAR_CONFLICTING_STEM)
+        ),
+    )
+
+
+def format_clinvar_significance(significance: str | Sequence[str] | None) -> str:
+    """Display form for reports and tables: a scalar is passed through
+    unchanged, a list is joined with "; " so no Python repr ever lands in a
+    clinical artefact."""
+    if significance is None:
+        return ""
+    if isinstance(significance, str):
+        return significance
+    return "; ".join(str(item) for item in significance if item is not None)
+
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -118,7 +260,10 @@ class VariantEvidence:
     hgvsp: str = ""
     transcript: str = ""
 
-    clinvar_significance: str = ""
+    # Either shape ClinVar data arrives in: a scalar string (demo cache,
+    # ClinVar CLNSIG) or VEP REST's list of terms. Rules never read this
+    # field directly; they go through ``clinvar_assertion``.
+    clinvar_significance: str | Sequence[str] | None = ""
     clinvar_review_stars: int = 0
 
     gnomad_af: float | None = None
@@ -133,6 +278,16 @@ class VariantEvidence:
     is_missense: bool = False
     is_synonymous: bool = False
     is_inframe_indel: bool = False
+
+    @property
+    def clinvar_assertion(self) -> ClinVarAssertion:
+        """Structured reading of ``clinvar_significance`` for PS1/PP5/BP6."""
+        return interpret_clinvar_significance(self.clinvar_significance)
+
+    @property
+    def clinvar_significance_text(self) -> str:
+        """Display form of ``clinvar_significance`` for reports and tables."""
+        return format_clinvar_significance(self.clinvar_significance)
 
 
 @dataclass
@@ -229,13 +384,24 @@ def _eval_pvs1(ev: VariantEvidence) -> EvidenceCriterion:
     )
 
 
+def _clinvar_source(ev: VariantEvidence) -> str:
+    return f"ClinVar={ev.clinvar_significance_text}, stars={ev.clinvar_review_stars}"
+
+
+def _withheld_detail(code: str, clinvar: ClinVarAssertion, otherwise: str) -> str:
+    """Detail text for a ClinVar-backed rule that did not fire: name the
+    conflict when that is the reason, so the audit trail says why."""
+    if clinvar.is_conflicting:
+        return f"{code} withheld — {clinvar.conflict_reason}"
+    return otherwise
+
+
 def _eval_ps1(ev: VariantEvidence) -> EvidenceCriterion:
     """PS1: Same amino acid change as an established pathogenic variant in ClinVar."""
-    clinvar_lower = ev.clinvar_significance.lower()
-    is_pathogenic_clinvar = "pathogenic" in clinvar_lower and "conflicting" not in clinvar_lower
+    clinvar = ev.clinvar_assertion
     triggered = (
         ev.is_missense
-        and is_pathogenic_clinvar
+        and clinvar.supports_pathogenic
         and ev.clinvar_review_stars >= CLINVAR_MIN_STARS
     )
     return EvidenceCriterion(
@@ -243,9 +409,12 @@ def _eval_ps1(ev: VariantEvidence) -> EvidenceCriterion:
         triggered=triggered,
         strength="strong",
         direction="pathogenic",
-        source=f"ClinVar={ev.clinvar_significance}, stars={ev.clinvar_review_stars}",
+        source=_clinvar_source(ev),
         detail="Same amino acid change reported as Pathogenic in ClinVar with ≥2 review stars"
-        if triggered else "PS1 not met — either not missense, not pathogenic in ClinVar, or insufficient review stars",
+        if triggered else _withheld_detail(
+            "PS1", clinvar,
+            "PS1 not met — either not missense, not pathogenic in ClinVar, or insufficient review stars",
+        ),
     )
 
 
@@ -306,17 +475,18 @@ def _eval_pp3(ev: VariantEvidence) -> EvidenceCriterion:
 
 def _eval_pp5(ev: VariantEvidence) -> EvidenceCriterion:
     """PP5: Reputable source reports variant as pathogenic."""
-    clinvar_lower = ev.clinvar_significance.lower()
-    is_pathogenic = "pathogenic" in clinvar_lower and "conflicting" not in clinvar_lower
-    triggered = is_pathogenic and ev.clinvar_review_stars >= CLINVAR_MIN_STARS
+    clinvar = ev.clinvar_assertion
+    triggered = clinvar.supports_pathogenic and ev.clinvar_review_stars >= CLINVAR_MIN_STARS
     return EvidenceCriterion(
         code="PP5",
         triggered=triggered,
         strength="supporting",
         direction="pathogenic",
-        source=f"ClinVar={ev.clinvar_significance}, stars={ev.clinvar_review_stars}",
+        source=_clinvar_source(ev),
         detail="ClinVar reports Pathogenic/Likely Pathogenic with ≥2 review stars"
-        if triggered else "ClinVar does not report pathogenic with sufficient review status",
+        if triggered else _withheld_detail(
+            "PP5", clinvar, "ClinVar does not report pathogenic with sufficient review status",
+        ),
     )
 
 
@@ -349,17 +519,18 @@ def _eval_bp4(ev: VariantEvidence) -> EvidenceCriterion:
 
 def _eval_bp6(ev: VariantEvidence) -> EvidenceCriterion:
     """BP6: Reputable source reports variant as benign."""
-    clinvar_lower = ev.clinvar_significance.lower()
-    is_benign = ("benign" in clinvar_lower or "likely benign" in clinvar_lower) and "pathogenic" not in clinvar_lower
-    triggered = is_benign and ev.clinvar_review_stars >= CLINVAR_MIN_STARS
+    clinvar = ev.clinvar_assertion
+    triggered = clinvar.supports_benign and ev.clinvar_review_stars >= CLINVAR_MIN_STARS
     return EvidenceCriterion(
         code="BP6",
         triggered=triggered,
         strength="supporting",
         direction="benign",
-        source=f"ClinVar={ev.clinvar_significance}, stars={ev.clinvar_review_stars}",
+        source=_clinvar_source(ev),
         detail="ClinVar reports Benign/Likely Benign with ≥2 review stars"
-        if triggered else "ClinVar does not report benign with sufficient review status",
+        if triggered else _withheld_detail(
+            "BP6", clinvar, "ClinVar does not report benign with sufficient review status",
+        ),
     )
 
 

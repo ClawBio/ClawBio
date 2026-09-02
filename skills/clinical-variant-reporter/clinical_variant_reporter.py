@@ -224,6 +224,10 @@ def _extract_evidence_from_vep(vep_result: dict, record: VcfRecord) -> VariantEv
 
     for cv in vep_result.get("colocated_variants", []):
         if "clinvar" in cv.get("var_synonyms", {}) or cv.get("clin_sig"):
+            # VEP REST returns clin_sig as a JSON list of terms aggregated over
+            # every ClinVar record at the site. It is kept as-is: the ACMG rules
+            # read it through VariantEvidence.clinvar_assertion, which parses
+            # both the list and the scalar string form into terms (#328).
             sigs = cv.get("clin_sig", "")
             if sigs and not clinvar_sig:
                 clinvar_sig = sigs
@@ -610,7 +614,7 @@ def _write_markdown_report(
             lines.append(f"- **rsID**: {ev.rsid or 'N/A'}")
             lines.append(f"- **Transcript**: {ev.transcript or 'N/A'}")
             lines.append(f"- **Consequence**: {ev.consequence}")
-            lines.append(f"- **ClinVar**: {ev.clinvar_significance or 'N/A'} (stars: {ev.clinvar_review_stars})")
+            lines.append(f"- **ClinVar**: {ev.clinvar_significance_text or 'N/A'} (stars: {ev.clinvar_review_stars})")
             lines.append(f"- **gnomAD AF**: {ev.gnomad_af if ev.gnomad_af is not None else 'N/A'}")
             lines.append(f"- **Evidence codes**: {cv.evidence_summary}")
             lines.append("")
@@ -722,7 +726,7 @@ def _write_classification_table(classified: list[ClassifiedVariant], output_dir:
             ev = cv.evidence
             writer.writerow([
                 ev.chrom, ev.pos, ev.ref, ev.alt, ev.rsid, ev.gene,
-                ev.consequence, ev.clinvar_significance, ev.clinvar_review_stars,
+                ev.consequence, ev.clinvar_significance_text, ev.clinvar_review_stars,
                 ev.gnomad_af if ev.gnomad_af is not None else "",
                 ev.cadd_phred if ev.cadd_phred is not None else "",
                 cv.classification, CLASS_SHORT.get(cv.classification, "?"),
