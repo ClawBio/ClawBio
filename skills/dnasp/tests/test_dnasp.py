@@ -1285,6 +1285,27 @@ class TestComputeFuLiOutgroup:
         assert result.D is not None
         assert result.F is not None
 
+    def test_k_bar_excludes_outgroup_gap_column(self):
+        # DnaSP FULI.vb: rp1 (k_bar) accumulates only over informative sites.
+        # Column 0 is polymorphic but the outgroup has a gap there -> excluded
+        # from k_bar just as it is from eta/eta_e.
+        seqs = ["TAAAA", "AAAAA", "AAAAA", "AAAAA"]
+        outgroup = "-AAAA"
+        result = dn.compute_fu_li_outgroup(seqs, outgroup)
+        assert result.eta == 0
+        assert result.k_bar == pytest.approx(0.0, abs=1e-12)
+
+    def test_k_bar_excludes_ancestral_absent_column(self):
+        # Column 0: ingroup {A,C}, outgroup G (ancestral absent) -> not orientable.
+        # Column 1: ingroup {T,A}, outgroup A -> orientable, one derived singleton.
+        # k_bar must reflect column 1 only (4 diffs / 10 pairs = 0.4).
+        seqs = ["AT", "AA", "CA", "CA", "CA"]
+        outgroup = "GA"
+        result = dn.compute_fu_li_outgroup(seqs, outgroup)
+        assert result.eta == 1
+        assert result.eta_e == 1
+        assert result.k_bar == pytest.approx(0.4, abs=1e-12)
+
     def test_no_variation_returns_none(self):
         seqs = ["AAAAA"] * 5
         outgroup = "AAAAA"
@@ -2155,6 +2176,28 @@ class TestComputeSFS:
         # Each key maps to site count; sum = total segregating sites (up to folded)
         total = sum(result.folded.values())
         assert total >= 0
+
+    def test_triallelic_site_excluded(self):
+        # DnaSP gates the spectrum on exactly two states (contot == 2).
+        # Col 0 is triallelic {A,C,G}; col 1 is biallelic {A,T}.
+        seqs = ['AA', 'CA', 'GT', 'GT']
+        result = dn.compute_sfs(seqs, outgroup_seq='AA')
+        assert result.folded == {2: 1}          # only the biallelic column
+        assert result.unfolded == {2: 1}
+        assert result.n_multiallelic_excluded == 1
+
+    def test_quadriallelic_site_excluded(self):
+        seqs = ['A', 'C', 'G', 'T']
+        result = dn.compute_sfs(seqs, outgroup_seq='A')
+        assert result.folded == {}
+        assert result.unfolded == {}
+        assert result.n_multiallelic_excluded == 1
+
+    def test_biallelic_sites_still_counted(self):
+        seqs = ['AACG', 'TTCA', 'AACG', 'TTCA']
+        result = dn.compute_sfs(seqs)
+        assert sum(result.folded.values()) == 3
+        assert result.n_multiallelic_excluded == 0
 
     def test_run_analysis_dispatch_no_outgroup(self, tmp_path):
         f = tmp_path / "aln.fas"

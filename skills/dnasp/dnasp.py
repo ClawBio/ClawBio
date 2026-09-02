@@ -379,11 +379,15 @@ class SFSStats:
                   (i = 1 … n//2); independent of outgroup.
     unfolded[i] = number of segregating sites where derived allele count = i
                   (i = 1 … n-1); requires an outgroup to polarise.
+
+    Only biallelic sites contribute (DnaSP FULI.vb gates on contot == 2);
+    n_multiallelic_excluded records the sites dropped for having > 2 states.
     """
     n: int = 0
     folded: dict[int, int] = field(default_factory=dict)
     unfolded: Optional[dict[int, int]] = None
     has_outgroup: bool = False
+    n_multiallelic_excluded: int = 0
 
 
 @dataclass
@@ -1410,11 +1414,39 @@ def split_alignment_by_pop(
 # Fu & Li D / F with outgroup
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _count_derived(seqs: list[str], outgroup: str) -> tuple[int, int]:
-    """Count outgroup-polarised derived mutations.
+def _orientable_columns(seqs: list[str], outgroup: str) -> list[int]:
+    """Column indices usable for outgroup-polarised statistics.
 
-    Applies complete deletion: any column with a gap in any ingroup sequence OR
-    in the outgroup is skipped.
+    Mirrors DnaSP's SitioIesInformativo gate (FULI.vb): the outgroup base is a
+    clean nucleotide, no ingroup sequence has a gap/ambiguous base there, and the
+    outgroup (ancestral) allele is present among the ingroup states unless the
+    site is monomorphic in the ingroup.  k_bar, eta and eta_e are all computed
+    over exactly this set so they cannot drift apart.
+    """
+    if not seqs:
+        return []
+    L = len(seqs[0])
+    if len(outgroup) < L:
+        raise ValueError(
+            f"Outgroup length ({len(outgroup)}) shorter than alignment ({L})."
+        )
+    cols: list[int] = []
+    for pos in range(L):
+        anc = outgroup[pos]
+        if anc in _GAP_CHARS:
+            continue
+        col = [s[pos] for s in seqs]
+        if any(c in _GAP_CHARS for c in col):
+            continue
+        states = frozenset(col)
+        if len(states) >= 2 and anc not in states:
+            continue  # polymorphic but ancestral allele absent -> not orientable
+        cols.append(pos)
+    return cols
+
+
+def _count_derived(seqs: list[str], outgroup: str) -> tuple[int, int]:
+    """Count outgroup-polarised derived mutations over orientable columns.
 
     Parameters
     ----------
@@ -1426,29 +1458,20 @@ def _count_derived(seqs: list[str], outgroup: str) -> tuple[int, int]:
     Returns
     -------
     eta : int
-        Total number of derived mutations across all polarisable sites.
+        Total number of derived mutations across all orientable sites.
     eta_e : int
         Derived mutations carried by exactly one ingroup sequence (external).
     """
     if not seqs:
         return 0, 0
-    L = len(seqs[0])
-    if len(outgroup) < L:
-        raise ValueError(
-            f"Outgroup length ({len(outgroup)}) shorter than alignment ({L})."
-        )
     eta = 0
     eta_e = 0
-    for pos in range(L):
+    for pos in _orientable_columns(seqs, outgroup):
         anc = outgroup[pos]
-        if anc in _GAP_CHARS:
-            continue
         col = [s[pos] for s in seqs]
-        if any(c in _GAP_CHARS for c in col):
-            continue
         states = frozenset(col)
-        if anc not in states or len(states) < 2:
-            continue  # monomorphic or ancestral allele absent
+        if len(states) < 2:
+            continue  # monomorphic in the ingroup
         for derived in states - {anc}:
             n_carriers = sum(1 for c in col if c == derived)
             eta += 1
@@ -1464,14 +1487,18 @@ def compute_fu_li_outgroup(seqs: list[str], outgroup: str) -> FuLiOutgroupStats:
     segregating site.  Derived mutations carried by exactly one ingroup
     sequence are 'external' (η_e); all derived mutations count as η.
 
-    Formulas: Fu & Li (1993) equations 22-25 (D) and 31-34 (F), in the form
-    given by Simonsen, Churchill & Aquadro (1995) Genetics 141:413-429.
+    Formulas: Fu & Li (1993) equations 22-25 (D) and 31-34 (F), matching the
+    DnaSP 6 source (FULI.vb, Mod12FuLiOutgroupNew); coefficient forms also in
+    Simonsen, Churchill & Aquadro (1995) Genetics 141:413-429.
 
         D = (eta - a_n * eta_e) / sqrt(u_D * eta + v_D * eta**2)
         F = (k_bar - eta_e)     / sqrt(u_F * eta + v_F * eta**2)
 
     with eta the total number of outgroup-polarised derived mutations and
     eta_e the subset carried by exactly one ingroup sequence (external branch).
+    k_bar is the mean pairwise difference over the orientable-site set only
+    (DnaSP accumulates rp1 solely inside SitioIesInformativo), so it uses the
+    same column mask as eta / eta_e.
     Negative D or F indicates an excess of external (singleton) mutations.
 
     Parameters
@@ -1489,9 +1516,11 @@ def compute_fu_li_outgroup(seqs: list[str], outgroup: str) -> FuLiOutgroupStats:
     if n < 4 or not seqs:
         return FuLiOutgroupStats(n=n)
 
-    # k_bar: mean pairwise differences over ALL clean ingroup sites
-    clean, L_net = complete_deletion(seqs)
-    k_bar = compute_k(clean)
+    # k_bar: mean pairwise differences over the orientable-site set only,
+    # matching the mask used for eta / eta_e (DnaSP FULI.vb rp1 accumulation).
+    cols = _orientable_columns(seqs, outgroup)
+    ingroup_orientable = ["".join(s[i] for i in cols) for s in seqs]
+    k_bar = compute_k(ingroup_orientable)
 
     # Outgroup-polarised counts
     eta, eta_e = _count_derived(seqs, outgroup)
@@ -2164,6 +2193,8 @@ def compute_sfs(seqs: list[str], outgroup_seq: Optional[str] = None) -> SFSStats
     Unfolded  -  additionally requires the outgroup to be a clean ATCG base
                at that column; gap in outgroup → column skipped for unfolded
                but still counted for folded if ingroup is clean.
+    Multiallelic sites (> 2 ingroup states) are excluded from both spectra, as
+    in DnaSP, and tallied in n_multiallelic_excluded.
     """
     n = len(seqs)
     result = SFSStats(n=n, has_outgroup=outgroup_seq is not None)
@@ -2185,6 +2216,9 @@ def compute_sfs(seqs: list[str], outgroup_seq: Optional[str] = None) -> SFSStats
         alleles = [a for a, cnt in counts.items()]
         if len(alleles) < 2:
             continue  # monomorphic  -  not a segregating site
+        if len(alleles) > 2:
+            result.n_multiallelic_excluded += 1
+            continue  # DnaSP FULI.vb: frequency block runs only when contot == 2
 
         # ── Folded SFS ──────────────────────────────────────────────────
         # Minor allele = least frequent; fold at n/2
@@ -3295,6 +3329,12 @@ def write_report(
             lines += ["*No unfolded SFS sites  -  outgroup did not polarise any segregating sites.*", ""]
         else:
             lines += ["*Unfolded SFS not available  -  no outgroup provided. Rerun with --outgroup <seq_name>.*", ""]
+        if sfs_s.n_multiallelic_excluded:
+            lines += [
+                f"*{sfs_s.n_multiallelic_excluded} multiallelic site(s) excluded "
+                "from the spectrum (DnaSP counts biallelic sites only).*",
+                "",
+            ]
         lines += [
             "> **Interpretation**: A skew toward singletons (i = 1) → excess rare variants → "
             "population expansion or purifying selection (consistent with negative Tajima's D). "
