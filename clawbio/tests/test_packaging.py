@@ -61,3 +61,27 @@ def test_writable_dirs_never_inside_package_when_installed():
 def test_public_api_surface():
     for name in ("run_skill", "list_skills", "upload_profile", "__version__"):
         assert name in clawbio.__all__
+
+
+def test_plugin_and_citation_manifests_carry_the_package_version():
+    """Every version stamp a user can see must agree with clawbio.__version__.
+
+    Before 0.7.0 the Claude Code plugin manifests sat at 0.3.0 while PyPI shipped
+    0.6.1, so `/plugin install clawbio` reported a version three releases old.
+    Keeping these in sync is arithmetic, so a test does it rather than a checklist.
+    """
+    import json
+
+    root = Path(__file__).resolve().parents[2]
+    plugin = root / ".claude-plugin" / "plugin.json"
+    if not plugin.is_file():
+        pytest.skip("source-tree only: plugin manifests are not part of the wheel")
+
+    assert json.loads(plugin.read_text(encoding="utf-8"))["version"] == clawbio.__version__
+
+    marketplace = json.loads((root / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+    assert marketplace["metadata"]["version"] == clawbio.__version__
+    assert [p["version"] for p in marketplace["plugins"]] == [clawbio.__version__]
+
+    citation = (root / "CITATION.cff").read_text(encoding="utf-8")
+    assert f"version: {clawbio.__version__}\n" in citation

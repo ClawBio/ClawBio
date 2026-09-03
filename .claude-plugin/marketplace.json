@@ -2,8 +2,8 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "clawbio",
   "metadata": {
-    "description": "Bioinformatics-native AI agent skill library for Claude Code.",
-    "version": "0.3.0"
+    "description": "Bioinformatics-native AI agent skill library for Claude Code: 97 Agent Skills, local-first and reproducible.",
+    "version": "0.7.0"
   },
   "owner": {
     "name": "Manuel Corpas",
@@ -12,8 +12,8 @@
   "plugins": [
     {
       "name": "clawbio",
-      "description": "31 bioinformatics skills: pharmacogenomics, ancestry PCA, scRNA-seq, metagenomics, variant annotation, genome comparison, GWAS, proteomics, methylation clocks, and more. Local-first, reproducible, privacy-focused.",
-      "version": "0.3.0",
+      "description": "97 bioinformatics Agent Skills: pharmacogenomics, clinical variant interpretation, GWAS and PRS, ancestry, RNA-seq and single-cell, metagenomics, proteomics, methylation clocks, nf-core pipeline wrappers. 50 run deterministically from the CLI with demo data and write a reproducibility bundle. Local-first, privacy-focused.",
+      "version": "0.7.0",
       "author": {
         "name": "Manuel Corpas",
         "email": "mc@manuelcorpas.com"

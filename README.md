@@ -35,22 +35,13 @@ result = run_skill("pharmgx", demo=True)
 
 Or install as a [Claude Code](https://claude.ai/claude-code) plugin: `/plugin marketplace add ClawBio/ClawBio`
 
-Using **Cursor, Zed, VS Code or Claude Desktop**? ClawBio ships an [MCP](https://modelcontextprotocol.io)
-server. No install needed:
+Using **Cursor, VS Code, Codex, Zed or another editor that reads [Agent Skills](https://agentskills.io)**?
+Every skill is a plain Agent Skills folder. Copy or symlink the folders you need from `skills/` into
+`~/.agents/skills/`, which all four read, or into your project's `.agents/skills/`. No server involved.
 
-```json
-{
-  "mcpServers": {
-    "clawbio": {
-      "command": "uvx",
-      "args": ["--from", "clawbio[mcp]", "clawbio", "mcp"]
-    }
-  }
-}
-```
-
-It runs locally over stdio and defaults to demo data only, so connecting it cannot by itself
-give an agent access to your genome. Full setup: [docs.clawbio.ai/reference/mcp](https://docs.clawbio.ai/reference/mcp/).
+The MCP server (`uvx --from 'clawbio[mcp]' clawbio mcp`) is **deprecated as of 0.7.0 and will be
+removed in 0.8.0**. Existing configurations keep working until then and print a notice on start.
+Why, and how to migrate: [docs.clawbio.ai/reference/mcp](https://docs.clawbio.ai/reference/mcp/).
 
 **Developing ClawBio or want all skills with full demo data?** Work from a
 source checkout instead ([uv](https://docs.astral.sh/uv/) recommended):
