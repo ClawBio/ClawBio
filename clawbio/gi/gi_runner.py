@@ -300,7 +300,14 @@ def _summarize(task: str, body: Dict[str, Any]) -> Dict[str, Any]:
         inp = _as_obj(data.get("input"), "data.input")
         out["tss_index"] = inp.get("tss_index")
         out["scored_window"] = inp.get("scored_window")
-        out["submitted_sequence_length"] = inp.get("submitted_sequence_length")
+        # The submitted length comes from meta.sequence_length, which every
+        # response carries and which the revision and the consumer pins cover.
+        # data.input.submitted_sequence_length held the same number in an
+        # untyped echo covered by nothing, and is being removed; reading it
+        # would have dropped the ", of N bp submitted" clause silently, since
+        # the report renders it under an isinstance guard.
+        meta = _as_obj(body.get("meta"), "meta")
+        out["submitted_sequence_length"] = meta.get("sequence_length")
     elif task == "annotation":
         out["transcripts_found"] = summary.get("total_transcripts", summary.get("transcripts_found"))
         out["transcripts"] = _as_objs(data.get("transcripts"), "data.transcripts")

@@ -259,11 +259,14 @@ class TestNestedFieldsOfTheWrongType:
 # keys under test; the values are verbatim.
 #
 # The windowing pair is echoed in BOTH places, with identical values:
-# data.input, which also carries submitted_sequence_length, and
-# meta.task_specific_counts, which does not. gi-expression/SKILL.md named only
+# data.input and meta.task_specific_counts. gi-expression/SKILL.md named only
 # the meta path while the report reads data.input, so the two disagreed on
 # paper and nothing pinned either. Both are real; this pins both, so a future
 # response that drops one fails here rather than in a user's report.
+#
+# The submitted length is read from meta.sequence_length, which is typed and
+# required on every response. data.input used to echo the same number as
+# submitted_sequence_length; that echo is being removed, so it is absent here.
 LIVE_EXPRESSION_BODY = {
     "data": {
         "task": "expression",
@@ -272,7 +275,6 @@ LIVE_EXPRESSION_BODY = {
             "sequence_length": 9198,
             "tss_index": 4599,
             "scored_window": [0, 9198],
-            "submitted_sequence_length": 9198,
         },
         "summary": {"expression_log_tpm": 0.9492, "expression_tpm": 1.5837},
         "prediction": {
@@ -284,6 +286,7 @@ LIVE_EXPRESSION_BODY = {
     "meta": {
         "request_id": "req-live",
         "inference_time_ms": 88,
+        "sequence_length": 9198,
         "task_specific_counts": {
             "task": "expression",
             "tss_index": 4599,
@@ -308,8 +311,11 @@ class TestTheExpressionWindowingProvenanceSurvivesToTheReport:
         inp = LIVE_EXPRESSION_BODY["data"]["input"]
         assert inp["scored_window"] == counts["scored_window"] == [0, 9198]
         assert inp["tss_index"] == counts["tss_index"] == 4599
-        # Only data.input carries this, which is why the runner reads there.
+        # The submitted length is not in either windowing echo; it is a
+        # top-level meta field, which is where the runner reads it.
         assert "submitted_sequence_length" not in counts
+        assert "submitted_sequence_length" not in inp
+        assert LIVE_EXPRESSION_BODY["meta"]["sequence_length"] == 9198
 
     def test_summarize_picks_up_the_window(self):
         out = gi_runner._summarize("expression", LIVE_EXPRESSION_BODY)
@@ -317,6 +323,25 @@ class TestTheExpressionWindowingProvenanceSurvivesToTheReport:
         assert out["scored_window"] == [0, 9198]
         assert out["submitted_sequence_length"] == 9198
         assert out["log_tpm"] == 0.9492
+
+    def test_the_submitted_length_clause_comes_from_meta_not_the_echo(self, tmp_path):
+        """data.input.submitted_sequence_length is being removed from the API.
+
+        The report renders the clause under an ``isinstance(submitted, int)``
+        guard, so reading the echo made its removal silent: the ", of N bp
+        submitted" clause would vanish from the user's report and nothing
+        would error. That clause is the one place a user sees that their
+        locus was windowed. This body carries no echo field at all.
+        """
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        assert "submitted_sequence_length" not in body["data"]["input"]
+        summary = gi_runner._summarize("expression", body)
+        assert summary["submitted_sequence_length"] == 9198
+        gi_runner._write_report(
+            "expression", summary, body, tmp_path,
+            tmp_path / "in.fa", "hbb", 9198, 12.0,
+        )
+        assert "of 9,198 bp submitted" in (tmp_path / "report.md").read_text()
 
     def test_the_report_states_the_scored_window(self, tmp_path):
         summary = gi_runner._summarize("expression", LIVE_EXPRESSION_BODY)
