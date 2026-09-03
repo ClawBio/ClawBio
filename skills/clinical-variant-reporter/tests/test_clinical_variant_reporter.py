@@ -229,6 +229,29 @@ class TestCriteriaEvaluation:
         bp6 = next(c for c in criteria if c.code == "BP6")
         assert bp6.triggered is True
 
+    @pytest.mark.parametrize("significance", [
+        "Pathogenic", ["pathogenic", "pathogenic"],
+    ])
+    def test_clinvar_pathogenic_terms_trigger_pp5(self, significance):
+        ev = VariantEvidence(
+            chrom="chr1", pos=100, ref="A", alt="G",
+            clinvar_significance=significance, clinvar_review_stars=3,
+        )
+        pp5 = next(c for c in evaluate_criteria(ev) if c.code == "PP5")
+        assert pp5.triggered is True
+
+    @pytest.mark.parametrize("significance", [
+        ["benign", "pathogenic"], ["conflicting_interpretations"], ["novel_value"],
+    ])
+    def test_clinvar_conflicting_or_unknown_terms_do_not_trigger(self, significance):
+        ev = VariantEvidence(
+            chrom="chr1", pos=100, ref="A", alt="G",
+            clinvar_significance=significance, clinvar_review_stars=3,
+        )
+        criteria = evaluate_criteria(ev)
+        assert next(c for c in criteria if c.code == "PP5").triggered is False
+        assert next(c for c in criteria if c.code == "BP6").triggered is False
+
 
 # ---------------------------------------------------------------------------
 # Unit tests — SF v3.2 screening
@@ -513,6 +536,27 @@ class TestClinSigAlleleTypeGuard:
         ev = _extract_evidence_from_vep(
             self._vep({"review_status_stars": 3}), self._record())
         assert ev.clinvar_review_stars == 3
+
+    def test_list_clin_sig_classifies_conflicts_without_crashing(self):
+        from clinical_variant_reporter import _extract_evidence_from_vep
+        ev = _extract_evidence_from_vep(
+            {
+                **self._vep({"review_status_stars": 3}),
+                "most_severe_consequence": "missense_variant",
+                "transcript_consequences": [{
+                    "gene_symbol": "BRCA2",
+                    "impact": "MODERATE",
+                    "consequence_terms": ["missense_variant"],
+                }],
+                "colocated_variants": [{
+                    "clin_sig": ["benign", "pathogenic"],
+                    "clin_sig_allele": {"review_status_stars": 3},
+                }],
+            },
+            self._record(),
+        )
+        classified = classify_variant(ev)
+        assert all(code not in classified.triggered_codes for code in ("PS1", "PP5", "BP6"))
 
 
 # ---------------------------------------------------------------------------
