@@ -71,6 +71,13 @@ class Calibration:
     other_populations: dict[str, float] = field(default_factory=dict)
 
     @property
+    def overreach_check_ran(self) -> bool:
+        """False when the panel holds no non-reference individual: the
+        overreach check then has nothing to compare against and did not run,
+        which is a recorded gap, not a pass."""
+        return self.nearest_other is not None
+
+    @property
     def threshold_exceeds_nearest_other(self) -> bool:
         """True when the threshold is wide enough to admit non-reference individuals.
 
@@ -1218,6 +1225,11 @@ def _write_report(outdir: Path, cal: Calibration, results: list[dict[str, Any]],
     if cal.nearest_other is not None:
         a(f"- Nearest non-{cal.reference_population} individual: {cal.nearest_other:.2f}")
         a(f"- Empirical separation gap: {cal.within_max:.2f} to {cal.nearest_other:.2f} (no individual falls inside)")
+    else:
+        a(f"- Nearest non-{cal.reference_population} individual: **not available** - the panel "
+          f"contains only {cal.reference_population}, so the threshold-overreach check could "
+          f"not run. The threshold rests on within-reference spread alone; whether it reaches "
+          f"into another ancestry group is unverified in this run.")
     if cal.other_populations:
         a("\n| Population | Closest individual to reference centroid |")
         a("|------------|------------------------------------------|")
@@ -1323,6 +1335,12 @@ def _write_clinician_report(outdir: Path, cal: Calibration, results: list[dict[s
           f"as uncalibrated: the percentile may be quoted for someone the comparison group "
           f"does not actually fit. Re-run with the default threshold before using any of "
           f"these results.\n")
+    elif not cal.overreach_check_ran:
+        a("## One check could not be performed\n")
+        a("The reference panel used in this run contained only the reference group, so the "
+          "safeguard that confirms the similarity threshold does not reach into other "
+          "ancestry groups had nothing to compare against and was not performed. The "
+          "released percentiles below rest on the reference group's own spread alone.\n")
     a("## What this means\n")
     a("- A **released** result can be read normally, with the usual caveats of any risk score.\n"
       "- A **withheld** result is not a borderline or a low number. It means the comparison "
@@ -1533,7 +1551,13 @@ def _write_technical_report(outdir: Path, cal: Calibration, results: list[dict[s
     a(f"- PCs used: {', '.join(cal.pcs_used)}; distance metric: Euclidean")
     a(f"- Within-reference distance: mean {cal.mean:.4f}, sd {cal.sd:.4f}, max {cal.within_max:.4f}")
     a(f"- Threshold: {cal.threshold:.4f} = mean + {cal.k_sd:g} x sd")
-    a(f"- Nearest non-reference individual: {cal.nearest_other}")
+    if cal.nearest_other is not None:
+        a(f"- Nearest non-reference individual: {cal.nearest_other:.4f}")
+    else:
+        a(f"- Nearest non-reference individual: not available. The panel contains only "
+          f"{cal.reference_population}, so the threshold-overreach check could not run; "
+          f"recorded as `overreach_check: not_run` in result.json. The threshold rests on "
+          f"within-reference spread alone.")
     a(f"- Marker minimum: {min_markers} (Kosoy et al. 2009)")
     if cal.threshold_exceeds_nearest_other:
         a("\n**THRESHOLD OVERREACH**: the threshold exceeds the nearest non-reference "
@@ -1838,6 +1862,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     except CalibrationError as exc:
         print(f"Calibration failed: {exc}", file=sys.stderr)
         return 2
+    if not cal.overreach_check_ran:
+        print(f"WARNING: the reference panel contains only {cal.reference_population}; the "
+              f"threshold-overreach check cannot run and is recorded as not performed in "
+              f"result.json and both reports.", file=sys.stderr)
     if cal.threshold_exceeds_nearest_other and not args.allow_threshold_overreach:
         print(f"Calibration failed: threshold {cal.threshold:.2f} (k={cal.k_sd:g}) exceeds "
               f"the nearest non-{cal.reference_population} individual at "
@@ -2050,6 +2078,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "within_max": round(cal.within_max, 4),
                 "nearest_other": round(cal.nearest_other, 4) if cal.nearest_other is not None else None,
                 "threshold_exceeds_nearest_other": cal.threshold_exceeds_nearest_other,
+                "overreach_check": ("ran" if cal.overreach_check_ran
+                                    else "not_run: single-population reference panel"),
                 "min_markers": args.min_markers,
             },
             "decisions": results and [{**r["decision"], "scores": r["scores"]} for r in results],

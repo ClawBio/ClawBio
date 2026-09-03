@@ -1530,3 +1530,39 @@ class TestRound9Sweep:
         tech = (tmp_path / "report_technical.md").read_text()
         assert "For the curated scores in this run" in tech
 
+
+class TestSinglePopulationPanel:
+    """Round-10 note: with a single-population panel nearest_other is None and
+    the overreach check cannot run. That is recorded everywhere an unrunnable
+    check is recorded, never left silent."""
+
+    def _panel(self, tmp_path):
+        src = (EXAMPLES / "demo_reference_pcs.csv").read_text().splitlines()
+        rows = [src[0]] + [l for l in src[1:] if l.split(",")[1] == "EUR"]
+        f = tmp_path / "eur_only.csv"; f.write_text("\n".join(rows) + "\n")
+        return f
+
+    def test_unrunnable_overreach_check_is_recorded_not_silent(self, tmp_path):
+        recs = [r for r in json.loads((EXAMPLES / "demo_prs_results.json").read_text())
+                if r["sample_id"] == "EUR_001"]
+        res = tmp_path / "res.json"; res.write_text(json.dumps(recs))
+        ind = tmp_path / "ind.csv"
+        ind.write_text("sample_id,population,PC1,PC2,PC3,PC4,n_markers_shared,sex\n"
+                       "EUR_001,EUR,-3.005020,-2.385174,-2.002224,0.345164,400,female\n")
+        r = run_cli(["--reference-panel", str(self._panel(tmp_path)),
+                     "--individuals", str(ind), "--prs-results", str(res),
+                     "--output", str(tmp_path / "o"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        assert "overreach check cannot run" in r.stderr
+        out = json.loads((tmp_path / "o" / "result.json").read_text())
+        assert out["calibration"]["nearest_other"] is None
+        assert out["calibration"]["overreach_check"].startswith("not_run")
+        assert "could not run" in (tmp_path / "o" / "report_technical.md").read_text()
+        assert "One check could not be performed" in (tmp_path / "o" / "report_clinician.md").read_text()
+
+    def test_demo_panel_records_the_check_as_ran(self, tmp_path):
+        r = run_cli(["--demo", "--output", str(tmp_path), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        out = json.loads((tmp_path / "result.json").read_text())
+        assert out["calibration"]["overreach_check"] == "ran"
+
