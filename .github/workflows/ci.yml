@@ -135,7 +135,7 @@ jobs:
         run: uv run pytest skills/clinpgx/tests/test_clinpgx.py -v
 
       - name: Run GWAS PRS tests
-        run: uv run pytest skills/gwas-prs/tests/test_gwas_prs.py -v
+        run: uv run pytest skills/gwas-prs/tests/ -v
 
       - name: Run GWAS Lookup tests
         run: uv run pytest skills/gwas-lookup/tests/test_gwas_lookup.py -v
