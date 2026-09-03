@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClawBio v0.7.0: Genomics skills, in your editor</title>
+  <meta name="description" content="ClawBio 0.7.0: every skill is a plain Agent Skills folder that Claude Code, Cursor, VS Code, Codex and Zed read directly. The MCP server is deprecated, and 41 pull requests of hardening ship with it.">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="ClawBio">
+  <meta property="og:title" content="ClawBio v0.7.0: Genomics skills, in your editor">
+  <meta property="og:description" content="Every skill is a plain Agent Skills folder that Claude Code, Cursor, VS Code, Codex and Zed read directly. The MCP server is deprecated, and 41 pull requests of hardening ship with it.">
+  <meta property="og:image" content="https://clawbio.ai/img/clawbio-release-v070.png">
+  <meta property="og:url" content="https://clawbio.ai/releases/v0.7.0/">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@manuelcorpas">
+  <meta name="twitter:title" content="ClawBio v0.7.0: Genomics skills, in your editor">
+  <meta name="twitter:description" content="Every skill is a plain Agent Skills folder that Claude Code, Cursor, VS Code, Codex and Zed read directly. The MCP server is deprecated, and 41 pull requests of hardening ship with it.">
+  <meta name="twitter:image" content="https://clawbio.ai/img/clawbio-release-v070.png">
+  <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="/img/clawbio-logo.jpeg">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d;
+      --text: #e6edf3; --text-muted: #8b949e; --accent: #3fb950; --accent2: #58a6ff;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; line-height: 1.65; }
+    a { color: var(--accent); }
+    nav { position: sticky; top: 0; z-index: 100; background: rgba(13,17,23,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .nav-logo { display: flex; align-items: center; gap: 0.6rem; font-weight: 700; font-size: 1.15rem; text-decoration: none; color: var(--text); }
+    .nav-logo img { width: 30px; height: 30px; border-radius: 6px; }
+    .nav-links { display: flex; gap: 1.4rem; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.92rem; }
+    .nav-links a:hover { color: var(--text); }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 0 1.5rem; }
+    .hero { padding: 4.5rem 0 3rem; border-bottom: 1px solid var(--border); }
+    .badge { display: inline-block; background: rgba(63,185,80,0.15); border: 1px solid rgba(63,185,80,0.4); color: var(--accent); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.3rem 0.9rem; border-radius: 999px; margin-bottom: 1.4rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    h1 { font-size: 2.6rem; line-height: 1.12; letter-spacing: -0.02em; margin-bottom: 1.2rem; }
+    h1 em { font-style: normal; color: var(--accent); }
+    .lede { font-size: 1.15rem; color: var(--text-muted); max-width: 720px; margin-bottom: 1.8rem; }
+    .lede strong { color: var(--text); font-weight: 600; }
+    .ctas { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+    .btn { display: inline-block; padding: 0.7rem 1.3rem; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 0.95rem; }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .hero-tile { margin-top: 2.5rem; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .hero-tile img { display: block; width: 100%; height: auto; }
+    section { padding: 3rem 0; border-bottom: 1px solid var(--border); }
+    .label { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.7rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    h2 { font-size: 1.75rem; line-height: 1.2; margin-bottom: 1rem; letter-spacing: -0.01em; }
+    h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+    p { margin-bottom: 1rem; }
+    p.muted, li.muted { color: var(--text-muted); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.2rem; margin-top: 1.5rem; }
+    .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem 1.3rem; }
+    .card h3 { font-size: 1rem; margin-bottom: 0.6rem; }
+    .card p { font-size: 0.92rem; color: var(--text-muted); margin-bottom: 0.7rem; }
+    .card p:last-child { margin-bottom: 0; }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 0.95rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.84rem; line-height: 1.7; overflow-x: auto; color: var(--accent); margin: 0.5rem 0 0.9rem; }
+    pre .c { color: var(--text-muted); }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88em; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 0.05rem 0.35rem; }
+    ul { padding-left: 1.3rem; margin-bottom: 1rem; }
+    li { margin-bottom: 0.45rem; }
+    .timeline { list-style: none; padding: 0; margin: 1.2rem 0 0; display: grid; gap: 0.6rem; }
+    .timeline li { display: grid; grid-template-columns: 90px 1fr; gap: 1rem; padding: 0.7rem 1rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; }
+    .timeline .v { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent); font-weight: 600; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; margin-top: 1.4rem; }
+    .stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem; }
+    .stat .n { font-size: 1.9rem; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; line-height: 1.1; }
+    .stat .l { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 0.3rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .people { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+    .people a { display: inline-block; background: var(--bg2); border: 1px solid var(--border); border-radius: 999px; padding: 0.35rem 0.9rem; text-decoration: none; color: var(--text); font-size: 0.9rem; }
+    .people a:hover { border-color: var(--accent); }
+    .note { border-left: 3px solid var(--accent2); background: var(--bg2); padding: 0.9rem 1.1rem; border-radius: 0 8px 8px 0; color: var(--text-muted); font-size: 0.95rem; margin: 1.2rem 0; }
+    footer { padding: 2.5rem 0 3.5rem; color: var(--text-muted); font-size: 0.88rem; }
+    footer a { color: var(--text-muted); }
+    @media (max-width: 640px) { h1 { font-size: 2rem; } .nav-links { display: none; } .timeline li { grid-template-columns: 1fr; gap: 0.2rem; } }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="nav-logo" href="https://clawbio.ai"><img src="/img/clawbio-logo.jpeg" alt="ClawBio">ClawBio</a>
+    <div class="nav-links">
+      <a href="https://clawbio.ai/#skills">Skills</a>
+      <a href="https://docs.clawbio.ai">Docs</a>
+      <a href="https://github.com/ClawBio/ClawBio">GitHub</a>
+      <a href="https://github.com/ClawBio/ClawBio/releases/tag/v0.7.0">Release notes</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="wrap">
+      <div class="badge">Release v0.7.0 · 3 September 2026</div>
+      <h1>Genomics skills, <em>in your editor</em>.<br>No bridge required.</h1>
+      <p class="lede">Every ClawBio skill is a folder: a <strong>SKILL.md</strong> contract, the script that executes it, demo data and tests. Claude Code installs the library as a plugin. Cursor, VS Code, Codex and Zed now read the same folders directly. So the MCP server we shipped in July is retiring, and <strong>41 pull requests</strong> of hardening ship with it.</p>
+      <div class="ctas">
+        <a class="btn btn-primary" href="#install">Install in 30 seconds</a>
+        <a class="btn btn-secondary" href="https://github.com/ClawBio/ClawBio/releases/tag/v0.7.0">Full release notes</a>
+        <a class="btn btn-secondary" href="https://pypi.org/project/clawbio/0.7.0/">PyPI</a>
+      </div>
+      <div class="hero-tile"><img src="/img/clawbio-release-v070.png" alt="ClawBio v0.7.0: 97 skills, 4 editors, 0 servers"></div>
+    </div>
+  </header>
+
+  <section id="install">
+    <div class="wrap">
+      <div class="label">The headline</div>
+      <h2>One library, three ways in, no server in the middle</h2>
+      <p>The skills have not changed shape. What changed is who can read them. The <a href="https://agentskills.io">Agent Skills</a> format ClawBio adopted at the start is now native in the editors people actually use, so the supported routes are these.</p>
+      <div class="grid">
+        <div class="card">
+          <h3>Claude Code</h3>
+          <p>The plugin ships the skills themselves. The manifests now track the package version, enforced by a test, after sitting at 0.3.0 while PyPI shipped 0.6.1.</p>
+<pre>/plugin marketplace add ClawBio/ClawBio
+/plugin install clawbio</pre>
+        </div>
+        <div class="card">
+          <h3>Cursor, VS Code, Codex, Zed</h3>
+          <p>All four read <code>~/.agents/skills/</code>. Copy or symlink the folders you need. Each is self-contained.</p>
+<pre>git clone https://github.com/ClawBio/ClawBio
+cp -r ClawBio/skills/pharmgx-reporter \
+      ~/.agents/skills/</pre>
+        </div>
+        <div class="card">
+          <h3>Python, or any language</h3>
+          <p>The CLI and the API return the same structured result and reproducibility bundle the MCP tools returned.</p>
+<pre>pip install --upgrade clawbio
+clawbio run pharmgx --demo</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="label">Why</div>
+      <h2>Retiring the MCP server</h2>
+      <p>We built it in 0.6.0 for a room in Kendall Square that ran Cursor, Zed and VS Code and had no way to use ClawBio. That gap has since closed from the other side: Cursor 2.4, VS Code 1.108, Codex and Zed 1.4.2 all load Agent Skills from <code>~/.agents/skills/</code> without any server.</p>
+      <p>A remote-call shim in front of folders the editor already reads adds a process, a dependency pin (<code>mcp&lt;2</code>) and a second code path, for no capability the skills lack. One contract to keep correct is better than two. The contract is the <code>SKILL.md</code> and the script beside it.</p>
+      <ul class="timeline">
+        <li><span class="v">0.6.0</span><span>29 July: MCP server ships, stdio only, demo data by default.</span></li>
+        <li><span class="v">0.7.0</span><span>Today: deprecated. Every existing configuration keeps working and prints a notice on start. Nothing is removed.</span></li>
+        <li><span class="v">0.8.0</span><span>Removed. The <a href="https://docs.clawbio.ai/reference/mcp/">migration guide</a> stays at the same URL.</span></li>
+      </ul>
+      <div class="note">Skills that wrap third-party MCP servers (<code>bioqc-mcp</code>, <code>bgpt-mcp</code>, <code>just-prs-mcp</code>) are unaffected. This is about ClawBio's own server only.</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="label">Also in this release</div>
+      <h2>Forty-one pull requests since 0.6.1</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Reproducibility bundles as a shared contract</h3>
+          <p>SHA-256 helpers live in <code>clawbio.common.checksums</code>. The scaffold now generates a working bundle for every new skill, and <code>equity-scorer</code>, <code>nutrigx</code> and <code>gwas-prs</code> write one. Every analysis can be replayed without the agent that produced it.</p>
+        </div>
+        <div class="card">
+          <h3>Two new skills</h3>
+          <p><code>deepspot-m</code>: virtual spatial transcriptomics from H&amp;E tiles. <code>just-prs-mcp</code>: evidence-aware polygenic scores from VCF or WGS through a pinned local just-prs server.</p>
+        </div>
+        <div class="card">
+          <h3>Fixes with clinical weight</h3>
+          <p><code>pharmgx-reporter</code> had three GRCh37 positions in a GRCh38 table. <code>nutrigx</code> had the rs4988235 lactose polarity inverted. <code>clinical-variant-reporter</code> now fails closed when a VEP batch fails. <code>gwas-prs</code> demo panels no longer shadow real PGS Catalog scores. <code>rnaseq-de</code> keeps gene IDs across the nf-core handoff and checks that LFC shrinkage matches the requested contrast.</p>
+        </div>
+        <div class="card">
+          <h3>CI that can say no</h3>
+          <p>The tests of any skill a PR touches now run. Skills-only PRs from new contributors are approved automatically. The scientific audit gates on a committed benchmark baseline, so a regression fails the build instead of a number in a report.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="label">By the numbers</div>
+      <h2>Where the library stands today</h2>
+      <div class="stats">
+        <div class="stat"><div class="n">97</div><div class="l">Skills</div></div>
+        <div class="stat"><div class="n">50</div><div class="l">CLI runnable</div></div>
+        <div class="stat"><div class="n">4,629</div><div class="l">Tests</div></div>
+        <div class="stat"><div class="n">8,182</div><div class="l">Galaxy tools</div></div>
+        <div class="stat"><div class="n">1,124</div><div class="l">GitHub stars</div></div>
+        <div class="stat"><div class="n">48</div><div class="l">Contributors</div></div>
+      </div>
+      <p class="muted" style="margin-top:1rem;font-size:0.85rem;">Skills and Galaxy tools from <code>skills/catalog.json</code>; tests counted from <code>def test_</code> definitions in the repository; stars and contributors from the GitHub API on 3 September 2026.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="label">Thank you</div>
+      <h2>The people who shipped this cycle</h2>
+      <p>Six external contributors landed code between 0.6.1 and 0.7.0. Reproducibility bundles, the new skills and most of the clinical fixes came from them.</p>
+      <div class="people">
+        <a href="https://github.com/camlloyd">@camlloyd</a>
+        <a href="https://github.com/krudo-taco">@krudo-taco</a>
+        <a href="https://github.com/KalinNonchev">@KalinNonchev</a>
+        <a href="https://github.com/antonkulaga">@antonkulaga</a>
+        <a href="https://github.com/AmirF194">@AmirF194</a>
+        <a href="https://github.com/boldakov">@boldakov</a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="label">Next</div>
+      <h2>What 0.8.0 owes, and how to help</h2>
+      <ul>
+        <li>0.8.0 removes the MCP server, its extra and its subcommand. If you still depend on it, say so in <a href="https://github.com/ClawBio/ClawBio/issues">an issue</a> before then.</li>
+        <li>A skill is a folder with a contract, a script, demo data and tests. The <a href="https://docs.clawbio.ai/tutorials/build-a-skill/">build-a-skill tutorial</a> takes about twenty minutes, and every skill PR gets a domain read as well as the scanner.</li>
+        <li>Validation is the point. <a href="https://github.com/ClawBio/ClawBench">ClawBench</a> is where a skill earns its tier, and the audit now fails the build on regression.</li>
+      </ul>
+      <div class="ctas" style="margin-top:1.5rem;">
+        <a class="btn btn-primary" href="https://github.com/ClawBio/ClawBio">Star on GitHub</a>
+        <a class="btn btn-secondary" href="https://docs.clawbio.ai">Read the docs</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <p>ClawBio is MIT licensed and local-first. Nothing here sends genomic data anywhere. Written by <a href="https://manuelcorpas.com">Manuel Corpas</a>, 3 September 2026. <a href="https://clawbio.ai">clawbio.ai</a> · <a href="https://github.com/ClawBio/ClawBio/blob/main/CHANGELOG.md">Changelog</a></p>
+    </div>
+  </footer>
+</body>
+</html>
