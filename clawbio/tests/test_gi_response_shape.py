@@ -264,17 +264,22 @@ class TestNestedFieldsOfTheWrongType:
 # paper and nothing pinned either. Both are real; this pins both, so a future
 # response that drops one fails here rather than in a user's report.
 #
-# The submitted length is read from meta.sequence_length, which is typed and
-# required on every response. data.input used to echo the same number as
-# submitted_sequence_length; that echo is being removed, so it is absent here.
+# Captured against PROD 2026.09.03.2 on 2026-09-03: a 25,000 bp submission
+# with tss_index 12500. meta.sequence_length is the SUBMITTED length (25000);
+# the scored window is 9,198 bp at [7901, 17099]. The two differ here on
+# purpose, so a reader that confuses them fails this file. data.input used to
+# echo sequence_length (the window) and submitted_sequence_length; both are
+# being removed, so neither is present. The prediction values are not from
+# that capture and carry no meaning.
 LIVE_EXPRESSION_BODY = {
     "data": {
         "task": "expression",
         "model": "g0-expression",
         "input": {
-            "sequence_length": 9198,
-            "tss_index": 4599,
-            "scored_window": [0, 9198],
+            "sequence_name": "probe-25kb",
+            "description": "liver, bulk RNA-seq",
+            "tss_index": 12500,
+            "scored_window": [7901, 17099],
         },
         "summary": {"expression_log_tpm": 0.9492, "expression_tpm": 1.5837},
         "prediction": {
@@ -286,11 +291,11 @@ LIVE_EXPRESSION_BODY = {
     "meta": {
         "request_id": "req-live",
         "inference_time_ms": 88,
-        "sequence_length": 9198,
+        "sequence_length": 25000,
         "task_specific_counts": {
             "task": "expression",
-            "tss_index": 4599,
-            "scored_window": [0, 9198],
+            "tss_index": 12500,
+            "scored_window": [7901, 17099],
         },
     },
 }
@@ -309,19 +314,19 @@ class TestTheExpressionWindowingProvenanceSurvivesToTheReport:
     def test_both_documented_paths_are_present_in_a_live_response(self):
         counts = LIVE_EXPRESSION_BODY["meta"]["task_specific_counts"]
         inp = LIVE_EXPRESSION_BODY["data"]["input"]
-        assert inp["scored_window"] == counts["scored_window"] == [0, 9198]
-        assert inp["tss_index"] == counts["tss_index"] == 4599
+        assert inp["scored_window"] == counts["scored_window"] == [7901, 17099]
+        assert inp["tss_index"] == counts["tss_index"] == 12500
         # The submitted length is not in either windowing echo; it is a
         # top-level meta field, which is where the runner reads it.
         assert "submitted_sequence_length" not in counts
         assert "submitted_sequence_length" not in inp
-        assert LIVE_EXPRESSION_BODY["meta"]["sequence_length"] == 9198
+        assert LIVE_EXPRESSION_BODY["meta"]["sequence_length"] == 25000
 
     def test_summarize_picks_up_the_window(self):
         out = gi_runner._summarize("expression", LIVE_EXPRESSION_BODY)
-        assert out["tss_index"] == 4599
-        assert out["scored_window"] == [0, 9198]
-        assert out["submitted_sequence_length"] == 9198
+        assert out["tss_index"] == 12500
+        assert out["scored_window"] == [7901, 17099]
+        assert out["submitted_sequence_length"] == 25000
         assert out["log_tpm"] == 0.9492
 
     def test_the_submitted_length_clause_comes_from_meta_not_the_echo(self, tmp_path):
@@ -336,23 +341,37 @@ class TestTheExpressionWindowingProvenanceSurvivesToTheReport:
         body = copy.deepcopy(LIVE_EXPRESSION_BODY)
         assert "submitted_sequence_length" not in body["data"]["input"]
         summary = gi_runner._summarize("expression", body)
-        assert summary["submitted_sequence_length"] == 9198
+        assert summary["submitted_sequence_length"] == 25000
         gi_runner._write_report(
             "expression", summary, body, tmp_path,
-            tmp_path / "in.fa", "hbb", 9198, 12.0,
+            tmp_path / "in.fa", "hbb", 25000, 12.0,
         )
-        assert "of 9,198 bp submitted" in (tmp_path / "report.md").read_text()
+        assert "of 25,000 bp submitted" in (tmp_path / "report.md").read_text()
+
+    def test_the_echo_is_the_fallback_when_meta_has_no_length(self):
+        """Either deploy order keeps the clause: a response from before
+        meta.sequence_length existed still carried the echo field."""
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        del body["meta"]["sequence_length"]
+        body["data"]["input"]["submitted_sequence_length"] = 25000
+        assert gi_runner._summarize("expression", body)["submitted_sequence_length"] == 25000
+
+    def test_meta_wins_over_the_echo_when_both_are_present(self):
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        body["data"]["input"]["submitted_sequence_length"] = 1
+        assert gi_runner._summarize("expression", body)["submitted_sequence_length"] == 25000
 
     def test_the_report_states_the_scored_window(self, tmp_path):
         summary = gi_runner._summarize("expression", LIVE_EXPRESSION_BODY)
         gi_runner._write_report(
             "expression", summary, LIVE_EXPRESSION_BODY, tmp_path,
-            tmp_path / "in.fa", "hbb", 9198, 12.0,
+            tmp_path / "in.fa", "hbb", 25000, 12.0,
         )
         report = (tmp_path / "report.md").read_text()
         assert "Scored window" in report
-        assert "[0, 9198)" in report
-        assert "TSS index 4599" in report
+        assert "[7901, 17099)" in report
+        assert "TSS index 12500" in report
+        assert "of 25,000 bp submitted" in report
 
     def test_a_wrong_typed_window_is_refused_not_indexed(self, tmp_path):
         """A dict here used to raise KeyError(0) out of the report writer.

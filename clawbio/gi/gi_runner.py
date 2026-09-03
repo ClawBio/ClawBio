@@ -307,7 +307,12 @@ def _summarize(task: str, body: Dict[str, Any]) -> Dict[str, Any]:
         # would have dropped the ", of N bp submitted" clause silently, since
         # the report renders it under an isinstance guard.
         meta = _as_obj(body.get("meta"), "meta")
-        out["submitted_sequence_length"] = meta.get("sequence_length")
+        submitted = meta.get("sequence_length")
+        if submitted is None:
+            # Older responses carried the number only in the echo. Falling
+            # back keeps the clause through either deploy order.
+            submitted = inp.get("submitted_sequence_length")
+        out["submitted_sequence_length"] = submitted
     elif task == "annotation":
         out["transcripts_found"] = summary.get("total_transcripts", summary.get("transcripts_found"))
         out["transcripts"] = _as_objs(data.get("transcripts"), "data.transcripts")
