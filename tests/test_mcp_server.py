@@ -178,3 +178,50 @@ class TestRunSkillSafety:
         result = mcp_server.run_skill("pharmgx", demo=True)
         assert len(result["stdout"]) <= mcp_server.MAX_OUTPUT_CHARS + 200
         assert "truncated" in result["stdout"]
+
+
+class TestDeprecation:
+    """v0.7.0 deprecates the MCP server in favour of the plugin and Agent Skills routes.
+
+    Deprecation, not removal: every existing client config must keep working through
+    the 0.7.x series. The notice goes to stderr because stdout is the stdio protocol
+    channel; one stray line on stdout corrupts the JSON-RPC stream and the client
+    reports a broken server rather than a deprecated one.
+    """
+
+    def test_notice_names_the_version_and_the_replacement(self):
+        notice = mcp_server.DEPRECATION_NOTICE
+        assert "deprecated" in notice.lower()
+        assert "0.7.0" in notice
+        assert "0.8.0" in notice
+        assert "/plugin marketplace add ClawBio/ClawBio" in notice
+
+    def test_notice_is_written_to_the_given_stream_only(self, capsys):
+        import io
+
+        sink = io.StringIO()
+        mcp_server.emit_deprecation_notice(sink)
+        assert mcp_server.DEPRECATION_NOTICE in sink.getvalue()
+        captured = capsys.readouterr()
+        assert captured.out == "", "stdout is the MCP transport; nothing may be printed there"
+
+    def test_serve_emits_the_notice_before_binding_the_sdk(self, monkeypatch):
+        """serve() must warn before it tries to import the optional SDK, so a user
+        without `mcp` installed still learns the feature is on its way out."""
+        import io
+        import sys
+
+        err = io.StringIO()
+        monkeypatch.setattr(sys, "stderr", err)
+        monkeypatch.setitem(sys.modules, "mcp", None)  # force the ImportError branch
+        with pytest.raises(SystemExit):
+            mcp_server.serve()
+        assert mcp_server.DEPRECATION_NOTICE in err.getvalue()
+
+    def test_no_mcp_registry_manifest_is_shipped(self):
+        """server.json existed to list ClawBio on the official MCP Registry. A deprecated
+        server must not be published there, so the manifest is gone."""
+        root = mcp_server.SKILLS_DIR.parent
+        if not (root / "pyproject.toml").is_file():
+            pytest.skip("source-tree only")
+        assert not (root / "server.json").exists()

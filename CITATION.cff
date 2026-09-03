@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use ClawBio, please cite it using the metadata from this file."
 type: software
 title: "ClawBio: Bioinformatics-Native AI Agent Skill Library"
-version: 0.5.2
-date-released: "2026-06-10"
+version: 0.7.0
+date-released: "2026-09-03"
 doi: "10.5281/zenodo.19420648"
 url: "https://clawbio.ai"
 repository-code: "https://github.com/ClawBio/ClawBio"

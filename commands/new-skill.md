@@ -1,3 +1,8 @@
+---
+name: new-skill
+description: Scaffold a new ClawBio skill from the official template with conformance checks
+---
+
 # New Skill Builder
 
 Build a new ClawBio skill from the official template with full conformance enforcement.

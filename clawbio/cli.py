@@ -1845,7 +1845,10 @@ def main():
     # mcp
     sub.add_parser(
         "mcp",
-        help="Run ClawBio as an MCP server over stdio (Cursor, Zed, VS Code, Claude Desktop)",
+        help=(
+            "Run ClawBio as an MCP server over stdio. DEPRECATED since 0.7.0, removed in "
+            "0.8.0: use the Claude Code plugin or load skills/ as Agent Skills instead"
+        ),
     )
 
     # upload
