@@ -13,6 +13,8 @@
 - [docs/CLAWBIO-BRIEF.md](docs/CLAWBIO-BRIEF.md): Evergreen project brief for collaborators, investors, and agents
 - [docs/reference-genome.md](docs/reference-genome.md): Corpas 30x WGS reference genome used across demos, tutorials, and benchmarking
 - [CONTRIBUTING.md](CONTRIBUTING.md): Contribution workflow, naming conventions, code standards
+- [SECURITY.md](SECURITY.md): How to report a vulnerability privately, response commitments, scope, supported versions
+- [docs/data-handling.md](docs/data-handling.md): Every skill that can send data off the machine, what it sends, to which host, and which credential it needs
 
 ## Slash Commands
 

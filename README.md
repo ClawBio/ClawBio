@@ -154,7 +154,7 @@ ClawBio skill                = specification-constrained, versioned, reproducibl
 
 - **Specification-first**: Domain expertise resides in `SKILL.md`, not in model weights. Specifications are versioned, human-readable, peer-reviewable, and trivially updatable.
 - **Agent-agnostic**: Skills execute identically whether invoked by Claude, ChatGPT, or a locally hosted model via Ollama. Reproducibility is decoupled from any specific AI vendor.
-- **Local-first by default**: Your genome is analysed on your machine. Skills that send data to external services (hosted inference, public annotation APIs) are individually labelled and run only when you explicitly invoke them.
+- **Local-first by default**: Your genome is analysed on your machine, and the `clawbio` package itself makes no network calls. Some skills do reach public annotation APIs or hosted models, and a few send your variants or sequences to do so. Every one of them is named, with what it sends and to whom, in [docs/data-handling.md](docs/data-handling.md), and a test fails if a networked skill is missing from that page.
 - **Reproducible**: Many skills export replay metadata such as `commands.sh`, `environment.yml`, and SHA-256 checksums so runs can be rechecked without the original agent session.
 - **MIT licensed**: Open-source, free, community-driven.
 
@@ -230,6 +230,8 @@ cp templates/SKILL-TEMPLATE.md skills/<your-skill-name>/SKILL.md
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full submission process. Join the contributors community on Telegram: [t.me/ClawBioContributors](https://t.me/ClawBioContributors).
+
+**Security and data handling.** Report vulnerabilities privately through [SECURITY.md](SECURITY.md), never in a public issue. Before running ClawBio on data you are responsible for, read [docs/data-handling.md](docs/data-handling.md): it lists every skill that can send data off your machine, what it sends, to which host, and which environment variable holds its credential.
 
 ---
 
@@ -660,7 +662,7 @@ See [Contributing a Skill](#contributing-a-skill) above for the submission proce
 
 ## Versioning
 
-ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.5.0**. See [CHANGELOG.md](CHANGELOG.md) for a full history of additions and breaking changes.
+ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.7.0**. See [CHANGELOG.md](CHANGELOG.md) for a full history of additions and breaking changes.
 
 ---
 
