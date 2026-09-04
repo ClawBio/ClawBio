@@ -8,6 +8,13 @@
 
 Every AI agent has a SOUL.md (personality, traits, goals). Genomebook adds a second layer: DNA. A compiler infers biologically coherent diploid genomes from each agent's traits, encoding 26 characteristics across 55 loci using additive, dominant, and recessive inheritance models. Agents reproduce sexually, producing non-identical offspring that inherit blended traits from both parents.
 
+> **Scope.** Genomebook is an engineering sandbox for exercising agent routing,
+> multi-skill composition and structured genome formats. Its trait-to-allele
+> mapping is a mechanical test harness. The genomes it produces are synthetic
+> fixtures with no biological, medical or scientific meaning, and nothing here
+> models personality, character or ability from DNA. The Soul2DNA compiler is
+> not part of the ClawBio skill catalogue (see ClawBio issue #111).
+
 The system is seeded with 20 SOUL.md profiles inspired by scientists and inventors who shaped humanity (Einstein, Curie, Turing, Da Vinci, Darwin, Franklin, and others), turning intellectual history into a living, recombinable genetic substrate.
 
 **[Preprint (bioRxiv)](https://www.biorxiv.org/cgi/content/short/2026.03.22.713494v1)** | **[v0.1 Release](https://github.com/ClawBio/ClawBio/releases/tag/genomebook-v0.1)** | **[Live Demo](https://clawbio.github.io/ClawBio/slides/genomebook/demo.html)** | **[Slides](https://clawbio.github.io/ClawBio/slides/genomebook/)** | **[Phylogeny](https://clawbio.github.io/ClawBio/slides/genomebook/phylogeny.html)** | **[PCA](https://clawbio.github.io/ClawBio/slides/genomebook/pca.html)**
