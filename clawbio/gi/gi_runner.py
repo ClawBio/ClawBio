@@ -302,10 +302,13 @@ def _summarize(task: str, body: Dict[str, Any]) -> Dict[str, Any]:
         out["scored_window"] = inp.get("scored_window")
         # The submitted length comes from meta.sequence_length, which every
         # response carries and which the revision and the consumer pins cover.
-        # data.input.submitted_sequence_length held the same number in an
-        # untyped echo covered by nothing, and is being removed; reading it
-        # would have dropped the ", of N bp submitted" clause silently, since
-        # the report renders it under an isinstance guard.
+        # data.input.submitted_sequence_length holds the same number in an
+        # untyped echo that no published schema and no consumer pin covers. It
+        # is still returned (checked against PROD on 2026-09-04); the key that
+        # went at contract revision 13 was data.input.sequence_length. Reading
+        # the echo would still be the wrong side of the pin: the report renders
+        # the clause under an isinstance guard, so any later change to an
+        # uncovered field would drop the ", of N bp submitted" line in silence.
         meta = _as_obj(body.get("meta"), "meta")
         submitted = meta.get("sequence_length")
         if submitted is None:

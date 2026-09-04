@@ -267,10 +267,16 @@ class TestNestedFieldsOfTheWrongType:
 # Captured against PROD 2026.09.03.2 on 2026-09-03: a 25,000 bp submission
 # with tss_index 12500. meta.sequence_length is the SUBMITTED length (25000);
 # the scored window is 9,198 bp at [7901, 17099]. The two differ here on
-# purpose, so a reader that confuses them fails this file. data.input used to
-# echo sequence_length (the window) and submitted_sequence_length; both are
-# being removed, so neither is present. The prediction values are not from
-# that capture and carry no meaning.
+# purpose, so a reader that confuses them fails this file. data.input no
+# longer echoes sequence_length (the window): that key went at contract
+# revision 13 on 2026-09-03. submitted_sequence_length did NOT go with it and
+# PROD still returns it -- a 25,000 bp probe with tss_index 12500 against
+# 2026.09.04.4 on 2026-09-04 answered data.input = {"sequence_name":
+# "probe-25kb", "description": "K562 cells", "tss_index": 12500,
+# "scored_window": [7901, 17099], "submitted_sequence_length": 25000}. It is
+# left out of this body on purpose, so the tests below can only pass by
+# reading meta. The prediction values are not from that capture and carry no
+# meaning.
 LIVE_EXPRESSION_BODY = {
     "data": {
         "task": "expression",
@@ -330,13 +336,19 @@ class TestTheExpressionWindowingProvenanceSurvivesToTheReport:
         assert out["log_tpm"] == 0.9492
 
     def test_the_submitted_length_clause_comes_from_meta_not_the_echo(self, tmp_path):
-        """data.input.submitted_sequence_length is being removed from the API.
+        """The clause comes from meta, which is the field the schema pins.
 
-        The report renders the clause under an ``isinstance(submitted, int)``
-        guard, so reading the echo made its removal silent: the ", of N bp
-        submitted" clause would vanish from the user's report and nothing
-        would error. That clause is the one place a user sees that their
-        locus was windowed. This body carries no echo field at all.
+        data.input.submitted_sequence_length is still returned by PROD, checked
+        on 2026-09-04 against 2026.09.04.4; contract revision 13 removed a
+        different key, data.input.sequence_length. The echo is not the source
+        here for a different reason: data.input is an untyped object no
+        published schema and no consumer pin covers, while meta.sequence_length
+        is in the schema. The report renders the clause under an
+        ``isinstance(submitted, int)`` guard, so reading the echo would make any
+        later change to it silent: the ", of N bp submitted" clause would vanish
+        from the user's report and nothing would error. That clause is the one
+        place a user sees that their locus was windowed. This body carries no
+        echo field at all, so the number can only have come from meta.
         """
         body = copy.deepcopy(LIVE_EXPRESSION_BODY)
         assert "submitted_sequence_length" not in body["data"]["input"]
