@@ -479,8 +479,15 @@ python clawbio.py run methylation --geo-id GSE139307 --output results_methylatio
 ### Run tests
 
 ```bash
-uv run pytest                # or: pip install pytest && python -m pytest
+uv run pytest <path>          # one test path at a time, e.g.:
+uv run pytest skills/pharmgx-reporter/tests/ -v
 ```
+
+Running a single bare `uv run pytest` (no path) fails at collection time on
+a `conftest.py` module-name collision between skills. CI works around this
+by invoking pytest separately per test path; do the same locally. See
+[docs/testing.md](docs/testing.md) for the root cause, the full list of
+test paths, and a documented verification run.
 
 ### Dependencies
 
@@ -488,7 +495,7 @@ Core dependencies are declared in [`pyproject.toml`](pyproject.toml) and pinned 
 
 `uv sync` installs everything in a reproducible virtual environment. To add or update a dependency, run `uv add <package>` (or edit `pyproject.toml` and re-run `uv sync`); commit the resulting `uv.lock` change.
 
-Some skills have additional requirements:
+Some skills have additional requirements, declared in that skill's own `SKILL.md` `install:` block and installed only if you use that skill:
 
 | Skill | Extra dependency | Install |
 |-------|-----------------|---------|
@@ -496,6 +503,17 @@ Some skills have additional requirements:
 | Methylation Clock | PyAging | `pip install pyaging` |
 | scRNA Embedding | scvi-tools | `pip install scvi-tools` |
 | Galaxy Bridge | BioBlend | `pip install bioblend` |
+| Affinity Proteomics | somadata, scipy, statsmodels, seaborn, scikit-learn | `pip install somadata scipy statsmodels seaborn scikit-learn` |
+| Cell Detection | cellpose, tifffile, czifile, nd2, Pillow, scikit-image | `pip install "cellpose>=4.0" tifffile "czifile>=2019.7.2.2" "nd2>=0.11.1" Pillow scikit-image` |
+| Data Extractor | anthropic, opencv-python-headless | `pip install anthropic opencv-python-headless` |
+| eQTL Catalogue / GWAS Catalog Region Fetch | pysam | `pip install pysam pandas requests` |
+| Variant Annotation | pysam | `uv add pysam requests` |
+| Celltype Specificity Profiler | scanpy, anndata | `uv add scanpy anndata numpy scipy pandas` |
+| Drug Repurposing Screen | pyarrow (parquet engine) | `pip install numpy pandas scipy pyyaml pyarrow` |
+| Proteomics Clock | seaborn | `pip install pandas numpy matplotlib seaborn requests` |
+| RoboTerri (`robotary/`) | fastapi | **Undocumented in its own SKILL.md as of this writing.** `uv add fastapi` |
+
+See [docs/testing.md](docs/testing.md) for how these were identified (a full per-skill test verification run) and which failures are unrelated to missing dependencies.
 
 No Docker or Singularity required for core functionality. Skills that need external bioinformatics tools document their setup in their own `SKILL.md`.
 
