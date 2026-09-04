@@ -654,6 +654,7 @@ def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, Any]],
     """
     per: list[dict[str, Any]] = []
     skipped_allele = 0
+    skipped_palindromic = 0
     w_total = sum(abs(v["weight"]) for v in score.variants) or 0.0
     w_cov = 0.0
     for v in score.variants:
@@ -671,6 +672,14 @@ def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, Any]],
         if tab_allele is not None:
             if not _call_usable(tab_allele, v["effect_allele"], ""):
                 skipped_allele += 1
+                continue
+            # For a palindromic variant (A/T, C/G) the strand complement of the
+            # effect allele IS the other allele, so a complement match cannot
+            # tell the two strands apart and would flip the sign of delta_mean.
+            # Only an exact allele match is usable there.
+            if ((v["effect_allele"], v.get("other_allele")) in PALINDROMIC
+                    and tab_allele.upper() != v["effect_allele"].upper()):
+                skipped_palindromic += 1
                 continue
         elif ambiguous_rsids and v["rsid"] in ambiguous_rsids:
             skipped_allele += 1
@@ -701,6 +710,10 @@ def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, Any]],
         note = (note + " " if note else "") + (
             f"{skipped_allele} variant(s) skipped because the frequency table's allele could "
             f"not be matched to this score's effect allele.")
+    if skipped_palindromic:
+        note = (note + " " if note else "") + (
+            f"{skipped_palindromic} palindromic variant(s) skipped because the table's allele "
+            f"matched only by strand complement, which is ambiguous for A/T and C/G sites.")
     return AFShift(
         pgs_id=score.pgs_id, population=population.upper(), n_variants_with_af=len(per),
         coverage=round(len(per) / len(score.variants), 4),

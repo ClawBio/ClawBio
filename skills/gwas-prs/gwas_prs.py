@@ -1602,20 +1602,6 @@ def main():
                 "reference_population": r["percentile_info"].get(
                     "reference_population"
                 ),
-                # Issue #356: prs_results.json is a durable artefact, so it
-                # carries the panel marker too. Downstream consumers (e.g.
-                # prs-abstain) key curated panels by curated_panel_id; the
-                # legacy pgs_id field stays for compatibility but is a file
-                # label, not a PGS Catalog attribution, when curated is true.
-                # Round-7 audit: .get() so the durable artefact can never be
-                # taken down by a missing key. Both keys are set at the single
-                # all_results construction site for every path (--demo,
-                # --pgs-id, --trait); the defaults below are the honest
-                # fail-closed reading if that invariant ever breaks: "not a
-                # curated panel, no panel id" - prs-abstain then refuses
-                # rather than mis-keying.
-                "curated_demo_panel": bool(r.get("curated_demo_panel", False)),
-                "curated_panel_id": r.get("curated_panel_id"),
             }
             json_results.append(jr)
 

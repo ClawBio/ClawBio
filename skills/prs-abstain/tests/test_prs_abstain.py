@@ -858,6 +858,40 @@ class TestScoreIdProvenance:
             pa.load_score_definitions(tmp_path)
 
 
+class TestPalindromicAFShift:
+    def _score(self, pa):
+        return pa.ScoreDefinition(
+            pgs_id="CLAWBIO-PAL-2", trait="test", build="GRCh37", variants=[
+                {"rsid": "rs1", "chr": "1", "pos": "100", "effect_allele": "A",
+                 "other_allele": "T", "weight": 1.0, "af_reference": 0.20},
+                {"rsid": "rs2", "chr": "2", "pos": "200", "effect_allele": "A",
+                 "other_allele": "G", "weight": 1.0, "af_reference": 0.20},
+            ], curated=True)
+
+    def test_palindromic_complement_match_is_skipped_not_flipped(self):
+        """rs1 is A/T. A table allele T is the strand complement of the effect
+        allele AND the other allele: the sign of delta_mean cannot be known, so
+        the variant is skipped and named in the note. rs2 (A/G) with table
+        allele T is an unambiguous complement match and stays."""
+        import prs_abstain as pa
+
+        score = self._score(pa)
+        af = {"rs1": {"AFR": 0.60, "_allele": "T"}, "rs2": {"AFR": 0.60, "_allele": "T"}}
+        sh = pa.af_shift(score, af, sd=None, population="AFR")
+        assert sh is not None
+        assert [p["rsid"] for p in sh.per_variant] == ["rs2"]
+        assert "palindromic" in sh.sd_note
+
+    def test_palindromic_exact_match_is_used(self):
+        import prs_abstain as pa
+
+        score = self._score(pa)
+        af = {"rs1": {"AFR": 0.60, "_allele": "A"}, "rs2": {"AFR": 0.60, "_allele": "A"}}
+        sh = pa.af_shift(score, af, sd=None, population="AFR")
+        assert sorted(p["rsid"] for p in sh.per_variant) == ["rs1", "rs2"]
+        assert "palindromic" not in sh.sd_note
+
+
 class TestSdProvenance:
     def test_zero_z_score_propagates_none_not_unit_sd(self):
         """z_score == 0.0 (an individual exactly at the mean) makes the sd
