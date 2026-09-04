@@ -106,10 +106,12 @@ the vision model of whichever agent is driving the skill.
 
 ## Viewer assets
 
-Two skills reference public CDNs for display only. `struct-predictor` fetches
-3Dmol.js from cdnjs.cloudflare.com when building its HTML viewer and falls back
-to an inline copy; `analyze-fasta` HTML reports reference fonts.googleapis.com
-when opened in a browser. Neither sends any data.
+Two skills reference public CDNs for display only. Neither sends any data.
+
+| Skill | Host(s) | What is fetched |
+|-------|---------|-----------------|
+| `struct-predictor` | cdnjs.cloudflare.com | 3Dmol.js, fetched when the HTML viewer is built, with an inline copy as fallback. |
+| `analyze-fasta` | fonts.googleapis.com | Web fonts referenced by the HTML report, loaded by your browser when you open it. |
 
 ## Checked and found to make no outbound call
 

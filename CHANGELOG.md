@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [Unreleased]
-
 ### Added
 - **`SECURITY.md`**: a private disclosure path (GitHub private vulnerability reporting,
   now enabled on the repository, with an email fallback), response commitments, what is
@@ -38,8 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sandbox whose README now states its scope: synthetic fixtures for exercising the
   orchestrator, with no biological meaning. `genome-match` and `recombinator`, which
   consume those fixtures, are unchanged. Catalogue count 97 to 96.
-
-## [0.7.0] - 2026-09-03
 
 ## [0.7.0] - 2026-09-03
 
