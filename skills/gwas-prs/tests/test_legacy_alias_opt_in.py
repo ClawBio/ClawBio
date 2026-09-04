@@ -21,6 +21,7 @@ import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
+import pytest
 import yaml
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
@@ -48,6 +49,11 @@ ENGINE = _load_engine()
 def _run(tmp_path: Path, *args: str, env: dict | None = None) -> subprocess.CompletedProcess[str]:
     merged = {k: v for k, v in os.environ.items() if k != OPT_IN}
     merged.update(OFFLINE)
+    # The PGS Catalog client caches metadata under ~/.clawbio/pgs_cache for 24h.
+    # A developer who ran --pgs-id PGS000013 by hand would otherwise make these
+    # tests pass or fail depending on what their home directory remembers.
+    merged["HOME"] = str(tmp_path / "home")
+    (tmp_path / "home").mkdir(exist_ok=True)
     merged.update(env or {})
     return subprocess.run(
         [sys.executable, str(SKILL_DIR / "gwas_prs.py"),
@@ -113,19 +119,28 @@ class TestAliasWithOptIn:
         assert ENGINE.LEGACY_PGS_PANEL_COMPAT == {"PGS000013": "CLAWBIO-T2D-8"}
 
 
-class TestTheBenchmarkWorkflowOptsIn:
+class TestTheBenchmarkWorkflowsOptIn:
     """The refusal is only safe to ship if the pinned benchmark keeps working.
-    That depends on one line of workflow YAML, so pin it."""
+    Two workflows run it (the weekly leaderboard and the CI scientific audit,
+    whose baseline comparison is a gate), and each depends on one line of YAML."""
 
-    def test_smoke_run_step_sets_the_opt_in(self):
-        wf = yaml.safe_load(
-            (PROJECT_ROOT / ".github" / "workflows" / "bench-leaderboard.yml").read_text()
-        )
-        steps = wf["jobs"]["bench"]["steps"]
-        smoke = [s for s in steps if "uv run clawbio-bench" in str(s.get("run", ""))]
-        assert len(smoke) == 1, "expected exactly one step that runs clawbio-bench"
+    WORKFLOWS = ("bench-leaderboard.yml", "ci.yml")
+
+    def _smoke_steps(self, workflow: str) -> list[dict]:
+        wf = yaml.safe_load((PROJECT_ROOT / ".github" / "workflows" / workflow).read_text())
+        return [
+            step
+            for job in wf["jobs"].values()
+            for step in job.get("steps", [])
+            if "clawbio-bench --smoke" in str(step.get("run", ""))
+        ]
+
+    @pytest.mark.parametrize("workflow", WORKFLOWS)
+    def test_every_smoke_run_sets_the_opt_in(self, workflow):
+        smoke = self._smoke_steps(workflow)
+        assert len(smoke) == 1, f"{workflow}: expected exactly one clawbio-bench --smoke step"
         env = smoke[0].get("env") or {}
-        assert str(env.get(OPT_IN)) == "1"
+        assert str(env.get(OPT_IN)) == "1", f"{workflow}: smoke step does not opt in"
 
 
 class TestDocsAgreeWithCode:
