@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 97,
+  "skill_count": 96,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -3994,46 +3994,6 @@
         "add a skill",
         "build a skill",
         "make a skill"
-      ],
-      "chaining_partners": [],
-      "license": "MIT",
-      "model_license": "",
-      "data_license": ""
-    },
-    {
-      "name": "soul2dna",
-      "cli_alias": null,
-      "description": "Compile SOUL.md character profiles into synthetic diploid genomes (.genome.json) via trait-to-allele mapping",
-      "version": "0.1.0",
-      "status": "planned",
-      "maturity_tier": "scripted",
-      "maturity_evidence": {
-        "has_skill_md": true,
-        "has_script": true,
-        "has_tests": false,
-        "has_demo": true,
-        "cli_registered": false,
-        "ci_tested": false,
-        "benchmark_validated": false
-      },
-      "has_script": true,
-      "has_tests": false,
-      "has_demo": true,
-      "demo_command": "python skills/soul2dna/soul2dna.py --demo",
-      "dependencies": [],
-      "tags": [
-        "genomebook",
-        "synthetic-genomics",
-        "soul-compiler",
-        "trait-mapping"
-      ],
-      "trigger_keywords": [
-        "soul2dna",
-        "soul compiler",
-        "soul to genome",
-        "genomebook compile",
-        "synthetic genome",
-        "character genome"
       ],
       "chaining_partners": [],
       "license": "MIT",

@@ -5,6 +5,20 @@ All notable changes to ClawBio are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+- **`soul2dna` is no longer a ClawBio skill** (#111). The skill folder was a thin
+  wrapper around the Genomebook sandbox compiler and presented "compile character
+  profiles into synthetic genomes" as a catalogued bioinformatics capability, which
+  the external audit rightly called out: there is no scientific basis for mapping
+  traits of character to genotypes, and a skill catalogue that hopes to be trusted
+  with clinical work should not carry one that implies there is. The compiler itself
+  stays where it always lived, `GENOMEBOOK/PYTHON/01-soul2dna.py`, inside the
+  sandbox whose README now states its scope: synthetic fixtures for exercising the
+  orchestrator, with no biological meaning. `genome-match` and `recombinator`, which
+  consume those fixtures, are unchanged. Catalogue count 97 to 96.
+
 ## [0.7.0] - 2026-09-03
 
 ### Deprecated

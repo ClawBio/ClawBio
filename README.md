@@ -256,8 +256,8 @@ SOUL.md  -->  Soul2DNA  -->  .genome.json  -->  GenomeMatch  -->  Recombinator  
 ### Quick Start
 
 ```bash
-# Compile all souls to genomes
-python skills/soul2dna/soul2dna.py --demo
+# Compile all souls to genomes (Genomebook sandbox script; not a catalogued skill)
+python GENOMEBOOK/PYTHON/01-soul2dna.py
 
 # Score all M x F compatibility pairings
 python skills/genome-match/genome_match.py --demo
