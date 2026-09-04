@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import gzip
 import hashlib
 import json
@@ -204,6 +205,39 @@ CURATED_SCORES: dict[str, dict] = {
 LEGACY_PGS_PANEL_COMPAT = {
     "PGS000013": "CLAWBIO-T2D-8",
 }
+
+# What the aliased accession really is, so a refusal can say so.
+LEGACY_PGS_ACCESSION_FACTS = {
+    "PGS000013": "Khera AV et al. 2018, coronary artery disease, 6,630,150 variants",
+}
+
+# Issue #356, remaining half. The alias above fires only when the caller opts
+# in by setting this variable to a true value. The benchmark workflow sets it
+# (.github/workflows/bench-leaderboard.yml); nothing else should. Without it,
+# ``--pgs-id PGS000013`` is treated as what it is, a PGS Catalog accession,
+# and fetched from the Catalog like any other. Scoring the wrong panel in
+# answer to a specific request is never the default.
+LEGACY_ALIAS_ENV = "CLAWBIO_ALLOW_LEGACY_PGS_ALIAS"
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+
+
+def legacy_alias_enabled(environ=None) -> bool:
+    """True only when ``CLAWBIO_ALLOW_LEGACY_PGS_ALIAS`` holds a true value."""
+    env = os.environ if environ is None else environ
+    return str(env.get(LEGACY_ALIAS_ENV, "")).strip().lower() in _TRUE_VALUES
+
+
+def explain_legacy_accession(pgs_id: str, panel_id: str) -> None:
+    """Tell the caller what the accession is and how to get the panel instead."""
+    facts = LEGACY_PGS_ACCESSION_FACTS.get(pgs_id, "a published PGS Catalog score")
+    print(
+        f"GWAS-PRS: {pgs_id} is a PGS Catalog accession ({facts}), "
+        f"not the curated panel {panel_id}."
+    )
+    print("  ClawBio does not substitute the panel for the accession.")
+    print(f"  For the curated panel use --panel-id {panel_id}.")
+    print("  See ClawBio issue #356.")
+    print()
 
 
 # ---------------------------------------------------------------------------
@@ -1237,7 +1271,7 @@ def main():
             pgs_id = "PGS" + pgs_id.lstrip("0")
 
         compat_panel_id = LEGACY_PGS_PANEL_COMPAT.get(pgs_id)
-        if compat_panel_id:
+        if compat_panel_id and legacy_alias_enabled():
             meta = CURATED_SCORES[compat_panel_id]
             filepath = curated_panel_path(compat_panel_id, args.build)
             if not filepath.exists():
@@ -1266,6 +1300,8 @@ def main():
                 },
             })
         else:
+            if compat_panel_id:
+                explain_legacy_accession(pgs_id, compat_panel_id)
             print(f"GWAS-PRS: fetching score {pgs_id}")
             print()
             local_path = DATA_DIR / f"{pgs_id}_hmPOS_{args.build}.txt"
@@ -1289,8 +1325,10 @@ def main():
                 try:
                     print(f"  Fetching metadata for {pgs_id}...")
                     meta_data = client.get_score_metadata(pgs_id)
-                except requests.HTTPError as e:
+                except requests.RequestException as e:
                     print(f"Error: could not fetch {pgs_id}: {e}")
+                    if compat_panel_id:
+                        print(f"  For the curated panel use --panel-id {compat_panel_id}.")
                     sys.exit(1)
 
                 trait_name = "Unknown"

@@ -389,6 +389,12 @@ jobs:
       # (#342) would go straight back on. So the bench is allowed to report,
       # and the *baseline comparison* below is the gate.
       - name: Run scientific correctness audit (smoke)
+        env:
+          # The pinned clawbio_bench revision requests the curated T2D panel as
+          # --pgs-id PGS000013. Since ClawBio issue #356 that alias is opt-in;
+          # only benchmark runs opt in. Drop this once clawbio_bench requests
+          # --panel-id CLAWBIO-T2D-8 directly.
+          CLAWBIO_ALLOW_LEGACY_PGS_ALIAS: "1"
         run: |
           mkdir -p results
           uv run clawbio-bench --smoke --repo . || true

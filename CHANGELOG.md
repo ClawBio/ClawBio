@@ -37,6 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   orchestrator, with no biological meaning. `genome-match` and `recombinator`, which
   consume those fixtures, are unchanged. Catalogue count 97 to 96.
 
+### Fixed
+- **gwas-prs no longer substitutes the curated T2D panel for PGS000013** (#356,
+  remaining half). `--pgs-id PGS000013` now goes to the PGS Catalog like any other
+  accession and, when it cannot, fails with a message saying what the accession is
+  (Khera 2018, coronary artery disease, 6,630,150 variants) and how to request the
+  curated panel instead (`--panel-id CLAWBIO-T2D-8`). The benchmark compatibility
+  alias still exists but is opt-in through `CLAWBIO_ALLOW_LEGACY_PGS_ALIAS=1`, which
+  only `.github/workflows/bench-leaderboard.yml` sets for the pinned `clawbio_bench`
+  revision. A network failure on that path now reports cleanly instead of raising.
+
 ## [0.7.0] - 2026-09-03
 
 ### Deprecated
