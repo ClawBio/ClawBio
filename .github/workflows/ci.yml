@@ -74,6 +74,14 @@ jobs:
 
       - name: Audit locked dependencies
         id: audit
+        # Deliberately unflagged. setup-uv installs whichever uv is latest
+        # (no version input, no required-version), and this preview subcommand
+        # has already renamed things across versions: `--all-groups` does not
+        # exist on 0.12.9, and `--preview-features audit` became
+        # `audit-command`. Auditing every group is the default, so the bare
+        # command is the one form that works on both. The experimental warning
+        # is cosmetic and lands in the report.
+        #
         # `|| true` keeps findings from failing the build (this job is
         # report-only), but it would also hide the tool itself breaking. So
         # assert the report is a report: `uv audit` always prints a "Found N
@@ -81,7 +89,7 @@ jobs:
         # changed, was removed, or died -- which must fail loudly rather than
         # render an empty summary nobody reads.
         run: |
-          uv audit --all-groups --preview-features audit > audit.txt 2>&1 || true
+          uv audit > audit.txt 2>&1 || true
           if ! grep -qE '^Found [0-9]+ known vulnerabilit' audit.txt; then
             echo "::error::uv audit produced no recognisable report - the audit step is broken, not clean"
             cat audit.txt
