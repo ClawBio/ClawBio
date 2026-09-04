@@ -65,6 +65,11 @@ just-prs = [
     "fastmcp>=3.4.4,<4",
     "typer>=0.27,<1",
 ]
+# PDF rendering in prs-abstain; the skill degrades to markdown-only without them.
+prs-abstain = [
+    "reportlab>=4.0,<5",
+    "pillow>=10,<13",
+]
 
 [project.scripts]
 clawbio = "clawbio.cli:main"
@@ -78,6 +83,8 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 [dependency-groups]
 dev = [
     "skills-ref>=0.1.1,<1",
+    # prs-abstain tests inspect the rendered PDFs.
+    "pypdf>=4,<7",
 ]
 bot = [
     "python-telegram-bot[job-queue]>=21.0",

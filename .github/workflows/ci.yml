@@ -137,6 +137,9 @@ jobs:
       - name: Run GWAS PRS tests
         run: uv run pytest skills/gwas-prs/tests/ -v
 
+      - name: Test prs-abstain skill
+        run: uv run pytest skills/prs-abstain/tests/test_prs_abstain.py -v
+
       - name: Run GWAS Lookup tests
         run: uv run pytest skills/gwas-lookup/tests/test_gwas_lookup.py -v
 
