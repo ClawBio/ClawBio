@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 wgs_prs.py: WGS-PRS Skill: End-to-end WGS to Polygenic Risk Scores
-ClawBio WGS-PRS Skill v0.1.0
+ClawBio WGS-PRS Skill v0.2.0
 Author: David de Lorenzo
 License: MIT
 
@@ -47,12 +47,16 @@ from typing import Optional
 # Imports: clawbio.common shared library
 # ---------------------------------------------------------------------------
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
+_SKILL_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SKILL_DIR.parent.parent
+for _import_path in (_PROJECT_ROOT, _SKILL_DIR):
+    if str(_import_path) not in sys.path:
+        sys.path.insert(0, str(_import_path))
 
 from clawbio.common.sarek import SarekConfig, SarekWrapper
 from clawbio.common.vcf_qc import QcConfig, VcfQC, QcResult
+
+from repro_bundle import create_reproducibility_bundle  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -87,11 +91,13 @@ class BridgeConfig:
     clawbio_root: str = ""                 # path to ClawBio-0.5.0; auto-detected if empty
     prs_traits: list[str] = field(default_factory=list)   # empty = all curated scores
     pgs_ids: list[str] = field(default_factory=list)      # explicit PGS IDs to compute
+    panel_id: str = ""                     # bundled ClawBio curated panel for gwas-prs
 
     # Bridge behaviour
     skip_sarek: bool = False               # set True when providing a VCF directly
     dry_run: bool = False                  # skip all subprocess calls
     fail_fast: bool = True                 # abort on QC failure (False = warn and continue)
+    demo: bool = False                     # synthetic VCF entry; replay is --demo
     log_level: str = "INFO"
 
 
@@ -144,6 +150,10 @@ class WgsToPrsBridge:
         self._output_dir.mkdir(parents=True, exist_ok=True)
         self._setup_logging()
         self._clawbio_root = self._find_clawbio_root()
+        self._run_fastq_r1: Path | None = None
+        self._run_fastq_r2: Path | None = None
+        self._run_input_vcf: Path | None = None
+        self._run_samplesheet: Path | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -171,6 +181,11 @@ class WgsToPrsBridge:
         Returns:
             BridgeReport with status, metrics, and output file paths.
         """
+        self._run_fastq_r1 = Path(fastq_r1) if fastq_r1 else None
+        self._run_fastq_r2 = Path(fastq_r2) if fastq_r2 else None
+        self._run_input_vcf = Path(input_vcf) if input_vcf else None
+        self._run_samplesheet = Path(samplesheet) if samplesheet else None
+
         report = BridgeReport(
             sample_id=self.config.sample_id,
             timestamp=datetime.now(timezone.utc).isoformat(),
@@ -358,6 +373,8 @@ class WgsToPrsBridge:
             cmd += ["--pgs-id", self.config.pgs_ids[0]]
         elif self.config.prs_traits:
             cmd += ["--trait", self.config.prs_traits[0]]
+        elif self.config.panel_id:
+            cmd += ["--panel-id", self.config.panel_id]
 
         log.info("Running gwas-prs: %s", " ".join(cmd))
         try:
@@ -503,6 +520,26 @@ class WgsToPrsBridge:
         json_path = self._output_dir / "bridge_report.json"
         json_path.write_text(json.dumps(data, indent=2))
         report.report_json = json_path
+        self._write_repro_bundle(report)
+
+    def _write_repro_bundle(self, report: BridgeReport) -> None:
+        """Write output_dir/reproducibility/ via clawbio.common.reproducibility."""
+        checksum_paths = [
+            self._output_dir / "bridge_report.md",
+            self._output_dir / "bridge_report.json",
+            self._output_dir / "vcf_qc" / "qc_metrics.json",
+            self._output_dir / "prs_output" / "result.json",
+            self._output_dir / "prs_output" / "prs_report.md",
+        ]
+        create_reproducibility_bundle(
+            output_dir=self._output_dir,
+            config=self.config,
+            fastq_r1=self._run_fastq_r1,
+            fastq_r2=self._run_fastq_r2,
+            input_vcf=self._run_input_vcf,
+            samplesheet=self._run_samplesheet,
+            output_paths=checksum_paths,
+        )
 
     def _find_clawbio_root(self) -> Optional[Path]:
         """Return the ClawBio project root (this skill lives inside it)."""
@@ -538,6 +575,25 @@ class WgsToPrsBridge:
         return None
 
 
+def write_demo_vcf(path: Path, n_snps: int = 200) -> Path:
+    """Write a tiny synthetic VCF so ``--demo`` can run without user data."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "##fileformat=VCFv4.2",
+        "##FILTER=<ID=PASS,Description=\"All filters passed\">",
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE",
+    ]
+    allele_pairs = [("A", "G"), ("C", "T"), ("G", "A"), ("T", "C")]
+    for i in range(n_snps):
+        ref, alt = allele_pairs[i % 4]
+        gt = "0/1" if i % 3 != 0 else "1/1"
+        lines.append(
+            f"1\t{(i + 1) * 1000}\trs{i}\t{ref}\t{alt}\t50\tPASS\t.\tGT:DP\t{gt}:30"
+        )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -565,6 +621,11 @@ def _cli() -> None:
     inp.add_argument("--fastq-r2", help="Reverse reads FASTQ.gz (omit for single-end)")
     inp.add_argument("--input-vcf", help="Pre-existing VCF (skips sarek)")
     inp.add_argument("--samplesheet", help="Pre-built nf-core/sarek samplesheet CSV")
+    inp.add_argument(
+        "--demo",
+        action="store_true",
+        help="Run with a synthetic VCF (skip sarek; no user data)",
+    )
 
     # Sample metadata
     meta = parser.add_argument_group("Sample metadata")
@@ -590,6 +651,10 @@ def _cli() -> None:
     prs = parser.add_argument_group("PRS options")
     prs.add_argument("--trait", help="Trait to score (e.g. 'type 2 diabetes')")
     prs.add_argument("--pgs-id", help="Specific PGS Catalog ID (e.g. PGS000013)")
+    prs.add_argument(
+        "--panel-id",
+        help="Bundled ClawBio curated panel ID for gwas-prs (e.g. CLAWBIO-T2D-8)",
+    )
     prs.add_argument("--clawbio-root", default="", help="Path to ClawBio-0.5.0 directory")
 
     # Output / behaviour
@@ -600,8 +665,25 @@ def _cli() -> None:
 
     args = parser.parse_args()
 
-    if not args.fastq_r1 and not args.input_vcf:
-        parser.error("Provide either --fastq-r1 (with optional --fastq-r2) or --input-vcf")
+    if args.demo and (args.fastq_r1 or args.input_vcf):
+        parser.error("--demo cannot be combined with --fastq-r1 or --input-vcf")
+    if not args.demo and not args.fastq_r1 and not args.input_vcf:
+        parser.error(
+            "Provide --demo, --fastq-r1 (with optional --fastq-r2), or --input-vcf"
+        )
+
+    if args.demo:
+        demo_vcf = Path(args.output_dir) / "demo_input.vcf"
+        write_demo_vcf(demo_vcf)
+        args.input_vcf = str(demo_vcf)
+
+    selectors = [args.trait, args.pgs_id, args.panel_id]
+    if sum(bool(value) for value in selectors) > 1:
+        parser.error("choose at most one of --trait, --pgs-id, or --panel-id")
+
+    panel_id = args.panel_id or ""
+    if args.demo and not any(selectors):
+        panel_id = "CLAWBIO-T2D-8"
 
     cfg = BridgeConfig(
         output_dir=args.output_dir,
@@ -610,8 +692,10 @@ def _cli() -> None:
         clawbio_root=args.clawbio_root,
         prs_traits=[args.trait] if args.trait else [],
         pgs_ids=[args.pgs_id] if args.pgs_id else [],
+        panel_id=panel_id,
         dry_run=args.dry_run,
-        fail_fast=not args.no_fail_fast,
+        fail_fast=False if args.demo else (not args.no_fail_fast),
+        demo=args.demo,
         log_level=args.log_level,
         sarek=SarekConfig(
             genome=args.genome,
