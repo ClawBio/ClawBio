@@ -48,6 +48,53 @@ jobs:
       - name: Check lockfile is up to date
         run: uv lock --check
 
+  dependency-audit:
+    # Report-only, deliberately. Two reasons, both verified against uv 0.10.12:
+    #
+    #   1. `uv audit` exits 0 even when it reports findings, so gating would
+    #      mean parsing its output ourselves. Not worth it while there is a
+    #      backlog of nine affected packages to clear first -- a gate born red
+    #      is how the scientific-audit job below ended up carrying `|| true`
+    #      for months (#342).
+    #   2. The subcommand is still experimental and warns that it may change
+    #      without notice, so its exit codes and output are not a stable
+    #      contract to build a gate on yet.
+    #
+    # Promote to a gate once the backlog is cleared and the subcommand settles.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+
+      - name: Audit locked dependencies
+        id: audit
+        run: uv audit --all-groups --preview-features audit > audit.txt 2>&1 || true
+
+      - name: Post summary
+        if: always()
+        run: |
+          echo "## Dependency Audit" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Report-only: this job never fails the build." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat audit.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependency-audit
+          path: audit.txt
+          retention-days: 30
+
   skill-lint:
     runs-on: ubuntu-latest
     steps:
