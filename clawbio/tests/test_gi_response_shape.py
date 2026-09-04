@@ -264,19 +264,28 @@ class TestNestedFieldsOfTheWrongType:
 # paper and nothing pinned either. Both are real; this pins both, so a future
 # response that drops one fails here rather than in a user's report.
 #
-# Captured against PROD 2026.09.03.2 on 2026-09-03: a 25,000 bp submission
-# with tss_index 12500. meta.sequence_length is the SUBMITTED length (25000);
-# the scored window is 9,198 bp at [7901, 17099]. The two differ here on
-# purpose, so a reader that confuses them fails this file. data.input no
-# longer echoes sequence_length (the window): that key went at contract
-# revision 13 on 2026-09-03. submitted_sequence_length did NOT go with it and
-# PROD still returns it -- a 25,000 bp probe with tss_index 12500 against
-# 2026.09.04.4 on 2026-09-04 answered data.input = {"sequence_name":
-# "probe-25kb", "description": "K562 cells", "tss_index": 12500,
-# "scored_window": [7901, 17099], "submitted_sequence_length": 25000}. It is
-# left out of this body on purpose, so the tests below can only pass by
-# reading meta. The prediction values are not from that capture and carry no
-# meaning.
+# Recaptured whole against PROD 2026.09.04.4 on 2026-09-04: one POST of a
+# 25,000 bp sequence with tss_index 12500 and options.description "liver, bulk
+# RNA-seq". Every key and value below is verbatim from that one response,
+# including the prediction numbers, which the previous version of this fixture
+# mixed in from an older capture. Nothing here is trimmed or edited.
+#
+# Three different lengths appear in one response and only one of them is the
+# submission:
+#
+#   meta.sequence_length                   25000   the SUBMITTED length
+#   data.input.submitted_sequence_length   25000   the same number, echoed
+#   data.summary.sequence_length            9198   the SCORED WINDOW
+#
+# so a reader that confuses them fails this file. Contract revision 13 on
+# 2026-09-03 removed data.input.sequence_length, which used to be a fourth
+# copy holding the window. submitted_sequence_length is a different key, it
+# did not go with it, and PROD still returns it, which is why it is present
+# here. The runner still reads meta: data.input is an untyped object that no
+# published schema and no consumer pin covers, and meta.sequence_length is
+# typed and required. The tests below force that by putting a WRONG value in
+# the echo rather than by leaving the key out, so a runner that ever starts
+# preferring the echo fails instead of passing on an absence.
 LIVE_EXPRESSION_BODY = {
     "data": {
         "task": "expression",
@@ -286,17 +295,28 @@ LIVE_EXPRESSION_BODY = {
             "description": "liver, bulk RNA-seq",
             "tss_index": 12500,
             "scored_window": [7901, 17099],
+            "submitted_sequence_length": 25000,
         },
-        "summary": {"expression_log_tpm": 0.9492, "expression_tpm": 1.5837},
+        "summary": {
+            "expression_log_tpm": 0.0344,
+            "expression_tpm": 0.035,
+            "sequence_length": 9198,
+        },
         "prediction": {
-            "expression_log_tpm": 0.9492,
-            "expression_tpm": 1.5837,
+            "expression": 0.0344,
+            "expression_log_tpm": 0.0344,
+            "expression_tpm": 0.035,
             "unit": "log(TPM+1)",
         },
     },
     "meta": {
-        "request_id": "req-live",
-        "inference_time_ms": 88,
+        "job_id": "2d9f337e-962a-469b-a70b-2f0073dec26d",
+        "request_id": "5f36efec-927e-49de-8620-4d18bae6f8b8",
+        "task": "expression",
+        "model": "g0-expression",
+        "cold_start": False,
+        "model_load_time_ms": 0,
+        "inference_time_ms": 375,
         "sequence_length": 25000,
         "task_specific_counts": {
             "task": "expression",
@@ -322,18 +342,23 @@ class TestTheExpressionWindowingProvenanceSurvivesToTheReport:
         inp = LIVE_EXPRESSION_BODY["data"]["input"]
         assert inp["scored_window"] == counts["scored_window"] == [7901, 17099]
         assert inp["tss_index"] == counts["tss_index"] == 12500
-        # The submitted length is not in either windowing echo; it is a
-        # top-level meta field, which is where the runner reads it.
+        # The submitted length is not in either windowing echo. It is a
+        # top-level meta field, which is where the runner reads it, and it is
+        # also echoed as a sibling of the window inside data.input.
         assert "submitted_sequence_length" not in counts
-        assert "submitted_sequence_length" not in inp
+        assert inp["submitted_sequence_length"] == 25000
         assert LIVE_EXPRESSION_BODY["meta"]["sequence_length"] == 25000
+        # The third length in the same response is the window, not the
+        # submission. Pinning it here is what makes a reader that reaches for
+        # "the sequence_length in summary" fail in this file.
+        assert LIVE_EXPRESSION_BODY["data"]["summary"]["sequence_length"] == 9198
 
     def test_summarize_picks_up_the_window(self):
         out = gi_runner._summarize("expression", LIVE_EXPRESSION_BODY)
         assert out["tss_index"] == 12500
         assert out["scored_window"] == [7901, 17099]
         assert out["submitted_sequence_length"] == 25000
-        assert out["log_tpm"] == 0.9492
+        assert out["log_tpm"] == 0.0344
 
     def test_the_submitted_length_clause_comes_from_meta_not_the_echo(self, tmp_path):
         """The clause comes from meta, which is the field the schema pins.
@@ -347,11 +372,16 @@ class TestTheExpressionWindowingProvenanceSurvivesToTheReport:
         ``isinstance(submitted, int)`` guard, so reading the echo would make any
         later change to it silent: the ", of N bp submitted" clause would vanish
         from the user's report and nothing would error. That clause is the one
-        place a user sees that their locus was windowed. This body carries no
-        echo field at all, so the number can only have come from meta.
+        place a user sees that their locus was windowed.
+
+        The echo here is set to the scored window, which is the number a reader
+        who confuses the two would produce. An absent key could not tell the
+        two readers apart, since a runner preferring the echo would fall back to
+        meta and still be right by accident; a wrong value can only survive to
+        the report if the echo was preferred.
         """
         body = copy.deepcopy(LIVE_EXPRESSION_BODY)
-        assert "submitted_sequence_length" not in body["data"]["input"]
+        body["data"]["input"]["submitted_sequence_length"] = 9198
         summary = gi_runner._summarize("expression", body)
         assert summary["submitted_sequence_length"] == 25000
         gi_runner._write_report(
@@ -365,7 +395,6 @@ class TestTheExpressionWindowingProvenanceSurvivesToTheReport:
         meta.sequence_length existed still carried the echo field."""
         body = copy.deepcopy(LIVE_EXPRESSION_BODY)
         del body["meta"]["sequence_length"]
-        body["data"]["input"]["submitted_sequence_length"] = 25000
         assert gi_runner._summarize("expression", body)["submitted_sequence_length"] == 25000
 
     def test_meta_wins_over_the_echo_when_both_are_present(self):
