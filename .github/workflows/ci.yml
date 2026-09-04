@@ -74,7 +74,19 @@ jobs:
 
       - name: Audit locked dependencies
         id: audit
-        run: uv audit --all-groups --preview-features audit > audit.txt 2>&1 || true
+        # `|| true` keeps findings from failing the build (this job is
+        # report-only), but it would also hide the tool itself breaking. So
+        # assert the report is a report: `uv audit` always prints a "Found N
+        # known vulnerabilities" line, and if that is missing the subcommand
+        # changed, was removed, or died -- which must fail loudly rather than
+        # render an empty summary nobody reads.
+        run: |
+          uv audit --all-groups --preview-features audit > audit.txt 2>&1 || true
+          if ! grep -qE '^Found [0-9]+ known vulnerabilit' audit.txt; then
+            echo "::error::uv audit produced no recognisable report - the audit step is broken, not clean"
+            cat audit.txt
+            exit 1
+          fi
 
       - name: Post summary
         if: always()
