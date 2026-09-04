@@ -35,6 +35,12 @@ jobs:
 
       - name: Run benchmark (smoke mode)
         id: bench
+        env:
+          # The pinned clawbio_bench revision requests the curated T2D panel as
+          # --pgs-id PGS000013. Since ClawBio issue #356 that alias is opt-in;
+          # only this benchmark run opts in. Drop this line once clawbio_bench
+          # requests --panel-id CLAWBIO-T2D-8 directly.
+          CLAWBIO_ALLOW_LEGACY_PGS_ALIAS: "1"
         run: |
           mkdir -p bench_runs/latest
           uv run clawbio-bench --smoke --repo . --output bench_runs/latest --quiet || true
