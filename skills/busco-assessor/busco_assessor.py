@@ -292,7 +292,7 @@ def build_busco_command(
         "-i", str(args.input),
         "-m", args.mode,
         "-c", str(args.cpu),
-        "--out-path", str(run_dir.parent),
+        "--out_path", str(run_dir.parent),
         "--out", run_dir.name,
         "-f",
     ]

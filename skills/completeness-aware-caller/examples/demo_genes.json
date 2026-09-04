@@ -1,0 +1,6 @@
+[
+  {"gene": "nodC", "found": false},
+  {"gene": "nodB", "found": false},
+  {"gene": "nifH", "found": true},
+  {"gene": "nifD", "found": true}
+]
