@@ -102,7 +102,7 @@ INFRAME_CONSEQUENCES: frozenset[str] = frozenset({
 # reduced to one ordered tuple of normalised terms before any rule reads them,
 # so no rule ever substring-matches a joined string: "benign, pathogenic"
 # must never read as pathogenic support (issue #328).
-CLINVAR_TERM_SEPARATORS = re.compile(r"[,;/|]")
+CLINVAR_TERM_SEPARATORS = re.compile(r"[,;/|&]")
 
 CLINVAR_PATHOGENIC_TERMS: frozenset[str] = frozenset({
     "pathogenic",

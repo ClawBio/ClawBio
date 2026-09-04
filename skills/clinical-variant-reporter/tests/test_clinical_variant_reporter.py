@@ -479,12 +479,12 @@ class TestVepLivePath:
 
 
 # ---------------------------------------------------------------------------
-# Regression — VEP clin_sig_allele may be a string, not a dict
+# Regression — VEP clin_sig_allele is an ALT-linked string
 # ---------------------------------------------------------------------------
 class TestClinSigAlleleTypeGuard:
-    """VEP returns colocated_variants[].clin_sig_allele as a dict for some
-    variants and a string (e.g. "T:pathogenic") for others. Extraction must not
-    crash on the string form (previously AttributeError: 'str' has no 'get')."""
+    """VEP returns colocated_variants[].clin_sig_allele as an ALT-linked
+    string such as ``T:pathogenic``. Unsupported shapes must fail closed rather
+    than being mistaken for review metadata."""
 
     def _record(self):
         from clinical_variant_reporter import VcfRecord
@@ -508,13 +508,15 @@ class TestClinSigAlleleTypeGuard:
         from clinical_variant_reporter import _extract_evidence_from_vep
         ev = _extract_evidence_from_vep(self._vep("T:pathogenic"), self._record())
         assert ev.gene == "BRCA2"
-        assert ev.clinvar_review_stars == 0  # defaults gracefully when not a dict
+        assert ev.clinvar_significance == "pathogenic"
+        assert ev.clinvar_review_stars == 0  # REST does not link stars to this ALT
 
-    def test_dict_clin_sig_allele_still_reads_stars(self):
+    def test_dict_clin_sig_allele_fails_closed_without_an_alt_assertion(self):
         from clinical_variant_reporter import _extract_evidence_from_vep
         ev = _extract_evidence_from_vep(
             self._vep({"review_status_stars": 3}), self._record())
-        assert ev.clinvar_review_stars == 3
+        assert ev.clinvar_significance == ""
+        assert ev.clinvar_review_stars == 0
 
 
 # ---------------------------------------------------------------------------
@@ -1334,26 +1336,32 @@ class TestListValuedClinSigEndToEnd:
             "G:conflicting_classifications_of_pathogenicity;T:pathogenic;G:uncertain_significance",
         )
         ev = _extract_evidence_from_vep(payload, self._record())
-        assert ev.clinvar_significance == ["uncertain_significance", "pathogenic"]
-        assert ev.clinvar_review_stars == 0  # string clin_sig_allele carries no stars (#322)
+        assert ev.clinvar_significance == "pathogenic"
+        assert ev.clinvar_review_stars == 0  # REST payload carries no trustworthy stars
         cv = classify_variant(ev)  # raised AttributeError before the fix
         assert cv.classification == "Uncertain Significance"
         assert not {"PS1", "PP5", "BP6"} & set(cv.triggered_codes)
 
-    def test_list_with_stars_and_a_conflict_withholds_the_clinvar_rules(self):
+    def test_unlinked_star_dict_does_not_reenable_site_level_evidence(self):
         from clinical_variant_reporter import _extract_evidence_from_vep
         payload = self._vep(["benign", "pathogenic"], {"review_status_stars": 3})
         cv = classify_variant(_extract_evidence_from_vep(payload, self._record()))
-        assert cv.evidence.clinvar_review_stars == 3
+        assert cv.evidence.clinvar_significance == ""
+        assert cv.evidence.clinvar_review_stars == 0
         assert not {"PS1", "PP5", "BP6"} & set(cv.triggered_codes)
         assert cv.classification == "Uncertain Significance"
 
-    def test_list_with_stars_and_a_clean_assertion_fires_the_clinvar_rules(self):
+    def test_allele_specific_terms_without_review_stars_do_not_fire_clinvar_rules(self):
         from clinical_variant_reporter import _extract_evidence_from_vep
-        payload = self._vep(["uncertain_significance", "pathogenic"], {"review_status_stars": 3})
+        payload = self._vep(
+            ["uncertain_significance", "pathogenic"],
+            "G:benign;T:pathogenic",
+        )
         cv = classify_variant(_extract_evidence_from_vep(payload, self._record()))
-        assert {"PS1", "PP5"} <= set(cv.triggered_codes)
-        assert cv.classification == "Likely Pathogenic"
+        assert cv.evidence.clinvar_significance == "pathogenic"
+        assert cv.evidence.clinvar_review_stars == 0
+        assert not {"PS1", "PP5", "BP6"} & set(cv.triggered_codes)
+        assert cv.classification == "Uncertain Significance"
 
     def test_evidence_exposes_display_text_for_both_shapes(self):
         assert _clinvar_evidence(["uncertain_significance", "pathogenic"]).clinvar_significance_text \
@@ -1364,9 +1372,10 @@ class TestListValuedClinSigEndToEnd:
         assert _clinvar_evidence(None).clinvar_significance_text == ""
 
     def test_report_and_table_render_terms_not_list_repr(self, tmp_path):
-        from clinical_variant_reporter import _extract_evidence_from_vep
-        payload = self._vep(["uncertain_significance", "pathogenic"], {"review_status_stars": 3})
-        cv = classify_variant(_extract_evidence_from_vep(payload, self._record()))
+        cv = classify_variant(_clinvar_evidence(
+            ["uncertain_significance", "pathogenic"], stars=3,
+            gnomad_af=None, cadd_phred=28.0, sift_prediction="deleterious",
+        ))
         assert cv.classification == "Likely Pathogenic"  # so it lands in the actionable section
 
         generate_report([cv], tmp_path, demo=False, source_versions={})
@@ -1375,5 +1384,67 @@ class TestListValuedClinSigEndToEnd:
 
         assert "['" not in report and "['" not in table
         assert "**ClinVar**: uncertain_significance; pathogenic (stars: 3)" in report
-        row = next(line for line in table.splitlines() if line.startswith("13\t32339267"))
+        row = next(line for line in table.splitlines() if line.startswith("17\t43093464"))
         assert "\tuncertain_significance; pathogenic\t3\t" in row
+
+
+class TestAlleleSpecificClinVarSignificance:
+    """Live VEP ``clin_sig`` is site-level; only the queried ALT is evidence.
+
+    The API's ``clin_sig_allele`` payload is a semicolon-delimited set of
+    ``ALT:terms`` entries.  A multi-allelic locus must never transfer a
+    ClinVar assertion from a different alternate allele.
+    """
+
+    def _record(self, alt="T"):
+        from clinical_variant_reporter import VcfRecord
+        return VcfRecord(chrom="13", pos=32339267, id="rs886040553",
+                         ref="A", alt=alt, qual=".", filt="PASS", info={})
+
+    def _vep(self, clin_sig_allele):
+        return {
+            "most_severe_consequence": "missense_variant",
+            "transcript_consequences": [{
+                "gene_symbol": "BRCA2", "impact": "MODERATE",
+                "consequence_terms": ["missense_variant"],
+            }],
+            "colocated_variants": [{
+                # This aggregate deliberately contains a benign assertion for G
+                # and a pathogenic assertion for T.  It is not allele-specific.
+                "clin_sig": ["benign", "pathogenic"],
+                "clin_sig_allele": clin_sig_allele,
+            }],
+        }
+
+    def test_uses_only_queried_alt_and_accepts_vep_ampersand_terms(self):
+        from clinical_variant_reporter import _extract_evidence_from_vep
+
+        ev = _extract_evidence_from_vep(
+            self._vep("G:benign;T:pathogenic&likely_pathogenic"), self._record("T"))
+
+        assert ev.clinvar_assertion.terms == ("pathogenic", "likely_pathogenic")
+        assert ev.clinvar_assertion.is_conflicting is False
+        assert ev.clinvar_review_stars == 0
+
+    def test_does_not_copy_a_different_alt_from_a_multiallelic_site(self):
+        from clinical_variant_reporter import _extract_evidence_from_vep
+
+        ev = _extract_evidence_from_vep(self._vep("G:benign"), self._record("T"))
+
+        assert ev.clinvar_significance == ""
+        assert ev.clinvar_review_stars == 0
+        assert ev.clinvar_assertion.terms == ()
+
+    @pytest.mark.parametrize("clin_sig_allele", [
+        "T",                         # no allele-to-assertion separator
+        "G:benign;T:",               # no assertion for the queried allele
+        "G:benign;T:pathogenic:bad", # ambiguous assertion separator
+        {"review_status_stars": 3},  # no allele-specific ClinVar assertion
+    ])
+    def test_missing_or_unsafe_allele_payload_fails_closed(self, clin_sig_allele):
+        from clinical_variant_reporter import _extract_evidence_from_vep
+
+        ev = _extract_evidence_from_vep(self._vep(clin_sig_allele), self._record("T"))
+
+        assert ev.clinvar_significance == ""
+        assert ev.clinvar_review_stars == 0

@@ -190,6 +190,35 @@ def _vcf_to_vep_region(record: VcfRecord) -> str:
     return f"{chrom} {record.pos} {record.pos + len(ref) - 1} {ref}/{alt} 1"
 
 
+def _clinvar_significance_for_alt(clin_sig_allele: object, alt: str) -> str:
+    """Return the VEP ClinVar terms asserted for exactly ``alt``.
+
+    ``colocated_variants[].clin_sig`` is a site-level aggregate, so it can
+    combine assertions for different alternate alleles.  VEP's allele-specific
+    string is a semicolon-delimited sequence of ``ALT:terms`` entries.  Its
+    undocumented non-string shapes cannot establish an ALT-to-assertion link,
+    and malformed entries are deliberately treated as absent evidence.
+    """
+    if not isinstance(clin_sig_allele, str) or not clin_sig_allele.strip():
+        return ""
+
+    queried_alt = alt.upper()
+    matching_terms: list[str] = []
+    for entry in clin_sig_allele.split(";"):
+        entry = entry.strip()
+        if entry.count(":") != 1:
+            return ""
+        allele, terms = (part.strip() for part in entry.split(":", 1))
+        if not allele or not terms:
+            return ""
+        if allele.upper() == queried_alt:
+            matching_terms.append(terms)
+
+    # ``&`` is the allele-specific VEP term separator.  The ACMG engine
+    # normalises it alongside ClinVar's other multi-value separators.
+    return "&".join(matching_terms)
+
+
 def _extract_evidence_from_vep(vep_result: dict, record: VcfRecord) -> VariantEvidence:
     """Extract VariantEvidence fields from a single VEP REST response entry."""
     most_severe = vep_result.get("most_severe_consequence", "")
@@ -223,19 +252,14 @@ def _extract_evidence_from_vep(vep_result: dict, record: VcfRecord) -> VariantEv
     gnomad_af_popmax = None
 
     for cv in vep_result.get("colocated_variants", []):
-        if "clinvar" in cv.get("var_synonyms", {}) or cv.get("clin_sig"):
-            # VEP REST returns clin_sig as a JSON list of terms aggregated over
-            # every ClinVar record at the site. It is kept as-is: the ACMG rules
-            # read it through VariantEvidence.clinvar_assertion, which parses
-            # both the list and the scalar string form into terms (#328).
-            sigs = cv.get("clin_sig", "")
-            if sigs and not clinvar_sig:
-                clinvar_sig = sigs
-                # VEP returns clin_sig_allele as a dict for some variants and a
-                # string (e.g. "T:pathogenic") for others; only read stars from a dict.
-                clin_sig_allele = cv.get("clin_sig_allele", {})
-                if isinstance(clin_sig_allele, dict):
-                    clinvar_stars = clin_sig_allele.get("review_status_stars", 0)
+        if not clinvar_sig:
+            # Never fall back to ``clin_sig``: it aggregates all ClinVar
+            # assertions at this coordinate, including other ALT alleles.
+            # The REST response does not provide an independently verifiable
+            # allele-specific review-star field, so live ClinVar rules remain
+            # withheld unless a future API supplies one with the assertion.
+            clinvar_sig = _clinvar_significance_for_alt(
+                cv.get("clin_sig_allele"), record.alt)
 
         freq_data = cv.get("frequencies", {})
         if freq_data:
