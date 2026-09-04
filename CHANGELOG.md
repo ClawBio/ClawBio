@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [Unreleased]
+
+### Added
+- **`SECURITY.md`**: a private disclosure path (GitHub private vulnerability reporting,
+  now enabled on the repository, with an email fallback), response commitments, what is
+  in and out of scope, and which versions receive fixes.
+- **`docs/data-handling.md`**: every skill that can send data off the machine, grouped by
+  what it sends (reference downloads only, query terms you typed, your variants, whole
+  sequences or files, or chat messages to a hosted LLM), with the host, the trigger, the
+  credential variable and the offline behaviour for each. Enforced by
+  `tests/test_data_handling_doc.py`, which scans every skill for outbound-call code and
+  fails if a networked skill is absent from the page.
+
+### Changed
+- README and `docs/architecture.md` no longer claim that "no network calls" are made for
+  data processing. Several skills send variants to Ensembl VEP, gnomAD and ClinVar, and the
+  six `gi-*` skills upload whole sequences to a hosted model. The privacy statement now says
+  exactly that and points at the data-handling page. The README versioning line also read
+  `v0.5.0` two releases late; it now says `v0.7.0`.
+
 ### Removed
 - **`soul2dna` is no longer a ClawBio skill** (#111). The skill folder was a thin
   wrapper around the Genomebook sandbox compiler and presented "compile character
@@ -18,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sandbox whose README now states its scope: synthetic fixtures for exercising the
   orchestrator, with no biological meaning. `genome-match` and `recombinator`, which
   consume those fixtures, are unchanged. Catalogue count 97 to 96.
+
+## [0.7.0] - 2026-09-03
 
 ## [0.7.0] - 2026-09-03
 
