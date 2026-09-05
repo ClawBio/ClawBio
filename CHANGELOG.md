@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-09-05
+
+### Fixed
+- **Tagged releases publish themselves again.** Every previous run of
+  `publish.yml` failed with `invalid-publisher`, so 0.5.2, 0.6.1 and 0.7.0 were
+  uploaded by hand. The workflow was correct: the OIDC claims GitHub sends match
+  what `packaging/README.md` documents, and no matching publisher is registered
+  on PyPI. Until it is, the job authenticates with an API token held as an
+  environment secret on `pypi`, an environment that accepts `v*` tags only.
+
 ### Added
 - **`SECURITY.md`**: a private disclosure path (GitHub private vulnerability reporting,
   now enabled on the repository, with an email fallback), response commitments, what is
