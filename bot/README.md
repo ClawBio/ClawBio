@@ -130,15 +130,21 @@ CLAWBIO_MODEL=local-model
 
 ```bash
 # Telegram bot
-uv run python bot/roboterri.py
+uv run --group bot python bot/roboterri.py
 
 # Discord bot
-uv run python bot/roboterri_discord.py
+uv run --group bot python bot/roboterri_discord.py
 
 # Both at the same time (separate terminals)
-uv run python bot/roboterri.py &
-uv run python bot/roboterri_discord.py &
+uv run --group bot python bot/roboterri.py &
+uv run --group bot python bot/roboterri_discord.py &
 ```
+
+> **Note**: pass `--group bot` on every `uv run`, not just the initial `uv sync`.
+> The `bot` group is not a default group, so any later plain `uv sync` (or any
+> tool that runs one) prunes it from `.venv`, and a bare `uv run` will not put it
+> back — the bot then fails with `ModuleNotFoundError: No module named 'dotenv'`.
+> Passing the flag on the run command reinstalls the group if it went missing.
 
 If you want a direct browser chat instead of a messenger adapter, see [../docs/custom-domain-webchat.md](../docs/custom-domain-webchat.md) for the self-hosted OpenClaw gateway setup.
 
