@@ -204,6 +204,9 @@ jobs:
       - name: Run GWAS PRS tests
         run: uv run pytest skills/gwas-prs/tests/ -v
 
+      - name: Run WGS PRS tests
+        run: uv run pytest skills/wgs-prs/tests/ -v
+
       - name: Run GWAS Lookup tests
         run: uv run pytest skills/gwas-lookup/tests/test_gwas_lookup.py -v
 

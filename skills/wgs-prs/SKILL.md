@@ -95,7 +95,7 @@ metadata:
   - variant-calling
   - vcf-qc
   - gatk
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # 🧬 WGS-PRS Pipeline
@@ -139,10 +139,11 @@ You are the **WGS-PRS** skill, an end-to-end pipeline agent for whole-genome seq
 
 ## Entry Points
 
-Users may enter the pipeline at two points:
+Users may enter the pipeline at three points:
 
 - **FASTQ entry** (full pipeline): provide `--fastq-r1` and optionally `--fastq-r2`
 - **VCF entry** (skip sarek): provide `--input-vcf` with a pre-existing single-sample GRCh38 VCF
+- **Demo** (synthetic VCF, no user data): `--demo`
 
 ## Workflow
 
@@ -151,7 +152,7 @@ When the user provides WGS input (FASTQ or VCF):
 1. **Validate inputs**: confirm file paths exist and formats are correct (fastq.gz or vcf.gz). Abort with a clear message if required inputs are missing.
 2. **Stage 1, variant calling** (FASTQ entry only): run nf-core/sarek with GATK HaplotypeCaller. Generate samplesheet CSV, invoke nextflow, confirm VCF output exists.
 3. **Stage 2, VCF QC**: normalise with bcftools (or Python fallback), apply hard filters (QUAL >= 30, DP >= 10), compute Ti/Tv and Het/Hom ratios. Fail fast if thresholds are violated, unless `--no-fail-fast` is set.
-4. **Stage 3, PRS scoring**: pass the canonical VCF to `gwas-prs`. Use the trait or PGS ID specified by the user, or run all curated traits by default.
+4. **Stage 3, PRS scoring**: pass the canonical VCF to `gwas-prs`. Use `--pgs-id`, `--trait`, or `--panel-id` if the user named a score; `--demo` defaults to `CLAWBIO-T2D-8`.
 5. **Stage 4, aggregated report**: write `bridge_report.md` and `bridge_report.json` combining stage statuses, QC metrics, and PRS summary.
 6. **Surface results**: show the user the report path and key metrics. Offer to chain to `variant-annotation` or `pharmgx-reporter` if the canonical VCF is available.
 
@@ -166,6 +167,9 @@ python wgs_prs.py --fastq-r1 sample_R1.fastq.gz --fastq-r2 sample_R2.fastq.gz \
 
 # Start from an existing VCF
 python wgs_prs.py --input-vcf sample.vcf.gz --output-dir results/
+
+# Demo (synthetic VCF, no user files)
+python wgs_prs.py --demo --output-dir /tmp/wgs_prs_demo
 
 # Dry run: generate samplesheet and preview commands only
 python wgs_prs.py --fastq-r1 sample_R1.fastq.gz --dry-run
@@ -223,6 +227,35 @@ python wgs_prs.py --input-vcf sample.vcf.gz --trait "type 2 diabetes"
 *ClawBio is a research and educational tool. It is not a medical device.*
 ```
 
+## Output Structure
+
+```
+output_directory/
+├── bridge_report.md
+├── bridge_report.json
+├── vcf_qc/
+│   ├── qc_metrics.json
+│   └── canonical_pass.vcf.gz
+├── prs_output/                 # present when gwas-prs completes
+└── reproducibility/
+    ├── commands.sh             # portable replay; private paths are env vars
+    ├── environment.yml
+    ├── provenance.json         # input hashes and safe parameters
+    └── checksums.sha256
+```
+
+Verify with `cd <output_directory> && sha256sum -c reproducibility/checksums.sha256`.
+
+### Reproducibility Bundle
+
+The shared `clawbio.common.reproducibility` layer writes the bundle after the
+bridge reports. `provenance.json` stores SHA-256 digests of the FASTQ or VCF
+inputs that existed at run time, and omits their paths and contents. A
+free-text `--trait` query is stored only as an unsalted SHA-256 fingerprint.
+Non-demo `commands.sh` requires `INPUT_VCF` or `FASTQ_R1` (and `FASTQ_R2` when
+the run was paired) so private sequencing paths are not embedded. `--demo`
+replays as `--demo` and regenerates the synthetic VCF.
+
 ## Chaining with other ClawBio Skills
 
 After WGS-PRS completes, the canonical VCF can be passed to:
@@ -253,7 +286,7 @@ After WGS-PRS completes, the canonical VCF can be passed to:
 - **Local-first**: all data is processed locally. No reads or variants leave the user's machine.
 - **Disclaimer**: every report includes the ClawBio medical disclaimer: *"ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions."*
 - **No hallucinated parameters**: all QC thresholds and PGS Catalog identifiers trace to documented sources.
-- **Audit trail**: stage durations, commands, and output paths are logged to `bridge_report.json`.
+- **Audit trail**: stage durations, commands, and output paths are logged to `bridge_report.json`. Input hashes and a portable replay command go in `reproducibility/`.
 
 ## Agent Boundary
 
