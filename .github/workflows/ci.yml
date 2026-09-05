@@ -48,6 +48,73 @@ jobs:
       - name: Check lockfile is up to date
         run: uv lock --check
 
+  dependency-audit:
+    # Report-only, deliberately. Two reasons, both verified against uv 0.10.12:
+    #
+    #   1. `uv audit` exits 0 even when it reports findings, so gating would
+    #      mean parsing its output ourselves. Not worth it while there is a
+    #      backlog of nine affected packages to clear first -- a gate born red
+    #      is how the scientific-audit job below ended up carrying `|| true`
+    #      for months (#342).
+    #   2. The subcommand is still experimental and warns that it may change
+    #      without notice, so its exit codes and output are not a stable
+    #      contract to build a gate on yet.
+    #
+    # Promote to a gate once the backlog is cleared and the subcommand settles.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+
+      - name: Audit locked dependencies
+        id: audit
+        # Deliberately unflagged. setup-uv installs whichever uv is latest
+        # (no version input, no required-version), and this preview subcommand
+        # has already renamed things across versions: `--all-groups` does not
+        # exist on 0.12.9, and `--preview-features audit` became
+        # `audit-command`. Auditing every group is the default, so the bare
+        # command is the one form that works on both. The experimental warning
+        # is cosmetic and lands in the report.
+        #
+        # `|| true` keeps findings from failing the build (this job is
+        # report-only), but it would also hide the tool itself breaking. So
+        # assert the report is a report: `uv audit` always prints a "Found N
+        # known vulnerabilities" line, and if that is missing the subcommand
+        # changed, was removed, or died -- which must fail loudly rather than
+        # render an empty summary nobody reads.
+        run: |
+          uv audit > audit.txt 2>&1 || true
+          if ! grep -qE '^Found [0-9]+ known vulnerabilit' audit.txt; then
+            echo "::error::uv audit produced no recognisable report - the audit step is broken, not clean"
+            cat audit.txt
+            exit 1
+          fi
+
+      - name: Post summary
+        if: always()
+        run: |
+          echo "## Dependency Audit" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Report-only: this job never fails the build." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat audit.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependency-audit
+          path: audit.txt
+          retention-days: 30
+
   skill-lint:
     runs-on: ubuntu-latest
     steps:
