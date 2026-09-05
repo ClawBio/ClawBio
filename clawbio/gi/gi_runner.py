@@ -298,8 +298,25 @@ def _summarize(task: str, body: Dict[str, Any]) -> Dict[str, Any]:
         # Windowing provenance — the API cuts the scored 9,198 bp window
         # itself, so this is the only way to confirm it cut where you meant.
         inp = _as_obj(data.get("input"), "data.input")
+        meta = _as_obj(body.get("meta"), "meta")
         out["tss_index"] = inp.get("tss_index")
-        out["scored_window"] = inp.get("scored_window")
+        # The window's typed home is meta.task_specific_counts, the per-task
+        # provenance channel every published GI reader is pointed at. The
+        # data.input copy is an echo of the request, and the API is narrowing
+        # data.input to inputs the caller actually sent, so the derived window
+        # leaves it. Same meta-first, echo-fallback shape as the submitted
+        # length below, for the same reason: the report renders this line under
+        # a truthiness guard, so reading only the echo would drop the "Scored
+        # window" line in silence the day the echo goes.
+        counts = _as_obj(
+            meta.get("task_specific_counts"), "meta.task_specific_counts"
+        )
+        window = _as_bounds(
+            counts.get("scored_window"), "meta.task_specific_counts.scored_window"
+        )
+        if window is None:
+            window = _as_bounds(inp.get("scored_window"), "data.input.scored_window")
+        out["scored_window"] = window
         # The submitted length comes from meta.sequence_length, which every
         # response carries and which the revision and the consumer pins cover.
         # data.input.submitted_sequence_length holds the same number in an
@@ -309,7 +326,6 @@ def _summarize(task: str, body: Dict[str, Any]) -> Dict[str, Any]:
         # the echo would still be the wrong side of the pin: the report renders
         # the clause under an isinstance guard, so any later change to an
         # uncovered field would drop the ", of N bp submitted" line in silence.
-        meta = _as_obj(body.get("meta"), "meta")
         submitted = meta.get("sequence_length")
         if submitted is None:
             # Older responses carried the number only in the echo. Falling
@@ -397,7 +413,12 @@ def _write_report(task: str, summary: Dict[str, Any], body: Dict[str, Any], outp
             lines.append(f"- Predicted expression: **{log_tpm:.4f} log(TPM+1)**" + (f" ≈ {tpm:.2f} TPM" if isinstance(tpm, (int, float)) else ""))
         else:
             lines.append("- See `result.json` for the full prediction payload.")
-        window = _as_bounds(summary.get("scored_window"), "data.input.scored_window")
+        # ``summary`` here is _summarize's own dict, not data.summary, so the
+        # window has already been guarded at the source it was read from. The
+        # guard stays because this writer is also reachable with a hand-built
+        # summary, and ``window[0]`` on a dict raises KeyError(0) past
+        # run_skill's handler instead of the named diagnostic.
+        window = _as_bounds(summary.get("scored_window"), "scored_window")
         if window:
             submitted = summary.get("submitted_sequence_length")
             lines.append(
