@@ -77,7 +77,15 @@ jobs:
       # To return to Trusted Publishing: register the publisher on PyPI
       # (owner ClawBio, repository ClawBio, workflow publish.yml, environment
       # pypi), then delete the `password` line below and the secret.
+      # `verify-metadata: false` because the twine bundled in the action's
+      # container rejects Metadata-Version 2.5, which current hatchling emits:
+      # the v0.7.1 run failed with `InvalidDistribution: '2.5' is not a valid
+      # metadata version` after authenticating successfully. The metadata is
+      # fine, and PyPI itself accepts it; only the container's older twine does
+      # not. The build job above already runs `uvx twine check` on the same
+      # artefacts with a current twine, so nothing goes unchecked.
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
+          verify-metadata: false
