@@ -151,10 +151,9 @@ class TestTheCliOptionReachesTheWire:
             "data": {
                 "summary": {"expression_log_tpm": 0.9, "promoter_windows": 1,
                             "total_windows": 4},
-                "input": {"tss_index": 12000, "scored_window": [7401, 16599],
-                          "submitted_sequence_length": bases},
+                "input": {"tss_index": 12000, "scored_window": [7401, 16599]},
             },
-            "meta": {"request_id": "req-1"},
+            "meta": {"request_id": "req-1", "sequence_length": bases},
         })
 
         def _make_client(*a, **kw):

@@ -300,7 +300,22 @@ def _summarize(task: str, body: Dict[str, Any]) -> Dict[str, Any]:
         inp = _as_obj(data.get("input"), "data.input")
         out["tss_index"] = inp.get("tss_index")
         out["scored_window"] = inp.get("scored_window")
-        out["submitted_sequence_length"] = inp.get("submitted_sequence_length")
+        # The submitted length comes from meta.sequence_length, which every
+        # response carries and which the revision and the consumer pins cover.
+        # data.input.submitted_sequence_length holds the same number in an
+        # untyped echo that no published schema and no consumer pin covers. It
+        # is still returned (checked against PROD on 2026-09-04); the key that
+        # went at contract revision 13 was data.input.sequence_length. Reading
+        # the echo would still be the wrong side of the pin: the report renders
+        # the clause under an isinstance guard, so any later change to an
+        # uncovered field would drop the ", of N bp submitted" line in silence.
+        meta = _as_obj(body.get("meta"), "meta")
+        submitted = meta.get("sequence_length")
+        if submitted is None:
+            # Older responses carried the number only in the echo. Falling
+            # back keeps the clause through either deploy order.
+            submitted = inp.get("submitted_sequence_length")
+        out["submitted_sequence_length"] = submitted
     elif task == "annotation":
         out["transcripts_found"] = summary.get("total_transcripts", summary.get("transcripts_found"))
         out["transcripts"] = _as_objs(data.get("transcripts"), "data.transcripts")
