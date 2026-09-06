@@ -120,7 +120,7 @@
   </nav>
   <a href="/benchmarks.html" style="display:block;background:linear-gradient(90deg,#238636,#1f6feb);color:#fff;text-align:center;padding:0.7rem 1rem;font-size:0.95rem;font-weight:600;text-decoration:none;">📊 Public Benchmark Leaderboard | 161/182 passing (88.5%), 26 Jul 2026 | nutrigx-advisor regressed to 0/10 and is being investigated | Every failure documented &rarr;</a>
   <section class="hero">
-    <div class="hero-badge">📊 Publicly benchmarked · 1,125 stars · 96 skills · 50 contributors · 4,672 tests</div>
+    <div class="hero-badge">📊 Publicly benchmarked · 1,126 stars · 96 skills · 50 contributors · 4,672 tests</div>
     <h1>The first <em>bioinformatics-native</em><br>AI agent skill library</h1>
     <p>ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call.</p>
     <div style="max-width:440px;margin:0 auto 2rem;">
@@ -167,7 +167,7 @@
             Then <code style="font-size:0.85rem;">/plugin install clawbio</code>. Other editors: copy or symlink the skill folders you need into <code style="font-size:0.85rem;">~/.agents/skills/</code>.
           </p>
           <ul style="list-style:none;padding:0;margin:0;color:var(--text-muted);font-size:0.92rem;line-height:1.9;">
-            <li>✅ <strong style="color:var(--text);">96 skills</strong>, 49 with a deterministic CLI entry point</li>
+            <li>✅ <strong style="color:var(--text);">96 skills</strong>, 90 with a deterministic CLI entry point</li>
             <li>🔒 <strong style="color:var(--text);">Demo data included</strong>, your files only when you pass them</li>
             <li>🏠 <strong style="color:var(--text);">Local-first</strong>. No server, no hosted endpoint, by design</li>
           </ul>
@@ -334,7 +334,7 @@ clawbio run pharmgx --demo</pre>
             </tr>
           </thead>
           <tbody>
-            <tr style="border-bottom:1px solid var(--border);background:rgba(63,185,80,0.05);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">ClawBio</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,125</td><td style="padding:0.6rem 1rem;text-align:right;">259</td><td style="padding:0.6rem 1rem;text-align:right;">96</td></tr>
+            <tr style="border-bottom:1px solid var(--border);background:rgba(63,185,80,0.05);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">ClawBio</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,126</td><td style="padding:0.6rem 1rem;text-align:right;">260</td><td style="padding:0.6rem 1rem;text-align:right;">96</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/FreedomIntelligence/OpenClaw-Medical-Skills" target="_blank" style="color:var(--accent2);">OpenClaw-Medical-Skills</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,037</td><td style="padding:0.6rem 1rem;text-align:right;">123</td><td style="padding:0.6rem 1rem;text-align:right;">869</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/GPTomics/bioSkills" target="_blank" style="color:var(--accent2);">bioSkills</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">331</td><td style="padding:0.6rem 1rem;text-align:right;">52</td><td style="padding:0.6rem 1rem;text-align:right;">425</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/wu-yc/LabClaw" target="_blank" style="color:var(--accent2);">LabClaw</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">317</td><td style="padding:0.6rem 1rem;text-align:right;">54</td><td style="padding:0.6rem 1rem;text-align:right;">211</td></tr>
@@ -352,6 +352,13 @@ clawbio run pharmgx --demo</pre>
       <div class="section-title">Latest from the community</div>
       <div style="display:grid;gap:0.75rem;max-width:700px;">
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">⚙️</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: unblock publishing — Twine rejects Metadata-Version 2.5.</strong> Fixed the publish workflow so it no longer emits a Metadata-Version 2.5 header, restoring automatic PyPI releases on version tags. Contributed by @manuelcorpas.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #396 · merged · 5 September 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">🚀</span>
           <div>
             <div style="font-weight:600;font-size:0.95rem;"><strong>Release 0.7.1.</strong> Version bump resolving a publish pipeline breakage: Twine now rejects packages carrying Metadata-Version 2.5, which blocked PyPI uploads. Contributed by @manuelcorpas.</div>
@@ -361,8 +368,22 @@ clawbio run pharmgx --demo</pre>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">⚙️</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: unblock publishing — Twine rejects Metadata-Version 2.5.</strong> Fixed the publish workflow so it no longer emits a Metadata-Version 2.5 header, restoring automatic PyPI releases on version tags. Contributed by @manuelcorpas.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #396 · merged · 5 September 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: publish to PyPI with an API token until Trusted Publishing is registered.</strong> Switched the release workflow to authenticate with an API token, unblocking PyPI uploads while the repository's Trusted Publishing configuration is pending. Contributed by @manuelcorpas.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #394 · merged · 5 September 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(gi-expression): read the submitted length from meta.sequence_length.</strong> The sequence-to-expression skill was reading the wrong metadata field for sequence length, causing incorrect predictions for inputs shorter than the model's native context. Contributed by @boldakov.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #383 · merged · 5 September 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">📄</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Docs(bot): require --group bot on uv run for the messaging adapters.</strong> Documents that the Telegram and Slack adapters must be launched with <code>uv run --group bot</code> to pick up their optional dependencies correctly. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #391 · merged · 5 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
@@ -377,13 +398,6 @@ clawbio run pharmgx --demo</pre>
           <div>
             <div style="font-weight:600;font-size:0.95rem;"><strong>CI: report dependency advisories on every PR.</strong> Added automated dependency advisory scanning to the CI pipeline, surfacing security issues at review time rather than after merge. Contributed by @camlloyd.</div>
             <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #393 · merged · 5 September 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(gi-expression): read the submitted length from meta.sequence_length.</strong> The sequence-to-expression skill was reading the wrong metadata field for sequence length, causing incorrect predictions for inputs shorter than the model's native context. Contributed by @boldakov.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #383 · merged · 5 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
@@ -405,20 +419,6 @@ clawbio run pharmgx --demo</pre>
           <div>
             <div style="font-weight:600;font-size:0.95rem;"><strong>Chore: retire soul2dna from the skill catalogue.</strong> soul2dna is removed from the catalogued skills; it remains available as a standalone script in GENOMEBOOK/. The catalogue now lists 96 skills. Contributed by @manuelcorpas.</div>
             <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #387 · merged · 4 September 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(clinical-variant-reporter): parse ClinVar significance into terms instead of crashing on VEP's list.</strong> The reporter was crashing when VEP returned ClinVar significance as a delimited list. Significance is now parsed correctly across all list formats. Contributed by @krudo-taco.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #382 · merged · 4 September 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🚀</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Release v0.7.0: deprecate the MCP server, refresh the Claude Code plugin manifests.</strong> The MCP server is deprecated and will be removed in v0.8.0. ClawBio now installs as a Claude Code plugin or plain Agent Skills folder; all runnable skills are available via <code>/plugin install clawbio</code>. Contributed by @manuelcorpas.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #384 · merged · 3 September 2026</div>
           </div>
         </div>
       </div>
