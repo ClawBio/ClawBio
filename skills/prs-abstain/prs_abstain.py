@@ -798,6 +798,14 @@ def load_prs_results(path: Path) -> list[dict[str, Any]]:
                 raise ValueError(
                     f"record {i}: {fld} must be numeric or null, got {v!r}. A stringly "
                     f"number would crash mid-report after outputs are already written.")
+        # reference_population is read as a string on two paths (the provenance gate
+        # lower()s it, reference_sd compares it): a non-string would raise mid-run,
+        # after outputs are already written. Same fail-early rule as the numeric fields.
+        v = rec.get("reference_population")
+        if v is not None and not isinstance(v, str):
+            raise ValueError(
+                f"record {i}: reference_population must be a string or null, got {v!r}. "
+                f"A non-string would crash the provenance gate after outputs are written.")
         for fld in ("trait", "pgs_id", "note"):
             v = rec.get(fld)
             if isinstance(v, str) and "|" in v:

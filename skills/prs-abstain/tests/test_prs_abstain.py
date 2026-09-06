@@ -858,6 +858,35 @@ class TestScoreIdProvenance:
             pa.load_score_definitions(tmp_path)
 
 
+class TestResultsValidation:
+    def test_non_string_reference_population_is_refused_at_load(self, tmp_path):
+        """reference_population is lower()ed by the provenance gate and compared by
+        reference_sd. A non-string must fail at ingestion, not mid-report after
+        outputs are already on disk."""
+        import prs_abstain as pa
+
+        f = tmp_path / "prs_results.json"
+        f.write_text(json.dumps([{
+            "score_id": "CLAWBIO-T2D-8", "trait": "t2d",
+            "raw_score": 1.0, "percentile": 50.0, "z_score": 0.0,
+            "reference_population": 42,
+        }]))
+        with pytest.raises(ValueError, match="reference_population"):
+            pa.load_prs_results(f)
+
+    def test_string_and_null_reference_population_both_load(self, tmp_path):
+        import prs_abstain as pa
+
+        f = tmp_path / "prs_results.json"
+        f.write_text(json.dumps([
+            {"score_id": "A", "raw_score": 1.0, "reference_population": "EUR"},
+            {"score_id": "B", "raw_score": 1.0, "reference_population": None},
+            {"score_id": "C", "raw_score": 1.0},
+        ]))
+        recs = pa.load_prs_results(f)
+        assert [r.get("reference_population") for r in recs] == ["EUR", None, None]
+
+
 class TestPalindromicAFShift:
     def _score(self, pa):
         return pa.ScoreDefinition(

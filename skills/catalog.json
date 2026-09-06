@@ -3526,7 +3526,7 @@
       "cli_alias": "prs-abstain",
       "description": "Gates polygenic risk score percentiles on trait applicability, score integrity and ancestry transferability, withholding the percentile when it would be uninterpretable and attributing the error to individual SNPs.",
       "version": "0.4.0",
-      "status": "planned",
+      "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
         "has_skill_md": true,
