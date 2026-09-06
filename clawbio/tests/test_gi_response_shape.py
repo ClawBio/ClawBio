@@ -286,6 +286,13 @@ class TestNestedFieldsOfTheWrongType:
 # typed and required. The tests below force that by putting a WRONG value in
 # the echo rather than by leaving the key out, so a runner that ever starts
 # preferring the echo fails instead of passing on an absence.
+#
+# scored_window is the same story one field along. It is in both places here
+# because PROD returns it in both (checked 2026-09-05, request_id
+# 609a2094-511c-4ee8-a113-73eb54e71fd4), but the runner reads
+# meta.task_specific_counts: that is the per-task provenance channel, and
+# data.input is being narrowed to the inputs the caller sent, which a
+# server-derived window is not.
 LIVE_EXPRESSION_BODY = {
     "data": {
         "task": "expression",
@@ -341,6 +348,8 @@ class TestTheExpressionWindowingProvenanceSurvivesToTheReport:
         counts = LIVE_EXPRESSION_BODY["meta"]["task_specific_counts"]
         inp = LIVE_EXPRESSION_BODY["data"]["input"]
         assert inp["scored_window"] == counts["scored_window"] == [7901, 17099]
+        # Both are present; the runner reads the meta one. Forced below by
+        # putting a wrong value in the echo, the same way the length is.
         assert inp["tss_index"] == counts["tss_index"] == 12500
         # The submitted length is not in either windowing echo. It is a
         # top-level meta field, which is where the runner reads it, and it is
@@ -414,20 +423,92 @@ class TestTheExpressionWindowingProvenanceSurvivesToTheReport:
         assert "TSS index 12500" in report
         assert "of 25,000 bp submitted" in report
 
-    def test_a_wrong_typed_window_is_refused_not_indexed(self, tmp_path):
-        """A dict here used to raise KeyError(0) out of the report writer.
+    def test_the_window_comes_from_meta_not_the_echo(self):
+        """Same reasoning as the length above, one field along.
 
-        ``window[0]`` on ``{"start": ..., "end": ...}`` raises, and it raises
-        inside the one block whose stated purpose is refusing wrong-typed
-        response fields -- so the runner's ResponseShapeError diagnostic was
-        bypassed by an uncaught KeyError.
+        data.input is an echo of the request and the API is narrowing it to
+        the inputs the caller actually sent, so the server-derived window
+        leaves it. meta.task_specific_counts is the per-task provenance
+        channel every published GI reader is pointed at, and it is where the
+        window stays. A wrong value in the echo rather than an absent key, so
+        a runner that starts preferring the echo fails here instead of
+        passing.
         """
         body = copy.deepcopy(LIVE_EXPRESSION_BODY)
-        body["data"]["input"]["scored_window"] = {"start": 0, "end": 9198}
+        body["data"]["input"]["scored_window"] = [0, 9198]
+        assert gi_runner._summarize("expression", body)["scored_window"] == [7901, 17099]
+
+    def test_the_window_survives_the_echo_being_removed(self):
+        """The response shape the API half of GH#123 ships.
+
+        data.input carries only the caller's own inputs and the window is in
+        meta alone. The report line has to survive that, because it is the
+        only place a user sees which window was scored.
+        """
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        del body["data"]["input"]["scored_window"]
+        assert gi_runner._summarize("expression", body)["scored_window"] == [7901, 17099]
+
+    def test_the_echo_is_the_fallback_when_meta_has_no_window(self):
+        """Either deploy order keeps the line, same as the length fallback."""
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        del body["meta"]["task_specific_counts"]["scored_window"]
+        assert gi_runner._summarize("expression", body)["scored_window"] == [7901, 17099]
+
+    def test_no_window_anywhere_reports_none_rather_than_raising(self, tmp_path):
+        """A response with the window in neither place is not malformed.
+
+        _as_bounds treats absent as None by design, so the runner keeps
+        working and drops the line; raising here would turn a report that is
+        merely missing one provenance clause into an exit 2.
+        """
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        del body["meta"]["task_specific_counts"]["scored_window"]
+        del body["data"]["input"]["scored_window"]
         summary = gi_runner._summarize("expression", body)
+        assert summary["scored_window"] is None
+        gi_runner._write_report(
+            "expression", summary, body, tmp_path,
+            tmp_path / "in.fa", "hbb", 25000, 12.0,
+        )
+        report = (tmp_path / "report.md").read_text()
+        assert "Scored window" not in report
+        assert "0.0344" in report
+
+    def test_a_wrong_typed_window_is_refused_not_indexed(self):
+        """A dict here used to raise KeyError(0) out of the report writer.
+
+        ``window[0]`` on ``{"start": ..., "end": ...}`` raises, and it raised
+        inside the one block whose stated purpose is refusing wrong-typed
+        response fields -- so the runner's ResponseShapeError diagnostic was
+        bypassed by an uncaught KeyError. The guard now sits at the read, so
+        the refusal names the field the value actually came from.
+        """
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        body["meta"]["task_specific_counts"]["scored_window"] = {"start": 0, "end": 9198}
+        with pytest.raises(
+            gi_runner.ResponseShapeError,
+            match=r"meta\.task_specific_counts\.scored_window",
+        ):
+            gi_runner._summarize("expression", body)
+
+    def test_a_wrong_typed_echo_is_refused_when_it_is_the_source(self):
+        """The fallback is guarded too, and names the echo when it is used."""
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        del body["meta"]["task_specific_counts"]["scored_window"]
+        body["data"]["input"]["scored_window"] = [0]
+        with pytest.raises(
+            gi_runner.ResponseShapeError, match=r"data\.input\.scored_window"
+        ):
+            gi_runner._summarize("expression", body)
+
+    def test_the_report_writer_still_guards_a_hand_built_summary(self, tmp_path):
+        """_write_report is reachable without _summarize, so it keeps its guard."""
+        summary = {"task": "expression", "log_tpm": 0.03,
+                   "scored_window": {"start": 0, "end": 9198}}
         with pytest.raises(gi_runner.ResponseShapeError, match="scored_window"):
             gi_runner._write_report(
-                "expression", summary, body, tmp_path,
+                "expression", summary, LIVE_EXPRESSION_BODY, tmp_path,
                 tmp_path / "in.fa", "hbb", 9198, 12.0,
             )
 
