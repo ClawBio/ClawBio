@@ -1,0 +1,48 @@
+{
+  "_comment": "SYNTHETIC demo case. No real patient, trial, or literature data — all rows and outcomes below are invented placeholders, structured the same way a real retrieval layer would return them (see provenance_core.EvidenceRow / SourceOutcome). This is a JSON file with a .txt extension per the ClawBio demo_input.txt naming convention.",
+  "subject": "SYNTH-TARGET-01 (synthetic demo subject, not a real gene or drug target)",
+  "rows": [
+    {
+      "tag": "expression:0",
+      "source_class": "expression",
+      "text": "Transcript is elevated in tumour relative to adjacent normal tissue in the synthetic cohort.",
+      "cohort": "SYNTH-COHORT-01",
+      "n": 120
+    },
+    {
+      "tag": "literature:0",
+      "source_class": "literature",
+      "text": "Independent groups report the same directional effect in unrelated synthetic cohorts.",
+      "n": 14
+    },
+    {
+      "tag": "trials:0",
+      "source_class": "trials",
+      "text": "A synthetic interventional study against this target closed early without meeting its endpoint.",
+      "n": 88
+    }
+  ],
+  "outcomes": [
+    {"source_class": "expression", "ok": true, "rows": 1},
+    {"source_class": "literature", "ok": true, "rows": 1, "cost_usd": 0.005},
+    {"source_class": "trials", "ok": true, "rows": 1, "cost_usd": 0.0012},
+    {
+      "source_class": "population",
+      "ok": false,
+      "reason": "cohort ancestry does not cover the question asked",
+      "route": "a cohort matched to the population in question"
+    },
+    {
+      "source_class": "ip",
+      "ok": false,
+      "reason": "supplier unreachable",
+      "route": "patent prior-art search (synthetic route, no real supplier)"
+    }
+  ],
+  "claims": [
+    "Expression is raised against matched normal tissue [expression:0], and the direction replicates independently [literature:0].",
+    "An earlier interventional study against this target closed without meeting its endpoint [trials:0].",
+    "This is the strongest available target for this indication.",
+    "Population-matched evidence supports the same conclusion [population:4]."
+  ]
+}
