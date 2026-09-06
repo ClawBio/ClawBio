@@ -146,7 +146,7 @@ Full spec with all optional fields:
 3. **Fill defaults**: domain → "bioinformatics", version → "0.1.0", capabilities/triggers → generic placeholders
 4. **Render SKILL.md**: Fill YAML frontmatter + all 13 required body sections from template
 5. **Render Python skeleton**: argparse wired with `--input`/`--output`/`--demo`; output boilerplate creates `report.md`, `result.json`, reproducibility bundle
-6. **Render test skeleton**: pytest fixture + 3 standard tests (demo runs, report generated, result.json valid)
+6. **Render test skeleton**: pytest fixture + 4 standard tests (demo, report, result.json, reproducibility bundle)
 7. **Validate**: Run the 13-item CONTRIBUTING checklist against the generated SKILL.md before writing
 8. **Register**: Append catalog entry; patch `clawbio.py` SKILLS dict via targeted string replacement
 
@@ -164,7 +164,9 @@ output_directory/
 ├── report.md                   # Summary of what was generated
 ├── result.json                 # Machine-readable scaffold manifest
 └── reproducibility/
-    └── commands.sh             # Exact command to reproduce the scaffold
+    ├── commands.sh             # Exact command to reproduce the scaffold
+    ├── environment.yml         # Environment snapshot
+    └── checksums.sha256        # SHA-256 of report.md and result.json
 
 Generated skill at skills/<name>/:
 ├── SKILL.md                    # Complete skill definition
@@ -188,7 +190,7 @@ Generated skill at skills/<name>/:
 - **Local-first**: No network calls; all generation is offline
 - **Non-destructive**: Never overwrites existing files without `--force`; prompts or errors if destination exists
 - **No hallucinated science**: All generated SKILL.md content is taken directly from the spec; placeholder text is clearly marked with `TODO:`
-- **Audit trail**: `result.json` and `commands.sh` record exactly what was generated and when
+- **Audit trail**: `result.json` and the reproducibility bundle record exactly what was generated and when
 
 ## Integration with Bio Orchestrator
 
