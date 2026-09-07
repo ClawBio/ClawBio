@@ -24,7 +24,9 @@ from acmg_engine import (
     classify,
     classify_variant,
     evaluate_criteria,
+    interpret_clinvar_significance,
     is_secondary_finding_gene,
+    normalize_clinvar_terms,
 )
 from clinical_variant_reporter import (
     ENSEMBL_INFO_VARIATION_PATH,
@@ -477,12 +479,12 @@ class TestVepLivePath:
 
 
 # ---------------------------------------------------------------------------
-# Regression — VEP clin_sig_allele may be a string, not a dict
+# Regression — VEP clin_sig_allele is an ALT-linked string
 # ---------------------------------------------------------------------------
 class TestClinSigAlleleTypeGuard:
-    """VEP returns colocated_variants[].clin_sig_allele as a dict for some
-    variants and a string (e.g. "T:pathogenic") for others. Extraction must not
-    crash on the string form (previously AttributeError: 'str' has no 'get')."""
+    """VEP returns colocated_variants[].clin_sig_allele as an ALT-linked
+    string such as ``T:pathogenic``. Unsupported shapes must fail closed rather
+    than being mistaken for review metadata."""
 
     def _record(self):
         from clinical_variant_reporter import VcfRecord
@@ -506,13 +508,15 @@ class TestClinSigAlleleTypeGuard:
         from clinical_variant_reporter import _extract_evidence_from_vep
         ev = _extract_evidence_from_vep(self._vep("T:pathogenic"), self._record())
         assert ev.gene == "BRCA2"
-        assert ev.clinvar_review_stars == 0  # defaults gracefully when not a dict
+        assert ev.clinvar_significance == "pathogenic"
+        assert ev.clinvar_review_stars == 0  # REST does not link stars to this ALT
 
-    def test_dict_clin_sig_allele_still_reads_stars(self):
+    def test_dict_clin_sig_allele_fails_closed_without_an_alt_assertion(self):
         from clinical_variant_reporter import _extract_evidence_from_vep
         ev = _extract_evidence_from_vep(
             self._vep({"review_status_stars": 3}), self._record())
-        assert ev.clinvar_review_stars == 3
+        assert ev.clinvar_significance == ""
+        assert ev.clinvar_review_stars == 0
 
 
 # ---------------------------------------------------------------------------
@@ -1028,3 +1032,419 @@ class TestFetchEnsemblDataVersions:
         assert called_url == VEP_REST_HOST + ENSEMBL_INFO_VARIATION_PATH
         assert captured_kwargs[0].get("timeout") == 10
         assert captured_kwargs[0].get("headers", {}).get("Accept") == "application/json"
+
+
+# ---------------------------------------------------------------------------
+# Regression — VEP clin_sig arrives as a list; ClinVar terms are parsed, not
+# joined and substring-matched (issue #328)
+# ---------------------------------------------------------------------------
+def _legacy_directions(significance: str) -> tuple[bool, bool]:
+    """The substring rule this fix replaces (acmg_engine.py before #328).
+
+    Kept as the regression oracle for scalar inputs: on every string the old
+    rule read correctly, the structured parser must agree with it. The two
+    deliberate divergences (mixed pathogenic + benign strings; benign plus
+    conflicting_data_from_submitters, which the old BP6 never checked for)
+    have their own test.
+    """
+    lowered = significance.lower()
+    pathogenic = "pathogenic" in lowered and "conflicting" not in lowered
+    benign = ("benign" in lowered or "likely benign" in lowered) and "pathogenic" not in lowered
+    return pathogenic, benign
+
+
+def _clinvar_evidence(significance, stars: int = 3, **overrides) -> VariantEvidence:
+    fields = dict(
+        chrom="17", pos=43093464, ref="A", alt="G", gene="BRCA1",
+        consequence="missense_variant", is_missense=True,
+        clinvar_significance=significance, clinvar_review_stars=stars,
+    )
+    fields.update(overrides)
+    return VariantEvidence(**fields)
+
+
+def _criterion(ev: VariantEvidence, code: str) -> EvidenceCriterion:
+    return next(c for c in evaluate_criteria(ev) if c.code == code)
+
+
+class TestClinVarTermNormalisation:
+    """Both shapes ClinVar data reaches the engine in must reduce to the same
+    ordered, de-duplicated tuple of snake_case terms: VEP's JSON list, and the
+    scalar strings ClinVar itself emits, which join several terms with "/"
+    (compound), "|" (VCF CLNSIG multi-value), ";" (variant_summary) or ", "."""
+
+    @pytest.mark.parametrize("raw, expected", [
+        ("Pathogenic", ("pathogenic",)),
+        ("Likely pathogenic", ("likely_pathogenic",)),
+        (["pathogenic", "pathogenic"], ("pathogenic",)),
+        (["Pathogenic", "pathogenic"], ("pathogenic",)),
+        ("Pathogenic/Likely pathogenic", ("pathogenic", "likely_pathogenic")),
+        ("Pathogenic/Likely_pathogenic", ("pathogenic", "likely_pathogenic")),
+        ("Pathogenic|risk_factor", ("pathogenic", "risk_factor")),
+        ("Benign/Likely benign", ("benign", "likely_benign")),
+        ("Uncertain significance; risk factor", ("uncertain_significance", "risk_factor")),
+        ("Conflicting interpretations of pathogenicity, Pathogenic",
+         ("conflicting_interpretations_of_pathogenicity", "pathogenic")),
+        # clin_sig_allele spelling of "Pathogenic, low penetrance" (VEP 116, rs1800562)
+        ("pathogenic/pathogenic,_low_penetrance", ("pathogenic", "low_penetrance")),
+        (["Pathogenic/Likely_pathogenic", "risk_factor"],
+         ("pathogenic", "likely_pathogenic", "risk_factor")),
+        (["uncertain_significance", "pathogenic"], ("uncertain_significance", "pathogenic")),
+        (("benign",), ("benign",)),
+        ("", ()),
+        (None, ()),
+        ([], ()),
+        (["", None, "  "], ()),
+    ])
+    def test_terms_are_split_normalised_and_deduplicated(self, raw, expected):
+        assert normalize_clinvar_terms(raw) == expected
+
+    def test_unsupported_shape_fails_loudly(self):
+        with pytest.raises(TypeError):
+            normalize_clinvar_terms({"T": "pathogenic"})
+
+
+class TestClinVarAssertionSemantics:
+    """Explicit semantics for the three ClinVar-backed rules (PS1, PP5, BP6):
+
+    - a term from the pathogenic family supports pathogenic, one from the
+      benign family supports benign;
+    - any term ClinVar or VEP uses for "submitters disagree" (every spelling
+      in the wild) is a conflict;
+    - pathogenic-family and benign-family terms co-occurring is a conflict
+      even when no such token is present (VEP's clin_sig list aggregates
+      every ClinVar record at the site);
+    - a conflict supports neither direction;
+    - anything else (uncertain, drug response, risk factor, unknown) is
+      neutral: it neither supports nor blocks.
+    """
+
+    # (input, supports_pathogenic, supports_benign, is_conflicting)
+    CASES = [
+        # single terms
+        ("Pathogenic", True, False, False),
+        ("Likely pathogenic", True, False, False),
+        ("Benign", False, True, False),
+        ("Likely benign", False, True, False),
+        ("Uncertain significance", False, False, False),
+        ("drug_response", False, False, False),
+        ("not_provided", False, False, False),
+        ("novel_value_from_a_future_release", False, False, False),
+        ("", False, False, False),
+        (None, False, False, False),
+        # duplicates
+        (["pathogenic", "pathogenic"], True, False, False),
+        (["benign", "Benign"], False, True, False),
+        # ClinVar compound / multi-value scalar forms
+        ("Pathogenic/Likely pathogenic", True, False, False),
+        ("Pathogenic/Likely_pathogenic", True, False, False),
+        ("Pathogenic|risk_factor", True, False, False),
+        ("Benign/Likely benign", False, True, False),
+        ("Pathogenic, low penetrance", True, False, False),
+        # VEP list vocabulary as served by rest.ensembl.org release 116
+        (["pathogenic_low_penetrance"], True, False, False),
+        (["likely_pathogenic_low_penetrance"], True, False, False),
+        ("Likely pathogenic, low penetrance", True, False, False),
+        (["uncertain_significance", "pathogenic"], True, False, False),
+        (["uncertain_significance", "not_provided", "pathogenic", "other",
+          "risk_factor", "pathogenic_low_penetrance"], True, False, False),
+        (["uncertain_significance", "benign", "likely_benign"], False, True, False),
+        # explicit conflicting tokens, every spelling in the wild
+        (["pathogenic", "conflicting_interpretations_of_pathogenicity"], False, False, True),
+        (["pathogenic", "conflicting_classifications_of_pathogenicity"], False, False, True),
+        (["benign", "conflicting_data_from_submitters"], False, False, True),
+        ("Conflicting_classifications_of_pathogenicity", False, False, True),
+        ("Conflicting interpretations of pathogenicity, Pathogenic", False, False, True),
+        ("Conflicting_interpretations_of_pathogenicity|Pathogenic", False, False, True),
+        # both families present is a conflict whatever the tokens say
+        (["benign", "pathogenic"], False, False, True),
+        (["likely_benign", "likely_pathogenic"], False, False, True),
+        ("Benign; Pathogenic", False, False, True),
+        ("Pathogenic/Likely_pathogenic|Benign", False, False, True),
+        # rs1042522 aggregate at release 116: C is pathogenic, T is benign
+        (["uncertain_significance", "benign", "likely_benign", "pathogenic"], False, False, True),
+    ]
+
+    @pytest.mark.parametrize("raw, pathogenic, benign, conflicting", CASES)
+    def test_directions(self, raw, pathogenic, benign, conflicting):
+        assertion = interpret_clinvar_significance(raw)
+        observed = (assertion.supports_pathogenic, assertion.supports_benign, assertion.is_conflicting)
+        assert observed == (pathogenic, benign, conflicting)
+
+    def test_a_conflict_never_supports_either_direction(self):
+        for raw, *_ in self.CASES:
+            assertion = interpret_clinvar_significance(raw)
+            if assertion.is_conflicting:
+                assert not assertion.supports_pathogenic
+                assert not assertion.supports_benign
+
+    def test_explicit_token_is_load_bearing_without_a_benign_term(self):
+        """No benign term here, so only the explicit-token clause can block.
+        Deleting that clause turns this test red."""
+        assertion = interpret_clinvar_significance(
+            ["pathogenic", "conflicting_classifications_of_pathogenicity"])
+        assert assertion.is_conflicting
+        assert assertion.supports_pathogenic is False
+        assert assertion.conflicting_terms == ("conflicting_classifications_of_pathogenicity",)
+
+    def test_cooccurrence_is_load_bearing_without_an_explicit_token(self):
+        """No conflicting token here, so only the co-occurrence clause can block.
+        Deleting that clause turns this test red."""
+        assertion = interpret_clinvar_significance(["benign", "pathogenic"])
+        assert assertion.is_conflicting
+        assert assertion.conflicting_terms == ()
+        assert assertion.pathogenic_terms == ("pathogenic",)
+        assert assertion.benign_terms == ("benign",)
+
+    def test_unseen_conflicting_spelling_is_still_a_conflict(self):
+        """ClinVar renamed interpretations->classifications in 2024; match the
+        family stem so the next rename does not reopen this bug."""
+        assertion = interpret_clinvar_significance(["pathogenic", "conflicting_something_new"])
+        assert assertion.is_conflicting
+
+    def test_conflict_reason_is_human_readable(self):
+        explicit = interpret_clinvar_significance(
+            ["pathogenic", "conflicting_classifications_of_pathogenicity"])
+        assert "conflicting_classifications_of_pathogenicity" in explicit.conflict_reason
+        mixed = interpret_clinvar_significance(["benign", "pathogenic"])
+        assert "pathogenic" in mixed.conflict_reason and "benign" in mixed.conflict_reason
+        assert interpret_clinvar_significance("Pathogenic").conflict_reason == ""
+
+    SCALAR_PARITY = [
+        "Pathogenic", "Likely pathogenic", "Pathogenic/Likely pathogenic",
+        "Pathogenic/Likely_pathogenic", "Pathogenic|risk_factor",
+        "Pathogenic, low penetrance", "Likely pathogenic, low penetrance",
+        "Benign", "Likely benign",
+        "Benign/Likely benign", "Uncertain significance", "risk factor",
+        "drug response", "not provided", "",
+        "Conflicting interpretations of pathogenicity, Pathogenic",
+        "Conflicting_classifications_of_pathogenicity",
+        "Conflicting_interpretations_of_pathogenicity|Pathogenic",
+        "Benign|Conflicting_interpretations_of_pathogenicity",
+        "Benign|Conflicting_classifications_of_pathogenicity",
+        "conflicting data from submitters",
+    ]
+
+    @pytest.mark.parametrize("raw", SCALAR_PARITY)
+    def test_parity_with_the_replaced_rule_on_scalar_inputs(self, raw):
+        assertion = interpret_clinvar_significance(raw)
+        assert (assertion.supports_pathogenic, assertion.supports_benign) == _legacy_directions(raw)
+
+    @pytest.mark.parametrize("raw, legacy", [
+        # The old rule read "pathogenic" anywhere in a mixed string as
+        # pathogenic support.
+        ("Benign; Pathogenic", (True, False)),
+        ("Pathogenic/Benign", (True, False)),
+        ("Likely benign|Likely pathogenic", (True, False)),
+        # The old BP6 had no conflicting check at all; the other two
+        # conflicting tokens only blocked it because "pathogenicity" contains
+        # "pathogenic". This token does not, so BP6 used to fire on it.
+        ("Benign|conflicting_data_from_submitters", (False, True)),
+        ("Likely_benign;conflicting_data_from_submitters", (False, True)),
+    ])
+    def test_deliberate_divergences_from_the_replaced_rule(self, raw, legacy):
+        """The two intended behaviour changes on scalar input, pinned so the
+        parity contract above is honest about what it excludes."""
+        assert _legacy_directions(raw) == legacy
+        assertion = interpret_clinvar_significance(raw)
+        assert assertion.is_conflicting
+        assert (assertion.supports_pathogenic, assertion.supports_benign) == (False, False)
+
+
+class TestClinVarCriteriaWithStructuredTerms:
+    def test_list_valued_pathogenic_fires_ps1_and_pp5(self):
+        ev = _clinvar_evidence(["uncertain_significance", "pathogenic"], stars=3)
+        assert _criterion(ev, "PS1").triggered is True
+        assert _criterion(ev, "PP5").triggered is True
+        assert _criterion(ev, "BP6").triggered is False
+
+    def test_compound_scalars_keep_firing(self):
+        assert _criterion(_clinvar_evidence("Pathogenic/Likely pathogenic", stars=3), "PP5").triggered
+        assert _criterion(_clinvar_evidence("Pathogenic|risk_factor", stars=3), "PS1").triggered
+        assert _criterion(_clinvar_evidence("Benign/Likely benign", stars=2), "BP6").triggered
+
+    @pytest.mark.parametrize("raw", [
+        ["pathogenic", "conflicting_interpretations_of_pathogenicity"],
+        ["pathogenic", "conflicting_classifications_of_pathogenicity"],
+        ["benign", "conflicting_classifications_of_pathogenicity"],
+        ["benign", "pathogenic"],
+        "Conflicting interpretations of pathogenicity, Pathogenic",
+    ])
+    def test_conflict_withholds_ps1_pp5_bp6_even_with_stars(self, raw):
+        ev = _clinvar_evidence(raw, stars=4)
+        for code in ("PS1", "PP5", "BP6"):
+            crit = _criterion(ev, code)
+            assert crit.triggered is False, code
+            assert "conflict" in crit.detail.lower(), code
+
+    def test_star_gate_is_unchanged(self):
+        ev = _clinvar_evidence(["pathogenic"], stars=1)
+        assert _criterion(ev, "PS1").triggered is False
+        assert _criterion(ev, "PP5").triggered is False
+
+    def test_criterion_source_renders_terms_not_python_repr(self):
+        ev = _clinvar_evidence(["uncertain_significance", "pathogenic"])
+        source = _criterion(ev, "PS1").source
+        assert "['" not in source
+        assert "ClinVar=uncertain_significance; pathogenic, stars=3" == source
+
+    def test_scalar_source_is_byte_identical_to_before(self):
+        ev = _clinvar_evidence("Pathogenic")
+        assert _criterion(ev, "PP5").source == "ClinVar=Pathogenic, stars=3"
+
+    def test_conflicting_list_lands_on_vus_not_likely_pathogenic(self):
+        in_silico = dict(gnomad_af=None, cadd_phred=28.0, sift_prediction="deleterious")
+        conflicted = _clinvar_evidence(
+            ["pathogenic", "conflicting_classifications_of_pathogenicity"], stars=3, **in_silico)
+        assert classify_variant(conflicted).classification == "Uncertain Significance"
+        # Same evidence without the conflict token: PS1 + PM2 + PP3 + PP5 -> LP.
+        clean = _clinvar_evidence(["uncertain_significance", "pathogenic"], stars=3, **in_silico)
+        assert classify_variant(clean).classification == "Likely Pathogenic"
+
+
+class TestListValuedClinSigEndToEnd:
+    """Issue #328: VEP REST returns colocated_variants[].clin_sig as a JSON
+    list. Before the fix _extract_evidence_from_vep stored it unchanged and
+    every ClinVar rule called .lower() on it, so live mode raised
+    AttributeError on the first ClinVar-annotated variant and wrote nothing."""
+
+    def _record(self):
+        from clinical_variant_reporter import VcfRecord
+        return VcfRecord(chrom="13", pos=32339267, id="rs886040553",
+                         ref="A", alt="T", qual=".", filt="PASS", info={})
+
+    def _vep(self, clin_sig, clin_sig_allele, consequence="missense_variant", impact="MODERATE"):
+        return {
+            "most_severe_consequence": consequence,
+            "transcript_consequences": [
+                {"gene_symbol": "BRCA2", "impact": impact,
+                 "consequence_terms": [consequence],
+                 "transcript_id": "ENST00000544455.6",
+                 "cadd_phred": 28.0, "sift_prediction": "deleterious"}
+            ],
+            "colocated_variants": [
+                {"id": "rs886040553", "clin_sig": clin_sig, "clin_sig_allele": clin_sig_allele}
+            ],
+        }
+
+    def test_release_116_payload_classifies_without_crashing(self):
+        """Shape captured live from rest.ensembl.org (release 116) for
+        13:32339267 A>T: a list clin_sig and a string clin_sig_allele."""
+        from clinical_variant_reporter import _extract_evidence_from_vep
+        payload = self._vep(
+            ["uncertain_significance", "pathogenic"],
+            "G:conflicting_classifications_of_pathogenicity;T:pathogenic;G:uncertain_significance",
+        )
+        ev = _extract_evidence_from_vep(payload, self._record())
+        assert ev.clinvar_significance == "pathogenic"
+        assert ev.clinvar_review_stars == 0  # REST payload carries no trustworthy stars
+        cv = classify_variant(ev)  # raised AttributeError before the fix
+        assert cv.classification == "Uncertain Significance"
+        assert not {"PS1", "PP5", "BP6"} & set(cv.triggered_codes)
+
+    def test_unlinked_star_dict_does_not_reenable_site_level_evidence(self):
+        from clinical_variant_reporter import _extract_evidence_from_vep
+        payload = self._vep(["benign", "pathogenic"], {"review_status_stars": 3})
+        cv = classify_variant(_extract_evidence_from_vep(payload, self._record()))
+        assert cv.evidence.clinvar_significance == ""
+        assert cv.evidence.clinvar_review_stars == 0
+        assert not {"PS1", "PP5", "BP6"} & set(cv.triggered_codes)
+        assert cv.classification == "Uncertain Significance"
+
+    def test_allele_specific_terms_without_review_stars_do_not_fire_clinvar_rules(self):
+        from clinical_variant_reporter import _extract_evidence_from_vep
+        payload = self._vep(
+            ["uncertain_significance", "pathogenic"],
+            "G:benign;T:pathogenic",
+        )
+        cv = classify_variant(_extract_evidence_from_vep(payload, self._record()))
+        assert cv.evidence.clinvar_significance == "pathogenic"
+        assert cv.evidence.clinvar_review_stars == 0
+        assert not {"PS1", "PP5", "BP6"} & set(cv.triggered_codes)
+        assert cv.classification == "Uncertain Significance"
+
+    def test_evidence_exposes_display_text_for_both_shapes(self):
+        assert _clinvar_evidence(["uncertain_significance", "pathogenic"]).clinvar_significance_text \
+            == "uncertain_significance; pathogenic"
+        assert _clinvar_evidence("Uncertain significance").clinvar_significance_text \
+            == "Uncertain significance"
+        assert _clinvar_evidence("").clinvar_significance_text == ""
+        assert _clinvar_evidence(None).clinvar_significance_text == ""
+
+    def test_report_and_table_render_terms_not_list_repr(self, tmp_path):
+        cv = classify_variant(_clinvar_evidence(
+            ["uncertain_significance", "pathogenic"], stars=3,
+            gnomad_af=None, cadd_phred=28.0, sift_prediction="deleterious",
+        ))
+        assert cv.classification == "Likely Pathogenic"  # so it lands in the actionable section
+
+        generate_report([cv], tmp_path, demo=False, source_versions={})
+        report = (tmp_path / "report.md").read_text()
+        table = (tmp_path / "tables" / "acmg_classifications.tsv").read_text()
+
+        assert "['" not in report and "['" not in table
+        assert "**ClinVar**: uncertain_significance; pathogenic (stars: 3)" in report
+        row = next(line for line in table.splitlines() if line.startswith("17\t43093464"))
+        assert "\tuncertain_significance; pathogenic\t3\t" in row
+
+
+class TestAlleleSpecificClinVarSignificance:
+    """Live VEP ``clin_sig`` is site-level; only the queried ALT is evidence.
+
+    The API's ``clin_sig_allele`` payload is a semicolon-delimited set of
+    ``ALT:terms`` entries.  A multi-allelic locus must never transfer a
+    ClinVar assertion from a different alternate allele.
+    """
+
+    def _record(self, alt="T"):
+        from clinical_variant_reporter import VcfRecord
+        return VcfRecord(chrom="13", pos=32339267, id="rs886040553",
+                         ref="A", alt=alt, qual=".", filt="PASS", info={})
+
+    def _vep(self, clin_sig_allele):
+        return {
+            "most_severe_consequence": "missense_variant",
+            "transcript_consequences": [{
+                "gene_symbol": "BRCA2", "impact": "MODERATE",
+                "consequence_terms": ["missense_variant"],
+            }],
+            "colocated_variants": [{
+                # This aggregate deliberately contains a benign assertion for G
+                # and a pathogenic assertion for T.  It is not allele-specific.
+                "clin_sig": ["benign", "pathogenic"],
+                "clin_sig_allele": clin_sig_allele,
+            }],
+        }
+
+    def test_uses_only_queried_alt_and_accepts_vep_ampersand_terms(self):
+        from clinical_variant_reporter import _extract_evidence_from_vep
+
+        ev = _extract_evidence_from_vep(
+            self._vep("G:benign;T:pathogenic&likely_pathogenic"), self._record("T"))
+
+        assert ev.clinvar_assertion.terms == ("pathogenic", "likely_pathogenic")
+        assert ev.clinvar_assertion.is_conflicting is False
+        assert ev.clinvar_review_stars == 0
+
+    def test_does_not_copy_a_different_alt_from_a_multiallelic_site(self):
+        from clinical_variant_reporter import _extract_evidence_from_vep
+
+        ev = _extract_evidence_from_vep(self._vep("G:benign"), self._record("T"))
+
+        assert ev.clinvar_significance == ""
+        assert ev.clinvar_review_stars == 0
+        assert ev.clinvar_assertion.terms == ()
+
+    @pytest.mark.parametrize("clin_sig_allele", [
+        "T",                         # no allele-to-assertion separator
+        "G:benign;T:",               # no assertion for the queried allele
+        "G:benign;T:pathogenic:bad", # ambiguous assertion separator
+        {"review_status_stars": 3},  # no allele-specific ClinVar assertion
+    ])
+    def test_missing_or_unsafe_allele_payload_fails_closed(self, clin_sig_allele):
+        from clinical_variant_reporter import _extract_evidence_from_vep
+
+        ev = _extract_evidence_from_vep(self._vep(clin_sig_allele), self._record("T"))
+
+        assert ev.clinvar_significance == ""
+        assert ev.clinvar_review_stars == 0

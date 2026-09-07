@@ -1,5 +1,11 @@
 """Model Context Protocol server for ClawBio.
 
+DEPRECATED since 0.7.0, scheduled for removal in 0.8.0. It keeps working through
+the 0.7.x series and prints a notice on stderr when it starts. The skills are plain
+Agent Skills folders, and the editors this server was built for now read those
+directly from ~/.agents/skills/, so a remote-call shim in front of them adds a process, a dependency pin
+(mcp<2) and a second code path for no capability the skills do not already have.
+
 Exposes the ClawBio skill library to any MCP-capable client (Cursor, Zed,
 VS Code agent mode, Claude Desktop, and others) through three tools:
 
@@ -26,6 +32,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 
 from clawbio.cli import SKILLS_DIR
 from clawbio.cli import run_skill as _cli_run_skill
@@ -37,6 +44,26 @@ CATALOG_PATH = SKILLS_DIR / "catalog.json"
 
 ALLOW_LOCAL_FILES_ENV = "CLAWBIO_MCP_ALLOW_LOCAL_FILES"
 MAX_OUTPUT_CHARS = 20_000
+
+DEPRECATION_NOTICE = """\
+ClawBio MCP server: deprecated since 0.7.0, scheduled for removal in 0.8.0.
+It keeps working for now. Preferred routes:
+  Claude Code:    /plugin marketplace add ClawBio/ClawBio   then   /plugin install clawbio
+  Other editors:  copy or symlink the skill folders you need into ~/.agents/skills/,
+                  which Cursor, VS Code, Codex and Zed all read
+  Any language:   pip install clawbio; clawbio run <skill> --demo
+Details and migration: https://docs.clawbio.ai/reference/mcp/"""
+
+
+def emit_deprecation_notice(stream=None) -> None:
+    """Write the deprecation notice to *stream* (default stderr).
+
+    Never stdout: over stdio, stdout is the JSON-RPC channel, and one stray line
+    there makes the client report a broken server instead of a deprecated one.
+    """
+    out = stream if stream is not None else sys.stderr
+    out.write(DEPRECATION_NOTICE + "\n")
+    out.flush()
 
 _LIST_FIELDS = (
     "name",
@@ -173,8 +200,13 @@ def run_skill(
     return result
 
 
-def serve() -> None:  # pragma: no cover - thin SDK binding
-    """Run the MCP server over stdio. Requires the optional `mcp` dependency."""
+def serve() -> None:
+    """Run the MCP server over stdio. Requires the optional `mcp` dependency.
+
+    Deprecated since 0.7.0; the notice is emitted before the SDK import so that a
+    user without `mcp` installed still learns the feature is on its way out.
+    """
+    emit_deprecation_notice(sys.stderr)
     try:
         import mcp  # noqa: F401
     except ImportError as exc:  # pragma: no cover

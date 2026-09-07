@@ -120,14 +120,14 @@
   </nav>
   <a href="/benchmarks.html" style="display:block;background:linear-gradient(90deg,#238636,#1f6feb);color:#fff;text-align:center;padding:0.7rem 1rem;font-size:0.95rem;font-weight:600;text-decoration:none;">📊 Public Benchmark Leaderboard | 161/182 passing (88.5%), 26 Jul 2026 | nutrigx-advisor regressed to 0/10 and is being investigated | Every failure documented &rarr;</a>
   <section class="hero">
-    <div class="hero-badge">📊 Publicly benchmarked · 1,123 stars · 97 skills · 50 contributors · 4,605 tests</div>
+    <div class="hero-badge">📊 Publicly benchmarked · 1,126 stars · 96 skills · 50 contributors · 4,683 tests</div>
     <h1>The first <em>bioinformatics-native</em><br>AI agent skill library</h1>
     <p>ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call.</p>
     <div style="max-width:440px;margin:0 auto 2rem;">
       <div style="background:var(--bg3,#161b22);border:1px solid var(--border);border-radius:8px;padding:0.7rem 1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1rem;color:var(--accent);text-align:left;white-space:nowrap;overflow-x:auto;">
         <span style="color:var(--text-muted);user-select:none;">$ </span>pip install clawbio
       </div>
-      <p style="color:var(--text-muted);font-size:0.82rem;margin:0.6rem 0 0;">🚀 New in <a href="https://github.com/ClawBio/ClawBio/releases/tag/v0.6.1" target="_blank" style="color:var(--accent);">v0.6.1</a>: an <a href="#mcp" style="color:var(--accent);">MCP server</a>, so every skill runs inside Cursor, Zed, VS Code and Claude Desktop.</p>
+      <p style="color:var(--text-muted);font-size:0.82rem;margin:0.6rem 0 0;">🚀 New in <a href="/releases/v0.7.0/" style="color:var(--accent);">v0.7.0</a>: the library installs as a <a href="#mcp" style="color:var(--accent);">Claude Code plugin or plain Agent Skills</a>, and the headline skills write SHA-256 reproducibility bundles.</p>
     </div>
     <div class="hero-ctas">
       <a class="btn btn-primary" href="https://github.com/ClawBio/ClawBio" target="_blank">⭐ View on GitHub</a>
@@ -150,45 +150,52 @@
 
   <section id="mcp" style="padding:3.5rem 2rem;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
     <div style="max-width:1000px;margin:0 auto;">
-      <div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.8rem;font-weight:600;letter-spacing:0.22em;color:var(--accent);text-transform:uppercase;margin-bottom:0.9rem;">New in v0.6.1 · Model Context Protocol</div>
+      <div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.8rem;font-weight:600;letter-spacing:0.22em;color:var(--accent);text-transform:uppercase;margin-bottom:0.9rem;">v0.7.0 · Agent Skills</div>
       <h2 style="font-size:2.1rem;line-height:1.15;margin:0 0 1rem;">Genomics skills, in your editor</h2>
       <p style="color:var(--text-muted);max-width:760px;margin:0 0 2rem;font-size:1.02rem;line-height:1.65;">
-        ClawBio speaks <a href="https://modelcontextprotocol.io" target="_blank" style="color:var(--accent);">MCP</a>, so the skill library is callable from Cursor, Zed, VS Code agent mode and Claude Desktop, not just Claude Code.
-        Most bioinformatics MCP servers retrieve records. This one executes: it runs the real skill on your machine and hands back the report,
-        the structured result, and a <code style="font-size:0.85rem;">commands.sh</code> with SHA-256 checksums, so the analysis can be replayed without the agent that produced it.
+        Every ClawBio skill is a plain <a href="https://agentskills.io" target="_blank" style="color:var(--accent);">Agent Skills</a> folder: a <code style="font-size:0.85rem;">SKILL.md</code> contract, the script that executes it, demo data and tests.
+        Claude Code installs the whole library as a plugin. Cursor, VS Code, Codex, Zed and any other editor that reads Agent Skills load the folders from <code style="font-size:0.85rem;">~/.agents/skills/</code>.
+        The runnable skills execute on your machine and hand back the report, the structured result, and a <code style="font-size:0.85rem;">commands.sh</code> with SHA-256 checksums, so the analysis can be replayed without the agent that produced it.
       </p>
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;align-items:start;">
         <div>
-          <div style="background:var(--bg3,#161b22);border:1px solid var(--border);border-radius:8px;padding:0.7rem 1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.95rem;color:var(--accent);text-align:left;overflow-x:auto;white-space:nowrap;">
-            <span style="color:var(--text-muted);user-select:none;">$ </span>uvx --from 'clawbio[mcp]' clawbio mcp
+          <div style="background:var(--bg3,#161b22);border:1px solid var(--border);border-radius:8px;padding:0.7rem 1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.95rem;color:var(--accent);text-align:left;white-space:nowrap;overflow-x:auto;">
+            <span style="color:var(--text-muted);user-select:none;">&gt; </span>/plugin marketplace add ClawBio/ClawBio
           </div>
           <p style="color:var(--text-muted);font-size:0.86rem;margin:0.9rem 0 1.4rem;line-height:1.6;">
-            No install required. Add the same three lines to your client's config and restart it.
+            Then <code style="font-size:0.85rem;">/plugin install clawbio</code>. Other editors: copy or symlink the skill folders you need into <code style="font-size:0.85rem;">~/.agents/skills/</code>.
           </p>
           <ul style="list-style:none;padding:0;margin:0;color:var(--text-muted);font-size:0.92rem;line-height:1.9;">
-            <li>✅ <strong style="color:var(--text);">97 skills</strong>, each flagged runnable or spec-only</li>
-            <li>🔒 <strong style="color:var(--text);">Demo data only</strong> until you opt in explicitly</li>
-            <li>🏠 <strong style="color:var(--text);">Local stdio</strong>. No hosted endpoint, by design</li>
+            <li>✅ <strong style="color:var(--text);">96 skills</strong>, 90 with a deterministic CLI entry point</li>
+            <li>🔒 <strong style="color:var(--text);">Demo data included</strong>, your files only when you pass them</li>
+            <li>🏠 <strong style="color:var(--text);">Local-first</strong>. No server, no hosted endpoint, by design</li>
           </ul>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.3rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.82rem;line-height:1.75;overflow-x:auto;">
-<pre style="margin:0;color:var(--text-muted);"><span style="color:#8b949e">// Cursor, Claude Desktop, VS Code, Zed</span>
-{
-  <span style="color:var(--accent2)">&quot;mcpServers&quot;</span>: {
-    <span style="color:var(--accent2)">&quot;clawbio&quot;</span>: {
-      <span style="color:var(--accent2)">&quot;command&quot;</span>: <span style="color:var(--accent)">&quot;uvx&quot;</span>,
-      <span style="color:var(--accent2)">&quot;args&quot;</span>: [<span style="color:var(--accent)">&quot;--from&quot;</span>, <span style="color:var(--accent)">&quot;clawbio[mcp]&quot;</span>,
-               <span style="color:var(--accent)">&quot;clawbio&quot;</span>, <span style="color:var(--accent)">&quot;mcp&quot;</span>]
-    }
-  }
-}</pre>
+<pre style="margin:0;color:var(--text-muted);"><span style="color:#8b949e"># Claude Code</span>
+/plugin marketplace add ClawBio/ClawBio
+/plugin install clawbio
+
+<span style="color:#8b949e"># Cursor, VS Code, Codex, Zed: Agent Skills</span>
+git clone https://github.com/ClawBio/ClawBio
+cp -r ClawBio/skills/pharmgx-reporter ~/.agents/skills/
+
+<span style="color:#8b949e"># Python, any language</span>
+pip install clawbio
+clawbio run pharmgx --demo</pre>
         </div>
       </div>
 
-      <div class="hero-ctas" style="margin-top:2rem;">
-        <a class="btn btn-primary" href="https://docs.clawbio.ai/reference/mcp/" target="_blank">📄 MCP setup guide</a>
-        <a class="btn btn-secondary" href="https://github.com/ClawBio/ClawBio/releases/tag/v0.6.1" target="_blank">🏷️ Release notes</a>
+      <p style="color:var(--text-muted);font-size:0.84rem;margin:1.6rem 0 0;line-height:1.6;">
+        The MCP server introduced in v0.6.0 is <strong style="color:var(--text);">deprecated as of v0.7.0 and will be removed in v0.8.0</strong>. Existing <code style="font-size:0.8rem;">clawbio mcp</code> configurations keep working until then and print a notice on start.
+        <a href="https://docs.clawbio.ai/reference/mcp/" target="_blank" style="color:var(--accent);">Why, and how to migrate.</a>
+      </p>
+
+      <div class="hero-ctas" style="margin-top:1.6rem;">
+        <a class="btn btn-primary" href="/releases/v0.7.0/">🚀 What is new in v0.7.0</a>
+        <a class="btn btn-secondary" href="https://github.com/ClawBio/ClawBio/releases/tag/v0.7.0" target="_blank">🏷️ Release notes</a>
+        <a class="btn btn-secondary" href="https://docs.clawbio.ai/reference/mcp/" target="_blank">📄 MCP migration guide</a>
       </div>
     </div>
   </section>
@@ -252,7 +259,7 @@
   <section id="skills" style="background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
     <div class="section-inner">
       <div class="section-label">Skills Library</div>
-      <div class="section-title">97 skills · 92 with runnable demo data · 4,605 tests · 161 / 182 publicly benchmarked passing</div>
+      <div class="section-title">96 skills · 91 with runnable demo data · 4,683 tests · 161 / 182 publicly benchmarked passing</div>
       <p class="section-sub">Each skill includes demo data so you can try it immediately without your own files.</p>
       <div class="skills-grid">
         <div class="skill-card"><div><div class="skill-name">💊 PharmGx Reporter</div><div class="skill-desc">Pharmacogenomic report from 23andMe/AncestryDNA: 12 genes, 31 SNPs, 51 drugs, CPIC guidelines.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
@@ -261,7 +268,7 @@
         <div class="skill-card"><div><div class="skill-name">📊 GWAS Polygenic Risk</div><div class="skill-desc">Calculate polygenic risk scores from DTC genetic data using curated PGS Catalog scores across 6 traits.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
         <div class="skill-card"><div><div class="skill-name">⚖️ Equity Scorer</div><div class="skill-desc">Compute HEIM diversity and equity metrics from VCF or ancestry data: heterozygosity, FST, and population representation scores.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
       </div>
-      <p style="color:var(--text-muted);margin-top:1.5rem;font-size:0.95rem;">+ 92 more skills on <a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">GitHub</a> · <a href="/benchmarks.html" style="color:var(--accent2);">see which ones are publicly benchmarked &rarr;</a></p>
+      <p style="color:var(--text-muted);margin-top:1.5rem;font-size:0.95rem;">+ 91 more skills on <a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">GitHub</a> · <a href="/benchmarks.html" style="color:var(--accent2);">see which ones are publicly benchmarked &rarr;</a></p>
     </div>
   </section>
   <section id="showcase">
@@ -327,7 +334,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr style="border-bottom:1px solid var(--border);background:rgba(63,185,80,0.05);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">ClawBio</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,123</td><td style="padding:0.6rem 1rem;text-align:right;">256</td><td style="padding:0.6rem 1rem;text-align:right;">97</td></tr>
+            <tr style="border-bottom:1px solid var(--border);background:rgba(63,185,80,0.05);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">ClawBio</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,126</td><td style="padding:0.6rem 1rem;text-align:right;">260</td><td style="padding:0.6rem 1rem;text-align:right;">96</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/FreedomIntelligence/OpenClaw-Medical-Skills" target="_blank" style="color:var(--accent2);">OpenClaw-Medical-Skills</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,037</td><td style="padding:0.6rem 1rem;text-align:right;">123</td><td style="padding:0.6rem 1rem;text-align:right;">869</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/GPTomics/bioSkills" target="_blank" style="color:var(--accent2);">bioSkills</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">331</td><td style="padding:0.6rem 1rem;text-align:right;">52</td><td style="padding:0.6rem 1rem;text-align:right;">425</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/wu-yc/LabClaw" target="_blank" style="color:var(--accent2);">LabClaw</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">317</td><td style="padding:0.6rem 1rem;text-align:right;">54</td><td style="padding:0.6rem 1rem;text-align:right;">211</td></tr>
@@ -345,73 +352,73 @@
       <div class="section-title">Latest from the community</div>
       <div style="display:grid;gap:0.75rem;max-width:700px;">
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">⚙️</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(gwas-prs): give curated panels honest identifiers.</strong> Curated PGS panel identifiers were using names that could be confused with real PGS Catalog IDs, causing downstream tools to attempt live API lookups against demo scores. Panel identifiers are now prefixed to make their demo-only status unambiguous. Contributed by @krudo-taco.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #380 · merged · 1 September 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(rnaseq-de): verify LFC shrinkage matches the requested contrast.</strong> Log-fold-change shrinkage was being applied to the wrong contrast in some multi-factor designs, producing incorrect shrunken estimates in the differential expression output. Contributed by @krudo-taco.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #378 · merged · 31 August 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: move pinned actions to node24 runtimes.</strong> Updated all pinned GitHub Actions to run on Node.js 24 runtimes, keeping CI dependencies current and removing deprecation warnings from older runtimes. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #401 · merged · 7 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">⚙️</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: run vcf-annotator tests on the main allowlist.</strong> The vcf-annotator test suite is now included in the main CI allowlist, ensuring annotation correctness is checked on every push rather than only in scheduled runs. Contributed by @krudo-taco.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #370 · merged · 31 August 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: let scientific-audit start without waiting for test.</strong> Removed the blocking dependency so the scientific-audit CI job starts immediately, reducing total pipeline wall time. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #402 · merged · 7 September 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">⚡</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Perf(genome-compare): share parsed genomes and the demo run across tests.</strong> Parsed genome objects are now shared across the test suite rather than re-read per test, cutting genome-compare CI time significantly. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #404 · merged · 7 September 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(profile-report): respect PRS evidence and research-only scope.</strong> The profile report now correctly filters polygenic risk scores to research-only scope and honours PRS evidence flags, preventing over-reporting of unvalidated scores. Contributed by @manuelcorpas.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #400 · merged · 6 September 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🛠️</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Feat(skill-builder): write reproducibility bundles via clawbio.common.</strong> The skill scaffolding tool now uses clawbio.common to generate reproducibility bundles, aligning it with the standard output format used by all runnable skills. Contributed by @krudo-taco.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #389 · merged · 6 September 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(gi-expression): read the scored window from meta, not data.input.</strong> Fixes a data-routing bug where scored window coordinates were read from the wrong field, producing misaligned predictions for the sequence-to-expression skill. Contributed by @boldakov.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #398 · merged · 6 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">⚙️</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Feat: equity-scorer writes reproducibility bundle via clawbio.common.</strong> The equity-scorer skill now emits a full reproducibility bundle using the shared clawbio.common helpers, matching the pattern adopted across other MVP skills. Contributed by @camlloyd.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #352 · merged · 31 August 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: unblock publishing — Twine rejects Metadata-Version 2.5.</strong> Fixed the publish workflow so it no longer emits a Metadata-Version 2.5 header, restoring automatic PyPI releases on version tags. Contributed by @manuelcorpas.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #396 · merged · 5 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🚀</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(catalog): sync nutrigx version.</strong> The catalog entry for nutrigx had a stale version string that did not match the implementation; now kept in sync automatically.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #377 · merged · 30 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(nutrigx): correct rs4988235 lactose polarity and dominance.</strong> The lactose-persistence variant rs4988235 was encoded with the wrong risk polarity and an incorrect dominance model, leading to inverted dietary guidance for heterozygous carriers. Contributed by @krudo-taco.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #376 · merged · 30 August 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Release 0.7.1.</strong> Version bump resolving a publish pipeline breakage: Twine rejects packages carrying Metadata-Version 2.5, which blocked PyPI uploads. Contributed by @manuelcorpas.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #395 · merged · 5 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">⚙️</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Feat(scaffold): generate a working reproducibility bundle for new skills.</strong> The skill scaffolding tool now produces a fully wired reproducibility bundle alongside each new skill, so contributors get correct replay command stubs and checksum hooks from the first commit. Contributed by @camlloyd.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #374 · merged · 30 August 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: publish to PyPI with an API token until Trusted Publishing is registered.</strong> Switched the release workflow to authenticate with an API token, unblocking PyPI uploads while the repository's Trusted Publishing configuration is pending. Contributed by @manuelcorpas.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #394 · merged · 5 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">📄</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">⚙️</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Docs: disclose Nebius report upload behaviour.</strong> The skill documentation now explicitly states when and how Nebius-backed skills upload report data, ensuring users have full visibility before invoking those skills. Contributed by @krudo-taco.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #366 · merged · 30 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix(rnaseq-de): keep gene IDs on nf-core count handoff.</strong> Gene identifiers were being dropped when DESeq2 received count matrices from nf-core/rnaseq, producing unlabelled rows in the differential expression output. Contributed by @krudo-taco.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #371 · merged · 29 August 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🐛</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>Fix: fail closed on VEP annotation batch failures.</strong> The variant annotation skill previously continued silently when a VEP batch call failed partway through, returning a partial result without warning. It now fails closed and surfaces the error. Contributed by @krudo-taco.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #368 · merged · 29 August 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>CI: report dependency advisories on every PR.</strong> Added automated dependency advisory scanning to the CI pipeline, surfacing security issues at review time rather than after merge. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #393 · merged · 5 September 2026</div>
           </div>
         </div>
       </div>
@@ -497,7 +504,7 @@
   <section class="cta-section">
     <div class="section-inner">
       <h2>Get started in 30 seconds</h2>
-      <p>Install with pip, conda, as a Claude Code plugin, or as an MCP server in any AI editor. Every skill includes demo data.</p>
+      <p>Install with pip, conda, as a Claude Code plugin, or as Agent Skills in any editor that reads them. Every skill includes demo data.</p>
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1.5rem;font-family:monospace;font-size:0.9rem;text-align:left;max-width:540px;margin:0 auto 2rem;line-height:2;">
         <span style="color:#8b949e"># Option 1: pip (recommended)</span><br>
         <span style="color:var(--accent2)">pip install clawbio</span><br>
@@ -507,8 +514,9 @@
         <span style="color:#8b949e"># Option 3: Claude Code plugin</span><br>
         <span style="color:var(--accent2)">/plugin marketplace add ClawBio/ClawBio</span><br>
         <span style="color:var(--accent2)">/plugin install clawbio</span><br><br>
-        <span style="color:#8b949e"># Option 4: MCP server (Cursor, Zed, VS Code, Claude Desktop)</span><br>
-        <span style="color:var(--accent2)">uvx --from 'clawbio[mcp]' clawbio mcp</span>
+        <span style="color:#8b949e"># Option 4: Agent Skills (Cursor, VS Code, Codex, Zed)</span><br>
+        <span style="color:var(--accent2)">git clone https://github.com/ClawBio/ClawBio</span><br>
+        <span style="color:var(--accent2)">cp -r ClawBio/skills/pharmgx-reporter ~/.agents/skills/</span>
       </div>
       <div class="hero-ctas">
         <a class="btn btn-primary" href="https://github.com/ClawBio/ClawBio" target="_blank">⭐ Star on GitHub</a>

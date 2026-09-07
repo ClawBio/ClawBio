@@ -1,7 +1,7 @@
 {
   "name": "clawbio",
-  "description": "Bioinformatics-native AI agent skill library — pharmacogenomics, ancestry, scRNA-seq, metagenomics, variant annotation, genome comparison, and more. 24 skills with deterministic Python execution, reproducibility bundles, and local-first privacy.",
-  "version": "0.3.0",
+  "description": "Bioinformatics-native AI agent skill library: pharmacogenomics, clinical variant interpretation, GWAS and polygenic scores, ancestry, RNA-seq and single-cell, metagenomics, proteomics and nf-core pipeline wrappers. 97 Agent Skills, 50 with a deterministic CLI entry point and demo data, every runnable skill writing a SHA-256 reproducibility bundle. Local-first.",
+  "version": "0.7.0",
   "author": {
     "name": "Manuel Corpas",
     "email": "mc@manuelcorpas.com"
@@ -21,5 +21,7 @@
     "reproducibility"
   ],
   "skills": "./skills/",
-  "commands": ["./commands/"]
+  "commands": [
+    "./commands/"
+  ]
 }

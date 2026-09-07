@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
           persist-credentials: false
@@ -38,25 +38,92 @@ jobs:
   lockfile-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
       - name: Check lockfile is up to date
         run: uv lock --check
 
-  skill-lint:
+  dependency-audit:
+    # Report-only, deliberately. Two reasons, both verified against uv 0.10.12:
+    #
+    #   1. `uv audit` exits 0 even when it reports findings, so gating would
+    #      mean parsing its output ourselves. Not worth it while there is a
+    #      backlog of nine affected packages to clear first -- a gate born red
+    #      is how the scientific-audit job below ended up carrying `|| true`
+    #      for months (#342).
+    #   2. The subcommand is still experimental and warns that it may change
+    #      without notice, so its exit codes and output are not a stable
+    #      contract to build a gate on yet.
+    #
+    # Promote to a gate once the backlog is cleared and the subcommand settles.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Audit locked dependencies
+        id: audit
+        # Deliberately unflagged. setup-uv installs whichever uv is latest
+        # (no version input, no required-version), and this preview subcommand
+        # has already renamed things across versions: `--all-groups` does not
+        # exist on 0.12.9, and `--preview-features audit` became
+        # `audit-command`. Auditing every group is the default, so the bare
+        # command is the one form that works on both. The experimental warning
+        # is cosmetic and lands in the report.
+        #
+        # `|| true` keeps findings from failing the build (this job is
+        # report-only), but it would also hide the tool itself breaking. So
+        # assert the report is a report: `uv audit` always prints a "Found N
+        # known vulnerabilities" line, and if that is missing the subcommand
+        # changed, was removed, or died -- which must fail loudly rather than
+        # render an empty summary nobody reads.
+        run: |
+          uv audit > audit.txt 2>&1 || true
+          if ! grep -qE '^Found [0-9]+ known vulnerabilit' audit.txt; then
+            echo "::error::uv audit produced no recognisable report - the audit step is broken, not clean"
+            cat audit.txt
+            exit 1
+          fi
+
+      - name: Post summary
+        if: always()
+        run: |
+          echo "## Dependency Audit" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Report-only: this job never fails the build." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat audit.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependency-audit
+          path: audit.txt
+          retention-days: 30
+
+  skill-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
       - name: Install dependencies from lockfile
         run: uv sync --frozen --only-group dev
@@ -93,14 +160,14 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           # Needed to diff against the PR base and find which skills changed.
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
 
@@ -135,7 +202,7 @@ jobs:
         run: uv run pytest skills/clinpgx/tests/test_clinpgx.py -v
 
       - name: Run GWAS PRS tests
-        run: uv run pytest skills/gwas-prs/tests/test_gwas_prs.py -v
+        run: uv run pytest skills/gwas-prs/tests/ -v
 
       - name: Test prs-abstain skill
         run: uv run pytest skills/prs-abstain/tests/test_prs_abstain.py -v
@@ -248,7 +315,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -343,12 +410,12 @@ jobs:
   benchmark:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
 
@@ -365,14 +432,13 @@ jobs:
 
   scientific-audit:
     runs-on: ubuntu-latest
-    needs: test
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
 
@@ -392,6 +458,12 @@ jobs:
       # (#342) would go straight back on. So the bench is allowed to report,
       # and the *baseline comparison* below is the gate.
       - name: Run scientific correctness audit (smoke)
+        env:
+          # The pinned clawbio_bench revision requests the curated T2D panel as
+          # --pgs-id PGS000013. Since ClawBio issue #356 that alias is opt-in;
+          # only benchmark runs opt in. Drop this once clawbio_bench requests
+          # --panel-id CLAWBIO-T2D-8 directly.
+          CLAWBIO_ALLOW_LEGACY_PGS_ALIAS: "1"
         run: |
           mkdir -p results
           uv run clawbio-bench --smoke --repo . || true
@@ -406,7 +478,7 @@ jobs:
 
       - name: Upload bench verdicts
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: scientific-audit-verdicts
           path: results/

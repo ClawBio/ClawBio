@@ -124,3 +124,10 @@ def test_pipeline_help_is_delegated_to_the_wrapper_parser(skill):
     )
     # A launcher-rendered help would advertise the launcher, not the wrapper.
     assert "ClawBio — Bioinformatics Skills Runner" not in result.stdout
+
+
+def test_mcp_help_states_the_deprecation():
+    """The `mcp` subcommand stays through 0.7.x but must say so in its own help."""
+    result = _run("--help")
+    assert result.returncode == 0, result.stderr
+    assert "deprecated" in result.stdout.lower()

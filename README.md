@@ -9,7 +9,7 @@
   <a href="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml"><img src="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.11+-blue?logo=python&logoColor=white" alt="Python 3.11+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
-  <a href="https://clawhub.ai"><img src="https://img.shields.io/badge/ClawHub-97_skills-orange" alt="ClawHub Skills"></a>
+  <a href="https://clawhub.ai"><img src="https://img.shields.io/badge/ClawHub-96_skills-orange" alt="ClawHub Skills"></a>
   <a href="https://doi.org/10.5281/zenodo.19420648"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.19420648.svg" alt="DOI"></a>
   <a href="https://github.com/ClawBio/ClawBio/issues"><img src="https://img.shields.io/github/issues/ClawBio/ClawBio" alt="Open Issues"></a>
   <a href="https://clawbio.github.io/ClawBio/slides/"><img src="https://img.shields.io/badge/slides-London_Bioinformatics_Meetup-purple" alt="Slides"></a>
@@ -35,22 +35,13 @@ result = run_skill("pharmgx", demo=True)
 
 Or install as a [Claude Code](https://claude.ai/claude-code) plugin: `/plugin marketplace add ClawBio/ClawBio`
 
-Using **Cursor, Zed, VS Code or Claude Desktop**? ClawBio ships an [MCP](https://modelcontextprotocol.io)
-server. No install needed:
+Using **Cursor, VS Code, Codex, Zed or another editor that reads [Agent Skills](https://agentskills.io)**?
+Every skill is a plain Agent Skills folder. Copy or symlink the folders you need from `skills/` into
+`~/.agents/skills/`, which all four read, or into your project's `.agents/skills/`. No server involved.
 
-```json
-{
-  "mcpServers": {
-    "clawbio": {
-      "command": "uvx",
-      "args": ["--from", "clawbio[mcp]", "clawbio", "mcp"]
-    }
-  }
-}
-```
-
-It runs locally over stdio and defaults to demo data only, so connecting it cannot by itself
-give an agent access to your genome. Full setup: [docs.clawbio.ai/reference/mcp](https://docs.clawbio.ai/reference/mcp/).
+The MCP server (`uvx --from 'clawbio[mcp]' clawbio mcp`) is **deprecated as of 0.7.0 and will be
+removed in 0.8.0**. Existing configurations keep working until then and print a notice on start.
+Why, and how to migrate: [docs.clawbio.ai/reference/mcp](https://docs.clawbio.ai/reference/mcp/).
 
 **Developing ClawBio or want all skills with full demo data?** Work from a
 source checkout instead ([uv](https://docs.astral.sh/uv/) recommended):
@@ -72,7 +63,7 @@ uv run python clawbio.py run pharmgx --demo
 
 ## What ClawBio Does Today
 
-**97 skills (92 with runnable demo data) + 8,182 Galaxy tools + 4,605 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
+**96 skills (91 with runnable demo data) + 8,182 Galaxy tools + 4,683 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
 > **v0.5.0 released** (4 Apr 2026): Validation and Benchmark Infrastructure. AD ground truth benchmark, mock API server for offline testing, swappable fine-mapping pipeline (SuSiE vs ABF), 74 benchmark tests, red/green TDD mandate. [Release notes](https://github.com/ClawBio/ClawBio/releases/tag/v0.5.0). DOI: [10.5281/zenodo.19420648](https://doi.org/10.5281/zenodo.19420648).
 
 Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card — on your machine, in seconds:
@@ -163,7 +154,7 @@ ClawBio skill                = specification-constrained, versioned, reproducibl
 
 - **Specification-first**: Domain expertise resides in `SKILL.md`, not in model weights. Specifications are versioned, human-readable, peer-reviewable, and trivially updatable.
 - **Agent-agnostic**: Skills execute identically whether invoked by Claude, ChatGPT, or a locally hosted model via Ollama. Reproducibility is decoupled from any specific AI vendor.
-- **Local-first by default**: Your genome is analysed on your machine. Skills that send data to external services (hosted inference, public annotation APIs) are individually labelled and run only when you explicitly invoke them.
+- **Local-first by default**: Your genome is analysed on your machine, and the `clawbio` package itself makes no network calls. Some skills do reach public annotation APIs or hosted models, and a few send your variants or sequences to do so. Every one of them is named, with what it sends and to whom, in [docs/data-handling.md](docs/data-handling.md), and a test fails if a networked skill is missing from that page.
 - **Reproducible**: Many skills export replay metadata such as `commands.sh`, `environment.yml`, and SHA-256 checksums so runs can be rechecked without the original agent session.
 - **MIT licensed**: Open-source, free, community-driven.
 
@@ -197,7 +188,7 @@ The exact contents can vary by skill, and some replays also require the original
 
 ## Skills
 
-A curated cross-section of ClawBio's 97 skills. The full machine-readable catalog (with status flags, objective `maturity_tier` evidence, trigger keywords, demo commands, and chaining partners) lives in [`skills/catalog.json`](skills/catalog.json); browse the directory at [`skills/`](skills/) to see every skill folder.
+A curated cross-section of ClawBio's 96 skills. The full machine-readable catalog (with status flags, objective `maturity_tier` evidence, trigger keywords, demo commands, and chaining partners) lives in [`skills/catalog.json`](skills/catalog.json); browse the directory at [`skills/`](skills/) to see every skill folder.
 
 Catalog maturity tiers are computed from repository evidence: `spec-only` (SKILL.md only), `scripted` (has runnable code), `tested` (has skill tests), `cli-registered` (available via `python clawbio.py run`), `ci-validated` (explicitly tested in CI), and `bench-validated` (reserved for skills with blocking scientific benchmark validation).
 
@@ -240,6 +231,8 @@ cp templates/SKILL-TEMPLATE.md skills/<your-skill-name>/SKILL.md
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full submission process. Join the contributors community on Telegram: [t.me/ClawBioContributors](https://t.me/ClawBioContributors).
 
+**Security and data handling.** Report vulnerabilities privately through [SECURITY.md](SECURITY.md), never in a public issue. Before running ClawBio on data you are responsible for, read [docs/data-handling.md](docs/data-handling.md): it lists every skill that can send data off your machine, what it sends, to which host, and which environment variable holds its credential.
+
 ---
 
 ## Genomebook
@@ -265,8 +258,8 @@ SOUL.md  -->  Soul2DNA  -->  .genome.json  -->  GenomeMatch  -->  Recombinator  
 ### Quick Start
 
 ```bash
-# Compile all souls to genomes
-python skills/soul2dna/soul2dna.py --demo
+# Compile all souls to genomes (Genomebook sandbox script; not a catalogued skill)
+python GENOMEBOOK/PYTHON/01-soul2dna.py
 
 # Score all M x F compatibility pairings
 python skills/genome-match/genome_match.py --demo
@@ -669,7 +662,7 @@ See [Contributing a Skill](#contributing-a-skill) above for the submission proce
 
 ## Versioning
 
-ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.5.0**. See [CHANGELOG.md](CHANGELOG.md) for a full history of additions and breaking changes.
+ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.7.0**. See [CHANGELOG.md](CHANGELOG.md) for a full history of additions and breaking changes.
 
 ---
 
@@ -677,7 +670,7 @@ ClawBio follows [Semantic Versioning](https://semver.org/). The current release 
 
 ### What is ClawBio?
 
-ClawBio is the **first bioinformatics-native AI agent skill library**. Built on OpenClaw (180k+ GitHub stars), it provides 97 skills (92 with runnable demo data) for genomics analysis, pharmacogenomics, ancestry profiling, and more. Local-first, privacy-focused, and reproducible.
+ClawBio is the **first bioinformatics-native AI agent skill library**. Built on OpenClaw (180k+ GitHub stars), it provides 96 skills (91 with runnable demo data) for genomics analysis, pharmacogenomics, ancestry profiling, and more. Local-first, privacy-focused, and reproducible.
 
 ### What are ClawBio skills?
 

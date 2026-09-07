@@ -5,6 +5,123 @@ All notable changes to ClawBio are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.7.1] - 2026-09-05
+
+### Fixed
+- **Tagged releases publish themselves again.** Every previous run of
+  `publish.yml` failed with `invalid-publisher`, so 0.5.2, 0.6.1 and 0.7.0 were
+  uploaded by hand. The workflow was correct: the OIDC claims GitHub sends match
+  what `packaging/README.md` documents, and no matching publisher is registered
+  on PyPI. Until it is, the job authenticates with an API token held as an
+  environment secret on `pypi`, an environment that accepts `v*` tags only.
+
+### Added
+- **`SECURITY.md`**: a private disclosure path (GitHub private vulnerability reporting,
+  now enabled on the repository, with an email fallback), response commitments, what is
+  in and out of scope, and which versions receive fixes.
+- **`docs/data-handling.md`**: every skill that can send data off the machine, grouped by
+  what it sends (reference downloads only, query terms you typed, your variants, whole
+  sequences or files, or chat messages to a hosted LLM), with the host, the trigger, the
+  credential variable and the offline behaviour for each. Enforced by
+  `tests/test_data_handling_doc.py`, which scans every skill for outbound-call code and
+  fails if a networked skill is absent from the page.
+
+### Changed
+- README and `docs/architecture.md` no longer claim that "no network calls" are made for
+  data processing. Several skills send variants to Ensembl VEP, gnomAD and ClinVar, and the
+  six `gi-*` skills upload whole sequences to a hosted model. The privacy statement now says
+  exactly that and points at the data-handling page. The README versioning line also read
+  `v0.5.0` two releases late; it now says `v0.7.0`.
+
+### Removed
+- **`soul2dna` is no longer a ClawBio skill** (#111). The skill folder was a thin
+  wrapper around the Genomebook sandbox compiler and presented "compile character
+  profiles into synthetic genomes" as a catalogued bioinformatics capability, which
+  the external audit rightly called out: there is no scientific basis for mapping
+  traits of character to genotypes, and a skill catalogue that hopes to be trusted
+  with clinical work should not carry one that implies there is. The compiler itself
+  stays where it always lived, `GENOMEBOOK/PYTHON/01-soul2dna.py`, inside the
+  sandbox whose README now states its scope: synthetic fixtures for exercising the
+  orchestrator, with no biological meaning. `genome-match` and `recombinator`, which
+  consume those fixtures, are unchanged. Catalogue count 97 to 96.
+
+### Fixed
+- **gwas-prs no longer substitutes the curated T2D panel for PGS000013** (#356,
+  remaining half). `--pgs-id PGS000013` now goes to the PGS Catalog like any other
+  accession and, when it cannot, fails with a message saying what the accession is
+  (Khera 2018, coronary artery disease, 6,630,150 variants) and how to request the
+  curated panel instead (`--panel-id CLAWBIO-T2D-8`). The benchmark compatibility
+  alias still exists but is opt-in through `CLAWBIO_ALLOW_LEGACY_PGS_ALIAS=1`, which
+  only `.github/workflows/bench-leaderboard.yml` sets for the pinned `clawbio_bench`
+  revision. A network failure on that path now reports cleanly instead of raising.
+
+## [0.7.0] - 2026-09-03
+
+### Deprecated
+- **MCP server** (`clawbio mcp`, the `[mcp]` extra): deprecated as of 0.7.0 and
+  scheduled for removal in 0.8.0. Nothing breaks yet: every existing client
+  configuration keeps working through the 0.7.x series, and the server prints a
+  notice on stderr when it starts (never stdout, which is the stdio protocol channel).
+  Why: the skills are plain [Agent Skills](https://agentskills.io) folders, and the
+  editors the server was built for in 0.6.0 (Cursor, VS Code, Codex, Zed) now load such
+  folders directly from `~/.agents/skills/`, so a remote-call shim in front of them adds a process, a dependency
+  pin (`mcp<2`) and a second code path for no capability the skills lack. Migration:
+  Claude Code users install the plugin (`/plugin marketplace add ClawBio/ClawBio`,
+  `/plugin install clawbio`); other editors copy or symlink the folders they need from
+  `skills/` into `~/.agents/skills/`; everything else uses the CLI or the
+  Python API. Skills that wrap third-party MCP servers (`bioqc-mcp`, `bgpt-mcp`,
+  `just-prs-mcp`) are unaffected; this covers ClawBio's own server only.
+- `server.json`, the manifest for the official MCP Registry, is removed. The server was
+  never published there and a deprecated server must not be.
+
+### Added
+- **Claude Code plugin manifests are current again.** `.claude-plugin/plugin.json` and
+  `marketplace.json` were frozen at 0.3.0 and "24 skills" while PyPI shipped 0.6.1 and
+  the catalog held 97, so `/plugin install clawbio` reported a version three releases
+  old. Both now read 0.7.0 with counts taken from `skills/catalog.json` and the CLI
+  registry (97 Agent Skills, 50 with a CLI entry point), and
+  `clawbio/tests/test_packaging.py` fails any future release whose manifests or
+  `CITATION.cff` disagree with `clawbio.__version__`. `commands/new-skill.md` gained
+  the frontmatter `claude plugin validate --strict` requires.
+- **Reproducibility bundles as a shared contract.** SHA-256 helpers moved to
+  `clawbio.common.checksums` (#351, @camlloyd); `scaffold_skill.py` now generates a
+  working bundle for every new skill (#374, @camlloyd); `equity-scorer` (#352,
+  @camlloyd), `nutrigx` (#350, @camlloyd) and `gwas-prs` (#379, @krudo-taco) write one.
+- **New skills**: `deepspot-m`, virtual spatial transcriptomics from H&E tiles (#331,
+  @KalinNonchev); `just-prs-mcp`, evidence-aware VCF/WGS PRS through a pinned local
+  just-prs server (#324, @antonkulaga).
+- A Token Factory agent example driving ClawBio skills from a Nebius-hosted model, with
+  the report-upload behaviour disclosed (#336, #366).
+- Artefact licences are stated separately from the wrapper licence (#339).
+
+### Fixed
+- `pharmgx-reporter`: three reference positions were GRCh37 in a GRCh38 table, which
+  blocked GRCh38 input (#325).
+- `clinical-variant-reporter`: fails closed on VEP annotation batch failures (#368,
+  @krudo-taco) and reports the live Ensembl release in its Data Sources table (#327,
+  @AmirF194).
+- `gwas-prs`: corrected panel citations, stopped demo panels shadowing real PGS Catalog
+  scores (#357) and gave curated panels honest identifiers (#380, @krudo-taco).
+- `nutrigx`: rs4988235 lactose polarity and dominance were inverted (#376,
+  @krudo-taco); catalog version synced (#377, @krudo-taco).
+- `rnaseq-de`: keeps gene IDs on the nf-core count handoff (#371) and verifies LFC
+  shrinkage matches the requested contrast (#378, both @krudo-taco).
+- `nfcore-rnaseq-wrapper`: manifest version parse scoped to the manifest block, so
+  `custom_config_version` or `vep_version` can no longer be mistaken for it (#334).
+- `pathway-enricher`: submits gene lists as multipart form data (#381, @krudo-taco).
+- `gi-*` skills: strand guidance and stale expression values corrected (#354, @boldakov).
+- `claw-semantic-sim`: dropped a false "works out of the box" demo claim (#358,
+  @AmirF194). `vcf-annotator` CLI fixed (#336).
+
+### CI
+- The `test` job runs the tests of any skill a PR touches, diffed against the PR's own
+  merge-base (#330, #332), and no longer assumes every skill is Python (#361).
+- Queued workflow runs are auto-approved for PRs that touch only `skills/` (#362).
+- `scientific-audit` can fail: it gates on a committed bench baseline (#343).
+- `vcf-annotator` tests added to the main allowlist (#370, @krudo-taco).
+
 ## [0.6.1] - 2026-07-29
 
 ### Fixed
@@ -55,13 +172,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - The `[mcp]` extra pins `mcp>=1.9,<2`: `mcp` 2.0.0 removed `mcp.server.fastmcp`.
 
-## [Unreleased]
-
-### New Skills
+### New Skills (merged between 0.5.2 and 0.6.0)
 - **cnv-acmg-classifier** (`skills/cnv-acmg-classifier/`, `cnv-acmg`): Germline CNV/SV (deletion/duplication) ClinGen/ACMG 2019 (Riggs 2020) point classification. Strictly additive Sections 1-5 (no terminal short-circuit; a complete 2A inherited from an unaffected parent = 0.70 VUS, a de novo 2A gain = 1.45 Pathogenic); partial-overlap 2C/2D/2E sub-calls derived from breakpoint geometry (gene strand + coding boundaries); Section 3 omitted only on a complete 2A/2F; symmetric Benign<=-0.99 boundary; CN1 sex-chromosome guard. VCF or CSV/TSV input, swappable dosage-map/gene-model, full reproducibility bundle. Stdlib-only, local-first. 24 tests.
 - **nfcore-scrnaseq-wrapper** (`skills/nfcore-scrnaseq-wrapper/`, `scrnaseq-pipeline`): Upstream single-cell RNA-seq preprocessing from FASTQ using nf-core/scrnaseq. Supports six presets (simpleaf/standard, STARsolo/star, kallisto, cellranger, cellrangerarc, cellrangermulti), strict preflight for Java/Nextflow/backend, samplesheet validation, `params.yaml`-driven execution, SHA-256 reproducibility bundle, and automatic handoff to `scrna-orchestrator` (via `--run-downstream`). Includes macOS/Apple Silicon Docker workaround. Audit round 5 hardening: `--demo` is now fully hermetic (only the four forced essentials reach `params.yaml`; all QC/skip/tuning/save/reporting flags are ignored and warned); FastQC is a required output for **every** aligner — including the Cell Ranger family — matching the 4.1.0 workflow (FASTQC on the shared `ch_fastq` before aligner branching); `feature_type=crispr` now requires `--fb-reference` (shared feature reference with antibody capture); the `-c` params-override lint also catches bracket/whole-map/newline-block forms; a wall-clock cap left active on object-store/institutional runs emits a `--timeout-hours 0` hint; `sample_type`/`feature_type` enum values are validated whenever present under **any** preset (matching `assets/schema_input.json` property-level enums) so an invalid value fails fast in preflight rather than late in Nextflow; and SKILL.md docs corrected (preset-conditional samplesheet columns, `--transcript-fasta`/`--txp2gene` for simpleaf, `--gex-barcode-sample-assignment` is not an OCM selector, STARsolo-velocity example now passes `--protocol`). 387 tests.
 - **nfcore-rnaseq-wrapper** (`skills/nfcore-rnaseq-wrapper/`, `rnaseq-pipeline`): Upstream bulk RNA-seq preprocessing from FASTQ/BAM using nf-core/rnaseq v3.26.0. Supports STAR+Salmon, STAR+RSEM, HISAT2, and Bowtie2+Salmon routes; strict preflight for Java/Nextflow/backend, samplesheet strandedness and references; `params.yaml`-driven execution; SHA-256 reproducibility bundle; provenance JSONs; and template handoff to `rnaseq-de`. Hardening round: contaminant screening (`--contaminant-screening`, `--kraken-db`, `--sylph-db`, `--bracken-precision`, BBSplit auto-enable), iGenomes name validation with fast-fail in preflight, GENCODE GTF auto-detect, real `duration_seconds` measurement, auto-handoff to `rnaseq-de` (`--run-downstream --metadata --formula --contrast`), `--prokaryotic` restricted to profile modifier (never standalone backend), `--check` guaranteed to never invoke Nextflow, passthrough flags `--enable-preseq`, `--multiqc-config`, `--multiqc-logo`, `--rsem-extra-args`. 538 tests.
 - **nfcore-sarek-wrapper** (`skills/nfcore-sarek-wrapper/`, `sarek-pipeline`): nf-core/sarek v3.8.1 wrapper with step-aware restart sheets, somatic/germline validation, caller and annotation resources, output discovery, and portable reproducibility bundles. Alignment audit hardening includes effective iGenomes resources with the documented `false` sentinel, final `--extra-param` precedence, `--outdir-cache` cache-download preflight, full integrated CLI help/forwarding, and exact portable replay of the captured Nextflow invocation. 321 tests.
+
 
 ## [v0.5.2] - 2026-06-10 - pip / conda packaging
 

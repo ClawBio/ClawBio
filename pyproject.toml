@@ -57,6 +57,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# DEPRECATED since 0.7.0, removed in 0.8.0 (see CHANGELOG). Kept so existing
+# `uvx --from 'clawbio[mcp]' clawbio mcp` configurations keep working until then.
 # Pinned below 2.0: mcp 2.0.0 removed mcp.server.fastmcp (now mcp.server.mcpserver).
 mcp = ["mcp>=1.9,<2"]
 just-prs = [

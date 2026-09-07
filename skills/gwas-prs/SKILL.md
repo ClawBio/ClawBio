@@ -3,7 +3,7 @@ name: gwas-prs
 description: Calculate polygenic risk scores from DTC genetic data using the PGS Catalog
 license: MIT
 metadata:
-  version: 0.1.0
+  version: 0.2.0
   openclaw:
     requires:
       bins:
@@ -75,11 +75,18 @@ When the user asks for a polygenic risk score calculation:
 
    > The panel files use names such as `CLAWBIO-T2D-8_GRCh37.txt`; they no
    > longer occupy PGS Catalog download-cache paths. `--trait` and all PGS
-   > accessions except PGS000013 therefore use genuine Catalog data. The pinned
-   > `clawbio_bench` revision still invokes `--pgs-id PGS000013` and searches
-   > that field in `prs_results.json`, so that single call is an explicit,
-   > marked compatibility alias for `CLAWBIO-T2D-8`. Normal panel runs must use
-   > `--panel-id CLAWBIO-T2D-8`. See issue #356.
+   > accessions therefore use genuine Catalog data, PGS000013 included:
+   > `--pgs-id PGS000013` fetches Khera 2018 (coronary artery disease,
+   > 6,630,150 variants) from the Catalog and refuses to substitute the
+   > 8-variant curated panel. Normal panel runs must use
+   > `--panel-id CLAWBIO-T2D-8`.
+   >
+   > One exception exists for the benchmark. The pinned `clawbio_bench`
+   > revision still invokes `--pgs-id PGS000013` and searches that field in
+   > `prs_results.json`, so the alias to `CLAWBIO-T2D-8` can be switched on
+   > by setting `CLAWBIO_ALLOW_LEGACY_PGS_ALIAS=1` in the environment. The
+   > benchmark workflow sets it; nothing else should. Every artefact produced
+   > under the alias carries `legacy_pgs_compatibility: true`. See issue #356.
 
 3. **Parse scoring file**: Read the PGS harmonised scoring file. Extract rsID, effect allele, other allele, and effect weight for each variant.
 
@@ -111,14 +118,18 @@ When the user asks for a polygenic risk score calculation:
 
 ```
 output_directory/
-├── report.md              # Full narrative report with risk categories
-├── tables/
-│   └── scores.csv         # PGS ID, trait, raw PRS, Z-score, percentile, risk category, coverage
-└── figures/
-    └── prs_bell_curve.png # Bell curve with individual score marked (optional)
+├── prs_report.md          # Full narrative report with risk categories
+├── prs_results.json       # Compact per-score result records
+├── prs_variants.csv       # Per-variant dosage and contribution details
+├── result.json            # Standard ClawBio result envelope
+└── reproducibility/
+    ├── commands.sh        # Portable replay command
+    ├── environment.yml    # Rebuildable Python environment
+    ├── provenance.json    # Input and scoring-file hashes plus safe parameters
+    └── checksums.sha256   # Integrity digests for outputs and bundle metadata
 ```
 
-### report.md Format
+### prs_report.md Format
 
 The report includes:
 - Patient summary (file name, total SNPs, date)
@@ -127,7 +138,7 @@ The report includes:
 - Methodology notes and references
 - Safety disclaimer
 
-### `prs_results.json` identity fields
+### `prs_results.json` Fields
 
 | Column | Description |
 |---|---|
@@ -136,14 +147,41 @@ The report includes:
 | curated_panel_id | Canonical panel id when `curated_demo_panel` is true |
 | legacy_pgs_id | Historical accession once used for the bundled panel |
 | legacy_pgs_compatibility | True only for the pinned PGS000013 benchmark compatibility path |
+| curated_demo_panel | True when the scored file is a bundled ClawBio panel |
+| pgs_catalog_id | Catalog accession the panel derives from, or the scored PGS ID; null when none applies |
 | trait | Trait name |
-| raw_prs | Sum of dosage * weight |
+| raw_score | Sum of dosage * weight |
 | z_score | (PRS - mean) / SD |
 | percentile | Population percentile (0-100) |
 | risk_category | Low / Average / Elevated / High |
-| variants_matched | Number of variants found in patient file |
+| variants_used | Number of variants found in patient file |
 | variants_total | Total variants in scoring file |
-| coverage_pct | Percentage of variants matched |
+| overlap_fraction | Fraction of scoring variants matched |
+| method | Percentile estimation method |
+| reference_population | Population used for percentile context |
+
+### prs_variants.csv Columns
+
+`prs_variants.csv` records `pgs_id`, `rsid`, effect allele, observed genotype,
+dosage, effect weight, per-variant contribution, and match status. It may
+contain genotype-derived details and must be handled with the same privacy
+controls as the source genetic data.
+
+### Reproducibility Bundle
+
+The shared `clawbio.common.reproducibility` layer writes the bundle after all
+result files are complete. `provenance.json` stores the SHA-256 of the input and
+every scoring file actually used (with its `score_id`, nullable `pgs_id`,
+`curated_panel_id` and `legacy_pgs_id`), but omits the genotype path and
+contents. The selector is recorded in the order `gwas_prs.py` resolves it:
+`demo`, `panel_id`, `pgs_id` or `trait`. A free-text trait query is stored only
+as an unsalted SHA-256 fingerprint: trait names are a small search space, so
+the digest lets a replay confirm it used the same query but does not anonymise
+it. Non-demo `commands.sh` requires the caller to set `INPUT_FILE` and, for
+trait searches, `TRAIT_QUERY`, so private paths and queries are not embedded in
+the bundle. `environment.yml` declares `numpy` and `pandas` as well as
+`requests` and `opentelemetry-sdk` because importing `clawbio.common` loads
+them eagerly.
 
 ## Dependencies
 

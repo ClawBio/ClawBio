@@ -170,6 +170,22 @@ The classification engine implements the ACMG/AMP 2015 framework (Richards et al
 - **BP4**: CADD < 15
 - **ClinVar minimum stars for PS1/PP5/BP6**: ≥ 2
 
+### ClinVar Assertion Handling
+
+ClinVar significance is parsed into terms before PS1, PP5 or BP6 read it; the rules never substring-match a joined string. VEP REST returns `clin_sig` as a list aggregated over every ClinVar record at the site, and ClinVar's own strings join terms with `/`, `|`, `;` or `,`. Both shapes bucket the same way.
+
+For live VEP REST extraction, the site-level `clin_sig` aggregate is not used as evidence because it can mix assertions from different alternate alleles. The extractor keeps only the `clin_sig_allele` entry that exactly matches the queried ALT. Missing, malformed, non-string or unmatched allele-specific payloads are treated as absent evidence. VEP REST does not pair that allele-specific assertion with independently verifiable review stars, so live extraction records zero stars and withholds PS1, PP5 and BP6. Cached or directly constructed evidence that pairs a ClinVar assertion with a trustworthy review-star value still follows the table below.
+
+| ClinVar value | PS1 / PP5 | BP6 |
+|---------------|-----------|-----|
+| `Pathogenic`, `Likely pathogenic`, `Pathogenic/Likely pathogenic`, `Pathogenic\|risk_factor`, `Pathogenic, low penetrance`, `pathogenic_low_penetrance`, `likely_pathogenic_low_penetrance` | eligible | no |
+| `Benign`, `Likely benign`, `Benign/Likely benign` | no | eligible |
+| `Conflicting_interpretations_of_pathogenicity`, `Conflicting_classifications_of_pathogenicity`, `conflicting_data_from_submitters` (alone or alongside any other term) | withheld | withheld |
+| pathogenic-family and benign-family terms together, e.g. `["benign", "pathogenic"]` | withheld | withheld |
+| `Uncertain significance`, `drug_response`, `risk_factor`, `not_provided`, unrecognised terms | no | no |
+
+"Withheld" means the rule does not fire and records the conflict as its reason in the criterion's detail field. A variant whose ClinVar records disagree therefore loses the ClinVar-backed criteria rather than being promoted on one side of the disagreement; the remaining criteria still combine as usual. Review-star gating (≥ 2) applies on top of this in every case.
+
 ## Example Queries
 
 - "Classify the variants in this exome VCF according to ACMG guidelines"

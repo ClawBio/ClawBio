@@ -13,6 +13,8 @@
 - [docs/CLAWBIO-BRIEF.md](docs/CLAWBIO-BRIEF.md): Evergreen project brief for collaborators, investors, and agents
 - [docs/reference-genome.md](docs/reference-genome.md): Corpas 30x WGS reference genome used across demos, tutorials, and benchmarking
 - [CONTRIBUTING.md](CONTRIBUTING.md): Contribution workflow, naming conventions, code standards
+- [SECURITY.md](SECURITY.md): How to report a vulnerability privately, response commitments, scope, supported versions
+- [docs/data-handling.md](docs/data-handling.md): Every skill that can send data off the machine, what it sends, to which host, and which credential it needs
 
 ## Slash Commands
 
@@ -84,7 +86,6 @@
 - [pubmed-summariser](skills/pubmed-summariser/SKILL.md): Structured briefings of top recent PubMed papers
 - [omics-target-evidence-mapper](skills/omics-target-evidence-mapper/SKILL.md): Aggregate public target-level evidence across omics and translational sources
 - [target-validation-scorer](skills/target-validation-scorer/SKILL.md): Evidence-grounded target validation scoring with GO / NO-GO outputs
-- [soul2dna](skills/soul2dna/SKILL.md): Compile SOUL.md character profiles into synthetic diploid genomes
 - [genome-match](skills/genome-match/SKILL.md): Score genetic compatibility across all pairings in a generation
 - [recombinator](skills/recombinator/SKILL.md): Produce offspring via meiotic recombination, mutation, and clinical evaluation
 - [fine-mapping](skills/fine-mapping/SKILL.md): SuSiE / ABF credible sets and posterior inclusion probabilities

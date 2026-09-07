@@ -336,3 +336,36 @@ class TestDemoMode:
         # Should have at least PRS and compare from synthetic data
         skills = profile.get("skill_results", {})
         assert "prs" in skills or "pharmgx" in skills
+
+
+@pytest.mark.parametrize("status", ["supported", "not_established", "incompatible", "unknown"])
+def test_prs_evidence_is_not_promoted_to_disease_risk(full_profile, status):
+    score = {
+        "score_id": "SYNTHETIC", "trait": "Synthetic trait", "raw_score": 0.2,
+        "percentile": 99, "risk_category": "High",
+        "interpretation_scope": "research_percentile",
+        "evidence_assessment": {"status": status, "percentile": 98,
+                                "reasons": [{"code": "SYNTHETIC_REASON"}]},
+    }
+    full_profile["skill_results"]["prs"]["data"]["data"] = {"results": [score]}
+    section = pr.render_prs_section(full_profile)
+    summary = pr.render_executive_summary(full_profile)
+    assert "**Elevated risk**" not in section
+    assert "High Synthetic trait risk" not in summary
+    if status == "supported":
+        assert "98th" in section
+        assert "research percentile" in summary.lower()
+    else:
+        assert "98th" not in section and "99th" not in section
+        assert "withheld" in section.lower()
+    assert score["percentile"] == 99  # rendering must not mutate source data
+
+
+def test_new_synthetic_demo_scope_is_illustrative(full_profile):
+    scores = full_profile["skill_results"]["prs"]["data"]["data"]["scores"]
+    for score in scores:
+        score["interpretation_scope"] = "synthetic_demo_only"
+        score["evidence_assessment"] = None
+    section = pr.render_prs_section(full_profile)
+    assert "**Elevated risk**" not in section
+    assert "illustrative" in section.lower()

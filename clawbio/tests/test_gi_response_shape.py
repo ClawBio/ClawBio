@@ -259,35 +259,76 @@ class TestNestedFieldsOfTheWrongType:
 # keys under test; the values are verbatim.
 #
 # The windowing pair is echoed in BOTH places, with identical values:
-# data.input, which also carries submitted_sequence_length, and
-# meta.task_specific_counts, which does not. gi-expression/SKILL.md named only
+# data.input and meta.task_specific_counts. gi-expression/SKILL.md named only
 # the meta path while the report reads data.input, so the two disagreed on
 # paper and nothing pinned either. Both are real; this pins both, so a future
 # response that drops one fails here rather than in a user's report.
+#
+# Recaptured whole against PROD 2026.09.04.4 on 2026-09-04: one POST of a
+# 25,000 bp sequence with tss_index 12500 and options.description "liver, bulk
+# RNA-seq". Every key and value below is verbatim from that one response,
+# including the prediction numbers, which the previous version of this fixture
+# mixed in from an older capture. Nothing here is trimmed or edited.
+#
+# Three different lengths appear in one response and only one of them is the
+# submission:
+#
+#   meta.sequence_length                   25000   the SUBMITTED length
+#   data.input.submitted_sequence_length   25000   the same number, echoed
+#   data.summary.sequence_length            9198   the SCORED WINDOW
+#
+# so a reader that confuses them fails this file. Contract revision 13 on
+# 2026-09-03 removed data.input.sequence_length, which used to be a fourth
+# copy holding the window. submitted_sequence_length is a different key, it
+# did not go with it, and PROD still returns it, which is why it is present
+# here. The runner still reads meta: data.input is an untyped object that no
+# published schema and no consumer pin covers, and meta.sequence_length is
+# typed and required. The tests below force that by putting a WRONG value in
+# the echo rather than by leaving the key out, so a runner that ever starts
+# preferring the echo fails instead of passing on an absence.
+#
+# scored_window is the same story one field along. It is in both places here
+# because PROD returns it in both (checked 2026-09-05, request_id
+# 609a2094-511c-4ee8-a113-73eb54e71fd4), but the runner reads
+# meta.task_specific_counts: that is the per-task provenance channel, and
+# data.input is being narrowed to the inputs the caller sent, which a
+# server-derived window is not.
 LIVE_EXPRESSION_BODY = {
     "data": {
         "task": "expression",
         "model": "g0-expression",
         "input": {
-            "sequence_length": 9198,
-            "tss_index": 4599,
-            "scored_window": [0, 9198],
-            "submitted_sequence_length": 9198,
+            "sequence_name": "probe-25kb",
+            "description": "liver, bulk RNA-seq",
+            "tss_index": 12500,
+            "scored_window": [7901, 17099],
+            "submitted_sequence_length": 25000,
         },
-        "summary": {"expression_log_tpm": 0.9492, "expression_tpm": 1.5837},
+        "summary": {
+            "expression_log_tpm": 0.0344,
+            "expression_tpm": 0.035,
+            "sequence_length": 9198,
+        },
         "prediction": {
-            "expression_log_tpm": 0.9492,
-            "expression_tpm": 1.5837,
+            "expression": 0.0344,
+            "expression_log_tpm": 0.0344,
+            "expression_tpm": 0.035,
             "unit": "log(TPM+1)",
         },
     },
     "meta": {
-        "request_id": "req-live",
-        "inference_time_ms": 88,
+        "job_id": "2d9f337e-962a-469b-a70b-2f0073dec26d",
+        "request_id": "5f36efec-927e-49de-8620-4d18bae6f8b8",
+        "task": "expression",
+        "model": "g0-expression",
+        "cold_start": False,
+        "model_load_time_ms": 0,
+        "inference_time_ms": 375,
+        "sequence_length": 25000,
         "task_specific_counts": {
             "task": "expression",
-            "tss_index": 4599,
-            "scored_window": [0, 9198],
+            "tss_index": 12500,
+            "scored_window": [7901, 17099],
         },
     },
 }
@@ -306,43 +347,168 @@ class TestTheExpressionWindowingProvenanceSurvivesToTheReport:
     def test_both_documented_paths_are_present_in_a_live_response(self):
         counts = LIVE_EXPRESSION_BODY["meta"]["task_specific_counts"]
         inp = LIVE_EXPRESSION_BODY["data"]["input"]
-        assert inp["scored_window"] == counts["scored_window"] == [0, 9198]
-        assert inp["tss_index"] == counts["tss_index"] == 4599
-        # Only data.input carries this, which is why the runner reads there.
+        assert inp["scored_window"] == counts["scored_window"] == [7901, 17099]
+        # Both are present; the runner reads the meta one. Forced below by
+        # putting a wrong value in the echo, the same way the length is.
+        assert inp["tss_index"] == counts["tss_index"] == 12500
+        # The submitted length is not in either windowing echo. It is a
+        # top-level meta field, which is where the runner reads it, and it is
+        # also echoed as a sibling of the window inside data.input.
         assert "submitted_sequence_length" not in counts
+        assert inp["submitted_sequence_length"] == 25000
+        assert LIVE_EXPRESSION_BODY["meta"]["sequence_length"] == 25000
+        # The third length in the same response is the window, not the
+        # submission. Pinning it here is what makes a reader that reaches for
+        # "the sequence_length in summary" fail in this file.
+        assert LIVE_EXPRESSION_BODY["data"]["summary"]["sequence_length"] == 9198
 
     def test_summarize_picks_up_the_window(self):
         out = gi_runner._summarize("expression", LIVE_EXPRESSION_BODY)
-        assert out["tss_index"] == 4599
-        assert out["scored_window"] == [0, 9198]
-        assert out["submitted_sequence_length"] == 9198
-        assert out["log_tpm"] == 0.9492
+        assert out["tss_index"] == 12500
+        assert out["scored_window"] == [7901, 17099]
+        assert out["submitted_sequence_length"] == 25000
+        assert out["log_tpm"] == 0.0344
+
+    def test_the_submitted_length_clause_comes_from_meta_not_the_echo(self, tmp_path):
+        """The clause comes from meta, which is the field the schema pins.
+
+        data.input.submitted_sequence_length is still returned by PROD, checked
+        on 2026-09-04 against 2026.09.04.4; contract revision 13 removed a
+        different key, data.input.sequence_length. The echo is not the source
+        here for a different reason: data.input is an untyped object no
+        published schema and no consumer pin covers, while meta.sequence_length
+        is in the schema. The report renders the clause under an
+        ``isinstance(submitted, int)`` guard, so reading the echo would make any
+        later change to it silent: the ", of N bp submitted" clause would vanish
+        from the user's report and nothing would error. That clause is the one
+        place a user sees that their locus was windowed.
+
+        The echo here is set to the scored window, which is the number a reader
+        who confuses the two would produce. An absent key could not tell the
+        two readers apart, since a runner preferring the echo would fall back to
+        meta and still be right by accident; a wrong value can only survive to
+        the report if the echo was preferred.
+        """
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        body["data"]["input"]["submitted_sequence_length"] = 9198
+        summary = gi_runner._summarize("expression", body)
+        assert summary["submitted_sequence_length"] == 25000
+        gi_runner._write_report(
+            "expression", summary, body, tmp_path,
+            tmp_path / "in.fa", "hbb", 25000, 12.0,
+        )
+        assert "of 25,000 bp submitted" in (tmp_path / "report.md").read_text()
+
+    def test_the_echo_is_the_fallback_when_meta_has_no_length(self):
+        """Either deploy order keeps the clause: a response from before
+        meta.sequence_length existed still carried the echo field."""
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        del body["meta"]["sequence_length"]
+        assert gi_runner._summarize("expression", body)["submitted_sequence_length"] == 25000
+
+    def test_meta_wins_over_the_echo_when_both_are_present(self):
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        body["data"]["input"]["submitted_sequence_length"] = 1
+        assert gi_runner._summarize("expression", body)["submitted_sequence_length"] == 25000
 
     def test_the_report_states_the_scored_window(self, tmp_path):
         summary = gi_runner._summarize("expression", LIVE_EXPRESSION_BODY)
         gi_runner._write_report(
             "expression", summary, LIVE_EXPRESSION_BODY, tmp_path,
-            tmp_path / "in.fa", "hbb", 9198, 12.0,
+            tmp_path / "in.fa", "hbb", 25000, 12.0,
         )
         report = (tmp_path / "report.md").read_text()
         assert "Scored window" in report
-        assert "[0, 9198)" in report
-        assert "TSS index 4599" in report
+        assert "[7901, 17099)" in report
+        assert "TSS index 12500" in report
+        assert "of 25,000 bp submitted" in report
 
-    def test_a_wrong_typed_window_is_refused_not_indexed(self, tmp_path):
-        """A dict here used to raise KeyError(0) out of the report writer.
+    def test_the_window_comes_from_meta_not_the_echo(self):
+        """Same reasoning as the length above, one field along.
 
-        ``window[0]`` on ``{"start": ..., "end": ...}`` raises, and it raises
-        inside the one block whose stated purpose is refusing wrong-typed
-        response fields -- so the runner's ResponseShapeError diagnostic was
-        bypassed by an uncaught KeyError.
+        data.input is an echo of the request and the API is narrowing it to
+        the inputs the caller actually sent, so the server-derived window
+        leaves it. meta.task_specific_counts is the per-task provenance
+        channel every published GI reader is pointed at, and it is where the
+        window stays. A wrong value in the echo rather than an absent key, so
+        a runner that starts preferring the echo fails here instead of
+        passing.
         """
         body = copy.deepcopy(LIVE_EXPRESSION_BODY)
-        body["data"]["input"]["scored_window"] = {"start": 0, "end": 9198}
+        body["data"]["input"]["scored_window"] = [0, 9198]
+        assert gi_runner._summarize("expression", body)["scored_window"] == [7901, 17099]
+
+    def test_the_window_survives_the_echo_being_removed(self):
+        """The response shape the API half of GH#123 ships.
+
+        data.input carries only the caller's own inputs and the window is in
+        meta alone. The report line has to survive that, because it is the
+        only place a user sees which window was scored.
+        """
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        del body["data"]["input"]["scored_window"]
+        assert gi_runner._summarize("expression", body)["scored_window"] == [7901, 17099]
+
+    def test_the_echo_is_the_fallback_when_meta_has_no_window(self):
+        """Either deploy order keeps the line, same as the length fallback."""
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        del body["meta"]["task_specific_counts"]["scored_window"]
+        assert gi_runner._summarize("expression", body)["scored_window"] == [7901, 17099]
+
+    def test_no_window_anywhere_reports_none_rather_than_raising(self, tmp_path):
+        """A response with the window in neither place is not malformed.
+
+        _as_bounds treats absent as None by design, so the runner keeps
+        working and drops the line; raising here would turn a report that is
+        merely missing one provenance clause into an exit 2.
+        """
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        del body["meta"]["task_specific_counts"]["scored_window"]
+        del body["data"]["input"]["scored_window"]
         summary = gi_runner._summarize("expression", body)
+        assert summary["scored_window"] is None
+        gi_runner._write_report(
+            "expression", summary, body, tmp_path,
+            tmp_path / "in.fa", "hbb", 25000, 12.0,
+        )
+        report = (tmp_path / "report.md").read_text()
+        assert "Scored window" not in report
+        assert "0.0344" in report
+
+    def test_a_wrong_typed_window_is_refused_not_indexed(self):
+        """A dict here used to raise KeyError(0) out of the report writer.
+
+        ``window[0]`` on ``{"start": ..., "end": ...}`` raises, and it raised
+        inside the one block whose stated purpose is refusing wrong-typed
+        response fields -- so the runner's ResponseShapeError diagnostic was
+        bypassed by an uncaught KeyError. The guard now sits at the read, so
+        the refusal names the field the value actually came from.
+        """
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        body["meta"]["task_specific_counts"]["scored_window"] = {"start": 0, "end": 9198}
+        with pytest.raises(
+            gi_runner.ResponseShapeError,
+            match=r"meta\.task_specific_counts\.scored_window",
+        ):
+            gi_runner._summarize("expression", body)
+
+    def test_a_wrong_typed_echo_is_refused_when_it_is_the_source(self):
+        """The fallback is guarded too, and names the echo when it is used."""
+        body = copy.deepcopy(LIVE_EXPRESSION_BODY)
+        del body["meta"]["task_specific_counts"]["scored_window"]
+        body["data"]["input"]["scored_window"] = [0]
+        with pytest.raises(
+            gi_runner.ResponseShapeError, match=r"data\.input\.scored_window"
+        ):
+            gi_runner._summarize("expression", body)
+
+    def test_the_report_writer_still_guards_a_hand_built_summary(self, tmp_path):
+        """_write_report is reachable without _summarize, so it keeps its guard."""
+        summary = {"task": "expression", "log_tpm": 0.03,
+                   "scored_window": {"start": 0, "end": 9198}}
         with pytest.raises(gi_runner.ResponseShapeError, match="scored_window"):
             gi_runner._write_report(
-                "expression", summary, body, tmp_path,
+                "expression", summary, LIVE_EXPRESSION_BODY, tmp_path,
                 tmp_path / "in.fa", "hbb", 9198, 12.0,
             )
 
