@@ -509,6 +509,56 @@ class TestLDAudit:
         assert pa.ld_audit(d, window_kb=10).n_clusters_multi == 0
         assert pa.ld_audit(d, window_kb=250).n_clusters_multi == 1
 
+    @staticmethod
+    def _partial_coords(pa):
+        """Two correlated variants that place, one heavy variant that does not."""
+        return pa.ScoreDefinition("PGS-PARTIAL", "trait", "GRCh37", [
+            {"rsid": "rsA", "weight": 1.0, "effect_allele": "A", "other_allele": "G",
+             "chr": "1", "pos": 1_000_000},
+            {"rsid": "rsB", "weight": 1.0, "effect_allele": "T", "other_allele": "C",
+             "chr": "1", "pos": 1_050_000},
+            {"rsid": "rsC", "weight": 2.0, "effect_allele": "A", "other_allele": "G",
+             "chr": "1", "pos": "NA"},
+        ])
+
+    def test_unparsable_coordinates_are_counted_not_dropped(self, capsys):
+        import prs_abstain as pa
+        ld = pa.ld_audit(self._partial_coords(pa), window_kb=250)
+        assert ld.n_unplaced == 1
+        assert ld.n_variants == 3
+        err = capsys.readouterr().err
+        assert "1 of 3 score variant(s)" in err
+        assert "could not be placed" in err
+
+    def test_unplaced_weight_leaves_the_clustered_share_denominator(self):
+        """rsA+rsB are the whole placed weight, so the share is 100%, not 50%.
+
+        Keeping rsC's weight in the denominator would report 50% and slip under
+        the 30% gate's successor thresholds, understating clustering exactly
+        where the coordinates are least trustworthy.
+        """
+        import prs_abstain as pa
+        ld = pa.ld_audit(self._partial_coords(pa), window_kb=250)
+        assert ld.n_clusters_multi == 1
+        assert ld.clustered_weight_share == pytest.approx(1.0)
+
+    def test_effective_n_is_computed_over_placed_variants_only(self):
+        import prs_abstain as pa
+        ld = pa.ld_audit(self._partial_coords(pa), window_kb=250)
+        # Two equal placed weights, so independence gives exactly 2.
+        assert ld.effective_n_independent == pytest.approx(2.0)
+
+    def test_integrity_warns_that_clustering_covers_a_subset(self):
+        import prs_abstain as pa
+        ld = pa.ld_audit(self._partial_coords(pa), window_kb=250)
+        v = pa.integrity_verdict(None, ld=ld)
+        assert any("no parsable chromosome/position" in w for w in v.warnings)
+        assert any("is unknown, not zero" in w for w in v.warnings)
+
+    def test_fully_placed_score_reports_no_unplaced(self):
+        import prs_abstain as pa
+        assert pa.ld_audit(self._defs()["CLAWBIO-T2D-8"], window_kb=250).n_unplaced == 0
+
     def test_ld_section_present_in_technical_report(self, tmp_path):
         run_cli(["--demo", "--output", str(tmp_path)])
         text = (tmp_path / "report_technical.md").read_text().lower()

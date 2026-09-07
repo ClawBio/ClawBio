@@ -479,6 +479,7 @@ class LDAudit:
     effective_n_independent: float
     effective_n_ld: float
     duplicate_positions: list[dict[str, Any]] = field(default_factory=list)
+    n_unplaced: int = 0
 
 
 def _effective_n(weights: Sequence[float]) -> float:
@@ -488,14 +489,24 @@ def _effective_n(weights: Sequence[float]) -> float:
 
 
 def ld_audit(score: ScoreDefinition, window_kb: float = 250.0) -> LDAudit:
-    """Single-linkage clustering of score variants by physical position."""
+    """Single-linkage clustering of score variants by physical position.
+
+    Variants whose chr/pos will not parse cannot be placed in any cluster.
+    They are counted, reported on stderr, and excluded from the denominators
+    below rather than dropped silently.
+    """
     by_chr: dict[str, list[dict[str, Any]]] = {}
+    placed: list[dict[str, Any]] = []
+    n_unplaced = 0
     for v in score.variants:
         try:
             pos = int(v["pos"])
         except (TypeError, ValueError):
+            n_unplaced += 1
             continue
-        by_chr.setdefault(str(v["chr"]), []).append({**v, "pos_int": pos})
+        entry = {**v, "pos_int": pos}
+        placed.append(entry)
+        by_chr.setdefault(str(v["chr"]), []).append(entry)
 
     window = window_kb * 1000.0
     clusters: list[dict[str, Any]] = []
@@ -519,18 +530,30 @@ def ld_audit(score: ScoreDefinition, window_kb: float = 250.0) -> LDAudit:
                 current = [v]
         clusters.append(_mk_cluster(chrom, current))
 
-    total_w = sum(abs(v["weight"]) for v in score.variants) or 1e-12
+    # An unplaced variant can never land in a cluster, so leaving its weight in
+    # the denominator can only shrink clustered_weight_share. A scoring file
+    # with partial coordinates would then look LESS clustered than it is, and
+    # the gate would under-warn exactly where the coordinates are least
+    # trustworthy. Both shares are therefore taken over the placed variants.
+    total_w = sum(abs(v["weight"]) for v in placed) or 1e-12
     multi = [c for c in clusters if len(c["rsids"]) > 1]
     clustered_w = sum(c["weight_sum"] for c in multi)
+
+    if n_unplaced:
+        print(f"Warning: {score.pgs_id}: {n_unplaced} of {len(score.variants)} score variant(s) "
+              f"have no parsable chr/pos and could not be placed; clustering, clustered weight "
+              f"share and both effective-n figures are computed over the {len(placed)} placed "
+              f"variant(s) only.", file=sys.stderr)
 
     return LDAudit(
         pgs_id=score.pgs_id, window_kb=window_kb, n_variants=len(score.variants),
         clusters=sorted(clusters, key=lambda c: -c["weight_sum"]),
         n_clusters_multi=len(multi),
         clustered_weight_share=round(clustered_w / total_w, 6),
-        effective_n_independent=round(_effective_n([v["weight"] for v in score.variants]), 2),
+        effective_n_independent=round(_effective_n([v["weight"] for v in placed]), 2),
         effective_n_ld=round(_effective_n([c["weight_sum"] for c in clusters]), 2),
         duplicate_positions=duplicates,
+        n_unplaced=n_unplaced,
     )
 
 
@@ -590,6 +613,12 @@ def integrity_verdict(audit: ScoreAudit | None, min_weight_coverage: float = 0.9
             f"Effective number of independent contributions is {detail}.{concentration} A score "
             f"this concentrated moves sharply with a single allele-frequency or correlation "
             f"difference between populations.")
+    if ld is not None and ld.n_unplaced:
+        warnings.append(
+            f"{ld.n_unplaced} of {ld.n_variants} variants in this scoring file carry no parsable "
+            f"chromosome/position, so they could not be placed. The clustering figures below "
+            f"describe the {ld.n_variants - ld.n_unplaced} variants that could be placed; "
+            f"whether the unplaced ones are correlated with them is unknown, not zero.")
     if ld is not None and ld.clustered_weight_share > max_clustered_weight_share:
         top = next((c for c in ld.clusters if len(c["rsids"]) > 1), None)
         where = (f" The largest such group is {', '.join(top['rsids'])} on chr{top['chr']} "
@@ -1661,6 +1690,12 @@ def _write_technical_report(outdir: Path, cal: Calibration, results: list[dict[s
               f"{ld.clustered_weight_share:.0%} | {ld.effective_n_independent:.1f} | "
               f"{ld.effective_n_ld:.1f} | {len(ld.duplicate_positions)} |")
         a("")
+        unplaced = {pid: ld.n_unplaced for pid, ld in sorted(lds.items()) if ld.n_unplaced}
+        if unplaced:
+            detail = "; ".join(f"{pid}: {n}" for pid, n in unplaced.items())
+            a(f"Variants without a parsable chromosome/position could not be placed and are "
+              f"excluded from the columns above ({detail}). The clustered-weight share is "
+              f"therefore a statement about the placed variants only.\n")
         for pid, ld in sorted(lds.items()):
             multi = [c for c in ld.clusters if len(c["rsids"]) > 1][:3]
             if not multi:
