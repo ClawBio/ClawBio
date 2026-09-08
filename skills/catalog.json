@@ -633,6 +633,60 @@
       "data_license": ""
     },
     {
+      "name": "claw-amplicon-qc",
+      "cli_alias": null,
+      "description": "16S/18S rRNA amplicon preprocessing — from raw paired-end FASTQ files through N removal and primer trimming, producing outputs ready for DADA2 quality filtering and denoising. Deliberately stops before quality-filtering decisions that require researcher judgment.",
+      "version": "0.2.2",
+      "status": "planned",
+      "maturity_tier": "tested",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": false,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "Rscript skills/claw-amplicon-qc/amplicon_qc.R --demo",
+      "dependencies": [
+        "dada2",
+        "ShortRead",
+        "Biostrings",
+        "optparse",
+        "jsonlite"
+      ],
+      "tags": [
+        "amplicon",
+        "16S",
+        "18S",
+        "DADA2",
+        "cutadapt",
+        "quality-control",
+        "environmental",
+        "microbiome"
+      ],
+      "trigger_keywords": [
+        "16S amplicon QC",
+        "16S primer trimming",
+        "amplicon preprocessing",
+        "amplicon QC",
+        "cutadapt primer trimming",
+        "DADA2 preprocessing",
+        "remove primers from FASTQ",
+        "18S amplicon QC",
+        "microbiome QC",
+        "rRNA amplicon preprocessing"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
       "name": "claw-ancestry-pca",
       "cli_alias": null,
       "description": "Ancestry decomposition PCA against the Simons Genome Diversity Project",
@@ -2265,7 +2319,7 @@
       "name": "gwas-prs",
       "cli_alias": "prs",
       "description": "Calculate polygenic risk scores from DTC genetic data using the PGS Catalog",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -3040,7 +3094,7 @@
       "name": "nutrigx",
       "cli_alias": "nutrigx",
       "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -4001,46 +4055,6 @@
       "data_license": ""
     },
     {
-      "name": "soul2dna",
-      "cli_alias": null,
-      "description": "Compile SOUL.md character profiles into synthetic diploid genomes (.genome.json) via trait-to-allele mapping",
-      "version": "0.1.0",
-      "status": "planned",
-      "maturity_tier": "scripted",
-      "maturity_evidence": {
-        "has_skill_md": true,
-        "has_script": true,
-        "has_tests": false,
-        "has_demo": true,
-        "cli_registered": false,
-        "ci_tested": false,
-        "benchmark_validated": false
-      },
-      "has_script": true,
-      "has_tests": false,
-      "has_demo": true,
-      "demo_command": "python skills/soul2dna/soul2dna.py --demo",
-      "dependencies": [],
-      "tags": [
-        "genomebook",
-        "synthetic-genomics",
-        "soul-compiler",
-        "trait-mapping"
-      ],
-      "trigger_keywords": [
-        "soul2dna",
-        "soul compiler",
-        "soul to genome",
-        "genomebook compile",
-        "synthetic genome",
-        "character genome"
-      ],
-      "chaining_partners": [],
-      "license": "MIT",
-      "model_license": "",
-      "data_license": ""
-    },
-    {
       "name": "struct-predictor",
       "cli_alias": null,
       "description": "Protein structure prediction with Boltz-2. Accepts YAML inputs (single protein or multi-chain complex), runs boltz predict, extracts per-residue pLDDT and PAE confidence, and writes a markdown report with figures.",
@@ -4297,14 +4311,14 @@
       "description": "Annotate VCF variants with Ensembl VEP, ClinVar, and gnomAD. Ranks variants by impact (HIGH/MODERATE/LOW/MODIFIER) and generates a reproducible report.",
       "version": "0.1.0",
       "status": "planned",
-      "maturity_tier": "tested",
+      "maturity_tier": "ci-validated",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
+        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
