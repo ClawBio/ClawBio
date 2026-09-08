@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "synthetic_demo": true,
+  "description": "Toy leaking split. Not real Tabula Sapiens data. Expected FAIL.",
+  "splits": {
+    "train": {
+      "dataset_id": "synthetic-atlas-example",
+      "dataset_version": "1.0",
+      "source_url": "https://example.org/synthetic-atlas",
+      "identity_namespace": "synthetic-atlas-stable-ids-v1",
+      "observations_path": "train.jsonl",
+      "observations_sha256": "2de772f327f6b4dd2f005c2e5e50b7b9235c46aa8c48f5c2b9e03ff5accfc4e3",
+      "expected_cells": 2
+    },
+    "test": {
+      "dataset_id": "synthetic-atlas-example",
+      "dataset_version": "2.0",
+      "source_url": "https://example.org/synthetic-atlas",
+      "identity_namespace": "synthetic-atlas-stable-ids-v1",
+      "observations_path": "test.jsonl",
+      "observations_sha256": "03ca9342bb6d9c2ac11beed01bad6eef1c36e91423325c0c0dfb8d46298deb05",
+      "expected_cells": 2
+    }
+  }
+}
