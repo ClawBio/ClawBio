@@ -355,6 +355,10 @@ def load_population_af(path: Path) -> dict[str, dict[str, Any]]:
         print(f"Warning: {path}: {rejected} allele-frequency row(s) rejected (malformed, "
               f"non-finite, or outside [0, 1]); they contribute nothing to re-centring.",
               file=sys.stderr)
+    if out and not any("_allele" in e for e in out.values()):
+        print(f"Warning: {path}: no allele column found, so the table cannot say which "
+              f"allele each frequency counts. af_shift() will refuse any rsid whose effect "
+              f"allele differs between the supplied scores.", file=sys.stderr)
     return out
 
 
@@ -486,6 +490,39 @@ def _effective_n(weights: Sequence[float]) -> float:
     w = [abs(x) for x in weights]
     denom = sum(x * x for x in w)
     return (sum(w) ** 2) / denom if denom else 0.0
+
+
+def build_check(score_defs: dict[str, "ScoreDefinition"],
+                declared_build: str | None) -> tuple[list[str], list[str]]:
+    """Compare each score's declared genome build against the genotype's.
+
+    Coordinates do not correspond between builds, so a GRCh38 genotype scored
+    against a GRCh37 file is wrong rather than noisy, and wrong silently. The
+    build is only knowable when the caller states it, so this returns two
+    lists: hard mismatches, which must refuse, and scores whose build could not
+    be checked, which must be disclosed rather than assumed correct.
+    """
+    def norm(b: str | None) -> str | None:
+        if not b:
+            return None
+        t = b.strip().lower().replace("_", "").replace("-", "").replace(" ", "")
+        for canon, aliases in (("GRCh37", ("grch37", "hg19", "b37", "37")),
+                               ("GRCh38", ("grch38", "hg38", "b38", "38"))):
+            if t in aliases:
+                return canon
+        return b.strip()
+
+    want = norm(declared_build)
+    mismatched, unverified = [], []
+    for pid, sd in sorted(score_defs.items()):
+        got = norm(sd.build)
+        if got is None:
+            unverified.append(f"{pid} (score declares no build)")
+        elif want is None:
+            unverified.append(f"{pid} (score is {got}, genotype build not stated)")
+        elif got != want:
+            mismatched.append(f"{pid} is {got}, genotype is {want}")
+    return mismatched, unverified
 
 
 def ld_audit(score: ScoreDefinition, window_kb: float = 250.0) -> LDAudit:
@@ -1358,7 +1395,8 @@ def _pop_label(code: str) -> str:
 def _write_clinician_report(outdir: Path, cal: Calibration, results: list[dict[str, Any]],
                             figures: list[str], min_markers: int,
                             lds: dict[str, LDAudit] | None = None,
-                            demo_panel: bool = True) -> None:
+                            demo_panel: bool = True,
+                            build_unverified: list[str] | None = None) -> None:
     """Plain-language report. No jargon, no matrix algebra, no unexplained acronyms."""
     L: list[str] = []
     a = L.append
@@ -1502,6 +1540,12 @@ def _write_clinician_report(outdir: Path, cal: Calibration, results: list[dict[s
         a(f"- The ancestry comparison uses a reference panel of n={cal.n} "
           f"{_pop_label(cal.reference_population)} individuals supplied to this run. Whether "
           f"that panel suits this person is not something the tool can verify.")
+    if build_unverified:
+        a("- The genome build of the scoring files was not checked against the laboratory "
+          "data, because the build of that data was not stated to the tool. Genetic "
+          "positions do not mean the same thing between builds, so if the two disagree the "
+          "percentiles are wrong rather than merely uncertain, with nothing on the surface "
+          "to show it. Confirm with the laboratory which build its file uses.")
     a("- People of mixed ancestry sit between the reference groups. This tool judges them by "
       "distance alone, which is not a validated approach for them.\n"
       "- A released percentile is a position in a distribution, not a probability of disease "
@@ -1800,7 +1844,9 @@ KNOWN_LIMITATIONS = [
     "unknown for most GWAS loci.",
     "Strand-ambiguous (A/T, C/G) variants are counted and reported but not resolved. "
     "Resolving them requires strand-aware allele frequencies.",
-    "Genome build is read from the score header and not verified against the genotype file.",
+    "Genome build is checked against --genotype-build and refuses on mismatch. Without that "
+    "argument the build cannot be verified, and the unverified state is disclosed in both "
+    "reports rather than assumed correct.",
     "The reference sd, when derivable, is |(raw - Sum(2*AF*w)) / z| from the individual's own "
     "results record, and only for scores whose reference mean is known to be that sum "
     "(curated panels, or percentiles centred on the allele-frequency expectation). It is "
@@ -1868,6 +1914,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                    help="sample_id (from the individuals CSV) the --genotype file belongs to. "
                         "Required when the CSV has more than one row: a genotype describes one "
                         "person and never gates anyone else.")
+    p.add_argument("--genotype-build", type=str, default=None,
+                   help="Genome build of the genotype file (e.g. GRCh37). When given, it is "
+                        "checked against each score's declared build and a mismatch refuses; "
+                        "when omitted, the unverified build is disclosed in both reports.")
     p.add_argument("--population-af", type=Path, help="TSV: rsid, population, effect_allele_frequency")
     p.add_argument("--af-population", default="AFR", help="Population column to re-centre on")
     p.add_argument("--min-weight-coverage", type=float, default=0.90,
@@ -1909,8 +1959,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     outdir = Path(args.output)
     if outdir.exists() and any(outdir.iterdir()):
         print(f"Warning: {outdir} is not empty; existing files may be overwritten.", file=sys.stderr)
-    (outdir / "tables").mkdir(parents=True, exist_ok=True)
-    (outdir / "reproducibility").mkdir(parents=True, exist_ok=True)
 
     try:
         panel = load_reference_panel(args.reference_panel, pcs)
@@ -1969,6 +2017,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                   f"release percentiles whose integrity tier was requested but "
                   f"could not run.", file=sys.stderr)
             return 2
+
+    # Genome build. Coordinates do not correspond between builds, so a build
+    # mismatch is a wrong answer, not a noisy one, and it is silent. Refuse
+    # where the caller told us enough to know; disclose everywhere else.
+    build_mismatch, build_unverified = build_check(score_defs, args.genotype_build)
+    if build_mismatch:
+        print(f"Genome build mismatch: {'; '.join(build_mismatch)}. Variant coordinates "
+              f"do not correspond between builds, so these scores cannot be applied to "
+              f"this genotype. Supply matching files, or correct --genotype-build.",
+              file=sys.stderr)
+        return 2
+    if build_unverified:
+        print(f"WARNING: genome build unverified for {len(build_unverified)} score(s): "
+              f"{'; '.join(build_unverified[:3])}"
+              f"{' ...' if len(build_unverified) > 3 else ''}. Pass --genotype-build to "
+              f"have this checked; it is disclosed in both reports as unverified.",
+              file=sys.stderr)
     try:
         genotype = load_genotype(args.genotype) if args.genotype else {}
     except ValueError as exc:
@@ -2091,6 +2156,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         results.append({"decision": dec.__dict__, "scores": gated})
         pairs.append((ind, dec))
 
+    # Every refusal above returns before this point, so a refused run leaves no
+    # partial output tree behind.
+    (outdir / "tables").mkdir(parents=True, exist_ok=True)
+    (outdir / "reproducibility").mkdir(parents=True, exist_ok=True)
+
     figures = [] if args.no_figures else _write_figures(outdir, panel, cal, pairs,
                                                         min_markers=args.min_markers)
 
@@ -2147,7 +2217,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     _write_report(outdir, cal, results, figures, cmd, args.min_markers)
     _write_clinician_report(outdir, cal, results, figures, args.min_markers, lds,
                             demo_panel=(Path(args.reference_panel).resolve()
-                                        == (EXAMPLES / "demo_reference_pcs.csv").resolve()))
+                                        == (EXAMPLES / "demo_reference_pcs.csv").resolve()),
+                            build_unverified=build_unverified)
     any_shift = any(shifts_by_sample.values())
     _write_technical_report(outdir, cal, results, audits, shifts_by_sample, figures, cmd,
                             args.min_markers, args.af_population if (af_table or any_shift) else None,

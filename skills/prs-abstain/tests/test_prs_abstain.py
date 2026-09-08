@@ -452,6 +452,62 @@ class TestDualReports:
 
 # ── v0.3: linkage disequilibrium proxies ──────────────────────────────────────
 
+class TestGenomeBuild:
+    @staticmethod
+    def _defs(pa, build):
+        return {"PGSX": pa.ScoreDefinition("PGSX", "trait", build, [
+            {"rsid": "rs1", "weight": 1.0, "effect_allele": "A", "other_allele": "G",
+             "chr": "1", "pos": 1000}])}
+
+    def test_mismatch_is_reported(self):
+        import prs_abstain as pa
+        bad, unver = pa.build_check(self._defs(pa, "GRCh38"), "GRCh37")
+        assert bad and not unver
+        assert "PGSX is GRCh38, genotype is GRCh37" in bad[0]
+
+    def test_aliases_are_the_same_build(self):
+        import prs_abstain as pa
+        for alias in ("hg19", "b37", "GRCh37", "grch_37"):
+            bad, unver = pa.build_check(self._defs(pa, "GRCh37"), alias)
+            assert not bad, alias
+            assert not unver, alias
+
+    def test_unstated_genotype_build_is_unverified_not_refused(self):
+        import prs_abstain as pa
+        bad, unver = pa.build_check(self._defs(pa, "GRCh37"), None)
+        assert not bad
+        assert "genotype build not stated" in unver[0]
+
+    def test_score_without_a_build_is_unverified(self):
+        import prs_abstain as pa
+        bad, unver = pa.build_check(self._defs(pa, None), "GRCh37")
+        assert not bad
+        assert "declares no build" in unver[0]
+
+    def test_cli_refuses_on_build_mismatch(self, tmp_path):
+        """The demo scores are GRCh37; declaring GRCh38 must exit 2, not warn."""
+        r = run_cli(["--demo", "--output", str(tmp_path / "o"), "--genotype-build", "GRCh38"])
+        assert r.returncode == 2
+        assert "Genome build mismatch" in r.stderr
+
+    def test_refusal_leaves_no_partial_output_tree(self, tmp_path):
+        out = tmp_path / "o"
+        run_cli(["--demo", "--output", str(out), "--genotype-build", "GRCh38"])
+        assert not (out / "tables").exists()
+        assert not (out / "reproducibility").exists()
+
+    def test_matching_build_runs_and_says_nothing(self, tmp_path):
+        r = run_cli(["--demo", "--output", str(tmp_path / "o"), "--genotype-build", "GRCh37"])
+        assert "Genome build mismatch" not in r.stderr
+        assert "genome build unverified" not in r.stderr
+
+    def test_unverified_build_reaches_the_clinician_report(self, tmp_path):
+        out = tmp_path / "o"
+        run_cli(["--demo", "--output", str(out)])
+        text = (out / "report_clinician.md").read_text()
+        assert "genome build of the scoring files was not checked" in text
+
+
 class TestLDAudit:
     def _defs(self):
         import prs_abstain as pa
