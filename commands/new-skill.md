@@ -106,6 +106,10 @@ Create `skills/$SKILL_NAME/$SKILL_NAME_UNDERSCORE.py` with:
 - `run()` function that does the core work
 - Pathlib for all paths, no hardcoded paths
 - Output: `report.md` + `summary.json` minimum
+- Reproducibility bundle: write `<output_dir>/reproducibility/` with
+  `clawbio.common.reproducibility` (`write_commands_sh`, `write_environment_yml`,
+  `write_checksums` with `anchor=output_dir`). Do not hand-roll these writers,
+  and keep `reproducibility/` in the SKILL.md `## Output Structure` tree
 - ClawBio disclaimer in every report
 - Graceful error handling for bad input
 
@@ -127,7 +131,7 @@ Read and display the generated report to the user.
 
 ## Step 9: Self-Audit (Conformance Check)
 
-Run the 17-point SKILL.md conformance checklist against the new skill. Check each item:
+Run the 18-point SKILL.md conformance checklist against the new skill. Check each item:
 
 | Check | Requirement |
 |-------|------------|
@@ -147,6 +151,7 @@ Run the 17-point SKILL.md conformance checklist against the new skill. Check eac
 | Section: `## Agent Boundary` | Present |
 | File: demo data | At least one demo file |
 | File: tests/ | Directory with at least one test |
+| File: reproducibility bundle | Skill writes `<output_dir>/reproducibility/` via `clawbio.common.reproducibility`, and `## Output Structure` lists it |
 | Line count | SKILL.md under 500 lines |
 
 Report PASS/FAIL for each. Fix any failures before proceeding.

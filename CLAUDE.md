@@ -611,10 +611,14 @@ When a user wants to create a new skill:
    - `## Maintenance`: Review cadence, staleness signals, deprecation criteria.
 4. Add synthetic demo data (never real patient data) and `--demo` flag support
 5. **Write tests first (red/green TDD):** create `skills/<name>/tests/test_<name>.py` with tests for expected inputs, outputs, edge cases, and demo mode. Run them and confirm they fail.
-6. Add Python implementation to make the tests pass
+6. Add Python implementation to make the tests pass. Write the reproducibility
+   bundle with `clawbio.common.reproducibility` (`write_commands_sh`,
+   `write_environment_yml`, `write_checksums`) rather than hand-rolling it, and
+   keep `reproducibility/` listed in the SKILL.md `## Output Structure` tree —
+   do not prune it to make `TestOutputContract` pass.
 7. **Stress test** (run 10 times with varied inputs). Every correction becomes a Gotcha.
 8. Run full test suite: `pytest skills/<name>/tests/`
-9. **Self-audit**: Run the SKILL.md conformance checklist (17 checks). All must PASS before PR.
+9. **Self-audit**: Run the SKILL.md conformance checklist (18 checks). All must PASS before PR.
 10. Read `CONTRIBUTING.md` for naming conventions, code standards, and wanted skills list
 
 ### SKILL.md Conformance Checklist (must all PASS)
@@ -637,6 +641,7 @@ When a user wants to create a new skill:
 | Section: `## Agent Boundary` | Present |
 | File: demo data | At least one demo file |
 | File: tests/ | Directory with at least one test |
+| File: reproducibility bundle | Skill writes `<output_dir>/reproducibility/` via `clawbio.common.reproducibility`, and `## Output Structure` lists it |
 | Line count | SKILL.md under 500 lines |
 
 ## Safety Rules
