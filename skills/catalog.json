@@ -1324,8 +1324,8 @@
     {
       "name": "dnasp",
       "cli_alias": "dnasp",
-      "description": "Full reimplementation of DnaSP 6 for population genetics analysis of aligned DNA sequences. Covers nucleotide diversity, haplotype statistics, neutrality tests (Tajima's D, Fu & Li's D*/F*, R2), linkage disequilibrium (D, D', R², ZnS, Za, ZZ), minimum recombination (Rm), mismatch distribution, InDel polymorphism, between-population divergence (Dxy, Da, fixed/shared sites), outgroup-based Fu & Li D/F tests (fuliout), the HKA multi-locus neutrality test (hka), the McDonald-Kreitman test (mk), Ka/Ks (dN/dS) via the Nei-Gojobori (1986) method (kaks), Fu's Fs test (fufs), the site frequency spectrum (sfs, folded and outgroup-unfolded), transition/transversion ratio (tstv), and codon usage bias  -  RSCU (Sharp & Li 1987) and ENC (Wright 1990) (codon). Accepts FASTA or NEXUS input; outputs DnaSP-compatible TSV and a Markdown report.",
-      "version": "0.4.0",
+      "description": "Full reimplementation of DnaSP 6 for population genetics analysis of aligned DNA sequences. Covers nucleotide diversity, haplotype statistics, neutrality tests (Tajima's D, Fu & Li's D*/F*, R2), linkage disequilibrium (D, D', R², ZnS, Za, ZZ), minimum recombination (Rm), mismatch distribution, InDel polymorphism, between-population divergence (Dxy, Da, fixed/shared sites), outgroup-based Fu & Li D/F tests (fuliout), the HKA two-locus neutrality test (hka), the McDonald-Kreitman test (mk), Ka/Ks (dN/dS) via the Nei-Gojobori (1986) method (kaks), Fu's Fs test (fufs), the site frequency spectrum (sfs, folded and outgroup-unfolded), transition/transversion ratio (tstv), and codon usage bias  -  RSCU (Sharp & Li 1987) and ENC (Wright 1990) (codon). Accepts FASTA or NEXUS input; outputs DnaSP-compatible TSV and a Markdown report.",
+      "version": "0.4.1",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1379,7 +1379,7 @@
         "outgroup polarised mutations",
         "HKA test neutrality",
         "Hudson Kreitman Aguade",
-        "multi-locus neutrality",
+        "two-locus neutrality",
         "polymorphism divergence ratio",
         "McDonald-Kreitman test",
         "MK test",
