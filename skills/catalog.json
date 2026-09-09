@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 96,
+  "skill_count": 97,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -626,6 +626,54 @@
         "cell-type-specific expression",
         "expression specificity",
         "marker gene specificity"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "claim-provenance-check",
+      "cli_alias": "provcheck",
+      "description": "Bind every citation in a claim to a retrieved evidence row and report which evidence classes were reached, refusing invented citations with no partial credit",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run provcheck --demo",
+      "dependencies": [
+        "python>=3.9"
+      ],
+      "tags": [
+        "citation-verification",
+        "provenance",
+        "coverage-report",
+        "hallucination-detection",
+        "evidence-binding",
+        "report-qa"
+      ],
+      "trigger_keywords": [
+        "check citations",
+        "citation binder",
+        "verify claim citations",
+        "coverage report",
+        "no coverage",
+        "invented citation",
+        "hallucinated citation",
+        "does this claim have evidence",
+        "bind claim to evidence",
+        "unbindable claim"
       ],
       "chaining_partners": [],
       "license": "MIT",
