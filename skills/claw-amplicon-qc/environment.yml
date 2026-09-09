@@ -1,0 +1,28 @@
+name: amplicon-qc
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  # R runtime — conda-forge builds
+  - r-base>=4.4
+
+  # Bioconductor packages the script imports.
+  # Version floors are documentary rather than load-bearing. Both the
+  # pinned and unpinned versions of this yml solve to the same current
+  # Bioconductor 3.20+ combination (dada2 >= 1.34, ShortRead >= 1.64,
+  # Biostrings >= 2.74) with r-base 4.4+. Keeping the floors as a
+  # published minimum in case bioconda metadata shifts in future and
+  # the solver starts preferring older releases.
+  - bioconductor-dada2>=1.34
+  - bioconductor-shortread>=1.64
+  - bioconductor-biostrings>=2.74
+
+  # CRAN packages the script imports
+  - r-optparse
+  - r-jsonlite       # DEFECT 3: was missing from env despite `library(jsonlite)`
+                     # in the script. r-yaml (previously listed here but never
+                     # used) has been removed.
+
+  # External tools invoked via system2()
+  - cutadapt
+  - seqkit
