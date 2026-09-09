@@ -339,7 +339,7 @@ def load_population_af(path: Path) -> "AFTable":
     the supplied scores. Non-finite or unparsable rows are counted and
     reported on stderr rather than dropped silently.
     """
-    out: AFTable = AFTable()
+    out: dict[str, dict[str, Any]] = {}
     rejected = 0
     allele_col: int | None = None
     for line in Path(path).read_text().splitlines():

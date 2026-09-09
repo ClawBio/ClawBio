@@ -1637,7 +1637,7 @@ class TestRound9Sweep:
             "rsID\tchr_name\tchr_position\thm_pos\teffect_allele\tother_allele\teffect_weight\n"
             "rs1\t1\t100\t200\tA\tG\t0.1\n")
         defs = pa.load_score_definitions(tmp_path)
-        assert defs["PGS999999"].build == "GRCh38", (
+        assert defs["PGS999999"].genome_build == "GRCh38", (
             "the build checked must be the build of the coordinates actually used")
 
     def test_af_shift_skips_rsid_with_conflicting_effect_alleles(self):
