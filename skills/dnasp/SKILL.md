@@ -469,6 +469,13 @@ Multi-sample VCF converted to aligned haplotype sequences, following DnaSP 6
   retained variant of a CHROM is dropped from that whole MSA.
 - Population split: pass `--pop-file` keyed by base sample ID (DnaSP's
   `.SG.txt` files work directly   -   `sample<space>population`).
+- **Per-site diversity is per variant site, not per base.** A VCF carries only
+  variant rows, so the MSA has one column per retained SNP and `NetSites` is the
+  SNP count. π and θ_W per site are therefore computed over variant sites, as in
+  DnaSP 6 (`multifilefrmvcf.vb`), which prints the same caveat. The report and
+  TSV carry a note; rescale with (variant sites / callable sites) if you need
+  per-base values. Counts (S, η, H) and scale-free statistics (Hd, Tajima's D,
+  Fu & Li D\*/F\*, R2) are unaffected.
 
 This is standard-mode analysis on a VCF-derived alignment; it is **not** a full
 port of DnaSP's RAD engine (no Achaz F\* variances, no per-MSA Mean row, no
@@ -654,7 +661,7 @@ All formulas match DnaSP 6. See `docs/index.md` for full derivations and referen
 | ω = None | Ks = 0 (no synonymous divergence between sequences) or all pairs JC-saturated | Use with very short or very similar sequences |
 | Fs << 0 (Fu's Fs) | More haplotypes than expected given π → population expansion or genetic hitchhiking | No significance level reported (needs coalescent simulation) |
 | Fs ≈ 0 (Fu's Fs) | Haplotype count consistent with neutral expectation | |
-| Fs > 0 (Fu's Fs) | More haplotypes than expected → balancing selection or population subdivision | Rarely significant |
+| Fs > 0 (Fu's Fs) | Fewer haplotypes than expected → balancing selection, population subdivision, or recent bottleneck | Rarely significant |
 | SFS singleton-heavy (i=1 dominant) | Excess rare variants → expansion, purifying selection, or recent bottleneck recovery | Consistent with negative Tajima's D |
 | SFS flat or U-shaped | Uniform or high-frequency-skewed variants → balancing selection | Consistent with positive Tajima's D |
 | Unfolded SFS high at n−1 | Many near-fixed derived alleles → directional selection or recent sweep ancestry | |

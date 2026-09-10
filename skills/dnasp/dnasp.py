@@ -329,7 +329,8 @@ class HKAStats:
     DnaSP 6 restricts HKA to exactly two loci and solves the neutral model in
     closed form (HKA.vb::HKAResolEcuacion, case 1).  error is set (and the test
     not run) when the inputs are unusable or the equations have no positive
-    solution.
+    solution; note carries an informational remark for a test that did run
+    (e.g. more than one positive-theta solution).
     """
     n_loci: int = 0
     T_hat: float = 0.0          # divergence time, units of 2N generations
@@ -337,7 +338,8 @@ class HKAStats:
     df: int = 0
     p_value: Optional[float] = None
     loci_results: list = field(default_factory=list)  # per-locus details (list of dicts)
-    error: Optional[str] = None
+    error: Optional[str] = None   # set only when the test was not run
+    note: Optional[str] = None    # informational; the test still ran
 
 
 @dataclass
@@ -2017,8 +2019,8 @@ def compute_hka(loci: list[HKALocus]) -> HKAStats:
     result.p_value = _chi2_pvalue(chi2, 1)
     result.loci_results = loci_results
     if len(solutions) > 1:
-        result.error = (
-            f"note: {len(solutions)} positive solutions; reporting the first "
+        result.note = (
+            f"{len(solutions)} positive-θ solutions; reporting the first "
             f"(θ₁={theta1:.5g})."
         )
     return result
@@ -3262,11 +3264,16 @@ def write_tsv(
     source_name: str,
     global_stats: RegionStats,
     window_stats: list[RegionStats],
+    variant_sites_only: bool = False,
 ) -> Path:
     tsv_path = output_dir / "results.tsv"
     with open(tsv_path, "w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t")
         w.writerow(["DnaSP-Python", "Source:", source_name, "Date:", datetime.now().strftime("%Y-%m-%d %H:%M")])
+        if variant_sites_only:
+            w.writerow(["# NetSites is the retained variant-site count; "
+                        "Pi and ThetaW columns are per variant site, not per base "
+                        "(VCF input, as in DnaSP 6)."])
         w.writerow([])
         w.writerow(TSV_HEADER)
         w.writerow(global_stats.as_tsv_row())
@@ -3300,6 +3307,7 @@ def write_report(
     aln: Alignment,
     results: dict,
     figures: list[Path],
+    variant_sites_only: bool = False,
 ) -> Path:
     rs = results["global"]
     window_stats = results["windows"]
@@ -3331,6 +3339,20 @@ def write_report(
         f"| Alignment length (bp) | {rs.L_total} |",
         f"| Net sites (after gap removal) | {rs.L_net} |",
         "",
+    ]
+    if variant_sites_only:
+        lines += [
+            "> **VCF-derived alignment.** The alignment holds one column per "
+            f"retained variant site ({rs.L_net} sites), with no invariant "
+            "positions. The per-site columns below  -  nucleotide diversity (π) "
+            "and Watterson's θ_W per site  -  are therefore per variant site, "
+            "not per base, as in DnaSP 6 (`multifilefrmvcf.vb`). To rescale to "
+            "per-base diversity, multiply by (variant sites / callable sites) "
+            "for the region. Counts (S, η, H) and the scale-free statistics "
+            "(Hd, Tajima's D, Fu & Li D*/F*, R2) are unaffected.",
+            "",
+        ]
+    lines += [
         "## Polymorphism Statistics",
         "",
         "| Statistic | Value |",
@@ -3545,8 +3567,8 @@ def write_report(
                     f"| {_fmt(lr['E_D'], 2)} |"
                 )
             lines.append("")
-            if hka_s.error:
-                lines += [f"> {hka_s.error}", ""]
+            if hka_s.note:
+                lines += [f"> Note: {hka_s.note}", ""]
             lines += [
                 "> **Interpretation**: a significant P-value (< 0.05) means the ratio "
                 "of polymorphism to divergence differs between the two loci, "
@@ -4218,6 +4240,7 @@ def _run(
     hka_loci: Optional[list[HKALocus]] = None,
     preloaded_aln: Optional[Alignment] = None,
     source_name: Optional[str] = None,
+    variant_sites_only: bool = False,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -4273,6 +4296,9 @@ def _run(
         f"  R2={_fmt(rs.R2,6)}\n"
         f"{'─'*50}"
     )
+    if variant_sites_only:
+        print("  Note: VCF input  -  π and θ_W are per variant site, not per base "
+              "(as in DnaSP 6).")
 
     ld = results.get("ld")
     if ld is not None:
@@ -4294,6 +4320,8 @@ def _run(
     if hka is not None:
         if hka.loci_results:
             print(f"  HKA chi2={_fmt(hka.chi2,4)}  df={hka.df}  p={_fmt(hka.p_value,6)}  T_hat={_fmt(hka.T_hat,4)}")
+            if hka.note:
+                print(f"  HKA note: {hka.note}")
         else:
             print(f"  HKA not run: {hka.error}")
 
@@ -4347,7 +4375,8 @@ def _run(
 
     print(f"\nWriting output to: {output_dir}")
 
-    tsv = write_tsv(output_dir, src_label, rs, results["windows"])
+    tsv = write_tsv(output_dir, src_label, rs, results["windows"],
+                    variant_sites_only=variant_sites_only)
 
     result_files = [tsv]
     if ld is not None and ld.pairs:
@@ -4358,7 +4387,8 @@ def _run(
     if not HAS_MPL:
         print("  Note: matplotlib not installed  -  figures skipped.")
 
-    report = write_report(output_dir, src_label, aln, results, figs)
+    report = write_report(output_dir, src_label, aln, results, figs,
+                          variant_sites_only=variant_sites_only)
     result_files.append(report)
 
     write_reproducibility(output_dir, input_path, cli_args, result_files)
@@ -4575,6 +4605,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 analyses, chrom_pops, aln2, cli_args,
                 outgroup_name=args.outgroup, hka_loci=hka_loci,
                 preloaded_aln=chrom_aln, source_name=f"{args.vcf.name}#{chrom}",
+                variant_sites_only=True,
             )
         return 0
 

@@ -1133,6 +1133,24 @@ class TestParseVCF:
         reports = list(out.rglob("report.md"))
         assert len(reports) == 2  # not overwritten into one dir
 
+    def test_vcf_report_flags_per_variant_site_diversity(self, tmp_path):
+        vcf = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"
+            "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0|0\t0|1\t0|1\n")
+        out = tmp_path / "out"
+        assert dn.main(["--vcf", str(vcf), "--output", str(out)]) == 0
+        report = (out / "report.md").read_text()
+        assert "per variant site, not per base" in report
+        tsv = (out / "results.tsv").read_text()
+        assert "per variant site, not per base" in tsv
+
+    def test_fasta_report_has_no_per_variant_site_note(self, tmp_path):
+        f = tmp_path / "a.fas"
+        f.write_text(">s1\nACGTACGT\n>s2\nACGAACGT\n>s3\nTCGTACGT\n")
+        out = tmp_path / "out"
+        assert dn.main(["--input", str(f), "--output", str(out)]) == 0
+        assert "per variant site" not in (out / "report.md").read_text()
+
 
 class TestSplitAlignmentByPop:
     def _make_aln(self):
@@ -1673,6 +1691,35 @@ class TestComputeHKA:
         r = dn.compute_hka(dn.load_hka_file(f))
         assert r.error is None
         assert r.chi2 == pytest.approx(0.0, abs=1e-6)
+
+    def test_error_and_note_are_distinct_fields(self):
+        s = dn.HKAStats()
+        assert s.error is None and s.note is None
+
+    def test_successful_run_sets_neither_error_nor_note(self):
+        for loci in (self._neutral_loci(), self._selection_loci()):
+            r = dn.compute_hka(loci)
+            assert r.loci_results
+            assert r.error is None      # error means "test not run"
+            assert r.note is None       # no multi-solution remark for these data
+
+    def test_not_run_sets_error_not_note(self):
+        r = dn.compute_hka(self._neutral_loci()[:1])
+        assert r.error is not None and r.note is None and not r.loci_results
+
+    def test_report_renders_hka_note_without_saying_not_run(self, tmp_path):
+        aln = dn.Alignment(names=["a", "b"], seqs=["AC", "AT"], source="t")
+        results = dn.run_analysis(aln, analyses=set())
+        results["hka"] = dn.HKAStats(
+            n_loci=2, T_hat=1.0, chi2=0.5, df=1, p_value=0.48,
+            loci_results=[{"name": "A", "n": 10, "S": 5, "D": 8,
+                           "theta_hat": 0.01, "E_S": 5.0, "E_D": 8.0,
+                           "Var_S": 6.0, "Var_D": 9.0}],
+            note="2 positive-θ solutions; reporting the first (θ₁=0.01).",
+        )
+        report = dn.write_report(tmp_path, "t", aln, results, []).read_text()
+        assert "Note: 2 positive-θ solutions" in report
+        assert "HKA not run" not in report
 
 
 # ─────────────────────────────────────────────────────────────────────────────

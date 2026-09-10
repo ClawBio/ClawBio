@@ -291,6 +291,12 @@ A multi-sample VCF is converted to aligned haplotype sequences, following DnaSP 
   retained variant of a CHROM is dropped from that whole MSA.
 - Population split: `--pop-file` keyed by base sample ID. DnaSP's `.SG.txt`
   files (`sample<space>population`) work directly.
+- **π and θ_W per site are per variant site, not per base.** A VCF has only
+  variant rows, so the MSA is one column per retained SNP and `NetSites` is the
+  SNP count. DnaSP 6 does the same (`multifilefrmvcf.vb`) and prints the same
+  caveat; the report and TSV note it. Rescale with (variant sites / callable
+  sites) for per-base values. S, η, H, Hd, Tajima's D, Fu & Li D\*/F\* and R2 are
+  unaffected.
 
 This runs the **standard** modules on a VCF-derived alignment. It is not a port
 of DnaSP's RAD engine: no Achaz F\* variances, no per-MSA Mean row, no
