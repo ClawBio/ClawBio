@@ -18,7 +18,7 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 if str(SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(SKILL_DIR))
 
-from wgs_prs import BridgeConfig, WgsToPrsBridge
+from wgs_prs import BridgeConfig, BridgeReport, WgsToPrsBridge
 from clawbio.common.sarek import SarekConfig
 from clawbio.common.vcf_qc import QcConfig
 
@@ -121,6 +121,27 @@ class TestBridgeVcfEntry:
 
         assert report.qc_metrics is not None
         assert "metrics" in report.qc_metrics
+
+
+class TestBridgeReport:
+    def test_markdown_report_embeds_gwas_prs_output(self, tmp_path):
+        """The bridge reads the report filename written by gwas-prs."""
+        output_dir = tmp_path / "out"
+        prs_output = output_dir / "prs_output"
+        prs_output.mkdir(parents=True)
+        (prs_output / "prs_report.md").write_text("# PRS result\n\nType 2 diabetes")
+
+        bridge = WgsToPrsBridge(BridgeConfig(output_dir=str(output_dir)))
+        report = BridgeReport(
+            sample_id="TEST",
+            timestamp="2026-09-08T00:00:00+00:00",
+            output_dir=output_dir,
+        )
+
+        markdown = bridge._write_markdown_report(report).read_text()
+
+        assert "PRS report available" in markdown
+        assert "# PRS result" in markdown
 
 
 # ---------------------------------------------------------------------------

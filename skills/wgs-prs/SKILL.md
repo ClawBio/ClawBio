@@ -80,7 +80,7 @@ metadata:
     description: Ti/Tv ratio, Het/Hom ratio, variant counts, pass/fail
   - name: vcf_qc/canonical_pass.vcf.gz
     description: Normalised, filtered canonical VCF ready for PRS scoring
-  - name: prs_output/report.md
+  - name: prs_output/prs_report.md
     description: PRS narrative report from gwas-prs
   - name: prs_output/tables/scores.csv
     description: Per-trait PRS scores, percentiles, and risk categories
