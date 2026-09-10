@@ -18,7 +18,7 @@
 
 <p align="center">
   <strong>📅 <a href="https://luma.com/clawbio">Follow the official ClawBio Events Calendar</a></strong><br>
-  <sub>Hackathons · workshops · meetups · community events — follow once on Luma to hear about every new event.</sub>
+  <sub>ClawBio is building a general-purpose agentic utility layer for bioinformatics. Follow the calendar for hackathons, workshops, meetups and community events where contributors build, test and extend the platform.</sub>
 </p>
 
 ---
