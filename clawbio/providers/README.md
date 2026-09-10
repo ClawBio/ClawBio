@@ -8,7 +8,10 @@ behaviour belong to the calling skill.
 The existing `FlockRouter` in `flock.py` remains a separate skill-routing client.
 `chat.py` contains the shared chat transport, OpenAI/Ollama configuration,
 generation result and provider factory.
-The PubMed summariser is not connected to these new providers yet.
+The PubMed summariser uses these providers with `--summary-method llm` and
+`--provider openai` or `--provider ollama`. Its default `first-sentence` mode
+copies the abstract opening without calling a model. See the
+[PubMed examples](../../skills/pubmed-summariser/examples/README.md) for setup.
 
 ## Try a provider
 
@@ -125,7 +128,9 @@ alone is not a guarantee of local processing.
   as a successful result; increase the budget if needed. The CLI exits with
   status 1 and a concise message on failure.
 - The utility does not decide whether to generate a 300-character excerpt.
-  That fallback belongs to the PubMed summariser when it is integrated.
+  The PubMed summariser handles that fallback: if generation raises
+  `ProviderError`, it saves and displays the abstract opening with the failure
+  reason. The complete source abstract is preserved in either mode.
 
 ## Tests
 

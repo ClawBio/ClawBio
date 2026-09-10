@@ -230,6 +230,9 @@ jobs:
       - name: Run repo-level tests
         run: uv run pytest tests/ -v
 
+      - name: Run text-generation provider and PubMed runner tests
+        run: uv run pytest clawbio/tests/test_providers.py clawbio/tests/test_pubmed_runner.py -v
+
       # The steps above are a hardcoded allowlist, so a NEW skill's tests never
       # run: ClawBio#329 shipped a test that cannot pass and CI was still green,
       # and ClawBio#324's just-prs suite never executed here at all. Any skill
