@@ -415,7 +415,7 @@ def demo_invocation(script: Path | None, root: Path | None = None) -> str | None
         shown = script.relative_to(base)
     except ValueError:
         shown = script
-    return f"{interpreter} {shown} --demo"
+    return f"{interpreter} {shown.as_posix()} --demo"
 
 # Skill folders excluded from the public catalog (local-only / gitignored)
 EXCLUDED_FOLDERS = {"pr-audit", "wes-clinical-report-es"}

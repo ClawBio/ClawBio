@@ -470,6 +470,17 @@ SKILLS = {
         },
         "accepts_genotypes": False,
     },
+    "pubmed-summariser": {
+        "script": SKILLS_DIR / "pubmed-summariser" / "pubmed_summariser.py",
+        "demo_args": ["--demo"],
+        "description": "PubMed briefing with complete abstracts and optional OpenAI/Ollama summaries",
+        "allowed_extra_flags": {
+            "--query", "--max-results", "--summary-method", "--provider", "--model",
+            "--base-url", "--llm-timeout", "--summary-max-tokens", "--model-params",
+        },
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
     "clinpgx": {
         "script": SKILLS_DIR / "clinpgx" / "clinpgx.py",
         "demo_args": ["--demo"],
@@ -1813,6 +1824,12 @@ def _store_result_in_profile(profile_path: str, skill_name: str, out_dir: Path) 
 
 
 def main():
+    # Captured Windows terminals may use cp1252, which cannot display report
+    # symbols or many scientific names. Preserve the encoding used by callers
+    # while escaping unsupported characters instead of failing after a run.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     # Pipeline wrappers own large, schema-derived CLIs. Delegate their help so
     # `clawbio.py run <pipeline> --help` cannot drift from the wrapper parser.
     #
@@ -2898,7 +2915,7 @@ def main():
         if result["success"] and result["output_dir"]:
             report = Path(result["output_dir"]) / "report.md"
             if report.exists():
-                text = report.read_text()
+                text = report.read_text(encoding="utf-8")
                 if args.skill == "pharmgx":
                     format_pharmgx_preview(text, str(report))
                 else:
