@@ -65,6 +65,11 @@ just-prs = [
     "fastmcp>=3.4.4,<4",
     "typer>=0.27,<1",
 ]
+# Shared by the four region skills (eqtl-catalogue-region-fetch,
+# gwas-catalog-region-fetch, ld-1000g-region-compute, ukb-ppp-region-fetch).
+# Declared here so `uv sync --all-extras` in CI can run their test suites;
+# each SKILL.md already documents pysam>=0.22 for local installs (#406).
+region-fetch = ["pysam>=0.22"]
 
 [project.scripts]
 clawbio = "clawbio.cli:main"
