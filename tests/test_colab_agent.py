@@ -56,3 +56,13 @@ class LaunchExperienceTests(unittest.TestCase):
         self.assertEqual(len(cells), 1)
         self.assertEqual(cells[0]['metadata']['cellView'], 'form')
         self.assertTrue(''.join(cells[0]['source']).startswith('#@title Launch ClawBio'))
+
+class PublicGenomeTests(unittest.TestCase):
+    def test_public_input_and_provenance(self):
+        root = Path(__file__).resolve().parents[1]
+        notebook = json.loads((root / 'docs/tutorial-agent.ipynb').read_text())
+        code = '\n'.join(''.join(c['source']) for c in notebook['cells'] if c['cell_type'] == 'code')
+        self.assertIn('manuel_corpas_23andme.txt.gz', code)
+        self.assertIn('gzip.open', code)
+        self.assertIn('public_input_sha256', code)
+        self.assertNotIn('synthetic_only', code)
