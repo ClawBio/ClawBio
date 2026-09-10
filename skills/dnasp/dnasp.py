@@ -648,6 +648,10 @@ class VCFPopulation:
     n_indels_skipped: int                # ref or alt not a single base
     n_non_gt_skipped: int
     n_multiallelic_skipped: int
+    n_unphased_het_sites: int = 0        # retained SNPs with >=1 unphased het
+                                        # genotype (both haplotypes gapped, as in
+                                        # DnaSP); complete deletion then drops
+                                        # the whole column
 
 
 _VCF_GAP = "-"
@@ -690,7 +694,7 @@ def parse_vcf(
     ploidy = 0
     any_slash = False
     any_pipe = False
-    n_total = n_indel = n_non_gt = n_multi = n_kept = 0
+    n_total = n_indel = n_non_gt = n_multi = n_kept = n_uphet = 0
 
     # per-CHROM state
     cols_by_chrom: dict[str, list[list[str]]] = {}   # chrom -> list of columns
@@ -768,6 +772,7 @@ def parse_vcf(
                 cols_by_chrom[chrom] = []
 
             col: list[str] = []
+            col_has_unphased_het = False
             for j in included_by_chrom[chrom]:
                 g = gts[j]
                 if ploidy == 2:
@@ -786,8 +791,11 @@ def parse_vcf(
                             col += [al, al]
                         else:
                             col += [_VCF_GAP, _VCF_GAP]
+                            col_has_unphased_het = True
                 else:  # haploid
                     col.append(_VCF_GAP if g in (".", "") else _vcf_allele(g, ref, alt1))
+            if col_has_unphased_het:
+                n_uphet += 1
             cols_by_chrom[chrom].append(col)
 
     per_chrom: dict[str, Alignment] = {}
@@ -837,6 +845,7 @@ def parse_vcf(
         n_indels_skipped=n_indel,
         n_non_gt_skipped=n_non_gt,
         n_multiallelic_skipped=n_multi,
+        n_unphased_het_sites=n_uphet,
     )
 
 
@@ -3859,6 +3868,15 @@ def write_report(
         lines += [
             "## Sliding Window Summary",
             "",
+        ]
+        if variant_sites_only:
+            lines += [
+                "> Windows here slide over retained variant sites (SNP index), "
+                "not base pairs  -  VCF POS is not used to place columns, so a "
+                "region label is a range of SNP ranks.",
+                "",
+            ]
+        lines += [
             "| Region | S | π | Tajima D |",
             "|--------|---|---|---------|",
         ]
@@ -4561,6 +4579,22 @@ def main(argv: Optional[list[str]] = None) -> int:
             f"{vcf.n_multiallelic_skipped} multiallelic, "
             f"{vcf.n_non_gt_skipped} non-GT line(s)"
         )
+        if vcf.n_unphased_het_sites:
+            print(
+                f"  Note: {vcf.n_unphased_het_sites} retained SNP(s) carry an "
+                "unphased heterozygous genotype  -  both haplotypes are gapped "
+                "there (DnaSP cannot phase them), so complete deletion removes "
+                "the whole column. On unphased data this can drop most sites; "
+                "phase the VCF or accept the reduced site set.",
+                file=sys.stderr,
+            )
+        if args.window:
+            print(
+                "  Note: --window on a VCF slides over retained variant sites "
+                "(SNP index), not base pairs  -  VCF POS is not used to place "
+                "columns.",
+                file=sys.stderr,
+            )
         if not vcf.alignments:
             print("Error: no usable variant sites in the VCF.", file=sys.stderr)
             return 1

@@ -275,7 +275,7 @@ Before running any analysis, collect:
 5. **hka analysis**: ask for the HKA locus file path (whitespace-separated, exactly two loci, columns `locus n S L_poly D [L_div] [chrom]`). If the user needs to compute S and D from alignments, help them build the file first, then run `--analysis hka --hka-file <path>`.
 6. **mk (McDonald-Kreitman) analysis**: confirm (a) which sequence in the alignment is the outgroup (`--outgroup <seq_name>`) and (b) that the alignment is an in-frame coding sequence (length divisible by 3, no internal stop codons). The alignment must include both ingroup sequences and the outgroup.
 7. **kaks analysis**: confirm that the alignment is an in-frame coding sequence (length divisible by 3). No outgroup required. Warn the user if omega = Ka/Ks is undefined (Ks = 0 or Ka/Ks numerically saturated).
-8. **fufs analysis**: no extra inputs needed  -  Fu's Fs reuses π (nucleotide diversity) and H (haplotype count) already computed by the polymorphism module. It reports Fs and S′ but no significance level; a formal test needs coalescent simulation (planned for v0.5.0).
+8. **fufs analysis**: no extra inputs needed  -  Fu's Fs reuses π (nucleotide diversity) and H (haplotype count) already computed by the polymorphism module. It reports Fs and S′ but no significance level; a formal test needs coalescent simulation (planned for a future release).
 9. **sfs analysis**: folded SFS is always computed. Ask whether they have an outgroup in the alignment to produce the unfolded SFS (`--outgroup <seq_name>`). If so, the same outgroup used for fuliout/mk can be reused.
 10. **tstv analysis**: no extra inputs needed. Works on any alignment (coding or non-coding). Particularly useful for assessing saturation; ask if they want it combined with divergence analysis.
 11. **codon analysis**: requires an in-frame coding alignment (no 5′ UTR). Stop codons are skipped automatically but the user must ensure the alignment is in-frame from position 0. Pair with `kaks` for a comprehensive coding evolution analysis.
@@ -461,7 +461,11 @@ Multi-sample VCF converted to aligned haplotype sequences, following DnaSP 6
 - **FORMAT** must start with `GT`. **FILTER is ignored** (as in DnaSP).
 - **Diploid**: phased `|` → two haplotype rows per sample (`<sample>_h1`,
   `<sample>_h2`); unphased `/` → two rows only when homozygous, otherwise both
-  become gaps (DnaSP cannot phase them); `.` → gaps.
+  become gaps (DnaSP cannot phase them); `.` → gaps. **On unphased data this is
+  lossy**: any SNP with one or more heterozygous calls has a gap in the column,
+  and complete deletion then removes the whole column, so on a heterozygous
+  unphased VCF most sites drop. The run summary reports the count
+  (`n_unphased_het_sites`); phase the VCF for a full site set.
 - **Haploid** (`GT` = `0`/`1`): one row per sample. Ploidy is validated per
   genotype  -  a VCF that mixes haploid and diploid calls, or contains a
   polyploid call, is rejected with an error rather than silently decoded.
@@ -476,12 +480,33 @@ Multi-sample VCF converted to aligned haplotype sequences, following DnaSP 6
   TSV carry a note; rescale with (variant sites / callable sites) if you need
   per-base values. Counts (S, η, H) and scale-free statistics (Hd, Tajima's D,
   Fu & Li D\*/F\*, R2) are unaffected.
+- **`--window` on a VCF slides over SNP index, not base pairs** — VCF POS is not
+  used to place columns, so a window is a range of consecutive retained SNPs.
+  The report labels this.
 
 This is standard-mode analysis on a VCF-derived alignment; it is **not** a full
 port of DnaSP's RAD engine (no Achaz F\* variances, no per-MSA Mean row, no
 `.Hetz`/`.Btw`/`.GFlow` outputs, and DnaSP's downstream MNP/multiallelic site
 handling is not reproduced   -   a CHROM with those can differ from DnaSP by a site
 or two).
+
+### What "DnaSP parity" means here
+
+The per-module methodology notes above map each estimator to the DnaSP 6 Visual
+Basic routine it was ported from, and the unit tests assert values derived from
+the primary literature and from those routines (analytically verifiable inputs:
+monomorphic alignments, single-segregating-site alignments, hand-computable
+cases). The unit suite is **not** a bulk regression against DnaSP 6 GUI output,
+and its fixtures are synthetic.
+
+The comparison against real DnaSP output is kept with the associated manuscript,
+not in this repo: a supplementary table compares every shared statistic on the
+classic example alignments (rp49, COII, DmelOSRegion) against DnaSP 6.12 for
+Windows, and against DnaSP's own shipped results for the RAD example
+(`rp49_5regions`) and the `Data_Example_*.vcf` files, for which DnaSP 6.0.60
+distributes its computed output. The `Adh` / `5flank` rows in the `--hka-file`
+example above are placeholders showing the column layout, not a reproduction of a
+published HKA result.
 
 ### Population file format (`--pop-file`)
 
@@ -599,7 +624,7 @@ All formulas match DnaSP 6. See `docs/index.md` for full derivations and referen
 
 **McDonald-Kreitman test module (mk)**: For each codon (in-frame, complete deletion at codon level  -  any non-ATCG in any sequence skips that codon; stop codons skipped): determine ingroup variation and outgroup-vs-ingroup fixed differences. A site is **polymorphic** in the ingroup if ≥2 sequences differ at any codon position. A site is **fixed** if all ingroup sequences agree but the outgroup differs. Classify each codon-site pair as synonymous or nonsynonymous using the genetic code. Accumulate Pn (nonsynonymous polymorphisms), Ps (synonymous polymorphisms), Dn (nonsynonymous fixed differences), Ds (synonymous fixed differences). Derived statistics: α = 1 − (Ds·Pn)/(Dn·Ps); NI = (Pn/Ps)/(Dn/Ds); DoS = Dn/(Dn+Ds) − Pn/(Pn+Ps). Fisher's exact P computed via hypergeometric distribution using `math.lgamma` (no scipy needed); two-tailed (sum of all table probabilities ≤ observed probability).
 
-**Fu's Fs module (fufs)**: Estimates θ_π = k (mean pairwise differences, from the polymorphism module). Uses the Ewens sampling formula for the number of distinct alleles K_n in a sample of n under the infinite-alleles model: P(K_n = k) = |s(n, k)| × θ^k / θ^(n), where |s(n, k)| are unsigned Stirling numbers of the first kind and θ^(n) is the rising factorial. Evaluated in **log space** (`math.log` of the exact Stirling integer) so the central coefficients, which exceed float range for n ≳ 171, do not overflow. S′ = P(K_n ≥ H_obs | θ_π, n)   -   the **upper** tail (Fu 1997). Fs = ln(S′ / (1 − S′)); large negative Fs → more haplotypes than expected → population expansion or hitchhiking. No significance level is reported: S′ is not a P-value because θ_π is estimated; a formal test needs coalescent simulation of the null (planned for v0.5.0).
+**Fu's Fs module (fufs)**: Estimates θ_π = k (mean pairwise differences, from the polymorphism module). Uses the Ewens sampling formula for the number of distinct alleles K_n in a sample of n under the infinite-alleles model: P(K_n = k) = |s(n, k)| × θ^k / θ^(n), where |s(n, k)| are unsigned Stirling numbers of the first kind and θ^(n) is the rising factorial. Evaluated in **log space** (`math.log` of the exact Stirling integer) so the central coefficients, which exceed float range for n ≳ 171, do not overflow. S′ = P(K_n ≥ H_obs | θ_π, n)   -   the **upper** tail (Fu 1997). Fs = ln(S′ / (1 − S′)); large negative Fs → more haplotypes than expected → population expansion or hitchhiking. No significance level is reported: S′ is not a P-value because θ_π is estimated; a formal test needs coalescent simulation of the null (planned for a future release).
 
 **SFS module (sfs)**: For each alignment column (after complete deletion of the ingroup), counts how many sequences carry each allele. **Only biallelic columns contribute** (DnaSP `FULI.vb` gates on exactly two states); multiallelic columns are excluded and tallied in `n_multiallelic_excluded`. Folded SFS: records sites by minor allele count i (1 ≤ i ≤ n//2). Unfolded SFS (requires `--outgroup`): for each biallelic column where the outgroup allele is present in the ingroup, counts the ingroup sequences carrying the derived allele (i = 1 to n−1). Gap/ambiguous in any ingroup sequence → column excluded; gap in outgroup → excluded from unfolded only. Produces folded and (optionally) unfolded bar-chart figures.
 

@@ -284,6 +284,10 @@ A multi-sample VCF is converted to aligned haplotype sequences, following DnaSP 
 - **Diploid, phased** (`|`): two haplotype rows per sample, `<sample>_h1` /
   `<sample>_h2`. **Unphased** (`/`): homozygous → the allele on both rows;
   **heterozygous → both rows gap** (DnaSP cannot resolve phase). `.` → gap.
+  Unphased input is lossy: any SNP with a heterozygous call has a gap in that
+  column and complete deletion removes the whole column, so a heterozygous
+  unphased VCF loses most sites. The run summary reports the count
+  (`n_unphased_het_sites`).
 - **Haploid** (`GT` = `0`/`1`): one row per sample. Ploidy is checked per
   genotype; a VCF mixing haploid and diploid calls, or with a polyploid call, is
   rejected.
@@ -297,6 +301,9 @@ A multi-sample VCF is converted to aligned haplotype sequences, following DnaSP 
   caveat; the report and TSV note it. Rescale with (variant sites / callable
   sites) for per-base values. S, η, H, Hd, Tajima's D, Fu & Li D\*/F\* and R2 are
   unaffected.
+- **`--window` on a VCF is a SNP-index window**, not base pairs: VCF POS is not
+  used to place columns, so a window covers a run of consecutive retained SNPs.
+  The report labels the window section accordingly.
 
 This runs the **standard** modules on a VCF-derived alignment. It is not a port
 of DnaSP's RAD engine: no Achaz F\* variances, no per-MSA Mean row, no
@@ -1108,7 +1115,7 @@ nucleotide diversity  -  the signature of population expansion or hitchhiking.
 
 **No significance level is reported.** S' is the Ewens upper-tail probability, not
 a P-value  -  θ_π is estimated from the data, so a formal test needs coalescent
-simulation of the null (planned for v0.5.0).
+simulation of the null (planned for a future release).
 
 **Requirements:** n ≥ 2, H ≥ 1, k > 0. If k = 0 (all sequences identical), θ_π = 0 and the result is degenerate.
 
@@ -1662,11 +1669,14 @@ NEXUS files from DnaSP use `.` as MATCHCHAR. The parser expands dots relative to
 
 ## Roadmap
 
-### v0.5.0 (planned)
+### Delivered in v0.5.0
 
-**VCF support.** A new `parse_vcf_population` function for `clawbio/common/parsers.py` will accept multi-sample population VCF files and return aligned haplotype sequences compatible with all DnaSP analyses. Design proposal filed with the ClawBio team. This will add `--vcf` as an alternative input format alongside `--fasta`.
+**VCF input.** `--vcf` accepts a multi-sample VCF and converts it to one MSA per
+CHROM, following DnaSP 6 (`multifilefrmvcf.vb`). See the VCF section above.
 
-**Simulation-based p-values.** Kingman coalescent simulations (pure Python, no new dependencies) will provide empirical p-values for Tajima's D (two-tailed) and R2 (left-tail). Opt-in via `--n-sim INT` (default 0); reproducible with `--sim-seed INT`. Design proposal filed with the ClawBio team.
+### Planned (future release)
+
+**Simulation-based p-values.** Kingman coalescent simulations (pure Python, no new dependencies) will provide empirical p-values for Tajima's D (two-tailed), R2 (left-tail) and Fu's Fs (left-tail). Opt-in via `--n-sim INT` (default 0); reproducible with `--sim-seed INT`. Design proposal filed with the ClawBio team.
 
 ---
 

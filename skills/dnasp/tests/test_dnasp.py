@@ -1058,6 +1058,33 @@ class TestParseVCF:
         # S2 is 0/1 (het, unphased) -> both haplotypes gap
         assert v.alignments["chr1"].seqs == ["A", "A", "-", "-", "G", "G"]
 
+    def test_unphased_het_sites_are_counted(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0/0\t0/1\t1/1\n"   # has a het
+            "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0/0\t0/0\t1/1\n"   # all homozygous
+            "chr1\t30\t.\tG\tA\t.\tPASS\t.\tGT\t0/1\t0/1\t0/0\n")  # two hets
+        v = dn.parse_vcf(p)
+        assert v.n_unphased_het_sites == 2
+
+    def test_phased_vcf_reports_zero_unphased_het_sites(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n")
+        assert dn.parse_vcf(p).n_unphased_het_sites == 0
+
+    def test_cli_warns_on_unphased_het_and_snp_window(self, tmp_path, capsys):
+        vcf = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0/0\t0/1\t1/1\n"
+            "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0/0\t0/0\t1/1\n"
+            "chr1\t30\t.\tG\tA\t.\tPASS\t.\tGT\t0/1\t1/1\t0/0\n")
+        out = tmp_path / "out"
+        assert dn.main(["--vcf", str(vcf), "--window", "2", "--step", "1",
+                        "--output", str(out)]) == 0
+        err = capsys.readouterr().err
+        assert "unphased heterozygous genotype" in err
+        assert "SNP index" in err
+        report = (out / "report.md").read_text()
+        assert "slide over retained variant sites (SNP index)" in report
+
     def test_missing_gt_excludes_sample_from_chrom(self, tmp_path):
         p = self._write(tmp_path,
             "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t.|.\t0|1\t1|1\n"
