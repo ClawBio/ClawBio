@@ -216,7 +216,7 @@ def _repro_command(
             "--output-dir",
             ReproPath(output_dir, anchor="output_dir"),
             "--sample-id",
-            shlex.quote(str(config.sample_id)),
+            '"${SAMPLE_ID}"',
             "--sex",
             str(config.sex),
             "--genome",
@@ -244,6 +244,10 @@ def _repro_command(
         )
         command_args.extend(["--reference-fasta", '"${REFERENCE_FASTA}"'])
 
+    preflight.append(
+        ': "${SAMPLE_ID:?Set SAMPLE_ID to the sample identifier used for this run}"'
+    )
+
     return ReproCommand(
         script_path=Path("skills/wgs-prs/wgs_prs.py"),
         args=command_args,
@@ -263,7 +267,7 @@ def _safe_parameters(config: Any) -> dict[str, Any]:
         selection["query_sha256"] = _hash_text(str(value))
     return {
         "selection": selection,
-        "sample_id": str(config.sample_id),
+        "sample_id_sha256": _hash_text(str(config.sample_id)),
         "sex": str(config.sex),
         "genome": str(config.sarek.genome),
         "profile": str(config.sarek.profile),

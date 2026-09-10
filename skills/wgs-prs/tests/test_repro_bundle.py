@@ -9,13 +9,15 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 SKILL_DIR = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = SKILL_DIR.parents[1]
 sys.path.insert(0, str(SKILL_DIR))
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import repro_bundle  # noqa: E402
-from wgs_prs import BridgeConfig, WgsToPrsBridge  # noqa: E402
+from wgs_prs import BridgeConfig, WgsToPrsBridge, write_demo_vcf  # noqa: E402
 from clawbio.common.checksums import sha256_file  # noqa: E402
 from clawbio.common.vcf_qc import QcConfig  # noqa: E402
 
@@ -190,6 +192,53 @@ def test_demo_command_needs_no_private_input_path(tmp_path) -> None:
     assert provenance["parameters"]["selection"]["mode"] == "demo"
 
 
+def test_sample_id_is_hashed_in_provenance_and_supplied_by_environment(tmp_path) -> None:
+    """Bundles must not expose a lab accession or patient identifier."""
+    sample_id = "patient-jane-doe"
+    _output_dir, _vcf, _r1, paths, cfg = make_run(tmp_path)
+    cfg.sample_id = sample_id
+    paths = repro_bundle.create_reproducibility_bundle(
+        output_dir=_output_dir,
+        config=cfg,
+        input_vcf=_vcf,
+        output_paths=[_output_dir / "bridge_report.md", _output_dir / "bridge_report.json"],
+    )
+
+    commands = paths["commands"].read_text(encoding="utf-8")
+    provenance = json.loads(paths["provenance"].read_text(encoding="utf-8"))
+    serialized = json.dumps(provenance, sort_keys=True)
+
+    assert provenance["parameters"]["sample_id_sha256"] == (
+        "sha256:" + hashlib.sha256(sample_id.encode("utf-8")).hexdigest()
+    )
+    assert "sample_id" not in provenance["parameters"]
+    assert sample_id not in serialized
+    assert sample_id not in commands
+    assert '${SAMPLE_ID:?Set SAMPLE_ID to the sample identifier used for this run}' in commands
+    assert '--sample-id "${SAMPLE_ID}"' in flat(commands)
+
+
+def test_demo_vcf_covers_the_default_panel(tmp_path) -> None:
+    """The documented demo must produce a score, not a successful empty run."""
+    vcf = write_demo_vcf(tmp_path / "demo.vcf")
+    variant_ids = {
+        line.split("\t")[2]
+        for line in vcf.read_text(encoding="utf-8").splitlines()
+        if not line.startswith("#")
+    }
+
+    assert {
+        "rs7903146",
+        "rs1801282",
+        "rs5219",
+        "rs13266634",
+        "rs10811661",
+        "rs4402960",
+        "rs12255372",
+        "rs1111875",
+    } <= variant_ids
+
+
 def test_pgs_id_is_shell_quoted_in_replay_command(tmp_path) -> None:
     _output_dir, _vcf, _r1, paths, _cfg = make_run(
         tmp_path, pgs_id="PGS000013; echo unsafe",
@@ -220,6 +269,25 @@ def test_panel_id_run_replays_the_panel(tmp_path) -> None:
         "mode": "panel_id",
         "panel_id": "CLAWBIO-T2D-8",
     }
+
+
+def test_stage3_forwards_panel_id(tmp_path) -> None:
+    """The bridge must pass an explicit curated-panel choice to gwas-prs."""
+    bridge = WgsToPrsBridge(
+        BridgeConfig(
+            output_dir=str(tmp_path / "out"),
+            panel_id="CLAWBIO-T2D-8",
+        )
+    )
+    vcf = tmp_path / "input.vcf"
+    vcf.write_text("##fileformat=VCFv4.2\n", encoding="utf-8")
+
+    with patch("wgs_prs.subprocess.run") as run:
+        stage = bridge._run_stage3(vcf)
+
+    assert stage.status == "success"
+    command = run.call_args.args[0]
+    assert command[command.index("--panel-id") + 1] == "CLAWBIO-T2D-8"
 
 
 def test_selection_precedence_mirrors_stage3(tmp_path) -> None:
@@ -332,6 +400,7 @@ def test_demo_cli_writes_the_documented_output_contract(tmp_path) -> None:
         timeout=120,
         cwd=str(PROJECT_ROOT),
     )
+    assert result.returncode == 0, result.stderr
     assert (output_dir / "bridge_report.json").exists(), result.stderr
     assert (output_dir / "bridge_report.md").exists()
     repro = output_dir / "reproducibility"
@@ -343,3 +412,33 @@ def test_demo_cli_writes_the_documented_output_contract(tmp_path) -> None:
     provenance = json.loads((repro / "provenance.json").read_text(encoding="utf-8"))
     assert provenance["input"]["entry"] == "demo"
     assert provenance["tool"]["version"] == "0.2.0"
+    prs_result = json.loads((output_dir / "prs_output" / "result.json").read_text())
+    assert prs_result["data"]["results"][0]["variants_used"] > 0
+
+
+@pytest.mark.parametrize(
+    "selector",
+    [
+        ("--trait", "type 2 diabetes"),
+        ("--pgs-id", "PGS000013"),
+        ("--panel-id", "CLAWBIO-AF-12"),
+    ],
+)
+def test_demo_rejects_an_explicit_score_selector(tmp_path, selector) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SKILL_DIR / "wgs_prs.py"),
+            "--demo",
+            *selector,
+            "--output-dir",
+            str(tmp_path / "demo"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        cwd=str(PROJECT_ROOT),
+    )
+
+    assert result.returncode != 0
+    assert "--demo cannot be combined with --trait, --pgs-id, or --panel-id" in result.stderr

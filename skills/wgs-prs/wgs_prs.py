@@ -575,20 +575,40 @@ class WgsToPrsBridge:
         return None
 
 
+_DEMO_T2D_PANEL_VARIANTS = (
+    ("10", 114758349, "rs7903146", "C", "T"),
+    ("3", 12393125, "rs1801282", "G", "C"),
+    ("11", 17409572, "rs5219", "C", "T"),
+    ("8", 118184783, "rs13266634", "T", "C"),
+    ("9", 22134094, "rs10811661", "C", "T"),
+    ("3", 185511687, "rs4402960", "G", "T"),
+    ("10", 114808902, "rs12255372", "G", "T"),
+    ("10", 94462882, "rs1111875", "T", "C"),
+)
+
+
 def write_demo_vcf(path: Path, n_snps: int = 200) -> Path:
-    """Write a tiny synthetic VCF so ``--demo`` can run without user data."""
+    """Write a synthetic VCF that covers the default offline demo panel."""
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         "##fileformat=VCFv4.2",
         "##FILTER=<ID=PASS,Description=\"All filters passed\">",
         "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE",
     ]
+    for i, (chromosome, position, variant_id, ref, alt) in enumerate(
+        _DEMO_T2D_PANEL_VARIANTS
+    ):
+        gt = "0/1" if i % 3 else "1/1"
+        lines.append(
+            f"{chromosome}\t{position}\t{variant_id}\t{ref}\t{alt}\t50\tPASS\t.\tGT:DP\t{gt}:30"
+        )
+
     allele_pairs = [("A", "G"), ("C", "T"), ("G", "A"), ("T", "C")]
-    for i in range(n_snps):
+    for i in range(max(0, n_snps - len(_DEMO_T2D_PANEL_VARIANTS))):
         ref, alt = allele_pairs[i % 4]
         gt = "0/1" if i % 3 != 0 else "1/1"
         lines.append(
-            f"1\t{(i + 1) * 1000}\trs{i}\t{ref}\t{alt}\t50\tPASS\t.\tGT:DP\t{gt}:30"
+            f"1\t{(i + 1) * 1000}\trs_demo_{i}\t{ref}\t{alt}\t50\tPASS\t.\tGT:DP\t{gt}:30"
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
@@ -680,6 +700,8 @@ def _cli() -> None:
     selectors = [args.trait, args.pgs_id, args.panel_id]
     if sum(bool(value) for value in selectors) > 1:
         parser.error("choose at most one of --trait, --pgs-id, or --panel-id")
+    if args.demo and any(selectors):
+        parser.error("--demo cannot be combined with --trait, --pgs-id, or --panel-id")
 
     panel_id = args.panel_id or ""
     if args.demo and not any(selectors):

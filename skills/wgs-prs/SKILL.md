@@ -238,7 +238,7 @@ output_directory/
 │   └── canonical_pass.vcf.gz
 ├── prs_output/                 # present when gwas-prs completes
 └── reproducibility/
-    ├── commands.sh             # portable replay; private paths are env vars
+    ├── commands.sh             # portable replay; private paths and sample ID are env vars
     ├── environment.yml
     ├── provenance.json         # input hashes and safe parameters
     └── checksums.sha256
@@ -251,10 +251,11 @@ Verify with `cd <output_directory> && sha256sum -c reproducibility/checksums.sha
 The shared `clawbio.common.reproducibility` layer writes the bundle after the
 bridge reports. `provenance.json` stores SHA-256 digests of the FASTQ or VCF
 inputs that existed at run time, and omits their paths and contents. A
-free-text `--trait` query is stored only as an unsalted SHA-256 fingerprint.
-Non-demo `commands.sh` requires `INPUT_VCF` or `FASTQ_R1` (and `FASTQ_R2` when
-the run was paired) so private sequencing paths are not embedded. `--demo`
-replays as `--demo` and regenerates the synthetic VCF.
+free-text `--trait` query and `sample_id` are stored only as unsalted SHA-256
+fingerprints. `commands.sh` requires `SAMPLE_ID` and, for non-demo runs,
+`INPUT_VCF` or `FASTQ_R1` (and `FASTQ_R2` when the run was paired), so private
+sequencing paths and sample identifiers are not embedded. `--demo` replays as
+`--demo` and regenerates the synthetic VCF.
 
 ## Chaining with other ClawBio Skills
 
