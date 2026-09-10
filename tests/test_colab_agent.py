@@ -41,9 +41,18 @@ class NotebookTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         notebook = json.loads((root / 'docs/tutorial-agent.ipynb').read_text())
         code = [''.join(c['source']) for c in notebook['cells'] if c['cell_type'] == 'code']
-        self.assertIn((root / 'examples/colab_agent.py').read_text(), code)
+        self.assertIn((root / 'examples/colab_agent.py').read_text().strip(), '\n'.join(code))
         for source in code:
             compile(source, 'notebook', 'exec')
 
 if __name__ == '__main__': unittest.main()
 
+
+class LaunchExperienceTests(unittest.TestCase):
+    def test_single_hidden_launch_cell(self):
+        root = Path(__file__).resolve().parents[1]
+        notebook = json.loads((root / 'docs/tutorial-agent.ipynb').read_text())
+        cells = [c for c in notebook['cells'] if c['cell_type'] == 'code']
+        self.assertEqual(len(cells), 1)
+        self.assertEqual(cells[0]['metadata']['cellView'], 'form')
+        self.assertTrue(''.join(cells[0]['source']).startswith('#@title Launch ClawBio'))
