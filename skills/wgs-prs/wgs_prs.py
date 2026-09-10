@@ -446,7 +446,7 @@ class WgsToPrsBridge:
         # PRS section
         lines += ["", "---", "", "## Polygenic Risk Scores", ""]
         prs_output = self._output_dir / "prs_output"
-        prs_report = prs_output / "report.md"
+        prs_report = prs_output / "prs_report.md"
         if prs_report.exists():
             lines.append(f"PRS report available at: `{prs_report}`")
             lines.append("")
