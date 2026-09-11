@@ -2112,29 +2112,39 @@ class TestComputeMK:
         assert 'mk' in results
         assert results['mk'] is not None
 
-    def test_dual_status_codon_synonymous_counts_as_fixed_not_poly(self):
-        # Ingroup segregates CTT/CTC (both Leu). Outgroup CTA (also Leu) is
-        # NOT one of the ingroup alleles -- DnaSP's ht3 rule (EntrePobsMod.vb
-        # ::BuscoPosFijadas) classifies this as a fixed difference even
-        # though the ingroup itself is polymorphic, because no ingroup
-        # sequence shares the outgroup's allele. Both CTT-CTA and CTC-CTA
-        # differ synonymously (Leu throughout), so this is a synonymous
-        # fixed difference (Ds), not a polymorphism (Ps).
+    def test_dual_status_site_counts_as_both_fixed_and_polymorphic_synonymous(self):
+        # Ingroup segregates CTT/CTC (both Leu); outgroup CTA (Leu) carries a
+        # third base at position 2. Two DnaSP tallies apply to that ONE site
+        # and they are independent of each other:
+        #   fixed: no ingroup sequence carries the outgroup's base (ht3 = 1 in
+        #     EntrePobsMod.vb; AAstatusB = 7 in McDonaldK.vb::BuscoPosFijadas,
+        #     whose own comment reads "fijado diferencialmente aunque sea pol
+        #     en una de ella" -- fixed even if polymorphic in one species), so
+        #     Ds gains 1;
+        #   polymorphic: the ingroup segregates there, and its within-species
+        #     status (AAstatus1, from BuscaSitiosReemplazamientoMK) is worked
+        #     out from the ingroup's own codons alone -- BuscoPosSegregantesMcDK
+        #     never looks at the fixed flag -- so Ps gains 1 as well.
+        # DnaSP's help file shows exactly this on its codon 13-15 worked
+        # example (site 15: "within species ... 1 synonymous" AND "fixed
+        # differences ... Site#15 is synonymous"). An earlier version of this
+        # test asserted Ps == 0 here; that encoded the opposite rule and did
+        # not reproduce DnaSP 6's real output (COII: Ps 65 vs 69).
         seqs = ['CTT', 'CTC']
         result = dn.compute_mk(seqs, 'CTA')
         assert result.Ds == 1
-        assert result.Ps == 0
+        assert result.Ps == 1
         assert result.Pn == 0 and result.Dn == 0
 
-    def test_dual_status_codon_nonsynonymous_counts_as_fixed_not_poly(self):
-        # Ingroup segregates ATG (Met) / CTG (Leu). Outgroup GTG (Val) is not
-        # one of the ingroup alleles. Both ATG-GTG and CTG-GTG differ
-        # nonsynonymously, so this is a nonsynonymous fixed difference (Dn),
-        # not a polymorphism (Pn), under DnaSP's ht3-based rule.
+    def test_dual_status_site_counts_as_both_fixed_and_polymorphic_nonsynonymous(self):
+        # Same rule, replacement flavour: ingroup ATG (Met) / CTG (Leu),
+        # outgroup GTG (Val). Position 0 is a fixed difference (G absent from
+        # the ingroup: ATG-GTG and CTG-GTG are both replacements, so Dn = 1)
+        # AND a within-species replacement polymorphism (Met/Leu, so Pn = 1).
         seqs = ['ATG', 'CTG']
         result = dn.compute_mk(seqs, 'GTG')
         assert result.Dn == 1
-        assert result.Pn == 0
+        assert result.Pn == 1
         assert result.Ps == 0 and result.Ds == 0
 
     def test_outgroup_allele_shared_with_segregating_ingroup_is_poly_not_fixed(self):
@@ -2202,22 +2212,30 @@ class TestComputeMK:
         assert result.Ps == 0
         assert result.Dn == 0 and result.Ds == 0
 
-    def test_multiallelic_codon_does_not_silently_drop_third_allele(self):
-        # Ingroup segregates AAA (Lys), AAG (Lys), and CCG (Pro), outgroup
-        # AAA. Every position is polymorphic (the outgroup's base is
-        # present at each position -- 'A' at 0/1 via AAA/AAG, 'A' at 2 via
-        # AAA), but the globally closest pair is AAA-AAG (distance 1,
-        # differing only at position 2) -- CCG never participates in that
-        # pair. A design that only labels positions covered by the single
-        # globally-closest pair silently drops CCG's contribution at
-        # positions 0 and 1 entirely (a real bug caught by adversarial
-        # review). Each polymorphic position must be resolved from
-        # whichever pair(s) actually vary there, not just the one globally
-        # closest pair -- so this codon should register polymorphism at
-        # all three positions, not just position 2.
-        seqs = ['AAA', 'AAG', 'CCG']
-        result = dn.compute_mk(seqs, 'AAA')
-        assert result.Pn + result.Ps == 3
+    def test_complex_codon_is_excluded_from_both_tables_and_reported(self):
+        # Ingroup AAA (Lys), AAG (Lys), CCG (Pro): three codons that between
+        # them differ at all three positions. DnaSP's within-species routine
+        # (McDonaldK.vb::BuscaSitiosReemplazamientoMK, Case 3 / NNdif = 3,
+        # "no contabilizado") gives such a codon a negative status; both
+        # BuscoPosSegregantesMcDK and BuscaDeCodonesEntre then skip every
+        # site of that codon, and the output reports it under "Total number
+        # of complex codons no analyzed". So nothing from this codon reaches
+        # Pn/Ps/Dn/Ds -- not silently, though: the count is surfaced. (An
+        # earlier version of this test expected the codon to be resolved
+        # allele by allele instead; DnaSP does not do that.) The second,
+        # ordinary codon (TTT/TTC, Phe/Phe) is still counted.
+        seqs = ['AAATTT', 'AAGTTC', 'CCGTTT']
+        result = dn.compute_mk(seqs, 'AAATTT')
+        assert result.n_complex_codons == 1
+        assert result.Pn == 0 and result.Ps == 1
+        assert result.Dn == 0 and result.Ds == 0
+        # The exclusion covers the fixed side too: with an outgroup that
+        # differs at every position of the complex codon, DnaSP still counts
+        # no fixed difference there (BuscaDeCodonesEntre: NoTratarCodon when
+        # AAstatus1 < 0).
+        result = dn.compute_mk(['AAA', 'AAG', 'CCG'], 'GGG')
+        assert result.n_complex_codons == 1
+        assert result.Pn == 0 and result.Ps == 0
         assert result.Dn == 0 and result.Ds == 0
 
     def test_vertebrate_mitochondrial_code_stops_dont_exclude_tga(self):
@@ -2230,6 +2248,155 @@ class TestComputeMK:
         mito = dn.compute_mk(seqs, 'TGG', dn.VERTEBRATE_MITOCHONDRIAL_CODE)
         assert mito.Ds == 1
         assert mito.Dn == 0
+
+    def test_help_file_codon_13_15_site_is_both_syn_polymorphism_and_syn_fixed(self):
+        # Directly from DnaSP's own McDonald-Kreitman help page (worked
+        # example, codon 13-15): species 1 = AAT, AGG, ACT, ACT; species 2 =
+        # GGA (monomorphic). The page's own tallies for this codon are
+        #   "within species: 2 replacements (site#14), and 1 synonymous
+        #    (Site#15)" and
+        #   "fixed differences: 2, Site#13 is replacement; Site#15 is
+        #    synonymous."
+        # Site 15 (T/G in species 1, A in species 2) is counted in BOTH
+        # tables. Site 14 carries three alleles (A/G/C) and contributes two
+        # replacement changes, not one (the chain AAT -> ACT -> ACG -> AGG
+        # chosen in BuscaSitiosReemplazamientoMK's three-codon / two-position
+        # case, path 4 in the help page's list).
+        seqs = ['AAT', 'AGG', 'ACT', 'ACT']
+        result = dn.compute_mk(seqs, 'GGA')
+        assert result.Pn == 2
+        assert result.Ps == 1
+        assert result.Dn == 1
+        assert result.Ds == 1
+        assert result.n_complex_codons == 0
+
+    def test_help_file_codon_1_3_four_alleles_at_one_site_are_three_changes(self):
+        # Help page, codon 1-3: species 1 = AGT, AGC, AGA, AGG (Ser, Ser, Arg,
+        # Arg), species 2 = AGG. "species#1: 3 mutations in site#3: 1
+        # replacement, 2 synonymous." A site segregating for k bases counts
+        # k - 1 changes (the sum rule in BuscaSitiosReemplazamientoMK, Case 4
+        # / NNdif = 1: pairwise sum 8 -> code 122). The outgroup's G is one of
+        # the ingroup's bases, so nothing is fixed.
+        seqs = ['AGT', 'AGC', 'AGA', 'AGG']
+        result = dn.compute_mk(seqs, 'AGG')
+        assert result.Pn == 1
+        assert result.Ps == 2
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_three_alleles_at_one_site_are_two_changes(self):
+        # COII codon 80 of the validation file (0-indexed): ingroup CTA, CTG,
+        # CTC (all Leu under the vertebrate mitochondrial code), outgroup
+        # CTA. Three bases at position 2 -> two synonymous changes (Case 3 /
+        # NNdif = 1: pairwise sum 6 -> code 22). Counting this site once was
+        # one of the four missing Ps in the DnaSP 6.12 calibration.
+        seqs = ['CTA', 'CTG', 'CTC']
+        result = dn.compute_mk(seqs, 'CTA', dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert result.Ps == 2
+        assert result.Pn == 0
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_same_amino_acid_codons_two_sites_apart_are_both_synonymous(self):
+        # AGT (Ser) vs TCT (Ser) differ at positions 0 and 1; every
+        # single-step path runs through a non-Ser codon (TGT Cys or ACT Thr),
+        # so path counting alone would call both changes replacements. DnaSP
+        # overrides that: when two codons encode the same amino acid and
+        # differ at two or three positions, all differing positions are
+        # synonymous (BuscaSitiosReemplazamientoMK, Case 2, VB comment
+        # "ejemplo de codones AGU Ser UCU Ser; or UCC Ser vs AGU Ser").
+        seqs = ['AGT', 'TCT']
+        result = dn.compute_mk(seqs, 'AGT')
+        assert result.Ps == 2
+        assert result.Pn == 0
+
+    def test_help_file_codon_16_18_recombination_case_only_under_nuclear_codes(self):
+        # Help page, codon 16-18: species 1 = ATA, TTA, TTG, ATG (all four
+        # combinations of two variants at positions 0 and 2: a circular
+        # path), species 2 = TTT. "within species: Site#16 (1 replacement);
+        # Site#18 (1 synonymous). fixed differences: 1, Site#18 is
+        # replacement. Note: This kind of codons will be analyzed only for
+        # Nuclear Genetic Codes." Under the standard code DnaSP assumes one
+        # recombination event and takes, per position, the most synonymous
+        # of the four single-step edges. Under a mitochondrial table
+        # (SistemaGeneticoRecombina = 0) the codon is a complex codon and is
+        # excluded from both tables.
+        seqs = ['ATA', 'TTA', 'TTG', 'ATG']
+        std = dn.compute_mk(seqs, 'TTT')
+        assert std.Pn == 1 and std.Ps == 1
+        assert std.Dn == 1 and std.Ds == 0
+        assert std.n_complex_codons == 0
+        mito = dn.compute_mk(seqs, 'TTT', dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert mito.Pn == 0 and mito.Ps == 0
+        assert mito.Dn == 0 and mito.Ds == 0
+        assert mito.n_complex_codons == 1
+
+    def test_recombination_case_with_amino_acid_change_demotes_one_synonymous_site(self):
+        # The VB's own counter-example for the circular-path rule: CTG (Leu),
+        # TTG (Leu), TTT (Phe), CTT (Leu). Per position the most synonymous
+        # edge is synonymous at both positions (CTG-TTG at 0, CTT-CTG at 2),
+        # yet an amino acid change (Phe) is present, so DnaSP demotes the
+        # first synonymous position to a replacement ("problema en codones
+        # del tipo CUG Leu UUG Leu UUU Phe CUU Leu"): 1 replacement + 1
+        # synonymous, not 2 synonymous.
+        seqs = ['CTG', 'TTG', 'TTT', 'CTT']
+        result = dn.compute_mk(seqs, 'CTG')
+        assert result.Pn == 1
+        assert result.Ps == 1
+        assert result.n_complex_codons == 0
+
+    def test_five_or_more_codons_segregating_is_a_complex_codon(self):
+        # BuscaSitiosReemplazamientoMK handles 2, 3 and 4 distinct codons per
+        # triplet; five or more ("mas de cuatro codones") is a complex codon,
+        # excluded and reported.
+        seqs = ['AAA', 'AAC', 'AAG', 'AAT', 'ACA']
+        result = dn.compute_mk(seqs, 'AAA')
+        assert result.n_complex_codons == 1
+        assert result.Pn == 0 and result.Ps == 0
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_help_file_codon_7_9_two_difference_pair_prefers_fewer_replacements(self):
+        # Help page, codon 7-9: ATT (Ile) / CTG (Leu) within species 1,
+        # species 2 = ATT. "DnaSP will choose path#1, the path that requires
+        # the minor number of replacements": ATT -> CTT -> CTG, site 7
+        # replacement, site 9 synonymous. Nothing fixed (outgroup ATT is an
+        # ingroup allele).
+        seqs = ['ATT', 'CTG']
+        result = dn.compute_mk(seqs, 'ATT')
+        assert result.Pn == 1 and result.Ps == 1
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_help_file_codon_22_24_three_difference_pair(self):
+        # Help page, codon 22-24: TAT (Tyr) / CTG (Leu), species 2 = TAT.
+        # Six orderings, two of them through stop codons; "2 replacements
+        # ... and 1 synonymous" whichever of the remaining most-synonymous
+        # paths is taken.
+        seqs = ['TAT', 'CTG']
+        result = dn.compute_mk(seqs, 'TAT')
+        assert result.Pn == 2 and result.Ps == 1
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_three_codons_at_two_sites_chain_through_the_middle_codon(self):
+        # ATG (Met), ATC (Ile), CTC (Leu): two positions with two variants
+        # each. DnaSP chains through the codon adjacent to both others (ATG
+        # -> ATC -> CTC; VB comment "AUG AUC CUC") and labels each position
+        # from its single-step edge: two replacements.
+        seqs = ['ATG', 'ATC', 'CTC']
+        result = dn.compute_mk(seqs, 'ATG')
+        assert result.Pn == 2 and result.Ps == 0
+        assert result.n_complex_codons == 0
+
+    def test_ni_is_undefined_when_dn_is_zero(self):
+        # NI = (Pn/Ps)/(Dn/Ds) has no value when Dn = 0; DnaSP prints NI and
+        # alpha only when Dn * Ps is non-zero (McDonaldK.vb::McDonaldTest,
+        # "If (d * a) <> 0"). A synonymous dual-status site (Ps = 1, Ds = 1,
+        # Dn = 0) used to divide by zero here.
+        result = dn.compute_mk(['CTT', 'CTC'], 'CTA')
+        assert result.Ps == 1 and result.Ds == 1 and result.Dn == 0
+        assert result.NI is None
+        assert result.alpha is None
+
+    def test_mk_stats_reports_zero_complex_codons_by_default(self):
+        result = dn.compute_mk(['TTT', 'TTC'], 'TTT')
+        assert result.n_complex_codons == 0
 
 
 class TestComputeKaKs:

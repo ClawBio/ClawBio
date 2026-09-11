@@ -968,13 +968,15 @@ The test builds a 2 × 2 contingency table:
 | Nonsynonymous | Pn | Dn |
 | Synonymous | Ps | Ds |
 
-A codon position is classified as:
+Counts are made per nucleotide site, following DnaSP 6's own routines (`Módulos/McDonaldK.vb`), and the two tallies are independent of each other:
 
-- **Polymorphic**  -  at least two ingroup sequences carry different nucleotides at that position.
-- **Fixed**  -  all ingroup sequences agree at that position, but the outgroup carries a different nucleotide.
-- **Synonymous / nonsynonymous**  -  determined by the NCBI standard genetic code (transl\_table=1): a change is synonymous if the two codons encode the same amino acid; nonsynonymous otherwise.
+- **Polymorphic** -- the ingroup segregates at that site. A site carrying k different bases contributes k - 1 changes (DnaSP's help file, codon 1-3 worked example: "3 mutations in site#3: 1 replacement, 2 synonymous").
+- **Fixed** -- no ingroup sequence carries the outgroup's base at that site, whether or not the ingroup itself segregates there. A site that is both polymorphic within the ingroup and fixed against the outgroup counts in both tables (help file, codon 13-15 worked example).
+- **Synonymous / nonsynonymous** -- from the selected genetic code, resolved along DnaSP's mutational path rules when codons differ at more than one site (most synonymous ordering; an intermediate codon observed in the outgroup decides a two-step path; two codons for the same amino acid are synonymous at every differing site; fixed differences take the closest ingroup codon and, on ties, the fewest replacements).
 
 **Complete deletion at codon level**: any codon where any nucleotide position in any sequence (ingroup or outgroup) is not in {A, T, C, G} is skipped. Stop codons (in ingroup or outgroup) are also skipped.
+
+**Complex codons**: codons DnaSP does not analyse (three codons differing at all three sites, four codons with a three-base site, five or more codons, or a four-codon circular path under a mitochondrial code) are excluded from all four counts and reported as "Complex codons not analysed", matching DnaSP's "Total number of complex codons no analyzed".
 
 #### Derived statistics
 
@@ -984,7 +986,7 @@ NI = (Pn / Ps) / (Dn / Ds)         # neutrality index (= 1 under strict neutrali
 DoS = Dn/(Dn+Ds) − Pn/(Pn+Ps)     # direction of selection
 ```
 
-All three are `None` when any denominator is zero.
+α and NI are `None` unless Dn·Ps > 0 (DnaSP reports them under the same condition); DoS is `None` when either row of the table is empty.
 
 **α interpretation:** α > 0 → fraction of nonsynonymous fixations that are adaptive; α < 0 → excess nonsynonymous polymorphism (slightly deleterious alleles segregating).
 
