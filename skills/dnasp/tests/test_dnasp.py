@@ -2112,6 +2112,40 @@ class TestComputeMK:
         assert 'mk' in results
         assert results['mk'] is not None
 
+    def test_dual_status_codon_synonymous_counts_as_fixed_not_poly(self):
+        # Ingroup segregates CTT/CTC (both Leu). Outgroup CTA (also Leu) is
+        # NOT one of the ingroup alleles -- DnaSP's ht3 rule (EntrePobsMod.vb
+        # ::BuscoPosFijadas) classifies this as a fixed difference even
+        # though the ingroup itself is polymorphic, because no ingroup
+        # sequence shares the outgroup's allele. Both CTT-CTA and CTC-CTA
+        # differ synonymously (Leu throughout), so this is a synonymous
+        # fixed difference (Ds), not a polymorphism (Ps).
+        seqs = ['CTT', 'CTC']
+        result = dn.compute_mk(seqs, 'CTA')
+        assert result.Ds == 1
+        assert result.Ps == 0
+        assert result.Pn == 0 and result.Dn == 0
+
+    def test_dual_status_codon_nonsynonymous_counts_as_fixed_not_poly(self):
+        # Ingroup segregates ATG (Met) / CTG (Leu). Outgroup GTG (Val) is not
+        # one of the ingroup alleles. Both ATG-GTG and CTG-GTG differ
+        # nonsynonymously, so this is a nonsynonymous fixed difference (Dn),
+        # not a polymorphism (Pn), under DnaSP's ht3-based rule.
+        seqs = ['ATG', 'CTG']
+        result = dn.compute_mk(seqs, 'GTG')
+        assert result.Dn == 1
+        assert result.Pn == 0
+        assert result.Ps == 0 and result.Ds == 0
+
+    def test_outgroup_allele_shared_with_segregating_ingroup_is_poly_not_fixed(self):
+        # Ingroup segregates TTT/TTC; outgroup TTT IS one of the ingroup
+        # alleles (ht3 between 0 and 1 in DnaSP's terms) -- polymorphism,
+        # not a fixed difference. (Boundary case for the ht3 rule above.)
+        seqs = ['TTT', 'TTC']
+        result = dn.compute_mk(seqs, 'TTT')
+        assert result.Ps == 1
+        assert result.Ds == 0 and result.Dn == 0
+
     def test_vertebrate_mitochondrial_code_stops_dont_exclude_tga(self):
         # TGA is a stop under the standard code (excluded entirely -> both
         # zero), but Trp under vertebrate mitochondrial code, so a

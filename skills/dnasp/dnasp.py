@@ -2293,20 +2293,27 @@ def compute_mk(
     """McDonald-Kreitman test (McDonald & Kreitman 1991).
 
     Classifies each codon of an ingroup coding alignment into one of four
-    categories using the ingroup sequences and a single outgroup sequence:
+    categories using the ingroup sequences and a single outgroup sequence.
+    The classification follows DnaSP 6's own rule
+    (``EntrePobsMod.vb::BuscoPosFijadas``, keyed on ``ht3`` -- the fraction of
+    ingroup sequences whose codon differs from the outgroup's): a codon is a
+    **fixed difference** whenever the outgroup's codon is absent from the
+    ingroup's allele pool, even if the ingroup itself segregates for other
+    codons; it is **polymorphism** only when the outgroup's codon is one of
+    the segregating ingroup alleles.
 
-    - **Ps**  -  codon is polymorphic within ingroup; all variant pairs are
-      synonymous.
-    - **Pn**  -  codon is polymorphic within ingroup; at least one variant pair
-      is nonsynonymous.
-    - **Ds**  -  all ingroup sequences carry the same codon AND it differs from
-      the outgroup by a synonymous change (fixed synonymous difference).
-    - **Dn**  -  same as Ds but the fixed difference is nonsynonymous.
+    - **Ps**  -  the outgroup's codon is one of the ingroup alleles, the
+      ingroup segregates for more than one codon, and all variant pairs
+      among the ingroup alleles are synonymous.
+    - **Pn**  -  same, but at least one variant pair among the ingroup
+      alleles is nonsynonymous.
+    - **Ds**  -  the outgroup's codon is absent from the ingroup alleles, and
+      every ingroup allele differs from it only synonymously.
+    - **Dn**  -  same as Ds but at least one ingroup allele differs from the
+      outgroup nonsynonymously.
 
     Codons are skipped (complete deletion) when any ingroup sequence or the
     outgroup has a gap, ambiguous base, or stop codon at those three positions.
-    Codons that are simultaneously polymorphic in the ingroup *and* divergent
-    from the outgroup are excluded (conservative).
 
     Derived statistics:
 
@@ -2353,8 +2360,10 @@ def compute_mk(
         if any(genetic_code.get(co) == '*' for co in unique_in):
             continue
 
-        is_poly  = len(unique_in) > 1
-        is_fixed = (len(unique_in) == 1) and (next(iter(unique_in)) != out_codon)
+        # DnaSP's ht3 rule: fixed whenever the outgroup allele is absent from
+        # the ingroup pool, regardless of how many ingroup alleles segregate.
+        is_fixed = out_codon not in unique_in
+        is_poly  = (not is_fixed) and len(unique_in) > 1
 
         if is_poly:
             has_nonsyn = False
@@ -2371,11 +2380,17 @@ def compute_mk(
                 Ps += 1
 
         if is_fixed:
-            in_codon = next(iter(unique_in))
-            s_d, ns_d = _classify_codon_pair(in_codon, out_codon, genetic_code)
-            if ns_d > 0:
+            has_nonsyn = False
+            has_syn    = False
+            for in_codon in unique_in:
+                s_d, ns_d = _classify_codon_pair(in_codon, out_codon, genetic_code)
+                if ns_d > 0:
+                    has_nonsyn = True
+                if s_d > 0:
+                    has_syn = True
+            if has_nonsyn:
                 Dn += 1
-            elif s_d > 0:
+            elif has_syn:
                 Ds += 1
 
     result.Pn = Pn
