@@ -283,6 +283,23 @@ class TestSingletons:
         assert eta_s == 1
         assert per_seq[5] == pytest.approx(1.0)   # seq6 (index 5) carries the singleton T
 
+    def test_multiallelic_site_capped_at_one_singleton_site(self):
+        # n=4, one triallelic column with a 2/1/1 split: two different alleles
+        # each have count 1, but DnaSP's EtaS = EtaS - SingleMut discount means
+        # this site still contributes only 1 to eta_s (a SITE count), not 2 (a
+        # per-allele count). The two carrying sequences still each get +1 in
+        # per_seq, which R2 needs uncapped.
+        seqs = ["G", "G", "C", "T"]
+        eta_s, per_seq = dn.compute_singletons(seqs)
+        assert eta_s == 1
+        assert per_seq == [0.0, 0.0, 1.0, 1.0]
+
+    def test_biallelic_singleton_sites_are_not_capped_away(self):
+        # Two independent biallelic singleton sites must both count.
+        seqs = ["AT", "AT", "AT", "GC"]
+        eta_s, _ = dn.compute_singletons(seqs)
+        assert eta_s == 2
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tajima's D tests
@@ -351,6 +368,29 @@ class TestFuLi:
             assert D < 0
         if F is not None:
             assert F < 0
+
+    def test_ex_n1_matches_dnasp_6_exactly(self):
+        # DnaSP's own hand-checkable n=4 example (Ex_n1.fas, distributed with
+        # DnaSP 6). Run in DnaSP 6.12 for Windows on 2026-09-11: D* = -0.52807,
+        # F* = -0.41685 (the "v5-style"/Simonsen-1995 figure this skill
+        # implements; DnaSP's own Achaz-2009 "biallelic" figure differs, as
+        # documented). This is the case that exposed the eta_s per-site cap.
+        seqs = [
+            "ATATACGGGGTTA---TTAGA----AAAATGTGTGTGTGTTTTTTTTTTCATGTG",
+            "ATATAC--GGATA---TTACA----AGAATCTATGTCTGCTTTCTTTTTCATGTG",
+            "ATATACGGGGATA---TTATA----AGAATGTGTGTGTGTTTTTTTTTTCATGTG",
+            "ATATACGGGGATA---GTAGT----AAAATGTGTGTGTGTTTTTTTTTTCATGTG",
+        ]
+        clean, L_net = dn.complete_deletion(seqs)
+        assert L_net == 46
+        S, _ = dn.compute_segregating(clean)
+        assert S == 10
+        k = dn.compute_k(clean)
+        eta_s, _ = dn.compute_singletons(clean)
+        assert eta_s == 9   # capped: the triallelic site (G/C/T, 2/1/1) counts once
+        D_star, F_star = dn.fu_li_d_star_f_star(k, S, eta_s, n=4)
+        assert D_star == pytest.approx(-0.52807, abs=1e-5)
+        assert F_star == pytest.approx(-0.41685, abs=1e-5)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -706,6 +746,19 @@ class TestComputeRecombination:
         # The two sites may or may not be compatible; just check structure
         assert rec.Rm >= 0
         assert rec.n_incompatible_pairs >= 0
+
+    def test_matches_dnasp_reduction_not_optimal_stabbing(self):
+        # DnaSP 6 (CODIGO2.vb::RecombinacionRM) is not the graph-theoretic
+        # minimum interval-stabbing number: two intervals that only touch at
+        # a shared boundary point ((9,10) and (10,11)) are treated as
+        # non-overlapping and both kept, even though a single point at 10
+        # would stab both. True minimum stab count for this set is 2; DnaSP
+        # (and this skill) report 3. This is the same discrepancy that showed
+        # up against DnaSP 6.12 for Windows on real alignments (rp49 Rm
+        # 7->10, DmelOSRegion Rm 5->7) when this skill used an optimal
+        # interval-stabbing algorithm instead of DnaSP's own reduction.
+        intervals = [(10, 11), (9, 10), (5, 6), (2, 6)]
+        assert dn._dnasp_rm_from_intervals(intervals) == 3
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1413,7 +1466,8 @@ class TestCountDerived:
         # Outgroup = A; seq0 has T (derived, in 1 seq)
         seqs = ["TAAAA", "AAAAA", "AAAAA", "AAAAA"]
         outgroup = "AAAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
+        assert S == 1
         assert eta == 1
         assert eta_e == 1
 
@@ -1421,7 +1475,8 @@ class TestCountDerived:
         # Outgroup = A; T in 2 seqs → derived but not singleton
         seqs = ["TAAAA", "TAAAA", "AAAAA", "AAAAA"]
         outgroup = "AAAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
+        assert S == 1
         assert eta == 1
         assert eta_e == 0
 
@@ -1429,7 +1484,8 @@ class TestCountDerived:
         # Gap in outgroup at pos 0 → skip that site
         seqs = ["TAAAA", "AAAAA", "AAAAA"]
         outgroup = "-AAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
+        assert S == 0
         assert eta == 0
         assert eta_e == 0
 
@@ -1437,7 +1493,7 @@ class TestCountDerived:
         # Gap in ingroup seq at pos 0 → skip that site
         seqs = ["-AAAA", "TAAAA", "AAAAA"]
         outgroup = "AAAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
         # pos 0: ingroup gap → skip; pos 1-4: all A → 0 mutations
         assert eta == 0
 
@@ -1445,24 +1501,29 @@ class TestCountDerived:
         # Outgroup = A, but all ingroup have T  -  ancestral absent
         seqs = ["TAAAA", "TAAAA", "TAAAA"]
         outgroup = "AAAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
         # All seqs have T but outgroup has A; A not in ingroup at pos 0
         assert eta == 0
 
     def test_monomorphic_site_skipped(self):
         seqs = ["AAAAA", "AAAAA", "AAAAA"]
         outgroup = "AAAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
+        assert S == 0
         assert eta == 0
         assert eta_e == 0
 
-    def test_two_derived_alleles(self):
-        # pos 0: outgroup=A, seqs have T (1) and C (1) → both derived, each singleton
+    def test_two_derived_alleles_site_capped_at_one(self):
+        # pos 0: outgroup=A, seqs have T (1) and C (1) -> both derived, each
+        # singleton. eta (total derived mutations) counts both; eta_e is a
+        # SITE count capped at 1, matching DnaSP's EtaE = EtaE - ExternaMut
+        # discount at a multiallelic site (Mod12FuLiOutgroupNew).
         seqs = ["TAAAA", "CAAAA", "AAAAA"]
         outgroup = "AAAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
+        assert S == 1
         assert eta == 2       # two derived alleles (T and C)
-        assert eta_e == 2     # each carried by exactly 1 seq
+        assert eta_e == 1     # capped: one site, not two
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1561,6 +1622,41 @@ class TestComputeFuLiOutgroup:
         assert result.eta_e == 4
         assert result.D is not None and result.D < 0
         assert result.F is not None and result.F < 0
+
+    def test_d_and_f_scale_by_S_not_eta(self):
+        # DnaSP's default mode (Mod12FuLiOutgroupNew, SSOrMutations=1) scales
+        # D and F by the orientable segregating-SITE count (pv1), not by the
+        # total-mutations count (EtaT) -- they only coincide when every site
+        # is biallelic. Site 0 is biallelic (1 derived, singleton); site 1 is
+        # triallelic (2 derived alleles, both singleton, capped to 1 site of
+        # eta_e) so S=2 but eta=3 here, letting the two formulas diverge.
+        seqs = ["TA", "AA", "AC", "AG", "AA"]
+        outgroup = "AA"
+        result = dn.compute_fu_li_outgroup(seqs, outgroup)
+        assert result.S == 2
+        assert result.eta == 3
+        assert result.eta_e == 2
+
+        n = 5
+        a_n = dn._harmonic(n, 1)
+        b_n = dn._harmonic(n, 2)
+        a_n1 = a_n + 1.0 / n
+        c_n = 2.0 * (n * a_n - 2.0 * (n - 1.0)) / ((n - 1.0) * (n - 2.0))
+        v_D = 1.0 + (a_n**2 / (b_n + a_n**2)) * (c_n - (n + 1.0) / (n - 1.0))
+        u_D = a_n - 1.0 - v_D
+        v_F = (c_n + 2.0 * (n**2 + n + 3.0) / (9.0 * n * (n - 1.0))
+               - 2.0 / (n - 1.0)) / (a_n**2 + b_n)
+        u_F = (1.0 + (n + 1.0) / (3.0 * (n - 1.0))
+               - 4.0 * ((n + 1.0) / (n - 1.0)**2) * (a_n1 - 2.0 * n / (n + 1.0))) / a_n - v_F
+
+        S, eta, eta_e = result.S, result.eta, result.eta_e
+        D_from_S = (S - a_n * eta_e) / math.sqrt(u_D * S + v_D * S * S)
+        D_from_eta = (eta - a_n * eta_e) / math.sqrt(u_D * eta + v_D * eta * eta)
+        assert D_from_S != pytest.approx(D_from_eta)
+        assert result.D == pytest.approx(D_from_S)
+
+        F_from_S = (result.k_bar - eta_e) / math.sqrt(u_F * S + v_F * S * S)
+        assert result.F == pytest.approx(F_from_S)
 
     def test_run_analysis_fuliout(self):
         """fuliout dispatched correctly from run_analysis."""
@@ -2007,6 +2103,17 @@ class TestComputeMK:
         assert 'mk' in results
         assert results['mk'] is not None
 
+    def test_vertebrate_mitochondrial_code_stops_dont_exclude_tga(self):
+        # TGA is a stop under the standard code (excluded entirely -> both
+        # zero), but Trp under vertebrate mitochondrial code, so a
+        # TGA<->TGG (Trp<->Trp, synonymous) fixed difference should count.
+        seqs = ['TGA', 'TGA']
+        std = dn.compute_mk(seqs, 'TGG')
+        assert std.Ds == 0 and std.Dn == 0
+        mito = dn.compute_mk(seqs, 'TGG', dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert mito.Ds == 1
+        assert mito.Dn == 0
+
 
 class TestComputeKaKs:
     def test_returns_kaks_stats_type(self):
@@ -2077,6 +2184,19 @@ class TestComputeKaKs:
         assert 'kaks' in results
         assert results['kaks'] is not None
         assert isinstance(results['kaks'], dn.KaKsStats)
+
+    def test_vertebrate_mitochondrial_code_counts_tga_codon(self):
+        # Under the standard code TGA is a stop, so this codon is excluded
+        # from both sequences entirely (no synonymous sites, no pair
+        # counted). Under vertebrate mitochondrial code TGA=Trp, so it
+        # contributes like any other codon.
+        seqs = ['TGA', 'TGG']  # Trp<->Trp under mito code, synonymous
+        std = dn.compute_ka_ks(seqs)
+        assert std.n_codons == 1
+        assert std.S_sites == pytest.approx(0.0)
+
+        mito = dn.compute_ka_ks(seqs, dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert mito.S_sites > 0.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2795,6 +2915,49 @@ class TestComputeCodonUsage:
         results = dn.run_analysis(aln, analyses={'tstv', 'codon'})
         assert isinstance(results.get('tstv'), dn.TsTvStats)
         assert isinstance(results.get('codon'), dn.CodonUsageStats)
+
+    def test_vertebrate_mitochondrial_code_counts_tga_as_trp(self):
+        # Standard code: TGA is a stop, dropped entirely, never in codon_counts.
+        seqs = ['TGATGG', 'TGGTGA']
+        std = dn.compute_codon_usage(seqs)
+        assert std.codon_counts.get('TGA', 0.0) == 0.0
+
+        # Vertebrate mitochondrial code: TGA = Trp, joins TGG in the Trp
+        # family; equal TGA/TGG usage here gives equal (uniform) RSCU.
+        mito = dn.compute_codon_usage(seqs, dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert mito.codon_counts.get('TGA', 0.0) > 0.0
+        assert mito.rscu['TGA'] == pytest.approx(mito.rscu['TGG'])
+        assert mito.rscu['TGA'] == pytest.approx(1.0)
+
+    def test_genetic_code_flows_through_run_analysis(self):
+        aln = dn.Alignment(names=['a', 'b'], seqs=['TGATGG', 'TGGTGG'])
+        std = dn.run_analysis(aln, analyses={'codon'})
+        mito = dn.run_analysis(
+            aln, analyses={'codon'}, genetic_code=dn.VERTEBRATE_MITOCHONDRIAL_CODE
+        )
+        assert std['codon'].codon_counts.get('TGA', 0.0) == 0.0
+        assert mito['codon'].codon_counts.get('TGA', 0.0) > 0.0
+
+    def test_cli_genetic_code_flag(self, tmp_path):
+        f = tmp_path / "mito.fas"
+        f.write_text(">a\nTGATGG\n>b\nTGGTGG\n")
+        out_std = tmp_path / "out_std"
+        out_mito = tmp_path / "out_mito"
+        assert dn.main(["--input", str(f), "--analysis", "codon",
+                        "--output", str(out_std)]) == 0
+        assert dn.main(["--input", str(f), "--analysis", "codon",
+                        "--genetic-code", "vertebrate-mitochondrial",
+                        "--output", str(out_mito)]) == 0
+        std_tsv = (out_std / "results.tsv").read_text()
+        mito_report = (out_mito / "report.md").read_text()
+        assert "TGA" in mito_report
+
+    def test_cli_genetic_code_rejects_unknown_choice(self, tmp_path):
+        f = tmp_path / "x.fas"
+        f.write_text(">a\nATG\n>b\nATG\n")
+        with pytest.raises(SystemExit):
+            dn.main(["--input", str(f), "--genetic-code", "bogus-code",
+                     "--output", str(tmp_path / "out")])
 
 
 # =============================================================================

@@ -123,13 +123,41 @@ GENETIC_CODE: dict[str, str] = {
     'GGT': 'G', 'GGC': 'G', 'GGA': 'G', 'GGG': 'G',
 }
 
-# Synonymous codon families (Group E: codon usage bias)
+# Vertebrate mitochondrial genetic code (NCBI transl_table=2; DnaSP 6's
+# "mtDNA Mammals", SINONIMO.vb::GeneticCode case 2): differs from the
+# standard/universal code at exactly 4 codons.  Needed for mitochondrial loci
+# such as COII, where TGA is a sense codon (Trp), not a stop  -  treating it as
+# standard-code stop silently drops those columns from codon, mk and kaks.
+VERTEBRATE_MITOCHONDRIAL_CODE: dict[str, str] = {**GENETIC_CODE,
+    'TGA': 'W',   # stop -> Trp
+    'ATA': 'M',   # Ile  -> Met
+    'AGA': '*',   # Arg  -> stop
+    'AGG': '*',   # Arg  -> stop
+}
+
+GENETIC_CODES: dict[str, dict[str, str]] = {
+    "standard": GENETIC_CODE,
+    "vertebrate-mitochondrial": VERTEBRATE_MITOCHONDRIAL_CODE,
+}
+
+
+def _synonymous_families(genetic_code: dict[str, str]) -> dict[str, list[str]]:
+    """Amino acid -> list of codons for it, under the given genetic code.
+
+    Stop codons ('*') are excluded.  Used by codon usage bias (RSCU, ENC),
+    which must recompute this per genetic code table, not just at import
+    time for the standard code.
+    """
+    families: dict[str, list[str]] = {}
+    for codon, aa in genetic_code.items():
+        if aa != '*':
+            families.setdefault(aa, []).append(codon)
+    return families
+
+
+# Synonymous codon families (Group E: codon usage bias), standard code only.
 # Maps amino acid → list of codons; stop codons ('*') excluded.
-_SYNONYMOUS_FAMILIES: dict[str, list[str]] = {}
-for _codon, _aa in GENETIC_CODE.items():
-    if _aa != '*':
-        _SYNONYMOUS_FAMILIES.setdefault(_aa, []).append(_codon)
-del _codon, _aa  # clean up loop variables
+_SYNONYMOUS_FAMILIES: dict[str, list[str]] = _synonymous_families(GENETIC_CODE)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Data structures
@@ -303,8 +331,9 @@ class DivergenceStats:
 class FuLiOutgroupStats:
     """Fu & Li (1993) D and F statistics polarised by an outgroup sequence."""
     n: int = 0           # number of ingroup sequences
-    eta: int = 0         # total derived mutations (outgroup-polarised)
-    eta_e: int = 0       # derived mutations carried by exactly 1 ingroup seq
+    S: int = 0           # orientable segregating sites (DnaSP's pv1); drives D/F
+    eta: int = 0         # total derived mutations (outgroup-polarised); reported only
+    eta_e: int = 0       # derived-mutation SITES carried by exactly 1 ingroup seq
     k_bar: float = 0.0   # mean pairwise differences (standard π estimate)
     D: Optional[float] = None  # Fu & Li D (outgroup version)
     F: Optional[float] = None  # Fu & Li F (outgroup version)
@@ -934,9 +963,20 @@ def compute_segregating(seqs: list[str]) -> tuple[int, int]:
 
 
 def compute_singletons(seqs: list[str]) -> tuple[int, list[float]]:
-    """η_s (singleton count) and per-sequence attribution.
+    """η_s (Fu & Li singleton *site* count) and per-sequence attribution.
 
-    Matches DnaSP BusqSingletones(): counts alleles with count == 1 only.
+    η_s counts SITES, capped at 1 per site even when more than one allele
+    there has count 1 (e.g. a triallelic 2/1/1 split): DnaSP's
+    FuLiIntraespecifico() computes a raw per-allele count via
+    BusqSingletones() at tri-/quadri-allelic sites, then subtracts the
+    excess beyond 1 (`EtaS = EtaS - SingleMut`) by default, so a
+    multiallelic site with several singleton alleles still contributes
+    only 1 to η_s. Biallelic sites are precomputed as singleton/not, so
+    they only ever carry 0 or 1 naturally. The per-sequence attribution
+    used by R2 is a different, uncapped quantity (Ramos-Onsins & Rozas
+    2002): every singleton allele is credited to its one carrying
+    sequence, so a multiallelic site can add to more than one sequence's
+    count there.
     """
     n = len(seqs)
     if n < 2 or not seqs:
@@ -959,10 +999,13 @@ def compute_singletons(seqs: list[str]) -> tuple[int, list[float]]:
         for idx, c in enumerate(col):
             if c in states:
                 counts[c].append(idx)
+        site_has_singleton = False
         for allele, carriers in counts.items():
             if len(carriers) == 1:
-                eta_s += 1
                 per_seq[carriers[0]] += 1
+                site_has_singleton = True
+        if site_has_singleton:
+            eta_s += 1
 
     if n == 2:
         total = sum(per_seq)
@@ -1300,15 +1343,60 @@ def compute_ld(seqs: list[str], positions: Optional[list[int]] = None) -> LDStat
 # Recombination (Rm, four-gamete test)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _dnasp_rm_from_intervals(intervals: list[tuple[int, int]]) -> int:
+    """DnaSP 6's Rm reduction (CODIGO2.vb::RecombinacionRM), applied to the
+    incompatible-pair intervals in the order they were found.
+
+    This is a specific two-pass elimination from Hudson & Kaplan (1985), not
+    the graph-theoretic minimum interval-stabbing number: pass 1 drops any
+    interval that contains another (a stab of the smaller also stabs it);
+    pass 2 then drops one interval from each remaining overlapping pair. The
+    two procedures usually agree but can differ, and DnaSP's own numbers are
+    the parity target, so this reproduces it exactly rather than computing
+    the provably-minimal stab count.
+    """
+    a = list(intervals)
+    n = len(a)
+    alive = [True] * n
+    for i in range(n):
+        if not alive[i]:
+            continue
+        for j in range(i + 1, n):
+            if not alive[i]:
+                break
+            if not alive[j]:
+                continue
+            if a[i][0] >= a[j][0] and a[i][1] <= a[j][1]:
+                alive[j] = False
+            elif a[j][0] >= a[i][0] and a[j][1] <= a[i][1]:
+                alive[i] = False
+                break
+    step1 = [a[k] for k in range(n) if alive[k]]
+
+    m = len(step1)
+    alive2 = [True] * m
+    for i in range(m):
+        if not alive2[i]:
+            continue
+        for j in range(i + 1, m):
+            if not alive2[j]:
+                continue
+            ai, aj = step1[i], step1[j]
+            if ai[0] < aj[0] and ai[1] > aj[0]:
+                alive2[j] = False
+            elif aj[0] < ai[0] and aj[1] > ai[0]:
+                alive2[i] = False
+    return sum(1 for k in range(m) if alive2[k])
+
+
 def compute_recombination(seqs: list[str], net_positions: Optional[list[int]] = None) -> RecombStats:
     """Minimum recombination events Rm (Hudson & Kaplan 1985).
 
     The four-gamete test identifies pairs of biallelic sites that are
     incompatible (all four haplotype combinations observed).  Each incompatible
     pair (i, j) requires at least one recombination event between positions i
-    and j.  Rm is the minimum number of recombination events needed to account
-    for all incompatible pairs, computed by the interval-stabbing algorithm
-    (sort intervals by right endpoint; greedily place events).
+    and j.  Rm is then DnaSP's reduction of that interval set
+    (`CODIGO2.vb::RecombinacionRM`) — see `_dnasp_rm_from_intervals`.
 
     Reference: Hudson RR, Kaplan NL (1985) Genetics 111:147-164.
     """
@@ -1339,18 +1427,7 @@ def compute_recombination(seqs: list[str], net_positions: Optional[list[int]] = 
 
     stats.n_incompatible_pairs = len(incompatible)
     stats.incompatible_pairs = incompatible
-
-    # Rm: minimum number of points to stab all intervals
-    # Greedy: sort by right endpoint; if interval not yet stabbed, place point at right endpoint
-    if incompatible:
-        sorted_intervals = sorted(incompatible, key=lambda x: x[1])
-        last_point = -1
-        rm = 0
-        for left, right in sorted_intervals:
-            if left > last_point:
-                rm += 1
-                last_point = right
-        stats.Rm = rm
+    stats.Rm = _dnasp_rm_from_intervals(incompatible)
 
     return stats
 
@@ -1726,7 +1803,7 @@ def _orientable_columns(seqs: list[str], outgroup: str) -> list[int]:
     return cols
 
 
-def _count_derived(seqs: list[str], outgroup: str) -> tuple[int, int]:
+def _count_derived(seqs: list[str], outgroup: str) -> tuple[int, int, int]:
     """Count outgroup-polarised derived mutations over orientable columns.
 
     Parameters
@@ -1738,13 +1815,23 @@ def _count_derived(seqs: list[str], outgroup: str) -> tuple[int, int]:
 
     Returns
     -------
+    S : int
+        Number of orientable, polymorphic sites (DnaSP's pv1) -- one per site
+        regardless of how many derived alleles segregate there.
     eta : int
-        Total number of derived mutations across all orientable sites.
+        Total number of derived mutations across all orientable sites (extra
+        for a tri-/quadri-allelic site); reported but not used to scale D/F.
     eta_e : int
-        Derived mutations carried by exactly one ingroup sequence (external).
+        Derived-mutation SITES carried by exactly one ingroup sequence
+        (external/singleton), capped at 1 per site: DnaSP's Mod12FuLiOutgroupNew
+        computes a raw per-allele count via Mod12BusqMutacExternas() at
+        tri-/quadri-allelic sites, then subtracts the excess beyond 1
+        (`EtaE = EtaE - ExternaMut`) by default, mirroring BusqSingletones()'s
+        EtaS discount in the no-outgroup test.
     """
     if not seqs:
-        return 0, 0
+        return 0, 0, 0
+    n_sites = 0
     eta = 0
     eta_e = 0
     for pos in _orientable_columns(seqs, outgroup):
@@ -1753,12 +1840,16 @@ def _count_derived(seqs: list[str], outgroup: str) -> tuple[int, int]:
         states = frozenset(col)
         if len(states) < 2:
             continue  # monomorphic in the ingroup
+        n_sites += 1
+        site_has_external_singleton = False
         for derived in states - {anc}:
             n_carriers = sum(1 for c in col if c == derived)
             eta += 1
             if n_carriers == 1:
-                eta_e += 1
-    return eta, eta_e
+                site_has_external_singleton = True
+        if site_has_external_singleton:
+            eta_e += 1
+    return n_sites, eta, eta_e
 
 
 def compute_fu_li_outgroup(seqs: list[str], outgroup: str) -> FuLiOutgroupStats:
@@ -1772,14 +1863,17 @@ def compute_fu_li_outgroup(seqs: list[str], outgroup: str) -> FuLiOutgroupStats:
     DnaSP 6 source (FULI.vb, Mod12FuLiOutgroupNew); coefficient forms also in
     Simonsen, Churchill & Aquadro (1995) Genetics 141:413-429.
 
-        D = (eta - a_n * eta_e) / sqrt(u_D * eta + v_D * eta**2)
-        F = (k_bar - eta_e)     / sqrt(u_F * eta + v_F * eta**2)
+        D = (S - a_n * eta_e) / sqrt(u_D * S + v_D * S**2)
+        F = (k_bar - eta_e)   / sqrt(u_F * S + v_F * S**2)
 
-    with eta the total number of outgroup-polarised derived mutations and
-    eta_e the subset carried by exactly one ingroup sequence (external branch).
-    k_bar is the mean pairwise difference over the orientable-site set only
-    (DnaSP accumulates rp1 solely inside SitioIesInformativo), so it uses the
-    same column mask as eta / eta_e.
+    with S the number of orientable segregating sites (DnaSP's default
+    'from segregating sites' mode -- SSOrMutations=1, i.e. Form11b.Option3D1
+    unchecked; DnaSP also offers a 'from total mutations' mode using eta in
+    S's place, not implemented here) and eta_e the derived-mutation sites
+    carried by exactly one ingroup sequence (external branch), capped at 1
+    per site. k_bar is the mean pairwise difference over the orientable-site
+    set only (DnaSP accumulates rp1 solely inside SitioIesInformativo), so it
+    uses the same column mask as S / eta_e.
     Negative D or F indicates an excess of external (singleton) mutations.
 
     Parameters
@@ -1804,8 +1898,8 @@ def compute_fu_li_outgroup(seqs: list[str], outgroup: str) -> FuLiOutgroupStats:
     k_bar = compute_k(ingroup_orientable)
 
     # Outgroup-polarised counts
-    eta, eta_e = _count_derived(seqs, outgroup)
-    if eta == 0:
+    S, eta, eta_e = _count_derived(seqs, outgroup)
+    if S == 0:
         return FuLiOutgroupStats(n=n, eta=0, eta_e=0, k_bar=k_bar)
 
     a_n = _harmonic(n, 1)          # Σ 1/i for i = 1..n-1
@@ -1824,16 +1918,16 @@ def compute_fu_li_outgroup(seqs: list[str], outgroup: str) -> FuLiOutgroupStats:
            + (n + 1.0) / (3.0 * (n - 1.0))
            - 4.0 * ((n + 1.0) / (n - 1.0)**2) * (a_n1 - 2.0 * n / (n + 1.0))) / a_n - v_F
 
-    denom_D_sq = u_D * eta + v_D * eta * eta
-    denom_F_sq = u_F * eta + v_F * eta * eta
+    denom_D_sq = u_D * S + v_D * S * S
+    denom_F_sq = u_F * S + v_F * S * S
     D: Optional[float] = (
-        (eta - a_n * eta_e) / math.sqrt(denom_D_sq) if denom_D_sq > 0 else None
+        (S - a_n * eta_e) / math.sqrt(denom_D_sq) if denom_D_sq > 0 else None
     )
     F: Optional[float] = (
         (k_bar - eta_e) / math.sqrt(denom_F_sq) if denom_F_sq > 0 else None
     )
 
-    return FuLiOutgroupStats(n=n, eta=eta, eta_e=eta_e, k_bar=k_bar, D=D, F=F)
+    return FuLiOutgroupStats(n=n, S=S, eta=eta, eta_e=eta_e, k_bar=k_bar, D=D, F=F)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2087,7 +2181,7 @@ def _fisher_exact_2x2(a: int, b: int, c: int, d: int) -> float:
     return min(total, 1.0)
 
 
-def _count_syn_sites_codon(codon: str) -> float:
+def _count_syn_sites_codon(codon: str, genetic_code: dict[str, str] = GENETIC_CODE) -> float:
     """Synonymous sites in a codon by the Nei-Gojobori (1986) method.
 
     For each of the 3 positions, counts the fraction of the 3 possible
@@ -2098,7 +2192,7 @@ def _count_syn_sites_codon(codon: str) -> float:
     """
     if len(codon) != 3 or any(c not in 'ATCG' for c in codon):
         return 0.0
-    aa = GENETIC_CODE.get(codon)
+    aa = genetic_code.get(codon)
     if aa is None or aa == '*':
         return 0.0
     syn = 0.0
@@ -2106,13 +2200,15 @@ def _count_syn_sites_codon(codon: str) -> float:
         n_syn = sum(
             1 for alt in _NUCLEOTIDES
             if alt != codon[pos]
-            and GENETIC_CODE.get(codon[:pos] + alt + codon[pos + 1:]) == aa
+            and genetic_code.get(codon[:pos] + alt + codon[pos + 1:]) == aa
         )
         syn += n_syn / 3.0   # 3 possible alternatives at each position
     return syn
 
 
-def _classify_codon_pair(c1: str, c2: str) -> tuple[float, float]:
+def _classify_codon_pair(
+    c1: str, c2: str, genetic_code: dict[str, str] = GENETIC_CODE
+) -> tuple[float, float]:
     """Classify the changes between two codons as synonymous or nonsynonymous.
 
     Uses the Nei-Gojobori (1986) pathway-averaging method.  For codons
@@ -2128,8 +2224,8 @@ def _classify_codon_pair(c1: str, c2: str) -> tuple[float, float]:
         return (0.0, 0.0)
     if any(nt not in 'ATCG' for nt in c1 + c2):
         return (0.0, 0.0)
-    aa1 = GENETIC_CODE.get(c1)
-    aa2 = GENETIC_CODE.get(c2)
+    aa1 = genetic_code.get(c1)
+    aa2 = genetic_code.get(c2)
     if aa1 is None or aa1 == '*' or aa2 is None or aa2 == '*':
         return (0.0, 0.0)
 
@@ -2152,8 +2248,8 @@ def _classify_codon_pair(c1: str, c2: str) -> tuple[float, float]:
         path_ok = True
         for pos in perm:
             nxt = current[:pos] + c2[pos] + current[pos + 1:]
-            cur_aa = GENETIC_CODE.get(current)
-            nxt_aa = GENETIC_CODE.get(nxt)
+            cur_aa = genetic_code.get(current)
+            nxt_aa = genetic_code.get(nxt)
             if cur_aa is None or nxt_aa is None or cur_aa == '*' or nxt_aa == '*':
                 path_ok = False
                 break
@@ -2183,7 +2279,9 @@ def _jc_correct(p: float) -> Optional[float]:
     return -0.75 * math.log(x)
 
 
-def compute_mk(seqs: list[str], outgroup: str) -> MKStats:
+def compute_mk(
+    seqs: list[str], outgroup: str, genetic_code: dict[str, str] = GENETIC_CODE
+) -> MKStats:
     """McDonald-Kreitman test (McDonald & Kreitman 1991).
 
     Classifies each codon of an ingroup coding alignment into one of four
@@ -2241,10 +2339,10 @@ def compute_mk(seqs: list[str], outgroup: str) -> MKStats:
         if any(nt not in 'ATCG' for codon in in_codons for nt in codon):
             continue
         # Skip if outgroup or any ingroup variant is a stop codon
-        if GENETIC_CODE.get(out_codon) == '*':
+        if genetic_code.get(out_codon) == '*':
             continue
         unique_in = set(in_codons)
-        if any(GENETIC_CODE.get(co) == '*' for co in unique_in):
+        if any(genetic_code.get(co) == '*' for co in unique_in):
             continue
 
         is_poly  = len(unique_in) > 1
@@ -2254,7 +2352,7 @@ def compute_mk(seqs: list[str], outgroup: str) -> MKStats:
             has_nonsyn = False
             has_syn    = False
             for ca, cb in combinations(sorted(unique_in), 2):
-                s_d, ns_d = _classify_codon_pair(ca, cb)
+                s_d, ns_d = _classify_codon_pair(ca, cb, genetic_code)
                 if ns_d > 0:
                     has_nonsyn = True
                 if s_d > 0:
@@ -2266,7 +2364,7 @@ def compute_mk(seqs: list[str], outgroup: str) -> MKStats:
 
         if is_fixed:
             in_codon = next(iter(unique_in))
-            s_d, ns_d = _classify_codon_pair(in_codon, out_codon)
+            s_d, ns_d = _classify_codon_pair(in_codon, out_codon, genetic_code)
             if ns_d > 0:
                 Dn += 1
             elif s_d > 0:
@@ -2297,7 +2395,7 @@ def compute_mk(seqs: list[str], outgroup: str) -> MKStats:
     return result
 
 
-def compute_ka_ks(seqs: list[str]) -> KaKsStats:
+def compute_ka_ks(seqs: list[str], genetic_code: dict[str, str] = GENETIC_CODE) -> KaKsStats:
     """Ka/Ks (dN/dS) by the Nei-Gojobori (1986) method.
 
     Estimates synonymous (Ks) and nonsynonymous (Ka) substitution rates by:
@@ -2346,9 +2444,9 @@ def compute_ka_ks(seqs: list[str]) -> KaKsStats:
             codon = seq[ci * 3:(ci + 1) * 3]
             if any(nt not in 'ATCG' for nt in codon):
                 continue
-            if GENETIC_CODE.get(codon) == '*':
+            if genetic_code.get(codon) == '*':
                 continue
-            S += _count_syn_sites_codon(codon)
+            S += _count_syn_sites_codon(codon, genetic_code)
         S_per_seq.append(S)
 
     result.S_sites = sum(S_per_seq) / n
@@ -2372,13 +2470,14 @@ def compute_ka_ks(seqs: list[str]) -> KaKsStats:
             c2 = seqs[j][ci * 3:(ci + 1) * 3]
             if any(nt not in 'ATCG' for nt in c1 + c2):
                 continue
-            if GENETIC_CODE.get(c1) == '*' or GENETIC_CODE.get(c2) == '*':
+            if genetic_code.get(c1) == '*' or genetic_code.get(c2) == '*':
                 continue
             n_valid += 1
-            s_sites = (_count_syn_sites_codon(c1) + _count_syn_sites_codon(c2)) / 2.0
+            s_sites = (_count_syn_sites_codon(c1, genetic_code)
+                       + _count_syn_sites_codon(c2, genetic_code)) / 2.0
             total_S  += s_sites
             total_N  += 3.0 - s_sites
-            sd, nd    = _classify_codon_pair(c1, c2)
+            sd, nd    = _classify_codon_pair(c1, c2, genetic_code)
             total_sd += sd
             total_nd += nd
 
@@ -2649,7 +2748,9 @@ def compute_ts_tv(
     return result
 
 
-def compute_codon_usage(seqs: list[str]) -> CodonUsageStats:
+def compute_codon_usage(
+    seqs: list[str], genetic_code: dict[str, str] = GENETIC_CODE
+) -> CodonUsageStats:
     """Compute codon usage bias: RSCU and ENC.
 
     Sequences must already be in-frame coding alignments.  Each sequence is
@@ -2692,6 +2793,9 @@ def compute_codon_usage(seqs: list[str]) -> CodonUsageStats:
     if len(seqs) < 1:
         return result
 
+    families = (_SYNONYMOUS_FAMILIES if genetic_code is GENETIC_CODE
+                else _synonymous_families(genetic_code))
+
     # Pool raw codon counts across all sequences
     from collections import Counter
     raw: Counter[str] = Counter()
@@ -2708,7 +2812,7 @@ def compute_codon_usage(seqs: list[str]) -> CodonUsageStats:
                 break
             if any(b not in _NUCLEOTIDES for b in triplet):
                 continue  # gap or ambiguous
-            aa = GENETIC_CODE.get(triplet, '*')
+            aa = genetic_code.get(triplet, '*')
             if aa == '*':
                 continue  # stop codon
             raw[triplet] += 1
@@ -2726,7 +2830,7 @@ def compute_codon_usage(seqs: list[str]) -> CodonUsageStats:
 
     # ── RSCU ─────────────────────────────────────────────────────────────────
     rscu: dict[str, float] = {}
-    for aa, codons in _SYNONYMOUS_FAMILIES.items():
+    for aa, codons in families.items():
         n_syn = len(codons)                       # synonymous family size
         total_aa = sum(raw.get(c, 0) for c in codons)
         expected = total_aa / n_syn if total_aa > 0 else 0.0
@@ -2738,10 +2842,10 @@ def compute_codon_usage(seqs: list[str]) -> CodonUsageStats:
     result.rscu = rscu
 
     # ── ENC (Wright 1990) ────────────────────────────────────────────────────
-    # Determine degeneracy class for each amino acid (from GENETIC_CODE)
+    # Determine degeneracy class for each amino acid (from genetic_code)
     # Exclude Met (ATG only) and Trp (TGG only)  -  n_i = 1, no synonymy.
     deg_classes: dict[int, list[str]] = {}  # degeneracy → list of amino acids
-    for aa, codons in _SYNONYMOUS_FAMILIES.items():
+    for aa, codons in families.items():
         k = len(codons)
         if k < 2:
             continue  # Met, Trp  -  single codon, excluded from ENC
@@ -2754,7 +2858,7 @@ def compute_codon_usage(seqs: list[str]) -> CodonUsageStats:
         """Mean corrected homozygosity for a set of amino acids."""
         F_values: list[float] = []
         for aa in aa_list:
-            codons = _SYNONYMOUS_FAMILIES[aa]
+            codons = families[aa]
             n_aa = sum(raw.get(c, 0) for c in codons)
             if n_aa < 2:
                 # Insufficient data for this amino acid; skip it
@@ -2767,7 +2871,12 @@ def compute_codon_usage(seqs: list[str]) -> CodonUsageStats:
         return sum(F_values) / len(F_values)
 
     # ENC = 2 + 9/F_2 + 1/F_3 + 5/F_4 + 3/F_6
-    # Coefficients are the number of amino acids in each class (standard code)
+    # Coefficients are the number of amino acids in each class under the
+    # STANDARD genetic code specifically (Wright 1990). An alternate code
+    # (e.g. vertebrate mitochondrial) reshuffles amino acids between classes
+    # -- Ile drops to 2-fold, Met/Trp gain a second codon and join 2-fold,
+    # Arg drops to 4-fold -- so class 3 is empty and this formula does not
+    # generalise; ENC is reported as n.a. (None) rather than a wrong number.
     enc_components: dict[int, tuple[int, float]] = {}  # k → (n_aa_in_class, F_k)
     required_classes = {2: 9, 3: 1, 4: 5, 6: 3}
 
@@ -3043,6 +3152,7 @@ def run_analysis(
     aln2: Optional[Alignment] = None,
     outgroup: Optional[str] = None,
     hka_loci: Optional[list[HKALocus]] = None,
+    genetic_code: dict[str, str] = GENETIC_CODE,
 ) -> dict:
     """Run all requested analyses and return a results bundle.
 
@@ -3063,6 +3173,11 @@ def run_analysis(
         Outgroup sequence string (same length as aln) for fuliout analysis.
     hka_loci : list[HKALocus] | None
         Pre-loaded HKA loci for the hka analysis.
+    genetic_code : dict[str, str]
+        Codon -> amino acid table for mk, kaks and codon (default: the
+        standard/universal code). Use GENETIC_CODES["vertebrate-mitochondrial"]
+        for mitochondrial coding sequences (e.g. COII), where TGA is Trp, not
+        a stop, so the standard code would silently drop those codons.
 
     Returns
     -------
@@ -3173,7 +3288,7 @@ def run_analysis(
                     file=sys.stderr,
                 )
             else:
-                results["mk"] = compute_mk(aln.seqs, outgroup)
+                results["mk"] = compute_mk(aln.seqs, outgroup, genetic_code)
         else:
             print("Warning: mk analysis requires --outgroup <seq_name>", file=sys.stderr)
 
@@ -3185,7 +3300,7 @@ def run_analysis(
                 file=sys.stderr,
             )
         else:
-            results["kaks"] = compute_ka_ks(aln.seqs)
+            results["kaks"] = compute_ka_ks(aln.seqs, genetic_code)
 
     if "fufs" in analyses:
         # Uses polymorphism stats already computed by analyse_region
@@ -3199,7 +3314,7 @@ def run_analysis(
         results["tstv"] = compute_ts_tv(aln.seqs, outgroup)
 
     if "codon" in analyses:
-        results["codon"] = compute_codon_usage(aln.seqs)
+        results["codon"] = compute_codon_usage(aln.seqs, genetic_code)
 
     if "faywu" in analyses:
         if outgroup is not None:
@@ -3317,6 +3432,7 @@ def write_report(
     results: dict,
     figures: list[Path],
     variant_sites_only: bool = False,
+    genetic_code: dict[str, str] = GENETIC_CODE,
 ) -> Path:
     rs = results["global"]
     window_stats = results["windows"]
@@ -3531,6 +3647,7 @@ def write_report(
             "",
             "| Statistic | Value | Reference |",
             "|-----------|-------|-----------|",
+            f"| Orientable segregating sites (S) | {fuliout_s.S} | Fu & Li 1993 |",
             f"| Total derived mutations (η) | {fuliout_s.eta} | Fu & Li 1993 |",
             f"| External mutations (η_e) | {fuliout_s.eta_e} | Fu & Li 1993 |",
             f"| Mean pairwise differences (k̄) | {_fmt(fuliout_s.k_bar, 4)} | |",
@@ -3539,9 +3656,11 @@ def write_report(
             "",
             "> **Note**: D and F with outgroup differ from D\\* and F\\* (no outgroup): "
             "the outgroup polarises mutations as ancestral/derived, enabling counting "
-            "of 'external' mutations on terminal branches only (η_e).  "
-            "D = (η − aₙ·η_e)/√(u_D·η + v_D·η²); F = (k̄ − η_e)/√(u_F·η + v_F·η²); "
-            "coefficients from Fu & Li (1993), Simonsen et al. (1995).",
+            "of 'external' mutations on terminal branches only (η_e), capped at 1 per "
+            "site.  D = (S − aₙ·η_e)/√(u_D·S + v_D·S²); F = (k̄ − η_e)/√(u_F·S + v_F·S²); "
+            "S is the segregating-site count (DnaSP's default 'from segregating sites' "
+            "mode), not η (η is reported for reference only). Coefficients from "
+            "Fu & Li (1993), Simonsen et al. (1995).",
             "",
         ]
 
@@ -3768,7 +3887,11 @@ def write_report(
                 bias_note = "**Weak or no codon usage bias** (ENC ≥ 50; close to 61)."
             lines += [f"> {bias_note}", ""]
 
-        # RSCU table  -  group by amino acid family
+        # RSCU table  -  group by amino acid family (under the genetic code
+        # this run used, not always the standard-code grouping: e.g. under
+        # vertebrate-mitochondrial, TGA joins Trp and ATA joins Met).
+        report_families = (_SYNONYMOUS_FAMILIES if genetic_code is GENETIC_CODE
+                           else _synonymous_families(genetic_code))
         if codon_s.rscu:
             lines += [
                 "### RSCU Values",
@@ -3776,8 +3899,8 @@ def write_report(
                 "| Amino acid | Codons | RSCU |",
                 "|------------|--------|------|",
             ]
-            for aa in sorted(_SYNONYMOUS_FAMILIES.keys()):
-                codons = sorted(_SYNONYMOUS_FAMILIES[aa])
+            for aa in sorted(report_families.keys()):
+                codons = sorted(report_families[aa])
                 for c in codons:
                     rscu_val = codon_s.rscu.get(c)
                     rscu_str = _fmt(rscu_val, 3) if rscu_val is not None else " - "
@@ -4259,6 +4382,7 @@ def _run(
     preloaded_aln: Optional[Alignment] = None,
     source_name: Optional[str] = None,
     variant_sites_only: bool = False,
+    genetic_code: dict[str, str] = GENETIC_CODE,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -4300,7 +4424,7 @@ def _run(
 
     results = run_analysis(
         aln, window_size, step_size, analyses, pop_assignments, aln2,
-        outgroup=outgroup_seq, hka_loci=hka_loci,
+        outgroup=outgroup_seq, hka_loci=hka_loci, genetic_code=genetic_code,
     )
 
     rs = results["global"]
@@ -4332,7 +4456,7 @@ def _run(
 
     fuliout = results.get("fuliout")
     if fuliout is not None:
-        print(f"  Fu&Li D={_fmt(fuliout.D,4)}  F={_fmt(fuliout.F,4)}  eta={fuliout.eta}  eta_e={fuliout.eta_e}")
+        print(f"  Fu&Li D={_fmt(fuliout.D,4)}  F={_fmt(fuliout.F,4)}  S={fuliout.S}  eta={fuliout.eta}  eta_e={fuliout.eta_e}")
 
     hka = results.get("hka")
     if hka is not None:
@@ -4406,7 +4530,8 @@ def _run(
         print("  Note: matplotlib not installed  -  figures skipped.")
 
     report = write_report(output_dir, src_label, aln, results, figs,
-                          variant_sites_only=variant_sites_only)
+                          variant_sites_only=variant_sites_only,
+                          genetic_code=genetic_code)
     result_files.append(report)
 
     write_reproducibility(output_dir, input_path, cli_args, result_files)
@@ -4488,6 +4613,13 @@ def build_parser() -> argparse.ArgumentParser:
                         "This sequence is removed from the ingroup.")
     p.add_argument("--hka-file", type=Path, dest="hka_file", default=None,
                    help="HKA locus file (TSV: locus<TAB>S<TAB>D<TAB>n) for --analysis hka")
+    p.add_argument("--genetic-code", dest="genetic_code", default="standard",
+                   choices=sorted(GENETIC_CODES),
+                   help="Codon table for mk/kaks/codon (default: standard). Use "
+                        "vertebrate-mitochondrial for mitochondrial coding sequences "
+                        "(e.g. COII), where TGA is Trp, AGA/AGG are stop, ATA is Met  -  "
+                        "the standard code would otherwise silently drop those codons "
+                        "as stops/mismatches.")
     p.add_argument("--output", "-o", type=Path, default=Path("dnasp_output"),
                    help="Output directory (default: dnasp_output/)")
     p.add_argument("--analysis", "-a", default="polymorphism",
@@ -4547,6 +4679,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     step = args.step if args.step > 0 else args.window
     cli_args = sys.argv[1:]
+    genetic_code = GENETIC_CODES[args.genetic_code]
 
     if args.demo:
         output_dir = args.output
@@ -4562,7 +4695,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         demo_analyses = VALID_ANALYSES - {"hka"}
         _run(demo_path, output_dir, step, args.window, demo_analyses,
              DEMO_POP_ASSIGNMENTS, None, cli_args,
-             outgroup_name="outgroup")
+             outgroup_name="outgroup", genetic_code=genetic_code)
         return 0
 
     if args.vcf:
@@ -4639,7 +4772,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 analyses, chrom_pops, aln2, cli_args,
                 outgroup_name=args.outgroup, hka_loci=hka_loci,
                 preloaded_aln=chrom_aln, source_name=f"{args.vcf.name}#{chrom}",
-                variant_sites_only=True,
+                variant_sites_only=True, genetic_code=genetic_code,
             )
         return 0
 
@@ -4654,7 +4787,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         args.input, args.output, args.window, step,
         analyses, pop_assignments, aln2, cli_args,
         outgroup_name=args.outgroup,
-        hka_loci=hka_loci,
+        hka_loci=hka_loci, genetic_code=genetic_code,
     )
     return 0
 

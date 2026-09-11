@@ -216,6 +216,7 @@ python skills/dnasp/dnasp.py --demo --output /tmp/dnasp_demo
 | `--step INT` | Sliding window step in bp | `= window` |
 | `--outgroup STR` | Sequence name to use as outgroup (for `fuliout` and `mk`) |  -  |
 | `--hka-file FILE` | HKA locus TSV file (for `hka`) |  -  |
+| `--genetic-code {standard,vertebrate-mitochondrial}` | Codon table for `mk`/`kaks`/`codon`; mitochondrial loci (COII, cytb, ND genes) need `vertebrate-mitochondrial` (TGA=Trp, AGA/AGG=stop, ATA=Met) or those codons are misread under the standard code | `standard` |
 | `--demo` | Run on the built-in 11-sequence × 300-bp synthetic alignment (10 ingroup + 1 outgroup, 2 populations) |  -  |
 
 **Population assignment file format** (for `--pop-file`):
@@ -620,13 +621,24 @@ For sites at positions i and j, define gametes as (allele at i, allele at j). If
 
 #### Rm  -  Minimum number of recombination events (Hudson & Kaplan 1985)
 
-Rm is the minimum number of past recombination events required to explain all observed incompatible pairs. It is computed by the **interval-stabbing greedy algorithm**:
+Rm is computed by DnaSP 6's own reduction of the incompatible-pair intervals
+(`CODIGO2.vb::RecombinacionRM`), reproduced exactly rather than the
+graph-theoretic minimum interval-stabbing number (the two usually agree but
+can differ  -  see below):
 
 1. Represent each incompatible pair (i, j) as an interval [left, right] on the alignment.
-2. Sort intervals by right endpoint.
-3. For each interval not yet "stabbed" (i.e., its left endpoint > current rightmost point), place a recombination point at its right endpoint and increment Rm.
+2. **Pass 1**: drop any interval that contains another (a point stabbing the
+   smaller one also stabs the larger).
+3. **Pass 2**: for each remaining pair of intervals that overlap (share more
+   than a boundary point), drop one of the two.
+4. Rm = the number of intervals left standing.
 
-This gives the minimum number of points needed to stab all intervals  -  equivalent to Rm.
+**This is not always the true minimum stabbing number.** Two intervals that
+only *touch* at a shared boundary point (e.g. [9,10] and [10,11]) are treated
+as non-overlapping and both survive, even though a single point at 10 would
+stab both  -  DnaSP's Rm can be higher than the graph-theoretic minimum in that
+case. Because this statistic's parity target is DnaSP's own number, this skill
+matches the reduction above rather than the optimal one.
 
 **Important:** Rm is a **lower bound**. The true number of recombination events is ≥ Rm. Rm = 0 does not mean no recombination occurred; it means the data are consistent with no recombination.
 
@@ -767,20 +779,30 @@ the ingroup states (unless the ingroup is monomorphic). For each such column:
 
 1. The ancestral allele is the nucleotide carried by the outgroup.
 2. Derived alleles are any ingroup alleles differing from it.
-3. **η (eta)**  -  total derived mutations = Σ (number of distinct derived alleles)
-   over orientable polymorphic sites (a triallelic site contributes 2, etc.).
-4. **η_e (eta_e, external mutations)**  -  derived alleles carried by exactly one
-   ingroup sequence (mutations on external branches).
-5. **k̄**  -  mean pairwise difference count, computed over the *same*
+3. **S**  -  number of orientable segregating sites (DnaSP's `pv1`), one per
+   site regardless of how many derived alleles it carries.
+4. **η (eta)**  -  total derived mutations = Σ (number of distinct derived alleles)
+   over orientable polymorphic sites (a triallelic site contributes 2, etc.);
+   reported for reference but not used to scale D/F (see below).
+5. **η_e (eta_e, external mutations)**  -  derived-mutation SITES carried by
+   exactly one ingroup sequence (mutations on external branches), capped at 1
+   per site: a triallelic site with two singleton derived alleles still adds
+   only 1 to η_e, matching DnaSP's `EtaE = EtaE - ExternaMut` discount
+   (`Mod12BusqMutacExternas`).
+6. **k̄**  -  mean pairwise difference count, computed over the *same*
    orientable-site set (DnaSP accumulates `rp1` only inside `SitioIesInformativo`),
-   so k̄, η and η_e cannot drift apart.
+   so k̄, S, η and η_e cannot drift apart.
 
 #### D and F statistics (Fu & Li 1993; DnaSP `FULI.vb`)
 
 ```
-D = (η − Aₙ·η_e) / √(u_D·η + v_D·η²)
-F = (k̄ − η_e)    / √(u_F·η + v_F·η²)
+D = (S − Aₙ·η_e) / √(u_D·S + v_D·S²)
+F = (k̄ − η_e)    / √(u_F·S + v_F·S²)
 ```
+
+DnaSP offers a second mode that scales D/F by η instead of S
+(`Form11b.Option3D1` checked, "from total mutations"); this skill implements
+only the default S-based mode, matching DnaSP's un-checked default.
 
 with Aₙ = Σ 1/i (i = 1..n−1), Bₙ = Σ 1/i², and (matching DnaSP's `Mod12FuLiOutgroupNew`):
 
@@ -931,6 +953,8 @@ Reference: Hudson et al. (1987).
 
 Run with `--analysis mk --outgroup SEQNAME`. The alignment must be an in-frame coding sequence (length divisible by 3). The named outgroup sequence is extracted and used to classify fixed differences; it is **not** included in the ingroup polymorphism counts.
 
+**Genetic code**: add `--genetic-code vertebrate-mitochondrial` for mitochondrial loci (COII/COX2, cytb, ND genes, 12S/16S protein-coding regions). Under the standard code, TGA is a stop codon; a real mitochondrial TGA (Trp) column would be dropped from the whole analysis rather than classified, undercounting Pn/Ps/Dn/Ds. The mitochondrial table also reassigns AGA/AGG to stop and ATA to Met.
+
 #### Biological motivation
 
 McDonald & Kreitman (1991) observed that under strict neutrality, the ratio of nonsynonymous to synonymous changes should be the same for polymorphisms (within-species) as for fixed differences (between-species). Positive (adaptive) selection accelerates the fixation of nonsynonymous changes, increasing Dn/Ds relative to Pn/Ps.
@@ -998,7 +1022,7 @@ Reference: McDonald & Kreitman (1991).
 
 ### Ka/Ks (dN/dS)
 
-Run with `--analysis kaks`. The alignment must be an in-frame coding sequence (length divisible by 3). No outgroup is required  -  Ka/Ks is computed pairwise across all ingroup sequences.
+Run with `--analysis kaks`. The alignment must be an in-frame coding sequence (length divisible by 3). No outgroup is required  -  Ka/Ks is computed pairwise across all ingroup sequences. Add `--genetic-code vertebrate-mitochondrial` for mitochondrial loci; see the McDonald-Kreitman section above for why.
 
 #### Biological motivation
 
@@ -1274,7 +1298,7 @@ python skills/dnasp/dnasp.py \
 
 ### Codon usage bias
 
-Run with `--analysis codon`. The alignment must be an in-frame coding sequence (position 0 must be the first codon position). Stop codons and triplets containing gap or ambiguous characters are skipped automatically.
+Run with `--analysis codon`. The alignment must be an in-frame coding sequence (position 0 must be the first codon position). Stop codons and triplets containing gap or ambiguous characters are skipped automatically. Add `--genetic-code vertebrate-mitochondrial` for mitochondrial loci; the RSCU family groupings and ENC degeneracy classes follow the selected table. Under a non-standard code whose class sizes don't match Wright (1990)'s standard-code coefficients (9/1/5/3 amino acids in the 2/3/4/6-fold classes), ENC is reported as n.a. rather than a wrong number  -  RSCU is unaffected.
 
 #### RSCU  -  Relative Synonymous Codon Usage (Sharp & Li 1987)
 
