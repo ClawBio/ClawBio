@@ -9,6 +9,12 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    # Dependabot already waits 3 days by default before proposing a version
+    # update. Widen that to a week: a compromised release is usually pulled
+    # within days of publication, and 3 sits at the edge of that window.
+    # Security updates bypass cooldown either way (zizmor: dependabot-cooldown).
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       python-minor-and-patch:
@@ -18,4 +24,10 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    # Dependabot already waits 3 days by default before proposing a version
+    # update. Widen that to a week: a compromised release is usually pulled
+    # within days of publication, and 3 sits at the edge of that window.
+    # Security updates bypass cooldown either way (zizmor: dependabot-cooldown).
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
