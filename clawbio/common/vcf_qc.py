@@ -305,7 +305,7 @@ class VcfQC:
             for line in fh:
                 if line.startswith("#"):
                     continue
-                parts = line.split("\t")
+                parts = line.rstrip("\r\n").split("\t")
                 if len(parts) < 10:
                     continue
                 ref, alt = parts[3], parts[4]
@@ -354,7 +354,7 @@ class VcfQC:
             for line in fh:
                 if line.startswith("#"):
                     continue
-                parts = line.rstrip("\n").split("\t")
+                parts = line.rstrip("\r\n").split("\t")
                 if len(parts) < 10:
                     continue
                 format_fields = parts[8].split(":")

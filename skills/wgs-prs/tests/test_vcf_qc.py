@@ -84,6 +84,21 @@ class TestPythonStats:
         assert stats["number of heterozygous SNPs:"] >= 0
         assert stats["number of homozygous SNPs:"] >= 0
 
+    def test_gt_only_terminal_field_counts_het_and_hom_calls(self, tmp_path):
+        """The final GT field must not retain its trailing line ending."""
+        vcf = tmp_path / "gt_only.vcf"
+        vcf.write_text(
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n"
+            "1\t1\trs1\tA\tG\t50\tPASS\t.\tGT\t0/1\n"
+            "1\t2\trs2\tC\tT\t50\tPASS\t.\tGT\t1/1\n"
+            "1\t3\trs3\tG\tA\t50\tPASS\t.\tGT\t1/0\n"
+        )
+
+        stats = VcfQC.__new__(VcfQC)._python_stats(vcf)
+
+        assert stats["number of heterozygous SNPs:"] == 2
+        assert stats["number of homozygous SNPs:"] == 1
+
 
 # ---------------------------------------------------------------------------
 # Parse bcftools stats output
