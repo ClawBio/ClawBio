@@ -65,6 +65,13 @@ just-prs = [
     "fastmcp>=3.4.4,<4",
     "typer>=0.27,<1",
 ]
+# SuShiE fine-mapping engine (jax-based) for skills/fine-mapping.
+# glimix-core floor keeps liknorm at >=2.0 (wheels); 1.x is sdist-only and
+# fails to build on macOS.
+fine-mapping = [
+    "sushie>=0.20,<0.21",
+    "glimix-core>=3.1.14,<4",
+]
 
 [project.scripts]
 clawbio = "clawbio.cli:main"

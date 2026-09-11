@@ -1,20 +1,21 @@
 """
-susie.py — Pure-Python SuSiE (Sum of Single Effects) fine-mapping.
+susie.py — SuSiE fine-mapping backed by the sushie package.
 
-Implements the Iterative Bayesian Stepwise Selection (IBSS) algorithm from:
-    Wang et al. (2020) JRSS-B doi:10.1111/rssb.12388
+Delegates the Sum of Single Effects model (Wang et al. 2020, JRSS-B
+doi:10.1111/rssb.12388) to sushie (mancusolab/sushie), a published,
+maintained JAX implementation, via its summary-statistics interface
+``infer_sushie_ss`` run with a single ancestry. This replaced the previous
+hand-rolled numpy IBSS implementation.
 
-This is a pure-numpy implementation that requires no R or external SuSiE
-package. It matches the core algorithm but omits some advanced features
-(e.g. SuSiE-inf, intercept estimation).
+Requires the ``fine-mapping`` extra: ``uv sync --extra fine-mapping``.
 """
 
 from __future__ import annotations
 
 import warnings
+from importlib.metadata import PackageNotFoundError, version
 
 import numpy as np
-from .abf import _log_abf, DEFAULT_W
 
 
 def run_susie(
@@ -22,13 +23,18 @@ def run_susie(
     R: np.ndarray,
     n: int,
     L: int = 10,
-    w: float = DEFAULT_W,
-    max_iter: int = 100,
-    tol: float = 1e-3,
+    w: float = 0.04,
+    max_iter: int = 500,
+    tol: float = 1e-4,
     min_purity: float = 0.5,
-    null_weight: float | None = None,
+    coverage: float = 0.95,
 ) -> dict:
-    """Run SuSiE fine-mapping.
+    """Run SuSiE fine-mapping on one locus via sushie.
+
+    The keyword set is a contract with the external clawbio_bench harness
+    (biostochastics/clawbio_bench, drivers/finemapping_driver.py), which
+    imports this function directly and always passes ``w``, ``max_iter``,
+    ``tol`` and ``min_purity``. Do not remove or rename them.
 
     Parameters
     ----------
@@ -36,196 +42,143 @@ def run_susie(
     R : (p, p) LD correlation matrix
     n : effective sample size
     L : maximum number of causal signals
-    w : prior variance on each single effect (Wakefield W)
-    max_iter : maximum IBSS iterations
+    w : prior effect-size variance. Seeds sushie's ``effect_var``; sushie
+        then re-estimates it by EM each iteration, so this is a starting
+        point rather than a fixed prior as in ABF.
+    max_iter : maximum optimization iterations
     tol : ELBO convergence tolerance
-    min_purity : minimum pairwise |r| within a credible set (Wang 2020 section 3.2)
-    null_weight : prior weight on the null hypothesis (no effect) for each
-        single-effect regression. When > 0, the model can assign posterior mass
-        to "no effect at this locus", preventing phantom PIPs on null loci.
-        The susieR reference implementation uses null_weight to mitigate
-        forced signal assignment. Default: 1/(L+1), giving equal prior to
-        "no effect" as to each of L possible effects. Set to 0 to disable.
+    min_purity : minimum pairwise |r| for a credible set to be kept.
+        Forwarded to sushie's ``purity`` pruning, so it governs which
+        signals survive, not only how they are flagged downstream. sushie
+        requires 0 < min_purity < 1.
+    coverage : credible-set coverage. Forwarded to sushie's ``threshold``
+        so fit-time pruning and downstream set construction use the same
+        value. sushie requires 0 < coverage < 1.
 
     Returns
     -------
     dict with keys:
-        alpha   : (L, p) posterior weight matrix (each row sums to 1)
-        mu      : (L, p) posterior mean effect sizes
-        mu2     : (L, p) posterior second moments
-        pip     : (p,) posterior inclusion probabilities
-        null_weight_used : float, the null_weight that was applied
-        elbo    : list of ELBO values per iteration
+        alpha     : (k, p) posterior weight matrix over the k kept signals
+                    (each row sums to 1)
+        mu        : (k, p) conditional posterior mean effect per signal,
+                    E[b | included], from sushie ``post_mean``
+        mu2       : (k, p) conditional posterior second moment, E[b^2]
+                    (not the variance), from sushie ``post_mean_sq``
+                    Units: mu/mu2 are on sushie's standardised effect-size
+                    scale, NOT susieR ``susie_rss`` z-units — do not compare
+                    them to ``r * z`` shrinkage formulas.
+        pip       : (p,) posterior inclusion probabilities
+        elbo      : list of ELBO values per iteration
         converged : bool
-        n_iter  : int
+        n_iter    : int
+        engine    : "sushie"
+        engine_version : installed sushie version string
 
     Raises
     ------
-    ValueError : if n <= 0, w <= 0, or z contains NaN
+    ValueError : if n <= 0 or z contains NaN. sushie itself does not reject
+        NaN z-scores — it silently returns degenerate PIPs — so we must.
+    ImportError : if sushie is not installed (fine-mapping extra missing).
     """
     if n <= 0:
         raise ValueError("Sample size n must be positive, got %d" % n)
-    if w <= 0:
-        raise ValueError("Prior variance w must be positive, got %s" % w)
+    z = np.asarray(z, dtype=float)
+    R = np.asarray(R, dtype=float)
     if np.any(np.isnan(z)):
         raise ValueError("z-score vector contains NaN values")
+    if R.shape != (len(z), len(z)):
+        raise ValueError(
+            f"LD matrix shape {R.shape} does not match z length {len(z)}"
+        )
+    if w <= 0:
+        raise ValueError(f"Prior variance w must be positive, got {w}")
+    if not 0 < min_purity < 1:
+        raise ValueError(
+            f"min_purity must satisfy 0 < min_purity < 1 (sushie constraint), got {min_purity}"
+        )
+    if not 0 < coverage < 1:
+        raise ValueError(
+            f"coverage must satisfy 0 < coverage < 1 (sushie constraint), got {coverage}"
+        )
 
-    # Default null_weight: 1/(L+1) gives equal prior to "no effect" as to
-    # each of L possible effects. Prevents forced signal on null loci.
-    if null_weight is None:
-        null_weight = 1.0 / (L + 1)
+    try:
+        import jax
+        from sushie.infer_ss import infer_sushie_ss
+    except ImportError as exc:
+        raise ImportError(
+            "The sushie package is required for SuSiE fine-mapping. "
+            "Install it with: uv sync --extra fine-mapping"
+        ) from exc
+
+    # float32 (jax default) produces NaN ELBOs on some loci; sushie's own
+    # log message recommends enabling x64.
+    jax.config.update("jax_enable_x64", True)
 
     p = len(z)
-    z = z.astype(float)
-    R = R.astype(float)
+    result = infer_sushie_ss(
+        lds=[R],
+        ns=np.array([float(n)]),
+        zs=[z],
+        L=L,
+        # one ancestry → one prior effect variance; EM-updated from here
+        effect_var=[float(w)],
+        max_iter=max_iter,
+        min_tol=tol,
+        threshold=coverage,
+        purity=min_purity,
+        # sushie's guard defaults to 100 common SNPs; keep it for large loci
+        # but allow small test/demo loci through.
+        min_snps=min(p, 100),
+    )
 
-    # Variance of z-scores ≈ 1/n (used to derive V_i = 1/n for all variants)
-    V = np.full(p, 1.0 / n)
-
-    # Null component: log prior odds of "no effect" vs uniform prior on variants
-    # When null_weight > 0, each single-effect regression includes a null
-    # hypothesis that competes with the p variant hypotheses.
-    use_null = null_weight > 0
-    if use_null:
-        # log prior: log(null_weight) for null, log((1 - null_weight)/p) for each variant
-        log_prior_null = np.log(null_weight)
-        log_prior_variant = np.log((1.0 - null_weight) / p)
-    else:
-        log_prior_variant = -np.log(p)  # uniform 1/p
-
-    # Initialise
-    alpha = np.ones((L, p)) / p       # posterior weights (uniform init)
-    mu    = np.zeros((L, p))           # alpha-weighted posterior means (for IBSS updates)
-    mu2   = np.zeros((L, p))           # alpha-weighted posterior second moments
-    cond_mu = np.zeros((L, p))        # conditional posterior means (pure, not alpha-weighted)
-
-    elbo_history = []
-    converged = False
-
-    for iteration in range(max_iter):
-        alpha_prev = alpha.copy()
-
-        # Precompute total fitted effect for residual updates
-        fitted_all = (alpha * mu).sum(axis=0)  # (p,)
-
-        for l in range(L):
-            # Residual z-score: remove all other effects from z
-            # r_l = z - R @ sum_{l' != l} alpha_{l'} * mu_{l'}
-            other = fitted_all - alpha[l] * mu[l]  # shape (p,)
-            r_l = z - R @ other  # shape (p,)
-
-            # Single-effect regression: compute log ABF for each variant
-            # treating r_l as observed z-score with variance V
-            log_bf = _log_abf(r_l, V, w)
-
-            # Add prior: log_bf + log_prior_variant for each variant
-            log_posterior = log_bf + log_prior_variant
-
-            if use_null:
-                # Null component: BF = 1 (log BF = 0), prior = null_weight
-                log_null_posterior = log_prior_null  # log(null_weight) + 0
-
-                # Normalise across p variants + 1 null
-                all_log_posts = np.append(log_posterior, log_null_posterior)
-                max_lp = np.max(all_log_posts)
-                all_log_posts_shifted = all_log_posts - max_lp
-                all_weights = np.exp(all_log_posts_shifted)
-                total = all_weights.sum()
-
-                # alpha[l] gets the variant weights (excluding null)
-                alpha[l] = all_weights[:p] / total
-                # null_alpha is all_weights[p] / total (not stored, just absorbed)
-            else:
-                # Original behaviour: normalise across variants only
-                log_bf_shifted = log_bf - np.max(log_bf)
-                alpha[l] = np.exp(log_bf_shifted) / np.exp(log_bf_shifted).sum()
-
-            # Posterior mean and second moment (Gaussian single-effect)
-            # mu_l_j  = w / (V_j + w) * r_l_j    (scalar approximation per variant)
-            post_mean_j = (w / (V + w)) * r_l          # conditional posterior mean per variant
-            post_var_j  = w * V / (V + w)              # conditional posterior variance per variant
-
-            cond_mu[l] = post_mean_j                   # pure conditional posterior mean
-            mu[l]  = alpha[l] * post_mean_j            # alpha-weighted (for IBSS fitted values)
-            mu2[l] = alpha[l] * (post_mean_j**2 + post_var_j)
-
-            # Keep fitted_all in sync for the next effect's residual
-            fitted_all = (alpha * mu).sum(axis=0)
-
-        # ELBO (approximate): use KL between current and previous alpha
-        elbo = _compute_elbo(z, R, alpha, mu, mu2, V, w)
-        elbo_history.append(elbo)
-
-        if iteration > 0 and abs(elbo_history[-1] - elbo_history[-2]) < tol:
-            converged = True
-            break
-
-    # When null component is active, prune null effects: if an effect row's
-    # maximum alpha is below the uniform prior (1/p), the null hypothesis
-    # dominates and the effect should not contribute to PIPs. This prevents
-    # phantom PIP accumulation from multiple null effects on a null locus.
-    if use_null:
-        uniform_prior = 1.0 / p
-        active_mask = alpha.max(axis=1) > uniform_prior
-        alpha_active = alpha[active_mask] if active_mask.any() else np.zeros((0, p))
-    else:
-        alpha_active = alpha
-
-    # Compute PIPs: PIP_i = 1 - prod_l (1 - alpha_{l,i})  [active effects only]
-    if alpha_active.shape[0] > 0:
-        pip = 1.0 - np.prod(1.0 - alpha_active, axis=0)
-    else:
-        pip = np.zeros(p)
-    pip = np.clip(pip, 0.0, 1.0)
-
-    # Non-convergent results: raise ValueError to prevent downstream use of
-    # unreliable estimates. This matches susieR behavior of warning AND
-    # setting $converged=FALSE. Raising ensures callers cannot silently
-    # consume non-converged PIPs.
+    # Keep only the signals sushie retained as credible sets (coverage
+    # threshold + purity pruning). Its alpha rows are ordered so that kept
+    # credible set k corresponds to row k-1; the remaining rows are inactive
+    # near-uniform effects that would otherwise surface as phantom credible
+    # sets downstream. pip_cs is the PIP over kept signals only.
+    alpha_all = np.asarray(result.posteriors.alpha, dtype=float)
+    kept = sorted(set(result.cs["CSIndex"].to_list())) if result.cs.height else []
+    rows = [k - 1 for k in kept]
+    alpha = alpha_all[rows] if kept else np.zeros((0, p))
+    # Single ancestry: post_mean is (L, p, 1) and post_mean_sq is
+    # (L, p, 1, 1); drop the ancestry axes. mu2 is E[b^2], not Var(b).
+    mu_all = np.asarray(result.posteriors.post_mean, dtype=float)[..., 0]
+    mu2_all = np.asarray(result.posteriors.post_mean_sq, dtype=float)[..., 0, 0]
+    mu = mu_all[rows] if kept else np.zeros((0, p))
+    mu2 = mu2_all[rows] if kept else np.zeros((0, p))
+    pip = np.clip(np.asarray(result.pip_cs, dtype=float), 0.0, 1.0)
+    # sushie seeds the ELBO history with a -inf sentinel before iteration 1;
+    # strip it so elbo holds only real iterations.
+    elbo = [float(e) for e in np.atleast_1d(np.asarray(result.elbo))
+            if np.isfinite(e)]
+    n_iter = len(elbo)
+    converged = bool(result.elbo_increase) and (
+        n_iter < max_iter
+        or (n_iter >= 2 and abs(elbo[-1] - elbo[-2]) < tol)
+    )
     if not converged:
-        raise ValueError(
-            f"SuSiE IBSS did not converge after {iteration + 1} iterations "
-            f"(tol={tol}). Increase max_iter or check input data quality."
+        # Mirror susieR: warn AND flag. PIPs are still returned so the
+        # caller can inspect them, but `converged` is the authority.
+        warnings.warn(
+            f"SuSiE (sushie) did not converge in {n_iter} iterations "
+            f"(max_iter={max_iter}, tol={tol}); treat PIPs as provisional.",
+            RuntimeWarning,
+            stacklevel=2,
         )
+
+    try:
+        engine_version = version("sushie")
+    except PackageNotFoundError:
+        engine_version = "unknown"
 
     return {
         "alpha": alpha,
-        "mu": cond_mu,          # conditional posterior mean (pure, per Wang et al. eq. 4)
-        "mu_weighted": mu,      # alpha-weighted posterior mean (used in IBSS fitted values)
+        "mu": mu,
         "mu2": mu2,
         "pip": pip,
-        "null_weight_used": null_weight,
-        "elbo": elbo_history,
+        "elbo": elbo,
         "converged": converged,
-        "n_iter": iteration + 1,
+        "n_iter": n_iter,
+        "engine": "sushie",
+        "engine_version": engine_version,
     }
-
-
-def _compute_elbo(
-    z: np.ndarray,
-    R: np.ndarray,
-    alpha: np.ndarray,
-    mu: np.ndarray,
-    mu2: np.ndarray,
-    V: np.ndarray,
-    w: float,
-) -> float:
-    """Approximate ELBO for convergence monitoring.
-
-    Uses the expected log-likelihood minus KL divergence.
-    This is a simplified scalar approximation sufficient for convergence checks.
-    """
-    L, p = alpha.shape
-    n = 1.0 / V[0]  # approximate
-
-    # Expected fitted values
-    fitted = (alpha * mu).sum(axis=0)  # (p,)
-    residual = z - R @ fitted
-    ell = -0.5 * n * float(residual @ residual)
-
-    # KL: sum_l sum_j alpha[l,j] * (log alpha[l,j] - log(1/p))
-    with np.errstate(divide="ignore", invalid="ignore"):
-        log_alpha = np.where(alpha > 0, np.log(alpha), 0.0)
-    kl = float(np.sum(alpha * (log_alpha - np.log(1.0 / p))))
-
-    return ell - kl
