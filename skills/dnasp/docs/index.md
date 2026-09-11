@@ -528,10 +528,10 @@ Variance coefficients u\_F, v\_F from Simonsen et al. (1995), equations A5-A6.
 #### R2  -  Ramos-Onsins & Rozas (2002)
 
 ```
-R2 = √(Σᵢ(Uᵢ − k/2)² / n) / Sw
+R2 = √(Σᵢ(Uᵢ − k/2)² / n) / S
 ```
 
-where Uᵢ = singletons attributed to sequence i; Sw = total mutations. Always ≥ 0. Small R2 suggests recent population expansion.
+where Uᵢ = singletons attributed to sequence i; S = segregating sites. DnaSP 6's own routine (`Dnasp_51.vb::JulioSebas_R2_CalculoAdaptado`) is called with `stot`, the same site-count variable that backs the "S" column in its output -- not η (total mutations), despite a comment inside that function suggesting otherwise. Always ≥ 0. Small R2 suggests recent population expansion.
 
 Implementation matches DnaSP's `JulioSebas_R2_Calculo()` (revision April 2002).
 

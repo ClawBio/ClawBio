@@ -1066,14 +1066,22 @@ def fu_li_d_star_f_star(
     return D_star, F_star
 
 
-def ramos_onsins_r2(seqs: list[str], k: float, Sw: int) -> Optional[float]:
-    """R2 (Ramos-Onsins & Rozas 2002)."""
-    if Sw == 0:
+def ramos_onsins_r2(seqs: list[str], k: float, S: int) -> Optional[float]:
+    """R2 (Ramos-Onsins & Rozas 2002).
+
+    Divides by S, the segregating-site count -- not eta (total mutations).
+    DnaSP 6's own routine (Dnasp_51.vb::JulioSebas_R2_CalculoAdaptado) is
+    called with `stot`, the same site-count variable backing the "S" column
+    (`stot += 1` once per segregating site, regardless of how many alleles
+    it carries); a stray comment inside that function ("Sw es el num. de
+    mutaciones") describes an older naming convention, not eta.
+    """
+    if S == 0:
         return None
     n = len(seqs)
     _, per_seq = compute_singletons(seqs)
     total = sum((u - k / 2) ** 2 for u in per_seq)
-    return math.sqrt(total / n) / Sw
+    return math.sqrt(total / n) / S
 
 
 def watterson_theta(S: int, n: int, L_net: int) -> tuple[float, float]:
@@ -3138,7 +3146,7 @@ def analyse_region(
     stats.FuLiD_star, stats.FuLiF_star = fu_li_d_star_f_star(
         stats.k, stats.S, eta_s, n
     )
-    stats.R2 = ramos_onsins_r2(clean, stats.k, stats.Eta)
+    stats.R2 = ramos_onsins_r2(clean, stats.k, stats.S)
 
     return stats
 

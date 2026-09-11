@@ -613,7 +613,7 @@ All formulas match DnaSP 6. See `docs/index.md` for full derivations and referen
 - Tajima's D = (k − S/a₁) / √(e₁S + e₂S(S−1))
 - Fu & Li D* = (S/Aₙ − η_s(n−1)/n) / √(uD·S + vD·S²) (Simonsen 1995, eq. A3)
 - Fu & Li F* = (k − η_s(n−1)/n) / √(uF·S + vF·S²) (Simonsen 1995, eq. A5)
-- R2 = √(Σ(Uᵢ − k/2)² / n) / Sw (Ramos-Onsins & Rozas 2002)
+- R2 = √(Σ(Uᵢ − k/2)² / n) / S (Ramos-Onsins & Rozas 2002; divides by S, the segregating-site count, matching `Dnasp_51.vb::JulioSebas_R2_CalculoAdaptado`'s `stot`, not η)
 
 **LD module**: For each pair of strictly biallelic sites, compute D (Lewontin & Kojima 1960), D' (Lewontin 1964), R² (Hill & Robertson 1968), and chi-square p-value via `erfc(√(χ²/2))` (no scipy needed). ZnS = mean R² over all pairs (Kelly 1997). Za = mean R² over adjacent biallelic pairs (Rozas 2001). ZZ = Za − ZnS.
 

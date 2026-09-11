@@ -398,25 +398,34 @@ class TestFuLi:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestR2:
-    def test_none_when_Sw_zero(self):
-        assert dn.ramos_onsins_r2(["ATCG"] * 3, k=0.0, Sw=0) is None
+    def test_none_when_S_zero(self):
+        assert dn.ramos_onsins_r2(["ATCG"] * 3, k=0.0, S=0) is None
 
     def test_demo_r2(self, demo_seqs):
         clean, _ = dn.complete_deletion(demo_seqs)
         k = dn.compute_k(clean)
-        _, Eta = dn.compute_segregating(clean)
-        R2 = dn.ramos_onsins_r2(clean, k, Sw=Eta)
+        S, _ = dn.compute_segregating(clean)
+        R2 = dn.ramos_onsins_r2(clean, k, S=S)
         assert R2 is not None
         assert R2 > 0
 
     def test_r2_is_positive(self):
         seqs = ["ATCG", "AACG", "ATTG", "ATCG", "ATCG"]
         k = dn.compute_k(seqs)
-        _, Eta = dn.compute_segregating(seqs)
-        if Eta > 0:
-            R2 = dn.ramos_onsins_r2(seqs, k, Sw=Eta)
+        S, _ = dn.compute_segregating(seqs)
+        if S > 0:
+            R2 = dn.ramos_onsins_r2(seqs, k, S=S)
             if R2 is not None:
                 assert R2 >= 0
+
+    def test_r2_uses_S_argument_value(self):
+        # Same per_seq/k, different S/Eta divisors -> different (documented)
+        # results; confirms the function actually divides by its `S` argument.
+        seqs = ["G", "G", "C", "T"]  # triallelic 2/1/1, matches the Ex_n1 case
+        k = dn.compute_k(seqs)
+        r2_at_s1 = dn.ramos_onsins_r2(seqs, k, S=1)
+        r2_at_s2 = dn.ramos_onsins_r2(seqs, k, S=2)
+        assert r2_at_s1 == pytest.approx(2 * r2_at_s2)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
