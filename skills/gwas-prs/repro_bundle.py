@@ -172,7 +172,9 @@ def _selection(args: Any) -> tuple[str, str | None]:
 
 def _repro_command(args: Any, output_dir: Path) -> ReproCommand:
     command_args: list[str | ReproPath] = []
-    preflight: list[str] = []
+    preflight: list[str] = [
+        'OUTPUT_DIR="${PRS_REPLAY_OUTPUT:?Set PRS_REPLAY_OUTPUT to a new output directory}"'
+    ]
     mode, value = _selection(args)
     if mode == "demo":
         command_args.append("--demo")
@@ -205,6 +207,11 @@ def _repro_command(args: Any, output_dir: Path) -> ReproCommand:
             '"${PGS_CACHE_DIR:-$HOME/.clawbio/pgs_cache}"',
         ]
     )
+    if getattr(args, "evidence_json", None):
+        preflight.append(
+            ': "${PRS_EVIDENCE_FILE:?Set PRS_EVIDENCE_FILE to the evidence JSON used for this run}"'
+        )
+        command_args.extend(["--evidence-json", '"${PRS_EVIDENCE_FILE}"'])
     if bool(args.no_cache):
         command_args.append("--no-cache")
     return ReproCommand(
@@ -233,6 +240,11 @@ def _safe_parameters(args: Any) -> dict[str, Any]:
         "min_overlap": float(args.min_overlap),
         "max_variants": int(args.max_variants),
         "cache_enabled": not bool(args.no_cache),
+        "evidence_policy": "1.0.0",
+        "evidence_sha256": (
+            sha256_file(Path(args.evidence_json))
+            if getattr(args, "evidence_json", None) else None
+        ),
     }
 
 

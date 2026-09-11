@@ -449,7 +449,7 @@ SKILLS = {
         "description": "GWAS Polygenic Risk Score calculator (PGS Catalog, 3000+ scores)",
         "allowed_extra_flags": {
             "--trait", "--pgs-id", "--panel-id", "--min-overlap",
-            "--max-variants", "--build",
+            "--max-variants", "--build", "--evidence-json",
         },
         "accepts_genotypes": True,
     },

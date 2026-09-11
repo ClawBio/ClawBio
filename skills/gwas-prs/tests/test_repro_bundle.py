@@ -424,6 +424,8 @@ def test_demo_cli_writes_the_documented_output_contract(tmp_path) -> None:
 
     results = json.loads((output_dir / "prs_results.json").read_text(encoding="utf-8"))
     assert set(results[0]) == {
+        "evidence_assessment",
+        "interpretation_scope",
         "score_id",
         "pgs_id",
         "curated_panel_id",
