@@ -1022,7 +1022,7 @@ Reference: McDonald & Kreitman (1991).
 
 ### Ka/Ks (dN/dS)
 
-Run with `--analysis kaks`. The alignment must be an in-frame coding sequence (length divisible by 3). No outgroup is required  -  Ka/Ks is computed pairwise across all ingroup sequences. Add `--genetic-code vertebrate-mitochondrial` for mitochondrial loci; see the McDonald-Kreitman section above for why.
+Run with `--analysis kaks`. The alignment must be an in-frame coding sequence (length divisible by 3). No outgroup is required for a plain ingroup diversity comparison  -  Ka/Ks is then computed pairwise across all ingroup sequences. If `--outgroup <seq_name>` is set, kaks instead computes Ka/Ks pairwise between each ingroup sequence and the outgroup (ingroup-vs-outgroup divergence), matching DnaSP's own behaviour once a population/outgroup structure is defined for the dataset. Add `--genetic-code vertebrate-mitochondrial` for mitochondrial loci; see the McDonald-Kreitman section above for why.
 
 #### Biological motivation
 

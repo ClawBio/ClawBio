@@ -2241,6 +2241,45 @@ class TestComputeKaKs:
         mito = dn.compute_ka_ks(seqs, dn.VERTEBRATE_MITOCHONDRIAL_CODE)
         assert mito.S_sites > 0.0
 
+    def test_outgroup_none_keeps_all_pairwise_default(self):
+        # No outgroup -> unchanged: average over every ingroup pair.
+        seqs = ['GGTGGTGGT', 'GGCGGTGGT', 'GGTGGTGGT']
+        no_out = dn.compute_ka_ks(seqs)
+        assert no_out.Ks is not None
+
+    def test_outgroup_restricts_pairs_to_ingroup_vs_outgroup(self):
+        # With an outgroup, DnaSP's own manual (Synonymous and Nonsynonymous
+        # Substitutions module) and its Ka/Ks menu output only make sense
+        # divergence-wise against the defined outgroup, not ingroup-vs-ingroup
+        # pairs. Two identical ingroup sequences that are both divergent from
+        # the outgroup should show nonzero Ka/Ks (ingroup-vs-outgroup), even
+        # though an ingroup-only comparison would be all zeros.
+        ingroup = ['ATGATG', 'ATGATG']
+        outgroup = 'CTGCTG'   # nonsynonymous difference at codon 1 and 2
+        result = dn.compute_ka_ks(ingroup, outgroup=outgroup)
+        assert result.Ka is not None and result.Ka > 0.0
+
+    def test_outgroup_matches_manual_pairwise_average(self):
+        # The outgroup-aware result must equal the plain average of each
+        # ingroup sequence compared individually against the outgroup (not,
+        # e.g., an all-pairwise average that also includes ingroup-ingroup
+        # pairs).
+        ingroup = ['ATGATG', 'CTGATG', 'ATGCTG']
+        outgroup = 'GTGATG'
+        result = dn.compute_ka_ks(ingroup, outgroup=outgroup)
+        manual_ks = [dn.compute_ka_ks([s, outgroup]).Ks for s in ingroup]
+        manual_ks = [v for v in manual_ks if v is not None]
+        assert result.Ks == pytest.approx(sum(manual_ks) / len(manual_ks))
+
+    def test_outgroup_included_in_site_count_average(self):
+        # DnaSP: "the total number of synonymous and nonsynonymous sites ...
+        # is estimated as the average ... of all sequences" -- when an
+        # outgroup is given it is one of "all sequences" being compared.
+        ingroup = ['TGATGA']  # TGA = stop under standard code -> 0 sites
+        outgroup = 'GGTGGT'   # GGT = Gly, has synonymous sites
+        result = dn.compute_ka_ks(ingroup, outgroup=outgroup)
+        assert result.S_sites > 0.0
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Group D  -  Fu's Fs and Site Frequency Spectrum

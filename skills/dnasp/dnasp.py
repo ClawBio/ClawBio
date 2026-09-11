@@ -2418,19 +2418,35 @@ def compute_mk(
     return result
 
 
-def compute_ka_ks(seqs: list[str], genetic_code: dict[str, str] = GENETIC_CODE) -> KaKsStats:
+def compute_ka_ks(
+    seqs: list[str],
+    genetic_code: dict[str, str] = GENETIC_CODE,
+    outgroup: Optional[str] = None,
+) -> KaKsStats:
     """Ka/Ks (dN/dS) by the Nei-Gojobori (1986) method.
 
     Estimates synonymous (Ks) and nonsynonymous (Ka) substitution rates by:
 
     1. Computing synonymous (S_i) and nonsynonymous (N_i = 3L − S_i) site
        counts for each sequence using ``_count_syn_sites_codon``.
-    2. For each pair (i, j), counting synonymous differences (sd) and
-       nonsynonymous differences (nd) using ``_classify_codon_pair``.
+    2. For each pair, counting synonymous differences (sd) and nonsynonymous
+       differences (nd) using ``_classify_codon_pair``.
     3. Computing proportions pS = sd / S_ij and pN = nd / N_ij where
        S_ij = (S_i + S_j)/2.
     4. Applying the Jukes-Cantor correction to obtain Ks_ij and Ka_ij.
     5. Averaging Ks and Ka over all pairs.
+
+    Without an outgroup, the pairs are every ingroup-vs-ingroup combination
+    (DnaSP's "Synonymous and Nonsynonymous Substitutions" module run on a
+    single set of sequences with no population/outgroup structure defined  -
+    the manual describes this as "for any pair of sequences"). With an
+    outgroup, the pairs are each ingroup sequence against the outgroup only
+    (DnaSP's behaviour once an outgroup is defined via Define Sequence Sets:
+    the module then reports ingroup-to-outgroup divergence, not
+    ingroup-to-ingroup diversity)  -  the outgroup is also included, alongside
+    the ingroup sequences, in the per-sequence site-count average ("the
+    total number of synonymous and nonsynonymous sites... is estimated as
+    the average... of all sequences").
 
     Codons with gaps, ambiguous bases, or stop codons in either sequence are
     excluded (complete deletion at the codon level). Pairs where the
@@ -2441,6 +2457,9 @@ def compute_ka_ks(seqs: list[str], genetic_code: dict[str, str] = GENETIC_CODE) 
     ----------
     seqs : list[str]
         Ingroup sequences (pre-aligned, same length, length divisible by 3).
+    outgroup : str, optional
+        Outgroup sequence (same length). When given, restricts pairwise
+        comparisons to ingroup-vs-outgroup (see above).
 
     Returns
     -------
@@ -2450,18 +2469,27 @@ def compute_ka_ks(seqs: list[str], genetic_code: dict[str, str] = GENETIC_CODE) 
     """
     result = KaKsStats()
     n = len(seqs)
-    if n < 2:
-        return result
-    L = len(seqs[0])
+    if outgroup is None:
+        if n < 2:
+            return result
+        L = len(seqs[0])
+    else:
+        if n < 1:
+            return result
+        L = len(outgroup)
+        if any(len(s) != L for s in seqs):
+            return result
     if L == 0 or L % 3 != 0:
         return result
 
     n_codons = L // 3
     result.n_codons = n_codons
 
-    # Per-sequence synonymous site counts
+    # Per-sequence synonymous site counts, over every sequence being compared
+    # (the ingroup, plus the outgroup itself when one is given).
+    site_pool = list(seqs) if outgroup is None else list(seqs) + [outgroup]
     S_per_seq = []
-    for seq in seqs:
+    for seq in site_pool:
         S = 0.0
         for ci in range(n_codons):
             codon = seq[ci * 3:(ci + 1) * 3]
@@ -2472,7 +2500,7 @@ def compute_ka_ks(seqs: list[str], genetic_code: dict[str, str] = GENETIC_CODE) 
             S += _count_syn_sites_codon(codon, genetic_code)
         S_per_seq.append(S)
 
-    result.S_sites = sum(S_per_seq) / n
+    result.S_sites = sum(S_per_seq) / len(site_pool)
     result.N_sites = L - result.S_sites
 
     # Pairwise computation
@@ -2481,7 +2509,12 @@ def compute_ka_ks(seqs: list[str], genetic_code: dict[str, str] = GENETIC_CODE) 
     Sd_all: list[float] = []
     Nd_all: list[float] = []
 
-    for i, j in combinations(range(n), 2):
+    if outgroup is None:
+        pairs = list(combinations(seqs, 2))
+    else:
+        pairs = [(s, outgroup) for s in seqs]
+
+    for seq_a, seq_b in pairs:
         total_S  = 0.0
         total_N  = 0.0
         total_sd = 0.0
@@ -2489,8 +2522,8 @@ def compute_ka_ks(seqs: list[str], genetic_code: dict[str, str] = GENETIC_CODE) 
         n_valid  = 0
 
         for ci in range(n_codons):
-            c1 = seqs[i][ci * 3:(ci + 1) * 3]
-            c2 = seqs[j][ci * 3:(ci + 1) * 3]
+            c1 = seq_a[ci * 3:(ci + 1) * 3]
+            c2 = seq_b[ci * 3:(ci + 1) * 3]
             if any(nt not in 'ATCG' for nt in c1 + c2):
                 continue
             if genetic_code.get(c1) == '*' or genetic_code.get(c2) == '*':
@@ -3323,7 +3356,7 @@ def run_analysis(
                 file=sys.stderr,
             )
         else:
-            results["kaks"] = compute_ka_ks(aln.seqs, genetic_code)
+            results["kaks"] = compute_ka_ks(aln.seqs, genetic_code, outgroup=outgroup)
 
     if "fufs" in analyses:
         # Uses polymorphism stats already computed by analyse_region
@@ -3456,6 +3489,7 @@ def write_report(
     figures: list[Path],
     variant_sites_only: bool = False,
     genetic_code: dict[str, str] = GENETIC_CODE,
+    kaks_used_outgroup: bool = False,
 ) -> Path:
     rs = results["global"]
     window_stats = results["windows"]
@@ -3774,8 +3808,10 @@ def write_report(
             "",
             "> **Interpretation**: ω < 1 → purifying (negative) selection constrains "
             "amino-acid change. ω ≈ 1 → neutral evolution. ω > 1 → positive (adaptive) "
-            "selection driving amino-acid change. Values are averages over all pairwise "
-            "comparisons; per-branch estimates require a phylogenetic framework.",
+            "selection driving amino-acid change. Values are averages over "
+            + ("ingroup-vs-outgroup pairs only (an outgroup was given)"
+               if kaks_used_outgroup else "all ingroup pairwise comparisons")
+            + "; per-branch estimates require a phylogenetic framework.",
             "",
         ]
 
@@ -4497,7 +4533,8 @@ def _run(
 
     kaks = results.get("kaks")
     if kaks is not None and kaks.n_codons > 0:
-        print(f"  Ka={_fmt(kaks.Ka,6)}  Ks={_fmt(kaks.Ks,6)}  omega={_fmt(kaks.omega,4)}")
+        kaks_mode = " (ingroup-vs-outgroup)" if outgroup_seq is not None else ""
+        print(f"  Ka={_fmt(kaks.Ka,6)}  Ks={_fmt(kaks.Ks,6)}  omega={_fmt(kaks.omega,4)}{kaks_mode}")
 
     fufs = results.get("fufs")
     if fufs is not None and fufs.Fs is not None:
@@ -4554,7 +4591,9 @@ def _run(
 
     report = write_report(output_dir, src_label, aln, results, figs,
                           variant_sites_only=variant_sites_only,
-                          genetic_code=genetic_code)
+                          genetic_code=genetic_code,
+                          kaks_used_outgroup=(outgroup_seq is not None
+                                              and results.get("kaks") is not None))
     result_files.append(report)
 
     write_reproducibility(output_dir, input_path, cli_args, result_files)
