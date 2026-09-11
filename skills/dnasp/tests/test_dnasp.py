@@ -2230,15 +2230,17 @@ class TestComputeKaKs:
 
     def test_vertebrate_mitochondrial_code_counts_tga_codon(self):
         # Under the standard code TGA is a stop, so this codon is excluded
-        # from both sequences entirely (no synonymous sites, no pair
-        # counted). Under vertebrate mitochondrial code TGA=Trp, so it
-        # contributes like any other codon.
+        # from both sequences entirely -- no jointly-valid codon exists, so
+        # the pair contributes nothing (n_codons/S_sites report 0, not the
+        # raw 1-codon alignment length). Under vertebrate mitochondrial code
+        # TGA=Trp, so it contributes like any other codon.
         seqs = ['TGA', 'TGG']  # Trp<->Trp under mito code, synonymous
         std = dn.compute_ka_ks(seqs)
-        assert std.n_codons == 1
+        assert std.n_codons == 0
         assert std.S_sites == pytest.approx(0.0)
 
         mito = dn.compute_ka_ks(seqs, dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert mito.n_codons == 1
         assert mito.S_sites > 0.0
 
     def test_outgroup_none_keeps_all_pairwise_default(self):
@@ -2275,10 +2277,30 @@ class TestComputeKaKs:
         # DnaSP: "the total number of synonymous and nonsynonymous sites ...
         # is estimated as the average ... of all sequences" -- when an
         # outgroup is given it is one of "all sequences" being compared.
-        ingroup = ['TGATGA']  # TGA = stop under standard code -> 0 sites
-        outgroup = 'GGTGGT'   # GGT = Gly, has synonymous sites
+        # Both codons here are valid (not stops), so a real pairwise
+        # comparison exists and the site-count average should reflect both
+        # the ingroup and outgroup sequences, not the ingroup alone.
+        ingroup = ['GGCGGC']  # Ala, has synonymous sites
+        outgroup = 'GGTGGT'   # Gly, has synonymous sites
+        with_out = dn.compute_ka_ks(ingroup, outgroup=outgroup)
+        without_out = dn.compute_ka_ks(ingroup)  # n<2, no outgroup -> no result
+        assert with_out.S_sites > 0.0
+        assert without_out.S_sites == 0.0  # confirms the outgroup path is doing the work
+
+    def test_no_jointly_valid_codon_reports_zero_not_raw_totals(self):
+        # Every ingroup codon is a stop under the standard code, so no pair
+        # has a single jointly-valid codon against the outgroup. Reporting
+        # the raw 2-codon alignment length here would make a fully failed
+        # comparison look like a populated, quantified result -- n_codons,
+        # S_sites and N_sites should all come back as 0, and Ka/Ks/omega as
+        # undefined (None), not silently omitted from an otherwise-full report.
+        ingroup = ['TGATGA']  # TGA = stop under standard code
+        outgroup = 'GGTGGT'   # valid on its own, but the pair never is
         result = dn.compute_ka_ks(ingroup, outgroup=outgroup)
-        assert result.S_sites > 0.0
+        assert result.n_codons == 0
+        assert result.S_sites == 0.0
+        assert result.N_sites == 0.0
+        assert result.Ka is None and result.Ks is None and result.omega is None
 
 
 # ─────────────────────────────────────────────────────────────────────────────

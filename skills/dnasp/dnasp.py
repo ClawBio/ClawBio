@@ -2451,7 +2451,10 @@ def compute_ka_ks(
     Codons with gaps, ambiguous bases, or stop codons in either sequence are
     excluded (complete deletion at the codon level). Pairs where the
     Jukes-Cantor correction is undefined (pS or pN ≥ 0.75) are excluded from
-    the relevant average.
+    the relevant average. If no pair contributes a single jointly-valid
+    codon, ``n_codons``, ``S_sites`` and ``N_sites`` are reported as 0
+    rather than the raw (unusable) alignment totals -- a populated codon
+    count would otherwise make a fully failed comparison look quantified.
 
     Parameters
     ----------
@@ -2550,8 +2553,18 @@ def compute_ka_ks(
         if ka is not None:
             Ka_all.append(ka)
 
-    if Sd_all:
-        result.Sd = sum(Sd_all) / len(Sd_all)
+    if not Sd_all:
+        # No pair contributed a single jointly-valid codon (e.g. every
+        # ingroup sequence is a stop/gap/ambiguous codon at every position
+        # against the outgroup). Reporting the raw alignment codon/site
+        # counts here would make a completely failed comparison look like a
+        # populated, quantified result -- report nothing instead.
+        result.n_codons = 0
+        result.S_sites = 0.0
+        result.N_sites = 0.0
+        return result
+
+    result.Sd = sum(Sd_all) / len(Sd_all)
     if Nd_all:
         result.Nd = sum(Nd_all) / len(Nd_all)
     if Ks_all:
