@@ -8,7 +8,7 @@
 - [CLAUDE.md](CLAUDE.md): Agent routing table, CLI reference, demo data, safety rules, script-first execution guidance
 - [AGENTS.md](AGENTS.md): Universal guide for AI coding agents working in this repo
 - [commands/](commands/): Reusable slash-command workflows for analysis, skill scaffolding, skill listing, and demos
-- [CHANGELOG.md](CHANGELOG.md): Release milestones through `v0.5.0`
+- [CHANGELOG.md](CHANGELOG.md): Release milestones through `v0.7.1`
 - [REMEDIATION-PLAN.md](REMEDIATION-PLAN.md): External audit findings and remediation roadmap
 - [docs/CLAWBIO-BRIEF.md](docs/CLAWBIO-BRIEF.md): Evergreen project brief for collaborators, investors, and agents
 - [docs/reference-genome.md](docs/reference-genome.md): Corpas 30x WGS reference genome used across demos, tutorials, and benchmarking
@@ -25,9 +25,9 @@
 
 ## Project State
 
-- Current public release: `v0.5.0`
-- Public framing in `README.md`: `95 skills + 8,182 Galaxy tools + 4,217 tests + benchmark validation`
-- Catalog status split: `29` MVP skills and `66` planned / legacy skills
+- Current public release: `v0.7.1`
+- Public framing in `README.md`: `97 skills + 8,182 Galaxy tools + 4,730 tests + benchmark validation`
+- Catalog status split: `29` MVP skills and `68` planned / legacy skills
 - Counts above are derived, not hand-written. Regenerate them before editing:
   - skills and Galaxy tools: `skill_count` / `galaxy_tool_count` in `skills/catalog.json`,
     itself produced by `python scripts/generate_catalog.py`
@@ -122,6 +122,6 @@ These skills are referenced in `CLAUDE.md`, `skills/catalog.json`, or executable
 
 ## Optional
 
-- [skills/catalog.json](skills/catalog.json): Machine-readable skill index; current catalog contains `55` entries
+- [skills/catalog.json](skills/catalog.json): Machine-readable skill index; current catalog contains `97` entries
 - [templates/SKILL-TEMPLATE.md](templates/SKILL-TEMPLATE.md): Template for new skills
 - [clawbio.py](clawbio.py): Main CLI runner and alias registry for `python clawbio.py run <alias>`

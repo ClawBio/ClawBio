@@ -1,7 +1,7 @@
 <h3 align="center">ClawBio</h3>
 
 <p align="center">
-  <strong>The first bioinformatics-native AI agent skill library.</strong><br>
+  <strong>A bioinformatics-native AI agent skill library.</strong><br>
   Built on <a href="https://github.com/openclaw/openclaw">OpenClaw</a> (180k+ GitHub stars). Local-first. Privacy-focused. Reproducible.
 </p>
 
@@ -9,7 +9,6 @@
   <a href="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml"><img src="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.11+-blue?logo=python&logoColor=white" alt="Python 3.11+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
-  <a href="https://clawhub.ai"><img src="https://img.shields.io/badge/ClawHub-97_skills-orange" alt="ClawHub Skills"></a>
   <a href="https://luma.com/clawbio"><img src="https://img.shields.io/badge/Events-Follow_on_Luma-7c3aed" alt="Follow ClawBio Events on Luma"></a>
   <a href="https://doi.org/10.5281/zenodo.19420648"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.19420648.svg" alt="DOI"></a>
   <a href="https://github.com/ClawBio/ClawBio/issues"><img src="https://img.shields.io/github/issues/ClawBio/ClawBio" alt="Open Issues"></a>
@@ -18,7 +17,7 @@
 
 <p align="center">
   <strong>📅 <a href="https://luma.com/clawbio">Follow the official ClawBio Events Calendar</a></strong><br>
-  <sub>Hackathons · workshops · meetups · community events — follow once on Luma to hear about every new event.</sub>
+  <sub>ClawBio is building a general-purpose agentic utility layer for bioinformatics. Follow the calendar for hackathons, workshops, meetups and community events where contributors build, test and extend the platform.</sub>
 </p>
 
 ---
@@ -69,7 +68,7 @@ uv run python clawbio.py run pharmgx --demo
 
 ## What ClawBio Does Today
 
-**97 skills (91 with runnable demo data) + 8,182 Galaxy tools + 4,723 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
+**97 skills (92 with runnable demo data) + 8,182 Galaxy tools + 4,730 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
 > **v0.5.0 released** (4 Apr 2026): Validation and Benchmark Infrastructure. AD ground truth benchmark, mock API server for offline testing, swappable fine-mapping pipeline (SuSiE vs ABF), 74 benchmark tests, red/green TDD mandate. [Release notes](https://github.com/ClawBio/ClawBio/releases/tag/v0.5.0). DOI: [10.5281/zenodo.19420648](https://doi.org/10.5281/zenodo.19420648).
 
 Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card — on your machine, in seconds:
@@ -686,7 +685,7 @@ See [Contributing a Skill](#contributing-a-skill) above for the submission proce
 
 ## Versioning
 
-ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.7.0**. See [CHANGELOG.md](CHANGELOG.md) for a full history of additions and breaking changes.
+ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.7.1**. See [CHANGELOG.md](CHANGELOG.md) for a full history of additions and breaking changes.
 
 ---
 
@@ -694,7 +693,7 @@ ClawBio follows [Semantic Versioning](https://semver.org/). The current release 
 
 ### What is ClawBio?
 
-ClawBio is the **first bioinformatics-native AI agent skill library**. Built on OpenClaw (180k+ GitHub stars), it provides 97 skills (91 with runnable demo data) for genomics analysis, pharmacogenomics, ancestry profiling, and more. Local-first, privacy-focused, and reproducible.
+ClawBio is a **bioinformatics-native AI agent skill library**. Built on OpenClaw (180k+ GitHub stars), it provides 97 skills (92 with runnable demo data) for genomics analysis, pharmacogenomics, ancestry profiling, and more. Local-first, privacy-focused, and reproducible.
 
 ### What are ClawBio skills?
 

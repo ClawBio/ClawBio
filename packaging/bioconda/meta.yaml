@@ -54,7 +54,7 @@ about:
   license: MIT
   license_family: MIT
   license_file: LICENSE
-  summary: "The first bioinformatics-native AI agent skill library. Local-first, reproducible, built on OpenClaw."
+  summary: "Bioinformatics-native AI agent skill library. Local-first, reproducible, built on OpenClaw."
   dev_url: https://github.com/ClawBio/ClawBio
   doc_url: https://clawbio.github.io/ClawBio/
 
