@@ -78,7 +78,7 @@ import sys
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
-from itertools import combinations
+from itertools import combinations, permutations
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -2287,30 +2287,203 @@ def _jc_correct(p: float) -> Optional[float]:
     return -0.75 * math.log(x)
 
 
+def _mk_pathway(
+    c1: str, c2: str, intermediate_pool: frozenset, genetic_code: dict[str, str]
+) -> Optional[tuple[tuple[int, int], dict[int, str]]]:
+    """Classify the changes between codons c1 and c2, position by position,
+    following DnaSP's McDonald-Kreitman path-selection rules (see
+    ``compute_mk``'s docstring for citations).
+
+    For codons differing at two or three positions, several mutational
+    orderings are possible; DnaSP selects one deterministically rather than
+    averaging over all of them (unlike the general Nei-Gojobori method used
+    elsewhere in this module). Preference order:
+
+    1. A path whose intermediate codon(s) are found in ``intermediate_pool``
+       (an empty pool disables this rule entirely -- see ``compute_mk``).
+    2. Among remaining ties, the path with fewer nonsynonymous (replacement)
+       steps.
+    3. Any further tie is broken deterministically (the first ordering
+       ``itertools.permutations`` yields), rather than DnaSP's own random
+       draw for genuinely unresolvable ties.
+
+    Paths through stop codons are excluded. If every ordering passes through
+    a stop, every differing position is conservatively classified as
+    nonsynonymous (matching ``_classify_codon_pair``'s convention).
+
+    Returns
+    -------
+    (score, labels) : the winning path's score (for comparison against
+    other codon pairs by the caller) and a ``{position: 'syn'|'nonsyn'}``
+    map for every position where c1 and c2 differ. ``None`` if c1 or c2 is
+    not a valid (non-stop) codon under the given genetic code.
+    """
+    diff_pos = [i for i in range(3) if c1[i] != c2[i]]
+    if not diff_pos:
+        return ((0, 0), {})
+    aa1, aa2 = genetic_code.get(c1), genetic_code.get(c2)
+    if aa1 is None or aa1 == '*' or aa2 is None or aa2 == '*':
+        return None
+    if len(diff_pos) == 1:
+        p = diff_pos[0]
+        nonsyn = aa1 != aa2
+        return ((0, -int(nonsyn)), {p: 'nonsyn' if nonsyn else 'syn'})
+
+    best: Optional[tuple[tuple[int, int], dict[int, str]]] = None
+    for perm in permutations(diff_pos):
+        current = c1
+        labels: dict[int, str] = {}
+        n_nonsyn = 0
+        n_observed = 0
+        path_ok = True
+        for step, pos in enumerate(perm):
+            nxt = current[:pos] + c2[pos] + current[pos + 1:]
+            cur_aa, nxt_aa = genetic_code.get(current), genetic_code.get(nxt)
+            if cur_aa is None or nxt_aa is None or cur_aa == '*' or nxt_aa == '*':
+                path_ok = False
+                break
+            nonsyn = cur_aa != nxt_aa
+            labels[pos] = 'nonsyn' if nonsyn else 'syn'
+            n_nonsyn += int(nonsyn)
+            if step < len(perm) - 1 and nxt in intermediate_pool:
+                n_observed += 1
+            current = nxt
+        if not path_ok:
+            continue
+        score = (n_observed, -n_nonsyn)
+        if best is None or score > best[0]:
+            best = (score, labels)
+    if best is None:
+        return ((-1, -len(diff_pos)), {p: 'nonsyn' for p in diff_pos})
+    return best
+
+
+def _mk_label_for_position(
+    pos: int, pairs: list[tuple[str, str]], intermediate_pool: frozenset,
+    genetic_code: dict[str, str],
+) -> Optional[str]:
+    """Resolve the syn/nonsyn label for a single codon position, using only
+    the candidate pairs that actually differ AT that position.
+
+    With 3+ codons segregating at once, a position can be polymorphic (or
+    fixed) only because of an allele that never participates in the
+    single globally-closest pair -- e.g. ingroup AAA/AAG/CCG vs outgroup
+    AAA: positions 0 and 1 are polymorphic only via CCG, but the globally
+    closest pair is AAA-AAG (distance 1, differing only at position 2).
+    Restricting to one global "closest pair" would silently drop CCG's
+    contribution at positions 0 and 1 entirely (caught by adversarial
+    review). Each position is instead resolved independently: filter to
+    pairs that differ there, keep only the minimum-nucleotide-distance
+    one(s) among THOSE (DnaSP's MinPPP, scoped per position), then apply
+    the usual pathway tie-break (``_mk_pathway``).
+    """
+    relevant = [(a, b) for a, b in pairs if a[pos] != b[pos]]
+    if not relevant:
+        return None
+    scored = [(sum(1 for k in range(3) if a[k] != b[k]), a, b) for a, b in relevant]
+    min_dist = min(d for d, _, _ in scored)
+    tied = [(a, b) for d, a, b in scored if d == min_dist]
+
+    best_score = None
+    best_label: Optional[str] = None
+    for c1, c2 in tied:
+        result = _mk_pathway(c1, c2, intermediate_pool, genetic_code)
+        if result is None:
+            continue
+        score, labels = result
+        label = labels.get(pos)
+        if label is None:
+            continue
+        if best_score is None or score > best_score:
+            best_score = score
+            best_label = label
+    return best_label
+
+
+def _mk_best_labels(
+    positions: list[int], pairs: list[tuple[str, str]],
+    intermediate_pool: frozenset, genetic_code: dict[str, str],
+) -> dict[int, str]:
+    """Resolve every position in `positions` independently (see
+    ``_mk_label_for_position``) against the full set of candidate pairs.
+    """
+    result: dict[int, str] = {}
+    for pos in positions:
+        label = _mk_label_for_position(pos, pairs, intermediate_pool, genetic_code)
+        if label is not None:
+            result[pos] = label
+    return result
+
+
 def compute_mk(
     seqs: list[str], outgroup: str, genetic_code: dict[str, str] = GENETIC_CODE
 ) -> MKStats:
     """McDonald-Kreitman test (McDonald & Kreitman 1991).
 
-    Classifies each codon of an ingroup coding alignment into one of four
-    categories using the ingroup sequences and a single outgroup sequence.
-    The classification follows DnaSP 6's own rule
-    (``EntrePobsMod.vb::BuscoPosFijadas``, keyed on ``ht3`` -- the fraction of
-    ingroup sequences whose codon differs from the outgroup's): a codon is a
-    **fixed difference** whenever the outgroup's codon is absent from the
-    ingroup's allele pool, even if the ingroup itself segregates for other
-    codons; it is **polymorphism** only when the outgroup's codon is one of
-    the segregating ingroup alleles.
+    Classifies each NUCLEOTIDE SITE (not each codon) of an ingroup coding
+    alignment as a polymorphism or a fixed difference, synonymous or
+    nonsynonymous. DnaSP's own McDonald-Kreitman help page states this
+    explicitly: "A fixed nucleotide site between species is a site at which
+    all sequences in one species contain nucleotide variants that are not
+    in the second species" -- a per-site definition. Its own worked example
+    (codon 13-15) shows a SINGLE codon contributing two separate fixed
+    differences of different types (one replacement at one site, one
+    synonymous at another) -- so Pn/Ps/Dn/Ds are per-site tallies, and one
+    codon can contribute to more than one of them at once. (An earlier
+    version of this function classified whole codons instead, which cannot
+    reproduce that -- see commit history for `748c593`, which fixed the
+    fixed-vs-polymorphic call but kept the whole-codon unit, and was found
+    to still diverge from real DnaSP 6 output on validation.)
 
-    - **Ps**  -  the outgroup's codon is one of the ingroup alleles, the
-      ingroup segregates for more than one codon, and all variant pairs
-      among the ingroup alleles are synonymous.
-    - **Pn**  -  same, but at least one variant pair among the ingroup
-      alleles is nonsynonymous.
-    - **Ds**  -  the outgroup's codon is absent from the ingroup alleles, and
-      every ingroup allele differs from it only synonymously.
-    - **Dn**  -  same as Ds but at least one ingroup allele differs from the
-      outgroup nonsynonymously.
+    Algorithm, per codon:
+
+    1. Classify each of its 3 positions independently, using DnaSP's ``ht3``
+       rule (``EntrePobsMod.vb::BuscoPosFijadas``) applied at the
+       nucleotide level: **invariant** if every ingroup sequence and the
+       outgroup share the same base there; **fixed** if the outgroup's base
+       is absent from every ingroup sequence there (even if the ingroup
+       itself segregates for other bases); **polymorphic** if the
+       outgroup's base is present in some but not all ingroup sequences
+       there (the ingroup segregates and shares the outgroup's allele).
+    2. For the **fixed** positions (if any): find the ingroup codon(s)
+       closest to the outgroup codon (fewest total nucleotide differences,
+       DnaSP's "MinPPP"), then classify the mutational path between them
+       with ``_mk_pathway`` (no intermediate-codon preference on this side
+       -- DnaSP's own description of computing fixed differences names only
+       "fewest total differences, then fewest replacements"). Only the
+       **fixed** positions' labels count toward Dn/Ds.
+    3. For the **polymorphic** positions (if any, and the ingroup segregates
+       for more than one codon): find the pair(s) of ingroup codons closest
+       to each other, then classify the path with ``_mk_pathway``, this
+       time preferring a path whose intermediate codon equals the
+       outgroup's codon -- DnaSP's documented rule for resolving
+       within-species path ambiguity ("if one of the non-extant codons is
+       found in the other species, DnaSP assumes that is the true
+       evolutionary path"; worked example: codon 10-12, where the
+       fewer-replacements path is passed over in favour of the path whose
+       intermediate is observed). Only the **polymorphic** positions'
+       labels count toward Pn/Ps.
+
+    ``Módulos/McDonaldK.vb::BuscaSitiosFixedSynReempl`` (fixed side) and
+    ``BuscaSitiosReemplazamientoMK`` (polymorphic side) implement this in
+    DnaSP's own VB source; the worked examples above are quoted from the
+    DnaSP 6 help file ("McDonald and Kreitman's Test" topic).
+
+    Known simplifications (documented, not implemented): (a) a rare
+    circular-path/recombination configuration DnaSP resolves with a
+    dedicated heuristic (and which its own help file says is "analyzed
+    only for Nuclear Genetic Codes" -- i.e. not under mitochondrial
+    tables); this function instead falls through to its ordinary
+    deterministic tie-break, which may not always agree with DnaSP's
+    inferred recombination event. (b) A narrow rule for discordant
+    classifications of the same nucleotide variant across sequences on the
+    polymorphic side ("DnaSP will choose the case with more replacement
+    substitutions") is not separately implemented; the general path-scoring
+    rules above are applied uniformly instead. (c) Multi-allelic sites
+    (three or more distinct codons segregating at once) are resolved via a
+    single best-scoring comparison rather than a full multi-way
+    reconciliation, matching DnaSP's own single-path-per-codon output
+    structure but not exhaustively verified against it.
 
     Codons are skipped (complete deletion) when any ingroup sequence or the
     outgroup has a gap, ambiguous base, or stop codon at those three positions.
@@ -2360,38 +2533,41 @@ def compute_mk(
         if any(genetic_code.get(co) == '*' for co in unique_in):
             continue
 
-        # DnaSP's ht3 rule: fixed whenever the outgroup allele is absent from
-        # the ingroup pool, regardless of how many ingroup alleles segregate.
-        is_fixed = out_codon not in unique_in
-        is_poly  = (not is_fixed) and len(unique_in) > 1
+        # Per-position status, following DnaSP's ht3 rule applied at the
+        # nucleotide level rather than the whole codon (see docstring).
+        fixed_positions: list[int] = []
+        poly_positions: list[int] = []
+        for pos in range(3):
+            bases_in = {codon[pos] for codon in in_codons}
+            out_base = out_codon[pos]
+            if len(bases_in) == 1 and out_base in bases_in:
+                continue  # invariant
+            if out_base not in bases_in:
+                fixed_positions.append(pos)
+            else:
+                poly_positions.append(pos)
 
-        if is_poly:
-            has_nonsyn = False
-            has_syn    = False
-            for ca, cb in combinations(sorted(unique_in), 2):
-                s_d, ns_d = _classify_codon_pair(ca, cb, genetic_code)
-                if ns_d > 0:
-                    has_nonsyn = True
-                if s_d > 0:
-                    has_syn = True
-            if has_nonsyn:
-                Pn += 1
-            elif has_syn:
-                Ps += 1
+        if fixed_positions:
+            pairs = [(c, out_codon) for c in unique_in]
+            labels = _mk_best_labels(fixed_positions, pairs, frozenset(), genetic_code)
+            for pos in fixed_positions:
+                label = labels.get(pos)
+                if label == 'nonsyn':
+                    Dn += 1
+                elif label == 'syn':
+                    Ds += 1
 
-        if is_fixed:
-            has_nonsyn = False
-            has_syn    = False
-            for in_codon in unique_in:
-                s_d, ns_d = _classify_codon_pair(in_codon, out_codon, genetic_code)
-                if ns_d > 0:
-                    has_nonsyn = True
-                if s_d > 0:
-                    has_syn = True
-            if has_nonsyn:
-                Dn += 1
-            elif has_syn:
-                Ds += 1
+        if poly_positions and len(unique_in) > 1:
+            pairs = list(combinations(sorted(unique_in), 2))
+            labels = _mk_best_labels(
+                poly_positions, pairs, frozenset({out_codon}), genetic_code
+            )
+            for pos in poly_positions:
+                label = labels.get(pos)
+                if label == 'nonsyn':
+                    Pn += 1
+                elif label == 'syn':
+                    Ps += 1
 
     result.Pn = Pn
     result.Ps = Ps

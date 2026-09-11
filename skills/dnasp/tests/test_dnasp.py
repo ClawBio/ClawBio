@@ -2146,6 +2146,80 @@ class TestComputeMK:
         assert result.Ps == 1
         assert result.Ds == 0 and result.Dn == 0
 
+    def test_single_codon_can_contribute_both_dn_and_ds(self):
+        # DnaSP's own McDonald-Kreitman help page (worked example, codon
+        # 13-15) shows a SINGLE codon contributing two separate fixed
+        # differences of different types (one replacement, one synonymous)
+        # -- DnaSP counts fixed/polymorphic differences per NUCLEOTIDE SITE,
+        # not once per codon. Monomorphic ingroup CTT (Leu) vs outgroup CGA
+        # (Arg): position 0 (C/C) is invariant; position 1 (T->G) is a
+        # nonsynonymous fixed difference (Leu->Arg, both mutational
+        # orderings agree); position 2 (T->A) is a synonymous fixed
+        # difference (CTN and CGN are both fully synonymous at the third
+        # position). A whole-codon classifier can never produce both Dn and
+        # Ds from the same codon; this is the core structural fix.
+        seqs = ['CTT', 'CTT']
+        result = dn.compute_mk(seqs, 'CGA')
+        assert result.Dn == 1
+        assert result.Ds == 1
+        assert result.Pn == 0 and result.Ps == 0
+
+    def test_fixed_side_tie_break_prefers_fewer_replacement_changes(self):
+        # Monomorphic ingroup CCC (Pro) vs outgroup CAG (Gln): differ at
+        # positions 1 (C->A) and 2 (C->G), with two possible mutational
+        # orderings -- CCC->CAC->CAG (2 replacements: Pro->His, His->Gln)
+        # or CCC->CCG->CAG (1 replacement + 1 synonymous: Pro->Pro,
+        # Pro->Gln). DnaSP's own rule for fixed differences ("DnaSP will
+        # check all paths ... and choose the path with the minor number of
+        # [replacement] changes") has no outgroup-side "intermediate
+        # observed elsewhere" tie-break (unlike the within-species case
+        # below) -- fixed differences are decided by fewest total
+        # differences, then fewest replacements. So the CCG-route wins:
+        # position 2 synonymous, position 1 nonsynonymous.
+        seqs = ['CCC', 'CCC']
+        result = dn.compute_mk(seqs, 'CAG')
+        assert result.Dn == 1
+        assert result.Ds == 1
+        assert result.Pn == 0 and result.Ps == 0
+
+    def test_poly_side_prefers_path_with_intermediate_seen_in_outgroup(self):
+        # Directly from DnaSP's own McDonald-Kreitman help page (worked
+        # example, codon 10-12): ingroup segregates CCC (Pro) / CAG (Gln),
+        # differing at positions 1 and 2. Two mutational orderings exist:
+        # CCC->CAC->CAG (2 replacements, both nonsynonymous) or
+        # CCC->CCG->CAG (1 replacement + 1 synonymous). Taken alone, the
+        # second route has FEWER replacements -- but the outgroup here is
+        # CAC, i.e. one of the ORDERINGS' intermediate codons is actually
+        # observed. DnaSP's documented rule: "If there are two possible
+        # paths, and one of the non-extant codons is found in the other
+        # species, DnaSP assumes that is the true evolutionary path" --
+        # this OVERRIDES the fewer-replacements preference. So the
+        # CAC-route wins even though it has more replacements: both
+        # position 1 and position 2 are nonsynonymous polymorphisms.
+        seqs = ['CCC', 'CAG']
+        result = dn.compute_mk(seqs, 'CAC')
+        assert result.Pn == 2
+        assert result.Ps == 0
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_multiallelic_codon_does_not_silently_drop_third_allele(self):
+        # Ingroup segregates AAA (Lys), AAG (Lys), and CCG (Pro), outgroup
+        # AAA. Every position is polymorphic (the outgroup's base is
+        # present at each position -- 'A' at 0/1 via AAA/AAG, 'A' at 2 via
+        # AAA), but the globally closest pair is AAA-AAG (distance 1,
+        # differing only at position 2) -- CCG never participates in that
+        # pair. A design that only labels positions covered by the single
+        # globally-closest pair silently drops CCG's contribution at
+        # positions 0 and 1 entirely (a real bug caught by adversarial
+        # review). Each polymorphic position must be resolved from
+        # whichever pair(s) actually vary there, not just the one globally
+        # closest pair -- so this codon should register polymorphism at
+        # all three positions, not just position 2.
+        seqs = ['AAA', 'AAG', 'CCG']
+        result = dn.compute_mk(seqs, 'AAA')
+        assert result.Pn + result.Ps == 3
+        assert result.Dn == 0 and result.Ds == 0
+
     def test_vertebrate_mitochondrial_code_stops_dont_exclude_tga(self):
         # TGA is a stop under the standard code (excluded entirely -> both
         # zero), but Trp under vertebrate mitochondrial code, so a
