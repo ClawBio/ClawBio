@@ -1,0 +1,234 @@
+{
+  "$schema_notes": [
+    "Domain taxonomy consumed by scripts/generate_skills_summary.py.",
+    "",
+    "Why this file exists rather than a `domain:` key in each SKILL.md:",
+    "the frontmatter field is declared by only ~half the skills and uses 21",
+    "inconsistent values (23 of them are just 'genomics'), so it cannot",
+    "produce a balanced taxonomy. Keeping the mapping in one reviewable file",
+    "also makes reclassification a single-file diff.",
+    "",
+    "Membership keys are CLI aliases for registered skills and folder names",
+    "for agent-readable ones. Those two namespaces do not currently overlap;",
+    "the generator asserts that and fails if it ever changes.",
+    "",
+    "Every skill must appear in exactly one domain. The generator exits",
+    "non-zero listing any skill that is unclassified or unknown, so adding a",
+    "skill without classifying it is a hard failure rather than a silent",
+    "omission from the report."
+  ],
+  "domains": [
+    {
+      "id": "clinical-genomics",
+      "title": "Clinical genomics & variant interpretation",
+      "note": "The library's largest domain.",
+      "members": [
+        "pharmgx",
+        "clinpgx",
+        "drugphoto",
+        "nutrigx",
+        "acmg",
+        "cnv-acmg",
+        "profile",
+        "variant-annotation",
+        "vcf-annotator",
+        "clinical-variant-prioritizer",
+        "rare-high-impact-variants",
+        "hla-typing",
+        "wes-clinical-report-en",
+        "wes-clinical-report-es",
+        "drug-photo"
+      ]
+    },
+    {
+      "id": "statistical-genetics",
+      "title": "GWAS, PRS & statistical genetics",
+      "note": "Deepest runnable coverage in the library.",
+      "members": [
+        "gwas",
+        "gwas-pipe",
+        "prs",
+        "just-prs",
+        "mr",
+        "gwas-region",
+        "eqtl-region",
+        "ld-region",
+        "ukb-ppp-region",
+        "locuscompare-region",
+        "fine-mapping",
+        "wgs-prs"
+      ]
+    },
+    {
+      "id": "bulk-transcriptomics",
+      "title": "Bulk transcriptomics",
+      "note": "",
+      "members": [
+        "rnaseq",
+        "rnaseq-pipeline",
+        "diffviz",
+        "rdoutlier",
+        "de-summary"
+      ]
+    },
+    {
+      "id": "single-cell-spatial",
+      "title": "Single-cell & spatial",
+      "note": "Fully runnable; no spec-only gaps.",
+      "members": [
+        "scrna",
+        "scrna-embedding",
+        "scrnaseq-pipeline",
+        "celltype-specificity-profiler",
+        "deepspot-m",
+        "marker-map"
+      ]
+    },
+    {
+      "id": "proteomics-aging",
+      "title": "Proteomics, epigenetics & aging",
+      "note": "",
+      "members": [
+        "affprot",
+        "methylation",
+        "proteomics-de",
+        "proteomics-clock",
+        "organ-aging-studio",
+        "claw-methylation-cycle"
+      ]
+    },
+    {
+      "id": "gene-regulation",
+      "title": "Gene regulation — Genomic Intelligence suite",
+      "note": "Entirely agent-readable; all six call one hosted API, so an outage removes the whole domain.",
+      "members": [
+        "gi-annotation",
+        "gi-promoter",
+        "gi-splice",
+        "gi-enhancer",
+        "gi-expression",
+        "gi-chromatin"
+      ]
+    },
+    {
+      "id": "population-genetics",
+      "title": "Population, ancestry & evolution",
+      "note": "",
+      "members": [
+        "dnasp",
+        "phylo",
+        "fastreer",
+        "compare",
+        "equity",
+        "claw-ancestry-pca",
+        "ancestry-risk-profiler",
+        "archaic-introgression"
+      ]
+    },
+    {
+      "id": "synthetic-genomics",
+      "title": "Synthetic genomics & simulation",
+      "note": "Creative/simulation cluster, distinct from the analytical skills.",
+      "members": [
+        "soul2dna",
+        "recombinator",
+        "genome-match"
+      ]
+    },
+    {
+      "id": "sequence-qc",
+      "title": "Sequence processing, QC & pipelines",
+      "note": "",
+      "members": [
+        "analyze-fasta",
+        "bioqc",
+        "sample-qc",
+        "sarek-pipeline",
+        "metagenomics",
+        "illumina",
+        "seq-wrangler",
+        "multiqc-reporter",
+        "busco-assessor"
+      ]
+    },
+    {
+      "id": "drug-discovery",
+      "title": "Screens, pathways & drug discovery",
+      "note": "",
+      "members": [
+        "crispr-triage",
+        "repurposing",
+        "pathway-enricher",
+        "target-validation-scorer",
+        "omics-target-evidence-mapper"
+      ]
+    },
+    {
+      "id": "cancer-imaging-structure",
+      "title": "Cancer, imaging & structure",
+      "note": "",
+      "members": [
+        "xena-tcga-gene-query",
+        "cell-detection",
+        "struct-predictor"
+      ]
+    },
+    {
+      "id": "literature-evidence",
+      "title": "Literature, evidence & trials",
+      "note": "",
+      "members": [
+        "protocols-io",
+        "pubmed-summariser",
+        "lit-synthesizer",
+        "bgpt-mcp",
+        "claw-semantic-sim",
+        "article-data-fetcher",
+        "clinical-trial-finder"
+      ]
+    },
+    {
+      "id": "data-platforms",
+      "title": "Data platforms & discovery",
+      "note": "",
+      "members": [
+        "galaxy",
+        "bioc",
+        "bigquery",
+        "flow",
+        "data-extract",
+        "polars-bio",
+        "turingdb-graph",
+        "labstep",
+        "ncbi-datasets",
+        "ukb-navigator"
+      ]
+    },
+    {
+      "id": "meta-framework",
+      "title": "Benchmarking & meta/framework",
+      "note": "",
+      "members": [
+        "llm-bench",
+        "bio-orchestrator",
+        "skill-builder",
+        "clawpathy-autoresearch",
+        "repro-enforcer"
+      ]
+    }
+  ],
+  "curated_findings": {
+    "duplicate_pairs": [
+      "`variant-annotation` <-> `vcf-annotator` — both VEP + ClinVar + gnomAD with impact ranking; strongest merge candidate",
+      "`drug-photo` [A] <-> `drugphoto` [R] — same capability split across tiers",
+      "`proteomics-clock` <-> `organ-aging-studio` — same Goeminne clock, different presentation",
+      "`bioqc` <-> `multiqc-reporter` — overlapping MultiQC aggregation",
+      "`phylo` <-> `fastreer` — both tree building, different engines (arguably complementary)",
+      "`wgs-prs` <-> `prs` — genuinely additive; `wgs-prs` supplies the FASTQ-to-VCF stage `prs` lacks"
+    ],
+    "notes": [
+      "Naming conventions drift: `claw-` prefixes, `gi-` prefixes, `-region` suffixes, and bare names coexist without a clear rule.",
+      "The four regional-fetch skills (`gwas-region`, `eqtl-region`, `ld-region`, `ukb-ppp-region`) share tabix-on-FTP access to external hosts."
+    ]
+  }
+}
