@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "clawbio"
-description = "The first bioinformatics-native AI agent skill library. Local-first, reproducible, built on OpenClaw."
+description = "Bioinformatics-native AI agent skill library. Local-first, reproducible, built on OpenClaw."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
