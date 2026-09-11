@@ -388,7 +388,7 @@ class MKStats:
 @dataclass
 class KaKsStats:
     """Ka/Ks (dN/dS) estimated by the Nei-Gojobori (1986) method."""
-    n_codons: int = 0
+    n_codons: int = 0        # codons analysed (valid in every compared sequence)
     S_sites: float = 0.0     # mean synonymous sites per sequence
     N_sites: float = 0.0     # mean nonsynonymous sites per sequence
     Sd: float = 0.0          # mean synonymous differences per sequence pair
@@ -2191,11 +2191,22 @@ def _fisher_exact_2x2(a: int, b: int, c: int, d: int) -> float:
 
 
 def _count_syn_sites_codon(codon: str, genetic_code: dict[str, str] = GENETIC_CODE) -> float:
-    """Synonymous sites in a codon by the Nei-Gojobori (1986) method.
+    """Synonymous sites in a codon, DnaSP 6's variant of the Nei-Gojobori
+    (1986) count (``SINONIMO.vb::ComputeFoldPos`` / ``ComputeNumPosSNs``).
 
-    For each of the 3 positions, counts the fraction of the 3 possible
-    single-nucleotide alternatives that are synonymous (same amino acid).
-    Returns the sum across positions (0-3 per codon).
+    For each of the 3 positions, the fraction of the single-base
+    alternatives that are synonymous (same amino acid), where alternatives
+    that would create a stop codon are left out of the denominator: a
+    position with one stop alternative and one synonymous alternative
+    counts 1/2 (DnaSP's own example is TGT, Cys), one with two stop
+    alternatives and a synonymous third counts 1, and one whose
+    alternatives are all stops counts 0. Positions without stop
+    alternatives give the familiar 0, 1/3, 2/3, 1. Returns the sum across
+    positions (0-3 per codon).
+
+    Under the vertebrate mitochondrial code, where AGA/AGG are stops, this
+    makes the third position of AGY (Ser) and TAY (Tyr) codons whole
+    synonymous sites rather than thirds.
 
     Codons with gaps, ambiguous bases, or stop codons return 0.0.
     """
@@ -2206,12 +2217,18 @@ def _count_syn_sites_codon(codon: str, genetic_code: dict[str, str] = GENETIC_CO
         return 0.0
     syn = 0.0
     for pos in range(3):
-        n_syn = sum(
-            1 for alt in _NUCLEOTIDES
-            if alt != codon[pos]
-            and genetic_code.get(codon[:pos] + alt + codon[pos + 1:]) == aa
-        )
-        syn += n_syn / 3.0   # 3 possible alternatives at each position
+        n_syn = n_stop = 0
+        for alt in _NUCLEOTIDES:
+            if alt == codon[pos]:
+                continue
+            alt_aa = genetic_code.get(codon[:pos] + alt + codon[pos + 1:])
+            if alt_aa == '*':
+                n_stop += 1
+            elif alt_aa == aa:
+                n_syn += 1
+        non_stop = 3 - n_stop
+        if non_stop:
+            syn += n_syn / non_stop
     return syn
 
 
@@ -2834,38 +2851,46 @@ def compute_ka_ks(
     genetic_code: dict[str, str] = GENETIC_CODE,
     outgroup: Optional[str] = None,
 ) -> KaKsStats:
-    """Ka/Ks (dN/dS) by the Nei-Gojobori (1986) method.
+    """Ka/Ks (dN/dS) by the Nei-Gojobori (1986) method, as DnaSP 6 reports
+    it ("Synonymous and Nonsynonymous Substitutions" and "Polymorphism and
+    Divergence" outputs; ``SINONIMO.vb`` and ``EntrePobsMod.vb``).
 
-    Estimates synonymous (Ks) and nonsynonymous (Ka) substitution rates by:
-
-    1. Computing synonymous (S_i) and nonsynonymous (N_i = 3L − S_i) site
-       counts for each sequence using ``_count_syn_sites_codon``.
-    2. For each pair, counting synonymous differences (sd) and nonsynonymous
-       differences (nd) using ``_classify_codon_pair``.
-    3. Computing proportions pS = sd / S_ij and pN = nd / N_ij where
-       S_ij = (S_i + S_j)/2.
-    4. Applying the Jukes-Cantor correction to obtain Ks_ij and Ka_ij.
-    5. Averaging Ks and Ka over all pairs.
+    1. Sites. For every sequence being compared, the synonymous sites S_i
+       are summed over its analysed codons with ``_count_syn_sites_codon``
+       (DnaSP's stop-excluded denominators) and the nonsynonymous sites are
+       N_i = 3 x (codons analysed) - S_i. ``S_sites`` and ``N_sites`` are
+       the means over sequences (DnaSP: "the total number of synonymous and
+       nonsynonymous sites ... is estimated as the average ... of all
+       sequences").
+    2. Differences. For each pair, synonymous (sd) and nonsynonymous (nd)
+       differences are counted with ``_classify_codon_pair`` (pathway
+       average, paths through stops excluded, as in DnaSP's
+       ``NumSynonEntreCodons``). ``Sd`` and ``Nd`` are the means over pairs.
+    3. Ks = JC(Sd / S_sites) and Ka = JC(Nd / N_sites). The Jukes-Cantor
+       correction is applied once, to the ratio of mean differences to mean
+       sites, exactly as DnaSP's ``PolDivergenceOut`` does (``DivRp2 /
+       SitiosNetos``, then ``FnJukesCantor``). This is not the mean of
+       per-pair corrected distances, which the correction's convexity
+       pushes upwards (by about 8% on DnaSP's own COII example).
 
     Without an outgroup, the pairs are every ingroup-vs-ingroup combination
-    (DnaSP's "Synonymous and Nonsynonymous Substitutions" module run on a
-    single set of sequences with no population/outgroup structure defined  -
-    the manual describes this as "for any pair of sequences"). With an
-    outgroup, the pairs are each ingroup sequence against the outgroup only
-    (DnaSP's behaviour once an outgroup is defined via Define Sequence Sets:
-    the module then reports ingroup-to-outgroup divergence, not
-    ingroup-to-ingroup diversity)  -  the outgroup is also included, alongside
-    the ingroup sequences, in the per-sequence site-count average ("the
-    total number of synonymous and nonsynonymous sites... is estimated as
-    the average... of all sequences").
+    (DnaSP's module run on a single set of sequences with no
+    population/outgroup structure defined; the summary is then its Pi(s) /
+    Pi(a) form). With an outgroup, the pairs are each ingroup sequence
+    against the outgroup only (DnaSP's behaviour once an outgroup is defined
+    via Define Sequence Sets: ingroup-to-outgroup divergence), and the
+    outgroup is included, alongside the ingroup sequences, in the
+    per-sequence site averages.
 
-    Codons with gaps, ambiguous bases, or stop codons in either sequence are
-    excluded (complete deletion at the codon level). Pairs where the
-    Jukes-Cantor correction is undefined (pS or pN ≥ 0.75) are excluded from
-    the relevant average. If no pair contributes a single jointly-valid
-    codon, ``n_codons``, ``S_sites`` and ``N_sites`` are reported as 0
-    rather than the raw (unusable) alignment totals -- a populated codon
-    count would otherwise make a fully failed comparison look quantified.
+    Codons with gaps, ambiguous bases, or stop codons in a sequence are
+    excluded from that sequence's site count; a pair skips codons invalid
+    in either sequence (complete deletion at the codon level, per pair).
+    Ks or Ka is None when the corrected ratio is undefined (p >= 0.75) or
+    the corresponding site mean is zero. If no pair contributes a single
+    jointly-valid codon, ``n_codons``, ``S_sites`` and ``N_sites`` are
+    reported as 0 rather than the raw (unusable) alignment totals -- a
+    populated codon count would otherwise make a fully failed comparison
+    look quantified.
 
     Parameters
     ----------
@@ -2878,7 +2903,6 @@ def compute_ka_ks(
     Returns
     -------
     KaKsStats
-        Summary statistics averaged over all pairwise comparisons.
         ``omega`` = Ka/Ks; < 1 purifying selection, ≈ 1 neutral, > 1 positive.
     """
     result = KaKsStats()
@@ -2897,44 +2921,43 @@ def compute_ka_ks(
         return result
 
     n_codons = L // 3
-    result.n_codons = n_codons
 
-    # Per-sequence synonymous site counts, over every sequence being compared
-    # (the ingroup, plus the outgroup itself when one is given).
+    # Per-sequence site counts, over every sequence being compared (the
+    # ingroup, plus the outgroup itself when one is given).
     site_pool = list(seqs) if outgroup is None else list(seqs) + [outgroup]
-    S_per_seq = []
+    S_per_seq: list[float] = []
+    N_per_seq: list[float] = []
+    analysed_in_all = [True] * n_codons
     for seq in site_pool:
         S = 0.0
+        n_analysed = 0
         for ci in range(n_codons):
             codon = seq[ci * 3:(ci + 1) * 3]
-            if any(nt not in 'ATCG' for nt in codon):
+            if any(nt not in 'ATCG' for nt in codon) or genetic_code.get(codon) == '*':
+                analysed_in_all[ci] = False
                 continue
-            if genetic_code.get(codon) == '*':
-                continue
+            n_analysed += 1
             S += _count_syn_sites_codon(codon, genetic_code)
         S_per_seq.append(S)
+        N_per_seq.append(3.0 * n_analysed - S)
 
+    # DnaSP's "Number of codons analyzed": codons valid in every sequence.
+    result.n_codons = sum(analysed_in_all)
     result.S_sites = sum(S_per_seq) / len(site_pool)
-    result.N_sites = L - result.S_sites
+    result.N_sites = sum(N_per_seq) / len(site_pool)
 
-    # Pairwise computation
-    Ks_all: list[float] = []
-    Ka_all: list[float] = []
+    # Pairwise differences
     Sd_all: list[float] = []
     Nd_all: list[float] = []
-
     if outgroup is None:
         pairs = list(combinations(seqs, 2))
     else:
         pairs = [(s, outgroup) for s in seqs]
 
     for seq_a, seq_b in pairs:
-        total_S  = 0.0
-        total_N  = 0.0
         total_sd = 0.0
         total_nd = 0.0
-        n_valid  = 0
-
+        n_valid = 0
         for ci in range(n_codons):
             c1 = seq_a[ci * 3:(ci + 1) * 3]
             c2 = seq_b[ci * 3:(ci + 1) * 3]
@@ -2943,26 +2966,13 @@ def compute_ka_ks(
             if genetic_code.get(c1) == '*' or genetic_code.get(c2) == '*':
                 continue
             n_valid += 1
-            s_sites = (_count_syn_sites_codon(c1, genetic_code)
-                       + _count_syn_sites_codon(c2, genetic_code)) / 2.0
-            total_S  += s_sites
-            total_N  += 3.0 - s_sites
-            sd, nd    = _classify_codon_pair(c1, c2, genetic_code)
+            sd, nd = _classify_codon_pair(c1, c2, genetic_code)
             total_sd += sd
             total_nd += nd
-
-        if n_valid == 0 or total_S <= 0.0 or total_N <= 0.0:
+        if n_valid == 0:
             continue
-
         Sd_all.append(total_sd)
         Nd_all.append(total_nd)
-
-        ks = _jc_correct(total_sd / total_S)
-        ka = _jc_correct(total_nd / total_N)
-        if ks is not None:
-            Ks_all.append(ks)
-        if ka is not None:
-            Ka_all.append(ka)
 
     if not Sd_all:
         # No pair contributed a single jointly-valid codon (e.g. every
@@ -2976,12 +2986,11 @@ def compute_ka_ks(
         return result
 
     result.Sd = sum(Sd_all) / len(Sd_all)
-    if Nd_all:
-        result.Nd = sum(Nd_all) / len(Nd_all)
-    if Ks_all:
-        result.Ks = sum(Ks_all) / len(Ks_all)
-    if Ka_all:
-        result.Ka = sum(Ka_all) / len(Ka_all)
+    result.Nd = sum(Nd_all) / len(Nd_all)
+    if result.S_sites > 0.0:
+        result.Ks = _jc_correct(result.Sd / result.S_sites)
+    if result.N_sites > 0.0:
+        result.Ka = _jc_correct(result.Nd / result.N_sites)
     if result.Ka is not None and result.Ks is not None and result.Ks > 0.0:
         result.omega = result.Ka / result.Ks
 

@@ -1952,6 +1952,30 @@ class TestCountSynSites:
             result = dn._count_syn_sites_codon(codon)
             assert 0.0 <= result <= 3.0
 
+    def test_tgt_is_half_a_site_when_one_alternative_is_a_stop(self):
+        # DnaSP (SINONIMO.vb::ComputeFoldPos) excludes stop-codon
+        # alternatives from the denominator: TGT (Cys), third position ->
+        # TGC (Cys, synonymous), TGA (stop), TGG (Trp). One synonymous of
+        # the two non-stop paths = 1/2 a site, not 1/3 -- the VB's own
+        # comment: "de los dos caminos posibles uno es sinonimo ej. TGT".
+        assert dn._count_syn_sites_codon('TGT') == pytest.approx(0.5)
+
+    def test_tat_is_a_whole_site_when_two_alternatives_are_stops(self):
+        # TAT (Tyr), third position -> TAC (Tyr), TAA (stop), TAG (stop):
+        # the only non-stop path is synonymous, so the position is a whole
+        # synonymous site (ComputeFoldPos, "Dos caminos son stop" -> "4").
+        assert dn._count_syn_sites_codon('TAT') == pytest.approx(1.0)
+
+    def test_agt_whole_site_only_under_vertebrate_mitochondrial_code(self):
+        # AGT (Ser), third position -> AGC (Ser), AGA, AGG. Under the
+        # standard code AGA/AGG are Arg: 1 synonymous of 3 -> 1/3. Under
+        # the vertebrate mitochondrial code they are stops: 1 of 1 -> 1.0.
+        # (This is what lifts COII's synonymous sites from 161.3 to
+        # DnaSP's 168.222.)
+        assert dn._count_syn_sites_codon('AGT') == pytest.approx(1.0 / 3.0)
+        mito = dn._count_syn_sites_codon('AGT', dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert mito == pytest.approx(1.0)
+
 
 class TestClassifyCodonPair:
     def test_identical(self):
@@ -2502,17 +2526,64 @@ class TestComputeKaKs:
         result = dn.compute_ka_ks(ingroup, outgroup=outgroup)
         assert result.Ka is not None and result.Ka > 0.0
 
-    def test_outgroup_matches_manual_pairwise_average(self):
-        # The outgroup-aware result must equal the plain average of each
-        # ingroup sequence compared individually against the outgroup (not,
-        # e.g., an all-pairwise average that also includes ingroup-ingroup
-        # pairs).
+    def test_outgroup_summary_is_dnasp_corrected_ratio(self):
+        # DnaSP's Ka/Ks summary (EntrePobsMod.vb::PolDivergenceOut) is the
+        # Jukes-Cantor correction of ONE ratio: the mean number of
+        # differences over the ingroup-vs-outgroup pairs, divided by the
+        # mean number of sites over all sequences -- not an average of
+        # per-pair corrected distances (an earlier version of this test
+        # asserted the latter). Ingroup ATGATG, CTGATG, ATGCTG vs outgroup
+        # GTGATG: nonsynonymous differences 1, 1, 2 (mean 4/3); synonymous
+        # sites per sequence 0, 4/3, 4/3, 1 (mean 11/12), so N = 6 - 11/12.
         ingroup = ['ATGATG', 'CTGATG', 'ATGCTG']
         outgroup = 'GTGATG'
         result = dn.compute_ka_ks(ingroup, outgroup=outgroup)
-        manual_ks = [dn.compute_ka_ks([s, outgroup]).Ks for s in ingroup]
-        manual_ks = [v for v in manual_ks if v is not None]
-        assert result.Ks == pytest.approx(sum(manual_ks) / len(manual_ks))
+        assert result.Nd == pytest.approx(4.0 / 3.0)
+        assert result.Sd == pytest.approx(0.0)
+        assert result.S_sites == pytest.approx(11.0 / 12.0)
+        assert result.N_sites == pytest.approx(6.0 - 11.0 / 12.0)
+        assert result.Ka == pytest.approx(dn._jc_correct(result.Nd / result.N_sites))
+        assert result.Ks == pytest.approx(0.0)
+
+    def test_summary_ks_is_jc_of_mean_ratio_not_mean_of_per_pair_jc(self):
+        # Two ingroup sequences vs outgroup, one pair with a synonymous
+        # difference (GGA/GGG, Gly) and one identical pair. Mean differences
+        # 0.5 over mean synonymous sites 2.0 -> p = 0.25 -> Ks = JC(0.25)
+        # = 0.304099. Averaging per-pair corrected values would give
+        # (JC(0.5) + 0) / 2 = 0.411985 instead.
+        result = dn.compute_ka_ks(['GGAGGA', 'GGGGGA'], outgroup='GGGGGA')
+        assert result.Sd == pytest.approx(0.5)
+        assert result.S_sites == pytest.approx(2.0)
+        assert result.Ks == pytest.approx(0.304099, rel=1e-5)
+
+    def test_summary_rule_applies_without_outgroup_too(self):
+        # No outgroup: every ingroup pair, same rule (DnaSP's Pi(s) form:
+        # mean pairwise differences per synonymous site, corrected once).
+        # Pairs (1,2) and (1,3) differ by one synonymous change, (2,3) by
+        # none: mean 2/3 over 2.0 sites -> p = 1/3 -> Ks = JC(1/3) = 0.440840.
+        result = dn.compute_ka_ks(['GGAGGA', 'GGGGGA', 'GGGGGA'])
+        assert result.Sd == pytest.approx(2.0 / 3.0)
+        assert result.Ks == pytest.approx(0.440840, rel=1e-5)
+
+    def test_n_codons_counts_codons_analysed_in_every_sequence(self):
+        # DnaSP reports "Number of codons analyzed" (227 for COII: the
+        # terminal stop codon is not analysed), not the alignment's codon
+        # count. A codon skipped in any compared sequence is not analysed.
+        result = dn.compute_ka_ks(['GGGTAA', 'GGGTAA'], outgroup='GGATAA')
+        assert result.n_codons == 1
+        result = dn.compute_ka_ks(['GGGGGG', 'GGGGG-'])
+        assert result.n_codons == 1
+
+    def test_n_sites_counts_three_per_analysed_codon_not_alignment_length(self):
+        # DnaSP: nonsynonymous sites = 3 x codons analysed - synonymous
+        # sites (its COII total is 681 - 168.222 = 512.777 for 227 codons).
+        # The second codon here is a stop under the standard code and is
+        # skipped, so the alignment length (6) must not enter: S = 1.0
+        # (GGG/GGA, third position fully synonymous), N = 3 - 1 = 2.0, not
+        # 6 - 1 = 5.0.
+        result = dn.compute_ka_ks(['GGGTAA', 'GGGTAA'], outgroup='GGATAA')
+        assert result.S_sites == pytest.approx(1.0)
+        assert result.N_sites == pytest.approx(2.0)
 
     def test_outgroup_included_in_site_count_average(self):
         # DnaSP: "the total number of synonymous and nonsynonymous sites ...

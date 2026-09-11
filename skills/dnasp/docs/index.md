@@ -1034,40 +1034,40 @@ The ratio of nonsynonymous substitution rate (Ka, or dN) to synonymous substitut
 - **ω ≈ 1**  -  neutral evolution: nonsynonymous and synonymous rates similar.
 - **ω > 1**  -  positive (adaptive) selection: nonsynonymous mutations are preferentially fixed.
 
-#### Nei-Gojobori (1986) method
+#### Nei-Gojobori (1986) method, as DnaSP 6 applies it
 
-**Step 1  -  Count synonymous sites (S) per codon:** For each nucleotide position within a codon, compute the fraction of the 3 possible single-nucleotide substitutions that are synonymous (do not change the amino acid). Sum across the 3 positions to get a per-codon synonymous site count (0-3). Accumulate across all clean codons.
+The counting follows DnaSP 6's own routines (`SINONIMO.vb`, `EntrePobsMod.vb`), which depart from a textbook Nei-Gojobori pairwise average in three places, each noted below.
 
-For a pairwise comparison, the synonymous site count is averaged: S_ij = (S_i + S_j) / 2; nonsynonymous sites: N_ij = 3 × L_codon − S_ij.
+**Step 1 -- Count synonymous sites (S) per sequence:** For each nucleotide position within a codon, compute the fraction of the single-nucleotide alternatives that are synonymous (do not change the amino acid), leaving alternatives that would create a stop codon out of the denominator (DnaSP's `ComputeFoldPos`): a position with one stop alternative and one synonymous alternative counts 1/2 a site (TGT, Cys, is DnaSP's own example), one with two stop alternatives and a synonymous third counts a whole site, and one with no stop alternatives counts the familiar 0, 1/3, 2/3 or 1. Sum across the 3 positions and across the sequence's analysed codons. Under the vertebrate mitochondrial code, where AGA/AGG are stops, the third position of every AGY (Ser) and TAY (Tyr) codon is a whole synonymous site rather than a third.
 
-**Step 2  -  Count observed differences (sd, nd):** For codons differing at k positions, enumerate all k! orderings of the differing positions. For each ordering, trace through the intermediate codons and classify each step as synonymous or nonsynonymous. Paths through stop codons are excluded. Average over all valid orderings (pathway averaging). Sum sd (synonymous differences) and nd (nonsynonymous differences) over all clean codons.
+Nonsynonymous sites per sequence are N_i = 3 × (codons analysed) − S_i, so a skipped codon contributes no sites of either kind. `S_sites` and `N_sites` are the means over all compared sequences (with `--outgroup`, the outgroup is one of them).
 
-**Step 3  -  Proportions and Jukes-Cantor correction:**
+**Step 2 -- Count observed differences (sd, nd) per pair:** For codons differing at k positions, enumerate all k! orderings of the differing positions. For each ordering, trace through the intermediate codons and classify each step as synonymous or nonsynonymous. Paths through stop codons are excluded. Average over all valid orderings (pathway averaging), as DnaSP's `NumSynonEntreCodons` does. `Sd` and `Nd` are the means over pairs.
+
+**Step 3 -- One corrected ratio:**
 
 ```
-pS = sd / S_ij       pN = nd / N_ij
+pS = Sd / S_sites       pN = Nd / N_sites
 
 Ks = −(3/4) × ln(1 − 4pS/3)    (JC correction for synonymous sites)
 Ka = −(3/4) × ln(1 − 4pN/3)    (JC correction for nonsynonymous sites)
 ```
 
-If pS ≥ 0.75 or pN ≥ 0.75 (JC saturation threshold), that pair is excluded from averages.
+The Jukes-Cantor correction is applied once, to the ratio of mean differences to mean sites, exactly as DnaSP's `PolDivergenceOut` does (`DivRp2 / SitiosNetos`, then `FnJukesCantor`). It is not the mean of per-pair corrected distances: the correction is convex, so averaging corrected pairs inflates Ks (by about 8% on DnaSP's own COII example). If pS ≥ 0.75 or pN ≥ 0.75 (JC saturation), the corresponding rate is `None`.
 
-**Step 4  -  Average over pairs:** Report mean Ks, mean Ka, and ω = Ka/Ks across all valid pairs.
-
-**Complete deletion at codon level**: any codon where any nucleotide in any sequence is not in {A, T, C, G} is skipped. Stop codons are skipped.
+**Complete deletion at codon level**: a codon with any nucleotide not in {A, T, C, G}, or a stop codon, is skipped for that sequence's site count and for any pair containing it. `n_codons` reports the codons analysed in every compared sequence, as DnaSP's "Number of codons analyzed" does.
 
 #### Output statistics
 
 | Statistic | Description |
 |---|---|
-| n_codons | Number of clean codons used |
-| S_sites | Total synonymous site count (summed across all sequences, all codons) |
-| N_sites | Total nonsynonymous site count |
+| n_codons | Codons analysed (valid in every compared sequence) |
+| S_sites | Mean synonymous sites per sequence |
+| N_sites | Mean nonsynonymous sites per sequence (3 × codons analysed − S) |
 | Sd | Mean synonymous differences per pair |
 | Nd | Mean nonsynonymous differences per pair |
-| Ks | Mean JC-corrected synonymous substitution rate |
-| Ka | Mean JC-corrected nonsynonymous substitution rate |
+| Ks | JC-corrected Sd / S_sites |
+| Ka | JC-corrected Nd / N_sites |
 | omega (ω) | Ka/Ks; `None` if Ks = 0 or no valid pairs |
 
 #### CLI usage
