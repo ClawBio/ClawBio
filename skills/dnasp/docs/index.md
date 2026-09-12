@@ -953,7 +953,7 @@ Reference: Hudson et al. (1987).
 
 Run with `--analysis mk --outgroup SEQNAME`. The alignment must be an in-frame coding sequence (length divisible by 3). The named outgroup sequence is extracted and used to classify fixed differences; it is **not** included in the ingroup polymorphism counts.
 
-**Genetic code**: add `--genetic-code vertebrate-mitochondrial` for mitochondrial loci (COII/COX2, cytb, ND genes, 12S/16S protein-coding regions). Under the standard code, TGA is a stop codon; a real mitochondrial TGA (Trp) column would be dropped from the whole analysis rather than classified, undercounting Pn/Ps/Dn/Ds. The mitochondrial table also reassigns AGA/AGG to stop and ATA to Met.
+**Genetic code**: add `--genetic-code vertebrate-mitochondrial` for mitochondrial loci (COII/COX2, cytb, ND genes, 12S/16S protein-coding regions). Under the standard code, TGA is a stop codon; a real mitochondrial TGA (Trp) column would then be analysed as a 21st amino acid (as DnaSP does) and every TGA/TGG change scored as a replacement, inflating Pn and Dn. The mitochondrial table also reassigns AGA/AGG to stop and ATA to Met.
 
 #### Biological motivation
 
@@ -974,7 +974,9 @@ Counts are made per nucleotide site, following DnaSP 6's own routines (`Módulos
 - **Fixed** -- no ingroup sequence carries the outgroup's base at that site, whether or not the ingroup itself segregates there. A site that is both polymorphic within the ingroup and fixed against the outgroup counts in both tables (help file, codon 13-15 worked example).
 - **Synonymous / nonsynonymous** -- from the selected genetic code, resolved along DnaSP's mutational path rules when codons differ at more than one site (most synonymous ordering; an intermediate codon observed in the outgroup decides a two-step path; two codons for the same amino acid are synonymous at every differing site; fixed differences take the closest ingroup codon and, on ties, the fewest replacements).
 
-**Complete deletion at codon level**: any codon where any nucleotide position in any sequence (ingroup or outgroup) is not in {A, T, C, G} is skipped. Stop codons (in ingroup or outgroup) are also skipped.
+**Complete deletion at codon level**: any codon where any nucleotide position in any sequence (ingroup or outgroup) is not in {A, T, C, G} is skipped.
+
+**Stop codons**: as in DnaSP ("if DnaSP finds stop codons (in the middle of coding regions) they will be considered as if they would code for a new amino acid (the amino acid 21; for example Selenocysteine)"), a stop codon inside the coding region is analysed: two stops differ synonymously, a stop against a sense codon is a replacement, and orderings that pass through a stop score as all-replacement. The number of such codons is reported (`n_internal_stop_codons`) and the CLI warns, since an internal stop usually means a frame or genetic-code problem. A final codon that is a stop in every sequence is the terminal stop and is left out, the equivalent of the noncoding annotation DnaSP's own example files give it.
 
 **Complex codons**: codons DnaSP does not analyse (three codons differing at all three sites, four codons with a three-base site, five or more codons, or a four-codon circular path under a mitochondrial code) are excluded from all four counts and reported as "Complex codons not analysed", matching DnaSP's "Total number of complex codons no analyzed".
 
@@ -1055,7 +1057,7 @@ Ka = −(3/4) × ln(1 − 4pN/3)    (JC correction for nonsynonymous sites)
 
 The Jukes-Cantor correction is applied once, to the ratio of mean differences to mean sites, exactly as DnaSP's `PolDivergenceOut` does (`DivRp2 / SitiosNetos`, then `FnJukesCantor`). It is not the mean of per-pair corrected distances: the correction is convex, so averaging corrected pairs inflates Ks (by about 8% on DnaSP's own COII example). If pS ≥ 0.75 or pN ≥ 0.75 (JC saturation), the corresponding rate is `None`.
 
-**Complete deletion at codon level**: a codon with any nucleotide not in {A, T, C, G}, or a stop codon, is skipped for that sequence's site count and for any pair containing it. `n_codons` reports the codons analysed in every compared sequence, as DnaSP's "Number of codons analyzed" does.
+**Complete deletion at codon level**: a codon with any nucleotide not in {A, T, C, G} is skipped for that sequence's site count and for any pair containing it. `n_codons` reports the codons analysed in every compared sequence, as DnaSP's "Number of codons analyzed" does. A stop codon inside the coding region is analysed as a 21st amino acid (see the McDonald-Kreitman section): zero synonymous sites and three nonsynonymous, synonymous with another stop, a replacement against a sense codon; a final codon that is a stop in every sequence is the terminal stop and is left out.
 
 #### Output statistics
 
