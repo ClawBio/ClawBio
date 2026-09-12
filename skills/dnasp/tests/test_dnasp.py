@@ -283,6 +283,23 @@ class TestSingletons:
         assert eta_s == 1
         assert per_seq[5] == pytest.approx(1.0)   # seq6 (index 5) carries the singleton T
 
+    def test_multiallelic_site_capped_at_one_singleton_site(self):
+        # n=4, one triallelic column with a 2/1/1 split: two different alleles
+        # each have count 1, but DnaSP's EtaS = EtaS - SingleMut discount means
+        # this site still contributes only 1 to eta_s (a SITE count), not 2 (a
+        # per-allele count). The two carrying sequences still each get +1 in
+        # per_seq, which R2 needs uncapped.
+        seqs = ["G", "G", "C", "T"]
+        eta_s, per_seq = dn.compute_singletons(seqs)
+        assert eta_s == 1
+        assert per_seq == [0.0, 0.0, 1.0, 1.0]
+
+    def test_biallelic_singleton_sites_are_not_capped_away(self):
+        # Two independent biallelic singleton sites must both count.
+        seqs = ["AT", "AT", "AT", "GC"]
+        eta_s, _ = dn.compute_singletons(seqs)
+        assert eta_s == 2
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tajima's D tests
@@ -352,31 +369,63 @@ class TestFuLi:
         if F is not None:
             assert F < 0
 
+    def test_ex_n1_matches_dnasp_6_exactly(self):
+        # DnaSP's own hand-checkable n=4 example (Ex_n1.fas, distributed with
+        # DnaSP 6). Run in DnaSP 6.12 for Windows on 2026-09-11: D* = -0.52807,
+        # F* = -0.41685 (the "v5-style"/Simonsen-1995 figure this skill
+        # implements; DnaSP's own Achaz-2009 "biallelic" figure differs, as
+        # documented). This is the case that exposed the eta_s per-site cap.
+        seqs = [
+            "ATATACGGGGTTA---TTAGA----AAAATGTGTGTGTGTTTTTTTTTTCATGTG",
+            "ATATAC--GGATA---TTACA----AGAATCTATGTCTGCTTTCTTTTTCATGTG",
+            "ATATACGGGGATA---TTATA----AGAATGTGTGTGTGTTTTTTTTTTCATGTG",
+            "ATATACGGGGATA---GTAGT----AAAATGTGTGTGTGTTTTTTTTTTCATGTG",
+        ]
+        clean, L_net = dn.complete_deletion(seqs)
+        assert L_net == 46
+        S, _ = dn.compute_segregating(clean)
+        assert S == 10
+        k = dn.compute_k(clean)
+        eta_s, _ = dn.compute_singletons(clean)
+        assert eta_s == 9   # capped: the triallelic site (G/C/T, 2/1/1) counts once
+        D_star, F_star = dn.fu_li_d_star_f_star(k, S, eta_s, n=4)
+        assert D_star == pytest.approx(-0.52807, abs=1e-5)
+        assert F_star == pytest.approx(-0.41685, abs=1e-5)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # R2 tests
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestR2:
-    def test_none_when_Sw_zero(self):
-        assert dn.ramos_onsins_r2(["ATCG"] * 3, k=0.0, Sw=0) is None
+    def test_none_when_S_zero(self):
+        assert dn.ramos_onsins_r2(["ATCG"] * 3, k=0.0, S=0) is None
 
     def test_demo_r2(self, demo_seqs):
         clean, _ = dn.complete_deletion(demo_seqs)
         k = dn.compute_k(clean)
-        _, Eta = dn.compute_segregating(clean)
-        R2 = dn.ramos_onsins_r2(clean, k, Sw=Eta)
+        S, _ = dn.compute_segregating(clean)
+        R2 = dn.ramos_onsins_r2(clean, k, S=S)
         assert R2 is not None
         assert R2 > 0
 
     def test_r2_is_positive(self):
         seqs = ["ATCG", "AACG", "ATTG", "ATCG", "ATCG"]
         k = dn.compute_k(seqs)
-        _, Eta = dn.compute_segregating(seqs)
-        if Eta > 0:
-            R2 = dn.ramos_onsins_r2(seqs, k, Sw=Eta)
+        S, _ = dn.compute_segregating(seqs)
+        if S > 0:
+            R2 = dn.ramos_onsins_r2(seqs, k, S=S)
             if R2 is not None:
                 assert R2 >= 0
+
+    def test_r2_uses_S_argument_value(self):
+        # Same per_seq/k, different S/Eta divisors -> different (documented)
+        # results; confirms the function actually divides by its `S` argument.
+        seqs = ["G", "G", "C", "T"]  # triallelic 2/1/1, matches the Ex_n1 case
+        k = dn.compute_k(seqs)
+        r2_at_s1 = dn.ramos_onsins_r2(seqs, k, S=1)
+        r2_at_s2 = dn.ramos_onsins_r2(seqs, k, S=2)
+        assert r2_at_s1 == pytest.approx(2 * r2_at_s2)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -707,6 +756,19 @@ class TestComputeRecombination:
         assert rec.Rm >= 0
         assert rec.n_incompatible_pairs >= 0
 
+    def test_matches_dnasp_reduction_not_optimal_stabbing(self):
+        # DnaSP 6 (CODIGO2.vb::RecombinacionRM) is not the graph-theoretic
+        # minimum interval-stabbing number: two intervals that only touch at
+        # a shared boundary point ((9,10) and (10,11)) are treated as
+        # non-overlapping and both kept, even though a single point at 10
+        # would stab both. True minimum stab count for this set is 2; DnaSP
+        # (and this skill) report 3. This is the same discrepancy that showed
+        # up against DnaSP 6.12 for Windows on real alignments (rp49 Rm
+        # 7->10, DmelOSRegion Rm 5->7) when this skill used an optimal
+        # interval-stabbing algorithm instead of DnaSP's own reduction.
+        intervals = [(10, 11), (9, 10), (5, 6), (2, 6)]
+        assert dn._dnasp_rm_from_intervals(intervals) == 3
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Mismatch distribution
@@ -922,6 +984,48 @@ class TestComputeDivergence:
         d = dn.compute_divergence(pop1, pop2, "p1", "p2")
         assert d.Dxy == pytest.approx(2 / 4, abs=1e-9)
 
+    # --- Mod3BuscaShareFixDifferences parity (VB) --------------------------------
+
+    def test_one_population_polymorphic_is_private_not_shared(self):
+        # pop1 {A,G}, pop2 {A}: only pop1 segregates -> private to pop1, NOT shared
+        pop1 = ["AC", "GC"]
+        pop2 = ["AC", "AC"]
+        d = dn.compute_divergence(pop1, pop2, "p1", "p2")
+        assert d.n_private1 == 1
+        assert d.n_private2 == 0
+        assert d.n_shared == 0
+        assert d.n_fixed == 0
+
+    def test_private_counts_are_mutations_not_sites(self):
+        # triallelic in pop1, monomorphic pop2 sharing A -> 2 private mutations
+        pop1 = ["A", "C", "G"]
+        pop2 = ["A", "A", "A"]
+        d = dn.compute_divergence(pop1, pop2, "p1", "p2")
+        assert d.n_private1 == 2
+        assert d.n_shared == 0
+
+    def test_fixed_difference_site_can_carry_private_mutation(self):
+        # pop1 {A,C} disjoint from pop2 {T}: 1 fixed-difference site + 1 private
+        pop1 = ["A", "C"]
+        pop2 = ["T", "T"]
+        d = dn.compute_divergence(pop1, pop2, "p1", "p2")
+        assert d.n_fixed == 1
+        assert d.n_private1 == 1
+
+    def test_both_biallelic_one_shared_allele(self):
+        # pop1 {A,G}, pop2 {G,T}: share G, union {A,G,T} -> (2,2,3): 1 private each
+        pop1 = ["A", "G"]
+        pop2 = ["G", "T"]
+        d = dn.compute_divergence(pop1, pop2, "p1", "p2")
+        assert (d.n_private1, d.n_private2, d.n_shared, d.n_fixed) == (1, 1, 0, 0)
+
+    def test_both_biallelic_same_pair_is_shared(self):
+        pop1 = ["A", "G", "A"]
+        pop2 = ["A", "G", "G"]
+        d = dn.compute_divergence(pop1, pop2, "p1", "p2")
+        assert d.n_shared == 1
+        assert d.n_private1 == 0 and d.n_private2 == 0
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Population file parsing and alignment splitting
@@ -952,6 +1056,189 @@ class TestLoadPopFile:
         p.write_text("")
         result = dn.load_pop_file(p)
         assert result == {}
+
+    def test_space_separated(self, tmp_path):
+        # DnaSP's VCF .SG.txt files use a single space
+        p = tmp_path / "pops.SG.txt"
+        p.write_text("Indiv1P1 Population1\nIndiv2P1 Population1\nIndiv5P2 Population2\n")
+        result = dn.load_pop_file(p)
+        assert result == {"Indiv1P1": "Population1", "Indiv2P1": "Population1",
+                          "Indiv5P2": "Population2"}
+
+
+_VCF_HEADER = (
+    "##fileformat=VCFv4.2\n"
+    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\tS2\tS3\n"
+)
+
+
+class TestParseVCF:
+    def _write(self, tmp_path, body):
+        p = tmp_path / "x.vcf"
+        p.write_text(_VCF_HEADER + body)
+        return p
+
+    def test_phased_biallelic_two_haplotypes_per_sample(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"
+            "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0|0\t0|0\t0|1\n")
+        v = dn.parse_vcf(p)
+        assert v.ploidy == 2 and v.is_phased is True
+        aln = v.alignments["chr1"]
+        assert aln.names == ["S1_h1", "S1_h2", "S2_h1", "S2_h2", "S3_h1", "S3_h2"]
+        assert aln.seqs == ["AC", "AC", "AC", "GC", "GC", "GT"]
+
+    def test_one_msa_per_chrom(self, tmp_path):
+        p = self._write(tmp_path,
+            "chrA\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"
+            "chrB\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|1\t0|0\t0|0\n")
+        v = dn.parse_vcf(p)
+        assert set(v.alignments) == {"chrA", "chrB"}
+
+    def test_region_filter(self, tmp_path):
+        p = self._write(tmp_path,
+            "chrA\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"
+            "chrB\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|1\t0|0\t0|0\n")
+        v = dn.parse_vcf(p, region="chrB")
+        assert set(v.alignments) == {"chrB"}
+
+    def test_indels_and_multiallelic_skipped(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tAT\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"   # indel
+            "chr1\t20\t.\tG\tA,T\t.\tPASS\t.\tGT\t0|0\t0|1\t1|2\n"  # multiallelic
+            "chr1\t30\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n")   # kept
+        v = dn.parse_vcf(p)
+        assert v.n_indels_skipped == 1
+        assert v.n_multiallelic_skipped == 1
+        assert v.alignments["chr1"].L == 1
+
+    def test_unphased_het_becomes_gap(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0/0\t0/1\t1/1\n")
+        v = dn.parse_vcf(p)
+        assert v.ploidy == 2 and v.is_phased is False
+        # S2 is 0/1 (het, unphased) -> both haplotypes gap
+        assert v.alignments["chr1"].seqs == ["A", "A", "-", "-", "G", "G"]
+
+    def test_unphased_het_sites_are_counted(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0/0\t0/1\t1/1\n"   # has a het
+            "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0/0\t0/0\t1/1\n"   # all homozygous
+            "chr1\t30\t.\tG\tA\t.\tPASS\t.\tGT\t0/1\t0/1\t0/0\n")  # two hets
+        v = dn.parse_vcf(p)
+        assert v.n_unphased_het_sites == 2
+
+    def test_phased_vcf_reports_zero_unphased_het_sites(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n")
+        assert dn.parse_vcf(p).n_unphased_het_sites == 0
+
+    def test_cli_warns_on_unphased_het_and_snp_window(self, tmp_path, capsys):
+        vcf = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0/0\t0/1\t1/1\n"
+            "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0/0\t0/0\t1/1\n"
+            "chr1\t30\t.\tG\tA\t.\tPASS\t.\tGT\t0/1\t1/1\t0/0\n")
+        out = tmp_path / "out"
+        assert dn.main(["--vcf", str(vcf), "--window", "2", "--step", "1",
+                        "--output", str(out)]) == 0
+        err = capsys.readouterr().err
+        assert "unphased heterozygous genotype" in err
+        assert "SNP index" in err
+        report = (out / "report.md").read_text()
+        assert "slide over retained variant sites (SNP index)" in report
+
+    def test_missing_gt_excludes_sample_from_chrom(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t.|.\t0|1\t1|1\n"
+            "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0|0\t0|0\t0|1\n")
+        v = dn.parse_vcf(p)
+        # S1 is .|. at the first variant of chr1 -> dropped from the whole MSA
+        assert v.alignments["chr1"].names == ["S2_h1", "S2_h2", "S3_h1", "S3_h2"]
+
+    def test_haploid_one_row_per_sample(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0\t1\t1\n"
+            "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0\t0\t1\n")
+        v = dn.parse_vcf(p)
+        assert v.ploidy == 1
+        assert v.alignments["chr1"].names == ["S1", "S2", "S3"]
+        assert v.alignments["chr1"].seqs == ["AC", "GC", "GT"]
+
+    def test_filter_field_ignored(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tq10\t.\tGT\t0|0\t0|1\t1|1\n")
+        v = dn.parse_vcf(p)  # q10 line still used, as in DnaSP
+        assert v.alignments["chr1"].L == 1
+
+    def test_merge_pools_all_chroms(self, tmp_path):
+        p = self._write(tmp_path,
+            "chrA\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"
+            "chrB\t10\t.\tC\tT\t.\tPASS\t.\tGT\t0|1\t0|0\t0|0\n")
+        v = dn.parse_vcf(p, merge=True)
+        assert set(v.alignments) == {"<merged>"}
+        assert v.alignments["<merged>"].L == 2
+
+    def test_mixed_ploidy_rejected(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|1\t0\t1\n")  # S1 diploid, S2/S3 haploid
+        with pytest.raises(ValueError, match="mixes ploidy"):
+            dn.parse_vcf(p)
+
+    def test_polyploid_rejected(self, tmp_path):
+        p = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|1|1\t0|0|0\t1|1|1\n")
+        with pytest.raises(ValueError, match="polyploid"):
+            dn.parse_vcf(p)
+
+    def test_sample_set_differs_per_chrom(self, tmp_path):
+        # S1 missing at the first variant of chrA but present on chrB
+        p = self._write(tmp_path,
+            "chrA\t10\t.\tA\tG\t.\tPASS\t.\tGT\t.|.\t0|1\t1|1\n"
+            "chrB\t10\t.\tC\tT\t.\tPASS\t.\tGT\t0|1\t0|0\t0|0\n")
+        v = dn.parse_vcf(p)
+        assert "S1_h1" not in v.alignments["chrA"].names
+        assert "S1_h1" in v.alignments["chrB"].names
+
+    def test_cli_pop_map_built_per_chrom(self, tmp_path, capsys):
+        vcf = self._write(tmp_path,
+            "chrA\t10\t.\tA\tG\t.\tPASS\t.\tGT\t.|.\t0|1\t1|1\n"
+            "chrB\t10\t.\tC\tT\t.\tPASS\t.\tGT\t0|1\t0|0\t1|1\n")
+        pops = tmp_path / "p.txt"
+        pops.write_text("S1 P1\nS2 P1\nS3 P2\n")
+        rc = dn.main(["--vcf", str(vcf), "--pop-file", str(pops),
+                      "--analysis", "fst", "--output", str(tmp_path / "out")])
+        assert rc == 0
+        # chrA drops S1 (missing there); chrB keeps all three
+        assert (tmp_path / "out" / "chrA" / "report.md").exists()
+        assert (tmp_path / "out" / "chrB" / "report.md").exists()
+
+    def test_cli_colliding_chrom_names_get_distinct_dirs(self, tmp_path):
+        vcf = self._write(tmp_path,
+            "a:b\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"
+            "a/b\t10\t.\tC\tT\t.\tPASS\t.\tGT\t0|1\t0|0\t0|0\n")
+        out = tmp_path / "out"
+        rc = dn.main(["--vcf", str(vcf), "--output", str(out)])
+        assert rc == 0
+        reports = list(out.rglob("report.md"))
+        assert len(reports) == 2  # not overwritten into one dir
+
+    def test_vcf_report_flags_per_variant_site_diversity(self, tmp_path):
+        vcf = self._write(tmp_path,
+            "chr1\t10\t.\tA\tG\t.\tPASS\t.\tGT\t0|0\t0|1\t1|1\n"
+            "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0|0\t0|1\t0|1\n")
+        out = tmp_path / "out"
+        assert dn.main(["--vcf", str(vcf), "--output", str(out)]) == 0
+        report = (out / "report.md").read_text()
+        assert "per variant site, not per base" in report
+        tsv = (out / "results.tsv").read_text()
+        assert "per variant site, not per base" in tsv
+
+    def test_fasta_report_has_no_per_variant_site_note(self, tmp_path):
+        f = tmp_path / "a.fas"
+        f.write_text(">s1\nACGTACGT\n>s2\nACGAACGT\n>s3\nTCGTACGT\n")
+        out = tmp_path / "out"
+        assert dn.main(["--input", str(f), "--output", str(out)]) == 0
+        assert "per variant site" not in (out / "report.md").read_text()
 
 
 class TestSplitAlignmentByPop:
@@ -1188,7 +1475,8 @@ class TestCountDerived:
         # Outgroup = A; seq0 has T (derived, in 1 seq)
         seqs = ["TAAAA", "AAAAA", "AAAAA", "AAAAA"]
         outgroup = "AAAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
+        assert S == 1
         assert eta == 1
         assert eta_e == 1
 
@@ -1196,7 +1484,8 @@ class TestCountDerived:
         # Outgroup = A; T in 2 seqs → derived but not singleton
         seqs = ["TAAAA", "TAAAA", "AAAAA", "AAAAA"]
         outgroup = "AAAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
+        assert S == 1
         assert eta == 1
         assert eta_e == 0
 
@@ -1204,7 +1493,8 @@ class TestCountDerived:
         # Gap in outgroup at pos 0 → skip that site
         seqs = ["TAAAA", "AAAAA", "AAAAA"]
         outgroup = "-AAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
+        assert S == 0
         assert eta == 0
         assert eta_e == 0
 
@@ -1212,7 +1502,7 @@ class TestCountDerived:
         # Gap in ingroup seq at pos 0 → skip that site
         seqs = ["-AAAA", "TAAAA", "AAAAA"]
         outgroup = "AAAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
         # pos 0: ingroup gap → skip; pos 1-4: all A → 0 mutations
         assert eta == 0
 
@@ -1220,24 +1510,29 @@ class TestCountDerived:
         # Outgroup = A, but all ingroup have T  -  ancestral absent
         seqs = ["TAAAA", "TAAAA", "TAAAA"]
         outgroup = "AAAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
         # All seqs have T but outgroup has A; A not in ingroup at pos 0
         assert eta == 0
 
     def test_monomorphic_site_skipped(self):
         seqs = ["AAAAA", "AAAAA", "AAAAA"]
         outgroup = "AAAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
+        assert S == 0
         assert eta == 0
         assert eta_e == 0
 
-    def test_two_derived_alleles(self):
-        # pos 0: outgroup=A, seqs have T (1) and C (1) → both derived, each singleton
+    def test_two_derived_alleles_site_capped_at_one(self):
+        # pos 0: outgroup=A, seqs have T (1) and C (1) -> both derived, each
+        # singleton. eta (total derived mutations) counts both; eta_e is a
+        # SITE count capped at 1, matching DnaSP's EtaE = EtaE - ExternaMut
+        # discount at a multiallelic site (Mod12FuLiOutgroupNew).
         seqs = ["TAAAA", "CAAAA", "AAAAA"]
         outgroup = "AAAAA"
-        eta, eta_e = dn._count_derived(seqs, outgroup)
+        S, eta, eta_e = dn._count_derived(seqs, outgroup)
+        assert S == 1
         assert eta == 2       # two derived alleles (T and C)
-        assert eta_e == 2     # each carried by exactly 1 seq
+        assert eta_e == 1     # capped: one site, not two
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1285,6 +1580,27 @@ class TestComputeFuLiOutgroup:
         assert result.D is not None
         assert result.F is not None
 
+    def test_k_bar_excludes_outgroup_gap_column(self):
+        # DnaSP FULI.vb: rp1 (k_bar) accumulates only over informative sites.
+        # Column 0 is polymorphic but the outgroup has a gap there -> excluded
+        # from k_bar just as it is from eta/eta_e.
+        seqs = ["TAAAA", "AAAAA", "AAAAA", "AAAAA"]
+        outgroup = "-AAAA"
+        result = dn.compute_fu_li_outgroup(seqs, outgroup)
+        assert result.eta == 0
+        assert result.k_bar == pytest.approx(0.0, abs=1e-12)
+
+    def test_k_bar_excludes_ancestral_absent_column(self):
+        # Column 0: ingroup {A,C}, outgroup G (ancestral absent) -> not orientable.
+        # Column 1: ingroup {T,A}, outgroup A -> orientable, one derived singleton.
+        # k_bar must reflect column 1 only (4 diffs / 10 pairs = 0.4).
+        seqs = ["AT", "AA", "CA", "CA", "CA"]
+        outgroup = "GA"
+        result = dn.compute_fu_li_outgroup(seqs, outgroup)
+        assert result.eta == 1
+        assert result.eta_e == 1
+        assert result.k_bar == pytest.approx(0.4, abs=1e-12)
+
     def test_no_variation_returns_none(self):
         seqs = ["AAAAA"] * 5
         outgroup = "AAAAA"
@@ -1304,13 +1620,8 @@ class TestComputeFuLiOutgroup:
         assert result.n == 4
 
     def test_excess_external_mutations_negative_d(self):
-        """
-        All derived mutations are singletons → η_e = η → D < 0
-        (D = η_e - η/aₙ; when η_e = η, D = η(1 - 1/aₙ) > 0 unless aₙ > 1 ...
-        Actually with n=5, aₙ ≈ 2.08, so η_e - η/aₙ = 1 - 1/2.08 ≈ +0.52 > 0)
-        Just test direction is sensible for a sweep-like scenario:
-        all singletons → D numerator > 0.
-        """
+        """All derived mutations are singletons → η_e = η → D = η − aₙη_e < 0
+        (aₙ > 1 for n ≥ 4), and F = k̄ − η_e < 0 too."""
         # All 4 derived mutations are singletons
         seqs = ["TAAAA", "ATAAA", "AATAA", "AAATA"]
         outgroup = "AAAAA"
@@ -1318,6 +1629,43 @@ class TestComputeFuLiOutgroup:
         assert result is not None
         assert result.eta == 4
         assert result.eta_e == 4
+        assert result.D is not None and result.D < 0
+        assert result.F is not None and result.F < 0
+
+    def test_d_and_f_scale_by_S_not_eta(self):
+        # DnaSP's default mode (Mod12FuLiOutgroupNew, SSOrMutations=1) scales
+        # D and F by the orientable segregating-SITE count (pv1), not by the
+        # total-mutations count (EtaT) -- they only coincide when every site
+        # is biallelic. Site 0 is biallelic (1 derived, singleton); site 1 is
+        # triallelic (2 derived alleles, both singleton, capped to 1 site of
+        # eta_e) so S=2 but eta=3 here, letting the two formulas diverge.
+        seqs = ["TA", "AA", "AC", "AG", "AA"]
+        outgroup = "AA"
+        result = dn.compute_fu_li_outgroup(seqs, outgroup)
+        assert result.S == 2
+        assert result.eta == 3
+        assert result.eta_e == 2
+
+        n = 5
+        a_n = dn._harmonic(n, 1)
+        b_n = dn._harmonic(n, 2)
+        a_n1 = a_n + 1.0 / n
+        c_n = 2.0 * (n * a_n - 2.0 * (n - 1.0)) / ((n - 1.0) * (n - 2.0))
+        v_D = 1.0 + (a_n**2 / (b_n + a_n**2)) * (c_n - (n + 1.0) / (n - 1.0))
+        u_D = a_n - 1.0 - v_D
+        v_F = (c_n + 2.0 * (n**2 + n + 3.0) / (9.0 * n * (n - 1.0))
+               - 2.0 / (n - 1.0)) / (a_n**2 + b_n)
+        u_F = (1.0 + (n + 1.0) / (3.0 * (n - 1.0))
+               - 4.0 * ((n + 1.0) / (n - 1.0)**2) * (a_n1 - 2.0 * n / (n + 1.0))) / a_n - v_F
+
+        S, eta, eta_e = result.S, result.eta, result.eta_e
+        D_from_S = (S - a_n * eta_e) / math.sqrt(u_D * S + v_D * S * S)
+        D_from_eta = (eta - a_n * eta_e) / math.sqrt(u_D * eta + v_D * eta * eta)
+        assert D_from_S != pytest.approx(D_from_eta)
+        assert result.D == pytest.approx(D_from_S)
+
+        F_from_S = (result.k_bar - eta_e) / math.sqrt(u_F * S + v_F * S * S)
+        assert result.F == pytest.approx(F_from_S)
 
     def test_run_analysis_fuliout(self):
         """fuliout dispatched correctly from run_analysis."""
@@ -1337,39 +1685,46 @@ class TestComputeFuLiOutgroup:
 class TestLoadHKAFile:
     def test_basic_parsing(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("# locus\tS\tD\tn\nlocus1\t5\t10\t10\nlocus2\t2\t8\t12\n")
+        f.write_text(
+            "# locus n S L_poly D L_div\n"
+            "locus1 10 5 400 10 400\n"
+            "locus2 12 2 300 8 300\n"
+        )
         loci = dn.load_hka_file(f)
         assert len(loci) == 2
         assert loci[0].name == "locus1"
-        assert loci[0].S == 5
-        assert loci[0].D == 10
-        assert loci[0].n == 10
+        assert (loci[0].n, loci[0].S, loci[0].D) == (10, 5, 10)
+        assert loci[0].L_poly == 400.0 and loci[0].L_div == 400.0
 
     def test_header_line_skipped(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("locus\tS\tD\tn\nlocus1\t5\t10\t10\n")
+        f.write_text("locus n S L_poly D L_div\nlocus1 10 5 400 10 400\n")
         loci = dn.load_hka_file(f)
         assert len(loci) == 1
 
     def test_comment_lines_skipped(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("# comment\nlocus1\t5\t10\t10\nlocus2\t3\t7\t8\n")
+        f.write_text("# comment\nlocus1 10 5 400 10 400\nlocus2 8 3 200 7 200\n")
         loci = dn.load_hka_file(f)
         assert len(loci) == 2
 
     def test_empty_file(self, tmp_path):
         f = tmp_path / "hka.tsv"
         f.write_text("")
-        loci = dn.load_hka_file(f)
-        assert loci == []
+        assert dn.load_hka_file(f) == []
 
-    def test_values_correct(self, tmp_path):
+    def test_ldiv_defaults_to_lpoly(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("locus_A\t7\t15\t20\n")
+        f.write_text("locus_A 20 7 500 15\n")
+        loc = dn.load_hka_file(f)[0]
+        assert loc.L_poly == 500.0 and loc.L_div == 500.0
+
+    def test_chromosome_factor(self, tmp_path):
+        f = tmp_path / "hka.tsv"
+        f.write_text("A 20 7 500 15 500 X\nB 20 3 500 9 500 A\n")
         loci = dn.load_hka_file(f)
-        assert loci[0].S == 7
-        assert loci[0].D == 15
-        assert loci[0].n == 20
+        assert loci[0].sex == 0.75
+        assert loci[1].sex == 1.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1377,113 +1732,126 @@ class TestLoadHKAFile:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestComputeHKA:
-    """Tests for the HKA neutrality test."""
+    """Two-locus HKA test, ported from DnaSP 6 (HKA.vb)."""
 
-    def _symmetric_loci(self):
-        """Two balanced loci: equal poly/div ratio → should not reject neutral."""
+    def _neutral_loci(self):
+        # n1 == n2, equal L, S1/D1 == S2/D2 -> a single (theta1, theta2, T)
+        # fits all four residuals exactly, so chi2 == 0.
         return [
-            dn.HKALocus(name="A", S=10, D=20, n=10),
-            dn.HKALocus(name="B", S=5, D=10, n=10),
+            dn.HKALocus(name="A", n=11, S=10, D=20, L_poly=1000, L_div=1000),
+            dn.HKALocus(name="B", n=11, S=5, D=10, L_poly=1000, L_div=1000),
         ]
 
-    def _asymmetric_loci(self):
-        """Loci with very different poly/div ratios → should reject neutral."""
+    def _selection_loci(self):
         return [
-            dn.HKALocus(name="X", S=30, D=2, n=20),   # excess polymorphism
-            dn.HKALocus(name="Y", S=1, D=25, n=20),    # excess divergence
-            dn.HKALocus(name="Z", S=15, D=12, n=20),   # balanced
+            dn.HKALocus(name="X", n=20, S=40, D=3, L_poly=1000, L_div=1000),
+            dn.HKALocus(name="Y", n=20, S=2, D=40, L_poly=1000, L_div=1000),
         ]
 
     def test_returns_hkastats(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        assert isinstance(result, dn.HKAStats)
+        assert isinstance(dn.compute_hka(self._neutral_loci()), dn.HKAStats)
 
-    def test_n_loci_recorded(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        assert result.n_loci == 2
+    def test_requires_exactly_two_loci(self):
+        one = dn.compute_hka(self._neutral_loci()[:1])
+        assert one.error is not None and not one.loci_results
+        three = dn.compute_hka(self._neutral_loci() + self._neutral_loci()[:1])
+        assert three.error is not None and not three.loci_results
 
-    def test_t_hat_positive(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        assert result.T_hat >= 0.0
+    def test_requires_site_counts(self):
+        loci = [dn.HKALocus(name="A", n=10, S=5, D=10),
+                dn.HKALocus(name="B", n=10, S=3, D=8)]
+        r = dn.compute_hka(loci)
+        assert r.error is not None and not r.loci_results
 
-    def test_chi2_non_negative(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        assert result.chi2 >= 0.0
+    def test_df_is_one(self):
+        assert dn.compute_hka(self._neutral_loci()).df == 1
 
-    def test_df_is_k_minus_1(self):
-        # 2 loci → df = 1
-        result = dn.compute_hka(self._symmetric_loci())
-        assert result.df == 1
-        # 3 loci → df = 2
-        result3 = dn.compute_hka(self._asymmetric_loci())
-        assert result3.df == 2
+    def test_neutral_data_chi2_zero(self):
+        r = dn.compute_hka(self._neutral_loci())
+        assert r.error is None
+        assert r.chi2 == pytest.approx(0.0, abs=1e-6)
+        assert r.p_value == pytest.approx(1.0, abs=1e-3)
 
-    def test_p_value_in_range(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        assert result.p_value is not None
-        assert 0.0 <= result.p_value <= 1.0
+    def test_expectations_match_inputs_under_neutrality(self):
+        r = dn.compute_hka(self._neutral_loci())
+        for lr, loc in zip(r.loci_results, self._neutral_loci()):
+            assert lr["E_S"] == pytest.approx(loc.S, abs=1e-6)
+            assert lr["E_D"] == pytest.approx(loc.D, abs=1e-6)
 
-    def test_balanced_loci_high_pvalue(self):
-        """Loci with identical poly/div ratios: chi2 ≈ 0, p ≈ 1."""
-        # Exactly proportional S and D → χ² should be ≈ 0
-        loci = [
-            dn.HKALocus(name="A", S=10, D=20, n=10),
-            dn.HKALocus(name="B", S=10, D=20, n=10),
-        ]
-        result = dn.compute_hka(loci)
-        assert result.chi2 == pytest.approx(0.0, abs=1e-6)
-        assert result.p_value == pytest.approx(1.0, abs=0.01)
+    def test_variance_includes_second_harmonic_term(self):
+        # HKA (1987): Var[S] = E[S] + b_n * theta^2 * L^2  > E[S]
+        r = dn.compute_hka(self._neutral_loci())
+        for lr in r.loci_results:
+            assert lr["Var_S"] > lr["E_S"]
 
-    def test_asymmetric_loci_lower_pvalue(self):
-        result = dn.compute_hka(self._asymmetric_loci())
-        # Very unbalanced loci should give small p-value
-        assert result.chi2 > 1.0
+    def test_selection_signal_rejects_neutrality(self):
+        r = dn.compute_hka(self._selection_loci())
+        assert r.error is None
+        assert r.chi2 > 10.0
+        assert r.p_value < 0.01
 
-    def test_loci_results_populated(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        assert len(result.loci_results) == 2
-        lr = result.loci_results[0]
-        assert "name" in lr
-        assert "S" in lr
-        assert "D" in lr
-        assert "theta_hat" in lr
-        assert "E_S" in lr
-        assert "E_D" in lr
+    def test_no_positive_solution_is_reported_not_fabricated(self):
+        # S = 0 at both loci: no positive-theta root.  Must NOT invent a T.
+        loci = [dn.HKALocus(name="A", n=10, S=0, D=5, L_poly=500, L_div=500),
+                dn.HKALocus(name="B", n=10, S=0, D=3, L_poly=500, L_div=500)]
+        r = dn.compute_hka(loci)
+        assert not r.loci_results
+        assert r.error is not None
+        assert r.T_hat == 0.0
 
     def test_theta_hat_positive(self):
-        result = dn.compute_hka(self._symmetric_loci())
-        for lr in result.loci_results:
+        for lr in dn.compute_hka(self._neutral_loci()).loci_results:
             assert lr["theta_hat"] > 0.0
 
-    def test_fewer_than_two_loci(self):
-        result = dn.compute_hka([dn.HKALocus(name="A", S=5, D=10, n=10)])
-        assert result.n_loci == 1
-        assert result.chi2 == 0.0
-
     def test_run_analysis_hka(self, tmp_path):
-        """hka dispatched correctly from run_analysis."""
-        loci = [
-            dn.HKALocus(name="A", S=10, D=20, n=10),
-            dn.HKALocus(name="B", S=5, D=10, n=10),
-        ]
         f = tmp_path / "demo.fas"
         f.write_text(">s1\nAAAA\n>s2\nTAAA\n")
         aln = dn.parse_fasta(f)
-        results = dn.run_analysis(aln, analyses={"hka"}, hka_loci=loci)
-        assert "hka" in results
+        results = dn.run_analysis(
+            aln, analyses={"hka"}, hka_loci=self._neutral_loci()
+        )
         assert results["hka"] is not None
-        assert results["hka"].n_loci == 2
+        assert results["hka"].chi2 == pytest.approx(0.0, abs=1e-6)
 
-    def test_mle_t_hat_satisfies_constraint(self):
-        """The T_hat from bisection should satisfy the MLE constraint equation."""
-        loci = self._symmetric_loci()
-        result = dn.compute_hka(loci)
-        T = result.T_hat
-        # Constraint: Σ D_i/(1+2T) = Σ(S_i+D_i)/(f_i+1+2T)
-        fs = [dn._harmonic(loc.n, 1) for loc in loci]
-        left = sum(loc.D / (1 + 2*T) for loc in loci)
-        right = sum((loci[i].S + loci[i].D) / (fs[i] + 1 + 2*T) for i in range(len(loci)))
-        assert abs(left - right) < 1e-6
+    def test_load_and_compute_roundtrip(self, tmp_path):
+        f = tmp_path / "hka.tsv"
+        f.write_text(
+            "# locus n S L_poly D L_div\n"
+            "A 11 10 1000 20 1000\n"
+            "B 11 5 1000 10 1000\n"
+        )
+        r = dn.compute_hka(dn.load_hka_file(f))
+        assert r.error is None
+        assert r.chi2 == pytest.approx(0.0, abs=1e-6)
+
+    def test_error_and_note_are_distinct_fields(self):
+        s = dn.HKAStats()
+        assert s.error is None and s.note is None
+
+    def test_successful_run_sets_neither_error_nor_note(self):
+        for loci in (self._neutral_loci(), self._selection_loci()):
+            r = dn.compute_hka(loci)
+            assert r.loci_results
+            assert r.error is None      # error means "test not run"
+            assert r.note is None       # no multi-solution remark for these data
+
+    def test_not_run_sets_error_not_note(self):
+        r = dn.compute_hka(self._neutral_loci()[:1])
+        assert r.error is not None and r.note is None and not r.loci_results
+
+    def test_report_renders_hka_note_without_saying_not_run(self, tmp_path):
+        aln = dn.Alignment(names=["a", "b"], seqs=["AC", "AT"], source="t")
+        results = dn.run_analysis(aln, analyses=set())
+        results["hka"] = dn.HKAStats(
+            n_loci=2, T_hat=1.0, chi2=0.5, df=1, p_value=0.48,
+            loci_results=[{"name": "A", "n": 10, "S": 5, "D": 8,
+                           "theta_hat": 0.01, "E_S": 5.0, "E_D": 8.0,
+                           "Var_S": 6.0, "Var_D": 9.0}],
+            note="2 positive-θ solutions; reporting the first (θ₁=0.01).",
+        )
+        report = dn.write_report(tmp_path, "t", aln, results, []).read_text()
+        assert "Note: 2 positive-θ solutions" in report
+        assert "HKA not run" not in report
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1583,6 +1951,30 @@ class TestCountSynSites:
         for codon in ['AAA', 'CCC', 'GGC', 'TTG', 'AGT', 'CTG']:
             result = dn._count_syn_sites_codon(codon)
             assert 0.0 <= result <= 3.0
+
+    def test_tgt_is_half_a_site_when_one_alternative_is_a_stop(self):
+        # DnaSP (SINONIMO.vb::ComputeFoldPos) excludes stop-codon
+        # alternatives from the denominator: TGT (Cys), third position ->
+        # TGC (Cys, synonymous), TGA (stop), TGG (Trp). One synonymous of
+        # the two non-stop paths = 1/2 a site, not 1/3 -- the VB's own
+        # comment: "de los dos caminos posibles uno es sinonimo ej. TGT".
+        assert dn._count_syn_sites_codon('TGT') == pytest.approx(0.5)
+
+    def test_tat_is_a_whole_site_when_two_alternatives_are_stops(self):
+        # TAT (Tyr), third position -> TAC (Tyr), TAA (stop), TAG (stop):
+        # the only non-stop path is synonymous, so the position is a whole
+        # synonymous site (ComputeFoldPos, "Dos caminos son stop" -> "4").
+        assert dn._count_syn_sites_codon('TAT') == pytest.approx(1.0)
+
+    def test_agt_whole_site_only_under_vertebrate_mitochondrial_code(self):
+        # AGT (Ser), third position -> AGC (Ser), AGA, AGG. Under the
+        # standard code AGA/AGG are Arg: 1 synonymous of 3 -> 1/3. Under
+        # the vertebrate mitochondrial code they are stops: 1 of 1 -> 1.0.
+        # (This is what lifts COII's synonymous sites from 161.3 to
+        # DnaSP's 168.222.)
+        assert dn._count_syn_sites_codon('AGT') == pytest.approx(1.0 / 3.0)
+        mito = dn._count_syn_sites_codon('AGT', dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert mito == pytest.approx(1.0)
 
 
 class TestClassifyCodonPair:
@@ -1744,6 +2136,292 @@ class TestComputeMK:
         assert 'mk' in results
         assert results['mk'] is not None
 
+    def test_dual_status_site_counts_as_both_fixed_and_polymorphic_synonymous(self):
+        # Ingroup segregates CTT/CTC (both Leu); outgroup CTA (Leu) carries a
+        # third base at position 2. Two DnaSP tallies apply to that ONE site
+        # and they are independent of each other:
+        #   fixed: no ingroup sequence carries the outgroup's base (ht3 = 1 in
+        #     EntrePobsMod.vb; AAstatusB = 7 in McDonaldK.vb::BuscoPosFijadas,
+        #     whose own comment reads "fijado diferencialmente aunque sea pol
+        #     en una de ella" -- fixed even if polymorphic in one species), so
+        #     Ds gains 1;
+        #   polymorphic: the ingroup segregates there, and its within-species
+        #     status (AAstatus1, from BuscaSitiosReemplazamientoMK) is worked
+        #     out from the ingroup's own codons alone -- BuscoPosSegregantesMcDK
+        #     never looks at the fixed flag -- so Ps gains 1 as well.
+        # DnaSP's help file shows exactly this on its codon 13-15 worked
+        # example (site 15: "within species ... 1 synonymous" AND "fixed
+        # differences ... Site#15 is synonymous"). An earlier version of this
+        # test asserted Ps == 0 here; that encoded the opposite rule and did
+        # not reproduce DnaSP 6's real output (COII: Ps 65 vs 69).
+        seqs = ['CTT', 'CTC']
+        result = dn.compute_mk(seqs, 'CTA')
+        assert result.Ds == 1
+        assert result.Ps == 1
+        assert result.Pn == 0 and result.Dn == 0
+
+    def test_dual_status_site_counts_as_both_fixed_and_polymorphic_nonsynonymous(self):
+        # Same rule, replacement flavour: ingroup ATG (Met) / CTG (Leu),
+        # outgroup GTG (Val). Position 0 is a fixed difference (G absent from
+        # the ingroup: ATG-GTG and CTG-GTG are both replacements, so Dn = 1)
+        # AND a within-species replacement polymorphism (Met/Leu, so Pn = 1).
+        seqs = ['ATG', 'CTG']
+        result = dn.compute_mk(seqs, 'GTG')
+        assert result.Dn == 1
+        assert result.Pn == 1
+        assert result.Ps == 0 and result.Ds == 0
+
+    def test_outgroup_allele_shared_with_segregating_ingroup_is_poly_not_fixed(self):
+        # Ingroup segregates TTT/TTC; outgroup TTT IS one of the ingroup
+        # alleles (ht3 between 0 and 1 in DnaSP's terms) -- polymorphism,
+        # not a fixed difference. (Boundary case for the ht3 rule above.)
+        seqs = ['TTT', 'TTC']
+        result = dn.compute_mk(seqs, 'TTT')
+        assert result.Ps == 1
+        assert result.Ds == 0 and result.Dn == 0
+
+    def test_single_codon_can_contribute_both_dn_and_ds(self):
+        # DnaSP's own McDonald-Kreitman help page (worked example, codon
+        # 13-15) shows a SINGLE codon contributing two separate fixed
+        # differences of different types (one replacement, one synonymous)
+        # -- DnaSP counts fixed/polymorphic differences per NUCLEOTIDE SITE,
+        # not once per codon. Monomorphic ingroup CTT (Leu) vs outgroup CGA
+        # (Arg): position 0 (C/C) is invariant; position 1 (T->G) is a
+        # nonsynonymous fixed difference (Leu->Arg, both mutational
+        # orderings agree); position 2 (T->A) is a synonymous fixed
+        # difference (CTN and CGN are both fully synonymous at the third
+        # position). A whole-codon classifier can never produce both Dn and
+        # Ds from the same codon; this is the core structural fix.
+        seqs = ['CTT', 'CTT']
+        result = dn.compute_mk(seqs, 'CGA')
+        assert result.Dn == 1
+        assert result.Ds == 1
+        assert result.Pn == 0 and result.Ps == 0
+
+    def test_fixed_side_tie_break_prefers_fewer_replacement_changes(self):
+        # Monomorphic ingroup CCC (Pro) vs outgroup CAG (Gln): differ at
+        # positions 1 (C->A) and 2 (C->G), with two possible mutational
+        # orderings -- CCC->CAC->CAG (2 replacements: Pro->His, His->Gln)
+        # or CCC->CCG->CAG (1 replacement + 1 synonymous: Pro->Pro,
+        # Pro->Gln). DnaSP's own rule for fixed differences ("DnaSP will
+        # check all paths ... and choose the path with the minor number of
+        # [replacement] changes") has no outgroup-side "intermediate
+        # observed elsewhere" tie-break (unlike the within-species case
+        # below) -- fixed differences are decided by fewest total
+        # differences, then fewest replacements. So the CCG-route wins:
+        # position 2 synonymous, position 1 nonsynonymous.
+        seqs = ['CCC', 'CCC']
+        result = dn.compute_mk(seqs, 'CAG')
+        assert result.Dn == 1
+        assert result.Ds == 1
+        assert result.Pn == 0 and result.Ps == 0
+
+    def test_poly_side_prefers_path_with_intermediate_seen_in_outgroup(self):
+        # Directly from DnaSP's own McDonald-Kreitman help page (worked
+        # example, codon 10-12): ingroup segregates CCC (Pro) / CAG (Gln),
+        # differing at positions 1 and 2. Two mutational orderings exist:
+        # CCC->CAC->CAG (2 replacements, both nonsynonymous) or
+        # CCC->CCG->CAG (1 replacement + 1 synonymous). Taken alone, the
+        # second route has FEWER replacements -- but the outgroup here is
+        # CAC, i.e. one of the ORDERINGS' intermediate codons is actually
+        # observed. DnaSP's documented rule: "If there are two possible
+        # paths, and one of the non-extant codons is found in the other
+        # species, DnaSP assumes that is the true evolutionary path" --
+        # this OVERRIDES the fewer-replacements preference. So the
+        # CAC-route wins even though it has more replacements: both
+        # position 1 and position 2 are nonsynonymous polymorphisms.
+        seqs = ['CCC', 'CAG']
+        result = dn.compute_mk(seqs, 'CAC')
+        assert result.Pn == 2
+        assert result.Ps == 0
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_complex_codon_is_excluded_from_both_tables_and_reported(self):
+        # Ingroup AAA (Lys), AAG (Lys), CCG (Pro): three codons that between
+        # them differ at all three positions. DnaSP's within-species routine
+        # (McDonaldK.vb::BuscaSitiosReemplazamientoMK, Case 3 / NNdif = 3,
+        # "no contabilizado") gives such a codon a negative status; both
+        # BuscoPosSegregantesMcDK and BuscaDeCodonesEntre then skip every
+        # site of that codon, and the output reports it under "Total number
+        # of complex codons no analyzed". So nothing from this codon reaches
+        # Pn/Ps/Dn/Ds -- not silently, though: the count is surfaced. (An
+        # earlier version of this test expected the codon to be resolved
+        # allele by allele instead; DnaSP does not do that.) The second,
+        # ordinary codon (TTT/TTC, Phe/Phe) is still counted.
+        seqs = ['AAATTT', 'AAGTTC', 'CCGTTT']
+        result = dn.compute_mk(seqs, 'AAATTT')
+        assert result.n_complex_codons == 1
+        assert result.Pn == 0 and result.Ps == 1
+        assert result.Dn == 0 and result.Ds == 0
+        # The exclusion covers the fixed side too: with an outgroup that
+        # differs at every position of the complex codon, DnaSP still counts
+        # no fixed difference there (BuscaDeCodonesEntre: NoTratarCodon when
+        # AAstatus1 < 0).
+        result = dn.compute_mk(['AAA', 'AAG', 'CCG'], 'GGG')
+        assert result.n_complex_codons == 1
+        assert result.Pn == 0 and result.Ps == 0
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_vertebrate_mitochondrial_code_stops_dont_exclude_tga(self):
+        # TGA is a stop under the standard code (excluded entirely -> both
+        # zero), but Trp under vertebrate mitochondrial code, so a
+        # TGA<->TGG (Trp<->Trp, synonymous) fixed difference should count.
+        seqs = ['TGA', 'TGA']
+        std = dn.compute_mk(seqs, 'TGG')
+        assert std.Ds == 0 and std.Dn == 0
+        mito = dn.compute_mk(seqs, 'TGG', dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert mito.Ds == 1
+        assert mito.Dn == 0
+
+    def test_help_file_codon_13_15_site_is_both_syn_polymorphism_and_syn_fixed(self):
+        # Directly from DnaSP's own McDonald-Kreitman help page (worked
+        # example, codon 13-15): species 1 = AAT, AGG, ACT, ACT; species 2 =
+        # GGA (monomorphic). The page's own tallies for this codon are
+        #   "within species: 2 replacements (site#14), and 1 synonymous
+        #    (Site#15)" and
+        #   "fixed differences: 2, Site#13 is replacement; Site#15 is
+        #    synonymous."
+        # Site 15 (T/G in species 1, A in species 2) is counted in BOTH
+        # tables. Site 14 carries three alleles (A/G/C) and contributes two
+        # replacement changes, not one (the chain AAT -> ACT -> ACG -> AGG
+        # chosen in BuscaSitiosReemplazamientoMK's three-codon / two-position
+        # case, path 4 in the help page's list).
+        seqs = ['AAT', 'AGG', 'ACT', 'ACT']
+        result = dn.compute_mk(seqs, 'GGA')
+        assert result.Pn == 2
+        assert result.Ps == 1
+        assert result.Dn == 1
+        assert result.Ds == 1
+        assert result.n_complex_codons == 0
+
+    def test_help_file_codon_1_3_four_alleles_at_one_site_are_three_changes(self):
+        # Help page, codon 1-3: species 1 = AGT, AGC, AGA, AGG (Ser, Ser, Arg,
+        # Arg), species 2 = AGG. "species#1: 3 mutations in site#3: 1
+        # replacement, 2 synonymous." A site segregating for k bases counts
+        # k - 1 changes (the sum rule in BuscaSitiosReemplazamientoMK, Case 4
+        # / NNdif = 1: pairwise sum 8 -> code 122). The outgroup's G is one of
+        # the ingroup's bases, so nothing is fixed.
+        seqs = ['AGT', 'AGC', 'AGA', 'AGG']
+        result = dn.compute_mk(seqs, 'AGG')
+        assert result.Pn == 1
+        assert result.Ps == 2
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_three_alleles_at_one_site_are_two_changes(self):
+        # COII codon 80 of the validation file (0-indexed): ingroup CTA, CTG,
+        # CTC (all Leu under the vertebrate mitochondrial code), outgroup
+        # CTA. Three bases at position 2 -> two synonymous changes (Case 3 /
+        # NNdif = 1: pairwise sum 6 -> code 22). Counting this site once was
+        # one of the four missing Ps in the DnaSP 6.12 calibration.
+        seqs = ['CTA', 'CTG', 'CTC']
+        result = dn.compute_mk(seqs, 'CTA', dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert result.Ps == 2
+        assert result.Pn == 0
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_same_amino_acid_codons_two_sites_apart_are_both_synonymous(self):
+        # AGT (Ser) vs TCT (Ser) differ at positions 0 and 1; every
+        # single-step path runs through a non-Ser codon (TGT Cys or ACT Thr),
+        # so path counting alone would call both changes replacements. DnaSP
+        # overrides that: when two codons encode the same amino acid and
+        # differ at two or three positions, all differing positions are
+        # synonymous (BuscaSitiosReemplazamientoMK, Case 2, VB comment
+        # "ejemplo de codones AGU Ser UCU Ser; or UCC Ser vs AGU Ser").
+        seqs = ['AGT', 'TCT']
+        result = dn.compute_mk(seqs, 'AGT')
+        assert result.Ps == 2
+        assert result.Pn == 0
+
+    def test_help_file_codon_16_18_recombination_case_only_under_nuclear_codes(self):
+        # Help page, codon 16-18: species 1 = ATA, TTA, TTG, ATG (all four
+        # combinations of two variants at positions 0 and 2: a circular
+        # path), species 2 = TTT. "within species: Site#16 (1 replacement);
+        # Site#18 (1 synonymous). fixed differences: 1, Site#18 is
+        # replacement. Note: This kind of codons will be analyzed only for
+        # Nuclear Genetic Codes." Under the standard code DnaSP assumes one
+        # recombination event and takes, per position, the most synonymous
+        # of the four single-step edges. Under a mitochondrial table
+        # (SistemaGeneticoRecombina = 0) the codon is a complex codon and is
+        # excluded from both tables.
+        seqs = ['ATA', 'TTA', 'TTG', 'ATG']
+        std = dn.compute_mk(seqs, 'TTT')
+        assert std.Pn == 1 and std.Ps == 1
+        assert std.Dn == 1 and std.Ds == 0
+        assert std.n_complex_codons == 0
+        mito = dn.compute_mk(seqs, 'TTT', dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert mito.Pn == 0 and mito.Ps == 0
+        assert mito.Dn == 0 and mito.Ds == 0
+        assert mito.n_complex_codons == 1
+
+    def test_recombination_case_with_amino_acid_change_demotes_one_synonymous_site(self):
+        # The VB's own counter-example for the circular-path rule: CTG (Leu),
+        # TTG (Leu), TTT (Phe), CTT (Leu). Per position the most synonymous
+        # edge is synonymous at both positions (CTG-TTG at 0, CTT-CTG at 2),
+        # yet an amino acid change (Phe) is present, so DnaSP demotes the
+        # first synonymous position to a replacement ("problema en codones
+        # del tipo CUG Leu UUG Leu UUU Phe CUU Leu"): 1 replacement + 1
+        # synonymous, not 2 synonymous.
+        seqs = ['CTG', 'TTG', 'TTT', 'CTT']
+        result = dn.compute_mk(seqs, 'CTG')
+        assert result.Pn == 1
+        assert result.Ps == 1
+        assert result.n_complex_codons == 0
+
+    def test_five_or_more_codons_segregating_is_a_complex_codon(self):
+        # BuscaSitiosReemplazamientoMK handles 2, 3 and 4 distinct codons per
+        # triplet; five or more ("mas de cuatro codones") is a complex codon,
+        # excluded and reported.
+        seqs = ['AAA', 'AAC', 'AAG', 'AAT', 'ACA']
+        result = dn.compute_mk(seqs, 'AAA')
+        assert result.n_complex_codons == 1
+        assert result.Pn == 0 and result.Ps == 0
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_help_file_codon_7_9_two_difference_pair_prefers_fewer_replacements(self):
+        # Help page, codon 7-9: ATT (Ile) / CTG (Leu) within species 1,
+        # species 2 = ATT. "DnaSP will choose path#1, the path that requires
+        # the minor number of replacements": ATT -> CTT -> CTG, site 7
+        # replacement, site 9 synonymous. Nothing fixed (outgroup ATT is an
+        # ingroup allele).
+        seqs = ['ATT', 'CTG']
+        result = dn.compute_mk(seqs, 'ATT')
+        assert result.Pn == 1 and result.Ps == 1
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_help_file_codon_22_24_three_difference_pair(self):
+        # Help page, codon 22-24: TAT (Tyr) / CTG (Leu), species 2 = TAT.
+        # Six orderings, two of them through stop codons; "2 replacements
+        # ... and 1 synonymous" whichever of the remaining most-synonymous
+        # paths is taken.
+        seqs = ['TAT', 'CTG']
+        result = dn.compute_mk(seqs, 'TAT')
+        assert result.Pn == 2 and result.Ps == 1
+        assert result.Dn == 0 and result.Ds == 0
+
+    def test_three_codons_at_two_sites_chain_through_the_middle_codon(self):
+        # ATG (Met), ATC (Ile), CTC (Leu): two positions with two variants
+        # each. DnaSP chains through the codon adjacent to both others (ATG
+        # -> ATC -> CTC; VB comment "AUG AUC CUC") and labels each position
+        # from its single-step edge: two replacements.
+        seqs = ['ATG', 'ATC', 'CTC']
+        result = dn.compute_mk(seqs, 'ATG')
+        assert result.Pn == 2 and result.Ps == 0
+        assert result.n_complex_codons == 0
+
+    def test_ni_is_undefined_when_dn_is_zero(self):
+        # NI = (Pn/Ps)/(Dn/Ds) has no value when Dn = 0; DnaSP prints NI and
+        # alpha only when Dn * Ps is non-zero (McDonaldK.vb::McDonaldTest,
+        # "If (d * a) <> 0"). A synonymous dual-status site (Ps = 1, Ds = 1,
+        # Dn = 0) used to divide by zero here.
+        result = dn.compute_mk(['CTT', 'CTC'], 'CTA')
+        assert result.Ps == 1 and result.Ds == 1 and result.Dn == 0
+        assert result.NI is None
+        assert result.alpha is None
+
+    def test_mk_stats_reports_zero_complex_codons_by_default(self):
+        result = dn.compute_mk(['TTT', 'TTC'], 'TTT')
+        assert result.n_complex_codons == 0
+
 
 class TestComputeKaKs:
     def test_returns_kaks_stats_type(self):
@@ -1814,6 +2492,127 @@ class TestComputeKaKs:
         assert 'kaks' in results
         assert results['kaks'] is not None
         assert isinstance(results['kaks'], dn.KaKsStats)
+
+    def test_vertebrate_mitochondrial_code_counts_tga_codon(self):
+        # Under the standard code TGA is a stop, so this codon is excluded
+        # from both sequences entirely -- no jointly-valid codon exists, so
+        # the pair contributes nothing (n_codons/S_sites report 0, not the
+        # raw 1-codon alignment length). Under vertebrate mitochondrial code
+        # TGA=Trp, so it contributes like any other codon.
+        seqs = ['TGA', 'TGG']  # Trp<->Trp under mito code, synonymous
+        std = dn.compute_ka_ks(seqs)
+        assert std.n_codons == 0
+        assert std.S_sites == pytest.approx(0.0)
+
+        mito = dn.compute_ka_ks(seqs, dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert mito.n_codons == 1
+        assert mito.S_sites > 0.0
+
+    def test_outgroup_none_keeps_all_pairwise_default(self):
+        # No outgroup -> unchanged: average over every ingroup pair.
+        seqs = ['GGTGGTGGT', 'GGCGGTGGT', 'GGTGGTGGT']
+        no_out = dn.compute_ka_ks(seqs)
+        assert no_out.Ks is not None
+
+    def test_outgroup_restricts_pairs_to_ingroup_vs_outgroup(self):
+        # With an outgroup, DnaSP's own manual (Synonymous and Nonsynonymous
+        # Substitutions module) and its Ka/Ks menu output only make sense
+        # divergence-wise against the defined outgroup, not ingroup-vs-ingroup
+        # pairs. Two identical ingroup sequences that are both divergent from
+        # the outgroup should show nonzero Ka/Ks (ingroup-vs-outgroup), even
+        # though an ingroup-only comparison would be all zeros.
+        ingroup = ['ATGATG', 'ATGATG']
+        outgroup = 'CTGCTG'   # nonsynonymous difference at codon 1 and 2
+        result = dn.compute_ka_ks(ingroup, outgroup=outgroup)
+        assert result.Ka is not None and result.Ka > 0.0
+
+    def test_outgroup_summary_is_dnasp_corrected_ratio(self):
+        # DnaSP's Ka/Ks summary (EntrePobsMod.vb::PolDivergenceOut) is the
+        # Jukes-Cantor correction of ONE ratio: the mean number of
+        # differences over the ingroup-vs-outgroup pairs, divided by the
+        # mean number of sites over all sequences -- not an average of
+        # per-pair corrected distances (an earlier version of this test
+        # asserted the latter). Ingroup ATGATG, CTGATG, ATGCTG vs outgroup
+        # GTGATG: nonsynonymous differences 1, 1, 2 (mean 4/3); synonymous
+        # sites per sequence 0, 4/3, 4/3, 1 (mean 11/12), so N = 6 - 11/12.
+        ingroup = ['ATGATG', 'CTGATG', 'ATGCTG']
+        outgroup = 'GTGATG'
+        result = dn.compute_ka_ks(ingroup, outgroup=outgroup)
+        assert result.Nd == pytest.approx(4.0 / 3.0)
+        assert result.Sd == pytest.approx(0.0)
+        assert result.S_sites == pytest.approx(11.0 / 12.0)
+        assert result.N_sites == pytest.approx(6.0 - 11.0 / 12.0)
+        assert result.Ka == pytest.approx(dn._jc_correct(result.Nd / result.N_sites))
+        assert result.Ks == pytest.approx(0.0)
+
+    def test_summary_ks_is_jc_of_mean_ratio_not_mean_of_per_pair_jc(self):
+        # Two ingroup sequences vs outgroup, one pair with a synonymous
+        # difference (GGA/GGG, Gly) and one identical pair. Mean differences
+        # 0.5 over mean synonymous sites 2.0 -> p = 0.25 -> Ks = JC(0.25)
+        # = 0.304099. Averaging per-pair corrected values would give
+        # (JC(0.5) + 0) / 2 = 0.411985 instead.
+        result = dn.compute_ka_ks(['GGAGGA', 'GGGGGA'], outgroup='GGGGGA')
+        assert result.Sd == pytest.approx(0.5)
+        assert result.S_sites == pytest.approx(2.0)
+        assert result.Ks == pytest.approx(0.304099, rel=1e-5)
+
+    def test_summary_rule_applies_without_outgroup_too(self):
+        # No outgroup: every ingroup pair, same rule (DnaSP's Pi(s) form:
+        # mean pairwise differences per synonymous site, corrected once).
+        # Pairs (1,2) and (1,3) differ by one synonymous change, (2,3) by
+        # none: mean 2/3 over 2.0 sites -> p = 1/3 -> Ks = JC(1/3) = 0.440840.
+        result = dn.compute_ka_ks(['GGAGGA', 'GGGGGA', 'GGGGGA'])
+        assert result.Sd == pytest.approx(2.0 / 3.0)
+        assert result.Ks == pytest.approx(0.440840, rel=1e-5)
+
+    def test_n_codons_counts_codons_analysed_in_every_sequence(self):
+        # DnaSP reports "Number of codons analyzed" (227 for COII: the
+        # terminal stop codon is not analysed), not the alignment's codon
+        # count. A codon skipped in any compared sequence is not analysed.
+        result = dn.compute_ka_ks(['GGGTAA', 'GGGTAA'], outgroup='GGATAA')
+        assert result.n_codons == 1
+        result = dn.compute_ka_ks(['GGGGGG', 'GGGGG-'])
+        assert result.n_codons == 1
+
+    def test_n_sites_counts_three_per_analysed_codon_not_alignment_length(self):
+        # DnaSP: nonsynonymous sites = 3 x codons analysed - synonymous
+        # sites (its COII total is 681 - 168.222 = 512.777 for 227 codons).
+        # The second codon here is a stop under the standard code and is
+        # skipped, so the alignment length (6) must not enter: S = 1.0
+        # (GGG/GGA, third position fully synonymous), N = 3 - 1 = 2.0, not
+        # 6 - 1 = 5.0.
+        result = dn.compute_ka_ks(['GGGTAA', 'GGGTAA'], outgroup='GGATAA')
+        assert result.S_sites == pytest.approx(1.0)
+        assert result.N_sites == pytest.approx(2.0)
+
+    def test_outgroup_included_in_site_count_average(self):
+        # DnaSP: "the total number of synonymous and nonsynonymous sites ...
+        # is estimated as the average ... of all sequences" -- when an
+        # outgroup is given it is one of "all sequences" being compared.
+        # Both codons here are valid (not stops), so a real pairwise
+        # comparison exists and the site-count average should reflect both
+        # the ingroup and outgroup sequences, not the ingroup alone.
+        ingroup = ['GGCGGC']  # Ala, has synonymous sites
+        outgroup = 'GGTGGT'   # Gly, has synonymous sites
+        with_out = dn.compute_ka_ks(ingroup, outgroup=outgroup)
+        without_out = dn.compute_ka_ks(ingroup)  # n<2, no outgroup -> no result
+        assert with_out.S_sites > 0.0
+        assert without_out.S_sites == 0.0  # confirms the outgroup path is doing the work
+
+    def test_no_jointly_valid_codon_reports_zero_not_raw_totals(self):
+        # Every ingroup codon is a stop under the standard code, so no pair
+        # has a single jointly-valid codon against the outgroup. Reporting
+        # the raw 2-codon alignment length here would make a fully failed
+        # comparison look like a populated, quantified result -- n_codons,
+        # S_sites and N_sites should all come back as 0, and Ka/Ks/omega as
+        # undefined (None), not silently omitted from an otherwise-full report.
+        ingroup = ['TGATGA']  # TGA = stop under standard code
+        outgroup = 'GGTGGT'   # valid on its own, but the pair never is
+        result = dn.compute_ka_ks(ingroup, outgroup=outgroup)
+        assert result.n_codons == 0
+        assert result.S_sites == 0.0
+        assert result.N_sites == 0.0
+        assert result.Ka is None and result.Ks is None and result.omega is None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1913,6 +2712,25 @@ class TestEwensCdf:
         result = dn._ewens_cdf(1, 1, 2.0)
         assert result == pytest.approx(1.0)
 
+    def test_large_n_no_overflow(self):
+        # |s(n, k)| exceeds float range for n ≳ 171; log-space must not overflow
+        for n in (180, 300):
+            assert 0.0 <= dn._ewens_cdf(2, n, 1.0) <= 1.0
+            assert 0.0 <= dn._ewens_cdf(n, n, 1.0) <= 1.0
+            assert dn._ewens_cdf(n, n, 1.0) == pytest.approx(1.0, abs=1e-6)
+
+    def test_sf_complements_cdf(self):
+        n, theta = 12, 4.0
+        for k in range(2, n + 1):
+            assert dn._ewens_sf(k, n, theta) == pytest.approx(
+                1.0 - dn._ewens_cdf(k - 1, n, theta), abs=1e-9
+            )
+
+    def test_sf_large_n_no_overflow(self):
+        for n in (200, 300):
+            assert 0.0 <= dn._ewens_sf(2, n, 1.0) <= 1.0
+            assert 0.0 <= dn._ewens_sf(n, n, 1.0) <= 1.0
+
 
 class TestComputeFuFs:
     """compute_fu_fs: Fu's Fs neutrality test."""
@@ -1969,34 +2787,54 @@ class TestComputeFuFs:
         assert result.Fs is not None
         assert isinstance(result.Fs, float)
 
-    def test_all_identical_H1(self):
-        # All same → H=1, k=0 → degenerate; Fs should be None (k=0 → theta=0)
+    def test_monomorphic_returns_none(self):
+        # No polymorphism (H = 1, k = 0) -> Fs undefined, as DnaSP reports n.a.
         seqs = ['ATCG', 'ATCG', 'ATCG']
         clean = self._make_clean(seqs)
         result = dn.compute_fu_fs(clean, H=1, k=0.0)
-        # k=0 → theta=0 → _ewens_cdf returns 1.0 → Fs should be +inf boundary
-        # S_k=1.0 → Fs=+inf; we represent as 1e308
-        assert result.Fs is not None
+        assert result.Fs is None
+        assert result.S_k is None
 
     def test_Fs_negative_when_fewer_haplotypes(self):
         # When H << expected haplotype count given theta, Fs << 0
         # Use large k (high diversity) but small H (few haplotypes)
         seqs = ['ATCG', 'ATCA', 'GCTA', 'GCTG', 'TTTT', 'CCCC']
         clean = self._make_clean(seqs)
-        # H=2 but with k=5.0 (high diversity), expect fewer haplotypes → negative Fs
+        # H=2 but k=5.0 (high diversity): a deficit of haplotypes → Fs > 0
         result = dn.compute_fu_fs(clean, H=2, k=5.0)
-        if result.Fs is not None:
-            # S_k should be small → Fs negative
-            assert result.S_k is not None
+        assert result.Fs is not None
+        assert result.Fs > 0
 
-    def test_Fs_increases_with_H(self):
-        # More haplotypes observed → S_k increases → Fs increases
+    def test_Fs_negative_when_excess_haplotypes(self):
+        # Every sequence a distinct haplotype but low pairwise diversity →
+        # more haplotypes than the Ewens formula expects → Fs < 0
+        seqs = ['A' * 20] + ['A' * i + 'T' + 'A' * (19 - i) for i in range(9)]
+        clean = self._make_clean(seqs)
+        result = dn.compute_fu_fs(clean, H=10, k=1.8)
+        assert result.Fs is not None
+        assert result.Fs < 0
+        assert result.S_k < 0.5
+
+    def test_Fs_decreases_with_H(self):
+        # More haplotypes observed → S' = P(K ≥ H) decreases → Fs decreases
         seqs = ['ATCG', 'ATCA', 'GCTA', 'GCTG']
         clean = self._make_clean(seqs)
-        r1 = dn.compute_fu_fs(clean, H=1, k=2.0)
-        r2 = dn.compute_fu_fs(clean, H=3, k=2.0)
+        r1 = dn.compute_fu_fs(clean, H=2, k=2.0)
+        r2 = dn.compute_fu_fs(clean, H=4, k=2.0)
         assert r1.S_k is not None and r2.S_k is not None
-        assert r2.S_k >= r1.S_k
+        assert r2.S_k <= r1.S_k
+        assert r2.Fs <= r1.Fs
+
+    def test_large_alignment_no_overflow(self):
+        # ~200 sequences: Stirling coefficients overflow float; log-space path
+        # must still return a finite Fs rather than raising OverflowError.
+        seqs = ['A' * 40] + [
+            'A' * i + 'T' + 'A' * (39 - i) for i in range(39)
+        ] * 5
+        clean = self._make_clean(seqs)
+        result = dn.compute_fu_fs(clean, H=40, k=1.5)
+        assert result.Fs is not None
+        assert math.isfinite(result.Fs) or abs(result.Fs) >= 1e307
 
     def test_run_analysis_dispatch(self, tmp_path):
         f = tmp_path / "aln.fas"
@@ -2118,6 +2956,28 @@ class TestComputeSFS:
         # Each key maps to site count; sum = total segregating sites (up to folded)
         total = sum(result.folded.values())
         assert total >= 0
+
+    def test_triallelic_site_excluded(self):
+        # DnaSP gates the spectrum on exactly two states (contot == 2).
+        # Col 0 is triallelic {A,C,G}; col 1 is biallelic {A,T}.
+        seqs = ['AA', 'CA', 'GT', 'GT']
+        result = dn.compute_sfs(seqs, outgroup_seq='AA')
+        assert result.folded == {2: 1}          # only the biallelic column
+        assert result.unfolded == {2: 1}
+        assert result.n_multiallelic_excluded == 1
+
+    def test_quadriallelic_site_excluded(self):
+        seqs = ['A', 'C', 'G', 'T']
+        result = dn.compute_sfs(seqs, outgroup_seq='A')
+        assert result.folded == {}
+        assert result.unfolded == {}
+        assert result.n_multiallelic_excluded == 1
+
+    def test_biallelic_sites_still_counted(self):
+        seqs = ['AACG', 'TTCA', 'AACG', 'TTCA']
+        result = dn.compute_sfs(seqs)
+        assert sum(result.folded.values()) == 3
+        assert result.n_multiallelic_excluded == 0
 
     def test_run_analysis_dispatch_no_outgroup(self, tmp_path):
         f = tmp_path / "aln.fas"
@@ -2275,20 +3135,47 @@ class TestComputeTsTv:
         r = dn.compute_ts_tv(seqs)
         assert r.L_net == 4
 
-    def test_per_site_values(self):
-        """ts_per_site and tv_per_site sum correctly."""
-        seqs = ['AA', 'GA']  # 1 Ts at col 0; 1 pair; 2 sites
-        r = dn.compute_ts_tv(seqs)
-        assert abs(r.ts_per_site - 0.5) < 1e-9  # 1 Ts / (1 pair * 2 sites)
-        assert r.tv_per_site == 0.0
-
-    def test_three_sequences_pair_counting(self):
-        """With 3 seqs and 3 pairs, counts should accumulate across pairs."""
+    def test_one_change_per_biallelic_site(self):
+        """DnaSP counts one change per biallelic column, not per sequence pair."""
         seqs = ['AAA', 'GAA', 'AAG']
-        # pairs: (0,1) col0 A/G Ts; (0,2) col2 A/G Ts; (1,2) col0 G/A Ts + col2 A/G Ts
+        # col0 {A,G} -> 1 Ts; col2 {A,G} -> 1 Ts; col1 monomorphic
         r = dn.compute_ts_tv(seqs)
-        assert r.n_transitions == 4   # 1+1+2
+        assert r.n_transitions == 2
         assert r.n_transversions == 0
+        assert r.n_sites == 2
+
+    def test_counts_independent_of_sample_size(self):
+        """Duplicating a sequence must not change the counts (Codex regression)."""
+        base = ['ACGT', 'GCTT']          # col0 A/G Ts, col2 G/T Tv
+        r1 = dn.compute_ts_tv(base)
+        r2 = dn.compute_ts_tv(base + [base[0]] * 5)
+        assert (r1.n_transitions, r1.n_transversions) == (1, 1)
+        assert (r2.n_transitions, r2.n_transversions) == (1, 1)
+        assert r1.ts_tv == r2.ts_tv == 1.0
+
+    def test_triallelic_site_excluded(self):
+        seqs = ['AAAA', 'GAAA', 'CAAA', 'TCAA']
+        # col0 {A,G,C,T} -> multiallelic, excluded; col1 {A,C} -> 1 Tv
+        r = dn.compute_ts_tv(seqs)
+        assert r.n_multiallelic_excluded == 1
+        assert r.n_sites == 1
+        assert r.n_transversions == 1
+
+    def test_outgroup_unresolvable_site_excluded(self):
+        # col0 ingroup {A,G}; outgroup C (not an ingroup allele) -> excluded.
+        # col1 ingroup {C,T}; outgroup C -> kept, 1 transition.
+        seqs = ['AC', 'AT', 'GC', 'GT']
+        r = dn.compute_ts_tv(seqs, outgroup_seq='CC')
+        assert r.polarised is True
+        assert r.n_unpolarisable_excluded == 1
+        assert r.n_transitions == 1
+        assert r.n_transversions == 0
+
+    def test_outgroup_ratio_matches_unpolarised_on_surviving_sites(self):
+        seqs = ['ACGT', 'GCAT', 'ACGT', 'GCAT']   # col0 {A,G} Ts, col2 {G,A} Ts
+        r_no = dn.compute_ts_tv(seqs)
+        r_og = dn.compute_ts_tv(seqs, outgroup_seq='ACGT')
+        assert r_no.ts_tv == r_og.ts_tv
 
     def test_run_analysis_dispatch(self):
         """run_analysis must populate results['tstv'] when analysis='tstv'."""
@@ -2444,6 +3331,49 @@ class TestComputeCodonUsage:
         results = dn.run_analysis(aln, analyses={'tstv', 'codon'})
         assert isinstance(results.get('tstv'), dn.TsTvStats)
         assert isinstance(results.get('codon'), dn.CodonUsageStats)
+
+    def test_vertebrate_mitochondrial_code_counts_tga_as_trp(self):
+        # Standard code: TGA is a stop, dropped entirely, never in codon_counts.
+        seqs = ['TGATGG', 'TGGTGA']
+        std = dn.compute_codon_usage(seqs)
+        assert std.codon_counts.get('TGA', 0.0) == 0.0
+
+        # Vertebrate mitochondrial code: TGA = Trp, joins TGG in the Trp
+        # family; equal TGA/TGG usage here gives equal (uniform) RSCU.
+        mito = dn.compute_codon_usage(seqs, dn.VERTEBRATE_MITOCHONDRIAL_CODE)
+        assert mito.codon_counts.get('TGA', 0.0) > 0.0
+        assert mito.rscu['TGA'] == pytest.approx(mito.rscu['TGG'])
+        assert mito.rscu['TGA'] == pytest.approx(1.0)
+
+    def test_genetic_code_flows_through_run_analysis(self):
+        aln = dn.Alignment(names=['a', 'b'], seqs=['TGATGG', 'TGGTGG'])
+        std = dn.run_analysis(aln, analyses={'codon'})
+        mito = dn.run_analysis(
+            aln, analyses={'codon'}, genetic_code=dn.VERTEBRATE_MITOCHONDRIAL_CODE
+        )
+        assert std['codon'].codon_counts.get('TGA', 0.0) == 0.0
+        assert mito['codon'].codon_counts.get('TGA', 0.0) > 0.0
+
+    def test_cli_genetic_code_flag(self, tmp_path):
+        f = tmp_path / "mito.fas"
+        f.write_text(">a\nTGATGG\n>b\nTGGTGG\n")
+        out_std = tmp_path / "out_std"
+        out_mito = tmp_path / "out_mito"
+        assert dn.main(["--input", str(f), "--analysis", "codon",
+                        "--output", str(out_std)]) == 0
+        assert dn.main(["--input", str(f), "--analysis", "codon",
+                        "--genetic-code", "vertebrate-mitochondrial",
+                        "--output", str(out_mito)]) == 0
+        std_tsv = (out_std / "results.tsv").read_text()
+        mito_report = (out_mito / "report.md").read_text()
+        assert "TGA" in mito_report
+
+    def test_cli_genetic_code_rejects_unknown_choice(self, tmp_path):
+        f = tmp_path / "x.fas"
+        f.write_text(">a\nATG\n>b\nATG\n")
+        with pytest.raises(SystemExit):
+            dn.main(["--input", str(f), "--genetic-code", "bogus-code",
+                     "--output", str(tmp_path / "out")])
 
 
 # =============================================================================
