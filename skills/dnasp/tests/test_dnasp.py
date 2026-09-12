@@ -2015,9 +2015,26 @@ class TestClassifyCodonPair:
         total = s + ns
         assert total == pytest.approx(3.0, rel=1e-9)
 
-    def test_stop_returns_zero(self):
-        s, ns = dn._classify_codon_pair('TAA', 'ATG')
-        assert s == pytest.approx(0.0) and ns == pytest.approx(0.0)
+    def test_stop_codon_is_a_21st_amino_acid_but_stop_paths_are_excluded(self):
+        # DnaSP's help file: "if DnaSP finds stop codons (in the middle of
+        # coding regions) they will be considered as if they would code for
+        # a new amino acid (the amino acid 21; for example Selenocysteine)",
+        # while "it excludes those pathways that go through stop codons".
+        # TAA (*) vs AAG (Lys), two differences: TAA -> TAG -> AAG runs
+        # through a stop and is dropped; TAA -> AAA -> AAG is one
+        # replacement (* -> Lys) and one synonymous change (Lys -> Lys). An
+        # earlier version of this test expected the pair to be skipped.
+        s_, ns = dn._classify_codon_pair('TAA', 'AAG')
+        assert s_ == pytest.approx(1.0) and ns == pytest.approx(1.0)
+        # TAA vs ATG differs at all three positions: the two orderings that
+        # start with TAG are dropped; the other four average (0+1+0+1)/4
+        # synonymous and (3+2+3+2)/4 replacement changes.
+        s_, ns = dn._classify_codon_pair('TAA', 'ATG')
+        assert s_ == pytest.approx(0.5) and ns == pytest.approx(2.5)
+        # Two stop codons one base apart are a synonymous difference (* = *),
+        # as DnaSP's NumSynonEntreCodons compares the GCode strings.
+        s_, ns = dn._classify_codon_pair('TAA', 'TAG')
+        assert s_ == pytest.approx(1.0) and ns == pytest.approx(0.0)
 
 
 class TestJcCorrect:
@@ -2262,16 +2279,49 @@ class TestComputeMK:
         assert result.Pn == 0 and result.Ps == 0
         assert result.Dn == 0 and result.Ds == 0
 
-    def test_vertebrate_mitochondrial_code_stops_dont_exclude_tga(self):
-        # TGA is a stop under the standard code (excluded entirely -> both
-        # zero), but Trp under vertebrate mitochondrial code, so a
-        # TGA<->TGG (Trp<->Trp, synonymous) fixed difference should count.
+    def test_internal_stop_codon_is_a_21st_amino_acid_in_the_mk_test(self):
+        # DnaSP does not drop a codon because it is a stop: "Stop codons have
+        # been found in the coding region. DnaSP has considered that they
+        # could code for a rare amino acid (the 21st amino acid ...)"
+        # (McDonaldK.vb, STOPinMiddle). Monomorphic ingroup TGA vs outgroup
+        # TGG: under the standard code TGA is that 21st amino acid and
+        # TGA/TGG is a replacement fixed difference; under the vertebrate
+        # mitochondrial code both are Trp, a synonymous one. (An earlier
+        # version of this test expected the standard-code case to be
+        # excluded entirely.) The codon is not the terminal stop because the
+        # outgroup's TGG is not a stop.
         seqs = ['TGA', 'TGA']
         std = dn.compute_mk(seqs, 'TGG')
-        assert std.Ds == 0 and std.Dn == 0
+        assert std.Dn == 1 and std.Ds == 0
+        assert std.n_internal_stop_codons == 1
         mito = dn.compute_mk(seqs, 'TGG', dn.VERTEBRATE_MITOCHONDRIAL_CODE)
-        assert mito.Ds == 1
-        assert mito.Dn == 0
+        assert mito.Ds == 1 and mito.Dn == 0
+        assert mito.n_internal_stop_codons == 0
+
+    def test_internal_stop_polymorphism_counts_as_replacement(self):
+        # COII's real case under the (wrong) standard code: an ingroup that
+        # segregates TGA/TGG at an internal codon. DnaSP counts a replacement
+        # polymorphism (* vs Trp); this is what gave its standard-code Pn of
+        # 13 against the skill's former 11.
+        seqs = ['TGAGGG', 'TGGGGG']
+        result = dn.compute_mk(seqs, 'TGGGGG')
+        assert result.Pn == 1 and result.Ps == 0
+        assert result.n_internal_stop_codons == 1
+
+    def test_terminal_stop_codon_is_not_analysed(self):
+        # A final codon that is a stop in every sequence is the coding
+        # region's terminal stop. DnaSP's own COII_Apes.nex annotates it as
+        # noncoding (CODONPOSSET "N: 682-684") and codes 1-681 only, so
+        # TAG vs TAA there is not a synonymous fixed difference.
+        seqs = ['GGGTAG', 'GGGTAG']
+        result = dn.compute_mk(seqs, 'GGGTAA')
+        assert result.Ds == 0 and result.Dn == 0
+        assert result.n_internal_stop_codons == 0
+
+    def test_two_stop_codons_at_an_internal_position_are_synonymous(self):
+        # * = * : an internal TAA/TAG fixed difference is synonymous.
+        result = dn.compute_mk(['TAAGGG', 'TAAGGG'], 'TAGGGG')
+        assert result.Ds == 1 and result.Dn == 0
 
     def test_help_file_codon_13_15_site_is_both_syn_polymorphism_and_syn_fixed(self):
         # Directly from DnaSP's own McDonald-Kreitman help page (worked
@@ -2493,20 +2543,35 @@ class TestComputeKaKs:
         assert results['kaks'] is not None
         assert isinstance(results['kaks'], dn.KaKsStats)
 
-    def test_vertebrate_mitochondrial_code_counts_tga_codon(self):
-        # Under the standard code TGA is a stop, so this codon is excluded
-        # from both sequences entirely -- no jointly-valid codon exists, so
-        # the pair contributes nothing (n_codons/S_sites report 0, not the
-        # raw 1-codon alignment length). Under vertebrate mitochondrial code
-        # TGA=Trp, so it contributes like any other codon.
-        seqs = ['TGA', 'TGG']  # Trp<->Trp under mito code, synonymous
+    def test_internal_stop_codon_is_a_21st_amino_acid_in_kaks(self):
+        # Under the standard code TGA is a stop, but DnaSP still analyses the
+        # codon as a 21st amino acid: a stop codon has no synonymous sites
+        # (SINONIMO.vb::GeneticCodeFold counts its stop neighbours as stops,
+        # never as synonymous changes), so TGA/TGG is one nonsynonymous
+        # difference over 3 nonsynonymous sites. Under the vertebrate
+        # mitochondrial code TGA is Trp and the change is synonymous. (An
+        # earlier version of this test expected the standard-code pair to
+        # be skipped with n_codons = 0.)
+        seqs = ['TGA', 'TGG']
         std = dn.compute_ka_ks(seqs)
-        assert std.n_codons == 0
+        assert std.n_codons == 1
         assert std.S_sites == pytest.approx(0.0)
-
+        assert std.N_sites == pytest.approx(3.0)
+        assert std.Nd == pytest.approx(1.0) and std.Ks is None
+        assert std.Ka == pytest.approx(dn._jc_correct(1.0 / 3.0))
         mito = dn.compute_ka_ks(seqs, dn.VERTEBRATE_MITOCHONDRIAL_CODE)
         assert mito.n_codons == 1
-        assert mito.S_sites > 0.0
+        assert mito.S_sites > 0.0 and mito.Sd == pytest.approx(1.0)
+
+    def test_internal_stop_codon_contributes_three_nonsynonymous_sites(self):
+        # TAA (*) followed by two GGG: S = 0 + 1 + 1 = 2, N = 9 - 2 = 7 for
+        # both sequences; TAA vs TAG is one synonymous difference (* = *).
+        result = dn.compute_ka_ks(['TAAGGGGGG'], outgroup='TAGGGGGGG')
+        assert result.n_codons == 3
+        assert result.S_sites == pytest.approx(2.0)
+        assert result.N_sites == pytest.approx(7.0)
+        assert result.Sd == pytest.approx(1.0) and result.Nd == pytest.approx(0.0)
+        assert result.n_internal_stop_codons == 1
 
     def test_outgroup_none_keeps_all_pairwise_default(self):
         # No outgroup -> unchanged: average over every ingroup pair.
@@ -2600,24 +2665,23 @@ class TestComputeKaKs:
         assert without_out.S_sites == 0.0  # confirms the outgroup path is doing the work
 
     def test_no_jointly_valid_codon_reports_zero_not_raw_totals(self):
-        # Every ingroup codon is a stop under the standard code, so no pair
-        # has a single jointly-valid codon against the outgroup. Reporting
-        # the raw 2-codon alignment length here would make a fully failed
-        # comparison look like a populated, quantified result -- n_codons,
-        # S_sites and N_sites should all come back as 0, and Ka/Ks/omega as
-        # undefined (None), not silently omitted from an otherwise-full report.
-        ingroup = ['TGATGA']  # TGA = stop under standard code
-        outgroup = 'GGTGGT'   # valid on its own, but the pair never is
+        # Every ingroup codon is ambiguous, so no pair has a single
+        # jointly-valid codon against the outgroup. Reporting the raw 2-codon
+        # alignment length here would make a fully failed comparison look
+        # like a populated, quantified result -- n_codons, S_sites and
+        # N_sites should all come back as 0, and Ka/Ks/omega as undefined
+        # (None), not silently omitted from an otherwise-full report. (An
+        # earlier version used an all-stop-codon ingroup; stop codons are
+        # now analysed as a 21st amino acid, as DnaSP does, so they no
+        # longer produce this case.)
+        ingroup = ['NNNNNN']
+        outgroup = 'GGTGGT'
         result = dn.compute_ka_ks(ingroup, outgroup=outgroup)
         assert result.n_codons == 0
         assert result.S_sites == 0.0
         assert result.N_sites == 0.0
         assert result.Ka is None and result.Ks is None and result.omega is None
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Group D  -  Fu's Fs and Site Frequency Spectrum
-# ─────────────────────────────────────────────────────────────────────────────
 
 class TestStirling1Unsigned:
     """_stirling1_unsigned: unsigned Stirling numbers of the first kind."""
