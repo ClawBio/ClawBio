@@ -5,6 +5,7 @@ generate_report.py — Markdown report + matplotlib figures for NutriGx Advisor
 import os
 import json
 from datetime import datetime, timezone
+import re
 from pathlib import Path
 
 
@@ -86,6 +87,22 @@ RECOMMENDATIONS = {
         "Elevated": "Multiple antioxidant enzyme variants detected. Consider assessed supplementation: selenium, CoQ10, and magnesium. Limit pro-oxidant exposures (smoking, excess alcohol).",
     },
 }
+
+
+_SAFE_GENOTYPE_CHARS = re.compile(r"[^A-Za-z0-9/|]")
+
+
+def safe_display_genotype(genotype) -> str:
+    """
+    Render a genotype call safely for Markdown.
+
+    parse_input rejects non-nucleotide calls, but generate_report is also reached
+    directly by api.py and by any caller passing a genotype dict, so the value is
+    guarded again where it is written into a code span.
+    """
+    if not genotype:
+        return "--"
+    return _SAFE_GENOTYPE_CHARS.sub("_", str(genotype))[:32]
 
 
 def generate_report(snp_calls, risk_scores, snp_panel, output_dir, figures=True, input_file=""):
@@ -181,7 +198,7 @@ def generate_report(snp_calls, risk_scores, snp_panel, output_dir, figures=True,
             for s in data["contributing_snps"]:
                 effect = s["effect_direction"].replace("_", " ").title()
                 lines.append(
-                    f"| {s['gene']} | {s['rsid']} | `{s['genotype']}` "
+                    f"| {s['gene']} | {s['rsid']} | `{safe_display_genotype(s['genotype'])}` "
                     f"| {s['risk_count']}/2 | {effect} |"
                 )
             lines.append("")

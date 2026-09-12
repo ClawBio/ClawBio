@@ -9,6 +9,26 @@ import re
 from pathlib import Path
 
 
+# Genotype calls are read from a user-supplied file and later rendered into a
+# Markdown report, so they are untrusted text until proven otherwise. Only
+# nucleotide calls are accepted: A/C/G/T plus D and I, which 23andMe uses for
+# deletions and insertions. A run is allowed because a VCF call joins REF/ALT
+# alleles and an indel can be several bases. Anything else is discarded rather
+# than scored -- a "genotype" that is not a genotype cannot be biologically
+# meaningful, and must never reach the report.
+_VALID_GENOTYPE = re.compile(r"^[ACGTDI]{1,32}$")
+
+
+def clean_genotype(value):
+    """Return an uppercased genotype call, or None if it is not a valid call."""
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip().upper().replace("-", "")
+    if not cleaned or not _VALID_GENOTYPE.match(cleaned):
+        return None
+    return cleaned
+
+
 def detect_format(filepath: str) -> str:
     """Auto-detect genetic file format from header."""
     with open(filepath, encoding="utf-8", errors="replace") as f:
@@ -48,7 +68,9 @@ def parse_23andme(filepath: str) -> dict:
                 continue
             rsid, chrom, pos, genotype = parts[0], parts[1], parts[2], parts[3]
             if rsid.startswith("rs"):
-                genotypes[rsid] = genotype.replace("-", "")
+                call = clean_genotype(genotype)
+                if call:
+                    genotypes[rsid] = call
     return genotypes
 
 
@@ -73,7 +95,9 @@ def parse_ancestry(filepath: str) -> dict:
         allele1 = row.get("allele1", "").strip()
         allele2 = row.get("allele2", "").strip()
         if rsid.startswith("rs"):
-            genotypes[rsid] = allele1 + allele2
+            call = clean_genotype(allele1 + allele2)
+            if call:
+                genotypes[rsid] = call
     return genotypes
 
 
@@ -91,9 +115,9 @@ def parse_myheritage(filepath: str) -> dict:
         rsid = (row.get("RSID") or row.get("rsid") or "").strip()
         result = (row.get("RESULT") or row.get("result") or "").strip()
         if rsid.startswith("rs"):
-            geno = result.replace("-", "")
-            if geno:
-                genotypes[rsid] = geno
+            call = clean_genotype(result)
+            if call:
+                genotypes[rsid] = call
     return genotypes
 
 
@@ -132,7 +156,9 @@ def parse_vcf(filepath: str) -> dict:
             indices = re.split(r"[|/]", sample)
             try:
                 called = "".join(alleles[int(i)] for i in indices if i != ".")
-                genotypes[rsid] = called
+                call = clean_genotype(called)
+                if call:
+                    genotypes[rsid] = call
             except (IndexError, ValueError) as exc:
                 print(
                     f"[WARNING] VCF parse error for {rsid}: {exc}. "
