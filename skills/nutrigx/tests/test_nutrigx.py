@@ -202,3 +202,37 @@ def test_rs4988235_gg_and_cc_are_non_persistent():
         assert result["call"]["risk_count"] == 2
         assert result["score"]["category"] == "Elevated"
         assert result["score"]["score"] == 10.0
+
+
+# ── Palindromic (A/T, C/G) SNPs must never be strand-flipped ──────────────────
+# Flipping a palindromic genotype yields the other allele of the same pair, so
+# the flip always succeeds and converts homozygous reference into homozygous
+# risk. At rs9939609 (FTO, ref T, risk A) a TT call -- no risk alleles -- was
+# normalised to AA and scored 2. Three panel entries are palindromic.
+
+def test_palindromic_snps_are_not_strand_flipped():
+    panel = load_panel()
+    palindromic = [
+        s for s in panel
+        if frozenset([s["ref_allele"], s["risk_allele"]]) in
+        (frozenset(["A", "T"]), frozenset(["C", "G"]))
+    ]
+    assert palindromic, "expected palindromic entries in the panel"
+
+    for snp in palindromic:
+        ref, risk = snp["ref_allele"], snp["risk_allele"]
+        for genotype, expected in ((ref * 2, 0), (ref + risk, 1), (risk * 2, 2)):
+            call = extract_snp_genotypes({snp["rsid"]: genotype}, panel)[snp["rsid"]]
+            assert call["status"] == "found", f"{snp['rsid']} {genotype}: {call['status']}"
+            assert call["risk_count"] == expected, (
+                f"{snp['rsid']} ({ref}/{risk}) {genotype}: risk_count "
+                f"{call['risk_count']}, expected {expected}"
+            )
+
+
+def test_non_palindromic_snps_still_strand_flip():
+    """rs4988235 is C/T against G/A, so flipping is unambiguous and still needed."""
+    panel = load_panel()
+    for genotype in ("CC", "GG"):          # the same call on opposite strands
+        call = extract_snp_genotypes({"rs4988235": genotype}, panel)["rs4988235"]
+        assert call["risk_count"] == 2, f"{genotype} should give 2 risk alleles"
