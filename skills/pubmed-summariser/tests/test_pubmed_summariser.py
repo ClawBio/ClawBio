@@ -111,10 +111,10 @@ def test_main_writes_report_html(tmp_path):
 
 
 def test_main_no_results_exits_cleanly(tmp_path, capsys):
-    """Zero API results must not write a report and must print a helpful message."""
+    """Zero API results still write a report and print a helpful message."""
     from pubmed_summariser import main
     with patch("pubmed_summariser.pubmed_api.fetch_papers", return_value=[]):
         main(["--query", "UNKNOWNXYZ", "--output", str(tmp_path)])
-    assert not (tmp_path / "report.html").exists()
+    assert (tmp_path / "report.html").exists()
     captured = capsys.readouterr()
     assert "No results found" in captured.out

@@ -154,7 +154,7 @@ def write_checksums(
             continue
         if anchor_path is not None:
             try:
-                label = str(p.relative_to(anchor_path))
+                label = p.relative_to(anchor_path).as_posix()
             except ValueError:
                 label = p.name
         else:
