@@ -35,8 +35,17 @@ def create_reproducibility_bundle(input_file: str, output_dir: str, panel_path: 
         )
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    # Only non-identifying arguments are echoed into artefacts. args carries
+    # --input, --output and --panel, whose paths identify a person or a machine;
+    # provenance.json deliberately stores only the input *basename*, so writing
+    # the full path into commands.sh and into the args block below undid that.
+    SAFE_ARG_KEYS = ("format", "no_figures")
+    safe_args = {k: args[k] for k in SAFE_ARG_KEYS if k in args}
+    safe_args["custom_panel"] = bool(args.get("panel"))
     cmd_args = " ".join(
-        f"--{k.replace('_', '-')} {v}" for k, v in args.items() if v and k != "synthetic"
+        f"--{k.replace('_', '-')}" if isinstance(v, bool) else f"--{k.replace('_', '-')} {v}"
+        for k, v in safe_args.items()
+        if v and k != "custom_panel"
     )
     write_commands_sh(
         output_dir,
@@ -50,7 +59,7 @@ def create_reproducibility_bundle(input_file: str, output_dir: str, panel_path: 
         f"conda activate nutrigx\n"
         f"\n"
         f"# 2. Run analysis\n"
-        f"python nutrigx.py {cmd_args}\n"
+        f"python nutrigx.py --input <your_genetic_file> {cmd_args}\n"
         f"\n"
         f"# 3. Verify output checksums (labels are relative to the output directory)\n"
         f'( cd "$(dirname "$0")/.." && sha256sum -c reproducibility/checksums.sha256 )',
@@ -76,7 +85,7 @@ def create_reproducibility_bundle(input_file: str, output_dir: str, panel_path: 
         "input_file": Path(input_file).name,
         "input_sha256": sha256_file(input_file),
         "panel_sha256": sha256_file(panel_path),
-        "args": args,
+        "args": safe_args,
     }
     write_text_lf(
         output_dir / "reproducibility" / "provenance.json",

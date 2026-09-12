@@ -7,6 +7,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from path_safety import safe_open_write, safe_write_text
+
 
 DOMAIN_LABELS = {
     "folate": "Folate / B-Vitamins",
@@ -228,7 +230,7 @@ def generate_report(snp_calls, risk_scores, snp_panel, output_dir, figures=True,
 
     report_text = "\n".join(lines)
     report_path = output_dir / "nutrigx_report.md"
-    report_path.write_text(report_text)
+    safe_write_text(report_path, report_text)
 
     if figures:
         _generate_figures(risk_scores, output_dir)
@@ -276,7 +278,8 @@ def _generate_figures(risk_scores: dict, output_dir: Path):
 
     plt.title("NutriGx Nutrient Risk Profile", size=14, fontweight="bold", pad=20)
     plt.tight_layout()
-    fig.savefig(output_dir / "nutrigx_radar.png", dpi=150, bbox_inches="tight")
+    with safe_open_write(output_dir / "nutrigx_radar.png", binary=True) as _fh:
+        fig.savefig(_fh, format="png", dpi=150, bbox_inches="tight")
     plt.close()
 
     # ── Heatmap ───────────────────────────────────────────────────────────────
@@ -304,7 +307,8 @@ def _generate_figures(risk_scores: dict, output_dir: Path):
                         cbar_kws={"label": "Risk Score (0=Ref, 0.5=Het, 1=Hom Risk)"})
             ax.set_title("Gene × Nutrient Risk Heatmap", fontsize=13, fontweight="bold")
             plt.tight_layout()
-            fig.savefig(output_dir / "nutrigx_heatmap.png", dpi=150, bbox_inches="tight")
+            with safe_open_write(output_dir / "nutrigx_heatmap.png", binary=True) as _fh:
+                fig.savefig(_fh, format="png", dpi=150, bbox_inches="tight")
             plt.close()
     except ImportError:
         pass
