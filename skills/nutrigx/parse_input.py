@@ -53,27 +53,23 @@ def parse_23andme(filepath: str) -> dict:
 
 
 def parse_ancestry(filepath: str) -> dict:
-    """Parse AncestryDNA raw data file. Returns {rsid: genotype}."""
+    """
+    Parse an AncestryDNA raw data file. Returns {rsid: genotype}.
+
+    The file is streamed. csv.DictReader accepts any iterable of strings, so
+    comment lines are filtered by a generator rather than by first building a
+    list of every line in the file: consumer genetic files are large, and
+    materialising one made memory use scale with input size.
+    """
     genotypes = {}
     with open(filepath, encoding="utf-8", errors="replace") as f:
-        reader = csv.DictReader(f, delimiter="\t")
-        # Handle comment lines
-        raw = f.read() if not hasattr(reader, 'fieldnames') else ""
-    
-    # Re-read skipping comments
-    lines = []
-    with open(filepath, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            if not line.startswith("#"):
-                lines.append(line)
-    
-    reader = csv.DictReader(lines, delimiter="\t")
-    for row in reader:
-        rsid = row.get("rsid", "").strip()
-        allele1 = row.get("allele1", "").strip()
-        allele2 = row.get("allele2", "").strip()
-        if rsid.startswith("rs"):
-            genotypes[rsid] = allele1 + allele2
+        rows = (line for line in f if not line.startswith("#"))
+        for row in csv.DictReader(rows, delimiter="\t"):
+            rsid = row.get("rsid", "").strip()
+            allele1 = row.get("allele1", "").strip()
+            allele2 = row.get("allele2", "").strip()
+            if rsid.startswith("rs"):
+                genotypes[rsid] = allele1 + allele2
     return genotypes
 
 
