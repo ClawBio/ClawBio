@@ -85,7 +85,7 @@ dev = [
     "skills-ref>=0.1.1,<1",
 ]
 bot = [
-    "python-telegram-bot[job-queue]>=21.0",
+    "python-telegram-bot[job-queue]>=22.8",
     "discord.py>=2.3.0",
     "flask>=3.0.0",
     "requests>=2.31.0",
