@@ -1,41 +1,41 @@
 [
-  {"rsid": "rs1801133", "gene": "MTHFR", "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "folate", "weight": 0.85, "effect_direction": "decreased_folate_conversion", "pmid": "9042914"},
-  {"rsid": "rs1801131", "gene": "MTHFR", "ref_allele": "A", "risk_allele": "C", "nutrient_domain": "folate", "weight": 0.50, "effect_direction": "decreased_folate_conversion", "pmid": "9042914"},
-  {"rsid": "rs1805087", "gene": "MTR",   "ref_allele": "A", "risk_allele": "G", "nutrient_domain": "folate", "weight": 0.40, "effect_direction": "increased_homocysteine_risk", "pmid": "11134235"},
+  {"rsid": "rs1801133", "gene": "MTHFR", "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "folate", "weight": 0.85, "effect_direction": "decreased_folate_conversion", "pmid": "7647779"},
+  {"rsid": "rs1801131", "gene": "MTHFR", "ref_allele": "A", "risk_allele": "C", "nutrient_domain": "folate", "weight": 0.50, "effect_direction": "decreased_folate_conversion", "pmid": "9545395"},
+  {"rsid": "rs1805087", "gene": "MTR",   "ref_allele": "A", "risk_allele": "G", "nutrient_domain": "folate", "weight": 0.40, "effect_direction": "increased_homocysteine_risk", "pmid": "10520212"},
 
-  {"rsid": "rs2228570", "gene": "VDR",   "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "vitamin_d", "weight": 0.60, "effect_direction": "decreased_vitamin_d_response", "pmid": "16099820"},
-  {"rsid": "rs731236",  "gene": "VDR",   "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "vitamin_d", "weight": 0.55, "effect_direction": "decreased_vitamin_d_response", "pmid": "16099820"},
-  {"rsid": "rs4588",    "gene": "GC",    "ref_allele": "C", "risk_allele": "A", "nutrient_domain": "vitamin_d", "weight": 0.45, "effect_direction": "decreased_vitamin_d_binding", "pmid": "20427483"},
+  {"rsid": "rs2228570", "gene": "VDR",   "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "vitamin_d", "weight": 0.60, "effect_direction": "decreased_vitamin_d_response", "pmid": "9169350"},
+  {"rsid": "rs731236",  "gene": "VDR",   "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "vitamin_d", "weight": 0.55, "effect_direction": "decreased_vitamin_d_response", "pmid": "15315818"},
+  {"rsid": "rs4588",    "gene": "GC",    "ref_allele": "C", "risk_allele": "A", "nutrient_domain": "vitamin_d", "weight": 0.45, "effect_direction": "decreased_vitamin_d_binding", "pmid": "28757204"},
 
-  {"rsid": "rs174546",  "gene": "FADS1", "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "omega3", "weight": 0.80, "effect_direction": "decreased_lc_pufa_synthesis", "pmid": "19524563"},
-  {"rsid": "rs1535",    "gene": "FADS2", "ref_allele": "G", "risk_allele": "A", "nutrient_domain": "omega3", "weight": 0.70, "effect_direction": "altered_omega6_omega3_ratio", "pmid": "19524563"},
-  {"rsid": "rs953413",  "gene": "ELOVL2","ref_allele": "A", "risk_allele": "G", "nutrient_domain": "omega3", "weight": 0.60, "effect_direction": "decreased_dha_synthesis", "pmid": "28270201"},
-  {"rsid": "rs429358",  "gene": "APOE",  "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "omega3", "weight": 0.50, "effect_direction": "increased_ldl_on_saturated_fat", "pmid": "25655249"},
+  {"rsid": "rs174546",  "gene": "FADS1", "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "omega3", "weight": 0.80, "effect_direction": "decreased_lc_pufa_synthesis", "pmid": "25646338"},
+  {"rsid": "rs1535",    "gene": "FADS2", "ref_allele": "G", "risk_allele": "A", "nutrient_domain": "omega3", "weight": 0.70, "effect_direction": "altered_omega6_omega3_ratio", "pmid": "21829377"},
+  {"rsid": "rs953413",  "gene": "ELOVL2","ref_allele": "A", "risk_allele": "G", "nutrient_domain": "omega3", "weight": 0.60, "effect_direction": "decreased_dha_synthesis", "pmid": "21829377"},
+  {"rsid": "rs429358",  "gene": "APOE",  "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "omega3", "weight": 0.50, "effect_direction": "increased_ldl_on_saturated_fat", "pmid": "41044249"},
 
   {"rsid": "rs7501331",  "gene": "BCMO1", "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "vitamin_a", "weight": 0.70, "effect_direction": "decreased_beta_carotene_conversion", "pmid": "19103647"},
   {"rsid": "rs12934922", "gene": "BCMO1", "ref_allele": "A", "risk_allele": "T", "nutrient_domain": "vitamin_a", "weight": 0.60, "effect_direction": "decreased_beta_carotene_conversion", "pmid": "19103647"},
 
-  {"rsid": "rs33972313", "gene": "SLC23A1","ref_allele": "C","risk_allele": "T","nutrient_domain": "vitamin_c","weight": 0.50,"effect_direction": "decreased_vitamin_c_reabsorption","pmid": "25498559"},
+  {"rsid": "rs33972313", "gene": "SLC23A1","ref_allele": "C","risk_allele": "T","nutrient_domain": "vitamin_c","weight": 0.50,"effect_direction": "decreased_vitamin_c_reabsorption","pmid": "33203707"},
 
-  {"rsid": "rs1256335", "gene": "ALPL", "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "vitamin_b6", "weight": 0.45, "effect_direction": "decreased_b6_utilisation", "pmid": "20937875"},
+  {"rsid": "rs1256335", "gene": "ALPL", "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "vitamin_b6", "weight": 0.45, "effect_direction": "decreased_b6_utilisation", "pmid": "19744961"},
 
   {"rsid": "rs9939609", "gene": "FTO",    "ref_allele": "T", "risk_allele": "A", "nutrient_domain": "carbohydrate", "weight": 0.70, "effect_direction": "increased_fat_mass_energy_dysregulation", "pmid": "17434869"},
   {"rsid": "rs7903146", "gene": "TCF7L2", "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "carbohydrate", "weight": 0.75, "effect_direction": "impaired_carbohydrate_metabolism", "pmid": "16415884"},
 
-  {"rsid": "rs1801282", "gene": "PPARG",  "ref_allele": "C", "risk_allele": "G", "nutrient_domain": "fat_metabolism", "weight": 0.55, "effect_direction": "reduced_fat_oxidation", "pmid": "11773551"},
-  {"rsid": "rs662799",  "gene": "APOA5",  "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "fat_metabolism", "weight": 0.65, "effect_direction": "elevated_triglycerides_on_fat", "pmid": "11726552"},
-  {"rsid": "rs7412",    "gene": "APOE",   "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "fat_metabolism", "weight": 0.55, "effect_direction": "apoe_epsilon2_lower_ldl", "pmid": "25655249"},
+  {"rsid": "rs1801282", "gene": "PPARG",  "ref_allele": "C", "risk_allele": "G", "nutrient_domain": "fat_metabolism", "weight": 0.55, "effect_direction": "reduced_fat_oxidation", "pmid": "34887591"},
+  {"rsid": "rs662799",  "gene": "APOA5",  "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "fat_metabolism", "weight": 0.65, "effect_direction": "elevated_triglycerides_on_fat", "pmid": "28334899"},
+  {"rsid": "rs7412",    "gene": "APOE",   "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "fat_metabolism", "weight": 0.55, "effect_direction": "apoe_epsilon2_lower_ldl", "pmid": "28334899"},
 
-  {"rsid": "rs762551",  "gene": "CYP1A2", "ref_allele": "A", "risk_allele": "C", "nutrient_domain": "caffeine", "weight": 0.85, "effect_direction": "slow_caffeine_metabolism", "pmid": "16507463"},
-  {"rsid": "rs4410790", "gene": "AHR",    "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "caffeine", "weight": 0.40, "effect_direction": "reduced_cyp1a2_induction", "pmid": "21270764"},
+  {"rsid": "rs762551",  "gene": "CYP1A2", "ref_allele": "A", "risk_allele": "C", "nutrient_domain": "caffeine", "weight": 0.85, "effect_direction": "slow_caffeine_metabolism", "pmid": "10233211"},
+  {"rsid": "rs4410790", "gene": "AHR",    "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "caffeine", "weight": 0.40, "effect_direction": "reduced_cyp1a2_induction", "pmid": "33287642"},
 
-  {"rsid": "rs1229984", "gene": "ADH1B",  "ref_allele": "G", "risk_allele": "A", "nutrient_domain": "alcohol", "weight": 0.80, "effect_direction": "altered_acetaldehyde_accumulation", "pmid": "14685153"},
-  {"rsid": "rs671",     "gene": "ALDH2",  "ref_allele": "G", "risk_allele": "A", "nutrient_domain": "alcohol", "weight": 0.90, "effect_direction": "impaired_acetaldehyde_clearance", "pmid": "12042820"},
+  {"rsid": "rs1229984", "gene": "ADH1B",  "ref_allele": "G", "risk_allele": "A", "nutrient_domain": "alcohol", "weight": 0.80, "effect_direction": "altered_acetaldehyde_accumulation", "pmid": "30643251"},
+  {"rsid": "rs671",     "gene": "ALDH2",  "ref_allele": "G", "risk_allele": "A", "nutrient_domain": "alcohol", "weight": 0.90, "effect_direction": "impaired_acetaldehyde_clearance", "pmid": "21372407"},
 
   {"rsid": "rs4988235", "gene": "MCM6",   "ref_allele": "A", "risk_allele": "G", "nutrient_domain": "lactose", "weight": 0.95, "effect_direction": "lactase_non_persistence", "inheritance": "dominant_protective", "pmid": "11788828"},
 
-  {"rsid": "rs4880",    "gene": "SOD2",   "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "antioxidant", "weight": 0.55, "effect_direction": "decreased_mitochondrial_antioxidant", "pmid": "14607993"},
-  {"rsid": "rs1050450", "gene": "GPX1",   "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "antioxidant", "weight": 0.50, "effect_direction": "decreased_glutathione_peroxidase", "pmid": "11786716"},
-  {"rsid": "rs1800566", "gene": "NQO1",   "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "antioxidant", "weight": 0.60, "effect_direction": "decreased_coq10_regeneration", "pmid": "9067901"},
-  {"rsid": "rs4680",    "gene": "COMT",   "ref_allele": "G", "risk_allele": "A", "nutrient_domain": "antioxidant", "weight": 0.45, "effect_direction": "altered_methylation_catechol_metabolism", "pmid": "9463411"}
+  {"rsid": "rs4880",    "gene": "SOD2",   "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "antioxidant", "weight": 0.55, "effect_direction": "decreased_mitochondrial_antioxidant", "pmid": "12618592"},
+  {"rsid": "rs1050450", "gene": "GPX1",   "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "antioxidant", "weight": 0.50, "effect_direction": "decreased_glutathione_peroxidase", "pmid": "11112379"},
+  {"rsid": "rs1800566", "gene": "NQO1",   "ref_allele": "C", "risk_allele": "T", "nutrient_domain": "antioxidant", "weight": 0.60, "effect_direction": "decreased_coq10_regeneration", "pmid": "11160862"},
+  {"rsid": "rs4680",    "gene": "COMT",   "ref_allele": "G", "risk_allele": "A", "nutrient_domain": "antioxidant", "weight": 0.45, "effect_direction": "altered_methylation_catechol_metabolism", "pmid": "8807664"}
 ]
