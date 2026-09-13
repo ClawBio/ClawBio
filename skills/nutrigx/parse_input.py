@@ -29,6 +29,19 @@ def clean_genotype(value):
     return cleaned
 
 
+def clean_genotype_table(table: dict) -> dict:
+    """
+    Apply clean_genotype to every call in an already-parsed {rsid: genotype} table.
+
+    The nutrigx CLI parses through clawbio.common.parsers and api.py accepts a
+    caller-built dict, so neither path goes through this module's parsers. Both
+    pass their table through here before scoring. An invalid call becomes "" rather
+    than being dropped, so it is reported as a failed call ("no_call") and not as
+    an untyped SNP ("not_tested").
+    """
+    return {rsid: (clean_genotype(g) or "") for rsid, g in table.items()}
+
+
 def detect_format(filepath: str) -> str:
     """Auto-detect genetic file format from header."""
     with open(filepath, encoding="utf-8", errors="replace") as f:
@@ -68,9 +81,7 @@ def parse_23andme(filepath: str) -> dict:
                 continue
             rsid, chrom, pos, genotype = parts[0], parts[1], parts[2], parts[3]
             if rsid.startswith("rs"):
-                call = clean_genotype(genotype)
-                if call:
-                    genotypes[rsid] = call
+                genotypes[rsid] = clean_genotype(genotype) or ""
     return genotypes
 
 
@@ -95,9 +106,7 @@ def parse_ancestry(filepath: str) -> dict:
         allele1 = row.get("allele1", "").strip()
         allele2 = row.get("allele2", "").strip()
         if rsid.startswith("rs"):
-            call = clean_genotype(allele1 + allele2)
-            if call:
-                genotypes[rsid] = call
+            genotypes[rsid] = clean_genotype(allele1 + allele2) or ""
     return genotypes
 
 
@@ -115,9 +124,7 @@ def parse_myheritage(filepath: str) -> dict:
         rsid = (row.get("RSID") or row.get("rsid") or "").strip()
         result = (row.get("RESULT") or row.get("result") or "").strip()
         if rsid.startswith("rs"):
-            call = clean_genotype(result)
-            if call:
-                genotypes[rsid] = call
+            genotypes[rsid] = clean_genotype(result) or ""
     return genotypes
 
 
@@ -156,9 +163,7 @@ def parse_vcf(filepath: str) -> dict:
             indices = re.split(r"[|/]", sample)
             try:
                 called = "".join(alleles[int(i)] for i in indices if i != ".")
-                call = clean_genotype(called)
-                if call:
-                    genotypes[rsid] = call
+                genotypes[rsid] = clean_genotype(called) or ""
             except (IndexError, ValueError) as exc:
                 print(
                     f"[WARNING] VCF parse error for {rsid}: {exc}. "

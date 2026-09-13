@@ -202,3 +202,47 @@ def test_rs4988235_gg_and_cc_are_non_persistent():
         assert result["call"]["risk_count"] == 2
         assert result["score"]["category"] == "Elevated"
         assert result["score"]["score"] == 10.0
+
+
+# ── Genotype validation on every entry path ───────────────────────────────────
+
+def test_clean_genotype_accepts_nucleotides_and_rejects_everything_else():
+    from parse_input import clean_genotype
+
+    assert clean_genotype("ct") == "CT"
+    assert clean_genotype(" AG ") == "AG"
+    assert clean_genotype("DI") == "DI"
+    for bad in ("--", "00", "", None, "C`T", "<b>", "A|G", "CT; rm -rf"):
+        assert clean_genotype(bad) is None, bad
+
+
+def test_invalid_calls_are_reported_as_no_call_not_untested():
+    from parse_input import clean_genotype_table
+
+    panel = load_panel()
+    table = clean_genotype_table({"rs1801133": "C`T</code>", "rs4988235": "--"})
+    calls = extract_snp_genotypes(table, panel)
+    assert calls["rs1801133"]["status"] == "no_call"
+    assert calls["rs4988235"]["status"] == "no_call"
+
+
+def test_cli_path_applies_the_whitelist():
+    """nutrigx.py parses through clawbio.common.parsers, which does not validate."""
+    src = (SKILL_DIR / "nutrigx.py").read_text()
+    assert "clean_genotype_table(genotypes_to_simple(records))" in src
+
+
+def test_api_path_applies_the_whitelist():
+    import api
+
+    result = api.run({"rs1801133": "<script>", "rs4988235": "AG", "rs9939609": "TT"})
+    assert result["snp_calls"]["rs1801133"]["status"] == "no_call"
+
+
+def test_safe_display_genotype_strips_table_breaking_characters():
+    from generate_report import safe_display_genotype
+
+    out = safe_display_genotype("A|G`<x>")
+    for ch in ("|", "`", "<", ">"):
+        assert ch not in out
+    assert safe_display_genotype("") == "--"

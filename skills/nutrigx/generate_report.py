@@ -89,7 +89,8 @@ RECOMMENDATIONS = {
 }
 
 
-_SAFE_GENOTYPE_CHARS = re.compile(r"[^A-Za-z0-9/|]")
+# "|" is excluded: it splits a GFM table cell even inside a code span.
+_SAFE_GENOTYPE_CHARS = re.compile(r"[^A-Za-z0-9/]")
 
 
 def safe_display_genotype(genotype) -> str:
