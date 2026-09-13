@@ -1,0 +1,16 @@
+# Review is required from the listed owner before a change to these paths
+# merges. Everything not listed (in particular skills/) is reviewed under the
+# process in GOVERNANCE.md and may be merged by any maintainer, or by the
+# daily PR agent when its published conditions are met.
+#
+# This file only binds once branch protection on main requires code-owner
+# review; see GOVERNANCE.md, "Repository settings".
+
+/clawbio/           @manuelcorpas
+/.github/           @manuelcorpas
+/scripts/           @manuelcorpas
+/pyproject.toml     @manuelcorpas
+/uv.lock            @manuelcorpas
+/GOVERNANCE.md      @manuelcorpas
+/MAINTAINERS.md     @manuelcorpas
+/SECURITY.md        @manuelcorpas

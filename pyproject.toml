@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "clawbio"
-description = "The first bioinformatics-native AI agent skill library. Local-first, reproducible, built on OpenClaw."
+description = "Bioinformatics-native AI agent skill library. Local-first, reproducible, built on OpenClaw."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -72,6 +72,11 @@ fine-mapping = [
     "sushie>=0.20,<0.21",
     "glimix-core>=3.1.14,<4",
 ]
+# Shared by the four region skills (eqtl-catalogue-region-fetch,
+# gwas-catalog-region-fetch, ld-1000g-region-compute, ukb-ppp-region-fetch).
+# Declared here so `uv sync --all-extras` in CI can run their test suites;
+# each SKILL.md already documents pysam>=0.22 for local installs (#406).
+region-fetch = ["pysam>=0.22"]
 
 [project.scripts]
 clawbio = "clawbio.cli:main"

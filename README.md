@@ -1,7 +1,7 @@
 <h3 align="center">ClawBio</h3>
 
 <p align="center">
-  <strong>The first bioinformatics-native AI agent skill library.</strong><br>
+  <strong>A bioinformatics-native AI agent skill library.</strong><br>
   Built on <a href="https://github.com/openclaw/openclaw">OpenClaw</a> (180k+ GitHub stars). Local-first. Privacy-focused. Reproducible.
 </p>
 
@@ -9,10 +9,15 @@
   <a href="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml"><img src="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.11+-blue?logo=python&logoColor=white" alt="Python 3.11+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
-  <a href="https://clawhub.ai"><img src="https://img.shields.io/badge/ClawHub-96_skills-orange" alt="ClawHub Skills"></a>
+  <a href="https://luma.com/clawbio"><img src="https://img.shields.io/badge/Events-Follow_on_Luma-7c3aed" alt="Follow ClawBio Events on Luma"></a>
   <a href="https://doi.org/10.5281/zenodo.19420648"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.19420648.svg" alt="DOI"></a>
   <a href="https://github.com/ClawBio/ClawBio/issues"><img src="https://img.shields.io/github/issues/ClawBio/ClawBio" alt="Open Issues"></a>
   <a href="https://clawbio.github.io/ClawBio/slides/"><img src="https://img.shields.io/badge/slides-London_Bioinformatics_Meetup-purple" alt="Slides"></a>
+</p>
+
+<p align="center">
+  <strong>📅 <a href="https://luma.com/clawbio">Follow the official ClawBio Events Calendar</a></strong><br>
+  <sub>ClawBio is building a general-purpose agentic utility layer for bioinformatics. Follow the calendar for hackathons, workshops, meetups and community events where contributors build, test and extend the platform.</sub>
 </p>
 
 ---
@@ -63,7 +68,7 @@ uv run python clawbio.py run pharmgx --demo
 
 ## What ClawBio Does Today
 
-**96 skills (91 with runnable demo data) + 8,182 Galaxy tools + 4,672 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
+**97 skills (92 with runnable demo data) + 8,182 Galaxy tools + 4,824 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
 > **v0.5.0 released** (4 Apr 2026): Validation and Benchmark Infrastructure. AD ground truth benchmark, mock API server for offline testing, swappable fine-mapping pipeline (SuSiE vs ABF), 74 benchmark tests, red/green TDD mandate. [Release notes](https://github.com/ClawBio/ClawBio/releases/tag/v0.5.0). DOI: [10.5281/zenodo.19420648](https://doi.org/10.5281/zenodo.19420648).
 
 Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card — on your machine, in seconds:
@@ -188,7 +193,7 @@ The exact contents can vary by skill, and some replays also require the original
 
 ## Skills
 
-A curated cross-section of ClawBio's 96 skills. The full machine-readable catalog (with status flags, objective `maturity_tier` evidence, trigger keywords, demo commands, and chaining partners) lives in [`skills/catalog.json`](skills/catalog.json); browse the directory at [`skills/`](skills/) to see every skill folder.
+A curated cross-section of ClawBio's 97 skills. The full machine-readable catalog (with status flags, objective `maturity_tier` evidence, trigger keywords, demo commands, and chaining partners) lives in [`skills/catalog.json`](skills/catalog.json); browse the directory at [`skills/`](skills/) to see every skill folder.
 
 Catalog maturity tiers are computed from repository evidence: `spec-only` (SKILL.md only), `scripted` (has runnable code), `tested` (has skill tests), `cli-registered` (available via `python clawbio.py run`), `ci-validated` (explicitly tested in CI), and `bench-validated` (reserved for skills with blocking scientific benchmark validation).
 
@@ -481,8 +486,15 @@ python clawbio.py run methylation --geo-id GSE139307 --output results_methylatio
 ### Run tests
 
 ```bash
-uv run pytest                # or: pip install pytest && python -m pytest
+uv run pytest <path>          # one test path at a time, e.g.:
+uv run pytest skills/pharmgx-reporter/tests/ -v
 ```
+
+Running a single bare `uv run pytest` (no path) fails at collection time on
+a `conftest.py` module-name collision between skills. CI works around this
+by invoking pytest separately per test path; do the same locally. See
+[docs/testing.md](docs/testing.md) for the root cause, the full list of
+test paths, and a documented verification run.
 
 ### Dependencies
 
@@ -490,7 +502,7 @@ Core dependencies are declared in [`pyproject.toml`](pyproject.toml) and pinned 
 
 `uv sync` installs everything in a reproducible virtual environment. To add or update a dependency, run `uv add <package>` (or edit `pyproject.toml` and re-run `uv sync`); commit the resulting `uv.lock` change.
 
-Some skills have additional requirements:
+Some skills have additional requirements, declared in that skill's own `SKILL.md` `install:` block and installed only if you use that skill:
 
 | Skill | Extra dependency | Install |
 |-------|-----------------|---------|
@@ -498,6 +510,17 @@ Some skills have additional requirements:
 | Methylation Clock | PyAging | `pip install pyaging` |
 | scRNA Embedding | scvi-tools | `pip install scvi-tools` |
 | Galaxy Bridge | BioBlend | `pip install bioblend` |
+| Affinity Proteomics | somadata, scipy, statsmodels, seaborn, scikit-learn | `pip install somadata scipy statsmodels seaborn scikit-learn` |
+| Cell Detection | cellpose, tifffile, czifile, nd2, Pillow, scikit-image | `pip install "cellpose>=4.0" tifffile "czifile>=2019.7.2.2" "nd2>=0.11.1" Pillow scikit-image` |
+| Data Extractor | anthropic, opencv-python-headless | `pip install anthropic opencv-python-headless` |
+| eQTL Catalogue / GWAS Catalog Region Fetch | pysam | `pip install pysam pandas requests` |
+| Variant Annotation | pysam | `uv add pysam requests` |
+| Celltype Specificity Profiler | scanpy, anndata | `uv add scanpy anndata numpy scipy pandas` |
+| Drug Repurposing Screen | pyarrow (parquet engine) | `pip install numpy pandas scipy pyyaml pyarrow` |
+| Proteomics Clock | seaborn | `pip install pandas numpy matplotlib seaborn requests` |
+| RoboTerri (`robotary/`) | fastapi | **Undocumented in its own SKILL.md as of this writing.** `uv add fastapi` |
+
+See [docs/testing.md](docs/testing.md) for how these were identified (a full per-skill test verification run) and which failures are unrelated to missing dependencies.
 
 No Docker or Singularity required for core functionality. Skills that need external bioinformatics tools document their setup in their own `SKILL.md`.
 
@@ -662,7 +685,7 @@ See [Contributing a Skill](#contributing-a-skill) above for the submission proce
 
 ## Versioning
 
-ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.7.0**. See [CHANGELOG.md](CHANGELOG.md) for a full history of additions and breaking changes.
+ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.7.1**. See [CHANGELOG.md](CHANGELOG.md) for a full history of additions and breaking changes.
 
 ---
 
@@ -670,7 +693,7 @@ ClawBio follows [Semantic Versioning](https://semver.org/). The current release 
 
 ### What is ClawBio?
 
-ClawBio is the **first bioinformatics-native AI agent skill library**. Built on OpenClaw (180k+ GitHub stars), it provides 96 skills (91 with runnable demo data) for genomics analysis, pharmacogenomics, ancestry profiling, and more. Local-first, privacy-focused, and reproducible.
+ClawBio is a **bioinformatics-native AI agent skill library**. Built on OpenClaw (180k+ GitHub stars), it provides 97 skills (92 with runnable demo data) for genomics analysis, pharmacogenomics, ancestry profiling, and more. Local-first, privacy-focused, and reproducible.
 
 ### What are ClawBio skills?
 

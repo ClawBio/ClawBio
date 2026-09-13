@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 96,
+  "skill_count": 97,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -626,6 +626,60 @@
         "cell-type-specific expression",
         "expression specificity",
         "marker gene specificity"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "claw-amplicon-qc",
+      "cli_alias": null,
+      "description": "16S/18S rRNA amplicon preprocessing — from raw paired-end FASTQ files through N removal and primer trimming, producing outputs ready for DADA2 quality filtering and denoising. Deliberately stops before quality-filtering decisions that require researcher judgment.",
+      "version": "0.2.2",
+      "status": "planned",
+      "maturity_tier": "tested",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": false,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "Rscript skills/claw-amplicon-qc/amplicon_qc.R --demo",
+      "dependencies": [
+        "dada2",
+        "ShortRead",
+        "Biostrings",
+        "optparse",
+        "jsonlite"
+      ],
+      "tags": [
+        "amplicon",
+        "16S",
+        "18S",
+        "DADA2",
+        "cutadapt",
+        "quality-control",
+        "environmental",
+        "microbiome"
+      ],
+      "trigger_keywords": [
+        "16S amplicon QC",
+        "16S primer trimming",
+        "amplicon preprocessing",
+        "amplicon QC",
+        "cutadapt primer trimming",
+        "DADA2 preprocessing",
+        "remove primers from FASTQ",
+        "18S amplicon QC",
+        "microbiome QC",
+        "rRNA amplicon preprocessing"
       ],
       "chaining_partners": [],
       "license": "MIT",
@@ -1270,8 +1324,8 @@
     {
       "name": "dnasp",
       "cli_alias": "dnasp",
-      "description": "Full reimplementation of DnaSP 6 for population genetics analysis of aligned DNA sequences. Covers nucleotide diversity, haplotype statistics, neutrality tests (Tajima's D, Fu & Li's D*/F*, R2), linkage disequilibrium (D, D', R², ZnS, Za, ZZ), minimum recombination (Rm), mismatch distribution, InDel polymorphism, between-population divergence (Dxy, Da, fixed/shared sites), outgroup-based Fu & Li D/F tests (fuliout), the HKA multi-locus neutrality test (hka), the McDonald-Kreitman test (mk), Ka/Ks (dN/dS) via the Nei-Gojobori (1986) method (kaks), Fu's Fs test (fufs), the site frequency spectrum (sfs, folded and outgroup-unfolded), transition/transversion ratio (tstv), and codon usage bias  -  RSCU (Sharp & Li 1987) and ENC (Wright 1990) (codon). Accepts FASTA or NEXUS input; outputs DnaSP-compatible TSV and a Markdown report.",
-      "version": "0.4.0",
+      "description": "Full reimplementation of DnaSP 6 for population genetics analysis of aligned DNA sequences. Covers nucleotide diversity, haplotype statistics, neutrality tests (Tajima's D, Fu & Li's D*/F*, R2), linkage disequilibrium (D, D', R², ZnS, Za, ZZ), minimum recombination (Rm), mismatch distribution, InDel polymorphism, between-population divergence (Dxy, Da, fixed/shared sites), outgroup-based Fu & Li D/F tests (fuliout), the HKA two-locus neutrality test (hka), the McDonald-Kreitman test (mk), Ka/Ks (dN/dS) via the Nei-Gojobori (1986) method (kaks), Fu's Fs test (fufs), the site frequency spectrum (sfs, folded and outgroup-unfolded), transition/transversion ratio (tstv), and codon usage bias  -  RSCU (Sharp & Li 1987) and ENC (Wright 1990) (codon). Accepts pre-aligned FASTA/NEXUS or a multi-sample VCF (one MSA per CHROM); outputs DnaSP-compatible TSV and a Markdown report.",
+      "version": "0.5.0",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1325,7 +1379,7 @@
         "outgroup polarised mutations",
         "HKA test neutrality",
         "Hudson Kreitman Aguade",
-        "multi-locus neutrality",
+        "two-locus neutrality",
         "polymorphism divergence ratio",
         "McDonald-Kreitman test",
         "MK test",
@@ -1346,7 +1400,11 @@
         "SFS folded unfolded",
         "allele frequency spectrum",
         "singleton excess",
-        "minor allele frequency distribution"
+        "minor allele frequency distribution",
+        "VCF population genetics",
+        "multi-sample VCF nucleotide diversity",
+        "VCF to haplotypes",
+        "population genomics from VCF"
       ],
       "chaining_partners": [],
       "license": "MIT",
@@ -4346,16 +4404,16 @@
       "name": "wgs-prs",
       "cli_alias": null,
       "description": "End-to-end WGS to polygenic risk score pipeline. Takes paired-end FASTQ files (or a pre-existing VCF) through nf-core/sarek for variant calling, applies VCF QC (normalisation, hard filtering, Ti/Tv and Het/Hom checks), then computes polygenic risk scores via the PGS Catalog. Fills the FASTQ to VCF gap upstream of the gwas-prs skill.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "planned",
-      "maturity_tier": "tested",
+      "maturity_tier": "ci-validated",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
+        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
