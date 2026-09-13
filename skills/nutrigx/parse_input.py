@@ -64,7 +64,9 @@ def parse_ancestry(filepath: str) -> dict:
     genotypes = {}
     with open(filepath, encoding="utf-8", errors="replace") as f:
         rows = (line for line in f if not line.startswith("#"))
-        for row in csv.DictReader(rows, delimiter="\t"):
+        # restval="" so a truncated row yields empty strings rather than None,
+        # which would make the .strip() calls below raise.
+        for row in csv.DictReader(rows, delimiter="\t", restval=""):
             rsid = row.get("rsid", "").strip()
             allele1 = row.get("allele1", "").strip()
             allele2 = row.get("allele2", "").strip()
