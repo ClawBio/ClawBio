@@ -766,9 +766,8 @@ def _write_sensitivity_table(s, egger_int, egger_p, path):
         w.writerow(["test", "statistic", "pvalue", "interpretation"])
         w.writerow(["Cochran_Q", f"{s.cochran_q:.2f}", f"{s.cochran_q_pvalue:.4f}", "Significant = heterogeneity" if s.cochran_q_pvalue < 0.05 else "No significant heterogeneity"])
         if math.isnan(egger_int) or math.isnan(egger_p):
-            w.writerow(["Egger_intercept", "not_applicable", "not_applicable",
-                        "MR-Egger did not apply to this instrument set, so there is no "
-                        "directional-pleiotropy test"])
+            note = "MR-Egger did not apply to this instrument set, so there is no directional-pleiotropy test"
+            w.writerow(["Egger_intercept", "not_applicable", "not_applicable", note])
         else:
             w.writerow(["Egger_intercept", f"{egger_int:.6f}", f"{egger_p:.4f}", "Significant = directional pleiotropy" if egger_p < 0.05 else "No evidence of directional pleiotropy"])
         w.writerow(["Mean_F_statistic", f"{s.mean_f_statistic:.1f}", "N/A", f"{'WEAK' if s.mean_f_statistic < MIN_F_STAT else 'Strong'} instruments"])
