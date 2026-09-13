@@ -105,6 +105,38 @@ class TestMREgger:
         assert abs(intercept) < 0.1
         assert p_int > 0.05
 
+    def test_matches_twosamplemr_mr_egger_regression_on_the_demo(self, demo_instruments):
+        """Cross-implementation parity. TwoSampleMR's mr_egger_regression (R/mr.R at
+        commit c14776b8, the function loaded verbatim into R 4.6.0) on these 30
+        instruments returns slope 0.602231, se 0.081583, intercept -0.000187,
+        intercept se 0.003121. Before instruments were oriented, this code returned
+        0.598932 and 0.039122 for the slope. The p-values are NOT compared: that
+        implementation uses a t reference on n - 2 df, this one a normal."""
+        est, intercept, se_int, _ = mr_egger(demo_instruments)
+        assert est.estimate == pytest.approx(0.602231, abs=5e-7)
+        assert est.se == pytest.approx(0.081583, abs=5e-7)
+        assert intercept == pytest.approx(-0.000187, abs=5e-7)
+        assert se_int == pytest.approx(0.003121, abs=5e-7)
+
+    def test_intercept_does_not_depend_on_allele_coding(self, demo_instruments):
+        """Re-coding an instrument to its other allele negates both effects. The
+        slope never depended on that; the intercept did, before instruments were
+        oriented to a positive exposure effect (as TwoSampleMR does). Every other
+        instrument is re-coded, so 18 of 30 demo rows are negative before and half
+        of those flip again here."""
+        est0, int0, se0, p0 = mr_egger(demo_instruments)
+        recoded = [
+            Instrument(**{**vars(i), "beta_exposure": -i.beta_exposure, "beta_outcome": -i.beta_outcome})
+            if k % 2 else i
+            for k, i in enumerate(demo_instruments)
+        ]
+        est1, int1, se1, p1 = mr_egger(recoded)
+        assert est1.estimate == pytest.approx(est0.estimate, rel=1e-12)
+        assert est1.se == pytest.approx(est0.se, rel=1e-12)
+        assert int1 == pytest.approx(int0, rel=1e-12)
+        assert se1 == pytest.approx(se0, rel=1e-12)
+        assert p1 == pytest.approx(p0, rel=1e-12)
+
 
 class TestWeightedMedian:
     def test_returns_estimate(self, demo_instruments):
