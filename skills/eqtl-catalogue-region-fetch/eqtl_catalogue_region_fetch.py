@@ -574,6 +574,11 @@ def main(argv: list[str] | None = None) -> int:
                    "start_bp": int(cfg["start_bp"]),
                    "end_bp": int(cfg["end_bp"])},
         "n_variants": result.n_variants,
+        # The file class that was OPENED (from the index, or the caller's explicit
+        # choice), so a consumer never has to re-infer it from quant_method.
+        "file_class": result.file_class,
+        "file_class_requested": cfg.get("file_class"),
+        "study_id_requested": cfg.get("study_id"),
         "release": {
             "study_label": result.release.study_label,
             "tissue_label": result.release.tissue_label,
@@ -613,13 +618,40 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+# The config keys the CLI reads. Every other key is REFUSED rather than ignored:
+# a config carrying `file_class: cc` that the CLI silently dropped would fetch the
+# listed `.all` file and report nothing, the substituted-answer failure. Keys
+# starting with `_` are annotations (`_description` in the bundled examples).
+CONFIG_KEYS_REQUIRED = ("dataset_id", "chromosome", "start_bp", "end_bp")
+CONFIG_KEYS_OPTIONAL = ("molecular_trait_id", "study_id", "file_class")
+
+
+def _validate_config(cfg: dict) -> dict:
+    """Refuse a config with keys this CLI does not read, or with a required key
+    missing. Returns the config unchanged."""
+    if not isinstance(cfg, dict):
+        raise ValueError("config must be a mapping")
+    known = set(CONFIG_KEYS_REQUIRED) | set(CONFIG_KEYS_OPTIONAL)
+    unknown = sorted(k for k in cfg if not str(k).startswith("_") and k not in known)
+    if unknown:
+        raise ValueError(
+            f"config has keys this CLI does not read: {unknown}. Known keys: "
+            f"{list(CONFIG_KEYS_REQUIRED)} (required) and {list(CONFIG_KEYS_OPTIONAL)} "
+            f"(optional); a key starting with '_' is an annotation and is ignored."
+        )
+    missing = [k for k in CONFIG_KEYS_REQUIRED if k not in cfg]
+    if missing:
+        raise ValueError(f"config is missing required keys: {missing}")
+    return cfg
+
+
 def _load_config(path: Path) -> dict:
     text = path.read_text()
     if path.suffix.lower() in (".yaml", ".yml"):
         import yaml as _yaml
-        return _yaml.safe_load(text) or {}
+        return _validate_config(_yaml.safe_load(text) or {})
     if path.suffix.lower() == ".json":
-        return json.loads(text)
+        return _validate_config(json.loads(text))
     raise ValueError(f"unsupported config extension: {path.suffix}")
 
 
@@ -680,7 +712,10 @@ def _print_available_demos() -> None:
 def _cache_key(cfg: dict) -> str:
     chrom = str(cfg["chromosome"]).lstrip("chr")
     mt = cfg.get("molecular_trait_id") or "_all"
-    return f"{cfg['dataset_id']}__{mt}__chr{chrom}_{int(cfg['start_bp'])}_{int(cfg['end_bp'])}.json"
+    # An explicit file class is part of the key: a cached `.all` window must never
+    # be served for a later `.cc` request of the same region (or vice versa).
+    fc = f"__{str(cfg['file_class']).lower()}" if cfg.get("file_class") else ""
+    return f"{cfg['dataset_id']}__{mt}__chr{chrom}_{int(cfg['start_bp'])}_{int(cfg['end_bp'])}{fc}.json"
 
 
 def _fetch_with_cache(*, client, cfg: dict, cache_dir: Path | None) -> "RegionResult":
@@ -695,6 +730,8 @@ def _fetch_with_cache(*, client, cfg: dict, cache_dir: Path | None) -> "RegionRe
         chromosome=str(cfg["chromosome"]),
         start_bp=int(cfg["start_bp"]),
         end_bp=int(cfg["end_bp"]),
+        study_id=cfg.get("study_id"),
+        file_class=cfg.get("file_class"),
     )
     if cache_dir is not None:
         cache_path = cache_dir / _cache_key(cfg)

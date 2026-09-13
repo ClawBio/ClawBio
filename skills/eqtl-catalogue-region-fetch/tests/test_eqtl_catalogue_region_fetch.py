@@ -443,3 +443,43 @@ def test_ftp_columns_count_is_19():
     assert FTP_COLUMNS[5] == "variant"
     assert FTP_COLUMNS[8] == "pvalue"
     assert FTP_COLUMNS[9] == "beta"
+
+
+# ---------------------------------------------------------------------------
+# CLI config contract: every key is read or refused, never ignored
+# ---------------------------------------------------------------------------
+
+def test_cli_config_file_class_reaches_the_fetch_and_the_cache_key(client_with_metadata, patched_pysam, tmp_path):
+    """A config carrying `file_class: cc` opens the .cc file (the CLI used to drop
+    the key and open the listed .all with no message), and the cache key differs
+    from the same region's .all key so a cached .all is never served for it."""
+    from unittest.mock import MagicMock
+    from eqtl_catalogue_region_fetch import _fetch_with_cache, _cache_key
+    base = {"dataset_id": "QTD000266", "chromosome": "1", "start_bp": 109_270_000, "end_bp": 109_280_000}
+    tbx = MagicMock(); tbx.fetch.return_value = iter([]); patched_pysam["tbx"] = tbx
+    seen = {}
+    real = client_with_metadata.fetch_region
+    def spy(**kw):
+        seen.update(kw); return real(**kw)
+    client_with_metadata.fetch_region = spy
+    _fetch_with_cache(client=client_with_metadata, cfg={**base, "file_class": "cc"}, cache_dir=None)
+    assert seen["file_class"] == "cc" and seen["study_id"] is None
+    assert _cache_key({**base, "file_class": "cc"}) != _cache_key(base)
+    assert _cache_key({**base, "file_class": "all"}) != _cache_key({**base, "file_class": "cc"})
+
+
+def test_cli_config_refuses_a_key_it_does_not_read(tmp_path):
+    """An unknown key is refused with the known set named; an `_`-prefixed key is
+    an annotation and passes (the bundled examples carry `_description`)."""
+    import json
+    from eqtl_catalogue_region_fetch import _load_config
+    good = {"dataset_id": "QTD000266", "chromosome": "1", "start_bp": 1, "end_bp": 2, "_description": "x"}
+    p = tmp_path / "ok.json"; p.write_text(json.dumps(good))
+    assert _load_config(p) == good
+    bad = dict(good, fileclass="cc")   # a typo of file_class: today it would fetch .all silently
+    p2 = tmp_path / "bad.json"; p2.write_text(json.dumps(bad))
+    with pytest.raises(ValueError, match="does not read.*fileclass.*file_class"):
+        _load_config(p2)
+    p3 = tmp_path / "missing.json"; p3.write_text(json.dumps({"dataset_id": "QTD000266"}))
+    with pytest.raises(ValueError, match="missing required keys"):
+        _load_config(p3)
