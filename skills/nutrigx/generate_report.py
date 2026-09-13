@@ -5,7 +5,6 @@ generate_report.py — Markdown report + matplotlib figures for NutriGx Advisor
 import os
 import json
 from datetime import datetime, timezone
-import re
 from pathlib import Path
 
 
@@ -87,23 +86,6 @@ RECOMMENDATIONS = {
         "Elevated": "Multiple antioxidant enzyme variants detected. Consider assessed supplementation: selenium, CoQ10, and magnesium. Limit pro-oxidant exposures (smoking, excess alcohol).",
     },
 }
-
-
-# "|" is excluded: it splits a GFM table cell even inside a code span.
-_SAFE_GENOTYPE_CHARS = re.compile(r"[^A-Za-z0-9/]")
-
-
-def safe_display_genotype(genotype) -> str:
-    """
-    Render a genotype call safely for Markdown.
-
-    parse_input rejects non-nucleotide calls, but generate_report is also reached
-    directly by api.py and by any caller passing a genotype dict, so the value is
-    guarded again where it is written into a code span.
-    """
-    if not genotype:
-        return "--"
-    return _SAFE_GENOTYPE_CHARS.sub("_", str(genotype))[:32]
 
 
 def generate_report(snp_calls, risk_scores, snp_panel, output_dir, figures=True, input_file=""):
@@ -326,3 +308,22 @@ def _generate_figures(risk_scores: dict, output_dir: Path):
             plt.close()
     except ImportError:
         pass
+
+
+# Placed at the end of the module, and written without a regex, so this change
+# does not touch the import block or the helper area other changes edit.
+_SAFE_GENOTYPE_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/")
+
+
+def safe_display_genotype(genotype) -> str:
+    """
+    Render a genotype call safely for Markdown.
+
+    parse_input rejects non-nucleotide calls, but generate_report is also reached
+    by api.py and by any caller passing a genotype dict, so the value is guarded
+    again where it is written into a code span. "|" is excluded because it splits
+    a GFM table cell even inside a code span.
+    """
+    if not genotype:
+        return "--"
+    return "".join(c if c in _SAFE_GENOTYPE_CHARS else "_" for c in str(genotype))[:32]

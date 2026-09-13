@@ -81,7 +81,7 @@ def parse_23andme(filepath: str) -> dict:
                 continue
             rsid, chrom, pos, genotype = parts[0], parts[1], parts[2], parts[3]
             if rsid.startswith("rs"):
-                genotypes[rsid] = clean_genotype(genotype) or ""
+                genotypes[rsid] = genotype.replace("-", "")
     return genotypes
 
 
@@ -106,7 +106,7 @@ def parse_ancestry(filepath: str) -> dict:
         allele1 = row.get("allele1", "").strip()
         allele2 = row.get("allele2", "").strip()
         if rsid.startswith("rs"):
-            genotypes[rsid] = clean_genotype(allele1 + allele2) or ""
+            genotypes[rsid] = allele1 + allele2
     return genotypes
 
 
@@ -124,7 +124,9 @@ def parse_myheritage(filepath: str) -> dict:
         rsid = (row.get("RSID") or row.get("rsid") or "").strip()
         result = (row.get("RESULT") or row.get("result") or "").strip()
         if rsid.startswith("rs"):
-            genotypes[rsid] = clean_genotype(result) or ""
+            geno = result.replace("-", "")
+            if geno:
+                genotypes[rsid] = geno
     return genotypes
 
 
@@ -163,7 +165,7 @@ def parse_vcf(filepath: str) -> dict:
             indices = re.split(r"[|/]", sample)
             try:
                 called = "".join(alleles[int(i)] for i in indices if i != ".")
-                genotypes[rsid] = clean_genotype(called) or ""
+                genotypes[rsid] = called
             except (IndexError, ValueError) as exc:
                 print(
                     f"[WARNING] VCF parse error for {rsid}: {exc}. "
@@ -187,4 +189,6 @@ def parse_genetic_file(filepath: str, fmt: str = "auto") -> dict:
     if fmt not in parsers:
         raise ValueError(f"Unknown format: {fmt}. Choose from: {list(parsers.keys())}")
     
-    return parsers[fmt](filepath)
+    # Validate once here rather than inside each parser: every format passes
+    # through the same whitelist, and the parsers stay untouched.
+    return clean_genotype_table(parsers[fmt](filepath))
