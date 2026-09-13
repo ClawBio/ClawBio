@@ -106,6 +106,7 @@ class EQTLCatalogueRelease:
     condition_label: str | None = None    # e.g. "Influenza_6h"
     sample_group: str | None = None       # e.g. "monocyte_IAV"
     quant_method: str | None = None       # e.g. "ge" — see QUANT_METHOD_LABELS
+    file_class: str | None = None         # "all" or "cc": the file that was OPENED
 
     @property
     def quant_method_label(self) -> str:
@@ -429,6 +430,7 @@ class EQTLCatalogueClient:
             condition_label=meta_obj.get("condition_label"),
             sample_group=meta_obj.get("sample_group"),
             quant_method=meta_obj.get("quant_method"),
+            file_class=fc.lower(),
         )
         return RegionResult(
             dataset_id=dataset_id,
@@ -706,6 +708,7 @@ def _region_result_from_cache(d: dict) -> "RegionResult":
         condition_label=rel.get("condition_label"),
         sample_group=rel.get("sample_group"),
         quant_method=rel.get("quant_method"),
+        file_class=rel.get("file_class"),
     )
     variants = [
         RegionVariant(
