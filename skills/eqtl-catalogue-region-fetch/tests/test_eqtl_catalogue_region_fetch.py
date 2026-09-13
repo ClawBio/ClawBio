@@ -1,7 +1,9 @@
 """Unit tests for the eQTL Catalogue region fetcher (tabix-on-FTP).
 
-Mocks pysam.TabixFile + the REST metadata endpoint so tests run offline. Live
-smoke test (test_live.py) hits the real FTP server when RUN_LIVE_TESTS=1.
+Mocks pysam.TabixFile so tests run offline. Dataset metadata comes from the table
+bundled with the skill (`data/dataset_index_r7.tsv`), so no metadata mocking is needed:
+the ids used below (QTD000266, GTEx liver ge; QTD000270, GTEx liver leafcutter) are real
+rows of that table.
 """
 
 from __future__ import annotations
@@ -18,11 +20,15 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from eqtl_catalogue_region_fetch import (  # noqa: E402
+    DATASET_INDEX_COLUMNS,
+    DATASET_INDEX_PATH,
     EQTLCatalogueAPIError,
     EQTLCatalogueClient,
+    EQTLCatalogueDatasetNotFound,
     FTP_COLUMNS,
     RegionVariant,
     ftp_url_for,
+    load_dataset_index,
 )
 
 
@@ -44,25 +50,65 @@ def test_ftp_url_for_strips_trailing_slash_on_base():
 
 
 @pytest.mark.parametrize(
-    "quant_method, expected_suffix",
-    [
-        ("ge", ".all.tsv.gz"),
-        ("microarray", ".all.tsv.gz"),
-        ("leafcutter", ".cc.tsv.gz"),
-        ("exon", ".cc.tsv.gz"),
-        ("tx", ".cc.tsv.gz"),
-        ("txrev", ".cc.tsv.gz"),
-        (None, ".all.tsv.gz"),   # default when metadata omits it
-        ("GE", ".all.tsv.gz"),   # case-insensitive
-    ],
+    "file_class, expected_suffix",
+    [("all", ".all.tsv.gz"), ("cc", ".cc.tsv.gz"), ("CC", ".cc.tsv.gz")],
 )
-def test_ftp_url_for_picks_suffix_by_quant_method(quant_method, expected_suffix):
-    """Per the 2026-05-15 FTP-layout audit: non-ge / non-microarray datasets
-    only ship .cc.tsv.gz; ge + microarray ship .all.tsv.gz. Default keeps
-    the old .all behaviour so legacy callers (and tests that don't care
-    about quant_method) are not broken."""
-    url = ftp_url_for("QTS000015", "QTD000270", quant_method=quant_method)
-    assert url.endswith(f"QTD000270{expected_suffix}")
+def test_ftp_url_for_picks_suffix_by_file_class(file_class, expected_suffix):
+    """The suffix is the file class the catalogue publishes for the dataset, read from
+    the bundled index; it is no longer inferred from the quantification method."""
+    url = ftp_url_for("QTS000015", "QTD000266", file_class=file_class)
+    assert url.endswith(f"QTD000266{expected_suffix}")
+
+
+def test_ftp_url_for_rejects_an_unknown_file_class():
+    with pytest.raises(ValueError, match="file_class"):
+        ftp_url_for("QTS000015", "QTD000266", file_class="cs")
+
+
+# ----------------------- bundled dataset index -----------------------
+
+
+def test_bundled_index_has_the_declared_columns_and_the_r7_row_count():
+    """A change in the table's shape must fail here, not surface as empty labels."""
+    index = load_dataset_index(DATASET_INDEX_PATH)
+    assert len(index) == 758
+    assert tuple(next(iter(index.values())).keys()) == DATASET_INDEX_COLUMNS
+
+
+def test_bundled_index_file_class_is_read_not_inferred():
+    """QTD000584 (Sun 2018 plasma aptamer) publishes `.all` where the old rule
+    (`.all` for ge/microarray, `.cc` otherwise) says `.cc`. The index carries the
+    published file, so the fetch opens the file that exists."""
+    index = load_dataset_index(DATASET_INDEX_PATH)
+    assert index["QTD000584"]["quant_method"] == "aptamer"
+    assert index["QTD000584"]["file_class"] == "all"
+    assert index["QTD000266"]["file_class"] == "all"      # GTEx liver ge
+    assert index["QTD000270"]["file_class"] == "cc"       # GTEx liver leafcutter
+
+
+def test_load_dataset_index_refuses_a_table_with_different_columns(tmp_path):
+    bad = tmp_path / "idx.tsv"
+    bad.write_text("study_id\tdataset_id\nQTS1\tQTD1\n")
+    with pytest.raises(EQTLCatalogueAPIError, match="unexpected columns"):
+        load_dataset_index(bad)
+
+
+def test_load_dataset_index_refuses_a_missing_table(tmp_path):
+    with pytest.raises(EQTLCatalogueAPIError, match="not found"):
+        load_dataset_index(tmp_path / "absent.tsv")
+
+
+def test_fetch_dataset_metadata_reads_the_bundled_index():
+    meta = EQTLCatalogueClient().fetch_dataset_metadata("QTD000266")
+    assert meta["study_id"] == "QTS000015"
+    assert meta["study_label"] == "GTEx" and meta["tissue_label"] == "liver"
+    assert meta["quant_method"] == "ge" and meta["file_class"] == "all"
+    assert meta["dataset_release"] == "r7"
+
+
+def test_fetch_dataset_metadata_out_of_release_id_raises_not_found():
+    with pytest.raises(EQTLCatalogueDatasetNotFound, match="not in the bundled"):
+        EQTLCatalogueClient().fetch_dataset_metadata("QTD999999")
 
 
 # ----------------------- FTP row parsing helpers -----------------------
@@ -134,21 +180,9 @@ def patched_pysam(monkeypatch):
 
 
 @pytest.fixture
-def client_with_metadata(monkeypatch):
-    """EQTLCatalogueClient whose REST `_get` is mocked to return a stable
-    GTEx liver ge-eQTL (QTD000266) metadata dict."""
-    client = EQTLCatalogueClient()
-    monkeypatch.setattr(client, "_get", lambda path, params=None: {
-        "study_id": "QTS000015",
-        "dataset_id": "QTD000266",
-        "study_label": "GTEx",
-        "tissue_label": "liver",
-        "condition_label": "naive",
-        "sample_group": "liver",
-        "quant_method": "ge",
-        "release": "7.0",
-    })
-    return client
+def client_with_metadata():
+    """A plain client; QTD000266 (GTEx liver ge-eQTL) resolves from the bundled index."""
+    return EQTLCatalogueClient()
 
 
 # ----------------------- fetch_region happy path -----------------------
@@ -192,10 +226,11 @@ def test_fetch_region_records_release(client_with_metadata, patched_pysam):
         start_bp=108_774_968, end_bp=109_774_968,
         molecular_trait_id="ENSG00000134243",
     )
-    assert result.release.dataset_release == "7.0"
+    assert result.release.dataset_release == "r7"
     assert result.release.fetched_at_utc.endswith("Z")
     assert result.release.study_label == "GTEx"
     assert result.release.sample_group == "liver"
+    assert result.release.quant_method == "ge"
 
 
 def test_fetch_region_no_molecular_trait_filter_returns_all(client_with_metadata, patched_pysam):
@@ -209,30 +244,42 @@ def test_fetch_region_no_molecular_trait_filter_returns_all(client_with_metadata
     assert result.n_variants == 2
 
 
-def test_fetch_region_explicit_study_id_skips_metadata_call(monkeypatch, patched_pysam):
-    """When study_id is passed explicitly the client should not make a REST call."""
-    client = EQTLCatalogueClient()
-    calls = {"n": 0}
-
-    def fake_get(path, params=None):
-        calls["n"] += 1
-        return {"study_id": "QTS000015", "release": "7.0"}
-
-    monkeypatch.setattr(client, "_get", fake_get)
+def test_fetch_region_with_study_id_and_file_class_does_not_consult_the_index(
+    tmp_path, patched_pysam,
+):
+    """Both supplied -> the bundled index is not read at all. Proven by pointing the
+    client at a path that does not exist: consulting it would raise."""
+    client = EQTLCatalogueClient(dataset_index_path=tmp_path / "absent.tsv")
     patched_pysam["tbx"] = _mock_tabix([_row_str()])
     result = client.fetch_region(
         dataset_id="QTD000266", chromosome="1",
         start_bp=108_774_968, end_bp=109_774_968,
-        study_id="QTS000015",
+        study_id="QTS000015", file_class="all",
     )
-    # Expect 1 metadata call (for release info), not 2.
-    assert calls["n"] == 1
     assert result.n_variants == 1
+    assert any("bundled index not consulted" in n for n in result.notes)
+    assert result.release.study_label is None      # nothing to label it from
+
+
+def test_fetch_region_with_only_study_id_still_needs_the_index_for_the_file_class(tmp_path):
+    client = EQTLCatalogueClient(dataset_index_path=tmp_path / "absent.tsv")
+    with pytest.raises(EQTLCatalogueAPIError, match="not found"):
+        client.fetch_region(
+            dataset_id="QTD000266", chromosome="1", start_bp=1, end_bp=1000,
+            study_id="QTS000015",
+        )
+
+
+def test_fetch_region_out_of_release_id_without_both_overrides_raises_not_found():
+    with pytest.raises(EQTLCatalogueDatasetNotFound, match="study_id and file_class"):
+        EQTLCatalogueClient().fetch_region(
+            dataset_id="QTD999999", chromosome="1", start_bp=1, end_bp=1000,
+            study_id="QTS000099",
+        )
 
 
 def test_fetch_region_raises_on_unopenable_index(monkeypatch):
     client = EQTLCatalogueClient()
-    monkeypatch.setattr(client, "_get", lambda *a, **kw: {"study_id": "QTS000015"})
 
     def boom(url):
         raise OSError("tabix open failed")
@@ -269,26 +316,23 @@ def test_fetch_region_chr_prefix_retry(monkeypatch, client_with_metadata, patche
     assert result.n_variants == 1
 
 
-def test_resolve_study_id_falls_back_to_metadata(monkeypatch, patched_pysam):
-    client = EQTLCatalogueClient()
-    monkeypatch.setattr(client, "_get",
-                        lambda *a, **kw: {"study_id": "QTS000015", "release": "7.0"})
-    patched_pysam["tbx"] = _mock_tabix([_row_str()])
-    result = client.fetch_region(
+def test_resolve_study_id_falls_back_to_the_bundled_index(monkeypatch):
+    """No study_id passed -> the study directory comes from the index, and the URL
+    opened carries it. Captured at the tabix open, without the network."""
+    captured = {"url": None}
+
+    def fake_tabix(url):
+        captured["url"] = url
+        return _mock_tabix([_row_str()])
+
+    import pysam
+    monkeypatch.setattr(pysam, "TabixFile", fake_tabix)
+    result = EQTLCatalogueClient().fetch_region(
         dataset_id="QTD000266", chromosome="1",
         start_bp=108_774_968, end_bp=109_774_968,
     )
     assert result.n_variants == 1
-
-
-def test_resolve_study_id_raises_when_metadata_lacks_study_id(monkeypatch):
-    client = EQTLCatalogueClient()
-    monkeypatch.setattr(client, "_get", lambda *a, **kw: {"release": "7.0"})
-    with pytest.raises(EQTLCatalogueAPIError, match="could not resolve study_id"):
-        client.fetch_region(
-            dataset_id="QTD000266", chromosome="1",
-            start_bp=1, end_bp=1000,
-        )
+    assert captured["url"].endswith("/QTS000015/QTD000266/QTD000266.all.tsv.gz")
 
 
 # ----------------------- gene_id filter + sQTL FTP wiring -----------------------
@@ -328,14 +372,6 @@ def test_fetch_region_gene_id_filter_keeps_only_target_gene_rows_for_leafcutter(
                         variant="chr1_109265000_A_G"),  # different gene
     ]
     client = EQTLCatalogueClient()
-    monkeypatch.setattr(client, "_get", lambda path, params=None: {
-        "study_id": "QTS000015",
-        "dataset_id": "QTD000270",
-        "study_label": "GTEx",
-        "tissue_label": "liver",
-        "quant_method": "leafcutter",
-        "release": "7.0",
-    })
     patched_pysam["tbx"] = _mock_tabix(rows)
     result = client.fetch_region(
         dataset_id="QTD000270", chromosome="1",
@@ -347,16 +383,10 @@ def test_fetch_region_gene_id_filter_keeps_only_target_gene_rows_for_leafcutter(
 
 
 def test_fetch_region_uses_cc_suffix_for_leafcutter(monkeypatch):
-    """fetch_region must pass the dataset's quant_method into ftp_url_for so
-    leafcutter (and other non-ge) datasets resolve to `.cc.tsv.gz`. Captures
-    the URL pysam opened to verify the suffix without hitting the network."""
+    """QTD000270 (GTEx liver leafcutter) publishes `.cc.tsv.gz`, and the bundled
+    index says so; the fetch must open that file. Captures the URL pysam opened to
+    verify the suffix without hitting the network."""
     client = EQTLCatalogueClient()
-    monkeypatch.setattr(client, "_get", lambda path, params=None: {
-        "study_id": "QTS000015",
-        "dataset_id": "QTD000270",
-        "quant_method": "leafcutter",
-        "release": "7.0",
-    })
     captured = {"url": None}
 
     def fake_tabix(url):
@@ -373,6 +403,29 @@ def test_fetch_region_uses_cc_suffix_for_leafcutter(monkeypatch):
     )
     assert captured["url"] is not None
     assert captured["url"].endswith("QTD000270.cc.tsv.gz")
+
+
+def test_fetch_region_opens_the_published_file_not_the_inferred_one(monkeypatch):
+    """The catalogue's table lists `.all.tsv.gz` as the per-variant file for QTD000584
+    (Sun 2018 plasma, aptamer); the retired quant-method rule would have opened
+    `.cc.tsv.gz`, the credible-set-filtered file, which ALSO exists for this dataset,
+    so the substitution was silent: over the 1 Mb SORT1 locus, 3,892 rows for 1 protein
+    (GSTM1) instead of 33,240 rows across 11, and a SORT1-filtered query returns zero
+    rows with no error (measured 2026-09-13). The fetch must open the file
+    the table lists. This is the test that goes red if the file class is ever inferred
+    again instead of read from the index."""
+    captured = {"url": None}
+
+    def fake_tabix(url):
+        captured["url"] = url
+        return _mock_tabix([])
+
+    import pysam
+    monkeypatch.setattr(pysam, "TabixFile", fake_tabix)
+    EQTLCatalogueClient().fetch_region(
+        dataset_id="QTD000584", chromosome="1", start_bp=1, end_bp=1000,
+    )
+    assert captured["url"].endswith("/QTS000035/QTD000584/QTD000584.all.tsv.gz"), captured["url"]
 
 
 # ----------------------- FTP_COLUMNS schema check -----------------------

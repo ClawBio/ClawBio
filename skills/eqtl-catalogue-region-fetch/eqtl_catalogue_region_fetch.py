@@ -12,17 +12,26 @@ Per-study attribution: original publication for each constituent dataset.
 **Fetch path: tabix-on-FTP, NOT the REST API.**
 
 The REST API at `https://www.ebi.ac.uk/eqtl/api/v2/datasets/{id}/associations`
-silently returns only ONE side of the cis-window (genomic-lower) and ignores
-`pos_min` / `pos_max` filters (verified May 2026). The FTP tabix-indexed
-per-variant files contain the full ±1 Mb of strand-aware TSS for each gene
-as designed. We use the FTP path; the REST API is kept only for dataset
-metadata lookups.
+silently truncated regional fetches to one side of the TSS (verified 2026-05), and
+the whole API was permanently disabled by the catalogue in September 2026 (it
+answers HTTP 410; https://github.com/eQTL-Catalogue/eQTL-Catalogue-resources/issues/59). This skill reads per-variant rows from the tabix-indexed FTP
+files, and dataset metadata (study directory, quantification method, labels, the
+per-variant file class) from a table bundled with the skill, derived from the
+catalogue's own published dataset table; see data/dataset_index_r7.provenance.json.
 
-URL pattern (suffix depends on quant_method, verified 2026-05-15):
-    https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/sumstats/<QTS>/<QTD>/<QTD>{suffix}
+URL pattern (the per-variant file class, `all` or `cc`, is read from the bundled index):
+    https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/sumstats/<QTS>/<QTD>/<QTD>.<file_class>.tsv.gz
 
-    suffix = ".all.tsv.gz"  for quant_method in {ge, microarray}
-    suffix = ".cc.tsv.gz"   for quant_method in {exon, tx, txrev, leafcutter, ...}
+    The catalogue's dataset table names ONE per-variant file per dataset: in r7, `.all`
+    for 306 datasets and `.cc` for 452. Probed 2026-09-13 on 33 of the 758 (30 drawn at
+    random, stratified 15 per listed class, plus QTD000266, QTD000270 and QTD000584):
+    every dataset listed `.all` also serves a `.cc` file, and no dataset listed `.cc`
+    serves an `.all` file. So for an `.all` dataset the wrong guess opens a file that
+    exists and holds different rows (`.cc` keeps the strongest trait per credible set):
+    a silent substitution, not an error. The class mostly
+    follows the quantification method (`all` for ge/microarray, `cc` for the splicing
+    and transcript methods) but not always: the table lists `.all` for QTD000584
+    (aptamer). So it is READ from the index, per dataset, never inferred.
 
 The `.cc.tsv.gz` file is the official eQTL-Catalogue distribution for
 non-ge methods: it retains the strongest molecular trait per fine-mapped
@@ -40,6 +49,7 @@ GWAS Catalog harmonised convention.
 from __future__ import annotations
 
 import argparse
+import csv
 import gzip
 import io
 import json
@@ -49,10 +59,21 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Iterator
 
-import requests
 
-DEFAULT_API_BASE = "https://www.ebi.ac.uk/eqtl/api/v2"  # metadata only
 DEFAULT_FTP_BASE = "https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/sumstats"
+
+# Dataset metadata comes from a table bundled with the skill, derived from the
+# catalogue's own published `tabix_ftp_paths.tsv` (r7, 758 datasets). The metadata
+# REST API this skill used for it was permanently disabled by the catalogue in
+# September 2026 (it answers HTTP 410; https://github.com/eQTL-Catalogue/eQTL-Catalogue-resources/issues/59);
+# see data/dataset_index_r7.provenance.json.
+DATASET_INDEX_PATH = Path(__file__).resolve().parent / "data" / "dataset_index_r7.tsv"
+DATASET_INDEX_RELEASE = "r7"
+# Declared so a change in the bundled table's shape fails at load, not as empty fields.
+DATASET_INDEX_COLUMNS = (
+    "study_id", "dataset_id", "study_label", "sample_group", "tissue_id", "tissue_label",
+    "condition_label", "sample_size", "quant_method", "file_class",
+)
 DEFAULT_TIMEOUT_S = 120.0
 # Respect EBI's recommended ≥2 s inter-request delay during cohort-wide tabix
 # builds. Single-row fetches are OK without it.
@@ -155,7 +176,48 @@ class RegionResult:
 
 
 class EQTLCatalogueAPIError(Exception):
-    """Raised when an eQTL Catalogue endpoint returns an error or unexpected payload."""
+    """Raised when an eQTL Catalogue source returns an error or unexpected payload."""
+
+
+class EQTLCatalogueDatasetNotFound(EQTLCatalogueAPIError):
+    """A dataset id the bundled index does not carry.
+
+    Subclasses the API error so existing `except EQTLCatalogueAPIError` handlers keep
+    working. An id outside the bundled release is most likely a dataset added upstream
+    after r7; it can still be fetched by passing `study_id` and `file_class` explicitly.
+    """
+
+
+_INDEX_CACHE: dict[Path, dict[str, dict[str, str]]] = {}
+
+
+def load_dataset_index(path: Path = DATASET_INDEX_PATH) -> dict[str, dict[str, str]]:
+    """The bundled dataset table as {dataset_id: row}. Read once per path.
+
+    Fails loudly if the file is missing or its columns differ from
+    `DATASET_INDEX_COLUMNS`: a silently narrower table would resolve every dataset to
+    empty labels and the wrong file, which is exactly the failure this table replaced.
+    """
+    path = Path(path)
+    cached = _INDEX_CACHE.get(path)
+    if cached is not None:
+        return cached
+    if not path.is_file():
+        raise EQTLCatalogueAPIError(
+            f"bundled dataset index not found at {path}; the skill cannot resolve dataset "
+            f"metadata without it (the catalogue's metadata REST API is retired)"
+        )
+    with open(path, newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh, delimiter="\t")
+        cols = tuple(reader.fieldnames or ())
+        if cols != DATASET_INDEX_COLUMNS:
+            raise EQTLCatalogueAPIError(
+                f"bundled dataset index has unexpected columns {cols}; expected "
+                f"{DATASET_INDEX_COLUMNS}"
+            )
+        index = {row["dataset_id"]: row for row in reader}
+    _INDEX_CACHE[path] = index
+    return index
 
 
 # Column order in the per-variant FTP files. Verified live 2026-05-05
@@ -176,82 +238,84 @@ def ftp_url_for(
     study_id: str,
     dataset_id: str,
     ftp_base: str = DEFAULT_FTP_BASE,
-    quant_method: str | None = "ge",
+    file_class: str = "all",
 ) -> str:
     """Construct the canonical FTP URL for a dataset's per-variant sumstats file.
 
     URL pattern (verified 2026-05-05 + 2026-05-15):
-      https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/sumstats/<QTS>/<QTD>/<QTD>{suffix}
+      https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/sumstats/<QTS>/<QTD>/<QTD>.<file_class>.tsv.gz
 
-    Suffix is `.all.tsv.gz` for `ge` and `microarray` quant methods (full
-    nominal-pass per-variant sumstats); `.cc.tsv.gz` otherwise. Empirical
-    FTP probe 2026-05-15 confirmed 0/60 non-ge datasets ship `.all.tsv.gz`
-    across 15 major studies x 4 sQTL methods (`exon`, `tx`, `txrev`,
-    `leafcutter`), while 60/60 ship `.cc.tsv.gz` with identical per-variant
-    schema. Per the official eQTL-Catalogue docs the `.cc.tsv.gz` file
-    retains the strongest molecular trait per fine-mapped credible set
-    (~98% size reduction while keeping almost all significant loci); this
-    is the trait selection used for the upstream coloc call.
+    `file_class` is `all` (full nominal-pass per-variant sumstats) or `cc` (the
+    strongest molecular trait per fine-mapped credible set, ~98% smaller). It is READ
+    from the bundled dataset index, which carries the file the catalogue's own table
+    lists for each dataset, rather than inferred from the quantification method: in
+    r7 the table lists `.all` for 306 datasets and `.cc` for 452, and the one place
+    the old rule ("`.all` for `ge`/`microarray`, `.cc` otherwise") disagreed with it
+    was QTD000584 (aptamer, Sun 2018), listed as `.all`. Both files can exist on the
+    FTP for one dataset, so the wrong choice is silent rather than a 404.
     """
-    qm = (quant_method or "ge").lower()
-    suffix = ".all.tsv.gz" if qm in {"ge", "microarray"} else ".cc.tsv.gz"
-    return f"{ftp_base.rstrip('/')}/{study_id}/{dataset_id}/{dataset_id}{suffix}"
+    fc = (file_class or "all").lower()
+    if fc not in {"all", "cc"}:
+        raise ValueError(f"file_class must be 'all' or 'cc', got {file_class!r}")
+    return f"{ftp_base.rstrip('/')}/{study_id}/{dataset_id}/{dataset_id}.{fc}.tsv.gz"
 
 
 class EQTLCatalogueClient:
-    """Tabix-on-FTP region fetcher + REST metadata helper.
+    """Tabix-on-FTP region fetcher with metadata from the bundled dataset index.
 
-    The associations fetch path uses pysam.TabixFile against the FTP
-    per-variant sumstats file for the target dataset (`.all.tsv.gz` for
-    `ge`/`microarray`, `.cc.tsv.gz` otherwise; see `ftp_url_for`). The
-    REST API is retained only for `/datasets/{id}` metadata lookups
-    (sample group, tissue, condition labels for panel titles).
+    The associations fetch path uses pysam.TabixFile against the FTP per-variant
+    sumstats file for the target dataset (`.all.tsv.gz` or `.cc.tsv.gz`, whichever the
+    catalogue publishes for it; see `ftp_url_for`). Dataset metadata (study directory,
+    quantification method, labels, per-variant file class) is read from
+    `data/dataset_index_r7.tsv`; no metadata request is made. The catalogue's metadata
+    REST API, which earlier versions used for this, was permanently disabled in
+    September 2026.
 
     No caching here. The caller handles caching upstream.
     """
 
     def __init__(
         self,
-        api_base: str = DEFAULT_API_BASE,
+        api_base: str | None = None,
         ftp_base: str = DEFAULT_FTP_BASE,
-        session: requests.Session | None = None,
+        session: Any = None,
         timeout_s: float = DEFAULT_TIMEOUT_S,
         inter_request_delay_s: float = DEFAULT_INTER_REQUEST_DELAY_S,
+        dataset_index_path: Path = DATASET_INDEX_PATH,
     ) -> None:
-        self.api_base = api_base.rstrip("/")
+        # `api_base` and `session` are accepted so existing callers keep working; they
+        # are unused, since the metadata service they addressed no longer exists.
         self.ftp_base = ftp_base.rstrip("/")
-        self.session = session or requests.Session()
         self.timeout_s = timeout_s
         self.inter_request_delay_s = inter_request_delay_s
+        self.dataset_index_path = Path(dataset_index_path)
         self._last_tabix_at: float | None = None
 
-    def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        url = f"{self.api_base}{path}"
-        resp = self.session.get(url, params=params, timeout=self.timeout_s)
-        if resp.status_code == 404:
-            raise EQTLCatalogueAPIError(f"404 not found: {url} ({params})")
-        resp.raise_for_status()
-        return resp.json()
-
     def fetch_dataset_metadata(self, dataset_id: str) -> dict[str, Any]:
-        """Metadata for one dataset. Returns the canonical normalised dict
-        (the REST endpoint sometimes returns a 1-element list)."""
-        meta = self._get(f"/datasets/{dataset_id}")
-        if isinstance(meta, list):
-            return meta[0] if meta else {}
-        return meta or {}
+        """Metadata for one dataset, from the bundled index.
+
+        Keys: `study_id`, `study_label`, `sample_group`, `tissue_id`, `tissue_label`,
+        `condition_label`, `sample_size`, `quant_method`, `file_class`, plus
+        `dataset_release` (the index's release tag). Raises
+        `EQTLCatalogueDatasetNotFound` for an id the index does not carry.
+        """
+        row = load_dataset_index(self.dataset_index_path).get(dataset_id)
+        if row is None:
+            raise EQTLCatalogueDatasetNotFound(
+                f"dataset {dataset_id} is not in the bundled eQTL Catalogue index "
+                f"({DATASET_INDEX_RELEASE}, {self.dataset_index_path.name}); the catalogue's "
+                f"metadata API is retired, so an id outside the bundled release can only be "
+                f"fetched by passing study_id and file_class explicitly"
+            )
+        meta: dict[str, Any] = dict(row)
+        meta["dataset_release"] = DATASET_INDEX_RELEASE
+        return meta
 
     def _resolve_study_id(self, dataset_id: str, study_id: str | None) -> str:
-        """Best-effort resolve QTS study_id from QTD dataset_id via REST metadata."""
+        """QTS study_id for a QTD dataset_id: the caller's value, else the bundled index."""
         if study_id:
             return study_id
-        meta = self.fetch_dataset_metadata(dataset_id)
-        sid = meta.get("study_id") or ""
-        if not sid:
-            raise EQTLCatalogueAPIError(
-                f"could not resolve study_id for dataset {dataset_id} via REST metadata"
-            )
-        return sid
+        return self.fetch_dataset_metadata(dataset_id)["study_id"]
 
     def _respect_rate_limit(self) -> None:
         """Enforce inter-request delay if configured (cohort-build hygiene)."""
@@ -273,6 +337,7 @@ class EQTLCatalogueClient:
         molecular_trait_id: str | None = None,
         gene_id: str | None = None,
         study_id: str | None = None,
+        file_class: str | None = None,
     ) -> RegionResult:
         """Tabix-fetch a region from the FTP per-variant sumstats file.
 
@@ -292,24 +357,27 @@ class EQTLCatalogueClient:
         overlaps the requested region, which is rarely what the renderer
         wants.
 
-        The file picked is quant-method-aware (see `ftp_url_for`):
-        `.all.tsv.gz` for `ge`/`microarray`, `.cc.tsv.gz` for splicing /
-        exon / transcript quant methods.
+        The file picked is the one the catalogue publishes for the dataset
+        (`file_class` `all` or `cc`), read from the bundled index; see `ftp_url_for`.
 
-        `study_id` (QTS) is auto-resolved from the dataset_id via REST
-        metadata when omitted. Pass it explicitly to skip the metadata
-        round-trip.
+        `study_id` (QTS) and `file_class` are resolved from the bundled index when
+        omitted. Passing BOTH explicitly bypasses the index entirely, which is the
+        route for a dataset the bundled release does not carry (the catalogue's
+        metadata API is retired, so there is nothing else to ask). Passing only one
+        still needs the index for the other.
 
         Returns harmonised `RegionVariant` objects (OT GRCh38 ALT-effect
         convention; chr prefix stripped).
         """
         notes: list[str] = []
-        meta_obj = self.fetch_dataset_metadata(dataset_id)
-        sid = self._resolve_study_id(dataset_id, study_id or meta_obj.get("study_id"))
-        quant_method = meta_obj.get("quant_method")
-        url = ftp_url_for(
-            sid, dataset_id, ftp_base=self.ftp_base, quant_method=quant_method,
-        )
+        if study_id and file_class:
+            meta_obj: dict[str, Any] = {}
+            notes.append("study_id and file_class supplied by the caller; bundled index not consulted")
+        else:
+            meta_obj = self.fetch_dataset_metadata(dataset_id)
+        sid = study_id or meta_obj["study_id"]
+        fc = file_class or meta_obj["file_class"]
+        url = ftp_url_for(sid, dataset_id, ftp_base=self.ftp_base, file_class=fc)
 
         try:
             import pysam
@@ -352,8 +420,9 @@ class EQTLCatalogueClient:
             self._last_tabix_at = time.monotonic()
 
         release = EQTLCatalogueRelease(
-            api_version=str(meta_obj.get("api_version") or "v2"),
-            dataset_release=str(meta_obj.get("release") or meta_obj.get("study_release") or ""),
+            # Kept for manifest/cache compatibility; there is no metadata API any more.
+            api_version="",
+            dataset_release=str(meta_obj.get("dataset_release") or ""),
             fetched_at_utc=_now_utc(),
             study_label=meta_obj.get("study_label"),
             tissue_label=meta_obj.get("tissue_label"),

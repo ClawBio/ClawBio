@@ -30,6 +30,9 @@ data/
 !skills/cnv-acmg-classifier/data/
 !skills/cnv-acmg-classifier/data/curated_dosage_map.csv
 !skills/cnv-acmg-classifier/data/curated_gene_model.csv
+!skills/eqtl-catalogue-region-fetch/data/
+!skills/eqtl-catalogue-region-fetch/data/dataset_index_r7.tsv
+!skills/eqtl-catalogue-region-fetch/data/dataset_index_r7.provenance.json
 skills/proteomics-de/output_diann_test/
 skills/proteomics-de/output_maxquant_test/
 .venv/
