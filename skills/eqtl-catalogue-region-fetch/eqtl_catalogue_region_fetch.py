@@ -33,12 +33,14 @@ URL pattern (the per-variant file class, `all` or `cc`, is read from the bundled
     and transcript methods) but not always: the table lists `.all` for QTD000584
     (aptamer). So it is READ from the index, per dataset, never inferred.
 
-The `.cc.tsv.gz` file is the official eQTL-Catalogue distribution for
-non-ge methods: it retains the strongest molecular trait per fine-mapped
-credible-set signal (the same trait used for the upstream coloc call),
-giving ~98% size reduction while keeping almost all significant loci.
-Per-variant schema is identical to `.all.tsv.gz`, so `FTP_COLUMNS` below
-applies to both.
+The `.cc.tsv.gz` file is the catalogue's filtered distribution: it keeps only
+the molecular traits with a significant signal (permutation FDR < 1%) and at
+least one SuSiE credible set, each with ALL its tested variants; for the exon,
+transcript and splicing methods it further keeps one trait per fine-mapped
+signal, and for those methods it is the only file published (per the
+catalogue's docs/Columns_parquet.md and Kerimov 2023, doi:10.1371/journal.pgen.1010932,
+PMID 37721944). Per-variant schema is identical to `.all.tsv.gz`, so
+`FTP_COLUMNS` below applies to both.
 
 Variant id mapping: the FTP file's `variant` column is `chrN_pos_ref_alt`;
 we strip the `chr` prefix at the row-normalisation boundary so the emitted
@@ -251,8 +253,9 @@ def ftp_url_for(
     URL pattern (verified 2026-05-05 + 2026-05-15):
       https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/sumstats/<QTS>/<QTD>/<QTD>.<file_class>.tsv.gz
 
-    `file_class` is `all` (full nominal-pass per-variant sumstats) or `cc` (the
-    strongest molecular trait per fine-mapped credible set, ~98% smaller). It is READ
+    `file_class` is `all` (full nominal-pass per-variant sumstats) or `cc` (only the
+    traits with permutation FDR < 1% and a fine-mapped credible set, each with all its
+    variants; one trait per signal for transcript-level data). It is READ
     from the bundled dataset index, which carries the file the catalogue's own table
     lists for each dataset, rather than inferred from the quantification method: in
     r7 the table lists `.all` for 306 datasets and `.cc` for 452, and the one place
