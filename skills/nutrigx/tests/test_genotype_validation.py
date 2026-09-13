@@ -70,7 +70,8 @@ def test_skill_parsers_validate_through_parse_genetic_file(tmp_path):
 
     f = tmp_path / "hostile.txt"
     f.write_text(
-        "rsid\tchromosome\tposition\tgenotype\n"
+        # 23andMe exports comment out the header row with "#".
+        "# rsid\tchromosome\tposition\tgenotype\n"
         "rs1801133\t1\t1\tC`T</code>\n"
         "rs4988235\t2\t2\tAG\n",
         encoding="utf-8",
