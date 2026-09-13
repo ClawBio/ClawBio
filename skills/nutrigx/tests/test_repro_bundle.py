@@ -131,3 +131,63 @@ def test_report_footer_points_at_reproducibility_dir():
 
     src = Path(gr.__file__).read_text()
     assert "`reproducibility/` subdirectory" in src
+
+
+def test_commands_sh_is_valid_bash_and_takes_input_from_a_variable(tmp_path):
+    import subprocess
+
+    output_dir = make_bundle(tmp_path)
+    script = output_dir / "reproducibility" / "commands.sh"
+    content = script.read_text()
+    assert "<your_genetic_file>" not in content, "angle brackets are shell redirections"
+    assert '--input "$INPUT_FILE"' in content
+    assert "--panel" not in content, "no custom panel was used"
+    subprocess.run(["bash", "-n", str(script)], check=True)
+
+
+def test_commands_sh_requires_panel_when_a_custom_panel_was_used(tmp_path):
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    (output_dir / "nutrigx_report.md").write_text("# report\n")
+    repro_bundle.create_reproducibility_bundle(
+        input_file=str(SYNTHETIC),
+        output_dir=str(output_dir),
+        panel_path=str(PANEL),
+        args={"input": str(SYNTHETIC), "output": str(output_dir), "panel": str(PANEL)},
+    )
+    content = (output_dir / "reproducibility" / "commands.sh").read_text()
+    assert '--panel "$PANEL_FILE"' in content
+    assert str(PANEL) not in content, "the panel path must not be recorded"
+
+
+def test_safe_write_refuses_symlinked_file_and_parent(tmp_path):
+    from path_safety import safe_write_text
+
+    target_dir = tmp_path / "elsewhere"
+    target_dir.mkdir()
+
+    link_file = tmp_path / "report.md"
+    link_file.symlink_to(target_dir / "hijacked.md")
+    try:
+        safe_write_text(link_file, "x")
+    except ValueError as exc:
+        assert "symbolic link" in str(exc)
+    else:
+        raise AssertionError("wrote through a symlinked file")
+
+    link_dir = tmp_path / "out_link"
+    link_dir.symlink_to(target_dir)
+    try:
+        safe_write_text(link_dir / "report.md", "x")
+    except ValueError as exc:
+        assert "symbolic link" in str(exc)
+    else:
+        raise AssertionError("wrote through a symlinked parent directory")
+
+    assert not any(target_dir.iterdir()), "a write escaped to the symlink target"
+
+    real = tmp_path / "real"
+    real.mkdir()
+    safe_write_text(real / "report.md", "first")
+    safe_write_text(real / "report.md", "second")
+    assert (real / "report.md").read_text() == "second"

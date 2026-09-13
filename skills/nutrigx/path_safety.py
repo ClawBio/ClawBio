@@ -29,10 +29,36 @@ import os
 from pathlib import Path
 
 
+# O_DIRECTORY, O_NOFOLLOW and dir_fd support are POSIX. On platforms without them
+# (notably Windows) the anchored open is impossible, so fall back to refusing a
+# symlinked file or parent via lstat. That check is racy where the anchored open
+# is not, but it keeps the skill working there instead of failing at import.
+_HAVE_POSIX_ANCHORING = (
+    hasattr(os, "O_DIRECTORY")
+    and hasattr(os, "O_NOFOLLOW")
+    and os.open in getattr(os, "supports_dir_fd", set())
+)
+
+
+def _open_write_fallback(path: Path, binary: bool):
+    if path.parent.is_symlink():
+        raise ValueError(
+            f"Refusing to write into '{path.parent}': it is a symbolic link, "
+            f"not a real directory."
+        )
+    if path.is_symlink():
+        raise ValueError(
+            f"Refusing to write to '{path}': it is a symbolic link. Remove it and re-run."
+        )
+    return open(path, "wb" if binary else "w", encoding=None if binary else "utf-8")
+
+
 def safe_open_write(path, binary: bool = False):
     """Open ``path`` for writing without following symlinks. Raises ValueError
     if the file or its parent directory is a symbolic link."""
     path = Path(path)
+    if not _HAVE_POSIX_ANCHORING:
+        return _open_write_fallback(path, binary)
     try:
         dir_fd = os.open(str(path.parent), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     except OSError as exc:

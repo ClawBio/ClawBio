@@ -47,6 +47,14 @@ def create_reproducibility_bundle(input_file: str, output_dir: str, panel_path: 
         for k, v in safe_args.items()
         if v and k != "custom_panel"
     )
+    # A custom panel changes every score, so a replay must use it too. Its path
+    # is not recorded either, but the script refuses to run without one.
+    if safe_args["custom_panel"]:
+        panel_line = 'PANEL_FILE="${PANEL_FILE:?set PANEL_FILE to the custom SNP panel used}"\n'
+        panel_arg = '--panel "$PANEL_FILE" '
+    else:
+        panel_line = ""
+        panel_arg = ""
     write_commands_sh(
         output_dir,
         f"# NutriGx Advisor — Reproducibility Script\n"
@@ -58,8 +66,11 @@ def create_reproducibility_bundle(input_file: str, output_dir: str, panel_path: 
         f"conda env create -f environment.yml\n"
         f"conda activate nutrigx\n"
         f"\n"
-        f"# 2. Run analysis\n"
-        f"python nutrigx.py --input <your_genetic_file> {cmd_args}\n"
+        f"# 2. Run analysis. Set INPUT_FILE (and PANEL_FILE if a custom panel was\n"
+        f"#    used) before running; the paths are not recorded, for privacy.\n"
+        f'INPUT_FILE="${{INPUT_FILE:?set INPUT_FILE to your genetic data file}}"\n'
+        f"{panel_line}"
+        f'python nutrigx.py --input "$INPUT_FILE" {panel_arg}{cmd_args}\n'
         f"\n"
         f"# 3. Verify output checksums (labels are relative to the output directory)\n"
         f'( cd "$(dirname "$0")/.." && sha256sum -c reproducibility/checksums.sha256 )',
