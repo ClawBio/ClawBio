@@ -231,10 +231,11 @@ def test_fetch_region_records_release(client_with_metadata, patched_pysam):
     assert result.release.study_label == "GTEx"
     assert result.release.sample_group == "liver"
     assert result.release.quant_method == "ge"
-    # The file that was OPENED rides on the release, so a renderer can caveat a
+    # The file that was OPENED rides on the result, so a renderer can caveat a
     # credible-set-filtered (.cc) window from the fact rather than re-inferring it
     # from quant_method (which is wrong for QTD000584, an aptamer dataset served as .all).
-    assert result.release.file_class == "all"
+    assert result.file_class == "all"
+    assert result.to_dict()["file_class"] == "all"
 
 
 def test_fetch_region_no_molecular_trait_filter_returns_all(client_with_metadata, patched_pysam):
