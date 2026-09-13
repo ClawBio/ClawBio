@@ -189,7 +189,7 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 |------|------|----------|:------------:|--------|
 | FADS1 | rs174546 | `TC` | 1/2 | Decreased Lc Pufa Synthesis |
 | FADS2 | rs1535 | `AG` | 1/2 | Altered Omega6 Omega3 Ratio |
-| ELOVL2 | rs953413 | `AG` | 1/2 | Decreased Dha Synthesis |
+| ELOVL2 | rs953413 | `AG` | 1/2 | Lower Epa To Dha Conversion |
 | APOE | rs429358 | `TT` | 0/2 | Increased Ldl On Saturated Fat |
 
 **Recommendation**

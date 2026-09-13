@@ -36,9 +36,9 @@ RECOMMENDATIONS = {
         "Elevated": "Genetic predisposition to low vitamin D binding efficiency. Test and maintain 25(OH)D >100 nmol/L. D3+K2 co-supplementation advisable.",
     },
     "omega3": {
-        "Low": "Dietary ALA (flaxseed, walnuts) efficiently converted. Two oily fish servings/week sufficient.",
-        "Moderate": "Reduced LC-PUFA synthesis capacity. Increase direct EPA/DHA sources (oily fish, algae oil). Consider omega-6:omega-3 ratio <4:1.",
-        "Elevated": "Markedly reduced FADS1/2 or ELOVL2 activity. Direct EPA+DHA supplementation (1–3 g/day algae or fish oil) recommended. Minimise linoleic acid (LA) competition.",
+        "Low": "No variants associated with lower EPA/DHA conversion. Standard guidance applies: around two portions of oily fish a week.",
+        "Moderate": "Variants associated with somewhat lower conversion of ALA and EPA to DHA. Favour direct EPA/DHA sources (oily fish, algae oil) over relying on ALA from plant foods.",
+        "Elevated": "Several variants associated with lower EPA/DHA conversion. These are associations with blood fatty-acid levels, not a measured deficiency or a genotype-specific dose: prefer direct EPA/DHA sources, and if considering a supplement, an omega-3 index blood test is a better guide to need than genotype.",
     },
     "vitamin_a": {
         "Low": "Beta-carotene conversion is efficient. Plant-based vitamin A sources adequate.",
