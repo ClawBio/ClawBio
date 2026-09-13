@@ -383,6 +383,7 @@ class MKStats:
     DoS: Optional[float] = None     # Direction of Selection = Dn/(Dn+Ds) − Pn/(Pn+Ps)
     fisher_p: Optional[float] = None  # Two-tailed Fisher's exact test P-value
     n_complex_codons: int = 0  # codons DnaSP does not analyse (excluded from all four counts)
+    n_internal_stop_codons: int = 0  # codons with a stop in some sequence, analysed as a 21st amino acid
 
 
 @dataclass
@@ -396,6 +397,7 @@ class KaKsStats:
     Ks: Optional[float] = None    # synonymous substitutions per syn site (JC corrected)
     Ka: Optional[float] = None    # nonsynonymous substitutions per nonsyn site (JC corrected)
     omega: Optional[float] = None  # Ka/Ks; < 1 purifying, ≈ 1 neutral, > 1 positive selection
+    n_internal_stop_codons: int = 0  # codons with a stop in some sequence, analysed as a 21st amino acid
 
 
 @dataclass
@@ -2237,10 +2239,15 @@ def _classify_codon_pair(
 ) -> tuple[float, float]:
     """Classify the changes between two codons as synonymous or nonsynonymous.
 
-    Uses the Nei-Gojobori (1986) pathway-averaging method.  For codons
-    differing at k positions, all k! pathways through intermediate codons are
-    enumerated and averaged.  Paths through stop codons are excluded; if all
-    paths go through stops, the entire difference is counted as nonsynonymous.
+    Uses the Nei-Gojobori (1986) pathway-averaging method as DnaSP applies
+    it (``SINONIMO.vb::NumSynonEntreCodons``).  For codons differing at k
+    positions, all k! pathways through intermediate codons are enumerated
+    and averaged.  Paths through stop codons are excluded; if all paths go
+    through stops, the entire difference is counted as nonsynonymous.  A
+    stop codon as one of the two codons compared is not a reason to skip
+    the pair: DnaSP treats a stop inside a coding region as a 21st amino
+    acid, so two stop codons one base apart differ synonymously and a stop
+    against a sense codon is a replacement.
 
     Returns
     -------
@@ -2252,7 +2259,7 @@ def _classify_codon_pair(
         return (0.0, 0.0)
     aa1 = genetic_code.get(c1)
     aa2 = genetic_code.get(c2)
-    if aa1 is None or aa1 == '*' or aa2 is None or aa2 == '*':
+    if aa1 is None or aa2 is None:
         return (0.0, 0.0)
 
     diff_pos = [i for i in range(3) if c1[i] != c2[i]]
@@ -2272,11 +2279,12 @@ def _classify_codon_pair(
         path_syn = 0.0
         path_nonsyn = 0.0
         path_ok = True
-        for pos in perm:
+        for step, pos in enumerate(perm):
             nxt = current[:pos] + c2[pos] + current[pos + 1:]
             cur_aa = genetic_code.get(current)
             nxt_aa = genetic_code.get(nxt)
-            if cur_aa is None or nxt_aa is None or cur_aa == '*' or nxt_aa == '*':
+            # an intermediate (not the final) codon that is a stop kills the path
+            if cur_aa is None or nxt_aa is None or (step < n_diff - 1 and nxt_aa == '*'):
                 path_ok = False
                 break
             if cur_aa == nxt_aa:
@@ -2305,69 +2313,6 @@ def _jc_correct(p: float) -> Optional[float]:
     return -0.75 * math.log(x)
 
 
-def _mk_pathway(
-    c1: str, c2: str, genetic_code: dict[str, str]
-) -> Optional[tuple[int, dict[int, str]]]:
-    """Classify the changes between codons c1 and c2, position by position,
-    for the FIXED-difference side of the McDonald-Kreitman test (see
-    ``compute_mk``'s docstring for citations).
-
-    For codons differing at two or three positions, several mutational
-    orderings are possible; DnaSP selects one deterministically rather than
-    averaging over all of them (unlike the general Nei-Gojobori method used
-    elsewhere in this module): the ordering with fewer nonsynonymous
-    (replacement) steps wins, and any further tie is broken deterministically
-    (the first ordering ``itertools.permutations`` yields) rather than by
-    DnaSP's own random draw for genuinely unresolvable ties.
-
-    Paths through stop codons are excluded. If every ordering passes through
-    a stop, every differing position is conservatively classified as
-    nonsynonymous (matching ``_classify_codon_pair``'s convention).
-
-    Returns
-    -------
-    (score, labels) : the winning path's score (minus its number of
-    replacement steps, for comparison against other codon pairs by the
-    caller) and a ``{position: 'syn'|'nonsyn'}`` map for every position
-    where c1 and c2 differ. ``None`` if c1 or c2 is not a valid (non-stop)
-    codon under the given genetic code.
-    """
-    diff_pos = [i for i in range(3) if c1[i] != c2[i]]
-    if not diff_pos:
-        return (0, {})
-    aa1, aa2 = genetic_code.get(c1), genetic_code.get(c2)
-    if aa1 is None or aa1 == '*' or aa2 is None or aa2 == '*':
-        return None
-    if len(diff_pos) == 1:
-        p = diff_pos[0]
-        nonsyn = aa1 != aa2
-        return (-int(nonsyn), {p: 'nonsyn' if nonsyn else 'syn'})
-
-    best: Optional[tuple[int, dict[int, str]]] = None
-    for perm in permutations(diff_pos):
-        current = c1
-        labels: dict[int, str] = {}
-        n_nonsyn = 0
-        path_ok = True
-        for pos in perm:
-            nxt = current[:pos] + c2[pos] + current[pos + 1:]
-            cur_aa, nxt_aa = genetic_code.get(current), genetic_code.get(nxt)
-            if cur_aa is None or nxt_aa is None or cur_aa == '*' or nxt_aa == '*':
-                path_ok = False
-                break
-            nonsyn = cur_aa != nxt_aa
-            labels[pos] = 'nonsyn' if nonsyn else 'syn'
-            n_nonsyn += int(nonsyn)
-            current = nxt
-        if not path_ok:
-            continue
-        if best is None or -n_nonsyn > best[0]:
-            best = (-n_nonsyn, labels)
-    if best is None:
-        return (-len(diff_pos) - 1, {p: 'nonsyn' for p in diff_pos})
-    return best
-
-
 def _mk_label_for_position(
     pos: int, pairs: list[tuple[str, str]], genetic_code: dict[str, str],
 ) -> Optional[str]:
@@ -2379,8 +2324,12 @@ def _mk_label_for_position(
     only because of an allele that never participates in the single
     globally-closest pair, so each position is resolved independently:
     filter to pairs that differ there, keep only the minimum-nucleotide-
-    distance one(s) among THOSE (DnaSP's MinPPP, scoped per position), then
-    apply the pathway tie-break (``_mk_pathway``).
+    distance one(s) among THOSE (DnaSP's MinPPP, scoped per position), label
+    each with DnaSP's path scorer (``_mk_step_labels``: the most synonymous
+    ordering, stop codons compared as a 21st amino acid, an ordering through
+    a stop scored as all-replacement) and, among tied pairs, take the label
+    from the pair whose path carries the fewest replacements (DnaSP's
+    "lower number of replacement changes" rule for fixed differences).
     """
     relevant = [(a, b) for a, b in pairs if a[pos] != b[pos]]
     if not relevant:
@@ -2392,16 +2341,13 @@ def _mk_label_for_position(
     best_score: Optional[int] = None
     best_label: Optional[str] = None
     for c1, c2 in tied:
-        result = _mk_pathway(c1, c2, genetic_code)
-        if result is None:
+        labels = _mk_step_labels(c1, c2, genetic_code)
+        if labels[pos] == 0:
             continue
-        score, labels = result
-        label = labels.get(pos)
-        if label is None:
-            continue
+        score = -sum(1 for v in labels if v == 1)   # fewest replacements wins
         if best_score is None or score > best_score:
             best_score = score
-            best_label = label
+            best_label = 'nonsyn' if labels[pos] == 1 else 'syn'
     return best_label
 
 
@@ -2434,12 +2380,31 @@ _MK_SUM_CODES_4 = {0: 0, 12: 222, 9: 122, 8: 122, 7: 112, 6: 111}
 
 
 def _mk_aa(codon: str, genetic_code: dict[str, str]) -> str:
-    """Amino acid for the within-species MK routines. DnaSP treats a stop
-    codon as a 21st amino acid here rather than skipping it
-    (``BuscaDeCodonesIntra_MK``); ``compute_mk`` has already excluded
-    stop-containing codons, so '*' only arises for hypothetical
-    intermediate codons on a mutational path."""
+    """Amino acid for the MK path routines. A stop codon is '*', which DnaSP
+    treats as a 21st amino acid inside a coding region (its help file:
+    "considered as if they would code for a new amino acid (the amino acid
+    21; for example Selenocysteine)"): two stops compare as synonymous, a
+    stop against a sense codon as a replacement."""
     return genetic_code.get(codon, '*')
+
+
+def _terminal_stop_codon(seqs: list[str], genetic_code: dict[str, str]) -> bool:
+    """True when the alignment's final codon is a stop codon in every
+    sequence in which it is an unambiguous triplet: the coding region's
+    terminal stop, which DnaSP's own example files annotate as noncoding
+    (``COII_Apes.nex``: ``CODONPOSSET ... N: 682-684`` for a 684-bp gene)
+    and which the coding analyses therefore leave out. A stop codon anywhere
+    else, or a final codon that some sequence reads through, is analysed as
+    a 21st amino acid."""
+    seen = False
+    for s in seqs:
+        codon = s[-3:]
+        if len(codon) != 3 or any(nt not in 'ATCG' for nt in codon):
+            continue
+        seen = True
+        if genetic_code.get(codon) != '*':
+            return False
+    return seen
 
 
 def _mk_step_labels(c1: str, c2: str, genetic_code: dict[str, str]) -> list[int]:
@@ -2690,8 +2655,15 @@ def compute_mk(
     that did not reproduce DnaSP 6's real output.
 
     Algorithm, per codon (in-frame; complete deletion at codon level: any
-    non-ATCG base or, under the selected genetic code, any stop codon in
-    the outgroup or any ingroup sequence skips the codon):
+    non-ATCG base in the outgroup or any ingroup sequence skips the codon.
+    Stop codons do NOT skip a codon: as in DnaSP, a stop inside the coding
+    region is analysed as a 21st amino acid, synonymous with another stop
+    and a replacement against any sense codon, and the number of such
+    codons is reported in ``n_internal_stop_codons``, mirroring DnaSP's
+    "Stop codons have been found in the coding region" warning. The one
+    exception is a final codon that is a stop in every sequence: that is
+    the coding region's terminal stop, which DnaSP's own example files
+    annotate as noncoding, and it is left out):
 
     1. **Within species** (Pn/Ps). If the ingroup segregates for more than
        one codon, ``_mk_within_species`` (a port of
@@ -2733,7 +2705,9 @@ def compute_mk(
     nucleotide variant in the two species (help page, codon 19-21:
     "DnaSP will choose the case with more replacement substitutions")
     needs a polymorphic second species and is unreachable with the single
-    outgroup sequence this function takes.
+    outgroup sequence this function takes; (d) DnaSP reads the coding
+    region from the data file's annotation, this function takes the whole
+    alignment as coding apart from a terminal stop codon.
 
     Derived statistics:
 
@@ -2766,8 +2740,11 @@ def compute_mk(
 
     recombining_code = not any(genetic_code is table for table in _MK_NON_RECOMBINING_CODES)
     n_codons = L // 3
+    if _terminal_stop_codon(list(seqs) + [outgroup], genetic_code):
+        n_codons -= 1   # the coding region's terminal stop is not analysed
     Pn = Ps = Dn = Ds = 0
     n_complex = 0
+    n_internal_stops = 0
 
     for ci in range(n_codons):
         in_codons = [s[ci * 3:(ci + 1) * 3] for s in seqs]
@@ -2778,12 +2755,11 @@ def compute_mk(
             continue
         if any(nt not in 'ATCG' for codon in in_codons for nt in codon):
             continue
-        # Skip if outgroup or any ingroup variant is a stop codon
-        if genetic_code.get(out_codon) == '*':
-            continue
         unique_in = sorted(set(in_codons))
-        if any(genetic_code.get(co) == '*' for co in unique_in):
-            continue
+        # A stop codon here is analysed as a 21st amino acid (DnaSP's rule),
+        # and reported.
+        if genetic_code.get(out_codon) == '*' or any(genetic_code.get(co) == '*' for co in unique_in):
+            n_internal_stops += 1
 
         # Within-species changes (Pn/Ps): the ingroup's own codons, as in
         # DnaSP's BuscaSitiosReemplazamientoMK; the outgroup only enters via
@@ -2824,6 +2800,7 @@ def compute_mk(
     result.Dn = Dn
     result.Ds = Ds
     result.n_complex_codons = n_complex
+    result.n_internal_stop_codons = n_internal_stops
 
     # α = 1 − (Ds·Pn) / (Dn·Ps)
     if Dn > 0 and Ps > 0:
@@ -2882,9 +2859,18 @@ def compute_ka_ks(
     outgroup is included, alongside the ingroup sequences, in the
     per-sequence site averages.
 
-    Codons with gaps, ambiguous bases, or stop codons in a sequence are
-    excluded from that sequence's site count; a pair skips codons invalid
-    in either sequence (complete deletion at the codon level, per pair).
+    Codons with gaps or ambiguous bases in a sequence are excluded from
+    that sequence's site count; a pair skips codons invalid in either
+    sequence (complete deletion at the codon level, per pair). A stop
+    codon is not excluded: DnaSP analyses a stop inside the coding region
+    as a 21st amino acid (zero synonymous sites, three nonsynonymous;
+    synonymous with another stop, a replacement against a sense codon;
+    the help file: "if DnaSP finds stop codons (in the middle of coding
+    regions) they will be considered as if they would code for a new amino
+    acid (the amino acid 21; for example Selenocysteine)"), and the number
+    of such codons is reported in ``n_internal_stop_codons``. A final codon
+    that is a stop in every sequence is the terminal stop, annotated as
+    noncoding in DnaSP's own example files, and is left out.
     Ks or Ka is None when the corrected ratio is undefined (p >= 0.75) or
     the corresponding site mean is zero. If no pair contributes a single
     jointly-valid codon, ``n_codons``, ``S_sites`` and ``N_sites`` are
@@ -2921,21 +2907,26 @@ def compute_ka_ks(
         return result
 
     n_codons = L // 3
+    site_pool = list(seqs) if outgroup is None else list(seqs) + [outgroup]
+    if _terminal_stop_codon(site_pool, genetic_code):
+        n_codons -= 1   # the coding region's terminal stop is not analysed
 
     # Per-sequence site counts, over every sequence being compared (the
     # ingroup, plus the outgroup itself when one is given).
-    site_pool = list(seqs) if outgroup is None else list(seqs) + [outgroup]
     S_per_seq: list[float] = []
     N_per_seq: list[float] = []
     analysed_in_all = [True] * n_codons
+    has_stop = [False] * n_codons
     for seq in site_pool:
         S = 0.0
         n_analysed = 0
         for ci in range(n_codons):
             codon = seq[ci * 3:(ci + 1) * 3]
-            if any(nt not in 'ATCG' for nt in codon) or genetic_code.get(codon) == '*':
+            if any(nt not in 'ATCG' for nt in codon):
                 analysed_in_all[ci] = False
                 continue
+            if genetic_code.get(codon) == '*':
+                has_stop[ci] = True
             n_analysed += 1
             S += _count_syn_sites_codon(codon, genetic_code)
         S_per_seq.append(S)
@@ -2943,6 +2934,7 @@ def compute_ka_ks(
 
     # DnaSP's "Number of codons analyzed": codons valid in every sequence.
     result.n_codons = sum(analysed_in_all)
+    result.n_internal_stop_codons = sum(1 for ci in range(n_codons) if analysed_in_all[ci] and has_stop[ci])
     result.S_sites = sum(S_per_seq) / len(site_pool)
     result.N_sites = sum(N_per_seq) / len(site_pool)
 
@@ -2963,8 +2955,6 @@ def compute_ka_ks(
             c2 = seq_b[ci * 3:(ci + 1) * 3]
             if any(nt not in 'ATCG' for nt in c1 + c2):
                 continue
-            if genetic_code.get(c1) == '*' or genetic_code.get(c2) == '*':
-                continue
             n_valid += 1
             sd, nd = _classify_codon_pair(c1, c2, genetic_code)
             total_sd += sd
@@ -2983,6 +2973,7 @@ def compute_ka_ks(
         result.n_codons = 0
         result.S_sites = 0.0
         result.N_sites = 0.0
+        result.n_internal_stop_codons = 0
         return result
 
     result.Sd = sum(Sd_all) / len(Sd_all)
@@ -4208,6 +4199,7 @@ def write_report(
             f"| Synonymous fixed differences (Ds) | {mk_s.Ds} |",
             f"| Nonsynonymous fixed differences (Dn) | {mk_s.Dn} |",
             f"| Complex codons not analysed (excluded from all four counts) | {mk_s.n_complex_codons} |",
+            f"| Internal stop codons (analysed as a 21st amino acid, as in DnaSP) | {mk_s.n_internal_stop_codons} |",
             "",
             "| Statistic | Value | Reference |",
             "|-----------|-------|-----------|",
@@ -4232,6 +4224,7 @@ def write_report(
             "| Statistic | Value | Reference |",
             "|-----------|-------|-----------|",
             f"| Codons analysed | {kaks_s.n_codons} | |",
+            f"| Internal stop codons (analysed as a 21st amino acid, as in DnaSP) | {kaks_s.n_internal_stop_codons} | |",
             f"| Mean synonymous sites (S) | {_fmt(kaks_s.S_sites, 2)} | Nei & Gojobori 1986 |",
             f"| Mean nonsynonymous sites (N) | {_fmt(kaks_s.N_sites, 2)} | |",
             f"| Mean synonymous differences (Sd) | {_fmt(kaks_s.Sd, 4)} | |",
@@ -4965,6 +4958,10 @@ def _run(
         print(f"  MK  Pn={mk.Pn}  Ps={mk.Ps}  Dn={mk.Dn}  Ds={mk.Ds}  "
               f"alpha={_fmt(mk.alpha,4)}  DoS={_fmt(mk.DoS,4)}  p={_fmt(mk.fisher_p,6)}"
               f"  complex_codons={mk.n_complex_codons}")
+        if mk.n_internal_stop_codons:
+            print(f"  WARNING: {mk.n_internal_stop_codons} codon(s) with a stop codon inside the coding "
+                  f"region, analysed as a 21st amino acid (as DnaSP does); check the frame and "
+                  f"--genetic-code.")
 
     kaks = results.get("kaks")
     if kaks is not None and kaks.n_codons > 0:
