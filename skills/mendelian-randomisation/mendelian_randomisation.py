@@ -220,6 +220,18 @@ def mr_egger(instruments: list[Instrument]) -> tuple[MREstimate, float, float, f
     by = np.array([i.beta_outcome for i in instruments])
     sy = np.array([i.se_outcome for i in instruments])
 
+    # Orient every instrument so its exposure effect is positive, flipping the
+    # outcome effect with it (the same variant, other allele). The slope is
+    # invariant to this; the INTERCEPT is not -- it is the mean outcome effect at
+    # zero exposure effect, so on un-oriented inputs it depends on which allele
+    # each GWAS happened to report, i.e. on the allele coding rather than on the
+    # data. This is what TwoSampleMR's mr_egger_regression does before its fit
+    # (b_out <- b_out * sign(b_exp); b_exp <- abs(b_exp)); a zero effect keeps
+    # its sign as +1 there too.
+    orient = np.where(bx < 0, -1.0, 1.0)
+    bx = bx * orient
+    by = by * orient
+
     w = 1.0 / (sy ** 2)
     n = len(instruments)
 
@@ -760,6 +772,29 @@ def _write_mr_table(estimates, path):
             w.writerow([e.method, f"{e.estimate:.6f}", f"{e.se:.6f}", f"{e.ci_lower:.6f}", f"{e.ci_upper:.6f}", f"{e.pvalue:.2e}", e.n_snps, ""])
 
 
+def _steiger_interpretation(correct: bool, pvalue: float | None, *, markdown: bool) -> str:
+    """The Steiger row's interpretation. With no sample sizes the direction is a
+    comparison of summed z-squared, which stands in for variance explained only
+    if the two studies are of comparable size: z-squared grows with n, so when
+    the outcome GWAS is the larger study (the usual case for a disease outcome)
+    its share is overstated and the comparison leans toward "reversed". There is
+    no test behind it either way, so it is reported as consistent or reversed,
+    NOT as confirmed: the comparison was made and gave a direction, and what is
+    missing is its significance, which needs the sample sizes. "Confirmed" is
+    reserved for a computed p-value."""
+    if pvalue is None:
+        if correct:
+            return ("Direction consistent with exposure → outcome; significance not "
+                    "assessable without sample sizes")
+        return ("**WARNING: direction consistent with reverse causation; significance "
+                "not assessable without sample sizes**" if markdown else
+                "WARNING: direction consistent with reverse causation; significance "
+                "not assessable without sample sizes")
+    if correct:
+        return "Exposure → Outcome confirmed"
+    return "**WARNING: reverse causation**" if markdown else "WARNING: reversed causal direction"
+
+
 def _write_sensitivity_table(s, egger_int, egger_p, path):
     with open(path, "w", newline="") as f:
         w = csv.writer(f, delimiter="\t")
@@ -774,7 +809,7 @@ def _write_sensitivity_table(s, egger_int, egger_p, path):
         w.writerow(["Min_F_statistic", f"{s.min_f_statistic:.1f}", "N/A", f"{s.n_weak_instruments} weak instruments (F<{MIN_F_STAT})"])
         w.writerow(["I_squared_GX", f"{s.i_squared_gx:.4f}", "N/A", "SIMEX recommended" if s.i_squared_gx < 0.9 else "No SIMEX needed"])
         _sp = f"{s.steiger_pvalue:.4f}" if s.steiger_pvalue is not None else "not_applicable"
-        _si = "Correct direction" if s.steiger_correct_direction else "WARNING: reversed causal direction"
+        _si = _steiger_interpretation(s.steiger_correct_direction, s.steiger_pvalue, markdown=False)
         w.writerow(["Steiger_direction", "Correct" if s.steiger_correct_direction else "REVERSED", _sp, f"{_si}{'; ' + s.steiger_note if s.steiger_note else ''}"])
 
 
@@ -800,6 +835,11 @@ def _write_report_md(instruments, estimates, sens, egger_int, egger_p, exposure,
         "|--------|----------|----|--------|---------|",
     ]
     for e in estimates:
+        if not e.applicable:
+            # Never a formatted NaN: the TSV and the JSON already say "not
+            # applicable" for this row, and the reason follows the table.
+            lines.append(f"| {e.method} | not computed | not computed | not computed | not computed |")
+            continue
         lines.append(f"| {e.method} | {e.estimate:.4f} | {e.se:.4f} | [{e.ci_lower:.4f}, {e.ci_upper:.4f}] | {e.pvalue:.2e} |")
     lines.append("")
 
@@ -817,7 +857,7 @@ def _write_report_md(instruments, estimates, sens, egger_int, egger_p, exposure,
         f"| I²_GX | {sens.i_squared_gx:.4f} | — | {'SIMEX correction recommended' if sens.i_squared_gx < 0.9 else 'Adequate'} |",
         (f"| Steiger direction | {'Correct' if sens.steiger_correct_direction else '**REVERSED**'} | "
          f"{f'{sens.steiger_pvalue:.4f}' if sens.steiger_pvalue is not None else 'not computed'} | "
-         f"{'Exposure → Outcome confirmed' if sens.steiger_correct_direction else '**WARNING: reverse causation**'}"
+         f"{_steiger_interpretation(sens.steiger_correct_direction, sens.steiger_pvalue, markdown=True)}"
          f"{'; ' + sens.steiger_note if sens.steiger_note else ''} |"),
         "",
     ])
