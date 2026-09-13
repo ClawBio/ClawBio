@@ -297,10 +297,18 @@ def mr_egger(instruments: list[Instrument]) -> tuple[MREstimate, float, float, f
     se_slope = math.sqrt(phi * sum_w / denom)
     se_intercept = math.sqrt(phi * sum_wbx2 / denom)
 
-    z_slope = slope / se_slope
-    p_slope = 2 * stats.norm.sf(abs(z_slope))
-    z_int = intercept / se_intercept
-    p_int = 2 * stats.norm.sf(abs(z_int))
+    # t reference on n - 2 df, not a normal: both standard errors come from the
+    # fit's residual variance, itself an estimate on n - 2 degrees of freedom
+    # (two parameters fitted), and the t carries that uncertainty. At n = 3 there
+    # is one residual degree of freedom and the p-value is correspondingly wide;
+    # a normal here reported p = 0.006 on three demo instruments where the t
+    # gives 0.22. TwoSampleMR's mr_egger_regression uses pt(., n - 2) for both.
+    # IVW keeps its normal reference (its SE is the analytic one, no residual
+    # variance estimated), as in that implementation.
+    t_slope = slope / se_slope
+    p_slope = 2 * stats.t.sf(abs(t_slope), df=df)
+    t_int = intercept / se_intercept
+    p_int = 2 * stats.t.sf(abs(t_int), df=df)
 
     estimate = MREstimate(
         method="MR-Egger", estimate=float(slope), se=float(se_slope),

@@ -109,14 +109,28 @@ class TestMREgger:
         """Cross-implementation parity. TwoSampleMR's mr_egger_regression (R/mr.R at
         commit c14776b8, the function loaded verbatim into R 4.6.0) on these 30
         instruments returns slope 0.602231, se 0.081583, intercept -0.000187,
-        intercept se 0.003121. Before instruments were oriented, this code returned
-        0.598932 and 0.039122 for the slope. The p-values are NOT compared: that
-        implementation uses a t reference on n - 2 df, this one a normal."""
-        est, intercept, se_int, _ = mr_egger(demo_instruments)
+        intercept se 0.003121, slope p 4.874e-08, intercept p 0.9526 (both on a t
+        reference with n - 2 df). Before instruments were oriented, this code
+        returned 0.598932 and 0.039122 for the slope; before the t reference, it
+        returned slope p 1.56e-13 on a normal."""
+        est, intercept, se_int, p_int = mr_egger(demo_instruments)
         assert est.estimate == pytest.approx(0.602231, abs=5e-7)
         assert est.se == pytest.approx(0.081583, abs=5e-7)
         assert intercept == pytest.approx(-0.000187, abs=5e-7)
         assert se_int == pytest.approx(0.003121, abs=5e-7)
+        assert est.pvalue == pytest.approx(4.874e-8, rel=1e-3)
+        assert p_int == pytest.approx(0.9526, abs=5e-5)
+
+    def test_egger_p_value_is_a_t_on_n_minus_2_df(self, demo_instruments):
+        """On three instruments Egger has one residual degree of freedom. A normal
+        reference called the slope significant (p = 0.006); the t on 1 df gives
+        0.22, which is what TwoSampleMR reports. Recomputed here from the returned
+        estimate and SE so the test pins the reference, not a number."""
+        from scipy import stats as _st
+        est, intercept, se_int, p_int = mr_egger(demo_instruments[:3])
+        assert est.pvalue == pytest.approx(2 * _st.t.sf(abs(est.estimate / est.se), df=1), rel=1e-9)
+        assert p_int == pytest.approx(2 * _st.t.sf(abs(intercept / se_int), df=1), rel=1e-9)
+        assert est.pvalue > 0.1  # the normal reference gave 0.006 here
 
     def test_intercept_does_not_depend_on_allele_coding(self, demo_instruments):
         """Re-coding an instrument to its other allele negates both effects. The
