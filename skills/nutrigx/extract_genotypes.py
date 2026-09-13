@@ -1,7 +1,10 @@
 """
 extract_genotypes.py — SNP lookup with forward-strand normalisation
 For each SNP in the panel, extracts the genotype from the parsed data dict.
-Handles strand flipping for ambiguous A/T and C/G SNPs using frequency context.
+Resolves strand by flipping the call when the risk allele is absent. Palindromic
+A/T and C/G SNPs are never flipped: strand cannot be inferred from the genotype
+alone, so their alleles are taken as reported on the plus strand, which is
+correct for 23andMe and AncestryDNA exports.
 """
 
 COMPLEMENT = {"A": "T", "T": "A", "C": "G", "G": "C"}
