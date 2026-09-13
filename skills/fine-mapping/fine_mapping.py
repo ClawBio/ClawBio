@@ -2,9 +2,9 @@
 """
 SuSiE Fine-Mapper — Statistical fine-mapping of GWAS loci.
 
-Implements Approximate Bayes Factors (ABF, Wakefield 2009) and SuSiE
-(Wang et al. 2020) in pure Python/numpy. No R or external SuSiE package
-required.
+Implements Approximate Bayes Factors (ABF, Wakefield 2009) in pure
+Python/numpy. SuSiE (Wang et al. 2020) is delegated to the sushie package
+(mancusolab/sushie); install it with `uv sync --extra fine-mapping`.
 
 Usage:
     # ABF (no LD needed)
@@ -207,10 +207,6 @@ def run_finemapping(
     if R is not None:
         print(f"  Method: SuSiE (L={max_signals}, coverage={coverage:.0%})")
         n_eff = int(df["n"].median()) if "n" in df.columns and df["n"].notna().any() else 10_000
-        # null_weight: prior probability of no effect for each single-effect
-        # regression. Prevents phantom PIPs on null loci. Value 1/(L+1) gives
-        # equal prior to "no effect" as to each of L possible effects.
-        null_wt = 1.0 / (max_signals + 1)
         result = run_susie(
             z=df["z"].values,
             R=R,
@@ -218,7 +214,7 @@ def run_finemapping(
             L=max_signals,
             w=w,
             min_purity=min_purity,
-            null_weight=null_wt,
+            coverage=coverage,
         )
         pip = result["pip"]
         method = "SuSiE"
@@ -230,11 +226,15 @@ def run_finemapping(
             "converged": result["converged"],
             "n_iter": result["n_iter"],
             "n_eff": n_eff,
+            "engine": result["engine"],
+            "engine_version": result["engine_version"],
         }
         if result["converged"]:
-            print(f"  SuSiE converged in {result['n_iter']} iterations")
+            print(f"  SuSiE ({result['engine']} {result['engine_version']}) "
+                  f"converged in {result['n_iter']} iterations")
         else:
-            print(f"  SuSiE did not converge in {result['n_iter']} iterations (ELBO tolerance {1e-3})")
+            print(f"  SuSiE ({result['engine']} {result['engine_version']}) "
+                  f"did not converge in {result['n_iter']} iterations")
 
         df["pip"] = pip
         credible_sets = build_credible_sets_susie(
@@ -367,7 +367,8 @@ def main():
     parser.add_argument("--min-purity", type=float, default=0.5,
                         help="Min average pairwise |r| within CS (default: 0.5)")
     parser.add_argument("--prior-variance", type=float, default=0.04,
-                        help="Prior variance W for ABF/SuSiE (default: 0.04, Wakefield 2009)")
+                        help="Prior variance W for ABF (default: 0.04, Wakefield 2009); "
+                             "the SuSiE engine estimates effect variances itself")
     parser.add_argument("--no-figures", action="store_true", help="Skip figure generation")
     parser.add_argument("--gene-track", action="store_true",
                         help="Fetch gene annotations from Ensembl and add a gene track below the regional association plot (requires internet)")
