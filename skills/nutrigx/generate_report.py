@@ -181,7 +181,7 @@ def generate_report(snp_calls, risk_scores, snp_panel, output_dir, figures=True,
             for s in data["contributing_snps"]:
                 effect = s["effect_direction"].replace("_", " ").title()
                 lines.append(
-                    f"| {s['gene']} | {s['rsid']} | `{s['genotype']}` "
+                    f"| {s['gene']} | {s['rsid']} | `{safe_display_genotype(s['genotype'])}` "
                     f"| {s['risk_count']}/2 | {effect} |"
                 )
             lines.append("")
@@ -308,3 +308,22 @@ def _generate_figures(risk_scores: dict, output_dir: Path):
             plt.close()
     except ImportError:
         pass
+
+
+# Placed at the end of the module, and written without a regex, so this change
+# does not touch the import block or the helper area other changes edit.
+_SAFE_GENOTYPE_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/")
+
+
+def safe_display_genotype(genotype) -> str:
+    """
+    Render a genotype call safely for Markdown.
+
+    parse_input rejects non-nucleotide calls, but generate_report is also reached
+    by api.py and by any caller passing a genotype dict, so the value is guarded
+    again where it is written into a code span. "|" is excluded because it splits
+    a GFM table cell even inside a code span.
+    """
+    if not genotype:
+        return "--"
+    return "".join(c if c in _SAFE_GENOTYPE_CHARS else "_" for c in str(genotype))[:32]
