@@ -234,6 +234,8 @@ output_directory/
 
 - **Reading a not-applicable estimator as a failure**: You will want to treat a `not_applicable` row as the run having broken. Do not. Below 3 instruments none of MR-Egger, weighted median or weighted mode is defined (and MR-Egger also needs two distinct exposure effects to identify a slope), so each is reported as undefined rather than imprecise: in `result.json` (`"applicable": false` with a `reason`, no numeric fields), in `mr_results.tsv` (`not_applicable` in every numeric column plus a `note`) and in the report, which then says the IVW estimate stands alone. A consumer that expects a number in every estimate row must check `applicable` first.
 
+- **Treating an empty instrument set as an analysis**: You will want to hand the pipeline whatever survived instrument selection and read whatever comes back. Do not, without checking that anything survived. Zero instruments is not an analysis whose estimators are unavailable, it is the absence of the analysis, so the pipeline raises `NoInstrumentsError` (a `ValueError`) before creating the output directory and writes nothing at all; the CLI reports it as a bad argument and exits non-zero. The realistic route here is not an empty input file but a p-value threshold, LD clumping step or harmonisation that removed every SNP, so a caller that catches this should say which step emptied the set.
+
 ## Safety
 
 - **Local-first**: Demo mode is fully offline with cached data. Live mode contacts IEU OpenGWAS API (public, unauthenticated) for summary statistics only — no patient data uploaded

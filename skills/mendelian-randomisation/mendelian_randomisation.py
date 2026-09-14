@@ -87,11 +87,27 @@ class Instrument:
 MIN_SENSITIVITY_INSTRUMENTS = 3
 MIN_EGGER_INSTRUMENTS = MIN_SENSITIVITY_INSTRUMENTS  # kept for callers that import it
 
+# IVW is the only estimator here defined at n = 1. At n = 0 every weighted sum is zero,
+# so the estimate is 0/0 and the standard error divides by zero; nothing above gates it,
+# because `MIN_SENSITIVITY_INSTRUMENTS` starts at 1.
+MIN_IVW_INSTRUMENTS = 1
+
 # Dimensionless conditioning floor for the Egger slope, replacing an absolute one.
 # rel = Var_w(bx) / E_w[bx^2] lies in [0, 1] and is invariant to the units of the data.
 # Below sqrt(machine epsilon) the Egger SE is inflated by more than ~8,000x, so the
 # estimate is uninformative rather than merely imprecise.
 EGGER_MIN_RELATIVE_VARIANCE = math.sqrt(sys.float_info.epsilon)  # ~1.49e-8
+
+
+class NoInstrumentsError(ValueError):
+    """Raised when an analysis is requested with no instruments at all.
+
+    Distinct from `applicable=False`, which describes an estimator that cannot be
+    computed on a real instrument set and still leaves a report worth writing. Zero
+    instruments is the absence of the analysis itself, so there is nothing to report
+    and the pipeline declines before it writes anything. Subclasses `ValueError` so
+    callers already catching that keep working.
+    """
 
 
 @dataclass
@@ -148,7 +164,17 @@ class SensitivityResults:
 # MR estimators
 # ---------------------------------------------------------------------------
 def ivw(instruments: list[Instrument]) -> MREstimate:
-    """Inverse-Variance Weighted estimator (multiplicative random effects)."""
+    """Inverse-Variance Weighted estimator (multiplicative random effects).
+
+    Defined down to a single instrument, where it is the Wald ratio, and no further.
+    With none, the weighted sums are all zero and the estimate is 0/0 with an infinite
+    standard error, so it is declared rather than returned.
+    """
+    if len(instruments) < MIN_IVW_INSTRUMENTS:
+        return MREstimate.not_applicable(
+            "IVW", len(instruments),
+            f"IVW requires at least one instrument; this analysis has {len(instruments)}")
+
     bx = np.array([i.beta_exposure for i in instruments])
     by = np.array([i.beta_outcome for i in instruments])
     sy = np.array([i.se_outcome for i in instruments])
@@ -540,7 +566,10 @@ def steiger_test(instruments: list[Instrument]) -> tuple[bool, float | None, str
 
     n_exp = [i.n_exposure for i in instruments]
     n_out = [i.n_outcome for i in instruments]
-    have_n = all(v is not None and v > 3 for v in n_exp + n_out)
+    # `bool(instruments)` first: `all()` over an empty list is vacuously True, which
+    # sent the no-instrument case down the branch that needs sample sizes, through
+    # `np.mean([])`, and out with a NaN p-value.
+    have_n = bool(instruments) and all(v is not None and v > 3 for v in n_exp + n_out)
 
     if not have_n:
         correct = bool(np.sum(z_exp ** 2) > np.sum(z_out ** 2))
@@ -569,13 +598,20 @@ def steiger_test(instruments: list[Instrument]) -> tuple[bool, float | None, str
 
 def compute_i_squared_gx(instruments: list[Instrument]) -> float:
     """I² for instrument-exposure associations (Bowden et al., 2016)."""
+    # `df <= 0` rather than `df == 0`, and BEFORE the weighted mean: with no instruments
+    # df is -1, so neither `q <= df` (0.0 <= -1 is False) nor `df == 0` held and
+    # `(q - df) / q` divided by a zero q. Returning here also keeps `bx_bar` from
+    # evaluating 0/0, which is meaningless and emits a RuntimeWarning.
+    df = len(instruments) - 1
+    if df <= 0:
+        return 0.0
+
     bx = np.array([i.beta_exposure for i in instruments])
     sx = np.array([i.se_exposure for i in instruments])
     w = 1.0 / (sx ** 2)
     bx_bar = np.sum(w * bx) / np.sum(w)
     q = float(np.sum(w * (bx - bx_bar) ** 2))
-    df = len(instruments) - 1
-    if q <= df or df == 0:
+    if q <= df:
         return 0.0
     return max(0.0, float((q - df) / q))
 
@@ -968,6 +1004,16 @@ def load_demo_instruments() -> tuple[list[Instrument], str, str]:
 
 
 def run_pipeline(instruments: list[Instrument], exposure: str, outcome: str, output_dir: Path, demo: bool = False) -> dict:
+    # Before the output tree is created, so a refused run leaves nothing behind that
+    # could be mistaken for a completed one.
+    if not instruments:
+        raise NoInstrumentsError(
+            "No instruments to analyse. Mendelian randomisation needs at least one "
+            "harmonised instrument for the exposure. Check that the input file's "
+            "`instruments` array is populated, and that upstream filtering "
+            "(p-value threshold, LD clumping, harmonisation) has not removed every SNP."
+        )
+
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "figures").mkdir(exist_ok=True)
 
@@ -1057,7 +1103,13 @@ def main() -> None:
     print(f"[MR] Starting MR pipeline: {exposure} -> {outcome}")
     print(f"[MR] {len(instruments)} instruments loaded ({'demo/cached' if args.demo else 'user-provided'})")
 
-    run_pipeline(instruments, exposure, outcome, output_dir, demo=args.demo)
+    try:
+        run_pipeline(instruments, exposure, outcome, output_dir, demo=args.demo)
+    except NoInstrumentsError as exc:
+        # An empty instrument set is a problem with the input, not a fault in the
+        # skill, so it exits the way argparse exits on any other bad argument rather
+        # than on a traceback the user has to interpret.
+        parser.error(str(exc))
 
 
 if __name__ == "__main__":

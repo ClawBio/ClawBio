@@ -21,7 +21,9 @@ sys.path.insert(0, str(SKILL_DIR))
 
 from mendelian_randomisation import (
     Instrument,
+    MIN_SENSITIVITY_INSTRUMENTS,
     MREstimate,
+    NoInstrumentsError,
     cochran_q,
     egger_weighted_dispersion,
     compute_i_squared_gx,
@@ -811,3 +813,162 @@ def test_the_weighted_mode_ratio_se_carries_the_exposure_uncertainty():
     est = weighted_mode(camp + [loud], phi=6.0, n_boot=50)
     assert est.estimate == pytest.approx(0.2, abs=0.03), est.estimate
 
+
+
+# ---------------------------------------------------------------------------
+# The empty instrument set, and the two boundaries the guards above leave unpinned
+#
+# Same class of defect as the rest of this file -- an estimator producing a number
+# where the method does not apply -- at the one instrument count the guards above do
+# not cover. `MIN_SENSITIVITY_INSTRUMENTS` gates n = 1 and n = 2; nothing gates n = 0,
+# which is reachable from the CLI with a well-formed input file whose `instruments`
+# array is empty, and from any upstream step (p-value threshold, LD clumping,
+# harmonisation) that filters every SNP out.
+#
+# Measured on the code before this section: `ivw([])` returned
+# `applicable=True, estimate=nan, se=inf`, and the pipeline printed all four
+# "Running ..." lines before dying with an unhandled ZeroDivisionError from
+# `compute_i_squared_gx`, having written no report and no JSON.
+# ---------------------------------------------------------------------------
+
+
+def test_ivw_is_not_applicable_without_instruments():
+    """IVW is defined down to a single instrument, where it is the Wald ratio, and no
+    further. It previously returned `applicable=True` with `estimate=nan, se=inf`,
+    which is the one shape `MREstimate` exists to make impossible."""
+    est = ivw([])
+
+    assert est.applicable is False
+    assert est.n_snps == 0
+    assert "at least one instrument" in est.reason
+    assert math.isnan(est.estimate) and math.isnan(est.se)
+
+
+def test_i_squared_gx_returns_zero_rather_than_dividing_by_zero():
+    """`(q - df) / q` with q = 0. At n = 0 the existing `q <= df or df == 0` test
+    misses it, because df is -1: `0.0 <= -1` is False and `-1 == 0` is False, so both
+    ways past the guard are open and the division runs. This was the unhandled
+    ZeroDivisionError that ended the pipeline."""
+    assert compute_i_squared_gx([]) == 0.0
+    # n = 1 (df = 0) already returned 0.0 and must continue to
+    assert compute_i_squared_gx(_egger_input([0.3])) == 0.0
+
+
+def test_steiger_does_not_assume_sample_sizes_it_was_never_given():
+    """`all(v is not None and v > 3 for v in n_exp + n_out)` over an empty list is
+    vacuously True, so the no-instrument case took the branch that requires sample
+    sizes, reached `np.mean([])`, and returned a NaN p-value -- which the JSON writer's
+    `allow_nan=False` then refuses, turning a bad input into a crash at the last step."""
+    correct, p, note = steiger_test([])
+
+    assert p is None, f"a p-value was reported from no instruments: {p!r}"
+    assert correct is False
+    assert "no sample sizes supplied" in note
+
+
+def test_the_pipeline_refuses_an_empty_instrument_set_before_writing_anything(tmp_path):
+    """Zero instruments is not an analysis whose estimators are unavailable; it is the
+    absence of the analysis. `applicable=False` is the right answer for an estimator
+    that cannot run on a real instrument set, but there is no report to write when
+    there are no instruments at all, so the pipeline declines instead of writing one.
+
+    The message names the likely cause, because the realistic route here is not an
+    empty file but upstream filtering that removed every SNP.
+    """
+    out = tmp_path / "run"
+    with pytest.raises(NoInstrumentsError) as excinfo:
+        run_pipeline([], exposure="X", outcome="Y", output_dir=out, demo=True)
+
+    assert "at least one" in str(excinfo.value)
+    assert "harmonis" in str(excinfo.value)
+    # It refuses before creating the output tree, so a failed run leaves no artefacts
+    # to be mistaken for a completed one.
+    assert not out.exists(), sorted(p.name for p in out.iterdir()) if out.exists() else None
+    # ValueError, so callers already catching that keep working.
+    assert isinstance(excinfo.value, ValueError)
+
+
+def test_the_cli_refuses_an_empty_instrument_file_without_a_traceback(tmp_path):
+    """The artefact-level statement. A well-formed file with an empty `instruments`
+    array used to exit on an unhandled ZeroDivisionError with a stack trace, after
+    reporting `0 instruments loaded` and four estimators "Running". A user reading
+    that cannot tell a bad input from a broken skill."""
+    import subprocess
+
+    bad = tmp_path / "empty.json"
+    bad.write_text(json.dumps({"exposure": "X", "outcome": "Y", "instruments": []}))
+
+    proc = subprocess.run(
+        [sys.executable, str(SKILL_DIR / "mendelian_randomisation.py"),
+         "--instruments", str(bad), "--output", str(tmp_path / "out")],
+        capture_output=True, text=True,
+    )
+
+    assert proc.returncode != 0
+    assert "Traceback" not in proc.stderr, proc.stderr
+    assert "ZeroDivisionError" not in proc.stderr
+    assert "at least one" in proc.stderr
+    assert not (tmp_path / "out" / "report.md").exists()
+
+
+@pytest.mark.parametrize("estimator", [weighted_median, weighted_mode],
+                         ids=["weighted_median", "weighted_mode"])
+@pytest.mark.parametrize("n", [1, 2])
+def test_the_order_statistic_estimators_are_not_applicable_below_three(estimator, n):
+    """Their n < 3 guards were reachable only through the single two-instrument
+    end-to-end test above, so n = 1 was never exercised on either of them directly."""
+    est = estimator(_egger_input([0.2, 0.5][:n]))
+
+    assert est.applicable is False
+    assert est.n_snps == n
+    assert f"at least {MIN_SENSITIVITY_INSTRUMENTS} instruments" in est.reason
+    assert math.isnan(est.estimate) and math.isnan(est.se)
+
+
+@pytest.mark.parametrize("estimator", [weighted_median, weighted_mode],
+                         ids=["weighted_median", "weighted_mode"])
+def test_the_order_statistic_estimators_apply_at_exactly_three(estimator):
+    """The boundary in the other direction, which nothing currently pins: every test
+    that expects a number from these two uses 12, 15 or 30 instruments, so widening
+    the guard to `< 4` would not fail a single one of them. Three is the count the
+    reference admits, so three must produce an estimate."""
+    est = estimator(_egger_input([0.2, 0.35, 0.5]))
+
+    assert est.applicable is True, est.reason
+    assert est.n_snps == MIN_SENSITIVITY_INSTRUMENTS
+    assert math.isfinite(est.estimate) and math.isfinite(est.se)
+    assert est.estimate == pytest.approx(0.5, abs=0.05)
+
+
+def test_a_report_that_skips_one_estimator_still_corroborates_across_the_others(tmp_path):
+    """The mixed case, which no existing test reaches: one estimator declines while
+    the others stand.
+
+    Every end-to-end case above is all-or-nothing -- the demo, where all four apply,
+    and the two-instrument run, where only IVW does. The report's comparison
+    partitions the estimators into `comparable` and `skipped`, and the branch where
+    both are non-empty is never executed. It has to name the estimators that actually
+    ran rather than the fixed list of four, and it must not fall through to "the IVW
+    estimate stands alone", which is true only when nothing else applied.
+
+    Five instruments with near-identical exposure effects: Egger's slope is
+    unidentified, the median and the mode are ordinary order statistics of five
+    well-defined ratios.
+    """
+    insts = _egger_input([0.4 + k * 1e-11 for k in range(5)])
+    out = tmp_path / "run"
+    out.mkdir()
+    run_pipeline(insts, exposure="X", outcome="Y", output_dir=out, demo=True)
+
+    result = json.loads((out / "result.json").read_text())
+    applicable = {e["method"]: e.get("applicable", True) for e in result["estimates"]}
+    assert applicable == {"IVW": True, "MR-Egger": False,
+                          "Weighted Median": True, "Weighted Mode": True}, applicable
+
+    report = (out / "report.md").read_text()
+    assert "MR-Egger was not computed" in report
+    assert "| MR-Egger | not computed |" in report
+    # Names the three that ran, and does not claim agreement with the one that did not.
+    assert ("consistent estimates across IVW, Weighted Median, Weighted Mode"
+            in report), [l for l in report.splitlines() if "consistent" in l]
+    assert "stands alone" not in report
