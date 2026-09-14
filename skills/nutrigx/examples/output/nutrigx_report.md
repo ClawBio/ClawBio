@@ -1,8 +1,8 @@
 # NutriGx Personalised Nutrition Report
 
-**Generated**: 2026-02-27 12:25 UTC  
-**Tool**: ClawBio NutriGx Advisor v0.1.0  
-**Input**: `synthetic_patient.csv` (demo — fixed synthetic data)  
+**Generated**: 2026-09-14 16:45 UTC  
+**Tool**: ClawBio NutriGx Advisor v0.2.0  
+**Input**: `synthetic_patient.csv`  
 
 > **Disclaimer**: This report is for research and educational purposes only. It does not constitute medical advice. Consult a registered dietitian or clinical geneticist before making significant dietary changes or starting supplements.
 
@@ -13,14 +13,13 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 **1 nutrient domain(s) at elevated genetic risk:**
 - Vitamin D (score: 6.72/10)
 
-**8 domain(s) at moderate genetic risk:**
+**7 domain(s) at moderate genetic risk:**
 - Folate / B-Vitamins (score: 5.0/10)
 - Omega-3 / LC-PUFA (score: 4.04/10)
 - Vitamin A (Beta-carotene) (score: 5.0/10)
 - Vitamin B6 (score: 5.0/10)
 - Carbohydrate Metabolism (score: 5.0/10)
 - Caffeine Metabolism (score: 5.0/10)
-- Lactose Tolerance (score: 5.0/10)
 - Antioxidant / Detox (score: 5.0/10)
 
 ---
@@ -29,22 +28,18 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 
 | Nutrient Domain | Score (0–10) | Risk Category |
 |-----------------|:------------:|:-------------:|
-| Vitamin D | 6.72 | 🔴 Elevated |
-| Folate / B-Vitamins | 5.0 | 🟡 Moderate |
-| Vitamin A (Beta-carotene) | 5.0 | 🟡 Moderate |
-| Vitamin B6 | 5.0 | 🟡 Moderate |
-| Carbohydrate Metabolism | 5.0 | 🟡 Moderate |
-| Caffeine Metabolism | 5.0 | 🟡 Moderate |
-| Lactose Tolerance | 5.0 | 🟡 Moderate |
-| Antioxidant / Detox | 5.0 | 🟡 Moderate |
-| Omega-3 / LC-PUFA | 4.04 | 🟡 Moderate |
-| Alcohol Metabolism | 2.35 | 🟢 Low |
-| Fat Metabolism | 1.57 | 🟢 Low |
-| Vitamin C | 0.0 | 🟢 Low |
-
-![NutriGx Nutrient Risk Profile](nutrigx_radar.png)
-
-![Gene × Nutrient Risk Heatmap](nutrigx_heatmap.png)
+| Vitamin D | 6.72 | 🔴 Elevated (3/3 SNPs tested) |
+| Folate / B-Vitamins | 5.0 | 🟡 Moderate (3/3 SNPs tested) |
+| Vitamin A (Beta-carotene) | 5.0 | 🟡 Moderate (2/2 SNPs tested) |
+| Vitamin B6 | 5.0 | 🟡 Moderate (1/1 SNPs tested) |
+| Carbohydrate Metabolism | 5.0 | 🟡 Moderate (2/2 SNPs tested) |
+| Caffeine Metabolism | 5.0 | 🟡 Moderate (2/2 SNPs tested) |
+| Antioxidant / Detox | 5.0 | 🟡 Moderate (4/4 SNPs tested) |
+| Omega-3 / LC-PUFA | 4.04 | 🟡 Moderate (4/4 SNPs tested) |
+| Alcohol Metabolism | 2.35 | 🟢 Low (2/2 SNPs tested) |
+| Fat Metabolism | 1.57 | 🟢 Low (3/3 SNPs tested) |
+| Vitamin C | 0.0 | 🟢 Low (1/1 SNPs tested) |
+| Lactose Tolerance | 0.0 | 🟢 Low (1/1 SNPs tested) |
 
 ---
 
@@ -53,7 +48,7 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 ### Vitamin D
 
 **Risk Score**: 6.72/10 — **Elevated**  
-**SNPs tested**: 3 | **Not on chip**: 0
+**SNPs tested**: 3 | **Not on chip**: 0 | **Coverage**: 3/3 SNPs tested
 
 | Gene | rsID | Genotype | Risk Alleles | Effect |
 |------|------|----------|:------------:|--------|
@@ -70,7 +65,7 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 ### Folate / B-Vitamins
 
 **Risk Score**: 5.0/10 — **Moderate**  
-**SNPs tested**: 3 | **Not on chip**: 0
+**SNPs tested**: 3 | **Not on chip**: 0 | **Coverage**: 3/3 SNPs tested
 
 | Gene | rsID | Genotype | Risk Alleles | Effect |
 |------|------|----------|:------------:|--------|
@@ -87,7 +82,7 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 ### Vitamin A (Beta-carotene)
 
 **Risk Score**: 5.0/10 — **Moderate**  
-**SNPs tested**: 2 | **Not on chip**: 0
+**SNPs tested**: 2 | **Not on chip**: 0 | **Coverage**: 2/2 SNPs tested
 
 | Gene | rsID | Genotype | Risk Alleles | Effect |
 |------|------|----------|:------------:|--------|
@@ -103,7 +98,7 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 ### Vitamin B6
 
 **Risk Score**: 5.0/10 — **Moderate**  
-**SNPs tested**: 1 | **Not on chip**: 0
+**SNPs tested**: 1 | **Not on chip**: 0 | **Coverage**: 1/1 SNPs tested
 
 | Gene | rsID | Genotype | Risk Alleles | Effect |
 |------|------|----------|:------------:|--------|
@@ -118,7 +113,7 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 ### Carbohydrate Metabolism
 
 **Risk Score**: 5.0/10 — **Moderate**  
-**SNPs tested**: 2 | **Not on chip**: 0
+**SNPs tested**: 2 | **Not on chip**: 0 | **Coverage**: 2/2 SNPs tested
 
 | Gene | rsID | Genotype | Risk Alleles | Effect |
 |------|------|----------|:------------:|--------|
@@ -134,7 +129,7 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 ### Caffeine Metabolism
 
 **Risk Score**: 5.0/10 — **Moderate**  
-**SNPs tested**: 2 | **Not on chip**: 0
+**SNPs tested**: 2 | **Not on chip**: 0 | **Coverage**: 2/2 SNPs tested
 
 | Gene | rsID | Genotype | Risk Alleles | Effect |
 |------|------|----------|:------------:|--------|
@@ -147,25 +142,10 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 
 ---
 
-### Lactose Tolerance
-
-**Risk Score**: 5.0/10 — **Moderate**  
-**SNPs tested**: 1 | **Not on chip**: 0
-
-| Gene | rsID | Genotype | Risk Alleles | Effect |
-|------|------|----------|:------------:|--------|
-| MCM6 | rs4988235 | `GA` | 1/2 | Lactase Non Persistence |
-
-**Recommendation**
-
-> Possible partial lactase non-persistence. Monitor tolerance to high-lactose foods.
-
----
-
 ### Antioxidant / Detox
 
 **Risk Score**: 5.0/10 — **Moderate**  
-**SNPs tested**: 4 | **Not on chip**: 0
+**SNPs tested**: 4 | **Not on chip**: 0 | **Coverage**: 4/4 SNPs tested
 
 | Gene | rsID | Genotype | Risk Alleles | Effect |
 |------|------|----------|:------------:|--------|
@@ -183,7 +163,7 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 ### Omega-3 / LC-PUFA
 
 **Risk Score**: 4.04/10 — **Moderate**  
-**SNPs tested**: 4 | **Not on chip**: 0
+**SNPs tested**: 4 | **Not on chip**: 0 | **Coverage**: 4/4 SNPs tested
 
 | Gene | rsID | Genotype | Risk Alleles | Effect |
 |------|------|----------|:------------:|--------|
@@ -194,14 +174,14 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 
 **Recommendation**
 
-> Reduced LC-PUFA synthesis capacity. Increase direct EPA/DHA sources (oily fish, algae oil). Consider omega-6:omega-3 ratio <4:1.
+> Variants associated with somewhat lower conversion of ALA and EPA to DHA. Favour direct EPA/DHA sources (oily fish, algae oil) over relying on ALA from plant foods.
 
 ---
 
 ### Alcohol Metabolism
 
 **Risk Score**: 2.35/10 — **Low**  
-**SNPs tested**: 2 | **Not on chip**: 0
+**SNPs tested**: 2 | **Not on chip**: 0 | **Coverage**: 2/2 SNPs tested
 
 | Gene | rsID | Genotype | Risk Alleles | Effect |
 |------|------|----------|:------------:|--------|
@@ -217,7 +197,7 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 ### Fat Metabolism
 
 **Risk Score**: 1.57/10 — **Low**  
-**SNPs tested**: 3 | **Not on chip**: 0
+**SNPs tested**: 3 | **Not on chip**: 0 | **Coverage**: 3/3 SNPs tested
 
 | Gene | rsID | Genotype | Risk Alleles | Effect |
 |------|------|----------|:------------:|--------|
@@ -234,7 +214,7 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 ### Vitamin C
 
 **Risk Score**: 0.0/10 — **Low**  
-**SNPs tested**: 1 | **Not on chip**: 0
+**SNPs tested**: 1 | **Not on chip**: 0 | **Coverage**: 1/1 SNPs tested
 
 | Gene | rsID | Genotype | Risk Alleles | Effect |
 |------|------|----------|:------------:|--------|
@@ -243,6 +223,21 @@ Analysed **28** of **28** panel SNPs from your genetic data.
 **Recommendation**
 
 > Standard dietary vitamin C (citrus, peppers, kiwi) sufficient.
+
+---
+
+### Lactose Tolerance
+
+**Risk Score**: 0.0/10 — **Low**  
+**SNPs tested**: 1 | **Not on chip**: 0 | **Coverage**: 1/1 SNPs tested
+
+| Gene | rsID | Genotype | Risk Alleles | Effect |
+|------|------|----------|:------------:|--------|
+| MCM6 | rs4988235 | `GA` | 1/2 | Lactase Non Persistence |
+
+**Recommendation**
+
+> Likely lactase-persistent. Can tolerate dairy normally.
 
 ---
 
@@ -267,4 +262,4 @@ in the `reproducibility/` subdirectory to reproduce this analysis on any machine
 ## References
 
 SNP-nutrient associations sourced from GWAS Catalog, ClinVar, and CPIC guidelines.
-Full citations available in `skills/nutrigx-advisor/SKILL.md`.
+Full citations available in `skills/nutrigx/SKILL.md`.

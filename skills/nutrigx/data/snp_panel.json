@@ -5,9 +5,9 @@
 
   {"rsid": "rs2228570", "gene": "VDR",   "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "vitamin_d", "weight": 0.60, "effect_direction": "decreased_vitamin_d_response", "pmid": "9169350"},
   {"rsid": "rs731236",  "gene": "VDR",   "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "vitamin_d", "weight": 0.55, "effect_direction": "decreased_vitamin_d_response", "pmid": "15315818"},
-  {"rsid": "rs4588",    "gene": "GC",    "ref_allele": "C", "risk_allele": "A", "nutrient_domain": "vitamin_d", "weight": 0.45, "effect_direction": "decreased_vitamin_d_binding", "pmid": "28757204"},
+  {"rsid": "rs4588",    "gene": "GC",    "ref_allele": "C", "risk_allele": "A", "nutrient_domain": "vitamin_d", "weight": 0.45, "effect_direction": "decreased_vitamin_d_binding", "pmid": "19116321"},
 
-  {"rsid": "rs174546",  "gene": "FADS1", "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "omega3", "weight": 0.80, "effect_direction": "decreased_lc_pufa_synthesis", "pmid": "25646338"},
+  {"rsid": "rs174546",  "gene": "FADS1", "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "omega3", "weight": 0.80, "effect_direction": "decreased_lc_pufa_synthesis", "pmid": "20691134"},
   {"rsid": "rs1535",    "gene": "FADS2", "ref_allele": "G", "risk_allele": "A", "nutrient_domain": "omega3", "weight": 0.70, "effect_direction": "altered_omega6_omega3_ratio", "pmid": "21829377"},
   {"rsid": "rs953413",  "gene": "ELOVL2","ref_allele": "G", "risk_allele": "A", "nutrient_domain": "omega3", "weight": 0.60, "effect_direction": "lower_epa_to_dha_conversion", "pmid": "19148276"},
   {"rsid": "rs429358",  "gene": "APOE",  "ref_allele": "T", "risk_allele": "C", "nutrient_domain": "omega3", "weight": 0.50, "effect_direction": "increased_ldl_on_saturated_fat", "pmid": "41044249"},
