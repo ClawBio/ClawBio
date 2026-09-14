@@ -712,19 +712,29 @@ def _print_available_demos() -> None:
         print(f"  {p.stem}{marker}    [{p.name}]")
 
 
-def _cache_key(cfg: dict) -> str:
+def _cache_key(cfg: dict, index_path: Path = DATASET_INDEX_PATH) -> str:
+    """The key names the file class that WILL be opened (the config's, else the
+    bundled table's for the dataset) and the table's release. So a `.all` window
+    is never served for a `.cc` request of the same region, a window cached before
+    the table existed (under the retired quant_method inference, which opened the
+    wrong file for QTD000584) is never served again, and a new table release
+    retires the cache the same way. A dataset the table does not carry, with no
+    explicit file class, keys as `unresolved`; the fetch behind it raises before
+    anything is written under that name."""
     chrom = str(cfg["chromosome"]).lstrip("chr")
     mt = cfg.get("molecular_trait_id") or "_all"
-    # An explicit file class is part of the key: a cached `.all` window must never
-    # be served for a later `.cc` request of the same region (or vice versa).
-    fc = f"__{str(cfg['file_class']).lower()}" if cfg.get("file_class") else ""
-    return f"{cfg['dataset_id']}__{mt}__chr{chrom}_{int(cfg['start_bp'])}_{int(cfg['end_bp'])}{fc}.json"
+    fc = cfg.get("file_class")
+    if not fc:
+        row = load_dataset_index(index_path).get(str(cfg["dataset_id"]))
+        fc = (row or {}).get("file_class") or "unresolved"
+    return (f"{cfg['dataset_id']}__{mt}__chr{chrom}_{int(cfg['start_bp'])}_{int(cfg['end_bp'])}"
+            f"__{str(fc).lower()}__index-{DATASET_INDEX_RELEASE}.json")
 
 
 def _fetch_with_cache(*, client, cfg: dict, cache_dir: Path | None) -> "RegionResult":
     if cache_dir is not None:
         cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_path = cache_dir / _cache_key(cfg)
+        cache_path = cache_dir / _cache_key(cfg, client.dataset_index_path)
         if cache_path.is_file():
             return _region_result_from_cache(json.loads(cache_path.read_text()))
     result = client.fetch_region(
@@ -737,7 +747,7 @@ def _fetch_with_cache(*, client, cfg: dict, cache_dir: Path | None) -> "RegionRe
         file_class=cfg.get("file_class"),
     )
     if cache_dir is not None:
-        cache_path = cache_dir / _cache_key(cfg)
+        cache_path = cache_dir / _cache_key(cfg, client.dataset_index_path)
         cache_path.write_text(json.dumps(result.to_dict(), default=str))
     return result
 

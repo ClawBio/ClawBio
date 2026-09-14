@@ -468,6 +468,39 @@ def test_cli_config_file_class_reaches_the_fetch_and_the_cache_key(client_with_m
     assert _cache_key({**base, "file_class": "all"}) != _cache_key({**base, "file_class": "cc"})
 
 
+def test_cache_key_carries_the_file_class_the_table_lists_and_the_table_release():
+    """With no explicit file class the key still names the one that will be opened,
+    read from the bundled table (QTD000584 lists `.all`; the retired inference rule
+    said `.cc`), and the table's release, so a table upgrade retires the cache."""
+    from eqtl_catalogue_region_fetch import _cache_key, DATASET_INDEX_RELEASE
+    cfg = {"dataset_id": "QTD000584", "chromosome": "1", "start_bp": 108_770_000, "end_bp": 109_770_000}
+    key = _cache_key(cfg)
+    assert key.endswith(f"__all__index-{DATASET_INDEX_RELEASE}.json"), key
+    assert _cache_key({**cfg, "file_class": "cc"}) != key
+    unknown = _cache_key({**cfg, "dataset_id": "QTD999999"})
+    assert "__unresolved__" in unknown
+
+
+def test_a_window_cached_before_the_bundled_table_is_not_served(client_with_metadata, patched_pysam, tmp_path):
+    """Before the table, the cache key was `<QTD>__<trait>__chr<c>_<s>_<e>.json` and the
+    file class was inferred from quant_method, so a QTD000584 window cached then
+    holds the credible-set-filtered rows. Such an entry must be ignored, not served:
+    the fetch runs and writes under the new name."""
+    from unittest.mock import MagicMock
+    from eqtl_catalogue_region_fetch import _fetch_with_cache, _cache_key
+    cfg = {"dataset_id": "QTD000266", "chromosome": "1", "start_bp": 109_270_000, "end_bp": 109_280_000}
+    stale = tmp_path / "QTD000266___all__chr1_109270000_109280000.json"
+    stale.write_text('{"stale": true}')
+    tbx = MagicMock(); tbx.fetch.return_value = iter([]); patched_pysam["tbx"] = tbx
+    calls = []
+    real = client_with_metadata.fetch_region
+    client_with_metadata.fetch_region = lambda **kw: (calls.append(kw), real(**kw))[1]
+    _fetch_with_cache(client=client_with_metadata, cfg=cfg, cache_dir=tmp_path)
+    assert len(calls) == 1, "the stale entry was served instead of fetching"
+    assert (tmp_path / _cache_key(cfg, client_with_metadata.dataset_index_path)).is_file()
+    assert stale.read_text() == '{"stale": true}'
+
+
 def test_cli_config_refuses_a_key_it_does_not_read(tmp_path):
     """An unknown key is refused with the known set named; an `_`-prefixed key is
     an annotation and passes (the bundled examples carry `_description`)."""
