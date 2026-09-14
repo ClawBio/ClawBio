@@ -279,6 +279,8 @@ gene names, SNP IDs, and risk categories).
 
 ## Limitations & Disclaimer
 
+**Symbolic links in the output path are refused.** Report, figure and reproducibility files will not be written through a symlink, including a deliberately symlinked output directory; point `--output` at a real directory. On platforms without `O_NOFOLLOW` and `dir_fd` support (such as Windows) the same refusal is made with a less race-proof check.
+
 1. **Not a medical device.** This skill provides educational, research-oriented
    nutrigenomics analysis. It does not constitute medical advice.
 2. **Common variants only.** The panel covers SNPs with MAF > 1% in at least one

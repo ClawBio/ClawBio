@@ -5,7 +5,10 @@ generate_report.py — Markdown report + matplotlib figures for NutriGx Advisor
 import os
 import json
 from datetime import datetime, timezone
+import re
 from pathlib import Path
+
+from path_safety import safe_open_write, safe_write_text
 
 
 DOMAIN_LABELS = {
@@ -88,6 +91,28 @@ RECOMMENDATIONS = {
 }
 
 
+_SAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9 ._()\[\]-]")
+
+
+def safe_display_filename(input_file: str, max_len: int = 80) -> str:
+    """
+    Render a user-supplied filename safely for inclusion in Markdown.
+
+    The report header embeds the input filename inside a code span. The name is
+    attacker-influenced in any workflow where the file did not come from the
+    person reading the report, and a backtick in it breaks out of that span,
+    letting arbitrary Markdown or HTML into the document. Anything outside a
+    conservative allowlist is replaced, and the result is truncated.
+    """
+    name = Path(input_file).name
+    if not name:
+        return "(not recorded)"
+    cleaned = _SAFE_FILENAME_CHARS.sub("_", name)
+    if len(cleaned) > max_len:
+        cleaned = cleaned[: max_len - 1] + "\u2026"
+    return cleaned
+
+
 def generate_report(snp_calls, risk_scores, snp_panel, output_dir, figures=True, input_file=""):
     """Generate Markdown report and optional figures. Returns path to report file."""
     output_dir = Path(output_dir)
@@ -101,7 +126,7 @@ def generate_report(snp_calls, risk_scores, snp_panel, output_dir, figures=True,
         "",
         f"**Generated**: {timestamp}  ",
         f"**Tool**: ClawBio NutriGx Advisor v0.2.0  ",
-        f"**Input**: `{Path(input_file).name}`  ",
+        f"**Input**: `{safe_display_filename(input_file)}`  ",
         "",
         "> **Disclaimer**: This report is for research and educational purposes only. "
         "It does not constitute medical advice. Consult a registered dietitian or clinical "
@@ -228,7 +253,7 @@ def generate_report(snp_calls, risk_scores, snp_panel, output_dir, figures=True,
 
     report_text = "\n".join(lines)
     report_path = output_dir / "nutrigx_report.md"
-    report_path.write_text(report_text)
+    safe_write_text(report_path, report_text)
 
     if figures:
         _generate_figures(risk_scores, output_dir)
@@ -276,7 +301,8 @@ def _generate_figures(risk_scores: dict, output_dir: Path):
 
     plt.title("NutriGx Nutrient Risk Profile", size=14, fontweight="bold", pad=20)
     plt.tight_layout()
-    fig.savefig(output_dir / "nutrigx_radar.png", dpi=150, bbox_inches="tight")
+    with safe_open_write(output_dir / "nutrigx_radar.png", binary=True) as _fh:
+        fig.savefig(_fh, format="png", dpi=150, bbox_inches="tight")
     plt.close()
 
     # ── Heatmap ───────────────────────────────────────────────────────────────
@@ -304,7 +330,8 @@ def _generate_figures(risk_scores: dict, output_dir: Path):
                         cbar_kws={"label": "Risk Score (0=Ref, 0.5=Het, 1=Hom Risk)"})
             ax.set_title("Gene × Nutrient Risk Heatmap", fontsize=13, fontweight="bold")
             plt.tight_layout()
-            fig.savefig(output_dir / "nutrigx_heatmap.png", dpi=150, bbox_inches="tight")
+            with safe_open_write(output_dir / "nutrigx_heatmap.png", binary=True) as _fh:
+                fig.savefig(_fh, format="png", dpi=150, bbox_inches="tight")
             plt.close()
     except ImportError:
         pass
