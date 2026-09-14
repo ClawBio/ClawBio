@@ -162,7 +162,7 @@ Expected output: A full MR report for 30 synthetic BMI → T2D instruments showi
 - I²_GX > 0.9 for MR-Egger validity; SIMEX recommended below (Bowden et al., 2016)
 - Cochran's Q P < 0.05 indicates heterogeneity
 - Egger intercept P < 0.05 indicates directional pleiotropy. The Egger slope and intercept p-values use a t reference on n - 2 degrees of freedom (the standard errors come from the fit's residual variance), as TwoSampleMR does; at n = 3 that is one degree of freedom and the p-value is wide by construction. IVW and the weighted median use a normal reference, the weighted mode a t on n - 1, as in that implementation
-- Steiger directionality is computed from z-statistics, so it does not depend on the units the traits are reported in; supply `n_exposure` and `n_outcome` per instrument for a p-value, without them only the direction is reported
+- Steiger directionality is computed from z-statistics, so it does not depend on the units the traits are reported in; supply `n_exposure` and `n_outcome` per instrument for a p-value, without them only the direction is reported. The variance explained behind that p-value uses the continuous-trait conversion on both sides; for a binary outcome in log odds TwoSampleMR converts the outcome side from case and control counts and prevalence, which this skill does not take as input, so the note on the Steiger row says which conversion was used
 - MR-Egger, weighted median and weighted mode each need >= 3 instruments (MR-Egger also needs at least two distinct exposure effects); below that each is reported as not applicable rather than as a number. IVW is defined at n = 1, where it is the single Wald ratio
 
 ## Example Output
@@ -190,7 +190,7 @@ Expected output: A full MR report for 30 synthetic BMI → T2D instruments showi
 | Cochran's Q | 0.73 (P=1.00) | No heterogeneity |
 | Egger intercept | 0.0001 (P=0.93) | No pleiotropy |
 | Mean F-statistic | 70.6 | Strong instruments |
-| Steiger direction | Correct (P not computed: demo instruments carry no sample sizes) | Confirmed |
+| Steiger direction | Correct | not computed | Direction consistent with exposure → outcome; significance not assessable without sample sizes; no sample sizes supplied, so the direction is read from the z-statistics under the assumption that the exposure and outcome studies are of comparable size |
 
 *ClawBio is a research tool. Not a medical device.*
 ```

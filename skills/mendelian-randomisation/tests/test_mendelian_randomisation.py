@@ -154,6 +154,27 @@ class TestMREgger:
         assert p1 == pytest.approx(p0, rel=1e-12)
 
 
+    def test_zero_exposure_effect_is_oriented_as_the_reference_orients_it(self, demo_instruments):
+        """mr_egger_regression orients with `b_out * sign(b_exp)` and `abs(b_exp)`, and
+        R's sign(0) is 0, so an instrument whose exposure effect is exactly zero has
+        its outcome effect zeroed before the fit. The fit on such an input must equal
+        the fit where that instrument's outcome effect is already zero. The previous
+        orientation kept the outcome effect (sign +1), with a comment claiming the
+        reference did likewise; on this input it returned a different slope."""
+        zero = Instrument(**{**vars(demo_instruments[0]), "snp": "rsZERO",
+                             "beta_exposure": 0.0, "beta_outcome": 0.3})
+        zeroed = Instrument(**{**vars(zero), "beta_outcome": 0.0})
+        got = mr_egger(demo_instruments + [zero])
+        want = mr_egger(demo_instruments + [zeroed])
+        assert got[0].estimate == pytest.approx(want[0].estimate, rel=1e-12)
+        assert got[0].se == pytest.approx(want[0].se, rel=1e-12)
+        assert got[1] == pytest.approx(want[1], rel=1e-12)
+        # And the previous behaviour is distinguishable: keeping the outcome effect
+        # moves the fit, so this test observes the orientation rule, not a no-op.
+        kept = mr_egger(demo_instruments + [Instrument(**{**vars(zero), "beta_exposure": 1e-12})])
+        assert kept[0].estimate != pytest.approx(want[0].estimate, rel=1e-6)
+
+
 class TestWeightedMedian:
     def test_returns_estimate(self, demo_instruments):
         est = weighted_median(demo_instruments)
@@ -583,7 +604,9 @@ def test_steiger_reports_a_p_value_only_when_it_has_the_sample_sizes():
     correct, p, note = steiger_test(_steiger_input(n_exp=100_000, n_out=100_000))
     assert correct is True
     assert p is not None and 0.0 <= p <= 1.0
-    assert note == ""
+    # The p-value rests on a conversion that is only right for a continuous outcome,
+    # and the input cannot say what the outcome is, so the note names it.
+    assert "continuous-trait" in note and "get_r_from_lor" in note
 
 
 def test_steiger_detects_a_genuinely_reversed_direction():
@@ -786,7 +809,7 @@ def test_steiger_p_value_follows_the_reference_conversion_and_aggregation():
                    n_exposure=30, n_outcome=50),
     ]
     correct, p, note = steiger_test(insts)
-    assert correct is True and note == ""
+    assert correct is True and "continuous-trait" in note  # the conversion is named, not silent
 
     z_exp = np.array([0.2 / 0.2, 0.3 / 0.2]); z_out = np.array([0.5, 0.5])
     n_exp = np.array([20.0, 30.0]); n_out = np.array([40.0, 50.0])
