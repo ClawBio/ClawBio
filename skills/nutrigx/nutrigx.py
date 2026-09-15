@@ -23,6 +23,7 @@ from clawbio.common.report import write_result_json
 from clawbio.common.checksums import sha256_hex
 
 from extract_genotypes import extract_snp_genotypes
+from parse_input import clean_genotype_table
 from score_variants import compute_nutrient_risk_scores
 from generate_report import generate_report
 from repro_bundle import VERSION, create_reproducibility_bundle
@@ -89,7 +90,9 @@ def main():
     except ValueError as e:
         print(f"[ERROR] {e}", file=sys.stderr)
         sys.exit(1)
-    genotype_table = genotypes_to_simple(records)
+    # clawbio.common.parsers does not validate calls; apply the skill's whitelist
+    # so non-nucleotide values are treated as failed calls before scoring.
+    genotype_table = clean_genotype_table(genotypes_to_simple(records))
     print(f"[NutriGx] Loaded {len(genotype_table):,} variants")
 
     print("[NutriGx] Extracting SNP genotypes from panel ...")

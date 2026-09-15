@@ -276,6 +276,7 @@ After WGS-PRS completes, the canonical VCF can be passed to:
 
 ## Gotchas
 
+- **Missing-call rate uses the raw input VCF, before filtering.** It counts sample calls across all input records; for a multi-sample VCF it is a cohort-wide rate, not a per-sample metric.
 - **Do not skip VCF QC even when the user provides their own VCF.** Users often pass unfiltered or unnormalised VCFs from external pipelines. Always run Stage 2 unless the user explicitly opts out with `--skip-qc`. Skipping QC silently produces unreliable PRS scores.
 - **Do not route to this skill when the user already has a VCF and wants PRS only.** The model will be tempted to use wgs-prs because it mentions PRS. If there is no FASTQ and the user has not asked for variant calling, route directly to `gwas-prs` to avoid unnecessary sarek overhead.
 - **Do not invent QC thresholds.** Ti/Tv and Het/Hom cut-offs are fixed at 1.8 to 2.5 and 1.0 to 3.0 respectively. Do not adjust these based on the user's wishes or apparent sample quality. If thresholds are debated, surface the metrics and let the user decide whether to continue with `--no-fail-fast`.

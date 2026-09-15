@@ -115,6 +115,60 @@ jobs:
           path: audit.txt
           retention-days: 30
 
+  pip-audit:
+    # Second opinion on the lockfile from pip-audit (PyPI advisory database and
+    # OSV), next to the `uv audit` job above. Report-only for the same reason
+    # that job is: on the day this was added the lockfile carried 55 findings
+    # across gitpython, pyasn1 and setuptools, and a gate born red is how the
+    # scientific-audit job came to carry `|| true` for months (#342). Dependabot
+    # (.github/dependabot.yml) drives the backlog down; promote this to a gate
+    # by removing `|| true` once `uvx pip-audit --strict` is clean on main.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Export the lockfile
+        run: uv export --frozen --no-hashes --all-extras -o requirements-audit.txt
+
+      - name: Audit with pip-audit
+        # `|| true` keeps findings from failing the build, so assert the tool
+        # actually ran: pip-audit always prints either "No known
+        # vulnerabilities found" or "Found N known vulnerabilities". Neither
+        # line means the step broke, which must fail loudly.
+        run: |
+          uvx pip-audit -r requirements-audit.txt --no-deps > pip-audit.txt 2>&1 || true
+          if ! grep -qE 'No known vulnerabilities found|Found [0-9]+ known vulnerabilit' pip-audit.txt; then
+            echo "::error::pip-audit produced no recognisable report - the audit step is broken, not clean"
+            cat pip-audit.txt
+            exit 1
+          fi
+
+      - name: Post summary
+        if: always()
+        run: |
+          echo "## pip-audit" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Report-only: this job never fails the build on findings." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat pip-audit.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pip-audit
+          path: pip-audit.txt
+          retention-days: 30
+
   skill-lint:
     runs-on: ubuntu-latest
     steps:

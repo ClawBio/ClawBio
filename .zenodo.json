@@ -1,11 +1,10 @@
 {
   "title": "ClawBio: Bioinformatics-Native AI Agent Skill Library",
-  "description": "ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call. v0.5.0 introduces the platform's first systematic validation infrastructure including an Alzheimer's disease ground truth benchmark, mock API server for offline testing, swappable fine-mapping pipeline (ABF vs SuSiE), benchmark scorer with objective metrics, and red/green TDD mandate. 42 skills, 687 tests, 74 benchmark tests.",
+  "description": "ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call. 97 skills covering pharmacogenomics, variant annotation, fine-mapping, polygenic risk scoring, single-cell RNA-seq, and more, with validation infrastructure (an Alzheimer's disease ground truth benchmark, a mock API server for offline testing, a swappable fine-mapping pipeline, a benchmark scorer with objective metrics) and 4,730 automated tests.",
   "upload_type": "software",
   "creators": [
     {
       "name": "Corpas, Manuel",
-      "affiliation": "University of Westminster",
       "orcid": "0000-0002-5765-9827"
     }
   ],

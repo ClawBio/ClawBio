@@ -21,6 +21,8 @@ data/
 !skills/ancestry-risk-profiler/data/
 !skills/ancestry-risk-profiler/data/aisnp_panel.csv
 !skills/ancestry-risk-profiler/data/ancestry_risk_associations.json
+!skills/nutrigx/data/
+!skills/nutrigx/data/snp_panel.json
 !skills/ancestry-risk-profiler/data/demo_patient_south_asian.txt
 !skills/ancestry-risk-profiler/data/PROVENANCE.md
 !skills/methylation-clock/data/

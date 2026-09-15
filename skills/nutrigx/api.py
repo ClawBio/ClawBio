@@ -15,6 +15,7 @@ if str(_SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(_SKILL_DIR))
 
 from extract_genotypes import extract_snp_genotypes
+from parse_input import clean_genotype_table
 from score_variants import compute_nutrient_risk_scores
 from generate_report import generate_report
 
@@ -61,6 +62,9 @@ def run(genotypes: dict[str, str], options: dict | None = None) -> dict:
 
     with open(panel_path) as f:
         snp_panel = json.load(f)
+
+    # Callers build the genotype dict themselves, so validate it here too.
+    genotypes = clean_genotype_table(genotypes)
 
     # Extract genotypes from panel
     snp_calls = extract_snp_genotypes(genotypes, snp_panel)
