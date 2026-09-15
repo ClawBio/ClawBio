@@ -289,16 +289,21 @@ def test_multi_chrom_vcf_root_envelope_file(tmp_path, monkeypatch):
 
 
 def test_chat_lines_sanitise_user_controlled_names(tmp_path, monkeypatch):
-    """Filenames feed chat_summary_lines; control characters and markup must not pass."""
+    """Filenames feed chat_summary_lines; control characters and markup must not pass.
+
+    The end-to-end file name uses only characters every filesystem accepts
+    (Windows rejects tab, '*', '<' and '>'); the full adversarial string is
+    checked on _display_label, which builds the label from the file name."""
     monkeypatch.setattr(d, 'HAS_MPL', False)
     src = FIXTURES / 'inputs/Ex_n1.fas'
-    evil = tmp_path / 'ex\t**bold**`code`<b>[x](y).fas'
+    evil = tmp_path / 'ex `code` [x](y)_#1.fas'
     evil.write_bytes(src.read_bytes())
     out = tmp_path / 'run'
     assert d.main(['--input', str(evil), '--analysis', 'polymorphism', '--output', str(out)]) == 0
     line = json.loads((out / 'result.json').read_text(encoding='utf-8'))['chat_summary_lines'][0]
-    assert line.startswith('DnaSP exboldcodebx(y).fas: n = 4')
-    assert '\t' not in line and '*' not in line and '`' not in line and '<' not in line
+    assert line.startswith('DnaSP ex code x(y)_1.fas: n = 4')
+    assert '`' not in line and '[' not in line and '#' not in line
+    assert d._display_label('ex\t**bold**`code`<b>[x](y).fas') == 'exboldcodebx(y).fas'
     assert d._display_label('a' * 200) == 'a' * 77 + '...'
     assert d._display_label('\n\x00') == 'input'
 
