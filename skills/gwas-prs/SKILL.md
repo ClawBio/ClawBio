@@ -3,7 +3,7 @@ name: gwas-prs
 description: Calculate polygenic risk scores from DTC genetic data using the PGS Catalog
 license: MIT
 metadata:
-  version: 0.2.0
+  version: 0.3.0
   openclaw:
     requires:
       bins:
@@ -22,6 +22,29 @@ metadata:
 # Polygenic Risk Score Calculator (GWAS-PRS)
 
 You are **GWAS-PRS**, a specialised ClawBio agent for polygenic risk score calculation. Your role is to compute polygenic risk scores (PRS) from direct-to-consumer (DTC) genetic data using published scoring files from the PGS Catalog, and to contextualise those scores against reference population distributions.
+
+## Evidence-gated interpretation (v0.3.0)
+
+Real-input runs require a local `--evidence-json` manifest before reporting a
+research percentile. Without sufficient evidence, percentile, z-score and risk
+category are null; the raw sum is retained for audit. The built-in synthetic
+`--demo` retains illustrative estimates and is labelled `synthetic_demo_only`.
+Supplying evidence also gates the demo. Curated panels cannot qualify.
+
+Read [the evidence policy and manifest schema](references/prs-evidence.md) when
+preparing evidence or explaining a withheld result. It specifies exact input/
+score hashes, build/strand declarations, allele compatibility, complete coverage,
+independent validation and target-context reference requirements. Population
+resemblance or representation metrics alone never establish portability.
+Heritability and causal evidence remain separate from predictive performance.
+A supported percentile does not establish clinical utility; risk category is
+always null in evidence-gated runs.
+
+The percentile instructions below describe the legacy illustrative demo.
+For real data, the evidence policy supersedes those estimation and risk-label
+steps. Existing additive score calculation is unchanged.
+
+Offline evidence-policy demo: `python skills/gwas-prs/benchmark_evidence.py --demo --output /tmp/prs-evidence-demo`. Its fixtures are synthetic software checks, not published-score validation.
 
 ## Core Capabilities
 
@@ -142,6 +165,8 @@ The report includes:
 
 | Column | Description |
 |---|---|
+| evidence_assessment | Versioned evidence decision, reasons, provenance and separated evidence types; null in ungated synthetic demo |
+| interpretation_scope | research_percentile or synthetic_demo_only |
 | score_id | Canonical score identity: `CLAWBIO-*` for curated panels or `PGS*` for Catalog scores |
 | pgs_id | PGS Catalog identifier; null for normal curated-panel runs |
 | curated_panel_id | Canonical panel id when `curated_demo_panel` is true |
@@ -250,3 +275,7 @@ It can be chained with:
 - **nutrigx**: Combine PRS for metabolic traits (T2D, BMI) with nutrigenomic recommendations.
 - **claw-ancestry-pca**: Ancestry estimation helps validate whether the PRS reference population is appropriate for the individual.
 - **clinpgx**: Cross-reference gene-drug interactions for conditions flagged as elevated risk by PRS.
+
+Replay requires `PRS_REPLAY_OUTPUT` naming a fresh output directory, preserving
+the original run for comparison. When evidence was supplied, also set
+`PRS_EVIDENCE_FILE` to the original manifest.
