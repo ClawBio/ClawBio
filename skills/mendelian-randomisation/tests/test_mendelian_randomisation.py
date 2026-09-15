@@ -153,6 +153,30 @@ class TestMREgger:
         assert se1 == pytest.approx(se0, rel=1e-12)
         assert p1 == pytest.approx(p0, rel=1e-12)
 
+    def test_zero_exposure_effect_keeps_its_outcome_effect_as_the_reference_does(self, demo_instruments):
+        """TwoSampleMR's mr_egger_regression orients with a local `sign0` that sets
+        `x[x == 0] <- 1` before `sign(x)` (R/mr.R lines 591-598 at commit c14776b8), so an
+        instrument whose exposure effect is exactly zero keeps its outcome effect and
+        stays in the fit at (0, b_out). That function, loaded verbatim into R 4.6.0, on
+        the 30 demo instruments plus one at beta_exposure 0, beta_outcome 0.3 (the first
+        instrument's standard errors) returns slope 0.3278598234, se 0.2842734543,
+        intercept 0.01158227036, intercept se 0.01082998364, slope p 0.2581943402,
+        intercept p 0.2936821788. Zeroing that outcome effect, as base `sign` would,
+        gives slope 0.602060 instead."""
+        zero = Instrument(**{**vars(demo_instruments[0]), "snp": "rsZERO",
+                             "beta_exposure": 0.0, "beta_outcome": 0.3})
+        est, intercept, se_int, p_int = mr_egger(demo_instruments + [zero])
+        assert est.estimate == pytest.approx(0.3278598234, abs=5e-9)
+        assert est.se == pytest.approx(0.2842734543, abs=5e-9)
+        assert intercept == pytest.approx(0.01158227036, abs=5e-10)
+        assert se_int == pytest.approx(0.01082998364, abs=5e-10)
+        assert est.pvalue == pytest.approx(0.2581943402, abs=5e-9)
+        assert p_int == pytest.approx(0.2936821788, abs=5e-9)
+        # The rule is observable here, not a no-op: zeroing the outcome effect of the
+        # zero-exposure instrument moves the fit away from the reference.
+        zeroed = mr_egger(demo_instruments + [Instrument(**{**vars(zero), "beta_outcome": 0.0})])
+        assert zeroed[0].estimate != pytest.approx(est.estimate, rel=1e-6)
+
 
 class TestWeightedMedian:
     def test_returns_estimate(self, demo_instruments):
@@ -583,7 +607,10 @@ def test_steiger_reports_a_p_value_only_when_it_has_the_sample_sizes():
     correct, p, note = steiger_test(_steiger_input(n_exp=100_000, n_out=100_000))
     assert correct is True
     assert p is not None and 0.0 <= p <= 1.0
-    assert note == ""
+    # The p-value rests on a conversion that is only right for continuous traits, and
+    # the input cannot say whether the exposure or the outcome is binary, so the note
+    # states the assumption.
+    assert "continuous-trait" in note and "not supported" in note
 
 
 def test_steiger_detects_a_genuinely_reversed_direction():
@@ -786,7 +813,7 @@ def test_steiger_p_value_follows_the_reference_conversion_and_aggregation():
                    n_exposure=30, n_outcome=50),
     ]
     correct, p, note = steiger_test(insts)
-    assert correct is True and note == ""
+    assert correct is True and "continuous-trait" in note  # the conversion is named, not silent
 
     z_exp = np.array([0.2 / 0.2, 0.3 / 0.2]); z_out = np.array([0.5, 0.5])
     n_exp = np.array([20.0, 30.0]); n_out = np.array([40.0, 50.0])
