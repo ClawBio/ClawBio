@@ -202,6 +202,7 @@ class TestCuratedPanelsNeverShadowARealScore:
 # call sites, and a behavioural change with no test. These pin all four.
 # ---------------------------------------------------------------------------
 
+import os
 import subprocess
 import sys
 
@@ -262,12 +263,17 @@ class TestBothCallSitesAreGuarded:
 class TestTheMitigationActuallyRuns:
     """Deleting the warning block used to leave all 78 tests green."""
 
+    # These tests exercise the benchmark compatibility alias, which is opt-in
+    # since #356's refusal landed. See test_legacy_alias_opt_in.py for the
+    # default (refusing) behaviour.
+    _ALIAS_ENV = {**os.environ, "CLAWBIO_ALLOW_LEGACY_PGS_ALIAS": "1"}
+
     def _run(self, tmp_path, *args):
         return subprocess.run(
             [sys.executable, str(SKILL_DIR / "gwas_prs.py"),
              "--input", str(SKILL_DIR / "demo_patient_prs.txt"),
              "--output", str(tmp_path), *args],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, timeout=120, env=self._ALIAS_ENV,
         )
 
     def test_pgs_id_path_warns_on_stdout(self, tmp_path):

@@ -63,7 +63,7 @@ def run_demo(skill: dict, timeout: int, output_dir: Path | None) -> dict:
     cmd = cmd.replace("python skills/", f"{python} skills/")
 
     # Only append --output if the demo_command already uses --output
-    # (some skills like soul2dna, recombinator don't accept it)
+    # (some skills like recombinator don't accept it)
     if output_dir and "--output" in skill.get("demo_command", ""):
         skill_out = output_dir / name
         skill_out.mkdir(parents=True, exist_ok=True)

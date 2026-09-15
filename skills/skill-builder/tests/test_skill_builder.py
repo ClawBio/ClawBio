@@ -10,9 +10,12 @@ or via ClawBio runner:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 import pytest
 
@@ -167,17 +170,36 @@ class TestGenerateSkillMd:
         assert "result.json" in md
         assert "commands.sh" in md
         assert "environment.yml" in md
+        assert "checksums.sha256" in md
+
+    def test_frontmatter_nests_under_metadata(self, spec: dict) -> None:
+        """Match templates/SKILL-TEMPLATE.md: version/author/tags live under metadata."""
+        md = generate_skill_md(spec)
+        front = md.split("---", 2)[1]
+        assert "\nversion:" not in front.split("metadata:", 1)[0]
+        assert "version:" in front.split("metadata:", 1)[1]
+        assert "author:" in front.split("metadata:", 1)[1]
 
     def test_os_values_use_process_platform_names(self, spec: dict) -> None:
         """
         ``agentskills validate`` (run in CI) rejects ``macos``/``windows`` and
-        requires Node's ``process.platform`` names. Ensure the generator emits
-        values that pass validation so no scaffolded skill is DOA.
+        requires Node's ``process.platform`` names. Flow-style lists such as
+        ``os: [darwin, linux]`` are also rejected (strictyaml: "ugly disallowed
+        JSONesque flow mapping"), so emit a block list.
         """
         md = generate_skill_md(spec)
-        assert "os: [darwin" in md, "os field must use 'darwin' (not 'macos')"
-        assert "macos" not in md.split("os:")[1].split("\n")[0]
-        assert "windows" not in md.split("os:")[1].split("\n")[0]
+        front = md.split("---", 2)[1]
+        assert "- darwin" in front, "os field must use 'darwin' (not 'macos')"
+        assert "- linux" in front
+        assert "os: [" not in front
+        assert "macos" not in front
+        assert "windows" not in front
+
+    def test_frontmatter_has_no_flow_style_lists(self, spec: dict) -> None:
+        """skills-ref 0.1.x rejects JSON-style flow sequences in SKILL.md YAML."""
+        md = generate_skill_md(spec)
+        front = md.split("---", 2)[1]
+        assert "[" not in front, f"flow-style list in frontmatter:\n{front}"
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +247,38 @@ class TestGenerateSkillPy:
         assert "result.json" in py
         assert "commands.sh" in py
         assert "environment.yml" in py
+        assert "checksums.sha256" in py
+        assert "clawbio.common.reproducibility" in py
+        for helper in ("write_commands_sh", "write_environment_yml", "write_checksums"):
+            assert helper in py, f"generated skill does not call {helper}"
+        bundle_fn = py.split("def write_reproducibility_bundle", 1)[1].split("def run(", 1)[0]
+        assert ".write_text(" not in bundle_fn
+
+    def test_generated_skill_demo_writes_shared_bundle(self, spec: dict, tmp_path: Path) -> None:
+        """A scaffolded skill must actually emit the bundle, not just mention it."""
+        skill_dir = tmp_path / spec["name"]
+        skill_dir.mkdir()
+        script_name = spec["name"].replace("-", "_")
+        script = skill_dir / f"{script_name}.py"
+        script.write_text(generate_skill_py(spec), encoding="utf-8")
+        out = tmp_path / "out"
+        env = dict(os.environ, PYTHONPATH=str(REPO_ROOT))
+        result = subprocess.run(
+            [sys.executable, str(script), "--demo", "--output", str(out)],
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+            env=env,
+        )
+        assert result.returncode == 0, result.stderr
+        repro = out / "reproducibility"
+        for artefact in ("commands.sh", "environment.yml", "checksums.sha256"):
+            assert (repro / artefact).exists(), f"missing {artefact}"
+        lines = (repro / "checksums.sha256").read_text().strip().splitlines()
+        assert lines, "checksum manifest is empty"
+        for line in lines:
+            _, label = line.split("  ", 1)
+            assert (out / label).exists(), f"label {label!r} does not resolve from output_dir"
 
 
 # ---------------------------------------------------------------------------
@@ -657,7 +711,15 @@ class TestRunDemo:
     def test_demo_creates_reproducibility_bundle(self, tmp_output: Path) -> None:
         run_demo(tmp_output, dry_run=False)
         repro = tmp_output / "reproducibility"
-        assert (repro / "commands.sh").exists()
+        for artefact in ("commands.sh", "environment.yml", "checksums.sha256"):
+            assert (repro / artefact).exists(), f"missing {artefact}"
+        src = (tmp_output / json.loads(DEMO_SPEC_PATH.read_text())["name"] / "hello_bioinformatics.py").read_text()
+        assert "clawbio.common.reproducibility" in src
+        lines = (repro / "checksums.sha256").read_text().strip().splitlines()
+        assert lines, "checksum manifest is empty"
+        for line in lines:
+            _, label = line.split("  ", 1)
+            assert (tmp_output / label).exists(), f"label {label!r} does not resolve from output_dir"
 
     def test_demo_dry_run_no_files(self, tmp_output: Path) -> None:
         run_demo(tmp_output, dry_run=True)

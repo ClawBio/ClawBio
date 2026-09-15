@@ -151,10 +151,20 @@ class TestTheCliOptionReachesTheWire:
             "data": {
                 "summary": {"expression_log_tpm": 0.9, "promoter_windows": 1,
                             "total_windows": 4},
-                "input": {"tss_index": 12000, "scored_window": [7401, 16599],
-                          "submitted_sequence_length": bases},
+                "input": {"tss_index": 12000, "scored_window": [7401, 16599]},
             },
-            "meta": {"request_id": "req-1"},
+            # The window is in both places here because PROD returns it in
+            # both today. The runner reads the meta copy; the data.input
+            # fallback has its own tests in test_gi_response_shape.py.
+            "meta": {
+                "request_id": "req-1",
+                "sequence_length": bases,
+                "task_specific_counts": {
+                    "task": "expression",
+                    "tss_index": 12000,
+                    "scored_window": [7401, 16599],
+                },
+            },
         })
 
         def _make_client(*a, **kw):

@@ -360,14 +360,13 @@ def main() -> None:
     write_json(evidence_path, evidence)
     write_text(report_path, report)
     write_json(metadata_path, metadata)
-    write_checksums([evidence_path, report_path, metadata_path], output_dir, anchor=output_dir)
-    write_environment_yml(
+    environment_path = write_environment_yml(
         output_dir,
         env_name="clawbio-omics-target-evidence-mapper",
         pip_deps=["requests", "rocrate"],
         python_version="3.11",
     )
-    write_ro_crate(
+    ro_crate_path = write_ro_crate(
         output_dir,
         skill_name="omics-target-evidence-mapper",
         skill_version="0.1.0",
@@ -380,6 +379,11 @@ def main() -> None:
             "max_trials": args.max_trials,
             "demo": args.demo,
         },
+    )
+    write_checksums(
+        [evidence_path, report_path, metadata_path, environment_path, ro_crate_path],
+        output_dir,
+        anchor=output_dir,
     )
 
     print(f"Done. Output written to: {output_dir}")

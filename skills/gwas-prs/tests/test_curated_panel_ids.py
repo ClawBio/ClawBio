@@ -10,6 +10,7 @@ are provenance or a narrowly-scoped compatibility alias only.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
@@ -42,7 +43,9 @@ ENGINE = _load_module("gwas_prs_panel_ids", SKILL_DIR / "gwas_prs.py")
 API = _load_module("gwas_prs_api_panel_ids", SKILL_DIR / "api.py")
 
 
-def _run_cli(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _run_cli(
+    tmp_path: Path, *args: str, env: dict | None = None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
             sys.executable,
@@ -56,6 +59,7 @@ def _run_cli(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         timeout=120,
+        env={**os.environ, **(env or {})},
     )
 
 
@@ -124,7 +128,12 @@ class TestPanelCli:
         assert "choose exactly one" in (proc.stdout + proc.stderr).lower()
 
     def test_pinned_benchmark_alias_stays_machine_compatible(self, tmp_path):
-        proc = _run_cli(tmp_path, "--pgs-id", "PGS000013")
+        # The alias is opt-in since #356's refusal landed; the benchmark
+        # workflow sets this variable. See test_legacy_alias_opt_in.py.
+        proc = _run_cli(
+            tmp_path, "--pgs-id", "PGS000013",
+            env={"CLAWBIO_ALLOW_LEGACY_PGS_ALIAS": "1"},
+        )
         assert proc.returncode == 0, proc.stdout + proc.stderr
         assert "benchmark compatibility" in (proc.stdout + proc.stderr).lower()
         result = json.loads((tmp_path / "prs_results.json").read_text())[0]

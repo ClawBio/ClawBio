@@ -50,12 +50,12 @@ metadata:
     - python>=3.10
     - pysam>=0.22
     - pandas>=2.0
-    - requests>=2.28
   demo_data:
     - examples/input.json
   endpoints:
-    - https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/sumstats/    # tabix-on-FTP
-    - https://www.ebi.ac.uk/eqtl/api/v3/                          # metadata REST
+    - https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/sumstats/    # tabix-on-FTP (the only network source)
+  data:
+    - data/dataset_index_r7.tsv                                  # dataset metadata, bundled (758 datasets, r7)
   openclaw:
     requires:
       bins:
@@ -70,7 +70,7 @@ metadata:
       - darwin
       - linux
     install: |
-      pip install pysam pandas requests
+      pip install pysam pandas
     trigger_keywords:
       - eqtl region fetch
       - eqtl catalogue tabix
@@ -111,9 +111,9 @@ eQTL Catalogue (Kerimov 2021 *Nat Genet*) is the de facto umbrella aggregator fo
 
 When an agent asks for a regional cis-QTL slice from eQTL Catalogue:
 
-1. **Resolve `dataset_id`**: the canonical `QTD######` identifier. Look up via the metadata REST endpoint (`https://www.ebi.ac.uk/eqtl/api/v2/datasets/?study_label=...&quant_method=...`) or the eQTL Catalogue's [Studies table](https://www.ebi.ac.uk/eqtl/Studies/). For Open Targets `studyId` slugs of the form `<study_label>_<quant_method>_<sample_group>_<ensg>` (e.g. `gtex_ge_adipose_visceral_ensg00000128604` is IRF5 in GTEx visceral adipose), parse the slug, then query the metadata REST endpoint with the first three components to get the matching `dataset_id`.
+1. **Resolve `dataset_id`**: the canonical `QTD######` identifier. Look it up in the table bundled with this skill (`data/dataset_index_r7.tsv`, derived from the catalogue's [`tabix_ftp_paths.tsv`](https://github.com/eQTL-Catalogue/eQTL-Catalogue-resources/blob/master/tabix/tabix_ftp_paths.tsv): one row per dataset with study, tissue, condition, sample size, quantification method and the per-variant file the catalogue's table lists for it) or in the eQTL Catalogue's [Studies table](https://www.ebi.ac.uk/eqtl/Studies/). The catalogue's metadata REST API is permanently disabled (HTTP 410 since September 2026; confirmed by the maintainers on [eQTL-Catalogue-resources#59](https://github.com/eQTL-Catalogue/eQTL-Catalogue-resources/issues/59)); it is not consulted. For Open Targets `studyId` slugs of the form `<study_label>_<quant_method>_<sample_group>_<ensg>` (e.g. `gtex_ge_adipose_visceral_ensg00000128604` is IRF5 in GTEx visceral adipose), match the first three components against the table's `study_label`, `quant_method` and `sample_group` columns to get the `dataset_id`.
 2. **Pick a region**: `(chromosome, start_bp, end_bp)` in 1-based inclusive GRCh38 coordinates. For LocusCompare-style coloc inspection centre on the lead variant ± 500 kb; for "what does this gene's cis-window look like" queries centre on the gene TSS ± 1 Mb (the catalogue's full cis-window for that gene).
-3. **Tabix range fetch**: the skill performs a single byte-range request against `<QTD>.all.tsv.gz` on the EBI FTP. The REST API at `/api/v2/datasets/{id}/associations` is **not** used for region fetches (see Gotcha #1).
+3. **Tabix range fetch**: the skill performs a single byte-range request against the dataset's per-variant file on the EBI FTP (`<QTD>.all.tsv.gz` or `<QTD>.cc.tsv.gz`, whichever the catalogue's dataset table lists for it, as recorded in the bundled table). No REST endpoint is used (see Gotchas #1 and #6).
 4. **Filter by `molecular_trait_id`** (recommended for `ge` datasets): the harmonised `.all.tsv.gz` for `ge` quant_method bundles every gene's variants together. Pass the target ENSG to filter; without it you get every gene's rows in the window.
 5. **Write outputs** to `--output <dir>/`: a flat `variants.tsv` (effect-allele-aligned, GRCh38, ALT-effect β), a `manifest.yaml` with provenance (`study_label`, `tissue_label`, `quant_method` + human-readable label, `n_variants`, source URL, fetched-at UTC timestamp), and a `report.md` human-readable summary.
 
@@ -223,6 +223,8 @@ variant_id              chromosome  position_bp  allele_a  allele_b  beta       
    - `leafcutter` (splice junction): splice-QTL on intron excision ratio
 
    These represent distinct biology. A `txrev` row is NOT a `ge` eQTL. The skill's manifest carries the raw `quant_method` code AND a human-readable label per the `CLAUDE.md` expansion rule.
+
+6. **Dataset metadata comes from the bundled table, and the API is gone.** The catalogue permanently disabled its metadata REST API in September 2026 (it answers HTTP 410; [eQTL-Catalogue-resources#59](https://github.com/eQTL-Catalogue/eQTL-Catalogue-resources/issues/59)), so `study_id`, the quantification method, the labels and the per-variant file class are read from `data/dataset_index_r7.tsv`, derived from the catalogue's own published dataset table, [`tabix/tabix_ftp_paths.tsv`](https://github.com/eQTL-Catalogue/eQTL-Catalogue-resources/blob/master/tabix/tabix_ftp_paths.tsv) in the eQTL-Catalogue-resources repository (758 datasets; provenance, source checksum and licence in `data/dataset_index_r7.provenance.json`). A `dataset_id` the table does not carry (one added upstream after r7) raises `EQTLCatalogueDatasetNotFound`; it can still be fetched by passing `study_id` and `file_class` (`all` or `cc`) explicitly, which bypasses the table. Do not infer the file class from the quantification method: the table lists `.all` for QTD000584 (aptamer) where that rule says `.cc`, and since every `.all` dataset also serves a `.cc` file (33 of 758 probed 2026-09-13, 17 listed `.all`, all with a `.cc` twin), opening the wrong one substitutes the credible-set-filtered rows for the full ones without any error (QTD000584 over the 1 Mb SORT1 locus (chr1:108.77-109.77 Mb, GRCh38): `.all` holds 33,240 rows across 11 proteins, `.cc` holds 3,892 rows for 1 protein, 11.7% of the rows and 1 of the 11 traits). The result cache (`~/.clawbio/eqtl_catalogue_region_fetch_cache`) keys each window on the file class that is opened and on the table's release (`r7`), so a window cached before the table existed, under the retired inference rule, is never served again, and a table upgrade retires the cache the same way; `--no-cache` bypasses it entirely.
 
 ## Safety
 

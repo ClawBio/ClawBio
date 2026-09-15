@@ -57,6 +57,12 @@ class Instrument:
     se_outcome: float
     pval_outcome: float
     f_statistic: float = 0.0
+    # Sample sizes, optional and read from the input when present. The Steiger
+    # directionality test needs them to express each association as a variance
+    # explained; without them it can still order the two sides, but only under an
+    # assumption it then has to state. See `steiger_test`.
+    n_exposure: int | None = None
+    n_outcome: int | None = None
 
     @property
     def is_palindromic(self) -> bool:
@@ -72,6 +78,38 @@ class Instrument:
         return self.f_statistic < MIN_F_STAT
 
 
+# The three sensitivity estimators need at least this many instruments. MR-Egger fits
+# a slope AND an intercept, so below 3 there is no residual degree of freedom; the
+# weighted median and weighted mode are order statistics of the per-SNP ratios, and
+# TwoSampleMR (Hemani et al. 2018, the reference implementation of all three) returns
+# NA for each of them below 3 SNPs. IVW is the one estimator defined at n=1, where it
+# reduces to the single Wald ratio.
+MIN_SENSITIVITY_INSTRUMENTS = 3
+MIN_EGGER_INSTRUMENTS = MIN_SENSITIVITY_INSTRUMENTS  # kept for callers that import it
+
+# IVW is the only estimator here defined at n = 1. At n = 0 every weighted sum is zero,
+# so the estimate is 0/0 and the standard error divides by zero; nothing above gates it,
+# because `MIN_SENSITIVITY_INSTRUMENTS` starts at 1.
+MIN_IVW_INSTRUMENTS = 1
+
+# Dimensionless conditioning floor for the Egger slope, replacing an absolute one.
+# rel = Var_w(bx) / E_w[bx^2] lies in [0, 1] and is invariant to the units of the data.
+# Below sqrt(machine epsilon) the Egger SE is inflated by more than ~8,000x, so the
+# estimate is uninformative rather than merely imprecise.
+EGGER_MIN_RELATIVE_VARIANCE = math.sqrt(sys.float_info.epsilon)  # ~1.49e-8
+
+
+class NoInstrumentsError(ValueError):
+    """Raised when an analysis is requested with no instruments at all.
+
+    Distinct from `applicable=False`, which describes an estimator that cannot be
+    computed on a real instrument set and still leaves a report worth writing. Zero
+    instruments is the absence of the analysis itself, so there is nothing to report
+    and the pipeline declines before it writes anything. Subclasses `ValueError` so
+    callers already catching that keep working.
+    """
+
+
 @dataclass
 class MREstimate:
     method: str
@@ -81,6 +119,26 @@ class MREstimate:
     ci_upper: float
     pvalue: float
     n_snps: int
+    # An estimator can be UNDEFINED on a given instrument set rather than merely
+    # imprecise. Without somewhere to say that, the only options are to raise (which
+    # discards the estimates already computed correctly) or to emit a number that reads
+    # exactly like a result. `applicable=False` carries `reason` instead, and every
+    # consumer below skips the row and prints the reason in its place.
+    applicable: bool = True
+    reason: str = ""
+
+    @classmethod
+    def not_applicable(cls, method: str, n_snps: int, reason: str) -> "MREstimate":
+        """An estimator that does not apply to this instrument set.
+
+        The numeric fields are NaN on purpose: any consumer that ignores `applicable`
+        and formats them anyway produces a visible `nan` rather than a plausible number,
+        and the JSON writer refuses to serialise them at all.
+        """
+        return cls(method=method, estimate=float("nan"), se=float("nan"),
+                   ci_lower=float("nan"), ci_upper=float("nan"),
+                   pvalue=float("nan"), n_snps=n_snps,
+                   applicable=False, reason=reason)
 
 
 @dataclass
@@ -96,14 +154,27 @@ class SensitivityResults:
     n_weak_instruments: int = 0
     i_squared_gx: float = 0.0
     steiger_correct_direction: bool = True
-    steiger_pvalue: float = 1.0
+    # None when the test could order the two sides but had no basis for a p-value; the
+    # reason is in `steiger_note`, and every writer prints that instead of a number.
+    steiger_pvalue: float | None = None
+    steiger_note: str = ""
 
 
 # ---------------------------------------------------------------------------
 # MR estimators
 # ---------------------------------------------------------------------------
 def ivw(instruments: list[Instrument]) -> MREstimate:
-    """Inverse-Variance Weighted estimator (multiplicative random effects)."""
+    """Inverse-Variance Weighted estimator (multiplicative random effects).
+
+    Defined down to a single instrument, where it is the Wald ratio, and no further.
+    With none, the weighted sums are all zero and the estimate is 0/0 with an infinite
+    standard error, so it is declared rather than returned.
+    """
+    if len(instruments) < MIN_IVW_INSTRUMENTS:
+        return MREstimate.not_applicable(
+            "IVW", len(instruments),
+            f"IVW requires at least one instrument; this analysis has {len(instruments)}")
+
     bx = np.array([i.beta_exposure for i in instruments])
     by = np.array([i.beta_outcome for i in instruments])
     sy = np.array([i.se_outcome for i in instruments])
@@ -129,39 +200,141 @@ def ivw(instruments: list[Instrument]) -> MREstimate:
     )
 
 
+def egger_weighted_dispersion(w: np.ndarray, bx: np.ndarray) -> float:
+    """`sum_w * sum_i w_i (bx_i - xbar_w)^2` -- the MR-Egger slope denominator.
+
+    Its own function so the property it exists for can be tested directly. That
+    property is STRUCTURAL: every term is a product of non-negative numbers, so the
+    result cannot be negative in IEEE-754, and it is exactly zero precisely when every
+    `bx` is equal.
+
+    The algebraically identical expanded form, `sum_w*sum_wbx2 - sum_wbx**2`, has
+    neither guarantee. It is a difference of two large nearly-equal quantities, so as
+    the exposure effects converge it collapses onto a cancellation remainder whose sign
+    is arbitrary -- and a negative one reaches `math.sqrt` as a domain error. That is
+    not visible through `mr_egger` once the conditioning check is in place, because the
+    check refuses those inputs anyway; it is visible here.
+    """
+    sum_w = np.sum(w)
+    xbar_w = np.sum(w * bx) / sum_w
+    return float(sum_w * np.sum(w * (bx - xbar_w) ** 2))
+
+
 def mr_egger(instruments: list[Instrument]) -> tuple[MREstimate, float, float, float]:
-    """MR-Egger regression. Returns (estimate, intercept, intercept_se, intercept_p)."""
+    """MR-Egger regression. Returns (estimate, intercept, intercept_se, intercept_p).
+
+    Bowden J, Davey Smith G, Burgess S 2015, Int J Epidemiol 44(2):512-525
+    (doi:10.1093/ije/dyv080; PMID 26050253).
+
+    Two INDEPENDENT conditions have to hold, and neither implies the other:
+
+    STATISTICAL -- at least `MIN_EGGER_INSTRUMENTS`. Egger fits two parameters, so below
+    three there is no residual degree of freedom, no matter how clean the data is.
+
+    NUMERICAL -- at least two distinct `beta_exposure` values, checked as a dimensionless
+    ratio. The slope is unidentified when every `bx` coincides, and that is not an n < 3
+    problem: with a relative spread around 1e-10 the shipped code raised on roughly a
+    third of well-sized inputs at n = 5 and n = 10.
+
+    Below either, the estimator does not apply, and it says so instead of returning a
+    number. Returning one was the failure this replaces: at n = 1, over 5,000 draws on
+    each of two effect-size distributions, the old code returned a finite slope with a
+    median SE of 2.1e+07 in ~27% of cases, raised `math domain error` in ~27%, and hit
+    its own guard in ~46% -- a one-ulp sign coin flip rather than a property of the data.
+    """
     bx = np.array([i.beta_exposure for i in instruments])
     by = np.array([i.beta_outcome for i in instruments])
     sy = np.array([i.se_outcome for i in instruments])
 
+    # Orient every instrument so its exposure effect is positive, flipping the
+    # outcome effect with it (the same variant, other allele). The slope is
+    # invariant to this; the INTERCEPT is not -- it is the mean outcome effect at
+    # zero exposure effect, so on un-oriented inputs it depends on which allele
+    # each GWAS happened to report, i.e. on the allele coding rather than on the
+    # data. This is what TwoSampleMR's mr_egger_regression does before its fit
+    # (b_out <- b_out * sign(b_exp); b_exp <- abs(b_exp)); a zero effect keeps
+    # its sign as +1 there too.
+    orient = np.where(bx < 0, -1.0, 1.0)
+    bx = bx * orient
+    by = by * orient
+
     w = 1.0 / (sy ** 2)
     n = len(instruments)
+
+    if n < MIN_EGGER_INSTRUMENTS:
+        return (
+            MREstimate.not_applicable(
+                "MR-Egger", n,
+                f"MR-Egger requires at least {MIN_EGGER_INSTRUMENTS} instruments "
+                f"(it fits a slope and an intercept); this analysis has {n}"),
+            float("nan"), float("nan"), float("nan"),
+        )
 
     sum_w = np.sum(w)
     sum_wbx = np.sum(w * bx)
     sum_wbx2 = np.sum(w * bx ** 2)
     sum_wby = np.sum(w * by)
-    sum_wbxby = np.sum(w * bx * by)
 
-    denom = sum_w * sum_wbx2 - sum_wbx ** 2
-    if abs(denom) < 1e-300:
-        return MREstimate("MR-Egger", 0, 1, -1.96, 1.96, 1.0, n), 0.0, 1.0, 1.0
+    # Centered (Lagrange) form: denom = sum_w * sum_i w_i (bx_i - xbar_w)^2, a sum of
+    # non-negative terms that is zero exactly when every bx is equal. The algebraically
+    # identical expanded form, sum_w*sum_wbx2 - sum_wbx**2, is a difference of two large
+    # nearly-equal quantities, so in floating point it lands on a cancellation remainder
+    # whose SIGN is arbitrary -- which is where the negative values under the square root
+    # came from. The NUMERATOR is centered for the same reason: centering the denominator
+    # alone fixes the sign and leaves the slope's accuracy degrading as the spread
+    # narrows.
+    xbar_w = sum_wbx / sum_w
+    ybar_w = sum_wby / sum_w
+    dx = bx - xbar_w
+    denom = egger_weighted_dispersion(w, bx)
+    numer = sum_w * np.sum(w * dx * (by - ybar_w))
 
-    slope = (sum_w * sum_wbxby - sum_wbx * sum_wby) / denom
-    intercept = (sum_wby - slope * sum_wbx) / sum_w
+    # Dimensionless conditioning test. `denom` carries the data's units: rescaling the
+    # outcome alone, which changes the slope but not the conditioning at all, moves it
+    # across hundreds of orders of magnitude, so no absolute threshold can be a criterion.
+    # This ratio is invariant to that rescaling.
+    scale = sum_w * sum_wbx2
+    rel = denom / scale if scale > 0 else 0.0
+    # Written as a negated `>` rather than `rel < threshold` so NaN also fails it. A
+    # comparison against NaN is False either way, and only this direction turns that
+    # into a refusal rather than into passing the check.
+    if not (rel > EGGER_MIN_RELATIVE_VARIANCE):
+        return (
+            MREstimate.not_applicable(
+                "MR-Egger", n,
+                "MR-Egger is not identified on these instruments: their exposure "
+                f"effects are too close to identical (relative variance {rel:.2e}, "
+                f"below {EGGER_MIN_RELATIVE_VARIANCE:.2e}), so the slope has no "
+                "informative standard error"),
+            float("nan"), float("nan"), float("nan"),
+        )
+
+    slope = numer / denom
+    intercept = ybar_w - slope * xbar_w
 
     fitted = intercept + slope * bx
     residuals = by - fitted
-    phi = max(1.0, np.sum(w * residuals ** 2) / (n - 2))
+    # df cannot be <= 0 here, since n >= MIN_EGGER_INSTRUMENTS above. Guarded anyway:
+    # this function is public and directly callable, and that is the difference between
+    # "unreachable from our pipeline" and "cannot happen".
+    df = n - 2
+    phi = 1.0 if df <= 0 else max(1.0, np.sum(w * residuals ** 2) / df)
 
     se_slope = math.sqrt(phi * sum_w / denom)
     se_intercept = math.sqrt(phi * sum_wbx2 / denom)
 
-    z_slope = slope / se_slope
-    p_slope = 2 * stats.norm.sf(abs(z_slope))
-    z_int = intercept / se_intercept
-    p_int = 2 * stats.norm.sf(abs(z_int))
+    # t reference on n - 2 df, not a normal: both standard errors come from the
+    # fit's residual variance, itself an estimate on n - 2 degrees of freedom
+    # (two parameters fitted), and the t carries that uncertainty. At n = 3 there
+    # is one residual degree of freedom and the p-value is correspondingly wide;
+    # a normal here reported p = 0.006 on three demo instruments where the t
+    # gives 0.22. TwoSampleMR's mr_egger_regression uses pt(., n - 2) for both.
+    # IVW keeps its normal reference (its SE is the analytic one, no residual
+    # variance estimated), as in that implementation.
+    t_slope = slope / se_slope
+    p_slope = 2 * stats.t.sf(abs(t_slope), df=df)
+    t_int = intercept / se_intercept
+    p_int = 2 * stats.t.sf(abs(t_int), df=df)
 
     estimate = MREstimate(
         method="MR-Egger", estimate=float(slope), se=float(se_slope),
@@ -173,7 +346,17 @@ def mr_egger(instruments: list[Instrument]) -> tuple[MREstimate, float, float, f
 
 
 def weighted_median(instruments: list[Instrument], n_boot: int = 1000) -> MREstimate:
-    """Weighted median estimator (Bowden et al., 2016)."""
+    """Weighted median estimator (Bowden et al., 2016).
+
+    Not applicable below `MIN_SENSITIVITY_INSTRUMENTS`: the median of one or two ratios
+    is not a robust estimator of anything, and reporting it alongside IVW at n=1 let the
+    report certify a single Wald ratio as "consistent across methods".
+    """
+    if len(instruments) < MIN_SENSITIVITY_INSTRUMENTS:
+        return MREstimate.not_applicable(
+            "Weighted Median", len(instruments),
+            f"Weighted median requires at least {MIN_SENSITIVITY_INSTRUMENTS} instruments; "
+            f"this analysis has {len(instruments)}")
     bx = np.array([i.beta_exposure for i in instruments])
     by = np.array([i.beta_outcome for i in instruments])
     sy = np.array([i.se_outcome for i in instruments])
@@ -210,25 +393,110 @@ def weighted_median(instruments: list[Instrument], n_boot: int = 1000) -> MREsti
     )
 
 
-def weighted_mode(instruments: list[Instrument], bandwidth: float = 0.5) -> MREstimate:
-    """Weighted mode estimator (Hartwig et al., 2017)."""
-    bx = np.array([i.beta_exposure for i in instruments])
-    by = np.array([i.beta_outcome for i in instruments])
-    sy = np.array([i.se_outcome for i in instruments])
+def _mad(x: np.ndarray) -> float:
+    """Median absolute deviation, scaled by 1.4826 for consistency with the SD under
+    normality (the constant R's `mad()` applies by default)."""
+    med = float(np.median(x))
+    return 1.4826 * float(np.median(np.abs(x - med)))
 
-    ratios = by / bx
-    se_ratios = sy / np.abs(bx)
-    weights = 1.0 / se_ratios
 
-    x_grid = np.linspace(np.min(ratios) - 1, np.max(ratios) + 1, 1000)
+def mbe_bandwidth(ratios: np.ndarray, phi: float) -> float:
+    """`h = phi * s`, with `s` the modified Silverman rule Hartwig et al. 2017 eq. 7 use:
+    `s = 0.9 * min(sd, 1.4826 * mad) / L^(1/5)`, floored at 1e-8 as in the reference
+    implementation so a set of identical ratios still has a width."""
+    sd = float(np.std(ratios, ddof=1)) if len(ratios) > 1 else 0.0
+    s = 0.9 * min(sd, _mad(ratios)) / len(ratios) ** 0.2
+    return max(1e-8, s * phi)
+
+
+def _weighted_mode_point(ratios: np.ndarray, weights: np.ndarray,
+                         bandwidth: float) -> float:
+    """The mode of the weighted normal-kernel density over the ratios (Hartwig et al.
+    2017 eq. 6), with `weights` already standardised to sum to 1."""
+    span = float(np.max(ratios) - np.min(ratios))
+    pad = max(span, 3.0 * bandwidth) if span or bandwidth else 1.0
+    x_grid = np.linspace(float(np.min(ratios)) - pad, float(np.max(ratios)) + pad, 2000)
     density = np.zeros_like(x_grid)
     for r, w in zip(ratios, weights):
         density += w * stats.norm.pdf(x_grid, loc=r, scale=bandwidth)
-    beta_mode = float(x_grid[np.argmax(density)])
+    return float(x_grid[int(np.argmax(density))])
 
-    se_mode = float(1.0 / (np.sum(weights) * 0.5))
-    z = beta_mode / se_mode if se_mode > 0 else 0
-    pval = 2 * stats.norm.sf(abs(z))
+
+def weighted_mode(instruments: list[Instrument], phi: float = 1.0,
+                  n_boot: int = 1000, seed: int = 0) -> MREstimate:
+    """Weighted mode estimator.
+
+    Hartwig FP, Davey Smith G, Bowden J 2017, Int J Epidemiol 46(6):1985-1998
+    (doi:10.1093/ije/dyx102; PMID 29040600), which specifies both a bandwidth
+    proportional to the spread of the ratios and a bootstrapped standard error.
+
+    This follows the paper's weighted MBE and its reference implementation
+    (TwoSampleMR `mr_weighted_mode`, Hemani et al. 2018) term by term:
+
+    - ratio SEs by the delta method, `sqrt(sy^2/bx^2 + by^2*sx^2/bx^4)` (the
+      "not assuming NOME" column the reference uses for the weighted mode);
+    - standardised inverse-variance weights, eq. 5: `w_j = se_j^-2 / sum(se^-2)`;
+    - bandwidth `h = phi * s` with the modified Silverman rule, eq. 7:
+      `s = 0.9 * min(sd, 1.4826*mad) / L^(1/5)`, and the reference's `phi = 1`;
+    - standard error = 1.4826 x the median absolute deviation of a parametric
+      bootstrap of the ratios (each ratio redrawn from N(ratio, se_ratio)), the
+      bandwidth recomputed on every draw;
+    - p-value from a t distribution on L - 1 degrees of freedom, as the reference does.
+
+    Why this replaces what was here. THE BANDWIDTH WAS AN ABSOLUTE 0.5 whatever the data
+    looked like. On instruments whose ratios have a standard deviation of 0.28 -- an
+    ordinary MR scale -- 0.5 is nearly twice the entire spread, so the kernels merge into
+    one blob and the "mode" slides onto the weighted mean: measured 0.5469 against an
+    IVW estimate of 0.5281, while the same data at a bandwidth of 0.1 gives 0.6679. An
+    estimator whose whole purpose is to disagree with the mean when most instruments
+    agree with each other cannot have a smoothing width that swamps the disagreement.
+    A data-scaled bandwidth also makes the estimator invariant to the units of the data,
+    as the mean and the median already were.
+
+    THE STANDARD ERROR IS A BOOTSTRAP. The previous `2 / sum(|bx_i|/sy_i)` is a function
+    of the instrument count and the outcome standard errors and NOTHING ELSE -- it does
+    not look at the dispersion of the ratios whose mode it is reporting. Measured over
+    ratio standard deviations from 0.0000 to 0.8265, an 800-fold change in how spread
+    out the estimates are, the reported SE did not move at all: 0.02079 at n=10 and
+    0.00429 at n=40 in every case. It was most confident exactly where the point
+    estimate was least stable -- at the widest dispersion the mode itself moved from
+    0.9673 to 0.3958 between two samples whose SEs were 0.0208 and 0.0043.
+
+    The bootstrap redraws each ratio from its own reported uncertainty and re-derives
+    the mode, so the SE reflects how much the mode actually moves.
+
+    The weights were also `1/se`; the paper's eq. 5 and the reference implementation use
+    `1/se^2`. Corrected here, since the function now claims to be that estimator.
+    """
+    n = len(instruments)
+    if n < MIN_SENSITIVITY_INSTRUMENTS:
+        return MREstimate.not_applicable(
+            "Weighted Mode", n,
+            f"Weighted mode requires at least {MIN_SENSITIVITY_INSTRUMENTS} instruments; "
+            f"this analysis has {n}")
+    bx = np.array([i.beta_exposure for i in instruments])
+    by = np.array([i.beta_outcome for i in instruments])
+    sx = np.array([i.se_exposure for i in instruments])
+    sy = np.array([i.se_outcome for i in instruments])
+
+    ratios = by / bx
+    # Delta-method ratio SE, second order ("not assuming NOME"), as the reference uses
+    # for the weighted mode; the NOME variant drops the second term.
+    se_ratios = np.sqrt(sy ** 2 / bx ** 2 + by ** 2 * sx ** 2 / bx ** 4)
+    inv_var = 1.0 / se_ratios ** 2
+    weights = inv_var / np.sum(inv_var)
+
+    beta_mode = _weighted_mode_point(ratios, weights, mbe_bandwidth(ratios, phi))
+
+    rng = np.random.default_rng(seed)
+    draws = np.empty(n_boot)
+    for b in range(n_boot):
+        ratios_b = rng.normal(ratios, se_ratios)
+        draws[b] = _weighted_mode_point(ratios_b, weights, mbe_bandwidth(ratios_b, phi))
+    se_mode = _mad(draws)
+
+    t_stat = beta_mode / se_mode if se_mode > 0 else 0.0
+    pval = float(2 * stats.t.sf(abs(t_stat), df=n - 1))
 
     return MREstimate(
         method="Weighted Mode", estimate=beta_mode, se=se_mode,
@@ -253,29 +521,97 @@ def cochran_q(instruments: list[Instrument], ivw_est: MREstimate) -> tuple[float
     return q, p, df
 
 
-def steiger_test(instruments: list[Instrument]) -> tuple[bool, float]:
-    """Steiger directionality test — checks causal direction."""
-    r2_exp = np.array([2 * i.eaf * (1 - i.eaf) * (i.beta_exposure ** 2) for i in instruments])
-    r2_out = np.array([2 * i.eaf * (1 - i.eaf) * (i.beta_outcome ** 2) for i in instruments])
-    total_r2_exp = float(np.sum(r2_exp))
-    total_r2_out = float(np.sum(r2_out))
-    correct = total_r2_exp > total_r2_out
-    diff = total_r2_exp - total_r2_out
-    se_diff = math.sqrt(total_r2_exp + total_r2_out) * 0.01
-    z = diff / se_diff if se_diff > 0 else 0
-    p = 2 * stats.norm.sf(abs(z))
-    return correct, float(p)
+def steiger_test(instruments: list[Instrument]) -> tuple[bool, float | None, str]:
+    """Steiger directionality test. Returns (correct_direction, p_value_or_None, note).
+
+    Hemani G, Tilling K, Davey Smith G 2017, PLoS Genet 13(11):e1007081
+    (doi:10.1371/journal.pgen.1007081; PMID 29149188).
+
+    Compares how much variance the instruments explain in the exposure against how much
+    they explain in the outcome; more in the exposure supports exposure -> outcome.
+
+    THE VARIANCE EXPLAINED IS COMPUTED FROM THE Z-STATISTIC, WHICH IS UNIT-FREE.
+    The previous form, `r2 = 2*eaf*(1-eaf)*beta^2`, is a variance explained only if the
+    trait happens to have variance 1: there is no division by the trait's variance and
+    no sample size anywhere in it. So the verdict moved when the outcome was expressed
+    in different units, which is not a scientific property of anything. Measured on ten
+    instruments with a true ratio of 0.5, rescaling the outcome alone -- mmol/L to
+    mg/dL, say -- flipped `correct` from True to False between factors of 1 and 3, with
+    p astronomically small on BOTH sides, so it reported near-certainty in opposite
+    directions depending on a unit choice.
+
+    `r2 = z^2 / (z^2 + n - 2)` is the conversion for a continuous trait (the F statistic
+    of a one-predictor regression on n - 2 residual degrees of freedom; TwoSampleMR
+    `get_r_from_bsen`), and z is invariant to the units of beta because the standard
+    error carries the same units.
+
+    Sample sizes are OPTIONAL, and what is reported depends on what is available:
+
+    - both present: a variance explained per side, and a p-value from the Fisher
+      z-transform difference of two INDEPENDENT correlations -- which is what two-sample
+      MR has by construction, the exposure and outcome coming from different studies.
+      (The paper states the one-sample form, Steiger's Z for correlated correlations
+      within one population; its two-sample implementation, TwoSampleMR `mr_steiger`,
+      uses the independent-samples test, and so does this.)
+    - absent: with equal sample sizes the comparison reduces to |z_exposure| >
+      |z_outcome|, so the DIRECTION is still well defined and still unit-free. The
+      p-value is not: it is returned as None with the assumption stated in `note`,
+      rather than as a number from the previous `sqrt(r2_exp + r2_out) * 0.01`, whose
+      0.01 has no derivation.
+    """
+    z_exp = np.array([i.beta_exposure / i.se_exposure if i.se_exposure else 0.0
+                      for i in instruments])
+    z_out = np.array([i.beta_outcome / i.se_outcome if i.se_outcome else 0.0
+                      for i in instruments])
+
+    n_exp = [i.n_exposure for i in instruments]
+    n_out = [i.n_outcome for i in instruments]
+    # `bool(instruments)` first: `all()` over an empty list is vacuously True, which
+    # sent the no-instrument case down the branch that needs sample sizes, through
+    # `np.mean([])`, and out with a NaN p-value.
+    have_n = bool(instruments) and all(v is not None and v > 3 for v in n_exp + n_out)
+
+    if not have_n:
+        correct = bool(np.sum(z_exp ** 2) > np.sum(z_out ** 2))
+        return correct, None, (
+            "no sample sizes supplied, so the direction is read from the z-statistics "
+            "under the assumption that the exposure and outcome studies are of "
+            "comparable size; no p-value is computed")
+
+    r2_exp = float(np.sum(z_exp ** 2 / (z_exp ** 2 + np.array(n_exp, dtype=float) - 2.0)))
+    r2_out = float(np.sum(z_out ** 2 / (z_out ** 2 + np.array(n_out, dtype=float) - 2.0)))
+    correct = r2_exp > r2_out
+
+    # Fisher z on each side, then the difference of two independent correlations.
+    # Clamped below 1 because atanh is undefined at exactly 1, which a very strong
+    # instrument set can reach after summing.
+    r_exp = min(math.sqrt(max(r2_exp, 0.0)), 1.0 - 1e-12)
+    r_out = min(math.sqrt(max(r2_out, 0.0)), 1.0 - 1e-12)
+    # Per-instrument sample sizes are aggregated by their mean, as TwoSampleMR
+    # `mr_steiger` does (`n = mean(n_exp), n2 = mean(n_out)`).
+    n1, n2 = float(np.mean(n_exp)), float(np.mean(n_out))
+    se = math.sqrt(1.0 / (n1 - 3.0) + 1.0 / (n2 - 3.0))
+    z_stat = (math.atanh(r_exp) - math.atanh(r_out)) / se
+    p = float(2 * stats.norm.sf(abs(z_stat)))
+    return correct, p, ""
 
 
 def compute_i_squared_gx(instruments: list[Instrument]) -> float:
     """I² for instrument-exposure associations (Bowden et al., 2016)."""
+    # `df <= 0` rather than `df == 0`, and BEFORE the weighted mean: with no instruments
+    # df is -1, so neither `q <= df` (0.0 <= -1 is False) nor `df == 0` held and
+    # `(q - df) / q` divided by a zero q. Returning here also keeps `bx_bar` from
+    # evaluating 0/0, which is meaningless and emits a RuntimeWarning.
+    df = len(instruments) - 1
+    if df <= 0:
+        return 0.0
+
     bx = np.array([i.beta_exposure for i in instruments])
     sx = np.array([i.se_exposure for i in instruments])
     w = 1.0 / (sx ** 2)
     bx_bar = np.sum(w * bx) / np.sum(w)
     q = float(np.sum(w * (bx - bx_bar) ** 2))
-    df = len(instruments) - 1
-    if q <= df or df == 0:
+    if q <= df:
         return 0.0
     return max(0.0, float((q - df) / q))
 
@@ -296,7 +632,7 @@ def run_sensitivity(instruments: list[Instrument], ivw_est: MREstimate) -> Sensi
     """Run full sensitivity analysis battery."""
     q, q_p, q_df = cochran_q(instruments, ivw_est)
     f_stats = [i.f_statistic for i in instruments]
-    steiger_dir, steiger_p = steiger_test(instruments)
+    steiger_dir, steiger_p, steiger_note = steiger_test(instruments)
     i2_gx = compute_i_squared_gx(instruments)
 
     return SensitivityResults(
@@ -307,6 +643,7 @@ def run_sensitivity(instruments: list[Instrument], ivw_est: MREstimate) -> Sensi
         i_squared_gx=i2_gx,
         steiger_correct_direction=steiger_dir,
         steiger_pvalue=steiger_p,
+        steiger_note=steiger_note,
     )
 
 
@@ -333,7 +670,9 @@ def scatter_plot(instruments: list[Instrument], estimates: list[MREstimate], pat
     x_range = np.linspace(min(bx) - 0.01, max(bx) + 0.01, 100)
     colours = {"IVW": "#d32f2f", "MR-Egger": "#ff9800", "Weighted Median": "#4caf50", "Weighted Mode": "#9c27b0"}
     for est in estimates:
-        if est.method in colours:
+        # A not-applicable estimator has no slope to draw; plotting NaN silently omits
+        # the line but still consumes a legend entry, which reads as "drawn at zero".
+        if est.method in colours and est.applicable:
             ax.plot(x_range, est.estimate * x_range, color=colours[est.method],
                     linewidth=1.5, label=f"{est.method} ({est.estimate:.3f})")
 
@@ -465,9 +804,39 @@ def generate_report(
 def _write_mr_table(estimates, path):
     with open(path, "w", newline="") as f:
         w = csv.writer(f, delimiter="\t")
-        w.writerow(["method", "estimate", "se", "ci_lower", "ci_upper", "pvalue", "n_snps"])
+        w.writerow(["method", "estimate", "se", "ci_lower", "ci_upper", "pvalue", "n_snps", "note"])
         for e in estimates:
-            w.writerow([e.method, f"{e.estimate:.6f}", f"{e.se:.6f}", f"{e.ci_lower:.6f}", f"{e.ci_upper:.6f}", f"{e.pvalue:.2e}", e.n_snps])
+            if not e.applicable:
+                # "not_applicable" in every numeric cell, never a formatted NaN: a
+                # spreadsheet renders `nan` in an estimate column as a value someone
+                # will try to read.
+                w.writerow([e.method, "not_applicable", "not_applicable", "not_applicable",
+                            "not_applicable", "not_applicable", e.n_snps, e.reason])
+                continue
+            w.writerow([e.method, f"{e.estimate:.6f}", f"{e.se:.6f}", f"{e.ci_lower:.6f}", f"{e.ci_upper:.6f}", f"{e.pvalue:.2e}", e.n_snps, ""])
+
+
+def _steiger_interpretation(correct: bool, pvalue: float | None, *, markdown: bool) -> str:
+    """The Steiger row's interpretation. With no sample sizes the direction is a
+    comparison of summed z-squared, which stands in for variance explained only
+    if the two studies are of comparable size: z-squared grows with n, so when
+    the outcome GWAS is the larger study (the usual case for a disease outcome)
+    its share is overstated and the comparison leans toward "reversed". There is
+    no test behind it either way, so it is reported as consistent or reversed,
+    NOT as confirmed: the comparison was made and gave a direction, and what is
+    missing is its significance, which needs the sample sizes. "Confirmed" is
+    reserved for a computed p-value."""
+    if pvalue is None:
+        if correct:
+            return ("Direction consistent with exposure → outcome; significance not "
+                    "assessable without sample sizes")
+        return ("**WARNING: direction consistent with reverse causation; significance "
+                "not assessable without sample sizes**" if markdown else
+                "WARNING: direction consistent with reverse causation; significance "
+                "not assessable without sample sizes")
+    if correct:
+        return "Exposure → Outcome confirmed"
+    return "**WARNING: reverse causation**" if markdown else "WARNING: reversed causal direction"
 
 
 def _write_sensitivity_table(s, egger_int, egger_p, path):
@@ -475,11 +844,17 @@ def _write_sensitivity_table(s, egger_int, egger_p, path):
         w = csv.writer(f, delimiter="\t")
         w.writerow(["test", "statistic", "pvalue", "interpretation"])
         w.writerow(["Cochran_Q", f"{s.cochran_q:.2f}", f"{s.cochran_q_pvalue:.4f}", "Significant = heterogeneity" if s.cochran_q_pvalue < 0.05 else "No significant heterogeneity"])
-        w.writerow(["Egger_intercept", f"{egger_int:.6f}", f"{egger_p:.4f}", "Significant = directional pleiotropy" if egger_p < 0.05 else "No evidence of directional pleiotropy"])
+        if math.isnan(egger_int) or math.isnan(egger_p):
+            note = "MR-Egger did not apply to this instrument set, so there is no directional-pleiotropy test"
+            w.writerow(["Egger_intercept", "not_applicable", "not_applicable", note])
+        else:
+            w.writerow(["Egger_intercept", f"{egger_int:.6f}", f"{egger_p:.4f}", "Significant = directional pleiotropy" if egger_p < 0.05 else "No evidence of directional pleiotropy"])
         w.writerow(["Mean_F_statistic", f"{s.mean_f_statistic:.1f}", "N/A", f"{'WEAK' if s.mean_f_statistic < MIN_F_STAT else 'Strong'} instruments"])
         w.writerow(["Min_F_statistic", f"{s.min_f_statistic:.1f}", "N/A", f"{s.n_weak_instruments} weak instruments (F<{MIN_F_STAT})"])
         w.writerow(["I_squared_GX", f"{s.i_squared_gx:.4f}", "N/A", "SIMEX recommended" if s.i_squared_gx < 0.9 else "No SIMEX needed"])
-        w.writerow(["Steiger_direction", "Correct" if s.steiger_correct_direction else "REVERSED", f"{s.steiger_pvalue:.4f}", "Correct direction" if s.steiger_correct_direction else "WARNING: reversed causal direction"])
+        _sp = f"{s.steiger_pvalue:.4f}" if s.steiger_pvalue is not None else "not_applicable"
+        _si = _steiger_interpretation(s.steiger_correct_direction, s.steiger_pvalue, markdown=False)
+        w.writerow(["Steiger_direction", "Correct" if s.steiger_correct_direction else "REVERSED", _sp, f"{_si}{'; ' + s.steiger_note if s.steiger_note else ''}"])
 
 
 def _write_instruments_table(instruments, path):
@@ -504,6 +879,11 @@ def _write_report_md(instruments, estimates, sens, egger_int, egger_p, exposure,
         "|--------|----------|----|--------|---------|",
     ]
     for e in estimates:
+        if not e.applicable:
+            # Never a formatted NaN: the TSV and the JSON already say "not
+            # applicable" for this row, and the reason follows the table.
+            lines.append(f"| {e.method} | not computed | not computed | not computed | not computed |")
+            continue
         lines.append(f"| {e.method} | {e.estimate:.4f} | {e.se:.4f} | [{e.ci_lower:.4f}, {e.ci_upper:.4f}] | {e.pvalue:.2e} |")
     lines.append("")
 
@@ -512,11 +892,17 @@ def _write_report_md(instruments, estimates, sens, egger_int, egger_p, exposure,
         "| Test | Result | P-value | Interpretation |",
         "|------|--------|---------|----------------|",
         f"| Cochran's Q | {sens.cochran_q:.2f} (df={sens.cochran_q_df}) | {sens.cochran_q_pvalue:.4f} | {'Heterogeneity detected' if sens.cochran_q_pvalue < 0.05 else 'No significant heterogeneity'} |",
-        f"| Egger intercept | {egger_int:.4f} | {egger_p:.4f} | {'Directional pleiotropy' if egger_p < 0.05 else 'No directional pleiotropy'} |",
+        (f"| Egger intercept | {egger_int:.4f} | {egger_p:.4f} | "
+         f"{'Directional pleiotropy' if egger_p < 0.05 else 'No directional pleiotropy'} |"
+         if not (math.isnan(egger_int) or math.isnan(egger_p)) else
+         "| Egger intercept | not computed | not computed | MR-Egger did not apply |"),
         f"| Mean F-statistic | {sens.mean_f_statistic:.1f} | — | {'**WARNING: weak instruments**' if sens.mean_f_statistic < MIN_F_STAT else 'Strong instruments'} |",
         f"| Weak instruments (F<{MIN_F_STAT}) | {sens.n_weak_instruments}/{len(instruments)} | — | {'**WARNING**' if sens.n_weak_instruments > 0 else 'None'} |",
         f"| I²_GX | {sens.i_squared_gx:.4f} | — | {'SIMEX correction recommended' if sens.i_squared_gx < 0.9 else 'Adequate'} |",
-        f"| Steiger direction | {'Correct' if sens.steiger_correct_direction else '**REVERSED**'} | {sens.steiger_pvalue:.4f} | {'Exposure → Outcome confirmed' if sens.steiger_correct_direction else '**WARNING: reverse causation**'} |",
+        (f"| Steiger direction | {'Correct' if sens.steiger_correct_direction else '**REVERSED**'} | "
+         f"{f'{sens.steiger_pvalue:.4f}' if sens.steiger_pvalue is not None else 'not computed'} | "
+         f"{_steiger_interpretation(sens.steiger_correct_direction, sens.steiger_pvalue, markdown=True)}"
+         f"{'; ' + sens.steiger_note if sens.steiger_note else ''} |"),
         "",
     ])
 
@@ -529,11 +915,24 @@ def _write_report_md(instruments, estimates, sens, egger_int, egger_p, exposure,
         f"(beta = {estimates[0].estimate:.4f}, 95% CI [{estimates[0].ci_lower:.4f}, {estimates[0].ci_upper:.4f}], P = {estimates[0].pvalue:.2e}). ",
         "",
     ])
-    consistent = all(abs(e.estimate - estimates[0].estimate) < 2 * estimates[0].se for e in estimates[1:])
-    if consistent:
-        lines.append("Sensitivity analyses show consistent estimates across IVW, MR-Egger, weighted median, and weighted mode, supporting a robust causal inference.")
+    # Compare only estimators that PRODUCED an estimate, and name the ones that did not.
+    # A not-applicable row previously entered this comparison as a number, so a two-
+    # instrument run whose Egger SE was infinite still certified the result "robust".
+    comparable = [e for e in estimates[1:] if e.applicable]
+    skipped = [e for e in estimates if not e.applicable]
+    consistent = all(abs(e.estimate - estimates[0].estimate) < 2 * estimates[0].se
+                     for e in comparable)
+    if not comparable:
+        lines.append("No sensitivity estimator applies to this instrument set, so the "
+                     "IVW estimate stands alone and is not corroborated.")
+    elif consistent:
+        names = ", ".join(["IVW"] + [e.method for e in comparable])
+        lines.append(f"Sensitivity analyses show consistent estimates across {names}, "
+                     "supporting a robust causal inference.")
     else:
         lines.append("**Caution**: Estimates differ across methods, suggesting potential violations of MR assumptions. Interpret with care.")
+    for e in skipped:
+        lines.append(f"\n{e.method} was not computed: {e.reason}.")
     lines.extend(["", "---", "", f"*{DISCLAIMER}*", ""])
     (output_dir / "report.md").write_text("\n".join(lines), encoding="utf-8")
 
@@ -546,18 +945,37 @@ def _write_result_json(estimates, sens, egger_int, egger_p, exposure, outcome, o
         "mode": "demo" if demo else "live",
         "exposure": exposure,
         "outcome": outcome,
-        "estimates": [{"method": e.method, "estimate": round(e.estimate, 6), "se": round(e.se, 6), "pvalue": f"{e.pvalue:.2e}", "n_snps": e.n_snps} for e in estimates],
+        "estimates": [
+            {"method": e.method, "estimate": round(e.estimate, 6), "se": round(e.se, 6),
+             "pvalue": f"{e.pvalue:.2e}", "n_snps": e.n_snps}
+            if e.applicable else
+            {"method": e.method, "applicable": False, "reason": e.reason,
+             "n_snps": e.n_snps}
+            for e in estimates
+        ],
         "sensitivity": {
             "cochran_q": round(sens.cochran_q, 2), "cochran_q_p": round(sens.cochran_q_pvalue, 4),
-            "egger_intercept": round(egger_int, 6), "egger_intercept_p": round(egger_p, 4),
+            # None, not NaN: `allow_nan=False` below would otherwise refuse to write the
+            # file at all on exactly the runs this change exists to make well-behaved.
+            # JSON null is the honest encoding of "there is no such test here".
+            "egger_intercept": None if math.isnan(egger_int) else round(egger_int, 6),
+            "egger_intercept_p": None if math.isnan(egger_p) else round(egger_p, 4),
             "mean_f_stat": round(sens.mean_f_statistic, 1),
             "n_weak": sens.n_weak_instruments,
             "i_squared_gx": round(sens.i_squared_gx, 4),
             "steiger_correct": sens.steiger_correct_direction,
+            "steiger_p": sens.steiger_pvalue,
+            "steiger_note": sens.steiger_note or None,
         },
         "disclaimer": DISCLAIMER,
     }
-    (output_dir / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    # allow_nan=False: Python emits `Infinity` and `NaN` bare by default, and RFC 8259
+    # has neither, so a strict parser rejects the WHOLE file rather than one field. A
+    # two-instrument run used to write `"se": Infinity` and exit 0. Now any non-finite
+    # anywhere in the document raises here instead of shipping unparseable JSON -- for
+    # every future one, not only this one.
+    (output_dir / "result.json").write_text(
+        json.dumps(result, indent=2, allow_nan=False), encoding="utf-8")
 
 
 def _write_repro(output_dir, ts, demo):
@@ -580,11 +998,22 @@ def load_demo_instruments() -> tuple[list[Instrument], str, str]:
         pval_exposure=s["pval_exposure"], beta_outcome=s["beta_outcome"],
         se_outcome=s["se_outcome"], pval_outcome=s["pval_outcome"],
         f_statistic=s["f_statistic"],
+        n_exposure=s.get("n_exposure"), n_outcome=s.get("n_outcome"),
     ) for s in data["instruments"]]
     return instruments, data["exposure"], data["outcome"]
 
 
 def run_pipeline(instruments: list[Instrument], exposure: str, outcome: str, output_dir: Path, demo: bool = False) -> dict:
+    # Before the output tree is created, so a refused run leaves nothing behind that
+    # could be mistaken for a completed one.
+    if not instruments:
+        raise NoInstrumentsError(
+            "No instruments to analyse. Mendelian randomisation needs at least one "
+            "harmonised instrument for the exposure. Check that the input file's "
+            "`instruments` array is populated, and that upstream filtering "
+            "(p-value threshold, LD clumping, harmonisation) has not removed every SNP."
+        )
+
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "figures").mkdir(exist_ok=True)
 
@@ -663,6 +1092,7 @@ def main() -> None:
             pval_exposure=s["pval_exposure"], beta_outcome=s["beta_outcome"],
             se_outcome=s["se_outcome"], pval_outcome=s["pval_outcome"],
             f_statistic=s["f_statistic"],
+            n_exposure=s.get("n_exposure"), n_outcome=s.get("n_outcome"),
         ) for s in data["instruments"]]
         exposure = data.get("exposure", "Exposure")
         outcome = data.get("outcome", "Outcome")
@@ -673,7 +1103,13 @@ def main() -> None:
     print(f"[MR] Starting MR pipeline: {exposure} -> {outcome}")
     print(f"[MR] {len(instruments)} instruments loaded ({'demo/cached' if args.demo else 'user-provided'})")
 
-    run_pipeline(instruments, exposure, outcome, output_dir, demo=args.demo)
+    try:
+        run_pipeline(instruments, exposure, outcome, output_dir, demo=args.demo)
+    except NoInstrumentsError as exc:
+        # An empty instrument set is a problem with the input, not a fault in the
+        # skill, so it exits the way argparse exits on any other bad argument rather
+        # than on a traceback the user has to interpret.
+        parser.error(str(exc))
 
 
 if __name__ == "__main__":
