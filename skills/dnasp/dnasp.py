@@ -773,6 +773,12 @@ def _fs_equivalence_key(name: str) -> str:
     return unicodedata.normalize("NFKC", name).casefold()
 
 
+# Entries a split VCF run writes at the output root; no CHROM directory may take
+# their names (a CHROM literally named result.json would make the root envelope
+# a directory, and one named reproducibility would receive the root bundle).
+_ROOT_ARTEFACT_KEYS = frozenset(_fs_equivalence_key(name) for name in ("result.json", "reproducibility"))
+
+
 def _vcf_allele(idx: str, ref: str, alt1: str) -> str:
     """Map a GT allele index (biallelic: '0' or '1') to its nucleotide."""
     if idx == "0":
@@ -5501,6 +5507,8 @@ def _main(argv: Optional[list[str]] = None) -> int:
                 safe = re.sub(r"[^\w.-]", "_", chrom).strip(".") or f"chrom_{digest[:6]}"
                 # Windows also reserves the superscript forms (COM¹, LPT³); NFKC folds them.
                 if unicodedata.normalize("NFKC", safe).split(".")[0].upper() in _WINDOWS_RESERVED_NAMES:
+                    safe = f"chrom_{safe}"
+                if _fs_equivalence_key(safe) in _ROOT_ARTEFACT_KEYS:
                     safe = f"chrom_{safe}"
                 # Names are reserved under a filesystem-equivalence key (NFKC,
                 # case-folded), so chr1/CHR1 or two Unicode forms of one name

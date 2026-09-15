@@ -1,7 +1,16 @@
-"""Regressions against all 170 recorded S1 comparisons, not new GUI observations."""
+"""The 170 historical comparisons with DnaSP 6.12 (Supplementary Table S1).
+
+Two checks per row, both against recorded values rather than a new GUI run:
+- test_recorded_python_value pins the skill's value recorded in S1 (a regression
+  check of this code, not evidence of agreement with DnaSP);
+- test_value_agrees_with_dnasp checks the current value against DnaSP's own
+  printed figure at DnaSP's printed precision, except for the seven rows in
+  DIVERGENT, whose recorded difference from DnaSP is documented there.
+"""
 from pathlib import Path
 from functools import lru_cache
 import json
+import re
 import sys
 import pytest
 
@@ -97,10 +106,70 @@ def value_for(row):
     raise AssertionError(f'Unmapped historical statistic: {label}')
 
 
+# Rows whose recorded DnaSP figure differs from the skill's, with the reason.
+DIVERGENT = {
+    ('A', 'Variance of Hd'): 'last displayed digit',
+    ('C', 'ω = Ka/Ks'): 'DnaSP divides its two rounded 5-dp values (0.02561/0.83011)',
+    ('C', 'Nonsynonymous sites (mean)'): 'last displayed digit (681 - 168.222 = 512.778)',
+    ('H1', 'Fu & Li F*'): "DnaSP's multi-alignment output uses the Achaz (2009) variance; "
+                          "the skill implements Simonsen et al. (1995)",
+    ('H3', 'Fu & Li F*'): 'Achaz (2009) versus Simonsen et al. (1995) variance',
+    ('H5', 'Fu & Li F*'): 'Achaz (2009) versus Simonsen et al. (1995) variance',
+    ('I', 'Fu & Li F*'): 'Achaz (2009) versus Simonsen et al. (1995) variance',
+}
+# Cells where DnaSP printed both of its Fu and Li forms: the comparison target is
+# the "v5-style" (Simonsen et al. 1995) figure the skill implements, never the
+# biallelic-positions (Achaz 2009) figure printed beside it.
+DNASP_TARGET = {
+    ('A', 'Fu & Li D (with outgroup)'): '-1.77322',
+    ('A', 'Fu & Li F (with outgroup)'): '-1.78504',
+    ('F', 'Fu & Li D*'): '-0.52807',
+    ('F', 'Fu & Li F*'): '-0.41685',
+}
+_NUMBER = re.compile(r'-?\d+(?:\.\d+)?')
+
+
+def _dnasp_figures(display):
+    """Numbers DnaSP printed for the row, ignoring parenthetical notes such as
+    other settings ("13 under the standard code") or derivations."""
+    text = display.replace('−', '-')
+    previous = None
+    while previous != text:
+        previous, text = text, re.sub(r'\([^()]*\)', ' ', text)
+    return _NUMBER.findall(text)
+
+
+def test_multi_figure_cells_have_an_explicit_v5_target():
+    multi = {(r['case'], r['label']) for r in ROWS
+             if (r['case'], r['label']) not in DIVERGENT and len(_dnasp_figures(r['dnasp_display'])) > 1}
+    assert multi == set(DNASP_TARGET)
+    for row in ROWS:
+        key = (row['case'], row['label'])
+        if key in DNASP_TARGET:
+            assert re.search(re.escape(DNASP_TARGET[key]) + r'\s*\(v5-style\)', row['dnasp_display']), key
+
+
+def test_divergent_rows_are_exactly_the_documented_ones():
+    recorded = {(r['case'], r['label']) for r in ROWS
+                if r['historical_outcome'].startswith(('last displayed digit', 'Achaz'))}
+    assert recorded == set(DIVERGENT)
+
+
+@pytest.mark.parametrize('row', [r for r in ROWS if (r['case'], r['label']) not in DIVERGENT],
+                         ids=lambda r: r['case'] + ':' + r['label'])
+def test_value_agrees_with_dnasp(row):
+    value = float(value_for(row))
+    figures = _dnasp_figures(row['dnasp_display'])
+    key = (row['case'], row['label'])
+    target = DNASP_TARGET.get(key) or (figures[0] if len(figures) == 1 else None)
+    assert target is not None, ('no single DnaSP figure to compare', row['dnasp_display'])
+    decimals = len(target.split('.')[1]) if '.' in target else 0
+    assert abs(value - float(target)) <= 0.5 * 10 ** -decimals + 1e-9, (value, row['dnasp_display'])
+
+
 @pytest.mark.parametrize('row', ROWS, ids=lambda r: r['case'] + ':' + r['label'])
-def test_recorded_comparison(row):
-    # Protect the Python value in the historical comparison at its recorded
-    # precision. The separate DnaSP column preserves known mode/rounding differences.
+def test_recorded_python_value(row):
+    # Regression of this code: the Python value recorded in S1 at its precision.
     shown = row['python_display']
     precision = row.get('python_precision', len(shown.split('.')[1]) if '.' in shown else 0)
     tolerance = 0.500001 * 10 ** -precision if precision else 1e-10

@@ -26,7 +26,8 @@ def ingroup(filename, outgroup=None, crop=None):
     ('DmelOSRegion.nex', None, 500, 250, 28, '6751-7107', 6926, 11),
 ])
 def test_windows_capture_placement(filename, outgroup, window, step, count, last, midpoint, S):
-    """A2_rp49_win100_25.out, C3_COII_win100_50.out, E2_Dmel_win500_250.out.
+    """A2_rp49_win100_25.out, C3_COII_win100_50.out, E2_Dmel_win500_250.out
+    (DnaSP 6.12.03 exports in tests/fixtures/validation5/).
 
     CODIGO2.vb emits before testing To2 < nucw; CONTROLE.vb caps both ends.
     Inputs here are byte-identical to validation5/inputs.
@@ -65,7 +66,8 @@ def test_window_boundaries(seq, window, step, regions, midpoints):
 
 
 def test_window_exports_and_figure(tmp_path, monkeypatch):
-    """A2_rp49_win100_25.out: midpoint 37 must survive TSV, JSON, report and plot."""
+    """A2_rp49_win100_25.out (tests/fixtures/validation5/): midpoint 37 must survive
+    TSV, JSON, report and plot."""
     captured = []
     if d.HAS_MPL:
         close = d.plt.close
@@ -429,3 +431,29 @@ def test_multi_chrom_directories_distinct_on_case_insensitive_filesystems(tmp_pa
             assert dirs[reserved].startswith('chrom_'), dirs[reserved]
     sizes = {c: json.loads((out / rel / 'result.json').read_text(encoding='utf-8'))['summary']['n'] for c, rel in dirs.items()}
     assert sizes == dict(zip(names, [20, 18, 20]))
+
+
+@pytest.mark.parametrize('name', ['result.json', 'reproducibility', 'RESULT.JSON'])
+def test_chrom_named_like_a_root_artefact_gets_its_own_directory(tmp_path, monkeypatch, name):
+    """A CHROM named result.json or reproducibility must not take the split run's
+    root envelope or root bundle: the run completes, the root files stay files and
+    directories of their own, and the child's checksums verify."""
+    import hashlib
+    monkeypatch.setattr(d, 'HAS_MPL', False)
+    src = FIXTURES / 'inputs/vcf/Data_Example_DiploidPhased.vcf'
+    lines = src.read_text(encoding='utf-8').splitlines(keepends=True)
+    vcf = tmp_path / 'renamed.vcf'
+    vcf.write_text(''.join(name + line[len('Scaffold_2'):] if line.startswith('Scaffold_2\t') else line
+                           for line in lines), encoding='utf-8')
+    out = tmp_path / 'out'
+    assert d.main(['--vcf', str(vcf), '--analysis', 'polymorphism', '--output', str(out)]) == 0
+    assert (out / 'result.json').is_file()
+    assert (out / 'reproducibility' / 'checksums.sha256').is_file()
+    child = out / f'chrom_{name}'
+    assert (child / 'result.json').is_file()
+    for anchor in (child, out):
+        manifest = anchor / 'reproducibility' / 'checksums.sha256'
+        for entry in manifest.read_text(encoding='utf-8').splitlines():
+            digest, rel = entry.split(maxsplit=1)
+            assert hashlib.sha256((anchor / rel.lstrip('*')).read_bytes()).hexdigest() == digest, rel
+

@@ -352,6 +352,74 @@ pinned requirements. The Windows validation runner targets Python 3.12.
   VCF examples. Do not. LD enumerates all biallelic-site pairs and uses quadratic
   storage; read the measured limits in the reference before a large run.
 
+## Known Differences from DnaSP 6.12.03
+
+Four values compared with DnaSP 6.12.03 are unresolved. They come from the DnaSP
+VCF examples with a single variant site: the phased diploid `Scaffold_2`
+(n = 20) and the haploid `Region_MSA_2` (n = 10). The skill follows the DnaSP 6
+source code and the result files shipped with DnaSP 6.0.60; the captures cannot
+tell whether DnaSP's build or its analysis route changed.
+
+| Statistic | Skill | DnaSP 6.0.60 | DnaSP 6.12.03 |
+|-----------|-------|--------------|---------------|
+| Pi, Scaffold_2 | 0.1 | 0.1 | n.a. |
+| R2, Scaffold_2 | 0.217945 | 0.217945 | 0.259808 |
+| Pi, Region_MSA_2 | 0.2 | 0.2 | n.a. |
+| R2, Region_MSA_2 | 0.3 | 0.3 | 0.346410 |
+
+Differences of setting or definition, not errors:
+
+- Fu and Li's tests follow DnaSP's *Segregating sites* setting; DnaSP's default
+  *Eta* setting gives different D*, F*, D and F.
+- DnaSP prints two F* forms; the skill reproduces the "DnaSP v5" form (Simonsen
+  et al. 1995), not the biallelic-positions form (Achaz 2009) that DnaSP's
+  multi-alignment output reports.
+- A coding region whose final codon is a stop in every sequence is analysed
+  without that codon; DnaSP keeps it if the user declines its prompt.
+- The folded SFS excludes multiallelic sites; DnaSP's segregating-sites spectrum
+  places them in a frequency class.
+- Sliding windows with no segregating site report Tajima's D as undefined;
+  DnaSP prints 0.0000.
+- Ts/Tv has no DnaSP 6 counterpart, and raw Fay and Wu H and Zeng E are not
+  DnaSP's normalised Hn and ZE.
+
+## Version History
+
+Every change listed alters results unless marked otherwise.
+
+**0.5.2** (15 September 2026, compared with DnaSP 6.12.03)
+
+- Sliding windows follow DnaSP's placement: the final window, truncated at the
+  alignment end, is kept, and each window reports DnaSP's midpoint. Window
+  counts and the last window's values change.
+- Mismatch distribution: the observed variance of k is the unbiased variance over
+  sequence pairs, and its coefficient of variation carries the (1 + 1/(4n))
+  correction. rp49 moves from 40.7054 and 0.3954 to 40.7780 and 0.3987.
+- LD: where two alleles are tied, the first sequence's allele is the reference,
+  so the sign of D can change; |D|, |D'| and r2 do not.
+- Not result-changing: per-sequence ENC export, `summary.json` and `result.json`,
+  a root envelope and bundle for VCF runs split by CHROM, and safe CHROM
+  directory names.
+
+**0.5.1** (candidate, never released on its own; included in 0.5.2)
+
+- InDel polymorphism follows DnaSP's Model 1 (diallelic) event rules and
+  denominator, the model the skill implements; in DnaSP it must be selected, as
+  the dialog defaults to Model 2. InDel events, lengths, haplotypes and diversity
+  change.
+- Fay and Wu H and Zeng E use only clean columns that are at most biallelic in the
+  ingroup and, when polymorphic, carry the outgroup allele in the ingroup. The
+  eligible-site count and the theta estimates behind H and E change.
+- ENC is the synonymous-codon-weighted mean of per-sequence ENC, as in DnaSP,
+  instead of a single ENC from pooled codon counts.
+- RSCU counts stop codons and reports the stop family.
+- LD distances use original alignment coordinates with DnaSP's integer gap
+  adjustment.
+- Fu's Fs computes both tails in log space without finite sentinel values, which
+  changes extreme values.
+- IUPAC ambiguity symbols R, Y, S, W, K, M, B, D, H and V are missing data, like
+  N; any other symbol now stops the run with an error.
+
 ## Safety
 
 All sequence analysis and output remain local. ClawBio is a research and
