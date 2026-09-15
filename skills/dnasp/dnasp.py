@@ -4983,6 +4983,7 @@ def write_reproducibility(output_dir: Path, input_path: Optional[Path],
         try:
             packages[name] = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
+            # Not installed: leave the package out of the recorded environment.
             pass
     write_environment_yml(output_dir, 'dnasp', [f'{k}=={v}' for k, v in packages.items()],
                           python_version=platform.python_version())
@@ -5597,6 +5598,7 @@ def _tolerate_unencodable_console() -> None:
         try:
             reconfigure(errors="backslashreplace")
         except (ValueError, OSError):
+            # A stream that cannot be reconfigured keeps its own error handler.
             pass
 
 

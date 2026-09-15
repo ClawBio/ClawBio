@@ -3433,7 +3433,7 @@ class TestComputeCodonUsage:
         assert dn.main(["--input", str(f), "--analysis", "codon",
                         "--genetic-code", "vertebrate-mitochondrial",
                         "--output", str(out_mito)]) == 0
-        std_tsv = (out_std / "results.tsv").read_text(encoding="utf-8")
+        assert (out_std / "results.tsv").is_file()
         mito_report = (out_mito / "report.md").read_text(encoding="utf-8")
         assert "TGA" in mito_report
 
