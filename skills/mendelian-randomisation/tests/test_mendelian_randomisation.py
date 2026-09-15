@@ -153,26 +153,29 @@ class TestMREgger:
         assert se1 == pytest.approx(se0, rel=1e-12)
         assert p1 == pytest.approx(p0, rel=1e-12)
 
-
-    def test_zero_exposure_effect_is_oriented_as_the_reference_orients_it(self, demo_instruments):
-        """mr_egger_regression orients with `b_out * sign(b_exp)` and `abs(b_exp)`, and
-        R's sign(0) is 0, so an instrument whose exposure effect is exactly zero has
-        its outcome effect zeroed before the fit. The fit on such an input must equal
-        the fit where that instrument's outcome effect is already zero. The previous
-        orientation kept the outcome effect (sign +1), with a comment claiming the
-        reference did likewise; on this input it returned a different slope."""
+    def test_zero_exposure_effect_keeps_its_outcome_effect_as_the_reference_does(self, demo_instruments):
+        """TwoSampleMR's mr_egger_regression orients with a local `sign0` that sets
+        `x[x == 0] <- 1` before `sign(x)` (R/mr.R lines 591-598 at commit c14776b8), so an
+        instrument whose exposure effect is exactly zero keeps its outcome effect and
+        stays in the fit at (0, b_out). That function, loaded verbatim into R 4.6.0, on
+        the 30 demo instruments plus one at beta_exposure 0, beta_outcome 0.3 (the first
+        instrument's standard errors) returns slope 0.3278598234, se 0.2842734543,
+        intercept 0.01158227036, intercept se 0.01082998364, slope p 0.2581943402,
+        intercept p 0.2936821788. Zeroing that outcome effect, as base `sign` would,
+        gives slope 0.602060 instead."""
         zero = Instrument(**{**vars(demo_instruments[0]), "snp": "rsZERO",
                              "beta_exposure": 0.0, "beta_outcome": 0.3})
-        zeroed = Instrument(**{**vars(zero), "beta_outcome": 0.0})
-        got = mr_egger(demo_instruments + [zero])
-        want = mr_egger(demo_instruments + [zeroed])
-        assert got[0].estimate == pytest.approx(want[0].estimate, rel=1e-12)
-        assert got[0].se == pytest.approx(want[0].se, rel=1e-12)
-        assert got[1] == pytest.approx(want[1], rel=1e-12)
-        # And the previous behaviour is distinguishable: keeping the outcome effect
-        # moves the fit, so this test observes the orientation rule, not a no-op.
-        kept = mr_egger(demo_instruments + [Instrument(**{**vars(zero), "beta_exposure": 1e-12})])
-        assert kept[0].estimate != pytest.approx(want[0].estimate, rel=1e-6)
+        est, intercept, se_int, p_int = mr_egger(demo_instruments + [zero])
+        assert est.estimate == pytest.approx(0.3278598234, abs=5e-9)
+        assert est.se == pytest.approx(0.2842734543, abs=5e-9)
+        assert intercept == pytest.approx(0.01158227036, abs=5e-10)
+        assert se_int == pytest.approx(0.01082998364, abs=5e-10)
+        assert est.pvalue == pytest.approx(0.2581943402, abs=5e-9)
+        assert p_int == pytest.approx(0.2936821788, abs=5e-9)
+        # The rule is observable here, not a no-op: zeroing the outcome effect of the
+        # zero-exposure instrument moves the fit away from the reference.
+        zeroed = mr_egger(demo_instruments + [Instrument(**{**vars(zero), "beta_outcome": 0.0})])
+        assert zeroed[0].estimate != pytest.approx(est.estimate, rel=1e-6)
 
 
 class TestWeightedMedian:
@@ -604,9 +607,10 @@ def test_steiger_reports_a_p_value_only_when_it_has_the_sample_sizes():
     correct, p, note = steiger_test(_steiger_input(n_exp=100_000, n_out=100_000))
     assert correct is True
     assert p is not None and 0.0 <= p <= 1.0
-    # The p-value rests on a conversion that is only right for a continuous outcome,
-    # and the input cannot say what the outcome is, so the note names it.
-    assert "continuous-trait" in note and "get_r_from_lor" in note
+    # The p-value rests on a conversion that is only right for continuous traits, and
+    # the input cannot say whether the exposure or the outcome is binary, so the note
+    # states the assumption.
+    assert "continuous-trait" in note and "not supported" in note
 
 
 def test_steiger_detects_a_genuinely_reversed_direction():

@@ -153,7 +153,7 @@ Expected output: A full MR report for 30 synthetic BMI → T2D instruments showi
 ## Algorithm / Methodology
 
 1. **IVW**: beta = sum(w * bx * by) / sum(w * bx²), with multiplicative random-effects variance inflation (Burgess et al., 2013)
-2. **MR-Egger**: Weighted linear regression of by on bx with intercept; slope = causal estimate, intercept = pleiotropy (Bowden et al., 2015). Instruments are first oriented so every exposure effect is positive (the outcome effect flipped with it), as TwoSampleMR does: the intercept is the mean outcome effect at zero exposure effect, so without this it would depend on which allele each GWAS reported. Reported as **not applicable**, with a stated reason, when it is undefined on the given instruments: fewer than 3 of them (it fits two parameters, so below 3 there is no residual degree of freedom), or exposure effects too close to identical for the slope to be identified. Never a number in those cases.
+2. **MR-Egger**: Weighted linear regression of by on bx with intercept; slope = causal estimate, intercept = pleiotropy (Bowden et al., 2015). Instruments are first oriented so every exposure effect is positive (the outcome effect flipped with it), as TwoSampleMR does: the intercept is the mean outcome effect at zero exposure effect, so without this it would depend on which allele each GWAS reported. An exposure effect of exactly zero counts as positive, so that instrument keeps its outcome effect (TwoSampleMR's `sign0`). Reported as **not applicable**, with a stated reason, when it is undefined on the given instruments: fewer than 3 of them (it fits two parameters, so below 3 there is no residual degree of freedom), or exposure effects too close to identical for the slope to be identified. Never a number in those cases.
 3. **Weighted Median**: Median of Wald ratios weighted by inverse-variance; consistent when ≥50% weight from valid instruments (Bowden et al., 2016, doi:10.1002/gepi.21965; PMID 27061298)
 4. **Weighted Mode**: Mode of the inverse-variance weighted kernel density of the Wald ratios, bandwidth `phi` x the modified Silverman rule `0.9 min(sd, 1.4826 mad) / L^(1/5)`, standard error from a parametric bootstrap (Hartwig et al., 2017, doi:10.1093/ije/dyx102; PMID 29040600; as implemented in TwoSampleMR `mr_weighted_mode`)
 
@@ -162,7 +162,7 @@ Expected output: A full MR report for 30 synthetic BMI → T2D instruments showi
 - I²_GX > 0.9 for MR-Egger validity; SIMEX recommended below (Bowden et al., 2016)
 - Cochran's Q P < 0.05 indicates heterogeneity
 - Egger intercept P < 0.05 indicates directional pleiotropy. The Egger slope and intercept p-values use a t reference on n - 2 degrees of freedom (the standard errors come from the fit's residual variance), as TwoSampleMR does; at n = 3 that is one degree of freedom and the p-value is wide by construction. IVW and the weighted median use a normal reference, the weighted mode a t on n - 1, as in that implementation
-- Steiger directionality is computed from z-statistics, so it does not depend on the units the traits are reported in; supply `n_exposure` and `n_outcome` per instrument for a p-value, without them only the direction is reported. The variance explained behind that p-value uses the continuous-trait conversion on both sides; for a binary outcome in log odds TwoSampleMR converts the outcome side from case and control counts and prevalence, which this skill does not take as input, so the note on the Steiger row says which conversion was used
+- Steiger directionality is computed from z-statistics, so it does not depend on the units the traits are reported in; supply `n_exposure` and `n_outcome` per instrument for a p-value, without them only the direction is reported. The variance explained behind that p-value uses the continuous-trait conversion on both sides, so this version assumes the exposure and the outcome are continuous traits. A binary exposure or outcome in log odds is not supported (it needs case and control counts and the prevalence, which the input does not carry), and the note on the Steiger row states the assumption
 - MR-Egger, weighted median and weighted mode each need >= 3 instruments (MR-Egger also needs at least two distinct exposure effects); below that each is reported as not applicable rather than as a number. IVW is defined at n = 1, where it is the single Wald ratio
 
 ## Example Output
@@ -170,29 +170,42 @@ Expected output: A full MR report for 30 synthetic BMI → T2D instruments showi
 ```markdown
 # Mendelian Randomisation Report
 
+**Generated**: YYYY-MM-DD HH:MM:SS UTC
 **Exposure**: Body mass index (BMI)
 **Outcome**: Type 2 diabetes (T2D)
 **Instruments**: 30 SNPs
+**Mode**: Demo (cached data, offline)
 
 ## MR Estimates
 
 | Method | Estimate | SE | 95% CI | P-value |
 |--------|----------|----|--------|---------|
 | IVW | 0.5979 | 0.0369 | [0.5255, 0.6702] | 5.17e-59 |
-| MR-Egger | 0.5989 | 0.0391 | [0.5223, 0.6756] | 6.62e-53 |
+| MR-Egger | 0.6022 | 0.0816 | [0.4423, 0.7621] | 4.87e-08 |
 | Weighted Median | 0.6001 | 0.0469 | [0.5081, 0.6921] | 2.07e-37 |
 | Weighted Mode | 0.6031 | 0.0705 | [0.4648, 0.7413] | 2.03e-09 |
 
 ## Sensitivity Analysis
 
-| Test | Result | Interpretation |
-|------|--------|----------------|
-| Cochran's Q | 0.73 (P=1.00) | No heterogeneity |
-| Egger intercept | 0.0001 (P=0.93) | No pleiotropy |
-| Mean F-statistic | 70.6 | Strong instruments |
+| Test | Result | P-value | Interpretation |
+|------|--------|---------|----------------|
+| Cochran's Q | 0.73 (df=29) | 1.0000 | No significant heterogeneity |
+| Egger intercept | -0.0002 | 0.9526 | No directional pleiotropy |
+| Mean F-statistic | 70.6 | — | Strong instruments |
+| Weak instruments (F<10) | 0/30 | — | None |
+| I²_GX | 0.9856 | — | Adequate |
 | Steiger direction | Correct | not computed | Direction consistent with exposure → outcome; significance not assessable without sample sizes; no sample sizes supplied, so the direction is read from the z-statistics under the assumption that the exposure and outcome studies are of comparable size |
 
-*ClawBio is a research tool. Not a medical device.*
+## Interpretation
+
+The IVW estimate suggests a positive causal effect of Body mass index (BMI) on Type 2 diabetes (T2D)
+(beta = 0.5979, 95% CI [0.5255, 0.6702], P = 5.17e-59).
+
+Sensitivity analyses show consistent estimates across IVW, MR-Egger, Weighted Median, Weighted Mode, supporting a robust causal inference.
+
+---
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
 ```
 
 ## Output Structure
