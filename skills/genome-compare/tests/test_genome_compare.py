@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -33,25 +34,68 @@ from genome_compare import (
 
 
 # ------------------------------------------------------------------ #
+# Shared parses
+# ------------------------------------------------------------------ #
+#
+# Both reference files are ~5 MB gzipped and were re-parsed by every test that
+# needed them -- 14 parses across 28 tests, which was the whole of this file's
+# ~42s runtime (`--durations` showed the cost spread evenly, not one slow test).
+#
+# Module scope is safe here because neither compute_ibs nor estimate_ancestry
+# mutates the structures it is handed, and no test writes to them. If that ever
+# changes, these must go back to per-test parses or hand out copies.
+
+
+@pytest.fixture(scope="module")
+def reference_genome():
+    """Parsed George Church reference: (genotypes, positions)."""
+    return parse_23andme_extended(REFERENCE_FILE)
+
+
+@pytest.fixture(scope="module")
+def demo_patient():
+    """Parsed Manuel Corpas demo patient: (genotypes, positions)."""
+    return parse_23andme_extended(DEMO_PATIENT_FILE)
+
+
+@pytest.fixture(scope="module")
+def demo_comparison(tmp_path_factory):
+    """One full demo run, shared by the report tests: (result, output_dir).
+
+    Four tests ran this identical pipeline and then asserted on different parts
+    of it, at ~4.5s each. tmp_path_factory rather than tmp_path because the
+    latter is function-scoped and cannot be used from a module-scoped fixture.
+    """
+    out = tmp_path_factory.mktemp("genome_compare_demo") / "report"
+    result = run_comparison(
+        input_path=DEMO_PATIENT_FILE,
+        output_dir=out,
+        no_figures=True,
+        is_demo=True,
+    )
+    return result, out
+
+
+# ------------------------------------------------------------------ #
 # Parsing tests
 # ------------------------------------------------------------------ #
 
 
-def test_parse_reference_loads():
+def test_parse_reference_loads(reference_genome):
     """George Church's file parses and has >500k SNPs."""
-    geno, pos = parse_23andme_extended(REFERENCE_FILE)
+    geno, pos = reference_genome
     assert len(geno) > 500_000, f"Expected >500k SNPs, got {len(geno)}"
 
 
-def test_parse_demo_patient():
+def test_parse_demo_patient(demo_patient):
     """Manuel's file (demo patient) parses and has >500k SNPs."""
-    geno, pos = parse_23andme_extended(DEMO_PATIENT_FILE)
+    geno, pos = demo_patient
     assert len(geno) > 500_000, f"Expected >500k SNPs, got {len(geno)}"
 
 
-def test_parse_returns_chromosome_metadata():
+def test_parse_returns_chromosome_metadata(demo_patient):
     """Positions dict has chrom/pos for parsed SNPs."""
-    geno, pos = parse_23andme_extended(DEMO_PATIENT_FILE)
+    geno, pos = demo_patient
     # Check a few random entries
     for rsid in list(geno.keys())[:10]:
         assert rsid in pos, f"{rsid} missing from positions"
@@ -59,9 +103,9 @@ def test_parse_returns_chromosome_metadata():
         assert "pos" in pos[rsid]
 
 
-def test_parse_skips_comments():
+def test_parse_skips_comments(reference_genome):
     """Lines starting with # are skipped."""
-    geno, pos = parse_23andme_extended(REFERENCE_FILE)
+    geno, pos = reference_genome
     for rsid in geno:
         assert not rsid.startswith("#")
 
@@ -106,19 +150,19 @@ def test_ibs_haploid_mismatch():
     assert _ibs_at_site("A", "T") == 0
 
 
-def test_compute_ibs_score_range():
+def test_compute_ibs_score_range(demo_patient, reference_genome):
     """IBS score is in [0, 1]."""
-    geno_a, pos_a = parse_23andme_extended(DEMO_PATIENT_FILE)
-    geno_b, _ = parse_23andme_extended(REFERENCE_FILE)
+    geno_a, pos_a = demo_patient
+    geno_b, _ = reference_genome
     score, n_overlap, n_concordant, per_chrom = compute_ibs(geno_a, geno_b, pos_a)
     assert 0.0 <= score <= 1.0
     assert n_overlap > 0
     assert n_concordant >= 0
 
 
-def test_compute_ibs_self_gives_one():
+def test_compute_ibs_self_gives_one(demo_patient):
     """Comparing a genome against itself gives IBS = 1.0."""
-    geno, pos = parse_23andme_extended(DEMO_PATIENT_FILE)
+    geno, pos = demo_patient
     score, n_overlap, n_concordant, _ = compute_ibs(geno, geno, pos)
     assert score == 1.0
     assert n_concordant == n_overlap
@@ -159,20 +203,20 @@ def test_count_alt_skips_cg_ambiguous():
 # ------------------------------------------------------------------ #
 
 
-def test_per_chromosome_keys():
+def test_per_chromosome_keys(demo_patient, reference_genome):
     """All autosomes with data appear in breakdown."""
-    geno_a, pos_a = parse_23andme_extended(DEMO_PATIENT_FILE)
-    geno_b, _ = parse_23andme_extended(REFERENCE_FILE)
+    geno_a, pos_a = demo_patient
+    geno_b, _ = reference_genome
     _, _, _, per_chrom = compute_ibs(geno_a, geno_b, pos_a)
     # At minimum, chromosomes 1-22 should be present
     for c in [str(i) for i in range(1, 23)]:
         assert c in per_chrom, f"Chromosome {c} missing from breakdown"
 
 
-def test_per_chromosome_ibs_range():
+def test_per_chromosome_ibs_range(demo_patient, reference_genome):
     """Each chromosome's IBS is in [0, 1]."""
-    geno_a, pos_a = parse_23andme_extended(DEMO_PATIENT_FILE)
-    geno_b, _ = parse_23andme_extended(REFERENCE_FILE)
+    geno_a, pos_a = demo_patient
+    geno_b, _ = reference_genome
     _, _, _, per_chrom = compute_ibs(geno_a, geno_b, pos_a)
     for chrom, data in per_chrom.items():
         assert 0.0 <= data["ibs"] <= 1.0, f"Chr {chrom} IBS out of range"
@@ -195,27 +239,27 @@ def test_load_aims_panel():
         assert "alt" in m
 
 
-def test_ancestry_proportions_sum_to_one():
+def test_ancestry_proportions_sum_to_one(demo_patient):
     """Ancestry proportions sum to approximately 1.0."""
-    geno, _ = parse_23andme_extended(DEMO_PATIENT_FILE)
+    geno, _ = demo_patient
     markers, pops = load_aims_panel(AIMS_PANEL_FILE)
     result = estimate_ancestry(geno, markers, pops)
     total = sum(result["continental"].values())
     assert abs(total - 1.0) < 0.01, f"Sum = {total}"
 
 
-def test_ancestry_returns_all_populations():
+def test_ancestry_returns_all_populations(demo_patient):
     """All 5 superpopulations present in output."""
-    geno, _ = parse_23andme_extended(DEMO_PATIENT_FILE)
+    geno, _ = demo_patient
     markers, pops = load_aims_panel(AIMS_PANEL_FILE)
     result = estimate_ancestry(geno, markers, pops)
     for pop in ["AFR", "EUR", "EAS", "SAS", "AMR"]:
         assert pop in result["continental"]
 
 
-def test_demo_patient_eur_is_top():
+def test_demo_patient_eur_is_top(demo_patient):
     """For Manuel Corpas (European), EUR should be the top ancestry."""
-    geno, _ = parse_23andme_extended(DEMO_PATIENT_FILE)
+    geno, _ = demo_patient
     markers, pops = load_aims_panel(AIMS_PANEL_FILE)
     result = estimate_ancestry(geno, markers, pops)
     top = max(result["continental"], key=result["continental"].get)
@@ -227,15 +271,9 @@ def test_demo_patient_eur_is_top():
 # ------------------------------------------------------------------ #
 
 
-def test_report_contains_key_sections(tmp_path):
+def test_report_contains_key_sections(demo_comparison):
     """Report has expected markdown headers."""
-    out = tmp_path / "report"
-    result = run_comparison(
-        input_path=DEMO_PATIENT_FILE,
-        output_dir=out,
-        no_figures=True,
-        is_demo=True,
-    )
+    _, out = demo_comparison
     report = (out / "report.md").read_text()
     assert "# Genome Comparison Report" in report
     assert "## Summary" in report
@@ -243,28 +281,16 @@ def test_report_contains_key_sections(tmp_path):
     assert "## Ancestry Composition" in report
 
 
-def test_report_contains_disclaimer(tmp_path):
+def test_report_contains_disclaimer(demo_comparison):
     """Standard ClawBio disclaimer is present."""
-    out = tmp_path / "report"
-    run_comparison(
-        input_path=DEMO_PATIENT_FILE,
-        output_dir=out,
-        no_figures=True,
-        is_demo=True,
-    )
+    _, out = demo_comparison
     report = (out / "report.md").read_text()
     assert "not a medical device" in report
 
 
-def test_report_contains_methods(tmp_path):
+def test_report_contains_methods(demo_comparison):
     """Methods section is present."""
-    out = tmp_path / "report"
-    run_comparison(
-        input_path=DEMO_PATIENT_FILE,
-        output_dir=out,
-        no_figures=True,
-        is_demo=True,
-    )
+    _, out = demo_comparison
     report = (out / "report.md").read_text()
     assert "## Methods" in report
     assert "Identity By State" in report
@@ -275,15 +301,9 @@ def test_report_contains_methods(tmp_path):
 # ------------------------------------------------------------------ #
 
 
-def test_end_to_end_demo(tmp_path):
+def test_end_to_end_demo(demo_comparison):
     """Full pipeline runs and produces expected outputs."""
-    out = tmp_path / "e2e"
-    result = run_comparison(
-        input_path=DEMO_PATIENT_FILE,
-        output_dir=out,
-        no_figures=True,
-        is_demo=True,
-    )
+    result, out = demo_comparison
     assert result["ibs_score"] > 0.6
     assert result["ibs_score"] < 0.9
     assert result["n_overlap"] > 400_000

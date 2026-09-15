@@ -5,7 +5,10 @@ generate_report.py — Markdown report + matplotlib figures for NutriGx Advisor
 import os
 import json
 from datetime import datetime, timezone
+import re
 from pathlib import Path
+
+from path_safety import safe_open_write, safe_write_text
 
 
 DOMAIN_LABELS = {
@@ -36,9 +39,9 @@ RECOMMENDATIONS = {
         "Elevated": "Genetic predisposition to low vitamin D binding efficiency. Test and maintain 25(OH)D >100 nmol/L. D3+K2 co-supplementation advisable.",
     },
     "omega3": {
-        "Low": "Dietary ALA (flaxseed, walnuts) efficiently converted. Two oily fish servings/week sufficient.",
-        "Moderate": "Reduced LC-PUFA synthesis capacity. Increase direct EPA/DHA sources (oily fish, algae oil). Consider omega-6:omega-3 ratio <4:1.",
-        "Elevated": "Markedly reduced FADS1/2 or ELOVL2 activity. Direct EPA+DHA supplementation (1–3 g/day algae or fish oil) recommended. Minimise linoleic acid (LA) competition.",
+        "Low": "No variants associated with lower EPA/DHA conversion. Standard guidance applies: around two portions of oily fish a week.",
+        "Moderate": "Variants associated with somewhat lower conversion of ALA and EPA to DHA. Favour direct EPA/DHA sources (oily fish, algae oil) over relying on ALA from plant foods.",
+        "Elevated": "Several variants associated with lower EPA/DHA conversion. These are associations with blood fatty-acid levels, not a measured deficiency or a genotype-specific dose: prefer direct EPA/DHA sources, and if considering a supplement, an omega-3 index blood test is a better guide to need than genotype.",
     },
     "vitamin_a": {
         "Low": "Beta-carotene conversion is efficient. Plant-based vitamin A sources adequate.",
@@ -88,6 +91,28 @@ RECOMMENDATIONS = {
 }
 
 
+_SAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9 ._()\[\]-]")
+
+
+def safe_display_filename(input_file: str, max_len: int = 80) -> str:
+    """
+    Render a user-supplied filename safely for inclusion in Markdown.
+
+    The report header embeds the input filename inside a code span. The name is
+    attacker-influenced in any workflow where the file did not come from the
+    person reading the report, and a backtick in it breaks out of that span,
+    letting arbitrary Markdown or HTML into the document. Anything outside a
+    conservative allowlist is replaced, and the result is truncated.
+    """
+    name = Path(input_file).name
+    if not name:
+        return "(not recorded)"
+    cleaned = _SAFE_FILENAME_CHARS.sub("_", name)
+    if len(cleaned) > max_len:
+        cleaned = cleaned[: max_len - 1] + "\u2026"
+    return cleaned
+
+
 def generate_report(snp_calls, risk_scores, snp_panel, output_dir, figures=True, input_file=""):
     """Generate Markdown report and optional figures. Returns path to report file."""
     output_dir = Path(output_dir)
@@ -101,7 +126,7 @@ def generate_report(snp_calls, risk_scores, snp_panel, output_dir, figures=True,
         "",
         f"**Generated**: {timestamp}  ",
         f"**Tool**: ClawBio NutriGx Advisor v0.2.0  ",
-        f"**Input**: `{Path(input_file).name}`  ",
+        f"**Input**: `{safe_display_filename(input_file)}`  ",
         "",
         "> **Disclaimer**: This report is for research and educational purposes only. "
         "It does not constitute medical advice. Consult a registered dietitian or clinical "
@@ -181,7 +206,7 @@ def generate_report(snp_calls, risk_scores, snp_panel, output_dir, figures=True,
             for s in data["contributing_snps"]:
                 effect = s["effect_direction"].replace("_", " ").title()
                 lines.append(
-                    f"| {s['gene']} | {s['rsid']} | `{s['genotype']}` "
+                    f"| {s['gene']} | {s['rsid']} | `{safe_display_genotype(s['genotype'])}` "
                     f"| {s['risk_count']}/2 | {effect} |"
                 )
             lines.append("")
@@ -228,7 +253,7 @@ def generate_report(snp_calls, risk_scores, snp_panel, output_dir, figures=True,
 
     report_text = "\n".join(lines)
     report_path = output_dir / "nutrigx_report.md"
-    report_path.write_text(report_text)
+    safe_write_text(report_path, report_text)
 
     if figures:
         _generate_figures(risk_scores, output_dir)
@@ -276,7 +301,8 @@ def _generate_figures(risk_scores: dict, output_dir: Path):
 
     plt.title("NutriGx Nutrient Risk Profile", size=14, fontweight="bold", pad=20)
     plt.tight_layout()
-    fig.savefig(output_dir / "nutrigx_radar.png", dpi=150, bbox_inches="tight")
+    with safe_open_write(output_dir / "nutrigx_radar.png", binary=True) as _fh:
+        fig.savefig(_fh, format="png", dpi=150, bbox_inches="tight")
     plt.close()
 
     # ── Heatmap ───────────────────────────────────────────────────────────────
@@ -304,7 +330,27 @@ def _generate_figures(risk_scores: dict, output_dir: Path):
                         cbar_kws={"label": "Risk Score (0=Ref, 0.5=Het, 1=Hom Risk)"})
             ax.set_title("Gene × Nutrient Risk Heatmap", fontsize=13, fontweight="bold")
             plt.tight_layout()
-            fig.savefig(output_dir / "nutrigx_heatmap.png", dpi=150, bbox_inches="tight")
+            with safe_open_write(output_dir / "nutrigx_heatmap.png", binary=True) as _fh:
+                fig.savefig(_fh, format="png", dpi=150, bbox_inches="tight")
             plt.close()
     except ImportError:
         pass
+
+
+# Placed at the end of the module, and written without a regex, so this change
+# does not touch the import block or the helper area other changes edit.
+_SAFE_GENOTYPE_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/")
+
+
+def safe_display_genotype(genotype) -> str:
+    """
+    Render a genotype call safely for Markdown.
+
+    parse_input rejects non-nucleotide calls, but generate_report is also reached
+    by api.py and by any caller passing a genotype dict, so the value is guarded
+    again where it is written into a code span. "|" is excluded because it splits
+    a GFM table cell even inside a code span.
+    """
+    if not genotype:
+        return "--"
+    return "".join(c if c in _SAFE_GENOTYPE_CHARS else "_" for c in str(genotype))[:32]
