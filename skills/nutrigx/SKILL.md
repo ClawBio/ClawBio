@@ -115,7 +115,7 @@ The Bio Orchestrator should route to this skill when the user says anything like
 |---------|------------|----------------------|---------------------------------|
 | FADS1   | rs174546   | LC-PUFA synthesis    | ↑/↓ EPA/DHA from ALA            |
 | FADS2   | rs1535     | LC-PUFA synthesis    | Modulates omega-6:omega-3 ratio |
-| ELOVL2  | rs953413   | DHA synthesis        | ↓ elongation of EPA→DHA         |
+| ELOVL2  | rs953413   | DHA synthesis        | A allele: lower EPA→DHA conversion (association, not a requirement) |
 | APOE    | rs429358   | Saturated fat response | ε4 → ↑ LDL-C on high SFA diet |
 | APOE    | rs7412     | Saturated fat response | Combined with rs429358 for ε typing |
 
@@ -319,7 +319,8 @@ Key literature underpinning the SNP panel and scoring algorithm:
 - Frayling TM et al. (2007). A common variant in the FTO gene is associated with body mass index. *Science*.
 - Pare G et al. (2010). MTHFR variants and cardiovascular risk. *Hum Genet*.
 - Lecerf JM & de Lorgeril M (2011). Dietary cholesterol: from physiology to cardiovascular risk. *Br J Nutr*.
-- Tanaka T et al. (2009). Genome-wide association study of plasma polyunsaturated fatty acids in the InCHIANTI Study. *PLoS Genet* (FADS1/2).
+- Tanaka T et al. (2009). Genome-wide association study of plasma polyunsaturated fatty acids in the InCHIANTI Study. *PLoS Genet* (FADS1/2; ELOVL2 `rs953413`, minor A allele with lower DHA). PMID 19148276.
+- rs953413 regulates polyunsaturated fatty acid metabolism by modulating ELOVL2 expression (2020). *iScience* (G allele gives higher ELOVL2 enhancer activity than A). PMID 31928966.
 - Cornelis MC et al. (2006). Coffee, CYP1A2 genotype, and risk of myocardial infarction. *JAMA*.
 - Enattah NS et al. (2002). Identification of a variant associated with adult-type hypolactasia. *Nat Genet* 30:233–237. PMID 11788828.
 
