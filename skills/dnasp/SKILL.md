@@ -370,12 +370,36 @@ CLI alias: `dnasp`. Use `--analysis` for module selection, not invented flags
 such as `--pi`, `--kaks` or `--n-sim`. The repository dispatcher permits the
 implemented options, including VCF, populations and genetic-code selection.
 
+Route here when the user asks for a statistic this skill computes (for example
+nucleotide or haplotype diversity, Tajima's D, Fu and Li's tests, Fu's Fs,
+McDonald-Kreitman, Ka/Ks, HKA, the mismatch distribution, InDel polymorphism or
+codon usage bias) on an aligned FASTA or NEXUS file or a multi-sample VCF.
+`INTENTS.json` publishes the `dnasp` aliases to ClawBio's intent planner and
+plans the demo only when the user explicitly asks for a demo; a real analysis
+needs the user's file, and `--analysis` selects modules other than the default
+polymorphism summary.
+
 ## Chaining Partners
 
-Use an alignment tool before this skill when sequences are not aligned. A VCF
-filtering/phasing workflow may prepare input, but every filter and phase choice
-must be recorded. Downstream reporting may use the Markdown report and available
-TSV files; the TSV does not contain every module's results.
+- **Alignment upstream.** Sequences must be aligned before this skill.
+  `phylogenetics-builder` aligns with MAFFT, MUSCLE and other aligners. Versions
+  of that skill that save their alignment write `alignment/aligned.fasta`; use
+  that untrimmed file rather than the trimAl output, because trimming removes
+  gapped or poorly aligned columns and so changes S, pi and the InDel results.
+  Otherwise align the sequences separately and pass the aligned FASTA.
+- **`fastreer`.** Builds distance trees from the same multi-sample VCF: run this
+  skill for diversity and neutrality statistics, then fastreeR for sample
+  relationships.
+- **`claw-ancestry-pca`.** Gives population-structure context before samples are
+  grouped in a `--pop-file` for Fst or divergence.
+- **`equity-scorer`.** Reports HEIM heterozygosity and Fst from VCF or ancestry
+  data with its own estimators; this skill's Hudson Fst and diversity statistics
+  follow DnaSP 6, so the two sets of values are not interchangeable.
+- **VCF preparation.** A filtering or phasing workflow may prepare input, but
+  every filter and phasing choice must be recorded; unphased heterozygotes stay
+  unresolved here.
+- **Reporting downstream.** Use `report.md`, `summary.json`, `result.json` and
+  the TSV files; the TSV does not contain every module's results.
 
 ## Maintenance
 
