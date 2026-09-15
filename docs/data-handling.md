@@ -64,7 +64,7 @@ identifiable patient data to the hosted service without a data-use agreement.
 | `clinpgx` | api.clinpgx.org | Gene, drug and star-allele names. | none |
 | `omics-target-evidence-mapper` | api.platform.opentargets.org, rest.uniprot.org, clinicaltrials.gov, eutils.ncbi.nlm.nih.gov | Target and gene symbols. | none |
 | `lit-synthesizer` | eutils.ncbi.nlm.nih.gov, api.biorxiv.org | Your free-text literature query. | none |
-| `pubmed-summariser` | eutils.ncbi.nlm.nih.gov | Your free-text PubMed query. | none |
+| `pubmed-summariser` | eutils.ncbi.nlm.nih.gov; with `--summary-method llm`, api.openai.com or localhost:11434 by default, or the configured provider endpoint | Your free-text query goes to PubMed. LLM mode additionally sends each retrieved public article's title and complete abstract to the selected provider. Default `first-sentence` mode makes no LLM requests. | PubMed and local Ollama: none. OpenAI: `OPENAI_API_KEY` (or `LLM_API_KEY`). |
 | `article-data-fetcher` | eutils, pmc, ftp and edata at ncbi.nlm.nih.gov, api.crossref.org, api.datacite.org, api.figshare.com, datadryad.org, www.ebi.ac.uk | Article identifiers (PMID, PMCID, DOI). | none |
 | `protocols-io` | www.protocols.io | Search terms and protocol identifiers, against your account. | `PROTOCOLS_IO_ACCESS_TOKEN` |
 | `labstep` | The Labstep service, through the `labstepPy` client | Reads and writes to your own Labstep workspace: experiment, protocol and inventory records you ask for or create. `--demo` is offline synthetic data. | `LABSTEP_API_KEY` |

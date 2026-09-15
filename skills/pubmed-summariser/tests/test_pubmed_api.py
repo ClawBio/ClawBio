@@ -51,14 +51,14 @@ def test_format_authors_empty():
 
 def test_first_sentence_basic():
     """Extracts first sentence from normal abstract."""
-    from pubmed_api import _first_sentence
+    from abstract_summary import first_sentence as _first_sentence
     text = "This is the first sentence. This is the second sentence."
     assert _first_sentence(text) == "This is the first sentence."
 
 
 def test_first_sentence_no_period():
     """No period found: return up to 300 chars."""
-    from pubmed_api import _first_sentence
+    from abstract_summary import first_sentence as _first_sentence
     text = "A" * 400
     result = _first_sentence(text)
     assert len(result) <= 300
@@ -66,13 +66,13 @@ def test_first_sentence_no_period():
 
 def test_first_sentence_empty():
     """Empty string returns empty string."""
-    from pubmed_api import _first_sentence
+    from abstract_summary import first_sentence as _first_sentence
     assert _first_sentence("") == ""
 
 
 def test_first_sentence_abbreviation_not_split():
     """Should not split on 'et al. ' (lowercase after period+space)."""
-    from pubmed_api import _first_sentence
+    from abstract_summary import first_sentence as _first_sentence
     text = "Smith et al. demonstrated this. The second sentence follows."
     # 'et al. d...' — 'd' is lowercase, so no split there
     # Should split at '. T' (capital T)
@@ -82,7 +82,7 @@ def test_first_sentence_abbreviation_not_split():
 
 def test_first_sentence_max_300():
     """Result never exceeds 300 chars even if first sentence is long."""
-    from pubmed_api import _first_sentence
+    from abstract_summary import first_sentence as _first_sentence
     text = ("Word " * 100) + ". Next sentence."
     result = _first_sentence(text)
     assert len(result) <= 300
@@ -141,7 +141,17 @@ def test_parse_article_returns_all_fields():
     from pubmed_api import _parse_article
     article = _make_article_xml()
     result = _parse_article(article)
-    assert set(result.keys()) == {"title", "authors", "journal", "date", "abstract", "pmid", "url"}
+    assert set(result.keys()) == {"title", "authors", "journal", "date", "abstract", "abstract_sections", "pmid", "url"}
+    assert result["abstract"] == "This is the abstract. Second sentence."
+
+
+def test_parse_preserves_inline_text_and_long_unstructured_abstract():
+    from pubmed_api import _parse_article
+    body = "A " * 200 + "<i>gene</i> and its tail."
+    result = _parse_article(_make_article_xml(abstract=body))
+    expected = "A " * 200 + "gene and its tail."
+    assert result["abstract"] == expected
+    assert result["abstract_sections"] == [{"label": None, "category": None, "text": expected}]
 
 
 def test_parse_article_pmid_url():

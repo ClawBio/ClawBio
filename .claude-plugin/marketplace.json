@@ -12,7 +12,7 @@
   "plugins": [
     {
       "name": "clawbio",
-      "description": "97 bioinformatics Agent Skills: pharmacogenomics, clinical variant interpretation, GWAS and PRS, ancestry, RNA-seq and single-cell, metagenomics, proteomics, methylation clocks, nf-core pipeline wrappers. 49 run deterministically from the CLI with demo data and write a reproducibility bundle. Local-first, privacy-focused.",
+      "description": "97 bioinformatics Agent Skills: pharmacogenomics, clinical variant interpretation, GWAS and PRS, ancestry, RNA-seq and single-cell, metagenomics, proteomics, methylation clocks, nf-core pipeline wrappers. 50 run deterministically from the CLI with demo data and write a reproducibility bundle. Local-first, privacy-focused.",
       "version": "0.7.1",
       "author": {
         "name": "Manuel Corpas",
