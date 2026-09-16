@@ -17,7 +17,7 @@ Usage:
 
 from __future__ import annotations
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __author__ = "ClawBio"
 
 import argparse
@@ -749,6 +749,7 @@ def export_alignments(
     aligned: Path | None,
     trimmed: Path | None,
     protect: Path | None = None,
+    skipped: list[str] | None = None,
 ) -> dict[str, str]:
     """Copy the alignments produced by this run into ``output_dir/alignment``.
 
@@ -758,8 +759,10 @@ def export_alignments(
     never reports an alignment left by an earlier run. Returns
     ``{"aligned"|"trimmed": path}`` with paths relative to ``output_dir``.
 
-    ``protect`` is never deleted: a rerun may read an exported alignment as its
-    own input.
+    ``protect`` is never deleted or overwritten: a rerun may read an exported
+    alignment as its own input, and ``result.json`` and the replay command in
+    the reproducibility bundle name that path, so the file must still hold the
+    bytes the run read. A refused export is reported in ``skipped``.
     """
     protected = protect.resolve() if protect is not None else None
     dest_dir = output_dir / "alignment"
@@ -767,6 +770,17 @@ def export_alignments(
     for key, source in (("aligned", aligned), ("trimmed", trimmed)):
         dest = dest_dir / f"{key}.fasta"
         if source is not None and source.is_file():
+            if dest.resolve() == protected:
+                message = (
+                    f"{dest.relative_to(output_dir)} was not exported: this run reads "
+                    "that file as its input, and overwriting it would change the bytes "
+                    "named by input_file and by the replay command. Rerun with a "
+                    "different --output directory to keep this alignment."
+                )
+                print(f"Warning: {message}", file=sys.stderr)
+                if skipped is not None:
+                    skipped.append(message)
+                continue
             dest_dir.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, dest)
             exported[key] = str(dest.relative_to(output_dir))
@@ -839,6 +853,7 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
     produced_aligned: Path | None = None
     produced_trimmed: Path | None = None
     alignment_files: dict[str, str] = {}
+    alignment_skipped: list[str] = []
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
@@ -897,7 +912,8 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
 
         # Keep the alignments before the temporary directory is removed
         alignment_files = export_alignments(
-            output_dir, produced_aligned, produced_trimmed, protect=input_file
+            output_dir, produced_aligned, produced_trimmed,
+            protect=input_file, skipped=alignment_skipped,
         )
 
         # Stage 3: Model selection
@@ -1029,6 +1045,8 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
         "Internal node support values in `tables/branch_support.csv`.",
         "Proportional phylogram at `figures/phylogram.png`.",
     ]
+    for message in alignment_skipped:
+        chat_summary.append(message)
     if alignment_files:
         chat_summary.append(
             "Alignment(s) saved: "
@@ -1083,7 +1101,7 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
             ["Tree is pre-computed fallback — install IQ-TREE2 for live inference"]
             if engine_used == "precomputed"
             else []
-        ),
+        ) + alignment_skipped,
     }
     result_json = output_dir / "result.json"
     result_json.write_text(json.dumps(result_data, indent=2))
