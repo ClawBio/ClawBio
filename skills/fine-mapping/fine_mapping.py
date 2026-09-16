@@ -184,7 +184,10 @@ def run_finemapping(
     # the OPEN interval. Check here, before loading sumstats and LD, so the user
     # gets the message in a second rather than after the data is read.
     susie_path = demo or ld_path is not None
-    if susie_path and not 0 < coverage < 1:
+    # `coverage <= 0` already raised above, so only the upper endpoint is left
+    # to reject here; spelling it `not 0 < coverage < 1` would be a comparison
+    # that can never fire (CodeQL py/redundant-comparison).
+    if susie_path and coverage >= 1:
         raise ValueError(
             "coverage must satisfy 0 < coverage < 1 for the SuSiE path "
             "(sushie constraint); got %s. ABF accepts coverage=1.0." % coverage
