@@ -902,6 +902,59 @@ def test_fhir_fullurl_is_clinicaltrials_link(tmp_path):
     assert entry["fullUrl"] == "https://clinicaltrials.gov/study/NCT00000001"
 
 
+def test_euctr_trials_keep_their_registry_in_markdown_html_and_fhir(tmp_path):
+    """Merged EUCTR records must not be published as ClinicalTrials.gov IDs."""
+    euctr_trial = {
+        "nct_id": "2024-000001-12",
+        "title": "European study",
+        "status": "RECRUITING",
+        "phase": "PHASE2",
+        "study_type": "INTERVENTIONAL",
+        "start_date": "2024-01",
+        "completion_date": "",
+        "conditions": [],
+        "condition_meshes": [],
+        "interventions": [],
+        "summary": "",
+        "source": "euctr",
+    }
+    prefixed = {**euctr_trial, "nct_id": "EUCTR2024-000001-12"}
+    expected = (
+        "https://www.clinicaltrialsregister.eu/ctr-search/search"
+        "?query=2024-000001-12"
+    )
+
+    report = wr.write_report({"query": "rare disease"}, [euctr_trial], tmp_path)
+    report_text = report.read_text()
+    assert expected in report_text
+    assert "https://clinicaltrials.gov/study/2024-000001-12" not in report_text
+    assert "**EudraCT ID**" in report_text
+
+    html = wr.write_html({"query": "rare disease"}, [euctr_trial], tmp_path).read_text()
+    assert expected in html
+    assert "https://clinicaltrials.gov/study/2024-000001-12" not in html
+
+    entry = json.loads(wr.write_fhir_bundle([euctr_trial], tmp_path).read_text())["entry"][0]
+    assert entry["fullUrl"] == expected
+    assert entry["resource"]["identifier"][0]["system"] == "https://www.clinicaltrialsregister.eu"
+    assert entry["resource"]["identifier"][0]["value"] == "2024-000001-12"
+
+    prefixed_entry = json.loads(
+        wr.write_fhir_bundle([prefixed], tmp_path).read_text()
+    )["entry"][0]
+    assert prefixed_entry["fullUrl"] == expected
+    assert prefixed_entry["resource"]["identifier"][0]["value"] == "2024-000001-12"
+
+
+def test_ctgov_output_urls_are_unchanged_when_source_is_native(tmp_path):
+    ctgov = {**MOCK_TRIALS[0], "source": "clinicaltrials.gov"}
+    report = wr.write_report(MOCK_QUERY, [ctgov], tmp_path).read_text()
+    assert "https://clinicaltrials.gov/study/NCT00000001" in report
+    entry = json.loads(wr.write_fhir_bundle([ctgov], tmp_path).read_text())["entry"][0]
+    assert entry["fullUrl"] == "https://clinicaltrials.gov/study/NCT00000001"
+    assert entry["resource"]["identifier"][0]["system"] == "https://clinicaltrials.gov"
+
+
 def test_fhir_trial_without_summary_has_no_description(tmp_path):
     """Trial with empty summary should not have 'description' key."""
     wr.write_fhir_bundle([MOCK_TRIALS[2]], tmp_path)
