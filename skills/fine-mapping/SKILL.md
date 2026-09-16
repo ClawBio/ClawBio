@@ -164,6 +164,14 @@ implements the SuSiE model with effect variances estimated by EM:
 
 ### SuSiE-inf (Cui et al. 2024)
 
+> **Two engines, not one.** Only the `--ld` SuSiE path runs on sushie. SuSiE-inf
+> still uses this skill's own numpy IBSS implementation (`fine_mapping_core/susie_inf.py`),
+> because sushie has no infinitesimal-component model to delegate to. The two
+> therefore differ in their priors: sushie re-estimates the effect variance by
+> EM, while SuSiE-inf keeps the fixed Wakefield-style prior and a `null_weight`.
+> PIPs from the two paths are not interchangeable — do not compare them on the
+> same locus and read the difference as a biological result.
+
 Extends SuSiE with an infinitesimal variance component τ² that captures diffuse polygenic signal. The residual precision matrix becomes:
 
 ```
@@ -186,7 +194,7 @@ where D² are eigenvalues of X'X (n × LD eigenvalues). When τ²→0 the model 
 - Prior W (ABF): 0.04 (source: Wakefield 2009, Am J Hum Genet)
 - Credible set coverage: 95% (adjustable via `--coverage`)
 - Max signals L: 10 (adjustable via `--max-signals`)
-- Min purity (SuSiE/SuSiE-inf CS filter): 0.5 average pairwise LD r² within set
+- Min purity (SuSiE/SuSiE-inf CS filter): 0.5 **minimum** absolute pairwise LD |r| within the set (Wang 2020 §3.2), not mean r². Under the sushie engine this value is forwarded to sushie's own `purity` argument, so it prunes at fit time as well as flagging downstream
 - Convergence tolerance (SuSiE engine): ELBO change < 1e-4 (sushie `min_tol`)
 
 ## Gotchas
@@ -195,7 +203,8 @@ where D² are eigenvalues of X'X (n × LD eigenvalues). When τ²→0 the model 
 2. **`mu`/`mu2` from `run_susie` are not susieR z-unit moments.** The model will want to sanity-check `mu` against the single-effect shrinkage formula `r · z` with `r = w/(w + 1/n)`. Do not. sushie reports conditional posterior moments on its standardised effect-size scale; on a `z=[5,5,0], n=100` locus susieR-style `mu` is 4.0 while sushie's `post_mean` is ~0.2. Same quantity, different units — compare shapes and ordering, not magnitudes.
 3. **Pruned signals are dropped, not zeroed.** `alpha`, `mu` and `mu2` contain only the signals sushie kept as credible sets at the requested `coverage` and `min_purity`. A null locus, or a locus whose only signal is spread over uncorrelated variants (purity 0), returns arrays with **zero rows** and all-zero PIPs. Do not index `alpha[0]` without checking `alpha.shape[0]` first.
 4. **Non-convergence is a warning plus a flag, not an exception.** Hitting `max_iter` emits a `RuntimeWarning` and sets `converged: False`, mirroring `susieR::susie_rss`; finite PIPs are still returned. The model will want to report those PIPs as results. Do not — surface `converged` in the report and say the estimate is provisional.
-5. **`coverage` and `min_purity` must lie strictly inside (0, 1).** sushie rejects the endpoints, so `--coverage 1.0` or `--min-purity 0` raise a `ValueError` before fitting. The old pure-Python engine accepted them; scripts that passed `1.0` need updating.
+5. **`coverage` and `min_purity` must lie strictly inside (0, 1).** sushie rejects the endpoints, so `--coverage 1.0` or `--min-purity 0` raise a `ValueError` before any data is loaded. The old pure-Python engine accepted them, and ABF still does; only the SuSiE path is this strict, so scripts that passed `1.0` need updating.
+6. **`--max-signals` above the variant count is clamped, not honoured.** sushie refuses a fit whose internal `min_snps` guard sits below `L`, so a 9-variant locus under the default `--max-signals 10` would otherwise be a hard error where the old engine simply ran. `run_susie` clamps `L` to the number of variants and emits a `RuntimeWarning`. The model will want to read the clamp as data loss. It is not — a locus of `p` variants cannot support more than `p` distinct single effects.
 
 ## Example Queries
 

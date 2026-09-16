@@ -457,7 +457,7 @@ def _plot_ld_heatmap(R, df, credible_sets, figures_dir, plt, mcolors):
 
     fig, ax = plt.subplots(figsize=(8, 7))
 
-    cmap = plt.cm.get_cmap("viridis")
+    cmap = plt.get_cmap("viridis")  # plt.cm.get_cmap was removed in matplotlib 3.9
     im = ax.imshow(r2_plot, cmap=cmap, vmin=0, vmax=1, aspect="auto", interpolation="nearest")
 
     # Overlay credible set boundaries as coloured rectangles on the diagonal
@@ -533,7 +533,7 @@ def _plot_ld_heatmap(R, df, credible_sets, figures_dir, plt, mcolors):
 def _r2_colors(r2: np.ndarray, mcolors) -> list:
     """Map r² values to viridis colour scale (colorblind-friendly)."""
     import matplotlib.pyplot as plt
-    cmap = plt.cm.get_cmap("viridis")
+    cmap = plt.get_cmap("viridis")  # plt.cm.get_cmap was removed in matplotlib 3.9
     norm = mcolors.Normalize(vmin=0, vmax=1)
     return [cmap(norm(v)) for v in r2]
 
@@ -541,7 +541,7 @@ def _r2_colors(r2: np.ndarray, mcolors) -> list:
 def _add_r2_colorbar(fig, ax, mcolors):
     import matplotlib.cm as cm
     import matplotlib.pyplot as plt
-    cmap = plt.cm.get_cmap("viridis")
+    cmap = plt.get_cmap("viridis")  # plt.cm.get_cmap was removed in matplotlib 3.9
     sm = cm.ScalarMappable(cmap=cmap, norm=mcolors.Normalize(vmin=0, vmax=1))
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax, shrink=0.6, pad=0.01)
