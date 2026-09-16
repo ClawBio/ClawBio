@@ -10,6 +10,7 @@ import csv
 import html as _html
 import json
 import sys
+import urllib.parse
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,6 +43,40 @@ from constants import (  # noqa: E402
 def count_recruiting(trials: list[dict]) -> int:
     """Count trials with RECRUITING status."""
     return sum(1 for t in trials if t["status"] == "RECRUITING")
+
+
+def _euctr_registry_id(identifier: str) -> str:
+    """Return the EudraCT number, stripping a fallback EUCTR prefix if present."""
+    ident = (identifier or "").strip()
+    if ident.upper().startswith("EUCTR"):
+        ident = ident[5:]
+    return ident
+
+
+def _trial_registry_url(trial: dict) -> str:
+    """Build the public registry URL for a normalised trial record.
+
+    EUCTR detail pages require a country code that the normalised record
+    does not carry, so EUCTR IDs are linked through the register search.
+    """
+    identifier = trial.get("nct_id") or ""
+    if trial.get("source") == "euctr":
+        query = urllib.parse.quote(_euctr_registry_id(identifier), safe="")
+        return (
+            "https://www.clinicaltrialsregister.eu/ctr-search/search"
+            f"?query={query}"
+        )
+    return f"https://clinicaltrials.gov/study/{identifier}"
+
+
+def _trial_identifier_system(trial: dict) -> str:
+    if trial.get("source") == "euctr":
+        return "https://www.clinicaltrialsregister.eu"
+    return "https://clinicaltrials.gov"
+
+
+def _trial_id_label(trial: dict) -> str:
+    return "EudraCT ID" if trial.get("source") == "euctr" else "NCT ID"
 
 
 # ---------------------------------------------------------------------------
@@ -104,11 +139,11 @@ def write_report(
     # Per-trial detail sections with text status labels
     for t in trials:
         label = STATUS_LABEL.get(t["status"], "[UNKNOWN]")
-        nct_url = f"https://clinicaltrials.gov/study/{t['nct_id']}"
+        nct_url = _trial_registry_url(t)
         lines += [
             f"### {label} {t['title']}",
             "",
-            f"- **NCT ID**: [{t['nct_id']}]({nct_url})",
+            f"- **{_trial_id_label(t)}**: [{t['nct_id']}]({nct_url})",
             f"- **Status**: {t['status']}",
             f"- **Phase**: {t['phase'] or 'N/A'}",
             f"- **Type**: {t['study_type'] or 'N/A'}",
@@ -211,8 +246,12 @@ def _trial_to_fhir(t: dict) -> dict:
         "identifier": [
             {
                 "use": "official",
-                "system": "https://clinicaltrials.gov",
-                "value": t["nct_id"],
+                "system": _trial_identifier_system(t),
+                "value": (
+                    _euctr_registry_id(t["nct_id"])
+                    if t.get("source") == "euctr"
+                    else t["nct_id"]
+                ),
             }
         ],
         "title": t["title"],
@@ -280,7 +319,7 @@ def _trial_to_fhir(t: dict) -> dict:
             resource["period"]["end"] = t["completion_date"]
 
     return {
-        "fullUrl": f"https://clinicaltrials.gov/study/{t['nct_id']}",
+        "fullUrl": _trial_registry_url(t),
         "resource": resource,
     }
 
@@ -446,7 +485,7 @@ def write_html(
     cards = []
     for t in trials:
         color = _STATUS_CSS.get(t["status"], "#bdc3c7")
-        nct_url = f"https://clinicaltrials.gov/study/{_esc(t['nct_id'])}"
+        nct_url = _esc(_trial_registry_url(t))
         source_badge = (
             f' <span style="background:#e8daef;padding:2px 6px;border-radius:3px;font-size:0.75em">'
             f"{_esc(t.get('source', 'ctgov').upper())}</span>"
