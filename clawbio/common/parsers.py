@@ -340,8 +340,15 @@ def parse_vcf(filepath: str | Path) -> dict[str, GenotypeRecord]:
 
             # Handle phased (|) or unphased (/)
             indices = re.split(r"[|/]", sample)
+            # A separated GT containing a missing allele (for example ``0/.``
+            # or ``./1``) is a partial no-call, not a haploid genotype. Do
+            # not silently convert its called allele into a complete call.
+            # True haploid (``1``) and complete polyploid (``0/1/1``) calls
+            # contain no missing allele and remain supported.
+            if any(i == "." for i in indices):
+                continue
             try:
-                called = [alleles[int(i)] for i in indices if i != "."]
+                called = [alleles[int(i)] for i in indices]
                 geno = "".join(called)
             except (IndexError, ValueError):
                 continue
