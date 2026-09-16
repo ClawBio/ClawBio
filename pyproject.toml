@@ -90,6 +90,11 @@ region-fetch = ["pysam>=0.22"]
 # individual-level path needs. So drop liknorm from the resolution rather than
 # downgrading cryptography project-wide.
 override-dependencies = ["liknorm ; sys_platform == 'clawbio-never'"]
+# Note for anyone exporting this lock: `uv export` keeps the override's
+# unsatisfiable marker, but plain pip re-resolves glimix-core's own metadata and
+# puts liknorm back, which then conflicts with the locked cffi 2.0.0. That is
+# why ci.yml's pip-audit job audits the synced venv rather than an exported
+# requirements file.
 
 [project.scripts]
 clawbio = "clawbio.cli:main"

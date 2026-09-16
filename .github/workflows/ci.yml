@@ -134,8 +134,20 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Export the lockfile
-        run: uv export --frozen --no-hashes --all-extras -o requirements-audit.txt
+      - name: Set up Python
+        run: uv python install 3.12
+
+      # Audit the environment uv actually builds, not a re-resolution of an
+      # exported requirements file. `pip-audit -r` shells out to pip, and pip
+      # does not honour the `[tool.uv] override-dependencies` entry that keeps
+      # liknorm out of the graph (see pyproject.toml for why it is there). pip
+      # therefore re-adds liknorm, whose `cffi<2.0` pin cannot coexist with the
+      # locked cffi 2.0.0, and the audit died on ResolutionImpossible instead
+      # of reporting. Auditing the synced venv has no resolution step and is
+      # the stricter question anyway: it covers what we ship, not what pip
+      # would have picked.
+      - name: Sync the locked environment
+        run: uv sync --locked --all-extras
 
       - name: Audit with pip-audit
         # `|| true` keeps findings from failing the build, so assert the tool
@@ -143,7 +155,7 @@ jobs:
         # vulnerabilities found" or "Found N known vulnerabilities". Neither
         # line means the step broke, which must fail loudly.
         run: |
-          uvx pip-audit -r requirements-audit.txt --no-deps > pip-audit.txt 2>&1 || true
+          uv run --with pip-audit pip-audit > pip-audit.txt 2>&1 || true
           if ! grep -qE 'No known vulnerabilities found|Found [0-9]+ known vulnerabilit' pip-audit.txt; then
             echo "::error::pip-audit produced no recognisable report - the audit step is broken, not clean"
             cat pip-audit.txt
