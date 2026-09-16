@@ -98,11 +98,16 @@ def stage_from_icloud(filepath: str | Path) -> Path:
 
 
 def open_genetic_file(filepath: str | Path):
-    """Open a file, handling .gz transparently. Stages from iCloud first."""
+    """Open a file, handling .gz and a UTF-8 BOM transparently.
+
+    Consumer genetic-data exports are often UTF-8 with a BOM. ``utf-8-sig``
+    consumes that marker when present and matches ``utf-8`` for ordinary
+    UTF-8 files, so CSV/TSV header matching stays format-agnostic.
+    """
     filepath = str(stage_from_icloud(Path(filepath)))
     if filepath.endswith(".gz"):
-        return gzip.open(filepath, "rt", encoding="utf-8", errors="replace")
-    return open(filepath, encoding="utf-8", errors="replace")
+        return gzip.open(filepath, "rt", encoding="utf-8-sig", errors="replace")
+    return open(filepath, encoding="utf-8-sig", errors="replace")
 
 
 # ---------------------------------------------------------------------------
