@@ -872,3 +872,18 @@ class TestAlignmentExport:
         assert result["alignment_files"] == {"aligned": "alignment/aligned.fasta"}
         assert not (out / "alignment" / "trimmed.fasta").exists()
 
+    def test_rerun_on_an_exported_alignment_does_not_delete_its_own_input(self, tmp_path):
+        """Reusing alignment/aligned.fasta as the input of a rerun into the same
+        output directory must not delete the file before it is read."""
+        out, _ = self._run(tmp_path, [])
+        exported = out / "alignment" / "aligned.fasta"
+        before = exported.read_text()
+        m = get_module()
+        newick, _ = m.get_demo_fallback()
+        with patch.object(m.shutil, "which", return_value="/usr/bin/true"), \
+                patch.object(m, "run_trimal", side_effect=lambda i, o, strategy="-automated1": o.write_text(before)), \
+                patch.object(m, "run_modelfinder", return_value="GTR+G"), \
+                patch.object(m, "run_iqtree_main", return_value=newick):
+            m.main(["--input", str(exported), "--aligned", "--output", str(out)])
+        assert exported.is_file() and exported.read_text() == before
+

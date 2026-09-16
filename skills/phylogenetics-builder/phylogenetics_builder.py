@@ -745,7 +745,10 @@ def write_checksums(files: list[Path], output_dir: Path, repro_dir: Path) -> Non
 
 
 def export_alignments(
-    output_dir: Path, aligned: Path | None, trimmed: Path | None
+    output_dir: Path,
+    aligned: Path | None,
+    trimmed: Path | None,
+    protect: Path | None = None,
 ) -> dict[str, str]:
     """Copy the alignments produced by this run into ``output_dir/alignment``.
 
@@ -754,7 +757,11 @@ def export_alignments(
     produce output in this run is removed, so a rerun into the same directory
     never reports an alignment left by an earlier run. Returns
     ``{"aligned"|"trimmed": path}`` with paths relative to ``output_dir``.
+
+    ``protect`` is never deleted: a rerun may read an exported alignment as its
+    own input.
     """
+    protected = protect.resolve() if protect is not None else None
     dest_dir = output_dir / "alignment"
     exported: dict[str, str] = {}
     for key, source in (("aligned", aligned), ("trimmed", trimmed)):
@@ -763,7 +770,7 @@ def export_alignments(
             dest_dir.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, dest)
             exported[key] = str(dest.relative_to(output_dir))
-        elif dest.is_file():
+        elif dest.is_file() and dest.resolve() != protected:
             dest.unlink()
     if dest_dir.is_dir() and not any(dest_dir.iterdir()):
         dest_dir.rmdir()
@@ -791,8 +798,6 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
             file=sys.stderr,
         )
     output_dir.mkdir(parents=True, exist_ok=True)
-    # Drop alignments left by an earlier run before this run can fail part-way.
-    export_alignments(output_dir, None, None)
 
     # ── Input file ──────────────────────────────────────────────────────────
     if args.demo:
@@ -818,6 +823,10 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
     except Exception as exc:
         print(f"Error validating input: {exc}", file=sys.stderr)
         sys.exit(1)
+
+    # Drop alignments left by an earlier run, once the input is known to exist
+    # and to be readable: a rerun may take an exported alignment as its input.
+    export_alignments(output_dir, None, None, protect=input_file)
 
     # ── Pipeline ────────────────────────────────────────────────────────────
     pipeline_steps: list[str] = []
@@ -887,7 +896,9 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
                 pipeline_steps.append("trim:skipped(trimal-not-found)")
 
         # Keep the alignments before the temporary directory is removed
-        alignment_files = export_alignments(output_dir, produced_aligned, produced_trimmed)
+        alignment_files = export_alignments(
+            output_dir, produced_aligned, produced_trimmed, protect=input_file
+        )
 
         # Stage 3: Model selection
         iqtree_bin = shutil.which("iqtree2") or shutil.which("iqtree")
