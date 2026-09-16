@@ -180,6 +180,20 @@ def run_finemapping(
         raise ValueError("Coverage must be in (0, 1], got %s" % coverage)
     if min_purity < 0 or min_purity > 1:
         raise ValueError("min_purity must be in [0, 1], got %s" % min_purity)
+    # The SuSiE path is stricter than the ABF path: sushie needs both values in
+    # the OPEN interval. Check here, before loading sumstats and LD, so the user
+    # gets the message in a second rather than after the data is read.
+    susie_path = demo or ld_path is not None
+    if susie_path and not 0 < coverage < 1:
+        raise ValueError(
+            "coverage must satisfy 0 < coverage < 1 for the SuSiE path "
+            "(sushie constraint); got %s. ABF accepts coverage=1.0." % coverage
+        )
+    if susie_path and not 0 < min_purity < 1:
+        raise ValueError(
+            "min_purity must satisfy 0 < min_purity < 1 for the SuSiE path "
+            "(sushie constraint); got %s." % min_purity
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -225,6 +239,7 @@ def run_finemapping(
             "w": w,
             "converged": result["converged"],
             "n_iter": result["n_iter"],
+            "max_iter": result["max_iter"],
             "n_eff": n_eff,
             "engine": result["engine"],
             "engine_version": result["engine_version"],

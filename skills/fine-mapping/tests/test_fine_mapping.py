@@ -1,5 +1,6 @@
 """Tests for the SuSiE fine-mapping skill."""
 import sys
+import warnings
 import json
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from fine_mapping_core.credible_sets import (
     _purity,
 )
 from fine_mapping_core.io import load_sumstats, load_ld
+from fine_mapping_core.report import generate_markdown
 
 
 # ---------------------------------------------------------------------------
@@ -216,12 +218,21 @@ class TestSuSiE:
         assert all(np.isfinite(e) for e in elbo)
 
     def test_two_signals_recovered(self):
-        """Demo locus with two injected causal variants: both are in the top-5 PIPs."""
+        """Demo locus with two injected causal variants: BOTH are recovered.
+
+        `60 in top5 or 140 in top5` would pass while the engine missed one of
+        the two signals entirely, which is the exact failure a fine-mapper is
+        supposed to be judged on. Require both, each as its own credible set.
+        """
         df, R = fine_mapping.make_demo_data(seed=42)
         result = run_susie(z=df["z"].values, R=R, n=5000, L=10)
-        top5 = set(np.argsort(-result["pip"])[:5])
-        # Causal variants are at indices 60 and 140
-        assert 60 in top5 or 140 in top5
+        top5 = set(int(i) for i in np.argsort(-result["pip"])[:5])
+        assert {60, 140} <= top5, (
+            f"causal indices 60 and 140 not both in the top-5 PIPs: {sorted(top5)}"
+        )
+        assert result["pip"][60] > 0.8 and result["pip"][140] > 0.8
+        leads = sorted(int(np.argmax(row)) for row in result["alpha"])
+        assert leads == [60, 140], f"credible-set leads were {leads}"
 
     def test_null_locus_no_phantom_pip(self):
         """Null locus (z=0 everywhere) produces near-zero PIPs."""
@@ -330,7 +341,6 @@ class TestSuSiEBenchmarkContract:
         Without forwarding, the CLI's --min-purity could only tighten the
         engine's hardcoded 0.5 downstream, never loosen it.
         """
-        import fine_mapping_core.susie as susie_mod
         from sushie.infer_ss import infer_sushie_ss as real_infer
 
         seen = {}
@@ -396,6 +406,53 @@ class TestSuSiEBenchmarkContract:
                   coverage=0.9)
         assert seen["threshold"] == 0.9
 
+    def test_locus_smaller_than_L_still_runs(self):
+        """A 9-variant locus under the CLI default L=10 must not error.
+
+        sushie rejects a fit whose min_snps guard is below L, so passing L
+        through unchanged turned loci that the old hand-rolled IBSS handled
+        into hard failures. run_susie clamps L to p and says so.
+        """
+        p_small = 9
+        z = np.zeros(p_small)
+        z[3] = 6.0
+        with pytest.warns(RuntimeWarning, match="clamping to L=9"):
+            result = run_susie(z=z, R=np.eye(p_small), n=5000, L=10)
+        assert result["pip"].shape == (p_small,)
+        assert int(result["pip"].argmax()) == 3
+
+    def test_L_at_or_below_p_is_not_clamped(self):
+        """The clamp is a guard, not a rewrite: L <= p passes through silently."""
+        df = _small_locus(n=20)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            result = run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=5)
+        assert result["pip"].shape == (20,)
+
+    def test_x64_flag_is_restored(self):
+        """jax.config is process-global; run_susie must not leave it flipped.
+
+        Any other JAX user in the same interpreter would otherwise silently
+        change precision the first time a locus is fine-mapped.
+        """
+        import jax
+
+        before = jax.config.read("jax_enable_x64")
+        try:
+            jax.config.update("jax_enable_x64", False)
+            df = _small_locus(n=20)
+            run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=3)
+            assert jax.config.read("jax_enable_x64") is False
+        finally:
+            jax.config.update("jax_enable_x64", before)
+
+    def test_max_iter_echoed_back(self):
+        """The report needs the budget, not just the iterations used."""
+        df = _small_locus(n=20)
+        result = run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=3,
+                           max_iter=123)
+        assert result["max_iter"] == 123
+
     @pytest.mark.parametrize("bad", [0.0, 1.0, 1.5])
     def test_coverage_out_of_open_interval_raises(self, bad):
         """sushie requires 0 < threshold < 1; reject before reaching it."""
@@ -403,6 +460,107 @@ class TestSuSiEBenchmarkContract:
         with pytest.raises(ValueError, match="coverage"):
             run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=3,
                       coverage=bad)
+
+# ---------------------------------------------------------------------------
+# TestSuSiEKnownAnswer
+# ---------------------------------------------------------------------------
+
+
+_KNOWN_ANSWER_PATH = (
+    Path(__file__).resolve().parent / "fixtures" / "demo_susie_known_answer.json"
+)
+
+
+class TestSuSiEKnownAnswer:
+    """Pin the engine's actual numbers, not just their shapes.
+
+    Every other SuSiE test here asserts a shape, an argmax or a `> 0.8`
+    threshold. All of them keep passing if a future sushie release shifts PIP
+    magnitudes, reorders alpha rows against `CSIndex`, or rescales mu/mu2 --
+    exactly the drift an engine swap makes possible. These assertions compare
+    against values recorded from the seeded demo locus at the commit that
+    introduced the sushie backend (see the fixture's own `_comment`).
+    """
+
+    @pytest.fixture(scope="class")
+    def known(self):
+        with open(_KNOWN_ANSWER_PATH) as fh:
+            return json.load(fh)
+
+    @pytest.fixture(scope="class")
+    def fit(self):
+        df, R = fine_mapping.make_demo_data(seed=42)
+        return df, R, run_susie(z=df["z"].values, R=R, n=5000, L=10)
+
+    def test_engine_version_matches_recording(self, known, fit):
+        """A sushie bump must re-record the fixture, not silently drift past it."""
+        _, _, result = fit
+        assert result["engine_version"] == known["recorded_from"]["engine_version"], (
+            "sushie version changed since these numbers were recorded; re-record "
+            f"{_KNOWN_ANSWER_PATH.name} in the same commit as the bump"
+        )
+
+    def test_convergence_matches_recording(self, known, fit):
+        _, _, result = fit
+        assert result["converged"] is known["converged"]
+        assert result["n_iter"] == known["n_iter"]
+
+    def test_credible_set_count_and_leads(self, known, fit):
+        """Exactly the recorded number of sets, led by the recorded variants.
+
+        This is the assertion the phantom-credible-set regression would trip:
+        the hand-rolled IBSS reported 10 sets here, 8 of them purity-0 phantoms.
+        """
+        _, _, result = fit
+        assert result["alpha"].shape[0] == known["n_credible_sets"]
+        leads = [int(np.argmax(row)) for row in result["alpha"]]
+        assert leads == known["alpha_row_leads"]
+
+    def test_pips_match_recorded_values(self, known, fit):
+        """PIP magnitudes, not just ordering."""
+        _, _, result = fit
+        atol = known["tolerance"]["pip_atol"]
+        for idx, want in known["pip_by_index"].items():
+            got = float(result["pip"][int(idx)])
+            assert got == pytest.approx(want, abs=atol), (
+                f"PIP at index {idx}: recorded {want}, got {got}"
+            )
+        assert int((result["pip"] >= 0.1).sum()) == known["n_pip_at_least_0.1"]
+
+    def test_lead_moments_match_recorded_scale(self, known, fit):
+        """mu/mu2 stay on the scale this adapter documents.
+
+        clawbio_bench fm_14 reads `mu` expecting susieR's z-unit `r * z`; sushie
+        reports standardised effect-size moments instead (mu at index 60 is
+        ~0.22 against an injected beta of 0.25). If a sushie release changes
+        that scale, the docstring in susie.py and the bench conversation both
+        need revisiting -- so fail here rather than let it pass unnoticed.
+        """
+        _, _, result = fit
+        rtol = known["tolerance"]["moment_rtol"]
+        for rec in known["lead_moments"]:
+            k, i = rec["alpha_row"], rec["variant_index"]
+            assert float(result["alpha"][k][i]) == pytest.approx(rec["alpha"], rel=rtol)
+            assert float(result["mu"][k][i]) == pytest.approx(rec["mu"], rel=rtol)
+            assert float(result["mu2"][k][i]) == pytest.approx(rec["mu2"], rel=rtol)
+
+    def test_credible_set_membership_matches_recording(self, known, fit):
+        """CSIndex k -> alpha row k-1 is a mapping no other test pins.
+
+        `build_credible_sets_susie` consumes the rows in order, so an ordering
+        change inside sushie would relabel every set without changing a shape.
+        """
+        df, R, result = fit
+        df = df.copy()
+        df["pip"] = result["pip"]
+        cs_list = build_credible_sets_susie(alpha=result["alpha"], df=df, R=R)
+        assert len(cs_list) == known["n_credible_sets"]
+        want_leads = known["alpha_row_leads"]
+        for cs, want_idx in zip(cs_list, want_leads):
+            assert cs["size"] == 1, f"{cs['cs_id']} grew to {cs['size']} variants"
+            assert cs["lead_rsid"] == df["rsid"].iloc[want_idx]
+            assert cs["purity"] == pytest.approx(1.0)
+
 
 # ---------------------------------------------------------------------------
 # TestCredibleSets
@@ -761,6 +919,94 @@ class TestRunFinemapping:
             gene_track=True,
         )
         assert "method" in results
+
+    def test_susie_path_rejects_coverage_one_early(self, tmp_path):
+        """coverage=1.0 must fail at the CLI, not deep inside run_susie.
+
+        The ABF path still accepts 1.0; only the SuSiE path carries sushie's
+        open-interval constraint, so the check is scoped to it. (coverage=0 is
+        already rejected for both methods by the shared check above it.)
+        """
+        with pytest.raises(ValueError, match="SuSiE path"):
+            fine_mapping.run_finemapping(
+                sumstats_path=None, ld_path=None, output_dir=tmp_path,
+                demo=True, make_figures=False, coverage=1.0,
+            )
+
+    def test_nonpositive_coverage_rejected_for_both_methods(self, tmp_path):
+        with pytest.raises(ValueError, match="Coverage must be in"):
+            fine_mapping.run_finemapping(
+                sumstats_path=None, ld_path=None, output_dir=tmp_path,
+                demo=True, make_figures=False, coverage=0.0,
+            )
+
+    def test_susie_path_rejects_zero_min_purity_early(self, tmp_path):
+        """Same for min_purity=0, which the old [0, 1] check let through."""
+        with pytest.raises(ValueError, match="SuSiE path"):
+            fine_mapping.run_finemapping(
+                sumstats_path=None, ld_path=None, output_dir=tmp_path,
+                demo=True, make_figures=False, min_purity=0.0,
+            )
+
+    def test_abf_path_still_accepts_coverage_one(self, tmp_path):
+        """The tightened check must not leak onto ABF, which has no such limit."""
+        df, _ = fine_mapping.make_demo_data(seed=42)
+        ss_path = tmp_path / "sumstats.tsv"
+        df.to_csv(ss_path, sep="\t", index=False)
+        results = fine_mapping.run_finemapping(
+            sumstats_path=ss_path, ld_path=None, output_dir=tmp_path,
+            make_figures=False, coverage=1.0,
+        )
+        assert results["method"] == "ABF"
+
+
+# ---------------------------------------------------------------------------
+# TestReportProvisionalBanner
+# ---------------------------------------------------------------------------
+
+
+class TestReportProvisionalBanner:
+    """A non-converged SuSiE fit must say so above its own numbers.
+
+    SKILL.md Gotcha 4 tells the reader not to report PIPs from a run that did
+    not converge, but the only signal in the report was one row of a parameter
+    table, well below the credible-set tables a reader actually reads.
+    """
+
+    def _markdown(self, **params):
+        df = pd.DataFrame({
+            "rsid": ["rs1", "rs2"], "chr": ["1", "1"],
+            "pos": [1000, 2000], "z": [5.0, 0.2],
+            "p": [1e-7, 0.8], "pip": [0.9, 0.1],
+        })
+        base = {"L": 10, "coverage": 0.95, "min_purity": 0.5, "n_iter": 500,
+                "max_iter": 500}
+        base.update(params)
+        return generate_markdown(df=df, credible_sets=[], method="SuSiE",
+                                 params=base)
+
+    def test_banner_present_when_not_converged(self):
+        md = self._markdown(converged=False)
+        assert "Provisional results" in md
+        assert md.index("Provisional results") < md.index("## Credible Sets")
+
+    def test_banner_absent_when_converged(self):
+        assert "Provisional results" not in self._markdown(converged=True)
+
+    def test_banner_absent_for_abf(self):
+        """ABF has no convergence concept, so it must never carry the banner."""
+        df = pd.DataFrame({
+            "rsid": ["rs1"], "chr": ["1"], "pos": [1000],
+            "z": [5.0], "p": [1e-7], "pip": [0.9],
+        })
+        md = generate_markdown(df=df, credible_sets=[], method="ABF",
+                               params={"coverage": 0.95, "w": 0.04})
+        assert "Provisional results" not in md
+
+    def test_banner_reports_the_iteration_budget(self):
+        md = self._markdown(converged=False, n_iter=1, max_iter=500)
+        assert "did not converge in 1 iterations" in md
+        assert "max_iter=500" in md
 
 
 # ---------------------------------------------------------------------------

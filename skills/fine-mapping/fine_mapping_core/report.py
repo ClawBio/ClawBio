@@ -51,6 +51,22 @@ def generate_markdown(
         "",
         "## Summary",
         "",
+    ]
+
+    # Gotcha 4: a non-converged fit still produces PIPs, and a reader who skips
+    # the parameter table would take them as final. Say so before the numbers.
+    if method == "SuSiE" and params.get("converged") is False:
+        lines += [
+            "> \u26a0\ufe0f **Provisional results.** SuSiE did not converge in "
+            f"{params.get('n_iter', '?')} iterations "
+            f"(max_iter={params.get('max_iter', '?')}). Every PIP and credible "
+            "set below is provisional and must not be reported as a "
+            "fine-mapping result. Re-run with a larger `--max-signals` budget, "
+            "a cleaner LD matrix, or more iterations.",
+            "",
+        ]
+
+    lines += [
         f"| Parameter | Value |",
         f"|-----------|-------|",
         f"| Method | {method} |",

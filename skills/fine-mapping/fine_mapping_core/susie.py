@@ -71,6 +71,8 @@ def run_susie(
         elbo      : list of ELBO values per iteration
         converged : bool
         n_iter    : int
+        max_iter  : int, the budget n_iter is measured against (echoed back so
+                    a report can say "did not converge in 1 of 500")
         engine    : "sushie"
         engine_version : installed sushie version string
 
@@ -110,11 +112,41 @@ def run_susie(
             "Install it with: uv sync --extra fine-mapping"
         ) from exc
 
-    # float32 (jax default) produces NaN ELBOs on some loci; sushie's own
-    # log message recommends enabling x64.
-    jax.config.update("jax_enable_x64", True)
+    # float32 (jax default) produces NaN ELBOs on some loci; sushie's own log
+    # message recommends enabling x64. jax.config is process-global, so set it
+    # only when it is off and restore it afterwards rather than silently
+    # changing precision for every other JAX user sharing this interpreter.
+    _x64_was = jax.config.read("jax_enable_x64")
+    if not _x64_was:
+        jax.config.update("jax_enable_x64", True)
+    try:
+        return _fit(
+            infer_sushie_ss, z, R, n, L, w, max_iter, tol, min_purity, coverage
+        )
+    finally:
+        if not _x64_was:
+            jax.config.update("jax_enable_x64", _x64_was)
 
+
+def _fit(infer_sushie_ss, z, R, n, L, w, max_iter, tol, min_purity, coverage):
+    """Run the sushie fit and reshape its result into run_susie's contract.
+
+    Split out of run_susie only so the x64 restore in its ``finally`` cannot be
+    bypassed; all validation has already happened by the time this is called.
+    Warnings use stacklevel=3 so they point at run_susie's caller, not here.
+    """
     p = len(z)
+    # sushie refuses a fit whose min_snps guard is below L, so a locus with
+    # fewer variants than L errors out where the old hand-rolled IBSS just ran
+    # with redundant single effects. Clamp instead: L above p buys nothing (a
+    # locus of p variants cannot hold more than p distinct single effects).
+    if L > p:
+        warnings.warn(
+            f"L={L} exceeds the {p} variants at this locus; clamping to L={p}.",
+            RuntimeWarning,
+            stacklevel=3,
+        )
+        L = p
     result = infer_sushie_ss(
         lds=[R],
         ns=np.array([float(n)]),
@@ -127,8 +159,9 @@ def run_susie(
         threshold=coverage,
         purity=min_purity,
         # sushie's guard defaults to 100 common SNPs; keep it for large loci
-        # but allow small test/demo loci through.
-        min_snps=min(p, 100),
+        # but allow small test/demo loci through. max(100, L) keeps the guard
+        # at or above L, which sushie requires, for L > 100 on a large locus.
+        min_snps=min(p, max(100, L)),
     )
 
     # Keep only the signals sushie retained as credible sets (coverage
@@ -163,7 +196,7 @@ def run_susie(
             f"SuSiE (sushie) did not converge in {n_iter} iterations "
             f"(max_iter={max_iter}, tol={tol}); treat PIPs as provisional.",
             RuntimeWarning,
-            stacklevel=2,
+            stacklevel=3,
         )
 
     try:
@@ -179,6 +212,7 @@ def run_susie(
         "elbo": elbo,
         "converged": converged,
         "n_iter": n_iter,
+        "max_iter": max_iter,
         "engine": "sushie",
         "engine_version": engine_version,
     }

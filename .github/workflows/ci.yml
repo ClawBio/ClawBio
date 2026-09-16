@@ -503,7 +503,13 @@ jobs:
         run: uv python install 3.12
 
       - name: Install ClawBio dependencies
-        run: uv sync --locked
+        # --all-extras: the bench drives skills whose engines live in
+        # [project.optional-dependencies]. skills/fine-mapping delegates SuSiE
+        # to sushie (the `fine-mapping` extra) and raises ImportError without
+        # it, which would turn every SuSiE bench case into a harness_error and
+        # trip the baseline gate below for reasons that have nothing to do with
+        # the skill's correctness.
+        run: uv sync --locked --all-extras
 
       - name: Install clawbio-bench
         run: uv pip install "clawbio-bench @ git+https://github.com/biostochastics/clawbio_bench.git@49a0f11a8393b87a90f0721261a9bec5d52b61db"
