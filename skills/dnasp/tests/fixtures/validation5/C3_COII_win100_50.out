@@ -1,0 +1,82 @@
+ DnaSP  Ver. 6.12.03                        15 - September - 2026  09:46:14
+ ==========================================================================
+
+
+ DNA Polymorphism
+ ----------------
+
+ Input Data File: C:\...\COII_HsaPtr_outPpy.fas
+ Population used: ingroup
+    Number of sequences used: 11
+ Selected region: 1-684   Number of sites: 684
+ Total number of sites (excluding sites with gaps / missing data): 684
+
+ Number of polymorphic (segregating) sites, S: 78
+ Total number of mutations, Eta: 79
+
+ Number of Haplotypes, h: 9
+ Haplotype (gene) diversity, Hd: 0.945
+    Variance of Haplotype diversity: 0.00434
+       Standard Deviation of Haplotype diversity: 0.066
+
+ Nucleotide diversity, Pi: 0.05436
+ Theta (per site) from Eta: 0.03943
+
+ Theta (per site) from S, Theta-W: 0.03893
+    Variance of theta (no recombination): 0.0002484
+       Standard deviation of theta (no recombination): 0.01576
+    Variance of theta (free recombination): 0.0000194
+       Standard deviation of theta (free recombination): 0.00441
+
+ Finite Sites Model 
+    Theta (per site) from Pi: 0.05861
+    Theta (per site) from S: 0.04205
+    Theta (per site) from Eta: 0.04123
+
+ Average number of nucleotide differences, k: 37.182
+    Stochastic variance of k (no recombination), Vst(k): 251.184
+    Sampling variance of k (no recombination), Vs(k): 56.749
+       Total variance of k (no recombination), V(k): 307.933
+    Stochastic variance of k (free recombination), Vst(k): 12.394
+    Sampling variance of k (free recombination), Vs(k): 2.479
+       Total variance of k (free recombination), V(k): 14.873
+
+ Theta (per sequence) from S, Theta-W: 26.631
+    Variance of theta (no recombination): 116.213
+    Variance of theta (free recombination): 9.092
+
+ Sliding Window Option
+ Sites with alignment gaps were counted in the window length (and slide)
+   Window length: 100     Step size: 50
+
+
+------------------------------------------------------------------------------------
+
+     Window  Midpoint  Pi     Theta      S
+ 
+      1-100     50  0.05927  0.04438    13
+     51-150    100  0.06836  0.04780    14
+    101-200    150  0.03782  0.02731     8
+    151-250    200  0.05364  0.03756    11
+    201-300    250  0.05727  0.03756    11
+    251-350    300  0.05455  0.03414    10
+    301-400    350  0.05636  0.03756    11
+    351-450    400  0.07273  0.05463    16
+    401-500    450  0.07273  0.05463    16
+    451-550    500  0.04873  0.03756    11
+    501-600    550  0.04691  0.03414    10
+    551-650    600  0.05055  0.03414    10
+    601-684    642  0.04935  0.03658     9
+        
+        
+        
+        
+        
+        
+        
+        
+
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+
+ DnaSP Session Terminated on  15 - September - 2026  09:47:22

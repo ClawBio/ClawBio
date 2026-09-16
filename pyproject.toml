@@ -40,19 +40,19 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
 dependencies = [
-    "biopython>=1.82",
-    "conda-lock>=2.0",
-    "google-auth>=2,<3",
-    "google-cloud-bigquery>=3,<4",
-    "matplotlib>=3.7",
-    "numpy>=1.24",
-    "openai>=1.0",
-    "opentelemetry-sdk>=1.20,<2",
-    "pandas>=2.0",
+    "biopython>=1.88",
+    "conda-lock>=4.0.2",
+    "google-auth>=2.57.1,<3",
+    "google-cloud-bigquery>=3.45.0,<4",
+    "matplotlib>=3.11.1",
+    "numpy>=2.4.6",
+    "openai>=3.8.0",
+    "opentelemetry-sdk>=1.44.0,<2",
+    "pandas>=3.0.5",
     "pyyaml>=6.0",
     "pydeseq2>=0.4",
-    "rocrate>=0.15.0",
-    "scikit-learn>=1.3",
+    "rocrate>=0.15.1",
+    "scikit-learn>=1.9.0",
     "scipy>=1.10",
 ]
 
@@ -63,20 +63,33 @@ dependencies = [
 mcp = ["mcp>=1.9,<2"]
 just-prs = [
     "fastmcp>=3.4.4,<4",
-    "typer>=0.27,<1",
+    "typer>=0.27.2,<1",
 ]
 # SuShiE fine-mapping engine (jax-based) for skills/fine-mapping.
-# glimix-core floor keeps liknorm at >=2.0 (wheels); 1.x is sdist-only and
-# fails to build on macOS.
+# sushie pulls glimix-core itself; see the liknorm override under [tool.uv]
+# for why that subtree is kept out of the installed environment.
 fine-mapping = [
     "sushie>=0.20,<0.21",
-    "glimix-core>=3.1.14,<4",
 ]
 # Shared by the four region skills (eqtl-catalogue-region-fetch,
 # gwas-catalog-region-fetch, ld-1000g-region-compute, ukb-ppp-region-fetch).
 # Declared here so `uv sync --all-extras` in CI can run their test suites;
 # each SKILL.md already documents pysam>=0.22 for local installs (#406).
 region-fetch = ["pysam>=0.22"]
+
+[tool.uv]
+# glimix-core (a hard dependency of sushie) requires liknorm, and liknorm 2.0.0
+# pins cffi<2.0. cryptography>=48 requires cffi>=2.0, so leaving liknorm in the
+# graph drags cryptography from 48.0.0 down to 45.0.7 for EVERY user of this
+# lock, extras or not — and 45.0.7 carries known advisories (PYSEC-2026-2141,
+# PYSEC-2026-35/36, GHSA-537c-gmf6-5ccf) that 48.0.0 does not.
+#
+# sushie's summary-statistics path (`sushie.infer_ss.infer_sushie_ss`, the only
+# entry point skills/fine-mapping uses) imports glimix_core but never liknorm;
+# glimix-core only loads it for the GLMM/exponential-family models that the
+# individual-level path needs. So drop liknorm from the resolution rather than
+# downgrading cryptography project-wide.
+override-dependencies = ["liknorm ; sys_platform == 'clawbio-never'"]
 
 [project.scripts]
 clawbio = "clawbio.cli:main"
@@ -92,11 +105,11 @@ dev = [
     "skills-ref>=0.1.1,<1",
 ]
 bot = [
-    "python-telegram-bot[job-queue]>=21.0",
+    "python-telegram-bot[job-queue]>=22.8",
     "discord.py>=2.3.0",
     "flask>=3.0.0",
-    "requests>=2.31.0",
-    "python-dotenv>=1.0",
+    "requests>=2.34.2",
+    "python-dotenv>=1.2.3",
 ]
 
 [tool.hatch.version]

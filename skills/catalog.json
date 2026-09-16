@@ -1324,8 +1324,8 @@
     {
       "name": "dnasp",
       "cli_alias": "dnasp",
-      "description": "Full reimplementation of DnaSP 6 for population genetics analysis of aligned DNA sequences. Covers nucleotide diversity, haplotype statistics, neutrality tests (Tajima's D, Fu & Li's D*/F*, R2), linkage disequilibrium (D, D', R², ZnS, Za, ZZ), minimum recombination (Rm), mismatch distribution, InDel polymorphism, between-population divergence (Dxy, Da, fixed/shared sites), outgroup-based Fu & Li D/F tests (fuliout), the HKA two-locus neutrality test (hka), the McDonald-Kreitman test (mk), Ka/Ks (dN/dS) via the Nei-Gojobori (1986) method (kaks), Fu's Fs test (fufs), the site frequency spectrum (sfs, folded and outgroup-unfolded), transition/transversion ratio (tstv), and codon usage bias  -  RSCU (Sharp & Li 1987) and ENC (Wright 1990) (codon). Accepts pre-aligned FASTA/NEXUS or a multi-sample VCF (one MSA per CHROM); outputs DnaSP-compatible TSV and a Markdown report.",
-      "version": "0.5.0",
+      "description": "Population genetics of pre-aligned DNA sequences or multi-sample VCFs using selected DnaSP 6 methods. Use for diversity, neutrality statistics, linkage disequilibrium, InDel polymorphism, divergence, MK, Ka/Ks and codon usage; not alignment, phasing or clinical interpretation.",
+      "version": "0.5.2",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1343,7 +1343,10 @@
       "demo_command": "python clawbio.py run dnasp --demo",
       "dependencies": [
         "python>=3.10",
-        "matplotlib>=3.7"
+        "matplotlib>=3.7",
+        "numpy>=1.24",
+        "pandas>=2.0",
+        "opentelemetry-sdk>=1.20"
       ],
       "tags": [
         "population-genetics",
@@ -1524,8 +1527,7 @@
       "dependencies": [
         "python>=3.10",
         "pysam>=0.22",
-        "pandas>=2.0",
-        "requests>=2.28"
+        "pandas>=2.0"
       ],
       "tags": [
         "eqtl",
@@ -3580,24 +3582,24 @@
     },
     {
       "name": "pubmed-summariser",
-      "cli_alias": null,
-      "description": "Search PubMed for a gene name or disease term and generate a structured research briefing of the top recent English-language papers.",
-      "version": "0.1.0",
+      "cli_alias": "pubmed-summariser",
+      "description": "Search PubMed, preserve complete abstracts and sections, and produce research briefings with abstract openings or optional OpenAI/Ollama summaries.",
+      "version": "0.2.0",
       "status": "planned",
-      "maturity_tier": "tested",
+      "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
-        "cli_registered": false,
+        "cli_registered": true,
         "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/pubmed-summariser/pubmed_summariser.py --demo",
+      "demo_command": "python clawbio.py run pubmed-summariser --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [

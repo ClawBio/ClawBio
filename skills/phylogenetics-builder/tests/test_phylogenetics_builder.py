@@ -810,3 +810,80 @@ class TestIntegrationMSA:
         data = json.loads((tmp_path / "result.json").read_text())
         assert data["aligner"] == "mafft"
         assert data["aligned"] is False
+
+
+# ── Alignment export ───────────────────────────────────────────────────────────
+
+
+class TestAlignmentExport:
+    """Alignments produced in the temporary working directory are kept."""
+
+    def _run(self, tmp_path, extra_args, trimal_fails=False):
+        m = get_module()
+        newick, _ = m.get_demo_fallback()
+
+        def fake_msa(input_fasta, aligner, output_fasta):
+            output_fasta.write_text(DEMO_INPUT.read_text())
+
+        def fake_trimal(input_fasta, output_fasta, strategy="-automated1"):
+            if trimal_fails:
+                raise RuntimeError("trimAl failed")
+            output_fasta.write_text(DEMO_INPUT.read_text().replace("-", ""))
+
+        out = tmp_path / "out"
+        with patch.object(m.shutil, "which", return_value="/usr/bin/true"), \
+                patch.object(m, "run_msa", side_effect=fake_msa), \
+                patch.object(m, "run_trimal", side_effect=fake_trimal), \
+                patch.object(m, "run_modelfinder", return_value="GTR+G"), \
+                patch.object(m, "run_iqtree_main", return_value=newick):
+            m.main(["--input", str(DEMO_INPUT), "--output", str(out)] + extra_args)
+        return out, json.loads((out / "result.json").read_text())
+
+    def test_msa_and_trimmed_alignments_are_exported(self, tmp_path):
+        out, result = self._run(tmp_path, [])
+        assert result["alignment_files"] == {
+            "aligned": "alignment/aligned.fasta",
+            "trimmed": "alignment/trimmed.fasta",
+        }
+        assert (out / "alignment" / "aligned.fasta").read_text() == DEMO_INPUT.read_text()
+        assert (out / "alignment" / "trimmed.fasta").is_file()
+        artifact_paths = {a["path"] for a in result["preferred_artifacts"]}
+        assert {"alignment/aligned.fasta", "alignment/trimmed.fasta"} <= artifact_paths
+        checksums = (out / "reproducibility" / "checksums.sha256").read_text()
+        assert "alignment/aligned.fasta" in checksums
+        assert "alignment/trimmed.fasta" in checksums
+        assert "`alignment/aligned.fasta`" in (out / "report.md").read_text()
+
+    def test_pre_aligned_input_without_trimming_exports_nothing(self, tmp_path):
+        out, result = self._run(tmp_path, ["--aligned", "--no-trim"])
+        assert result["alignment_files"] == {}
+        assert not (out / "alignment").exists()
+
+    def test_rerun_without_alignment_stages_removes_earlier_alignments(self, tmp_path):
+        self._run(tmp_path, [])
+        out, result = self._run(tmp_path, ["--aligned", "--no-trim"])
+        assert result["alignment_files"] == {}
+        assert not (out / "alignment").exists()
+        assert "alignment/" not in (out / "reproducibility" / "checksums.sha256").read_text()
+
+    def test_rerun_with_failed_trimming_keeps_only_the_new_alignment(self, tmp_path):
+        self._run(tmp_path, [])
+        out, result = self._run(tmp_path, [], trimal_fails=True)
+        assert result["alignment_files"] == {"aligned": "alignment/aligned.fasta"}
+        assert not (out / "alignment" / "trimmed.fasta").exists()
+
+    def test_rerun_on_an_exported_alignment_does_not_delete_its_own_input(self, tmp_path):
+        """Reusing alignment/aligned.fasta as the input of a rerun into the same
+        output directory must not delete the file before it is read."""
+        out, _ = self._run(tmp_path, [])
+        exported = out / "alignment" / "aligned.fasta"
+        before = exported.read_text()
+        m = get_module()
+        newick, _ = m.get_demo_fallback()
+        with patch.object(m.shutil, "which", return_value="/usr/bin/true"), \
+                patch.object(m, "run_trimal", side_effect=lambda i, o, strategy="-automated1": o.write_text(before)), \
+                patch.object(m, "run_modelfinder", return_value="GTR+G"), \
+                patch.object(m, "run_iqtree_main", return_value=newick):
+            m.main(["--input", str(exported), "--aligned", "--output", str(out)])
+        assert exported.is_file() and exported.read_text() == before
+

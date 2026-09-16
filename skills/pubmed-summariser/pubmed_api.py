@@ -78,29 +78,11 @@ def _format_authors(authors: list[str]) -> str:
     return ", ".join(authors[:3]) + ", et al."
 
 
-def _first_sentence(text: str) -> str:
-    """
-    Extract the first sentence from an abstract.
-
-    Heuristic: split on the first '. ' followed by an uppercase letter.
-    Falls back to first 300 characters if no match.
-    Result is always capped at 300 characters.
-    """
-    if not text:
-        return ""
-    match = re.search(r'\.\s+(?=[A-Z])', text)
-    if match:
-        sentence = text[:match.start() + 1]
-    else:
-        sentence = text[:300]
-    return sentence[:300]
-
-
 def _parse_article(article: ET.Element) -> dict:
     """
     Parse a <PubmedArticle> XML element into a dict.
 
-    Returns keys: title, authors, journal, date, abstract, pmid, url
+    Returns metadata, complete abstract text and ordered abstract_sections.
     """
     mc = article.find("MedlineCitation")
 
@@ -148,9 +130,13 @@ def _parse_article(article: ET.Element) -> dict:
                 date = f"{ep_year}-{ep_month}-{ep_day}" if ep_month and ep_day else (f"{ep_year}-{ep_month}" if ep_month else ep_year)
 
     # Abstract
-    abstract_el = art.find(".//AbstractText") if art is not None else None
-    raw_abstract = (abstract_el.text or "").strip() if abstract_el is not None else ""
-    abstract = _first_sentence(raw_abstract)
+    abstract_elements = art.findall("Abstract/AbstractText") if art is not None else []
+    sections = [
+        {"label": element.get("Label"), "category": element.get("NlmCategory"),
+         "text": "".join(element.itertext()).strip()}
+        for element in abstract_elements
+    ]
+    abstract = "\n\n".join(section["text"] for section in sections if section["text"])
 
     return {
         "title": title,
@@ -158,6 +144,7 @@ def _parse_article(article: ET.Element) -> dict:
         "journal": journal,
         "date": date,
         "abstract": abstract,
+        "abstract_sections": sections,
         "pmid": pmid,
         "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
     }
@@ -176,7 +163,7 @@ def fetch_papers(query: str, max_results: int = 10) -> list[dict]:
         max_results: Number of papers to return (default 10)
 
     Returns:
-        List of dicts with keys: title, authors, journal, date, abstract, pmid, url
+        Paper metadata plus complete abstract and abstract_sections.
         Empty list if no results.
 
     Raises:

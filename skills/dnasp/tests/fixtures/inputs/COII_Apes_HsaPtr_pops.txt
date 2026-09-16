@@ -1,0 +1,11 @@
+Hsa1	Human
+Hsa2	Human
+Hsa3	Human
+Hsa4	Human
+Hsa5	Human
+Hsa6	Human
+Ptr1	Chimp
+Ptr2	Chimp
+Ptr3	Chimp
+Ptr4	Chimp
+Ptr5	Chimp

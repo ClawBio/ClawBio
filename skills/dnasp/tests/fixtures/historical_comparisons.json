@@ -1,0 +1,1328 @@
+{
+  "provenance": "Supplementary_Table_S1_DnaSP6_concordance.md v0.5.0; validation/manuscript_handoff.md B1; extracted 2026-09-13. These are historical observations, not a new GUI run.",
+  "rows": [
+    {
+      "case": "A",
+      "label": "Segregating sites S",
+      "python_display": "89",
+      "dnasp_display": "89",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Total mutations \u03b7 (Eta)",
+      "python_display": "92",
+      "dnasp_display": "92",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Haplotypes h",
+      "python_display": "34",
+      "dnasp_display": "34",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Haplotype diversity Hd",
+      "python_display": "1.000000",
+      "dnasp_display": "1.000",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Variance of Hd",
+      "python_display": "0.000051",
+      "dnasp_display": "0.00005",
+      "historical_outcome": "last displayed digit"
+    },
+    {
+      "case": "A",
+      "label": "Nucleotide diversity \u03c0 (per site)",
+      "python_display": "0.0109765",
+      "dnasp_display": "0.01098",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Avg pairwise differences k",
+      "python_display": "16.1355",
+      "dnasp_display": "16.135",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Watterson \u03b8_W (per site, from S)",
+      "python_display": "0.0148073",
+      "dnasp_display": "0.01481",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "G+C content",
+      "python_display": "0.4282",
+      "dnasp_display": "0.428",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Tajima's D",
+      "python_display": "-0.96639",
+      "dnasp_display": "-0.96639",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Fu & Li D* (no outgroup)",
+      "python_display": "-1.52466",
+      "dnasp_display": "-1.52466",
+      "historical_outcome": "match (DnaSP's standard-mode figure; DnaSP 6's own biallelic/Achaz variant gives -1.46318)",
+      "python_precision": 4,
+      "precision_note": "Historical F* cells pad four-decimal Python values to six places; verified unchanged against d4a90a2. DnaSP mode differences remain separately recorded."
+    },
+    {
+      "case": "A",
+      "label": "Fu & Li F* (no outgroup)",
+      "python_display": "-1.58179",
+      "dnasp_display": "-1.58179",
+      "historical_outcome": "match (DnaSP's standard-mode figure; DnaSP 6's own biallelic/Achaz variant gives -1.47452)",
+      "python_precision": 4,
+      "precision_note": "Historical F* cells pad four-decimal Python values to six places; verified unchanged against d4a90a2. DnaSP mode differences remain separately recorded."
+    },
+    {
+      "case": "A",
+      "label": "Fu & Li D (with outgroup)",
+      "python_display": "-1.77322",
+      "dnasp_display": "-1.51151 (biallelic/Achaz) / -1.77322 (v5-style)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Fu & Li F (with outgroup)",
+      "python_display": "-1.78504",
+      "dnasp_display": "-1.50505 (biallelic/Achaz) / -1.78504 (v5-style)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Fu's Fs",
+      "python_display": "-22.2687",
+      "dnasp_display": "-22.269",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Ramos-Onsins & Rozas R2",
+      "python_display": "0.078642",
+      "dnasp_display": "0.0786",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "ZnS (Kelly 1997)",
+      "python_display": "0.050710",
+      "dnasp_display": "0.0507",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "ZA",
+      "python_display": "0.092614",
+      "dnasp_display": "0.0926",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "ZZ",
+      "python_display": "0.041904",
+      "dnasp_display": "0.0419",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Rm (Hudson & Kaplan 1985)",
+      "python_display": "10",
+      "dnasp_display": "10",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Raggedness r (Harpending 1994)",
+      "python_display": "0.004239",
+      "dnasp_display": "0.0042",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Mismatch: mean",
+      "python_display": "16.1355",
+      "dnasp_display": "16.135",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "Mismatch: n pairwise comparisons",
+      "python_display": "561",
+      "dnasp_display": "561 (n=34 \u2192 C(34,2))",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "SFS folded sites (biallelic only)",
+      "python_display": "86",
+      "dnasp_display": "86",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "A",
+      "label": "SFS singletons (folded)",
+      "python_display": "38",
+      "dnasp_display": "38",
+      "historical_outcome": "match (fix D: was 40; 3 multiallelic sites excluded)"
+    },
+    {
+      "case": "B",
+      "label": "\u03c0 within O(st)",
+      "python_display": "0.006327",
+      "dnasp_display": "0.00633",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "B",
+      "label": "\u03c0 within O(3+4)",
+      "python_display": "0.008092",
+      "dnasp_display": "0.00809",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "B",
+      "label": "Dxy (between)",
+      "python_display": "0.014446",
+      "dnasp_display": "0.01445",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "B",
+      "label": "Da (net, Nei)",
+      "python_display": "0.007237",
+      "dnasp_display": "0.00724",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "B",
+      "label": "Fixed-difference sites (Sf)",
+      "python_display": "2",
+      "dnasp_display": "2",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "B",
+      "label": "Shared mutations (Ss)",
+      "python_display": "12",
+      "dnasp_display": "12",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "B",
+      "label": "Mutations exclusive to O(3+4) (Sx1)",
+      "python_display": "44",
+      "dnasp_display": "44",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "B",
+      "label": "Mutations exclusive to O(st) (Sx2)",
+      "python_display": "34",
+      "dnasp_display": "34",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "B",
+      "label": "reconciliation",
+      "python_display": "92",
+      "dnasp_display": "92",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "B",
+      "label": "Hudson Fst (O(st) vs O(3+4))",
+      "python_display": "0.5010",
+      "dnasp_display": "0.50096",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "Segregating sites S",
+      "python_display": "78",
+      "dnasp_display": "78",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "Total mutations \u03b7",
+      "python_display": "79",
+      "dnasp_display": "79",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "Haplotypes h",
+      "python_display": "9",
+      "dnasp_display": "9",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "Haplotype diversity Hd",
+      "python_display": "0.945455",
+      "dnasp_display": "0.945",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "Nucleotide diversity \u03c0 (per site)",
+      "python_display": "0.0543594",
+      "dnasp_display": "0.05436",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "Avg pairwise differences k",
+      "python_display": "37.1818",
+      "dnasp_display": "37.182",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "Watterson \u03b8_W (per site)",
+      "python_display": "0.0389335",
+      "dnasp_display": "0.03893",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "Tajima's D",
+      "python_display": "1.89080",
+      "dnasp_display": "1.89080",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "MK \u2014 Pn (nonsyn poly)",
+      "python_display": "10",
+      "dnasp_display": "10 (13 under the standard code)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "MK \u2014 Ps (syn poly)",
+      "python_display": "69",
+      "dnasp_display": "69 (66 under the standard code)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "MK \u2014 Dn (nonsyn fixed)",
+      "python_display": "8",
+      "dnasp_display": "8 (9 under the standard code)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "MK \u2014 Ds (syn fixed)",
+      "python_display": "56",
+      "dnasp_display": "56 (55 under the standard code)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "MK \u2014 Neutrality Index",
+      "python_display": "1.0145",
+      "dnasp_display": "1.014 (1.204 under the standard code)",
+      "historical_outcome": "match (DnaSP prints 3 dp)"
+    },
+    {
+      "case": "C",
+      "label": "MK \u2014 \u03b1",
+      "python_display": "-0.0145",
+      "dnasp_display": "-0.014 (-0.204 under the standard code)",
+      "historical_outcome": "match (DnaSP prints 3 dp)"
+    },
+    {
+      "case": "C",
+      "label": "MK \u2014 Fisher's exact P",
+      "python_display": "1.000000",
+      "dnasp_display": "1.000000 (0.816904 under the standard code)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "Ka (dN)",
+      "python_display": "0.025607",
+      "dnasp_display": "0.02561 (0.02960, uncorrected, under the standard code)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "Ks (dS)",
+      "python_display": "0.830109",
+      "dnasp_display": "0.83011 (0.46512, uncorrected, under the standard code)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "\u03c9 = Ka/Ks",
+      "python_display": "0.0308",
+      "dnasp_display": "0.0309 JC / 0.0501 raw (0.042 under the standard code)",
+      "historical_outcome": "last displayed digit only: DnaSP divides its two 5-dp values (0.02561/0.83011 = 0.030851), full precision gives 0.030848"
+    },
+    {
+      "case": "C",
+      "label": "Synonymous sites (mean)",
+      "python_display": "168.222",
+      "dnasp_display": "168.222 (177.278 under the standard code)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "C",
+      "label": "Nonsynonymous sites (mean)",
+      "python_display": "512.778",
+      "dnasp_display": "512.777 (503.722 under the standard code)",
+      "historical_outcome": "last displayed digit only (681 - 168.222 = 512.778)"
+    },
+    {
+      "case": "D",
+      "label": "\u03c0 within Human",
+      "python_display": "0.003411",
+      "dnasp_display": "0.00341",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "D",
+      "label": "\u03c0 within Chimp",
+      "python_display": "0.010234",
+      "dnasp_display": "0.01023",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "D",
+      "label": "Dxy",
+      "python_display": "0.094542",
+      "dnasp_display": "0.09454",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "D",
+      "label": "Da (net)",
+      "python_display": "0.087719",
+      "dnasp_display": "0.08772",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "D",
+      "label": "Fixed-difference sites (Sf)",
+      "python_display": "57",
+      "dnasp_display": "57",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "D",
+      "label": "Shared mutations (Ss)",
+      "python_display": "1",
+      "dnasp_display": "1",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "D",
+      "label": "Mutations exclusive to Chimp (Sx1)",
+      "python_display": "15",
+      "dnasp_display": "15",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "D",
+      "label": "Mutations exclusive to Human (Sx2)",
+      "python_display": "6",
+      "dnasp_display": "6",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "D",
+      "label": "Hudson Fst (Human vs Chimp)",
+      "python_display": "0.9278",
+      "dnasp_display": "0.92784",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "Segregating sites S",
+      "python_display": "258",
+      "dnasp_display": "258",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "Total mutations \u03b7",
+      "python_display": "265",
+      "dnasp_display": "265",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "Haplotypes h",
+      "python_display": "13",
+      "dnasp_display": "13",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "Haplotype diversity Hd",
+      "python_display": "0.970588",
+      "dnasp_display": "0.971",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "Nucleotide diversity \u03c0 (per site)",
+      "python_display": "0.0146258",
+      "dnasp_display": "0.01463",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "Avg pairwise differences k",
+      "python_display": "65.8309",
+      "dnasp_display": "65.831",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "Watterson \u03b8_W (per site)",
+      "python_display": "0.0169551",
+      "dnasp_display": "0.01696",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "Tajima's D",
+      "python_display": "-0.591469",
+      "dnasp_display": "-0.59147",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "Fu & Li D*",
+      "python_display": "0.154256",
+      "dnasp_display": "0.15426",
+      "historical_outcome": "match (standard mode; DnaSP 6's own biallelic/Achaz variant gives 0.24353)",
+      "python_precision": 4,
+      "precision_note": "Historical F* cells pad four-decimal Python values to six places; verified unchanged against d4a90a2. DnaSP mode differences remain separately recorded."
+    },
+    {
+      "case": "E",
+      "label": "Fu & Li F*",
+      "python_display": "-0.072630",
+      "dnasp_display": "-0.07263",
+      "historical_outcome": "match (standard mode; DnaSP 6's own biallelic/Achaz variant gives -0.01339)",
+      "python_precision": 4,
+      "precision_note": "Historical F* cells pad four-decimal Python values to six places; verified unchanged against d4a90a2. DnaSP mode differences remain separately recorded."
+    },
+    {
+      "case": "E",
+      "label": "ZnS",
+      "python_display": "0.526108",
+      "dnasp_display": "0.5261",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "ZA",
+      "python_display": "0.537241",
+      "dnasp_display": "0.5372",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "ZZ",
+      "python_display": "0.011133",
+      "dnasp_display": "0.0111",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "Rm",
+      "python_display": "7",
+      "dnasp_display": "7",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "Raggedness r",
+      "python_display": "0.016328",
+      "dnasp_display": "0.0163",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "E",
+      "label": "Mismatch: n pairwise comparisons",
+      "python_display": "136",
+      "dnasp_display": "136 (n=17 \u2192 C(17,2))",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "F",
+      "label": "Net sites used",
+      "python_display": "46",
+      "dnasp_display": "46",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "F",
+      "label": "Segregating sites S",
+      "python_display": "10",
+      "dnasp_display": "10",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "F",
+      "label": "Total mutations \u03b7",
+      "python_display": "11",
+      "dnasp_display": "11",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "F",
+      "label": "Haplotypes h",
+      "python_display": "4",
+      "dnasp_display": "4",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "F",
+      "label": "Haplotype diversity Hd",
+      "python_display": "1.000000",
+      "dnasp_display": "1.000",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "F",
+      "label": "Variance of Hd",
+      "python_display": "0.031250",
+      "dnasp_display": "0.03125",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "F",
+      "label": "Nucleotide diversity \u03c0 (per site)",
+      "python_display": "0.1195652",
+      "dnasp_display": "0.11957",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "F",
+      "label": "Avg pairwise differences k",
+      "python_display": "5.5000",
+      "dnasp_display": "5.500",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "F",
+      "label": "Watterson \u03b8_W (per site)",
+      "python_display": "0.1185771",
+      "dnasp_display": "0.11858",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "F",
+      "label": "Tajima's D",
+      "python_display": "0.083379",
+      "dnasp_display": "0.08338",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "F",
+      "label": "Fu & Li D*",
+      "python_display": "-0.528065",
+      "dnasp_display": "-0.52807 (v5-style) / -0.49151 (biallelic/Achaz)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "F",
+      "label": "Fu & Li F*",
+      "python_display": "-0.416852",
+      "dnasp_display": "-0.41685 (v5-style) / -0.49151 (biallelic/Achaz)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "G",
+      "label": "\u03b8\u0302 locusA (per site)",
+      "python_display": "0.003414",
+      "dnasp_display": "0.00341",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "G",
+      "label": "\u03b8\u0302 locusB (per site)",
+      "python_display": "0.001707",
+      "dnasp_display": "0.00171",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "G",
+      "label": "T\u0302 (units of 2N)",
+      "python_display": "4.8579",
+      "dnasp_display": "4.858",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "G",
+      "label": "\u03c7\u00b2",
+      "python_display": "0.000000",
+      "dnasp_display": "0.000",
+      "historical_outcome": "match (neutral by construction)"
+    },
+    {
+      "case": "G",
+      "label": "df",
+      "python_display": "1",
+      "dnasp_display": "1 (implied)",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "G",
+      "label": "P-value",
+      "python_display": "1.000000",
+      "dnasp_display": "1.0000",
+      "historical_outcome": "match"
+    },
+    {
+      "case": "H1",
+      "label": "NetSites",
+      "python_display": "99",
+      "dnasp_display": "99",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "S",
+      "python_display": "2",
+      "dnasp_display": "2",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "\u03b7",
+      "python_display": "2",
+      "dnasp_display": "2",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "Hap",
+      "python_display": "3",
+      "dnasp_display": "3",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "Hd",
+      "python_display": "0.688889",
+      "dnasp_display": "0.688889",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "VarHd",
+      "python_display": "0.010782",
+      "dnasp_display": "0.0107822",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "\u03c0",
+      "python_display": "0.0083053",
+      "dnasp_display": "0.0083053",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "\u03b8_k",
+      "python_display": "0.822222",
+      "dnasp_display": "0.822222",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "\u03b8_W(per site)",
+      "python_display": "0.0071411",
+      "dnasp_display": "0.0071411",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "G+C",
+      "python_display": "0.5475",
+      "dnasp_display": "0.547475",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "ZnS",
+      "python_display": "0.107143",
+      "dnasp_display": "0.1071429",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "Tajima D",
+      "python_display": "0.525941",
+      "dnasp_display": "0.525941",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "Fu & Li D*",
+      "python_display": "1.026230",
+      "dnasp_display": "1.026230",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "Fu's Fs",
+      "python_display": "0.108362",
+      "dnasp_display": "0.108362",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "R2",
+      "python_display": "0.205556",
+      "dnasp_display": "0.205556",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H1",
+      "label": "Fu & Li F*",
+      "python_display": "1.009600",
+      "dnasp_display": "0.924654",
+      "historical_outcome": "Achaz vs Simonsen \u2014 expected",
+      "python_precision": 4,
+      "precision_note": "Historical F* cells pad four-decimal Python values to six places; verified unchanged against d4a90a2. DnaSP mode differences remain separately recorded."
+    },
+    {
+      "case": "H2",
+      "label": "NetSites",
+      "python_display": "76",
+      "dnasp_display": "76",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H2",
+      "label": "S",
+      "python_display": "2",
+      "dnasp_display": "2",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H2",
+      "label": "Hap",
+      "python_display": "3",
+      "dnasp_display": "3",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H2",
+      "label": "Hd",
+      "python_display": "0.833333",
+      "dnasp_display": "0.833333",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H2",
+      "label": "VarHd",
+      "python_display": "0.049479",
+      "dnasp_display": "0.0494792",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H2",
+      "label": "\u03c0",
+      "python_display": "0.0153509",
+      "dnasp_display": "0.0153509",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H2",
+      "label": "\u03b8_k",
+      "python_display": "1.166667",
+      "dnasp_display": "1.166667",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H2",
+      "label": "\u03b8_W(per site)",
+      "python_display": "0.0143541",
+      "dnasp_display": "0.0143541",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H2",
+      "label": "G+C",
+      "python_display": "0.4836",
+      "dnasp_display": "0.483553",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H2",
+      "label": "Tajima D",
+      "python_display": "0.591580",
+      "dnasp_display": "0.591580",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H2",
+      "label": "Fu & Li D*",
+      "python_display": "0.591580",
+      "dnasp_display": "0.591580",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H2",
+      "label": "Fu's Fs",
+      "python_display": "-0.657886",
+      "dnasp_display": "-0.657886",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H2",
+      "label": "R2",
+      "python_display": "0.273227",
+      "dnasp_display": "0.273227",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "NetSites",
+      "python_display": "78",
+      "dnasp_display": "78",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "S",
+      "python_display": "2",
+      "dnasp_display": "2",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "Hap",
+      "python_display": "3",
+      "dnasp_display": "3",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "Hd",
+      "python_display": "0.6",
+      "dnasp_display": "0.6",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "VarHd",
+      "python_display": "0.046296",
+      "dnasp_display": "0.0462963",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "\u03c0",
+      "python_display": "0.008547",
+      "dnasp_display": "0.008547",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "\u03b8_k",
+      "python_display": "0.666667",
+      "dnasp_display": "0.666667",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "\u03b8_W",
+      "python_display": "0.0112296",
+      "dnasp_display": "0.0112296",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "G+C",
+      "python_display": "0.5363",
+      "dnasp_display": "0.536325",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "ZnS",
+      "python_display": "0.04",
+      "dnasp_display": "0.04",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "Tajima D",
+      "python_display": "-1.131972",
+      "dnasp_display": "-1.131972",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "Fu & Li D*",
+      "python_display": "-1.155291",
+      "dnasp_display": "-1.155291",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "Fu's Fs",
+      "python_display": "-0.858418",
+      "dnasp_display": "-0.858418",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "R2",
+      "python_display": "0.235702",
+      "dnasp_display": "0.235702",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H3",
+      "label": "Fu & Li F*",
+      "python_display": "-1.195100",
+      "dnasp_display": "-1.154068",
+      "historical_outcome": "Achaz vs Simonsen \u2014 expected",
+      "python_precision": 4,
+      "precision_note": "Historical F* cells pad four-decimal Python values to six places; verified unchanged against d4a90a2. DnaSP mode differences remain separately recorded."
+    },
+    {
+      "case": "H5",
+      "label": "NetSites",
+      "python_display": "150",
+      "dnasp_display": "150",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "S",
+      "python_display": "1",
+      "dnasp_display": "1",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "Hap",
+      "python_display": "2",
+      "dnasp_display": "2",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "Hd",
+      "python_display": "0.666667",
+      "dnasp_display": "0.666667",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "VarHd",
+      "python_display": "0.041667",
+      "dnasp_display": "0.0416667",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "\u03c0",
+      "python_display": "0.0044444",
+      "dnasp_display": "0.0044444",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "\u03b8_k",
+      "python_display": "0.666667",
+      "dnasp_display": "0.666667",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "\u03b8_W",
+      "python_display": "0.0036364",
+      "dnasp_display": "0.0036364",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "G+C",
+      "python_display": "0.3600",
+      "dnasp_display": "0.36",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "Tajima D",
+      "python_display": "1.632993",
+      "dnasp_display": "1.632993",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "Fu & Li D*",
+      "python_display": "1.632993",
+      "dnasp_display": "1.632993",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "Fu's Fs",
+      "python_display": "0.540025",
+      "dnasp_display": "0.540025",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "R2",
+      "python_display": "0.333333",
+      "dnasp_display": "0.333333",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "Fu & Li F*",
+      "python_display": "1.276600",
+      "dnasp_display": "1.632993",
+      "historical_outcome": "Achaz vs Simonsen \u2014 expected",
+      "python_precision": 4,
+      "precision_note": "Historical F* cells pad four-decimal Python values to six places; verified unchanged against d4a90a2. DnaSP mode differences remain separately recorded."
+    },
+    {
+      "case": "I",
+      "label": "Sites",
+      "python_display": "2",
+      "dnasp_display": "2",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "NetSites",
+      "python_display": "1",
+      "dnasp_display": "1",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "S",
+      "python_display": "1",
+      "dnasp_display": "1",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "\u03b7",
+      "python_display": "1",
+      "dnasp_display": "1",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "Hap",
+      "python_display": "2",
+      "dnasp_display": "2",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "Hd",
+      "python_display": "0.100000",
+      "dnasp_display": "0.1",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "\u03c0",
+      "python_display": "0.100000",
+      "dnasp_display": "0.1",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "\u03b8_k",
+      "python_display": "0.100000",
+      "dnasp_display": "0.1",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "\u03b8_W (per site)",
+      "python_display": "0.281870",
+      "dnasp_display": "0.281870",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "Tajima's D",
+      "python_display": "-1.164391",
+      "dnasp_display": "-1.164391",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "Fu & Li D*",
+      "python_display": "-1.539595",
+      "dnasp_display": "-1.539595",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "Fu's Fs",
+      "python_display": "-0.879302",
+      "dnasp_display": "-0.879302",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "R2",
+      "python_display": "0.217945",
+      "dnasp_display": "0.217945",
+      "historical_outcome": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "Fu & Li F*",
+      "python_display": "-1.647700",
+      "dnasp_display": "-1.513882",
+      "historical_outcome": "Achaz (RAD) vs Simonsen \u2014 expected",
+      "python_precision": 4,
+      "precision_note": "Historical F* cells pad four-decimal Python values to six places; verified unchanged against d4a90a2. DnaSP mode differences remain separately recorded."
+    }
+  ],
+  "excluded": [
+    {
+      "case": "A",
+      "label": "Fay & Wu H",
+      "reason": "not comparable \u2014 DnaSP 6 only reports normalized Hn = -0.88788 (biallelic) / -0.47762 (v5); ClawBio reports raw per-site H"
+    },
+    {
+      "case": "A",
+      "label": "Zeng et al. E",
+      "reason": "not comparable \u2014 DnaSP 6 only reports normalized ZE = -0.12435 (biallelic); ClawBio reports raw per-site E"
+    },
+    {
+      "case": "A",
+      "label": "Transitions (Ts, one per biallelic site, polarised)",
+      "reason": "not comparable \u2014 DnaSP 6 has no transition/transversion panel"
+    },
+    {
+      "case": "A",
+      "label": "Transversions (Tv, one per biallelic site, polarised)",
+      "reason": "not comparable \u2014 as above"
+    },
+    {
+      "case": "A",
+      "label": "Ts/Tv",
+      "reason": "not comparable \u2014 as above"
+    },
+    {
+      "case": "A",
+      "label": "Ts/Tv biallelic sites classified",
+      "reason": "not comparable \u2014 as above"
+    },
+    {
+      "case": "A",
+      "label": "Polarised segregating sites (unfolded, outgroup)",
+      "reason": "not comparable \u2014 no DnaSP 6 output panel produces this figure"
+    },
+    {
+      "case": "C",
+      "label": "ENC (Wright 1990)",
+      "reason": "not directly comparable \u2014 DnaSP 6 GUI reports ENC per sequence, not one pooled value for the set"
+    },
+    {
+      "case": "C",
+      "label": "Transitions (Ts, one per biallelic site, polarised)",
+      "reason": "not comparable \u2014 DnaSP 6 has no transition/transversion panel"
+    },
+    {
+      "case": "C",
+      "label": "Transversions (Tv, one per biallelic site, polarised)",
+      "reason": "not comparable \u2014 as above"
+    },
+    {
+      "case": "C",
+      "label": "Ts/Tv",
+      "reason": "not comparable \u2014 as above"
+    },
+    {
+      "case": "C",
+      "label": "Fay & Wu H",
+      "reason": "not comparable \u2014 DnaSP 6 only reports normalized Hn = -0.20388 (biallelic) / -0.19226 (v5); ClawBio reports raw per-site H"
+    },
+    {
+      "case": "C",
+      "label": "Zeng et al. E",
+      "reason": "not comparable \u2014 DnaSP 6 only reports normalized ZE = 1.98272; ClawBio reports raw per-site E"
+    },
+    {
+      "case": "F",
+      "label": "Transitions",
+      "reason": "not comparable \u2014 DnaSP 6 has no transition/transversion panel"
+    },
+    {
+      "case": "F",
+      "label": "Transversions",
+      "reason": "not comparable \u2014 as above"
+    },
+    {
+      "case": "F",
+      "label": "Ts/Tv",
+      "reason": "not comparable \u2014 as above"
+    },
+    {
+      "case": "G",
+      "label": "locusA: n / S / L / D / Ldiv",
+      "reason": "(input)"
+    },
+    {
+      "case": "G",
+      "label": "locusB: n / S / L / D / Ldiv",
+      "reason": "(input)"
+    },
+    {
+      "case": "H2",
+      "label": "ZnS",
+      "reason": "small-n cutoff"
+    },
+    {
+      "case": "H4",
+      "label": "S = 0, all statistics",
+      "reason": "\u2713"
+    },
+    {
+      "case": "H5",
+      "label": "ZnS",
+      "reason": "Undefined"
+    },
+    {
+      "case": "I",
+      "label": "Sample size (haplotypes)",
+      "reason": "\u2713"
+    },
+    {
+      "case": "I",
+      "label": "ZnS",
+      "reason": "\u2713"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "schema": "clawbio.skill_intents.v1",
+  "skill": "dnasp",
+  "description": "Plan explicit DnaSP demo runs; a real population-genetics analysis needs the user's alignment or VCF, and --analysis selects modules other than the default polymorphism summary.",
+  "aliases": [
+    "dnasp",
+    "dnasp6",
+    "dna polymorphism",
+    "population genetics statistics"
+  ],
+  "routes": [
+    {
+      "intent_id": "demo_report",
+      "description": "Run the DnaSP demo on the built-in synthetic alignment.",
+      "trigger_terms": [
+        "dnasp demo",
+        "dna polymorphism demo",
+        "tajima's d demo",
+        "population genetics demo"
+      ],
+      "demo_policy": "only_when_explicit",
+      "plan": [
+        {
+          "kind": "skill_run",
+          "skill": "dnasp",
+          "demo": true
+        }
+      ]
+    }
+  ]
+}

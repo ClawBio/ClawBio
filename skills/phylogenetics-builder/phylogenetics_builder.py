@@ -744,6 +744,39 @@ def write_checksums(files: list[Path], output_dir: Path, repro_dir: Path) -> Non
     (repro_dir / "checksums.sha256").write_text("\n".join(checksums) + "\n")
 
 
+def export_alignments(
+    output_dir: Path,
+    aligned: Path | None,
+    trimmed: Path | None,
+    protect: Path | None = None,
+) -> dict[str, str]:
+    """Copy the alignments produced by this run into ``output_dir/alignment``.
+
+    The pipeline works in a temporary directory, so without this copy the
+    alignment is lost when the run ends. A managed file whose stage did not
+    produce output in this run is removed, so a rerun into the same directory
+    never reports an alignment left by an earlier run. Returns
+    ``{"aligned"|"trimmed": path}`` with paths relative to ``output_dir``.
+
+    ``protect`` is never deleted: a rerun may read an exported alignment as its
+    own input.
+    """
+    protected = protect.resolve() if protect is not None else None
+    dest_dir = output_dir / "alignment"
+    exported: dict[str, str] = {}
+    for key, source in (("aligned", aligned), ("trimmed", trimmed)):
+        dest = dest_dir / f"{key}.fasta"
+        if source is not None and source.is_file():
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, dest)
+            exported[key] = str(dest.relative_to(output_dir))
+        elif dest.is_file() and dest.resolve() != protected:
+            dest.unlink()
+    if dest_dir.is_dir() and not any(dest_dir.iterdir()):
+        dest_dir.rmdir()
+    return exported
+
+
 # ── Main pipeline ──────────────────────────────────────────────────────────────
 
 
@@ -791,6 +824,10 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
         print(f"Error validating input: {exc}", file=sys.stderr)
         sys.exit(1)
 
+    # Drop alignments left by an earlier run, once the input is known to exist
+    # and to be readable: a rerun may take an exported alignment as its input.
+    export_alignments(output_dir, None, None, protect=input_file)
+
     # ── Pipeline ────────────────────────────────────────────────────────────
     pipeline_steps: list[str] = []
     engine_used = args.engine
@@ -799,6 +836,9 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
     newick = ""
     model = args.model or ""
     run_mode = "live"
+    produced_aligned: Path | None = None
+    produced_trimmed: Path | None = None
+    alignment_files: dict[str, str] = {}
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
@@ -820,6 +860,7 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
                 try:
                     run_msa(input_file, args.aligner, aligned_fasta)
                     current_fasta = aligned_fasta
+                    produced_aligned = aligned_fasta
                     pipeline_steps.append(f"msa:{args.aligner}")
                 except Exception as exc:
                     if args.demo:
@@ -842,6 +883,7 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
                 try:
                     run_trimal(current_fasta, trimmed_fasta)
                     current_fasta = trimmed_fasta
+                    produced_trimmed = trimmed_fasta
                     trimmed = True
                     pipeline_steps.append("trim:trimal")
                 except Exception as exc:
@@ -852,6 +894,11 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
                     pipeline_steps.append(f"trim:failed({exc.__class__.__name__})")
             else:
                 pipeline_steps.append("trim:skipped(trimal-not-found)")
+
+        # Keep the alignments before the temporary directory is removed
+        alignment_files = export_alignments(
+            output_dir, produced_aligned, produced_trimmed, protect=input_file
+        )
 
         # Stage 3: Model selection
         iqtree_bin = shutil.which("iqtree2") or shutil.which("iqtree")
@@ -982,11 +1029,20 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
         "Internal node support values in `tables/branch_support.csv`.",
         "Proportional phylogram at `figures/phylogram.png`.",
     ]
+    if alignment_files:
+        chat_summary.append(
+            "Alignment(s) saved: "
+            + ", ".join(f"`{path}`" for path in alignment_files.values())
+            + "."
+        )
     preferred_artifacts = [
         {"type": "figure", "path": str(img_file.relative_to(output_dir))},
         {"type": "report", "path": "report.md"},
         {"type": "table", "path": str(csv_file.relative_to(output_dir))},
         {"type": "tree", "path": "phylo_tree.nwk"},
+    ]
+    preferred_artifacts += [
+        {"type": "alignment", "path": path} for path in alignment_files.values()
     ]
     suggested_actions = [
         "Open figures/phylogram.png to inspect the tree topology.",
@@ -994,6 +1050,12 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
         "Try --bootstrap all for triple support (UFBoot + aLRT + aBayes).",
         "Annotate the tree in FigTree or ggtree (R) for publication quality.",
     ]
+    if "aligned" in alignment_files:
+        suggested_actions.append(
+            "Reuse alignment/aligned.fasta for population-genetics statistics "
+            "(for example with the dnasp skill); use the untrimmed file, because "
+            "trimming removes alignment columns."
+        )
     if engine_used == "precomputed":
         suggested_actions.insert(0, "Install IQ-TREE2 or RAxML-NG for live inference.")
 
@@ -1010,6 +1072,7 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
         "input_file": str(input_file),
         "output_dir": str(output_dir),
         "pipeline_steps": pipeline_steps,
+        "alignment_files": alignment_files,
         "run_mode": run_mode,
         "status": "success",
         "chat_summary_lines": chat_summary,
@@ -1072,6 +1135,12 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
         "| Newick tree | `phylo_tree.nwk` |",
         "| Phylogram figure | `figures/phylogram.png` |",
         "| Branch support table | `tables/branch_support.csv` |",
+    ]
+    report_lines += [
+        f"| {'Alignment' if key == 'aligned' else 'Trimmed alignment'} | `{path}` |"
+        for key, path in alignment_files.items()
+    ]
+    report_lines += [
         "| Reproducibility bundle | `reproducibility/` |",
         "",
         "---",
@@ -1085,7 +1154,12 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
     write_reproducibility_bundle(
         repro_dir, input_file, output_dir, args, pipeline_steps
     )
-    write_checksums([tree_file, csv_file, img_file, result_json], output_dir, repro_dir)
+    write_checksums(
+        [tree_file, csv_file, img_file, result_json]
+        + [output_dir / path for path in alignment_files.values()],
+        output_dir,
+        repro_dir,
+    )
 
     print(f"Phylogenetics Builder complete. Results in: {output_dir}")
 

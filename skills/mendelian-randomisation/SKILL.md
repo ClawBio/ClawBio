@@ -116,7 +116,7 @@ You are **Mendelian Randomisation**, a specialised ClawBio agent for causal infe
 
 | Format | Extension | Required Fields | Example |
 |--------|-----------|-----------------|---------|
-| Harmonised instruments JSON | `.json` | SNP, effect_allele, other_allele, eaf, beta_exposure, se_exposure, pval_exposure, beta_outcome, se_outcome, pval_outcome | `demo_instruments.json` |
+| Harmonised instruments JSON | `.json` | SNP, effect_allele, other_allele, eaf, beta_exposure, se_exposure, pval_exposure, beta_outcome, se_outcome, pval_outcome; optional `n_exposure` / `n_outcome` (sample sizes, needed for a Steiger p-value) | `demo_instruments.json` |
 
 ## Workflow
 
@@ -153,44 +153,59 @@ Expected output: A full MR report for 30 synthetic BMI → T2D instruments showi
 ## Algorithm / Methodology
 
 1. **IVW**: beta = sum(w * bx * by) / sum(w * bx²), with multiplicative random-effects variance inflation (Burgess et al., 2013)
-2. **MR-Egger**: Weighted linear regression of by on bx with intercept; slope = causal estimate, intercept = pleiotropy (Bowden et al., 2015)
-3. **Weighted Median**: Median of Wald ratios weighted by inverse-variance; consistent when ≥50% weight from valid instruments (Bowden et al., 2016)
-4. **Weighted Mode**: Kernel density mode of weighted Wald ratios (Hartwig et al., 2017)
+2. **MR-Egger**: Weighted linear regression of by on bx with intercept; slope = causal estimate, intercept = pleiotropy (Bowden et al., 2015). Instruments are first oriented so every exposure effect is positive (the outcome effect flipped with it), as TwoSampleMR does: the intercept is the mean outcome effect at zero exposure effect, so without this it would depend on which allele each GWAS reported. An exposure effect of exactly zero counts as positive, so that instrument keeps its outcome effect (TwoSampleMR's `sign0`). Reported as **not applicable**, with a stated reason, when it is undefined on the given instruments: fewer than 3 of them (it fits two parameters, so below 3 there is no residual degree of freedom), or exposure effects too close to identical for the slope to be identified. Never a number in those cases.
+3. **Weighted Median**: Median of Wald ratios weighted by inverse-variance; consistent when ≥50% weight from valid instruments (Bowden et al., 2016, doi:10.1002/gepi.21965; PMID 27061298)
+4. **Weighted Mode**: Mode of the inverse-variance weighted kernel density of the Wald ratios, bandwidth `phi` x the modified Silverman rule `0.9 min(sd, 1.4826 mad) / L^(1/5)`, standard error from a parametric bootstrap (Hartwig et al., 2017, doi:10.1093/ije/dyx102; PMID 29040600; as implemented in TwoSampleMR `mr_weighted_mode`)
 
 **Key thresholds**:
 - F-statistic > 10 for instrument strength (Staiger & Stock, 1997)
 - I²_GX > 0.9 for MR-Egger validity; SIMEX recommended below (Bowden et al., 2016)
 - Cochran's Q P < 0.05 indicates heterogeneity
-- Egger intercept P < 0.05 indicates directional pleiotropy
+- Egger intercept P < 0.05 indicates directional pleiotropy. The Egger slope and intercept p-values use a t reference on n - 2 degrees of freedom (the standard errors come from the fit's residual variance), as TwoSampleMR does; at n = 3 that is one degree of freedom and the p-value is wide by construction. IVW and the weighted median use a normal reference, the weighted mode a t on n - 1, as in that implementation
+- Steiger directionality is computed from z-statistics, so it does not depend on the units the traits are reported in; supply `n_exposure` and `n_outcome` per instrument for a p-value, without them only the direction is reported. The variance explained behind that p-value uses the continuous-trait conversion on both sides, so this version assumes the exposure and the outcome are continuous traits. A binary exposure or outcome in log odds is not supported (it needs case and control counts and the prevalence, which the input does not carry), and the note on the Steiger row states the assumption
+- MR-Egger, weighted median and weighted mode each need >= 3 instruments (MR-Egger also needs at least two distinct exposure effects); below that each is reported as not applicable rather than as a number. IVW is defined at n = 1, where it is the single Wald ratio
 
 ## Example Output
 
 ```markdown
 # Mendelian Randomisation Report
 
+**Generated**: YYYY-MM-DD HH:MM:SS UTC
 **Exposure**: Body mass index (BMI)
 **Outcome**: Type 2 diabetes (T2D)
 **Instruments**: 30 SNPs
+**Mode**: Demo (cached data, offline)
 
 ## MR Estimates
 
 | Method | Estimate | SE | 95% CI | P-value |
 |--------|----------|----|--------|---------|
 | IVW | 0.5979 | 0.0369 | [0.5255, 0.6702] | 5.17e-59 |
-| MR-Egger | 0.5989 | 0.0391 | [0.5223, 0.6756] | 6.62e-53 |
+| MR-Egger | 0.6022 | 0.0816 | [0.4423, 0.7621] | 4.87e-08 |
 | Weighted Median | 0.6001 | 0.0469 | [0.5081, 0.6921] | 2.07e-37 |
-| Weighted Mode | 0.5989 | 0.0144 | [0.5708, 0.6271] | 0.00e+00 |
+| Weighted Mode | 0.6031 | 0.0705 | [0.4648, 0.7413] | 2.03e-09 |
 
 ## Sensitivity Analysis
 
-| Test | Result | Interpretation |
-|------|--------|----------------|
-| Cochran's Q | 0.73 (P=1.00) | No heterogeneity |
-| Egger intercept | 0.0001 (P=0.93) | No pleiotropy |
-| Mean F-statistic | 70.6 | Strong instruments |
-| Steiger direction | Correct (P<0.001) | Confirmed |
+| Test | Result | P-value | Interpretation |
+|------|--------|---------|----------------|
+| Cochran's Q | 0.73 (df=29) | 1.0000 | No significant heterogeneity |
+| Egger intercept | -0.0002 | 0.9526 | No directional pleiotropy |
+| Mean F-statistic | 70.6 | — | Strong instruments |
+| Weak instruments (F<10) | 0/30 | — | None |
+| I²_GX | 0.9856 | — | Adequate |
+| Steiger direction | Correct | not computed | Direction consistent with exposure → outcome; significance not assessable without sample sizes; no sample sizes supplied, so the direction is read from the z-statistics under the assumption that the exposure and outcome studies are of comparable size |
 
-*ClawBio is a research tool. Not a medical device.*
+## Interpretation
+
+The IVW estimate suggests a positive causal effect of Body mass index (BMI) on Type 2 diabetes (T2D)
+(beta = 0.5979, 95% CI [0.5255, 0.6702], P = 5.17e-59).
+
+Sensitivity analyses show consistent estimates across IVW, MR-Egger, Weighted Median, Weighted Mode, supporting a robust causal inference.
+
+---
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
 ```
 
 ## Output Structure
@@ -230,6 +245,10 @@ output_directory/
 
 - **Ignoring MR-Egger intercept**: You will want to report a significant Egger intercept alongside a significant IVW and claim "robust causal evidence." Do not. A significant intercept means directional pleiotropy is present. If Egger intercept P < 0.05, the IVW estimate is biased and the Egger slope should be preferred. The skill's report narrative explicitly flags this.
 
+- **Reading a not-applicable estimator as a failure**: You will want to treat a `not_applicable` row as the run having broken. Do not. Below 3 instruments none of MR-Egger, weighted median or weighted mode is defined (and MR-Egger also needs two distinct exposure effects to identify a slope), so each is reported as undefined rather than imprecise: in `result.json` (`"applicable": false` with a `reason`, no numeric fields), in `mr_results.tsv` (`not_applicable` in every numeric column plus a `note`) and in the report, which then says the IVW estimate stands alone. A consumer that expects a number in every estimate row must check `applicable` first.
+
+- **Treating an empty instrument set as an analysis**: You will want to hand the pipeline whatever survived instrument selection and read whatever comes back. Do not, without checking that anything survived. Zero instruments is not an analysis whose estimators are unavailable, it is the absence of the analysis, so the pipeline raises `NoInstrumentsError` (a `ValueError`) before creating the output directory and writes nothing at all; the CLI reports it as a bad argument and exits non-zero. The realistic route here is not an empty input file but a p-value threshold, LD clumping step or harmonisation that removed every SNP, so a caller that catches this should say which step emptied the set.
+
 ## Safety
 
 - **Local-first**: Demo mode is fully offline with cached data. Live mode contacts IEU OpenGWAS API (public, unauthenticated) for summary statistics only — no patient data uploaded
@@ -255,7 +274,7 @@ The agent dispatches and explains. The skill (Python) executes. The agent must N
 
 **Chaining contract**:
 - **Input**: JSON with `instruments` array; each instrument has `SNP`, `beta_exposure`, `se_exposure`, `pval_exposure`, `beta_outcome`, `se_outcome`, `pval_outcome`, `effect_allele`, `other_allele`, `eaf`, `f_statistic`
-- **Output**: `result.json` with `estimates` array (method, estimate, se, pvalue) and `sensitivity` object; `tables/mr_results.tsv` for downstream consumption
+- **Output**: `result.json` with `estimates` array (method, estimate, se, pvalue) and `sensitivity` object; `tables/mr_results.tsv` for downstream consumption. An estimator that does not apply appears as `{"method", "applicable": false, "reason", "n_snps"}` with no numeric fields, and as `not_applicable` in every numeric column of the TSV plus a `note` column. `result.json` is written with `allow_nan=False`, so it is always valid JSON per RFC 8259 or it is not written at all.
 
 ## Maintenance
 
@@ -265,11 +284,11 @@ The agent dispatches and explains. The skill (Python) executes. The agent must N
 
 ## Citations
 
-- [Burgess et al. (2013)](https://pubmed.ncbi.nlm.nih.gov/23569189/) — IVW method. *Genet Epidemiol* 37:658–665
+- [Burgess et al. (2013)](https://pubmed.ncbi.nlm.nih.gov/24114802/) — IVW method. *Genet Epidemiol* 37:658–665
 - [Bowden et al. (2015)](https://pubmed.ncbi.nlm.nih.gov/26050253/) — MR-Egger. *Int J Epidemiol* 44:512–525
-- [Bowden et al. (2016)](https://pubmed.ncbi.nlm.nih.gov/26892547/) — Weighted median. *Genet Epidemiol* 40:304–314
+- [Bowden et al. (2016)](https://pubmed.ncbi.nlm.nih.gov/27061298/) — Weighted median. *Genet Epidemiol* 40:304–314
 - [Hartwig et al. (2017)](https://pubmed.ncbi.nlm.nih.gov/29040600/) — Weighted mode. *Int J Epidemiol* 46:1985–1998
 - [Verbanck et al. (2018)](https://pubmed.ncbi.nlm.nih.gov/29686387/) — MR-PRESSO. *Nature Genetics* 50:693–698
-- [Hemani et al. (2017)](https://pubmed.ncbi.nlm.nih.gov/28877894/) — Steiger test. *PLOS Genetics* 13:e1007081
-- [Skrivankova et al. (2021)](https://pubmed.ncbi.nlm.nih.gov/34698778/) — STROBE-MR. *BMJ* 375:n2233
+- [Hemani et al. (2017)](https://pubmed.ncbi.nlm.nih.gov/29149188/) — Steiger test. *PLOS Genetics* 13:e1007081
+- [Skrivankova et al. (2021)](https://pubmed.ncbi.nlm.nih.gov/34702754/) — STROBE-MR. *BMJ* 375:n2233
 - [Staiger & Stock (1997)](https://doi.org/10.2307/2171753) — Weak instruments. *Econometrica* 65:557–586
