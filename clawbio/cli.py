@@ -332,14 +332,14 @@ SKILLS = {
     },
     "dnasp": {
         "script": SKILLS_DIR / "dnasp" / "dnasp.py",
+        # DnaSP validates its alternative --vcf and --hka-file inputs itself.
+        "no_input_required": True,
+        "extra_path_flags": {"--vcf", "--input2", "--pop-file", "--hka-file"},
         "demo_args": ["--demo"],
         "description": "DnaSP 6 population genetics (Pi, Tajima's D, Fu & Li, Fay & Wu, MK, Ka/Ks, Fst, and more)",
         "allowed_extra_flags": {
-            "--fasta", "--outgroup", "--pop-map", "--window", "--step",
-            "--all", "--pi", "--theta", "--tajima", "--fuliD", "--fuliF",
-            "--hka", "--mk", "--kaks", "--r2", "--fufs", "--sfs",
-            "--tstv", "--codon", "--faywu", "--fst",
-            "--n-sim", "--sim-seed",
+            "--analysis", "--input2", "--outgroup", "--pop-file", "--hka-file",
+            "--genetic-code", "--window", "--step", "--vcf", "--region", "--vcf-merge",
         },
         "accepts_genotypes": False,
     },
@@ -1571,6 +1571,7 @@ def run_skill(
     if extra_args:
         allowed = skill_info.get("allowed_extra_flags", set())
         flags_without_values = skill_info.get("allowed_extra_flags_without_values", set())
+        path_flags = skill_info.get("extra_path_flags", set())
         blocked = {"--input", "--output", "--demo"}
         # nf-core parameters are snake_case; the pipeline wrappers expose them as
         # hyphenated flags. For those skills, treat the two spellings as
@@ -1593,6 +1594,8 @@ def run_skill(
                 continue
             if flag in allowed:
                 _name, sep, value = token.partition("=")
+                if sep and flag in path_flags:
+                    value = str(Path(value).expanduser().resolve())
                 filtered.append(f"{flag}={value}" if sep else flag)
                 if (
                     not sep
@@ -1601,7 +1604,10 @@ def run_skill(
                     and _key(extra_args[i + 1]) not in allowed
                     and _key(extra_args[i + 1]) not in blocked
                 ):
-                    filtered.append(extra_args[i + 1])
+                    value = extra_args[i + 1]
+                    if flag in path_flags:
+                        value = str(Path(value).expanduser().resolve())
+                    filtered.append(value)
                     i += 1
             i += 1
         cmd.extend(filtered)

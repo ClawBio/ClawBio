@@ -1,0 +1,11 @@
+Indiv1P1 Population1
+Indiv2P1 Population1
+Indiv3P1 Population1
+Indiv4P1 Population1
+Indiv5P2 Population2
+Indiv6P2 Population2
+Indiv7P2 Population2
+Indiv8P2 Population2
+Indiv9P2 Population2
+Indiv10P2 Population2
+Indiv11P2 Population2
