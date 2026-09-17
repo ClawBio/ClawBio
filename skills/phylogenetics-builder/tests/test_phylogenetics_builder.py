@@ -815,8 +815,22 @@ class TestIntegrationMSA:
 # ── Alignment export ───────────────────────────────────────────────────────────
 
 
+def trim_stub_output(aligned_text):
+    """What the trimAl stub writes: the stage's own input with every sequence cut
+    to its first 40 columns. Derived from the input, so a pipeline that hands
+    trimAl the wrong file is caught, yet distinguishable from the aligned export."""
+    out = []
+    for line in aligned_text.splitlines():
+        out.append(line if line.startswith(">") else line[:40])
+    return "\n".join(out) + "\n"
+
+
 class TestAlignmentExport:
-    """Alignments produced in the temporary working directory are kept."""
+    """Alignments produced in the temporary working directory are kept.
+
+    The trimAl stub writes TRIMMED_STUB rather than a copy of the input, so a
+    test cannot pass by exporting the aligned file twice.
+    """
 
     def _run(self, tmp_path, extra_args, trimal_fails=False):
         m = get_module()
@@ -828,7 +842,9 @@ class TestAlignmentExport:
         def fake_trimal(input_fasta, output_fasta, strategy="-automated1"):
             if trimal_fails:
                 raise RuntimeError("trimAl failed")
-            output_fasta.write_text(DEMO_INPUT.read_text().replace("-", ""))
+            # trimAl must be handed the alignment, not the original input.
+            assert input_fasta.read_text() == DEMO_INPUT.read_text()
+            output_fasta.write_text(trim_stub_output(input_fasta.read_text()))
 
         out = tmp_path / "out"
         with patch.object(m.shutil, "which", return_value="/usr/bin/true"), \
@@ -846,7 +862,9 @@ class TestAlignmentExport:
             "trimmed": "alignment/trimmed.fasta",
         }
         assert (out / "alignment" / "aligned.fasta").read_text() == DEMO_INPUT.read_text()
-        assert (out / "alignment" / "trimmed.fasta").is_file()
+        expected_trimmed = trim_stub_output(DEMO_INPUT.read_text())
+        assert (out / "alignment" / "trimmed.fasta").read_text() == expected_trimmed
+        assert expected_trimmed != DEMO_INPUT.read_text()
         artifact_paths = {a["path"] for a in result["preferred_artifacts"]}
         assert {"alignment/aligned.fasta", "alignment/trimmed.fasta"} <= artifact_paths
         checksums = (out / "reproducibility" / "checksums.sha256").read_text()
@@ -886,4 +904,29 @@ class TestAlignmentExport:
                 patch.object(m, "run_iqtree_main", return_value=newick):
             m.main(["--input", str(exported), "--aligned", "--output", str(out)])
         assert exported.is_file() and exported.read_text() == before
+
+    def test_rerun_on_an_exported_alignment_does_not_overwrite_its_own_input(self, tmp_path):
+        """A rerun whose input is alignment/trimmed.fasta must not rewrite that file
+        with this run's trimAl output: result.json and the reproducibility bundle
+        name it as the input, so its bytes have to stay as they were read."""
+        out, _ = self._run(tmp_path, [])
+        exported = out / "alignment" / "trimmed.fasta"
+        before = exported.read_bytes()
+        m = get_module()
+        newick, _ = m.get_demo_fallback()
+
+        def fake_trimal(input_fasta, output_fasta, strategy="-automated1"):
+            output_fasta.write_text(trim_stub_output(input_fasta.read_text()).replace("ACGT", "TGCA"))
+
+        with patch.object(m.shutil, "which", return_value="/usr/bin/true"), \
+                patch.object(m, "run_trimal", side_effect=fake_trimal), \
+                patch.object(m, "run_modelfinder", return_value="GTR+G"), \
+                patch.object(m, "run_iqtree_main", return_value=newick):
+            m.main(["--input", str(exported), "--aligned", "--output", str(out)])
+        result = json.loads((out / "result.json").read_text())
+        assert exported.read_bytes() == before
+        assert "trimmed" not in result["alignment_files"]
+        assert result["input_file"] == str(exported)
+        assert str(exported) in (out / "reproducibility" / "commands.sh").read_text()
+        assert any("was not exported" in alert for alert in result["contract_alerts"])
 

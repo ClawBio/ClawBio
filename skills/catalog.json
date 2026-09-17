@@ -3314,7 +3314,7 @@
       "name": "phylogenetics-builder",
       "cli_alias": "phylo",
       "description": "End-to-end ML phylogenetic tree inference — MSA, trimming, ModelFinder, IQ-TREE2/RAxML-NG.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "status": "mvp",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
