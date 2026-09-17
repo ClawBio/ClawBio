@@ -25,10 +25,18 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 # Skills whose full demo payload ships so their --demo runs offline out of the box.
 HEADLINE_SKILLS = {"pharmgx-reporter", "drug-photo", "gwas-lookup", "just-prs-mcp"}
 
+# Code licences that may ship inside the MIT wheel.
+WHEEL_LICENCES = {"MIT", "Apache-2.0"}
+
 # Skills whose code licence cannot be redistributed inside the MIT wheel. They
 # stay in the repository as folders labelled by licence and are excluded here.
 # Kept in step with FOLDER_ONLY in tests/test_licence_policy.py by a test.
-WHEEL_EXCLUDED_SKILLS = {"fastreer", "wes-clinical-report-en"}
+#
+# This list is a declaration, not the gate: _unredistributable_skills() below
+# re-reads every SKILL.md at build time, so a folder that never reaches
+# skills/catalog.json (generate_catalog.py has its own EXCLUDED_FOLDERS) still
+# cannot slip into the wheel.
+WHEEL_EXCLUDED_SKILLS = {"fastreer", "wes-clinical-report-en", "wes-clinical-report-es"}
 
 # Logic/source files included for every skill regardless of size.
 LOGIC_SUFFIXES = {".md", ".py", ".yaml", ".yml", ".sh", ".cff", ".toml", ".cfg"}
@@ -47,6 +55,43 @@ SKIP_DIR_NAMES = {
 }
 SKIP_FILE_NAMES = {".DS_Store", ".gitignore", ".gitkeep"}
 SKIP_SUFFIXES = {".pyc", ".pyo"}
+
+
+def _declared_licence(skill_md: Path) -> str:
+    """Read `license:` from a SKILL.md YAML frontmatter block.
+
+    Deliberately a local copy of scripts/generate_catalog.py's frontmatter
+    reader: scripts/ is not in the sdist (see tool.hatch.build.targets.sdist),
+    so importing it here would break any wheel built from an unpacked sdist.
+    """
+    lines = skill_md.read_text(encoding="utf-8", errors="ignore").splitlines()
+    if not lines or lines[0].strip() != "---":
+        return ""
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        # lstrip so a licence nested under `metadata:` is found too; the
+        # startswith still cannot match `model_license:`, which begins `model_`.
+        stripped = line.lstrip()
+        if stripped.startswith("license:"):
+            return stripped.split(":", 1)[1].strip().strip("\"'")
+    return ""
+
+
+def _unredistributable_skills(skills_dir: Path) -> set[str]:
+    """Every skill folder on disk whose declared code licence may not ship.
+
+    A blank licence counts as unredistributable: the wheel is MIT, and a folder
+    that does not say what it is cannot be shown to be redistributable.
+    """
+    excluded = set(WHEEL_EXCLUDED_SKILLS)
+    for folder in skills_dir.iterdir():
+        skill_md = folder / "SKILL.md"
+        if not folder.is_dir() or not skill_md.is_file():
+            continue
+        if _declared_licence(skill_md) not in WHEEL_LICENCES:
+            excluded.add(folder.name)
+    return excluded
 
 
 def _keep_for_non_headline(path: Path) -> bool:
@@ -68,6 +113,7 @@ class CustomBuildHook(BuildHookInterface):
     def initialize(self, version, build_data):  # noqa: D401 - hatchling interface
         root = Path(self.root)
         force_include = build_data.setdefault("force_include", {})
+        excluded_skills = _unredistributable_skills(root / "skills")
 
         for base in ("skills", "examples"):
             base_dir = root / base
@@ -85,7 +131,7 @@ class CustomBuildHook(BuildHookInterface):
 
                 if base == "skills":
                     skill = rel.parts[1] if len(rel.parts) > 1 else ""
-                    if skill in WHEEL_EXCLUDED_SKILLS:
+                    if skill in excluded_skills:
                         continue
                     if skill not in HEADLINE_SKILLS and not _keep_for_non_headline(path):
                         continue

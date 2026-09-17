@@ -10,10 +10,15 @@ disabled tomorrow.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CATALOG = ROOT / "skills" / "catalog.json"
+SKILLS_DIR = ROOT / "skills"
+CATALOG = SKILLS_DIR / "catalog.json"
+
+sys.path.insert(0, str(ROOT / "scripts"))
+from generate_catalog import parse_yaml_frontmatter  # noqa: E402
 
 # Code licences that may ship inside the MIT wheel.
 WHEEL_LICENCES = {"MIT", "Apache-2.0"}
@@ -24,7 +29,35 @@ WHEEL_LICENCES = {"MIT", "Apache-2.0"}
 FOLDER_ONLY = {
     "fastreer": "GPL-3.0: copyleft cannot be redistributed inside an MIT wheel",
     "wes-clinical-report-en": "PROPRIETARY: declared by the contributor; not redistributable",
+    "wes-clinical-report-es": "PROPRIETARY: declared by the contributor; not redistributable",
 }
+
+
+def _licences_on_disk() -> dict[str, str]:
+    """Licences read from disk, not from the catalogue: generate_catalog.py
+    drops folders listed in EXCLUDED_FOLDERS, so a catalogue-only check cannot
+    see the skills most likely to be unredistributable."""
+    return {
+        d.name: str(parse_yaml_frontmatter((d / "SKILL.md").read_text(encoding="utf-8")).get("license", ""))
+        for d in sorted(SKILLS_DIR.iterdir())
+        if d.is_dir() and (d / "SKILL.md").is_file()
+    }
+
+
+def _wheel_excluded_skills() -> set[str]:
+    """Read WHEEL_EXCLUDED_SKILLS from the AST rather than importing the module:
+    hatch_build imports hatchling, a build-time dependency that need not be
+    installed wherever the tests run."""
+    import ast
+    tree = ast.parse((ROOT / "hatch_build.py").read_text())
+    values = [
+        ast.literal_eval(node.value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "WHEEL_EXCLUDED_SKILLS" for t in node.targets)
+    ]
+    assert values, "WHEEL_EXCLUDED_SKILLS not defined in hatch_build.py"
+    return set(values[0])
 
 
 def _skills() -> list[dict]:
@@ -46,31 +79,30 @@ def test_wheel_skills_carry_a_wheel_compatible_licence():
 
 
 def test_folder_only_exceptions_are_real_and_still_needed():
-    by_name = {s["name"]: s for s in _skills()}
+    """Anchored to the folder on disk, not to the catalogue: an exception may
+    legitimately be absent from catalog.json (generate_catalog.py has its own
+    EXCLUDED_FOLDERS), and that is precisely when the wheel needs gating."""
+    on_disk = _licences_on_disk()
     for name, reason in FOLDER_ONLY.items():
-        assert name in by_name, f"{name} is listed as an exception but is not in the catalogue"
-        lic = by_name[name].get("license") or ""
+        assert name in on_disk, f"{name} is listed as an exception but has no skills/{name}/SKILL.md"
+        lic = on_disk[name]
         assert lic not in WHEEL_LICENCES, (
             f"{name} is now {lic!r}; remove it from FOLDER_ONLY, the exception is stale")
         assert lic.split(":")[0].strip() in reason, f"{name}: reason must name the licence"
 
 
 def test_wheel_exclusion_matches_the_policy():
-    """The build hook and the policy must name the same skills, or one of them
-    is lying about what ships."""
-    # Read the constant from the AST rather than importing the module: hatch_build
-    # imports hatchling, a build-time dependency that need not be installed
-    # wherever the tests run.
-    import ast
-    tree = ast.parse((ROOT / "hatch_build.py").read_text())
-    values = [
-        ast.literal_eval(node.value)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Assign)
-        and any(isinstance(t, ast.Name) and t.id == "WHEEL_EXCLUDED_SKILLS" for t in node.targets)
-    ]
-    assert values, "WHEEL_EXCLUDED_SKILLS not defined in hatch_build.py"
-    assert set(values[0]) == set(FOLDER_ONLY)
+    """Three views of one policy must agree: the declared exceptions, the build
+    hook's constant, and what the folders on disk actually say. The build hook
+    also derives exclusions from disk at build time, so this is what stops the
+    declaration drifting silently behind that gate."""
+    declared = _wheel_excluded_skills()
+    assert declared == set(FOLDER_ONLY)
+    on_disk = {name for name, lic in _licences_on_disk().items()
+               if lic and lic not in WHEEL_LICENCES}
+    assert declared == on_disk, (
+        f"declared exceptions {sorted(declared)} do not match the folders on "
+        f"disk {sorted(on_disk)}; update FOLDER_ONLY and WHEEL_EXCLUDED_SKILLS")
 
 
 def test_data_licence_is_reported_not_gated(capsys):
@@ -79,3 +111,23 @@ def test_data_licence_is_reported_not_gated(capsys):
                   if (s.get("data_license") or "none").lower() in {"none", ""}]
     print(f"\n[licence policy] data_license undeclared on {len(undeclared)} of {len(_skills())} skills")
     assert isinstance(undeclared, list)
+
+
+def test_wheel_excludes_every_unredistributable_folder_on_disk():
+    """The wheel is built by walking skills/ on disk, so the policy has to be
+    checked against disk too. A folder kept out of catalog.json by
+    EXCLUDED_FOLDERS is still bundled by hatch_build.py."""
+    excluded = _wheel_excluded_skills()
+    offenders = [
+        (name, lic)
+        for name, lic in _licences_on_disk().items()
+        if lic and lic not in WHEEL_LICENCES and name not in excluded
+    ]
+    assert offenders == [], f"unredistributable skills that would ship in the MIT wheel: {offenders}"
+
+
+def test_every_skill_folder_on_disk_declares_a_code_licence():
+    """A blank licence on disk is the same hole as a non-wheel licence: the
+    build hook has nothing to gate on."""
+    blank = [name for name, lic in _licences_on_disk().items() if not lic]
+    assert blank == [], f"skill folders with no code licence in SKILL.md: {blank}"
