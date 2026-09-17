@@ -228,7 +228,6 @@ def test_clawbio_dispatch_accepts_real_dnasp_options(tmp_path, monkeypatch):
 
 def test_clawbio_dispatch_actually_runs_the_coalescent_simulation(tmp_path, monkeypatch):
     """The allowlist once dropped --n-sim silently: the run succeeded with no simulation."""
-    import json
     from clawbio.cli import run_skill
     fixtures = Path(__file__).parent / 'fixtures/inputs'
     (tmp_path / 'ex.fas').write_bytes((fixtures / 'Ex_n1.fas').read_bytes())

@@ -4462,15 +4462,14 @@ def write_report(
                 f"| Fu's Fs | {_fmt(ct.Fs, 4)} | {_fmt_count(ct.Fs_count_lower)} | | "
                 f"{_fmt_p(ct.Fs_p_lower)} (lower tail) | {ct.n_valid_Fs} |",
                 "",
-                "Each P-value is (b + 1)/(N + 1), where b of the N valid replicates are at least as "
-                "extreme as the observed value, so the data count as one replicate and no P-value "
-                "is zero (Phipson and Smyth 2010); DnaSP reports b/N. Tajima's D is tested in both "
-                "tails, as twice the smaller tail P-value capped at 1, which does not assume a "
-                "symmetric null; R2 and Fu's Fs in the lower tail, the direction population growth "
-                "produces. A significant "
-                "result rejects the standard neutral model, not selection or growth in "
-                "particular: demography, population structure and selection can each produce "
-                "it. Sliding windows are not simulated.",
+                ("Each P-value is (b + 1)/(N + 1), where b of the N valid replicates are at least as "
+                 "extreme as the observed value, so the data count as one replicate and no P-value "
+                 "is zero (Phipson and Smyth 2010); DnaSP reports b/N. Tajima's D is tested in both "
+                 "tails, as twice the smaller tail P-value capped at 1, which does not assume a "
+                 "symmetric null; R2 and Fu's Fs in the lower tail, the direction population growth "
+                 "produces. A significant result rejects the standard neutral model, not selection "
+                 "or growth in particular: demography, population structure and selection can each "
+                 "produce it. Sliding windows are not simulated."),
                 "",
             ]
 
