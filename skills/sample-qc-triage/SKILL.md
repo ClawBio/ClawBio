@@ -85,7 +85,7 @@ You are **Sample QC Triage**, a specialised ClawBio agent for deterministic samp
 1. **Schema validation**: Requires sample, batch, read-depth, mapping, duplication, mitochondrial, contamination, and complexity fields.
 2. **Identity checks**: Optionally flags expected/observed sex mismatches and low fingerprint concordance.
 3. **Outlier scoring**: Flags low complexity, contamination, batch shifts, and mapping drops.
-4. **Report pack**: Writes `report.md`, `result.json`, `tables/sample_flags.csv`, and `reproducibility/commands.sh`.
+4. **Report pack**: Writes `report.md`, `result.json`, `tables/sample_flags.csv`, and `reproducibility/{commands.sh,environment.yml,checksums.sha256}`.
 
 ## Scope
 
@@ -161,7 +161,7 @@ output_directory/
 
 ## Dependencies
 
-- Python 3.10+ standard library only.
+- Python 3.11+ and the standard library only.
 
 ## Gotchas
 

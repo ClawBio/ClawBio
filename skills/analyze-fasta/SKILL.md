@@ -43,7 +43,7 @@ metadata:
       description: Standalone HTML rendering of the same report for visual inspection
     - name: reproducibility
       type: directory
-      description: Directory with commands.sh and run.json describing the exact run
+      description: Directory with commands.sh, environment.yml, checksums.sha256 and run.json describing the exact run
   dependencies:
     python: ">=3.10"
     packages:
@@ -140,7 +140,7 @@ When the user asks for FASTA analysis:
 1. **Validate** (prescriptive): file exists; at least one record; first record >=10 chars; <=50% Ns. Any failure → exit 1 with explicit message. Never write a partial report.
 2. **Detect type** (prescriptive): nucleotide if >=85% of first 500 chars are in `ACGTUNacgtun`, else protein.
 3. **Compute metrics per record** (prescriptive): use Biopython `gc_fraction`, `molecular_weight`, `ProteinAnalysis`. Round consistently (GC to 2 dp, MW to 1 dp, pI to 2 dp).
-4. **Generate** (prescriptive): write `result.json` (full structured data), `report.md` (human-readable), `report.html` (visual), and `reproducibility/{commands.sh,run.json}`.
+4. **Generate** (prescriptive): write `result.json` (full structured data), `report.md` (human-readable), `report.html` (visual), and `reproducibility/{commands.sh,environment.yml,checksums.sha256,run.json}`.
 5. **Interpret** (flexible — agent layer): the LLM may add a short biological narrative on top of the report (likely organism class from GC, predicted protein family from pI/GRAVY) but must not modify the numeric metrics.
 
 ## CLI Reference
@@ -252,7 +252,7 @@ _ClawBio is a research and educational tool. It is not a medical device and does
 - `biopython` >= 1.80; sequence parsing, ProtParam, gc_fraction, molecular_weight.
 
 **Optional**:
-- None. The skill is intentionally lean; pure stdlib + Biopython.
+- None beyond Biopython. The skill is intentionally lean; stdlib + Biopython.
 
 ## Gotchas
 

@@ -862,7 +862,7 @@ def write_clawbio_output(report, output_dir, input_file, demo=False):
         out,
         env_name="clawbio-analyze-fasta",
         pip_deps=["biopython"],
-        python_version="3.10",
+        python_version="3.11",
     )
     write_portable_commands_sh(out, repro_command(input_file, out, demo), repo_root=_PROJECT_ROOT)
     repro = out / "reproducibility"

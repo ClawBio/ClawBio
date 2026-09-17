@@ -158,7 +158,7 @@ def write_repro_bundle(input_path: Path, output_dir: Path, demo: bool) -> None:
         output_dir,
         env_name="clawbio-sample-qc-triage",
         pip_deps=[],
-        python_version="3.10",
+        python_version="3.11",
     )
     write_portable_commands_sh(
         output_dir,
