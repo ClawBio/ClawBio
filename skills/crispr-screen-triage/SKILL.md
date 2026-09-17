@@ -155,7 +155,9 @@ output_directory/
 │   ├── triaged_genes.csv
 │   └── guide_metrics.csv
 └── reproducibility/
-    └── commands.sh
+    ├── commands.sh
+    ├── environment.yml
+    └── checksums.sha256
 ```
 
 ## Dependencies
