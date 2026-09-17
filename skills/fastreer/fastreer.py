@@ -40,6 +40,18 @@ import textwrap
 from datetime import datetime
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
+
 DISCLAIMER = (
     "ClawBio is a research and educational tool. "
     "It is not a medical device and does not provide clinical diagnoses. "
@@ -454,20 +466,26 @@ def write_reproducibility(args, input_file: Path, output_dir: Path) -> None:
     repro = output_dir / "reproducibility"
     repro.mkdir(exist_ok=True)
 
-    cmd = (
-        f"python {Path(__file__).name}"
-        f" --command {args.command}"
-        f" --input {input_file}"
-        f" --output {output_dir}"
-        f" --threads {args.threads}"
-        f" --mem {args.mem}"
-    )
+    input_path = Path(input_file).resolve()
+    if input_path.is_relative_to(Path(output_dir).resolve()):
+        anchor = "output_dir"
+    elif input_path.is_relative_to(_PROJECT_ROOT):
+        anchor = "repo_root"
+    else:
+        anchor = "auto"
+    cmd_args: list[str | ReproPath] = [
+        "--command", args.command,
+        "--input", ReproPath(input_path, anchor),
+        "--output", ReproPath(Path(output_dir), "output_dir"),
+        "--threads", str(args.threads),
+        "--mem", str(args.mem),
+    ]
     if args.bootstrap:
-        cmd += f" --bootstrap {args.bootstrap}"
+        cmd_args += ["--bootstrap", str(args.bootstrap)]
     if args.kmer != 4:
-        cmd += f" --kmer {args.kmer}"
+        cmd_args += ["--kmer", str(args.kmer)]
     if args.window_bp:
-        cmd += f" --window-bp {args.window_bp}"
+        cmd_args += ["--window-bp", str(args.window_bp)]
 
     java_ver = "not found"
     java = shutil.which("java")
@@ -487,7 +505,32 @@ def write_reproducibility(args, input_file: Path, output_dir: Path) -> None:
     except Exception:
         pip_out = "fastreer not installed"
 
-    (repro / "commands.sh").write_text(f"#!/bin/bash\n{cmd}\n")
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-fastreer",
+        pip_deps=["fastreer>=2.2.0"],
+        conda_deps=["openjdk>=11"],
+        python_version="3.10",
+    )
+    write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/fastreer/fastreer.py"),
+            args=cmd_args,
+            comment="Reproduce this fastreer run",
+        ),
+        repo_root=_PROJECT_ROOT,
+    )
+    write_checksums(
+        [
+            output_dir / "report.md",
+            output_dir / "result.json",
+            output_dir / "tree.nwk",
+            output_dir / "distances.dist",
+        ],
+        output_dir,
+        anchor=output_dir,
+    )
     (repro / "environment.txt").write_text(
         f"# fastreer environment snapshot\n"
         f"# Generated: {datetime.now().isoformat()}\n\n"
