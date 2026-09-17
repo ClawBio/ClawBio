@@ -296,6 +296,15 @@ def format_pharmgx_preview(report_text: str, report_path: str):
 # Skills registry
 # --------------------------------------------------------------------------- #
 
+# Skills registered as CLI actions whose folder cannot ship inside the MIT wheel
+# (see WHEEL_EXCLUDED_SKILLS in hatch_build.py). They work from a repository
+# checkout and are absent from a pip install, so the CLI explains that rather
+# than reporting a path that was never written. Kept in step with the wheel
+# policy by tests/test_licence_policy.py.
+UNBUNDLED_SKILLS = {
+    "fastreer": "GPL-3.0: copyleft cannot be redistributed inside an MIT wheel",
+}
+
 SKILLS = {
     "pharmgx": {
         "script": SKILLS_DIR / "pharmgx-reporter" / "pharmgx_reporter.py",
@@ -1490,6 +1499,14 @@ def run_skill(
 
     script_path = skill_info["script"]
     if not script_path.exists():
+        if skill_name in UNBUNDLED_SKILLS:
+            message = (
+                f"'{skill_name}' is not bundled in the installed clawbio package "
+                f"({UNBUNDLED_SKILLS[skill_name]}). Run it from a repository "
+                f"checkout: https://github.com/ClawBio/ClawBio"
+            )
+        else:
+            message = f"Script not found: {script_path}"
         return {
             "skill": skill_name,
             "success": False,
@@ -1497,7 +1514,7 @@ def run_skill(
             "output_dir": None,
             "files": [],
             "stdout": "",
-            "stderr": f"Script not found: {script_path}",
+            "stderr": message,
             "duration_seconds": 0,
         }
 

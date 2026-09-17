@@ -131,3 +131,48 @@ def test_every_skill_folder_on_disk_declares_a_code_licence():
     build hook has nothing to gate on."""
     blank = [name for name, lic in _licences_on_disk().items() if not lic]
     assert blank == [], f"skill folders with no code licence in SKILL.md: {blank}"
+
+
+def test_cli_registered_skills_survive_the_wheel_filter():
+    """A skill can be registered as a CLI action or excluded from the wheel, but
+    if it is both, `clawbio run <skill>` is broken for every pip user. Any such
+    skill must be declared in cli.UNBUNDLED_SKILLS so the CLI can say why."""
+    sys.path.insert(0, str(ROOT))
+    from clawbio import cli
+
+    excluded = _wheel_excluded_skills()
+    registered = {
+        alias
+        for alias, info in cli.SKILLS.items()
+        if "script" in info and SKILLS_DIR in Path(info["script"]).parents
+    }
+    broken = {
+        alias
+        for alias in registered
+        if Path(cli.SKILLS[alias]["script"]).parent.name in excluded
+    }
+    assert broken <= set(cli.UNBUNDLED_SKILLS), (
+        f"CLI-registered skills excluded from the wheel but not declared in "
+        f"UNBUNDLED_SKILLS: {sorted(broken - set(cli.UNBUNDLED_SKILLS))}")
+    assert set(cli.UNBUNDLED_SKILLS) == broken, (
+        f"UNBUNDLED_SKILLS is stale; it names {sorted(set(cli.UNBUNDLED_SKILLS) - broken)} "
+        f"which are not excluded from the wheel")
+    for alias, reason in cli.UNBUNDLED_SKILLS.items():
+        lic = _licences_on_disk()[Path(cli.SKILLS[alias]["script"]).parent.name]
+        assert lic.split("-")[0] in reason, f"{alias}: reason must name the licence"
+
+
+def test_unbundled_skill_reports_why_it_is_missing(monkeypatch, tmp_path):
+    """The pip user gets the licence reason, not a bare path that does not exist."""
+    sys.path.insert(0, str(ROOT))
+    from clawbio import cli
+
+    alias = next(iter(cli.UNBUNDLED_SKILLS))
+    missing = tmp_path / "not-in-the-wheel" / f"{alias}.py"
+    monkeypatch.setitem(cli.SKILLS[alias], "script", missing)
+
+    result = cli.run_skill(alias, demo=True)
+    assert result["success"] is False
+    assert "not bundled" in result["stderr"]
+    assert cli.UNBUNDLED_SKILLS[alias].split(":")[0] in result["stderr"]
+    assert "github.com" in result["stderr"] or "checkout" in result["stderr"]
