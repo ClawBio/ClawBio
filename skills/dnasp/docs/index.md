@@ -1,6 +1,6 @@
 # DnaSP ClawBio statistical reference
 
-Version 0.5.2 implements 16 selected population-genetic analysis modules. Its
+Version 0.5.3 implements 16 selected population-genetic analysis modules. Its
 methods combine published estimators with documented DnaSP 6 implementation
 conventions. Agreement on the validation datasets does not establish equivalence
 for every DnaSP mode, input or statistic.

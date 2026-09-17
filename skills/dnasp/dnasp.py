@@ -56,7 +56,7 @@ Usage:
 
 from __future__ import annotations
 
-__version__ = "0.5.2"
+__version__ = "0.5.3"
 __author__  = "David De Lorenzo"
 __credits__ = [
     # Python reimplementation and ClawBio adaptation

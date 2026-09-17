@@ -6,7 +6,7 @@ description: Population genetics of pre-aligned DNA sequences or multi-sample VC
   phasing or clinical interpretation.
 license: MIT
 metadata:
-  version: 0.5.2
+  version: 0.5.3
   author: David De Lorenzo
   domain: molecular-evolution
   tags:
@@ -29,6 +29,7 @@ metadata:
     description: Aligned DNA sequences (pre-aligned, equal-length). FASTA (including
       DnaSP-style >'name' [comment] headers) or NEXUS (MATCHCHAR, INTERLEAVE).
     required: false
+    cli_flag: --input
   - name: vcf
     type: file
     format:
@@ -37,6 +38,7 @@ metadata:
       (biallelic SNPs only; phased -> haplotype rows). Alternative to --input. Optional
       --region CHROM, --vcf-merge to pool all CHROMs.
     required: false
+    cli_flag: --vcf
   - name: alignment2
     type: file
     format:
@@ -47,6 +49,7 @@ metadata:
     description: Second-population alignment for divergence analysis (--input2). Alternative
       to --pop-file. Sequences must have same length as --input.
     required: false
+    cli_flag: --input2
   - name: pop_file
     type: file
     format:
@@ -55,12 +58,14 @@ metadata:
     description: 'Population assignment file: one row per sequence, tab-separated
       (sequence_name<TAB>population_name). Required for Fst; alternative to --input2 for divergence.'
     required: false
+    cli_flag: --pop-file
   - name: outgroup
     type: string
     description: Unique sequence identifier removed from the ingroup. Required for
       fuliout, mk and faywu; also polarises SFS/TsTv and selects ingroup-versus-outgroup
       Ka/Ks.
     required: false
+    cli_flag: --outgroup
   - name: hka_file
     type: file
     format:
@@ -69,25 +74,30 @@ metadata:
     description: 'HKA locus file: whitespace-separated, exactly two loci, columns
       locus n S L_poly D [L_div] [chrom]. Required for --analysis hka.'
     required: false
+    cli_flag: --hka-file
   - name: analyses
     type: string
     description: Comma-separated polymorphism, ld, recombination, popsize, indel,
       divergence, fuliout, hka, mk, kaks, fufs, sfs, tstv, codon, faywu, fst; or all.
       Polymorphism runs with alignment input.
     required: false
+    cli_flag: --analysis
   - name: window_size
     type: integer
     description: Sliding window size in bp (0 = whole alignment only, default 0)
     required: false
+    cli_flag: --window
   - name: step_size
     type: integer
     description: Sliding window step in bp (default = window_size)
     required: false
+    cli_flag: --step
   - name: genetic_code
     type: string
     description: 'Codon table for mk/kaks/codon: "standard" or "vertebrate-mitochondrial"
       (TGA=Trp, AGA/AGG=stop, ATA=Met; for COII/cytb/ND-type loci). Default: standard.'
     required: false
+    cli_flag: --genetic-code
   outputs:
   - name: report
     type: file
@@ -386,6 +396,14 @@ Differences of setting or definition, not errors:
 ## Version History
 
 Every change listed alters results unless marked otherwise.
+
+**0.5.3** (16 September 2026)
+
+- Not result-changing: every input in the skill metadata now names the
+  command-line flag it maps to (`cli_flag`). Without it an agent reading only the
+  registered metadata had to guess, and two independent models turned
+  `window_size` into the non-existent `--window-size`. Numerical behaviour is
+  unchanged from 0.5.2, which is the version compared with DnaSP 6.12.03.
 
 **0.5.2** (15 September 2026, compared with DnaSP 6.12.03)
 
