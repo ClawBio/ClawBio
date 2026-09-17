@@ -299,8 +299,13 @@ jobs:
       - name: Run repo-level tests
         run: uv run pytest tests/ -v
 
-      - name: Run text-generation provider and PubMed runner tests
-        run: uv run pytest clawbio/tests/test_providers.py clawbio/tests/test_pubmed_runner.py -v
+      # Named two files out of clawbio/tests/, and clawbio/common/tests/ ran
+      # nowhere at all, so the shared layer every skill imports was the least
+      # tested code in the repository. test_report.py had been red on main
+      # unnoticed, and ClawBio#451's helper tests would not have run after
+      # merge either. Both trees now run in full: 524 tests, about 20 seconds.
+      - name: Run library tests
+        run: uv run pytest clawbio/tests/ clawbio/common/tests/ -v
 
       # The steps above are a hardcoded allowlist, so a NEW skill's tests never
       # run: ClawBio#329 shipped a test that cannot pass and CI was still green,
