@@ -9,6 +9,17 @@ import statistics
 import sys
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
 
 SKILL_DIR = Path(__file__).resolve().parent
 DISCLAIMER = (
@@ -41,19 +52,19 @@ def load_metrics(path: Path) -> list[dict[str, str | float]]:
         fieldnames = set(reader.fieldnames or [])
         for raw in reader:
             row: dict[str, str | float] = {"sample_id": raw["sample_id"], "batch": raw["batch"]}
-            for column in NUMERIC_COLUMNS:
+            for column in sorted(NUMERIC_COLUMNS):
                 try:
                     row[column] = float(raw[column])
                 except (TypeError, ValueError) as exc:
                     raise ValueError(f"Column {column} must be numeric") from exc
-            for column in OPTIONAL_NUMERIC_COLUMNS & fieldnames:
+            for column in sorted(OPTIONAL_NUMERIC_COLUMNS & fieldnames):
                 value = raw.get(column, "")
                 if value != "":
                     try:
                         row[column] = float(value)
                     except (TypeError, ValueError) as exc:
                         raise ValueError(f"Column {column} must be numeric") from exc
-            for column in OPTIONAL_TEXT_COLUMNS & fieldnames:
+            for column in sorted(OPTIONAL_TEXT_COLUMNS & fieldnames):
                 row[column] = raw.get(column, "")
             rows.append(row)
     if not rows:
@@ -129,7 +140,43 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
             writer.writerow({field: row.get(field, "") for field in fieldnames})
 
 
-def write_outputs(result: dict, input_path: Path, output_dir: Path, command: list[str], demo: bool) -> None:
+def repro_command(input_path: Path, output_dir: Path, demo: bool) -> ReproCommand:
+    args: list[str | ReproPath] = ["--demo"] if demo else [
+        "--input",
+        ReproPath(input_path, "repo_root" if input_path.is_relative_to(_PROJECT_ROOT) else "auto"),
+    ]
+    args += ["--output", ReproPath(output_dir, "output_dir")]
+    return ReproCommand(
+        script_path=Path("skills/sample-qc-triage/sample_qc_triage.py"),
+        args=args,
+        comment="Reproduce this sample-qc-triage run",
+    )
+
+
+def write_repro_bundle(input_path: Path, output_dir: Path, demo: bool) -> None:
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-sample-qc-triage",
+        pip_deps=[],
+        python_version="3.10",
+    )
+    write_portable_commands_sh(
+        output_dir,
+        repro_command(input_path, output_dir, demo),
+        repo_root=_PROJECT_ROOT,
+    )
+    write_checksums(
+        [
+            output_dir / "report.md",
+            output_dir / "result.json",
+            output_dir / "tables" / "sample_flags.csv",
+        ],
+        output_dir,
+        anchor=output_dir,
+    )
+
+
+def write_outputs(result: dict, input_path: Path, output_dir: Path, demo: bool) -> None:
     if output_dir.exists() and any(output_dir.iterdir()):
         print(f"WARNING: output directory already exists and files may be overwritten: {output_dir}", file=sys.stderr)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -167,7 +214,7 @@ def write_outputs(result: dict, input_path: Path, output_dir: Path, command: lis
         "",
     ])
     (output_dir / "report.md").write_text("\n".join(rows), encoding="utf-8")
-    (output_dir / "reproducibility" / "commands.sh").write_text("#!/usr/bin/env bash\n" + " ".join(command) + "\n", encoding="utf-8")
+    write_repro_bundle(input_path, output_dir, demo)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -184,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
-    write_outputs(result, input_path, args.output, [sys.executable, __file__, *sys.argv[1:]], args.demo)
+    write_outputs(result, input_path, args.output, args.demo)
     print(f"Sample QC Triage wrote {args.output / 'report.md'}")
     return 0
 

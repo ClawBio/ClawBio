@@ -154,7 +154,9 @@ output_directory/
 ├── tables/
 │   └── sample_flags.csv
 └── reproducibility/
-    └── commands.sh
+    ├── commands.sh
+    ├── environment.yml
+    └── checksums.sha256
 ```
 
 ## Dependencies
