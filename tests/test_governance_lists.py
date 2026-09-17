@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 
@@ -36,7 +37,11 @@ def test_maintainers_file_names_a_lead_with_orcid():
     t = _text()
     assert "## Lead maintainer" in t
     assert "[@manuelcorpas](https://github.com/manuelcorpas)" in t
-    assert "orcid.org/" in t
+    urls = re.findall(r"\[[^\]]+\]\((https?://[^)\s]+)\)", t)
+    assert any(
+        (host := urlparse(url).hostname) and (host == "orcid.org" or host.endswith(".orcid.org"))
+        for url in urls
+    )
 
 
 def test_every_documented_section_is_present():
