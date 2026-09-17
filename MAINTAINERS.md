@@ -10,7 +10,7 @@ the same pull request. The roles are defined in [GOVERNANCE.md](GOVERNANCE.md).
 
 | Person | GitHub | ORCID |
 |--------|--------|-------|
-| Manuel Corpas | [@manuelcorpas](https://github.com/manuelcorpas) | [0000-0002-5765-9827](https://orcid.org/0000-0002-5765-9827) |
+| Manuel Corpas | [@manuelcorpas](https://github.com/manuelcorpas) | [0000-0002-4417-1018](https://orcid.org/0000-0002-4417-1018) |
 
 ## Second maintainer
 
