@@ -18,8 +18,21 @@ import csv
 import json
 import os
 import sys
+import shlex
 from datetime import datetime
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
 
 SKILL_DIR = Path(__file__).resolve().parent
 DEMO_DATA_DIR = SKILL_DIR / "demo_data"
@@ -287,12 +300,24 @@ def generate_report(query: str, matches: list[dict], output_dir: Path,
             })
 
     # Reproducibility
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(exist_ok=True)
-    cmd = f'python {Path(__file__).name} --query "{query}" --output {output_dir}'
-    if is_demo:
-        cmd = f'python {Path(__file__).name} --demo --output {output_dir}'
-    (repro_dir / "commands.sh").write_text(f"#!/bin/bash\n{cmd}\n", encoding="utf-8")
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-ukb-navigator",
+        pip_deps=["chromadb", "voyageai"],
+        python_version="3.10",
+    )
+    args = ["--demo"] if is_demo else ["--query", shlex.quote(query)]
+    args.append("--output")
+    write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/ukb-navigator/ukb_navigator.py"),
+            args=[*args, ReproPath(output_dir, "output_dir")],
+            comment="Reproduce this ukb-navigator run",
+        ),
+        repo_root=_PROJECT_ROOT,
+    )
+    write_checksums([report_path, csv_path], output_dir, anchor=output_dir)
 
     return report_path
 

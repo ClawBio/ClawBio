@@ -88,6 +88,39 @@ class TestGenerateReport:
         cmd_file = tmp_path / "reproducibility" / "commands.sh"
         assert cmd_file.exists()
 
+    def test_reproducibility_bundle_is_complete(self, tmp_path):
+        generate_report("blood pressure", DEMO_RESULTS, tmp_path, is_demo=True)
+        repro = tmp_path / "reproducibility"
+
+        commands_text = (repro / "commands.sh").read_text(encoding="utf-8")
+        assert "CLAWBIO_ROOT" in commands_text
+        assert "$OUTPUT_DIR" in commands_text
+        assert str(tmp_path) not in commands_text
+
+        environment = (repro / "environment.yml").read_text(encoding="utf-8")
+        assert "name: clawbio-ukb-navigator" in environment
+        assert "chromadb" in environment
+
+        checksum_lines = [
+            line
+            for line in (repro / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert checksum_lines
+        labels = set()
+        for line in checksum_lines:
+            digest, label = line.split("  ", 1)
+            assert len(digest) == 64
+            labels.add(label)
+            assert (tmp_path / label).exists()
+        assert {"report.md", "matched_fields.csv"} <= labels
+
+    def test_reproducibility_command_quotes_multiword_query(self, tmp_path):
+        generate_report("blood pressure", DEMO_RESULTS, tmp_path)
+        commands_text = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+        # the query must survive as a single shell word, whatever quoting style
+        assert "'blood pressure'" in commands_text or '"blood pressure"' in commands_text
+
     def test_demo_mode_flag(self, tmp_path):
         report_path = generate_report("test", DEMO_RESULTS, tmp_path, is_demo=True)
         text = report_path.read_text()
