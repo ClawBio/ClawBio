@@ -319,3 +319,32 @@ def test_demo_full_pipeline(tmp_path):
     write_reproducibility(tmp_path, variant, [])
     assert (tmp_path / "reproducibility" / "commands.sh").exists()
     assert (tmp_path / "reproducibility" / "api_versions.json").exists()
+
+
+def test_gwas_catalog_forwards_max_hits_as_page_size(monkeypatch):
+    """GWAS Catalog pages at 20 unless size is sent with the request."""
+    from gwas_lookup_api import gwas_catalog
+
+    captured = {}
+
+    class FakeClient:
+        def get(self, endpoint, params=None):
+            captured["endpoint"] = endpoint
+            captured["params"] = params or {}
+            page_size = captured["params"].get("size", 20)
+            return {
+                "_embedded": {
+                    "associations": [
+                        {"pvalue": i, "efoTraits": [], "riskAlleles": []}
+                        for i in range(30)
+                    ][:page_size]
+                }
+            }
+
+    monkeypatch.setattr(gwas_catalog, "_make_client", lambda *args, **kwargs: FakeClient())
+    result = gwas_catalog.get_associations("rs1", max_hits=25)
+    assert captured["endpoint"] == "singleNucleotidePolymorphisms/rs1/associations"
+    assert captured["params"] == {"size": 25}
+    assert result["status"] == "ok"
+    assert result["total_associations"] == 25
+    assert len(result["associations"]) == 25

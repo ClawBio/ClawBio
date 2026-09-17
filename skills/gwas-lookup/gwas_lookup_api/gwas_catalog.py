@@ -29,7 +29,12 @@ def get_associations(rsid: str, max_hits: int = 100, cache_dir: Optional[Path] =
     """Fetch GWAS associations for a given rsID from the GWAS Catalog."""
     client = _make_client(cache_dir, use_cache)
     try:
-        data = client.get(f"singleNucleotidePolymorphisms/{rsid}/associations")
+        # The Catalog pages associations at 20 by default. Forward size so
+        # max_hits is applied by the API rather than silently truncated.
+        data = client.get(
+            f"singleNucleotidePolymorphisms/{rsid}/associations",
+            params={"size": max_hits},
+        )
     except Exception as e:
         return {"source": "gwas_catalog", "status": "error", "message": str(e)}
 
