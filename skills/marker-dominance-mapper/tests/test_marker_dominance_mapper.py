@@ -92,3 +92,55 @@ def test_demo_cli_writes_expected_outputs(tmp_path):
     assert (out / "tables" / "region_summary.csv").exists()
     assert (out / "figures" / "marker_map.svg").exists()
     assert (out / "reproducibility" / "commands.sh").exists()
+
+
+def test_demo_reproducibility_bundle_is_complete(tmp_path):
+    out = tmp_path / "repro_out"
+    subprocess.run(
+        [sys.executable, str(MODULE_PATH), "--demo", "--output", str(out)],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    repro = out / "reproducibility"
+
+    commands_text = (repro / "commands.sh").read_text(encoding="utf-8")
+    assert "CLAWBIO_ROOT" in commands_text
+    assert "$OUTPUT_DIR" in commands_text
+    assert str(out) not in commands_text
+
+    environment = (repro / "environment.yml").read_text(encoding="utf-8")
+    assert "name: clawbio-marker-dominance-mapper" in environment
+
+    checksum_lines = [
+        line
+        for line in (repro / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert checksum_lines
+    labels = set()
+    for line in checksum_lines:
+        digest, label = line.split("  ", 1)
+        assert len(digest) == 64
+        labels.add(label)
+        assert (out / label).exists()
+    assert {"report.md", "result.json", "tables/mapped_spots.csv", "tables/region_summary.csv", "figures/marker_map.svg"} <= labels
+
+
+def test_demo_outputs_are_byte_stable_across_hash_seeds(tmp_path):
+    """Checksums are only meaningful if two identical runs produce identical bytes."""
+    import os
+
+    digests = []
+    for seed in ("0", "12345"):
+        out = tmp_path / f"run_{seed}"
+        env = dict(os.environ, PYTHONHASHSEED=seed)
+        subprocess.run(
+            [sys.executable, str(MODULE_PATH), "--demo", "--output", str(out)],
+            text=True,
+            capture_output=True,
+            check=True,
+            env=env,
+        )
+        digests.append((out / "reproducibility" / "checksums.sha256").read_text(encoding="utf-8"))
+    assert digests[0] == digests[1]

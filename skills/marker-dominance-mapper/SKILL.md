@@ -153,7 +153,9 @@ output_directory/
 ├── figures/
 │   └── marker_map.svg
 └── reproducibility/
-    └── commands.sh
+    ├── commands.sh
+    ├── environment.yml
+    └── checksums.sha256
 ```
 
 ## Dependencies
