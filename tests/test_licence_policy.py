@@ -9,8 +9,10 @@ disabled tomorrow.
 """
 from __future__ import annotations
 
+import importlib
 import json
 import sys
+import types
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -43,6 +45,23 @@ def _licences_on_disk() -> dict[str, str]:
         for d in sorted(SKILLS_DIR.iterdir())
         if d.is_dir() and (d / "SKILL.md").is_file()
     }
+
+
+def _hatch_build():
+    """Import hatch_build with hatchling stubbed out.
+
+    hatchling is a build-time dependency and is not installed where the tests
+    run, but the wheel policy lives in hatch_build.py and is worth testing
+    directly rather than re-implementing here.
+    """
+    for name in ("hatchling", "hatchling.builders", "hatchling.builders.hooks",
+                 "hatchling.builders.hooks.plugin"):
+        sys.modules.setdefault(name, types.ModuleType(name))
+    iface = types.ModuleType("hatchling.builders.hooks.plugin.interface")
+    iface.BuildHookInterface = object
+    sys.modules.setdefault("hatchling.builders.hooks.plugin.interface", iface)
+    sys.path.insert(0, str(ROOT))
+    return importlib.import_module("hatch_build")
 
 
 def _wheel_excluded_skills() -> set[str]:
@@ -193,10 +212,7 @@ def test_folders_that_are_not_skills_never_ship():
     maintainer has in their working tree. A folder with no SKILL.md is not a
     skill -- local scratch work, or a RETIRED/ holding pen -- and must not be
     published, licence or no licence."""
-    sys.path.insert(0, str(ROOT))
-    import hatch_build
-
-    excluded = hatch_build._excluded_skill_folders(SKILLS_DIR)
+    excluded = _hatch_build()._excluded_skill_folders(SKILLS_DIR)
     not_skills = {
         d.name for d in SKILLS_DIR.iterdir()
         if d.is_dir() and not (d / "SKILL.md").is_file()
@@ -206,9 +222,7 @@ def test_folders_that_are_not_skills_never_ship():
 
 def test_missing_skills_dir_yields_no_wheel_skills():
     """A tree without skills/ builds a skill-free wheel rather than crashing."""
-    sys.path.insert(0, str(ROOT))
-    import hatch_build
-
+    hatch_build = _hatch_build()
     assert hatch_build._excluded_skill_folders(ROOT / "no-such-dir") == set(hatch_build.WHEEL_EXCLUDED_SKILLS)
 
 
@@ -216,8 +230,6 @@ def test_both_licence_readers_agree():
     """The build hook scans lines; this suite reads via PyYAML. If they ever
     disagree -- `license: MIT  # code only` is enough -- a skill is silently
     dropped from the wheel with a green suite."""
-    sys.path.insert(0, str(ROOT))
-    import hatch_build
-
+    hatch_build = _hatch_build()
     for name, lic in _licences_on_disk().items():
         assert hatch_build._declared_licence(SKILLS_DIR / name / "SKILL.md") == lic, name
