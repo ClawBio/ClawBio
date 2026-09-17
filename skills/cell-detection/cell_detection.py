@@ -674,7 +674,7 @@ def main() -> None:
         output_dir,
         env_name="clawbio-cell-detection",
         pip_deps=["cellpose>=4.0", "tifffile", "czifile>=2019.7.2.2", "nd2>=0.11.1", "Pillow", "numpy", "matplotlib", "scikit-image", "scipy"],
-        python_version="3.10",
+        python_version="3.11",
     )
     write_portable_commands_sh(
         output_dir,

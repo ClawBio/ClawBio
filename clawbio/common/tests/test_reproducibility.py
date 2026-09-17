@@ -503,3 +503,42 @@ def test_commands_sh_does_not_depend_on_bare_python_on_path(tmp_path):
         repo_root=tmp_path).read_text()
     assert "python3" in text
     assert not any(line.startswith("python ") for line in text.splitlines())
+
+
+def test_default_python_version_matches_requires_python():
+    """A recipe that names a Python the package will not install into builds an
+    environment where the replay cannot run. The default has to track
+    pyproject.toml rather than being remembered."""
+    import inspect
+    import re
+    import tomllib
+
+    from clawbio.common.reproducibility import write_environment_yml
+
+    root = Path(__file__).resolve().parents[3]
+    requires = tomllib.loads((root / "pyproject.toml").read_text())["project"]["requires-python"]
+    floor = re.search(r"(\d+\.\d+)", requires).group(1)
+
+    default = inspect.signature(write_environment_yml).parameters["python_version"].default
+    assert tuple(map(int, default.split("."))) >= tuple(map(int, floor.split("."))), (
+        f"default python_version={default!r} is below requires-python {requires!r}")
+
+
+def test_no_skill_pins_a_python_below_requires_python():
+    """Same rule for the recipes that pass the version explicitly."""
+    import re
+    import tomllib
+
+    root = Path(__file__).resolve().parents[3]
+    requires = tomllib.loads((root / "pyproject.toml").read_text())["project"]["requires-python"]
+    floor = tuple(map(int, re.search(r"(\d+)\.(\d+)", requires).groups()))
+
+    offenders = []
+    for path in (root / "skills").rglob("*.py"):
+        if "/tests/" in path.as_posix():
+            continue
+        for match in re.finditer(r'python_version=["\'](\d+)\.(\d+)["\']', path.read_text(encoding="utf-8", errors="ignore")):
+            version = tuple(map(int, match.groups()))
+            if version < floor:
+                offenders.append(f"{path.relative_to(root)}: {'.'.join(map(str, version))}")
+    assert offenders == [], f"recipes pinning a Python below {requires}: {offenders}"

@@ -171,7 +171,7 @@ def write_environment_yml(
     env_name: str,
     pip_deps: list[str],
     conda_deps: list[str] | None = None,
-    python_version: str = "3.10",
+    python_version: str = "3.11",
     channels: list[str] | None = None,
 ) -> Path:
     """Write reproducibility/environment.yml for a ClawBio skill.
@@ -182,7 +182,8 @@ def write_environment_yml(
         pip_deps:       Packages to install via pip (e.g. ['cellpose>=4.0']).
         conda_deps:     Extra conda packages beyond python (e.g. ['numpy', 'scipy']).
                         Do not include 'python=X.Y' here — use python_version instead.
-        python_version: Python version string (default '3.10').
+        python_version: Python version string (default '3.11', the floor in
+                        pyproject.toml's requires-python).
         channels:       Conda channels in priority order (default ['conda-forge']).
                         Pass e.g. ['conda-forge', 'bioconda'] when a conda_dep
                         (such as nextflow) only lives on bioconda, otherwise the

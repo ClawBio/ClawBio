@@ -516,7 +516,7 @@ def write_repro_files(
         output_dir,
         env_name="clawbio-proteomics-de",
         pip_deps=["pandas", "numpy", "matplotlib", "scikit-learn", "scipy", "seaborn"],
-        python_version="3.10",
+        python_version="3.11",
     )
 
     checksum_paths = [
