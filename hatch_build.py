@@ -25,6 +25,11 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 # Skills whose full demo payload ships so their --demo runs offline out of the box.
 HEADLINE_SKILLS = {"pharmgx-reporter", "drug-photo", "gwas-lookup", "just-prs-mcp"}
 
+# Skills whose code licence cannot be redistributed inside the MIT wheel. They
+# stay in the repository as folders labelled by licence and are excluded here.
+# Kept in step with FOLDER_ONLY in tests/test_licence_policy.py by a test.
+WHEEL_EXCLUDED_SKILLS = {"fastreer", "wes-clinical-report-en"}
+
 # Logic/source files included for every skill regardless of size.
 LOGIC_SUFFIXES = {".md", ".py", ".yaml", ".yml", ".sh", ".cff", ".toml", ".cfg"}
 # Data files included for non-headline skills only when small.
@@ -80,6 +85,8 @@ class CustomBuildHook(BuildHookInterface):
 
                 if base == "skills":
                     skill = rel.parts[1] if len(rel.parts) > 1 else ""
+                    if skill in WHEEL_EXCLUDED_SKILLS:
+                        continue
                     if skill not in HEADLINE_SKILLS and not _keep_for_non_headline(path):
                         continue
 

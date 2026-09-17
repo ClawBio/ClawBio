@@ -45,4 +45,6 @@ and protected by a hardware key, is planned and not yet created.
 ClawBio has one lead maintainer and is seeking a second maintainer who can
 share review of community skill contributions and act as backup for security
 response. The expectations and the path are in GOVERNANCE.md, "Becoming a
-maintainer". If that is you, open an issue.
+maintainer". If that is you, open an issue. An invitation was sent to
+[@camlloyd](https://github.com/camlloyd) on 17 September 2026 and is awaiting
+a reply.
