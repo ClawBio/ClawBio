@@ -240,7 +240,9 @@ _ClawBio is a research and educational tool. It is not a medical device and does
 ├── report.html            # Standalone visual report
 ├── result.json            # Machine-readable results
 └── reproducibility/
-    ├── commands.sh        # Exact command to reproduce
+    ├── commands.sh        # Portable replay command ($CLAWBIO_ROOT / $OUTPUT_DIR)
+    ├── environment.yml    # Conda recipe (biopython)
+    ├── checksums.sha256   # SHA-256 of every output file
     └── run.json           # Run metadata (versions, timestamps, input size)
 ```
 

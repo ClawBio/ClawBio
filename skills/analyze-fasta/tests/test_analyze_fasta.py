@@ -279,3 +279,33 @@ def test_orf_results_sorted_by_length_descending(tmp_path):
     assert lengths == sorted(lengths, reverse=True), (
         f"ORFs not sorted by length descending: {lengths}"
     )
+
+
+def test_demo_reproducibility_bundle_is_complete(tmp_path):
+    """commands.sh is portable and the bundle carries environment.yml + checksums."""
+    out = tmp_path / "demo_out"
+    run_cli(["--demo", "--output", str(out)])
+    repro = out / "reproducibility"
+
+    commands_text = (repro / "commands.sh").read_text(encoding="utf-8")
+    assert "CLAWBIO_ROOT" in commands_text
+    assert "$OUTPUT_DIR" in commands_text
+    assert str(out) not in commands_text
+
+    environment = (repro / "environment.yml").read_text(encoding="utf-8")
+    assert "name: clawbio-analyze-fasta" in environment
+    assert "biopython" in environment
+
+    checksum_lines = [
+        line
+        for line in (repro / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert checksum_lines
+    labels = set()
+    for line in checksum_lines:
+        digest, label = line.split("  ", 1)
+        assert len(digest) == 64
+        labels.add(label)
+        assert (out / label).exists()
+    assert {"report.md", "result.json", "report.html"} <= labels
