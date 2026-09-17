@@ -76,6 +76,14 @@ fine-mapping = [
 # Declared here so `uv sync --all-extras` in CI can run their test suites;
 # each SKILL.md already documents pysam>=0.22 for local installs (#406).
 region-fetch = ["pysam>=0.22"]
+# Light imaging dependencies for skills/cell-detection, so `uv sync --all-extras`
+# can run its tests: 76 of its 80 tests need only these. cellpose itself is
+# deliberately absent, because torch's default Linux wheels pull the CUDA
+# runtime into every matrix job; the four tests that need it skip instead.
+cell-detection = [
+    "tifffile>=2024.8.30",
+    "scikit-image>=0.24",
+]
 
 [tool.uv]
 # glimix-core (a hard dependency of sushie) requires liknorm, and liknorm 2.0.0

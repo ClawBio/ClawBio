@@ -11,6 +11,12 @@ sys.path.insert(0, str(SKILL_DIR))
 
 import cell_detection
 
+# cellpose pulls torch, whose default Linux wheels carry the CUDA runtime, so
+# CI installs only the light imaging dependencies (the `cell-detection` extra)
+# and skips the four tests that need cellpose itself. Those four are covered by
+# running the skill locally; everything else here runs in CI.
+_CELLPOSE_REASON = "cellpose (and torch) are not installed in CI; run locally to cover these"
+
 
 # ---------------------------------------------------------------------------
 # TestDemoImage
@@ -797,13 +803,13 @@ class TestExcludeOnEdges:
         return masks
 
     def test_remove_edge_masks_removes_border_cell(self):
-        from cellpose import utils as cp_utils
+        cp_utils = pytest.importorskip("cellpose.utils", reason=_CELLPOSE_REASON)
         masks = self._masks_with_edge_cell()
         cleaned = cp_utils.remove_edge_masks(masks)
         assert 2 not in cleaned, "Edge cell (label 2) should have been removed"
 
     def test_remove_edge_masks_keeps_interior_cell(self):
-        from cellpose import utils as cp_utils
+        cp_utils = pytest.importorskip("cellpose.utils", reason=_CELLPOSE_REASON)
         masks = self._masks_with_edge_cell()
         cleaned = cp_utils.remove_edge_masks(masks)
         assert 1 in cleaned, "Interior cell (label 1) should be retained"
@@ -857,6 +863,7 @@ class TestFlowCellprobThresholds:
     # run_segmentation passes params to model.eval
 
     def test_run_segmentation_passes_flow_threshold(self):
+        pytest.importorskip("cellpose.models", reason=_CELLPOSE_REASON)
         import types
         calls = {}
 
@@ -876,6 +883,7 @@ class TestFlowCellprobThresholds:
         assert calls["flow_threshold"] == 0.9
 
     def test_run_segmentation_passes_cellprob_threshold(self):
+        pytest.importorskip("cellpose.models", reason=_CELLPOSE_REASON)
         import types
         calls = {}
 
