@@ -49,11 +49,12 @@ SCHEMA_VERSION = 1
 # only ``requests`` and ``opentelemetry-sdk`` installed: it fails on
 # ``import numpy``. ``scipy`` and ``matplotlib`` are optional at runtime and
 # are deliberately not declared.
+# What a replay needs at import time, nothing more. numpy and pandas were here
+# because clawbio/common/__init__ imported scrna_io eagerly and dragged both in
+# for a skill that calls neither; the package resolves its exports lazily now.
 REPLAY_PIP_DEPENDENCIES: tuple[str, ...] = (
     "requests>=2.31",
     "opentelemetry-sdk>=1.20,<2",
-    "numpy>=1.24",
-    "pandas>=2.0",
 )
 
 _VERSION_LINE = re.compile(r"^\s*version:\s*['\"]?([0-9]+\.[0-9]+\.[0-9]+)['\"]?\s*$")
