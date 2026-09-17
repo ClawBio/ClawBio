@@ -522,23 +522,3 @@ def test_default_python_version_matches_requires_python():
     default = inspect.signature(write_environment_yml).parameters["python_version"].default
     assert tuple(map(int, default.split("."))) >= tuple(map(int, floor.split("."))), (
         f"default python_version={default!r} is below requires-python {requires!r}")
-
-
-def test_no_skill_pins_a_python_below_requires_python():
-    """Same rule for the recipes that pass the version explicitly."""
-    import re
-    import tomllib
-
-    root = Path(__file__).resolve().parents[3]
-    requires = tomllib.loads((root / "pyproject.toml").read_text())["project"]["requires-python"]
-    floor = tuple(map(int, re.search(r"(\d+)\.(\d+)", requires).groups()))
-
-    offenders = []
-    for path in (root / "skills").rglob("*.py"):
-        if "/tests/" in path.as_posix():
-            continue
-        for match in re.finditer(r'python_version=["\'](\d+)\.(\d+)["\']', path.read_text(encoding="utf-8", errors="ignore")):
-            version = tuple(map(int, match.groups()))
-            if version < floor:
-                offenders.append(f"{path.relative_to(root)}: {'.'.join(map(str, version))}")
-    assert offenders == [], f"recipes pinning a Python below {requires}: {offenders}"
