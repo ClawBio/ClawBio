@@ -116,10 +116,20 @@ class TestGenerateReport:
         assert {"report.md", "matched_fields.csv"} <= labels
 
     def test_reproducibility_command_quotes_multiword_query(self, tmp_path):
-        generate_report("blood pressure", DEMO_RESULTS, tmp_path)
+        """Parsed as a shell would: the query must come back as ONE argument.
+        Asserting on quote characters is too weak -- the unquoted f-string form
+        this replaced also produced `--query "blood pressure"`."""
+        import shlex
+
+        query = 'blood "pressure" $HOME'
+        generate_report(query, DEMO_RESULTS, tmp_path)
         commands_text = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
-        # the query must survive as a single shell word, whatever quoting style
-        assert "'blood pressure'" in commands_text or '"blood pressure"' in commands_text
+        run_line = [ln for ln in commands_text.splitlines() if "ukb_navigator.py" in ln][0]
+        # the command spans continuation lines; rejoin before parsing
+        joined = commands_text[commands_text.index(run_line):].replace("\\\n", " ")
+        tokens = shlex.split(joined)
+        assert tokens[tokens.index("--query") + 1] == query
+        assert "$HOME" in tokens[tokens.index("--query") + 1]
 
     def test_demo_mode_flag(self, tmp_path):
         report_path = generate_report("test", DEMO_RESULTS, tmp_path, is_demo=True)

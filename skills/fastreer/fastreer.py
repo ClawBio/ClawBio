@@ -466,16 +466,22 @@ def write_reproducibility(args, input_file: Path, output_dir: Path) -> None:
     repro = output_dir / "reproducibility"
     repro.mkdir(exist_ok=True)
 
-    input_path = Path(input_file).resolve()
-    if input_path.is_relative_to(Path(output_dir).resolve()):
-        anchor = "output_dir"
-    elif input_path.is_relative_to(_PROJECT_ROOT):
-        anchor = "repo_root"
+    cmd_args: list[str | ReproPath] = ["--command", args.command]
+    if getattr(args, "demo", False):
+        # The demo generates its own input inside the output dir and may fall back
+        # to synthetic output. Recording that file as --input would replay on the
+        # strict path, which fails precisely when the fallback was needed.
+        cmd_args.append("--demo")
     else:
-        anchor = "auto"
-    cmd_args: list[str | ReproPath] = [
-        "--command", args.command,
-        "--input", ReproPath(input_path, anchor),
+        input_path = Path(input_file).resolve()
+        if input_path.is_relative_to(Path(output_dir).resolve()):
+            anchor = "output_dir"
+        elif input_path.is_relative_to(_PROJECT_ROOT):
+            anchor = "repo_root"
+        else:
+            anchor = "auto"
+        cmd_args += ["--input", ReproPath(input_path, anchor)]
+    cmd_args += [
         "--output", ReproPath(Path(output_dir), "output_dir"),
         "--threads", str(args.threads),
         "--mem", str(args.mem),
@@ -486,6 +492,8 @@ def write_reproducibility(args, input_file: Path, output_dir: Path) -> None:
         cmd_args += ["--kmer", str(args.kmer)]
     if args.window_bp:
         cmd_args += ["--window-bp", str(args.window_bp)]
+    if getattr(args, "window_variants", None):
+        cmd_args += ["--window-variants", str(args.window_variants)]
 
     java_ver = "not found"
     java = shutil.which("java")
@@ -510,7 +518,7 @@ def write_reproducibility(args, input_file: Path, output_dir: Path) -> None:
         env_name="clawbio-fastreer",
         pip_deps=["fastreer>=2.2.0"],
         conda_deps=["openjdk>=11"],
-        python_version="3.10",
+        python_version="3.11",
     )
     write_portable_commands_sh(
         output_dir,

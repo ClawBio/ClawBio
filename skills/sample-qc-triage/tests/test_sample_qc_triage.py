@@ -148,3 +148,30 @@ def test_demo_outputs_are_byte_stable_across_hash_seeds(tmp_path):
         )
         digests.append((out / "reproducibility" / "checksums.sha256").read_text(encoding="utf-8"))
     assert digests[0] == digests[1]
+
+
+def test_bundle_replays_a_non_demo_run_from_a_path_with_spaces(tmp_path):
+    """Every other bundle test runs --demo. A real input, a directory with a
+    space in it, and an actual replay are what the bundle claims to support."""
+    import shutil
+
+    workspace = tmp_path / "my qc runs"
+    workspace.mkdir()
+    source = workspace / "metrics copy.csv"
+    shutil.copy(SKILL_DIR / "demo_qc_metrics.csv", source)
+    out = workspace / "first run"
+
+    subprocess.run(
+        [sys.executable, str(MODULE_PATH), "--input", str(source), "--output", str(out)],
+        text=True, capture_output=True, check=True,
+    )
+    first = (out / "reproducibility" / "checksums.sha256").read_text(encoding="utf-8")
+
+    replay = workspace / "replayed"
+    shutil.copytree(out, replay)
+    done = subprocess.run(
+        ["bash", str(replay / "reproducibility" / "commands.sh")],
+        text=True, capture_output=True,
+    )
+    assert done.returncode == 0, done.stderr
+    assert (replay / "reproducibility" / "checksums.sha256").read_text(encoding="utf-8") == first

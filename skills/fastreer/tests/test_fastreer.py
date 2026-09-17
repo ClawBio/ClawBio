@@ -40,6 +40,20 @@ class TestDemoMode:
         run(["--demo", "--output", str(tmp_path)])
         assert (tmp_path / "reproducibility" / "commands.sh").exists()
 
+    def test_demo_replay_records_demo_not_a_generated_input(self, tmp_path):
+        """The demo writes its input into the output dir and falls back to
+        synthetic output when fastreeR or Java is missing. Replaying it as
+        --input takes the strict path and fails in exactly that case."""
+        run(["--demo", "--output", str(tmp_path)])
+        text = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+        assert "--demo" in text
+        assert "demo_samples.vcf" not in text
+
+    def test_window_variants_is_recorded(self, tmp_path):
+        run(["--demo", "--output", str(tmp_path), "--window-variants", "50"])
+        text = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+        assert "--window-variants" in text and "50" in text
+
     def test_demo_reproducibility_bundle_is_complete(self, tmp_path):
         run(["--demo", "--output", str(tmp_path)])
         repro = tmp_path / "reproducibility"
