@@ -126,8 +126,8 @@ The settings this document relies on, and their state on 11 September 2026:
 - `main` has been branch-protected since 17 September 2026 with required CI
   (`skill-lint`, `lockfile-check`, `test (3.11)`, `test (3.12)`), required
   code-owner review for the paths in CODEOWNERS, and no force pushes.
-  `enforce_admins` stays off until a second maintainer holds admin, so the
-  lead maintainer is not the only person able to unblock the repository. The `scientific-audit` CI job is excluded from the required
+  `enforce_admins` was switched on the same day the second maintainer was
+  granted admin (17 September 2026), so the rule binds the lead maintainer too. The `scientific-audit` CI job is excluded from the required
   set, because it runs an external audit suite pinned to a commit and is
   informative rather than blocking.
 - Release tags `v*` are protected by a repository ruleset.
