@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Union
 
 from clawbio.common.checksums import sha256_file
-from clawbio.common.textio import write_text_lf
+from clawbio.common.textio import write_text_lf, write_text_lf_atomic
 
 
 @dataclass
@@ -95,7 +95,7 @@ def write_portable_commands_sh(
     rendered = [render_arg(a) for a in command.args]
     script_ref = f'"$CLAWBIO_ROOT/{command.script_path}"'
 
-    parts = [f"python {script_ref}"] + rendered
+    parts = [f'"${{PYTHON:-python3}}" {script_ref}'] + rendered
     if len(parts) <= 2:
         cmd_line = " ".join(parts)
     else:
@@ -122,7 +122,7 @@ def write_portable_commands_sh(
 
     content = "\n".join(lines) + "\n"
     path = repro_dir / "commands.sh"
-    write_text_lf(path, content)
+    write_text_lf_atomic(path, content)
     path.chmod(path.stat().st_mode | 0o111)
     return path
 
@@ -236,7 +236,7 @@ def write_commands_sh(output_dir: Path | str, command: str) -> Path:
 
     content = f"#!/usr/bin/env bash\n{command}\n"
     path = repro_dir / "commands.sh"
-    write_text_lf(path, content)
+    write_text_lf_atomic(path, content)
     path.chmod(path.stat().st_mode | 0o111)
     return path
 

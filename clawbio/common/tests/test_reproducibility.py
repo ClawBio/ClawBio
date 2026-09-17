@@ -277,7 +277,7 @@ class TestWritePortableCommandsSh:
         assert 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' in text
         assert 'OUTPUT_DIR="$(dirname "$SCRIPT_DIR")"' in text
         assert f': "${{CLAWBIO_ROOT:={tmp_path.resolve()}}}"' in text
-        assert 'python "$CLAWBIO_ROOT/skills/example/example.py" --demo' in text
+        assert '"${PYTHON:-python3}" "$CLAWBIO_ROOT/skills/example/example.py" --demo' in text
         assert f'python "{(tmp_path.resolve() / "skills/example/example.py")}" --demo' not in text
 
 
@@ -478,3 +478,28 @@ class TestBuildPortableCommandsSh:
             args={"--output": "/tmp/my output dir"},
         )
         assert "'/tmp/my output dir'" in content
+
+
+def test_commands_sh_is_replaced_atomically(tmp_path):
+    """A replay writes --output back at $OUTPUT_DIR, regenerating the very script
+    bash is reading. A non-atomic rewrite makes bash resume at a byte offset in a
+    different file; os.replace keeps the running shell on the original inode."""
+    from clawbio.common.reproducibility import ReproCommand, write_portable_commands_sh
+
+    cmd = ReproCommand(script_path=Path("skills/x/x.py"), args=["--demo"])
+    path = write_portable_commands_sh(tmp_path, cmd, repo_root=tmp_path)
+    original_inode = path.stat().st_ino
+    write_portable_commands_sh(tmp_path, cmd, repo_root=tmp_path)
+    assert path.stat().st_ino != original_inode, "commands.sh was rewritten in place"
+
+
+def test_commands_sh_does_not_depend_on_bare_python_on_path(tmp_path):
+    """`python` is absent or points at Python 2 on plenty of machines; the skills
+    that previously recorded sys.executable must not regress to a bare `python`."""
+    from clawbio.common.reproducibility import ReproCommand, write_portable_commands_sh
+
+    text = write_portable_commands_sh(
+        tmp_path, ReproCommand(script_path=Path("skills/x/x.py"), args=["--demo"]),
+        repo_root=tmp_path).read_text()
+    assert "python3" in text
+    assert not any(line.startswith("python ") for line in text.splitlines())
