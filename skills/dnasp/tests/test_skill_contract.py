@@ -102,6 +102,9 @@ EXPECTED_FLAGS = {
     "window_size": "--window",
     "step_size": "--step",
     "genetic_code": "--genetic-code",
+    "n_sim": "--n-sim",
+    "sim_given": "--sim-given",
+    "sim_seed": "--sim-seed",
 }
 
 
@@ -123,3 +126,9 @@ def test_the_flag_a_mapping_names_takes_the_value_the_input_describes() -> None:
             assert action.type is int, f"{flag} should take an integer for {name}"
         if name == "genetic_code":
             assert action.choices, f"{flag} should be a fixed set of codes for {name}"
+        if name == "sim_given":
+            assert set(action.choices) == {"S", "theta"}, f"{flag} should offer S and theta"
+        if name == "sim_seed":
+            assert action.type is int, f"{flag} should take an integer seed"
+        if name == "n_sim":
+            assert action.default == 0, f"{flag} must default to no simulation"

@@ -210,7 +210,8 @@ def test_clawbio_dispatch_accepts_real_dnasp_options(tmp_path, monkeypatch):
     from clawbio.cli import SKILLS
     allowed = SKILLS['dnasp']['allowed_extra_flags']
     assert {'--analysis', '--input2', '--pop-file', '--genetic-code', '--vcf', '--region', '--vcf-merge', '--hka-file'} <= allowed
-    assert '--n-sim' not in allowed  # not an implemented DnaSP option
+    assert {'--n-sim', '--sim-given', '--sim-seed'} <= allowed  # implemented in 0.6.0
+    assert '--tajima' not in allowed  # not an implemented DnaSP option
     from clawbio.cli import run_skill
     fixtures = Path(__file__).parent / 'fixtures/inputs'
     (tmp_path / 'input data.vcf').write_bytes((fixtures / 'vcf/Data_Example_DiploidPhased.vcf').read_bytes())
@@ -223,6 +224,20 @@ def test_clawbio_dispatch_accepts_real_dnasp_options(tmp_path, monkeypatch):
     ]:
         result = run_skill('dnasp', output_dir=str(tmp_path / name), extra_args=arguments)
         assert result['exit_code'] == 0, result
+
+
+def test_clawbio_dispatch_actually_runs_the_coalescent_simulation(tmp_path, monkeypatch):
+    """The allowlist once dropped --n-sim silently: the run succeeded with no simulation."""
+    import json
+    from clawbio.cli import run_skill
+    fixtures = Path(__file__).parent / 'fixtures/inputs'
+    (tmp_path / 'ex.fas').write_bytes((fixtures / 'Ex_n1.fas').read_bytes())
+    monkeypatch.chdir(tmp_path)
+    result = run_skill('dnasp', input_path='ex.fas', output_dir=str(tmp_path / 'sim'),
+                       extra_args=['--n-sim', '60', '--sim-given', 'theta', '--sim-seed', '5'])
+    assert result['exit_code'] == 0, result
+    coalescent = json.loads((tmp_path / 'sim' / 'summary.json').read_text())['coalescent']
+    assert (coalescent['n_sim'], coalescent['given'], coalescent['seed']) == (60, 'theta', 5)
 
 
 def test_result_json_envelope_and_runner_promotion(tmp_path):

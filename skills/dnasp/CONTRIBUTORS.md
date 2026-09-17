@@ -9,7 +9,7 @@ Python reimplementation, ClawBio adaptation, test suite, documentation.
 
 ## Original DnaSP 6  -  algorithms and Visual Basic implementation
 
-The statistical algorithms implemented in this skill are based on the original DnaSP 6 source code, shared by Julio Rozas under the MIT licence.
+The statistical algorithms implemented in this skill are implemented from the primary literature and were checked against the original DnaSP 6 source code, which Julio Rozas made available for that purpose. The skill contains no DnaSP source code.
 
 **Julio Rozas** ([@JulioRozas](https://github.com/JulioRozas))  
 **Albert Ferrer-Mata**  

@@ -340,6 +340,7 @@ SKILLS = {
         "allowed_extra_flags": {
             "--analysis", "--input2", "--outgroup", "--pop-file", "--hka-file",
             "--genetic-code", "--window", "--step", "--vcf", "--region", "--vcf-merge",
+            "--n-sim", "--sim-given", "--sim-seed",
         },
         "accepts_genotypes": False,
     },
