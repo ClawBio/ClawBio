@@ -38,6 +38,7 @@ SKILL_DIR = Path(__file__).resolve().parent
 DEMO_DATA_DIR = SKILL_DIR / "demo_data"
 DEFAULT_DB_PATH = SKILL_DIR / "embeddings"
 DEFAULT_COLLECTION = "ukb_schema"
+DEFAULT_N_RESULTS = 10
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +254,8 @@ DEMO_RESULTS = [
 # ---------------------------------------------------------------------------
 
 def generate_report(query: str, matches: list[dict], output_dir: Path,
-                    is_demo: bool = False):
+                    is_demo: bool = False, n_results: int | None = None,
+                    db_path: str | Path | None = None):
     """Generate markdown report and CSV from search results."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -307,6 +309,11 @@ def generate_report(query: str, matches: list[dict], output_dir: Path,
         python_version="3.11",
     )
     args = ["--demo"] if is_demo else ["--query", shlex.quote(query)]
+    # Only non-default flags: the recipe should show what this run chose.
+    if n_results is not None and n_results != DEFAULT_N_RESULTS:
+        args += ["--n-results", str(n_results)]
+    if db_path is not None and str(db_path) != str(DEFAULT_DB_PATH):
+        args += ["--db-path", shlex.quote(str(db_path))]
     args.append("--output")
     write_portable_commands_sh(
         output_dir,
@@ -337,7 +344,8 @@ def main():
     group.add_argument("--embed", help="Path to ukb_schema.csv to embed")
 
     parser.add_argument("--output", "-o", help="Output directory for report")
-    parser.add_argument("--n-results", type=int, default=10, help="Number of results (default: 10)")
+    parser.add_argument("--n-results", type=int, default=DEFAULT_N_RESULTS,
+                        help=f"Number of results (default: {DEFAULT_N_RESULTS})")
     parser.add_argument("--db-path", type=str, default=str(DEFAULT_DB_PATH),
                         help="ChromaDB storage path")
     parser.add_argument("--schema-txt", type=str, help="Optional schema_27.txt path")
@@ -389,7 +397,8 @@ def main():
     # Generate report if output specified
     if args.output:
         out_dir = Path(args.output)
-        report_path = generate_report(question, matches, out_dir)
+        report_path = generate_report(question, matches, out_dir,
+                                      n_results=args.n_results, db_path=args.db_path)
         print(f"\nFull report: {report_path}")
 
 

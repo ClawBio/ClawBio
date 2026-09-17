@@ -115,6 +115,21 @@ class TestGenerateReport:
             assert (tmp_path / label).exists()
         assert {"report.md", "matched_fields.csv"} <= labels
 
+    def test_non_default_search_flags_are_recorded(self, tmp_path):
+        """A replay that silently drops --n-results or --db-path reproduces a
+        different search than the report next to it."""
+        generate_report("blood pressure", DEMO_RESULTS, tmp_path,
+                        n_results=25, db_path="/data/ukb_embeddings")
+        text = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+        assert "--n-results" in text and "25" in text
+        assert "--db-path" in text and "/data/ukb_embeddings" in text
+
+    def test_default_search_flags_are_not_recorded(self, tmp_path):
+        """Defaults stay out, so the recipe shows what the run actually chose."""
+        generate_report("blood pressure", DEMO_RESULTS, tmp_path)
+        text = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+        assert "--n-results" not in text and "--db-path" not in text
+
     def test_reproducibility_command_quotes_multiword_query(self, tmp_path):
         """Parsed as a shell would: the query must come back as ONE argument.
         Asserting on quote characters is too weak -- the unquoted f-string form
