@@ -32,7 +32,7 @@ WHEEL_LICENCES = {"MIT", "Apache-2.0"}
 # stay in the repository as folders labelled by licence and are excluded here.
 # Kept in step with FOLDER_ONLY in tests/test_licence_policy.py by a test.
 #
-# This list is a declaration, not the gate: _unredistributable_skills() below
+# This list is a declaration, not the gate: _excluded_skill_folders() below
 # re-reads every SKILL.md at build time, so a folder that never reaches
 # skills/catalog.json (generate_catalog.py has its own EXCLUDED_FOLDERS) still
 # cannot slip into the wheel.
@@ -78,18 +78,26 @@ def _declared_licence(skill_md: Path) -> str:
     return ""
 
 
-def _unredistributable_skills(skills_dir: Path) -> set[str]:
-    """Every skill folder on disk whose declared code licence may not ship.
+def _excluded_skill_folders(skills_dir: Path) -> set[str]:
+    """Every folder under skills/ that must not be published.
 
-    A blank licence counts as unredistributable: the wheel is MIT, and a folder
-    that does not say what it is cannot be shown to be redistributable.
+    Two reasons, both read off disk because that is what the build walks:
+
+    - No SKILL.md: it is not a skill. Untracked scratch work in a maintainer's
+      tree, or a RETIRED/ holding pen. Publishing whatever happens to sit in
+      skills/ is how local data reaches PyPI.
+    - A code licence that is not MIT or Apache-2.0, blank included: the wheel is
+      MIT, and a folder that will not say what it is cannot be shown to be
+      redistributable.
     """
     excluded = set(WHEEL_EXCLUDED_SKILLS)
+    if not skills_dir.is_dir():
+        return excluded
     for folder in skills_dir.iterdir():
-        skill_md = folder / "SKILL.md"
-        if not folder.is_dir() or not skill_md.is_file():
+        if not folder.is_dir():
             continue
-        if _declared_licence(skill_md) not in WHEEL_LICENCES:
+        skill_md = folder / "SKILL.md"
+        if not skill_md.is_file() or _declared_licence(skill_md) not in WHEEL_LICENCES:
             excluded.add(folder.name)
     return excluded
 
@@ -113,7 +121,7 @@ class CustomBuildHook(BuildHookInterface):
     def initialize(self, version, build_data):  # noqa: D401 - hatchling interface
         root = Path(self.root)
         force_include = build_data.setdefault("force_include", {})
-        excluded_skills = _unredistributable_skills(root / "skills")
+        excluded_skills = _excluded_skill_folders(root / "skills")
 
         for base in ("skills", "examples"):
             base_dir = root / base

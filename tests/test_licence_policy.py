@@ -176,3 +176,38 @@ def test_unbundled_skill_reports_why_it_is_missing(monkeypatch, tmp_path):
     assert "not bundled" in result["stderr"]
     assert cli.UNBUNDLED_SKILLS[alias].split(":")[0] in result["stderr"]
     assert "github.com" in result["stderr"] or "checkout" in result["stderr"]
+
+
+def test_folders_that_are_not_skills_never_ship():
+    """The wheel is built by walking skills/ on disk, which picks up whatever a
+    maintainer has in their working tree. A folder with no SKILL.md is not a
+    skill -- local scratch work, or a RETIRED/ holding pen -- and must not be
+    published, licence or no licence."""
+    sys.path.insert(0, str(ROOT))
+    import hatch_build
+
+    excluded = hatch_build._excluded_skill_folders(SKILLS_DIR)
+    not_skills = {
+        d.name for d in SKILLS_DIR.iterdir()
+        if d.is_dir() and not (d / "SKILL.md").is_file()
+    }
+    assert not_skills <= excluded, f"non-skill folders that would ship: {sorted(not_skills - excluded)}"
+
+
+def test_missing_skills_dir_yields_no_wheel_skills():
+    """A tree without skills/ builds a skill-free wheel rather than crashing."""
+    sys.path.insert(0, str(ROOT))
+    import hatch_build
+
+    assert hatch_build._excluded_skill_folders(ROOT / "no-such-dir") == set(hatch_build.WHEEL_EXCLUDED_SKILLS)
+
+
+def test_both_licence_readers_agree():
+    """The build hook scans lines; this suite reads via PyYAML. If they ever
+    disagree -- `license: MIT  # code only` is enough -- a skill is silently
+    dropped from the wheel with a green suite."""
+    sys.path.insert(0, str(ROOT))
+    import hatch_build
+
+    for name, lic in _licences_on_disk().items():
+        assert hatch_build._declared_licence(SKILLS_DIR / name / "SKILL.md") == lic, name
