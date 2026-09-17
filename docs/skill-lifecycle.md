@@ -73,8 +73,8 @@ skill that survives a round acquires a benchmark or is demoted.
 
 ## Editors
 
-Named domain reviewers, listed in `MAINTAINERS.md`, review skill PRs in their area against the
-classes above and recommend an outcome. Editors recommend; maintainers decide. There is no
+The maintainers listed in `MAINTAINERS.md` review skill PRs against the classes above and
+recommend an outcome; named domain reviewers are added there as the project acquires them. Editors recommend; maintainers decide. There is no
 steering group and no vote. An editor's recommendation is recorded alongside the decision so
 that disagreement is visible later.
 

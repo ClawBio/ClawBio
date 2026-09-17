@@ -26,17 +26,39 @@ REPO = "ClawBio/ClawBio"
 _HANDLE = re.compile(r"\[@([A-Za-z0-9-]+)\]\(https://github\.com/[A-Za-z0-9-]+\)")
 
 
-def _gh(path: str) -> list | dict | None:
+def _run(args: list[str]) -> str | None:
     try:
-        out = subprocess.run(["gh", "api", path], capture_output=True, text=True, timeout=30)
+        out = subprocess.run(args, capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired):
         return None
-    if out.returncode != 0:
+    return out.stdout if out.returncode == 0 else None
+
+
+def _gh(path: str) -> list | dict | None:
+    """Read every page. `gh api` stops at 30 items without --paginate, and a
+    truncated read here would print OK while missing the accounts that matter.
+    --slurp wraps the pages into one array so this parses as a single document.
+    """
+    raw = _run(["gh", "api", "--paginate", "--slurp", path])
+    if raw is None:
         return None
     try:
-        return json.loads(out.stdout)
+        return json.loads(raw)
     except json.JSONDecodeError:
         return None
+
+
+def _logins(payload: list | dict) -> set[str]:
+    """Logins from a --slurp response (list of pages) or a plain list."""
+    if isinstance(payload, dict):
+        payload = [payload]
+    logins: set[str] = set()
+    for item in payload:
+        if isinstance(item, list):
+            logins |= {entry["login"] for entry in item}
+        else:
+            logins.add(item["login"])
+    return logins
 
 
 def declared_handles(text: str) -> set[str]:
@@ -52,12 +74,26 @@ def main() -> int:
     if members is None or collabs is None:
         print("INCOMPLETE: could not read the GitHub API (gh missing, offline, or unauthenticated)")
         return 2
+    if not _logins(members):
+        print(
+            f"INCOMPLETE: orgs/{ORG}/members came back empty. An organisation always has "
+            "an owner, so this token cannot see its members (it needs read:org and "
+            "membership of the org). Treating this as unread rather than as agreement."
+        )
+        return 2
 
-    live = {m["login"] for m in members} | {c["login"] for c in collabs}
-    admins = sorted(c["login"] for c in collabs if c.get("permissions", {}).get("admin"))
+    live = _logins(members) | _logins(collabs)
+    admins = sorted(
+        c["login"]
+        for page in (collabs if collabs and isinstance(collabs[0], list) else [collabs])
+        for c in page
+        if c.get("permissions", {}).get("admin")
+    )
 
     undeclared = sorted(live - declared)
-    stale = sorted(declared - live - {"manuelcorpas"})
+    # No account is exempt. The lead maintainer's row going stale is the one
+    # worth hearing about, and this is a warning, not a failure.
+    stale = sorted(declared - live)
     print(f"live accounts : {sorted(live)}")
     print(f"direct admins : {admins}")
     print(f"declared      : {sorted(declared)}")

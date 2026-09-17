@@ -65,12 +65,24 @@ def test_every_handle_link_points_at_its_own_profile():
     assert bad == [], f"handle/link mismatches: {bad}"
 
 
+def test_critical_control_rows_exist():
+    """Outside the xfail below on purpose: under strict xfail a missing row is
+    indistinguishable from a genuine single holder, so renaming a control would
+    silently retire the check instead of failing."""
+    missing = [c for c in SINGLE_PERSON_CONTROLS
+               if not any(c in ln for ln in _text().splitlines())]
+    assert missing == [], f"controls named in the test but absent from MAINTAINERS.md: {missing}"
+
+
 @pytest.mark.xfail(strict=True, reason="PyPI and DNS are held by one person; remove this marker when a second holder is listed")
 def test_critical_controls_have_two_holders():
     t = _text()
     single = []
     for control in SINGLE_PERSON_CONTROLS:
-        row = next((ln for ln in t.splitlines() if control in ln), "")
+        row = next((ln for ln in t.splitlines() if control in ln), None)
+        assert row is not None, (
+            f"no row for {control!r} in MAINTAINERS.md; this test cannot report on a "
+            "control it cannot find, and an unfound row must not read as a single holder")
         holders = [c.strip() for c in row.split("|")[2:3]]
         names = re.split(r",| and ", holders[0]) if holders else []
         if len([n for n in names if n.strip()]) < 2:
