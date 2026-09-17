@@ -65,11 +65,36 @@ just-prs = [
     "fastmcp>=3.4.4,<4",
     "typer>=0.27.2,<1",
 ]
+# SuShiE fine-mapping engine (jax-based) for skills/fine-mapping.
+# sushie pulls glimix-core itself; see the liknorm override under [tool.uv]
+# for why that subtree is kept out of the installed environment.
+fine-mapping = [
+    "sushie>=0.20,<0.21",
+]
 # Shared by the four region skills (eqtl-catalogue-region-fetch,
 # gwas-catalog-region-fetch, ld-1000g-region-compute, ukb-ppp-region-fetch).
 # Declared here so `uv sync --all-extras` in CI can run their test suites;
 # each SKILL.md already documents pysam>=0.22 for local installs (#406).
 region-fetch = ["pysam>=0.22"]
+
+[tool.uv]
+# glimix-core (a hard dependency of sushie) requires liknorm, and liknorm 2.0.0
+# pins cffi<2.0. cryptography>=48 requires cffi>=2.0, so leaving liknorm in the
+# graph drags cryptography from 48.0.0 down to 45.0.7 for EVERY user of this
+# lock, extras or not — and 45.0.7 carries known advisories (PYSEC-2026-2141,
+# PYSEC-2026-35/36, GHSA-537c-gmf6-5ccf) that 48.0.0 does not.
+#
+# sushie's summary-statistics path (`sushie.infer_ss.infer_sushie_ss`, the only
+# entry point skills/fine-mapping uses) imports glimix_core but never liknorm;
+# glimix-core only loads it for the GLMM/exponential-family models that the
+# individual-level path needs. So drop liknorm from the resolution rather than
+# downgrading cryptography project-wide.
+override-dependencies = ["liknorm ; sys_platform == 'clawbio-never'"]
+# Note for anyone exporting this lock: `uv export` keeps the override's
+# unsatisfiable marker, but plain pip re-resolves glimix-core's own metadata and
+# puts liknorm back, which then conflicts with the locked cffi 2.0.0. That is
+# why ci.yml's pip-audit job audits the synced venv rather than an exported
+# requirements file.
 
 [project.scripts]
 clawbio = "clawbio.cli:main"

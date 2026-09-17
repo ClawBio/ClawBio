@@ -29,8 +29,11 @@ jobs:
         run: uv python install 3.12
 
       - name: Install dependencies
+        # --all-extras for the same reason as ci.yml's scientific-audit job:
+        # skills/fine-mapping needs the `fine-mapping` extra (sushie) or every
+        # SuSiE case errors instead of running.
         run: |
-          uv sync --locked
+          uv sync --locked --all-extras
           uv pip install "clawbio-bench @ git+https://github.com/biostochastics/clawbio_bench.git@49a0f11a8393b87a90f0721261a9bec5d52b61db"
 
       - name: Run benchmark (smoke mode)

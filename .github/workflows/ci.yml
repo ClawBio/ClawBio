@@ -134,8 +134,20 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Export the lockfile
-        run: uv export --frozen --no-hashes --all-extras -o requirements-audit.txt
+      - name: Set up Python
+        run: uv python install 3.12
+
+      # Audit the environment uv actually builds, not a re-resolution of an
+      # exported requirements file. `pip-audit -r` shells out to pip, and pip
+      # does not honour the `[tool.uv] override-dependencies` entry that keeps
+      # liknorm out of the graph (see pyproject.toml for why it is there). pip
+      # therefore re-adds liknorm, whose `cffi<2.0` pin cannot coexist with the
+      # locked cffi 2.0.0, and the audit died on ResolutionImpossible instead
+      # of reporting. Auditing the synced venv has no resolution step and is
+      # the stricter question anyway: it covers what we ship, not what pip
+      # would have picked.
+      - name: Sync the locked environment
+        run: uv sync --locked --all-extras
 
       - name: Audit with pip-audit
         # `|| true` keeps findings from failing the build, so assert the tool
@@ -143,7 +155,7 @@ jobs:
         # vulnerabilities found" or "Found N known vulnerabilities". Neither
         # line means the step broke, which must fail loudly.
         run: |
-          uvx pip-audit -r requirements-audit.txt --no-deps > pip-audit.txt 2>&1 || true
+          uv run --with pip-audit pip-audit > pip-audit.txt 2>&1 || true
           if ! grep -qE 'No known vulnerabilities found|Found [0-9]+ known vulnerabilit' pip-audit.txt; then
             echo "::error::pip-audit produced no recognisable report - the audit step is broken, not clean"
             cat pip-audit.txt
@@ -503,7 +515,13 @@ jobs:
         run: uv python install 3.12
 
       - name: Install ClawBio dependencies
-        run: uv sync --locked
+        # --all-extras: the bench drives skills whose engines live in
+        # [project.optional-dependencies]. skills/fine-mapping delegates SuSiE
+        # to sushie (the `fine-mapping` extra) and raises ImportError without
+        # it, which would turn every SuSiE bench case into a harness_error and
+        # trip the baseline gate below for reasons that have nothing to do with
+        # the skill's correctness.
+        run: uv sync --locked --all-extras
 
       - name: Install clawbio-bench
         run: uv pip install "clawbio-bench @ git+https://github.com/biostochastics/clawbio_bench.git@49a0f11a8393b87a90f0721261a9bec5d52b61db"

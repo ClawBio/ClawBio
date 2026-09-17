@@ -4,7 +4,25 @@
     "job fails if any harness drops below its rate here (see #342).",
     "These are NOT targets. Seven harnesses are below 100% and that debt is",
     "tracked in #106. Raising a number is a reviewable commit; lowering one",
-    "should be treated as a bug report, not routine maintenance."
+    "should be treated as a bug report, not routine maintenance.",
+    "",
+    "clawbio-finemapping was lowered 95.0 -> 90.0 in PR #423 (SuSiE moved onto",
+    "sushie). Neither lost point is a new scientific error, and the rest of the",
+    "harness improved: the phantom-credible-set pathology fm_04 targets is gone",
+    "(10 sets on the demo locus, 8 of them purity-0, down to the 2 real ones).",
+    "The two cases and why they moved:",
+    "  fm_12 susie_nonconvergence: was harness_error (excluded) on main, now a",
+    "    scored fail. Its rubric accepts 'a top-level status flag that",
+    "    downstream callers must consult', which is exactly what the adapter",
+    "    now returns (converged=False plus a RuntimeWarning, mirroring",
+    "    susieR::susie_rss). The grader only accepts a raise. Raised upstream.",
+    "  fm_14 susie_moment_mislabeled: was a pass, now harness_error. Its locus",
+    "    is z=[5,5,0] under identity LD, so the single credible set contains two",
+    "    uncorrelated variants, purity 0, and is pruned. PIPs are reported over",
+    "    surviving sets only (see the SKILL.md gotcha), so the case gets no mu",
+    "    to score. The case also expects susieR's z-unit r*z moments; sushie",
+    "    reports standardised effect-size moments. Raised upstream.",
+    "Restore 95.0 once either case is regraded upstream."
   ],
   "recorded_from": {
     "clawbio_commit": "056826d",
@@ -12,12 +30,18 @@
     "date": "2026-08-13",
     "mode": "smoke",
     "overall_pass_rate": 87.9,
-    "bench_own_verdict_pass": false
+    "bench_own_verdict_pass": false,
+    "clawbio-finemapping_rerecorded": {
+      "pr": 423,
+      "date": "2026-09-16",
+      "benchmark_version": "0.1.1",
+      "result": "18/20 pass (90.0%), 1 harness error"
+    }
   },
   "harnesses": {
     "bio-orchestrator": 98.1,
     "claw-metagenomics": 100.0,
-    "clawbio-finemapping": 95.0,
+    "clawbio-finemapping": 90.0,
     "clinical-variant-reporter": 80.0,
     "cvr-acmg-correctness": 69.2,
     "cvr-variant-identity": 100.0,
