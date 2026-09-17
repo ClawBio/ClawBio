@@ -91,6 +91,7 @@ When the user asks a question, match it to a skill and act:
 | Flow.bio, flow pipeline, flow sample, flow execution, flow project, "run on flow", "upload to flow", flow search | `skills/flow-bio/` | Run `flow_bio.py` |
 | Upstream bulk RNA-seq pipeline, run nf-core/rnaseq, FASTQ to count matrix, STAR Salmon, STAR RSEM, HISAT2 RNA-seq, Bowtie2 Salmon, preprocess bulk RNA-seq FASTQs | `skills/nfcore-rnaseq-wrapper/` | Run `nfcore_rnaseq_wrapper.py` |
 | Upstream variant calling pipeline, run nf-core/sarek, germline variant calling, somatic/tumor-normal variant calling, tumor-only variant calling, Mutect2, Strelka, HaplotypeCaller, ASCAT, ControlFREEC, Manta, WES/WGS variant calling, VEP/SnpEff annotation, FASTQ/BAM/CRAM to VCF | `skills/nfcore-sarek-wrapper/` | Run `nfcore_sarek_wrapper.py` (alias `sarek-pipeline`) |
+| Upstream RNA structure-probing pipeline, run nf-core/rnastructurome, SHAPE-MaP, DMS-MaP, RT-stop reactivity, RNA Framework, rf-count/rf-norm/rf-fold, R2DT structure diagram, per-base RNA reactivity | `skills/nfcore-rnastructurome-wrapper/` | Read SKILL.md, apply methodology |
 | Bulk RNA-seq, pseudo-bulk, differential expression, DESeq2, PyDESeq2, contrast, volcano plot | `skills/rnaseq-de/` | Run `rnaseq_de.py` |
 | protocols.io, protocol search, lab protocol, scientific methods, protocol DOI, protocol steps | `skills/protocols-io/` | Run `protocols_io.py` |
 | Genome compatibility, mating pairs, heterozygosity, Genomebook match, breeding pairs | `skills/genome-match/` | Run `genome_match.py` |
