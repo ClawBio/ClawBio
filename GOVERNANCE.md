@@ -123,11 +123,16 @@ project.
 
 The settings this document relies on, and their state on 17 September 2026:
 
-- `main` has been branch-protected since 17 September 2026 with required CI
-  (`skill-lint`, `lockfile-check`, `test (3.11)`, `test (3.12)`), required
-  code-owner review for the paths in CODEOWNERS, and no force pushes.
-  `enforce_admins` was switched on the same day the second maintainer was
-  granted admin (17 September 2026), so the rule binds the lead maintainer too.
+- `main` has been branch-protected since 17 September 2026. A merge needs one
+  approving review, which cannot come from the author or from whoever pushed
+  last; code-owner review for the paths in CODEOWNERS; and eleven required CI
+  checks: `skill-lint`, `lockfile-check`, `dependency-audit`, `pip-audit`,
+  `test (3.11)`, `test (3.12)`, `test (3.13)`, `skill-harness`, `benchmark`,
+  `Analyse (python)` and `Analyse (actions)`. A new push dismisses earlier
+  approvals, and force pushes are blocked. The approval and the wider check
+  set were added the same day, at the second maintainer's request.
+  `enforce_admins` was switched on when the second maintainer was granted
+  admin (17 September 2026), so every rule binds both maintainers.
 - The `scientific-audit` CI job is excluded from the required set, because it
   runs an external audit suite pinned to a commit and is informative rather
   than blocking.
