@@ -44,7 +44,7 @@ and protected by a hardware key, is planned and not yet created.
 
 | Control | Held by |
 |---------|---------|
-| PyPI project `clawbio` | Manuel Corpas |
+| PyPI project `clawbio` | Manuel Corpas, Cameron Lloyd |
 | Domain `clawbio.ai` (DNS) and GitHub Pages | Manuel Corpas |
 | Release tags `v*` | Repository admins only, by ruleset |
 | The daily PR agent | Runs from Manuel Corpas's machine; see GOVERNANCE.md |
