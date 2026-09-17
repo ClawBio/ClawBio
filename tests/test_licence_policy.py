@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS_DIR = ROOT / "skills"
@@ -175,7 +176,16 @@ def test_unbundled_skill_reports_why_it_is_missing(monkeypatch, tmp_path):
     assert result["success"] is False
     assert "not bundled" in result["stderr"]
     assert cli.UNBUNDLED_SKILLS[alias].split(":")[0] in result["stderr"]
-    assert "github.com" in result["stderr"] or "checkout" in result["stderr"]
+    stderr = result["stderr"]
+    github_url_present = any(
+        (
+            (host := urlparse(token).hostname) == "github.com"
+            or (host is not None and host.endswith(".github.com"))
+        )
+        for token in stderr.split()
+        if token.startswith(("http://", "https://"))
+    )
+    assert github_url_present or "checkout" in stderr
 
 
 def test_folders_that_are_not_skills_never_ship():
