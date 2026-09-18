@@ -202,20 +202,39 @@ def test_environment_declares_every_eager_runtime_dependency(tmp_path) -> None:
     assert set(repro_bundle.REPLAY_PIP_DEPENDENCIES) == {
         "requests>=2.31",
         "opentelemetry-sdk>=1.20,<2",
-        "numpy>=1.24",
-        "pandas>=2.0",
     }
 
 
-def test_numpy_and_pandas_really_are_eager_imports() -> None:
-    """The skill never calls numpy or pandas, but importing ``clawbio.common``
-    (for checksums and the reproducibility layer) loads its package
-    ``__init__``, which imports ``scrna_io`` and therefore both libraries.
-    If this ever stops being true, drop them from REPLAY_PIP_DEPENDENCIES."""
-    assert "clawbio.common" in sys.modules
-    assert "numpy" in sys.modules
-    assert "pandas" in sys.modules
-    assert "opentelemetry" in sys.modules
+def test_declared_dependencies_match_what_is_eagerly_imported() -> None:
+    """REPLAY_PIP_DEPENDENCIES must name what a replay actually needs at import.
+
+    Measured the way a replay does it -- a fresh interpreter importing
+    gwas_prs -- not from this process, which has only imported repro_bundle.
+
+    numpy and pandas used to be declared because clawbio/common/__init__
+    imported scrna_io eagerly and pulled both in for a skill that calls
+    neither. The package resolves its exports lazily now, so they are gone.
+    """
+    import json
+    import subprocess
+
+    skill_dir = Path(__file__).resolve().parents[1]
+    probe = """import sys, json
+sys.path.insert(0, %r)
+import gwas_prs
+print(json.dumps(sorted({m.split('.')[0] for m in sys.modules})))""" % str(skill_dir)
+    out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True,
+                         cwd=str(skill_dir.parents[1]), check=True)
+    eager = set(json.loads(out.stdout))
+
+    declared = {d.split(">")[0].split("<")[0].split("=")[0] for d in repro_bundle.REPLAY_PIP_DEPENDENCIES}
+    # opentelemetry-sdk installs the opentelemetry package
+    declared = {d.replace("opentelemetry-sdk", "opentelemetry") for d in declared}
+
+    assert declared <= eager, f"declared but not imported by a replay: {sorted(declared - eager)}"
+    for heavy in ("numpy", "pandas"):
+        assert heavy not in eager, (
+            f"{heavy} is eager again; add it back to REPLAY_PIP_DEPENDENCIES")
 
 
 def test_commands_are_portable_and_require_input_file(tmp_path) -> None:
