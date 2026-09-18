@@ -227,6 +227,21 @@ def build_evidence(args: argparse.Namespace) -> dict[str, Any]:
     literature = fetch_pubmed_hits(gene, disease, args.max_papers)
     trials = fetch_trials(gene, disease, args.max_trials)
 
+    limitations = [
+        "This tool aggregates public evidence for research triage only.",
+        "It does not infer causality from association evidence.",
+        "It does not provide clinical recommendations.",
+        "Public API availability may affect completeness.",
+    ]
+    if target_summary.get("status") == "unavailable":
+        limitations.append("UniProt was unavailable; target summary was not assessed.")
+    if disease_association.get("status") == "unavailable":
+        limitations.append("Open Targets was unavailable; disease association was not assessed.")
+    if literature.get("status") == "unavailable":
+        limitations.append("PubMed was unavailable; literature was not assessed.")
+    if trials.get("status") == "unavailable":
+        limitations.append("ClinicalTrials.gov was unavailable; trials were not assessed.")
+
     return {
         "query": {
             "gene": gene,
@@ -237,12 +252,7 @@ def build_evidence(args: argparse.Namespace) -> dict[str, Any]:
         "disease_association": disease_association,
         "literature": literature,
         "trials": trials,
-        "limitations": [
-            "This tool aggregates public evidence for research triage only.",
-            "It does not infer causality from association evidence.",
-            "It does not provide clinical recommendations.",
-            "Public API availability may affect completeness.",
-        ],
+        "limitations": limitations,
         "provenance": {
             "sources": ["UniProt", "Open Targets", "PubMed", "ClinicalTrials.gov"],
             "generated_at_utc": datetime.now(UTC).isoformat(),
@@ -350,6 +360,20 @@ def write_json(path: Path, content: dict[str, Any]) -> None:
     path.write_text(json.dumps(content, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+def _source_items(block: Any) -> list[Any]:
+    if isinstance(block, dict):
+        items = block.get("items")
+        return items if isinstance(items, list) else []
+    if isinstance(block, list):
+        return block
+    return []
+
+
+def _source_status(block: Any) -> str:
+    if isinstance(block, dict) and isinstance(block.get("status"), str):
+        return block["status"]
+    return "ok" if block else "no_result"
+
 
 def main() -> None:
     args = parse_args()
@@ -370,8 +394,12 @@ def main() -> None:
         "query": evidence["query"],
         "sources": evidence["provenance"]["sources"],
         "counts": {
-            "literature": len(evidence["literature"]),
-            "trials": len(evidence["trials"]),
+            "literature": len(_source_items(evidence["literature"])),
+            "trials": len(_source_items(evidence["trials"])),
+        },
+        "status": {
+            "literature": _source_status(evidence["literature"]),
+            "trials": _source_status(evidence["trials"]),
         },
     }
 
