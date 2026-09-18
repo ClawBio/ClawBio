@@ -38,8 +38,10 @@ def get_associations(rsid: str, max_hits: int = 100, cache_dir: Optional[Path] =
     except Exception as e:
         return {"source": "gwas_catalog", "status": "error", "message": str(e)}
 
-    embedded = data.get("_embedded", {})
-    raw_assocs = embedded.get("associations", [])
+    embedded = data.get("_embedded") or {}
+    raw_assocs = embedded.get("associations") or []
+    if not isinstance(raw_assocs, list):
+        raw_assocs = []
 
     associations = []
     for a in raw_assocs[:max_hits]:

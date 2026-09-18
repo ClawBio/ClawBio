@@ -348,3 +348,18 @@ def test_gwas_catalog_forwards_max_hits_as_page_size(monkeypatch):
     assert result["status"] == "ok"
     assert result["total_associations"] == 25
     assert len(result["associations"]) == 25
+
+
+def test_gwas_catalog_null_associations_are_empty(monkeypatch):
+    """GWAS Catalog occasionally serialises associations as null, not []."""
+    from gwas_lookup_api import gwas_catalog
+
+    class FakeClient:
+        def get(self, endpoint, params=None):
+            return {"_embedded": {"associations": None}}
+
+    monkeypatch.setattr(gwas_catalog, "_make_client", lambda *args, **kwargs: FakeClient())
+    result = gwas_catalog.get_associations("rs1")
+    assert result["status"] == "ok"
+    assert result["associations"] == []
+    assert result["total_associations"] == 0
