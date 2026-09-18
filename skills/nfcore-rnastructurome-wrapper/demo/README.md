@@ -4,7 +4,7 @@ This skill has no bundled sample data. The demo runs the upstream pipeline's own
 which fetches its FASTQs and reference from `nf-core/test-datasets` (`rnastructurome` branch) over HTTPS.
 
 ```bash
-nextflow run nf-core/rnastructurome -profile test,docker --outdir ./rnastructurome_demo
+nextflow run nf-core/rnastructurome -r 1.0.0 -profile test,docker --outdir ./rnastructurome_demo
 ```
 
 Reference: human mitochondrial chromosome (16,569 bp). Reads: synthetic, from ENST00000389680

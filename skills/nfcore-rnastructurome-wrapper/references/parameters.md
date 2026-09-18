@@ -172,11 +172,6 @@ This is the full audited surface; see the skill's own CLI Reference section for 
 | `--correlate_min_values` | number | `—` | rf-correlate minimum number of values to calculate a correlation (`-m`); a value between 0 and 1 is interpreted as a fraction of transcript length. Unset uses the tool default (off). |
 | `--correlate_ignore_sequence` | boolean | `False` | rf-correlate ignores sequence differences (e.g. SNVs) between compared transcripts (`-I`). |
 | `--correlate_img` | boolean | `False` | Generate the rf-correlate correlation heatmap PDF (`-g`; requires R). |
-| `--rnacentral` | boolean | `False` | Abort the run immediately on the first failing QC check (post-trim FastQC, mapped read %, replicate correlation, rf-count reactivity signal), instead of only reporting it in MultiQC. |
-| `--rnacentral_min_mapped_pct` | number | `60.0` | Minimum % mapped reads (samtools flagstat) per sample required by the --rnacentral QC gate. |
-| `--rnacentral_min_correlation` | number | `0.6` | Minimum pairwise replicate reactivity correlation (rf-correlate) per sample_group required by the --rnacentral QC gate. |
-| `--rnacentral_max_untreated_base_spread` | number | `15.0` | Maximum allowed spread (percentage points) between the highest and lowest of pct_a/c/g/u_muts on the untreated sample's rf-count summary, required by the --rnacentral QC gate. |
-| `--rnacentral_min_treated_mutation_rate` | number | `0` | Optional floor on the treated sample's rf-count pct_mutated (MaP only), required by the --rnacentral QC gate. 0 disables this specific check. |
 | `--rffold_ct` | boolean | `False` | Write CT format structures with rf-fold (`-ct`). Disabled by default to keep dot-bracket output. |
 | `--rffold_window` | integer | `1000` | Enable windowed MFE folding in rf-fold with this window size (`-w -fw N`). Set null/unset to fold the whole transcript instead. |
 | `--rffold_partition_window` | integer | `1000` | Partition-function window size in rf-fold (`-pw N`). |
