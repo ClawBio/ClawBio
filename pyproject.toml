@@ -71,6 +71,10 @@ just-prs = [
 fine-mapping = [
     "sushie>=0.20,<0.21",
 ]
+# Ship audit spans to a tracing backend; opt in with CLAWBIO_OTLP_ENDPOINT.
+otlp = [
+    "opentelemetry-exporter-otlp-proto-http>=1.44.0,<2",
+]
 # Shared by the four region skills (eqtl-catalogue-region-fetch,
 # gwas-catalog-region-fetch, ld-1000g-region-compute, ukb-ppp-region-fetch).
 # Declared here so `uv sync --all-extras` in CI can run their test suites;

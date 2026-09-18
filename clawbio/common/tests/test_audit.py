@@ -147,3 +147,36 @@ def test_uappend_flag_prevents_truncation(tmp_path):
     write("user_event", skill="pharmgx", log_path=log)
     with pytest.raises(OSError):
         log.write_text("wiped")
+
+
+def test_otlp_exporter_is_opt_in(tmp_path, monkeypatch):
+    """Off by default; CLAWBIO_OTLP_ENDPOINT constructs an OTLP exporter."""
+    from opentelemetry.exporter.otlp.proto.http import trace_exporter
+    from opentelemetry.sdk.trace.export import SpanExportResult
+
+    endpoints = []
+
+    class _Recorder:
+        def __init__(self, endpoint=None, **kwargs):
+            endpoints.append(endpoint)
+
+        def export(self, spans):
+            return SpanExportResult.SUCCESS
+
+        def shutdown(self):
+            pass
+
+        def force_flush(self, timeout_millis=None):
+            return True
+
+    monkeypatch.setattr(trace_exporter, "OTLPSpanExporter", _Recorder)
+
+    monkeypatch.delenv("CLAWBIO_OTLP_ENDPOINT", raising=False)
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        pass
+    assert endpoints == []
+
+    monkeypatch.setenv("CLAWBIO_OTLP_ENDPOINT", "http://localhost:4318")
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "b.jsonl"):
+        pass
+    assert endpoints == ["http://localhost:4318/v1/traces"]

@@ -8,6 +8,7 @@ Re-verify the gen_ai.* attribute names once that repo tags a release.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -17,7 +18,13 @@ from typing import List, Sequence
 
 from opentelemetry import context as _otel_context
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExporter, SpanExportResult
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
+    SimpleSpanProcessor,
+    SpanExporter,
+    SpanExportResult,
+)
 from opentelemetry.trace import StatusCode
 
 _DEFAULT_LOG = Path.home() / ".clawbio" / "audit.jsonl"
@@ -97,8 +104,17 @@ def skill_run(
     to ``~/.clawbio/audit.jsonl``. Callers must scrub patient identifiers (VCF
     paths, sample IDs, free-text fields) before passing them here.
     """
-    provider = TracerProvider()
+    provider = TracerProvider(resource=Resource.create({"service.name": "clawbio"}))
     provider.add_span_processor(SimpleSpanProcessor(_JsonlExporter(Path(log_path))))
+    endpoint = os.environ.get("CLAWBIO_OTLP_ENDPOINT")
+    if endpoint:
+        # Opt-in, and deliberately not OTEL_EXPORTER_OTLP_ENDPOINT: an org-wide
+        # setting would otherwise ship spans carrying output paths off the machine.
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+        provider.add_span_processor(
+            BatchSpanProcessor(OTLPSpanExporter(endpoint=f"{endpoint.rstrip('/')}/v1/traces"))
+        )
     tracer = provider.get_tracer("clawbio")
 
     ctx = _otel_context.set_value(_TRACER_KEY, tracer)
@@ -116,6 +132,7 @@ def skill_run(
                 raise
     finally:
         _otel_context.detach(token)
+        provider.shutdown()  # flush; a short run exits before the next batch tick
 
 
 @contextmanager
