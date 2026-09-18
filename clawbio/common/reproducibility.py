@@ -52,6 +52,17 @@ class ReproCommand:
         self.script_path = Path(self.script_path)
 
 
+def _make_executable(path: Path) -> None:
+    """Add an execute bit wherever the file is already readable.
+
+    A blanket ``| 0o111`` would hand group and other execute on a 0600 file
+    written under a restrictive umask; mirroring the read bits keeps 0644 -> 0755
+    and 0600 -> 0700.
+    """
+    mode = path.stat().st_mode
+    path.chmod(mode | ((mode & 0o444) >> 2))
+
+
 def write_portable_commands_sh(
     output_dir: Path | str,
     command: ReproCommand,
@@ -123,7 +134,7 @@ def write_portable_commands_sh(
     content = "\n".join(lines) + "\n"
     path = repro_dir / "commands.sh"
     write_text_lf_atomic(path, content)
-    path.chmod(path.stat().st_mode | 0o111)
+    _make_executable(path)
     return path
 
 
@@ -238,7 +249,7 @@ def write_commands_sh(output_dir: Path | str, command: str) -> Path:
     content = f"#!/usr/bin/env bash\n{command}\n"
     path = repro_dir / "commands.sh"
     write_text_lf_atomic(path, content)
-    path.chmod(path.stat().st_mode | 0o111)
+    _make_executable(path)
     return path
 
 

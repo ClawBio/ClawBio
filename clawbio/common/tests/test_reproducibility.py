@@ -242,6 +242,37 @@ class TestWriteCommandsSh:
         assert mode & stat.S_IXUSR, "owner execute bit not set"
 
 
+class TestCommandsShMode:
+    """A bundle everyone can replay: commands.sh must be 0755 under the usual
+    umask, not mkstemp's 0600 with +x ORed on top (0711)."""
+
+    def test_write_commands_sh_is_0755_under_default_umask(self, tmp_path):
+        import os
+        old = os.umask(0o022)
+        try:
+            path = write_commands_sh(tmp_path, "python skill.py")
+        finally:
+            os.umask(old)
+        assert path.stat().st_mode & 0o777 == 0o755
+
+    def test_write_portable_commands_sh_is_0755_under_default_umask(self, tmp_path):
+        import os
+        command = ReproCommand(script_path=Path("skills/example/example.py"), args=["--demo"])
+        old = os.umask(0o022)
+        try:
+            path = write_portable_commands_sh(tmp_path, command, repo_root=tmp_path)
+        finally:
+            os.umask(old)
+        assert path.stat().st_mode & 0o777 == 0o755
+
+    def test_rewrite_keeps_the_mode_of_an_existing_script(self, tmp_path):
+        write_commands_sh(tmp_path, "python skill.py")
+        path = tmp_path / "reproducibility" / "commands.sh"
+        path.chmod(0o700)
+        write_commands_sh(tmp_path, "python skill.py --again")
+        assert path.stat().st_mode & 0o777 == 0o700
+
+
 class TestWritePortableCommandsSh:
     def test_portable_commands_validate_clawbio_root_directory(self, tmp_path):
         command = ReproCommand(
