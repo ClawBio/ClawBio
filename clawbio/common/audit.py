@@ -107,6 +107,16 @@ def skill_run(
         with tracer.start_as_current_span("skill_run") as span:
             span.set_attribute("gen_ai.agent.id", skill)
             span.set_attribute("gen_ai.agent.version", version)
+            # Provenance, so a record can be reconciled against what is on disk.
+            # Omitted when empty to keep the historical record shape for callers
+            # that pass nothing.
+            for key, value in (
+                ("input_checksum", input_checksum),
+                ("input_file", input_file),
+                ("output_dir", output_dir),
+            ):
+                if value:
+                    span.set_attribute(key, value)
             try:
                 yield f"{span.context.span_id:016x}"
                 span.set_status(StatusCode.OK)
