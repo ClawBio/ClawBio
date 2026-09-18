@@ -18,13 +18,13 @@ There is no wrapper script here. `SKILL.md` teaches the agent the samplesheet ru
 ## Quick Start
 
 ```bash
-nextflow run nf-core/rnastructurome -profile test,docker --outdir ./rnastructurome_demo
+nextflow run nf-core/rnastructurome -r 1.0.0 -profile test,docker --outdir ./rnastructurome_demo
 ```
 
 For real data:
 
 ```bash
-nextflow run nf-core/rnastructurome \
+nextflow run nf-core/rnastructurome -r 1.0.0 \
   -profile docker \
   --input samplesheet.csv \
   --outdir ./results
