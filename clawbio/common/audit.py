@@ -109,11 +109,13 @@ def skill_run(
             span.set_attribute("gen_ai.agent.version", version)
             # Provenance, so a record can be reconciled against what is on disk.
             # Omitted when empty to keep the historical record shape for callers
-            # that pass nothing.
+            # that pass nothing. These are ClawBio-specific, so they carry a
+            # clawbio.* namespace: the OTel GenAI semantic conventions have no
+            # equivalent, and bare keys risk colliding with future ones.
             for key, value in (
-                ("input_checksum", input_checksum),
-                ("input_file", input_file),
-                ("output_dir", output_dir),
+                ("clawbio.input.checksum", input_checksum),
+                ("clawbio.input.file", input_file),
+                ("clawbio.output.dir", output_dir),
             ):
                 if value:
                     span.set_attribute(key, value)
