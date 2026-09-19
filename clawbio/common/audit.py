@@ -109,7 +109,11 @@ def skill_run(
     patient identifiers (VCF paths, sample IDs, free-text fields) before passing
     them here.
     """
-    provider = TracerProvider(resource=Resource.create({"service.name": "clawbio"}))
+    provider = TracerProvider(resource=Resource.create({
+        "service.name": "clawbio",
+        # Phoenix groups traces by this; without it everything lands in "default".
+        "openinference.project.name": "clawbio",
+    }))
     provider.add_span_processor(SimpleSpanProcessor(_JsonlExporter(Path(log_path))))
     endpoint = os.environ.get("CLAWBIO_OTLP_ENDPOINT")
     if endpoint:
