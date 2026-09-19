@@ -236,8 +236,14 @@ def tool_call(
             span.set_attribute(
                 "input.value", _hide(" ".join(cmd), "OPENINFERENCE_HIDE_INPUTS")
             )
-        for k, v in attrs.items():
-            span.set_attribute(k, str(v))
+            for k, v in attrs.items():
+                span.set_attribute(k, str(v))
+        elif attrs:
+            # No subprocess, so no command to show: the arguments are the input.
+            span.set_attribute("input.value", _hide(
+                json.dumps(attrs, default=str), "OPENINFERENCE_HIDE_INPUTS"
+            ))
+            span.set_attribute("input.mime_type", "application/json")
         try:
             if cmd is not None:
                 result = subprocess.run(cmd, capture_output=True, text=True)

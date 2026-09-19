@@ -336,3 +336,17 @@ def test_audit_log_path_comes_from_the_environment(tmp_path, monkeypatch):
             pass
     events = [json.loads(line)["event"] for line in log.read_text().splitlines()]
     assert events == ["execute_tool abf_fit", "skill_run"]
+
+
+def test_in_process_tool_call_reports_attrs_as_its_input(tmp_path):
+    """A phase with no subprocess has no command to show, so its keyword
+    arguments are the input. One key, not a copy in each form."""
+    log = tmp_path / "audit.jsonl"
+    with skill_run("fine-mapping", "0.3.0", log_path=log):
+        with tool_call("susie_fit", n_variants=200, max_signals=10, log_path=log):
+            pass
+    tool = next(json.loads(l) for l in log.read_text().splitlines()
+                if json.loads(l)["event"] == "execute_tool susie_fit")
+    assert json.loads(tool["input.value"]) == {"n_variants": 200, "max_signals": 10}
+    assert tool["input.mime_type"] == "application/json"
+    assert "n_variants" not in tool
