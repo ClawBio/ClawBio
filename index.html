@@ -121,7 +121,7 @@
   </nav>
   <a href="https://luma.com/clawbio" target="_blank" rel="noopener noreferrer" aria-label="Follow the ClawBio events calendar on Luma" style="display:block;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;text-align:center;padding:0.8rem 1rem;font-size:0.98rem;font-weight:700;text-decoration:none;">📅 Join the ClawBio community: follow the official calendar for hackathons, workshops, meetups and new events &rarr;</a>
   <section class="hero">
-    <div class="hero-badge">📊 Publicly benchmarked · 1,136 stars · 97 skills · 50 contributors · 5,040 tests</div>
+    <div class="hero-badge">📊 Publicly benchmarked · 1,139 stars · 97 skills · 50 contributors · 5,084 tests</div>
     <h1>The first <em>bioinformatics-native</em><br>AI agent skill library</h1>
     <p>ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call.</p>
     <div style="max-width:440px;margin:0 auto 2rem;">
@@ -269,7 +269,7 @@ clawbio run pharmgx --demo</pre>
   <section id="skills" style="background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
     <div class="section-inner">
       <div class="section-label">Skills Library</div>
-      <div class="section-title">97 skills · 92 with runnable demo data · 5,040 tests · 161 / 182 publicly benchmarked passing</div>
+      <div class="section-title">97 skills · 92 with runnable demo data · 5,084 tests · 161 / 182 publicly benchmarked passing</div>
       <p class="section-sub">Each skill includes demo data so you can try it immediately without your own files.</p>
       <div class="skills-grid">
         <div class="skill-card"><div><div class="skill-name">💊 PharmGx Reporter</div><div class="skill-desc">Pharmacogenomic report from 23andMe/AncestryDNA: 12 genes, 31 SNPs, 51 drugs, CPIC guidelines.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
@@ -344,7 +344,7 @@ clawbio run pharmgx --demo</pre>
             </tr>
           </thead>
           <tbody>
-            <tr style="border-bottom:1px solid var(--border);background:rgba(63,185,80,0.05);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">ClawBio</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,136</td><td style="padding:0.6rem 1rem;text-align:right;">266</td><td style="padding:0.6rem 1rem;text-align:right;">97</td></tr>
+            <tr style="border-bottom:1px solid var(--border);background:rgba(63,185,80,0.05);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">ClawBio</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,139</td><td style="padding:0.6rem 1rem;text-align:right;">268</td><td style="padding:0.6rem 1rem;text-align:right;">97</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/FreedomIntelligence/OpenClaw-Medical-Skills" target="_blank" style="color:var(--accent2);">OpenClaw-Medical-Skills</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,037</td><td style="padding:0.6rem 1rem;text-align:right;">123</td><td style="padding:0.6rem 1rem;text-align:right;">869</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/GPTomics/bioSkills" target="_blank" style="color:var(--accent2);">bioSkills</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">331</td><td style="padding:0.6rem 1rem;text-align:right;">52</td><td style="padding:0.6rem 1rem;text-align:right;">425</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/wu-yc/LabClaw" target="_blank" style="color:var(--accent2);">LabClaw</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">317</td><td style="padding:0.6rem 1rem;text-align:right;">54</td><td style="padding:0.6rem 1rem;text-align:right;">211</td></tr>
@@ -362,24 +362,38 @@ clawbio run pharmgx --demo</pre>
       <div class="section-title">Latest from the community</div>
       <div style="display:grid;gap:0.75rem;max-width:700px;">
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🧬</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🔁</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(dnasp): name the CLI flag each metadata input maps to.</strong> The dnasp skill now correctly names the CLI flag for each metadata input in its argument parser, fixing a registration error that prevented the flags from being recognised on the command line. Contributed by @drdaviddelorenzo.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #448 · merged · 17 September 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>refactor: migrate six skills to shared reproducibility helpers.</strong> Six skills have been migrated to use the shared reproducibility helper utilities, replacing hand-rolled bundle generation with the common <code>write_commands_sh</code>, <code>write_environment_yml</code>, and <code>write_checksums</code> calls. Reproducibility bundles are now consistent across the affected skills.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #451 · merged · 18 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🌿</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🧪</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>phylogenetics-builder: protect a rerun's input from being overwritten.</strong> The phylogenetics-builder skill now guards its input file from being overwritten during a rerun, preventing a race condition that could silently corrupt the alignment before IQ-TREE processes it. Contributed by @drdaviddelorenzo.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #446 · merged · 17 September 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Run the library tests in CI, and give cell-detection its imaging deps.</strong> The CI pipeline now runs the library unit tests on every push. The cell-detection skill has also received its full imaging dependency stack, resolving install-time errors for users running the skill in a fresh environment.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #455 · merged · 17 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🔍</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🔒</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix: honour GWAS Catalog association max_hits.</strong> The gwas-lookup skill now correctly passes the max_hits parameter through to the GWAS Catalog query, preventing the result set from being silently capped at the default page size. Contributed by @krudo-taco.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #443 · merged · 17 September 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Record tightened protection on main and the second PyPI owner.</strong> The main branch now has tightened protection rules recorded in repository governance metadata. A second PyPI owner has been added to reduce single-point-of-failure risk for package releases.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #454 · merged · 17 September 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">📝</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Correct the lead maintainer's ORCID iD in citation metadata.</strong> The CITATION.cff file now carries the correct ORCID iD for the lead maintainer, ensuring accurate attribution in software citation and bibliographic records.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #453 · merged · 17 September 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">⚖️</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>Open lifecycle, licence policy, and governance checks.</strong> New automated checks for lifecycle status, licence policy, and governance rules have been added to the repository, enforcing open governance standards across all skill contributions.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #449 · merged · 17 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
@@ -390,45 +404,31 @@ clawbio run pharmgx --demo</pre>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🏥</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🔍</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix: preserve EUCTR trial registry identifiers.</strong> The clinical-trial-finder skill now preserves EUCTR identifiers exactly as returned by the registry, fixing a normalisation step that was stripping required hyphens and causing downstream lookup failures. Contributed by @krudo-taco.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #444 · merged · 16 September 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🧬</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix: treat partial VCF GT calls as no-calls.</strong> Partial genotype calls (e.g. ./1 or 1/.) in VCF input are now treated as missing rather than being silently mis-parsed, preventing incorrect allele counts in downstream skill analyses. Contributed by @krudo-taco.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #442 · merged · 16 September 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🧬</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix: parse BOM-prefixed genetic exports.</strong> Genetic export files with a UTF-8 BOM prefix (common in Windows-generated 23andMe and AncestryDNA exports) are now correctly parsed, removing a silent data-loss bug that caused the first variant to be dropped or misread. Contributed by @krudo-taco.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #441 · merged · 16 September 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>fix: honour GWAS Catalog association max_hits.</strong> The gwas-lookup skill now correctly passes the max_hits parameter through to the GWAS Catalog query, preventing the result set from being silently capped at the default page size. Contributed by @krudo-taco.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #443 · merged · 17 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">🌿</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>phylogenetics-builder: keep the alignments produced by the pipeline.</strong> The phylogenetics-builder skill now retains the intermediate alignment files in the output directory, allowing users to inspect and reuse the multiple sequence alignment that IQ-TREE processed. Contributed by @drdaviddelorenzo.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #439 · merged · 16 September 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>phylogenetics-builder: protect a rerun's input from being overwritten.</strong> The phylogenetics-builder skill now guards its input file from being overwritten during a rerun, preventing a race condition that could silently corrupt the alignment before IQ-TREE processes it. Contributed by @drdaviddelorenzo.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #446 · merged · 17 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">🧬</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>bio-orchestrator: route population-genetics statistics and alignment NEXUS files to dnasp.</strong> The bio-orchestrator now routes population-genetics statistics queries and NEXUS alignment files to the dnasp skill, expanding its vocabulary for evolutionary and sequence-analysis requests. Contributed by @drdaviddelorenzo.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #438 · merged · 16 September 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(dnasp): name the CLI flag each metadata input maps to.</strong> The dnasp skill now correctly names the CLI flag for each metadata input in its argument parser, fixing a registration error that prevented the flags from being recognised on the command line. Contributed by @drdaviddelorenzo.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #448 · merged · 17 September 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🧬</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🏥</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>dnasp: v0.5.2 - DnaSP 6.12.03 validation fixes and result.json envelope.</strong> The dnasp skill received targeted validation fixes matching DnaSP 6.12.03 outputs and now wraps all results in a structured result.json envelope for downstream consumption. Contributed by @drdaviddelorenzo.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #437 · merged · 16 September 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>fix: preserve EUCTR trial registry identifiers.</strong> The clinical-trial-finder skill now preserves EUCTR identifiers exactly as returned by the registry, fixing a normalisation step that was stripping required hyphens and causing downstream lookup failures. Contributed by @krudo-taco.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #444 · merged · 16 September 2026</div>
           </div>
         </div>
       </div>
