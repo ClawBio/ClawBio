@@ -101,8 +101,10 @@ def skill_run(
     """Root trace for a skill invocation. Yields the span_id (16-char hex).
 
     PII warning: ``input_file``, ``output_dir``, and any future kwargs are written
-    to ``~/.clawbio/audit.jsonl``. Callers must scrub patient identifiers (VCF
-    paths, sample IDs, free-text fields) before passing them here.
+    to ``~/.clawbio/audit.jsonl``, and, when ``CLAWBIO_OTLP_ENDPOINT`` is set, are
+    also exported over the network to that collector along with every child span.
+    Callers must scrub patient identifiers (VCF paths, sample IDs, free-text
+    fields) before passing them here.
     """
     provider = TracerProvider(resource=Resource.create({"service.name": "clawbio"}))
     provider.add_span_processor(SimpleSpanProcessor(_JsonlExporter(Path(log_path))))
@@ -113,7 +115,13 @@ def skill_run(
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
         provider.add_span_processor(
-            BatchSpanProcessor(OTLPSpanExporter(endpoint=f"{endpoint.rstrip('/')}/v1/traces"))
+            BatchSpanProcessor(
+                # Short timeout: a dead collector must not make shutdown() look
+                # like a hung analysis.
+                OTLPSpanExporter(
+                    endpoint=f"{endpoint.rstrip('/')}/v1/traces", timeout=5
+                )
+            )
         )
     tracer = provider.get_tracer("clawbio")
 
@@ -148,9 +156,11 @@ def tool_call(
     Span name: ``execute_tool {name}``
     Pass cmd to run a subprocess and capture its exit code automatically.
 
-    PII warning: ``cmd`` tokens and ``**attrs`` are written verbatim to the audit
-    log. Callers must scrub file paths, sample IDs, and any patient-identifiable
-    values before passing them here.
+    PII warning: ``cmd`` tokens, captured ``stderr`` and ``**attrs`` are written
+    verbatim to the audit log, and are exported over the network too when the
+    enclosing ``skill_run`` has ``CLAWBIO_OTLP_ENDPOINT`` set. Callers must scrub
+    file paths, sample IDs, and any patient-identifiable values before passing
+    them here.
     """
     tracer = _otel_context.get_value(_TRACER_KEY)
     if tracer is None:

@@ -72,6 +72,7 @@ fine-mapping = [
     "sushie>=0.20,<0.21",
 ]
 # Ship audit spans to a tracing backend; opt in with CLAWBIO_OTLP_ENDPOINT.
+# Plain OTLP/HTTP, so point it at a localhost collector or an https:// URL.
 otlp = [
     "opentelemetry-exporter-otlp-proto-http>=1.44.0,<2",
 ]
