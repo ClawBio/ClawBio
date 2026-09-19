@@ -6,7 +6,7 @@ description: Population genetics of pre-aligned DNA sequences or multi-sample VC
   phasing or clinical interpretation.
 license: MIT
 metadata:
-  version: 0.5.3
+  version: 0.6.0
   author: David De Lorenzo
   domain: molecular-evolution
   tags:
@@ -98,6 +98,23 @@ metadata:
       (TGA=Trp, AGA/AGG=stop, ATA=Met; for COII/cytb/ND-type loci). Default: standard.'
     required: false
     cli_flag: --genetic-code
+  - name: n_sim
+    type: integer
+    description: Coalescent replicates for whole-region P-values of Tajima's D, R2
+      and Fu's Fs (0 = no simulation, default). 10000 is typical.
+    required: false
+    cli_flag: --n-sim
+  - name: sim_given
+    type: string
+    description: 'Simulation conditioned on the observed segregating sites ("S",
+      default) or on Watterson''s theta ("theta").'
+    required: false
+    cli_flag: --sim-given
+  - name: sim_seed
+    type: integer
+    description: Seed for --n-sim; generated and recorded when omitted.
+    required: false
+    cli_flag: --sim-seed
   outputs:
   - name: report
     type: file
@@ -231,8 +248,8 @@ metadata:
 
 Fire when a user requests population-genetic analysis of aligned DNA, a supported
 VCF, or a DnaSP-compatible statistic listed below. Do NOT fire for sequence
-alignment, read mapping, haplotype phasing, clinical advice or unsupported
-coalescent significance tests.
+alignment, read mapping, haplotype phasing, clinical advice, or significance
+tests other than the coalescent P-values `--n-sim` gives for D, R2 and Fs.
 
 ## Scope
 
@@ -250,6 +267,7 @@ source conventions, file formats, examples and release validation evidence.
   Rohlf corrected CV; Harpending (1994) raggedness; Model 1 diallelic InDel diversity.
 - Divergence and Hudson Fst between populations; outgroup Fu and Li D/F.
 - Two-locus HKA, McDonald-Kreitman, Nei-Gojobori Ka/Ks, Fu's Fs and SFS.
+- Opt-in coalescent P-values (`--n-sim`) for Tajima's D, R2 and Fu's Fs.
 - Ts/Tv, codon counts/RSCU including stops, named per-sequence ENC and its
   synonymous-codon-weighted summary.
 - Sliding windows mirror DnaSP's **Gaps in Sliding Window = considered** mode:
@@ -286,7 +304,8 @@ conversion: `FULI.vb` also changes singleton and external-mutation capping
 6. Read stderr diagnostics, `report.md` and `reproducibility/manifest.json`.
    Distinguish a failed analysis, an undefined statistic and an excluded site.
 7. Interpret the chosen statistic within its documented assumptions. Do not turn
-   a signed value or an uncalibrated threshold into a significance claim.
+   a signed value or a threshold into a significance claim; only `--n-sim` P-values
+   assess significance, and a rejection does not by itself identify its cause.
 8. Retain the input archive, settings, hashes and environment with the report.
    `commands.sh` replays on the recorded host/code path into a new output folder;
    moving a run requires the code and dependencies as well as its input archive.
@@ -395,48 +414,8 @@ Differences of setting or definition, not errors:
 
 ## Version History
 
-Every change listed alters results unless marked otherwise.
-
-**0.5.3** (16 September 2026)
-
-- Not result-changing: every input in the skill metadata now names the
-  command-line flag it maps to (`cli_flag`). Without it an agent reading only the
-  registered metadata had to guess, and two independent models turned
-  `window_size` into the non-existent `--window-size`. Numerical behaviour is
-  unchanged from 0.5.2, which is the version compared with DnaSP 6.12.03.
-
-**0.5.2** (15 September 2026, compared with DnaSP 6.12.03)
-
-- Sliding windows follow DnaSP's placement: the final window, truncated at the
-  alignment end, is kept, and each window reports DnaSP's midpoint. Window
-  counts and the last window's values change.
-- Mismatch distribution: the observed variance of k is the unbiased variance over
-  sequence pairs, and its coefficient of variation carries the (1 + 1/(4n))
-  correction. rp49 moves from 40.7054 and 0.3954 to 40.7780 and 0.3987.
-- LD: where two alleles are tied, the first sequence's allele is the reference,
-  so the sign of D can change; |D|, |D'| and r2 do not.
-- Not result-changing: per-sequence ENC export, `summary.json` and `result.json`,
-  a root envelope and bundle for VCF runs split by CHROM, and safe CHROM
-  directory names.
-
-**0.5.1** (candidate, never released on its own; included in 0.5.2)
-
-- InDel polymorphism follows DnaSP's Model 1 (diallelic) event rules and
-  denominator, the model the skill implements; in DnaSP it must be selected, as
-  the dialog defaults to Model 2. InDel events, lengths, haplotypes and diversity
-  change.
-- Fay and Wu H and Zeng E use only clean columns that are at most biallelic in the
-  ingroup and, when polymorphic, carry the outgroup allele in the ingroup. The
-  eligible-site count and the theta estimates behind H and E change.
-- ENC is the synonymous-codon-weighted mean of per-sequence ENC, as in DnaSP,
-  instead of a single ENC from pooled codon counts.
-- RSCU counts stop codons and reports the stop family.
-- LD distances use original alignment coordinates with DnaSP's integer gap
-  adjustment.
-- Fu's Fs computes both tails in log space without finite sentinel values, which
-  changes extreme values.
-- IUPAC ambiguity symbols R, Y, S, W, K, M, B, D, H and V are missing data, like
-  N; any other symbol now stops the run with an error.
+Current version 0.6.0. Every change that alters a result, and the version compared
+with DnaSP 6.12.03 (0.5.2), is recorded in `docs/version_history.md`.
 
 ## Safety
 
@@ -453,7 +432,7 @@ skill may fabricate GUI validation, P-values or missing results.
 ## Integration with Bio Orchestrator
 
 CLI alias: `dnasp`. Use `--analysis` for module selection, not invented flags
-such as `--pi`, `--kaks` or `--n-sim`. The repository dispatcher permits the
+such as `--pi`, `--kaks` or `--tajima`. The repository dispatcher permits the
 implemented options, including VCF, populations and genetic-code selection.
 
 Route here when the user asks for a statistic this skill computes (for example

@@ -1,6 +1,6 @@
 # DnaSP ClawBio statistical reference
 
-Version 0.5.3 implements 16 selected population-genetic analysis modules. Its
+Version 0.6.0 implements 16 selected population-genetic analysis modules. Its
 methods combine published estimators with documented DnaSP 6 implementation
 conventions. Agreement on the validation datasets does not establish equivalence
 for every DnaSP mode, input or statistic.
@@ -213,7 +213,45 @@ conditional on theta estimated by k. Fs is log(upper tail) minus log(lower tail)
 Both tails are accumulated in log space from unsigned Stirling numbers so extreme
 probabilities do not produce arbitrary finite sentinels. S_k is the upper-tail
 probability, not a calibrated neutrality P-value. Negative Fs describes an
-excess of haplotypes relative to this model. A formal test requires simulation.
+excess of haplotypes relative to this model. A formal test requires simulation,
+which `--n-sim` supplies (see Coalescent P-values).
+
+### Coalescent P-values
+
+`--n-sim N` simulates the standard neutral model N times for the whole region and
+reports P-values for Tajima's D, R2 and Fu's Fs. Each replicate draws a Kingman
+coalescent genealogy for the n analysed sequences, with waiting times exponential
+at rate k(k-1)/2 while k lineages remain, in units of 2N generations; there is no
+recombination and population size is constant. Mutations follow the infinite-sites
+model. With `--sim-given S`, the default, exactly the observed number of
+segregating sites is placed, each on a branch chosen in proportion to its length.
+With `--sim-given theta` the number of mutations is Poisson with mean theta/2 times
+the total branch length, theta being Watterson's estimate, so the expected number
+of segregating sites is theta times a1.
+
+The replicate statistics are computed from the genealogy with the same definitions
+as for the data: k from the branch descendant counts, per-sequence singletons for
+R2, haplotypes as distinct sets of mutations on each sample's path, and Fu's Fs
+from the Ewens formula with theta equal to k. The test suite checks this against
+the sequence-based code on simulated genealogies, and checks the simulator against
+the exact coalescent mean and variance of S (Watterson 1975) and of k (Tajima 1983).
+
+A replicate in which a statistic is undefined is excluded from that statistic's
+null, and the number N of valid replicates is reported. If b of them are at least as
+extreme as the observed value, equality included, the P-value is (b + 1)/(N + 1):
+the observed data count as one replicate, so no P-value is zero (Phipson and Smyth
+2010). DnaSP reports the proportion b/N instead; summary.json stores every count b
+(`*_count_lower`, `*_count_upper`), so b/N can be recovered exactly, and the two
+differ by at most 1/(N + 1). Tajima's D is tested in both tails: the P-value is
+twice the smaller of the two tail P-values, capped at 1, which does not assume a
+symmetric null. R2 and Fs are tested in the lower tail, the direction population
+growth produces. The seed is recorded,
+generated if not given, and separated per CHROM for multi-CHROM VCF runs. Sliding
+windows are not simulated.
+
+A small P-value rejects the standard neutral model. It does not by itself identify
+selection or population growth: population structure, other demographic histories
+and selection can each produce it.
 
 ### Site frequency spectrum and Ts/Tv
 
@@ -335,6 +373,11 @@ Primary source verification for the corrected bibliographic details:
   of Drosophila simulans: Evolutionary Inferences From an Unusual Haplotype
   Structure. Genetics 158:1147-1155. https://doi.org/10.1093/genetics/158.3.1147
 - DnaSP 6.12 documentation: https://www.ub.edu/dnasp/DnaSP6_Documentation_6.12.pdf
+- Watterson (1975). On the number of segregating sites in genetical models without
+  recombination. Theoretical Population Biology 7:256-276.
+  https://doi.org/10.1016/0040-5809(75)90020-9
+- Tajima (1983). Evolutionary relationship of DNA sequences in finite populations.
+  Genetics 105:437-460. https://doi.org/10.1093/genetics/105.2.437
 
 The generated report cites the original estimator literature: Tajima (1989),
 Fu and Li (1993), Simonsen et al. (1995), Nei and Tajima (1981), Ramos-Onsins and
@@ -344,3 +387,6 @@ Hudson et al. (1987, 1992), McDonald and Kreitman (1991), Nei and Gojobori (1986
 Fu (1997), Sharp and Li (1987), Wright (1990), Fay and Wu (2000) and Zeng et al.
 (2006). Targeted VB routines and help-derived expectations are recorded beside
 the corresponding code and regression cases.
+- Phipson and Smyth (2010). Permutation P-values should never be zero: calculating
+  exact P-values when permutations are randomly drawn. Statistical Applications in
+  Genetics and Molecular Biology 9:Article 39. https://doi.org/10.2202/1544-6115.1585
