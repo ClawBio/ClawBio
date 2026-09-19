@@ -5,8 +5,10 @@ import stat
 import sys
 from pathlib import Path
 
+import subprocess
 import pytest
 
+from clawbio.common import audit
 from clawbio.common.audit import write, skill_run, tool_call
 
 
@@ -284,3 +286,41 @@ def test_openinference_hide_flags_redact_the_alias_values(tmp_path, monkeypatch)
     assert tool["exit_code"] == 0
     # Nothing else carries the path, so hiding it hides it.
     assert "clawbio.input.file" not in root
+
+
+def test_failed_tool_call_does_not_leak_hidden_values(tmp_path, monkeypatch):
+    """The error path carried the command back: stderr echoes what a tool was
+    given, and CalledProcessError's text embeds the whole argv."""
+    monkeypatch.setenv("OPENINFERENCE_HIDE_INPUTS", "true")
+    log = tmp_path / "audit.jsonl"
+    secret = "Doe_J_sample.vcf"
+    with pytest.raises(subprocess.CalledProcessError):
+        with skill_run("pharmgx", "0.2.0", log_path=log):
+            with tool_call("reader", cmd=["cat", secret], log_path=log):
+                pass
+    assert secret not in log.read_text()
+
+
+def test_failure_does_not_leak_through_otel_exception_recording(tmp_path, monkeypatch):
+    """The SDK records an exception event and overwrites the status description
+    with the raw exception text. Neither reaches the JSONL log, so both have to
+    be read off the spans the exporter is handed."""
+    captured = []
+
+    class _Capture(audit._JsonlExporter):
+        def export(self, spans):
+            captured.extend(spans)
+            return super().export(spans)
+
+    monkeypatch.setattr(audit, "_JsonlExporter", _Capture)
+    monkeypatch.setenv("OPENINFERENCE_HIDE_INPUTS", "true")
+    secret = "Doe_J_sample.vcf"
+    with pytest.raises(subprocess.CalledProcessError):
+        with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "audit.jsonl"):
+            with tool_call("reader", cmd=["cat", secret], log_path=tmp_path / "audit.jsonl"):
+                pass
+
+    assert captured, "no spans captured"
+    for span in captured:
+        assert not span.events, f"{span.name} recorded {[e.name for e in span.events]}"
+        assert secret not in (span.status.description or "")

@@ -33,6 +33,11 @@ _DEFAULT_LOG = Path.home() / ".clawbio" / "audit.jsonl"
 _REDACTED = "__REDACTED__"
 
 
+def _hide_either(value: str) -> str:
+    """For text that can quote both sides, such as a failure message."""
+    return _hide(_hide(value, "OPENINFERENCE_HIDE_INPUTS"), "OPENINFERENCE_HIDE_OUTPUTS")
+
+
 def _hide(value: str, env_var: str) -> str:
     """OpenInference's masking flags, per its configuration spec.
 
@@ -123,9 +128,11 @@ def skill_run(
     them here.
 
     OPENINFERENCE_HIDE_INPUTS / OPENINFERENCE_HIDE_OUTPUTS redact input.value
-    and output.value, which is every value these spans carry apart from the
-    input checksum. They are still not a substitute for scrubbing, nor for
-    leaving the endpoint unset: stderr on a failed tool call is not covered.
+    and output.value, and either flag also redacts a failure's error text and
+    captured stderr, both of which quote the command. That is every value these
+    spans carry apart from the input checksum. Still not a substitute for
+    scrubbing: a caller that puts an identifier in a skill name or an attrs
+    key is outside their reach.
     """
     provider = TracerProvider(resource=Resource.create({
         "service.name": "clawbio",
@@ -154,7 +161,11 @@ def skill_run(
     ctx = _otel_context.set_value(_TRACER_KEY, tracer)
     token = _otel_context.attach(ctx)
     try:
-        with tracer.start_as_current_span("skill_run") as span:
+        # The SDK would otherwise record an exception event and overwrite the
+        # status description, both carrying the raw text past the hide flags.
+        with tracer.start_as_current_span(
+            "skill_run", record_exception=False, set_status_on_exception=False
+        ) as span:
             span.set_attribute("gen_ai.agent.id", skill)
             span.set_attribute("gen_ai.agent.version", version)
             # Phoenix classifies on this key alone; without it: "unknown".
@@ -174,8 +185,9 @@ def skill_run(
                 yield f"{span.context.span_id:016x}"
                 span.set_status(StatusCode.OK)
             except Exception as exc:
-                span.set_attribute("error", str(exc))
-                span.set_status(StatusCode.ERROR, str(exc))
+                # The text quotes the failing command, so an input flag hides it.
+                span.set_attribute("error", _hide_either(str(exc)))
+                span.set_status(StatusCode.ERROR, _hide_either(str(exc)))
                 raise
     finally:
         _otel_context.detach(token)
@@ -206,7 +218,9 @@ def tool_call(
         yield None
         return
 
-    with tracer.start_as_current_span(f"execute_tool {name}") as span:
+    with tracer.start_as_current_span(
+        f"execute_tool {name}", record_exception=False, set_status_on_exception=False
+    ) as span:
         span.set_attribute("openinference.span.kind", "TOOL")
         span.set_attribute("tool.name", name)
         if cmd is not None:
@@ -224,7 +238,9 @@ def tool_call(
                 ))
                 if result.returncode != 0:
                     span.set_attribute("error.type", "NonZeroExit")
-                    span.set_attribute("stderr", result.stderr[:500])
+                    # stderr quotes the arguments it was given as often as it
+                    # reports a result, so either flag hides it.
+                    span.set_attribute("stderr", _hide_either(result.stderr[:500]))
                     span.set_status(StatusCode.ERROR, f"exit {result.returncode}")
                     raise subprocess.CalledProcessError(result.returncode, cmd, result.stderr)
             yield f"{span.context.span_id:016x}"
@@ -233,6 +249,6 @@ def tool_call(
             raise
         except Exception as exc:
             span.set_attribute("error.type", type(exc).__name__)
-            span.set_attribute("error", str(exc))
-            span.set_status(StatusCode.ERROR, str(exc))
+            span.set_attribute("error", _hide_either(str(exc)))
+            span.set_status(StatusCode.ERROR, _hide_either(str(exc)))
             raise
