@@ -102,16 +102,18 @@ def skill_run(
 
     PII warning: ``input_file``, ``output_dir``, and any future kwargs are written
     to ``~/.clawbio/audit.jsonl``, and, when ``CLAWBIO_OTLP_ENDPOINT`` is set, are
-    also exported over the network to that collector along with every child span.
-    Callers must scrub patient identifiers (VCF paths, sample IDs, free-text
-    fields) before passing them here.
+    also sent to that collector along with every child span. A local collector
+    keeps them on this machine; a remote endpoint does not. Callers must scrub
+    patient identifiers (VCF paths, sample IDs, free-text fields) before passing
+    them here.
     """
     provider = TracerProvider(resource=Resource.create({"service.name": "clawbio"}))
     provider.add_span_processor(SimpleSpanProcessor(_JsonlExporter(Path(log_path))))
     endpoint = os.environ.get("CLAWBIO_OTLP_ENDPOINT")
     if endpoint:
         # Opt-in, and deliberately not OTEL_EXPORTER_OTLP_ENDPOINT: an org-wide
-        # setting would otherwise ship spans carrying output paths off the machine.
+        # setting would otherwise point spans carrying output paths at whatever
+        # collector the org runs, which may not be on this machine.
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
         provider.add_span_processor(
@@ -157,7 +159,7 @@ def tool_call(
     Pass cmd to run a subprocess and capture its exit code automatically.
 
     PII warning: ``cmd`` tokens, captured ``stderr`` and ``**attrs`` are written
-    verbatim to the audit log, and are exported over the network too when the
+    verbatim to the audit log, and go to the OTLP collector too when the
     enclosing ``skill_run`` has ``CLAWBIO_OTLP_ENDPOINT`` set. Callers must scrub
     file paths, sample IDs, and any patient-identifiable values before passing
     them here.
