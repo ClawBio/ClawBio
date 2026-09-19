@@ -251,3 +251,30 @@ def test_input_output_values_omitted_when_there_is_nothing_to_alias(tmp_path):
     for record in (json.loads(line) for line in log.read_text().splitlines()):
         assert "input.value" not in record
         assert "output.value" not in record
+
+
+def test_openinference_hide_flags_redact_the_alias_values(tmp_path, monkeypatch):
+    """OPENINFERENCE_HIDE_INPUTS/OUTPUTS replace input.value / output.value with
+    the spec's __REDACTED__ marker. Scoped to the OpenInference attributes, as
+    the spec defines them: the clawbio.* keys are a separate decision."""
+    monkeypatch.setenv("OPENINFERENCE_HIDE_INPUTS", "true")
+    monkeypatch.setenv("OPENINFERENCE_HIDE_OUTPUTS", "true")
+    log = tmp_path / "audit.jsonl"
+    with skill_run(
+        "pharmgx", "0.2.0", input_file="demo_patient.txt",
+        output_dir=str(tmp_path / "out"), log_path=log,
+    ):
+        with tool_call("bcftools_view", cmd=["echo", "hi"], log_path=log):
+            pass
+    records = [json.loads(line) for line in log.read_text().splitlines()]
+    root = next(r for r in records if r["event"] == "skill_run")
+    tool = next(r for r in records if r["event"] == "execute_tool bcftools_view")
+    assert root["input.value"] == "__REDACTED__"
+    assert root["output.value"] == "__REDACTED__"
+    assert tool["input.value"] == "__REDACTED__"
+    assert tool["output.value"] == "__REDACTED__"
+    # Still recorded: the span exists, only the value is hidden.
+    assert root["gen_ai.agent.id"] == "pharmgx"
+    assert tool["exit_code"] == 0
+    # Out of scope for the spec's flags — documented, not accidental.
+    assert root["clawbio.input.file"] == "demo_patient.txt"

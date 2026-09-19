@@ -30,6 +30,19 @@ from opentelemetry.sdk.trace.export import (
 from opentelemetry.trace import StatusCode
 
 _DEFAULT_LOG = Path.home() / ".clawbio" / "audit.jsonl"
+_REDACTED = "__REDACTED__"
+
+
+def _hide(value: str, env_var: str) -> str:
+    """OpenInference's masking flags, per its configuration spec.
+
+    The marker is kept rather than the attribute dropped, so a reader can tell
+    the value was hidden on purpose. Scoped to the input.value/output.value
+    aliases the spec covers; clawbio.* and gen_ai.* keys are untouched.
+    """
+    if value and os.environ.get(env_var, "").strip().lower() == "true":
+        return _REDACTED
+    return value
 _TRACER_KEY = _otel_context.create_key("clawbio.tracer")
 
 
@@ -108,6 +121,12 @@ def skill_run(
     keeps them on this machine; a remote endpoint does not. Callers must scrub
     patient identifiers (VCF paths, sample IDs, free-text fields) before passing
     them here.
+
+    OPENINFERENCE_HIDE_INPUTS / OPENINFERENCE_HIDE_OUTPUTS redact input.value
+    and output.value only, which is the scope OpenInference's configuration
+    spec gives them. clawbio.input.file, clawbio.output.dir and
+    gen_ai.tool.call.arguments still carry the path and the command, so these
+    flags are not a substitute for scrubbing or for leaving the endpoint unset.
     """
     provider = TracerProvider(resource=Resource.create({
         "service.name": "clawbio",
@@ -152,8 +171,8 @@ def skill_run(
                 ("clawbio.output.dir", output_dir),
                 # Trace viewers' Input/Output panels; aliases of the above, so
                 # nothing new is written or sent.
-                ("input.value", input_file),
-                ("output.value", output_dir),
+                ("input.value", _hide(input_file, "OPENINFERENCE_HIDE_INPUTS")),
+                ("output.value", _hide(output_dir, "OPENINFERENCE_HIDE_OUTPUTS")),
             ):
                 if value:
                     span.set_attribute(key, value)
@@ -199,14 +218,18 @@ def tool_call(
         if cmd is not None:
             joined = " ".join(cmd)
             span.set_attribute("gen_ai.tool.call.arguments", joined)
-            span.set_attribute("input.value", joined)
+            span.set_attribute(
+                "input.value", _hide(joined, "OPENINFERENCE_HIDE_INPUTS")
+            )
         for k, v in attrs.items():
             span.set_attribute(k, str(v))
         try:
             if cmd is not None:
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 span.set_attribute("exit_code", result.returncode)
-                span.set_attribute("output.value", f"exit_code={result.returncode}")
+                span.set_attribute("output.value", _hide(
+                    f"exit_code={result.returncode}", "OPENINFERENCE_HIDE_OUTPUTS"
+                ))
                 if result.returncode != 0:
                     span.set_attribute("error.type", "NonZeroExit")
                     span.set_attribute("stderr", result.stderr[:500])
