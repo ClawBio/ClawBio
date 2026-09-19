@@ -150,6 +150,10 @@ def skill_run(
                 ("clawbio.input.checksum", input_checksum),
                 ("clawbio.input.file", input_file),
                 ("clawbio.output.dir", output_dir),
+                # Trace viewers' Input/Output panels; aliases of the above, so
+                # nothing new is written or sent.
+                ("input.value", input_file),
+                ("output.value", output_dir),
             ):
                 if value:
                     span.set_attribute(key, value)
@@ -193,13 +197,16 @@ def tool_call(
         span.set_attribute("openinference.span.kind", "TOOL")
         span.set_attribute("tool.name", name)
         if cmd is not None:
-            span.set_attribute("gen_ai.tool.call.arguments", " ".join(cmd))
+            joined = " ".join(cmd)
+            span.set_attribute("gen_ai.tool.call.arguments", joined)
+            span.set_attribute("input.value", joined)
         for k, v in attrs.items():
             span.set_attribute(k, str(v))
         try:
             if cmd is not None:
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 span.set_attribute("exit_code", result.returncode)
+                span.set_attribute("output.value", f"exit_code={result.returncode}")
                 if result.returncode != 0:
                     span.set_attribute("error.type", "NonZeroExit")
                     span.set_attribute("stderr", result.stderr[:500])

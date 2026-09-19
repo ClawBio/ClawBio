@@ -222,3 +222,32 @@ def test_span_kinds_are_set_for_trace_viewers(tmp_path):
     assert root["openinference.span.kind"] == "AGENT"
     assert tool["openinference.span.kind"] == "TOOL"
     assert tool["tool.name"] == "bcftools_view"
+
+
+def test_input_output_values_alias_existing_attributes(tmp_path):
+    """Phoenix fills its Input/Output panels from input.value / output.value.
+    Both are aliases, so nothing new reaches the log or the collector."""
+    log = tmp_path / "audit.jsonl"
+    out = tmp_path / "pharmgx_demo"
+    with skill_run(
+        "pharmgx", "0.2.0", input_file="demo_patient.txt", output_dir=str(out), log_path=log
+    ):
+        with tool_call("bcftools_view", cmd=["echo", "hi"], log_path=log):
+            pass
+    records = [json.loads(line) for line in log.read_text().splitlines()]
+    root = next(r for r in records if r["event"] == "skill_run")
+    tool = next(r for r in records if r["event"] == "execute_tool bcftools_view")
+    assert root["input.value"] == "demo_patient.txt"
+    assert root["output.value"] == str(out)
+    assert tool["input.value"] == "echo hi"
+    assert tool["output.value"] == "exit_code=0"
+
+
+def test_input_output_values_omitted_when_there_is_nothing_to_alias(tmp_path):
+    log = tmp_path / "audit.jsonl"
+    with skill_run("pharmgx", "0.2.0", log_path=log):
+        with tool_call("no_subprocess", log_path=log):
+            pass
+    for record in (json.loads(line) for line in log.read_text().splitlines()):
+        assert "input.value" not in record
+        assert "output.value" not in record
