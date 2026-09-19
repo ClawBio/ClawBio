@@ -33,6 +33,15 @@ _DEFAULT_LOG = Path.home() / ".clawbio" / "audit.jsonl"
 _REDACTED = "__REDACTED__"
 
 
+def _resolve_log(log_path: Path | str | None) -> Path:
+    """Explicit argument, else CLAWBIO_AUDIT_LOG, else ~/.clawbio/audit.jsonl.
+
+    Read per call rather than at import: a skill calls skill_run without a
+    path, so the environment is the only way to redirect the log.
+    """
+    return Path(log_path or os.environ.get("CLAWBIO_AUDIT_LOG") or _DEFAULT_LOG)
+
+
 def _hide_either(value: str) -> str:
     """For text that can quote both sides, such as a failure message."""
     return _hide(_hide(value, "OPENINFERENCE_HIDE_INPUTS"), "OPENINFERENCE_HIDE_OUTPUTS")
@@ -96,9 +105,9 @@ class _JsonlExporter(SpanExporter):
         pass
 
 
-def write(event: str, *, log_path: Path | str = _DEFAULT_LOG, **kwargs) -> None:
+def write(event: str, *, log_path: Path | str | None = None, **kwargs) -> None:
     """Write a simple point-in-time audit record as JSONL."""
-    log_path = Path(log_path)
+    log_path = _resolve_log(log_path)
     entry = {"timestamp": datetime.now(timezone.utc).isoformat(), "event": event, **kwargs}
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -116,7 +125,7 @@ def skill_run(
     input_checksum: str = "",
     input_file: str = "",
     output_dir: str = "",
-    log_path: Path | str = _DEFAULT_LOG,
+    log_path: Path | str | None = None,
 ):
     """Root trace for a skill invocation. Yields the span_id (16-char hex).
 
@@ -139,7 +148,7 @@ def skill_run(
         # Phoenix groups traces by this; without it everything lands in "default".
         "openinference.project.name": "clawbio",
     }))
-    provider.add_span_processor(SimpleSpanProcessor(_JsonlExporter(Path(log_path))))
+    provider.add_span_processor(SimpleSpanProcessor(_JsonlExporter(_resolve_log(log_path))))
     endpoint = os.environ.get("CLAWBIO_OTLP_ENDPOINT")
     if endpoint:
         # Opt-in, and deliberately not OTEL_EXPORTER_OTLP_ENDPOINT: an org-wide
@@ -199,7 +208,7 @@ def tool_call(
     name: str,
     *,
     cmd: List[str] | None = None,
-    log_path: Path | str = _DEFAULT_LOG,
+    log_path: Path | str | None = None,
     **attrs,
 ):
     """Child span for a tool or CLI call.

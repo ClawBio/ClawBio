@@ -324,3 +324,15 @@ def test_failure_does_not_leak_through_otel_exception_recording(tmp_path, monkey
     for span in captured:
         assert not span.events, f"{span.name} recorded {[e.name for e in span.events]}"
         assert secret not in (span.status.description or "")
+
+
+def test_audit_log_path_comes_from_the_environment(tmp_path, monkeypatch):
+    """A skill calls skill_run without a log_path, so the environment is the
+    only way to point the log somewhere other than $HOME."""
+    log = tmp_path / "from_env.jsonl"
+    monkeypatch.setenv("CLAWBIO_AUDIT_LOG", str(log))
+    with skill_run("fine-mapping", "0.3.0"):
+        with tool_call("abf_fit"):
+            pass
+    events = [json.loads(line)["event"] for line in log.read_text().splitlines()]
+    assert events == ["execute_tool abf_fit", "skill_run"]
