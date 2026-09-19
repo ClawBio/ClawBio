@@ -3,6 +3,8 @@
 Aligns with OpenTelemetry GenAI semantic conventions (pre-stable):
   https://github.com/open-telemetry/semantic-conventions-genai
 Re-verify the gen_ai.* attribute names once that repo tags a release.
+Also emits OpenInference openinference.span.kind/tool.name, which is what
+Phoenix classifies on.
 """
 
 from __future__ import annotations
@@ -133,6 +135,8 @@ def skill_run(
         with tracer.start_as_current_span("skill_run") as span:
             span.set_attribute("gen_ai.agent.id", skill)
             span.set_attribute("gen_ai.agent.version", version)
+            # Phoenix classifies on this key alone; without it: "unknown".
+            span.set_attribute("openinference.span.kind", "AGENT")
             # Provenance, so a record can be reconciled against what is on disk.
             # Omitted when empty to keep the historical record shape for callers
             # that pass nothing. These are ClawBio-specific, so they carry a
@@ -182,6 +186,8 @@ def tool_call(
         return
 
     with tracer.start_as_current_span(f"execute_tool {name}") as span:
+        span.set_attribute("openinference.span.kind", "TOOL")
+        span.set_attribute("tool.name", name)
         if cmd is not None:
             span.set_attribute("gen_ai.tool.call.arguments", " ".join(cmd))
         for k, v in attrs.items():

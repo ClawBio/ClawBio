@@ -208,3 +208,17 @@ def test_skill_run_omits_provenance_keys_when_not_given(tmp_path):
     record = json.loads(log.read_text().strip())
     for key in ("clawbio.input.checksum", "clawbio.input.file", "clawbio.output.dir"):
         assert key not in record
+
+
+def test_span_kinds_are_set_for_trace_viewers(tmp_path):
+    """Phoenix renders spans as "unknown" without openinference.span.kind."""
+    log = tmp_path / "audit.jsonl"
+    with skill_run("pharmgx", "0.2.0", log_path=log):
+        with tool_call("bcftools_view", log_path=log):
+            pass
+    records = [json.loads(line) for line in log.read_text().splitlines()]
+    tool = next(r for r in records if r["event"] == "execute_tool bcftools_view")
+    root = next(r for r in records if r["event"] == "skill_run")
+    assert root["openinference.span.kind"] == "AGENT"
+    assert tool["openinference.span.kind"] == "TOOL"
+    assert tool["tool.name"] == "bcftools_view"
