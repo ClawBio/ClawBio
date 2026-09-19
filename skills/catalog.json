@@ -1325,7 +1325,7 @@
       "name": "dnasp",
       "cli_alias": "dnasp",
       "description": "Population genetics of pre-aligned DNA sequences or multi-sample VCFs using selected DnaSP 6 methods. Use for diversity, neutrality statistics, linkage disequilibrium, InDel polymorphism, divergence, MK, Ka/Ks and codon usage; not alignment, phasing or clinical interpretation.",
-      "version": "0.5.3",
+      "version": "0.6.0",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {

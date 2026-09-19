@@ -376,3 +376,45 @@ def test_pydeseq2_internal_failure_is_reported_clearly(monkeypatch, tmp_path):
             output_dir=tmp_path / "out",
             backend="pydeseq2",
         )
+
+
+def _repro_run(tmp_path):
+    out_dir = tmp_path / "rnaseq_repro"
+    run_analysis(
+        counts_path=DEMO_COUNTS,
+        metadata_path=DEMO_META,
+        formula="~ batch + condition",
+        contrast="condition,treated,control",
+        output_dir=out_dir,
+        backend="simple",
+    )
+    return out_dir / "reproducibility"
+
+
+def test_commands_sh_records_the_invocation(tmp_path):
+    """write_commands_sh gives commands.sh a shebang and the real CLI call."""
+    commands = _repro_run(tmp_path) / "commands.sh"
+    assert commands.exists()
+    text = commands.read_text()
+    assert text.startswith("#!/usr/bin/env bash\n")
+    assert "rnaseq_de.py" in text
+
+
+def test_environment_yml_declares_every_imported_dependency(tmp_path):
+    """scipy is imported at module scope; a hand-written env file omitted it."""
+    env = (_repro_run(tmp_path) / "environment.yml").read_text()
+    for package in ("pandas", "numpy", "matplotlib", "scikit-learn", "scipy"):
+        assert package in env, f"{package} missing from environment.yml"
+    assert "name: clawbio-rnaseq-de" in env
+
+
+def test_checksums_label_outputs_relative_to_output_dir(tmp_path):
+    """Output files stay anchored to the report dir; inputs fall back to bare names."""
+    checksums = (_repro_run(tmp_path) / "checksums.sha256").read_text()
+    assert "tables/de_results.csv" in checksums
+    assert "figures/volcano.png" in checksums
+    assert "demo_counts.csv" in checksums
+    for line in checksums.strip().splitlines():
+        digest, _, label = line.partition("  ")
+        assert len(digest) == 64, line
+        assert label

@@ -56,7 +56,7 @@ Usage:
 
 from __future__ import annotations
 
-__version__ = "0.5.3"
+__version__ = "0.6.0"
 __author__  = "David De Lorenzo"
 __credits__ = [
     # Python reimplementation and ClawBio adaptation
@@ -76,6 +76,7 @@ import shlex
 import platform
 import importlib.metadata
 import math
+import random
 import re
 import shutil
 import sys
@@ -83,6 +84,8 @@ import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field, fields, is_dataclass
 from datetime import datetime
+from decimal import Decimal
+from functools import lru_cache
 from itertools import combinations
 from pathlib import Path
 from typing import Callable, Optional
@@ -1186,6 +1189,279 @@ def watterson_theta(S: int, n: int, L_net: int) -> tuple[float, float]:
     theta_abs = S / a1
     theta_nuc = theta_abs / L_net if L_net > 0 else 0.0
     return theta_abs, theta_nuc
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Coalescent simulation: P-values for Tajima's D, R2 and Fu's Fs
+# ─────────────────────────────────────────────────────────────────────────────
+
+SIM_GIVEN = ("S", "theta")
+
+
+@dataclass
+class _Genealogy:
+    """A binary coalescent genealogy for n sampled sequences.
+
+    Nodes 0 .. n-1 are the samples, each later node is a coalescence and the last
+    node is the root, so a parent always has a higher index than its children.
+    ``length[i]`` is the branch above node i in units of 2N generations and
+    ``desc[i]`` the number of samples below it.
+    """
+    n: int
+    parent: list[int]
+    desc: list[int]
+    length: list[float]
+
+
+@dataclass
+class _TreeStats:
+    S: int
+    k: float
+    H: int
+    TajimaD: Optional[float]
+    R2: Optional[float]
+    Fs: Optional[float]
+
+
+def _coalescent_tree(rng: random.Random, n: int) -> _Genealogy:
+    """Kingman coalescent for n samples: constant size, no recombination."""
+    size = 2 * n - 1
+    parent = [-1] * size
+    desc = [1] * n + [0] * (n - 1)
+    length = [0.0] * size
+    active = list(range(n))
+    node = n
+    for k in range(n, 1, -1):
+        t = rng.expovariate(k * (k - 1) / 2.0)
+        for a in active:
+            length[a] += t
+        i, j = rng.sample(range(k), 2)
+        a, b = active[i], active[j]
+        parent[a] = parent[b] = node
+        desc[node] = desc[a] + desc[b]
+        for idx in sorted((i, j), reverse=True):
+            active.pop(idx)
+        active.append(node)
+        node += 1
+    return _Genealogy(n=n, parent=parent, desc=desc, length=length)
+
+
+def _poisson(rng: random.Random, mean: float) -> int:
+    """Exact Poisson variate: unit-rate arrivals counted before ``mean``."""
+    count, total = 0, rng.expovariate(1.0)
+    while total <= mean:
+        count += 1
+        total += rng.expovariate(1.0)
+    return count
+
+
+def _place_mutations(rng: random.Random, tree: _Genealogy,
+                     n_mutations: Optional[int] = None,
+                     theta: Optional[float] = None) -> list[int]:
+    """Infinite-sites mutations per branch.
+
+    Given S, exactly ``n_mutations`` fall on the tree, each on a branch chosen in
+    proportion to its length (Hudson's fixed-S scheme). Given theta, their number is
+    Poisson with mean theta/2 times the total branch length, so that E[S] = theta a1.
+    """
+    if (n_mutations is None) == (theta is None):
+        raise ValueError("give exactly one of n_mutations or theta")
+    branches = [i for i, parent in enumerate(tree.parent) if parent >= 0]
+    cum, running = [], 0.0
+    for i in branches:
+        running += tree.length[i]
+        cum.append(running)
+    m = n_mutations if n_mutations is not None else _poisson(rng, theta * running / 2.0)
+    counts = [0] * len(tree.parent)
+    if m:
+        for b in rng.choices(branches, cum_weights=cum, k=m):
+            counts[b] += 1
+    return counts
+
+
+def _tree_statistics(tree: _Genealogy, counts: list[int]) -> _TreeStats:
+    """S, k, H, Tajima's D, R2 and Fu's Fs straight from a genealogy.
+
+    Defined to equal what analyse_region and compute_fu_fs return for the same
+    genealogy written out as sequences (see tests/test_coalescent_pvalues.py): every
+    mutation is a biallelic site carried by the samples below its branch, and a
+    sequence is credited with a singleton wherever it alone carries an allele.
+    """
+    n, parent, desc = tree.n, tree.parent, tree.desc
+    S = sum(counts)
+    diffs = sum(counts[i] * desc[i] * (n - desc[i]) for i in range(len(parent)) if parent[i] >= 0)
+    k = diffs / (n * (n - 1) / 2) if n >= 2 else 0.0
+
+    # singletons per sequence: its own branch, plus the n-1 branch above its sibling
+    per_seq = [float(counts[leaf]) for leaf in range(n)]
+    if n >= 2:
+        root = len(parent) - 1
+        kids = [i for i in range(len(parent)) if parent[i] == root]
+        for a, b in ((kids[0], kids[1]), (kids[1], kids[0])):
+            if desc[a] == n - 1 and desc[b] == 1:
+                per_seq[b] += counts[a]
+        if n == 2:
+            per_seq = [sum(per_seq) / 2] * 2
+
+    # haplotypes: the distinct sets of mutations on each sample's path to the root
+    own, bit = [0] * len(parent), 0
+    for i, c in enumerate(counts):
+        if c:
+            own[i] = ((1 << c) - 1) << bit
+            bit += c
+    mask = [0] * len(parent)
+    for i in range(len(parent) - 2, -1, -1):
+        mask[i] = mask[parent[i]] | own[i]
+    H = len(set(mask[:n]))
+
+    R2 = math.sqrt(sum((u - k / 2) ** 2 for u in per_seq) / n) / S if S else None
+    return _TreeStats(S=S, k=k, H=H, TajimaD=tajima_d(k, S, n), R2=R2,
+                      Fs=fu_fs_statistic(n, H, k))
+
+
+def _tree_sequences(tree: _Genealogy, counts: list[int]) -> list[str]:
+    """Write a genealogy out as sequences, one column per mutation (used by the tests)."""
+    n = tree.n
+    children: dict[int, list[int]] = {}
+    for i, parent in enumerate(tree.parent):
+        if parent >= 0:
+            children.setdefault(parent, []).append(i)
+    rows: list[list[str]] = [[] for _ in range(n)]
+    for i, c in enumerate(counts):
+        if not c:
+            continue
+        carriers, stack = set(), [i]
+        while stack:
+            x = stack.pop()
+            if x < n:
+                carriers.add(x)
+            else:
+                stack.extend(children.get(x, []))
+        for _ in range(c):
+            for leaf in range(n):
+                rows[leaf].append("G" if leaf in carriers else "A")
+    return ["".join(r) for r in rows]
+
+
+def _tail_counts(observed: Optional[float],
+                 null: list[Optional[float]]) -> Optional[tuple[int, int, int]]:
+    """Replicates <= observed, replicates >= observed, and the replicates where the
+    statistic is defined. None if there is nothing to compare."""
+    values = [v for v in null if v is not None]
+    if observed is None or not values:
+        return None
+    return sum(v <= observed for v in values), sum(v >= observed for v in values), len(values)
+
+
+def _monte_carlo_p(count: Optional[int], n_valid: int) -> Optional[float]:
+    """(b + 1) / (N + 1): the observed data count as one replicate, so the P-value is never
+    zero (Phipson and Smyth 2010). DnaSP reports b / N, recoverable from the counts."""
+    if count is None:
+        return None
+    return (count + 1) / (n_valid + 1)
+
+
+def _two_tailed(lower: Optional[float], upper: Optional[float]) -> Optional[float]:
+    """Two-tailed P-value without assuming a symmetric null: 2 x min(tails), capped at 1."""
+    if lower is None or upper is None:
+        return None
+    return min(1.0, 2.0 * min(lower, upper))
+
+
+@dataclass
+class CoalescentTest:
+    """Coalescent-simulation P-values for the whole region.
+
+    Null model: Kingman coalescent, constant population size, infinite sites, no
+    recombination. ``given`` is "S" (each replicate carries exactly the observed number
+    of segregating sites) or "theta" (a Poisson number of mutations from Watterson's
+    theta). A replicate in which a statistic is undefined is left out of that statistic's
+    null, and ``n_valid_*`` counts the replicates each P-value rests on. Tajima's D is
+    tested in both tails; R2 and Fu's Fs in the lower tail, the direction population
+    growth produces. Each P-value is (b + 1) / (N + 1) for b of the N valid replicates at
+    least as extreme; the counts b are stored so that DnaSP's proportion b / N is recoverable.
+    """
+    n_sim: int = 0
+    given: str = "S"
+    seed: Optional[int] = None
+    label: str = ""
+    n: int = 0
+    S: int = 0
+    theta: Optional[float] = None
+    TajimaD: Optional[float] = None
+    TajimaD_p_lower: Optional[float] = None
+    TajimaD_p_upper: Optional[float] = None
+    TajimaD_p_two_tailed: Optional[float] = None
+    n_valid_TajimaD: int = 0
+    R2: Optional[float] = None
+    R2_p_lower: Optional[float] = None
+    n_valid_R2: int = 0
+    Fs: Optional[float] = None
+    Fs_p_lower: Optional[float] = None
+    n_valid_Fs: int = 0
+    TajimaD_count_lower: Optional[int] = None
+    TajimaD_count_upper: Optional[int] = None
+    R2_count_lower: Optional[int] = None
+    Fs_count_lower: Optional[int] = None
+    note: str = ""
+
+
+def coalescent_test(rs: RegionStats, n_sim: int, given: str = "S",
+                    seed: Optional[int] = None, label: str = "") -> CoalescentTest:
+    """Simulate the neutral null for one region and return its P-values.
+
+    ``label`` separates regions that share a seed, such as the CHROMs of one VCF, so
+    their replicates are independent while the run stays reproducible.
+    """
+    if n_sim < 0:
+        raise ValueError("--n-sim must be zero or a positive number of replicates")
+    if given not in SIM_GIVEN:
+        raise ValueError(f"--sim-given must be one of: {', '.join(SIM_GIVEN)}")
+    result = CoalescentTest(n_sim=n_sim, given=given, seed=seed, label=label, n=rs.n, S=rs.S,
+                            theta=rs.ThetaW if given == "theta" else None,
+                            TajimaD=rs.TajimaD, R2=rs.R2,
+                            Fs=fu_fs_statistic(rs.n, rs.H, rs.k))
+    if n_sim == 0:
+        result.note = "no replicates requested"
+        return result
+    if rs.S == 0:
+        result.note = "no segregating site, so there is nothing to test"
+        return result
+    if rs.n < 2:
+        result.note = "fewer than two sequences, so there is nothing to test"
+        return result
+
+    rng = random.Random() if seed is None else random.Random(f"dnasp-coalescent:{seed}:{label}")
+    null_D: list[Optional[float]] = []
+    null_R2: list[Optional[float]] = []
+    null_Fs: list[Optional[float]] = []
+    for _ in range(n_sim):
+        tree = _coalescent_tree(rng, rs.n)
+        counts = (_place_mutations(rng, tree, n_mutations=rs.S) if given == "S"
+                  else _place_mutations(rng, tree, theta=rs.ThetaW))
+        st = _tree_statistics(tree, counts)
+        null_D.append(st.TajimaD)
+        null_R2.append(st.R2)
+        null_Fs.append(st.Fs)
+
+    result.n_valid_TajimaD = sum(v is not None for v in null_D)
+    result.n_valid_R2 = sum(v is not None for v in null_R2)
+    result.n_valid_Fs = sum(v is not None for v in null_Fs)
+    tails = _tail_counts(rs.TajimaD, null_D)
+    if tails is not None:
+        result.TajimaD_count_lower, result.TajimaD_count_upper, _ = tails
+        result.TajimaD_p_lower = _monte_carlo_p(result.TajimaD_count_lower, result.n_valid_TajimaD)
+        result.TajimaD_p_upper = _monte_carlo_p(result.TajimaD_count_upper, result.n_valid_TajimaD)
+        result.TajimaD_p_two_tailed = _two_tailed(result.TajimaD_p_lower, result.TajimaD_p_upper)
+    tails = _tail_counts(rs.R2, null_R2)
+    if tails is not None:
+        result.R2_count_lower = tails[0]
+        result.R2_p_lower = _monte_carlo_p(result.R2_count_lower, result.n_valid_R2)
+    tails = _tail_counts(result.Fs, null_Fs)
+    if tails is not None:
+        result.Fs_count_lower = tails[0]
+        result.Fs_p_lower = _monte_carlo_p(result.Fs_count_lower, result.n_valid_Fs)
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3104,14 +3380,41 @@ def _ewens_log_terms(n: int, theta: float) -> list[float]:
     exceed float range for n ≳ 171, so float(|s(n, k)|) overflows; math.log of
     the exact Python int does not.  Entry k = 0 (and any k > n) is -inf.
     """
-    stirling = _stirling1_unsigned(n)
+    log_stirling = _log_stirling1_unsigned(n)
     log_theta = math.log(theta)
     log_rising = math.fsum(math.log(theta + i) for i in range(n))
     terms = [-math.inf] * (n + 1)
     for k in range(1, n + 1):
-        if stirling[k] > 0:
-            terms[k] = math.log(stirling[k]) + k * log_theta - log_rising
+        if log_stirling[k] != -math.inf:
+            terms[k] = log_stirling[k] + k * log_theta - log_rising
     return terms
+
+
+@lru_cache(maxsize=None)
+def _log_stirling1_unsigned(n: int) -> tuple[float, ...]:
+    """math.log of each |s(n, k)|, computed once per n (the exact ints are unchanged)."""
+    return tuple(math.log(v) if v > 0 else -math.inf for v in _stirling1_unsigned(n))
+
+
+def _logsumexp(values: list[float]) -> float:
+    peak = max(values)
+    return peak + math.log(math.fsum(math.exp(x - peak) for x in values))
+
+
+def _fu_fs_logs(n: int, H: int, k: float) -> tuple[float, float]:
+    """log P(K_n >= H) and log P(K_n < H) under the Ewens formula with theta = k."""
+    if H > n or not math.isfinite(k):
+        raise ValueError("Fu's Fs requires H <= n and finite theta")
+    terms = _ewens_log_terms(n, k)
+    return _logsumexp(terms[H:]), _logsumexp(terms[1:H])
+
+
+def fu_fs_statistic(n: int, H: int, k: float) -> Optional[float]:
+    """Fu's Fs = ln(S' / (1 - S')) from n, the haplotype count H and theta_pi = k."""
+    if n < 2 or H < 2 or k <= 0.0:
+        return None
+    log_upper, log_lower = _fu_fs_logs(n, H, k)
+    return log_upper - log_lower
 
 
 def _ewens_cdf(k_max: int, n: int, theta: float) -> float:
@@ -3168,14 +3471,7 @@ def compute_fu_fs(seqs: list[str], H: int, k: float) -> FuFsStats:
     if n < 2 or H < 2 or k <= 0.0:
         return result  # no polymorphism -> Fs undefined (DnaSP reports n.a.)
 
-    if H > n or not math.isfinite(k):
-        raise ValueError("Fu's Fs requires H <= n and finite theta")
-    terms = _ewens_log_terms(n, k)
-    def logsum(values):
-        peak = max(values)
-        return peak + math.log(math.fsum(math.exp(x - peak) for x in values))
-    log_upper = logsum(terms[H:])
-    log_lower = logsum(terms[1:H])
+    log_upper, log_lower = _fu_fs_logs(n, H, k)
     result.S_k = min(1.0, math.exp(log_upper))
     result.Fs = log_upper - log_lower
 
@@ -3631,6 +3927,10 @@ def run_analysis(
     outgroup: Optional[str] = None,
     hka_loci: Optional[list[HKALocus]] = None,
     genetic_code: dict[str, str] = GENETIC_CODE,
+    n_sim: int = 0,
+    sim_given: str = "S",
+    sim_seed: Optional[int] = None,
+    sim_label: str = "",
 ) -> dict:
     """Run all requested analyses and return a results bundle.
 
@@ -3656,6 +3956,13 @@ def run_analysis(
         standard/universal code). Use GENETIC_CODES["vertebrate-mitochondrial"]
         for mitochondrial coding sequences (e.g. COII), where TGA is Trp, not
         a stop, so the standard code would silently drop those codons.
+    n_sim : int
+        Coalescent replicates for P-values of Tajima's D, R2 and Fu's Fs over the
+        whole region (0, the default, runs no simulation and adds nothing).
+    sim_given : str
+        "S" to condition on the observed segregating sites, "theta" for Watterson's theta.
+    sim_seed : int | None
+        Seed for the simulation; ``sim_label`` separates regions sharing it.
 
     Returns
     -------
@@ -3825,6 +4132,9 @@ def run_analysis(
         else:
             print("Warning: fst analysis requires --pop-file", file=sys.stderr)
 
+    if n_sim:
+        results["coalescent"] = coalescent_test(global_stats, n_sim, sim_given, sim_seed, sim_label)
+
     return results
 
 
@@ -3836,14 +4146,11 @@ def _fmt(v: Optional[float], digits: int = 6) -> str:
     return "n.a." if v is None else f"{v:.{digits}f}"
 
 
+_NOT_ASSESSED = "Descriptive statistic; significance not assessed (use --n-sim for a coalescent P-value)"
+
+
 def _tajima_interp(d: Optional[float]) -> str:
-    if d is None:
-        return "n.a."
-    if d > 2.0:
-        return "Excess intermediate-frequency variants; balancing selection or contraction"
-    if d < -2.0:
-        return "Excess rare variants; selective sweep or population expansion"
-    return "Consistent with neutrality"
+    return "n.a." if d is None else _NOT_ASSESSED
 
 
 def _fu_li_interp(v: Optional[float]) -> str:
@@ -3853,9 +4160,33 @@ def _fu_li_interp(v: Optional[float]) -> str:
 
 
 def _r2_interp(v: Optional[float]) -> str:
-    if v is None:
+    return "n.a." if v is None else _NOT_ASSESSED
+
+
+def _fmt_count(count: Optional[int]) -> str:
+    return "n.a." if count is None else str(count)
+
+
+def _fmt_p(p: Optional[float]) -> str:
+    """A simulated P-value, (b + 1) / (N + 1) and so never zero: four decimals, or two
+    significant digits, trailing zero kept, below 0.001, so that a small value is never
+    shown as 0.0000."""
+    if p is None:
         return "n.a."
-    return "Consistent with neutrality" if v >= 0.1 else "Low R2 suggests population expansion"
+    if p >= 0.001:
+        return f"{p:.4f}"
+    return format(Decimal(f"{p:#.2g}"), "f")
+
+
+def _p_interp(p: Optional[float], direction: str) -> str:
+    if p is None:
+        return "n.a."
+    shown = f"P = {_fmt_p(p)}"
+    if p < 0.05:
+        what = ("Departs from the standard neutral model" if direction == "two-tailed"
+                else "Lower than expected under the standard neutral model")
+        return f"{what} ({shown})"
+    return f"No significant departure from the standard neutral model ({shown})"
 
 
 def _ld_significance(p: Optional[float]) -> str:
@@ -4077,14 +4408,70 @@ def write_report(
         "",
         "## Neutrality Tests",
         "",
-        "| Test | Value | Interpretation |",
-        "|------|-------|----------------|",
-        f"| Tajima's D | {_fmt(rs.TajimaD, 6)} | {_tajima_interp(rs.TajimaD)} |",
-        f"| Fu & Li's D* | {_fmt(rs.FuLiD_star, 6)} | {_fu_li_interp(rs.FuLiD_star)} |",
-        f"| Fu & Li's F* | {_fmt(rs.FuLiF_star, 6)} | {_fu_li_interp(rs.FuLiF_star)} |",
-        f"| Ramos-Onsins & Rozas R2 | {_fmt(rs.R2, 6)} | {_r2_interp(rs.R2)} |",
-        "",
     ]
+    ct: Optional[CoalescentTest] = results.get("coalescent")
+    if ct is not None and (ct.n_valid_TajimaD or ct.n_valid_R2):
+        lines += [
+            "| Test | Value | P (coalescent) | Interpretation |",
+            "|------|-------|----------------|----------------|",
+            (f"| Tajima's D | {_fmt(rs.TajimaD, 6)} | {_fmt_p(ct.TajimaD_p_two_tailed)} (two-tailed) | "
+             f"{_p_interp(ct.TajimaD_p_two_tailed, 'two-tailed')} |") if ct.n_valid_TajimaD
+            else f"| Tajima's D | {_fmt(rs.TajimaD, 6)} | n.a. | {_tajima_interp(rs.TajimaD)} |",
+            f"| Fu & Li's D* | {_fmt(rs.FuLiD_star, 6)} | not simulated | {_fu_li_interp(rs.FuLiD_star)} |",
+            f"| Fu & Li's F* | {_fmt(rs.FuLiF_star, 6)} | not simulated | {_fu_li_interp(rs.FuLiF_star)} |",
+            (f"| Ramos-Onsins & Rozas R2 | {_fmt(rs.R2, 6)} | {_fmt_p(ct.R2_p_lower)} (lower tail) | "
+             f"{_p_interp(ct.R2_p_lower, 'lower')} |") if ct.n_valid_R2
+            else f"| Ramos-Onsins & Rozas R2 | {_fmt(rs.R2, 6)} | n.a. | {_r2_interp(rs.R2)} |",
+            "",
+        ]
+    else:
+        lines += [
+            "| Test | Value | Interpretation |",
+            "|------|-------|----------------|",
+            f"| Tajima's D | {_fmt(rs.TajimaD, 6)} | {_tajima_interp(rs.TajimaD)} |",
+            f"| Fu & Li's D* | {_fmt(rs.FuLiD_star, 6)} | {_fu_li_interp(rs.FuLiD_star)} |",
+            f"| Fu & Li's F* | {_fmt(rs.FuLiF_star, 6)} | {_fu_li_interp(rs.FuLiF_star)} |",
+            f"| Ramos-Onsins & Rozas R2 | {_fmt(rs.R2, 6)} | {_r2_interp(rs.R2)} |",
+            "",
+        ]
+    if ct is not None:
+        conditioning = (f"the observed number of segregating sites (S = {ct.S})" if ct.given == "S"
+                        else f"Watterson's theta (θ_W = {_fmt(ct.theta, 4)})")
+        lines += [
+            "## Coalescent simulation",
+            "",
+            f"P-values come from {ct.n_sim} replicates of the standard neutral model: Kingman "
+            f"coalescent, constant population size, infinite sites and no recombination, "
+            f"conditioned on {conditioning} with n = {ct.n}"
+            + (f", region {ct.label}" if ct.label else "")
+            + f". Seed {ct.seed}; rerun with "
+            f"`--sim-seed {ct.seed}` to reproduce them.",
+            "",
+        ]
+        if ct.note:
+            lines += [f"No P-values were computed: {ct.note}.", ""]
+        else:
+            lines += [
+                "| Statistic | Observed | Replicates <= observed | Replicates >= observed | P | Valid replicates |",
+                "|-----------|----------|------------------------|------------------------|---|------------------|",
+                f"| Tajima's D | {_fmt(ct.TajimaD, 6)} | {_fmt_count(ct.TajimaD_count_lower)} | "
+                f"{_fmt_count(ct.TajimaD_count_upper)} | {_fmt_p(ct.TajimaD_p_two_tailed)} "
+                f"(two-tailed) | {ct.n_valid_TajimaD} |",
+                f"| R2 | {_fmt(ct.R2, 6)} | {_fmt_count(ct.R2_count_lower)} | | "
+                f"{_fmt_p(ct.R2_p_lower)} (lower tail) | {ct.n_valid_R2} |",
+                f"| Fu's Fs | {_fmt(ct.Fs, 4)} | {_fmt_count(ct.Fs_count_lower)} | | "
+                f"{_fmt_p(ct.Fs_p_lower)} (lower tail) | {ct.n_valid_Fs} |",
+                "",
+                ("Each P-value is (b + 1)/(N + 1), where b of the N valid replicates are at least as "
+                 "extreme as the observed value, so the data count as one replicate and no P-value "
+                 "is zero (Phipson and Smyth 2010); DnaSP reports b/N. Tajima's D is tested in both "
+                 "tails, as twice the smaller tail P-value capped at 1, which does not assume a "
+                 "symmetric null; R2 and Fu's Fs in the lower tail, the direction population growth "
+                 "produces. A significant result rejects the standard neutral model, not selection "
+                 "or growth in particular: demography, population structure and selection can each "
+                 "produce it. Sliding windows are not simulated."),
+                "",
+            ]
 
     # ── Linkage Disequilibrium ───────────────────────────────────────────────
     if ld is not None:
@@ -4359,14 +4746,18 @@ def write_report(
             f"| θ_π (= k, mean pairwise differences) | {_fmt(fufs_s.theta_pi, 4)} |",
             f"| S' = P(K ≥ H \\| θ_π, n) | {_fmt(fufs_s.S_k, 6)} |",
             f"| Fs | {_fmt(fufs_s.Fs, 4)} |",
+            *([f"| P (coalescent, lower tail) | {_fmt_p(ct.Fs_p_lower)} |"]
+              if ct is not None and ct.n_valid_Fs else []),
             "",
             f"> **Interpretation**: Fs = {_fmt(fufs_s.Fs, 4)}. "
             "Large negative Fs indicates more haplotypes than expected given nucleotide "
             "diversity  -  signature of recent population expansion or genetic hitchhiking. "
             "Large positive Fs (a deficit of haplotypes) points to balancing selection or "
-            "population subdivision. No significance is reported: S' is the Ewens "
-            "upper-tail probability, not the P-value, and a formal test requires coalescent "
-            "simulation of the null because θ_π is estimated from the data.",
+            "population subdivision. S' is the Ewens upper-tail probability, not the "
+            "P-value; because θ_π is estimated from the data, significance comes only from "
+            "coalescent simulation of the null "
+            + ("(see Coalescent simulation)." if ct is not None and ct.n_valid_Fs
+               else "(not run; use --n-sim)."),
             "",
         ]
 
@@ -5097,6 +5488,10 @@ def _run(
     source_name: Optional[str] = None,
     variant_sites_only: bool = False,
     genetic_code: dict[str, str] = GENETIC_CODE,
+    n_sim: int = 0,
+    sim_given: str = "S",
+    sim_seed: Optional[int] = None,
+    sim_label: str = "",
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -5155,6 +5550,7 @@ def _run(
     results = run_analysis(
         aln, window_size, step_size, analyses, pop_assignments, aln2,
         outgroup=outgroup_seq, hka_loci=hka_loci, genetic_code=genetic_code,
+        n_sim=n_sim, sim_given=sim_given, sim_seed=sim_seed, sim_label=sim_label,
     )
 
     completed = [name for name in sorted(analyses) if name == 'polymorphism' or results.get(name) is not None]
@@ -5230,6 +5626,14 @@ def _run(
     fufs = results.get("fufs")
     if fufs is not None and fufs.Fs is not None:
         print(f"  Fu's Fs={_fmt(fufs.Fs,4)}  S_k={_fmt(fufs.S_k,6)}  H={fufs.H}  theta_pi={_fmt(fufs.theta_pi,4)}")
+    ct = results.get("coalescent")
+    if ct is not None:
+        if ct.note:
+            print(f"  Coalescent simulation: no P-values ({ct.note})")
+        else:
+            print(f"  Coalescent P ({ct.n_sim} replicates, given {ct.given}, seed {ct.seed}): "
+                  f"Tajima D {_fmt_p(ct.TajimaD_p_two_tailed)}  "
+                  f"R2 {_fmt_p(ct.R2_p_lower)}  Fs {_fmt_p(ct.Fs_p_lower)}")
 
     sfs = results.get("sfs")
     if sfs is not None and sfs.folded:
@@ -5339,6 +5743,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  python dnasp.py --input coding.fas --outgroup OutSeq --analysis mk --output results/\n"
             "  python dnasp.py --input coding.fas --analysis kaks --output results/\n"
             "  python dnasp.py --input aln.fas --analysis fufs --output results/\n"
+            "  python dnasp.py --input aln.fas --analysis polymorphism,fufs --n-sim 10000 --output results/\n"
             "  python dnasp.py --input aln.fas --analysis sfs --output results/\n"
             "  python dnasp.py --input aln.fas --outgroup OutSeq --analysis sfs --output results/\n"
             "  python dnasp.py --input aln.fas --analysis tstv --output results/\n"
@@ -5383,9 +5788,27 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Sliding window size in bp (0 = whole alignment only)")
     p.add_argument("--step", "-s", type=int, default=0,
                    help="Sliding window step size in bp (default: same as window)")
+    p.add_argument("--n-sim", type=_non_negative_int, default=0,
+                   help="Coalescent replicates for P-values of Tajima's D, R2 and Fu's Fs "
+                        "over the whole region (default 0: no simulation). 10000 is typical.")
+    p.add_argument("--sim-given", choices=SIM_GIVEN, default="S",
+                   help="Condition the simulation on the observed segregating sites S "
+                        "(default) or on Watterson's theta")
+    p.add_argument("--sim-seed", type=int, default=None,
+                   help="Seed for --n-sim; if omitted one is generated and recorded")
     p.add_argument("--demo", action="store_true",
                    help="Run on built-in synthetic demo data")
     return p
+
+
+def _non_negative_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected a whole number, got {text!r}")
+    if value < 0:
+        raise argparse.ArgumentTypeError("must be zero or a positive number of replicates")
+    return value
 
 
 def _parse_analyses(analysis_str: str) -> set[str]:
@@ -5439,6 +5862,16 @@ def _main(argv: Optional[list[str]] = None) -> int:
     step = args.step if args.step > 0 else args.window
     cli_args = list(sys.argv[1:] if argv is None else argv)
     genetic_code = GENETIC_CODES[args.genetic_code]
+    sim_seed = args.sim_seed
+    if args.n_sim and sim_seed is None:
+        # Recorded in the command the reproducibility bundle replays, so a rerun draws
+        # the same replicates.
+        sim_seed = random.SystemRandom().randrange(2 ** 31)
+        cli_args += ["--sim-seed", str(sim_seed)]
+    if args.n_sim and args.window:
+        print("  Note: --n-sim tests the whole region; sliding windows are not simulated.",
+              file=sys.stderr)
+    sim = dict(n_sim=args.n_sim, sim_given=args.sim_given, sim_seed=sim_seed)
 
     if args.demo:
         output_dir = args.output
@@ -5454,7 +5887,7 @@ def _main(argv: Optional[list[str]] = None) -> int:
         demo_analyses = VALID_ANALYSES - {"hka"}
         _run(demo_path, output_dir, args.window, step, demo_analyses,
              DEMO_POP_ASSIGNMENTS, None, cli_args,
-             outgroup_name="outgroup", genetic_code=genetic_code)
+             outgroup_name="outgroup", genetic_code=genetic_code, **sim)
         return 0
 
     if args.vcf:
@@ -5557,6 +5990,7 @@ def _main(argv: Optional[list[str]] = None) -> int:
                 outgroup_name=args.outgroup, hka_loci=hka_loci,
                 preloaded_aln=chrom_aln, source_name=f"{args.vcf.name}#{chrom}",
                 variant_sites_only=True, genetic_code=genetic_code,
+                **sim, sim_label=chrom,
             )
         if multi:
             # The runner reads only <output>/result.json: summarise the per-CHROM runs there,
@@ -5584,7 +6018,7 @@ def _main(argv: Optional[list[str]] = None) -> int:
         args.input, args.output, args.window, step,
         analyses, pop_assignments, aln2, cli_args,
         outgroup_name=args.outgroup,
-        hka_loci=hka_loci, genetic_code=genetic_code,
+        hka_loci=hka_loci, genetic_code=genetic_code, **sim,
     )
     return 0
 
