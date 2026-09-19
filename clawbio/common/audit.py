@@ -123,10 +123,9 @@ def skill_run(
     them here.
 
     OPENINFERENCE_HIDE_INPUTS / OPENINFERENCE_HIDE_OUTPUTS redact input.value
-    and output.value only, which is the scope OpenInference's configuration
-    spec gives them. clawbio.input.file, clawbio.output.dir and
-    gen_ai.tool.call.arguments still carry the path and the command, so these
-    flags are not a substitute for scrubbing or for leaving the endpoint unset.
+    and output.value, which is every value these spans carry apart from the
+    input checksum. They are still not a substitute for scrubbing, nor for
+    leaving the endpoint unset: stderr on a failed tool call is not covered.
     """
     provider = TracerProvider(resource=Resource.create({
         "service.name": "clawbio",
@@ -160,17 +159,12 @@ def skill_run(
             span.set_attribute("gen_ai.agent.version", version)
             # Phoenix classifies on this key alone; without it: "unknown".
             span.set_attribute("openinference.span.kind", "AGENT")
-            # Provenance, so a record can be reconciled against what is on disk.
-            # Omitted when empty to keep the historical record shape for callers
-            # that pass nothing. These are ClawBio-specific, so they carry a
-            # clawbio.* namespace: the OTel GenAI semantic conventions have no
-            # equivalent, and bare keys risk colliding with future ones.
+            # Each omitted when empty. The checksum keeps a clawbio.* namespace
+            # because no convention has an equivalent; the file and the output
+            # dir are the viewers' Input and Output, one key each, so the
+            # masking flags actually hide them.
             for key, value in (
                 ("clawbio.input.checksum", input_checksum),
-                ("clawbio.input.file", input_file),
-                ("clawbio.output.dir", output_dir),
-                # Trace viewers' Input/Output panels; aliases of the above, so
-                # nothing new is written or sent.
                 ("input.value", _hide(input_file, "OPENINFERENCE_HIDE_INPUTS")),
                 ("output.value", _hide(output_dir, "OPENINFERENCE_HIDE_OUTPUTS")),
             ):
@@ -216,10 +210,8 @@ def tool_call(
         span.set_attribute("openinference.span.kind", "TOOL")
         span.set_attribute("tool.name", name)
         if cmd is not None:
-            joined = " ".join(cmd)
-            span.set_attribute("gen_ai.tool.call.arguments", joined)
             span.set_attribute(
-                "input.value", _hide(joined, "OPENINFERENCE_HIDE_INPUTS")
+                "input.value", _hide(" ".join(cmd), "OPENINFERENCE_HIDE_INPUTS")
             )
         for k, v in attrs.items():
             span.set_attribute(k, str(v))

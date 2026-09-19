@@ -196,8 +196,12 @@ def test_skill_run_records_provenance_attributes(tmp_path):
         pass
     record = json.loads(log.read_text().strip())
     assert record["clawbio.input.checksum"] == "abc123"
-    assert record["clawbio.input.file"] == "demo_patient.txt"
-    assert record["clawbio.output.dir"] == str(tmp_path / "pharmgx_demo")
+    # The file and the output dir live in input.value / output.value: one key
+    # each, so the masking flags cover them.
+    assert record["input.value"] == "demo_patient.txt"
+    assert record["output.value"] == str(tmp_path / "pharmgx_demo")
+    assert "clawbio.input.file" not in record
+    assert "clawbio.output.dir" not in record
 
 
 def test_skill_run_omits_provenance_keys_when_not_given(tmp_path):
@@ -206,7 +210,7 @@ def test_skill_run_omits_provenance_keys_when_not_given(tmp_path):
     with skill_run("pharmgx", "0.2.0", log_path=log):
         pass
     record = json.loads(log.read_text().strip())
-    for key in ("clawbio.input.checksum", "clawbio.input.file", "clawbio.output.dir"):
+    for key in ("clawbio.input.checksum", "input.value", "output.value"):
         assert key not in record
 
 
@@ -273,8 +277,10 @@ def test_openinference_hide_flags_redact_the_alias_values(tmp_path, monkeypatch)
     assert root["output.value"] == "__REDACTED__"
     assert tool["input.value"] == "__REDACTED__"
     assert tool["output.value"] == "__REDACTED__"
+    # Nothing else carries the command either.
+    assert "gen_ai.tool.call.arguments" not in tool
     # Still recorded: the span exists, only the value is hidden.
     assert root["gen_ai.agent.id"] == "pharmgx"
     assert tool["exit_code"] == 0
-    # Out of scope for the spec's flags — documented, not accidental.
-    assert root["clawbio.input.file"] == "demo_patient.txt"
+    # Nothing else carries the path, so hiding it hides it.
+    assert "clawbio.input.file" not in root
