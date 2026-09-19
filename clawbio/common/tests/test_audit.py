@@ -147,3 +147,31 @@ def test_uappend_flag_prevents_truncation(tmp_path):
     write("user_event", skill="pharmgx", log_path=log)
     with pytest.raises(OSError):
         log.write_text("wiped")
+
+
+def test_skill_run_records_provenance_attributes(tmp_path):
+    """input_checksum, input_file and output_dir reach the log, as documented."""
+    log = tmp_path / "audit.jsonl"
+    with skill_run(
+        "pharmgx",
+        "0.2.0",
+        input_checksum="abc123",
+        input_file="demo_patient.txt",
+        output_dir=str(tmp_path / "pharmgx_demo"),
+        log_path=log,
+    ):
+        pass
+    record = json.loads(log.read_text().strip())
+    assert record["clawbio.input.checksum"] == "abc123"
+    assert record["clawbio.input.file"] == "demo_patient.txt"
+    assert record["clawbio.output.dir"] == str(tmp_path / "pharmgx_demo")
+
+
+def test_skill_run_omits_provenance_keys_when_not_given(tmp_path):
+    """Callers that pass nothing keep the historical record shape."""
+    log = tmp_path / "audit.jsonl"
+    with skill_run("pharmgx", "0.2.0", log_path=log):
+        pass
+    record = json.loads(log.read_text().strip())
+    for key in ("clawbio.input.checksum", "clawbio.input.file", "clawbio.output.dir"):
+        assert key not in record

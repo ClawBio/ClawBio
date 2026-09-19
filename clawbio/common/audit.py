@@ -107,6 +107,18 @@ def skill_run(
         with tracer.start_as_current_span("skill_run") as span:
             span.set_attribute("gen_ai.agent.id", skill)
             span.set_attribute("gen_ai.agent.version", version)
+            # Provenance, so a record can be reconciled against what is on disk.
+            # Omitted when empty to keep the historical record shape for callers
+            # that pass nothing. These are ClawBio-specific, so they carry a
+            # clawbio.* namespace: the OTel GenAI semantic conventions have no
+            # equivalent, and bare keys risk colliding with future ones.
+            for key, value in (
+                ("clawbio.input.checksum", input_checksum),
+                ("clawbio.input.file", input_file),
+                ("clawbio.output.dir", output_dir),
+            ):
+                if value:
+                    span.set_attribute(key, value)
             try:
                 yield f"{span.context.span_id:016x}"
                 span.set_status(StatusCode.OK)
