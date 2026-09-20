@@ -220,8 +220,9 @@ output_dir/
 ├── report.md              # Summary of Flow API interaction
 ├── result.json            # Machine-readable response data
 └── reproducibility/
-    ├── commands.sh        # Exact CLI commands to reproduce
-    └── environment.yml    # Flow instance URL, versions
+    ├── commands.sh        # Portable replay recipe (CLAWBIO_ROOT / OUTPUT_DIR)
+    ├── environment.yml    # Conda environment for the run (python + requests)
+    └── checksums.sha256   # SHA-256 of report.md and result.json
 ```
 
 ## Dependencies

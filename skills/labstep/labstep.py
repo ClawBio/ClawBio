@@ -21,7 +21,7 @@ import json
 import os
 import shlex
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent
