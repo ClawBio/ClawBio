@@ -17,7 +17,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
@@ -26,6 +25,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = SKILL_DIR.parent.parent
+
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
+
 CATALOG_PATH = SKILL_DIR / "galaxy_catalog.json"
 DEMO_DIR = SKILL_DIR / "demo"
 CURATED_DIR = SKILL_DIR / "galaxy_skills"
@@ -223,42 +235,44 @@ def _wait_for_dataset(gi, history_id: str, dataset_id: str, timeout: int = 300):
 def _write_reproducibility(
     output_dir: Path,
     tool_id: str,
-    input_path: Path,
+    input_path: Path | None,
     outputs: list[str],
     galaxy_url: str,
-):
+    *,
+    demo: bool = False,
+) -> None:
     """Write commands.sh, environment.yml, and checksums."""
-    repro = output_dir / "reproducibility"
-    repro.mkdir(exist_ok=True)
+    if demo:
+        args: list[str | ReproPath] = ["--demo"]
+    else:
+        args = [
+            "--run", tool_id,
+            "--input", ReproPath(
+                input_path,
+                "repo_root" if input_path.is_relative_to(_PROJECT_ROOT) else "auto",
+            ),
+        ]
+    args += ["--output", ReproPath(output_dir, "output_dir")]
 
-    # commands.sh
-    (repro / "commands.sh").write_text(
-        f"#!/usr/bin/env bash\n"
-        f"# Reproduce this analysis on Galaxy\n"
-        f"# Galaxy server: {galaxy_url}\n"
-        f"# Tool: {tool_id}\n"
-        f"# Date: {datetime.now(timezone.utc).isoformat()}\n\n"
-        f"python galaxy_bridge.py --run {tool_id} --input {input_path} --output {output_dir}\n",
-        encoding="utf-8",
+    write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/galaxy-bridge/galaxy_bridge.py"),
+            args=args,
+            comment=f"Reproduce this galaxy-bridge run ({tool_id} on {galaxy_url})",
+        ),
+        repo_root=_PROJECT_ROOT,
     )
-
-    # environment.yml
-    (repro / "environment.yml").write_text(
-        f"galaxy_url: {galaxy_url}\n"
-        f"tool_id: {tool_id}\n"
-        f"date: {datetime.now(timezone.utc).isoformat()}\n"
-        f"bioblend_required: true\n",
-        encoding="utf-8",
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-galaxy-bridge",
+        pip_deps=["bioblend>=1.2"],
+        python_version="3.11",
     )
-
-    # checksums
-    lines = []
-    for fp in [str(input_path)] + outputs:
-        p = Path(fp)
-        if p.exists():
-            sha = hashlib.sha256(p.read_bytes()).hexdigest()
-            lines.append(f"{sha}  {p.name}")
-    (repro / "checksums.sha256").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    paths = [Path(p) for p in outputs]
+    if input_path is not None:
+        paths.append(input_path)
+    write_checksums(paths, output_dir, anchor=output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -297,16 +311,6 @@ def run_demo(output_dir: Path | None = None):
     print("        PASS — Sequence length distribution")
     print()
 
-    # Write reproducibility bundle
-    repro = output_dir / "reproducibility"
-    repro.mkdir(exist_ok=True)
-    (repro / "commands.sh").write_text(
-        "#!/usr/bin/env bash\n"
-        "# Demo mode — no Galaxy API call made\n"
-        "python galaxy_bridge.py --demo\n",
-        encoding="utf-8",
-    )
-
     # result.json
     result = {
         "mode": "demo",
@@ -328,7 +332,15 @@ def run_demo(output_dir: Path | None = None):
         json.dumps(result, indent=2) + "\n", encoding="utf-8"
     )
 
-    print(f"Reproducibility bundle written to {repro}/")
+    _write_reproducibility(
+        output_dir,
+        "fastqc",
+        None,
+        [str(demo_html), str(output_dir / "result.json")],
+        DEFAULT_GALAXY_URL,
+        demo=True,
+    )
+    print(f"Reproducibility bundle written to {output_dir / 'reproducibility'}/")
     print()
     return result
 
