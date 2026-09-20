@@ -529,18 +529,18 @@ def main() -> None:
     args = parser.parse_args()
     out = Path(args.output) if args.output else None
 
+    if args.demo:
+        run_demo(output_dir=out)
+        return
+
+    user = get_labstep_user()
+
     # Only non-default flags: the recipe should show what this run chose.
     filters: list[str] = []
     if args.search:
         filters += ["--search", shlex.quote(args.search)]
     if args.count != 20:
         filters += ["--count", str(args.count)]
-
-    if args.demo:
-        run_demo(output_dir=out)
-        return
-
-    user = get_labstep_user()
 
     if args.experiments:
         data = live_experiments(user, args.search, args.count)

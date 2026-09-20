@@ -244,6 +244,7 @@ def _write_reproducibility(
     """Write commands.sh, environment.yml, and checksums."""
     if demo:
         args: list[str | ReproPath] = ["--demo"]
+        comment = "Reproduce this galaxy-bridge demo run (offline, no Galaxy API call)"
     else:
         args = [
             "--run", tool_id,
@@ -252,6 +253,7 @@ def _write_reproducibility(
                 "repo_root" if input_path.is_relative_to(_PROJECT_ROOT) else "auto",
             ),
         ]
+        comment = f"Reproduce this galaxy-bridge run ({tool_id} on {galaxy_url})"
     args += ["--output", ReproPath(output_dir, "output_dir")]
 
     write_portable_commands_sh(
@@ -259,7 +261,7 @@ def _write_reproducibility(
         ReproCommand(
             script_path=Path("skills/galaxy-bridge/galaxy_bridge.py"),
             args=args,
-            comment=f"Reproduce this galaxy-bridge run ({tool_id} on {galaxy_url})",
+            comment=comment,
         ),
         repo_root=_PROJECT_ROOT,
     )
