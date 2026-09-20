@@ -19,12 +19,25 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent
 DEMO_DIR = SKILL_DIR / "demo"
+_PROJECT_ROOT = SKILL_DIR.parent.parent
+
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
 
 DISCLAIMER = (
     "*ClawBio is a research and educational tool. It is not a medical device "
@@ -206,47 +219,36 @@ def format_inventory(data: dict, search: str | None = None) -> str:
 # Output helpers
 # ---------------------------------------------------------------------------
 
-_PROJECT_ROOT = SKILL_DIR.parent.parent
-
-
-def _write_reproducibility(output_dir: Path, label: str) -> None:
-    """Write environment.yml and commands.sh to output_dir/reproducibility/."""
-    repro = output_dir / "reproducibility"
-    repro.mkdir(parents=True, exist_ok=True)
-
-    env_yml = (
-        "name: clawbio-labstep\n"
-        "channels:\n"
-        "  - conda-forge\n"
-        "  - defaults\n"
-        "dependencies:\n"
-        "  - python>=3.10\n"
-        "  - pip\n"
-        "  - pip:\n"
-        "    - labstep>=3.0\n"
-        f"# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n"
-        f"# Skill: labstep  label: {label}\n"
+def _write_reproducibility(output_dir: Path, repro_args: list[str]) -> None:
+    """Write the reproducibility bundle for a run into output_dir."""
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-labstep",
+        pip_deps=["labstep>=3.0"],
+        python_version="3.11",
     )
-    (repro / "environment.yml").write_text(env_yml, encoding="utf-8")
-
-    import shlex
-    cmd = " ".join(shlex.quote(a) for a in sys.argv)
-    commands_sh = (
-        "#!/usr/bin/env bash\n"
-        f"# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n"
-        f"# Skill: labstep  label: {label}\n\n"
-        f"{cmd}\n"
+    write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/labstep/labstep.py"),
+            args=[*repro_args, "--output", ReproPath(output_dir, "output_dir")],
+            comment="Reproduce this labstep run",
+        ),
+        repo_root=_PROJECT_ROOT,
     )
-    (repro / "commands.sh").write_text(commands_sh, encoding="utf-8")
+    write_checksums(
+        [output_dir / "report.md", output_dir / "result.json"],
+        output_dir,
+        anchor=output_dir,
+    )
 
 
-def _write_output(output_dir: Path, content: str, label: str = "report") -> None:
+def _write_output(output_dir: Path, content: str, label: str, repro_args: list[str]) -> None:
     """Write markdown content to output_dir/report.md and a result.json envelope."""
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / "report.md"
     report_path.write_text(content, encoding="utf-8")
     print(f"Report written to {report_path}")
-    _write_reproducibility(output_dir, label)
 
     # Standardised result.json — use common helper when available
     try:
@@ -263,6 +265,7 @@ def _write_output(output_dir: Path, content: str, label: str = "report") -> None
     except ImportError:
         pass  # common helper not available — report.md is sufficient
 
+    _write_reproducibility(output_dir, repro_args)
     print(f"Full output in {output_dir}/")
 
 
@@ -316,7 +319,7 @@ def run_demo(output_dir: Path | None = None) -> None:
             "\n## Inventory Search: \"RNA\"\n",
             inv_search_md,
         ]
-        _write_output(output_dir, "\n".join(sections), label="demo")
+        _write_output(output_dir, "\n".join(sections), label="demo", repro_args=["--demo"])
 
 
 # ---------------------------------------------------------------------------
@@ -526,6 +529,13 @@ def main() -> None:
     args = parser.parse_args()
     out = Path(args.output) if args.output else None
 
+    # Only non-default flags: the recipe should show what this run chose.
+    filters: list[str] = []
+    if args.search:
+        filters += ["--search", shlex.quote(args.search)]
+    if args.count != 20:
+        filters += ["--count", str(args.count)]
+
     if args.demo:
         run_demo(output_dir=out)
         return
@@ -538,14 +548,14 @@ def main() -> None:
         md = format_experiments(data, title=title)
         print(md)
         if out:
-            _write_output(out, md, label="experiments")
+            _write_output(out, md, label="experiments", repro_args=["--experiments", *filters])
 
     elif args.experiment_id:
         data = live_experiment_detail(user, args.experiment_id)
         md = format_experiments(data, title=f"Experiment #{args.experiment_id}")
         print(md)
         if out:
-            _write_output(out, md, label=f"experiment-{args.experiment_id}")
+            _write_output(out, md, label=f"experiment-{args.experiment_id}", repro_args=["--experiment-id", str(args.experiment_id)])
 
     elif args.protocols:
         data = live_protocols(user, args.search, args.count)
@@ -553,21 +563,21 @@ def main() -> None:
         md = format_protocols(data, title=title)
         print(md)
         if out:
-            _write_output(out, md, label="protocols")
+            _write_output(out, md, label="protocols", repro_args=["--protocols", *filters])
 
     elif args.protocol_id:
         data = live_protocol_detail(user, args.protocol_id)
         md = format_protocols(data, title=f"Protocol #{args.protocol_id}")
         print(md)
         if out:
-            _write_output(out, md, label=f"protocol-{args.protocol_id}")
+            _write_output(out, md, label=f"protocol-{args.protocol_id}", repro_args=["--protocol-id", str(args.protocol_id)])
 
     elif args.inventory:
         data = live_inventory(user, args.search, args.count)
         md = format_inventory(data, search=args.search)
         print(md)
         if out:
-            _write_output(out, md, label="inventory")
+            _write_output(out, md, label="inventory", repro_args=["--inventory", *filters])
 
 
 if __name__ == "__main__":
