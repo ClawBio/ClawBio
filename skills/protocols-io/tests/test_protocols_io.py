@@ -6,6 +6,7 @@ Run with: pytest skills/protocols-io/tests/test_protocols_io.py -v
 Uses pre-cached demo data and mocked API responses — no network required.
 """
 
+import os
 import json
 import sys
 from pathlib import Path
@@ -20,7 +21,6 @@ from protocols_io import (
     _load_demo_json,
     _parse_protocol_id,
     _RateLimiter,
-    _sha256,
     _strip_html,
     _write_reproducibility,
     download_protocol_pdf,
@@ -624,21 +624,6 @@ def test_parse_dx_doi_prefix_with_version():
 
 
 # ---------------------------------------------------------------------------
-# _sha256
-# ---------------------------------------------------------------------------
-
-
-def test_sha256_matches_hashlib(tmp_path):
-    """_sha256 produces the same digest as hashlib.sha256 directly."""
-    import hashlib
-    content = b"test content for hashing"
-    f = tmp_path / "test.bin"
-    f.write_bytes(content)
-    expected = hashlib.sha256(content).hexdigest()
-    assert _sha256(f) == expected
-
-
-# ---------------------------------------------------------------------------
 # _write_reproducibility
 # ---------------------------------------------------------------------------
 
@@ -679,7 +664,7 @@ def test_write_reproducibility_checksum_is_correct(tmp_path):
 
 
 def test_write_reproducibility_commands_contains_args(tmp_path):
-    """commands.sh includes the search query and output path."""
+    """commands.sh includes the search query and an anchored output path."""
     import argparse
     output_file = tmp_path / "search_results.md"
     output_file.write_text("# Results")
@@ -691,7 +676,8 @@ def test_write_reproducibility_commands_contains_args(tmp_path):
     _write_reproducibility(args, tmp_path, [output_file])
     cmd = (tmp_path / "reproducibility" / "commands.sh").read_text()
     assert "CRISPR knockout" in cmd
-    assert str(tmp_path) in cmd
+    assert "$OUTPUT_DIR" in cmd
+    assert str(tmp_path) not in cmd
 
 
 def test_write_reproducibility_skips_missing_files(tmp_path):
@@ -787,3 +773,28 @@ def test_main_protocol_output_saves_pdf_and_repro(mock_get, tmp_path):
     assert pdfs[0].read_bytes() == fake_pdf
     assert (tmp_path / "reproducibility" / "commands.sh").exists()
     assert (tmp_path / "reproducibility" / "checksums.sha256").exists()
+
+
+def test_write_reproducibility_bundle_is_portable(tmp_path):
+    """commands.sh is a runnable, machine-independent replay script."""
+    import argparse
+    output_file = tmp_path / "report.md"
+    output_file.write_text("# Report")
+    args = argparse.Namespace(
+        search=None, protocol="30756", steps=None, demo=False,
+        filter="public", peer_reviewed=None, published_on=None,
+        page_size=10, page=1, output=str(tmp_path),
+    )
+    _write_reproducibility(args, tmp_path, [output_file])
+    repro = tmp_path / "reproducibility"
+
+    cmd = (repro / "commands.sh").read_text()
+    assert cmd.startswith("#!/usr/bin/env bash")
+    assert "CLAWBIO_ROOT" in cmd
+    assert "skills/protocols-io/protocols_io.py" in cmd
+    assert "--protocol" in cmd
+    assert os.access(repro / "commands.sh", os.X_OK)
+
+    env = (repro / "environment.yml").read_text()
+    assert "name: clawbio-protocols-io" in env
+    assert "requests" in env

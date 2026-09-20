@@ -19,10 +19,10 @@ from __future__ import annotations
 import argparse
 import collections
 import getpass
-import hashlib
 import itertools
 import json
 import os
+import shlex
 import sys
 import threading
 import time
@@ -69,6 +69,18 @@ class Spinner:
 
 SKILL_DIR = Path(__file__).resolve().parent
 DEMO_DIR = SKILL_DIR / "demo"
+_PROJECT_ROOT = SKILL_DIR.parent.parent
+
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
 CONFIG_DIR = Path.home() / ".clawbio"
 TOKEN_FILE = CONFIG_DIR / "protocols_io_tokens.json"
 
@@ -553,66 +565,46 @@ def run_demo() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _sha256(path: Path) -> str:
-    """Return hex SHA-256 digest of a file, reading in 8 KB chunks."""
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
 def _write_reproducibility(args: argparse.Namespace, output_dir: Path, output_files: list[Path]) -> None:
-    """Write commands.sh, checksums.sha256, and environment.yml to output_dir/reproducibility/.
-
-    Follows the AGENTS.md convention of placing reproducibility artefacts in a
-    dedicated subdirectory so they don't clutter the primary outputs.
-    """
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
-
+    """Write commands.sh, checksums.sha256, and environment.yml to output_dir/reproducibility/."""
     # Reconstruct canonical CLI from parsed args (non-default values only)
-    def _sq(val: str) -> str:
-        return "'" + str(val).replace("'", "'\\''") + "'"
-
-    parts = ["python skills/protocols-io/protocols_io.py"]
+    parts: list[str | ReproPath] = []
     if getattr(args, "demo", False):
         parts.append("--demo")
     elif getattr(args, "search", None):
-        parts.append(f"--search {_sq(args.search)}")
+        parts += ["--search", shlex.quote(args.search)]
         if getattr(args, "filter", "public") != "public":
-            parts.append(f"--filter {args.filter}")
+            parts += ["--filter", args.filter]
         if getattr(args, "peer_reviewed", None):
             parts.append("--peer-reviewed")
         if getattr(args, "published_on", None):
-            parts.append(f"--published-on {_sq(args.published_on)}")
+            parts += ["--published-on", shlex.quote(args.published_on)]
         if getattr(args, "page_size", 10) != 10:
-            parts.append(f"--page-size {args.page_size}")
+            parts += ["--page-size", str(args.page_size)]
         if getattr(args, "page", 1) != 1:
-            parts.append(f"--page {args.page}")
+            parts += ["--page", str(args.page)]
     elif getattr(args, "protocol", None):
-        parts.append(f"--protocol {_sq(args.protocol)}")
+        parts += ["--protocol", shlex.quote(str(args.protocol))]
     elif getattr(args, "steps", None):
-        parts.append(f"--steps {_sq(args.steps)}")
+        parts += ["--steps", shlex.quote(str(args.steps))]
     if getattr(args, "output", None):
-        parts.append(f"--output {_sq(args.output)}")
+        parts += ["--output", ReproPath(output_dir, "output_dir")]
 
-    (repro_dir / "commands.sh").write_text(" \\\n  ".join(parts) + "\n")
-
-    # SHA-256 checksums in standard sha256sum format
-    lines = [f"{_sha256(p)}  {p.name}" for p in output_files if p.exists()]
-    (repro_dir / "checksums.sha256").write_text("\n".join(lines) + "\n")
-
-    # Conda environment spec
-    (repro_dir / "environment.yml").write_text(
-        "name: clawbio-protocols-io\n"
-        "channels:\n"
-        "  - conda-forge\n"
-        "dependencies:\n"
-        "  - python>=3.11\n"
-        "  - pip\n"
-        "  - pip:\n"
-        "    - requests\n"
+    write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/protocols-io/protocols_io.py"),
+            args=parts,
+            comment="Reproduce this protocols-io run",
+        ),
+        repo_root=_PROJECT_ROOT,
+    )
+    write_checksums(output_files, output_dir, anchor=output_dir)
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-protocols-io",
+        pip_deps=["requests"],
+        python_version="3.11",
     )
 
 
