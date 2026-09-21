@@ -33,6 +33,15 @@ from clawbio.common.reproducibility import (
 SKILL_DIR = Path(__file__).resolve().parent
 SKILL_VERSION = "0.1.0"
 MIN_SPOTS = 10
+PUBLIC_VISIUM_ID = "V1_Human_Lymph_Node"
+PUBLIC_VISIUM_MATRIX_URL = (
+    "https://cf.10xgenomics.com/samples/spatial-exp/1.1.0/"
+    "V1_Human_Lymph_Node/V1_Human_Lymph_Node_filtered_feature_bc_matrix.tar.gz"
+)
+PUBLIC_VISIUM_SPATIAL_URL = (
+    "https://cf.10xgenomics.com/samples/spatial-exp/1.1.0/"
+    "V1_Human_Lymph_Node/V1_Human_Lymph_Node_spatial.tar.gz"
+)
 DEMO_N_ROW = 8
 DEMO_N_COL = 8
 DEMO_N_GENES = 40
@@ -229,6 +238,63 @@ def _load_positions(spatial_dir: Path, barcodes) -> tuple[np.ndarray, np.ndarray
     return coords, in_tissue
 
 
+def public_visium_cache_dir() -> Path:
+    """Durable cache for the public 10x lymph-node Visium outs tree."""
+    return Path.home() / ".cache" / "clawbio" / "visium" / PUBLIC_VISIUM_ID / "outs"
+
+
+def _visium_outs_ready(dest: Path) -> bool:
+    matrix = dest / "filtered_feature_bc_matrix" / "matrix.mtx.gz"
+    spatial = dest / "spatial"
+    positions = spatial / "tissue_positions.csv"
+    positions_list = spatial / "tissue_positions_list.csv"
+    return matrix.is_file() and spatial.is_dir() and (positions.is_file() or positions_list.is_file())
+
+
+def ensure_public_visium_outs(dest: Path | None = None) -> Path:
+    """Download 10x Human Lymph Node Visium filtered matrix + spatial tarballs.
+
+    Extracts so ``filtered_feature_bc_matrix/`` and ``spatial/`` sit together.
+    Reuses the cache when those files already exist. Network failure raises
+    ``OSError`` rather than synthesizing an outs tree.
+    """
+    import tarfile
+    import urllib.request
+
+    dest = Path(dest) if dest is not None else public_visium_cache_dir()
+    dest = dest.resolve()
+    if _visium_outs_ready(dest):
+        return dest
+
+    dest.mkdir(parents=True, exist_ok=True)
+    tarball_dir = dest.parent / "tarballs"
+    tarball_dir.mkdir(parents=True, exist_ok=True)
+    downloads = (
+        (PUBLIC_VISIUM_MATRIX_URL, tarball_dir / "filtered_feature_bc_matrix.tar.gz"),
+        (PUBLIC_VISIUM_SPATIAL_URL, tarball_dir / "spatial.tar.gz"),
+    )
+    try:
+        for url, path in downloads:
+            if path.is_file() and path.stat().st_size > 0:
+                continue
+            urllib.request.urlretrieve(url, path)
+            if path.stat().st_size == 0:
+                raise OSError(f"Downloaded empty file from {url}")
+        for _url, path in downloads:
+            with tarfile.open(path, "r:gz") as tar:
+                tar.extractall(dest)
+    except OSError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — surface as download failure
+        raise OSError(f"Failed to download public Visium outs from 10x Genomics: {exc}") from exc
+    if not _visium_outs_ready(dest):
+        raise OSError(
+            f"Extracted {dest} but did not find filtered_feature_bc_matrix/matrix.mtx.gz "
+            "plus spatial/tissue_positions*.csv"
+        )
+    return dest
+
+
 def load_spatial(path: Path):
     """Load Visium `outs/` or an h5ad that already carries `obsm['spatial']`."""
     import anndata as ad
@@ -393,7 +459,7 @@ def run_pipeline(
     *,
     min_genes: int = 5,
     min_cells: int = 1,
-    n_top_hvg: int = 30,
+    n_top_hvg: int = 2000,
     n_pcs: int = 8,
     n_neighbors: int = 8,
     leiden_resolution: float = 0.5,
@@ -452,16 +518,27 @@ def run_pipeline(
             adata, resolution=leiden_resolution, random_state=random_state
         )
 
+    marker_adata = adata
+    if adata.n_vars > 80 and "highly_variable" in adata.var:
+        marker_adata = adata[:, adata.var["highly_variable"]].copy()
     sc.tl.rank_genes_groups(
-        adata, groupby="leiden", method="wilcoxon", pts=True, use_raw=False
+        marker_adata, groupby="leiden", method="wilcoxon", pts=True, use_raw=False
     )
 
     coords = np.asarray(adata.obsm["spatial"], dtype=float)
     knn_idx = knn_indices(coords, SPATIAL_NEIGHBORS)
-    moran_rows = []
-    for gene in adata.var_names:
-        score = moran_i(_dense_column(adata, gene), knn_idx)
-        moran_rows.append({"gene": gene, "moran_i": score})
+    if adata.n_vars > 80 and "highly_variable" in adata.var:
+        moran_adata = adata[:, adata.var["highly_variable"]]
+    else:
+        moran_adata = adata
+    moran_X = moran_adata.X
+    if hasattr(moran_X, "toarray"):
+        moran_X = moran_X.toarray()
+    moran_X = np.asarray(moran_X, dtype=float)
+    moran_rows = [
+        {"gene": str(gene), "moran_i": moran_i(moran_X[:, i], knn_idx)}
+        for i, gene in enumerate(moran_adata.var_names)
+    ]
     moran_rows.sort(key=lambda row: row["moran_i"], reverse=True)
 
     clusters, zscore, observed = nhood_enrichment(
@@ -469,9 +546,9 @@ def run_pipeline(
     )
     occ, distances, occ_clusters = co_occurrence(coords, adata.obs["leiden"].to_numpy())
 
-    names = adata.uns["rank_genes_groups"]["names"]
-    scores = adata.uns["rank_genes_groups"]["scores"]
-    pvals = adata.uns["rank_genes_groups"]["pvals_adj"]
+    names = marker_adata.uns["rank_genes_groups"]["names"]
+    scores = marker_adata.uns["rank_genes_groups"]["scores"]
+    pvals = marker_adata.uns["rank_genes_groups"]["pvals_adj"]
     marker_rows = []
     groups = list(names.dtype.names)
     for group in groups:
@@ -744,6 +821,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-genes", type=int, default=5)
     p.add_argument("--min-cells", type=int, default=1)
     p.add_argument("--leiden-resolution", type=float, default=0.5)
+    p.add_argument("--n-top-hvg", type=int, default=2000)
     p.add_argument("--random-state", type=int, default=DEMO_SEED)
     return p
 
@@ -761,13 +839,14 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit(1)
         input_path = Path(args.input)
         adata = load_spatial(input_path)
-        source_label = input_path.name
+        source_label = str(input_path.resolve())
 
     try:
         result = run_pipeline(
             adata,
             min_genes=args.min_genes,
             min_cells=args.min_cells,
+            n_top_hvg=args.n_top_hvg,
             leiden_resolution=args.leiden_resolution,
             random_state=args.random_state,
         )

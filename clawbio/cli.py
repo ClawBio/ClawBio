@@ -382,6 +382,7 @@ SKILLS = {
             "--min-genes",
             "--min-cells",
             "--leiden-resolution",
+            "--n-top-hvg",
             "--random-state",
         },
         "accepts_genotypes": False,

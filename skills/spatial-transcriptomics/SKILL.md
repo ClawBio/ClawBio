@@ -155,6 +155,7 @@ python clawbio.py run spatial --demo
 | `--min-genes` | 5 | Drop spots with fewer genes |
 | `--min-cells` | 1 | Drop genes in fewer spots |
 | `--leiden-resolution` | 0.5 | Leiden resolution |
+| `--n-top-hvg` | 2000 | Highly variable genes (capped at the gene count) |
 | `--random-state` | 7 | PCA / neighbours / Leiden / permutations |
 
 ## Demo

@@ -179,6 +179,47 @@ def test_visium_cli_path(tmp_path):
     assert payload["n_spots"] == 64
 
 
+def test_public_visium_load_and_run_writes_numeric_spatial_stats(tmp_path):
+    """Drive the shipped loader and pipeline on the downloaded 10x lymph-node outs."""
+    try:
+        outs = st.ensure_public_visium_outs()
+    except OSError as exc:
+        pytest.skip(f"public Visium download failed: {exc}")
+
+    assert (outs / "filtered_feature_bc_matrix" / "matrix.mtx.gz").is_file()
+    assert (outs / "spatial" / "tissue_positions_list.csv").is_file()
+
+    adata = st.load_spatial(outs)
+    assert "spatial" in adata.obsm
+    assert adata.n_obs >= 1000
+    assert adata.obsm["spatial"].shape == (adata.n_obs, 2)
+
+    # Keep the downloaded Visium counts/coords; subset spots only for runtime.
+    subset = adata[:400].copy()
+    result = st.run_pipeline(subset, n_top_hvg=80, random_state=7)
+    st.generate_report(
+        result, tmp_path, source_label=str(outs), demo=False
+    )
+    report = (tmp_path / "report.md").read_text(encoding="utf-8")
+    assert report.splitlines()[0] == "# Spatial Transcriptomics Report"
+    assert "V1_Human_Lymph_Node" in report
+    assert "**Spots**: 400" in report
+    assert "synthetic 8x8" not in report.lower()
+    moran_path = tmp_path / "tables" / "moran_i.csv"
+    nhood_path = tmp_path / "tables" / "nhood_enrichment.csv"
+    assert moran_path.is_file()
+    assert nhood_path.is_file()
+    moran_lines = moran_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(moran_lines) >= 10
+    moran_values = []
+    for line in moran_lines[1:]:
+        value = line.rsplit(",", 1)[-1]
+        moran_values.append(float(value))
+    assert any(abs(v) > 0.0 for v in moran_values)
+    nhood_text = nhood_path.read_text(encoding="utf-8")
+    assert any(ch.isdigit() for ch in nhood_text)
+
+
 class TestOutputContract:
     def test_documented_outputs_are_produced(self, tmp_path):
         promised = _parse_output_contract(SKILL_DIR / "SKILL.md")
