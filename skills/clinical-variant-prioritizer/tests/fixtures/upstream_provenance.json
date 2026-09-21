@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/T0hid/hpo-classification-agent",
+  "commit": "03bc5f6be6456a3ca2c5206e399f0a38f879ce57",
+  "path": "severity_classification.py",
+  "sha256": "4d72931c5a02067458924a5b5509ceb415c0316e6611c083a50c80ff89869b94",
+  "extraction": "Unmodified calculate_severity function; no datasets copied."
+}
