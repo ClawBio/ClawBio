@@ -443,7 +443,7 @@ For instant demos when the user has no data:
 | Sarek demo (upstream nf-core/sarek `-profile test` dataset, no local files) | `--demo` flag | nfcore-sarek-wrapper |
 | scRNA-seq demo (upstream nf-core/scrnaseq `-profile test` dataset, no local files) | `--demo` flag | nfcore-scrnaseq-wrapper |
 | Phylogenetics Builder demo FASTA (5 synthetic sequences, 50 bp) | `skills/phylogenetics-builder/demo_alignment.fasta` | phylogenetics-builder |
-| Ancestry risk demo patient (synthetic South Asian 23andMe, ~80 SNPs, T2D/CAD/hypertension risk alleles) | `--demo` flag | ancestry-risk-profiler |
+| Ancestry risk demo patient (synthetic South Asian 23andMe, T2D/CAD/hypertension risk alleles; ancestry uses Fst ≥ 0.3 AIMs) | `--demo` flag | ancestry-risk-profiler |
 
 ### Demo Commands
 

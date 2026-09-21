@@ -2,30 +2,44 @@
 
 ## aisnp_panel.csv
 
-**Purpose**: ~80 ancestry-informative SNPs (AISNPs) with per-allele frequencies across five
-1000 Genomes super-populations (AFR, AMR, EAS, EUR, SAS), used for Hardy-Weinberg
-log-likelihood ancestry inference.
+**Purpose**: Panel of SNPs with per-allele frequencies across five 1000 Genomes
+super-populations (AFR, AMR, EAS, EUR, SAS). Ancestry inference uses only the
+subset with Wright Fst ≥ 0.3 (currently five markers). Remaining rows are
+disease/PGx SNPs that stay in the file but are ignored at runtime so they cannot
+pad the coverage gate.
 
 **Allele frequencies**: Sourced from gnomAD v3.1 population allele frequencies.
 - Primary citation: Karczewski et al. (2020) Nature 581:434–443. PMID: 32461654
 - Supplementary: 1000 Genomes Project Consortium (2015) Nature 526:68–74. PMID: 26432245
 
-**SNP selection criteria**: Markers were selected for high F_ST (fixation index > 0.3) across
-the five super-populations, following the AISNP panel design principles from:
-- Nassir et al. (2009) Hum Genet 126:707–717. PMID: 19662434
-- Kosoy et al. (2009) Hum Genet 126:719–731. PMID: 19680671
+**SNP selection criteria (documented vs enforced)**: Nassir et al. 2009 and Kosoy et
+al. 2009 designed AISNP panels around Fst > 0.3. This file claimed that criterion
+while shipping 67 of 72 rows below it (T2D, CAD, PGx SNPs whose frequencies barely
+differ across super-populations). From v1.4.0 the runtime computes equal-weighted
+Wright Fst from the five frequency columns and **only Fst ≥ 0.3 markers enter the
+likelihood or the coverage count**. The five markers that currently clear the floor:
 
-Key markers included and their population-specificity rationale:
+| rsID | Gene | Wright Fst |
+|------|------|------------|
+| rs1426654 | SLC24A5 | ~0.72 |
+| rs2814778 | DARC/ACKR1 | ~0.72 |
+| rs16891982 | SLC45A2 | ~0.48 |
+| rs3827760 | EDAR | ~0.42 |
+| rs4988235 | MCM6/LCT | ~0.32 |
+
+HFE rs1800562 (Fst ~0.01) and ALDH2 rs671 are disease variants, not AIMs; they
+remain in the CSV for provenance of what was considered, but they no longer
+count toward coverage.
+
+Key markers that actually meet the Fst floor, and their population-specificity:
 
 | rsID | Gene | Specificity |
 |------|------|-------------|
 | rs1426654 | SLC24A5 | Strong EUR/SAS vs. AFR/EAS differentiator (skin pigmentation locus) |
 | rs16891982 | SLC45A2 | EUR enriched |
 | rs3827760 | EDAR | EAS enriched (hair follicle morphology) |
-| rs671 | ALDH2 | EAS enriched (alcohol metabolism) |
 | rs4988235 | MCM6/LCT | EUR enriched (lactase persistence) |
 | rs2814778 | DARC/ACKR1 | AFR enriched (Duffy antigen) |
-| rs1800562 | HFE | EUR enriched (hereditary haemochromatosis) |
 
 **Changelog**:
 - v1.1 — fixed trailing whitespace in rsid field of row 16 (rs35205) that caused silent panel miss.
@@ -35,7 +49,14 @@ Key markers included and their population-specificity rationale:
   ancestry-informative markers — they provided no population-discriminatory power and were
   incorrectly included. Panel size: 79 → 72 markers. The four high-FST anchors already present
   (rs1426654 SLC24A5, rs16891982 SLC45A2, rs3827760 EDAR, rs2814778 DARC) are retained and
-  continue to provide the dominant ancestry signal.
+  continue to provide the dominant ancestry signal. The remaining 65 rows were still
+  counted toward the 30-marker gate; that is the hole v1.4.0 closes.
+- v1.4.0 — **Fst floor is now a runtime property, not an rsID blocklist** (#313). Wright Fst
+  is computed from the five super-population frequencies already in the CSV. Markers with
+  Fst < 0.3 are ignored for likelihood and coverage. Minimum coverage is 4 informative
+  markers (the shipped panel has 5). A 30-SNP padding panel of near-zero-Fst disease SNPs
+  now abstains. The 7-rsID blocklist from v1.3.2 remains as a second check, but it is no
+  longer the thing that enforces the Fst claim.
 
 ---
 
@@ -204,6 +225,7 @@ A verified PMID must be confirmed against PubMed / GWAS Catalog before reinstati
 | v1.3.2 | rs10033464 AF EAS | 23945395 | Wrong paper; rs10033464 not replicated in EAS (OR=1.08 p=0.55 in HK Chinese); EAS 4q25 signal is rs2200733 | → **Entry removed** |
 | v1.3.2 | rs429358 AD EAS | 23945395 | Wrong paper; EAS-specific APOE AD PMID unresolved | → **Entry removed** |
 | v1.3.2 | AISNP panel (7 markers) | panel inclusion | FST near zero (max 0.06) — candidate-gene SNPs, not AIMs; counted toward 30-marker gate | → **Markers removed**: rs731236, rs2228570 (VDR), rs1801133, rs1801131 (MTHFR), rs1800497 (ANKK1), rs4680 (COMT), rs53576 (OXTR). Panel: 79 → 72 markers |
+| v1.4.0 | AISNP coverage gate | 30-marker count of any panel hit | 67 of 72 remaining rows still have Wright Fst < 0.3 (T2D/CAD/PGx) and still padded the gate; the 7-rsID blocklist did not encode the Fst property | → Runtime Fst floor 0.3; coverage counts only informative markers; min 4; padding panel of 30 near-zero-Fst SNPs now abstains (#313) |
 
 **Important caveats**:
 - ORs are from individual published studies; they are not re-computed here

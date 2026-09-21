@@ -7,7 +7,7 @@ description: >-
   European reference estimates.
 license: MIT
 metadata:
-  version: "1.3.1"
+  version: "1.4.0"
   author: ClawBio
   domain: population-genetics
   tags:
@@ -103,7 +103,7 @@ You are **ancestry-risk-profiler**, a ClawBio agent for ancestry-stratified dise
 
 ## Core Capabilities
 
-1. **Ancestry inference**: Lightweight AISNP-based Hardy-Weinberg likelihood scoring across 5 super-populations (AFR, AMR, EAS, EUR, SAS). Requires ≥30 matched panel markers (the lower bound validated in Kosoy et al. 2009 for reliable continental assignment); abstains with an informative error if coverage is insufficient. Returns a **soft posterior probability** over all super-populations alongside the hard best-match label — low-confidence or admixed results show the full distribution rather than a bare hard label
+1. **Ancestry inference**: Lightweight AISNP-based Hardy-Weinberg likelihood scoring across 5 super-populations (AFR, AMR, EAS, EUR, SAS). Only panel SNPs with Wright Fst ≥ 0.3 (Nassir/Kosoy AISNP design) enter the likelihood or the coverage count. Requires ≥4 such markers; abstains with an informative error if coverage is insufficient. Low-Fst disease/PGx SNPs still sitting in the CSV are ignored so they cannot pad the gate. Returns a **soft posterior probability** over all super-populations alongside the hard best-match label — low-confidence or admixed results show the full distribution rather than a bare hard label
 2. **Ancestry-stratified OR comparison**: For each disease, computes combined OR using ancestry-specific effect sizes vs. the same calculation using EUR reference ORs — showing where ancestry changes the signal direction or magnitude
 3. **Ancestry Elevation Score (AES)**: exp(Σ[log OR_ancestry − log OR_EUR]) per disease — an **exploratory directional indicator**, not a validated clinical score
 
@@ -114,7 +114,7 @@ You are **ancestry-risk-profiler**, a ClawBio agent for ancestry-stratified dise
 - Perform pharmacogenomics, full PRS, variant annotation, or clinical ACMG classification
 - Report on self-reported ethnicity, cultural identity, or nationality
 
-**Genetic ancestry vs. ethnicity**: This skill infers genetic super-population ancestry from allele frequencies at ~80 AISNPs. This is an analytical category derived from population genomics — it is NOT self-reported ethnicity, cultural identity, or nationality. Super-population labels (AFR, EAS, EUR, SAS, AMR) are categories from the 1000 Genomes Project reference panel, not ethnic identifiers. Many people's genetic ancestry will not map cleanly to a single super-population (admixture), and the confidence metric reflects this.
+**Genetic ancestry vs. ethnicity**: This skill infers genetic super-population ancestry from allele frequencies at ancestry-informative SNPs (Wright Fst ≥ 0.3 across 1000 Genomes super-populations). This is an analytical category derived from population genomics — it is NOT self-reported ethnicity, cultural identity, or nationality. Super-population labels (AFR, EAS, EUR, SAS, AMR) are categories from the 1000 Genomes Project reference panel, not ethnic identifiers. Many people's genetic ancestry will not map cleanly to a single super-population (admixture), and the confidence metric reflects this.
 
 ## Input Formats
 
@@ -126,8 +126,8 @@ You are **ancestry-risk-profiler**, a ClawBio agent for ancestry-stratified dise
 ## Workflow
 
 1. **Parse** genotype file → extract {rsid: genotype} dict, skip `--` no-calls
-2. **Count AISNP coverage** → if < 30 panel markers matched, raise error and direct user to `--ancestry` flag
-3. **Infer ancestry** → compute Hardy-Weinberg log-likelihood at matched AISNPs for each of 5 super-populations; assign best match + confidence (gap in log-likelihood units)
+2. **Count informative AISNP coverage** → compute Wright Fst for each matched panel SNP; ignore Fst < 0.3; if fewer than 4 informative markers remain, raise error and direct user to `--ancestry` flag
+3. **Infer ancestry** → compute Hardy-Weinberg log-likelihood at those informative AISNPs for each of 5 super-populations; assign best match + confidence (gap in log-likelihood units)
 4. **Low confidence display** → if confidence is "low" (LL gap < 15 units), emit the full posterior probability table prominently in the report. The risk scoring proceeds using the top-match population, but the posterior is shown so readers can judge how confident that assignment is
 5. **Load associations** → read curated `ancestry_risk_associations.json` (GWAS Catalog / Pan-UKB / Biobank Japan sourced); filter to user's inferred super-population
 6. **Score diseases** → for each disease, compute ancestry OR and EUR ref OR across risk alleles carried; compute AES = exp(Σ delta_log_or)
@@ -156,7 +156,7 @@ python skills/ancestry-risk-profiler/ancestry_risk_profiler.py \
 # Ancestry-Aware Disease Risk Profile
 
 ## 1. Inferred Genetic Super-Population Ancestry
-| Genetic super-population | SAS — South Asian (confidence: low, AISNPs: 64) |
+| Genetic super-population | SAS — South Asian (confidence: low, informative AISNPs: 5) |
 
 > ⚠️ Low confidence — estimated posterior probability across super-populations:
 > | Population | Posterior Probability |
@@ -214,7 +214,7 @@ These thresholds are for display colouring only. AES has no published external v
 ## Gotchas
 
 - **The model will want to run this for any variant question.** Do not. Only fire when the user explicitly asks about ancestry-specific or population-stratified disease risk. For general PRS, use `gwas-prs`.
-- **If AISNP panel coverage is below 30 SNPs, the skill MUST abstain and direct the user to `--ancestry`.** This threshold comes from Kosoy et al. (2009), the lower bound for reliable continental-level assignment. Do not infer from sparse data. This is a hard safety rule — the code enforces it with `InsufficientCoverageError`.
+- **If fewer than 4 ancestry-informative markers (Wright Fst ≥ 0.3) match, the skill MUST abstain and direct the user to `--ancestry`.** Kosoy et al. (2009) validated continental assignment on panels of ancestry-informative markers, not on an equal-sized mix of T2D/PGx SNPs. Near-zero-Fst panel rows do not count toward coverage and do not enter the likelihood. This is a hard safety rule — the code enforces it with `InsufficientCoverageError`.
 - **Low confidence does not mean wrong ancestry — it means admixed or ambiguous signal.** If confidence is "low" (LL gap < 15 units), warn prominently and suggest the user specify `--ancestry`. Do not refuse to run, but make the limitation visible.
 - **Dosage is additive per allele for most loci.** If a user is homozygous for a risk allele (dosage=2), the log-OR is doubled. This is the standard log-additive GWAS assumption.
 - **APOL1 (rs73885319 G1, rs60910145 G2) is an exception — it is recessive.** A single heterozygous APOL1 allele does NOT confer the full OR. Risk requires two high-risk alleles (G1+G2, G1/G1, or G2/G2). The code uses `model: "recessive_compound"` and counts total alleles across both loci before applying the validated compound OR (~7x). Do not change APOL1 to additive.
@@ -231,6 +231,7 @@ These thresholds are for display colouring only. AES has no published external v
 - **LCT entries removed in v1.3.0**: All `rs4988235` Lactose Intolerance entries were removed because (a) PMID 14507249 cited as Enattah 2002 resolves to an unrelated bladder-cancer paper, and (b) the EUR `or=0.45` and non-EUR `or=3.2–6.8` encoded opposite outcome framings for the same allele, manufacturing spurious AES of 7–15x.
 - **Soft posterior gating in v1.3.0**: When ancestry confidence is "low" and top posterior < 0.35, disease risk scoring is skipped entirely with an explanatory message. Between 0.35–0.6 a caveat note is shown alongside results. User-supplied `--ancestry` overrides the gate.
 - **No hallucinated ORs**: All effect sizes trace to the bundled `ancestry_risk_associations.json`
+- **AIM Fst gate (v1.4.0)**: Coverage and likelihood use only panel SNPs with Wright Fst ≥ 0.3. A 23andMe extract of 30 T2D SNPs must still abstain. See issue #313.
 - **APOL1 recessive model**: APOL1 G1/G2 use a compound-recessive model; per-allele log-additive OR is biologically wrong for this locus
 - **Combined OR is naive**: `combined_or` is the product of independent per-SNP ORs (log-additive); it is NOT a validated aggregate risk score. `N=` in the report shows how many variants contribute so readers can judge the calculation
 - **No absolute risk claims**: The Cornfield/baseline prevalence calculation has been removed to prevent double-counting
@@ -260,7 +261,8 @@ The agent (LLM) dispatches and explains results. The skill (Python) executes the
 
 - Genovese et al. (2010) Science 329:841. PMID 20566908. APOL1 G1/G2 kidney disease (recessive compound model)
 - Karczewski et al. (2020) Nature 581:434. PMID 32461654. gnomAD v3.1 allele frequencies for AISNP panel
-- Kosoy et al. (2009) Hum Genet 126:719–731. PMID 19680671. AISNP panel design validation (≥30 markers for continental assignment)
+- Kosoy et al. (2009) Hum Genet 126:719–731. PMID 19680671. AISNP panel design (Fst > 0.3 ancestry-informative markers)
+- Nassir et al. (2009) Hum Genet 126:707–717. PMID 19662434. Ancestry-informative marker selection by Fst
 - Dubois et al. (2010) Nat Genet 42:295–302. PMID 20190752. Celiac disease GWAS (PTPN22 R620W)
 - Wu et al. (2012) Nat Genet 44:1090–1093. PMID 22960999. GWAS Catalog GCST001563. ESCC GWAS in Chinese (ALDH2 rs671); two earlier wrong PMIDs (20686008, 22561518) were corrected, and the accession-to-PMID mapping is flagged for confirmation in the entry note
 - Grant et al. (2006) Nat Genet 38:320–323. PMID 16415884. TCF7L2 T2D discovery

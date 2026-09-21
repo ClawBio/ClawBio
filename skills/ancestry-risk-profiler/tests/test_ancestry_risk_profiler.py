@@ -92,23 +92,22 @@ class TestAncestryInference:
             arp.infer_ancestry({}, self.panel)
 
     def test_infer_ancestry_raises_below_min_coverage(self):
-        """A dict with fewer than MIN_AISNP_COVERAGE panel hits must raise."""
-        panel_rsids = list(self.panel.keys())
-        sparse_genotypes = {rsid: "AG" for rsid in panel_rsids[:5]}
+        """Fewer than MIN_AIM_COVERAGE *informative* hits must raise."""
+        aim_rsids = [rsid for rsid, info in self.panel.items() if arp.is_aim(info)]
+        sparse_genotypes = {rsid: "AG" for rsid in aim_rsids[: arp.MIN_AIM_COVERAGE - 1]}
         with pytest.raises(arp.InsufficientCoverageError) as exc_info:
             arp.infer_ancestry(sparse_genotypes, self.panel)
-        assert "5" in str(exc_info.value)
+        assert str(arp.MIN_AIM_COVERAGE - 1) in str(exc_info.value)
         assert "--ancestry" in str(exc_info.value)
+        assert "Fst" in str(exc_info.value)
 
     def test_infer_ancestry_low_confidence_still_runs_with_enough_coverage(self):
-        """With >= MIN_AISNP_COVERAGE hits but ambiguous signal, return result with confidence=low."""
-        panel_rsids = list(self.panel.keys())
-        # Use enough SNPs to pass the coverage threshold but pick neutral heterozygotes
-        # so population likelihoods are similar
-        enough_genotypes = {rsid: "AG" for rsid in panel_rsids[:arp.MIN_AISNP_COVERAGE + 5]}
+        """With >= MIN_AIM_COVERAGE informative hits but ambiguous signal, return confidence=low."""
+        aim_rsids = [rsid for rsid, info in self.panel.items() if arp.is_aim(info)]
+        enough_genotypes = {rsid: "AG" for rsid in aim_rsids}
         result = arp.infer_ancestry(enough_genotypes, self.panel)
         assert result["inferred_ancestry"] in ("AFR", "AMR", "EAS", "EUR", "SAS")
-        assert result["aisnp_coverage"] >= arp.MIN_AISNP_COVERAGE
+        assert result["aisnp_coverage"] >= arp.MIN_AIM_COVERAGE
 
     def test_override_bypasses_coverage_check(self, tmp_path):
         """--ancestry override must work even with zero AISNP coverage."""
@@ -349,9 +348,9 @@ class TestAncestryPosterior:
 
     def test_low_confidence_report_includes_posterior_table(self, tmp_path):
         """When confidence is low, the markdown report must display the posterior distribution."""
-        panel_rsids = list(self.panel.keys())
-        # Heterozygous AG at all panel positions creates ambiguous, low-gap likelihoods
-        ambiguous_genotypes = {rsid: "AG" for rsid in panel_rsids[:arp.MIN_AISNP_COVERAGE + 5]}
+        aim_rsids = [rsid for rsid, info in self.panel.items() if arp.is_aim(info)]
+        # Heterozygous AG at informative positions creates ambiguous, low-gap likelihoods
+        ambiguous_genotypes = {rsid: "AG" for rsid in aim_rsids}
         ancestry_result = arp.infer_ancestry(ambiguous_genotypes, self.panel)
 
         if ancestry_result["confidence"] != "low":
@@ -840,8 +839,114 @@ class TestProvenanceIntegrity:
         found = low_fst_rsids & panel_rsids
         assert found == set(), (
             f"AISNP panel contains near-zero-FST markers that provide no population-discriminatory "
-            f"signal and inflate the coverage count toward the 30-marker abstention gate:\n"
+            f"signal and inflate the coverage count toward the abstention gate:\n"
             f"  {found}\n"
             "These are pharmacogenomic candidate-gene SNPs (VDR, MTHFR, COMT, OXTR, ANKK1), "
             "not ancestry-informative markers."
         )
+
+
+# ---------------------------------------------------------------------------
+# TestAimFstGate — #313: coverage cannot be padded by near-zero-Fst SNPs
+# ---------------------------------------------------------------------------
+
+
+class TestAimFstGate:
+    def setup_method(self):
+        self.panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
+
+    def test_wright_fst_is_zero_when_frequencies_are_equal(self):
+        assert arp.wright_fst([0.4, 0.4, 0.4, 0.4, 0.4]) == 0.0
+
+    def test_wright_fst_is_zero_when_allele_is_fixed(self):
+        assert arp.wright_fst([0.0, 0.0, 0.0, 0.0, 0.0]) == 0.0
+        assert arp.wright_fst([1.0, 1.0, 1.0, 1.0, 1.0]) == 0.0
+
+    def test_wright_fst_slc24a5_is_a_continental_aim(self):
+        """rs1426654 (SLC24A5) is the panel's strongest EUR/SAS vs AFR/EAS AIM."""
+        fst = arp.marker_fst(self.panel["rs1426654"])
+        assert fst >= arp.MIN_AIM_FST
+        assert fst == pytest.approx(0.7214, abs=0.001)
+
+    def test_shipped_panel_has_enough_aims_for_the_coverage_gate(self):
+        n_aim = sum(1 for info in self.panel.values() if arp.is_aim(info))
+        assert n_aim >= arp.MIN_AIM_COVERAGE, (
+            f"Shipped panel has {n_aim} markers with Wright Fst >= {arp.MIN_AIM_FST}; "
+            f"need at least {arp.MIN_AIM_COVERAGE} or the demo cannot infer ancestry."
+        )
+
+    def test_coverage_counts_only_markers_above_the_fst_floor(self):
+        """Property test, not an rsID blocklist: every counted marker is an AIM."""
+        genotypes = {
+            rsid: "AG" for rsid, info in self.panel.items() if arp.is_aim(info)
+        }
+        result = arp.infer_ancestry(genotypes, self.panel)
+        assert result["aisnp_coverage"] == len(genotypes)
+        assert result["aim_fst_floor"] == arp.MIN_AIM_FST
+        for rsid, info in self.panel.items():
+            if rsid in genotypes:
+                assert arp.marker_fst(info) >= arp.MIN_AIM_FST
+
+    def test_low_fst_panel_snps_do_not_count_toward_coverage(self):
+        """#313 AIM-panel Fst gate: 30 near-zero-Fst SNPs must not clear the gate."""
+        low_fst_panel = {
+            f"rs_pad_{i:02d}": {
+                "ref": "A",
+                "alt": "G",
+                "AFR": 0.40,
+                "AMR": 0.41,
+                "EAS": 0.39,
+                "EUR": 0.40,
+                "SAS": 0.42,
+            }
+            for i in range(30)
+        }
+        for info in low_fst_panel.values():
+            assert arp.marker_fst(info) < arp.MIN_AIM_FST
+        genotypes = {rsid: "AG" for rsid in low_fst_panel}
+        with pytest.raises(arp.InsufficientCoverageError) as exc_info:
+            arp.infer_ancestry(genotypes, low_fst_panel)
+        message = str(exc_info.value)
+        assert "Only 0 ancestry-informative" in message
+        assert "30 panel SNP(s) were ignored" in message
+
+    def test_one_aim_among_padding_counts_as_one_not_thirty_one(self):
+        """A single real AIM plus 30 near-zero-Fst SNPs is coverage=1, not 31."""
+        panel = {
+            f"rs_pad_{i:02d}": {
+                "ref": "A",
+                "alt": "G",
+                "AFR": 0.40,
+                "AMR": 0.41,
+                "EAS": 0.39,
+                "EUR": 0.40,
+                "SAS": 0.42,
+            }
+            for i in range(30)
+        }
+        panel["rs1426654"] = self.panel["rs1426654"]
+        genotypes = {rsid: "AA" for rsid in panel}
+        with pytest.raises(arp.InsufficientCoverageError) as exc_info:
+            arp.infer_ancestry(genotypes, panel)
+        message = str(exc_info.value)
+        assert "Only 1 ancestry-informative" in message
+        assert "30 panel SNP(s) were ignored" in message
+
+    def test_low_fst_hits_on_the_shipped_panel_are_reported_not_counted(self):
+        """Demo file matches many disease SNPs; those must not inflate aisnp_coverage."""
+        genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
+        result = arp.infer_ancestry(genotypes, self.panel)
+        expected_aims = sum(
+            1
+            for rsid, info in self.panel.items()
+            if rsid in genotypes and arp.is_aim(info)
+        )
+        expected_low = sum(
+            1
+            for rsid, info in self.panel.items()
+            if rsid in genotypes and not arp.is_aim(info)
+        )
+        assert result["aisnp_coverage"] == expected_aims
+        assert result["aisnp_low_fst_hits"] == expected_low
+        assert expected_low > 0, "Demo should still carry low-Fst disease SNPs; they must be ignored, not deleted from the test."
+        assert expected_aims >= arp.MIN_AIM_COVERAGE

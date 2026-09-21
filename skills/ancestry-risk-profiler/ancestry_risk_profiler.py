@@ -50,12 +50,20 @@ SUPERPOP_LABELS = {
     "SAS": "South Asian",
 }
 
-# Minimum AISNP panel hits required before ancestry inference is attempted.
-# 30 markers is the lower bound validated in published minimal AISNP panels
-# (Kosoy et al. 2009, Hum Genet) for reliable continental-level super-population
-# assignment. Below this the Hardy-Weinberg log-likelihood gap between populations
-# is too small to be trustworthy.
-MIN_AISNP_COVERAGE = 30
+# Minimum Wright Fst (equal-weighted across the five 1000G super-populations)
+# for a panel SNP to count as ancestry-informative. Nassir et al. 2009 and
+# Kosoy et al. 2009 designed AISNP panels around Fst > 0.3; this skill's own
+# PROVENANCE.md claims the same criterion. Markers below the floor add almost
+# no population signal and must not pad the coverage gate (#313).
+MIN_AIM_FST = 0.3
+
+# Minimum number of *informative* (Fst >= MIN_AIM_FST) panel hits required
+# before ancestry inference is attempted. Kosoy et al. 2009 validated
+# continental assignment on panels of ancestry-informative markers, not on
+# an equal-sized mix of T2D/PGx SNPs. This panel currently ships five
+# markers at Fst >= 0.3; requiring four of them tolerates a single no-call
+# without letting low-Fst SNPs clear the gate.
+MIN_AIM_COVERAGE = 4
 
 # AES display thresholds — for colouring only; not validated clinical cutoffs.
 _AES_DISPLAY_ELEVATED = 1.3
@@ -109,6 +117,39 @@ class DiseaseRisk:
 # ---------------------------------------------------------------------------
 
 
+def wright_fst(freqs: list[float]) -> float:
+    """Equal-weighted Wright Fst among population allele frequencies.
+
+    Fst = var(p) / (p̄ (1 − p̄)). Populations are weighted equally because
+    the panel CSV does not carry sample sizes. A marker fixed in every
+    population (p̄ in {0, 1}) has Fst 0.
+    """
+    n = len(freqs)
+    if n < 2:
+        return 0.0
+    pbar = sum(freqs) / n
+    if pbar <= 0.0 or pbar >= 1.0:
+        return 0.0
+    var = sum((p - pbar) ** 2 for p in freqs) / n
+    return var / (pbar * (1.0 - pbar))
+
+
+def marker_fst(info: dict) -> float:
+    """Wright Fst of one panel row across SUPERPOPULATIONS."""
+    return wright_fst([float(info[pop]) for pop in SUPERPOPULATIONS])
+
+
+def is_aim(info: dict, min_fst: float | None = None) -> bool:
+    """True when the marker is ancestry-informative at ``min_fst``.
+
+    ``min_fst`` defaults to ``MIN_AIM_FST`` at call time so tests can mutate
+    the module constant and observe the gate move.
+    """
+    if min_fst is None:
+        min_fst = MIN_AIM_FST
+    return marker_fst(info) >= min_fst
+
+
 def load_aisnp_panel(path: Path) -> dict[str, dict]:
     """Load AISNP panel CSV → {rsid: {alt, AFR, AMR, EAS, EUR, SAS}}."""
     panel: dict[str, dict] = {}
@@ -140,9 +181,11 @@ def infer_ancestry(
 ) -> dict:
     """Compute genetic super-population likelihood from AISNP panel.
 
-    Raises InsufficientCoverageError if fewer than MIN_AISNP_COVERAGE panel
-    markers are present and no ancestry_override is provided — a sparse genotype
-    file cannot support reliable super-population assignment.
+    Raises InsufficientCoverageError if fewer than MIN_AIM_COVERAGE
+    ancestry-informative (Fst >= MIN_AIM_FST) panel markers are present and
+    no ancestry_override is provided. Low-Fst panel SNPs are ignored: they
+    do not enter the likelihood and they do not count toward the coverage
+    gate (#313).
 
     Returns dict with inferred_ancestry, confidence, scores, overridden flag.
     """
@@ -156,14 +199,20 @@ def infer_ancestry(
             "scores": {p: 0.0 for p in SUPERPOPULATIONS},
             "posterior": {p: (1.0 if p == ancestry_override else 0.0) for p in SUPERPOPULATIONS},
             "aisnp_coverage": 0,
+            "aisnp_low_fst_hits": 0,
+            "aim_fst_floor": MIN_AIM_FST,
             "overridden": True,
         }
 
     log_likelihoods: dict[str, float] = {p: 0.0 for p in SUPERPOPULATIONS}
     hits = 0
+    low_fst_hits = 0
 
     for rsid, info in panel.items():
         if rsid not in genotypes:
+            continue
+        if not is_aim(info):
+            low_fst_hits += 1
             continue
         genotype = genotypes[rsid]
         alt = info["alt"]
@@ -182,9 +231,11 @@ def infer_ancestry(
                 prob = p * p
             log_likelihoods[pop] += math.log(max(prob, 1e-15))
 
-    if hits < MIN_AISNP_COVERAGE:
+    if hits < MIN_AIM_COVERAGE:
         raise InsufficientCoverageError(
-            f"Only {hits} AISNP panel marker(s) matched (minimum required: {MIN_AISNP_COVERAGE}). "
+            f"Only {hits} ancestry-informative marker(s) matched "
+            f"(Wright Fst >= {MIN_AIM_FST}; minimum required: {MIN_AIM_COVERAGE}). "
+            f"{low_fst_hits} panel SNP(s) were ignored because their Fst is below the floor. "
             f"Ancestry cannot be reliably inferred from this file. "
             f"Re-run with --ancestry AFR|AMR|EAS|EUR|SAS to specify your documented genetic ancestry."
         )
@@ -214,6 +265,8 @@ def infer_ancestry(
         "scores": log_likelihoods,
         "posterior": posterior,
         "aisnp_coverage": hits,
+        "aisnp_low_fst_hits": low_fst_hits,
+        "aim_fst_floor": MIN_AIM_FST,
         "overridden": False,
     }
 
@@ -491,6 +544,8 @@ def generate_report(
     ancestry_label = SUPERPOP_LABELS.get(ancestry, ancestry)
     confidence = ancestry_result["confidence"]
     coverage = ancestry_result.get("aisnp_coverage", "n/a")
+    low_fst_hits = ancestry_result.get("aisnp_low_fst_hits", 0)
+    fst_floor = ancestry_result.get("aim_fst_floor", MIN_AIM_FST)
     overridden = ancestry_result.get("overridden", False)
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -500,26 +555,30 @@ def generate_report(
         "# Ancestry-Aware Disease Risk Profile",
         "",
         f"**Generated**: {timestamp}  ",
-        f"**Skill**: ancestry-risk-profiler v1.3.0  ",
+        f"**Skill**: ancestry-risk-profiler v1.4.0  ",
         "",
     ]
 
     # Section 1: Inferred genetic super-population ancestry
-    override_note = " *(user-supplied)*" if overridden else f" *(confidence: {confidence}, AISNPs matched: {coverage})*"
+    override_note = " *(user-supplied)*" if overridden else (
+        f" *(confidence: {confidence}, informative AISNPs: {coverage})*"
+    )
     lines += [
         "---",
         "## 1. Inferred Genetic Super-Population Ancestry",
         "",
         "> **Note**: This is an inference of genetic super-population based on allele frequencies at",
-        "> ~80 ancestry-informative SNPs. It is **not** self-reported ethnicity, cultural identity,",
-        "> or nationality. Super-population labels (AFR, EAS, EUR, SAS, AMR) are analytical",
-        "> categories from the 1000 Genomes Project — not ethnic identifiers.",
+        "> ancestry-informative SNPs (Wright Fst "
+        f">= {fst_floor} across 1000 Genomes super-populations). It is **not** self-reported",
+        "> ethnicity, cultural identity, or nationality. Super-population labels (AFR, EAS, EUR,",
+        "> SAS, AMR) are analytical categories from the 1000 Genomes Project — not ethnic identifiers.",
         "",
         f"| Field | Value |",
         f"|---|---|",
         f"| Genetic super-population | **{ancestry}** — {ancestry_label}{override_note} |",
         f"| Confidence | {confidence} |",
-        f"| AISNPs matched | {coverage} |",
+        f"| Informative AISNPs matched (Fst >= {fst_floor}) | {coverage} |",
+        f"| Panel SNPs ignored (Fst < {fst_floor}) | {low_fst_hits} |",
         "",
     ]
 
@@ -642,9 +701,10 @@ def generate_report(
         "---",
         "## Methodology",
         "",
-        f"**Ancestry inference**: Hardy-Weinberg log-likelihood at ~80 ancestry-informative SNPs",
-        f"(AISNPs) across 5 super-populations (AFR, AMR, EAS, EUR, SAS). Minimum {MIN_AISNP_COVERAGE} matched",
-        "markers required before inference is attempted.",
+        f"**Ancestry inference**: Hardy-Weinberg log-likelihood at panel SNPs whose Wright Fst",
+        f"across the five 1000 Genomes super-populations is at least {MIN_AIM_FST} (Nassir/Kosoy",
+        f"AISNP design). Minimum {MIN_AIM_COVERAGE} such markers required. SNPs below the Fst floor",
+        "are ignored and do not count toward coverage.",
         "",
         "**Ancestry Elevation Score (AES)**: exp(Σ[log OR_ancestry_i − log OR_EUR_i] × dosage_i)",
         "summed across risk variants for each disease. This is an **exploratory metric** with no",
@@ -677,6 +737,8 @@ def generate_report(
         "confidence": confidence,
         "posterior": ancestry_result.get("posterior", {}),
         "aisnp_coverage": coverage,
+        "aisnp_low_fst_hits": low_fst_hits,
+        "aim_fst_floor": fst_floor,
         "overridden": overridden,
         "scoring_note": scoring_note,
         "risks": [
@@ -693,7 +755,7 @@ def generate_report(
             for r in risks
         ],
         "timestamp": timestamp,
-        "skill_version": "1.3.0",
+        "skill_version": "1.4.0",
     }
     json_path = output_dir / "ancestry_risk_result.json"
     json_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
