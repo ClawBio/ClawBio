@@ -179,13 +179,29 @@ def test_visium_cli_path(tmp_path):
     assert payload["n_spots"] == 64
 
 
+def test_safe_extract_rejects_path_traversal(tmp_path):
+    import io
+    import tarfile
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        info = tarfile.TarInfo(name="../evil.txt")
+        info.size = 0
+        tar.addfile(info)
+    buf.seek(0)
+    with tarfile.open(fileobj=buf, mode="r:gz") as tar:
+        with pytest.raises(OSError, match="unsafe|Unexpected"):
+            st._safe_extract_visium_tar(tar, tmp_path)
+
+
 def test_public_visium_load_and_run_writes_numeric_spatial_stats(tmp_path):
     """Drive the shipped loader and pipeline on the downloaded 10x lymph-node outs."""
+    outs = None
     try:
         outs = st.ensure_public_visium_outs()
     except OSError as exc:
         pytest.skip(f"public Visium download failed: {exc}")
-
+    assert outs is not None
     assert (outs / "filtered_feature_bc_matrix" / "matrix.mtx.gz").is_file()
     assert (outs / "spatial" / "tissue_positions_list.csv").is_file()
 

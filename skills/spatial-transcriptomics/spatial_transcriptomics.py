@@ -243,6 +243,38 @@ def public_visium_cache_dir() -> Path:
     return Path.home() / ".cache" / "clawbio" / "visium" / PUBLIC_VISIUM_ID / "outs"
 
 
+_VISIUM_TAR_PREFIXES = ("filtered_feature_bc_matrix/", "spatial/")
+
+
+def _safe_extract_visium_tar(tar, dest: Path) -> None:
+    """Extract a 10x Visium tarball after rejecting path traversal and links.
+
+    CodeQL flags raw ``extractall`` of a downloaded archive. Members must stay
+    under ``dest`` and start with the two SpaceRanger prefixes this skill reads.
+    """
+    import tarfile
+
+    dest = dest.resolve()
+    for member in tar.getmembers():
+        name = member.name.replace("\\", "/")
+        while name.startswith("./"):
+            name = name[2:]
+        if not name or name.startswith("/") or ".." in name.split("/"):
+            raise OSError(f"Refusing unsafe tar member {member.name!r}")
+        if member.issym() or member.islnk():
+            raise OSError(f"Refusing link member {member.name!r}")
+        if not any(name == prefix.rstrip("/") or name.startswith(prefix) for prefix in _VISIUM_TAR_PREFIXES):
+            raise OSError(f"Unexpected tar member {member.name!r}")
+        target = (dest / name).resolve()
+        if target != dest and dest not in target.parents:
+            raise OSError(f"Tar member escapes destination: {member.name!r}")
+        member.name = name
+    extract_kw = {}
+    if hasattr(tarfile, "data_filter"):
+        extract_kw["filter"] = "data"
+    tar.extractall(dest, **extract_kw)
+
+
 def _visium_outs_ready(dest: Path) -> bool:
     matrix = dest / "filtered_feature_bc_matrix" / "matrix.mtx.gz"
     spatial = dest / "spatial"
@@ -282,7 +314,7 @@ def ensure_public_visium_outs(dest: Path | None = None) -> Path:
                 raise OSError(f"Downloaded empty file from {url}")
         for _url, path in downloads:
             with tarfile.open(path, "r:gz") as tar:
-                tar.extractall(dest)
+                _safe_extract_visium_tar(tar, dest)
     except OSError:
         raise
     except Exception as exc:  # noqa: BLE001 — surface as download failure
@@ -412,7 +444,6 @@ def co_occurrence(
     """
     labels = np.asarray(labels).astype(str)
     clusters = sorted(set(labels.tolist()))
-    index = {c: i for i, c in enumerate(clusters)}
     n_c = len(clusters)
     n = coords.shape[0]
     if n < 3:
@@ -721,14 +752,16 @@ def generate_report(
         demo_note,
         "## 1. Summary",
         "",
-        "Scanpy ran QC, normalisation, PCA, UMAP and Leiden clustering, then "
-        "Wilcoxon cluster markers. Spatial statistics use a k-nearest-neighbour "
-        "graph on `obsm['spatial']`: Moran's I per gene, neighbourhood "
-        "enrichment z-scores, and distance-binned cluster co-occurrence. These "
-        "are the estimators Squidpy documents (`spatial_autocorr`, "
-        "`nhood_enrichment`, `co_occurrence`); they are computed here without "
-        "importing Squidpy so the skill does not pull spatialdata/dask into the "
-        "ClawBio lockfile.",
+        (
+            "Scanpy ran QC, normalisation, PCA, UMAP and Leiden clustering, then "
+            + "Wilcoxon cluster markers. Spatial statistics use a k-nearest-neighbour "
+            + "graph on `obsm['spatial']`: Moran's I per gene, neighbourhood "
+            + "enrichment z-scores, and distance-binned cluster co-occurrence. These "
+            + "are the estimators Squidpy documents (`spatial_autocorr`, "
+            + "`nhood_enrichment`, `co_occurrence`); they are computed here without "
+            + "importing Squidpy so the skill does not pull spatialdata/dask into the "
+            + "ClawBio lockfile."
+        ),
         "",
         "## 2. Spatially variable genes (Moran's I)",
         "",
@@ -762,8 +795,10 @@ def generate_report(
         lines.append(f"| {src} | {cells} |")
     lines += [
         "",
-        "Positive z on the diagonal means a cluster's spots sit next to each "
-        "other more than a random labelling of the same spatial graph would.",
+        (
+            "Positive z on the diagonal means a cluster's spots sit next to each "
+            + "other more than a random labelling of the same spatial graph would."
+        ),
         "",
         "## Output files",
         "",
