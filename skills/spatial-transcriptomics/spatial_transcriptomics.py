@@ -945,7 +945,6 @@ def main(argv: list[str] | None = None) -> None:
     if args.demo:
         if args.counts_layer or args.expected_input_sha256:
             parser.error("--counts-layer and --expected-input-sha256 require --input")
-        adata = generate_demo_adata(seed=args.random_state)
         source_label = "synthetic 8x8 Visium-like grid (demo)"
         input_path = None
     else:
@@ -964,8 +963,11 @@ def main(argv: list[str] | None = None) -> None:
             raise ValueError(
                 "Input SHA-256 differs from the recorded run; refusing replay"
             )
-        if not args.demo:
-            adata = load_spatial(input_path, counts_layer=args.counts_layer)
+        adata = (
+            generate_demo_adata(seed=args.random_state)
+            if args.demo
+            else load_spatial(input_path, counts_layer=args.counts_layer)
+        )
         result = run_pipeline(
             adata,
             min_genes=args.min_genes,
@@ -980,7 +982,8 @@ def main(argv: list[str] | None = None) -> None:
             max_pct_mt=args.max_pct_mt,
         )
     except (ValueError, OSError) as exc:
-        parser.error(str(exc))
+        print(f"ERROR: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
     result["parameters"]["counts_layer"] = args.counts_layer
     result["input_provenance"] = identity
