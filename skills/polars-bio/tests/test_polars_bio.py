@@ -396,18 +396,22 @@ class TestReferences:
 
 
 class TestRouting:
+    """Routing lives in skills/catalog.json, the single source of truth."""
+
     ROOT = SKILL_DIR.parent.parent
-    AGENTS = ROOT / "AGENTS.md"
+    CATALOG = ROOT / "skills" / "catalog.json"
+
+    def entry(self):
+        data = json.loads(self.CATALOG.read_text())
+        return next(s for s in data["skills"] if s["name"] == "polars-bio")
 
     def test_routing_row_present(self):
-        text = self.AGENTS.read_text()
-        assert "skills/polars-bio/" in text
-        assert "polars_bio_runner.py" in text
+        assert "polars_bio_runner.py" in self.entry()["demo_command"]
 
     def test_trigger_keywords_in_routing(self):
-        text = self.AGENTS.read_text().lower()
-        assert "interval overlap" in text
-        assert "bioframe" in text or "polars-bio" in text
+        keywords = {k.lower() for k in self.entry()["trigger_keywords"]}
+        assert "interval overlap" in keywords
+        assert "bioframe" in keywords or "polars-bio" in keywords
 
 
 class TestCatalog:
