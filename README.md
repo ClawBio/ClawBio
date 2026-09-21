@@ -437,7 +437,9 @@ Inside [Claude Code](https://claude.ai/claude-code):
 /plugin install clawbio
 ```
 
-All skills are then available as agent-routable commands. Alternatively, clone the repo and open it as your working directory in Claude Code; the `CLAUDE.md` at the repo root teaches Claude how to route requests to skills automatically.
+All skills are then available as agent-routable commands. Alternatively, clone the repo and open it as your working directory in Claude Code; the `AGENTS.md` at the repo root teaches Claude how to route requests to skills automatically.
+
+> **Needs Claude Code 2.1.277+** (`claude --version`, `claude update`): native `AGENTS.md` support landed there, and older versions read only `CLAUDE.md`, which this repo no longer ships. Every other agent reads `AGENTS.md` regardless of version.
 
 ### Slash Commands
 
@@ -650,8 +652,7 @@ ClawBio is designed to be discovered and used by AI coding agents, not just huma
 | Resource | Purpose |
 |----------|---------|
 | [`llms.txt`](llms.txt) | Token-optimized project summary for any LLM ([llmstxt.org](https://llmstxt.org) standard) |
-| [`AGENTS.md`](AGENTS.md) | Universal guide for AI coding agents — setup, commands, style, structure, git workflow |
-| [`CLAUDE.md`](CLAUDE.md) | Claude-specific routing table, CLI reference, demo commands, safety rules |
+| [`AGENTS.md`](AGENTS.md) | The single guide for AI coding agents — routing table, CLI reference, demo commands, setup, style, development rules, safety rules |
 | [`skills/catalog.json`](skills/catalog.json) | Machine-readable skill index with trigger keywords, chaining partners, and demo commands |
 
 Agents can also run `python clawbio.py list` to discover available skills programmatically.
