@@ -7,7 +7,7 @@ There is no wrapper script here. `SKILL.md` teaches the agent the samplesheet ru
 ## Scope
 
 - Upstream RNA structure-probing analysis via Nextflow: RNA Framework (rf-count/rf-norm/rf-fold/…), STAR/Bowtie alignment, ViennaRNA, R2DT.
-- Genome route (STAR, default) or transcriptome route (Bowtie/Bowtie2, `--transcriptome`).
+- Genome route (STAR, default) or transcriptome route (Bowtie/Bowtie2, `transcriptome: true` in a `-params-file` YAML).
 - Local FASTA/GTF, or automatic Ensembl/NCBI reference download by `organism`.
 
 ## Out of Scope
