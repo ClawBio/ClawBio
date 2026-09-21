@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -18,7 +19,7 @@ PROJECT_ROOT = SKILL_DIR.parents[1]
 sys.path.insert(0, str(SKILL_DIR))
 sys.path.insert(0, str(PROJECT_ROOT))
 
-import spatial_transcriptomics as st  # noqa: E402
+import spatial_transcriptomics as st
 
 SCRIPT = SKILL_DIR / "spatial_transcriptomics.py"
 
@@ -39,7 +40,7 @@ def _parse_output_contract(skill_md: Path) -> list[str]:
     match = re.search(
         r"##\s*Output Structure\s*\n+```[^\n]*\n(.*?)\n```",
         skill_md.read_text(encoding="utf-8"),
-        re.S,
+        re.DOTALL,
     )
     if not match:
         return []
@@ -159,7 +160,9 @@ def test_demo_cli_writes_contract_and_disclaimer(tmp_path):
     assert "CLAWBIO_ROOT" in commands
     env = (output / "reproducibility" / "environment.yml").read_text(encoding="utf-8")
     assert "scanpy" in env
-    checksums = (output / "reproducibility" / "checksums.sha256").read_text(encoding="utf-8")
+    checksums = (output / "reproducibility" / "checksums.sha256").read_text(
+        encoding="utf-8"
+    )
     assert "moran_i.csv" in checksums
 
 
@@ -189,19 +192,22 @@ def test_safe_extract_rejects_path_traversal(tmp_path):
         info.size = 0
         tar.addfile(info)
     buf.seek(0)
-    with tarfile.open(fileobj=buf, mode="r:gz") as tar:
-        with pytest.raises(OSError, match="unsafe|Unexpected"):
-            st._safe_extract_visium_tar(tar, tmp_path)
+    with (
+        tarfile.open(fileobj=buf, mode="r:gz") as tar,
+        pytest.raises(OSError, match="unsafe|Unexpected"),
+    ):
+        st._safe_extract_visium_tar(tar, tmp_path)
 
 
+@pytest.mark.network
+@pytest.mark.slow
+@pytest.mark.skipif(
+    os.environ.get("CLAWBIO_RUN_PUBLIC_VISIUM") != "1",
+    reason="Set CLAWBIO_RUN_PUBLIC_VISIUM=1 to run the public-data integration test",
+)
 def test_public_visium_load_and_run_writes_numeric_spatial_stats(tmp_path):
     """Drive the shipped loader and pipeline on the downloaded 10x lymph-node outs."""
-    outs = None
-    try:
-        outs = st.ensure_public_visium_outs()
-    except OSError as exc:
-        pytest.skip(f"public Visium download failed: {exc}")
-    assert outs is not None
+    outs = st.ensure_public_visium_outs()
     assert (outs / "filtered_feature_bc_matrix" / "matrix.mtx.gz").is_file()
     assert (outs / "spatial" / "tissue_positions_list.csv").is_file()
 
@@ -213,9 +219,7 @@ def test_public_visium_load_and_run_writes_numeric_spatial_stats(tmp_path):
     # Keep the downloaded Visium counts/coords; subset spots only for runtime.
     subset = adata[:400].copy()
     result = st.run_pipeline(subset, n_top_hvg=80, random_state=7)
-    st.generate_report(
-        result, tmp_path, source_label=str(outs), demo=False
-    )
+    st.generate_report(result, tmp_path, source_label=str(outs), demo=False)
     report = (tmp_path / "report.md").read_text(encoding="utf-8")
     assert report.splitlines()[0] == "# Spatial Transcriptomics Report"
     assert "V1_Human_Lymph_Node" in report
@@ -232,8 +236,23 @@ def test_public_visium_load_and_run_writes_numeric_spatial_stats(tmp_path):
         value = line.rsplit(",", 1)[-1]
         moran_values.append(float(value))
     assert any(abs(v) > 0.0 for v in moran_values)
-    nhood_text = nhood_path.read_text(encoding="utf-8")
-    assert any(ch.isdigit() for ch in nhood_text)
+    import pandas as pd
+
+    nhood = pd.read_csv(nhood_path, index_col=0).to_numpy(dtype=float)
+    assert nhood.shape == result["nhood_zscore"].shape
+    np.testing.assert_allclose(nhood, result["nhood_zscore"], equal_nan=True)
+    coocc = pd.read_csv(tmp_path / "tables/co_occurrence.csv")
+    np.testing.assert_allclose(
+        coocc["ratio"], result["co_occurrence"].reshape(-1), equal_nan=True
+    )
+    payload = json.loads((tmp_path / "result.json").read_text())
+    assert payload["analysis_scope"]["gene_selection"] == "hvg"
+    assert payload["analysis_scope"]["n_genes_tested"] == len(moran_values)
+    assert payload["co_occurrence"]["axis_order"] == [
+        "source_cluster",
+        "target_cluster",
+        "radius",
+    ]
 
 
 class TestOutputContract:

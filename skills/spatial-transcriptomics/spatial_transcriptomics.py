@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import importlib.util
 import json
+import platform
+import shlex
 import sys
-from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
 
 import numpy as np
@@ -21,13 +24,17 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from clawbio.common.report import DISCLAIMER
+from clawbio.common.checksums import sha256_file
 from clawbio.common.reproducibility import (
     ReproCommand,
-    ReproPath,
     write_checksums,
     write_environment_yml,
     write_portable_commands_sh,
+)
+from clawbio.common.scrna_io import (
+    compute_input_checksum,
+    load_count_adata,
+    resolve_input_source,
 )
 
 SKILL_DIR = Path(__file__).resolve().parent
@@ -52,16 +59,32 @@ SPATIAL_NEIGHBORS = 6
 NHOOD_PERMS = 50
 CO_OCCURRENCE_BINS = 6
 
-REPLAY_PIP_DEPENDENCIES = (
-    "scanpy>=1.10",
-    "leidenalg>=0.10",
-    "numpy>=1.24",
-    "pandas>=2.0",
-    "matplotlib>=3.7",
-    "scikit-learn>=1.3",
-    "scipy>=1.10",
-    "opentelemetry-sdk>=1.20,<2",
+REPLAY_PACKAGES = (
+    "scanpy",
+    "leidenalg",
+    "igraph",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "scikit-learn",
+    "scipy",
+    "anndata",
+    "umap-learn",
+    "pynndescent",
+    "numba",
+    "llvmlite",
+    "h5py",
+    "opentelemetry-sdk",
 )
+
+
+def _load_sibling(name: str):
+    spec = importlib.util.spec_from_file_location(
+        f"clawbio_{name}", SKILL_DIR / f"{name}.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class InsufficientSpotsError(ValueError):
@@ -114,6 +137,7 @@ def generate_demo_adata(*, seed: int = DEMO_SEED):
 def write_visium_outs(adata, dest: Path) -> Path:
     """Write a minimal SpaceRanger `outs/` tree from an AnnData object."""
     import gzip
+
     from scipy import sparse
     from scipy.io import mmwrite
 
@@ -133,7 +157,9 @@ def write_visium_outs(adata, dest: Path) -> Path:
 
     with gzip.open(mtx_dir / "barcodes.tsv.gz", "wt", encoding="utf-8") as handle:
         handle.write("\n".join(map(str, adata.obs_names)) + "\n")
-    with gzip.open(mtx_dir / "features.tsv.gz", "wt", encoding="utf-8", newline="") as handle:
+    with gzip.open(
+        mtx_dir / "features.tsv.gz", "wt", encoding="utf-8", newline=""
+    ) as handle:
         writer = csv.writer(handle, delimiter="\t")
         for name in adata.var_names:
             writer.writerow([f"{name}.1", name, "Gene Expression"])
@@ -157,9 +183,15 @@ def write_visium_outs(adata, dest: Path) -> Path:
             writer.writerow(
                 [
                     barcode,
-                    int(adata.obs["in_tissue"].iloc[i]) if "in_tissue" in adata.obs else 1,
-                    int(adata.obs["array_row"].iloc[i]) if "array_row" in adata.obs else i,
-                    int(adata.obs["array_col"].iloc[i]) if "array_col" in adata.obs else i,
+                    int(adata.obs["in_tissue"].iloc[i])
+                    if "in_tissue" in adata.obs
+                    else 1,
+                    int(adata.obs["array_row"].iloc[i])
+                    if "array_row" in adata.obs
+                    else i,
+                    int(adata.obs["array_col"].iloc[i])
+                    if "array_col" in adata.obs
+                    else i,
                     int(coords[i, 1]),
                     int(coords[i, 0]),
                 ]
@@ -244,35 +276,59 @@ def public_visium_cache_dir() -> Path:
 
 
 _VISIUM_TAR_PREFIXES = ("filtered_feature_bc_matrix/", "spatial/")
+_VISIUM_FILES = (
+    "filtered_feature_bc_matrix/matrix.mtx.gz",
+    "filtered_feature_bc_matrix/barcodes.tsv.gz",
+    "filtered_feature_bc_matrix/features.tsv.gz",
+    "spatial/tissue_positions.csv",
+    "spatial/tissue_positions_list.csv",
+    "spatial/scalefactors_json.json",
+)
+_PUBLIC_TARBALL_HASHES = {
+    "filtered_feature_bc_matrix.tar.gz": "93f7424de945eb886db17e5184d2112c77855bd54c330b2208a846870595e4e8",
+    "spatial.tar.gz": "812808883366ff9623dc8354847a7211b0d922b2bfc4c9359d6e12e993ea6a73",
+}
 
 
 def _safe_extract_visium_tar(tar, dest: Path) -> None:
-    """Extract a 10x Visium tarball after rejecting path traversal and links.
-
-    CodeQL flags raw ``extractall`` of a downloaded archive. Members must stay
-    under ``dest`` and start with the two SpaceRanger prefixes this skill reads.
-    """
-    import tarfile
+    """Copy only known regular data files, never archive-supplied paths/metadata."""
+    import shutil
 
     dest = dest.resolve()
+    targets = {name: dest / name for name in _VISIUM_FILES}
+    selected = []
+    seen = set()
     for member in tar.getmembers():
         name = member.name.replace("\\", "/")
         while name.startswith("./"):
             name = name[2:]
         if not name or name.startswith("/") or ".." in name.split("/"):
             raise OSError(f"Refusing unsafe tar member {member.name!r}")
-        if member.issym() or member.islnk():
-            raise OSError(f"Refusing link member {member.name!r}")
-        if not any(name == prefix.rstrip("/") or name.startswith(prefix) for prefix in _VISIUM_TAR_PREFIXES):
+        if not (member.isfile() or member.isdir()):
+            raise OSError(f"Refusing non-regular tar member {member.name!r}")
+        if not any(
+            name == prefix.rstrip("/") or name.startswith(prefix)
+            for prefix in _VISIUM_TAR_PREFIXES
+        ):
             raise OSError(f"Unexpected tar member {member.name!r}")
-        target = (dest / name).resolve()
-        if target != dest and dest not in target.parents:
-            raise OSError(f"Tar member escapes destination: {member.name!r}")
-        member.name = name
-    extract_kw = {}
-    if hasattr(tarfile, "data_filter"):
-        extract_kw["filter"] = "data"
-    tar.extractall(dest, **extract_kw)
+        if member.isdir() or name not in targets:
+            continue  # Tissue images are not input to this skill.
+        target = targets[name]
+        if name in seen or target.is_symlink() or dest not in target.resolve().parents:
+            raise OSError(f"Refusing unsafe or duplicate tar member {member.name!r}")
+        if member.size > 1_000_000_000:
+            raise OSError(f"Refusing oversized tar member {member.name!r}")
+        seen.add(name)
+        selected.append((member, target))
+    for member, target in selected:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if dest not in target.resolve().parents:
+            raise OSError("Tar member escapes destination")
+        source = tar.extractfile(member)
+        if source is None:
+            raise OSError(f"Cannot read tar member {member.name!r}")
+        with source, target.open("xb") as handle:
+            shutil.copyfileobj(source, handle)
 
 
 def _visium_outs_ready(dest: Path) -> bool:
@@ -280,7 +336,14 @@ def _visium_outs_ready(dest: Path) -> bool:
     spatial = dest / "spatial"
     positions = spatial / "tissue_positions.csv"
     positions_list = spatial / "tissue_positions_list.csv"
-    return matrix.is_file() and spatial.is_dir() and (positions.is_file() or positions_list.is_file())
+    required = [
+        matrix,
+        matrix.parent / "barcodes.tsv.gz",
+        matrix.parent / "features.tsv.gz",
+    ]
+    return all(p.is_file() and p.stat().st_size > 0 for p in required) and any(
+        p.is_file() and p.stat().st_size > 0 for p in (positions, positions_list)
+    )
 
 
 def ensure_public_visium_outs(dest: Path | None = None) -> Path:
@@ -291,6 +354,7 @@ def ensure_public_visium_outs(dest: Path | None = None) -> Path:
     ``OSError`` rather than synthesizing an outs tree.
     """
     import tarfile
+    import tempfile
     import urllib.request
 
     dest = Path(dest) if dest is not None else public_visium_cache_dir()
@@ -298,7 +362,7 @@ def ensure_public_visium_outs(dest: Path | None = None) -> Path:
     if _visium_outs_ready(dest):
         return dest
 
-    dest.mkdir(parents=True, exist_ok=True)
+    dest.parent.mkdir(parents=True, exist_ok=True)
     tarball_dir = dest.parent / "tarballs"
     tarball_dir.mkdir(parents=True, exist_ok=True)
     downloads = (
@@ -307,18 +371,44 @@ def ensure_public_visium_outs(dest: Path | None = None) -> Path:
     )
     try:
         for url, path in downloads:
-            if path.is_file() and path.stat().st_size > 0:
+            expected = _PUBLIC_TARBALL_HASHES[path.name]
+            if path.is_file() and sha256_file(path) == expected:
                 continue
-            urllib.request.urlretrieve(url, path)
-            if path.stat().st_size == 0:
-                raise OSError(f"Downloaded empty file from {url}")
-        for _url, path in downloads:
-            with tarfile.open(path, "r:gz") as tar:
-                _safe_extract_visium_tar(tar, dest)
+            with tempfile.TemporaryDirectory(
+                prefix="visium-download-", dir=tarball_dir
+            ) as temporary:
+                pending = Path(temporary) / path.name
+                urllib.request.urlretrieve(url, pending)
+                if sha256_file(pending) != expected:
+                    raise OSError(
+                        f"SHA-256 mismatch for public Visium archive {path.name}"
+                    )
+                pending.replace(path)
+        with tempfile.TemporaryDirectory(
+            prefix="visium-extract-", dir=dest.parent
+        ) as temporary:
+            staging = Path(temporary) / "outs"
+            for _url, path in downloads:
+                with tarfile.open(path, "r:gz") as tar:
+                    _safe_extract_visium_tar(tar, staging)
+            if not _visium_outs_ready(staging):
+                raise OSError(
+                    "Public Visium archive is missing matrix, barcodes, features or positions"
+                )
+            # Preserve a partial cache for inspection rather than deleting user files.
+            if dest.exists():
+                backup = (
+                    Path(tempfile.mkdtemp(prefix="visium-incomplete-", dir=dest.parent))
+                    / "outs"
+                )
+                dest.rename(backup)
+            staging.rename(dest)
     except OSError:
         raise
-    except Exception as exc:  # noqa: BLE001 — surface as download failure
-        raise OSError(f"Failed to download public Visium outs from 10x Genomics: {exc}") from exc
+    except Exception as exc:
+        raise OSError(
+            f"Failed to download public Visium outs from 10x Genomics: {exc}"
+        ) from exc
     if not _visium_outs_ready(dest):
         raise OSError(
             f"Extracted {dest} but did not find filtered_feature_bc_matrix/matrix.mtx.gz "
@@ -327,24 +417,71 @@ def ensure_public_visium_outs(dest: Path | None = None) -> Path:
     return dest
 
 
-def load_spatial(path: Path):
+def _validate_spatial_counts(adata) -> None:
+    """Enforce the raw-count and two-dimensional coordinate input contract."""
+    from scipy import sparse
+
+    if "spatial" not in adata.obsm:
+        raise ValueError(
+            "Input has no obsm['spatial']; use scrna-orchestrator for dissociated scRNA-seq."
+        )
+    coords = np.asarray(adata.obsm["spatial"], dtype=float)
+    if coords.shape != (adata.n_obs, 2) or not np.isfinite(coords).all():
+        raise ValueError(
+            "obsm['spatial'] must contain finite x,y coordinates with shape (n_spots, 2)"
+        )
+    if adata.n_vars < 2 or adata.X is None:
+        raise ValueError("Input must contain raw counts for at least two genes")
+    values = (
+        adata.X.data if sparse.issparse(adata.X) else np.asarray(adata.X).reshape(-1)
+    )
+    if (
+        not np.isfinite(values).all()
+        or np.any(values < 0)
+        or not np.allclose(values, np.rint(values), rtol=0, atol=1e-6)
+    ):
+        raise ValueError(
+            "Expected finite, nonnegative integer raw counts; use --counts-layer for processed h5ad"
+        )
+    if "log1p" in adata.uns:
+        raise ValueError(
+            "Input is marked log-transformed; select raw counts with --counts-layer"
+        )
+    if not adata.obs_names.is_unique:
+        raise ValueError("Spot barcodes must be unique")
+
+
+def load_spatial(path: Path, *, counts_layer: str | None = None):
     """Load Visium `outs/` or an h5ad that already carries `obsm['spatial']`."""
     import anndata as ad
     import scanpy as sc
 
     path = Path(path)
     if path.is_file() and path.suffix == ".h5ad":
-        adata = ad.read_h5ad(path)
+        adata, _source = load_count_adata(
+            path,
+            h5ad_loader=ad.read_h5ad,
+            expected_input="raw measured spot counts",
+            layer=counts_layer,
+        )
         if "spatial" not in adata.obsm:
             raise ValueError(
                 f"{path.name} has no obsm['spatial']. This skill analyses measured "
                 "spot coordinates (Visium). For H&E-to-expression prediction use "
                 "deepspot-m; for dissociated scRNA-seq use scrna-orchestrator."
             )
+        if counts_layer:
+            adata.uns.pop("log1p", None)
+        adata.uns["spatial_transcriptomics_count_source"] = (
+            f"layers[{counts_layer}]" if counts_layer else "X"
+        )
+        _validate_spatial_counts(adata)
         return adata
 
     if not path.exists():
         raise FileNotFoundError(path)
+    if counts_layer:
+        raise ValueError("--counts-layer is only supported for h5ad input")
 
     root = _resolve_visium_root(path)
     mtx_dir = root / "filtered_feature_bc_matrix"
@@ -358,131 +495,17 @@ def load_spatial(path: Path):
     adata.obsm["spatial"] = coords
     adata.obs["in_tissue"] = in_tissue
     adata = adata[adata.obs["in_tissue"] == 1].copy()
+    adata.uns["spatial_transcriptomics_count_source"] = "SpaceRanger matrix"
+    _validate_spatial_counts(adata)
     return adata
 
 
-def knn_indices(coords: np.ndarray, n_neighbors: int) -> np.ndarray:
-    """kNN index matrix of shape (n, k), self excluded."""
-    from sklearn.neighbors import NearestNeighbors
-
-    n = coords.shape[0]
-    k = min(n_neighbors, max(n - 1, 1))
-    nn = NearestNeighbors(n_neighbors=k + 1, algorithm="auto")
-    nn.fit(coords)
-    idx = nn.kneighbors(coords, return_distance=False)
-    return idx[:, 1:]
-
-
-def moran_i(values: np.ndarray, knn_idx: np.ndarray) -> float:
-    """Row-standardised kNN Moran's I.
-
-    I = (zᵀ W z) / (zᵀ z) with W row-standardised, so each neighbour weight
-    is 1/k. Matches the kNN path documented by Squidpy's spatial_autocorr
-    (Moran 1950).
-    """
-    x = np.asarray(values, dtype=float)
-    z = x - x.mean()
-    denom = float(np.dot(z, z))
-    if denom == 0.0 or knn_idx.size == 0:
-        return 0.0
-    lag = z[knn_idx].mean(axis=1)
-    return float(np.dot(z, lag) / denom)
-
-
-def neighbor_pair_counts(
-    knn_idx: np.ndarray, labels: np.ndarray, clusters: list[str]
-) -> np.ndarray:
-    """Count directed (cluster_i, cluster_j) neighbour pairs."""
-    index = {c: i for i, c in enumerate(clusters)}
-    n = len(clusters)
-    counts = np.zeros((n, n), dtype=float)
-    for i, neighbours in enumerate(knn_idx):
-        src = index[str(labels[i])]
-        for j in neighbours:
-            counts[src, index[str(labels[j])]] += 1.0
-    return counts
-
-
-def nhood_enrichment(
-    knn_idx: np.ndarray,
-    labels: np.ndarray,
-    n_perms: int = NHOOD_PERMS,
-    seed: int = DEMO_SEED,
-) -> tuple[list[str], np.ndarray, np.ndarray]:
-    """Permutation z-score of cluster–cluster spatial neighbour counts.
-
-    Same estimator as Squidpy `gr.nhood_enrichment`: observed neighbour-pair
-    counts versus labels shuffled on the fixed spatial graph.
-    """
-    labels = np.asarray(labels).astype(str)
-    clusters = sorted(set(labels.tolist()))
-    observed = neighbor_pair_counts(knn_idx, labels, clusters)
-    rng = np.random.default_rng(seed)
-    null = np.stack(
-        [
-            neighbor_pair_counts(knn_idx, rng.permutation(labels), clusters)
-            for _ in range(n_perms)
-        ]
-    )
-    mean = null.mean(axis=0)
-    std = null.std(axis=0)
-    z = (observed - mean) / np.where(std == 0.0, 1.0, std)
-    z = np.where(std == 0.0, 0.0, z)
-    return clusters, z, observed
-
-
-def co_occurrence(
-    coords: np.ndarray,
-    labels: np.ndarray,
-    n_bins: int = CO_OCCURRENCE_BINS,
-) -> tuple[np.ndarray, np.ndarray, list[str]]:
-    """Cluster co-occurrence versus distance, normalised by cluster frequency.
-
-    For distance bin d, score[i, j, d] = P(cluster j at distance d from i) /
-    P(cluster j). Values > 1 mean j is enriched around i at that distance.
-    Follows the ratio used by Squidpy `gr.co_occurrence`.
-    """
-    labels = np.asarray(labels).astype(str)
-    clusters = sorted(set(labels.tolist()))
-    n_c = len(clusters)
-    n = coords.shape[0]
-    if n < 3:
-        empty = np.zeros((n_c, n_c, n_bins))
-        return empty, np.zeros(n_bins), clusters
-
-    diff = coords[:, None, :] - coords[None, :, :]
-    dist = np.sqrt((diff ** 2).sum(axis=2))
-    np.fill_diagonal(dist, np.nan)
-    finite = dist[np.isfinite(dist)]
-    edges = np.quantile(finite, np.linspace(0.0, 1.0, n_bins + 1))
-    edges[0] = 0.0
-    freq = np.array([(labels == c).mean() for c in clusters], dtype=float)
-
-    scores = np.zeros((n_c, n_c, n_bins))
-    for b in range(n_bins):
-        lo, hi = edges[b], edges[b + 1]
-        mask = (dist >= lo) & (dist < hi) if b < n_bins - 1 else (dist >= lo) & (dist <= hi)
-        for i, ci in enumerate(clusters):
-            src = labels == ci
-            if not src.any():
-                continue
-            for j, cj in enumerate(clusters):
-                if freq[j] == 0.0:
-                    continue
-                hits = mask[src] & (labels[None, :] == cj)
-                denom = mask[src].sum()
-                if denom == 0:
-                    continue
-                scores[i, j, b] = (hits.sum() / denom) / freq[j]
-    centres = 0.5 * (edges[:-1] + edges[1:])
-    return scores, centres, clusters
-
-
-def _dense_column(adata, gene: str) -> np.ndarray:
-    matrix = adata[:, gene].X
-    if hasattr(matrix, "toarray"):
-        matrix = matrix.toarray()
-    return np.asarray(matrix).reshape(-1)
+_stats = _load_sibling("spatial_stats")
+knn_indices = _stats.knn_indices
+moran_i = _stats.moran_i
+neighbor_pair_counts = _stats.neighbor_pair_counts
+nhood_enrichment = _stats.nhood_enrichment
+co_occurrence = _stats.co_occurrence
 
 
 def run_pipeline(
@@ -496,13 +519,47 @@ def run_pipeline(
     leiden_resolution: float = 0.5,
     random_state: int = DEMO_SEED,
     top_markers: int = 5,
+    nhood_perms: int = NHOOD_PERMS,
+    max_pct_mt: float | None = None,
 ):
     """QC → Leiden → Wilcoxon markers → Moran I / nhood / co-occurrence."""
     import scanpy as sc
 
+    _validate_spatial_counts(adata)
+    for name, value, minimum in (
+        ("min_genes", min_genes, 1),
+        ("min_cells", min_cells, 1),
+        ("n_top_hvg", n_top_hvg, 2),
+        ("n_pcs", n_pcs, 1),
+        ("n_neighbors", n_neighbors, 2),
+        ("nhood_perms", nhood_perms, 2),
+        ("top_markers", top_markers, 1),
+        ("random_state", random_state, 0),
+    ):
+        if value < minimum:
+            raise ValueError(f"{name} must be at least {minimum}")
+    if not np.isfinite(leiden_resolution) or leiden_resolution <= 0:
+        raise ValueError("leiden_resolution must be finite and positive")
+    if max_pct_mt is not None and not 0 <= max_pct_mt <= 100:
+        raise ValueError("max_pct_mt must be between 0 and 100")
     adata = adata.copy()
     adata.var_names_make_unique()
     n_in = adata.n_obs
+    n_genes_in = adata.n_vars
+    count_source = adata.uns.get("spatial_transcriptomics_count_source", "X")
+    parameters = {
+        "min_genes": min_genes,
+        "min_cells": min_cells,
+        "n_top_hvg": n_top_hvg,
+        "n_pcs": n_pcs,
+        "n_neighbors": n_neighbors,
+        "leiden_resolution": leiden_resolution,
+        "random_state": random_state,
+        "top_markers": top_markers,
+        "nhood_perms": nhood_perms,
+        "max_pct_mt": max_pct_mt,
+    }
+    warnings = []
     if n_in < MIN_SPOTS:
         raise InsufficientSpotsError(
             f"Only {n_in} spots loaded (minimum {MIN_SPOTS}). "
@@ -511,27 +568,75 @@ def run_pipeline(
 
     # percent_top defaults include 50/100/200/500; a 40-gene demo is smaller
     # than those cutoffs and Scanpy raises IndexError.
-    sc.pp.calculate_qc_metrics(adata, percent_top=None, inplace=True)
-    sc.pp.filter_cells(adata, min_genes=min_genes)
+    adata.var["mt"] = np.asarray(
+        adata.var_names.str.upper().str.startswith("MT-"), dtype=bool
+    )
+    mt_gene_count = int(adata.var["mt"].sum())
+    sc.pp.calculate_qc_metrics(adata, qc_vars=["mt"], percent_top=None, inplace=True)
+    qc_table = adata.obs[["n_genes_by_counts", "total_counts", "pct_counts_mt"]].copy()
+    qc_table.index.name = "barcode"
+    qc_table["pct_counts_mt"] = qc_table["pct_counts_mt"].fillna(0.0)
+    keep = (qc_table["n_genes_by_counts"] >= min_genes) & (qc_table["total_counts"] > 0)
+    if max_pct_mt is not None and mt_gene_count:
+        keep &= qc_table["pct_counts_mt"] <= max_pct_mt
+    qc_table["pass_qc"] = keep
+    adata = adata[keep.to_numpy()].copy()
     sc.pp.filter_genes(adata, min_cells=min_cells)
     if adata.n_obs < MIN_SPOTS:
         raise InsufficientSpotsError(
             f"Only {adata.n_obs} spots remain after QC (minimum {MIN_SPOTS})."
         )
+    if adata.n_vars < 2:
+        raise ValueError("Fewer than two genes remain after counts QC")
+    if not mt_gene_count:
+        warnings.append(
+            "No MT- gene symbols were found; mitochondrial QC is unavailable for these gene identifiers."
+        )
+        qc_table["pct_counts_mt"] = np.nan
+        if max_pct_mt is not None:
+            warnings.append(
+                "The requested mitochondrial ceiling could not be applied because no MT- genes were identified."
+            )
+    elif max_pct_mt is None:
+        warnings.append(
+            "Mitochondrial percentages are reported but not filtered; inspect QC before biological interpretation."
+        )
+    retained_qc = qc_table.loc[keep]
+    qc_summary = {
+        "n_spots_loaded": n_in,
+        "n_spots_after_qc": int(adata.n_obs),
+        "n_genes_loaded": n_genes_in,
+        "n_genes_after_qc": int(adata.n_vars),
+        "mt_gene_count": mt_gene_count,
+        "median_total_counts": float(retained_qc["total_counts"].median()),
+        "median_n_genes_by_counts": float(retained_qc["n_genes_by_counts"].median()),
+        "median_pct_counts_mt": float(retained_qc["pct_counts_mt"].median())
+        if mt_gene_count
+        else None,
+        "max_pct_counts_mt": float(retained_qc["pct_counts_mt"].max())
+        if mt_gene_count
+        else None,
+    }
 
     adata.layers["counts"] = adata.X.copy()
     sc.pp.normalize_total(adata, target_sum=1e4)
     sc.pp.log1p(adata)
     hvg_n = min(n_top_hvg, adata.n_vars)
     sc.pp.highly_variable_genes(adata, n_top_genes=hvg_n, flavor="seurat")
+    n_hvg = int(adata.var["highly_variable"].sum())
+    if n_hvg < 2:
+        raise ValueError("Fewer than two variable genes; cannot compute expression PCA")
+    effective_pcs = min(n_pcs, adata.n_obs - 1, n_hvg - 1)
     sc.pp.pca(
         adata,
-        n_comps=min(n_pcs, adata.n_obs - 1, adata.n_vars - 1),
+        n_comps=effective_pcs,
         random_state=random_state,
     )
     sc.pp.neighbors(
         adata,
         n_neighbors=min(n_neighbors, adata.n_obs - 1),
+        use_rep="X_pca",
+        n_pcs=effective_pcs,
         random_state=random_state,
     )
     sc.tl.umap(adata, random_state=random_state)
@@ -545,16 +650,28 @@ def run_pipeline(
             directed=False,
         )
     except TypeError:
-        sc.tl.leiden(
-            adata, resolution=leiden_resolution, random_state=random_state
-        )
+        sc.tl.leiden(adata, resolution=leiden_resolution, random_state=random_state)
 
     marker_adata = adata
     if adata.n_vars > 80 and "highly_variable" in adata.var:
         marker_adata = adata[:, adata.var["highly_variable"]].copy()
-    sc.tl.rank_genes_groups(
-        marker_adata, groupby="leiden", method="wilcoxon", pts=True, use_raw=False
-    )
+    group_counts = adata.obs["leiden"].value_counts()
+    marker_groups = group_counts[
+        (group_counts >= 2) & (group_counts < adata.n_obs)
+    ].index.tolist()
+    if len(marker_groups) < len(group_counts):
+        warnings.append(
+            "Wilcoxon markers require at least two spots per cluster and a nonempty rest group; unsupported groups are omitted."
+        )
+    if marker_groups:
+        sc.tl.rank_genes_groups(
+            marker_adata,
+            groupby="leiden",
+            groups=marker_groups,
+            method="wilcoxon",
+            pts=True,
+            use_raw=False,
+        )
 
     coords = np.asarray(adata.obsm["spatial"], dtype=float)
     knn_idx = knn_indices(coords, SPATIAL_NEIGHBORS)
@@ -570,19 +687,21 @@ def run_pipeline(
         {"gene": str(gene), "moran_i": moran_i(moran_X[:, i], knn_idx)}
         for i, gene in enumerate(moran_adata.var_names)
     ]
-    moran_rows.sort(key=lambda row: row["moran_i"], reverse=True)
+    moran_rows.sort(
+        key=lambda row: row["moran_i"] if np.isfinite(row["moran_i"]) else -np.inf,
+        reverse=True,
+    )
 
     clusters, zscore, observed = nhood_enrichment(
-        knn_idx, adata.obs["leiden"].to_numpy(), seed=random_state
+        knn_idx, adata.obs["leiden"].to_numpy(), n_perms=nhood_perms, seed=random_state
     )
     occ, distances, occ_clusters = co_occurrence(coords, adata.obs["leiden"].to_numpy())
 
-    names = marker_adata.uns["rank_genes_groups"]["names"]
-    scores = marker_adata.uns["rank_genes_groups"]["scores"]
-    pvals = marker_adata.uns["rank_genes_groups"]["pvals_adj"]
     marker_rows = []
-    groups = list(names.dtype.names)
-    for group in groups:
+    ranked = marker_adata.uns.get("rank_genes_groups") if marker_groups else None
+    if ranked is not None:
+        names, scores, pvals = ranked["names"], ranked["scores"], ranked["pvals_adj"]
+    for group in names.dtype.names if ranked is not None else []:
         for rank in range(min(top_markers, len(names[group]))):
             marker_rows.append(
                 {
@@ -606,73 +725,25 @@ def run_pipeline(
         "co_occurrence_clusters": occ_clusters,
         "markers": marker_rows,
         "n_spots_in": n_in,
+        "parameters": parameters,
+        "effective_embedding": {
+            "n_pcs": effective_pcs,
+            "n_neighbors": min(n_neighbors, adata.n_obs - 1),
+        },
+        "analysis_scope": {
+            "gene_selection": "hvg" if adata.n_vars > 80 else "all",
+            "n_genes_tested": len(moran_rows),
+            "genes_tested": list(map(str, moran_adata.var_names)),
+            "moran_inference": "descriptive_no_p_values",
+        },
+        "qc_summary": qc_summary,
+        "qc_table": qc_table,
+        "warnings": warnings,
+        "count_source": count_source,
     }
 
 
-def _write_figures(adata, output_dir: Path) -> list[Path]:
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    figs = output_dir / "figures"
-    figs.mkdir(parents=True, exist_ok=True)
-    written: list[Path] = []
-    leiden = adata.obs["leiden"].astype(str)
-    clusters = sorted(leiden.unique())
-    colour_map = {c: plt.cm.tab10(i % 10) for i, c in enumerate(clusters)}
-    colours = [colour_map[c] for c in leiden]
-
-    if "X_umap" in adata.obsm:
-        umap = adata.obsm["X_umap"]
-        fig, ax = plt.subplots(figsize=(5, 4))
-        ax.scatter(umap[:, 0], umap[:, 1], c=colours, s=28, edgecolors="none")
-        ax.set_xlabel("UMAP1")
-        ax.set_ylabel("UMAP2")
-        ax.set_title("Leiden clusters (UMAP)")
-        fig.tight_layout()
-        path = figs / "umap_leiden.png"
-        fig.savefig(path, dpi=120)
-        plt.close(fig)
-        written.append(path)
-
-    coords = np.asarray(adata.obsm["spatial"], dtype=float)
-    fig, ax = plt.subplots(figsize=(5, 4))
-    ax.scatter(coords[:, 0], coords[:, 1], c=colours, s=36, edgecolors="none")
-    ax.set_xlabel("spatial x")
-    ax.set_ylabel("spatial y")
-    ax.set_title("Leiden clusters (spatial)")
-    ax.set_aspect("equal", adjustable="box")
-    fig.tight_layout()
-    path = figs / "spatial_leiden.png"
-    fig.savefig(path, dpi=120)
-    plt.close(fig)
-    written.append(path)
-    return written
-
-
-def _write_tables(result: dict, output_dir: Path) -> list[Path]:
-    import pandas as pd
-
-    tables = output_dir / "tables"
-    tables.mkdir(parents=True, exist_ok=True)
-    written: list[Path] = []
-
-    markers_path = tables / "markers_top.csv"
-    pd.DataFrame(result["markers"]).to_csv(markers_path, index=False)
-    written.append(markers_path)
-
-    moran_path = tables / "moran_i.csv"
-    pd.DataFrame(result["moran"]).to_csv(moran_path, index=False)
-    written.append(moran_path)
-
-    clusters = result["nhood_clusters"]
-    z = result["nhood_zscore"]
-    nhood_path = tables / "nhood_enrichment.csv"
-    frame = pd.DataFrame(z, index=clusters, columns=clusters)
-    frame.to_csv(nhood_path)
-    written.append(nhood_path)
-    return written
+generate_report = _load_sibling("spatial_report").generate_report
 
 
 def _write_repro_bundle(
@@ -681,6 +752,8 @@ def _write_repro_bundle(
     demo: bool,
     input_path: Path | None,
     checksum_paths: list[Path],
+    parameters: dict,
+    input_identity: dict,
 ) -> None:
     preflight: list[str] = []
     args: list = []
@@ -688,183 +761,190 @@ def _write_repro_bundle(
         args.append("--demo")
     else:
         assert input_path is not None
-        try:
-            input_path.resolve().relative_to(_PROJECT_ROOT)
-            args += ["--input", ReproPath(input_path, anchor="repo_root")]
-        except ValueError:
-            preflight.append(
-                ': "${INPUT_PATH:?Set INPUT_PATH to the Visium outs directory or h5ad used for this run}"'
-            )
-            args += ["--input", '"${INPUT_PATH}"']
-    args += ["--output", ReproPath(output_dir, anchor="output_dir")]
+        preflight.append(
+            ': "${INPUT_PATH:?Set INPUT_PATH to the Visium outs directory or h5ad used for this run}"'
+        )
+        args += [
+            "--input",
+            '"${INPUT_PATH}"',
+            "--expected-input-sha256",
+            input_identity["sha256"],
+        ]
+    for name, value in parameters.items():
+        if value is not None:
+            args += ["--" + name.replace("_", "-"), shlex.quote(str(value))]
+    args += ["--output", '"${REPLAY_OUTPUT:-$OUTPUT_DIR/replay}"']
     write_portable_commands_sh(
         output_dir,
         ReproCommand(
-            script_path=Path("skills/spatial-transcriptomics/spatial_transcriptomics.py"),
+            script_path=Path(
+                "skills/spatial-transcriptomics/spatial_transcriptomics.py"
+            ),
             args=args,
             comment="Replay this ClawBio spatial-transcriptomics run",
             preflight=preflight,
         ),
         repo_root=_PROJECT_ROOT,
     )
+    packages = _analysis_environment()
     write_environment_yml(
         output_dir,
         env_name="clawbio-spatial-transcriptomics",
         conda_deps=[],
-        pip_deps=list(REPLAY_PIP_DEPENDENCIES),
-        python_version="3.11",
+        pip_deps=[f"{name}=={version}" for name, version in packages.items()],
+        python_version=platform.python_version(),
     )
+    source_paths = [
+        Path(__file__).resolve(),
+        SKILL_DIR / "spatial_stats.py",
+        SKILL_DIR / "spatial_report.py",
+        _PROJECT_ROOT / "clawbio/common/reproducibility.py",
+        _PROJECT_ROOT / "clawbio/common/scrna_io.py",
+        _PROJECT_ROOT / "uv.lock",
+    ]
+    manifest = {
+        "skill": "spatial-transcriptomics",
+        "skill_version": SKILL_VERSION,
+        "parameters": parameters,
+        "input": input_identity,
+        "environment": {
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "packages": packages,
+        },
+        "source_files": [
+            {"path": str(p.relative_to(_PROJECT_ROOT)), "sha256": sha256_file(p)}
+            for p in source_paths
+            if p.is_file()
+        ],
+        "replay_note": "Use the same source and pinned environment; replay writes a new directory and verifies input hashes.",
+    }
+    manifest_path = output_dir / "reproducibility/run_manifest.json"
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, allow_nan=False) + "\n", encoding="utf-8"
+    )
+    checksum_paths = checksum_paths + [
+        manifest_path,
+        output_dir / "reproducibility/commands.sh",
+        output_dir / "reproducibility/environment.yml",
+    ]
     write_checksums(checksum_paths, output_dir, anchor=output_dir)
 
 
-def generate_report(
-    result: dict,
-    output_dir: Path,
-    *,
-    source_label: str,
-    demo: bool,
-) -> tuple[list[Path], Path, Path]:
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    adata = result["adata"]
-    figure_paths = _write_figures(adata, output_dir)
-    table_paths = _write_tables(result, output_dir)
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    n_clusters = adata.obs["leiden"].nunique()
-    top_moran = result["moran"][:8]
-    demo_note = (
-        "> Demo mode. Spots are a synthetic 8×8 grid with an epithelium-like "
-        "left domain (EPCAM/KRT) and a stroma-like right domain (COL1A1/VIM). "
-        "No Visium dataset was downloaded.\n"
-        if demo
-        else ""
-    )
-    lines = [
-        "# Spatial Transcriptomics Report" + (" (demo)" if demo else ""),
-        "",
-        f"**Generated**: {timestamp}  ",
-        f"**Skill**: spatial-transcriptomics v{SKILL_VERSION}  ",
-        f"**Input**: {source_label}  ",
-        f"**Spots**: {adata.n_obs} (from {result['n_spots_in']} loaded)  ",
-        f"**Genes**: {adata.n_vars}  ",
-        f"**Leiden clusters**: {n_clusters}  ",
-        "",
-        demo_note,
-        "## 1. Summary",
-        "",
-        (
-            "Scanpy ran QC, normalisation, PCA, UMAP and Leiden clustering, then "
-            + "Wilcoxon cluster markers. Spatial statistics use a k-nearest-neighbour "
-            + "graph on `obsm['spatial']`: Moran's I per gene, neighbourhood "
-            + "enrichment z-scores, and distance-binned cluster co-occurrence. These "
-            + "are the estimators Squidpy documents (`spatial_autocorr`, "
-            + "`nhood_enrichment`, `co_occurrence`); they are computed here without "
-            + "importing Squidpy so the skill does not pull spatialdata/dask into the "
-            + "ClawBio lockfile."
-        ),
-        "",
-        "## 2. Spatially variable genes (Moran's I)",
-        "",
-        "| Gene | Moran's I |",
-        "|---|---|",
-    ]
-    for row in top_moran:
-        lines.append(f"| {row['gene']} | {row['moran_i']:.3f} |")
-    lines += [
-        "",
-        "## 3. Cluster markers (Wilcoxon, top per Leiden cluster)",
-        "",
-        "| Cluster | Gene | Score | adj. p |",
-        "|---|---|---|---|",
-    ]
-    for row in result["markers"]:
-        lines.append(
-            f"| {row['cluster']} | {row['gene']} | {row['score']:.2f} | {row['pvals_adj']:.3g} |"
-        )
-    clusters = result["nhood_clusters"]
-    z = result["nhood_zscore"]
-    lines += [
-        "",
-        "## 4. Neighbourhood enrichment (z-score vs label permutation)",
-        "",
-        "| From \\ To | " + " | ".join(clusters) + " |",
-        "|" + "|".join(["---"] * (len(clusters) + 1)) + "|",
-    ]
-    for i, src in enumerate(clusters):
-        cells = " | ".join(f"{z[i, j]:.2f}" for j in range(len(clusters)))
-        lines.append(f"| {src} | {cells} |")
-    lines += [
-        "",
-        (
-            "Positive z on the diagonal means a cluster's spots sit next to each "
-            + "other more than a random labelling of the same spatial graph would."
-        ),
-        "",
-        "## Output files",
-        "",
-        "| File | Description |",
-        "|---|---|",
-        "| `result.json` | Machine-readable summary |",
-        "| `figures/umap_leiden.png` | Leiden on UMAP |",
-        "| `figures/spatial_leiden.png` | Leiden on spot coordinates |",
-        "| `tables/markers_top.csv` | Wilcoxon markers |",
-        "| `tables/moran_i.csv` | Moran's I for every gene |",
-        "| `tables/nhood_enrichment.csv` | Neighbourhood enrichment z-scores |",
-        "",
-        "---",
-        "",
-        f"*{DISCLAIMER}*",
-        "",
-    ]
-    report_path = output_dir / "report.md"
-    report_path.write_text("\n".join(line for line in lines if line is not None), encoding="utf-8")
+def _analysis_environment() -> dict[str, str]:
+    """Pin the installed analysis dependency closure, excluding unrelated extras."""
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name
 
-    payload = {
-        "skill": "spatial-transcriptomics",
-        "skill_version": SKILL_VERSION,
-        "demo": demo,
-        "input": source_label,
-        "n_spots": int(adata.n_obs),
-        "n_genes": int(adata.n_vars),
-        "n_clusters": int(n_clusters),
-        "leiden_clusters": [str(c) for c in sorted(adata.obs["leiden"].astype(str).unique())],
-        "top_moran": top_moran,
-        "markers": result["markers"],
-        "nhood_clusters": result["nhood_clusters"],
-        "nhood_zscore": result["nhood_zscore"].tolist(),
-        "co_occurrence_distance": result["co_occurrence_distance"].tolist(),
-        "timestamp": timestamp,
+    pending = list(REPLAY_PACKAGES)
+    versions = {}
+    while pending:
+        name = canonicalize_name(pending.pop())
+        if name in versions:
+            continue
+        versions[name] = metadata.version(name)
+        for raw in metadata.requires(name) or []:
+            requirement = Requirement(raw)
+            if requirement.marker is None or requirement.marker.evaluate({"extra": ""}):
+                pending.append(requirement.name)
+    return dict(sorted(versions.items()))
+
+
+def _input_identity(input_path: Path | None, *, seed: int) -> dict:
+    if input_path is None:
+        recipe = SKILL_DIR / "examples/demo_spec.json"
+        return {
+            "kind": "synthetic_demo",
+            "seed": seed,
+            "recipe_sha256": sha256_file(recipe),
+        }
+    input_path = input_path.expanduser().resolve()
+    if input_path.is_file() and input_path.suffix == ".h5ad":
+        source = resolve_input_source(input_path)
+        anchor = input_path.parent
+    else:
+        anchor = _resolve_visium_root(input_path)
+        source = resolve_input_source(anchor / "filtered_feature_bc_matrix")
+        spatial = anchor / "spatial"
+        positions = spatial / "tissue_positions.csv"
+        if not positions.is_file():
+            positions = spatial / "tissue_positions_list.csv"
+        source["files"].append(positions)
+    return {
+        "kind": "measured_input",
+        "sha256": compute_input_checksum(source),
+        "files": [
+            {
+                "path": str(p.relative_to(anchor)),
+                "size_bytes": p.stat().st_size,
+                "sha256": sha256_file(p),
+            }
+            for p in source["files"]
+        ],
     }
-    result_path = output_dir / "result.json"
-    result_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-
-    checksum_paths = figure_paths + table_paths
-    checksum_paths += [
-        output_dir / "reproducibility" / "commands.sh",
-        output_dir / "reproducibility" / "environment.yml",
-    ]
-    return checksum_paths, report_path, result_path
 
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Visium spatial transcriptomics (Scanpy + spatial stats)",
     )
-    p.add_argument("--input", help="SpaceRanger outs/ directory or spatial h5ad")
+    source = p.add_mutually_exclusive_group(required=True)
+    source.add_argument(
+        "--input", help="SpaceRanger outs/ directory or raw-count spatial h5ad"
+    )
     p.add_argument("--output", default="./spatial_output", help="Output directory")
-    p.add_argument("--demo", action="store_true", help="Run on the bundled synthetic grid")
+    source.add_argument(
+        "--demo", action="store_true", help="Run on the bundled synthetic grid"
+    )
     p.add_argument("--min-genes", type=int, default=5)
     p.add_argument("--min-cells", type=int, default=1)
     p.add_argument("--leiden-resolution", type=float, default=0.5)
     p.add_argument("--n-top-hvg", type=int, default=2000)
     p.add_argument("--random-state", type=int, default=DEMO_SEED)
+    p.add_argument("--n-pcs", type=int, default=8)
+    p.add_argument(
+        "--n-neighbors",
+        type=int,
+        default=8,
+        help="Expression PCA graph neighbours; spatial graph remains k=6",
+    )
+    p.add_argument("--nhood-perms", type=int, default=NHOOD_PERMS)
+    p.add_argument("--top-markers", type=int, default=5)
+    p.add_argument(
+        "--max-pct-mt",
+        type=float,
+        help="Optional maximum mitochondrial count percentage (MT- gene symbols)",
+    )
+    p.add_argument(
+        "--counts-layer", help="Explicit raw-count layer in a processed h5ad"
+    )
+    p.add_argument(
+        "--expected-input-sha256", help="Verify the recorded input digest before replay"
+    )
+    p.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Explicitly allow replacing report files in a nonempty output directory",
+    )
     return p
 
 
 def main(argv: list[str] | None = None) -> None:
-    args = _build_parser().parse_args(argv)
-    output_dir = Path(args.output)
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    output_dir = Path(args.output).expanduser().resolve()
+    if output_dir.exists() and (not output_dir.is_dir() or any(output_dir.iterdir())):
+        if not output_dir.is_dir() or not args.overwrite:
+            parser.error(
+                "Output directory is not empty; choose a new directory or use --overwrite"
+            )
+        print(
+            f"WARNING: --overwrite will replace spatial report files in {output_dir}",
+            file=sys.stderr,
+        )
     if args.demo:
+        if args.counts_layer or args.expected_input_sha256:
+            parser.error("--counts-layer and --expected-input-sha256 require --input")
         adata = generate_demo_adata(seed=args.random_state)
         source_label = "synthetic 8x8 Visium-like grid (demo)"
         input_path = None
@@ -872,11 +952,20 @@ def main(argv: list[str] | None = None) -> None:
         if not args.input:
             print("ERROR: Provide --input <outs_or_h5ad> or --demo", file=sys.stderr)
             sys.exit(1)
-        input_path = Path(args.input)
-        adata = load_spatial(input_path)
+        input_path = Path(args.input).expanduser().resolve()
         source_label = str(input_path.resolve())
 
     try:
+        identity = _input_identity(input_path, seed=args.random_state)
+        if (
+            args.expected_input_sha256
+            and identity["sha256"] != args.expected_input_sha256
+        ):
+            raise ValueError(
+                "Input SHA-256 differs from the recorded run; refusing replay"
+            )
+        if not args.demo:
+            adata = load_spatial(input_path, counts_layer=args.counts_layer)
         result = run_pipeline(
             adata,
             min_genes=args.min_genes,
@@ -884,11 +973,17 @@ def main(argv: list[str] | None = None) -> None:
             n_top_hvg=args.n_top_hvg,
             leiden_resolution=args.leiden_resolution,
             random_state=args.random_state,
+            n_pcs=args.n_pcs,
+            n_neighbors=args.n_neighbors,
+            nhood_perms=args.nhood_perms,
+            top_markers=args.top_markers,
+            max_pct_mt=args.max_pct_mt,
         )
-    except InsufficientSpotsError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        sys.exit(1)
+    except (ValueError, OSError) as exc:
+        parser.error(str(exc))
 
+    result["parameters"]["counts_layer"] = args.counts_layer
+    result["input_provenance"] = identity
     checksum_paths, _report, _result = generate_report(
         result, output_dir, source_label=source_label, demo=args.demo
     )
@@ -897,6 +992,8 @@ def main(argv: list[str] | None = None) -> None:
         demo=args.demo,
         input_path=input_path,
         checksum_paths=checksum_paths,
+        parameters=result["parameters"],
+        input_identity=identity,
     )
     print(f"[spatial-transcriptomics] Done → {output_dir}/report.md")
     print(
