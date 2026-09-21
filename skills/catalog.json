@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 97,
+  "skill_count": 98,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -4054,6 +4054,56 @@
         "add a skill",
         "build a skill",
         "make a skill"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "spatial-transcriptomics",
+      "cli_alias": "spatial",
+      "description": "Analyse 10x Visium spatial transcriptomics: SpaceRanger outs or spatial h5ad in, then QC, Leiden clustering, Wilcoxon markers, Moran's I, neighbourhood enrichment and co-occurrence in one local report.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run spatial --demo",
+      "dependencies": [
+        "python>=3.11",
+        "scanpy>=1.10",
+        "leidenalg>=0.10",
+        "numpy>=1.24",
+        "pandas>=2.0",
+        "matplotlib>=3.7",
+        "scikit-learn>=1.3",
+        "scipy>=1.10"
+      ],
+      "tags": [
+        "spatial-transcriptomics",
+        "visium",
+        "scanpy",
+        "moran",
+        "clustering"
+      ],
+      "trigger_keywords": [
+        "visium",
+        "spatial transcriptomics",
+        "SpaceRanger",
+        "Moran's I",
+        "neighbourhood enrichment",
+        "spatially variable genes"
       ],
       "chaining_partners": [],
       "license": "MIT",

@@ -374,6 +374,18 @@ SKILLS = {
         "allowed_extra_flags": set(),
         "accepts_genotypes": False,
     },
+    "spatial": {
+        "script": SKILLS_DIR / "spatial-transcriptomics" / "spatial_transcriptomics.py",
+        "demo_args": ["--demo"],
+        "description": "Visium spatial transcriptomics (Scanpy QC/clustering/markers plus Moran's I, neighbourhood enrichment, co-occurrence)",
+        "allowed_extra_flags": {
+            "--min-genes",
+            "--min-cells",
+            "--leiden-resolution",
+            "--random-state",
+        },
+        "accepts_genotypes": False,
+    },
     "scrna": {
         "script": SKILLS_DIR / "scrna-orchestrator" / "scrna_orchestrator.py",
         "demo_args": ["--demo"],
