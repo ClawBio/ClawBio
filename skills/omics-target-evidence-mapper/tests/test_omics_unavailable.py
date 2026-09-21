@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
 
 MODULE_PATH = Path(__file__).parents[1] / "omics_target_evidence_mapper.py"
 SPEC = importlib.util.spec_from_file_location("omics_target_evidence_mapper", MODULE_PATH)
@@ -75,8 +76,14 @@ def test_report_wording_differs_for_unavailable_and_empty_sources() -> None:
     assert "No trial hits found." in empty
 
 
+def _request_host(url: str) -> str:
+    return (urlsplit(url).hostname or "").lower()
+
+
 def _fake_json_mixed_success(method, url, **kwargs):
-    if url.startswith("https://rest.uniprot.org"):
+    host = _request_host(url)
+    path = urlsplit(url).path
+    if host == "rest.uniprot.org":
         return {
             "results": [
                 {
@@ -87,11 +94,13 @@ def _fake_json_mixed_success(method, url, **kwargs):
                 }
             ]
         }
-    if url.startswith("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"):
+    # Fail only esearch. esummary shares this host, and treating it as a miss
+    # would hide a successful search behind an unavailable summary.
+    if host == "eutils.ncbi.nlm.nih.gov" and path == "/entrez/eutils/esearch.fcgi":
         return None
-    if url.startswith("https://clinicaltrials.gov"):
+    if host == "clinicaltrials.gov":
         return {"studies": []}
-    if url.startswith("https://api.platform.opentargets.org"):
+    if host == "api.platform.opentargets.org":
         return None
     return None
 
