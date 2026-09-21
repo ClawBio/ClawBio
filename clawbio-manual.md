@@ -300,13 +300,14 @@ agentskills validate skills/<your-skill-name>/
 
 ---
 
-## 9. Step 8: Updating routing in AGENTS.md
+## 9. Step 8: Regenerating the skill catalog
 
-Add your skill to the routing table and CLI guides inside [AGENTS.md](AGENTS.md) (which is the source of truth for routing tables and demo commands):
-* Add a row to the **Skill Routing Table** under the appropriate categories.
-* Add your CLI execution example to the **CLI Reference** section.
-* Add your demo input under the **Demo Data** table.
-* Add the demo command under the **Demo Commands** list.
+`skills/catalog.json` is the single source of truth for routing, CLI aliases, and
+demo commands. Agents read it, so nothing needs adding to [AGENTS.md](AGENTS.md) by hand.
+* Make sure `trigger_keywords` in your SKILL.md frontmatter cover the phrases users
+  will type (minimum 3) — that is what agents match on.
+* Regenerate: `python scripts/generate_catalog.py`
+* Verify your entry: `python clawbio.py list`
 
 ---
 

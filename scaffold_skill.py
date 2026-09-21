@@ -896,8 +896,8 @@ def scaffold(name: str, description: str, force: bool = False,
     print(f"\n--- skill_registry.json entry ---")
     print(json.dumps(registry_entry, indent=2))
 
-    print(f"\n--- AGENTS.md routing table row ---")
-    print(f"| {description}, {name} | `skills/{name}/` | Run `{py_name}.py` |")
+    print(f"\n--- Routing (skills/catalog.json is the source of truth) ---")
+    print("Check trigger_keywords in SKILL.md, then: python scripts/generate_catalog.py")
 
     if bench_dir:
         print(f"\nBenchmark test cases written to: {bench_skill_dir}")
