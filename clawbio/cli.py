@@ -1050,6 +1050,68 @@ SKILLS = {
         },
         "accepts_genotypes": False,
     },
+    "biostudies-fetch": {
+        "script": SKILLS_DIR / "biostudies-fetch" / "biostudies_fetch.py",
+        "demo_args": ["--demo"],
+        "description": "EMBL-EBI BioStudies — study metadata, files, and a standardised metadata.tsv",
+        # Positional subcommands are dropped by the extras filter, so the
+        # subcommand is reachable as --command. See the skill's CLI Reference.
+        "allowed_extra_flags": {
+            "--command", "--accession", "--query", "--limit", "--out", "--json",
+            "--collection", "--match",
+        },
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
+    "ena-fetch": {
+        "script": SKILLS_DIR / "ena-fetch" / "ena_fetch.py",
+        "demo_args": ["--demo"],
+        "description": "European Nucleotide Archive — runs, FASTQ links, and a pipeline-ready nf-core samplesheet",
+        "allowed_extra_flags": {
+            "--command", "--accession", "--query", "--limit", "--out", "--json",
+            "--result", "--fields", "--format", "--assay", "--strandedness",
+            "--group-by", "--local-dir", "--fastq-dir", "--fastq-naming",
+            "--read-map", "--tool", "--partition", "--account", "--job-name",
+            "--cpus", "--mem", "--time", "--email",
+        },
+        "allowed_extra_flags_without_values": {"--submitted", "--no-slurm"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
+    "geo-fetch": {
+        "script": SKILLS_DIR / "geo-fetch" / "geo_fetch.py",
+        "demo_args": ["--demo"],
+        "description": "NCBI GEO — series and sample metadata, run tables, and a pipeline-ready nf-core samplesheet",
+        "allowed_extra_flags": {
+            "--command", "--accession", "--query", "--limit", "--out", "--json",
+            "--organism", "--type", "--assay", "--strandedness", "--group-by",
+            "--local-dir", "--from-runtable", "--fastq-dir", "--fastq-naming",
+            "--read-map", "--tool", "--partition", "--account", "--job-name",
+            "--cpus", "--mem", "--time", "--email",
+        },
+        # NCBI credentials are opt-in and carry no value; the skill never sends
+        # NCBI_EMAIL / NCBI_API_KEY without this flag.
+        "allowed_extra_flags_without_values": {
+            "--use-ncbi-credentials", "--matrix", "--soft", "--miniml",
+            "--suppl", "--no-slurm",
+        },
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
+    "pride-fetch": {
+        "script": SKILLS_DIR / "pride-fetch" / "pride_fetch.py",
+        "demo_args": ["--demo"],
+        "description": "PRIDE Archive — proteomics project metadata, files, and a quantms-ready minimal SDRF",
+        "allowed_extra_flags": {
+            "--command", "--accession", "--query", "--limit", "--out", "--json",
+            "--ext", "--from", "--acquisition", "--local-dir", "--tool",
+            "--outdir", "--job-name", "--partition", "--account", "--cpus",
+            "--mem", "--time", "--email",
+        },
+        "allowed_extra_flags_without_values": {"--unzip", "--no-slurm"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
     "protocols-io": {
         "script": SKILLS_DIR / "protocols-io" / "protocols_io.py",
         "demo_args": ["--demo"],

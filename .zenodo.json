@@ -1,6 +1,6 @@
 {
   "title": "ClawBio: Bioinformatics-Native AI Agent Skill Library",
-  "description": "ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call. 97 skills covering pharmacogenomics, variant annotation, fine-mapping, polygenic risk scoring, single-cell RNA-seq, and more, with validation infrastructure (an Alzheimer's disease ground truth benchmark, a mock API server for offline testing, a swappable fine-mapping pipeline, a benchmark scorer with objective metrics) and 4,730 automated tests.",
+  "description": "ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call. 101 skills covering pharmacogenomics, variant annotation, fine-mapping, polygenic risk scoring, single-cell RNA-seq, and more, with validation infrastructure (an Alzheimer's disease ground truth benchmark, a mock API server for offline testing, a swappable fine-mapping pipeline, a benchmark scorer with objective metrics) and 4,730 automated tests.",
   "upload_type": "software",
   "creators": [
     {

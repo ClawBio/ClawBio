@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Four public-archive fetch skills, ported from
+  [UKDRI/informatics_data_skills](https://github.com/UKDRI/informatics_data_skills)
+  @ `7cc3e6e`** (© 2026 UK Dementia Research Institute, MIT):
+  `biostudies-fetch`, `ena-fetch`, `geo-fetch` and `pride-fetch`. Each turns an
+  accession into archive metadata, a **standardised `metadata.tsv`** whose core
+  columns are identical across all four, and — for the sequencing archives — a
+  **pipeline-ready `samplesheet.csv`** matching the nf-core/rnaseq and
+  nf-core/scrnaseq column contracts, so the output feeds a pipeline without a
+  bespoke parsing step. `pride-fetch` writes a quantms-ready minimal SDRF
+  instead. All four demos run fully offline from committed fixtures.
+- **`clawbio/common/download_script.py`** — the shared FASTQ download-script
+  emitter, folded in from upstream's standalone `fastq-download-script` skill.
+  Its input is always another command's output, so it is a `download-script`
+  command on the archive skills rather than a skill of its own.
+- **`clawbio/common/job_exec.py`** — opt-in `--run` / `--submit` for generated
+  job scripts, with preflight checks and `--dependency=afterok:` chaining.
+  Both are off by default: a skill generates a script and stops, and the agent
+  must show the user what the job will do and ask before executing it.
+- **`clawbio/common/archive_fetch.py`** — shared machinery for the archive
+  skills: the runner-reachable `--command` form, output-path anchoring, report
+  and bundle writing.
+
+### Changed
+- `biostudies-fetch` resolves file downloads from the BioStudies `/info`
+  endpoint's `httpLink` rather than the hardcoded `/biostudies/files/{acc}/{path}`
+  path, which returns 404 for every accession tested on 2026-09-21. Marked
+  `DIVERGES FROM UPSTREAM` in the code; **not yet verified against a live
+  download** — see `plan.md` §0b.
+
+### Notes
+- Upstream's `--out` defaults were relative to the working directory; every
+  ported path now resolves under `--output`, so a run writes nothing into the
+  repository.
+- `NCBI_EMAIL` / `NCBI_API_KEY` are read by `geo-fetch` but never sent without
+  `--use-ncbi-credentials`. Presence of an environment variable is not consent.
+
 ## [0.7.1] - 2026-09-05
 
 ### Fixed

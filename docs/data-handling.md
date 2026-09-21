@@ -2,7 +2,7 @@
 
 ClawBio is local-first. This page says exactly what that means, skill by skill,
 so that an institution can decide which skills it may run on data it is
-responsible for. It was written against `main` on 2026-09-04 by reading the
+responsible for. It was written against `main` on 2026-09-04, and updated on 2026-09-21 when the archive-fetch skills landed, by reading the
 code, not the descriptions. `tests/test_data_handling_doc.py` scans every skill
 for outbound-call code and fails if a networked skill is missing from this page,
 so the list cannot silently fall behind the code.
@@ -91,6 +91,10 @@ cache them locally where noted.
 | `busco-assessor` | eutils.ncbi.nlm.nih.gov, ftp.ensemblgenomes.org | Taxonomy lookups and BUSCO lineage datasets. | `NCBI_API_KEY` (optional) |
 | `deepspot-m` | huggingface.co | Model weights on first use. Inference is local. | none |
 | `proteomics-clock` | raw.githubusercontent.com | Published coefficient tables, cached under `CLAWBIO_CACHE`. | none |
+| `biostudies-fetch` | www.ebi.ac.uk (BioStudies API, BioSamples), ftp.ebi.ac.uk | The accession or search phrase you typed. `--command download` fetches the study's attached files from the FTP host the API advertises. | none |
+| `ena-fetch` | www.ebi.ac.uk (ENA Portal + Browser), ftp.sra.ebi.ac.uk | The accession or Portal query you typed. `--command download` fetches FASTQ or submitted files. `--command download-script` only writes a script; `--run`/`--submit` execute it and are off by default. | none |
+| `geo-fetch` | eutils.ncbi.nlm.nih.gov, ftp.ncbi.nlm.nih.gov, www.ebi.ac.uk (ENA Portal) | The accession or search phrase you typed. GEO series are resolved to their SRA project and then to ENA for FASTQ links. `--command download` fetches series matrix / SOFT / MINiML / supplementary files. | `NCBI_EMAIL`, `NCBI_API_KEY` — read from the environment but **only sent with `--use-ncbi-credentials`**; presence of the variable is not consent |
+| `pride-fetch` | www.ebi.ac.uk (PRIDE API), ftp.pride.ebi.ac.uk | The accession or keyword you typed. `--command download` fetches project files, and a submitter SDRF is read from the FTP host. `--command download-script` only writes a script. | none |
 | `nfcore-rnaseq-wrapper`, `nfcore-sarek-wrapper`, `nfcore-scrnaseq-wrapper` | nf-co.re, github.com, and the container registries the pipeline declares | Nextflow pulls the pinned pipeline and its containers. Your samples stay in the local work directory. Set `NXF_OFFLINE=true` with pre-pulled assets to forbid all of it. | none (Sentieon licence variables for that sarek path only) |
 
 ## Class 5: the RoboTerri bot
