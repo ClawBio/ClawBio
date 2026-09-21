@@ -1,0 +1,119 @@
+{
+  "purpose": "Offline numerical parity fixture for the defined entries of cumulative cluster co-occurrence.",
+  "generated_with": {
+    "python": "3.12.13",
+    "squidpy": "1.6.0",
+    "anndata": "0.10.9",
+    "scanpy": "1.10.4",
+    "command": "uv run --no-project --python 3.12 --with 'squidpy==1.6.0' --with 'anndata==0.10.9' --with 'scanpy==1.10.4' python skills/spatial-transcriptomics/fixtures/generate_squidpy_v1_6_fixture.py"
+  },
+  "coordinates": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      1.0,
+      0.0
+    ],
+    [
+      4.0,
+      0.0
+    ]
+  ],
+  "labels": [
+    "A",
+    "B",
+    "B"
+  ],
+  "clusters": [
+    "A",
+    "B"
+  ],
+  "squidpy_interval": [
+    0.0,
+    1.1,
+    5.0
+  ],
+  "radii": [
+    1.1,
+    5.0
+  ],
+  "axis_order": [
+    "source_cluster",
+    "target_cluster",
+    "radius"
+  ],
+  "scores": [
+    [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        2.0,
+        1.5
+      ]
+    ],
+    [
+      [
+        2.0,
+        1.5
+      ],
+      [
+        0.0,
+        0.75
+      ]
+    ]
+  ],
+  "moran_and_nhood": {
+    "knn_indices": [
+      [
+        1,
+        2
+      ],
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "values": [
+      1.0,
+      3.0,
+      2.0,
+      7.0
+    ],
+    "labels": [
+      "A",
+      "B",
+      "B",
+      "B"
+    ],
+    "moran_i": -0.13855421686746988,
+    "nhood_clusters": [
+      "A",
+      "B"
+    ],
+    "nhood_observed_counts": [
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        5
+      ]
+    ],
+    "nhood_permutations": 50,
+    "nhood_seed": 7,
+    "note": "Only observed counts are parity targets. Squidpy and this skill use different RNG/permutation implementations, so z-scores are not claimed bitwise equivalent."
+  }
+}

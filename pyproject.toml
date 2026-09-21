@@ -84,6 +84,15 @@ cell-detection = [
     "tifffile>=2024.8.30",
     "scikit-image>=0.24",
 ]
+# Scanpy/Leiden for skills/spatial-transcriptomics. Squidpy is not on this
+# extra: 1.4–1.6 all pull spatialdata + dask + s3fs into `uv sync --all-extras`
+# for every CI job. Spatial statistics (Moran's I, neighbourhood enrichment,
+# co-occurrence) are implemented in the skill against the same estimators
+# Squidpy documents, so the analysis does not need that stack.
+spatial = [
+    "scanpy>=1.10",
+    "leidenalg>=0.10",
+]
 
 [tool.uv]
 # glimix-core (a hard dependency of sushie) requires liknorm, and liknorm 2.0.0
