@@ -5,7 +5,7 @@ This module ONLY reads from <outdir>/.  It performs no IO writes, no
 downstream handoff, and no provenance bookkeeping.  Callers should treat
 the resulting :class:`OutputsReport` as immutable.
 
-Implements the file layout documented in CLAUDE.md / instructions, derived
+Implements the file layout documented in AGENTS.md / instructions, derived
 from the official nf-core/sarek 3.8.1 output spec.
 """
 

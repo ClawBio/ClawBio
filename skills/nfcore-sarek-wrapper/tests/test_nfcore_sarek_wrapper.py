@@ -566,7 +566,7 @@ def test_work_dir_override_object_store_uri_preserved(module, tmp_path):
 
 
 def test_flag_surface_counts_match_docs(module):
-    # Locks the numbers cited in README.md / CLAUDE.md / SKILL.md so they cannot
+    # Locks the numbers cited in README.md / AGENTS.md / SKILL.md so they cannot
     # silently drift: 154 Sarek passthrough params + 23 wrapper-only controls
     # = 177 user-facing flags (excluding the auto-generated -h/--help).
     # (Homogenization added --timeout-hours, --allow-pipeline-version-override,
