@@ -121,7 +121,7 @@
   </nav>
   <a href="https://luma.com/clawbio" target="_blank" rel="noopener noreferrer" aria-label="Follow the ClawBio events calendar on Luma" style="display:block;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;text-align:center;padding:0.8rem 1rem;font-size:0.98rem;font-weight:700;text-decoration:none;">📅 Join the ClawBio community: follow the official calendar for hackathons, workshops, meetups and new events &rarr;</a>
   <section class="hero">
-    <div class="hero-badge">📊 Publicly benchmarked · 1,141 stars · 97 skills · 50 contributors · 5,040 tests</div>
+    <div class="hero-badge">📊 Publicly benchmarked · 1,141 stars · 97 skills · 50 contributors · 5,127 tests</div>
     <h1>The first <em>bioinformatics-native</em><br>AI agent skill library</h1>
     <p>ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call.</p>
     <div style="max-width:440px;margin:0 auto 2rem;">
@@ -269,7 +269,7 @@ clawbio run pharmgx --demo</pre>
   <section id="skills" style="background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
     <div class="section-inner">
       <div class="section-label">Skills Library</div>
-      <div class="section-title">97 skills · 92 with runnable demo data · 5,040 tests · 161 / 182 publicly benchmarked passing</div>
+      <div class="section-title">97 skills · 92 with runnable demo data · 5,127 tests · 161 / 182 publicly benchmarked passing</div>
       <p class="section-sub">Each skill includes demo data so you can try it immediately without your own files.</p>
       <div class="skills-grid">
         <div class="skill-card"><div><div class="skill-name">💊 PharmGx Reporter</div><div class="skill-desc">Pharmacogenomic report from 23andMe/AncestryDNA: 12 genes, 31 SNPs, 51 drugs, CPIC guidelines.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
@@ -277,15 +277,8 @@ clawbio run pharmgx --demo</pre>
         <div class="skill-card"><div><div class="skill-name">🔍 GWAS Lookup</div><div class="skill-desc">Federated variant lookup across 9 genomic databases: GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, eQTL Catalogue, and more.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
         <div class="skill-card"><div><div class="skill-name">📊 GWAS Polygenic Risk</div><div class="skill-desc">Calculate polygenic risk scores from DTC genetic data using curated PGS Catalog scores across 6 traits.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
         <div class="skill-card"><div><div class="skill-name">⚖️ Equity Scorer</div><div class="skill-desc">Compute HEIM diversity and equity metrics from VCF or ancestry data: heterozygosity, FST, and population representation scores.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
-        <div class="skill-card"><div><div class="skill-name">🌍 Ancestry PCA</div><div class="skill-desc">Ancestry decomposition PCA against the Simons Genome Diversity Project: 345 samples, 164 populations, confidence ellipses.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
-        <div class="skill-card"><div><div class="skill-name">🔬 scRNA Orchestrator</div><div class="skill-desc">Local Scanpy pipeline for single-cell RNA-seq: QC, optional doublet detection, clustering, marker detection, and annotation.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
-        <div class="skill-card"><div><div class="skill-name">🧮 RNA-seq DE</div><div class="skill-desc">Differential expression analysis for bulk RNA-seq and pseudo-bulk count matrices, with rich visualisation outputs.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
-        <div class="skill-card"><div><div class="skill-name">🤖 Bio Orchestrator</div><div class="skill-desc">Meta-agent that routes bioinformatics requests to specialised sub-skills: intent classification, file-type detection, multi-step pipelines.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
-        <div class="skill-card"><div><div class="skill-name">🏥 UKB Navigator</div><div class="skill-desc">Semantic search across UK Biobank's 12,000+ data fields and publications: find field IDs, data types, participant counts, and linked studies.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
-        <div class="skill-card"><div><div class="skill-name">🔭 Galaxy Bridge</div><div class="skill-desc">Galaxy tool discovery, recommendation, and execution: 8,000+ bioinformatics tools via the Galaxy API, with cross-platform chaining.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
-        <div class="skill-card"><div><div class="skill-name">🦠 Metagenomics</div><div class="skill-desc">Shotgun metagenomics profiling: taxonomy classification, resistome detection, and functional pathway analysis.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
       </div>
-      <p style="color:var(--text-muted);margin-top:1.5rem;font-size:0.95rem;">+ 85 more skills on <a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">GitHub</a> · <a href="/benchmarks.html" style="color:var(--accent2);">see which ones are publicly benchmarked &rarr;</a></p>
+      <p style="color:var(--text-muted);margin-top:1.5rem;font-size:0.95rem;">+ 92 more skills on <a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">GitHub</a> · <a href="/benchmarks.html" style="color:var(--accent2);">see which ones are publicly benchmarked &rarr;</a></p>
     </div>
   </section>
   <section id="showcase">
@@ -436,27 +429,6 @@ clawbio run pharmgx --demo</pre>
           <div>
             <div style="font-weight:600;font-size:0.95rem;"><strong>fix: parse BOM-prefixed genetic exports.</strong> Genetic export files with a UTF-8 BOM prefix (common in Windows-generated 23andMe and AncestryDNA exports) are now correctly parsed, removing a silent data-loss bug that caused the first variant to be dropped or misread. Contributed by @krudo-taco.</div>
             <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #441 · merged · 16 September 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🌿</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>phylogenetics-builder: keep the alignments produced by the pipeline.</strong> The phylogenetics-builder skill now retains the intermediate alignment files in the output directory, allowing users to inspect and reuse the multiple sequence alignment that IQ-TREE processed. Contributed by @drdaviddelorenzo.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #439 · merged · 16 September 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🧬</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>bio-orchestrator: route population-genetics statistics and alignment NEXUS files to dnasp.</strong> The bio-orchestrator now routes population-genetics statistics queries and NEXUS alignment files to the dnasp skill, expanding its vocabulary for evolutionary and sequence-analysis requests. Contributed by @drdaviddelorenzo.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #438 · merged · 16 September 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🧬</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>dnasp: v0.5.2 - DnaSP 6.12.03 validation fixes and result.json envelope.</strong> The dnasp skill received targeted validation fixes matching DnaSP 6.12.03 outputs and now wraps all results in a structured result.json envelope for downstream consumption. Contributed by @drdaviddelorenzo.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #437 · merged · 16 September 2026</div>
           </div>
         </div>
       </div>
