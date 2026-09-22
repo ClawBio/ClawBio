@@ -229,7 +229,7 @@ The skill returns harmonised GWAS summary statistics (β, SE, p-value, EAF) for 
 - **NOT make causal claims directly from a single GWAS p-value.** Association is not causation. Causal interpretation requires colocalisation or MR analysis with proper instrumental-variable assumptions.
 - **NOT cherry-pick variants by p-value alone.** Statistical inference requires the full window context (credible set, posterior inclusion probabilities, joint conditional analyses).
 - **NOT compare effect sizes across studies without harmonising effect alleles.** Cross-study comparison requires a step like TwoSampleMR's `harmonise_data`. Sign-flip risk is real for swapped alleles and palindromic ambiguity.
-- **Surface the GCST id, trait label, sample size (cases / controls if binary, total N if continuous), ancestry, and consortium (when present)** alongside any β / p-value the agent quotes. Per the user-friendly enum-expansion rule (`CLAUDE.md`), expand each field: `study GCST90269602; trait cholesterol in medium VLDL; ancestry European; N=44,000` (not just `GCST90269602`).
+- **Surface the GCST id, trait label, sample size (cases / controls if binary, total N if continuous), ancestry, and consortium (when present)** alongside any β / p-value the agent quotes. Per the user-friendly enum-expansion rule (`AGENTS.md`), expand each field: `study GCST90269602; trait cholesterol in medium VLDL; ancestry European; N=44,000` (not just `GCST90269602`).
 - **NOT report a binary-trait OR (odds ratio) as if it were a continuous-trait β.** The harmonised file's `hm_beta` for binary traits is log(OR); the manifest carries the trait type so the agent can disambiguate.
 
 ## Citations

@@ -158,7 +158,7 @@ Report PASS/FAIL for each. Fix any failures before proceeding.
 
 ## Step 10: Update Routing Table
 
-Add the new skill to the ClawBio CLAUDE.md routing table:
+Add the new skill to the ClawBio AGENTS.md routing table:
 - Add a row to the `## Skill Routing Table` with user intent phrases, skill path, and action
 - Add CLI reference to the `## CLI Reference` section
 - Add demo data to the `## Demo Data` table
