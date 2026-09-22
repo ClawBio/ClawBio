@@ -16,6 +16,18 @@ DATA_DIR = SKILL_DIR / "data"
 DEMO_FILE = DATA_DIR / "demo_patient_south_asian.txt"
 
 
+@pytest.fixture
+def informative_panel():
+    """Thirty artificial loci for testing mechanics, not ancestry validation."""
+    return {
+        f"rs_test_{i:02d}": {
+            "ref": "A", "alt": "G", "AFR": 0.01, "AMR": 0.50,
+            "EAS": 0.01, "EUR": 0.95, "SAS": 0.99,
+        }
+        for i in range(30)
+    }
+
+
 # ---------------------------------------------------------------------------
 # TestGenotypeParser — integration tests for clawbio.common.parsers usage
 # (unit tests for parsing behaviour live in the common module's own test suite)
@@ -56,15 +68,16 @@ class TestAncestryInference:
         for pop in ("AFR", "AMR", "EAS", "EUR", "SAS"):
             assert pop in first
 
-    def test_infer_ancestry_sas(self):
-        genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
-        result = arp.infer_ancestry(genotypes, self.panel)
+    def test_synthetic_panel_likelihood_prefers_sas(self, informative_panel):
+        genotypes = {rsid: "GG" for rsid in informative_panel}
+        result = arp.infer_ancestry(genotypes, informative_panel)
         assert result["inferred_ancestry"] == "SAS"
         assert result["confidence"] in ("high", "medium", "low")
+        assert result["aisnp_coverage"] == 30
 
-    def test_infer_ancestry_returns_all_scores(self):
-        genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
-        result = arp.infer_ancestry(genotypes, self.panel)
+    def test_infer_ancestry_returns_all_scores(self, informative_panel):
+        genotypes = {rsid: "GG" for rsid in informative_panel}
+        result = arp.infer_ancestry(genotypes, informative_panel)
         for pop in ("AFR", "AMR", "EAS", "EUR", "SAS"):
             assert pop in result["scores"]
 
@@ -91,23 +104,21 @@ class TestAncestryInference:
         with pytest.raises(arp.InsufficientCoverageError):
             arp.infer_ancestry({}, self.panel)
 
-    def test_infer_ancestry_raises_below_min_coverage(self):
-        """Fewer than MIN_AIM_COVERAGE *informative* hits must raise."""
-        aim_rsids = [rsid for rsid, info in self.panel.items() if arp.is_aim(info)]
-        sparse_genotypes = {rsid: "AG" for rsid in aim_rsids[: arp.MIN_AIM_COVERAGE - 1]}
+    def test_infer_ancestry_raises_below_min_coverage(self, informative_panel):
+        """Pin 29 independently of the implementation's minimum-count constant."""
+        sparse_genotypes = {rsid: "GG" for rsid in list(informative_panel)[:29]}
         with pytest.raises(arp.InsufficientCoverageError) as exc_info:
-            arp.infer_ancestry(sparse_genotypes, self.panel)
-        assert str(arp.MIN_AIM_COVERAGE - 1) in str(exc_info.value)
+            arp.infer_ancestry(sparse_genotypes, informative_panel)
+        assert "Only 29 ancestry-informative" in str(exc_info.value)
         assert "--ancestry" in str(exc_info.value)
         assert "Fst" in str(exc_info.value)
 
-    def test_infer_ancestry_low_confidence_still_runs_with_enough_coverage(self):
-        """With >= MIN_AIM_COVERAGE informative hits but ambiguous signal, return confidence=low."""
-        aim_rsids = [rsid for rsid, info in self.panel.items() if arp.is_aim(info)]
-        enough_genotypes = {rsid: "AG" for rsid in aim_rsids}
-        result = arp.infer_ancestry(enough_genotypes, self.panel)
-        assert result["inferred_ancestry"] in ("AFR", "AMR", "EAS", "EUR", "SAS")
-        assert result["aisnp_coverage"] >= arp.MIN_AIM_COVERAGE
+    def test_infer_ancestry_low_confidence_still_runs_with_enough_coverage(self, informative_panel):
+        """With 30 informative hits but a small likelihood gap, return confidence=low."""
+        enough_genotypes = {rsid: "GG" for rsid in informative_panel}
+        result = arp.infer_ancestry(enough_genotypes, informative_panel)
+        assert result["confidence"] == "low"
+        assert result["aisnp_coverage"] == 30
 
     def test_override_bypasses_coverage_check(self, tmp_path):
         """--ancestry override must work even with zero AISNP coverage."""
@@ -206,11 +217,33 @@ class TestRiskScoring:
 
 
 class TestReportGeneration:
+    def test_report_describes_low_fst_likelihood_hits(self, informative_panel, tmp_path):
+        panel = {
+            **informative_panel,
+            "rs_weak": {"ref": "A", "alt": "G", **dict.fromkeys(arp.SUPERPOPULATIONS, 0.4)},
+        }
+        result = arp.infer_ancestry({rsid: "GG" for rsid in panel}, panel)
+        arp.generate_report([], result, tmp_path)
+        report = (tmp_path / "ancestry_risk_report.md").read_text()
+        data = json.loads((tmp_path / "ancestry_risk_result.json").read_text())
+        assert data["aisnp_coverage"] == 30
+        assert data["aisnp_low_fst_hits"] == 1
+        assert "all matched panel SNPs" in report
+        assert "excluded from coverage" in report
+        assert "ignored" not in report
+
+    def test_override_report_does_not_claim_ancestry_inference(self, tmp_path):
+        result = arp.infer_ancestry({}, {}, ancestry_override="SAS")
+        arp.generate_report([], result, tmp_path)
+        report = (tmp_path / "ancestry_risk_report.md").read_text()
+        assert "No ancestry inference was performed" in report
+        assert "## 1. Inferred" not in report
+
     def test_generate_report_creates_markdown(self, tmp_path):
         genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
         panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
         associations = arp.load_associations(DATA_DIR / "ancestry_risk_associations.json")
-        ancestry_result = arp.infer_ancestry(genotypes, panel)
+        ancestry_result = arp.infer_ancestry(genotypes, panel, ancestry_override="SAS")
         risks = arp.compute_disease_risks(genotypes, ancestry_result["inferred_ancestry"], associations)
         arp.generate_report(risks, ancestry_result, tmp_path)
         assert (tmp_path / "ancestry_risk_report.md").exists()
@@ -219,7 +252,7 @@ class TestReportGeneration:
         genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
         panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
         associations = arp.load_associations(DATA_DIR / "ancestry_risk_associations.json")
-        ancestry_result = arp.infer_ancestry(genotypes, panel)
+        ancestry_result = arp.infer_ancestry(genotypes, panel, ancestry_override="SAS")
         risks = arp.compute_disease_risks(genotypes, ancestry_result["inferred_ancestry"], associations)
         arp.generate_report(risks, ancestry_result, tmp_path)
         text = (tmp_path / "ancestry_risk_report.md").read_text()
@@ -229,7 +262,7 @@ class TestReportGeneration:
         genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
         panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
         associations = arp.load_associations(DATA_DIR / "ancestry_risk_associations.json")
-        ancestry_result = arp.infer_ancestry(genotypes, panel)
+        ancestry_result = arp.infer_ancestry(genotypes, panel, ancestry_override="SAS")
         risks = arp.compute_disease_risks(genotypes, ancestry_result["inferred_ancestry"], associations)
         arp.generate_report(risks, ancestry_result, tmp_path)
         text = (tmp_path / "ancestry_risk_report.md").read_text()
@@ -239,7 +272,7 @@ class TestReportGeneration:
         genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
         panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
         associations = arp.load_associations(DATA_DIR / "ancestry_risk_associations.json")
-        ancestry_result = arp.infer_ancestry(genotypes, panel)
+        ancestry_result = arp.infer_ancestry(genotypes, panel, ancestry_override="SAS")
         risks = arp.compute_disease_risks(genotypes, ancestry_result["inferred_ancestry"], associations)
         arp.generate_report(risks, ancestry_result, tmp_path)
         assert (tmp_path / "figures").is_dir()
@@ -248,7 +281,7 @@ class TestReportGeneration:
         genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
         panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
         associations = arp.load_associations(DATA_DIR / "ancestry_risk_associations.json")
-        ancestry_result = arp.infer_ancestry(genotypes, panel)
+        ancestry_result = arp.infer_ancestry(genotypes, panel, ancestry_override="SAS")
         risks = arp.compute_disease_risks(genotypes, ancestry_result["inferred_ancestry"], associations)
         arp.generate_report(risks, ancestry_result, tmp_path)
         assert (tmp_path / "ancestry_risk_result.json").exists()
@@ -261,7 +294,7 @@ class TestReportGeneration:
         genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
         panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
         associations = arp.load_associations(DATA_DIR / "ancestry_risk_associations.json")
-        ancestry_result = arp.infer_ancestry(genotypes, panel)
+        ancestry_result = arp.infer_ancestry(genotypes, panel, ancestry_override="SAS")
         risks = arp.compute_disease_risks(genotypes, ancestry_result["inferred_ancestry"], associations)
         arp.generate_report(risks, ancestry_result, tmp_path)
         text = (tmp_path / "ancestry_risk_report.md").read_text()
@@ -274,7 +307,7 @@ class TestReportGeneration:
         genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
         panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
         associations = arp.load_associations(DATA_DIR / "ancestry_risk_associations.json")
-        ancestry_result = arp.infer_ancestry(genotypes, panel)
+        ancestry_result = arp.infer_ancestry(genotypes, panel, ancestry_override="SAS")
         risks = arp.compute_disease_risks(genotypes, ancestry_result["inferred_ancestry"], associations)
         arp.generate_report(risks, ancestry_result, tmp_path)
         text = (tmp_path / "ancestry_risk_report.md").read_text()
@@ -285,7 +318,7 @@ class TestReportGeneration:
         genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
         panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
         associations = arp.load_associations(DATA_DIR / "ancestry_risk_associations.json")
-        ancestry_result = arp.infer_ancestry(genotypes, panel)
+        ancestry_result = arp.infer_ancestry(genotypes, panel, ancestry_override="SAS")
         risks = arp.compute_disease_risks(genotypes, ancestry_result["inferred_ancestry"], associations)
         arp.generate_report(risks, ancestry_result, tmp_path)
         text = (tmp_path / "ancestry_risk_report.md").read_text()
@@ -296,7 +329,7 @@ class TestReportGeneration:
         genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
         panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
         associations = arp.load_associations(DATA_DIR / "ancestry_risk_associations.json")
-        ancestry_result = arp.infer_ancestry(genotypes, panel)
+        ancestry_result = arp.infer_ancestry(genotypes, panel, ancestry_override="SAS")
         risks = arp.compute_disease_risks(genotypes, ancestry_result["inferred_ancestry"], associations)
         arp.generate_report(risks, ancestry_result, tmp_path)
         text = (tmp_path / "ancestry_risk_report.md").read_text()
@@ -320,21 +353,21 @@ class TestAncestryPosterior:
     def setup_method(self):
         self.panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
 
-    def test_infer_ancestry_returns_posterior_key(self):
+    def test_infer_ancestry_returns_posterior_key(self, informative_panel):
         """infer_ancestry result must include a 'posterior' probability distribution."""
-        genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
-        result = arp.infer_ancestry(genotypes, self.panel)
+        genotypes = {rsid: "GG" for rsid in informative_panel}
+        result = arp.infer_ancestry(genotypes, informative_panel)
         assert "posterior" in result, "Result must include 'posterior' key"
 
-    def test_posterior_covers_all_superpopulations(self):
-        genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
-        result = arp.infer_ancestry(genotypes, self.panel)
+    def test_posterior_covers_all_superpopulations(self, informative_panel):
+        genotypes = {rsid: "GG" for rsid in informative_panel}
+        result = arp.infer_ancestry(genotypes, informative_panel)
         for pop in ("AFR", "AMR", "EAS", "EUR", "SAS"):
             assert pop in result["posterior"], f"Missing {pop} in posterior"
 
-    def test_posterior_sums_to_one(self):
-        genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
-        result = arp.infer_ancestry(genotypes, self.panel)
+    def test_posterior_sums_to_one(self, informative_panel):
+        genotypes = {rsid: "GG" for rsid in informative_panel}
+        result = arp.infer_ancestry(genotypes, informative_panel)
         total = sum(result["posterior"].values())
         assert abs(total - 1.0) < 0.01, f"Posterior must sum to 1.0, got {total}"
 
@@ -346,15 +379,11 @@ class TestAncestryPosterior:
         for pop in ("AFR", "AMR", "EUR", "SAS"):
             assert result["posterior"][pop] == 0.0
 
-    def test_low_confidence_report_includes_posterior_table(self, tmp_path):
+    def test_low_confidence_report_includes_posterior_table(self, tmp_path, informative_panel):
         """When confidence is low, the markdown report must display the posterior distribution."""
-        aim_rsids = [rsid for rsid, info in self.panel.items() if arp.is_aim(info)]
-        # Heterozygous AG at informative positions creates ambiguous, low-gap likelihoods
-        ambiguous_genotypes = {rsid: "AG" for rsid in aim_rsids}
-        ancestry_result = arp.infer_ancestry(ambiguous_genotypes, self.panel)
-
-        if ancestry_result["confidence"] != "low":
-            pytest.skip("Input did not produce a low-confidence result.")
+        ambiguous_genotypes = {rsid: "GG" for rsid in informative_panel}
+        ancestry_result = arp.infer_ancestry(ambiguous_genotypes, informative_panel)
+        assert ancestry_result["confidence"] == "low"
 
         associations = arp.load_associations(DATA_DIR / "ancestry_risk_associations.json")
         risks = arp.compute_disease_risks(
@@ -435,7 +464,7 @@ class TestNVariants:
         that a high combined OR is a product of N independent ORs, not a validated aggregate."""
         genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
         panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
-        ancestry_result = arp.infer_ancestry(genotypes, panel)
+        ancestry_result = arp.infer_ancestry(genotypes, panel, ancestry_override="SAS")
         risks = arp.compute_disease_risks(genotypes, ancestry_result["inferred_ancestry"], self.associations)
         arp.generate_report(risks, ancestry_result, tmp_path)
         text = (tmp_path / "ancestry_risk_report.md").read_text()
@@ -445,23 +474,44 @@ class TestNVariants:
 
 
 class TestDemoMode:
+    @pytest.mark.parametrize("input_args", [["--demo"], ["--input", str(DEMO_FILE)]])
+    def test_cli_abstains_without_explicit_ancestry(self, tmp_path, capsys, input_args):
+        with pytest.raises(SystemExit) as exc_info:
+            arp.main([*input_args, "--output", str(tmp_path)])
+        assert exc_info.value.code == 1
+        assert "Only 5 ancestry-informative" in capsys.readouterr().err
+        assert not (tmp_path / "ancestry_risk_report.md").exists()
+        assert not (tmp_path / "ancestry_risk_result.json").exists()
+
+    @pytest.mark.parametrize("ancestry", ["SAS", "EUR"])
+    def test_demo_cli_uses_explicit_ancestry(self, tmp_path, capsys, ancestry):
+        arp.main(["--demo", "--ancestry", ancestry, "--output", str(tmp_path)])
+        result = json.loads((tmp_path / "ancestry_risk_result.json").read_text())
+        report = (tmp_path / "ancestry_risk_report.md").read_text()
+        assert result["inferred_ancestry"] == ancestry
+        assert result["overridden"] is True
+        assert result["confidence"] == "user-supplied"
+        assert result["risks"]
+        assert "user-supplied" in report
+        assert "Inferred genetic super-population:" not in capsys.readouterr().out
+
     def test_demo_runs_without_input_file(self, tmp_path):
-        arp.run_demo(tmp_path)
+        arp.run_demo(tmp_path, ancestry_override="SAS")
         assert (tmp_path / "ancestry_risk_report.md").exists()
 
     def test_demo_report_mentions_t2d(self, tmp_path):
-        arp.run_demo(tmp_path)
+        arp.run_demo(tmp_path, ancestry_override="SAS")
         text = (tmp_path / "ancestry_risk_report.md").read_text()
         assert "Diabetes" in text
 
     def test_demo_report_has_or_values(self, tmp_path):
-        arp.run_demo(tmp_path)
+        arp.run_demo(tmp_path, ancestry_override="SAS")
         text = (tmp_path / "ancestry_risk_report.md").read_text()
         assert "OR" in text
 
     def test_demo_report_has_no_absolute_risk_percentages(self, tmp_path):
         """Demo report must not show inflated absolute lifetime risk %% values."""
-        arp.run_demo(tmp_path)
+        arp.run_demo(tmp_path, ancestry_override="SAS")
         text = (tmp_path / "ancestry_risk_report.md").read_text()
         # Should not have lines like "61.3%" as a lifetime risk claim
         assert "Est. Lifetime Risk" not in text
@@ -577,18 +627,15 @@ class TestSoftPosteriorGating:
             f"Abstention note must explain why scoring was skipped. Got: {note!r}"
         )
 
-    def test_proceeds_with_note_when_low_confidence_above_threshold(self):
+    def test_proceeds_with_note_when_low_confidence_above_threshold(self, informative_panel):
         """When confidence is 'low' but top posterior >= LOW_POSTERIOR_ABSTAIN (0.35),
         _get_risks_with_confidence_gating must run scoring AND return a caveat note."""
         genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
-        ancestry_result = arp.infer_ancestry(genotypes, self.panel)
-
-        if ancestry_result["confidence"] != "low":
-            pytest.skip("Demo patient did not produce a low-confidence result.")
-
+        genotypes.update({rsid: "GG" for rsid in informative_panel})
+        ancestry_result = arp.infer_ancestry(genotypes, informative_panel)
+        assert ancestry_result["confidence"] == "low"
         top_posterior = max(ancestry_result["posterior"].values())
-        if top_posterior < arp.LOW_POSTERIOR_ABSTAIN:
-            pytest.skip(f"Demo patient top posterior {top_posterior:.2f} < abstain threshold.")
+        assert top_posterior > 0.35
 
         risks, note = arp._get_risks_with_confidence_gating(genotypes, ancestry_result, self.associations)
         assert len(risks) > 0, (
@@ -855,6 +902,37 @@ class TestAimFstGate:
     def setup_method(self):
         self.panel = arp.load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
 
+    @pytest.mark.parametrize("genotypes", [
+        {"rs1426654": "GA", "rs16891982": "CG", "rs4988235": "CT", "rs3827760": "CA"},
+        {"rs1426654": "AA", "rs16891982": "GG", "rs4988235": "TT", "rs3827760": "CC"},
+    ], ids=["heterozygous-overcall", "eur-overcall"])
+    def test_four_real_aims_cannot_produce_an_ancestry_label(self, genotypes):
+        """The review's four-marker counterexamples must abstain, even at high posterior."""
+        with pytest.raises(arp.InsufficientCoverageError, match="Only 4 ancestry-informative"):
+            arp.infer_ancestry(genotypes, self.panel)
+
+    def test_five_real_aims_with_padding_still_abstain(self):
+        """Even every shipped panel row provides only five qualifying markers."""
+        genotypes = {rsid: info["ref"] + info["alt"] for rsid, info in self.panel.items()}
+        with pytest.raises(arp.InsufficientCoverageError, match="Only 5 ancestry-informative"):
+            arp.infer_ancestry(genotypes, self.panel)
+
+    def test_low_fst_hits_affect_likelihood_not_coverage(self, informative_panel):
+        genotypes = {rsid: "GG" for rsid in informative_panel}
+        without_weak_marker = arp.infer_ancestry(genotypes, informative_panel)
+        panel = {
+            **informative_panel,
+            "rs_weak": {
+                "ref": "A", "alt": "G", "AFR": 0.40, "AMR": 0.41,
+                "EAS": 0.39, "EUR": 0.40, "SAS": 0.42,
+            },
+        }
+        result = arp.infer_ancestry({**genotypes, "rs_weak": "AG"}, panel)
+        assert result["aisnp_coverage"] == 30
+        assert result["aisnp_low_fst_hits"] == 1
+        # At EUR frequency 0.4, the heterozygote likelihood is 2 * 0.4 * 0.6 = 0.48.
+        assert result["scores"]["EUR"] - without_weak_marker["scores"]["EUR"] == pytest.approx(math.log(0.48))
+
     def test_wright_fst_is_zero_when_frequencies_are_equal(self):
         assert arp.wright_fst([0.4, 0.4, 0.4, 0.4, 0.4]) == 0.0
 
@@ -868,24 +946,18 @@ class TestAimFstGate:
         assert fst >= arp.MIN_AIM_FST
         assert fst == pytest.approx(0.7214, abs=0.001)
 
-    def test_shipped_panel_has_enough_aims_for_the_coverage_gate(self):
-        n_aim = sum(1 for info in self.panel.values() if arp.is_aim(info))
-        assert n_aim >= arp.MIN_AIM_COVERAGE, (
-            f"Shipped panel has {n_aim} markers with Wright Fst >= {arp.MIN_AIM_FST}; "
-            f"need at least {arp.MIN_AIM_COVERAGE} or the demo cannot infer ancestry."
-        )
+    def test_shipped_panel_has_only_five_qualifying_aims(self):
+        aims = {rsid for rsid, info in self.panel.items() if arp.is_aim(info)}
+        assert aims == {"rs1426654", "rs2814778", "rs16891982", "rs3827760", "rs4988235"}
 
-    def test_coverage_counts_only_markers_above_the_fst_floor(self):
-        """Property test, not an rsID blocklist: every counted marker is an AIM."""
-        genotypes = {
-            rsid: "AG" for rsid, info in self.panel.items() if arp.is_aim(info)
-        }
-        result = arp.infer_ancestry(genotypes, self.panel)
-        assert result["aisnp_coverage"] == len(genotypes)
-        assert result["aim_fst_floor"] == arp.MIN_AIM_FST
-        for rsid, info in self.panel.items():
-            if rsid in genotypes:
-                assert arp.marker_fst(info) >= arp.MIN_AIM_FST
+    def test_coverage_counts_only_markers_above_the_fst_floor(self, informative_panel):
+        """Thirty artificial AIMs plus all 72 real rows count as 35, not 102."""
+        panel = {**informative_panel, **self.panel}
+        genotypes = {rsid: info["ref"] + info["alt"] for rsid, info in panel.items()}
+        result = arp.infer_ancestry(genotypes, panel)
+        assert result["aisnp_coverage"] == 35
+        assert result["aisnp_low_fst_hits"] == 67
+        assert result["aim_fst_floor"] == 0.3
 
     def test_low_fst_panel_snps_do_not_count_toward_coverage(self):
         """#313 AIM-panel Fst gate: 30 near-zero-Fst SNPs must not clear the gate."""
@@ -908,7 +980,7 @@ class TestAimFstGate:
             arp.infer_ancestry(genotypes, low_fst_panel)
         message = str(exc_info.value)
         assert "Only 0 ancestry-informative" in message
-        assert "30 panel SNP(s) were ignored" in message
+        assert "30 matched panel SNP(s) are below the Fst floor" in message
 
     def test_one_aim_among_padding_counts_as_one_not_thirty_one(self):
         """A single real AIM plus 30 near-zero-Fst SNPs is coverage=1, not 31."""
@@ -930,23 +1002,12 @@ class TestAimFstGate:
             arp.infer_ancestry(genotypes, panel)
         message = str(exc_info.value)
         assert "Only 1 ancestry-informative" in message
-        assert "30 panel SNP(s) were ignored" in message
+        assert "30 matched panel SNP(s) are below the Fst floor" in message
 
     def test_low_fst_hits_on_the_shipped_panel_are_reported_not_counted(self):
         """Demo file matches many disease SNPs; those must not inflate aisnp_coverage."""
         genotypes = genotypes_to_simple(parse_genetic_file(DEMO_FILE))
-        result = arp.infer_ancestry(genotypes, self.panel)
-        expected_aims = sum(
-            1
-            for rsid, info in self.panel.items()
-            if rsid in genotypes and arp.is_aim(info)
-        )
-        expected_low = sum(
-            1
-            for rsid, info in self.panel.items()
-            if rsid in genotypes and not arp.is_aim(info)
-        )
-        assert result["aisnp_coverage"] == expected_aims
-        assert result["aisnp_low_fst_hits"] == expected_low
-        assert expected_low > 0, "Demo should still carry low-Fst disease SNPs; they must be ignored, not deleted from the test."
-        assert expected_aims >= arp.MIN_AIM_COVERAGE
+        with pytest.raises(arp.InsufficientCoverageError) as exc_info:
+            arp.infer_ancestry(genotypes, self.panel)
+        assert "Only 5 ancestry-informative" in str(exc_info.value)
+        assert "54 matched panel SNP(s) are below the Fst floor" in str(exc_info.value)

@@ -437,7 +437,7 @@ For instant demos when the user has no data:
 | Sarek demo (upstream nf-core/sarek `-profile test` dataset, no local files) | `--demo` flag | nfcore-sarek-wrapper |
 | scRNA-seq demo (upstream nf-core/scrnaseq `-profile test` dataset, no local files) | `--demo` flag | nfcore-scrnaseq-wrapper |
 | Phylogenetics Builder demo FASTA (5 synthetic sequences, 50 bp) | `skills/phylogenetics-builder/demo_alignment.fasta` | phylogenetics-builder |
-| Ancestry risk demo patient (synthetic South Asian 23andMe, T2D/CAD/hypertension risk alleles; ancestry uses Fst ≥ 0.3 AIMs) | `--demo` flag | ancestry-risk-profiler |
+| Ancestry risk demo patient (synthetic South Asian 23andMe, T2D/CAD/hypertension risk alleles; use `--demo --ancestry SAS` because the bundled high-Fst AIM coverage is below the automatic-inference floor) | `--demo --ancestry SAS` | ancestry-risk-profiler |
 
 ### Demo Commands
 
@@ -565,10 +565,11 @@ python skills/fastreer/fastreer.py --command VCF2TREE \
 # Phylogenetics Builder demo
 python skills/phylogenetics-builder/phylogenetics_builder.py --demo --output /tmp/phylo_demo
 
-# Ancestry-Aware Disease Risk Profiler demo (South Asian synthetic patient)
-python skills/ancestry-risk-profiler/ancestry_risk_profiler.py --demo --output /tmp/ancestry_risk_demo
+# Ancestry-Aware Disease Risk Profiler demo (South Asian synthetic patient; user-supplied ancestry)
+python skills/ancestry-risk-profiler/ancestry_risk_profiler.py \
+  --demo --ancestry SAS --output /tmp/ancestry_risk_demo
 
-# Ancestry risk profiler — infer ancestry + lifetime disease risk %
+# Ancestry risk profiler — infer genetic super-population + ancestry-stratified disease signal
 python skills/ancestry-risk-profiler/ancestry_risk_profiler.py \
   --input <23andme_file.txt> --output <report_dir>
 python skills/ancestry-risk-profiler/ancestry_risk_profiler.py \

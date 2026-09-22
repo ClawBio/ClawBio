@@ -16,7 +16,7 @@ an ancestry-appropriate PGS Catalog score.
 Usage:
     python ancestry_risk_profiler.py --input <23andme_file> --output <dir>
     python ancestry_risk_profiler.py --input <23andme_file> --ancestry SAS --output <dir>
-    python ancestry_risk_profiler.py --demo --output /tmp/ancestry_risk_demo
+    python ancestry_risk_profiler.py --demo --ancestry SAS --output /tmp/ancestry_risk_demo
 """
 
 from __future__ import annotations
@@ -51,19 +51,16 @@ SUPERPOP_LABELS = {
 }
 
 # Minimum Wright Fst (equal-weighted across the five 1000G super-populations)
-# for a panel SNP to count as ancestry-informative. Nassir et al. 2009 and
-# Kosoy et al. 2009 designed AISNP panels around Fst > 0.3; this skill's own
-# PROVENANCE.md claims the same criterion. Markers below the floor add almost
-# no population signal and must not pad the coverage gate (#313).
+# for a panel SNP to count toward coverage, as proposed in #313. This is a
+# project screening rule, not a universally validated ancestry cutoff.
 MIN_AIM_FST = 0.3
 
 # Minimum number of *informative* (Fst >= MIN_AIM_FST) panel hits required
-# before ancestry inference is attempted. Kosoy et al. 2009 validated
-# continental assignment on panels of ancestry-informative markers, not on
-# an equal-sized mix of T2D/PGx SNPs. This panel currently ships five
-# markers at Fst >= 0.3; requiring four of them tolerates a single no-call
-# without letting low-Fst SNPs clear the gate.
-MIN_AIM_COVERAGE = 4
+# before ancestry inference is attempted. Preserve the existing conservative
+# count rather than lower it to fit the shipped panel's five qualifying SNPs.
+# This is an abstention policy, not evidence that 30 markers suffice or that
+# the posterior is calibrated. A smaller panel needs independent validation.
+MIN_AIM_COVERAGE = 30
 
 # AES display thresholds — for colouring only; not validated clinical cutoffs.
 _AES_DISPLAY_ELEVATED = 1.3
@@ -183,9 +180,9 @@ def infer_ancestry(
 
     Raises InsufficientCoverageError if fewer than MIN_AIM_COVERAGE
     ancestry-informative (Fst >= MIN_AIM_FST) panel markers are present and
-    no ancestry_override is provided. Low-Fst panel SNPs are ignored: they
-    do not enter the likelihood and they do not count toward the coverage
-    gate (#313).
+    no ancestry_override is provided. All matched panel SNPs enter the
+    likelihood, but only those meeting the Fst floor count toward the
+    coverage gate (#313). A high posterior cannot bypass this gate.
 
     Returns dict with inferred_ancestry, confidence, scores, overridden flag.
     """
@@ -211,13 +208,13 @@ def infer_ancestry(
     for rsid, info in panel.items():
         if rsid not in genotypes:
             continue
-        if not is_aim(info):
+        if is_aim(info):
+            hits += 1
+        else:
             low_fst_hits += 1
-            continue
         genotype = genotypes[rsid]
         alt = info["alt"]
         dosage = _genotype_dosage(genotype, alt)
-        hits += 1
 
         for pop in SUPERPOPULATIONS:
             p = info[pop]
@@ -235,7 +232,7 @@ def infer_ancestry(
         raise InsufficientCoverageError(
             f"Only {hits} ancestry-informative marker(s) matched "
             f"(Wright Fst >= {MIN_AIM_FST}; minimum required: {MIN_AIM_COVERAGE}). "
-            f"{low_fst_hits} panel SNP(s) were ignored because their Fst is below the floor. "
+            f"{low_fst_hits} matched panel SNP(s) are below the Fst floor and do not count toward coverage. "
             f"Ancestry cannot be reliably inferred from this file. "
             f"Re-run with --ancestry AFR|AMR|EAS|EUR|SAS to specify your documented genetic ancestry."
         )
@@ -559,28 +556,33 @@ def generate_report(
         "",
     ]
 
-    # Section 1: Inferred genetic super-population ancestry
+    # Section 1: Genetic super-population ancestry and its source
     override_note = " *(user-supplied)*" if overridden else (
         f" *(confidence: {confidence}, informative AISNPs: {coverage})*"
     )
     lines += [
         "---",
-        "## 1. Inferred Genetic Super-Population Ancestry",
+        "## 1. Genetic Super-Population Ancestry",
         "",
-        "> **Note**: This is an inference of genetic super-population based on allele frequencies at",
-        "> ancestry-informative SNPs (Wright Fst "
-        f">= {fst_floor} across 1000 Genomes super-populations). It is **not** self-reported",
-        "> ethnicity, cultural identity, or nationality. Super-population labels (AFR, EAS, EUR,",
+        "> **Note**: Genetic super-population is an analytical category. It is **not**",
+        "> self-reported ethnicity, cultural identity, or nationality. Labels (AFR, EAS, EUR,",
         "> SAS, AMR) are analytical categories from the 1000 Genomes Project — not ethnic identifiers.",
         "",
         f"| Field | Value |",
         f"|---|---|",
         f"| Genetic super-population | **{ancestry}** — {ancestry_label}{override_note} |",
         f"| Confidence | {confidence} |",
-        f"| Informative AISNPs matched (Fst >= {fst_floor}) | {coverage} |",
-        f"| Panel SNPs ignored (Fst < {fst_floor}) | {low_fst_hits} |",
+        f"| Informative AISNPs matched (Fst >= {fst_floor}) | {'not assessed' if overridden else coverage} |",
+        f"| Matched low-Fst SNPs (excluded from coverage) | {'not assessed' if overridden else low_fst_hits} |",
         "",
     ]
+
+    if overridden:
+        lines += [
+            "Ancestry was supplied with `--ancestry`. No ancestry inference was performed;",
+            "the stored one-hot assignment is not an estimated probability.",
+            "",
+        ]
 
     if confidence == "low" and not overridden:
         posterior = ancestry_result.get("posterior", {})
@@ -606,7 +608,7 @@ def generate_report(
         "## 2. Ancestry-Stratified Disease Risk Summary",
         "",
         "> **What these numbers mean:**",
-        "> - **Ancestry OR**: combined odds ratio using published GWAS effect sizes for your inferred",
+        "> - **Ancestry OR**: combined odds ratio using published GWAS effect sizes for the selected",
         ">   super-population, across the risk variants you carry (log-additive model).",
         "> - **EUR ref OR**: the same calculation using European reference effect sizes for those",
         ">   same variants — allows direct comparison.",
@@ -701,10 +703,13 @@ def generate_report(
         "---",
         "## Methodology",
         "",
-        f"**Ancestry inference**: Hardy-Weinberg log-likelihood at panel SNPs whose Wright Fst",
-        f"across the five 1000 Genomes super-populations is at least {MIN_AIM_FST} (Nassir/Kosoy",
-        f"AISNP design). Minimum {MIN_AIM_COVERAGE} such markers required. SNPs below the Fst floor",
-        "are ignored and do not count toward coverage.",
+        "**Ancestry inference**: Hardy-Weinberg log-likelihood at all matched panel SNPs",
+        "across five super-populations (AFR, AMR, EAS, EUR, SAS). Coverage counts only",
+        f"markers with equal-weighted Wright Fst >= {fst_floor}. Low-Fst matches remain",
+        "in the likelihood but are excluded from coverage. Automatic inference requires",
+        f"at least {MIN_AIM_COVERAGE} qualifying markers regardless of the posterior.",
+        "This retains the existing conservative marker-count policy; it is not a validated",
+        "sufficiency threshold or posterior calibration. Explicit `--ancestry` bypasses inference.",
         "",
         "**Ancestry Elevation Score (AES)**: exp(Σ[log OR_ancestry_i − log OR_EUR_i] × dosage_i)",
         "summed across risk variants for each disease. This is an **exploratory metric** with no",
@@ -810,20 +815,20 @@ def _try_write_aes_chart(risks: list[DiseaseRisk], figs_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def run_demo(output_dir: Path) -> None:
-    """Run with built-in South Asian demo patient."""
+def run_demo(output_dir: Path, ancestry_override: Optional[str] = None) -> None:
+    """Run the synthetic patient through the same coverage gate as real inputs."""
     output_dir = Path(output_dir)
     demo_file = DATA_DIR / "demo_patient_south_asian.txt"
     panel = load_aisnp_panel(DATA_DIR / "aisnp_panel.csv")
     associations = load_associations(DATA_DIR / "ancestry_risk_associations.json")
 
     genotypes = genotypes_to_simple(parse_genetic_file(demo_file))
-    ancestry_result = infer_ancestry(genotypes, panel)
+    ancestry_result = infer_ancestry(genotypes, panel, ancestry_override=ancestry_override)
     risks, scoring_note = _get_risks_with_confidence_gating(genotypes, ancestry_result, associations)
     generate_report(risks, ancestry_result, output_dir, scoring_note=scoring_note)
 
     print(f"\n[ancestry-risk-profiler] Demo complete → {output_dir}/ancestry_risk_report.md")
-    print(f"Inferred genetic super-population: {ancestry_result['inferred_ancestry']} (confidence: {ancestry_result['confidence']})")
+    print(f"Genetic super-population: {ancestry_result['inferred_ancestry']} (confidence: {ancestry_result['confidence']})")
     if scoring_note:
         print(f"\n  Note: {scoring_note}")
     if risks:
@@ -845,7 +850,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--input", help="23andMe or AncestryDNA raw file")
     p.add_argument("--ancestry", help="Override ancestry inference (AFR/AMR/EAS/EUR/SAS)")
     p.add_argument("--output", default="./ancestry_risk_output", help="Output directory")
-    p.add_argument("--demo", action="store_true", help="Run with built-in South Asian demo patient")
+    p.add_argument(
+        "--demo", action="store_true",
+        help="Run the synthetic patient; the bundled panel requires explicit --ancestry to score",
+    )
     return p
 
 
@@ -854,7 +862,11 @@ def main(argv: list[str] | None = None) -> None:
     output_dir = Path(args.output)
 
     if args.demo:
-        run_demo(output_dir)
+        try:
+            run_demo(output_dir, ancestry_override=args.ancestry)
+        except InsufficientCoverageError as e:
+            print(f"\nERROR: {e}", file=sys.stderr)
+            sys.exit(1)
         return
 
     if not args.input:

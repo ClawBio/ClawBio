@@ -3,21 +3,30 @@
 ## aisnp_panel.csv
 
 **Purpose**: Panel of SNPs with per-allele frequencies across five 1000 Genomes
-super-populations (AFR, AMR, EAS, EUR, SAS). Ancestry inference uses only the
-subset with Wright Fst ≥ 0.3 (currently five markers). Remaining rows are
-disease/PGx SNPs that stay in the file but are ignored at runtime so they cannot
-pad the coverage gate.
+super-populations (AFR, AMR, EAS, EUR, SAS). Automatic ancestry inference requires
+at least 30 matched SNPs with Wright Fst ≥ 0.3. The current bundled panel has five
+markers above that floor, so it abstains unless the user supplies `--ancestry`.
+Lower-Fst disease/PGx SNPs stay in the file and may contribute to likelihood after
+the coverage gate is satisfied, but they cannot pad the high-Fst coverage count.
 
 **Allele frequencies**: Sourced from gnomAD v3.1 population allele frequencies.
 - Primary citation: Karczewski et al. (2020) Nature 581:434–443. PMID: 32461654
 - Supplementary: 1000 Genomes Project Consortium (2015) Nature 526:68–74. PMID: 26432245
 
-**SNP selection criteria (documented vs enforced)**: Nassir et al. 2009 and Kosoy et
-al. 2009 designed AISNP panels around Fst > 0.3. This file claimed that criterion
-while shipping 67 of 72 rows below it (T2D, CAD, PGx SNPs whose frequencies barely
-differ across super-populations). From v1.4.0 the runtime computes equal-weighted
-Wright Fst from the five frequency columns and **only Fst ≥ 0.3 markers enter the
-likelihood or the coverage count**. The five markers that currently clear the floor:
+**SNP selection criteria (documented vs enforced)**: Earlier text implied the panel
+met an AIM-style Fst threshold even though 67 of 72 rows are below it (T2D, CAD,
+PGx SNPs whose frequencies barely differ across super-populations). From v1.4.0 the
+runtime computes equal-weighted Wright Fst from the five frequency columns and
+counts only Fst ≥ 0.3 markers toward the 30-marker automatic-inference floor. Fst
+is a coverage guard from issue #313, not a claim that Nassir et al. or Kosoy et al.
+defined or validated this exact software cutoff. The five markers that currently
+clear the floor:
+
+Reference context:
+- Nassir et al. (2009) BMC Genetics 10:39. [PMID 19630973](https://pubmed.ncbi.nlm.nih.gov/19630973/).
+  Evaluated a 93-SNP AIM panel for continental ancestry inference.
+- Kosoy et al. (2009) Human Mutation 30(1):69–78. [PMID 18683858](https://pubmed.ncbi.nlm.nih.gov/18683858/).
+  Described a 128-marker AIM set and smaller subsets down to 24 markers.
 
 | rsID | Gene | Wright Fst |
 |------|------|------------|
@@ -51,12 +60,13 @@ Key markers that actually meet the Fst floor, and their population-specificity:
   (rs1426654 SLC24A5, rs16891982 SLC45A2, rs3827760 EDAR, rs2814778 DARC) are retained and
   continue to provide the dominant ancestry signal. The remaining 65 rows were still
   counted toward the 30-marker gate; that is the hole v1.4.0 closes.
-- v1.4.0 — **Fst floor is now a runtime property, not an rsID blocklist** (#313). Wright Fst
-  is computed from the five super-population frequencies already in the CSV. Markers with
-  Fst < 0.3 are ignored for likelihood and coverage. Minimum coverage is 4 informative
-  markers (the shipped panel has 5). A 30-SNP padding panel of near-zero-Fst disease SNPs
-  now abstains. The 7-rsID blocklist from v1.3.2 remains as a second check, but it is no
-  longer the thing that enforces the Fst claim.
+- v1.4.0 — **Fst floor is now a runtime coverage property, not an rsID blocklist** (#313).
+  Wright Fst is computed from the five super-population frequencies already in the CSV.
+  Markers with Fst < 0.3 do not count toward coverage. The conservative software floor
+  is back to 30 informative markers; the shipped panel has 5, so automatic inference
+  abstains until the AIM panel is expanded. A 30-SNP padding panel of near-zero-Fst
+  disease SNPs now abstains. The 7-rsID blocklist from v1.3.2 remains as a second check,
+  but it is no longer the thing that enforces the Fst claim.
 
 ---
 
@@ -225,7 +235,7 @@ A verified PMID must be confirmed against PubMed / GWAS Catalog before reinstati
 | v1.3.2 | rs10033464 AF EAS | 23945395 | Wrong paper; rs10033464 not replicated in EAS (OR=1.08 p=0.55 in HK Chinese); EAS 4q25 signal is rs2200733 | → **Entry removed** |
 | v1.3.2 | rs429358 AD EAS | 23945395 | Wrong paper; EAS-specific APOE AD PMID unresolved | → **Entry removed** |
 | v1.3.2 | AISNP panel (7 markers) | panel inclusion | FST near zero (max 0.06) — candidate-gene SNPs, not AIMs; counted toward 30-marker gate | → **Markers removed**: rs731236, rs2228570 (VDR), rs1801133, rs1801131 (MTHFR), rs1800497 (ANKK1), rs4680 (COMT), rs53576 (OXTR). Panel: 79 → 72 markers |
-| v1.4.0 | AISNP coverage gate | 30-marker count of any panel hit | 67 of 72 remaining rows still have Wright Fst < 0.3 (T2D/CAD/PGx) and still padded the gate; the 7-rsID blocklist did not encode the Fst property | → Runtime Fst floor 0.3; coverage counts only informative markers; min 4; padding panel of 30 near-zero-Fst SNPs now abstains (#313) |
+| v1.4.0 | AISNP coverage gate | 30-marker count of any panel hit | 67 of 72 remaining rows still have Wright Fst < 0.3 (T2D/CAD/PGx) and still padded the gate; the 7-rsID blocklist did not encode the Fst property | → Runtime Fst floor 0.3 for coverage; min 30 informative markers; padding panel of 30 near-zero-Fst SNPs now abstains (#313) |
 
 **Important caveats**:
 - ORs are from individual published studies; they are not re-computed here
@@ -250,9 +260,9 @@ Source: Genovese et al. (2010) Science 329:841. PMID 20566908.
 **Purpose**: Synthetic 23andMe-format file for use with `--demo`. Does not represent any
 real individual.
 
-**Construction**: Designed to match a South Asian ancestry profile at AISNP positions
-(high SAS allele frequency at rs1426654, rs16891982, etc.) and to carry multiple T2D
-risk alleles (rs7903146 CT, rs2237892 CT, rs1552224 AC, etc.) so the demo report
-surfaces a meaningful AES signal for Type 2 Diabetes.
+**Construction**: Designed to carry multiple T2D risk alleles (rs7903146 CT,
+rs2237892 CT, rs1552224 AC, etc.) so the demo report surfaces a meaningful AES
+signal for Type 2 Diabetes when run with `--demo --ancestry SAS`. It includes five
+high-Fst AIMs, below the 30-marker floor required for automatic inference.
 
 **Data guarantee**: No real patient data. All genotypes are synthetic.
