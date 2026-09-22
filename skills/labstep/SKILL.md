@@ -229,6 +229,18 @@ stdout (markdown)
     └── ## Storage Locations table
 ```
 
+With `--output DIR`, the same content is also written to disk:
+
+```
+DIR/
+├── report.md
+├── result.json
+└── reproducibility/
+    ├── commands.sh          ← portable replay recipe (CLAWBIO_ROOT / OUTPUT_DIR)
+    ├── environment.yml      ← conda environment for the run
+    └── checksums.sha256     ← SHA-256 of report.md and result.json
+```
+
 ## Example Queries
 
 - "Show me my recent experiments"
