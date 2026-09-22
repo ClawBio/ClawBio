@@ -307,7 +307,9 @@ depends on the accession, so it is not listed as a fixed path above.
 - **Gotcha 4**: File bytes and submitter SDRFs live on `ftp.pride.ebi.ac.uk`,
   not on `www.ebi.ac.uk` where the API is. A network that allows the API can
   still block downloads. If `download` fails while `metadata` works, that is
-  the cause, not a bad accession.
+  the cause, not a bad accession. Both hosts need allowlisting on TCP/443;
+  the `ftp.` name is historical and no FTP port is used. See
+  [docs/data-handling.md](../../docs/data-handling.md#allowlisting-for-the-public-archive-skills).
 - **Gotcha 5**: `download-script` **writes a script and downloads nothing**.
   Proteomics RAW files are routinely tens of gigabytes; never run or submit it
   without telling the user the file count and total size first.
@@ -344,7 +346,12 @@ accession or an explicit mention of PRIDE or ProteomeXchange.
 - `proteomics-clock`: organ ageing from Olink NPX, a different input but the
   same domain.
 - `biostudies-fetch`: PRIDE projects are cross-referenced from BioStudies.
-- `article-data-fetcher`: the reverse direction — paper first, accession second.
+- `article-data-fetcher`: **upstream producer.** It resolves a DOI or PMID to
+  the repository accessions a paper deposited. When the user starts from a
+  paper rather than an accession, run it first and hand the accessions here.
+  It downloads files and writes a `manifest.json`, but it does **not**
+  harmonise sample annotation into `metadata.tsv` — that is this skill's job,
+  so the two chain rather than compete.
 
 ## Maintenance
 

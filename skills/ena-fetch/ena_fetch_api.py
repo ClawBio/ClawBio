@@ -161,7 +161,8 @@ def fastq_pair(urls):
 
 
 # ---- local FASTQ names: fasterq-dump output / cellranger symlinks ----
-# (the `sra-fetch` skill writes these same names; the two must agree)
+# (these are the names fasterq-dump itself writes; anything consuming them
+#  -- including a future sra-tools skill -- must agree with this shape)
 #
 # The Illumina/bcl2fastq shape that cellranger's own FASTQ parser requires — a bare
 # _R1.fastq.gz is NOT matched by it, while nf-core/scrnaseq accepts this form too.

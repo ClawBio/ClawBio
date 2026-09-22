@@ -1,0 +1,77 @@
+{
+  "page": 1,
+  "pageSize": 5,
+  "totalHits": 223,
+  "isTotalHitsExact": true,
+  "sortBy": "relevance",
+  "sortOrder": "descending",
+  "suggestion": [],
+  "expandedEfoTerms": [],
+  "expandedSynonyms": [],
+  "query": "microglia",
+  "facets": null,
+  "hits": [
+    {
+      "accession": "E-GEOD-43808",
+      "type": "study",
+      "title": "Transcriptome signature of mouse embryonic stem cell-derived microglia is closely related to primary cultured microglia",
+      "author": "Joachim Schultze Marc Beyer",
+      "links": 3,
+      "files": 29,
+      "release_date": "2013-07-11",
+      "views": 46,
+      "isPublic": true,
+      "content": "E-GEOD-43808 Transcriptome signature of mouse embryonic stem cell-derived microglia is closely related to primary cultured microglia transcription profiling by array EFO EFO_0002768 Mus musculus Preparation of primary microglial cultures from postnatal mice is tedious with a low yield, high"
+    },
+    {
+      "accession": "E-GEOD-45384",
+      "type": "study",
+      "title": "Effects of Th1- and Th17-derived factors on microglia.",
+      "author": "Robert Geffers R Geffers S Floess J Huehn",
+      "links": 2,
+      "files": 26,
+      "release_date": "2013-12-31",
+      "views": 39,
+      "isPublic": true,
+      "content": "E-GEOD-45384 Effects of Th1- and Th17-derived factors on microglia. transcription profiling by array EFO EFO_0002768 Mus musculus There is evidence that microglia interact with infiltrating Th1 and Th17 cells and this interaction results in mutual activation. However, the potential of a distinct"
+    },
+    {
+      "accession": "E-GEOD-18602",
+      "type": "study",
+      "title": "Microglia in ischemic brain injury",
+      "author": "Jonathan Weinstein Richard Beyer Ines Koerner Thomas MÃ¶ller",
+      "links": 2,
+      "files": 27,
+      "release_date": "2010-10-05",
+      "views": 65,
+      "isPublic": true,
+      "content": "E-GEOD-18602 Microglia in ischemic brain injury transcription profiling by array EFO EFO_0002768 Mus musculus Microglia are resident CNS immune cells that are active sensors in healthy brain and versatile effectors under pathological conditions. Cerebral ischemia induces a robust neuroinflammatory"
+    },
+    {
+      "accession": "E-GEOD-57181",
+      "type": "study",
+      "title": "In vivo response of microglia to Aβ and prostaglandin-E2 EP2 receptor signaling",
+      "author": "Katrin Andreasson Jenny Johansson Nathaniel Woodling",
+      "links": 3,
+      "files": 36,
+      "release_date": "2015-02-20",
+      "views": 46,
+      "isPublic": true,
+      "content": "E-GEOD-57181 In vivo response of microglia to Aβ and prostaglandin-E2 EP2 receptor signaling transcription profiling by array EFO EFO_0002768 Mus musculus Microglia, the innate immune cells of the central nervous system, perform critical inflammatory and non-inflammatory functions to maintain"
+    },
+    {
+      "accession": "E-GEOD-68376",
+      "type": "study",
+      "title": "Interleukin-1 signaling is involved in local self-renewal and maintenance of microglia",
+      "author": "Ari Waisman Julia Bruttger Federico Marini",
+      "links": 2,
+      "files": 2,
+      "release_date": "2015-07-15",
+      "views": 48,
+      "isPublic": true,
+      "content": "E-GEOD-68376 Interleukin-1 signaling is involved in local self-renewal and maintenance of microglia RNA-seq of coding RNA EFO EFO_0003738 Mus musculus During early embryogenesis microglia arise from yolk sac progenitors populating the developing CNS, where they are maintained as tissue-resident"
+    }
+  ],
+  "nextCursor": null,
+  "tooManyExpansionTerms": false
+}

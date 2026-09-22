@@ -71,8 +71,47 @@ class TestScriptBody:
         groups = [("s1", ["https://x/1.fq.gz"])]
         wget, _ = build_download_script(groups, tool="wget", outdir="fastq")
         curl, _ = build_download_script(groups, tool="curl", outdir="fastq")
-        assert "wget -q --tries=3" in wget
-        assert "curl -fsSL --retry 3" in curl
+        assert "wget -q --tries=5" in wget
+        assert "curl -fsSL --retry 5" in curl
+
+    def test_curl_resumes_a_partial_transfer(self):
+        """Archive FASTQs are multi-GB; a drop at 90% must not restart at 0."""
+        body, _ = build_download_script([("s1", ["https://x/1.fq.gz"])], tool="curl")
+        assert "-C -" in body
+
+    def test_both_tools_bound_the_connect_time(self):
+        """An unattended job must not hang forever on a dead host."""
+        groups = [("s1", ["https://x/1.fq.gz"])]
+        curl, _ = build_download_script(groups, tool="curl")
+        wget, _ = build_download_script(groups, tool="wget")
+        assert "--connect-timeout 30" in curl
+        assert "--timeout=30" in wget
+
+    def test_curl_aborts_a_stalled_transfer(self):
+        """A transfer trickling at ~0 B/s would otherwise hang until walltime."""
+        body, _ = build_download_script([("s1", ["https://x/1.fq.gz"])], tool="curl")
+        assert "--speed-limit 1024" in body
+        assert "--speed-time 120" in body
+
+    def test_curl_waits_between_retries(self):
+        body, _ = build_download_script([("s1", ["https://x/1.fq.gz"])], tool="curl")
+        assert "--retry-delay 10" in body
+
+    def test_curl_probes_for_retry_all_errors(self):
+        """--retry-all-errors is curl >= 7.71; probe rather than assume.
+
+        Without it curl retries only transient network failures, not an HTTP
+        error -- and archives do answer 403/429/503 under load. Hardcoding the
+        flag would break the script outright on an older curl (RHEL 7 ships
+        7.29), so the script detects support at run time.
+        """
+        body, _ = build_download_script([("s1", ["https://x/1.fq.gz"])], tool="curl")
+        assert "--retry-all-errors" in body
+        assert "RETRY_ALL" in body
+
+    def test_wget_script_has_no_curl_probe(self):
+        body, _ = build_download_script([("s1", ["https://x/1.fq.gz"])], tool="wget")
+        assert "RETRY_ALL" not in body
 
     def test_script_is_strict_bash(self):
         body, _ = build_download_script([("s1", ["https://x/1.fq.gz"])], tool="wget")

@@ -114,9 +114,6 @@ pipeline can consume directly.
 - The accession is `E-GEOD-*`. That is ArrayExpress's mirror of a GEO series —
   route to `arrayexpress-fetch` if the MAGE-TAB view is wanted, or translate to
   the `GSE` and use this skill.
-- The user wants **10x / Chromium reads**. Start here to get the runtable, then
-  route to `sra-fetch`: only `fasterq-dump` exposes the Chromium read structure
-  reliably.
 - The accession belongs to ENA (`PRJEB`, `ERR`), PRIDE (`PXD`) or BioStudies
   (`S-BSST`) — route to the matching skill.
 - The user has a DOI or PubMed ID rather than an accession — route to
@@ -308,12 +305,22 @@ download script; `sbatch` if it is submitted.
 - **Gotcha 1**: You will want to trust the `_1`/`_2` filename heuristic for a
   10x run. Do not. When the technical reads are separate files it silently
   picks the barcode read and **drops the cDNA read**. Pass `--read-map`: 3 files
-  (single index) → `2,3`; 4 files (dual index) → `3,4`. Better still, for 10x
-  use `runtable` here and hand off to `sra-fetch`.
+  (single index) → `2,3`; 4 files (dual index) → `3,4`. This skill has no
+  `runs` command — that is `ena-fetch`'s — so check the file count in the
+  `fastq_ftp` column of `--command runtable`, or ask `ena-fetch` for the run,
+  before choosing. Confirm the choice with the user either way.
+
+  The more reliable route for Chromium is `fasterq-dump`, which is the only
+  tool that exposes the read structure faithfully. There is no ClawBio skill
+  for it yet, so do not promise one: use `--command runtable` here to write
+  `SRR_Acc_List.txt`, then run sra-tools directly —
+  `prefetch --option-file SRR_Acc_List.txt` followed by
+  `fasterq-dump --split-files <SRR>`.
 - **Gotcha 2**: Not every GEO series is mirrored to ENA. Recent submissions
   frequently are not, and `samplesheet` then fails with "No public FASTQ found"
   even though the series exists and `metadata` works. That is accurate, not a
-  bug — use `runtable` plus `sra-fetch` instead of inventing links.
+  bug. Do not invent links. Use `--command runtable` to get `SRR_Acc_List.txt`
+  and fetch from SRA with sra-tools (`prefetch` + `fasterq-dump`).
 - **Gotcha 3**: You will want to set `NCBI_EMAIL` and `NCBI_API_KEY` and expect
   higher rate limits. They are **read but never sent** unless
   `--use-ncbi-credentials` is passed. Presence of an environment variable is
@@ -326,7 +333,10 @@ download script; `sbatch` if it is submitted.
   reintroduce the cwd default.
 - **Gotcha 6**: `download-script` **writes a script and downloads nothing**.
   Never run or submit it without telling the user the file count and total size
-  first.
+  first. Note the FASTQ URLs it writes point at `ftp.sra.ebi.ac.uk`, not at
+  NCBI — this skill reads run metadata from ENA. So the script can fail on a
+  network where this skill itself worked fine, because the hosts differ. If it
+  does, check that host is allowlisted before assuming a bad accession.
 
 ## Safety
 
@@ -356,12 +366,20 @@ submit a generated script without explicit confirmation.
 `GSM`, `GPL`, `GDS`) or an explicit mention of GEO.
 
 **Chaining partners**:
-- `sra-fetch`: `runtable` here produces the `SRR_Acc_List.txt` it consumes; the
-  required route for 10x reads.
+- **sra-tools** (external, not a ClawBio skill): `--command runtable` writes
+  the `SRR_Acc_List.txt` that `prefetch` and `fasterq-dump` consume. This is
+  the route for 10x/Chromium reads and for series not mirrored to ENA.
 - `ena-fetch`: this skill queries ENA for FASTQ links, so the two agree.
 - `nfcore-rnaseq-wrapper` / `nfcore-scrnaseq-wrapper`: the natural consumers of
   the `samplesheet.csv` this skill writes.
 - `rnaseq-de`: downstream differential expression once counts exist.
+- `article-data-fetcher`: **upstream producer.** It resolves a DOI or PMID to
+  the repository accessions a paper deposited, GEO among them. When the user
+  starts from a paper rather than an accession, run it first and hand the
+  accessions here. It downloads files and writes a `manifest.json`, but it
+  does **not** harmonise sample annotation into `metadata.tsv` or emit a
+  pipeline-ready `samplesheet.csv` — that is this skill's job, so the two
+  chain rather than compete.
 
 ## Maintenance
 

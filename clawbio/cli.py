@@ -1050,6 +1050,23 @@ SKILLS = {
         },
         "accepts_genotypes": False,
     },
+    "arrayexpress-fetch": {
+        "script": SKILLS_DIR / "arrayexpress-fetch" / "arrayexpress_fetch.py",
+        "demo_args": ["--demo"],
+        "description": "EMBL-EBI ArrayExpress — MAGE-TAB metadata, SDRF, and nf-core samplesheets",
+        # Positional subcommands are dropped by the extras filter, so the
+        # subcommand is reachable as --command. See the skill's CLI Reference.
+        "allowed_extra_flags": {
+            "--command", "--accession", "--query", "--limit", "--out", "--json",
+            "--match", "--assay", "--strandedness", "--local-dir", "--fastq-dir",
+            "--fastq-naming", "--read-map",
+        },
+        "allowed_extra_flags_without_values": {
+            "--magetab", "--processed", "--raw", "--no-slurm",
+        },
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
     "biostudies-fetch": {
         "script": SKILLS_DIR / "biostudies-fetch" / "biostudies_fetch.py",
         "demo_args": ["--demo"],

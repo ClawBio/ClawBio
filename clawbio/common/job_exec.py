@@ -1,7 +1,9 @@
 """Run or submit a generated job script — only when explicitly asked.
 
-Shared by the skills that emit runnable scripts (`sra-fetch`, and the
-`download-script` command on the archive-fetch skills).
+Shared by the skills that emit runnable scripts: today the `download-script`
+command on the archive-fetch skills. A future sra-tools skill is intended to
+reuse it, which is why the chaining helper below is more general than the
+current callers need.
 
 **These functions execute code and move data over the network.** They are never
 reached by default: a skill generates its script and stops. `--run` and
@@ -75,9 +77,9 @@ def run_scripts(
 ) -> list[subprocess.CompletedProcess]:
     """Execute each script locally, in order, stopping at the first failure.
 
-    Stopping matters: the sra-fetch pair is prefetch-then-dump, and dumping over
-    an empty prefetch directory produces a confusing success rather than an
-    honest failure.
+    Stopping matters for a prefetch-then-dump pair, the motivating case:
+    dumping over an empty prefetch directory produces a confusing success
+    rather than an honest failure.
     """
     _refuse_unless_clean(
         preflight(scripts, require=require, write_targets=write_targets), "run")

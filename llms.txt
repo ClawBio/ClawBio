@@ -25,8 +25,8 @@
 ## Project State
 
 - Current public release: `v0.7.1`
-- Public framing in `README.md`: `101 skills + 8,182 Galaxy tools + 4,730 tests + benchmark validation`
-- Catalog status split: `29` MVP skills and `68` planned / legacy skills
+- Public framing in `README.md`: `102 skills + 8,182 Galaxy tools + 5,288 tests + benchmark validation`
+- Catalog status split: `29` MVP skills and `73` planned / legacy skills
 - Counts above are derived, not hand-written. Regenerate them before editing:
   - skills and Galaxy tools: `skill_count` / `galaxy_tool_count` in `skills/catalog.json`,
     itself produced by `python scripts/generate_catalog.py`
@@ -121,6 +121,6 @@ These skills are referenced in `AGENTS.md`, `skills/catalog.json`, or executable
 
 ## Optional
 
-- [skills/catalog.json](skills/catalog.json): Machine-readable skill index; current catalog contains `97` entries
+- [skills/catalog.json](skills/catalog.json): Machine-readable skill index; current catalog contains `102` entries
 - [templates/SKILL-TEMPLATE.md](templates/SKILL-TEMPLATE.md): Template for new skills
 - [clawbio.py](clawbio.py): Main CLI runner and alias registry for `python clawbio.py run <alias>`

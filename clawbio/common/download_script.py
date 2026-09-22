@@ -105,15 +105,58 @@ def urls_from_url_list(path: Path | str) -> Groups:
     return out
 
 
+# --- transfer robustness defaults ---
+# These scripts fetch multi-gigabyte archive files, usually unattended on a
+# compute node. The failure that matters is not "the URL was wrong" but "the
+# transfer dropped at 90% after two hours". So: retry, wait between attempts,
+# refuse to hang forever, and resume rather than restart.
+RETRIES = 5           # attempts per file
+RETRY_DELAY = 10      # seconds between attempts
+CONNECT_TIMEOUT = 30  # seconds to establish a connection
+STALL_BYTES = 1024    # a transfer below this rate...
+STALL_SECONDS = 120   # ...for this long is dead; abort so the retry can fire
+
+# Plain --retry already covers 429 and 5xx, which is most archive throttling.
+# It does NOT cover 403, which is what EBI returned under a burst of requests
+# when this was tested (2026-09-22). --retry-all-errors closes that gap.
+#
+# The cost: a genuinely missing URL is now retried too, so it takes about
+# RETRIES x RETRY_DELAY before failing. That is bounded, not multiplied --
+# `set -e` aborts the script at the first failure, so it is ~50 s once, not
+# once per file. Worth it to survive a rate limit mid-job.
+#
+# The flag is curl >= 7.71. Hardcoding it breaks the script outright on an
+# older curl (RHEL 7 ships 7.29), so the script probes for it at run time.
+CURL_PROBE = """# curl >= 7.71 retries HTTP errors (403/429/503) too, not just network
+# failures. Older curl rejects the flag outright, so probe before using it.
+RETRY_ALL=""
+if curl --help all 2>/dev/null | grep -q -- --retry-all-errors; then
+  RETRY_ALL="--retry-all-errors"
+fi
+"""
+
+
 def _download_cmd(tool: str, url: str, outdir: str) -> str:
     name = _safe_field(url.rstrip("/").split("/")[-1])
     dest = f'"{outdir}/{name}"'
     if tool == "curl":
         # -f fail on HTTP errors, -s silent (no progress bar), -S still show
-        # errors, -L follow redirects, --retry for transient failures.
-        return f'curl -fsSL --retry 3 --create-dirs -o {dest} "{url}"'
-    # wget: -q fully quiet, retries with a wait, -O explicit output path.
-    return f'wget -q --tries=3 --waitretry=5 -O {dest} "{url}"'
+        # errors, -L follow redirects (BioStudies' file route 302s), --retry
+        # with a delay for transient failures, --connect-timeout and the
+        # --speed-limit/--speed-time pair so a stalled transfer aborts and
+        # retries instead of hanging until the job's walltime, and -C - to
+        # resume a partial file rather than restart it. -C - is safe on a
+        # missing or already-complete file: both exit 0.
+        return (f'curl -fsSL --retry {RETRIES} --retry-delay {RETRY_DELAY} '
+                f'$RETRY_ALL --connect-timeout {CONNECT_TIMEOUT} '
+                f'--speed-limit {STALL_BYTES} --speed-time {STALL_SECONDS} '
+                f'-C - --create-dirs -o {dest} "{url}"')
+    # wget: -q fully quiet, retries with a wait, --timeout bounds both the
+    # connect and the read, -O explicit output path. Deliberately NOT -c: GNU
+    # wget documents -c with -O as unsupported, and silently wrong output is
+    # worse than a restart. Use --tool curl when resume matters.
+    return (f'wget -q --tries={RETRIES} --waitretry={RETRY_DELAY} '
+            f'--timeout={CONNECT_TIMEOUT} -O {dest} "{url}"')
 
 
 def _slurm_header(opts: SlurmOptions) -> str:
@@ -151,6 +194,8 @@ def build_download_script(
     """Render the script body. `slurm=None` omits the SLURM header entirely."""
     parts = [_slurm_header(slurm), ""] if slurm is not None else ["#!/bin/bash"]
     parts += ["set -euo pipefail", "", f'OUTDIR="{outdir}"', 'mkdir -p "$OUTDIR"', ""]
+    if tool == "curl":
+        parts += [CURL_PROBE]
     n_files = 0
     for sample, urls in groups:
         parts.append(f"# sample: {_safe_field(sample)}")

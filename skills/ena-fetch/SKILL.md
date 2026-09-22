@@ -111,9 +111,6 @@ a standardised sample table, or a samplesheet a pipeline can consume directly.
 - "search ENA for paired-end RNA-seq in <organism>"
 
 **Do NOT fire when:**
-- The user wants **10x / Chromium reads from SRA**. `fasterq-dump` is the
-  reliable route for those, because only it exposes the Chromium read
-  structure — route to `sra-fetch`.
 - The accession is `GSE`/`GSM` (GEO), `PXD` (PRIDE), `E-MTAB` (ArrayExpress) or
   `S-BSST` (BioStudies) — route to the matching skill. `geo-fetch` resolves GEO
   to ENA internally, so start there for a GSE.
@@ -312,13 +309,27 @@ download script; `sbatch` if it is submitted rather than run.
   the run's actual file count in `runs` output first.
 - **Gotcha 4**: An empty result is normal, not an error. Controlled-access
   studies and runs not mirrored to ENA return no `fastq_ftp`, and the skill
-  says so rather than inventing links. For those, try `sra-fetch`.
+  says so rather than inventing links. Those runs are still reachable from SRA
+  with sra-tools (`prefetch` + `fasterq-dump`), which is an external tool, not
+  a ClawBio skill — do not promise a skill that does not exist.
 - **Gotcha 5**: `download-script` **writes a script and downloads nothing**.
   Never run or submit it without telling the user the file count and total size
   first, and never treat one approval as covering a later run.
 - **Gotcha 6**: Upstream's `--out` defaults were relative to the working
   directory. Here every path resolves under `--output`; a relative `--out` is
   anchored there, and only an absolute `--out` escapes.
+- **Gotcha 7**: If `metadata`/`runs` work but `download` hangs or fails with a
+  connection timeout, suspect a **firewall, not a bug**. Metadata comes from
+  `www.ebi.ac.uk` (Portal + Browser); FASTQ bytes come from
+  `ftp.sra.ebi.ac.uk`. Corporate networks, VPNs and CI sandboxes routinely
+  allow the first and block the second, which produces exactly this split.
+  Both hosts must be allowlisted on TCP/443 — this skill never speaks the FTP
+  protocol despite the hostname, so opening FTP ports achieves nothing. See
+  [docs/data-handling.md](../../docs/data-handling.md#allowlisting-for-the-public-archive-skills). Confirm with
+  `curl -sI https://ftp.sra.ebi.ac.uk/vol1/ -o /dev/null -w '%{http_code}\n'`:
+  `200` means reachable, `000` means blocked. The same applies to a generated
+  `download-script` run on a compute node, which often has stricter egress than
+  the login node it was written on.
 
 ## Safety
 
@@ -347,11 +358,19 @@ or submit a generated script without explicit confirmation.
 (`PRJEB`, `ERR`, `ERX`, `SAMEA`, `ERZ`) or an explicit mention of ENA.
 
 **Chaining partners**:
-- `sra-fetch`: for 10x/Chromium reads, and for runs not mirrored to ENA.
+- **sra-tools** (external, not a ClawBio skill): the route for 10x/Chromium
+  reads, where only `fasterq-dump` exposes the read structure faithfully, and
+  for runs not mirrored to ENA.
 - `geo-fetch`: GEO resolves to ENA for its FASTQ links, so the two agree.
 - `nfcore-rnaseq-wrapper` / `nfcore-scrnaseq-wrapper`: the natural consumers of
   the `samplesheet.csv` this skill writes.
-- `article-data-fetcher`: the reverse direction — paper first, accession second.
+- `article-data-fetcher`: **upstream producer.** It resolves a DOI or PMID to
+  the repository accessions a paper deposited, ENA among them. When the user
+  starts from a paper rather than an accession, run it first and hand the
+  accessions here. It downloads files and writes a `manifest.json`, but it
+  does **not** harmonise sample annotation into `metadata.tsv` or emit a
+  pipeline-ready `samplesheet.csv` — that is this skill's job, so the two
+  chain rather than compete.
 
 ## Maintenance
 

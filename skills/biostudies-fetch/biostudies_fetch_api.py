@@ -6,7 +6,8 @@
 """Query metadata and download data from EMBL-EBI BioStudies.
 
 Uses the BioStudies REST API (https://www.ebi.ac.uk/biostudies/api/v1). Files are
-downloaded from https://www.ebi.ac.uk/biostudies/files/{accession}/{path}.
+downloaded from the host /studies/{accession}/info advertises as `httpLink`,
+which is not the same tree for every collection -- see file_url().
 
 Standard library only (urllib) -- no pip install required.
 
@@ -124,13 +125,30 @@ def study_info(accession):
 def file_url(accession, path):
     """Build the download URL for one attached file.
 
-    DIVERGES FROM UPSTREAM. Upstream hardcoded
-    `https://www.ebi.ac.uk/biostudies/files/{accession}/{path}`, which now
-    returns 404 for every study (checked 2026-09-21 against S-BSST2074,
-    E-MTAB-2037, E-MTAB-13429 and E-MTAB-11467). The live API advertises the
-    real base as `httpLink` on /studies/{accession}/info, with files under
-    `Files/`, and the BioStudies web UI uses that same link. Resolve it from
-    there and keep the legacy path only as a fallback.
+    DIVERGES FROM UPSTREAM, deliberately. Upstream hardcodes
+    `https://www.ebi.ac.uk/biostudies/files/{accession}/{path}`. That route is
+    NOT broken -- re-checked live 2026-09-22, it answers 302 and redirects to
+    the very URL this function builds, and urllib follows it. Two reasons to
+    resolve it directly anyway:
+
+    1. There is no single base tree to hardcode. /studies/{accession}/info
+       advertises a different `httpLink` per collection:
+           E-MTAB-10030 -> ftp.ebi.ac.uk/biostudies/fire/E-MTAB-/030/E-MTAB-10030
+           S-BSST2074   -> ftp.ebi.ac.uk/pub/databases/biostudies/S-BSST/074/S-BSST2074
+       Upstream's constant happens to work only because the redirect papers
+       over the difference.
+    2. The redirect is slow and unreliable for the payloads this skill fetches.
+       Measured 2026-09-22: 0.3 s direct vs 12.4 s via www, and the 24 GB file
+       on S-BSST2074 timed out entirely on the www route while the resolved
+       host served a ranged GET immediately.
+
+    An earlier note here claimed the upstream route 404s for every study. That
+    was wrong: the one reproducible 404 was S-BSST2074/README.txt, a file that
+    does not exist in that study (its only file is the 24 GB archive).
+
+    Files live under `Files/` beneath the advertised base, which is also what
+    the BioStudies web UI links to. The legacy path stays as a fallback for
+    when /info is unreachable or omits httpLink.
     """
     quoted = urllib.parse.quote(path)
     base = (study_info(accession) or {}).get("httpLink")

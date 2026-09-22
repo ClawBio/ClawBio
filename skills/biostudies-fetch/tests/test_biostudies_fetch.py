@@ -336,10 +336,13 @@ def _clear_info_cache():
 
 
 class TestDownloadBase:
-    """Upstream's hardcoded /biostudies/files/{acc}/{path} now returns 404.
+    """The download base is resolved from /studies/{acc}/info, not hardcoded.
 
-    The live API advertises the real base as `httpLink` on
-    /studies/{acc}/info, so the download URL must be resolved from there.
+    Upstream's /biostudies/files/{acc}/{path} is not broken -- it 302s to the
+    same place. We resolve directly because `httpLink` names a different tree
+    per collection (fire/ for E-MTAB, pub/databases/ for S-BSST), so no single
+    constant is correct, and because the redirect is ~40x slower and times out
+    on multi-gigabyte files. Re-verified live 2026-09-22.
     """
 
     def test_file_url_is_resolved_from_the_info_endpoint(self):

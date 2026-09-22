@@ -100,8 +100,9 @@ themselves.
   ArrayExpress, so this skill *can* fetch those records, but it will not parse
   the experimental design.)
 - The accession is a run or project in ENA (`PRJEB`, `ERR`), SRA (`SRR`), GEO
-  (`GSE`) or PRIDE (`PXD`) — route to `ena-fetch`, `sra-fetch`, `geo-fetch` or
-  `pride-fetch`.
+  (`GSE`) or PRIDE (`PXD`) — route to `ena-fetch`, `geo-fetch` or
+  `pride-fetch`. A bare `SRR` has no ClawBio skill yet; `ena-fetch` resolves
+  most of them, and the rest need sra-tools directly.
 - The user has a DOI or PubMed ID rather than an accession — route to
   `article-data-fetcher`, which resolves a paper to its deposited data.
 - The user wants FASTQ reads. BioStudies holds study descriptions and attached
@@ -305,12 +306,26 @@ output_directory/
   ArrayExpress. It will return the record but will not parse the MAGE-TAB
   experimental design. Route those to `arrayexpress-fetch` instead of reporting
   a thin result.
-- **Gotcha 5**: You will want to trust the classic
+- **Gotcha 5**: You will want to hardcode the classic
   `https://www.ebi.ac.uk/biostudies/files/{accession}/{path}` download URL. Do
-  not. It returns 404 for every study as of 2026-09-21. The real base is the
-  `httpLink` field on `/studies/{accession}/info`, with files under `Files/`;
-  this skill resolves it from there and keeps the old path only as a fallback.
-- **Gotcha 6**: Upstream's `--out` defaults were relative to the working
+  not. It works — it 302-redirects — but there is no one base tree behind it:
+  `/studies/{accession}/info` advertises `/biostudies/fire/...` for `E-MTAB-*`
+  and `/pub/databases/biostudies/...` for `S-BSST*`. The redirect also costs
+  12.4 s against 0.3 s direct, and times out on multi-gigabyte files. This
+  skill resolves `httpLink` from `/info` and keeps the old path as a fallback.
+- **Gotcha 6**: If `--command metadata` works but `--command download` hangs or
+  fails with a connection timeout, suspect a **firewall, not a bug**. Metadata
+  comes from `www.ebi.ac.uk`; file bytes come from `ftp.ebi.ac.uk`. Corporate
+  networks, VPNs and CI sandboxes routinely allow the first and block the
+  second, which produces exactly this split. Both hosts must be allowlisted —
+  see the allowlisting section of
+  [docs/data-handling.md](../../docs/data-handling.md#allowlisting-for-the-public-archive-skills)
+  — it is TCP/443 to a different host, not an FTP port, so asking an admin to
+  "open FTP" will not help.
+  Confirm with
+  `curl -sI https://ftp.ebi.ac.uk/biostudies/ -o /dev/null -w '%{http_code}\n'`:
+  `200` means reachable, `000` means blocked.
+- **Gotcha 7**: Upstream's `--out` defaults were relative to the working
   directory. Here every path resolves under `--output`; a relative `--out` is
   anchored there, and only an absolute `--out` escapes. Do not reintroduce
   cwd-relative defaults.
@@ -346,8 +361,13 @@ BioImage Archive.
 **Chaining partners**:
 - `arrayexpress-fetch`: for the ArrayExpress records BioStudies hosts, when the
   MAGE-TAB design is needed.
-- `ena-fetch` / `sra-fetch`: when a study links out to sequencing runs.
-- `article-data-fetcher`: the reverse direction — paper first, accession second.
+- `ena-fetch`: when a study links out to sequencing runs.
+- `article-data-fetcher`: **upstream producer.** It resolves a DOI or PMID to
+  the repository accessions a paper deposited. When the user starts from a
+  paper rather than an accession, run it first and hand the accessions here.
+  It downloads files and writes a `manifest.json`, but it does **not**
+  harmonise sample annotation into `metadata.tsv` — that is this skill's job,
+  so the two chain rather than compete.
 
 ## Maintenance
 

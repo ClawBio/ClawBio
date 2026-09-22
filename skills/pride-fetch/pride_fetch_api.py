@@ -230,15 +230,31 @@ def _safe_field(v):
     return re.sub(r" +", " ", _CTRL_RE.sub("_", v or "")).strip()
 
 
+# Transfer-robustness defaults are shared with the other archive skills, so a
+# PRIDE script behaves like an ENA or GEO one. PRIDE keeps its own emitter
+# because it is file-list driven and supports --unzip.
+from clawbio.common.download_script import (  # noqa: E402
+    CONNECT_TIMEOUT, CURL_PROBE, RETRIES, RETRY_DELAY, STALL_BYTES, STALL_SECONDS,
+)
+
+
 def _dl_cmd(tool, url, outdir):
     name = _safe_field(url.rstrip("/").split("/")[-1])
     dest = f'"{outdir}/{name}"'
     if tool == "curl":
-        # -f fail on HTTP errors, -s silent (no progress bar), -S show errors,
-        # -L follow redirects, --retry for transient failures.
-        return f'curl -fsSL --retry 3 --create-dirs -o {dest} "{url}"'
-    # wget: -q fully quiet (no progress bar).
-    return f'wget -q --tries=3 --waitretry=5 -O {dest} "{url}"'
+        # -f fail on HTTP errors, -sS quiet but still report errors, -L follow
+        # redirects, --retry with a delay, --connect-timeout plus the
+        # --speed-limit/--speed-time pair so a stalled transfer aborts and
+        # retries instead of hanging until walltime, and -C - to resume.
+        # Proteomics RAW files run to tens of GB, so resume matters most here.
+        return (f'curl -fsSL --retry {RETRIES} --retry-delay {RETRY_DELAY} '
+                f'$RETRY_ALL --connect-timeout {CONNECT_TIMEOUT} '
+                f'--speed-limit {STALL_BYTES} --speed-time {STALL_SECONDS} '
+                f'-C - --create-dirs -o {dest} "{url}"')
+    # wget: -q fully quiet. Deliberately not -c: GNU wget documents -c with -O
+    # as unsupported. Use --tool curl when resume matters.
+    return (f'wget -q --tries={RETRIES} --waitretry={RETRY_DELAY} '
+            f'--timeout={CONNECT_TIMEOUT} -O {dest} "{url}"')
 
 
 def _slurm_header(args):
@@ -296,6 +312,10 @@ def cmd_download_script(args):
     else:
         parts.append("#!/bin/bash")
     parts += ["set -euo pipefail", "", f'OUTDIR="{args.outdir}"', 'mkdir -p "$OUTDIR"', ""]
+    if args.tool == "curl":
+        # Required: _dl_cmd references $RETRY_ALL, and `set -u` makes an
+        # unbound variable a hard error.
+        parts += [CURL_PROBE]
     n_zip = 0
     for name, url, cat in entries:
         parts.append(f"# {cat or 'file'}: {name}")

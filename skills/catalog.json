@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 101,
+  "skill_count": 102,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -186,6 +186,50 @@
         "Sprime",
         "hmmix",
         "introgressed segments"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "arrayexpress-fetch",
+      "cli_alias": "arrayexpress-fetch",
+      "description": "Query metadata and download data from ArrayExpress, EMBL-EBI's functional genomics collection, now hosted inside BioStudies. Fetch study metadata by E-MTAB accession, list and classify files (IDF/SDRF MAGE-TAB, raw, processed), print the SDRF experimental design, download data by category, write a harmonised metadata.tsv, and build an nf-core/rnaseq or nf-core/scrnaseq samplesheet.csv from the SDRF.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run arrayexpress-fetch --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "arrayexpress",
+        "embl-ebi",
+        "functional-genomics",
+        "mage-tab",
+        "data-retrieval",
+        "public-archives"
+      ],
+      "trigger_keywords": [
+        "ArrayExpress",
+        "E-MTAB",
+        "MAGE-TAB",
+        "SDRF",
+        "IDF",
+        "functional genomics experiment"
       ],
       "chaining_partners": [],
       "license": "MIT",
