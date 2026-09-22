@@ -9,6 +9,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 # Add parent dir to path so we can import the skill modules
 SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_DIR))
@@ -350,16 +352,52 @@ def test_gwas_catalog_forwards_max_hits_as_page_size(monkeypatch):
     assert len(result["associations"]) == 25
 
 
-def test_gwas_catalog_null_associations_are_empty(monkeypatch):
-    """GWAS Catalog occasionally serialises associations as null, not []."""
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"_embedded": {"associations": []}},
+        {"_embedded": {"associations": None}},
+    ],
+    ids=["no-embedded", "empty-list", "null-associations"],
+)
+def test_gwas_catalog_missing_or_null_associations_are_empty(monkeypatch, payload):
+    """A missing _embedded or a null associations list is an empty OK result."""
     from gwas_lookup_api import gwas_catalog
 
     class FakeClient:
         def get(self, endpoint, params=None):
-            return {"_embedded": {"associations": None}}
+            return payload
 
     monkeypatch.setattr(gwas_catalog, "_make_client", lambda *args, **kwargs: FakeClient())
     result = gwas_catalog.get_associations("rs1")
     assert result["status"] == "ok"
     assert result["associations"] == []
     assert result["total_associations"] == 0
+
+
+@pytest.mark.parametrize(
+    "payload, field, type_name",
+    [
+        ({"_embedded": {"associations": {"rs1": []}}}, "_embedded.associations", "dict"),
+        ({"_embedded": {"associations": {}}}, "_embedded.associations", "dict"),
+        ({"_embedded": {"associations": "rs1"}}, "_embedded.associations", "str"),
+        ({"_embedded": {"associations": ""}}, "_embedded.associations", "str"),
+        ({"_embedded": None}, "_embedded", "NoneType"),
+        ({"_embedded": ["rs1"]}, "_embedded", "list"),
+        ({"_embedded": []}, "_embedded", "list"),
+        ([], "response body", "list"),
+    ],
+)
+def test_gwas_catalog_malformed_associations_are_errors(monkeypatch, payload, field, type_name):
+    """Schema drift returns status error instead of an empty OK result."""
+    from gwas_lookup_api import gwas_catalog
+
+    class FakeClient:
+        def get(self, endpoint, params=None):
+            return payload
+
+    monkeypatch.setattr(gwas_catalog, "_make_client", lambda *args, **kwargs: FakeClient())
+    result = gwas_catalog.get_associations("rs1")
+    assert result["status"] == "error"
+    assert result["message"] == f"Unexpected response format: {field} is {type_name}"
