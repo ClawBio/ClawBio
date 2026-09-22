@@ -25,6 +25,14 @@ def _make_client(cache_dir: Optional[Path], use_cache: bool) -> BaseClient:
     )
 
 
+def _format_error(field: str, value: object) -> dict:
+    return {
+        "source": "gwas_catalog",
+        "status": "error",
+        "message": f"Unexpected response format: {field} is {type(value).__name__}",
+    }
+
+
 def get_associations(rsid: str, max_hits: int = 100, cache_dir: Optional[Path] = None, use_cache: bool = True) -> dict:
     """Fetch GWAS associations for a given rsID from the GWAS Catalog."""
     client = _make_client(cache_dir, use_cache)
@@ -38,10 +46,19 @@ def get_associations(rsid: str, max_hits: int = 100, cache_dir: Optional[Path] =
     except Exception as e:
         return {"source": "gwas_catalog", "status": "error", "message": str(e)}
 
-    embedded = data.get("_embedded") or {}
-    raw_assocs = embedded.get("associations") or []
-    if not isinstance(raw_assocs, list):
+    # A missing _embedded, or a missing or null associations key, is treated
+    # as empty. Any other shape is schema drift: return an error so Data
+    # Sources shows a WARNING for gwas_catalog instead of an OK badge.
+    if not isinstance(data, dict):
+        return _format_error("response body", data)
+    embedded = data.get("_embedded", {})
+    if not isinstance(embedded, dict):
+        return _format_error("_embedded", embedded)
+    raw_assocs = embedded.get("associations")
+    if raw_assocs is None:
         raw_assocs = []
+    elif not isinstance(raw_assocs, list):
+        return _format_error("_embedded.associations", raw_assocs)
 
     associations = []
     for a in raw_assocs[:max_hits]:
