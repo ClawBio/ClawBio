@@ -355,7 +355,14 @@ accession or an explicit mention of PRIDE or ProteomeXchange.
 
 ## Maintenance
 
-- **Review cadence**: quarterly, or when PRIDE ships a new API version.
+- **Update trigger**: when an archive host changes an endpoint this skill calls.
+  Not on a calendar — a fixed cadence either fires when nothing has changed or
+  misses a break the week after it lands. The staleness signals below are the
+  trigger.
+- **How a break surfaces**: from a live call, not from CI. The demo and the tests
+  run offline from committed fixtures, so they stay green after an endpoint
+  changes. Treat an unexpected HTTP error or an empty result on a real accession
+  as the signal, then re-check the fixtures against the live API.
 - **Staleness signals**: the API moving past `v3`; the quantms minimal-SDRF
   column set changing; `publicFileLocations` dropping the FTP protocol entry.
 - **Known debt**: the harmonisation helpers are duplicated across the archive

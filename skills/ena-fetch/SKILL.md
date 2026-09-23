@@ -374,7 +374,14 @@ or submit a generated script without explicit confirmation.
 
 ## Maintenance
 
-- **Review cadence**: quarterly, or when the ENA Portal API version changes.
+- **Update trigger**: when an archive host changes an endpoint this skill calls.
+  Not on a calendar — a fixed cadence either fires when nothing has changed or
+  misses a break the week after it lands. The staleness signals below are the
+  trigger.
+- **How a break surfaces**: from a live call, not from CI. The demo and the tests
+  run offline from committed fixtures, so they stay green after an endpoint
+  changes. Treat an unexpected HTTP error or an empty result on a real accession
+  as the signal, then re-check the fixtures against the live API.
 - **Staleness signals**: `DEFAULT_RUN_FIELDS` names a field the Portal drops;
   the Browser XML schema changing `SAMPLE_ATTRIBUTES`; nf-core changing its
   samplesheet column contract.

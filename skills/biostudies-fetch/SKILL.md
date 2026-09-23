@@ -371,7 +371,14 @@ BioImage Archive.
 
 ## Maintenance
 
-- **Review cadence**: quarterly, or when the BioStudies API version changes.
+- **Update trigger**: when an archive host changes an endpoint this skill calls.
+  Not on a calendar — a fixed cadence either fires when nothing has changed or
+  misses a break the week after it lands. The staleness signals below are the
+  trigger.
+- **How a break surfaces**: from a live call, not from CI. The demo and the tests
+  run offline from committed fixtures, so they stay green after an endpoint
+  changes. Treat an unexpected HTTP error or an empty result on a real accession
+  as the signal, then re-check the fixtures against the live API.
 - **Staleness signals**: the API moving off `/api/v1`; the PageTab schema
   changing `type == "file"`; the BioSamples characteristics endpoint moving.
 - **Known debt**: the harmonisation helpers (`harmonize_row`,

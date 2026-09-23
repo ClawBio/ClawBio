@@ -435,7 +435,14 @@ ArrayExpress, MAGE-TAB, SDRF or IDF.
 
 ## Maintenance
 
-- **Review cadence**: every 6 months, or when the BioStudies API version changes.
+- **Update trigger**: when an archive host changes an endpoint this skill calls.
+  Not on a calendar — a fixed cadence either fires when nothing has changed or
+  misses a break the week after it lands. The staleness signals below are the
+  trigger.
+- **How a break surfaces**: from a live call, not from CI. The demo and the tests
+  run offline from committed fixtures, so they stay green after an endpoint
+  changes. Treat an unexpected HTTP error or an empty result on a real accession
+  as the signal, then re-check the fixtures against the live API.
 - **Staleness signals**: `/studies/{acc}/info` stops advertising `httpLink`; the
   MAGE-TAB column vocabulary changes; nf-core changes its samplesheet columns.
 - **Known debt**: the metadata-table, sanitiser and read-map helper blocks are
