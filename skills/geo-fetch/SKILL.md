@@ -251,6 +251,11 @@ producing a 42-sample metadata table and samplesheet.
 - Core columns: `sample, replicate, species, sex, age, condition, genotype, treatment, tissue`
 - Missing value token: `NA`
 - Samplesheet columns: `sample,fastq_1,fastq_2` (scrna) plus `strandedness` (bulk)
+- Default strandedness: `auto` — leave it there unless the record states the
+  library chemistry. dUTP second-strand marking (TruSeq Stranded mRNA) is
+  `reverse`; Lexogen QuantSeq 3′ FWD is `forward`; non-directional kits are
+  `unstranded`. "Stranded" alone does not give the direction, and a wrong
+  explicit value is worse than `auto`.
 - Credentials: `NCBI_EMAIL`, `NCBI_API_KEY` — only with `--use-ncbi-credentials`
 
 ## Example Queries

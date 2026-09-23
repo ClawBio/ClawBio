@@ -400,13 +400,15 @@ output_directory/
   falling back to `Source Name`, before they are harmonised. Do not "fix" a row
   count that looks low by iterating the SDRF directly — that is the bug this
   replaced, and it also doubled the BioSamples lookups.
-- **Gotcha 11**: `--strandedness` defaults to `auto`, which is safe but is not
-  the best answer when you know the protocol. nf-core/rnaseq infers strandedness
-  per sample either way; the difference is that with an explicit value it also
-  **reports a mismatch** between what you declared and what it inferred, and with
-  `auto` there is nothing to compare against. A dUTP protocol — Illumina TruSeq
-  Stranded mRNA and most modern kits — is `reverse`. Declare it and keep the
-  cross-check.
+- **Gotcha 11**: `--strandedness` defaults to `auto` and should stay there unless
+  the record states the library chemistry. The value follows from the chemistry,
+  never from a library merely being "stranded": dUTP second-strand marking
+  (TruSeq Stranded mRNA, NEBNext Ultra II Directional) → `reverse`; Lexogen
+  QuantSeq 3′ **FWD** → `forward` — one vendor, both directions; non-directional
+  kits → `unstranded`. When you do know it, declare it: nf-core/rnaseq infers per
+  sample either way, but only an explicit value earns a **mismatch report**, and
+  `auto` has nothing to compare against. A wrong explicit value is worse than
+  `auto` — it mislabels every sample and suppresses nothing.
 
 ## Safety
 
