@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "hpo_release": "2025-01-16",
+  "upstream_commit": "03bc5f6be6456a3ca2c5206e399f0a38f879ce57",
+  "records": [
+    {
+      "gene": "SYNTHETIC",
+      "disease_id": "MONDO:0000001",
+      "disease": "Synthetic condition",
+      "hpo_id": "HP:0000001",
+      "frequency": "30%",
+      "qualifier": "",
+      "tier": 1,
+      "citation": "https://example.org/synthetic-evidence",
+      "source_span": "Synthetic Tier 1 evidence, not a clinical assertion.",
+      "source_version": "fixture-v1",
+      "hpo_release": "2025-01-16"
+    }
+  ]
+}

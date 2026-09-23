@@ -1,0 +1,16 @@
+[
+  {
+    "id": "synthetic-variant",
+    "gene": "SYNTHETIC",
+    "disease_id": "MONDO:0000001",
+    "condition": "Synthetic condition",
+    "condition_severity": "mild",
+    "ref_allele": "A",
+    "alt_allele": "G",
+    "inheritance": "ar",
+    "clinvar_significance": "Pathogenic",
+    "panels": [
+      "synthetic"
+    ]
+  }
+]

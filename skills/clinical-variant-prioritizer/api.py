@@ -37,6 +37,7 @@ def run(genotypes: dict[str, str], options: dict | None = None) -> dict:
         genotypes: {rsid_or_variant_id: genotype_str} (e.g. {"rs28941785": "CT"}).
         options: Optional dict. Recognised keys:
             - 'panel_path': custom clinical panel JSON (default: built-in panel).
+            - 'severity_evidence': optional versioned evidence dict (see SKILL.md).
 
     Returns:
         dict with keys: skill, version, method, summary, findings (ranked),
@@ -50,7 +51,7 @@ def run(genotypes: dict[str, str], options: dict | None = None) -> dict:
     panel = load_panel(panel_path)
     findings, summary = screen(genotypes, panel)
 
-    return {
+    result = {
         "skill": "clinical-variant-prioritizer",
         "version": VERSION,
         "method": METHOD,
@@ -63,3 +64,13 @@ def run(genotypes: dict[str, str], options: dict | None = None) -> dict:
             "rare variants; confirm any finding with an accredited clinical assay."
         ),
     }
+
+    if "severity_evidence" in options:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "clinical_severity_evidence", _SKILL_DIR / "severity_evidence.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        result["severity_evidence"] = module.annotate(
+            findings, panel, options["severity_evidence"])
+    return result
