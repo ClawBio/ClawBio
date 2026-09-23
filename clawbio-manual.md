@@ -168,13 +168,8 @@ metadata:
 
 ClawBio mandates **Red/Green Test-Driven Development (TDD)** for all skill changes.
 
-### 1. Register the Test Path
-Add the skill's test folder path to `testpaths` inside [pytest.ini](pytest.ini):
-```ini
-testpaths =
-    ...
-    skills/pathway-enrichment/tests
-```
+### 1. Test Path Registration
+Nothing to do: [pytest.ini](pytest.ini) collects every `skills/*/tests` folder by glob.
 
 ### 2. Write the Tests First
 The scaffolded tests inside `skills/<name>/tests/test_<name_underscore>.py` check:
@@ -322,7 +317,7 @@ Add your skill to the routing table and CLI guides inside [AGENTS.md](AGENTS.md)
    ```
 3. Commit and push your changes:
    ```bash
-   git add skills/pathway-enrichment/ clawbio.py pytest.ini scripts/generate_catalog.py AGENTS.md
+   git add skills/pathway-enrichment/ clawbio.py scripts/generate_catalog.py AGENTS.md
    git commit -m "Add pathway-enrichment skill with TDD, CLI, and registry registration"
    git push -u origin feat/add-pathway-enrichment
    ```
