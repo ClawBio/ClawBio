@@ -2,6 +2,7 @@
 
 Generated from `nextflow_schema.json` in [nf-core/rnastructurome](https://github.com/nf-core/rnastructurome) v1.0.0.
 Regenerate after a pipeline version bump rather than hand-editing: see the skill's SKILL.md `## Maintenance` section.
+Six rf-fold flag letters are hand-corrected against `conf/modules.config`, because the 1.0.0 schema descriptions name letters rf-fold never receives: `rffold_unconstrained` `-i`, `rffold_vienna_no_lonely_pairs` `-nlp`, `rffold_vienna_constrained` `-hc`, `rffold_vienna_max_bp_span` `-md`, `rffold_fold_constraint_file` `-c`, `rffold_dotplot` `-dp`. Re-apply after any regeneration until the schema is fixed upstream.
 This is the full audited surface; see the skill's own CLI Reference section for the subset used in everyday runs.
 
 ## Input/output options
@@ -175,15 +176,15 @@ This is the full audited surface; see the skill's own CLI Reference section for 
 | `--rffold_ct` | boolean | `False` | Write CT format structures with rf-fold (`-ct`). Disabled by default to keep dot-bracket output. |
 | `--rffold_window` | integer | `1000` | Enable windowed MFE folding in rf-fold with this window size (`-w -fw N`). Set null/unset to fold the whole transcript instead. |
 | `--rffold_partition_window` | integer | `1000` | Partition-function window size in rf-fold (`-pw N`). |
-| `--rffold_unconstrained` | boolean | `False` | Fold without reactivity constraints in rf-fold (`-u`). |
-| `--rffold_vienna_no_lonely_pairs` | boolean | `False` | Pass ViennaRNA no-lonely-pairs mode to rf-fold (`-vnlp`). |
-| `--rffold_vienna_constrained` | boolean | `False` | Use ViennaRNA hard constraints with rf-fold (`-vc`). |
-| `--rffold_vienna_max_bp_span` | integer | `600` | Maximal base-pair span for ViennaRNA in rf-fold (`-vmd`). |
+| `--rffold_unconstrained` | boolean | `False` | Fold without reactivity constraints in rf-fold (`-i`). |
+| `--rffold_vienna_no_lonely_pairs` | boolean | `False` | Pass ViennaRNA no-lonely-pairs mode to rf-fold (`-nlp`). |
+| `--rffold_vienna_constrained` | boolean | `False` | Use ViennaRNA hard constraints with rf-fold (`-hc`). |
+| `--rffold_vienna_max_bp_span` | integer | `600` | Maximal base-pair span for ViennaRNA in rf-fold (`-md`). |
 | `--rffold_vienna_bp_span` | integer | `—` | Minimal base-pair span for ViennaRNA in rf-fold (`-vms`). |
 | `--rffold_only_common` | integer | `—` | Only fold transcripts covered in at least this number of XML experiments (`-oc`). |
-| `--rffold_fold_constraint_file` | string | `—` | Constraint file for allowed base-pairing positions (`-fc`). |
+| `--rffold_fold_constraint_file` | string | `—` | Constraint file for allowed base-pairing positions (`-c`). |
 | `--rffold_unpaired_constraint_file` | string | `—` | Constraint file for required unpaired positions (`-uc`). |
-| `--rffold_dotplot` | boolean | `True` | Generate dot plots from rf-fold (`-d`). |
+| `--rffold_dotplot` | boolean | `True` | Generate dot plots from rf-fold (`-dp`). |
 | `--rffold_shannon_entropy` | boolean | `True` | Compute and report Shannon entropy in rf-fold (`-sh`). |
 | `--rffold_slope` | number | `—` | Slope for reactivity-to-folding-constraint conversion in rf-fold (`-sl`). Auto by `chemical`: DMS 4.6, NAI 2.2, 2A3 1, other/unset 1.8. Overridden by jackknife calibration when available. |
 | `--rffold_intercept` | number | `—` | Intercept for reactivity-to-folding-constraint conversion in rf-fold (`-in`). Auto by `chemical`: DMS -2, NAI -0.8, 2A3 -0.4, other/unset -0.6. Overridden by jackknife calibration when available. |
