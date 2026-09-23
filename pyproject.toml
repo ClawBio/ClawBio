@@ -84,6 +84,10 @@ cell-detection = [
     "tifffile>=2024.8.30",
     "scikit-image>=0.24",
 ]
+# Imported lazily by these skills but previously undeclared, so `uv.lock` never
+# pinned them and `uv sync --all-extras` in CI never installed them.
+labstep = ["labstep>=3.0"]
+galaxy-bridge = ["bioblend>=1.2"]
 
 [tool.uv]
 # glimix-core (a hard dependency of sushie) requires liknorm, and liknorm 2.0.0
