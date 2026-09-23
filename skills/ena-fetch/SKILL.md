@@ -323,7 +323,12 @@ download script; `sbatch` if it is submitted rather than run.
   directory. Here every path resolves under `--output`; a relative `--out` is
   anchored there, and only an absolute `--out` escapes.
 - **Gotcha 7**: If `metadata`/`runs` work but `download` hangs or fails with a
-  connection timeout, suspect a **firewall, not a bug**. Metadata comes from
+  connection timeout, suspect a **firewall, not a bug** — but check the
+  `[download]` line first. `download` prints the file count and total size
+  before it blocks, then produces **no further output until it finishes** — a
+  709 GB study is not hung, it is 709 GB. A firewall gives a connection
+  timeout; a slow link gives silence. Only the timeout is the case described
+  here. Metadata comes from
   `www.ebi.ac.uk` (Portal + Browser); FASTQ bytes come from
   `ftp.sra.ebi.ac.uk`. Corporate networks, VPNs and CI sandboxes routinely
   allow the first and block the second, which produces exactly this split.
@@ -334,6 +339,15 @@ download script; `sbatch` if it is submitted rather than run.
   `200` means reachable, `000` means blocked. The same applies to a generated
   `download-script` run on a compute node, which often has stricter egress than
   the login node it was written on.
+
+- **Gotcha 8**: `--limit` means different things per command, so it has **no
+  global default**. On `search` it caps hits (20 when omitted). On `report` it
+  caps **data rows**, and omitting it means *all* rows — passing a default here
+  once truncated a 95-run study to 20 with `status: ok`, which is
+  indistinguishable from a complete report. `runs`, `metadata-table` and
+  `samplesheet` always fetch everything. If a `report` comes back with exactly
+  `--limit` rows you get a truncation warning, in both the terminal and
+  `report.md`; re-run with `--limit 0` to be certain.
 
 ## Safety
 

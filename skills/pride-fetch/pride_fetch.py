@@ -40,6 +40,9 @@ SKILL = "pride-fetch"
 VERSION = "0.1.0"
 COMMANDS = ("metadata", "files", "download", "search", "samplesheet",
             "metadata-table", "download-script")
+# Search hits shown in report.md. Explicit here rather than inherited from
+# the shared parser, which has no default -- see archive_fetch.common_parser.
+SEARCH_LIMIT = 20
 
 DEMO_ACCESSION = "PXD084218"
 _E = _SKILL_DIR / "examples"
@@ -79,7 +82,7 @@ def _to_upstream_argv(args, output_dir: Path) -> list[str]:
     if cmd == "search":
         if not args.query:
             raise SystemExit("--command search needs --query")
-        return ["search", args.query, "--limit", str(args.limit)] + (
+        return ["search", args.query, "--limit", str(SEARCH_LIMIT if args.limit is None else args.limit)] + (
             ["--json"] if args.json else [])
 
     if not args.accession:

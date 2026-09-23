@@ -83,3 +83,27 @@ def test_locally_handled_commands_are_advertised(skill):
     local = set(getattr(app, "LOCAL_COMMANDS", ()))
     orphaned = sorted(local - set(app.COMMANDS))
     assert not orphaned, f"{skill}: LOCAL_COMMANDS names {orphaned}, absent from COMMANDS"
+
+
+@pytest.mark.parametrize("skill", SKILLS)
+def test_search_still_defaults_to_twenty_hits(skill, tmp_path):
+    """The shared `--limit` default is a sentinel so each command can pick its
+    own. Search must be unaffected by that change.
+
+    The sentinel exists because `--limit` meant two things: a search hit cap,
+    and a row cap on `ena-fetch --command report`, whose vendored default is
+    `0 = no limit`. A global default of 20 silently truncated a 95-run report.
+    Supplying 20 at each search call site keeps the behaviour and makes it
+    deliberate.
+    """
+    app = _load_entry_point(skill)
+    if "search" not in app.COMMANDS:
+        pytest.skip(f"{skill} has no search command")
+
+    args = app._build_parser().parse_args(
+        ["--command", "search", "--query", "microglia"])
+    argv = app._to_upstream_argv(args, tmp_path)
+
+    assert "--limit" in argv, f"{skill} search sends no --limit"
+    assert argv[argv.index("--limit") + 1] == "20", (
+        f"{skill} search default changed; the sentinel must not alter search")

@@ -25,7 +25,7 @@
 ## Project State
 
 - Current public release: `v0.7.1`
-- Public framing in `README.md`: `102 skills + 8,182 Galaxy tools + 5,326 tests + benchmark validation`
+- Public framing in `README.md`: `102 skills + 8,182 Galaxy tools + 5,339 tests + benchmark validation`
 - Catalog status split: `29` MVP skills and `73` planned / legacy skills
 - Counts above are derived, not hand-written. Regenerate them before editing:
   - skills and Galaxy tools: `skill_count` / `galaxy_tool_count` in `skills/catalog.json`,

@@ -34,6 +34,9 @@ api = af.load_sibling(_SKILL_DIR, "biostudies_fetch_api")
 SKILL = "biostudies-fetch"
 VERSION = "0.1.0"
 COMMANDS = ("metadata", "files", "download", "search", "metadata-table")
+# Search hits shown in report.md. Explicit here rather than inherited from
+# the shared parser, which has no default -- see archive_fetch.common_parser.
+SEARCH_LIMIT = 20
 
 DEMO_ACCESSION = "S-BSST2074"
 DEMO_STUDY_FIXTURE = _SKILL_DIR / "examples" / f"demo_{DEMO_ACCESSION}.json"
@@ -57,7 +60,7 @@ def _to_upstream_argv(args, output_dir: Path) -> list[str]:
         argv = ["search", args.query]
         if args.collection:
             argv += ["--collection", args.collection]
-        argv += ["--limit", str(args.limit)]
+        argv += ["--limit", str(SEARCH_LIMIT if args.limit is None else args.limit)]
         if args.json:
             argv.append("--json")
         return argv

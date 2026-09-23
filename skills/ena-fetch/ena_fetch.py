@@ -42,6 +42,9 @@ SKILL = "ena-fetch"
 VERSION = "0.1.0"
 COMMANDS = ("runs", "report", "fields", "search", "xml", "download",
             "metadata-table", "samplesheet", "download-script")
+# Search hits shown in report.md. Explicit here rather than inherited from
+# the shared parser, which has no default -- see archive_fetch.common_parser.
+SEARCH_LIMIT = 20
 # Handled by this wrapper, not the vendored CLI (folded in from upstream's
 # standalone fastq-download-script skill). tests/test_archive_command_coverage.py
 # uses this to tell "implemented here" apart from "implemented nowhere".
@@ -90,7 +93,8 @@ def _to_upstream_argv(args, output_dir: Path) -> list[str]:
     if cmd == "fields":
         return ["fields", "--result", args.result]
     if cmd == "search":
-        argv = ["search", "--result", args.result, "--limit", str(args.limit)]
+        argv = ["search", "--result", args.result,
+                "--limit", str(SEARCH_LIMIT if args.limit is None else args.limit)]
         if args.query:
             argv += ["--query", args.query]
         if args.fields:
@@ -107,8 +111,13 @@ def _to_upstream_argv(args, output_dir: Path) -> list[str]:
     if cmd == "xml":
         return ["xml", args.accession, "--format", args.format]
     if cmd == "report":
-        argv = ["report", args.accession, "--result", args.result,
-                "--limit", str(args.limit)]
+        # No --limit unless the caller gave one: the vendored default is
+        # 0 = no limit, and forwarding a wrapper default silently truncated a
+        # 95-run report to 20 rows. `is not None` rather than truthiness --
+        # --limit 0 is a deliberate request for everything, not an unset flag.
+        argv = ["report", args.accession, "--result", args.result]
+        if args.limit is not None:
+            argv += ["--limit", str(args.limit)]
         if args.fields:
             argv += ["--fields", args.fields]
         return argv + (["--json"] if args.json else [])
@@ -155,6 +164,78 @@ def _run_download_script(args, output_dir: Path) -> str:
     return (f"Wrote {path.name}: {n} download command(s) using {args.tool}.\n"
             "Nothing has been downloaded. Run it yourself with "
             f"`bash {path.name}`, or submit it with `sbatch {path.name}`.")
+
+
+def _announce_download_size(args, output_dir: Path) -> None:
+    """Print the transfer size before `download` blocks.
+
+    Best effort: a failed size probe must never stop the download it exists to
+    explain, so anything going wrong here is swallowed.
+    """
+    field = "submitted_bytes" if getattr(args, "submitted", False) else "fastq_bytes"
+    try:
+        text = api.portal_get(
+            "filereport",
+            {"accession": args.accession, "result": args.result,
+             "fields": f"run_accession,{field}", "format": "tsv", "limit": "0"},
+        )
+        rows = api.parse_tsv(text)
+    except Exception:
+        return
+    if rows:
+        print(_download_preflight_line(args.accession, rows, field), file=sys.stderr)
+
+
+def _truncation_warning(body: str, limit: int | None) -> str | None:
+    """Flag a report whose row count exactly equals --limit.
+
+    Correcting the default stops the accidental truncation; an explicit
+    `--limit 50` on a 95-run study still returns 50 rows and still looks
+    complete. Equality is the only signal available without a second query, so
+    the wording says "probably" -- a study with exactly 50 runs is a false
+    positive, which is the right trade against shipping a short table silently.
+    """
+    if not limit:  # None (unset) or 0 (explicitly unlimited)
+        return None
+    rows = [ln for ln in body.splitlines() if ln.strip()]
+    if len(rows) - 1 != limit:  # minus the header
+        return None
+    return (f"[warning] report returned exactly {limit} row(s), the value of "
+            f"--limit \u2014 the result is probably truncated. Re-run with "
+            f"--limit 0 for the complete report.")
+
+
+def _human_bytes(n: float) -> str:
+    """Bytes as a size a human can judge a wait against."""
+    for unit in ("B", "KB", "MB", "GB"):
+        if abs(n) < 1024.0:
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024.0
+    return f"{n:.1f} TB"
+
+
+def _download_preflight_line(accession: str, rows: list, field: str) -> str:
+    """Announce size before a blocking transfer.
+
+    Printed from the wrapper, not the vendored command, because `run_upstream`
+    redirects stdout and stderr into a StringIO: anything the download prints
+    surfaces only after it returns, all at once, after the wait it was meant to
+    explain. `warn_if_overwriting` reaches the terminal for the same reason --
+    it runs outside the redirect.
+    """
+    total, count = 0, 0
+    for row in rows:
+        for value in filter(None, (row.get(field) or "").split(";")):
+            count += 1
+            try:
+                total += int(value)
+            except ValueError:  # ENA omits sizes on some records
+                pass
+    size = _human_bytes(total) if total else "size unknown"
+    return (f"[download] {accession}: {count} file(s), ~{size} from "
+            f"ftp.sra.ebi.ac.uk.\n"
+            f"           One blocking transfer with no progress output; a slow "
+            f"link looks the same as a hang. Ctrl-C is safe.")
 
 
 def _install_demo_transport() -> None:
@@ -220,8 +301,19 @@ def main(argv: list[str] | None = None) -> int:
         if cmd == "download-script":
             sections.append((cmd, _run_download_script(args, output_dir)))
             continue
+        if cmd == "download":
+            _announce_download_size(args, output_dir)
         stdout, stderr = af.run_upstream(api, _to_upstream_argv(args, output_dir), output_dir)
-        sections.append((cmd, stdout or stderr))
+        body = stdout or stderr
+        if cmd == "report":
+            warning = _truncation_warning(body, args.limit)
+            if warning:
+                # Both channels on purpose: stderr so the caller sees it now,
+                # and the section so report.md carries its own caveat rather
+                # than relying on someone having watched the terminal.
+                print(warning, file=sys.stderr)
+                body = f"{warning}\n\n{body}"
+        sections.append((cmd, body))
 
     report = af.write_report(
         output_dir,

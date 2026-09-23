@@ -67,7 +67,14 @@ def common_parser(prog: str, description: str, commands: tuple[str, ...]) -> arg
                    help="upstream subcommand to run (runner-reachable form)")
     p.add_argument("--accession", help="archive accession")
     p.add_argument("--query", help="search terms (--command search)")
-    p.add_argument("--limit", type=int, default=20, help="search hits to return")
+    # No global default: --limit caps search hits for every skill, but on
+    # `ena-fetch --command report` it caps DATA ROWS, where the vendored
+    # default is 0 = no limit. A shared default of 20 silently truncated a
+    # 95-run file report to 20 rows with status: ok. None means "unset", so
+    # each command applies its own default at the call site.
+    p.add_argument("--limit", type=int, default=None,
+                   help="max hits/rows; each command's own default applies "
+                        "when omitted (search: 20)")
     p.add_argument("--json", action="store_true", help="emit raw JSON in the report")
     p.add_argument("--out", metavar="PATH",
                    help="upstream --out alias; resolved under --output, not cwd")

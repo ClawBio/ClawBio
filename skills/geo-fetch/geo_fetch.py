@@ -46,6 +46,9 @@ SKILL = "geo-fetch"
 VERSION = "0.1.0"
 COMMANDS = ("metadata", "samples", "files", "download", "search",
             "metadata-table", "runtable", "samplesheet", "download-script")
+# Search hits shown in report.md. Explicit here rather than inherited from
+# the shared parser, which has no default -- see archive_fetch.common_parser.
+SEARCH_LIMIT = 20
 # Handled by this wrapper, not the vendored CLI (folded in from upstream's
 # standalone fastq-download-script skill). tests/test_archive_command_coverage.py
 # uses this to tell "implemented here" apart from "implemented nowhere".
@@ -101,7 +104,7 @@ def _to_upstream_argv(args, output_dir: Path) -> list[str]:
     if cmd == "search":
         if not args.query:
             raise SystemExit("--command search needs --query")
-        argv = ["search", args.query, "--limit", str(args.limit)]
+        argv = ["search", args.query, "--limit", str(SEARCH_LIMIT if args.limit is None else args.limit)]
         if args.organism:
             argv += ["--organism", args.organism]
         if args.entry_type:

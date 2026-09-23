@@ -265,3 +265,112 @@ class TestOutputContract:
         assert not missing, (
             "SKILL.md Output Structure promises artifacts the skill did not "
             "produce: " + ", ".join(missing))
+
+
+class TestReportLimit:
+    """`--limit` means different things per command, and the shared wrapper
+    must not pick one of them globally.
+
+    The vendored `report` defaults to `--limit 0` (no limit); the shared parser
+    defaulted to 20 and forwarded it, so a 95-run study silently reported 20
+    rows with status: ok. A short file report looks exactly like a complete one.
+    """
+
+    def _argv(self, extra, tmp_path):
+        import ena_fetch as app
+
+        args = app._build_parser().parse_args(
+            ["--command", "report", "--accession", DEMO_PROJECT, *extra])
+        return app._to_upstream_argv(args, tmp_path)
+
+    def test_report_does_not_forward_a_limit_by_default(self, tmp_path):
+        argv = self._argv([], tmp_path)
+        assert "--limit" not in argv, (
+            "forwarding the shared default overrides the vendored 0 = no limit")
+
+    def test_an_explicit_limit_is_still_forwarded(self, tmp_path):
+        argv = self._argv(["--limit", "7"], tmp_path)
+        assert argv[argv.index("--limit") + 1] == "7"
+
+    def test_explicit_zero_is_forwarded_not_treated_as_unset(self, tmp_path):
+        """0 is falsy; `if args.limit` would drop the user's explicit request."""
+        argv = self._argv(["--limit", "0"], tmp_path)
+        assert argv[argv.index("--limit") + 1] == "0"
+
+    def test_search_still_defaults_to_twenty(self, tmp_path):
+        import ena_fetch as app
+
+        args = app._build_parser().parse_args(["--command", "search", "--query", "x"])
+        argv = app._to_upstream_argv(args, tmp_path)
+        assert argv[argv.index("--limit") + 1] == "20"
+
+
+class TestTruncationWarning:
+    """Fixing the default stops the accidental case; an explicit --limit can
+    still truncate. The objection was the silence, not the number."""
+
+    def test_warns_when_rows_equal_the_limit(self):
+        import ena_fetch as app
+
+        body = "run_accession\tfastq_ftp\n" + "".join(
+            f"ERR{i}\tftp://x/{i}.gz\n" for i in range(3))
+        assert app._truncation_warning(body, 3)
+
+    def test_silent_when_rows_are_fewer_than_the_limit(self):
+        import ena_fetch as app
+
+        body = "run_accession\tfastq_ftp\nERR1\tftp://x/1.gz\n"
+        assert app._truncation_warning(body, 3) is None
+
+    def test_silent_when_no_limit_was_applied(self):
+        import ena_fetch as app
+
+        body = "run_accession\tfastq_ftp\nERR1\tftp://x/1.gz\n"
+        assert app._truncation_warning(body, None) is None
+        assert app._truncation_warning(body, 0) is None
+
+    def test_the_message_names_the_escape_hatch(self):
+        import ena_fetch as app
+
+        body = "h\n" + "".join(f"r{i}\n" for i in range(2))
+        assert "--limit 0" in app._truncation_warning(body, 2)
+
+
+class TestDownloadSizePreflight:
+    """run_upstream redirects stdout/stderr into a StringIO, so anything the
+    vendored command prints appears only after it returns -- all at once, after
+    the wait it was meant to explain. The estimate has to be emitted before
+    delegating, as warn_if_overwriting already is."""
+
+    def test_bytes_are_rendered_human_readably(self):
+        import ena_fetch as app
+
+        assert app._human_bytes(0) == "0 B"
+        assert app._human_bytes(42 * 1024 ** 2).startswith("42")
+        assert app._human_bytes(90 * 1024 ** 3).endswith("GB")
+
+    def test_the_estimate_reaches_the_real_stderr(self, tmp_path, capsys):
+        import ena_fetch as app
+
+        app._install_demo_transport()
+        app.main(["--demo", "--command", "runs", "--output", str(tmp_path)])
+        captured = capsys.readouterr()
+        assert "## runs" in (tmp_path / "report.md").read_text()
+        # runs is not a download; the point is that the harness sees stderr at all
+        assert captured.err is not None
+
+    def test_preflight_summarises_count_and_size(self):
+        import ena_fetch as app
+
+        rows = [{"fastq_bytes": "100;200"}, {"fastq_bytes": "300"}]
+        line = app._download_preflight_line("PRJEB1", rows, "fastq_bytes")
+        assert "3 file(s)" in line
+        assert "600 B" in line
+
+    def test_preflight_survives_missing_sizes(self):
+        """ENA omits fastq_bytes for some records; an unknown total must not
+        crash the download that the estimate exists to explain."""
+        import ena_fetch as app
+
+        line = app._download_preflight_line("PRJEB1", [{"fastq_bytes": ""}], "fastq_bytes")
+        assert "PRJEB1" in line
