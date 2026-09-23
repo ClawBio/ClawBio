@@ -457,3 +457,88 @@ class TestDeterminism:
         app.main(["--demo", "--output", str(a)])
         app.main(["--demo", "--output", str(b)])
         assert (a / "report.md").read_text() == (b / "report.md").read_text()
+
+
+class TestMetadataTableRowUnit:
+    """One row per sample x replicate, not one per SDRF line.
+
+    The demo fixture cannot catch a regression here: E-MTAB-10030 is a 10x
+    study, so its reads are packed into read1/read2/index1 column pairs on a
+    single SDRF row per sample. A conventional bulk paired-end SDRF puts each
+    FASTQ on its own row, which is the shape that exposed the double-counting
+    (E-MTAB-5688: 24 SDRF rows, 12 samples). Hence a synthetic SDRF here,
+    following the pattern in pride-fetch's tests.
+    """
+
+    SDRF = (
+        "Source Name\tCharacteristics[organism]\tComment[ENA_RUN]\t"
+        "Comment[LIBRARY_LAYOUT]\tComment[FASTQ_URI]\n"
+        "SampleA\tHomo sapiens\tERR1\tPAIRED\tftp://ftp.sra.ebi.ac.uk/a_1.fastq.gz\n"
+        "SampleA\tHomo sapiens\tERR1\tPAIRED\tftp://ftp.sra.ebi.ac.uk/a_2.fastq.gz\n"
+        "SampleB\tHomo sapiens\tERR2\tPAIRED\tftp://ftp.sra.ebi.ac.uk/b_1.fastq.gz\n"
+        "SampleB\tHomo sapiens\tERR2\tPAIRED\tftp://ftp.sra.ebi.ac.uk/b_2.fastq.gz\n")
+
+    def _run(self, tmp_path, sdrf):
+        import csv as _csv
+        from types import SimpleNamespace
+
+        import arrayexpress_fetch_api as api
+
+        out = tmp_path / "metadata.tsv"
+        args = SimpleNamespace(accession="E-MTAB-0000", out=str(out))
+        with patch.object(api, "get_sdrf_text", return_value=sdrf), \
+                patch.object(api, "merge_biosample", side_effect=lambda s, a: a):
+            api.cmd_metadata_table(args)
+        return list(_csv.DictReader(out.open(), delimiter="\t"))
+
+    def test_paired_end_rows_collapse_to_one_row_per_run(self, tmp_path):
+        rows = self._run(tmp_path, self.SDRF)
+        assert [r["sample"] for r in rows] == ["SampleA", "SampleB"], (
+            "each FASTQ became its own row; group on Comment[ENA_RUN] first")
+
+    def test_a_sample_with_two_runs_keeps_both(self, tmp_path):
+        """'sample x replicate' means multi-run samples stay distinguishable."""
+        sdrf = self.SDRF.replace(
+            "SampleB\tHomo sapiens\tERR2", "SampleA\tHomo sapiens\tERR2")
+        rows = self._run(tmp_path, sdrf)
+        assert [r["sample"] for r in rows] == ["SampleA", "SampleA"]
+        assert len({r["replicate"] for r in rows}) == 2
+
+    def test_biosample_is_looked_up_once_per_group_not_per_fastq(self, tmp_path):
+        """Halves the API calls a paired-end study makes; arrayexpress has no
+        cache, unlike ena-fetch."""
+        from types import SimpleNamespace
+
+        import arrayexpress_fetch_api as api
+
+        sdrf = self.SDRF.replace("Comment[ENA_RUN]", "Comment[BioSD_SAMPLE]") \
+                        .replace("ERR1", "SAMEA1").replace("ERR2", "SAMEA2")
+        args = SimpleNamespace(accession="E-MTAB-0000", out=str(tmp_path / "m.tsv"))
+        with patch.object(api, "get_sdrf_text", return_value=sdrf), \
+                patch.object(api, "merge_biosample",
+                             side_effect=lambda s, a: a) as merge:
+            api.cmd_metadata_table(args)
+        assert merge.call_count == 2, f"{merge.call_count} lookups for 2 samples"
+
+
+class TestDownloadScriptRoutesToEna:
+    """ArrayExpress brokers sequencing reads to ENA, so this skill does not
+    emit a FASTQ download script -- but it must say so, loudly. It previously
+    died inside argparse with no message at all."""
+
+    def test_it_names_ena_fetch_and_exits_non_zero(self, tmp_path):
+        proc = subprocess.run(
+            [sys.executable, str(SCRIPT), "--command", "download-script",
+             "--accession", DEMO_ACCESSION, "--output", str(tmp_path)],
+            capture_output=True, text=True)
+        assert proc.returncode != 0
+        assert "ena-fetch" in proc.stderr, proc.stderr
+        assert "sra-tools" in proc.stderr
+
+    def test_it_does_not_advertise_slurm_or_exec_flags(self):
+        """--no-slurm/--run/--submit existed only for the emitter that is not
+        here. --run and --submit were never read by anything."""
+        proc = subprocess.run([sys.executable, str(SCRIPT), "--help"],
+                              capture_output=True, text=True)
+        for flag in ("--no-slurm", "--run", "--submit"):
+            assert flag not in proc.stdout, f"{flag} is still advertised"

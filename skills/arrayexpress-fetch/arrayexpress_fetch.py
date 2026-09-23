@@ -35,6 +35,9 @@ SKILL = "arrayexpress-fetch"
 VERSION = "0.1.0"
 COMMANDS = ("metadata", "files", "sdrf", "download", "search",
             "metadata-table", "samplesheet", "download-script")
+# Handled here rather than by the vendored CLI. `tests/test_archive_command_coverage.py`
+# uses this to tell "implemented in the wrapper" apart from "implemented nowhere".
+LOCAL_COMMANDS = ("download-script",)
 
 DEMO_ACCESSION = "E-MTAB-10030"
 DEMO_STUDY_FIXTURE = _SKILL_DIR / "examples" / f"demo_{DEMO_ACCESSION}.json"
@@ -64,13 +67,42 @@ def _build_parser():
     p.add_argument("--read-map", metavar="R1,R2",
                    help="declare which reads are the cDNA pair, 1-based (e.g. 3,4). "
                         "Required for 10x runs whose technical reads are separate files")
-    p.add_argument("--no-slurm", action="store_true",
-                   help="download-script: omit the SLURM header")
-    p.add_argument("--run", action="store_true",
-                   help="execute the generated script locally (off by default; ask first)")
-    p.add_argument("--submit", action="store_true",
-                   help="submit the generated script with sbatch (off by default; ask first)")
+    # No --no-slurm/--run/--submit: this skill emits no download script. See
+    # _refer_fastq_downloads_to_ena.
     return p
+
+
+def _refer_fastq_downloads_to_ena(accession: str, output_dir: Path) -> None:
+    """ArrayExpress brokers sequencing reads to ENA, so there is no FASTQ
+    script to emit here.
+
+    This exits rather than writing anything. It used to fall through to the
+    vendored CLI, which rejected the unknown subcommand inside a redirected
+    stderr -- exit 2, no message, and a stale report.md left on disk.
+
+    `--command download` is unaffected: it still fetches whatever ArrayExpress
+    itself hosts (IDF, SDRF, processed matrices, CEL, BAM).
+    """
+    raise SystemExit(
+        "arrayexpress-fetch does not emit a FASTQ download script: ArrayExpress\n"
+        "brokers sequencing reads to ENA and serves the bytes from there.\n"
+        "\n"
+        "Build the samplesheet here, then emit the script with ena-fetch against\n"
+        f"this same output directory ({output_dir}):\n"
+        "\n"
+        f"    python skills/arrayexpress-fetch/arrayexpress_fetch.py \\\n"
+        f"        --command samplesheet --accession {accession} --assay bulk \\\n"
+        f"        --output {output_dir}\n"
+        f"    python skills/ena-fetch/ena_fetch.py \\\n"
+        f"        --command download-script --output {output_dir}\n"
+        "\n"
+        "ena-fetch reads samplesheet.csv and fetches whatever URLs it names, so\n"
+        "it works whether the SDRF points at ftp.sra.ebi.ac.uk or at\n"
+        "ftp.ebi.ac.uk. For runs not mirrored to ENA, or for 10x reads whose\n"
+        "structure only fasterq-dump exposes reliably, use sra-tools directly:\n"
+        "prefetch --option-file SRR_Acc_List.txt, then fasterq-dump.\n"
+        "\n"
+        "Use --command download for files ArrayExpress does host.")
 
 
 def _to_upstream_argv(args, output_dir: Path) -> list[str]:
@@ -170,6 +202,8 @@ def main(argv: list[str] | None = None) -> int:
     sections: list[tuple[str, str]] = []
     for cmd in commands:
         args.command = cmd
+        if cmd == "download-script":
+            _refer_fastq_downloads_to_ena(accession, output_dir)
         stdout, stderr = af.run_upstream(api, _to_upstream_argv(args, output_dir), output_dir)
         sections.append((cmd, stdout or stderr))
 

@@ -47,7 +47,7 @@ metadata:
       type: file
       format:
         - tsv
-      description: Harmonised one-row-per-sample table (tables/metadata.tsv)
+      description: Harmonised one-row-per-sample-x-replicate table (tables/metadata.tsv)
     - name: samplesheet
       type: file
       format:
@@ -384,6 +384,29 @@ output_directory/
   directory, so `samplesheet.csv` landed wherever you happened to be. Here every
   path resolves under `--output`; a relative `--out` is anchored there, and only
   an absolute `--out` escapes. Do not reintroduce cwd-relative defaults.
+- **Gotcha 9**: You will want to reach for `--command download-script` to get the
+  FASTQs. There is none, deliberately. **ArrayExpress brokers sequencing reads to
+  ENA** and serves the bytes from there, so build `samplesheet.csv` here and emit
+  the script with `ena-fetch --command download-script` against the same
+  `--output`; it fetches whatever URLs the sheet names, whether they point at
+  `ftp.sra.ebi.ac.uk` or `ftp.ebi.ac.uk`. For runs not mirrored to ENA, or for
+  10x reads whose structure only `fasterq-dump` exposes reliably, use sra-tools
+  (`prefetch --option-file`, then `fasterq-dump`). `--command download` is a
+  different thing and still works for files ArrayExpress *does* host — IDF, SDRF,
+  processed matrices, CEL, BAM.
+- **Gotcha 10**: `tables/metadata.tsv` is one row per sample × replicate, **not
+  one per SDRF line**. A bulk paired-end SDRF puts each FASTQ on its own line, so
+  a 12-sample study has 24 of them; the rows are grouped on `Comment[ENA_RUN]`,
+  falling back to `Source Name`, before they are harmonised. Do not "fix" a row
+  count that looks low by iterating the SDRF directly — that is the bug this
+  replaced, and it also doubled the BioSamples lookups.
+- **Gotcha 11**: `--strandedness` defaults to `auto`, which is safe but is not
+  the best answer when you know the protocol. nf-core/rnaseq infers strandedness
+  per sample either way; the difference is that with an explicit value it also
+  **reports a mismatch** between what you declared and what it inferred, and with
+  `auto` there is nothing to compare against. A dUTP protocol — Illumina TruSeq
+  Stranded mRNA and most modern kits — is `reverse`. Declare it and keep the
+  cross-check.
 
 ## Safety
 

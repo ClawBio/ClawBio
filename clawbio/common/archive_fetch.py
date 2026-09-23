@@ -119,10 +119,28 @@ def scrub(text: str, output_dir: Path) -> str:
 
 
 def run_upstream(api, argv: list[str], output_dir: Path) -> tuple[str, str]:
-    """Run the vendored CLI, capturing what it prints."""
+    """Run the vendored CLI, capturing what it prints.
+
+    The vendored CLIs exit through argparse, which raises `SystemExit` from
+    *inside* the redirect. Without catching it the `return` below is never
+    reached, so the captured message dies with the StringIO: the caller got a
+    bare exit status and no explanation, while any `report.md` from an earlier
+    run stayed on disk looking current. Re-raise with the message attached so
+    the failure is loud.
+
+    `SystemExit(0)` means the vendored CLI finished normally and must not be
+    turned into an error.
+    """
     out, err = io.StringIO(), io.StringIO()
-    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        api.main(argv)
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            api.main(argv)
+    except SystemExit as exc:
+        if exc.code not in (0, None):
+            detail = scrub((err.getvalue() or out.getvalue()).strip(), output_dir)
+            raise SystemExit(
+                detail or f"{argv[0] if argv else 'command'}: "
+                          f"failed with exit status {exc.code}") from None
     return scrub(out.getvalue(), output_dir), scrub(err.getvalue(), output_dir)
 
 

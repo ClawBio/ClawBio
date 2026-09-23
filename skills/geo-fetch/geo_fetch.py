@@ -46,6 +46,10 @@ SKILL = "geo-fetch"
 VERSION = "0.1.0"
 COMMANDS = ("metadata", "samples", "files", "download", "search",
             "metadata-table", "runtable", "samplesheet", "download-script")
+# Handled by this wrapper, not the vendored CLI (folded in from upstream's
+# standalone fastq-download-script skill). tests/test_archive_command_coverage.py
+# uses this to tell "implemented here" apart from "implemented nowhere".
+LOCAL_COMMANDS = ("download-script",)
 
 DEMO_ACCESSION = "GSE30720"
 DEMO_HTTP = _SKILL_DIR / "examples" / f"demo_{DEMO_ACCESSION}_http.json.gz"

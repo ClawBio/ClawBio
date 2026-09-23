@@ -454,41 +454,70 @@ def write_samplesheet(rows, out, assay, strandedness="auto"):
     return len(rows)
 
 
+def sdrf_col(header, name):
+    """Index of `name` in an SDRF header, case-insensitively."""
+    for i, h in enumerate(header):
+        if h.lower() == name.lower():
+            return i
+    return None
+
+
+def group_sdrf_rows(rows, header):
+    """Collapse SDRF lines into one group per sample x replicate.
+
+    A conventional bulk paired-end SDRF puts **each FASTQ on its own line**, so
+    a 12-sample study has 24 lines. Both the samplesheet and the metadata table
+    are per sample x replicate, so both group here rather than each rolling
+    their own -- they disagreed before, and the metadata table shipped one row
+    per FASTQ.
+
+    The key is `Comment[ENA_RUN]` falling back to `Source Name`: keying on the
+    run keeps a sample sequenced across several runs distinguishable, which is
+    what "x replicate" means, while still merging the mates of one run.
+
+    Returns [(key, {"sample", "run", "rows"[]})] in first-seen order.
+    """
+    si = sdrf_col(header, "Source Name")
+    ri = sdrf_col(header, "Comment[ENA_RUN]")
+    groups, order = {}, []
+    for idx, row in enumerate(rows):
+        if not any(c.strip() for c in row):
+            continue
+        sample = row[si].strip() if si is not None and si < len(row) else ""
+        run = row[ri].strip() if ri is not None and ri < len(row) else ""
+        key = run or sample or f"row{idx}"
+        g = groups.get(key)
+        if g is None:
+            g = {"sample": sample, "run": run, "rows": []}
+            groups[key] = g
+            order.append(key)
+        g["rows"].append(row)
+        if sample and not g["sample"]:
+            g["sample"] = sample
+    return [(k, groups[k]) for k in order]
+
+
 def cmd_samplesheet(args):
     read_map = check_fastq_opts(args)
     rows = list(csv.reader(io.StringIO(get_sdrf_text(args.accession)), delimiter="\t"))
     header = [h.strip() for h in rows[0]]
 
     def col(name):
-        for i, h in enumerate(header):
-            if h.lower() == name.lower():
-                return i
-        return None
+        return sdrf_col(header, name)
 
     si = col("Source Name")
-    ri = col("Comment[ENA_RUN]")
     fi = [i for i, h in enumerate(header) if h.lower() == "comment[fastq_uri]"]
     if si is None:
         raise SystemExit("SDRF has no 'Source Name' column; cannot build a samplesheet.")
 
-    groups = {}  # key -> {sample, run, uris[]}
+    groups = {}
     order = []
-    for idx, row in enumerate(rows[1:]):
-        if not any(c.strip() for c in row):
-            continue
-        sample = row[si].strip() if si < len(row) else ""
-        run = row[ri].strip() if ri is not None and ri < len(row) else ""
-        key = run or sample or f"row{idx}"
-        g = groups.get(key)
-        if g is None:
-            g = {"sample": sample, "run": run, "uris": []}
-            groups[key] = g
-            order.append(key)
-        for i in fi:
-            if i < len(row) and row[i].strip():
-                g["uris"].append(to_https(row[i].strip()))
-        if sample and not g["sample"]:
-            g["sample"] = sample
+    for key, g in group_sdrf_rows(rows[1:], header):
+        g = {"sample": g["sample"], "run": g["run"],
+             "uris": [to_https(row[i].strip()) for row in g["rows"] for i in fi
+                      if i < len(row) and row[i].strip()]}
+        groups[key] = g
+        order.append(key)
 
     out_rows = []
     for key in order:
@@ -665,43 +694,51 @@ def merge_biosample(sample_id, attrs):
 
 
 def cmd_metadata_table(args):
-    """Write a harmonized metadata.tsv (one row per SDRF row = sample x replicate).
+    """Write a harmonized metadata.tsv, one row per sample x replicate.
 
     Characteristics[...] and FactorValue[...] columns become the harmonized fields;
-    `Source Name` is the sample and a technical/biological replicate column (or 1)
-    the replicate.
+    `Source Name` is the sample and a technical/biological replicate column (or the
+    ENA run, or 1) the replicate.
+
+    Grouping is not optional. A bulk paired-end SDRF has one line per FASTQ, so
+    iterating lines directly emitted two identical rows per sample -- 24 rows
+    for the 12 samples of E-MTAB-5688 -- and made two BioSamples lookups where
+    one was needed. `group_sdrf_rows` is the same collapse the samplesheet uses.
     """
     table = list(csv.reader(io.StringIO(get_sdrf_text(args.accession)), delimiter="\t"))
     if not table:
         raise SystemExit("SDRF is empty.")
     header = [h.strip() for h in table[0]]
-    idx_source = next((i for i, h in enumerate(header) if h.lower() == "source name"), None)
     rows = []
-    for raw in table[1:]:
-        if not any(c.strip() for c in raw):
-            continue
-        sample = raw[idx_source].strip() if idx_source is not None and idx_source < len(raw) else ""
+    for _key, group in group_sdrf_rows(table[1:], header):
+        sample = group["sample"]
         replicate = ""
         attrs = {}
-        for i, h in enumerate(header):
-            v = raw[i].strip() if i < len(raw) else ""
-            if not v:
-                continue
-            if not replicate and _norm_key(h) in _REPLICATE_KEYS:
-                replicate = v
-            if _is_attr_col(h):
-                attrs.setdefault(h, v)
-        # ArrayExpress stores the BioSample id in the sample or Comment[BioSD_SAMPLE].
-        bios = sample if re.match(r"^SAM[NED]", sample, re.I) else ""
-        if not bios:
-            for i in range(len(header)):
-                cell = raw[i].strip() if i < len(raw) else ""
-                if re.match(r"^SAM[NED][A-Z]?\d+$", cell, re.I):
-                    bios = cell
-                    break
+        bios = ""
+        # Merge the group's lines: they describe one sample x replicate and
+        # differ only in their file columns, but take the first non-empty value
+        # of each attribute rather than assuming line 1 carries them all.
+        for raw in group["rows"]:
+            for i, h in enumerate(header):
+                v = raw[i].strip() if i < len(raw) else ""
+                if not v:
+                    continue
+                if not replicate and _norm_key(h) in _REPLICATE_KEYS:
+                    replicate = v
+                if _is_attr_col(h):
+                    attrs.setdefault(h, v)
+            # ArrayExpress stores the BioSample id in the sample or Comment[BioSD_SAMPLE].
+            if not bios and re.match(r"^SAM[NED]", sample, re.I):
+                bios = sample
+            if not bios:
+                for i in range(len(header)):
+                    cell = raw[i].strip() if i < len(raw) else ""
+                    if re.match(r"^SAM[NED][A-Z]?\d+$", cell, re.I):
+                        bios = cell
+                        break
         if bios:
             attrs = merge_biosample(bios, attrs)
-        rows.append(harmonize_row(sample, replicate or "1", attrs))
+        rows.append(harmonize_row(sample, replicate or group["run"] or "1", attrs))
     if not rows:
         raise SystemExit("SDRF has no data rows.")
     n, ncols = write_metadata_tsv(rows, args.out)

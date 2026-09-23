@@ -42,6 +42,10 @@ SKILL = "ena-fetch"
 VERSION = "0.1.0"
 COMMANDS = ("runs", "report", "fields", "search", "xml", "download",
             "metadata-table", "samplesheet", "download-script")
+# Handled by this wrapper, not the vendored CLI (folded in from upstream's
+# standalone fastq-download-script skill). tests/test_archive_command_coverage.py
+# uses this to tell "implemented here" apart from "implemented nowhere".
+LOCAL_COMMANDS = ("download-script",)
 
 DEMO_ACCESSION = "PRJEB56029"
 DEMO_FILEREPORT = _SKILL_DIR / "examples" / f"demo_{DEMO_ACCESSION}_filereport.tsv"
@@ -149,8 +153,8 @@ def _run_download_script(args, output_dir: Path) -> str:
         urls_from_samplesheet(sheet), output_dir / "download_ena.sh",
         tool=args.tool, outdir="fastq", slurm=slurm)
     return (f"Wrote {path.name}: {n} download command(s) using {args.tool}.\n"
-            "Nothing has been downloaded. Run it with --run, submit it with "
-            "--submit, or execute it yourself.")
+            "Nothing has been downloaded. Run it yourself with "
+            f"`bash {path.name}`, or submit it with `sbatch {path.name}`.")
 
 
 def _install_demo_transport() -> None:
