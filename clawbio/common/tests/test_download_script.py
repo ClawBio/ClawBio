@@ -74,6 +74,22 @@ class TestScriptBody:
         assert "wget -q --tries=5" in wget
         assert "curl -fsSL --retry 5" in curl
 
+    def test_curl_is_the_default_tool(self):
+        """curl resumes and retries 403; wget is the opt-in alternative."""
+        body, _ = build_download_script([("s1", ["https://x/1.fq.gz"])])
+        assert "curl -fsSL" in body
+        assert "wget" not in body
+
+    def test_wget_resumes_a_partial_transfer(self):
+        """-c verified live 2026-09-22: 206 Partial Content, only the remainder.
+
+        Not -nc: that means --no-clobber and would SKIP an existing partial,
+        stranding it truncated rather than finishing it.
+        """
+        body, _ = build_download_script([("s1", ["https://x/1.fq.gz"])], tool="wget")
+        assert " -c " in body
+        assert "-nc" not in body
+
     def test_curl_resumes_a_partial_transfer(self):
         """Archive FASTQs are multi-GB; a drop at 90% must not restart at 0."""
         body, _ = build_download_script([("s1", ["https://x/1.fq.gz"])], tool="curl")

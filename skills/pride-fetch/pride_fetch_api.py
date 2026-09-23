@@ -251,10 +251,13 @@ def _dl_cmd(tool, url, outdir):
                 f'$RETRY_ALL --connect-timeout {CONNECT_TIMEOUT} '
                 f'--speed-limit {STALL_BYTES} --speed-time {STALL_SECONDS} '
                 f'-C - --create-dirs -o {dest} "{url}"')
-    # wget: -q fully quiet. Deliberately not -c: GNU wget documents -c with -O
-    # as unsupported. Use --tool curl when resume matters.
+    # wget: -q fully quiet, -c to resume. Verified against GNU Wget 1.25.0 on
+    # 2026-09-22, re-verified 2026-09-23, that -c with -O resumes (206 Partial
+    # Content) rather than restarting. NOT -nc, which is --no-clobber and would
+    # skip an existing partial file instead of finishing it. Proteomics RAW
+    # files run to tens of GB, so resume matters most here.
     return (f'wget -q --tries={RETRIES} --waitretry={RETRY_DELAY} '
-            f'--timeout={CONNECT_TIMEOUT} -O {dest} "{url}"')
+            f'--timeout={CONNECT_TIMEOUT} -c -O {dest} "{url}"')
 
 
 def _slurm_header(args):
@@ -732,7 +735,7 @@ def main(argv=None):
                         help="Generate a bash + SLURM script to download project files (.raw/.zip)")
     ds.add_argument("accession")
     ds.add_argument("--ext", help="only include files with this extension, e.g. raw, zip, d.zip")
-    ds.add_argument("--tool", choices=["wget", "curl"], default="wget")
+    ds.add_argument("--tool", choices=["curl", "wget"], default="curl")
     ds.add_argument("--outdir", default="pride_data", help="download destination directory")
     ds.add_argument("--out", default="download_pride.sh", help="generated script path")
     ds.add_argument("--unzip", action="store_true",

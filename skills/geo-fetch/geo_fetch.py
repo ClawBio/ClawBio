@@ -73,7 +73,10 @@ def _build_parser():
     p.add_argument("--fastq-dir", metavar="DIR")
     p.add_argument("--fastq-naming", choices=["sra", "cellranger"])
     p.add_argument("--read-map", metavar="R1,R2")
-    p.add_argument("--tool", choices=["wget", "curl"], default="wget")
+    p.add_argument("--tool", choices=["curl", "wget"], default="curl",
+                   help="download-script transfer tool; curl is the default "
+                        "because it also retries HTTP 403 and aborts a stalled "
+                        "transfer. Both resume a partial file.")
     p.add_argument("--no-slurm", action="store_true")
     p.add_argument("--partition")
     p.add_argument("--account")

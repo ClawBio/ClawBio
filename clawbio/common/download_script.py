@@ -151,12 +151,26 @@ def _download_cmd(tool: str, url: str, outdir: str) -> str:
                 f'$RETRY_ALL --connect-timeout {CONNECT_TIMEOUT} '
                 f'--speed-limit {STALL_BYTES} --speed-time {STALL_SECONDS} '
                 f'-C - --create-dirs -o {dest} "{url}"')
-    # wget: -q fully quiet, retries with a wait, --timeout bounds both the
-    # connect and the read, -O explicit output path. Deliberately NOT -c: GNU
-    # wget documents -c with -O as unsupported, and silently wrong output is
-    # worse than a restart. Use --tool curl when resume matters.
+    # wget: -q fully quiet, --tries/--waitretry for transient failures,
+    # --timeout bounds both the connect and the read, -O the explicit output
+    # path, and -c to resume.
+    #
+    # -c with -O resumes correctly -- verified against GNU Wget 1.25.0 on
+    # 2026-09-22 and re-verified 2026-09-23: a truncated file produced `206
+    # Partial Content` with only the remainder transferred, and the result was
+    # byte-identical to a fresh download and a valid gzip. An earlier comment
+    # here claimed the man page documents -c with -O as unsupported; it does
+    # not. It documents that restriction for -N and for -nc, not for -c.
+    #
+    # NOT -nc. That is --no-clobber, not "no continue": it SKIPS a file that
+    # already exists, which would strand a partial download truncated forever
+    # -- the opposite of what -c is for.
+    #
+    # -c only resumes transfers left by a *previous* invocation; mid-transfer
+    # retry within one run is already wget's default. That is exactly the
+    # resubmitted-job case these scripts are written for.
     return (f'wget -q --tries={RETRIES} --waitretry={RETRY_DELAY} '
-            f'--timeout={CONNECT_TIMEOUT} -O {dest} "{url}"')
+            f'--timeout={CONNECT_TIMEOUT} -c -O {dest} "{url}"')
 
 
 def _slurm_header(opts: SlurmOptions) -> str:
@@ -187,7 +201,7 @@ def _slurm_header(opts: SlurmOptions) -> str:
 def build_download_script(
     groups: Groups,
     *,
-    tool: str = "wget",
+    tool: str = "curl",
     outdir: str = "fastq",
     slurm: SlurmOptions | None = None,
 ) -> tuple[str, int]:
@@ -211,7 +225,7 @@ def write_download_script(
     groups: Groups,
     out_path: Path | str,
     *,
-    tool: str = "wget",
+    tool: str = "curl",
     outdir: str = "fastq",
     slurm: SlurmOptions | None = None,
 ) -> tuple[Path, int]:

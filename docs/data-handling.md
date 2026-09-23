@@ -2,7 +2,7 @@
 
 ClawBio is local-first. This page says exactly what that means, skill by skill,
 so that an institution can decide which skills it may run on data it is
-responsible for. It was written against `main` on 2026-09-04, and updated on 2026-09-22 when the archive-fetch skills landed, by reading the
+responsible for. It was written against `main` on 2026-09-04, and updated on 2026-09-23 when the archive-fetch skills landed, by reading the
 code, not the descriptions. `tests/test_data_handling_doc.py` scans every skill
 for outbound-call code and fails if a networked skill is missing from this page,
 so the list cannot silently fall behind the code.
@@ -137,13 +137,20 @@ done
 # 200/3xx/403 = reachable (the server answered);  000 = blocked before it could
 ```
 
-Generated download scripts are built to survive a flaky link: `--tool curl`
-emits `--retry 5 --retry-delay 10`, a 30 s connect timeout, a stalled-transfer
-abort (`--speed-limit`/`--speed-time`) and `-C -` so a dropped multi-gigabyte
-transfer resumes rather than restarting. `--retry-all-errors` is probed for at
-run time, because it needs curl >= 7.71 and older clusters ship 7.29. `wget`
-gets the same retries and timeout but **not** resume, since GNU wget documents
-`-c` with `-O` as unsupported — prefer `--tool curl` for large files.
+Generated download scripts are built to survive a flaky link. **`curl` is the
+default**; `--tool wget` is the alternative, and both resume a dropped
+multi-gigabyte transfer rather than restarting it (`-C -` for curl, `-c` for
+wget — verified against GNU Wget 1.25.0 on 2026-09-23: a truncated file
+produced `206 Partial Content`, only the remainder was transferred, and the
+result was byte-identical to a fresh download). Both also get `--retry 5` with
+a 10 s wait and a 30 s connect timeout.
+
+curl is the default for the two things wget cannot do. It aborts a transfer
+that has stalled near 0 B/s (`--speed-limit`/`--speed-time`) instead of hanging
+until the job's walltime, and it retries an HTTP **403** — which EBI returns
+under a burst of requests, and which a plain `--retry` does not cover.
+`--retry-all-errors` is probed for at run time rather than hardcoded, because
+it needs curl >= 7.71 and older clusters ship 7.29.
 
 Two traps worth knowing. A generated `download-script` is often run on a
 compute node with stricter egress than the login node it was written on, so

@@ -57,7 +57,10 @@ def _build_parser():
                    default="auto", help="SDRF source for --command samplesheet")
     p.add_argument("--acquisition", choices=["dia", "dda"], default="dia")
     p.add_argument("--local-dir")
-    p.add_argument("--tool", choices=["wget", "curl"], default="wget")
+    p.add_argument("--tool", choices=["curl", "wget"], default="curl",
+                   help="download-script transfer tool; curl is the default "
+                        "because it also retries HTTP 403 and aborts a stalled "
+                        "transfer. Both resume a partial file.")
     p.add_argument("--outdir", default="pride_data")
     p.add_argument("--unzip", action="store_true")
     p.add_argument("--no-slurm", action="store_true")

@@ -44,6 +44,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/pub/databases/biostudies/…` for `S-BSST`), so no single constant is
   correct; and the redirect costs ~40× the latency (0.3 s vs 12.4 s) and times
   out entirely on multi-gigabyte files.
+- **Generated download scripts default to `curl`, not `wget`** (`--tool` on
+  `ena-fetch`, `geo-fetch` and `pride-fetch`). Both tools now **resume** a
+  dropped transfer — wget gained `-c`, verified against GNU Wget 1.25.0 on
+  2026-09-23: a truncated file produced `206 Partial Content`, only the
+  remainder was transferred, and the result was byte-identical to a fresh
+  download. An earlier comment claimed the wget man page documents `-c` with
+  `-O` as unsupported; it does not — it documents that restriction for `-N` and
+  `-nc`. curl is nevertheless the default for the two things wget cannot do:
+  abort a transfer stalled near 0 B/s (`--speed-limit`/`--speed-time`), and
+  retry an HTTP **403**, which EBI returns under a burst of requests and which
+  a plain `--retry` does not cover. Pass `--tool wget` for the old behaviour.
 - Added an **allowlisting section to `docs/data-handling.md`** for the archive
   skills. Metadata comes from `www.ebi.ac.uk` while file bytes come from
   `ftp.ebi.ac.uk` / `ftp.sra.ebi.ac.uk` / `ftp.pride.ebi.ac.uk`, and networks
