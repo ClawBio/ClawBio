@@ -112,8 +112,8 @@
     {
       "name": "ancestry-risk-profiler",
       "cli_alias": null,
-      "description": "Infers genetic super-population ancestry from a 23andMe/AncestryDNA file and computes ancestry-stratified odds ratios with an exploratory Ancestry Elevation Score (AES) showing where ancestry-specific GWAS effect sizes diverge from European reference estimates.",
-      "version": "1.3.1",
+      "description": "Infers genetic super-population ancestry from a 23andMe/AncestryDNA file and computes ancestry-stratified odds ratios with an exploratory Ancestry Elevation Score (AES) showing where ancestry-specific GWAS effect sizes diverge from European reference estimates. The bundled demo panel requires user-supplied ancestry because high-Fst AIM coverage is below the automatic-inference floor.",
+      "version": "1.4.0",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {
