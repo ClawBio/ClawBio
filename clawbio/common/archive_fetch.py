@@ -127,7 +127,7 @@ def run_upstream(api, argv: list[str], output_dir: Path) -> tuple[str, str]:
 
 
 def warn_if_overwriting(output_dir: Path, artifacts: tuple[str, ...] = ARTIFACTS) -> None:
-    """CLAUDE.md Safety Rule 4: warn before overwriting existing reports."""
+    """AGENTS.md Safety Boundary 5: warn before overwriting existing reports."""
     if any((output_dir / name).exists() for name in artifacts):
         print(f"[warning] Existing output files will be overwritten in {output_dir}",
               file=sys.stderr)

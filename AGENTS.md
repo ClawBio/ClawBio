@@ -111,10 +111,15 @@ When the user asks a question, match it to a skill and act:
 | Phylogenetic tree from FASTA, maximum-likelihood tree, IQ-TREE 2, model selection, evolutionary distance, branch support, proportional phylogram | `skills/phylogenetics-builder/` | Run `phylogenetics_builder.py` |
 | Genomic interval operations, interval overlap, nearest interval, merge/coverage intervals, BED intersect, bioframe alternative, interval arithmetic, complement/subtract intervals, count overlaps, BigWig/BigBed, DataFusion SQL on genomic files, genomic pileup depth, polars-bio | `skills/polars-bio/` | Run `polars_bio_runner.py` |
 | Ancestry-stratified disease risk, population-specific variant risk, South Asian diabetes risk, East Asian KCNQ1, African kidney disease APOL1, ancestry elevation score, which diseases am I at risk for given my ancestry, ancestry-aware variant risk, genetic super-population disease risk | `skills/ancestry-risk-profiler/` | Run `ancestry_risk_profiler.py` |
+| BioStudies, S-BSST, S-BIAD, BioImage Archive, EBI study metadata, supplementary study data | `skills/biostudies-fetch/` | Run `biostudies_fetch.py` |
+| ENA, European Nucleotide Archive, PRJEB, ERR/ERX/SAMEA run accession, filereport, FASTQ links, nf-core samplesheet from ENA | `skills/ena-fetch/` | Run `ena_fetch.py` |
+| GEO, GSE, GSM, gene expression omnibus, series matrix, SraRunTable, SRR_Acc_List, nf-core samplesheet from GEO | `skills/geo-fetch/` | Run `geo_fetch.py` |
+| PRIDE, ProteomeXchange, PXD, proteomics archive, mzML, mzIdentML, SDRF, quantms sample sheet | `skills/pride-fetch/` | Run `pride_fetch.py` |
+| ArrayExpress, E-MTAB, MAGE-TAB, SDRF, IDF, functional genomics experiment, experimental design from EBI | `skills/arrayexpress-fetch/` | Run `arrayexpress_fetch.py` |
 
 ## How to Use a Skill
 
-### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx, claw-metagenomics, genome-compare, bio-orchestrator, variant-annotation, bioconductor-bridge, clinical-trial-finder, data-extractor, illumina-bridge, pubmed-summariser, omics-target-evidence-mapper, target-validation-scorer, nfcore-scrnaseq-wrapper, nfcore-rnaseq-wrapper, nfcore-sarek-wrapper, scrna-orchestrator, scrna-embedding, diff-visualizer, proteomics-de, struct-predictor, clinical-variant-reporter, multiqc-reporter, labstep, clinpgx, gwas-prs, just-prs-mcp, gwas-lookup, methylation-clock, profile-report, ukb-navigator, galaxy-bridge, flow-bio, rnaseq-de, protocols-io, genome-match, recombinator, fine-mapping, cell-detection, wes-clinical-report-en, wes-clinical-report-es, proteomics-clock, sample-qc-triage, crispr-screen-triage, marker-dominance-mapper, busco-assessor, fastreer, polars-bio, ancestry-risk-profiler)
+### Skills with Python scripts (pharmgx-reporter, equity-scorer, nutrigx, claw-metagenomics, genome-compare, bio-orchestrator, variant-annotation, bioconductor-bridge, clinical-trial-finder, data-extractor, illumina-bridge, pubmed-summariser, omics-target-evidence-mapper, target-validation-scorer, nfcore-scrnaseq-wrapper, nfcore-rnaseq-wrapper, nfcore-sarek-wrapper, scrna-orchestrator, scrna-embedding, diff-visualizer, proteomics-de, struct-predictor, clinical-variant-reporter, multiqc-reporter, labstep, clinpgx, gwas-prs, just-prs-mcp, gwas-lookup, methylation-clock, profile-report, ukb-navigator, galaxy-bridge, flow-bio, rnaseq-de, protocols-io, genome-match, recombinator, fine-mapping, cell-detection, wes-clinical-report-en, wes-clinical-report-es, proteomics-clock, sample-qc-triage, crispr-screen-triage, marker-dominance-mapper, busco-assessor, fastreer, polars-bio, ancestry-risk-profiler, biostudies-fetch, ena-fetch, geo-fetch, pride-fetch, arrayexpress-fetch)
 1. Read the skill's `SKILL.md` for domain context
 2. Run the Python script with correct CLI arguments (see below)
 3. Show the user the output — open any generated figures and explain results
@@ -437,6 +442,11 @@ For instant demos when the user has no data:
 | Sarek demo (upstream nf-core/sarek `-profile test` dataset, no local files) | `--demo` flag | nfcore-sarek-wrapper |
 | scRNA-seq demo (upstream nf-core/scrnaseq `-profile test` dataset, no local files) | `--demo` flag | nfcore-scrnaseq-wrapper |
 | Phylogenetics Builder demo FASTA (5 synthetic sequences, 50 bp) | `skills/phylogenetics-builder/demo_alignment.fasta` | phylogenetics-builder |
+| BioStudies demo (S-BSST2074, mouse reference genome, CC0) | `--demo` flag | biostudies-fetch |
+| ENA demo (PRJEB56029, 9-run Arabidopsis RNA-seq) | `--demo` flag | ena-fetch |
+| GEO demo (GSE30720, 42-sample Arabidopsis RNA-seq, recorded HTTP map) | `--demo` flag | geo-fetch |
+| PRIDE demo (PXD084218, Arabidopsis proteomics, CC0) | `--demo` flag | pride-fetch |
+| ArrayExpress demo (E-MTAB-10030, rat microglia scRNA-seq, 6-sample SDRF) | `--demo` flag | arrayexpress-fetch |
 | Ancestry risk demo patient (synthetic South Asian 23andMe, T2D/CAD/hypertension risk alleles; use `--demo --ancestry SAS` because the bundled high-Fst AIM coverage is below the automatic-inference floor) | `--demo --ancestry SAS` | ancestry-risk-profiler |
 
 ### Demo Commands
@@ -565,9 +575,27 @@ python skills/fastreer/fastreer.py --command VCF2TREE \
 # Phylogenetics Builder demo
 python skills/phylogenetics-builder/phylogenetics_builder.py --demo --output /tmp/phylo_demo
 
+# Archive fetch demos (all fully offline, from committed fixtures)
+python clawbio.py run biostudies-fetch --demo --output /tmp/biostudies_demo
+python clawbio.py run ena-fetch --demo --output /tmp/ena_demo
+python clawbio.py run geo-fetch --demo --output /tmp/geo_demo
+python clawbio.py run pride-fetch --demo --output /tmp/pride_demo
+python clawbio.py run arrayexpress-fetch --demo --output /tmp/arrayexpress_demo
+
 # Ancestry-Aware Disease Risk Profiler demo (South Asian synthetic patient; user-supplied ancestry)
 python skills/ancestry-risk-profiler/ancestry_risk_profiler.py \
   --demo --ancestry SAS --output /tmp/ancestry_risk_demo
+
+# Archive fetch — public omics archives (metadata, standardised tables,
+# pipeline-ready samplesheets). --command is the runner-reachable form.
+python skills/biostudies-fetch/biostudies_fetch.py --command metadata --accession S-BSST2074 --output <report_dir>
+python skills/ena-fetch/ena_fetch.py --command samplesheet --accession PRJEB56029 --assay bulk --output <report_dir>
+python skills/geo-fetch/geo_fetch.py --command metadata-table --accession GSE30720 --output <report_dir>
+python skills/pride-fetch/pride_fetch.py --command samplesheet --accession PXD084218 --output <report_dir>
+python skills/arrayexpress-fetch/arrayexpress_fetch.py --command samplesheet --accession E-MTAB-10030 --assay scrna --output <report_dir>
+# download-script writes a script and downloads nothing; --run/--submit are
+# opt-in and must be confirmed with the user first.
+python skills/ena-fetch/ena_fetch.py --command download-script --accession PRJEB56029 --output <report_dir>
 
 # Ancestry risk profiler — infer genetic super-population + ancestry-stratified disease signal
 python skills/ancestry-risk-profiler/ancestry_risk_profiler.py \

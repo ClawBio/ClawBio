@@ -218,7 +218,7 @@ class TestDemo:
 
 class TestSafety:
     def test_warns_before_overwriting(self, tmp_path, capsys):
-        """CLAUDE.md Safety Rule 4."""
+        """AGENTS.md Safety Boundary 5."""
         import biostudies_fetch as app
 
         app.main(["--demo", "--output", str(tmp_path)])
