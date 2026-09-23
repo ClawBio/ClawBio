@@ -10,6 +10,7 @@
   <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.11+-blue?logo=python&logoColor=white" alt="Python 3.11+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
   <a href="https://luma.com/clawbio"><img src="https://img.shields.io/badge/Events-Follow_on_Luma-7c3aed" alt="Follow ClawBio Events on Luma"></a>
+  <a href="https://clawbioworkspace.slack.com/channels/all-clawbio"><img src="https://img.shields.io/badge/slack-%23all--clawbio-4A154B?logo=slack&logoColor=white" alt="Get help on the ClawBio Slack"></a>
   <a href="https://doi.org/10.5281/zenodo.19420648"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.19420648.svg" alt="DOI"></a>
   <a href="https://github.com/ClawBio/ClawBio/issues"><img src="https://img.shields.io/github/issues/ClawBio/ClawBio" alt="Open Issues"></a>
   <a href="https://clawbio.github.io/ClawBio/slides/"><img src="https://img.shields.io/badge/slides-London_Bioinformatics_Meetup-purple" alt="Slides"></a>
@@ -234,7 +235,7 @@ cp templates/SKILL-TEMPLATE.md skills/<your-skill-name>/SKILL.md
 # Edit SKILL.md, add Python implementation, demo data, and tests
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full submission process. Join the contributors community on Telegram: [t.me/ClawBioContributors](https://t.me/ClawBioContributors).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full submission process. Join the contributors community on the Slack [`#all-clawbio` channel](https://clawbioworkspace.slack.com/channels/all-clawbio) (you can join with [this invite](https://clawbio.ai/join/slack/)) — hackathon work is coordinated there.
 
 **Security and data handling.** Report vulnerabilities privately through [SECURITY.md](SECURITY.md), never in a public issue. Before running ClawBio on data you are responsible for, read [docs/data-handling.md](docs/data-handling.md): it lists every skill that can send data off your machine, what it sends, to which host, and which environment variable holds its credential.
 
