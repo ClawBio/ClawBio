@@ -6,8 +6,8 @@ input this consumes. Adapted from UKDRI/informatics_data_skills @ 7cc3e6e
 (`fastq-download-script/scripts/make_download_script.py`).
 Copyright (c) 2026 UK Dementia Research Institute. Licensed MIT.
 
-This module only *writes* a script. Running or submitting it is a separate,
-explicitly requested step — see `clawbio.common.job_exec`.
+This module only *writes* a script. Running or submitting it is a separate step
+the caller takes; nothing here executes anything.
 
 On the SLURM partition: Slurm defines no standard default partition name. The
 partition marked `Default=YES` in slurm.conf is a per-site choice, so emitting a

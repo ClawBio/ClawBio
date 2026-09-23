@@ -26,10 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   emitter, folded in from upstream's standalone `fastq-download-script` skill.
   Its input is always another command's output, so it is a `download-script`
   command on the archive skills rather than a skill of its own.
-- **`clawbio/common/job_exec.py`** — opt-in `--run` / `--submit` for generated
-  job scripts, with preflight checks and `--dependency=afterok:` chaining.
-  Both are off by default: a skill generates a script and stops, and the agent
-  must show the user what the job will do and ask before executing it.
 - **`clawbio/common/archive_fetch.py`** — shared machinery for the archive
   skills: the runner-reachable `--command` form, output-path anchoring, report
   and bundle writing.
