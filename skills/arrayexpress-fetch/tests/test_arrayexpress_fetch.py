@@ -10,6 +10,7 @@ import json
 import re
 import subprocess
 import sys
+import urllib.parse
 from pathlib import Path
 from unittest.mock import patch
 
@@ -368,7 +369,8 @@ class TestSafety:
         """Only public accessions and query terms go out. Nothing local."""
         import arrayexpress_fetch_api as api
 
-        assert api.API.startswith("https://www.ebi.ac.uk")
+        url = urllib.parse.urlsplit(api.API)
+        assert (url.scheme, url.hostname) == ("https", "www.ebi.ac.uk")
         assert "ArrayExpress" == api.COLLECTION
 
 
