@@ -98,11 +98,16 @@ def stage_from_icloud(filepath: str | Path) -> Path:
 
 
 def open_genetic_file(filepath: str | Path):
-    """Open a file, handling .gz transparently. Stages from iCloud first."""
+    """Open a file, handling .gz and a UTF-8 BOM transparently.
+
+    Consumer genetic-data exports are often UTF-8 with a BOM. ``utf-8-sig``
+    consumes that marker when present and matches ``utf-8`` for ordinary
+    UTF-8 files, so CSV/TSV header matching stays format-agnostic.
+    """
     filepath = str(stage_from_icloud(Path(filepath)))
     if filepath.endswith(".gz"):
-        return gzip.open(filepath, "rt", encoding="utf-8", errors="replace")
-    return open(filepath, encoding="utf-8", errors="replace")
+        return gzip.open(filepath, "rt", encoding="utf-8-sig", errors="replace")
+    return open(filepath, encoding="utf-8-sig", errors="replace")
 
 
 # ---------------------------------------------------------------------------
@@ -335,8 +340,15 @@ def parse_vcf(filepath: str | Path) -> dict[str, GenotypeRecord]:
 
             # Handle phased (|) or unphased (/)
             indices = re.split(r"[|/]", sample)
+            # A separated GT containing a missing allele (for example ``0/.``
+            # or ``./1``) is a partial no-call, not a haploid genotype. Do
+            # not silently convert its called allele into a complete call.
+            # True haploid (``1``) and complete polyploid (``0/1/1``) calls
+            # contain no missing allele and remain supported.
+            if any(i == "." for i in indices):
+                continue
             try:
-                called = [alleles[int(i)] for i in indices if i != "."]
+                called = [alleles[int(i)] for i in indices]
                 geno = "".join(called)
             except (IndexError, ValueError):
                 continue

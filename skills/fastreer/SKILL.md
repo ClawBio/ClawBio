@@ -295,8 +295,10 @@ output_directory/
 ├── tree.nwk               # Newick tree (VCF2TREE / DIST2TREE)
 ├── distances.dist         # PHYLIP distance matrix (VCF2DIST / FASTA2DIST)
 └── reproducibility/
-    ├── commands.sh        # Exact command to reproduce
-    └── environment.txt    # Java version + pip fastreer version
+    ├── commands.sh        # Portable replay command ($CLAWBIO_ROOT / $OUTPUT_DIR)
+    ├── environment.yml    # Conda recipe (fastreer + openjdk)
+    ├── environment.txt    # Java version + pip fastreer version
+    └── checksums.sha256   # SHA-256 of every output file
 ```
 
 ## Dependencies

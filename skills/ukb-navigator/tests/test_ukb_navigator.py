@@ -88,6 +88,64 @@ class TestGenerateReport:
         cmd_file = tmp_path / "reproducibility" / "commands.sh"
         assert cmd_file.exists()
 
+    def test_reproducibility_bundle_is_complete(self, tmp_path):
+        generate_report("blood pressure", DEMO_RESULTS, tmp_path, is_demo=True)
+        repro = tmp_path / "reproducibility"
+
+        commands_text = (repro / "commands.sh").read_text(encoding="utf-8")
+        assert "CLAWBIO_ROOT" in commands_text
+        assert "$OUTPUT_DIR" in commands_text
+        assert str(tmp_path) not in commands_text
+
+        environment = (repro / "environment.yml").read_text(encoding="utf-8")
+        assert "name: clawbio-ukb-navigator" in environment
+        assert "chromadb" in environment
+
+        checksum_lines = [
+            line
+            for line in (repro / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert checksum_lines
+        labels = set()
+        for line in checksum_lines:
+            digest, label = line.split("  ", 1)
+            assert len(digest) == 64
+            labels.add(label)
+            assert (tmp_path / label).exists()
+        assert {"report.md", "matched_fields.csv"} <= labels
+
+    def test_non_default_search_flags_are_recorded(self, tmp_path):
+        """A replay that silently drops --n-results or --db-path reproduces a
+        different search than the report next to it."""
+        generate_report("blood pressure", DEMO_RESULTS, tmp_path,
+                        n_results=25, db_path="/data/ukb_embeddings")
+        text = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+        assert "--n-results" in text and "25" in text
+        assert "--db-path" in text and "/data/ukb_embeddings" in text
+
+    def test_default_search_flags_are_not_recorded(self, tmp_path):
+        """Defaults stay out, so the recipe shows what the run actually chose."""
+        generate_report("blood pressure", DEMO_RESULTS, tmp_path)
+        text = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+        assert "--n-results" not in text and "--db-path" not in text
+
+    def test_reproducibility_command_quotes_multiword_query(self, tmp_path):
+        """Parsed as a shell would: the query must come back as ONE argument.
+        Asserting on quote characters is too weak -- the unquoted f-string form
+        this replaced also produced `--query "blood pressure"`."""
+        import shlex
+
+        query = 'blood "pressure" $HOME'
+        generate_report(query, DEMO_RESULTS, tmp_path)
+        commands_text = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+        run_line = [ln for ln in commands_text.splitlines() if "ukb_navigator.py" in ln][0]
+        # the command spans continuation lines; rejoin before parsing
+        joined = commands_text[commands_text.index(run_line):].replace("\\\n", " ")
+        tokens = shlex.split(joined)
+        assert tokens[tokens.index("--query") + 1] == query
+        assert "$HOME" in tokens[tokens.index("--query") + 1]
+
     def test_demo_mode_flag(self, tmp_path):
         report_path = generate_report("test", DEMO_RESULTS, tmp_path, is_demo=True)
         text = report_path.read_text()

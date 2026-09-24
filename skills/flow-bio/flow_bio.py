@@ -16,9 +16,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
+import shlex
 import sys
 import time
 from datetime import datetime, timezone
@@ -28,6 +28,14 @@ SKILL_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = SKILL_DIR.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
 
 try:
     from clawbio.common.report import write_result_json as _shared_write_result_json
@@ -553,25 +561,11 @@ def run_demo(
 
     write_report(output_dir, "demo", result)
 
-    repro = output_dir / "reproducibility"
-    repro.mkdir(exist_ok=True)
-    (repro / "commands.sh").write_text(
-        "#!/usr/bin/env bash\n"
-        f"# Flow overview — instance: {url}\n"
-        f"# Date: {ts}\n\n"
-        "python skills/flow-bio/flow_bio.py --demo --output /tmp/flow_demo\n",
-        encoding="utf-8",
-    )
-    (repro / "environment.yml").write_text(
-        f"flow_url: {url}\n"
-        f"mode: live\n"
-        f"date: {ts}\n",
-        encoding="utf-8",
-    )
+    write_reproducibility(output_dir, ["--demo"], url)
 
     print(f"Report: {output_dir / 'report.md'}")
     print(f"Result: {output_dir / 'result.json'}")
-    print(f"Reproducibility: {repro}/")
+    print(f"Reproducibility: {output_dir / 'reproducibility'}/")
     print()
     return result
 
@@ -940,24 +934,27 @@ def write_result_json(output_dir: Path, action: str, data: dict) -> Path:
     return path
 
 
-def write_reproducibility(output_dir: Path, command: str, flow_url: str) -> None:
-    """Write reproducibility bundle."""
-    repro = output_dir / "reproducibility"
-    repro.mkdir(exist_ok=True)
-    ts = datetime.now(timezone.utc).isoformat()
-    (repro / "commands.sh").write_text(
-        f"#!/usr/bin/env bash\n"
-        f"# Reproduce this Flow.bio interaction\n"
-        f"# Instance: {flow_url}\n"
-        f"# Date: {ts}\n\n"
-        f"{command}\n",
-        encoding="utf-8",
+def write_reproducibility(output_dir: Path, flag_args: list[str], flow_url: str) -> None:
+    """Write commands.sh, environment.yml, and checksums.sha256 for a Flow run."""
+    write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/flow-bio/flow_bio.py"),
+            args=[*flag_args, "--output", ReproPath(output_dir, "output_dir")],
+            comment=f"Reproduce this Flow.bio interaction (instance: {flow_url})",
+        ),
+        repo_root=_PROJECT_ROOT,
     )
-    (repro / "environment.yml").write_text(
-        f"flow_url: {flow_url}\n"
-        f"date: {ts}\n"
-        f"requests_required: true\n",
-        encoding="utf-8",
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-flow-bio",
+        pip_deps=["requests>=2.28"],
+        python_version="3.11",
+    )
+    write_checksums(
+        [output_dir / "report.md", output_dir / "result.json"],
+        output_dir,
+        anchor=output_dir,
     )
 
 
@@ -1122,7 +1119,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "pipelines", {"pipelines": pipelines, "flow_url": base_url})
             write_report(output_dir, "pipelines", {"pipelines": pipelines, "flow_url": base_url})
-            write_reproducibility(output_dir, "python skills/flow-bio/flow_bio.py --pipelines", base_url)
+            write_reproducibility(output_dir, ["--pipelines"], base_url)
         return
 
     if args.samples:
@@ -1156,7 +1153,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "samples", {"samples": samples, "flow_url": base_url})
             write_report(output_dir, "samples", {"samples": samples, "flow_url": base_url})
-            write_reproducibility(output_dir, "python skills/flow-bio/flow_bio.py --samples", base_url)
+            write_reproducibility(output_dir, ["--samples"], base_url)
         return
 
     if args.projects:
@@ -1185,7 +1182,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "projects", {"projects": projects, "flow_url": base_url})
             write_report(output_dir, "projects", {"projects": projects, "flow_url": base_url})
-            write_reproducibility(output_dir, "python skills/flow-bio/flow_bio.py --projects", base_url)
+            write_reproducibility(output_dir, ["--projects"], base_url)
         return
 
     if args.executions:
@@ -1215,7 +1212,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "executions", {"executions": executions, "flow_url": base_url})
             write_report(output_dir, "executions", {"executions": executions, "flow_url": base_url})
-            write_reproducibility(output_dir, "python skills/flow-bio/flow_bio.py --executions", base_url)
+            write_reproducibility(output_dir, ["--executions"], base_url)
         return
 
     if args.organisms:
@@ -1236,7 +1233,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "organisms", {"organisms": organisms, "flow_url": base_url})
             write_report(output_dir, "organisms", {"organisms": organisms, "flow_url": base_url})
-            write_reproducibility(output_dir, "python skills/flow-bio/flow_bio.py --organisms", base_url)
+            write_reproducibility(output_dir, ["--organisms"], base_url)
         return
 
     if args.sample_types:
@@ -1258,7 +1255,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "sample_types", {"sample_types": types, "flow_url": base_url})
             write_report(output_dir, "sample_types", {"sample_types": types, "flow_url": base_url})
-            write_reproducibility(output_dir, "python skills/flow-bio/flow_bio.py --sample-types", base_url)
+            write_reproducibility(output_dir, ["--sample-types"], base_url)
         return
 
     if args.metadata_attributes:
@@ -1291,7 +1288,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "metadata_attributes", {"attributes": attributes, "flow_url": base_url})
             write_report(output_dir, "metadata_attributes", {"attributes": attributes, "flow_url": base_url})
-            write_reproducibility(output_dir, "python skills/flow-bio/flow_bio.py --metadata-attributes", base_url)
+            write_reproducibility(output_dir, ["--metadata-attributes"], base_url)
         return
 
     if args.data:
@@ -1321,7 +1318,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "data", {"data_items": data_items, "flow_url": base_url})
             write_report(output_dir, "data", {"data_items": data_items, "flow_url": base_url})
-            write_reproducibility(output_dir, "python skills/flow-bio/flow_bio.py --data", base_url)
+            write_reproducibility(output_dir, ["--data"], base_url)
         return
 
     # --- Detail commands ---
@@ -1344,7 +1341,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "pipeline", {"pipeline": data, "flow_url": base_url})
             write_report(output_dir, "pipeline", {**data, "flow_url": base_url})
-            write_reproducibility(output_dir, f"python skills/flow-bio/flow_bio.py --pipeline {args.pipeline}", base_url)
+            write_reproducibility(output_dir, ["--pipeline", str(args.pipeline)], base_url)
         return
 
     if args.sample:
@@ -1376,7 +1373,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "sample", {"sample": data, "flow_url": base_url})
             write_report(output_dir, "sample", {**data, "flow_url": base_url})
-            write_reproducibility(output_dir, f"python skills/flow-bio/flow_bio.py --sample {args.sample}", base_url)
+            write_reproducibility(output_dir, ["--sample", str(args.sample)], base_url)
         return
 
     if args.execution:
@@ -1395,7 +1392,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "execution", {"execution": data, "flow_url": base_url})
             write_report(output_dir, "execution", {"execution": data, "flow_url": base_url})
-            write_reproducibility(output_dir, f"python skills/flow-bio/flow_bio.py --execution {args.execution}", base_url)
+            write_reproducibility(output_dir, ["--execution", str(args.execution)], base_url)
         return
 
     # --- Search ---
@@ -1428,7 +1425,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "search", {"query": args.search, "results": results, "flow_url": base_url})
             write_report(output_dir, "search", {"query": args.search, "results": results, "flow_url": base_url})
-            write_reproducibility(output_dir, f'python skills/flow-bio/flow_bio.py --search "{args.search}"', base_url)
+            write_reproducibility(output_dir, ["--search", shlex.quote(args.search)], base_url)
         return
 
     # --- Search samples by metadata ---
@@ -1482,8 +1479,10 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "search_samples", {"filters": filters, "count": count, "samples": samples, "flow_url": base_url})
             write_report(output_dir, "search_samples", {"filters": filters, "count": count, "samples": samples, "flow_url": base_url})
-            cmd_filters = " ".join(f"{k}={v}" for k, v in filters.items() if k != "full_metadata")
-            write_reproducibility(output_dir, f'python skills/flow-bio/flow_bio.py --search-samples {cmd_filters}', base_url)
+            cmd_filters = [
+                shlex.quote(f"{k}={v}") for k, v in filters.items() if k != "full_metadata"
+            ]
+            write_reproducibility(output_dir, ["--search-samples", *cmd_filters], base_url)
         return
 
     # --- Upload ---
@@ -1507,9 +1506,14 @@ def main():
         if output_dir:
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "upload", {"upload_result": result, "flow_url": base_url})
-            cmd = f'python skills/flow-bio/flow_bio.py --upload-sample --name "{args.name}" --sample-type "{args.sample_type}" --reads1 {args.reads1}'
+            cmd = [
+                "--upload-sample",
+                "--name", shlex.quote(args.name),
+                "--sample-type", shlex.quote(args.sample_type),
+                "--reads1", shlex.quote(str(args.reads1)),
+            ]
             if args.reads2:
-                cmd += f" --reads2 {args.reads2}"
+                cmd += ["--reads2", shlex.quote(str(args.reads2))]
             write_reproducibility(output_dir, cmd, base_url)
         return
 
@@ -1532,7 +1536,7 @@ def main():
             output_dir.mkdir(parents=True, exist_ok=True)
             write_result_json(output_dir, "run", {"execution": result, "flow_url": base_url})
             write_report(output_dir, "execution", {"execution": result})
-            write_reproducibility(output_dir, f"python skills/flow-bio/flow_bio.py --run-pipeline {args.run_pipeline}", base_url)
+            write_reproducibility(output_dir, ["--run-pipeline", str(args.run_pipeline)], base_url)
         return
 
 

@@ -896,7 +896,7 @@ def scaffold(name: str, description: str, force: bool = False,
     print(f"\n--- skill_registry.json entry ---")
     print(json.dumps(registry_entry, indent=2))
 
-    print(f"\n--- CLAUDE.md routing table row ---")
+    print(f"\n--- AGENTS.md routing table row ---")
     print(f"| {description}, {name} | `skills/{name}/` | Run `{py_name}.py` |")
 
     if bench_dir:

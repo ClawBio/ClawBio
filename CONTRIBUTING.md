@@ -21,9 +21,9 @@ Edit `SKILL.md` with:
 - **Top-level YAML fields**: `name`, `description`, and `license`
 - **`metadata` fields**: `version`, `author`, `domain`, `tags`, `inputs`, `outputs`, `dependencies`, `demo_data`, and `endpoints`
 - **`metadata.openclaw` fields**: runtime and routing metadata such as `requires`, `always`, `emoji`, `homepage`, `os`, `install`, and `trigger_keywords`
-- **Markdown body**: follow the template sections and keep them aligned with the PR audit expectations in [`CLAUDE.md`](CLAUDE.md)
+- **Markdown body**: follow the template sections and keep them aligned with the PR audit expectations in [`AGENTS.md`](AGENTS.md)
 
-If there is any discrepancy between documents, follow the template for structure and `CLAUDE.md` for audit requirements.
+If there is any discrepancy between documents, follow the template for structure and `AGENTS.md` for audit requirements.
 
 ### 3. Add supporting code (optional)
 
@@ -174,7 +174,7 @@ AI coding agents (Codex, Devin, Claude Code, Cursor, etc.) should follow the sam
 1. Read [`AGENTS.md`](AGENTS.md) for setup, commands, code style, and project structure
 2. Read the target skill's `SKILL.md` before modifying any code
 3. Use `python clawbio.py list` to verify skills still load after changes
-4. Run `python -m pytest -v` to confirm all tests pass
+4. Run `python -m pytest skills/your-skill-name/tests/ -v` to confirm your skill's tests pass. Do not run a bare `pytest -v` across the whole repo — it fails at collection time on a `conftest.py` module-name collision between skills; see [docs/testing.md](docs/testing.md)
 5. Regenerate `skills/catalog.json` if you changed any SKILL.md YAML frontmatter: `python scripts/generate_catalog.py`
 
 ### SKILL.md Quality Checklist
@@ -182,14 +182,14 @@ AI coding agents (Codex, Devin, Claude Code, Cursor, etc.) should follow the sam
 Treat this as a contributor summary, not as a second source of truth.
 
 - [`templates/SKILL-TEMPLATE.md`](templates/SKILL-TEMPLATE.md) defines the canonical `SKILL.md` structure.
-- [`CLAUDE.md`](CLAUDE.md) defines the formal PR audit and conformance checklist.
+- [`AGENTS.md`](AGENTS.md) defines the formal PR audit and conformance checklist.
 - Every skill should cover `Trigger`, `Scope`, `Workflow`, `Example Output`, `Gotchas`, `Safety`, and `Agent Boundary`.
 - Include synthetic demo data and support `--demo` whenever the skill has executable automation.
 - Add tests for demo mode and the main expected path when the skill includes code.
 - Keep dependencies, installation steps, inputs, outputs, and safety boundaries accurate and specific.
 - Regenerate `skills/catalog.json` whenever you change YAML frontmatter.
 
-If you are unsure whether a `SKILL.md` is PR-ready, defer to the checklist in `CLAUDE.md`.
+If you are unsure whether a `SKILL.md` is PR-ready, defer to the checklist in `AGENTS.md`.
 
 ## 🦖 Skill Ideas We Need
 

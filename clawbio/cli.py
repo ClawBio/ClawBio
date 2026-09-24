@@ -296,6 +296,15 @@ def format_pharmgx_preview(report_text: str, report_path: str):
 # Skills registry
 # --------------------------------------------------------------------------- #
 
+# Skills registered as CLI actions whose folder cannot ship inside the MIT wheel
+# (see WHEEL_EXCLUDED_SKILLS in hatch_build.py). They work from a repository
+# checkout and are absent from a pip install, so the CLI explains that rather
+# than reporting a path that was never written. Kept in step with the wheel
+# policy by tests/test_licence_policy.py.
+UNBUNDLED_SKILLS = {
+    "fastreer": "GPL-3.0: copyleft cannot be redistributed inside an MIT wheel",
+}
+
 SKILLS = {
     "pharmgx": {
         "script": SKILLS_DIR / "pharmgx-reporter" / "pharmgx_reporter.py",
@@ -332,14 +341,15 @@ SKILLS = {
     },
     "dnasp": {
         "script": SKILLS_DIR / "dnasp" / "dnasp.py",
+        # DnaSP validates its alternative --vcf and --hka-file inputs itself.
+        "no_input_required": True,
+        "extra_path_flags": {"--vcf", "--input2", "--pop-file", "--hka-file"},
         "demo_args": ["--demo"],
         "description": "DnaSP 6 population genetics (Pi, Tajima's D, Fu & Li, Fay & Wu, MK, Ka/Ks, Fst, and more)",
         "allowed_extra_flags": {
-            "--fasta", "--outgroup", "--pop-map", "--window", "--step",
-            "--all", "--pi", "--theta", "--tajima", "--fuliD", "--fuliF",
-            "--hka", "--mk", "--kaks", "--r2", "--fufs", "--sfs",
-            "--tstv", "--codon", "--faywu", "--fst",
-            "--n-sim", "--sim-seed",
+            "--analysis", "--input2", "--outgroup", "--pop-file", "--hka-file",
+            "--genetic-code", "--window", "--step", "--vcf", "--region", "--vcf-merge",
+            "--n-sim", "--sim-given", "--sim-seed",
         },
         "accepts_genotypes": False,
     },
@@ -482,6 +492,17 @@ SKILLS = {
             "--limit",
             "--timeout-seconds",
         },
+        "accepts_genotypes": False,
+    },
+    "pubmed-summariser": {
+        "script": SKILLS_DIR / "pubmed-summariser" / "pubmed_summariser.py",
+        "demo_args": ["--demo"],
+        "description": "PubMed briefing with complete abstracts and optional OpenAI/Ollama summaries",
+        "allowed_extra_flags": {
+            "--query", "--max-results", "--summary-method", "--provider", "--model",
+            "--base-url", "--llm-timeout", "--summary-max-tokens", "--model-params",
+        },
+        "no_input_required": True,
         "accepts_genotypes": False,
     },
     "clinpgx": {
@@ -1493,6 +1514,14 @@ def run_skill(
 
     script_path = skill_info["script"]
     if not script_path.exists():
+        if skill_name in UNBUNDLED_SKILLS:
+            message = (
+                f"'{skill_name}' is not bundled in the installed clawbio package "
+                f"({UNBUNDLED_SKILLS[skill_name]}). Run it from a repository "
+                f"checkout: https://github.com/ClawBio/ClawBio"
+            )
+        else:
+            message = f"Script not found: {script_path}"
         return {
             "skill": skill_name,
             "success": False,
@@ -1500,7 +1529,7 @@ def run_skill(
             "output_dir": None,
             "files": [],
             "stdout": "",
-            "stderr": f"Script not found: {script_path}",
+            "stderr": message,
             "duration_seconds": 0,
         }
 
@@ -1574,6 +1603,7 @@ def run_skill(
     if extra_args:
         allowed = skill_info.get("allowed_extra_flags", set())
         flags_without_values = skill_info.get("allowed_extra_flags_without_values", set())
+        path_flags = skill_info.get("extra_path_flags", set())
         blocked = {"--input", "--output", "--demo"}
         # nf-core parameters are snake_case; the pipeline wrappers expose them as
         # hyphenated flags. For those skills, treat the two spellings as
@@ -1596,6 +1626,8 @@ def run_skill(
                 continue
             if flag in allowed:
                 _name, sep, value = token.partition("=")
+                if sep and flag in path_flags:
+                    value = str(Path(value).expanduser().resolve())
                 filtered.append(f"{flag}={value}" if sep else flag)
                 if (
                     not sep
@@ -1604,7 +1636,10 @@ def run_skill(
                     and _key(extra_args[i + 1]) not in allowed
                     and _key(extra_args[i + 1]) not in blocked
                 ):
-                    filtered.append(extra_args[i + 1])
+                    value = extra_args[i + 1]
+                    if flag in path_flags:
+                        value = str(Path(value).expanduser().resolve())
+                    filtered.append(value)
                     i += 1
             i += 1
         cmd.extend(filtered)
@@ -1827,6 +1862,12 @@ def _store_result_in_profile(profile_path: str, skill_name: str, out_dir: Path) 
 
 
 def main():
+    # Captured Windows terminals may use cp1252, which cannot display report
+    # symbols or many scientific names. Preserve the encoding used by callers
+    # while escaping unsupported characters instead of failing after a run.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     # Pipeline wrappers own large, schema-derived CLIs. Delegate their help so
     # `clawbio.py run <pipeline> --help` cannot drift from the wrapper parser.
     #
@@ -2912,7 +2953,7 @@ def main():
         if result["success"] and result["output_dir"]:
             report = Path(result["output_dir"]) / "report.md"
             if report.exists():
-                text = report.read_text()
+                text = report.read_text(encoding="utf-8")
                 if args.skill == "pharmgx":
                     format_pharmgx_preview(text, str(report))
                 else:

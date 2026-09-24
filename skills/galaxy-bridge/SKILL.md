@@ -183,9 +183,9 @@ output_dir/
 │   ├── fastqc_report.html
 │   └── ...
 └── reproducibility/
-    ├── commands.sh        # Galaxy API calls to reproduce
-    ├── environment.yml    # Tool versions and Galaxy server info
-    └── checksums.sha256   # SHA-256 of all inputs and outputs
+    ├── commands.sh        # Portable replay recipe (CLAWBIO_ROOT / OUTPUT_DIR)
+    ├── environment.yml    # Conda environment for the run (python + bioblend)
+    └── checksums.sha256   # SHA-256 of the input and the downloaded outputs
 ```
 
 ## Dependencies

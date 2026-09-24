@@ -65,6 +65,32 @@ class TestDemoMode:
         assert (tmp_path / "report.md").exists()
         assert (tmp_path / "reproducibility" / "commands.sh").exists()
         assert (tmp_path / "reproducibility" / "environment.yml").exists()
+        assert (tmp_path / "reproducibility" / "checksums.sha256").exists()
+
+    def test_demo_reproducibility_bundle_is_portable(self, tmp_path):
+        flow_bio.run_demo(tmp_path, username="u", password="p")
+        repro = tmp_path / "reproducibility"
+
+        commands = (repro / "commands.sh").read_text()
+        assert commands.startswith("#!/usr/bin/env bash")
+        assert "CLAWBIO_ROOT" in commands
+        assert "skills/flow-bio/flow_bio.py" in commands
+        assert "--demo" in commands
+        assert str(tmp_path) not in commands
+
+        env = (repro / "environment.yml").read_text()
+        assert "name: clawbio-flow-bio" in env
+        assert "requests" in env
+
+        labels = set()
+        for line in (repro / "checksums.sha256").read_text().splitlines():
+            if not line.strip():
+                continue
+            digest, label = line.split("  ", 1)
+            assert len(digest) == 64
+            assert (tmp_path / label).exists()
+            labels.add(label)
+        assert {"report.md", "result.json"} <= labels
 
     def test_demo_result_has_expected_keys(self, tmp_path):
         result = flow_bio.run_demo(tmp_path, username="u", password="p")
@@ -297,11 +323,13 @@ class TestReportGeneration:
         assert data["data"]["key"] == "value"
 
     def test_write_reproducibility(self, tmp_path):
-        flow_bio.write_reproducibility(tmp_path, "python flow_bio.py --demo", "https://app.flow.bio/api")
+        flow_bio.write_reproducibility(tmp_path, ["--pipelines"], "https://app.flow.bio/api")
         assert (tmp_path / "reproducibility" / "commands.sh").exists()
         assert (tmp_path / "reproducibility" / "environment.yml").exists()
         content = (tmp_path / "reproducibility" / "commands.sh").read_text()
-        assert "flow_bio.py --demo" in content
+        assert "skills/flow-bio/flow_bio.py" in content
+        assert "--pipelines" in content
+        assert "https://app.flow.bio/api" in content
 
 
 # ---------------------------------------------------------------------------

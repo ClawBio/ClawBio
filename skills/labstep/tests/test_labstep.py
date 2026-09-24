@@ -324,7 +324,7 @@ def test_run_demo_disclaimer_present(capsys):
 
 def test_write_output_creates_report_md(tmp_path):
     """_write_output writes report.md to the given directory."""
-    _write_output(tmp_path, "# Test Report\n\nContent here.", label="test")
+    _write_output(tmp_path, "# Test Report\n\nContent here.", label="test", repro_args=["--demo"])
     report = tmp_path / "report.md"
     assert report.exists()
     assert "# Test Report" in report.read_text()
@@ -334,7 +334,7 @@ def test_write_output_creates_directory(tmp_path):
     """_write_output creates the output directory if it doesn't exist."""
     out = tmp_path / "new_subdir"
     assert not out.exists()
-    _write_output(out, "hello", label="test")
+    _write_output(out, "hello", label="test", repro_args=["--demo"])
     assert out.exists()
     assert (out / "report.md").exists()
 
@@ -381,3 +381,49 @@ def tmp_path_no_settings(tmp_path=None):
     """Return a temp directory that has no .claude/settings.json."""
     import tempfile
     return tempfile.mkdtemp()
+
+
+# ---------------------------------------------------------------------------
+# Reproducibility bundle — written via clawbio.common.reproducibility
+# ---------------------------------------------------------------------------
+
+
+def test_run_demo_writes_complete_reproducibility_bundle(tmp_path):
+    """The demo bundle carries a portable commands.sh, an env, and checksums."""
+    run_demo(output_dir=tmp_path)
+    repro = tmp_path / "reproducibility"
+
+    commands = (repro / "commands.sh").read_text(encoding="utf-8")
+    assert commands.startswith("#!/usr/bin/env bash")
+    assert "CLAWBIO_ROOT" in commands
+    assert "$OUTPUT_DIR" in commands
+    assert "skills/labstep/labstep.py" in commands
+    assert "--demo" in commands
+    assert str(tmp_path) not in commands
+
+    environment = (repro / "environment.yml").read_text(encoding="utf-8")
+    assert "name: clawbio-labstep" in environment
+    assert "labstep" in environment
+
+    checksum_lines = [
+        line for line in (repro / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert checksum_lines
+    labels = set()
+    for line in checksum_lines:
+        digest, label = line.split("  ", 1)
+        assert len(digest) == 64
+        assert (tmp_path / label).exists()
+        labels.add(label)
+    assert {"report.md", "result.json"} <= labels
+
+
+def test_write_output_records_the_live_mode_flags(tmp_path):
+    """A live run replays with its own flags, not the demo ones."""
+    _write_output(tmp_path, "# Report", label="experiments", repro_args=["--experiments", "--count", "5"])
+    commands = (tmp_path / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+    assert "--experiments" in commands
+    assert "--count" in commands
+    assert "\n  5 " in commands
+    assert "--demo" not in commands

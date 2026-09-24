@@ -91,7 +91,7 @@ class TestReproducibilityBundle:
 
 class TestConformanceChecklist:
     def test_checklist_includes_reproducibility(self, scaffolded, capsys, tmp_path, monkeypatch):
-        """The printed checklist mirrors CLAUDE.md and must cover the bundle."""
+        """The printed checklist mirrors AGENTS.md and must cover the bundle."""
         monkeypatch.setattr(scaffold_skill, "SKILLS_DIR", scaffolded.parent)
         scaffold_skill.scaffold(
             "demo-repro-skill",

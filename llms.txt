@@ -5,10 +5,9 @@
 ## Docs
 
 - [README](README.md): Project overview, quick start, current skill table, architecture, benchmark summary
-- [CLAUDE.md](CLAUDE.md): Agent routing table, CLI reference, demo data, safety rules, script-first execution guidance
-- [AGENTS.md](AGENTS.md): Universal guide for AI coding agents working in this repo
+- [AGENTS.md](AGENTS.md): The single agent guide — routing table, CLI reference, demo data, development rules, safety rules, script-first execution guidance
 - [commands/](commands/): Reusable slash-command workflows for analysis, skill scaffolding, skill listing, and demos
-- [CHANGELOG.md](CHANGELOG.md): Release milestones through `v0.5.0`
+- [CHANGELOG.md](CHANGELOG.md): Release milestones through `v0.7.1`
 - [REMEDIATION-PLAN.md](REMEDIATION-PLAN.md): External audit findings and remediation roadmap
 - [docs/CLAWBIO-BRIEF.md](docs/CLAWBIO-BRIEF.md): Evergreen project brief for collaborators, investors, and agents
 - [docs/reference-genome.md](docs/reference-genome.md): Corpas 30x WGS reference genome used across demos, tutorials, and benchmarking
@@ -25,9 +24,9 @@
 
 ## Project State
 
-- Current public release: `v0.5.0`
-- Public framing in `README.md`: `95 skills + 8,182 Galaxy tools + 4,217 tests + benchmark validation`
-- Catalog status split: `29` MVP skills and `66` planned / legacy skills
+- Current public release: `v0.7.1`
+- Public framing in `README.md`: `98 skills + 8,182 Galaxy tools + 4,730 tests + benchmark validation`
+- Catalog status split: `29` MVP skills and `68` planned / legacy skills
 - Counts above are derived, not hand-written. Regenerate them before editing:
   - skills and Galaxy tools: `skill_count` / `galaxy_tool_count` in `skills/catalog.json`,
     itself produced by `python scripts/generate_catalog.py`
@@ -93,7 +92,7 @@
 
 ## Additional Agent-Visible Script Skills
 
-These skills are referenced in `CLAUDE.md`, `skills/catalog.json`, or executable metadata but are not currently presented in the public `README.md` MVP table as active skills. Keep that inconsistency in mind when describing project status.
+These skills are referenced in `AGENTS.md`, `skills/catalog.json`, or executable metadata but are not currently presented in the public `README.md` MVP table as active skills. Keep that inconsistency in mind when describing project status.
 
 - [bigquery-public](skills/bigquery-public/SKILL.md) — alias `bigquery`: Read-only SQL bridge for public datasets with local outputs
 - [flow-bio](skills/flow-bio/SKILL.md) — alias `flow`: Flow.bio API bridge for pipelines, samples, projects, and executions
@@ -117,11 +116,11 @@ These skills are referenced in `CLAUDE.md`, `skills/catalog.json`, or executable
 ## Known Metadata Inconsistencies
 
 - `README.md` lists `LLM Biobank Bench` as an MVP skill, and `clawbio.py` registers alias `llm-bench`, but this checkout does not contain a matching `skills/llm-biobank-bench/` directory.
-- `wes-clinical-report-es` is visible in `README.md` and `CLAUDE.md`, but the current `skills/catalog.json` does not contain a matching entry.
-- Several executable skills are exposed in `CLAUDE.md` or `clawbio.py` without being part of the public `README.md` MVP table; see `Additional Agent-Visible Script Skills` above.
+- `wes-clinical-report-es` is visible in `README.md` and `AGENTS.md`, but the current `skills/catalog.json` does not contain a matching entry.
+- Several executable skills are exposed in `AGENTS.md` or `clawbio.py` without being part of the public `README.md` MVP table; see `Additional Agent-Visible Script Skills` above.
 
 ## Optional
 
-- [skills/catalog.json](skills/catalog.json): Machine-readable skill index; current catalog contains `55` entries
+- [skills/catalog.json](skills/catalog.json): Machine-readable skill index; current catalog contains `97` entries
 - [templates/SKILL-TEMPLATE.md](templates/SKILL-TEMPLATE.md): Template for new skills
 - [clawbio.py](clawbio.py): Main CLI runner and alias registry for `python clawbio.py run <alias>`

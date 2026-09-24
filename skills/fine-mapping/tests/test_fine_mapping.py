@@ -1,5 +1,6 @@
 """Tests for the SuSiE fine-mapping skill."""
 import sys
+import warnings
 import json
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from fine_mapping_core.credible_sets import (
     _purity,
 )
 from fine_mapping_core.io import load_sumstats, load_ld
+from fine_mapping_core.report import generate_markdown
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +150,7 @@ class TestABF:
 
 
 class TestSuSiE:
-    """Tests for the SuSiE IBSS algorithm."""
+    """Tests for the sushie-backed SuSiE engine adapter."""
 
     def test_pip_shape(self):
         """run_susie returns PIPs with correct shape."""
@@ -172,26 +174,39 @@ class TestSuSiE:
         result = run_susie(z=df["z"].values, R=R, n=5000, L=5)
         assert result["pip"].argmax() == 10
 
-    def test_alpha_rows_sum_to_at_most_one(self):
-        """With null component (default), alpha rows sum to <= 1.
-        Without null component, rows sum to exactly 1."""
+    def test_alpha_contains_only_active_signals(self):
+        """alpha keeps only signals sushie retained as credible sets.
+
+        The small locus has one injected signal, so with L=3 requested only
+        one alpha row survives pruning. Each surviving row is a probability
+        distribution over the p variants.
+        """
         df = _small_locus(n=20)
         R = _identity_ld(20)
-        # With null component: rows sum to <= 1
         result = run_susie(z=df["z"].values, R=R, n=5000, L=3)
-        row_sums = result["alpha"].sum(axis=1)
-        assert np.all(row_sums <= 1.0 + 1e-6)
-        # Without null component: rows sum to exactly 1
-        result_nn = run_susie(z=df["z"].values, R=R, n=5000, L=3, null_weight=0.0)
-        row_sums_nn = result_nn["alpha"].sum(axis=1)
-        np.testing.assert_allclose(row_sums_nn, 1.0, atol=1e-6)
+        assert result["alpha"].shape == (1, 20)
+        np.testing.assert_allclose(result["alpha"].sum(axis=1), 1.0, atol=1e-4)
+
+    def test_two_signal_demo_keeps_two_alpha_rows(self):
+        """Demo locus (two causal variants) keeps exactly two active signals."""
+        df, R = fine_mapping.make_demo_data(seed=42)
+        result = run_susie(z=df["z"].values, R=R, n=5000, L=10)
+        assert result["alpha"].shape == (2, 200)
+
+    def test_engine_is_sushie(self):
+        """The engine tag identifies the sushie implementation."""
+        df = _small_locus(n=20)
+        R = _identity_ld(20)
+        result = run_susie(z=df["z"].values, R=R, n=5000, L=3)
+        assert result["engine"] == "sushie"
 
     def test_converges_on_clean_signal(self):
-        """SuSiE converges within 100 iterations for a clean single signal."""
+        """The engine converges for a clean single signal and reports n_iter."""
         df = _small_locus(n=20)
         R = _identity_ld(20)
-        result = run_susie(z=df["z"].values, R=R, n=5000, L=5, max_iter=100)
+        result = run_susie(z=df["z"].values, R=R, n=5000, L=5)
         assert result["converged"] is True
+        assert result["n_iter"] >= 1
 
     def test_elbo_tracked(self):
         """ELBO history is recorded and contains finite values."""
@@ -199,51 +214,352 @@ class TestSuSiE:
         R = _identity_ld(20)
         result = run_susie(z=df["z"].values, R=R, n=5000, L=5)
         elbo = result["elbo"]
-        assert len(elbo) >= 2
+        assert len(elbo) >= 1
         assert all(np.isfinite(e) for e in elbo)
 
     def test_two_signals_recovered(self):
-        """Demo locus with two injected causal variants: both are in the top-5 PIPs."""
+        """Demo locus with two injected causal variants: BOTH are recovered.
+
+        `60 in top5 or 140 in top5` would pass while the engine missed one of
+        the two signals entirely, which is the exact failure a fine-mapper is
+        supposed to be judged on. Require both, each as its own credible set.
+        """
         df, R = fine_mapping.make_demo_data(seed=42)
         result = run_susie(z=df["z"].values, R=R, n=5000, L=10)
-        top5 = set(np.argsort(-result["pip"])[:5])
-        # Causal variants are at indices 60 and 140
-        assert 60 in top5 or 140 in top5
+        top5 = set(int(i) for i in np.argsort(-result["pip"])[:5])
+        assert {60, 140} <= top5, (
+            f"causal indices 60 and 140 not both in the top-5 PIPs: {sorted(top5)}"
+        )
+        assert result["pip"][60] > 0.8 and result["pip"][140] > 0.8
+        leads = sorted(int(np.argmax(row)) for row in result["alpha"])
+        assert leads == [60, 140], f"credible-set leads were {leads}"
 
     def test_null_locus_no_phantom_pip(self):
-        """Null locus (z=0 everywhere) should produce near-zero PIPs with null_weight."""
+        """Null locus (z=0 everywhere) produces near-zero PIPs."""
         p = 50
         z = np.zeros(p)
         R = np.eye(p)
-        result = run_susie(z=z, R=R, n=10000, L=5, null_weight=1.0 / 6)
-        # On a null locus, all PIPs should be very low (< 0.1)
+        result = run_susie(z=z, R=R, n=10000, L=5)
         assert result["pip"].max() < 0.1, (
             f"Null locus phantom PIP: max PIP = {result['pip'].max():.3f}, "
-            f"expected < 0.1 with null_weight"
+            f"expected < 0.1"
         )
+        # No signal survives pruning, so no alpha rows remain
+        assert result["alpha"].shape == (0, p)
 
-    def test_null_locus_without_null_weight_has_phantom(self):
-        """Without null_weight, a null locus produces phantom PIPs (baseline check)."""
-        p = 10  # small p amplifies the phantom effect: PIP ~ 1-(1-1/p)^L
-        z = np.zeros(p)
-        R = np.eye(p)
-        result = run_susie(z=z, R=R, n=10000, L=5, null_weight=0.0)
-        # Without null component, PIPs are spread uniformly: ~1-(9/10)^5 ≈ 0.41
-        assert result["pip"].max() > 0.3, (
-            f"Expected phantom PIP > 0.3 without null_weight, got {result['pip'].max():.3f}"
-        )
-
-    def test_single_signal_with_null_weight_still_recovered(self):
-        """A real signal should still be recovered even with null_weight active."""
+    def test_single_strong_signal_high_pip(self):
+        """A lone strong signal receives PIP > 0.8."""
         p = 50
         z = np.zeros(p)
         z[25] = 5.0  # strong signal at index 25
         R = np.eye(p)
-        result = run_susie(z=z, R=R, n=10000, L=5, null_weight=1.0 / 6)
+        result = run_susie(z=z, R=R, n=10000, L=5)
         assert result["pip"].argmax() == 25
         assert result["pip"][25] > 0.8, (
             f"Signal PIP = {result['pip'][25]:.3f}, expected > 0.8"
         )
+
+    def test_nan_z_raises(self):
+        """NaN z-scores are rejected (sushie would silently return garbage)."""
+        z = np.zeros(20)
+        z[3] = np.nan
+        with pytest.raises(ValueError, match="NaN"):
+            run_susie(z=z, R=_identity_ld(20), n=5000, L=3)
+
+    def test_nonpositive_n_raises(self):
+        """Sample size must be positive."""
+        df = _small_locus(n=20)
+        with pytest.raises(ValueError, match="positive"):
+            run_susie(z=df["z"].values, R=_identity_ld(20), n=0, L=3)
+
+    def test_deterministic(self):
+        """Two runs on identical input give identical PIPs."""
+        df = _small_locus(n=20)
+        R = _identity_ld(20)
+        r1 = run_susie(z=df["z"].values, R=R, n=5000, L=3)
+        r2 = run_susie(z=df["z"].values, R=R, n=5000, L=3)
+        np.testing.assert_array_equal(r1["pip"], r2["pip"])
+
+
+# ---------------------------------------------------------------------------
+# TestSuSiEBenchmarkContract
+# ---------------------------------------------------------------------------
+
+
+class TestSuSiEBenchmarkContract:
+    """run_susie must stay callable by the external clawbio_bench harness.
+
+    The harness (biostochastics/clawbio_bench, drivers/finemapping_driver.py)
+    imports core.susie.run_susie and always calls it with the full keyword
+    set below — `w` is passed even when a test case's inputs.json omits it,
+    because the driver defaults it to 0.04. It then reads `mu` and `mu2` off
+    the result. Dropping any of these is scored as a skill failure, not as an
+    interface change, so the adapter keeps them.
+    """
+
+    HARNESS_KWARGS = dict(w=0.04, max_iter=100, tol=1e-3, min_purity=0.5)
+
+    def test_accepts_harness_keyword_set(self):
+        """The exact driver call shape does not raise TypeError."""
+        df = _small_locus(n=20)
+        result = run_susie(
+            z=df["z"].values, R=_identity_ld(20), n=5000, L=5,
+            **self.HARNESS_KWARGS,
+        )
+        assert result["pip"].shape == (20,)
+
+    def test_returns_posterior_moments(self):
+        """mu (post mean) and mu2 (post second moment) are exposed per signal."""
+        df = _small_locus(n=20)
+        result = run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=5)
+        n_signals = result["alpha"].shape[0]
+        assert result["mu"].shape == (n_signals, 20)
+        assert result["mu2"].shape == (n_signals, 20)
+
+    def test_mu2_is_second_moment_not_variance(self):
+        """mu2 >= mu**2 elementwise — it is E[b^2], not Var(b).
+
+        clawbio_bench case fm_14_susie_moment_mislabeled scores exactly this
+        confusion.
+        """
+        df = _small_locus(n=20)
+        result = run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=5)
+        assert np.all(result["mu2"] >= result["mu"] ** 2 - 1e-9)
+
+    def test_moments_align_with_alpha_rows(self):
+        """mu/mu2 are pruned to the same kept signals as alpha."""
+        p = 50
+        z = np.zeros(p)
+        result = run_susie(z=z, R=np.eye(p), n=10000, L=5)
+        assert result["alpha"].shape == (0, p)
+        assert result["mu"].shape == (0, p)
+        assert result["mu2"].shape == (0, p)
+
+    def test_min_purity_forwarded_to_engine(self, monkeypatch):
+        """min_purity sets sushie's own purity pruning threshold.
+
+        Without forwarding, the CLI's --min-purity could only tighten the
+        engine's hardcoded 0.5 downstream, never loosen it.
+        """
+        from sushie.infer_ss import infer_sushie_ss as real_infer
+
+        seen = {}
+
+        def _spy(*args, **kwargs):
+            seen.update(kwargs)
+            return real_infer(*args, **kwargs)
+
+        monkeypatch.setattr("sushie.infer_ss.infer_sushie_ss", _spy)
+        df = _small_locus(n=20)
+        run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=3,
+                  min_purity=0.8)
+        assert seen["purity"] == 0.8
+
+    def test_prior_variance_seeds_effect_var(self, monkeypatch):
+        """w seeds sushie's prior effect variance rather than being discarded."""
+        from sushie.infer_ss import infer_sushie_ss as real_infer
+
+        seen = {}
+
+        def _spy(*args, **kwargs):
+            seen.update(kwargs)
+            return real_infer(*args, **kwargs)
+
+        monkeypatch.setattr("sushie.infer_ss.infer_sushie_ss", _spy)
+        df = _small_locus(n=20)
+        run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=3, w=0.09)
+        assert seen["effect_var"] is not None
+        assert float(np.ravel(seen["effect_var"])[0]) == pytest.approx(0.09)
+
+    def test_nonconvergence_warns_and_flags(self):
+        """Hitting max_iter warns (as susieR does) and reports converged=False.
+
+        PIPs are still returned finite, so the flag is the consumer's cue;
+        clawbio_bench fm_12 scores the converged/pip pair and records the
+        warning text in its payload.
+        """
+        df = _small_locus(n=20)
+        with pytest.warns(RuntimeWarning, match="did not converge"):
+            result = run_susie(z=df["z"].values, R=_identity_ld(20), n=5000,
+                               L=5, max_iter=1, tol=1e-3)
+        assert result["converged"] is False
+        assert result["n_iter"] == 1
+        assert np.all(np.isfinite(result["pip"]))
+
+    def test_coverage_forwarded_to_engine(self, monkeypatch):
+        """coverage sets sushie's credible-set threshold at fit time.
+
+        Otherwise sushie prunes at its hardcoded 0.95 while credible_sets.py
+        builds sets at the user's --coverage, and the two disagree.
+        """
+        from sushie.infer_ss import infer_sushie_ss as real_infer
+
+        seen = {}
+
+        def _spy(*args, **kwargs):
+            seen.update(kwargs)
+            return real_infer(*args, **kwargs)
+
+        monkeypatch.setattr("sushie.infer_ss.infer_sushie_ss", _spy)
+        df = _small_locus(n=20)
+        run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=3,
+                  coverage=0.9)
+        assert seen["threshold"] == 0.9
+
+    def test_locus_smaller_than_L_still_runs(self):
+        """A 9-variant locus under the CLI default L=10 must not error.
+
+        sushie rejects a fit whose min_snps guard is below L, so passing L
+        through unchanged turned loci that the old hand-rolled IBSS handled
+        into hard failures. run_susie clamps L to p and says so.
+        """
+        p_small = 9
+        z = np.zeros(p_small)
+        z[3] = 6.0
+        with pytest.warns(RuntimeWarning, match="clamping to L=9"):
+            result = run_susie(z=z, R=np.eye(p_small), n=5000, L=10)
+        assert result["pip"].shape == (p_small,)
+        assert int(result["pip"].argmax()) == 3
+
+    def test_L_at_or_below_p_is_not_clamped(self):
+        """The clamp is a guard, not a rewrite: L <= p passes through silently."""
+        df = _small_locus(n=20)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            result = run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=5)
+        assert result["pip"].shape == (20,)
+
+    def test_x64_flag_is_restored(self):
+        """jax.config is process-global; run_susie must not leave it flipped.
+
+        Any other JAX user in the same interpreter would otherwise silently
+        change precision the first time a locus is fine-mapped.
+        """
+        import jax
+
+        before = jax.config.read("jax_enable_x64")
+        try:
+            jax.config.update("jax_enable_x64", False)
+            df = _small_locus(n=20)
+            run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=3)
+            assert jax.config.read("jax_enable_x64") is False
+        finally:
+            jax.config.update("jax_enable_x64", before)
+
+    def test_max_iter_echoed_back(self):
+        """The report needs the budget, not just the iterations used."""
+        df = _small_locus(n=20)
+        result = run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=3,
+                           max_iter=123)
+        assert result["max_iter"] == 123
+
+    @pytest.mark.parametrize("bad", [0.0, 1.0, 1.5])
+    def test_coverage_out_of_open_interval_raises(self, bad):
+        """sushie requires 0 < threshold < 1; reject before reaching it."""
+        df = _small_locus(n=20)
+        with pytest.raises(ValueError, match="coverage"):
+            run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=3,
+                      coverage=bad)
+
+# ---------------------------------------------------------------------------
+# TestSuSiEKnownAnswer
+# ---------------------------------------------------------------------------
+
+
+_KNOWN_ANSWER_PATH = (
+    Path(__file__).resolve().parent / "fixtures" / "demo_susie_known_answer.json"
+)
+
+
+class TestSuSiEKnownAnswer:
+    """Pin the engine's actual numbers, not just their shapes.
+
+    Every other SuSiE test here asserts a shape, an argmax or a `> 0.8`
+    threshold. All of them keep passing if a future sushie release shifts PIP
+    magnitudes, reorders alpha rows against `CSIndex`, or rescales mu/mu2 --
+    exactly the drift an engine swap makes possible. These assertions compare
+    against values recorded from the seeded demo locus at the commit that
+    introduced the sushie backend (see the fixture's own `_comment`).
+    """
+
+    @pytest.fixture(scope="class")
+    def known(self):
+        with open(_KNOWN_ANSWER_PATH) as fh:
+            return json.load(fh)
+
+    @pytest.fixture(scope="class")
+    def fit(self):
+        df, R = fine_mapping.make_demo_data(seed=42)
+        return df, R, run_susie(z=df["z"].values, R=R, n=5000, L=10)
+
+    def test_engine_version_matches_recording(self, known, fit):
+        """A sushie bump must re-record the fixture, not silently drift past it."""
+        _, _, result = fit
+        assert result["engine_version"] == known["recorded_from"]["engine_version"], (
+            "sushie version changed since these numbers were recorded; re-record "
+            f"{_KNOWN_ANSWER_PATH.name} in the same commit as the bump"
+        )
+
+    def test_convergence_matches_recording(self, known, fit):
+        _, _, result = fit
+        assert result["converged"] is known["converged"]
+        assert result["n_iter"] == known["n_iter"]
+
+    def test_credible_set_count_and_leads(self, known, fit):
+        """Exactly the recorded number of sets, led by the recorded variants.
+
+        This is the assertion the phantom-credible-set regression would trip:
+        the hand-rolled IBSS reported 10 sets here, 8 of them purity-0 phantoms.
+        """
+        _, _, result = fit
+        assert result["alpha"].shape[0] == known["n_credible_sets"]
+        leads = [int(np.argmax(row)) for row in result["alpha"]]
+        assert leads == known["alpha_row_leads"]
+
+    def test_pips_match_recorded_values(self, known, fit):
+        """PIP magnitudes, not just ordering."""
+        _, _, result = fit
+        atol = known["tolerance"]["pip_atol"]
+        for idx, want in known["pip_by_index"].items():
+            got = float(result["pip"][int(idx)])
+            assert got == pytest.approx(want, abs=atol), (
+                f"PIP at index {idx}: recorded {want}, got {got}"
+            )
+        assert int((result["pip"] >= 0.1).sum()) == known["n_pip_at_least_0.1"]
+
+    def test_lead_moments_match_recorded_scale(self, known, fit):
+        """mu/mu2 stay on the scale this adapter documents.
+
+        clawbio_bench fm_14 reads `mu` expecting susieR's z-unit `r * z`; sushie
+        reports standardised effect-size moments instead (mu at index 60 is
+        ~0.22 against an injected beta of 0.25). If a sushie release changes
+        that scale, the docstring in susie.py and the bench conversation both
+        need revisiting -- so fail here rather than let it pass unnoticed.
+        """
+        _, _, result = fit
+        rtol = known["tolerance"]["moment_rtol"]
+        for rec in known["lead_moments"]:
+            k, i = rec["alpha_row"], rec["variant_index"]
+            assert float(result["alpha"][k][i]) == pytest.approx(rec["alpha"], rel=rtol)
+            assert float(result["mu"][k][i]) == pytest.approx(rec["mu"], rel=rtol)
+            assert float(result["mu2"][k][i]) == pytest.approx(rec["mu2"], rel=rtol)
+
+    def test_credible_set_membership_matches_recording(self, known, fit):
+        """CSIndex k -> alpha row k-1 is a mapping no other test pins.
+
+        `build_credible_sets_susie` consumes the rows in order, so an ordering
+        change inside sushie would relabel every set without changing a shape.
+        """
+        df, R, result = fit
+        df = df.copy()
+        df["pip"] = result["pip"]
+        cs_list = build_credible_sets_susie(alpha=result["alpha"], df=df, R=R)
+        assert len(cs_list) == known["n_credible_sets"]
+        want_leads = known["alpha_row_leads"]
+        for cs, want_idx in zip(cs_list, want_leads):
+            assert cs["size"] == 1, f"{cs['cs_id']} grew to {cs['size']} variants"
+            assert cs["lead_rsid"] == df["rsid"].iloc[want_idx]
+            assert cs["purity"] == pytest.approx(1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -603,6 +919,94 @@ class TestRunFinemapping:
             gene_track=True,
         )
         assert "method" in results
+
+    def test_susie_path_rejects_coverage_one_early(self, tmp_path):
+        """coverage=1.0 must fail at the CLI, not deep inside run_susie.
+
+        The ABF path still accepts 1.0; only the SuSiE path carries sushie's
+        open-interval constraint, so the check is scoped to it. (coverage=0 is
+        already rejected for both methods by the shared check above it.)
+        """
+        with pytest.raises(ValueError, match="SuSiE path"):
+            fine_mapping.run_finemapping(
+                sumstats_path=None, ld_path=None, output_dir=tmp_path,
+                demo=True, make_figures=False, coverage=1.0,
+            )
+
+    def test_nonpositive_coverage_rejected_for_both_methods(self, tmp_path):
+        with pytest.raises(ValueError, match="Coverage must be in"):
+            fine_mapping.run_finemapping(
+                sumstats_path=None, ld_path=None, output_dir=tmp_path,
+                demo=True, make_figures=False, coverage=0.0,
+            )
+
+    def test_susie_path_rejects_zero_min_purity_early(self, tmp_path):
+        """Same for min_purity=0, which the old [0, 1] check let through."""
+        with pytest.raises(ValueError, match="SuSiE path"):
+            fine_mapping.run_finemapping(
+                sumstats_path=None, ld_path=None, output_dir=tmp_path,
+                demo=True, make_figures=False, min_purity=0.0,
+            )
+
+    def test_abf_path_still_accepts_coverage_one(self, tmp_path):
+        """The tightened check must not leak onto ABF, which has no such limit."""
+        df, _ = fine_mapping.make_demo_data(seed=42)
+        ss_path = tmp_path / "sumstats.tsv"
+        df.to_csv(ss_path, sep="\t", index=False)
+        results = fine_mapping.run_finemapping(
+            sumstats_path=ss_path, ld_path=None, output_dir=tmp_path,
+            make_figures=False, coverage=1.0,
+        )
+        assert results["method"] == "ABF"
+
+
+# ---------------------------------------------------------------------------
+# TestReportProvisionalBanner
+# ---------------------------------------------------------------------------
+
+
+class TestReportProvisionalBanner:
+    """A non-converged SuSiE fit must say so above its own numbers.
+
+    SKILL.md Gotcha 4 tells the reader not to report PIPs from a run that did
+    not converge, but the only signal in the report was one row of a parameter
+    table, well below the credible-set tables a reader actually reads.
+    """
+
+    def _markdown(self, **params):
+        df = pd.DataFrame({
+            "rsid": ["rs1", "rs2"], "chr": ["1", "1"],
+            "pos": [1000, 2000], "z": [5.0, 0.2],
+            "p": [1e-7, 0.8], "pip": [0.9, 0.1],
+        })
+        base = {"L": 10, "coverage": 0.95, "min_purity": 0.5, "n_iter": 500,
+                "max_iter": 500}
+        base.update(params)
+        return generate_markdown(df=df, credible_sets=[], method="SuSiE",
+                                 params=base)
+
+    def test_banner_present_when_not_converged(self):
+        md = self._markdown(converged=False)
+        assert "Provisional results" in md
+        assert md.index("Provisional results") < md.index("## Credible Sets")
+
+    def test_banner_absent_when_converged(self):
+        assert "Provisional results" not in self._markdown(converged=True)
+
+    def test_banner_absent_for_abf(self):
+        """ABF has no convergence concept, so it must never carry the banner."""
+        df = pd.DataFrame({
+            "rsid": ["rs1"], "chr": ["1"], "pos": [1000],
+            "z": [5.0], "p": [1e-7], "pip": [0.9],
+        })
+        md = generate_markdown(df=df, credible_sets=[], method="ABF",
+                               params={"coverage": 0.95, "w": 0.04})
+        assert "Provisional results" not in md
+
+    def test_banner_reports_the_iteration_budget(self):
+        md = self._markdown(converged=False, n_iter=1, max_iter=500)
+        assert "did not converge in 1 iterations" in md
+        assert "max_iter=500" in md
 
 
 # ---------------------------------------------------------------------------

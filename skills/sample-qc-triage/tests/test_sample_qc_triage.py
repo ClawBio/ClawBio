@@ -94,3 +94,84 @@ def test_demo_cli_writes_report_json_tables_and_reproducibility(tmp_path):
     assert result["summary"]["flagged_count"] == 3
     assert (out / "tables" / "sample_flags.csv").exists()
     assert (out / "reproducibility" / "commands.sh").exists()
+
+
+def test_demo_reproducibility_bundle_is_complete(tmp_path):
+    out = tmp_path / "qc_out"
+    subprocess.run(
+        [sys.executable, str(MODULE_PATH), "--demo", "--output", str(out)],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    repro = out / "reproducibility"
+
+    commands = repro / "commands.sh"
+    assert commands.exists()
+    commands_text = commands.read_text(encoding="utf-8")
+    assert "CLAWBIO_ROOT" in commands_text
+    assert "$OUTPUT_DIR" in commands_text
+    assert str(out) not in commands_text
+
+    environment = (repro / "environment.yml").read_text(encoding="utf-8")
+    assert "name: clawbio-sample-qc-triage" in environment
+
+    checksum_lines = [
+        line
+        for line in (repro / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert checksum_lines
+    labels = set()
+    for line in checksum_lines:
+        digest, label = line.split("  ", 1)
+        assert len(digest) == 64
+        labels.add(label)
+        assert (out / label).exists()
+    assert {"report.md", "result.json", "tables/sample_flags.csv"} <= labels
+
+
+def test_demo_outputs_are_byte_stable_across_hash_seeds(tmp_path):
+    """Checksums are only meaningful if two identical runs produce identical bytes."""
+    import os
+
+    digests = []
+    for seed in ("0", "12345"):
+        out = tmp_path / f"run_{seed}"
+        env = dict(os.environ, PYTHONHASHSEED=seed)
+        subprocess.run(
+            [sys.executable, str(MODULE_PATH), "--demo", "--output", str(out)],
+            text=True,
+            capture_output=True,
+            check=True,
+            env=env,
+        )
+        digests.append((out / "reproducibility" / "checksums.sha256").read_text(encoding="utf-8"))
+    assert digests[0] == digests[1]
+
+
+def test_bundle_replays_a_non_demo_run_from_a_path_with_spaces(tmp_path):
+    """Every other bundle test runs --demo. A real input, a directory with a
+    space in it, and an actual replay are what the bundle claims to support."""
+    import shutil
+
+    workspace = tmp_path / "my qc runs"
+    workspace.mkdir()
+    source = workspace / "metrics copy.csv"
+    shutil.copy(SKILL_DIR / "demo_qc_metrics.csv", source)
+    out = workspace / "first run"
+
+    subprocess.run(
+        [sys.executable, str(MODULE_PATH), "--input", str(source), "--output", str(out)],
+        text=True, capture_output=True, check=True,
+    )
+    first = (out / "reproducibility" / "checksums.sha256").read_text(encoding="utf-8")
+
+    replay = workspace / "replayed"
+    shutil.copytree(out, replay)
+    done = subprocess.run(
+        ["bash", str(replay / "reproducibility" / "commands.sh")],
+        text=True, capture_output=True,
+    )
+    assert done.returncode == 0, done.stderr
+    assert (replay / "reproducibility" / "checksums.sha256").read_text(encoding="utf-8") == first

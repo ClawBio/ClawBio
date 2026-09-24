@@ -6,7 +6,7 @@ import pytest
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
-        "live: integration test that hits the live eQTL Catalogue REST API",
+        "live: integration test that hits the real EBI eQTL Catalogue FTP",
     )
 
 

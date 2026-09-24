@@ -397,15 +397,15 @@ class TestReferences:
 
 class TestRouting:
     ROOT = SKILL_DIR.parent.parent
-    CLAUDE = ROOT / "CLAUDE.md"
+    AGENTS = ROOT / "AGENTS.md"
 
     def test_routing_row_present(self):
-        text = self.CLAUDE.read_text()
+        text = self.AGENTS.read_text()
         assert "skills/polars-bio/" in text
         assert "polars_bio_runner.py" in text
 
     def test_trigger_keywords_in_routing(self):
-        text = self.CLAUDE.read_text().lower()
+        text = self.AGENTS.read_text().lower()
         assert "interval overlap" in text
         assert "bioframe" in text or "polars-bio" in text
 

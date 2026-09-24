@@ -1,0 +1,58 @@
+{
+  "_comment": [
+    "Known-answer fixture for the SuSiE engine, recorded from the seeded demo",
+    "locus (fine_mapping.make_demo_data(seed=42): 200 variants, causal indices",
+    "60 and 140) at the commit that moved SuSiE onto sushie.",
+    "",
+    "Purpose: the shape/argmax assertions elsewhere in the suite all still pass",
+    "if a future sushie release quietly shifts PIP magnitudes, reorders alpha",
+    "rows against CSIndex, or changes the scale of mu/mu2. This pins the actual",
+    "numbers so that drift fails loudly instead.",
+    "",
+    "If a sushie upgrade legitimately changes these, re-record them in the same",
+    "commit as the version bump and say why in the PR - do not widen the",
+    "tolerances to make a red test green."
+  ],
+  "recorded_from": {
+    "engine": "sushie",
+    "engine_version": "0.20",
+    "demo_seed": 42,
+    "call": "run_susie(z=demo.z, R=demo.R, n=5000, L=10)  # all other args default"
+  },
+  "tolerance": {
+    "pip_atol": 0.001,
+    "moment_rtol": 0.01
+  },
+  "converged": true,
+  "n_iter": 176,
+  "n_credible_sets": 2,
+  "alpha_row_leads": [
+    60,
+    140
+  ],
+  "n_pip_at_least_0.1": 2,
+  "pip_by_index": {
+    "60": 0.999999,
+    "140": 0.991999,
+    "139": 0.008001,
+    "59": 1e-06,
+    "61": 0.0,
+    "138": 0.0
+  },
+  "lead_moments": [
+    {
+      "alpha_row": 0,
+      "variant_index": 60,
+      "alpha": 0.999999,
+      "mu": 0.218719,
+      "mu2": 0.048018
+    },
+    {
+      "alpha_row": 1,
+      "variant_index": 140,
+      "alpha": 0.991999,
+      "mu": 0.199846,
+      "mu2": 0.040439
+    }
+  ]
+}

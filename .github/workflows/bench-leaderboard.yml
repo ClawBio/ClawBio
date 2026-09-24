@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
 
@@ -29,8 +29,11 @@ jobs:
         run: uv python install 3.12
 
       - name: Install dependencies
+        # --all-extras for the same reason as ci.yml's scientific-audit job:
+        # skills/fine-mapping needs the `fine-mapping` extra (sushie) or every
+        # SuSiE case errors instead of running.
         run: |
-          uv sync --locked
+          uv sync --locked --all-extras
           uv pip install "clawbio-bench @ git+https://github.com/biostochastics/clawbio_bench.git@49a0f11a8393b87a90f0721261a9bec5d52b61db"
 
       - name: Run benchmark (smoke mode)

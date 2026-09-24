@@ -43,7 +43,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
 
       - name: Check lockfile is up to date
         run: uv lock --check
@@ -68,7 +68,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
 
@@ -115,6 +115,72 @@ jobs:
           path: audit.txt
           retention-days: 30
 
+  pip-audit:
+    # Second opinion on the lockfile from pip-audit (PyPI advisory database and
+    # OSV), next to the `uv audit` job above. Report-only for the same reason
+    # that job is: on the day this was added the lockfile carried 55 findings
+    # across gitpython, pyasn1 and setuptools, and a gate born red is how the
+    # scientific-audit job came to carry `|| true` for months (#342). Dependabot
+    # (.github/dependabot.yml) drives the backlog down; promote this to a gate
+    # by removing `|| true` once `uvx pip-audit --strict` is clean on main.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      # Audit the environment uv actually builds, not a re-resolution of an
+      # exported requirements file. `pip-audit -r` shells out to pip, and pip
+      # does not honour the `[tool.uv] override-dependencies` entry that keeps
+      # liknorm out of the graph (see pyproject.toml for why it is there). pip
+      # therefore re-adds liknorm, whose `cffi<2.0` pin cannot coexist with the
+      # locked cffi 2.0.0, and the audit died on ResolutionImpossible instead
+      # of reporting. Auditing the synced venv has no resolution step and is
+      # the stricter question anyway: it covers what we ship, not what pip
+      # would have picked.
+      - name: Sync the locked environment
+        run: uv sync --locked --all-extras
+
+      - name: Audit with pip-audit
+        # `|| true` keeps findings from failing the build, so assert the tool
+        # actually ran: pip-audit always prints either "No known
+        # vulnerabilities found" or "Found N known vulnerabilities". Neither
+        # line means the step broke, which must fail loudly.
+        run: |
+          uv run --with pip-audit pip-audit > pip-audit.txt 2>&1 || true
+          if ! grep -qE 'No known vulnerabilities found|Found [0-9]+ known vulnerabilit' pip-audit.txt; then
+            echo "::error::pip-audit produced no recognisable report - the audit step is broken, not clean"
+            cat pip-audit.txt
+            exit 1
+          fi
+
+      - name: Post summary
+        if: always()
+        run: |
+          echo "## pip-audit" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Report-only: this job never fails the build on findings." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat pip-audit.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pip-audit
+          path: pip-audit.txt
+          retention-days: 30
+
   skill-lint:
     runs-on: ubuntu-latest
     steps:
@@ -123,7 +189,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
 
       - name: Install dependencies from lockfile
         run: uv sync --frozen --only-group dev
@@ -167,7 +233,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
 
@@ -204,6 +270,9 @@ jobs:
       - name: Run GWAS PRS tests
         run: uv run pytest skills/gwas-prs/tests/ -v
 
+      - name: Run WGS PRS tests
+        run: uv run pytest skills/wgs-prs/tests/ -v
+
       - name: Test prs-abstain skill
         run: uv run pytest skills/prs-abstain/tests/test_prs_abstain.py -v
 
@@ -232,6 +301,14 @@ jobs:
       # do not run is the #342 problem one level up. (See also #337.)
       - name: Run repo-level tests
         run: uv run pytest tests/ -v
+
+      # Named two files out of clawbio/tests/, and clawbio/common/tests/ ran
+      # nowhere at all, so the shared layer every skill imports was the least
+      # tested code in the repository. test_report.py had been red on main
+      # unnoticed, and ClawBio#451's helper tests would not have run after
+      # merge either. Both trees now run in full: 524 tests, about 20 seconds.
+      - name: Run library tests
+        run: uv run pytest clawbio/tests/ clawbio/common/tests/ -v
 
       # The steps above are a hardcoded allowlist, so a NEW skill's tests never
       # run: ClawBio#329 shipped a test that cannot pass and CI was still green,
@@ -415,7 +492,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
 
@@ -438,7 +515,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
 
@@ -446,7 +523,13 @@ jobs:
         run: uv python install 3.12
 
       - name: Install ClawBio dependencies
-        run: uv sync --locked
+        # --all-extras: the bench drives skills whose engines live in
+        # [project.optional-dependencies]. skills/fine-mapping delegates SuSiE
+        # to sushie (the `fine-mapping` extra) and raises ImportError without
+        # it, which would turn every SuSiE bench case into a harness_error and
+        # trip the baseline gate below for reasons that have nothing to do with
+        # the skill's correctness.
+        run: uv sync --locked --all-extras
 
       - name: Install clawbio-bench
         run: uv pip install "clawbio-bench @ git+https://github.com/biostochastics/clawbio_bench.git@49a0f11a8393b87a90f0721261a9bec5d52b61db"
