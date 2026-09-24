@@ -137,7 +137,6 @@ def cmd_samples(args):
 
 def list_ftp_files(url):
     """Parse an Apache-style FTP HTML directory listing into filenames."""
-    import re
     html = http_get(url).decode("utf-8", "replace")
     names = re.findall(r'href="([^"?/][^"]*)"', html)
     # Keep only real entries in this directory: no absolute URLs (footer links),

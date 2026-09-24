@@ -20,7 +20,6 @@ archives share (`clawbio.common.download_script`).
 
 from __future__ import annotations
 
-import json
 import sys
 import urllib.parse
 from pathlib import Path

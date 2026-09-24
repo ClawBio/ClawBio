@@ -7,7 +7,6 @@ recorded URL->body map captured from one real GSE30720 run.
 """
 
 import csv
-import gzip
 import json
 import re
 import subprocess

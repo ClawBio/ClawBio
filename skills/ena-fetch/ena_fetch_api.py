@@ -505,7 +505,6 @@ def cmd_runs(args):
         return
     print(f"{len(rows)} run(s) for {args.accession}:\n")
     for r in rows:
-        size = r.get("fastq_bytes", "")
         print(f"{r.get('run_accession',''):14s} {r.get('instrument_platform',''):12s} "
               f"{r.get('library_strategy',''):12s} reads={r.get('read_count','?')}")
         for link in filter(None, r.get("fastq_ftp", "").split(";")):

@@ -19,7 +19,6 @@ directive is emitted commented out, and the controller picks the site default.
 from __future__ import annotations
 
 import csv
-import os
 import re
 import sys
 from dataclasses import dataclass
