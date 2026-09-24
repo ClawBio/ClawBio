@@ -484,6 +484,21 @@ class TestGenomeBuild:
         assert not bad
         assert "declares no build" in unver[0]
 
+    def test_not_reported_build_is_unverified_not_a_mismatch(self):
+        """Manuel, R16/R17: the Catalog writes NR for not-reported, and NA/none turn up
+        in exports. Compared verbatim they differ from any declared build, so a file
+        stating no build was refused with a message asserting a conflict that was never
+        established. Not-reported is not-verified, on either side of the comparison."""
+        import prs_abstain as pa
+        for unstated in ("NR", "nr", "NA", "n/a", "none", "unknown", "."):
+            bad, unver = pa.build_check(self._defs(pa, unstated), "GRCh37")
+            assert not bad, f"score build {unstated!r} refused as a mismatch: {bad}"
+            assert "declares no build" in unver[0], unstated
+
+            bad, unver = pa.build_check(self._defs(pa, "GRCh37"), unstated)
+            assert not bad, f"genotype build {unstated!r} refused as a mismatch: {bad}"
+            assert "genotype build not stated" in unver[0], unstated
+
     def test_cli_refuses_on_build_mismatch(self, tmp_path):
         """The demo scores are GRCh37; declaring GRCh38 must exit 2, not warn."""
         r = run_cli(["--demo", "--output", str(tmp_path / "o"), "--genotype-build", "GRCh38"])
@@ -945,8 +960,8 @@ class TestGateWiringThroughTheCli:
 class TestScoreIdProvenance:
     def test_panel_id_comes_from_the_header_not_the_filename(self):
         """Post-#357 curated panels carry #clawbio_panel_id and no #pgs_id.
-        The id must be the header's, never re-derived from a filename that
-        still says PGS000013."""
+        The id must be the header's, never re-derived from a filename or a
+        legacy pgs_id label that still carries a PGS Catalog accession."""
         import prs_abstain as pa
 
         defs = pa.load_score_definitions(EXAMPLES / "scores")
@@ -1403,7 +1418,7 @@ class TestRound6Sentinels:
         assert "|" not in loaded[0]["trait"]
 
     def test_falsy_sample_id_is_keyed_not_cross_attributed(self, tmp_path):
-        recs = [{"pgs_id": "PGS000013", "trait": "T", "raw_score": 1.0,
+        recs = [{"pgs_id": "CLAWBIO-T2D-8_GRCh37", "trait": "T", "raw_score": 1.0,
                  "percentile": 97.0, "z_score": 1.0, "reference_population": "EUR",
                  "sample_id": 0}]
         f = tmp_path / "r.json"; f.write_text(json.dumps(recs))
@@ -1592,26 +1607,54 @@ class TestRound9Sweep:
         cal = pa.calibrate(panel, "EUR")
         assert math.isfinite(cal.threshold)
 
-    def test_af_table_without_allele_column_says_so_in_sd_note(self, tmp_path):
-        """Manuel, R14: the stderr warning about an unnamed allele has to reach the clinician.
+    def test_orientation_caveat_reaches_the_clinician_on_both_sd_branches(self, tmp_path):
+        """Manuel, R14/R15/R16/R17: the stderr warning about an unnamed allele has to
+        reach the clinician, on both sd branches.
 
-        A frequency table that counts the OTHER allele reverses the sign of the printed shift,
-        so a shift derived from an orientation-unverified table must say so next to the number,
-        not only in a terminal nobody keeps."""
+        A frequency table that counts the OTHER allele reverses the sign of the printed
+        shift, so a shift derived from an orientation-unverified table must say so next
+        to the number, not only in a terminal nobody keeps. Driven through gate_scores,
+        not through af_shift: the helper fills sd_note on every branch regardless, so
+        asserting on it there stays green even with both append sites deleted.
+        """
         import prs_abstain as pa
         f = tmp_path / "af_no_allele.tsv"
         f.write_text("rs1\tAFR\t0.40\nrs2\tAFR\t0.10\n")
         tab = pa.load_population_af(f)
         assert tab.orientation_unverified is True
         assert len(tab) == 2, "the flag must not become a row: af_rows is reported to the clinician"
-        score = pa.ScoreDefinition("PGSTEST", "trait", "GRCh37", [
+        sdef = pa.ScoreDefinition("CLAWBIO-T2D-8", "Type 2 diabetes", "GRCh37", [
             {"rsid": "rs1", "effect_allele": "A", "other_allele": "G", "weight": 0.5, "af_reference": 0.10},
             {"rsid": "rs2", "effect_allele": "C", "other_allele": "T", "weight": 0.5, "af_reference": 0.05},
         ])
-        sh = pa.af_shift(score, tab, sd=1.0, population="AFR")
-        assert sh is not None
-        assert "unverified" in sh.sd_note.lower()
-        assert "reverse the sign" in sh.sd_note.lower()
+        cal = pa.Calibration(reference_population="EUR", pcs_used=("PC1",), centroid=[0.0],
+                             n=10, mean=1.0, sd=0.5, k_sd=3.0, threshold=2.5,
+                             within_max=2.0, nearest_other=9.9)
+        dec = pa.Decision(sample_id="X", verdict="REPORT", distance=1.0, threshold=2.5,
+                          reason="", remedy="", n_markers_shared=500,
+                          declared_population="EUR")
+        rec = {"pgs_id": "CLAWBIO-T2D-8", "trait": "Type 2 diabetes", "raw_score": 1.0,
+               "percentile": 50.0, "z_score": 0.0, "reference_population": "EUR"}
+        integ = {"CLAWBIO-T2D-8": pa.IntegrityVerdict(True, [], [])}
+
+        def caveats(sd):
+            sh = pa.af_shift(sdef, tab, sd=sd, population="AFR")
+            assert sh is not None
+            gated = pa.gate_scores([dict(rec)], dec, cal, sex="female",
+                                   integrity=integ, shifts={"CLAWBIO-T2D-8": sh})
+            return sh, " ".join(gated[0]["caveats"])
+
+        # Branch 1: the reference sd could not be derived, so the shift is printed in
+        # raw units - the caveat rides that warning.
+        sh, text = caveats(None)
+        assert sh.shift_sd is None
+        assert "reverse the sign" in text.lower(), text
+
+        # Branch 2: the sd IS derivable, which is exactly when a signed sd-unit shift
+        # is printed. sd=0.1 over a raw shift of ~0.35 clears the 0.5-sd warning floor.
+        sh, text = caveats(0.1)
+        assert sh.shift_sd is not None and abs(sh.shift_sd) > 0.5
+        assert "reverse the sign" in text.lower(), text
 
     def test_af_table_with_allele_column_makes_no_orientation_claim(self, tmp_path):
         import prs_abstain as pa

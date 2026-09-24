@@ -319,11 +319,11 @@ def load_genotype(path: Path) -> dict[str, str]:
 
 
 class AFTable(dict):
-    """{rsid: {pop: af, "_allele": A}} plus un steag de provenienta.
+    """{rsid: {pop: af, "_allele": A}} plus a provenance flag.
 
-    Un dict simplu nu poate purta faptul ca tabelul nu isi declara alela, iar acel fapt trebuie
-    sa ajunga in sd_note langa cifra, nu doar pe stderr. Steagul sta ca ATRIBUT, nu ca cheie:
-    tabelul e cheiat pe rsid si lungimea lui e raportata clinicianului ca af_rows.
+    A plain dict cannot carry the fact that the table declares no allele, and that fact has
+    to reach sd_note beside the number, not only stderr. The flag is an ATTRIBUTE, not a key:
+    the table is keyed by rsid and its length is reported to the clinician as af_rows.
     """
 
     orientation_unverified: bool = False
@@ -524,10 +524,19 @@ def build_check(score_defs: dict[str, "ScoreDefinition"],
     lists: hard mismatches, which must refuse, and scores whose build could not
     be checked, which must be disclosed rather than assumed correct.
     """
+    # PGS Catalog writes NR for "not reported" and NA/none for an absent value.
+    # Returning those verbatim made them compare unequal to the declared build,
+    # so a file that states no build was refused with a message asserting a
+    # build conflict that was never established (Manuel, R16/R17). Not-reported
+    # is not-verified: map them to None so they reach the unverified branch.
+    _UNSTATED = {"nr", "na", "n/a", "none", "null", "unknown", "unspecified", "."}
+
     def norm(b: str | None) -> str | None:
         if not b:
             return None
         t = b.strip().lower().replace("_", "").replace("-", "").replace(" ", "")
+        if t in _UNSTATED:
+            return None
         for canon, aliases in (("GRCh37", ("grch37", "hg19", "b37", "37")),
                                ("GRCh38", ("grch38", "hg38", "b38", "38"))):
             if t in aliases:
@@ -1176,6 +1185,12 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
                     f"mean would move by {shift.shift_sd:+.2f} sd - a bound on this score's "
                     f"portability to {shift.population} populations, not an error in this "
                     f"individual's percentile.")
+            # The caveat travels with the number on this branch too (Manuel, R15/R16/R17).
+            # A derivable sd is exactly the case where a signed shift is printed, so an
+            # unverified table orientation - which reverses that sign - has to be read
+            # beside it, not left on stderr.
+            if shift.sd_note:
+                warnings[-1] = warnings[-1] + " " + shift.sd_note
 
         # allow implies score_pop is declared: the provenance check above
         # fails closed, so this note can never assert an unestablished origin.
@@ -1717,7 +1732,9 @@ def _write_technical_report(outdir: Path, cal: Calibration, results: list[dict[s
                 a(f"| {pid} | {sh.n_variants_with_af} | {sh.coverage:.0%} | {sh.shift_raw:+.4f} | "
                   f"{('n/a (sd underivable)' if sh.shift_sd is None else format(sh.shift_sd, '+.3f'))} | {drv} |")
             for pid, sh in sorted(shifts.items()):
-                if sh.shift_sd is None and sh.sd_note:
+                # Printed whether or not the sd was derivable: the sign of a quantified
+                # shift is exactly what an unverified table orientation reverses.
+                if sh.sd_note:
                     a(f"- {pid}: {sh.sd_note}")
             a("")
             a("### Top per-variant contributions to the shift\n")

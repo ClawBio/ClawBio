@@ -1,6 +1,6 @@
 [
   {
-    "pgs_id": "PGS000013",
+    "pgs_id": "CLAWBIO-T2D-8_GRCh37",
     "trait": "Type 2 diabetes",
     "raw_score": 0.8,
     "variants_used": 8,
@@ -16,7 +16,7 @@
     "sample_id": "EUR_001"
   },
   {
-    "pgs_id": "PGS000011",
+    "pgs_id": "CLAWBIO-AF-12_GRCh37",
     "trait": "Atrial fibrillation",
     "raw_score": 1.1400000000000001,
     "variants_used": 12,
@@ -32,7 +32,7 @@
     "sample_id": "EUR_001"
   },
   {
-    "pgs_id": "PGS000004",
+    "pgs_id": "CLAWBIO-CAD-46_GRCh37",
     "trait": "Coronary artery disease",
     "raw_score": 2.4500000000000006,
     "variants_used": 46,
@@ -48,7 +48,7 @@
     "sample_id": "EUR_001"
   },
   {
-    "pgs_id": "PGS000001",
+    "pgs_id": "CLAWBIO-BC-77_GRCh37",
     "trait": "Breast cancer",
     "raw_score": 5.079999999999998,
     "variants_used": 77,
@@ -64,7 +64,7 @@
     "sample_id": "EUR_001"
   },
   {
-    "pgs_id": "PGS000057",
+    "pgs_id": "CLAWBIO-PC-147_GRCh37",
     "trait": "Prostate cancer",
     "raw_score": 9.079999999999998,
     "variants_used": 147,
@@ -80,7 +80,7 @@
     "sample_id": "EUR_001"
   },
   {
-    "pgs_id": "PGS000039",
+    "pgs_id": "CLAWBIO-BMI-97_GRCh37",
     "trait": "BMI",
     "raw_score": 3.1499999999999995,
     "variants_used": 97,
@@ -96,7 +96,7 @@
     "sample_id": "EUR_001"
   },
   {
-    "pgs_id": "PGS000013",
+    "pgs_id": "CLAWBIO-T2D-8_GRCh37",
     "trait": "Type 2 diabetes",
     "raw_score": 0.8,
     "variants_used": 8,
@@ -112,7 +112,7 @@
     "sample_id": "AFR_001"
   },
   {
-    "pgs_id": "PGS000011",
+    "pgs_id": "CLAWBIO-AF-12_GRCh37",
     "trait": "Atrial fibrillation",
     "raw_score": 1.1400000000000001,
     "variants_used": 12,
@@ -128,7 +128,7 @@
     "sample_id": "AFR_001"
   },
   {
-    "pgs_id": "PGS000004",
+    "pgs_id": "CLAWBIO-CAD-46_GRCh37",
     "trait": "Coronary artery disease",
     "raw_score": 2.4500000000000006,
     "variants_used": 46,
@@ -144,7 +144,7 @@
     "sample_id": "AFR_001"
   },
   {
-    "pgs_id": "PGS000001",
+    "pgs_id": "CLAWBIO-BC-77_GRCh37",
     "trait": "Breast cancer",
     "raw_score": 5.079999999999998,
     "variants_used": 77,
@@ -160,7 +160,7 @@
     "sample_id": "AFR_001"
   },
   {
-    "pgs_id": "PGS000057",
+    "pgs_id": "CLAWBIO-PC-147_GRCh37",
     "trait": "Prostate cancer",
     "raw_score": 9.079999999999998,
     "variants_used": 147,
@@ -176,7 +176,7 @@
     "sample_id": "AFR_001"
   },
   {
-    "pgs_id": "PGS000039",
+    "pgs_id": "CLAWBIO-BMI-97_GRCh37",
     "trait": "BMI",
     "raw_score": 3.1499999999999995,
     "variants_used": 97,
@@ -192,7 +192,7 @@
     "sample_id": "AFR_001"
   },
   {
-    "pgs_id": "PGS000013",
+    "pgs_id": "CLAWBIO-T2D-8_GRCh37",
     "trait": "Type 2 diabetes",
     "raw_score": 0.8,
     "variants_used": 8,
@@ -208,7 +208,7 @@
     "sample_id": "DEMO_PATIENT"
   },
   {
-    "pgs_id": "PGS000011",
+    "pgs_id": "CLAWBIO-AF-12_GRCh37",
     "trait": "Atrial fibrillation",
     "raw_score": 1.1400000000000001,
     "variants_used": 12,
@@ -224,7 +224,7 @@
     "sample_id": "DEMO_PATIENT"
   },
   {
-    "pgs_id": "PGS000004",
+    "pgs_id": "CLAWBIO-CAD-46_GRCh37",
     "trait": "Coronary artery disease",
     "raw_score": 2.4500000000000006,
     "variants_used": 46,
@@ -240,7 +240,7 @@
     "sample_id": "DEMO_PATIENT"
   },
   {
-    "pgs_id": "PGS000001",
+    "pgs_id": "CLAWBIO-BC-77_GRCh37",
     "trait": "Breast cancer",
     "raw_score": 5.079999999999998,
     "variants_used": 77,
@@ -256,7 +256,7 @@
     "sample_id": "DEMO_PATIENT"
   },
   {
-    "pgs_id": "PGS000057",
+    "pgs_id": "CLAWBIO-PC-147_GRCh37",
     "trait": "Prostate cancer",
     "raw_score": 9.079999999999998,
     "variants_used": 147,
@@ -272,7 +272,7 @@
     "sample_id": "DEMO_PATIENT"
   },
   {
-    "pgs_id": "PGS000039",
+    "pgs_id": "CLAWBIO-BMI-97_GRCh37",
     "trait": "BMI",
     "raw_score": 3.1499999999999995,
     "variants_used": 97,
