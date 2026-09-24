@@ -673,6 +673,25 @@ class TestPDF:
         text = " ".join(text.split())
         assert "not evidence of low risk" in text
 
+    def test_unrenderable_figure_warns_instead_of_vanishing(self, tmp_path, capfd):
+        """CodeQL, PR #348: the image branch swallowed every exception and passed.
+
+        A figure that cannot be rendered is dropped from the PDF. Dropping it silently
+        leaves a reader comparing the PDF against the markdown with a missing figure and
+        no explanation, so the failure has to be said out loud."""
+        pytest.importorskip("reportlab")
+        import pdf_report
+
+        figs = tmp_path / "figures"
+        figs.mkdir()
+        (figs / "broken.png").write_bytes(b"not a png")
+        md = tmp_path / "r.md"
+        md.write_text("# T\n\nBefore.\n\n![fig](figures/broken.png)\n\nAfter.\n")
+        out = tmp_path / "r.pdf"
+        pdf_report.markdown_to_pdf(md, out, "T", figures_dir=figs)
+        assert out.exists() and out.stat().st_size > 500
+        assert "broken.png" in capfd.readouterr().err
+
     def test_skill_still_runs_without_reportlab(self, tmp_path):
         """PDF is a bonus artefact; its absence must not break the run.
         Measured for real: the CLI runs in a subprocess whose import of

@@ -11,6 +11,7 @@ converted to ReportLab's <super>/<sub> XML tags here.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -162,8 +163,14 @@ def markdown_to_pdf(md_path: Path, pdf_path: Path, title: str,
                     story.append(KeepTogether([
                         Image(str(src), width=disp_w, height=disp_w * h / w),
                         Spacer(1, 4 * mm)]))
-                except Exception:
-                    pass
+                except (ImportError, OSError, ValueError) as e:
+                    # A figure that cannot be rendered is DROPPED from the PDF, so say so
+                    # rather than passing silently: a reader comparing the PDF against the
+                    # markdown would otherwise see a missing figure with no explanation.
+                    # ImportError: Pillow absent; OSError: unreadable or truncated image;
+                    # ValueError: zero width, which would divide by zero above.
+                    print(f"Warning: {src.name} not embedded in the PDF ({e}); "
+                          f"the markdown report still references it.", file=sys.stderr)
             i += 1
             continue
 
