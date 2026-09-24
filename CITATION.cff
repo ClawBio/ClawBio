@@ -14,7 +14,7 @@ abstract: >-
   variant annotation, fine-mapping, polygenic risk scoring, single-cell
   RNA-seq, and more. Includes validation infrastructure with an Alzheimer's
   disease ground truth benchmark, mock API server, swappable fine-mapping
-  pipeline, and 5,327 automated tests.
+  pipeline, and 5,328 automated tests.
 keywords:
   - bioinformatics
   - AI agents

@@ -331,7 +331,8 @@ def cmd_download_script(args):
     parts.append("")
     with open(args.out, "w") as fh:
         fh.write("\n".join(parts))
-    os.chmod(args.out, 0o755)
+    mode = os.stat(args.out).st_mode
+    os.chmod(args.out, mode | ((mode & 0o444) >> 2))  # mirror read bits into execute
     msg = (f"Wrote {args.out}: {len(entries)} download command(s) using {args.tool}")
     if args.unzip and n_zip:
         msg += f" (+{n_zip} unzip step(s))"

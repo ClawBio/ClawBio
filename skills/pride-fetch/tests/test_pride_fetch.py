@@ -8,6 +8,7 @@ from the committed fixtures in ../examples/.
 
 import csv
 import json
+import os
 import re
 import subprocess
 import sys
@@ -181,6 +182,18 @@ class TestSafety:
         capsys.readouterr()
         app.main(["--demo", "--output", str(tmp_path)])
         assert "overwritten" in capsys.readouterr().err
+
+    def test_download_script_mode_honours_the_umask(self, tmp_path):
+        """Execute is added only where read already is: a 077 umask gives 0700."""
+        import pride_fetch as app
+
+        old = os.umask(0o077)
+        try:
+            app.main(["--demo", "--output", str(tmp_path)])
+        finally:
+            os.umask(old)
+        mode = (tmp_path / "download_pride.sh").stat().st_mode & 0o777
+        assert mode == 0o700
 
     def test_demo_writes_nothing_outside_the_output_dir(self, tmp_path, monkeypatch):
         import pride_fetch as app
