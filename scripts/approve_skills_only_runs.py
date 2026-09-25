@@ -118,8 +118,17 @@ def open_prs() -> list[dict]:
 
 
 def pr_files(number: int) -> list[str]:
-    data = _gh_json(["api", f"repos/{REPO}/pulls/{number}/files?per_page=300"])
-    return [f["filename"] for f in (data or [])]
+    """Every file the PR touches. GitHub caps pages at 100 and the listing at
+    3000, so a short read raises rather than judging the PR on a subset."""
+    pages = _gh_json([
+        "api", "--paginate", "--slurp",
+        f"repos/{REPO}/pulls/{number}/files?per_page=100",
+    ]) or []
+    files = [f["filename"] for page in pages for f in page]
+    expected = (_gh_json(["api", f"repos/{REPO}/pulls/{number}"]) or {}).get("changed_files")
+    if expected != len(files):
+        raise RuntimeError(f"listed {len(files)} of {expected} changed files")
+    return files
 
 
 def approve(run_id: int) -> None:
