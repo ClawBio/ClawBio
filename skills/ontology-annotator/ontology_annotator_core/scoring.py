@@ -1,9 +1,10 @@
-"""scoring.py — Turn an OLS4 search response into ranked, scored candidates.
+"""scoring.py — Turn an OLS4 search response into candidates ranked by string similarity.
 
 OLS4's `/api/search` does not return a numeric relevance score in its default
-JSON (no `score` field on the docs), so this module computes its own: a
+JSON (no `score` field on the docs), so this module computes a
 deterministic string-similarity ratio between the input value and each
-candidate's label/synonyms. This keeps every score traceable to (a) the raw
+candidate's label/synonyms. This is lexical similarity, not biological or probabilistic
+confidence. It keeps every value traceable to (a) the raw
 OLS4 response and (b) a fixed, auditable formula — never an opaque or
 model-guessed number.
 """
@@ -37,7 +38,7 @@ def candidate_names(doc: dict) -> list[str]:
     return [n for n in names if n]
 
 
-def score_candidate(query: str, doc: dict) -> float:
+def string_similarity(query: str, doc: dict) -> float:
     """Best string-similarity ratio (0-1) between `query` and any of the
     candidate's label/synonyms. difflib.SequenceMatcher.ratio() is used
     because it is deterministic, needs no extra dependency, and is easy for a
@@ -52,8 +53,8 @@ def score_candidate(query: str, doc: dict) -> float:
 
 
 def rank_candidates(query: str, docs: list[dict], top_n: int = 3) -> list[dict]:
-    """Score every OLS4 doc against `query` and return the top `top_n`,
-    sorted by score descending. Ties keep OLS4's original relevance order
+    """Compute string similarity for every OLS4 doc against `query` and return the top `top_n`,
+    sorted by similarity descending. Ties keep OLS4's original relevance order
     (Python's sort is stable)."""
     scored = []
     for doc in docs:
@@ -61,22 +62,22 @@ def rank_candidates(query: str, docs: list[dict], top_n: int = 3) -> list[dict]:
             {
                 "ontology_id": doc.get("obo_id") or doc.get("short_form") or "",
                 "label": doc.get("label", ""),
-                "score": score_candidate(query, doc),
+                "string_similarity": string_similarity(query, doc),
                 "iri": doc.get("iri", ""),
             }
         )
-    scored.sort(key=lambda c: c["score"], reverse=True)
+    scored.sort(key=lambda c: c["string_similarity"], reverse=True)
     return scored[:top_n]
 
 
-def best_candidate(candidates: list[dict], threshold: float) -> tuple[dict | None, bool]:
+def best_candidate(candidates: list[dict], min_similarity: float) -> tuple[dict | None, bool]:
     """Return (top candidate or None, flagged).
 
-    `flagged` is True whenever there is no top candidate, or its score is
-    below `threshold`. This function never silently returns a low-confidence
+    `flagged` is True whenever there is no top candidate, or its string similarity is
+    below `min_similarity`. This function never silently returns a weak match
     pick as if it were trustworthy — the caller must check `flagged`.
     """
     if not candidates:
         return None, True
     top = candidates[0]
-    return top, top["score"] < threshold
+    return top, top["string_similarity"] < min_similarity

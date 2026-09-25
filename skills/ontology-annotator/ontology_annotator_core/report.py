@@ -83,7 +83,7 @@ def generate_markdown(
     row_summaries: dict[str, dict[str, Any]],
     flagged_rows: list[dict[str, Any]],
     n_rows: int,
-    threshold: float,
+    min_similarity: float,
     catalog_path: Path,
 ) -> str:
     """Build the full report.md text.
@@ -93,7 +93,7 @@ def generate_markdown(
         row_summaries: {column_name: {"n_matched", "n_flagged", "n_no_candidates"}}.
         flagged_rows: list of {row_index, column, value, reason} for every flagged cell.
         n_rows: total input rows processed.
-        threshold: confidence threshold used to decide flags.
+        min_similarity: minimum string similarity below which a row needs review.
         catalog_path: path to skills/catalog.json, for the consuming-skills section.
     """
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -102,14 +102,14 @@ def generate_markdown(
         "",
         f"**Date**: {now}",
         f"**Rows processed**: {n_rows}",
-        f"**Confidence threshold**: {threshold}",
+        f"**Minimum string similarity**: {min_similarity} (lexical match to label/synonyms; not biological confidence)",
         f"**Data source**: EBI OLS4 (`https://www.ebi.ac.uk/ols4/api/search`)",
         "",
         "---",
         "",
         "## Summary",
         "",
-        "| Column | Ontology | Matched (≥ threshold) | Flagged | No candidates |",
+        "| Column | Ontology | Matched (≥ min similarity) | Flagged | No candidates |",
         "|--------|----------|------------------------|---------|----------------|",
     ]
     for col, ontology in annotated_columns.items():
@@ -124,20 +124,20 @@ def generate_markdown(
     lines.append("")
     if flagged_rows:
         lines.append(
-            "These rows scored below the confidence threshold, or OLS4 returned no "
+            "These rows had a top string similarity below the minimum, or OLS4 returned no "
             "candidates at all. **None of these were auto-picked** — review the "
             "top-3 candidates in `annotated.csv` before trusting them."
         )
         lines.append("")
-        lines.append("| Row | Column | Value | Top candidate | Score | Reason |")
+        lines.append("| Row | Column | Value | Top candidate | String similarity | Reason |")
         lines.append("|-----|--------|-------|----------------|-------|--------|")
         for f in flagged_rows:
             lines.append(
                 f"| {f['row_index']} | `{f['column']}` | {f['value']} | "
-                f"{f.get('top_label', '—')} | {f.get('top_score', '—')} | {f['reason']} |"
+                f"{f.get('top_label', '—')} | {f.get('top_string_similarity', '—')} | {f['reason']} |"
             )
     else:
-        lines.append("None — every annotated value matched with confidence ≥ threshold.")
+        lines.append("None — every annotated value had a top string similarity ≥ the minimum.")
     lines.append("")
 
     lines.append("## Ontologies Used")
@@ -181,7 +181,7 @@ def generate_markdown(
     )
     lines.append(
         f"- A row is flagged when its top-scoring candidate is below the "
-        f"threshold ({threshold}), or when OLS4 returned zero candidates. "
+        f"min_similarity ({min_similarity}), or when OLS4 returned zero candidates. "
         "Flagged rows keep their top-3 candidates in the output — nothing is "
         "silently picked."
     )

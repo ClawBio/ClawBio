@@ -34,7 +34,7 @@ from ontology_annotator_core.scoring import (  # noqa: E402
     best_candidate,
     normalise,
     rank_candidates,
-    score_candidate,
+    string_similarity,
 )
 
 FIXTURES_PATH = SKILL_DIR / "data" / "ols4_fixtures.json"
@@ -74,15 +74,15 @@ def test_normalise_folds_case_and_whitespace():
     assert normalise("Type 2 Diabetes") == "type 2 diabetes"
 
 
-def test_score_candidate_exact_match_is_one():
+def test_string_similarity_exact_match_is_one():
     doc = {"label": "lung", "exact_synonyms": ["pulmo"]}
-    assert score_candidate("lung", doc) == 1.0
-    assert score_candidate("Lung", doc) == 1.0  # case-insensitive
+    assert string_similarity("lung", doc) == 1.0
+    assert string_similarity("Lung", doc) == 1.0  # case-insensitive
 
 
-def test_score_candidate_uses_best_synonym_not_just_label():
+def test_string_similarity_uses_best_synonym_not_just_label():
     doc = {"label": "pulmo", "exact_synonyms": ["lung"]}
-    assert score_candidate("lung", doc) == 1.0
+    assert string_similarity("lung", doc) == 1.0
 
 
 def test_rank_candidates_sorts_descending_and_caps_at_top_n(fixtures):
@@ -90,38 +90,38 @@ def test_rank_candidates_sorts_descending_and_caps_at_top_n(fixtures):
     docs = fixtures[key]["response"]["docs"]
     ranked = rank_candidates("lung", docs, top_n=3)
     assert len(ranked) == 3
-    scores = [c["score"] for c in ranked]
+    scores = [c["string_similarity"] for c in ranked]
     assert scores == sorted(scores, reverse=True)
     assert ranked[0]["ontology_id"] == "UBERON:0002048"
     assert ranked[0]["label"] == "lung"
-    assert ranked[0]["score"] == 1.0
+    assert ranked[0]["string_similarity"] == 1.0
 
 
 def test_best_candidate_flags_below_threshold():
-    candidates = [{"ontology_id": "X:1", "label": "x", "score": 0.5, "iri": ""}]
-    top, flagged = best_candidate(candidates, threshold=0.75)
+    candidates = [{"ontology_id": "X:1", "label": "x", "string_similarity": 0.5, "iri": ""}]
+    top, flagged = best_candidate(candidates, min_similarity=0.75)
     assert top["ontology_id"] == "X:1"
     assert flagged is True
 
 
 def test_best_candidate_does_not_flag_above_threshold():
-    candidates = [{"ontology_id": "X:1", "label": "x", "score": 0.9, "iri": ""}]
-    top, flagged = best_candidate(candidates, threshold=0.75)
+    candidates = [{"ontology_id": "X:1", "label": "x", "string_similarity": 0.9, "iri": ""}]
+    top, flagged = best_candidate(candidates, min_similarity=0.75)
     assert flagged is False
 
 
 def test_best_candidate_flags_empty_candidate_list():
-    top, flagged = best_candidate([], threshold=0.75)
+    top, flagged = best_candidate([], min_similarity=0.75)
     assert top is None
     assert flagged is True
 
 
 def test_best_candidate_never_silently_returns_a_pick_as_trustworthy():
-    """A low-confidence top-1 is still returned (so it's visible in output),
+    """A weak-match top-1 is still returned (so it's visible in output),
     but always paired with flagged=True — never presented as if it were a
     confident answer."""
-    candidates = [{"ontology_id": "X:1", "label": "x", "score": 0.1, "iri": ""}]
-    top, flagged = best_candidate(candidates, threshold=0.75)
+    candidates = [{"ontology_id": "X:1", "label": "x", "string_similarity": 0.1, "iri": ""}]
+    top, flagged = best_candidate(candidates, min_similarity=0.75)
     assert top is not None
     assert flagged is True
 
@@ -258,7 +258,7 @@ def test_full_pipeline_demo_data(tmp_path):
         input_path=DEMO_INPUT_PATH,
         output_dir=tmp_path,
         columns_arg=None,
-        threshold=0.8,
+        min_similarity=0.8,
         fixtures_path=FIXTURES_PATH,
         demo=True,
     )
@@ -273,14 +273,14 @@ def test_full_pipeline_demo_data(tmp_path):
     annotated = pd.read_csv(tmp_path / "annotated.csv")
     assert len(annotated) == 5
     for col in ("tissue", "cell_type", "disease", "trait"):
-        for suffix in ("_ontology_id", "_label", "_score", "_flag", "_candidates"):
+        for suffix in ("_ontology_id", "_label", "_string_similarity", "_needs_review", "_candidates"):
             assert f"{col}{suffix}" in annotated.columns
 
-    # S1: exact, high-confidence matches on every column.
+    # S1: exact string matches on every column.
     row0 = annotated.iloc[0]
     assert row0["tissue_ontology_id"] == "UBERON:0002048"
-    assert row0["tissue_score"] == 1.0
-    assert row0["tissue_flag"] == False  # noqa: E712
+    assert row0["tissue_string_similarity"] == 1.0
+    assert row0["tissue_needs_review"] == False  # noqa: E712
     assert row0["disease_ontology_id"] == "MONDO:0005148"
     assert row0["trait_ontology_id"] == "EFO:0004340"
 
@@ -288,16 +288,16 @@ def test_full_pipeline_demo_data(tmp_path):
     # zero OLS4 candidates and must be flagged, never silently picked.
     row2 = annotated.iloc[2]
     assert pd.isna(row2["tissue_ontology_id"]) or row2["tissue_ontology_id"] == ""
-    assert row2["tissue_flag"] == True  # noqa: E712
-    assert row2["disease_flag"] == True  # noqa: E712
+    assert row2["tissue_needs_review"] == True  # noqa: E712
+    assert row2["disease_needs_review"] == True  # noqa: E712
 
     # S2: "blood pressure" is a real borderline case — OLS4 has no exact
     # "blood pressure" node, only "systolic/diastolic blood pressure"
-    # (score 0.7568). At threshold=0.8 that must be flagged even though a
+    # (score 0.7568). At min_similarity=0.8 that must be flagged even though a
     # real candidate exists — never silently accepted as the answer.
     row1 = annotated.iloc[1]
-    assert 0.7 < row1["trait_score"] < 0.8
-    assert row1["trait_flag"] == True  # noqa: E712
+    assert 0.7 < row1["trait_string_similarity"] < 0.8
+    assert row1["trait_needs_review"] == True  # noqa: E712
 
     result_json = json.loads((tmp_path / "result.json").read_text())
     assert result_json["skill"] == "ontology-annotator"
@@ -329,7 +329,7 @@ def test_full_pipeline_reuses_cache_for_repeated_normalised_value(tmp_path):
         input_path=DEMO_INPUT_PATH,
         output_dir=tmp_path,
         columns_arg=None,
-        threshold=0.8,
+        min_similarity=0.8,
         fixtures_path=FIXTURES_PATH,
         demo=True,
     )
@@ -347,7 +347,7 @@ def test_explicit_columns_arg_overrides_autodetect(tmp_path):
         input_path=DEMO_INPUT_PATH,
         output_dir=tmp_path,
         columns_arg="tissue:uberon",
-        threshold=0.8,
+        min_similarity=0.8,
         fixtures_path=FIXTURES_PATH,
         demo=True,
     )
@@ -367,7 +367,7 @@ def test_run_annotation_raises_clear_error_when_no_columns_detected(tmp_path):
             input_path=bad_input,
             output_dir=tmp_path / "out",
             columns_arg=None,
-            threshold=0.75,
+            min_similarity=0.75,
             fixtures_path=FIXTURES_PATH,
             demo=False,
         )

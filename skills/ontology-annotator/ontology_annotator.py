@@ -7,7 +7,7 @@ EBI OLS4 search API.
 Usage:
     python ontology_annotator.py --input samples.csv --output report/
     python ontology_annotator.py --input samples.csv --output report/ \
-        --columns tissue:uberon,cell_type:cl,disease:mondo,trait:efo --threshold 0.75
+        --columns tissue:uberon,cell_type:cl,disease:mondo,trait:efo --min-similarity 0.75
     python ontology_annotator.py --input adata.h5ad --output report/
     python ontology_annotator.py --demo --output /tmp/ontology_demo
 """
@@ -55,7 +55,7 @@ DISCLAIMER = (
 DEMO_INPUT_PATH = SKILL_DIR / "examples" / "demo_input.csv"
 DEMO_FIXTURES_PATH = SKILL_DIR / "data" / "ols4_fixtures.json"
 DEFAULT_CACHE_DIR = Path.home() / ".clawbio" / "ontology_annotator_cache"
-DEFAULT_THRESHOLD = 0.8
+DEFAULT_MIN_SIMILARITY = 0.8
 CATALOG_PATH = _PROJECT_ROOT / "skills" / "catalog.json"
 
 
@@ -68,7 +68,7 @@ def annotate_table(
     df,
     columns: dict[str, str],
     client: OLS4Client,
-    threshold: float,
+    min_similarity: float,
 ) -> tuple[Any, dict[str, dict[str, int]], list[dict]]:
     """Annotate `df` in place-ish (returns a copy) for every (col, ontology)
     in `columns`. Caches OLS4 lookups per unique normalised value within a
@@ -87,7 +87,7 @@ def annotate_table(
             continue
 
         memo: dict[str, list[dict]] = {}
-        ids, labels, scores, flags, candidates_json = [], [], [], [], []
+        ids, labels, similarities, flags, candidates_json = [], [], [], [], []
         n_matched = n_flagged = n_no_candidates = 0
 
         print(f"  Annotating '{col}' -> {ontology.upper()} ({df[col].nunique(dropna=True)} unique values)")
@@ -96,7 +96,7 @@ def annotate_table(
             if raw_value is None or (isinstance(raw_value, float) and raw_value != raw_value):
                 ids.append("")
                 labels.append("")
-                scores.append(0.0)
+                similarities.append(0.0)
                 flags.append(True)
                 candidates_json.append("[]")
                 n_no_candidates += 1
@@ -109,11 +109,11 @@ def annotate_table(
                 memo[memo_key] = rank_candidates(value, result["docs"], top_n=3)
 
             candidates = memo[memo_key]
-            top, is_flagged = best_candidate(candidates, threshold)
+            top, is_flagged = best_candidate(candidates, min_similarity)
 
             ids.append(top["ontology_id"] if top else "")
             labels.append(top["label"] if top else "")
-            scores.append(top["score"] if top else 0.0)
+            similarities.append(top["string_similarity"] if top else 0.0)
             flags.append(is_flagged)
             candidates_json.append(json.dumps(candidates))
 
@@ -122,7 +122,7 @@ def annotate_table(
                 reason = "No OLS4 candidates found"
             elif is_flagged:
                 n_flagged += 1
-                reason = f"Top score {top['score']} < threshold {threshold}"
+                reason = f"Top string similarity {top['string_similarity']} < min {min_similarity}; review"
             else:
                 n_matched += 1
                 reason = None
@@ -134,15 +134,15 @@ def annotate_table(
                         "column": col,
                         "value": value,
                         "top_label": top["label"] if top else "—",
-                        "top_score": top["score"] if top else "—",
+                        "top_string_similarity": top["string_similarity"] if top else "—",
                         "reason": reason,
                     }
                 )
 
         df[f"{col}_ontology_id"] = ids
         df[f"{col}_label"] = labels
-        df[f"{col}_score"] = scores
-        df[f"{col}_flag"] = flags
+        df[f"{col}_string_similarity"] = similarities
+        df[f"{col}_needs_review"] = flags
         df[f"{col}_candidates"] = candidates_json
 
         summary[col] = {
@@ -158,7 +158,7 @@ def run_annotation(
     input_path: Path,
     output_dir: Path,
     columns_arg: str | None,
-    threshold: float,
+    min_similarity: float,
     cache_dir: Path = DEFAULT_CACHE_DIR,
     use_cache: bool = True,
     fixtures_path: Path | None = None,
@@ -189,8 +189,8 @@ def run_annotation(
 
     client = OLS4Client(cache_dir=cache_dir, use_cache=use_cache, fixtures=fixtures)
 
-    print(f"  Annotating {len(columns)} column(s) against OLS4 (threshold={threshold})...")
-    annotated_df, summary, flagged_rows = annotate_table(df, columns, client, threshold)
+    print(f"  Annotating {len(columns)} column(s) against OLS4 (min_similarity={min_similarity})...")
+    annotated_df, summary, flagged_rows = annotate_table(df, columns, client, min_similarity)
 
     annotated_path = output_dir / "annotated.csv"
     annotated_df.to_csv(annotated_path, index=False)
@@ -202,7 +202,7 @@ def run_annotation(
         row_summaries=summary,
         flagged_rows=flagged_rows,
         n_rows=len(df),
-        threshold=threshold,
+        min_similarity=min_similarity,
         catalog_path=CATALOG_PATH,
     )
     (output_dir / "report.md").write_text(report_md)
@@ -220,7 +220,7 @@ def run_annotation(
             "input": str(input_path),
             "n_rows": len(df),
             "columns": columns,
-            "threshold": threshold,
+            "min_similarity": min_similarity,
             "n_matched": total_matched,
             "n_flagged": total_flagged,
             "n_no_candidates": total_no_candidates,
@@ -245,7 +245,7 @@ def run_annotation(
     args += ["--output", ReproPath(output_dir, "output_dir")]
     if columns_arg:
         args += ["--columns", columns_arg]
-    args += ["--threshold", str(threshold)]
+    args += ["--min-similarity", str(min_similarity)]
     write_portable_commands_sh(
         output_dir,
         ReproCommand(
@@ -291,10 +291,10 @@ def main(argv: list[str] | None = None) -> int:
         "If omitted, auto-detects tissue/cell_type/disease/trait columns.",
     )
     parser.add_argument(
-        "--threshold",
+        "--min-similarity",
         type=float,
-        default=DEFAULT_THRESHOLD,
-        help=f"Confidence threshold below which a row is flagged (default: {DEFAULT_THRESHOLD})",
+        default=DEFAULT_MIN_SIMILARITY,
+        help=f"Minimum string similarity (label/synonym vs input, not biological confidence) below which a row is flagged for review (default: {DEFAULT_MIN_SIMILARITY})",
     )
     parser.add_argument("--demo", action="store_true", help="Run with bundled demo data, fully offline")
     parser.add_argument("--no-cache", action="store_true", help="Bypass local OLS4 cache")
@@ -332,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
             input_path=input_path,
             output_dir=output_dir,
             columns_arg=columns_arg,
-            threshold=args.threshold,
+            min_similarity=args.min_similarity,
             cache_dir=Path(args.cache_dir),
             use_cache=not args.no_cache,
             fixtures_path=fixtures_path,
