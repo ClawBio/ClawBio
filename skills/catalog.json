@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 97,
+  "skill_count": 98,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -2973,6 +2973,57 @@
         "diff-visualizer",
         "bio-orchestrator"
       ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "nfcore-rnastructurome-wrapper",
+      "cli_alias": null,
+      "description": "Wrapper skill for running nf-core/rnastructurome — chemical-probing RNA structure analysis (SHAPE/DMS, RT-stop/MaP readout) from FASTQ to per-base reactivity, secondary-structure predictions, and 2D diagrams.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "spec-only",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": false,
+        "has_tests": false,
+        "has_demo": false,
+        "cli_registered": false,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": false,
+      "has_tests": false,
+      "has_demo": false,
+      "demo_command": null,
+      "dependencies": [],
+      "tags": [
+        "rna-structure",
+        "shape",
+        "dms",
+        "chemical-probing",
+        "rna-framework",
+        "nextflow",
+        "nf-core",
+        "reactivity",
+        "secondary-structure"
+      ],
+      "trigger_keywords": [
+        "nf-core rnastructurome",
+        "RNA structure probing pipeline",
+        "SHAPE-MaP",
+        "SHAPE-seq",
+        "DMS-MaP",
+        "DMS-seq",
+        "RT-stop reactivity",
+        "mutational profiling RNA structure",
+        "RNA Framework pipeline",
+        "rf-count rf-norm rf-fold",
+        "R2DT structure diagram",
+        "per-base RNA reactivity"
+      ],
+      "chaining_partners": [],
       "license": "MIT",
       "model_license": "",
       "data_license": ""
