@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Five public-archive fetch skills, ported from
+  [UKDRI/informatics_data_skills](https://github.com/UKDRI/informatics_data_skills)
+  @ `7cc3e6e`** (© 2026 UK Dementia Research Institute, MIT):
+  `biostudies-fetch`, `ena-fetch`, `geo-fetch`, `pride-fetch` and
+  `arrayexpress-fetch`. Each turns an
+  accession into archive metadata, a **standardised `metadata.tsv`** whose core
+  columns are identical across all five, and — for the sequencing archives — a
+  **pipeline-ready `samplesheet.csv`** matching the nf-core/rnaseq and
+  nf-core/scrnaseq column contracts, so the output feeds a pipeline without a
+  bespoke parsing step. `pride-fetch` writes a quantms-ready minimal SDRF
+  instead. `arrayexpress-fetch` adds MAGE-TAB support: it classifies IDF/SDRF
+  files, prints the experimental design, and builds the samplesheet by parsing
+  the SDRF's `Comment[FASTQ_URI]` columns. All five demos run fully offline
+  from committed fixtures.
+- **`clawbio/common/download_script.py`** — the shared FASTQ download-script
+  emitter, folded in from upstream's standalone `fastq-download-script` skill.
+  Its input is always another command's output, so it is a `download-script`
+  command on the archive skills rather than a skill of its own.
+- **`clawbio/common/archive_fetch.py`** — shared machinery for the archive
+  skills: the runner-reachable `--command` form, output-path anchoring, report
+  and bundle writing.
+
+### Changed
+- `biostudies-fetch` and `arrayexpress-fetch` resolve file downloads from the
+  BioStudies `/info` endpoint's `httpLink` rather than the hardcoded
+  `/biostudies/files/{acc}/{path}` path. Marked `DIVERGES FROM UPSTREAM` in the
+  code. **Verified live 2026-09-22.** Upstream's route is not broken — it
+  302-redirects to the same file — but `/info` advertises a *different* base
+  tree per collection (`/biostudies/fire/…` for `E-MTAB`,
+  `/pub/databases/biostudies/…` for `S-BSST`), so no single constant is
+  correct; and the redirect costs ~40× the latency (0.3 s vs 12.4 s) and times
+  out entirely on multi-gigabyte files.
+- **Generated download scripts default to `curl`, not `wget`** (`--tool` on
+  `ena-fetch`, `geo-fetch` and `pride-fetch`). Both tools now **resume** a
+  dropped transfer — wget gained `-c`, verified against GNU Wget 1.25.0 on
+  2026-09-23: a truncated file produced `206 Partial Content`, only the
+  remainder was transferred, and the result was byte-identical to a fresh
+  download. An earlier comment claimed the wget man page documents `-c` with
+  `-O` as unsupported; it does not — it documents that restriction for `-N` and
+  `-nc`. curl is nevertheless the default for the two things wget cannot do:
+  abort a transfer stalled near 0 B/s (`--speed-limit`/`--speed-time`), and
+  retry an HTTP **403**, which EBI returns under a burst of requests and which
+  a plain `--retry` does not cover. Pass `--tool wget` for the old behaviour.
+- Added an **allowlisting section to `docs/data-handling.md`** for the archive
+  skills. Metadata comes from `www.ebi.ac.uk` while file bytes come from
+  `ftp.ebi.ac.uk` / `ftp.sra.ebi.ac.uk` / `ftp.pride.ebi.ac.uk`, and networks
+  routinely allow the first and block the rest — which looks like a bad
+  accession but is a firewall. Despite the hostnames, **no FTP port is used**:
+  every `ftp://` URL is rewritten to `https://`, so this is host filtering on
+  TCP/443, not a port to open.
+
+### Notes
+- Upstream's `--out` defaults were relative to the working directory; every
+  ported path now resolves under `--output`, so a run writes nothing into the
+  repository.
+- `NCBI_EMAIL` / `NCBI_API_KEY` are read by `geo-fetch` but never sent without
+  `--use-ncbi-credentials`. Presence of an environment variable is not consent.
+- All five archive skills name `article-data-fetcher` as an **upstream chaining
+  partner**: it resolves a DOI or PMID to deposited accessions, which are these
+  skills' input. `article-data-fetcher` itself is unchanged.
+
 ## [0.7.1] - 2026-09-05
 
 ### Fixed

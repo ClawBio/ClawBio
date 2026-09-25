@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 97,
+  "skill_count": 102,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -186,6 +186,50 @@
         "Sprime",
         "hmmix",
         "introgressed segments"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "arrayexpress-fetch",
+      "cli_alias": "arrayexpress-fetch",
+      "description": "Query metadata and download data from ArrayExpress, EMBL-EBI's functional genomics collection, now hosted inside BioStudies. Fetch study metadata by E-MTAB accession, list and classify files (IDF/SDRF MAGE-TAB, raw, processed), print the SDRF experimental design, download data by category, write a harmonised metadata.tsv, and build an nf-core/rnaseq or nf-core/scrnaseq samplesheet.csv from the SDRF.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run arrayexpress-fetch --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "arrayexpress",
+        "embl-ebi",
+        "functional-genomics",
+        "mage-tab",
+        "data-retrieval",
+        "public-archives"
+      ],
+      "trigger_keywords": [
+        "ArrayExpress",
+        "E-MTAB",
+        "MAGE-TAB",
+        "SDRF",
+        "IDF",
+        "functional genomics experiment"
       ],
       "chaining_partners": [],
       "license": "MIT",
@@ -475,6 +519,49 @@
       "license": "MIT",
       "model_license": "",
       "data_license": ""
+    },
+    {
+      "name": "biostudies-fetch",
+      "cli_alias": "biostudies-fetch",
+      "description": "Query metadata and download data from EMBL-EBI BioStudies, the database that describes biological studies and links their data across collections (ArrayExpress, BioImages, BioModels, EGA-linked studies and standalone submissions). Fetch study metadata by accession, list and download attached files, search across collections, and write a harmonised metadata.tsv.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run biostudies-fetch --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "biostudies",
+        "embl-ebi",
+        "data-retrieval",
+        "metadata",
+        "public-archives"
+      ],
+      "trigger_keywords": [
+        "BioStudies",
+        "S-BSST",
+        "S-BIAD",
+        "BioImage Archive",
+        "supplementary study data EBI",
+        "EBI study metadata"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": "CC0-1.0"
     },
     {
       "name": "busco-assessor",
@@ -1505,6 +1592,53 @@
       "data_license": ""
     },
     {
+      "name": "ena-fetch",
+      "cli_alias": "ena-fetch",
+      "description": "Query metadata and download sequencing data from the European Nucleotide Archive (ENA) via the Portal and Browser APIs. Works with ENA/SRA accessions (PRJEB/PRJNA studies, ERR/SRR/DRR runs, ERX/SRX experiments, SAMEA/SAMN samples), listing runs and FASTQ links, building custom file reports, running advanced metadata searches, and emitting a standardised metadata.tsv plus a pipeline-ready nf-core/rnaseq or nf-core/scrnaseq samplesheet.csv.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run ena-fetch --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "ena",
+        "embl-ebi",
+        "sequencing",
+        "fastq",
+        "samplesheet",
+        "nf-core",
+        "public-archives"
+      ],
+      "trigger_keywords": [
+        "ENA",
+        "European Nucleotide Archive",
+        "PRJEB",
+        "ERR run accession",
+        "filereport",
+        "FASTQ links",
+        "samplesheet",
+        "nf-core samplesheet"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": "CC0-1.0"
+    },
+    {
       "name": "eqtl-catalogue-region-fetch",
       "cli_alias": "eqtl-region",
       "description": "Fetch a region of cis-eQTL summary statistics from EBI eQTL Catalogue v7+\nvia tabix-on-FTP. Use when an agent needs eQTL beta / SE / p-value for\nevery variant in a window around a gene's TSS for one specific dataset\n(study × tissue × quantification method). Input: dataset_id, chromosome,\nstart, end, optional molecular_trait_id. Output: harmonised TSV slice.\n",
@@ -1874,6 +2008,54 @@
         "genomebook match",
         "heterozygosity score",
         "breeding pairs"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "geo-fetch",
+      "cli_alias": "geo-fetch",
+      "description": "Query metadata and download data from the NCBI Gene Expression Omnibus (GEO). Works with GEO accessions (GSE series, GSM samples, GPL platforms, GDS datasets) to search GEO DataSets, fetch series and sample metadata, list and download series matrix / SOFT / MINiML / supplementary files, fetch the SRA Run Selector files, and emit a standardised metadata.tsv plus a pipeline-ready nf-core/rnaseq or nf-core/scrnaseq samplesheet.csv.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run geo-fetch --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "geo",
+        "ncbi",
+        "transcriptomics",
+        "samplesheet",
+        "nf-core",
+        "sra",
+        "public-archives"
+      ],
+      "trigger_keywords": [
+        "GEO",
+        "GSE",
+        "GSM",
+        "gene expression omnibus",
+        "series matrix",
+        "GEO supplementary",
+        "SraRunTable",
+        "SRR_Acc_List",
+        "samplesheet"
       ],
       "chaining_partners": [],
       "license": "MIT",
@@ -3412,6 +3594,54 @@
       "license": "Apache-2.0",
       "model_license": "",
       "data_license": ""
+    },
+    {
+      "name": "pride-fetch",
+      "cli_alias": "pride-fetch",
+      "description": "Query metadata and download data from the PRIDE Archive, EMBL-EBI's proteomics identifications database, via the PRIDE Archive REST API v3. Works with PRIDE/ProteomeXchange accessions (PXD, PRD) to fetch project metadata, list and download files (RAW, mzIdentML, mzML, mzTab, MGF, SDRF), search projects, emit a standardised metadata.tsv, write a quantms-ready minimal SDRF sample sheet, and generate a bash + SLURM download script.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run pride-fetch --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "pride",
+        "proteomics",
+        "mass-spectrometry",
+        "proteomexchange",
+        "sdrf",
+        "quantms",
+        "public-archives"
+      ],
+      "trigger_keywords": [
+        "PRIDE",
+        "ProteomeXchange",
+        "PXD",
+        "proteomics data",
+        "mass spectrometry archive",
+        "mzML",
+        "mzIdentML",
+        "SDRF",
+        "quantms"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": "CC0-1.0"
     },
     {
       "name": "profile-report",
