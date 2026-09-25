@@ -1260,6 +1260,13 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "ontology-annotator": {
+        "script": SKILLS_DIR / "ontology-annotator" / "ontology_annotator.py",
+        "demo_args": ["--demo"],
+        "description": "Ontology Annotator — map tissue/cell type/disease/trait metadata to UBERON/CL/MONDO/EFO IDs via EBI OLS4, scored top-3 candidates, never a silent pick",
+        "allowed_extra_flags": {"--columns", "--threshold", "--no-cache", "--cache-dir"},
+        "accepts_genotypes": False,
+    },
 }
 
 try:
