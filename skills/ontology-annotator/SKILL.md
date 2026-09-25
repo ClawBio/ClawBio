@@ -163,7 +163,7 @@ python clawbio.py run ontology-annotator --demo
 python clawbio.py run ontology-annotator --demo
 ```
 
-Expected output: a 5-sample synthetic table annotated across tissue/cell_type/disease/trait. 4 columns matched with string similarity 1.0 (exact OLS4 hits), one borderline flag (`blood pressure` → 0.7568, below the 0.8 default `--min-similarity`), two zero-candidate flags (`kynee`, `diabetes melitus` — deliberate typos), and one noisy low-score flag (`bmi` abbreviation). All from real, previously-recorded OLS4 responses.
+Expected output: a 5-sample synthetic table annotated across tissue/cell_type/disease/trait: 14 values matched, 4 flagged for review, 2 with zero candidates. Flagged: `blood pressure` in two rows (0.7568, just below the 0.8 default `--min-similarity`), `unknown cell type` (0.4571) and the `bmi` abbreviation (0.1935). Zero candidates: `kynee` and `diabetes melitus` (deliberate typos). All from real, previously-recorded OLS4 responses.
 
 ## Algorithm / Methodology
 
