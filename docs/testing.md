@@ -30,9 +30,9 @@ locally:
 uv run pytest skills/pharmgx-reporter/tests/ -v
 uv run pytest bot/tests/test_security.py -v
 
-# Or loop over every path declared in pytest.ini's testpaths:
-awk '/^testpaths/{f=1;next}/^[a-z_]+ =/{f=0}f' pytest.ini | \
-  while read -r p; do uv run pytest "$p" -q; done
+# Or loop over every testpaths entry in pytest.ini (bash and zsh):
+for d in bot/tests clawbio/common/tests clawbio/tests robotary/tests \
+         skills/*/tests tests; do uv run pytest "$d" -q; done
 ```
 
 A proper fix would add an `__init__.py` to each skill directory (or an

@@ -606,7 +606,7 @@ python skills/ancestry-risk-profiler/ancestry_risk_profiler.py \
 
 ## Testing
 
-Tests live in `skills/<name>/tests/`. The test paths are registered in `pytest.ini`. When adding a new skill with tests, add its test path there.
+Tests live in `skills/<name>/tests/`. `pytest.ini` collects them with the `skills/*/tests` glob, so a new skill's tests need no registration.
 
 ```bash
 python -m pytest -v                                    # All tests
@@ -715,7 +715,7 @@ This applies to: new skills, bug fixes, feature additions, refactors, and any co
 6. **Add the Python implementation** to make the tests pass (optional — SKILL.md alone is a usable skill). Accept `--input`, `--output`, `--demo`. Write the reproducibility bundle with `clawbio.common.reproducibility` (`write_commands_sh`, `write_environment_yml`, `write_checksums`) rather than hand-rolling it, and keep `reproducibility/` listed in the SKILL.md `## Output Structure` tree — do not prune it to make `TestOutputContract` pass.
 7. **Stress test** (run 10 times with varied inputs). Every correction becomes a Gotcha.
 8. **Register in `clawbio.py`**: add an entry to the `SKILLS` dict with script path, demo_args, description, and allowed_extra_flags
-9. **Register in `pytest.ini`**: add the test path to `testpaths`
+9. **Tests are collected automatically**: `pytest.ini` globs `skills/*/tests`, so there is nothing to register
 10. **Regenerate the catalog**: `python scripts/generate_catalog.py`
 11. **Verify and self-audit**: `python -m pytest` passes, `python clawbio.py list` shows the skill, and all 18 conformance checks below PASS. Read `CONTRIBUTING.md` for naming conventions, code standards, and the wanted-skills list.
 
@@ -841,5 +841,5 @@ Before improvising a common workflow, check `commands/` for reusable slash comma
 | `tests/benchmark/mock_api_server.py` | Deterministic mock API server for offline CI and local testing |
 | `tests/benchmark/benchmark_scorer.py` | Benchmark scoring CLI and Python API |
 | `requirements.txt` | Core Python dependencies |
-| `pytest.ini` | Test path registration |
+| `pytest.ini` | Test configuration (`skills/*/tests` collected by glob) |
 | `Makefile` | `make test`, `make demo`, `make list` |
