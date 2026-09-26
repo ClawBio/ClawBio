@@ -116,8 +116,8 @@ These skills are referenced in `AGENTS.md`, `skills/catalog.json`, or executable
 ## Known Metadata Inconsistencies
 
 - `README.md` lists `LLM Biobank Bench` as an MVP skill, and `clawbio.py` registers alias `llm-bench`, but this checkout does not contain a matching `skills/llm-biobank-bench/` directory.
-- `wes-clinical-report-es` is visible in `README.md` and `AGENTS.md`, but the current `skills/catalog.json` does not contain a matching entry.
-- Several executable skills are exposed in `AGENTS.md` or `clawbio.py` without being part of the public `README.md` MVP table; see `Additional Agent-Visible Script Skills` above.
+- `wes-clinical-report-es` is visible in `README.md`, but `skills/catalog.json` deliberately excludes it (`EXCLUDED_FOLDERS` in `scripts/generate_catalog.py`), so agents routing via the catalog will not offer it.
+- Several executable skills are exposed in `skills/catalog.json` or `clawbio.py` without being part of the public `README.md` MVP table; see `Additional Agent-Visible Script Skills` above.
 
 ## Optional
 

@@ -156,13 +156,16 @@ Run the 18-point SKILL.md conformance checklist against the new skill. Check eac
 
 Report PASS/FAIL for each. Fix any failures before proceeding.
 
-## Step 10: Update Routing Table
+## Step 10: Regenerate the Catalog
 
-Add the new skill to the ClawBio AGENTS.md routing table:
-- Add a row to the `## Skill Routing Table` with user intent phrases, skill path, and action
-- Add CLI reference to the `## CLI Reference` section
-- Add demo data to the `## Demo Data` table
-- Add demo command to the `## Demo Commands` section
+`skills/catalog.json` is the single source of truth for routing — do **not** add the
+skill to AGENTS.md by hand.
+
+- Make sure `trigger_keywords` in the skill's SKILL.md frontmatter cover the phrases
+  users will actually type (minimum 3), since that is what agents route on
+- Run `python scripts/generate_catalog.py`
+- Confirm the new entry appears with the right `cli_alias` and `demo_command`:
+  `python clawbio.py list`
 
 ## Step 11: Summary
 
