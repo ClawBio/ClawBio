@@ -90,6 +90,12 @@ labstep = ["labstep>=3.0"]
 galaxy-bridge = ["bioblend>=1.2"]
 affinity-proteomics = ["statsmodels>=0.14", "seaborn>=0.12"]
 
+# PDF rendering in prs-abstain; the skill degrades to markdown-only without them.
+prs-abstain = [
+    "reportlab>=4.0,<5",
+    "pillow>=10,<13",
+]
+
 [tool.uv]
 # glimix-core (a hard dependency of sushie) requires liknorm, and liknorm 2.0.0
 # pins cffi<2.0. cryptography>=48 requires cffi>=2.0, so leaving liknorm in the
@@ -121,6 +127,8 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 [dependency-groups]
 dev = [
     "skills-ref>=0.1.1,<1",
+    # prs-abstain tests inspect the rendered PDFs.
+    "pypdf>=4,<7",
 ]
 bot = [
     "python-telegram-bot[job-queue]>=22.8",
