@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 97,
+  "skill_count": 98,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -3184,6 +3184,54 @@
         "target triage",
         "omics evidence",
         "gene disease mapper"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "ontology-annotator",
+      "cli_alias": "ontology-annotator",
+      "description": "Maps messy metadata column values (tissue, cell type, disease, trait) to UBERON/CL/MONDO/EFO ontology IDs via the EBI OLS4 search API, with top-3 candidates ranked by string similarity and weak matches flagged for review. Batch companion to the EBI OLS MCP for interactive ontology navigation.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run ontology-annotator --demo",
+      "dependencies": [
+        "python>=3.10",
+        "pandas>=2.0",
+        "requests>=2.34"
+      ],
+      "tags": [
+        "ontology",
+        "uberon",
+        "cell-ontology",
+        "mondo",
+        "efo",
+        "metadata-normalisation",
+        "ols4"
+      ],
+      "trigger_keywords": [
+        "ontology annotation",
+        "map to UBERON",
+        "map to MONDO",
+        "cell type ontology lookup",
+        "tissue ontology mapping",
+        "EFO trait mapping",
+        "OLS4 search"
       ],
       "chaining_partners": [],
       "license": "MIT",
