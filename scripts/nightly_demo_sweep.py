@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 import sys
 import time
@@ -57,27 +58,28 @@ def run_demo(skill: dict, timeout: int, output_dir: Path | None) -> dict:
     name = skill["name"]
     cmd = skill["demo_command"]
 
-    # Use the same Python that's running this script
-    python = sys.executable
-    cmd = cmd.replace("python clawbio.py", f"{python} clawbio.py")
-    cmd = cmd.replace("python skills/", f"{python} skills/")
-
-    # Only append --output if the demo_command already uses --output
-    # (some skills like recombinator don't accept it)
-    if output_dir and "--output" in skill.get("demo_command", ""):
-        skill_out = output_dir / name
-        skill_out.mkdir(parents=True, exist_ok=True)
-        # Replace existing output path in demo command
-        cmd = cmd.replace("--output /tmp/", f"--output {skill_out}/")
-    elif output_dir and "--output" not in cmd:
-        # Don't force --output on skills that don't support it
-        pass
-
     t0 = time.time()
     try:
+        # demo_command is built from skill filenames, which contributors
+        # choose, so it is split into argv and never handed to a shell.
+        argv = shlex.split(cmd)
+
+        # Use the same Python that's running this script
+        if argv and argv[0] == "python":
+            argv[0] = sys.executable
+
+        # Only redirect --output if the demo_command already uses it
+        # (some skills like recombinator don't accept it)
+        if output_dir and "--output" in argv[:-1]:
+            i = argv.index("--output") + 1
+            if argv[i].startswith("/tmp/"):
+                skill_out = output_dir / name
+                skill_out.mkdir(parents=True, exist_ok=True)
+                argv[i] = f"{skill_out}/{argv[i][len('/tmp/'):]}"
+
+        cmd = shlex.join(argv)
         proc = subprocess.run(
-            cmd,
-            shell=True,
+            argv,
             cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
