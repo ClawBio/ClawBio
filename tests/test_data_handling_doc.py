@@ -110,3 +110,16 @@ def test_scanner_still_fires_on_a_known_networked_skill():
     networked = skills_that_reach_the_network()
     for known in ("vcf-annotator", "clinical-variant-reporter", "gi-annotation", "pathway-enricher"):
         assert known in networked, f"scanner no longer detects {known}"
+
+
+def test_core_egress_paths_are_documented():
+    """The scanner above only walks skills/, so it structurally cannot see an
+    egress path added to the clawbio package itself. This pins the one that
+    exists: audit's opt-in OTLP export."""
+    audit = (ROOT / "clawbio" / "common" / "audit.py").read_text()
+    doc = DOC.read_text()
+    assert "OTLPSpanExporter" in audit, "audit.py no longer exports spans; drop this test"
+    assert "CLAWBIO_OTLP_ENDPOINT" in doc, (
+        "clawbio/common/audit.py can export audit spans over the network, but "
+        "docs/data-handling.md does not name CLAWBIO_OTLP_ENDPOINT"
+    )
