@@ -130,9 +130,10 @@ GENE_DEFS = {
         "phenotypes": {
             # CPIC 2020 (Caudle, PMID 31647186): NM at AS >= 1.25
             # *1/*10 has AS = 1.0 + 0.25 = 1.25 -> NM (not IM)
-            "Normal Metabolizer":       ["*1/*1", "*1/*2", "*2/*2", "*1/*10"],
-            "Intermediate Metabolizer": ["*1/*4", "*1/*41", "*2/*41", "*10/*10", "*4/*10", "*10/*41", "*41/*41"],
-            "Poor Metabolizer":         ["*4/*4", "*4/*6", "*6/*6", "*4/*41"],
+            # *41 has AS 0.5, so *1/*41 and *2/*41 (AS 1.5) are NM and *4/*41 (AS 0.5) is IM
+            "Normal Metabolizer":       ["*1/*1", "*1/*2", "*2/*2", "*1/*10", "*2/*10", "*1/*41", "*2/*41"],
+            "Intermediate Metabolizer": ["*1/*4", "*1/*6", "*10/*10", "*4/*10", "*10/*41", "*41/*41", "*4/*41"],
+            "Poor Metabolizer":         ["*4/*4", "*4/*6", "*6/*6"],
         },
     },
     "CYP2C9": {
@@ -221,8 +222,8 @@ GENE_DEFS = {
         },
         "phenotypes": {
             "Normal Metabolizer":       ["*1/*1"],
-            "Intermediate Metabolizer": ["*1/*28", "*1/*6", "*6/*28"],
-            "Poor Metabolizer":         ["*28/*28", "*6/*6"],
+            "Intermediate Metabolizer": ["*1/*28", "*1/*6"],
+            "Poor Metabolizer":         ["*28/*28", "*6/*6", "*6/*28"],
         },
     },
     "CYP3A5": {
@@ -237,7 +238,7 @@ GENE_DEFS = {
         "phenotypes": {
             "CYP3A5 Expressor":          ["*1/*1"],
             "Intermediate Expressor":     ["*1/*3", "*1/*6", "*1/*7"],
-            "CYP3A5 Non-expressor":       ["*3/*3", "*3/*6", "*6/*6", "*3/*7"],
+            "CYP3A5 Non-expressor":       ["*3/*3", "*3/*6", "*6/*6", "*3/*7", "*7/*7"],
         },
     },
     "CYP2B6": {
@@ -250,8 +251,8 @@ GENE_DEFS = {
         },
         "phenotypes": {
             "Normal Metabolizer":       ["*1/*1"],
-            "Intermediate Metabolizer": ["*1/*9", "*1/*18", "*9/*18"],
-            "Poor Metabolizer":         ["*9/*9", "*18/*18"],
+            "Intermediate Metabolizer": ["*1/*9", "*1/*18"],
+            "Poor Metabolizer":         ["*9/*9", "*18/*18", "*9/*18"],
         },
     },
     "NUDT15": {
