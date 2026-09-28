@@ -1319,3 +1319,41 @@ def test_recurrent_snv_at_low_allele_fractions_points_to_artifact():
         r["_vaf"] = v
     iv.mark_recurrent(rows)
     assert "too low for an inherited" in iv._agreement(rows[0])["why"]
+
+
+# ── Real-data review of two more genes: baseline, direction, deletions, noise ──
+
+def test_baseline_uses_all_autosomes_not_just_the_genes_contigs():
+    """A whole-chromosome gain on the genes' own chromosome inflated the 'sample-wide' depth."""
+    refs = ["chr1", "chr2", "chr5", "chr9", "chrX", "chrY", "chrM", "chr5_KI270791v1_alt", "chrUn_KI270302v1"]
+    assert iv.baseline_contigs(refs, ["chr5", "chr9"]) == ["chr1", "chr2", "chr5", "chr9"]
+    assert iv.baseline_contigs(["1", "2", "X"], ["2"]) == ["1", "2"]            # Ensembl-style names
+    assert iv.baseline_contigs(["demo1", "demo2"], ["demo1"]) == ["demo1"]     # no autosomes: the genes' contigs
+
+
+@pytest.mark.parametrize("seg,obs,agrees", [
+    (-1.22, -1.74, True),    # both a clear loss, sizes 0.52 apart
+    (0.46, 0.93, True),      # both a gain
+    (-0.54, -3.1, False),    # shallow call, but the gene itself is gone: a focal loss, not agreement
+    (1.00, 0.05, False),     # gain called, normal depth
+])
+def test_same_direction_changes_agree(seg, obs, agrees):
+    assert iv.cnv_log2_agrees(seg, obs) is agrees
+
+
+@pytest.mark.parametrize("amb,alt,depth,base,expected", [
+    (0.91, 0.90, 21.3, 59.2, True),    # alt-haplotype region, reads present
+    (1.00, 0.95, 5.3, 64.5, True),     # alt-haplotype region with low depth: still ambiguous, not a deletion
+    (0.80, 0.10, 2.0, 81.6, False),    # a few junk reads left inside a real homozygous deletion
+    (0.70, 0.10, 30.0, 60.0, True),    # plenty of reads, ambiguous elsewhere in the genome
+    (0.30, 0.0, 50.0, 60.0, False),
+])
+def test_ambiguous_mapping_needs_alt_hits_or_real_coverage(amb, alt, depth, base, expected):
+    assert iv.is_ambiguous(amb, alt, total=100, all_depth=depth, baseline=base) is expected
+
+
+def test_noisy_spikes_are_not_a_step():
+    """A noisy sample: a few high bins at the start of the gene, the rest at the usual level."""
+    vals = [100.0, 150.0, 160.0, 185.0, 120.0, 95.0] + [90.0, 80.0, 105.0, 70.0, 95.0, 100.0, 85.0, 110.0,
+                                                      75.0, 90.0, 95.0, 88.0, 102.0, 79.0, 91.0, 97.0]
+    assert iv.depth_step(vals, start=0, binsize=1000) is None

@@ -1192,10 +1192,14 @@ def cnv_log2_agrees(seg_log2: float, obs_log2: float) -> bool:
         return obs_log2 <= -1.5
     if obs_log2 <= CNV_DEEP_LOG2 and seg_log2 > -1:   # the reads are nearly gone but no loss was called
         return False
+    # both a clear loss or both a clear gain (depth_state's words): the same change, even if the sizes differ
+    if seg_log2 <= -0.5 and obs_log2 <= -0.5 or seg_log2 >= 0.4 and obs_log2 >= 0.4:
+        return True
     return abs(obs_log2 - seg_log2) <= CNV_LOG2_TOL
 
 
 STEP_MIN_LOG2 = 0.58     # one copy on two (2 -> 3); a smaller jump inside a gene is not reported as a step
+STEP_MIN_SPREAD = 2.0   # a step must exceed twice the two sides' median absolute deviations
 STEP_MIN_FRAC = 0.2      # each side of a step covers at least this share of the gene
 
 
@@ -1223,6 +1227,9 @@ def depth_step(vals: list[float], start: int, binsize: int) -> dict | None:
     if best is None or abs(best[0]) < STEP_MIN_LOG2:
         return None
     change, k, lm, rm, _ = best
+    mad = lambda xs, m: st.median(abs(x - m) for x in xs)
+    if abs(rm - lm) < STEP_MIN_SPREAD * (mad(vals[:k], lm) + mad(vals[k:], rm) + 1):
+        return None   # the jump is not large against the scatter on each side (noisy samples, spikes)
     return {"pos": start + k * binsize, "left": round(lm, 1), "right": round(rm, 1), "log2_change": round(change, 2)}
 
 
@@ -1285,6 +1292,13 @@ def cnv_flank_windows(gstart: int, gend: int, segs: list[dict], contig_len: int,
     return wins
 
 
+def baseline_contigs(references: list[str], gene_contigs: list[str]) -> list[str]:
+    """Contigs for the sample-wide depth: every autosome (chr1-22 or 1-22), so a gain or loss of the genes' own
+    chromosome cannot shift the scale; the genes' contigs only when the reference has no numbered autosomes."""
+    auto = [c for c in references if re.fullmatch(r"(chr)?\d+", c)]
+    return auto or sorted(set(gene_contigs))
+
+
 def baseline_depth(bam_path, fasta, contigs: list[str]) -> float:
     """Sample-wide typical depth (MAPQ >= 20): median over random 10 kb windows on these contigs, skipping empty
     windows (gaps, centromeres). GATK's log2 is relative to the sample's overall depth, so this is its scale."""
@@ -1304,6 +1318,19 @@ def baseline_depth(bam_path, fasta, contigs: list[str]) -> float:
                 vals.append(good[0] * rlen / CNV_BASELINE_BIN)
     vals.sort()
     return vals[len(vals) // 2] if vals else 0.0
+
+
+AMBIGUOUS_MIN_FRAC = 0.5    # share of reads that are MAPQ < 20 with other hits
+AMBIGUOUS_MIN_DEPTH = 0.2   # ... and all-reads depth at least this share of the sample, unless the hits are _alt
+
+
+def is_ambiguous(amb_frac, alt_frac, total: int, all_depth: float, baseline: float) -> bool:
+    """Reads present but unplaceable: most are MAPQ < 20 with other hits, and either those hits are on alternate
+    haplotype contigs (_alt), or there are enough of them to be real coverage. A few junk reads left inside a true
+    homozygous deletion (mouse or mismapped DNA) are neither."""
+    if amb_frac is None or amb_frac < AMBIGUOUS_MIN_FRAC or total < 5:
+        return False
+    return (alt_frac or 0) >= 0.5 or (bool(baseline) and all_depth >= AMBIGUOUS_MIN_DEPTH * baseline)
 
 
 def cnv_gene(bam_path, fasta, gene: str, chrom: str, gstart: int, gend: int, segments: list[dict],
@@ -1337,7 +1364,7 @@ def cnv_gene(bam_path, fasta, gene: str, chrom: str, gstart: int, gend: int, seg
     frac_low = round(1 - gene_good / gene_all, 3) if gene_all else None
     all_depth = sum(g_all) / len(g_all) * to_depth if g_all else 0.0
     # reads that are present but cannot be placed uniquely: MAPQ < 20 with alternative hits (or MAPQ 0)
-    ambiguous = total = 0
+    ambiguous = alt_hits = total = 0
     with _open_bam(bam_path, fasta) as bam:
         for r in bam.fetch(chrom, max(0, gstart - 1), gend):
             if r.is_unmapped or r.is_duplicate or r.is_secondary or r.is_supplementary or r.is_qcfail:
@@ -1347,11 +1374,15 @@ def cnv_gene(bam_path, fasta, gene: str, chrom: str, gstart: int, gend: int, seg
             total += 1
             if r.mapping_quality < MIN_MAPQ and (r.has_tag("XA") or r.mapping_quality == 0):
                 ambiguous += 1
+                if r.has_tag("XA") and "_alt," in r.get_tag("XA"):
+                    alt_hits += 1
     amb_frac = round(ambiguous / total, 3) if total else None
     starts = [pa + i * pbin for i in range(len(p_good))]
     import math
     if baseline is None:
-        baseline = baseline_depth(bam_path, fasta, [chrom])
+        with _open_bam(bam_path, fasta) as bam:
+            refs = list(bam.references)
+        baseline = baseline_depth(bam_path, fasta, baseline_contigs(refs, [chrom]))
     depth_log2 = (round(max(math.log2(gene_depth / baseline), -10.0), 2) if gene_depth > 0 else -10.0) \
         if baseline else None
     depth_log2_all = (round(max(math.log2(all_depth / baseline), -10.0), 2) if all_depth > 0 else -10.0) \
@@ -1361,7 +1392,8 @@ def cnv_gene(bam_path, fasta, gene: str, chrom: str, gstart: int, gend: int, seg
         flags.append("low_depth")
     if len(segs) > 1:
         flags.append("multiple_segments")
-    ambiguous_mapping = amb_frac is not None and amb_frac >= 0.5 and total >= 5
+    alt_frac = round(alt_hits / total, 3) if total else None
+    ambiguous_mapping = is_ambiguous(amb_frac, alt_frac, total, all_depth, baseline)
     if ambiguous_mapping:
         flags.append("ambiguous_mapping")
     elif depth_log2 is not None and depth_log2 < CNV_DEEP_LOG2 and frac_low is not None and frac_low >= 0.5 \
@@ -1392,7 +1424,7 @@ def cnv_gene(bam_path, fasta, gene: str, chrom: str, gstart: int, gend: int, seg
             "insufficient" if "cnv_not_visible" in flags else "supported"
     return {"gene": gene, "chrom": chrom, "start": gstart, "end": gend, "segments": segs,
             "gene_depth": round(gene_depth, 1), "baseline_depth": round(baseline, 1), "depth_log2": depth_log2,
-            "depth_log2_all": depth_log2_all, "ambiguous_fraction": amb_frac, "all_depth": round(all_depth, 1),
+            "depth_log2_all": depth_log2_all, "ambiguous_fraction": amb_frac, "alt_fraction": alt_frac, "all_depth": round(all_depth, 1),
             "flank_depth": round(flank_depth, 1), "depth_ratio": ratio,
             "low_mapq_fraction": frac_low, "reads_in_gene": gene_all, "flags": flags, "status": status,
             "flank_windows": wins, "step": step, "parts": parts,
@@ -1571,7 +1603,9 @@ def run_cnv(args) -> Path:
         print(f"Warning: {out} is not empty; igv-validator outputs there will be overwritten", file=sys.stderr)
     (out / "figures" / "cnv").mkdir(parents=True, exist_ok=True)
     name = args.tumor_name or Path(args.tumor).stem
-    base = baseline_depth(args.tumor, args.reference, sorted({c for _, c, _, _ in genes}))
+    with _open_bam(args.tumor, args.reference) as bam:
+        refs = list(bam.references)
+    base = baseline_depth(args.tumor, args.reference, baseline_contigs(refs, [c for _, c, _, _ in genes]))
     rows = [cnv_gene(args.tumor, args.reference, g, c, a, b, segments, base) for g, c, a, b in genes]
     for r in rows:
         png = out / "figures" / "cnv" / f"{re.sub(r'[^A-Za-z0-9._-]+', '_', r['gene'])}.png"
