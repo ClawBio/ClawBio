@@ -300,6 +300,67 @@ output_directory/
 **Optional**:
 - IGV desktop >= 2.16 (macOS app, or a Linux `igv.sh` / `igv` command such as an HPC module); screenshots. Tested with 2.16.2 and 2.19.7; IGV <= 2.16 has no `currentGenomePath` command, so the skill watches IGV's log for the genome load instead. `--igv-timeout` (default 300 s) covers slow network file systems. Found automatically, or pass `--igv-path` (a path or a command name). Without it the skill writes counts and the report only.
 
+## Step by step: validating a whole project
+
+A worked example with made-up names: samples `sampleA` and `sampleB`, genes KRAS and BRAF, calls from
+Mutect2 (SNVs), SURVIVOR (SVs) and GATK (copy number). Replace paths with your own.
+
+**1. Install and try the demo** (no data needed):
+```bash
+git clone https://github.com/ClawBio/ClawBio.git && cd ClawBio && pip install -e .
+python skills/igv-validator/igv_validator.py --demo
+```
+IGV desktop (2.16 or later) must be installed, or loaded (`module load igv` on an HPC; run from a desktop
+session, since IGV needs a display). Add `--no-igv` to skip screenshots.
+
+**2. Write down your genes** in a BED file (chrom, start, end, name; start is 0-based):
+```
+chr12   25205245   25250936   KRAS
+chr7    140719326  140924929  BRAF
+```
+
+**3. Check each sample.** One folder per sample and call type, `reports/<sample>/{snv,sv,cnv}`:
+```bash
+for s in sampleA sampleB; do
+  V="python skills/igv-validator/igv_validator.py --tumor bams/$s.bam --tumor-name $s --reference hg38.fa"
+  $V --vcf vcf/$s.mutect2.vcf --regions my_genes.bed --output reports/$s/snv      # SNVs/indels
+  $V --vcf vcf/$s.survivor.vcf --regions my_genes.bed --output reports/$s/sv      # SVs
+  $V --cnv cnv/$s.called.seg --cnv-sample $s --regions my_genes.bed --output reports/$s/cnv   # copy number
+done
+```
+- Tumor + normal: add `--normal bams/$s.normal.bam`. Tumor-only: leave it out.
+- Gene names instead of a BED: `--genes KRAS,BRAF` (SNV VCFs annotated by VEP, SnpEff or ANNOVAR only).
+- Gene track in every screenshot: add `--annotation gencode.v44.basic.annotation.gtf.gz`.
+- Use the same `--reference` your BAMs were aligned to.
+
+**4. Summarize all samples**:
+```bash
+python skills/igv-validator/igv_validator.py --summarize reports/ --overview --regions my_genes.bed \
+  --annotation gencode.v44.basic.annotation.gtf.gz
+```
+Open `reports/summary.html`. `igv_agreement.tsv` has every call with "Does IGV agree?".
+
+**5. Compare with your heatmap** (optional): a CSV/TSV with at least these columns:
+
+| sample | gene | alteration |
+|---|---|---|
+| sampleA | KRAS | SNV |
+| sampleA | BRAF | AMP |
+| sampleB | KRAS | WT |
+
+Labels: WT, SNV, SV, SNV+SV, DEL, AMP, LOH. `sample` must match `--tumor-name`, `gene` the BED names.
+```bash
+python skills/igv-validator/igv_validator.py --summarize reports/ --heatmap my_heatmap.csv \
+  --overview --regions my_genes.bed --annotation gencode.v44.basic.annotation.gtf.gz
+```
+The page then opens on "Your heatmap vs IGV" (`heatmap_vs_igv.tsv`). The comparison assumes a common
+heatmap convention: copy number is shown only when focal (< 1 Mb) or deep (|log2| > 2), and SNV/SV take
+priority over copy number in a cell; changes left out by that rule are explained, not counted as differences.
+
+**6. Review the images, not just the verdicts**: work through the Review column (check first, then quick
+look, then low priority), open each row's report and overview image, and use the "How to read the images"
+key on the page. Report a difference only after you have seen it in the image yourself.
+
 ## Reading the summary: what to trust
 
 The verdicts are automatic and can be wrong, especially for copy number. The IGV screenshots and depth plots are
