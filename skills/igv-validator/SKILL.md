@@ -296,6 +296,19 @@ output_directory/
 **Optional**:
 - IGV desktop >= 2.16 (macOS app, or a Linux `igv.sh` / `igv` command such as an HPC module); screenshots. Tested with 2.16.2 and 2.19.7; IGV <= 2.16 has no `currentGenomePath` command, so the skill watches IGV's log for the genome load instead. `--igv-timeout` (default 300 s) covers slow network file systems. Found automatically, or pass `--igv-path` (a path or a command name). Without it the skill writes counts and the report only.
 
+## Reading the summary: what to trust
+
+The verdicts are automatic and can be wrong, especially for copy number. The IGV screenshots and depth plots are
+the evidence; the verdict only points you to them. Every row has a **Check image** value:
+
+| You see | What to do |
+|---|---|
+| SNV/SV *matches*, Check image *no* | trust it |
+| Deep deletion or clear gain *matches*, Check image *no* | trust it |
+| Any *differs*, or Check image *yes* | open the IGV image and depth plot before reporting; the reason says what to look for |
+| Check image *glance* (copy number left out, not visible, or unclear) | a quick look at the depth plot |
+| Anything you will present or publish | look at the image yourself; never cite the verdict alone |
+
 ## Gotchas
 
 - **Counting from the picture**: the model will want to count coloured reads in a screenshot. Do not. IGV downsamples and truncates tall panels; numbers must come from `support_counts.tsv`.

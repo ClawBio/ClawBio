@@ -1846,8 +1846,11 @@ def review_reasons(r: dict) -> list[str]:
     return list(dict.fromkeys(out))
 
 
-def _check(reasons: list[str]) -> str:
-    return "yes: " + "; ".join(reasons) if reasons else "no"
+def _check(reasons: list[str], glance: list[str] | None = None) -> str:
+    """yes (open the images) / glance (a quick look at the depth plot) / no."""
+    if reasons:
+        return "yes: " + "; ".join(reasons)
+    return "glance: " + "; ".join(glance) if glance else "no"
 
 
 def _agreement(r: dict) -> dict | None:
@@ -1876,7 +1879,9 @@ def _agreement(r: dict) -> dict | None:
     called = f"{r['type']} {r['call']}" if r["type"] != "CNV" else f"CNV {r['call']}"
     return {"sample": r["sample"], "gene": r["gene"], "type": r["type"], "tool": r["tool"], "caller_called": called,
             "igv_shows": r["igv_shows"], "igv_agrees": agrees, "why": why, "report": r["report"],
-            "check_image": _check((["IGV does not agree"] if agrees == "no" else []) + review_reasons(r))}
+            "check_image": _check((["IGV does not agree"] if agrees == "no" else []) + review_reasons(r),
+                                  ["unclear from the depth; confirm on the depth plot"]
+                                  if r["type"] == "CNV" and agrees == "unclear" else None)}
 
 
 def _no_call_note(r: dict) -> str:
@@ -2057,7 +2062,11 @@ def heatmap_vs_igv(rows: list[dict], heatmap: Path) -> list[dict]:
         review = (["the verdict differs from the heatmap"] if match == "differs" else []) + \
             [x for r in mine for x in review_reasons(r)] + (["LOH is not checked"] if "LOH" in wanted else [])
         out.append({"sample": smp, "gene": gene, "heatmap": label, "igv_found": found, "match": match,
-                    "why": short or details, "details": details, "check_image": _check(list(dict.fromkeys(review))),
+                    "why": short or details, "details": details,
+                    "check_image": _check(list(dict.fromkeys(review)),
+                                          ["a copy-number change is left out or not visible; confirm on the depth plot"]
+                                          if any(r["type"] == "CNV" and v in ("hidden", "not supported")
+                                                 for r, (_, v, _) in zip(mine, [_evidence(x) for x in mine])) else None),
                     "report": next((r.get("report", "") for r in mine), "")})
     return out
 
@@ -2194,12 +2203,24 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
     ovl = lambda smp, g: (f" · <a href='{e(str(Path(os.path.relpath(overviews[(smp, g.upper())], out))))}'>overview</a>"
                           if (smp, g.upper()) in overviews else "")
     chk = lambda c: (f"<td style='background:#fbe7a6'><b>yes</b><br><small>{e(c[5:])}</small></td>"
-                     if c.startswith("yes") else "<td>no</td>")
+                     if c.startswith("yes") else
+                     f"<td style='background:#fdf3d0'>glance<br><small>{e(c[8:])}</small></td>"
+                     if c.startswith("glance") else "<td>no</td>")
     warning = ("<div style='border:2px solid #d9a400;background:#fff6d6;padding:10px 14px;margin:12px 0'>"
                "<b>The verdicts below are automatic and can be wrong</b>, especially for copy number (reference "
                "duplications, GC-rich DNA, chromosome ends, noisy samples). Check the image before reporting any "
                "<i>differs</i> row and any row marked <i>Check image: yes</i>; the IGV screenshots and depth plots "
-               "are the evidence, the verdict only points you to them.</div>")
+               "are the evidence, the verdict only points you to them.</div>"
+               "<div style='border:1px solid #ccc;padding:8px 14px;margin:0 0 12px'><b>How to read this page</b>"
+               "<table style='margin-top:6px'><tr><th>You see</th><th>What to do</th></tr>"
+               "<tr><td>SNV/SV <i>matches</i>, Check image <i>no</i></td><td>trust it</td></tr>"
+               "<tr><td>Deep deletion or clear gain <i>matches</i>, Check image <i>no</i></td><td>trust it</td></tr>"
+               "<tr><td>Any <i>differs</i>, or Check image <i>yes</i></td><td>open the IGV image and the depth plot "
+               "before reporting; the reason says what to look for</td></tr>"
+               "<tr><td>Check image <i>glance</i> (copy number left out, not visible, or unclear)</td>"
+               "<td>a quick look at the depth plot: is the blue line where the verdict says?</td></tr>"
+               "<tr><td>Anything you will present or publish</td><td>look at the image yourself; never cite the "
+               "verdict alone</td></tr></table></div>")
     heat_html = "" if not heatmap else (
         f"<h2>Your heatmap vs IGV</h2><p><b>{sum(c['match'] == 'matches' for c in cells)} match, "
         f"{sum(c['match'] == 'differs' for c in cells)} differ</b> out of {len(cells)} heatmap cell(s) for the genes "

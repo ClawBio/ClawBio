@@ -1394,3 +1394,19 @@ def test_summary_warns_that_verdicts_are_automatic(summary_dir, tmp_path):
     rows = list(csv.DictReader(open(out / "heatmap_vs_igv.tsv"), delimiter="\t"))
     assert "check_image" in rows[0] and "report" in rows[0]
     assert "check_image" in next(csv.DictReader(open(out / "igv_agreement.tsv"), delimiter="\t"))
+
+
+def test_left_out_copy_number_gets_a_glance(tmp_path):
+    """A broad change the heatmap leaves out by design: not a problem, but worth a quick look at the depth plot."""
+    r = _cn_row("S", "G", "del", -0.9, 12_000_000, "loss")
+    r["_depth_log2"] = -0.94
+    c = _compare(tmp_path, [r], [("S", "G", "WT")])["G"]
+    assert c["match"] == "matches" and c["check_image"].startswith("glance")
+
+
+def test_summary_page_has_a_reading_guide(summary_dir, tmp_path):
+    root, _ = summary_dir
+    out = tmp_path / "g"
+    assert run_cli("--summarize", root, "--output", out).returncode == 0
+    page = (out / "summary.html").read_text()
+    assert "How to read this page" in page and "trust it" in page and "depth plot" in page
