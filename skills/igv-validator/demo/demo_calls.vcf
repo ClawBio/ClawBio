@@ -1,0 +1,20 @@
+##fileformat=VCFv4.2
+##comment=Synthetic demo data for igv-validator. This is NOT real patient data.
+##contig=<ID=demo1,length=20000>
+##contig=<ID=demo2,length=10000>
+##contig=<ID=demo3,length=60000>
+##FILTER=<ID=PASS,Description="All filters passed">
+##FILTER=<ID=weak_evidence,Description="Synthetic low-evidence call">
+##INFO=<ID=GENE,Number=1,Type=String,Description="Synthetic gene symbol">
+##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">
+##INFO=<ID=MATEID,Number=1,Type=String,Description="ID of mate breakend">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Caller-reported allelic depths (synthetic)">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	demo_normal	demo_tumor
+demo1	3000	V1	C	A	.	PASS	GENE=DEMO1	GT:AD	0/0:60,0	0/1:46,18
+demo1	5000	V2	A	T	.	PASS	GENE=DEMO2	GT:AD	0/0:55,0	0/1:47,6
+demo1	7000	V3	A	T	.	weak_evidence	GENE=DEMO3	GT:AD	0/0:60,0	0/1:44,12
+demo1	9000	V4	GTTATAGAAATAT	G	.	PASS	GENE=DEMO4	GT:AD	0/0:63,0	0/1:45,15
+demo1	12000	V5_1	C	C[demo2:5001[	.	PASS	SVTYPE=BND;MATEID=V5_2;GENE=DEMO5	GT:AD	0/0:.	0/1:.
+demo1	15000	V6	A	G	.	PASS	GENE=DEMO6	GT:AD	0/0:25,25	0/1:32,31
+demo2	5001	V5_2	T	]demo1:12000]T	.	PASS	SVTYPE=BND;MATEID=V5_1;GENE=DEMO5	GT:AD	0/0:.	0/1:.

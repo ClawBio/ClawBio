@@ -1,0 +1,4 @@
+# Synthetic demo data for igv-validator. This is NOT real patient data.
+chrom	pos	ref	alt
+demo1	3000	C	A
+demo1	9000	GTTATAGAAATAT	G

@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 97,
+  "skill_count": 98,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -2390,6 +2390,56 @@
         "allele",
         "typing",
         "from"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "igv-validator",
+      "cli_alias": "igv-validator",
+      "description": "Read-level validation of variant calls from any VCF, tumor/normal or tumor-only: counts read support in the BAMs (SNVs, indels, SV breakpoints), compares it with the caller's reported counts, flags artifact patterns, takes one IGV screenshot per variant and writes a report.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run igv-validator --demo",
+      "dependencies": [
+        "python>=3.10",
+        "pysam>=0.22",
+        "Pillow>=10.1"
+      ],
+      "tags": [
+        "igv",
+        "variant-validation",
+        "somatic",
+        "tumor-normal",
+        "bam",
+        "structural-variants"
+      ],
+      "trigger_keywords": [
+        "validate in IGV",
+        "IGV validation",
+        "check variant calls in IGV",
+        "is this mutation real",
+        "read support for variant",
+        "tumor normal read counts",
+        "IGV screenshot of variant",
+        "validate somatic calls against BAM",
+        "do the caller calls agree with the reads",
+        "tumor-only IGV check"
       ],
       "chaining_partners": [],
       "license": "MIT",
