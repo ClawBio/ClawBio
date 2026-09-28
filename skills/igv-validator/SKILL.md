@@ -301,14 +301,13 @@ output_directory/
 ## Reading the summary: what to trust
 
 The verdicts are automatic and can be wrong, especially for copy number. The IGV screenshots and depth plots are
-the evidence; the verdict only points you to them. Every row has a **Check image** value:
+the evidence; the verdict only points you to them. Every row has a **Review** priority:
 
 | You see | What to do |
 |---|---|
-| SNV/SV *matches*, Check image *no* | trust it |
-| Deep deletion or clear gain *matches*, Check image *no* | trust it |
-| Any *differs*, or Check image *yes* | open the IGV image and depth plot before reporting; the reason says what to look for |
-| Check image *glance* (copy number left out, not visible, or unclear) | a quick look at the depth plot |
+| Any *differs*, or Review *check first* | open the IGV image and depth plot before reporting; the reason says what to look for |
+| Review *quick look* (copy number left out, not visible, or unclear) | a quick look at the depth plot |
+| Review *low priority* (a clean SV, a deep deletion with the reads gone, a clear match) | most likely right; look at the image last |
 | Anything you will present or publish | look at the image yourself; never cite the verdict alone |
 
 ## Gotchas

@@ -1363,14 +1363,14 @@ def test_noisy_spikes_are_not_a_step():
 
 def test_clean_supported_sv_needs_no_second_look(tmp_path):
     c = _compare(tmp_path, [_sv_row("S", "G")], [("S", "G", "SV")])["G"]
-    assert c["match"] == "matches" and c["check_image"] == "no"
+    assert c["match"] == "matches" and c["review"] == "low priority"
 
 
 def test_a_difference_always_asks_for_the_image(tmp_path):
     r = _cn_row("S", "G", "del", -7.0, 200_000, "neutral", status="flagged", flags="ambiguous_mapping")
     c = _compare(tmp_path, [r], [("S", "G", "DEL")])["G"]
-    assert c["match"] == "differs" and c["check_image"].startswith("yes")
-    assert "differs" in c["check_image"] and "MAPQ 0" in c["check_image"]
+    assert c["match"] == "differs" and c["review"].startswith("check first")
+    assert "differs" in c["review"] and "MAPQ 0" in c["review"]
 
 
 def test_risky_copy_number_situations_ask_for_the_image():
@@ -1392,8 +1392,8 @@ def test_summary_warns_that_verdicts_are_automatic(summary_dir, tmp_path):
     page = (out / "summary.html").read_text()
     assert "automatic" in page and "check the image" in page.lower()
     rows = list(csv.DictReader(open(out / "heatmap_vs_igv.tsv"), delimiter="\t"))
-    assert "check_image" in rows[0] and "report" in rows[0]
-    assert "check_image" in next(csv.DictReader(open(out / "igv_agreement.tsv"), delimiter="\t"))
+    assert "review" in rows[0] and "report" in rows[0]
+    assert "review" in next(csv.DictReader(open(out / "igv_agreement.tsv"), delimiter="\t"))
 
 
 def test_left_out_copy_number_gets_a_glance(tmp_path):
@@ -1401,7 +1401,7 @@ def test_left_out_copy_number_gets_a_glance(tmp_path):
     r = _cn_row("S", "G", "del", -0.9, 12_000_000, "loss")
     r["_depth_log2"] = -0.94
     c = _compare(tmp_path, [r], [("S", "G", "WT")])["G"]
-    assert c["match"] == "matches" and c["check_image"].startswith("glance")
+    assert c["match"] == "matches" and c["review"].startswith("quick look")
 
 
 def test_summary_page_has_a_reading_guide(summary_dir, tmp_path):
@@ -1409,7 +1409,7 @@ def test_summary_page_has_a_reading_guide(summary_dir, tmp_path):
     out = tmp_path / "g"
     assert run_cli("--summarize", root, "--output", out).returncode == 0
     page = (out / "summary.html").read_text()
-    assert "How to read this page" in page and "trust it" in page and "depth plot" in page
+    assert "How to read this page" in page and "look at the image last" in page and "depth plot" in page
 
 
 # ── A gene track in the screenshots (--annotation GTF/GFF/BED) ────────────────
@@ -1459,3 +1459,16 @@ def test_annotation_flag_is_accepted():
 def test_missing_annotation_file_is_a_clear_error(tmp_path):
     r = run_cli("--demo", "--no-igv", "--annotation", tmp_path / "nope.gtf", "--output", tmp_path / "o")
     assert r.returncode != 0 and "Traceback" not in r.stderr and "annotation" in r.stderr
+
+
+def test_with_a_heatmap_the_other_tables_are_folded(summary_dir, tmp_path):
+    root, _ = summary_dir
+    hm = _heatmap(tmp_path, [("demo_tumor", "HOMDEL", "DEL")])
+    out = tmp_path / "f"
+    assert run_cli("--summarize", root, "--heatmap", hm, "--output", out).returncode == 0
+    page = (out / "summary.html").read_text()
+    assert page.index("Your heatmap vs IGV") < page.index("<details")          # the heatmap table stays open
+    assert page.count("click to show") >= 2 and "Does IGV agree with the callers?" in page
+    plain = tmp_path / "p"
+    assert run_cli("--summarize", root, "--output", plain).returncode == 0
+    assert "click to show" not in (plain / "summary.html").read_text()      # no heatmap: nothing folded

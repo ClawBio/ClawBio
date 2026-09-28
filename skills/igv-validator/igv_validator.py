@@ -1914,10 +1914,11 @@ def review_reasons(r: dict) -> list[str]:
 
 
 def _check(reasons: list[str], glance: list[str] | None = None) -> str:
-    """yes (open the images) / glance (a quick look at the depth plot) / no."""
+    """Review priority: check first (open the images) / quick look (the depth plot) / low priority (no known risk;
+    the images are still there, look at them last)."""
     if reasons:
-        return "yes: " + "; ".join(reasons)
-    return "glance: " + "; ".join(glance) if glance else "no"
+        return "check first: " + "; ".join(reasons)
+    return "quick look: " + "; ".join(glance) if glance else "low priority"
 
 
 def _agreement(r: dict) -> dict | None:
@@ -1932,7 +1933,7 @@ def _agreement(r: dict) -> dict | None:
         called = f"CNV {r['call']}"
         return {"sample": r["sample"], "gene": r["gene"], "type": r["type"], "tool": r["tool"], "caller_called": called,
                 "igv_shows": r["igv_shows"], "igv_agrees": "unclear", "report": r["report"],
-                "check_image": _check(review_reasons(r)),
+                "review": _check(review_reasons(r)),
                 "why": f"the change is too small to confirm from read depth (a normal gene also reads within "
                        f"{CNV_LOG2_TOL:g} log2 of it)"}
     why = "; ".join(WHY[f] for f in flags if f in WHY) or ("the reads support the call" if agrees == "yes" else "")
@@ -1946,7 +1947,7 @@ def _agreement(r: dict) -> dict | None:
     called = f"{r['type']} {r['call']}" if r["type"] != "CNV" else f"CNV {r['call']}"
     return {"sample": r["sample"], "gene": r["gene"], "type": r["type"], "tool": r["tool"], "caller_called": called,
             "igv_shows": r["igv_shows"], "igv_agrees": agrees, "why": why, "report": r["report"],
-            "check_image": _check((["IGV does not agree"] if agrees == "no" else []) + review_reasons(r),
+            "review": _check((["IGV does not agree"] if agrees == "no" else []) + review_reasons(r),
                                   ["unclear from the depth; confirm on the depth plot"]
                                   if r["type"] == "CNV" and agrees == "unclear" else None)}
 
@@ -2130,7 +2131,7 @@ def heatmap_vs_igv(rows: list[dict], heatmap: Path) -> list[dict]:
             [x for r in mine for x in review_reasons(r)] + (["LOH is not checked"] if "LOH" in wanted else [])
         out.append({"sample": smp, "gene": gene, "heatmap": label, "igv_found": found, "match": match,
                     "why": short or details, "details": details,
-                    "check_image": _check(list(dict.fromkeys(review)),
+                    "review": _check(list(dict.fromkeys(review)),
                                           ["a copy-number change is left out or not visible; confirm on the depth plot"]
                                           if any(r["type"] == "CNV" and v in ("hidden", "not supported")
                                                  for r, (_, v, _) in zip(mine, [_evidence(x) for x in mine])) else None),
@@ -2256,11 +2257,11 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
     cells = heatmap_vs_igv(rows, heatmap) if heatmap else []
     if heatmap:
         with open(out / "heatmap_vs_igv.tsv", "w", newline="") as fh:
-            w = csv.DictWriter(fh, fieldnames=["sample", "gene", "heatmap", "igv_found", "match", "check_image", "why", "details",
+            w = csv.DictWriter(fh, fieldnames=["sample", "gene", "heatmap", "igv_found", "match", "review", "why", "details",
                                            "report"],
                                delimiter="\t")
             w.writeheader(); w.writerows(cells)
-    acols = ["sample", "gene", "type", "tool", "caller_called", "igv_shows", "igv_agrees", "check_image", "why",
+    acols = ["sample", "gene", "type", "tool", "caller_called", "igv_shows", "igv_agrees", "review", "why",
              "report"]
     with open(out / "igv_agreement.tsv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=acols, delimiter="\t"); w.writeheader(); w.writerows(agree)
@@ -2273,23 +2274,23 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
     mcolor = {"matches": "#c6e8d2", "differs": "#f3c7a8", "not checked": "#ecebe7"}
     ovl = lambda smp, g: (f" · <a href='{e(str(Path(os.path.relpath(overviews[(smp, g.upper())], out))))}'>overview</a>"
                           if (smp, g.upper()) in overviews else "")
-    chk = lambda c: (f"<td style='background:#fbe7a6'><b>yes</b><br><small>{e(c[5:])}</small></td>"
-                     if c.startswith("yes") else
-                     f"<td style='background:#fdf3d0'>glance<br><small>{e(c[8:])}</small></td>"
-                     if c.startswith("glance") else "<td>no</td>")
+    chk = lambda c: (f"<td style='background:#fbe7a6'><b>check first</b><br><small>{e(c.split(': ', 1)[1])}</small></td>"
+                     if c.startswith("check first") else
+                     f"<td style='background:#fdf3d0'>quick look<br><small>{e(c.split(': ', 1)[1])}</small></td>"
+                     if c.startswith("quick look") else "<td>low priority</td>")
     warning = ("<div style='border:2px solid #d9a400;background:#fff6d6;padding:10px 14px;margin:12px 0'>"
                "<b>The verdicts below are automatic and can be wrong</b>, especially for copy number (reference "
                "duplications, GC-rich DNA, chromosome ends, noisy samples). Check the image before reporting any "
-               "<i>differs</i> row and any row marked <i>Check image: yes</i>; the IGV screenshots and depth plots "
+               "<i>differs</i> row and any row marked <i>check first</i>; the IGV screenshots and depth plots "
                "are the evidence, the verdict only points you to them.</div>"
                "<div style='border:1px solid #ccc;padding:8px 14px;margin:0 0 12px'><b>How to read this page</b>"
                "<table style='margin-top:6px'><tr><th>You see</th><th>What to do</th></tr>"
-               "<tr><td>SNV/SV <i>matches</i>, Check image <i>no</i></td><td>trust it</td></tr>"
-               "<tr><td>Deep deletion or clear gain <i>matches</i>, Check image <i>no</i></td><td>trust it</td></tr>"
-               "<tr><td>Any <i>differs</i>, or Check image <i>yes</i></td><td>open the IGV image and the depth plot "
+               "<tr><td>Any <i>differs</i>, or Review <i>check first</i></td><td>open the IGV image and the depth plot "
                "before reporting; the reason says what to look for</td></tr>"
-               "<tr><td>Check image <i>glance</i> (copy number left out, not visible, or unclear)</td>"
+               "<tr><td>Review <i>quick look</i> (copy number left out, not visible, or unclear)</td>"
                "<td>a quick look at the depth plot: is the blue line where the verdict says?</td></tr>"
+               "<tr><td>Review <i>low priority</i> (a clean SV, a deep deletion with the reads gone, a clear match)"
+               "</td><td>most likely right; look at the image last</td></tr>"
                "<tr><td>Anything you will present or publish</td><td>look at the image yourself; never cite the "
                "verdict alone</td></tr></table></div>")
     heat_html = "" if not heatmap else (
@@ -2298,15 +2299,18 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
         f"checked. A WT cell can still have a variant in the reads: that matches when the variant is not a tumor "
         f"mutation (for example the same variant in several samples).</p>"
         "<div class=w><table><tr><th>Sample</th><th>Gene</th><th>Heatmap says</th><th>IGV found</th>"
-        "<th>Match?</th><th>Check image?</th><th>Why</th><th>Evidence</th></tr>" + "".join(
+        "<th>Match?</th><th>Review</th><th>Why</th><th>Evidence</th></tr>" + "".join(
             f"<tr><td>{e(c['sample'])}</td><td><b>{e(c['gene'])}</b></td><td>{e(c['heatmap'])}</td>"
             f"<td>{e(c['igv_found'])}</td><td style='background:{mcolor.get(c['match'], '#fff')}'><b>"
-            f"{e(c['match'])}</b></td>" + chk(c["check_image"]) + f"<td>{e(c['why'])}" +
+            f"{e(c['match'])}</b></td>" + chk(c["review"]) + f"<td>{e(c['why'])}" +
             (f"<details><summary>details</summary>{e(c['details'])}</details>" if c["details"] != c["why"] else "") +
             "</td><td>" + (f"<a href='{rel(c['report'])}'>report</a>" if c["report"] else "") +
             ovl(c["sample"], c["gene"]) + "</td></tr>"
             for c in sorted(cells, key=lambda c: (c["match"] != "differs", c["gene"], c["sample"]))) + "</table></div>")
-    agree_html = warning + heat_html + ((f"<p><i>Overview images: {e(ov_note)}</i></p>" if ov_note else "") +
+    fold = lambda title, body: (f"<details style='margin:14px 0'><summary style='cursor:pointer;font-size:1.1em'>"
+                                f"<b>{e(title)}</b> (click to show)</summary>{body}</details>" if heatmap else body)
+    agree_html = warning + heat_html + (f"<p><i>Overview images: {e(ov_note)}</i></p>" if ov_note else "") + fold(
+                  f"Does IGV agree with the callers? ({len(agree)} individual calls)", (
                   f"<h2>Does IGV agree with the callers?</h2><p><b>{counts['yes']} yes, {counts['no']} no, "
                   f"{counts['unclear']} unclear, {counts['in reads, recurrent']} in reads but recurrent</b> out of {len(agree)} call(s) the workflow made "
                   f"(SNVs/indels, SVs, and copy-number gains/losses; neutral copy number is not a call). "
@@ -2314,15 +2318,15 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
                   f"<i>in reads, recurrent</i> means the same variant is in {RECURRENT_MIN}+ samples, "
                   f"so it is likely germline or artifact.</p>"
                   "<div class=w><table><tr><th>Sample</th><th>Gene</th><th>Tool</th><th>The caller called</th>"
-                  "<th>What IGV shows</th><th>IGV agrees?</th><th>Check image?</th><th>Why</th><th>Evidence</th></tr>" + "".join(
+                  "<th>What IGV shows</th><th>IGV agrees?</th><th>Review</th><th>Why</th><th>Evidence</th></tr>" + "".join(
                       f"<tr><td>{e(a['sample'])}</td><td><b>{e(a['gene'])}</b></td><td>{e(a['tool'])}</td>"
                       f"<td>{e(a['caller_called'])}</td><td>{e(a['igv_shows'])}</td>"
                       f"<td style='background:{acolor[a['igv_agrees']]}'><b>{e(a['igv_agrees'])}</b></td>"
-                      + chk(a["check_image"]) + f"<td>{e(a['why'])}</td><td><a href='{rel(a['report'])}'>report</a>"
+                      + chk(a["review"]) + f"<td>{e(a['why'])}</td><td><a href='{rel(a['report'])}'>report</a>"
                       + (f" · <a href='{e(str(Path(os.path.relpath(overviews[(a['sample'], a['gene'].upper())], out))))}'>"
                          f"overview</a>" if (a["sample"], a["gene"].upper()) in overviews else "") + "</td></tr>" for a in
                       sorted(agree, key=lambda a: ({"no": 0, "in reads, recurrent": 1, "unclear": 2, "yes": 3}[a["igv_agrees"]], a["gene"],
-                                                    a["sample"]))) + "</table></div>")
+                                                    a["sample"]))) + "</table></div>"))
     grid = "<tr><th>Gene</th>" + "".join(f"<th>{e(s)}</th>" for s in samples) + "</tr>"
     for g in genes:
         grid += f"<tr><th>{e(g)}</th>"
@@ -2365,7 +2369,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             f"margin-right:4px}}a{{color:inherit}}.w{{overflow-x:auto}}.quiet{{color:#9a988f}}</style></head><body>"
             f"<h1>IGV validation summary</h1><p>{len(rows)} call(s) · {len(samples)} sample(s) · {len(genes)} gene(s) "
             f"· {e(datetime.now(timezone.utc).strftime('%Y-%m-%d'))}</p><p>{legend}</p>"
-            + agree_html +
+            + agree_html + fold("Details: sample x gene grid and every call", 
             f"<h2>Details</h2><p>Each call from the workflow is compared with the reads: <b>confirmed</b> = the reads support it "
             f"(status supported); <b>questioned</b> = the reads disagree (e.g. caller_disagrees, cnv_disagrees, "
             f"artifact flags); <b>weak</b> = too few supporting reads; <b>recurrent</b> = the same SNV/indel in several samples (likely germline or artifact); <b>no call</b> = no segment covers the gene "
@@ -2379,7 +2383,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             f"<h2>Details: samples x genes</h2><div class=w><table>{grid}</table></div>"
             f"<h2>All calls</h2><div class=w><table><tr><th>Sample</th><th>Gene</th><th>Type</th><th>State</th><th>Call</th>"
             f"<th>Reads (BAM)</th><th>Caller</th><th>Flags</th><th>Concordance</th><th>Evidence</th></tr>{detail}"
-            f"</table></div><p><i>{e(DISCLAIMER)}</i></p></body></html>")
+            f"</table></div>") + f"<p><i>{e(DISCLAIMER)}</i></p></body></html>")
     (out / "summary.html").write_text(page)
     return out
 
