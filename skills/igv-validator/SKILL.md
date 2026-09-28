@@ -205,6 +205,8 @@ python skills/igv-validator/igv_validator.py \
 python skills/igv-validator/igv_validator.py --summarize igv_reports/
 # Draw genes (exons, names) in every IGV screenshot: add --annotation to any run or summary
 #   e.g. --annotation gencode.v44.basic.annotation.gtf.gz (only the shown regions are loaded)
+#   gene-level images (overview, copy number, SV) show the Ensembl_canonical transcript, one row per gene;
+#   SNV/indel close-ups show every transcript at that base
 # ...plus one IGV image per gene and sample, with every call marked on a 'calls' track
 python skills/igv-validator/igv_validator.py --summarize igv_reports/ --overview --regions genes.bed
 

@@ -1472,3 +1472,28 @@ def test_with_a_heatmap_the_other_tables_are_folded(summary_dir, tmp_path):
     plain = tmp_path / "p"
     assert run_cli("--summarize", root, "--output", plain).returncode == 0
     assert "click to show" not in (plain / "summary.html").read_text()      # no heatmap: nothing folded
+
+
+def _gtf_isoforms(tmp_path, tagged=True):
+    tag = ' tag "Ensembl_canonical";' if tagged else ""
+    lines = [f'chr2\tT\ttranscript\t1000\t5000\t.\t+\t.\tgene_name "GENEA"; transcript_id "CANON";{tag}',
+             f'chr2\tT\texon\t1000\t1500\t.\t+\t.\tgene_name "GENEA"; transcript_id "CANON";{tag}',
+             'chr2\tT\ttranscript\t1000\t4000\t.\t+\t.\tgene_name "GENEA"; transcript_id "ISO2";',
+             'chr2\tT\texon\t1000\t1400\t.\t+\t.\tgene_name "GENEA"; transcript_id "ISO2";']
+    p = tmp_path / "iso.gtf"
+    p.write_text("\n".join(lines) + "\n")
+    return p
+
+
+def test_canonical_keeps_one_transcript_per_gene(tmp_path):
+    sub = iv.annotation_subset(_gtf_isoforms(tmp_path), [("chr2", 500, 6000)], tmp_path / "c", canonical=True)
+    text = sub.read_text()
+    assert "CANON" in text and "ISO2" not in text
+    full = iv.annotation_subset(_gtf_isoforms(tmp_path), [("chr2", 500, 6000)], tmp_path / "f")
+    assert "ISO2" in full.read_text()
+
+
+def test_canonical_falls_back_to_all_when_untagged(tmp_path):
+    sub = iv.annotation_subset(_gtf_isoforms(tmp_path, tagged=False), [("chr2", 500, 6000)], tmp_path / "c",
+                               canonical=True)
+    assert "ISO2" in sub.read_text() and "CANON" in sub.read_text()

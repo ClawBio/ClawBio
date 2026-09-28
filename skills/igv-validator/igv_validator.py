@@ -845,9 +845,14 @@ def _other_chr_name(c: str) -> str:
     return c[3:] if c.startswith("chr") else "chr" + c
 
 
-def annotation_subset(path, windows: list[tuple[str, int, int]], out_stem: Path) -> Path | None:
+CANONICAL_TAG = "Ensembl_canonical"   # GENCODE/Ensembl: one reference transcript per gene (usually MANE Select)
+
+
+def annotation_subset(path, windows: list[tuple[str, int, int]], out_stem: Path,
+                      canonical: bool = False) -> Path | None:
     """The lines of a GTF/GFF/BED gene file (optionally .gz) that overlap the screenshot windows, with chromosome
-    names rewritten to the BAM's style (chr2 vs 2). Returns the small file IGV loads, or None if nothing overlaps."""
+    names rewritten to the BAM's style (chr2 vs 2). Returns the small file IGV loads, or None if nothing overlaps.
+    canonical=True keeps only transcripts tagged Ensembl_canonical (one row per gene), or all when none are tagged."""
     import gzip
     path = Path(path)
     name = path.name[:-3] if path.name.endswith(".gz") else path.name
@@ -877,6 +882,9 @@ def annotation_subset(path, windows: list[tuple[str, int, int]], out_stem: Path)
             if any(a <= wb and b >= wa for wa, wb in wins[f[0]]):
                 f[0] = bam_name[f[0]]
                 keep.append("\t".join(f))
+    if canonical and not bed:
+        tagged = [line for line in keep if CANONICAL_TAG in line.split("\t")[-1]]
+        keep = tagged or keep
     if not keep:
         return None
     out = Path(str(out_stem) + ext)
@@ -938,14 +946,19 @@ def take_screenshots(variants, results, tumor, normal, genome, snapdir, igv_path
     except RuntimeError as e:
         return 0, str(e)
     taken, incomplete, unsorted, note = 0, 0, 0, ""
-    sub = annotation_subset(annotation, [_locus_window(l) for v in variants for _, l, _ in _loci(v)],
-                            snapdir / "_genes") if annotation else None
+    small = lambda v: v.kind in ("snv", "insertion", "deletion")
+    wins = lambda keep: [_locus_window(l) for v in variants if keep(v) for _, l, _ in _loci(v)]
+    sub_all = annotation_subset(annotation, wins(small), snapdir / "_genes_all") \
+        if annotation and wins(small) else None       # SNV/indel close-ups: every isoform at that base
+    sub_canon = annotation_subset(annotation, wins(lambda v: not small(v)), snapdir / "_genes_canonical",
+                                  canonical=True) if annotation and wins(lambda v: not small(v)) else None
     try:
         for v in variants:
             for i in range(len(_loci(v))):
                 if igv.current_genome() != Path(genome):
                     raise RuntimeError(f"IGV is no longer on {Path(genome).name}")
-                cmds = igv_commands(v, tumor, normal, snapdir, i, *names, annotation=sub)
+                cmds = igv_commands(v, tumor, normal, snapdir, i, *names,
+                                    annotation=sub_all if small(v) else sub_canon)
                 goto, sort, expand, snap = cmds[-4:]
                 for c in cmds[:-3]:          # everything up to and including goto
                     igv.send(c)
@@ -1538,7 +1551,7 @@ def take_cnv_screenshots(rows, tumor, genome, snapdir, igv_path, name, log_copy=
         return 0, str(e)
     taken, note = 0, ""
     sub = annotation_subset(annotation, [(r["chrom"], r["start"], r["end"]) for r in small],
-                            snapdir / "_genes") if annotation else None
+                            snapdir / "_genes", canonical=True) if annotation else None
     try:
         for r in small:
             a, b = max(1, r["start"] - 5000), r["end"] + 5000
@@ -2193,8 +2206,8 @@ def take_overviews(plan: list[dict], out: Path, igv_path, timeout: int = 300, an
         return done, why
     odir = out / "overview"; odir.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix="igv_overview_"))
-    sub = annotation_subset(annotation, [(p["chrom"], p["start"], p["end"]) for p in plan], tmp / "_genes") \
-        if annotation else None
+    sub = annotation_subset(annotation, [(p["chrom"], p["start"], p["end"]) for p in plan], tmp / "_genes",
+                            canonical=True) if annotation else None
     for ref in sorted({p["ref"] for p in plan if p["ref"]}):
         try:
             igv = IGVSession(argv, cwd, Path(ref), timeout, out / "overview" / "igv.log")
