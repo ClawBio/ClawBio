@@ -1357,3 +1357,40 @@ def test_noisy_spikes_are_not_a_step():
     vals = [100.0, 150.0, 160.0, 185.0, 120.0, 95.0] + [90.0, 80.0, 105.0, 70.0, 95.0, 100.0, 85.0, 110.0,
                                                       75.0, 90.0, 95.0, 88.0, 102.0, 79.0, 91.0, 97.0]
     assert iv.depth_step(vals, start=0, binsize=1000) is None
+
+
+# ── The verdict is a first pass: say which rows need a look at the image ──────
+
+def test_clean_supported_sv_needs_no_second_look(tmp_path):
+    c = _compare(tmp_path, [_sv_row("S", "G")], [("S", "G", "SV")])["G"]
+    assert c["match"] == "matches" and c["check_image"] == "no"
+
+
+def test_a_difference_always_asks_for_the_image(tmp_path):
+    r = _cn_row("S", "G", "del", -7.0, 200_000, "neutral", status="flagged", flags="ambiguous_mapping")
+    c = _compare(tmp_path, [r], [("S", "G", "DEL")])["G"]
+    assert c["match"] == "differs" and c["check_image"].startswith("yes")
+    assert "differs" in c["check_image"] and "MAPQ 0" in c["check_image"]
+
+
+def test_risky_copy_number_situations_ask_for_the_image():
+    split = _cn_row("S", "G", "del", -0.54, 9_000_000, "loss", flags="multiple_segments")
+    assert any("several GATK segments" in x for x in iv.review_reasons(split))
+    near = _cn_row("S", "G", "del", -0.60, 300_000, "neutral")
+    near["_depth_log2"] = -0.47
+    assert any("close to a threshold" in x for x in iv.review_reasons(near))
+    bare = _cn_row("S", "G", "amp", 1.0, 130_000, "gain")
+    bare.update(_depth_log2=0.84, _ratio=None)
+    assert any("around the gene" in x for x in iv.review_reasons(bare))
+
+
+def test_summary_warns_that_verdicts_are_automatic(summary_dir, tmp_path):
+    root, _ = summary_dir
+    hm = _heatmap(tmp_path, [("demo_tumor", "HOMDEL", "DEL"), ("demo_tumor", "ALTGENE", "DEL")])
+    out = tmp_path / "s"
+    assert run_cli("--summarize", root, "--heatmap", hm, "--output", out).returncode == 0
+    page = (out / "summary.html").read_text()
+    assert "automatic" in page and "check the image" in page.lower()
+    rows = list(csv.DictReader(open(out / "heatmap_vs_igv.tsv"), delimiter="\t"))
+    assert "check_image" in rows[0] and "report" in rows[0]
+    assert "check_image" in next(csv.DictReader(open(out / "igv_agreement.tsv"), delimiter="\t"))
