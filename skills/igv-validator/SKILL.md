@@ -312,6 +312,25 @@ the evidence; the verdict only points you to them. Every row has a **Review** pr
 | Review *low priority* (a clean SV, a deep deletion with the reads gone, a clear match) | most likely right; look at the image last |
 | Anything you will present or publish | look at the image yourself; never cite the verdict alone |
 
+### How to read the images
+
+- **IGV**:
+  - coverage track = amount (the reads below are a sample);
+  - grey reads = well mapped; hollow = MAPQ 0 (maps equally well elsewhere);
+  - coloured ticks = bases that differ (A green, C blue, G orange, T red; a column down many reads is a real variant);
+  - purple I = insertion; black line = deletion;
+  - coloured tails lining up = split reads at a breakpoint;
+  - whole reads coloured = pair problems (red farther apart / deletion, blue closer / insertion, teal wrong
+    orientation / inversion or duplication, other colours = mate on another chromosome / translocation);
+  - `calls` track = what the callers reported; `genes` track = exons, introns and direction.
+- **Depth plots**:
+  - blue = MAPQ >= 20 depth (what GATK counts); grey = all reads (what IGV shows);
+  - dashed = the sample's normal level; orange = GATK segment; pink = gene;
+  - blue at 0 with grey up = ambiguous reads, not a deletion;
+  - a sharp jump inside the gene = a copy-number breakpoint.
+
+The same key is on every report page and the summary ("How to read the images").
+
 ## Gotchas
 
 - **Counting from the picture**: the model will want to count coloured reads in a screenshot. Do not. IGV downsamples and truncates tall panels; numbers must come from `support_counts.tsv`.

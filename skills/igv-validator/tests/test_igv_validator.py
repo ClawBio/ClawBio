@@ -1467,11 +1467,11 @@ def test_with_a_heatmap_the_other_tables_are_folded(summary_dir, tmp_path):
     out = tmp_path / "f"
     assert run_cli("--summarize", root, "--heatmap", hm, "--output", out).returncode == 0
     page = (out / "summary.html").read_text()
-    assert page.index("Your heatmap vs IGV") < page.index("<details")          # the heatmap table stays open
+    assert page.index("Your heatmap vs IGV") < page.index("Does IGV agree with the callers? (")  # heatmap first
     assert page.count("click to show") >= 2 and "Does IGV agree with the callers?" in page
     plain = tmp_path / "p"
     assert run_cli("--summarize", root, "--output", plain).returncode == 0
-    assert "click to show" not in (plain / "summary.html").read_text()      # no heatmap: nothing folded
+    assert "individual calls) (click to show)" not in (plain / "summary.html").read_text()  # no heatmap: tables open
 
 
 def _gtf_isoforms(tmp_path, tagged=True):
@@ -1497,3 +1497,14 @@ def test_canonical_falls_back_to_all_when_untagged(tmp_path):
     sub = iv.annotation_subset(_gtf_isoforms(tmp_path, tagged=False), [("chr2", 500, 6000)], tmp_path / "c",
                                canonical=True)
     assert "ISO2" in sub.read_text() and "CANON" in sub.read_text()
+
+
+# ── A key for reading the images, on every page that shows them ───────────────
+
+def test_reports_explain_how_to_read_the_images(demo_out, cnv_result, summary_dir):
+    cnv_out, _ = cnv_result
+    root, _ = summary_dir
+    for page in (demo_out / "report.html", cnv_out / "report.html", root / "summary.html"):
+        text = page.read_text()
+        assert "How to read the images" in text, page
+        assert all(w in text.lower() for w in ("hollow", "soft-clipped", "blue line")), page

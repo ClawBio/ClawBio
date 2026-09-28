@@ -1061,6 +1061,36 @@ def _caller_text(c: dict | None) -> str:
     return f"{c['alt']}/{c['depth']} ({c['vaf_pct']}%)" if c else "-"
 
 
+IMAGE_KEY_HTML = (
+    "<details class=key style='margin:14px 0'><summary style='cursor:pointer'><b>How to read the images</b> "
+    "(IGV colours and depth-plot lines; click to show)</summary><div style='font-size:13.5px;line-height:1.5'>"
+    "<p><b>IGV screenshots</b></p><ul>"
+    "<li><b>Coverage track</b> (grey histogram at the top): reads covering each position; use it for amounts. "
+    "The reads below are only a sample (the panel height and downsampling cut some off). A coloured bar there marks "
+    "a position where many reads differ from the reference.</li>"
+    "<li><b>Grey reads</b>: well-mapped reads. <b>Hollow / white reads</b>: MAPQ 0, the read maps equally well "
+    "elsewhere, so a caller that filters on mapping quality ignores it.</li>"
+    "<li><b>Coloured ticks inside reads</b>: bases that differ from the reference: A green, C blue, G orange, T red "
+    "(faint = low base quality). The same colour down many reads in one column is a real variant; scattered ticks "
+    "everywhere are errors or unusual reads.</li>"
+    "<li><b>Purple I</b>: an insertion in the read. <b>Black line or gap</b>: a deletion in the read.</li>"
+    "<li><b>Coloured tails of letters lining up at one spot</b>: soft-clipped (split) reads, whose rest maps "
+    "elsewhere; strong evidence for an SV breakpoint.</li>"
+    "<li><b>Whole reads coloured</b> (pair problems): red = the mates are farther apart than expected (deletion), "
+    "blue = closer (insertion), teal/green = pointing the wrong way (inversion, tandem duplication), other colours "
+    "= the mate is on another chromosome, one colour per chromosome (translocation).</li>"
+    "<li><b>calls</b> track: what the callers reported (SNV positions, SV breakpoints and spans, GATK segments with "
+    "their log2). <b>genes</b> track (with --annotation): boxes are exons, lines introns, arrows the direction.</li>"
+    "</ul><p><b>Depth plots</b></p><ul>"
+    "<li><b>Blue line</b>: depth from well-mapped reads (MAPQ &ge; 20), what a caller like GATK counts. "
+    "<b>Grey line</b>: depth from all reads, what IGV shows.</li>"
+    "<li><b>Dashed line</b>: the sample's normal level (median over all autosomes). <b>Orange bar</b>: the GATK "
+    "segment with its log2. <b>Pink band</b>: the gene.</li>"
+    "<li>Blue well below the dashed line = a loss; well above = a gain; blue at 0 with grey still up = the reads "
+    "are there but ambiguous, not a deletion; a sharp jump inside the gene = a copy-number breakpoint (often at an "
+    "SV).</li></ul></div></details>")
+
+
 def write_reports(out: Path, rows: list[dict], skipped: list[dict], meta: dict) -> list[Path]:
     paired = meta["mode"] == "tumor_normal"
     tables = out / "tables"; tables.mkdir(parents=True, exist_ok=True)
@@ -1172,7 +1202,7 @@ img{{max-width:100%;margin-top:8px;border:1px solid var(--line)}}.disc{{margin-t
 <p><b>{counts['supported']} supported, {counts['flagged']} flagged, {counts['insufficient']} insufficient</b>. {e(shot_line.replace('`', ''))}</p>
 <p class=m>Counts come from the BAMs, never from the screenshots. Status is a rule-based summary of the flags, not a verdict.</p>
 <div class=w><table><tr><th>ID</th><th>Gene</th><th>Variant</th><th>Tumor</th>{'<th>Normal</th>' if paired else ''}<th>Caller (VCF)</th><th>Flags</th><th>Status</th></tr>{body}</table></div>
-{cards}<p class=disc>{e(DISCLAIMER)}</p></main></body></html>"""
+{IMAGE_KEY_HTML}{cards}<p class=disc>{e(DISCLAIMER)}</p></main></body></html>"""
     (out / "report.html").write_text(page)
     return [out / "report.md", out / "report.html", tsv]
 
@@ -1649,7 +1679,8 @@ def write_cnv_reports(out: Path, rows: list[dict], meta: dict) -> list[Path]:
             f"<h1>IGV Validator: copy number</h1><p>{e(meta['cnv'])} · {e(meta['tumor_name'])} · {e(meta['date'])}</p>"
             f"<table><tr><th>Gene</th><th>Segment call(s)</th><th>Gene depth</th><th>Sample depth</th><th>Depth log2</th>"
             f"<th>Local ratio</th>"
-            f"<th>Flags</th><th>Status</th></tr>{body}</table>{figs}<p><i>{e(DISCLAIMER)}</i></p></body></html>")
+            f"<th>Flags</th><th>Status</th></tr>{body}</table>{IMAGE_KEY_HTML}{figs}<p><i>{e(DISCLAIMER)}</i></p>"
+            f"</body></html>")
     (out / "report.html").write_text(page)
     return [out / "report.md", out / "report.html", tsv]
 
@@ -2322,7 +2353,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             for c in sorted(cells, key=lambda c: (c["match"] != "differs", c["gene"], c["sample"]))) + "</table></div>")
     fold = lambda title, body: (f"<details style='margin:14px 0'><summary style='cursor:pointer;font-size:1.1em'>"
                                 f"<b>{e(title)}</b> (click to show)</summary>{body}</details>" if heatmap else body)
-    agree_html = warning + heat_html + (f"<p><i>Overview images: {e(ov_note)}</i></p>" if ov_note else "") + fold(
+    agree_html = warning + IMAGE_KEY_HTML + heat_html + (f"<p><i>Overview images: {e(ov_note)}</i></p>" if ov_note else "") + fold(
                   f"Does IGV agree with the callers? ({len(agree)} individual calls)", (
                   f"<h2>Does IGV agree with the callers?</h2><p><b>{counts['yes']} yes, {counts['no']} no, "
                   f"{counts['unclear']} unclear, {counts['in reads, recurrent']} in reads but recurrent</b> out of {len(agree)} call(s) the workflow made "
