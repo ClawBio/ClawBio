@@ -203,6 +203,8 @@ python skills/igv-validator/igv_validator.py \
 
 # One summary over many runs (e.g. igv_reports/<sample>/{snv,sv,cnv}/): sample x gene grid + table
 python skills/igv-validator/igv_validator.py --summarize igv_reports/
+# Draw genes (exons, names) in every IGV screenshot: add --annotation to any run or summary
+#   e.g. --annotation gencode.v44.basic.annotation.gtf.gz (only the shown regions are loaded)
 # ...plus one IGV image per gene and sample, with every call marked on a 'calls' track
 python skills/igv-validator/igv_validator.py --summarize igv_reports/ --overview --regions genes.bed
 

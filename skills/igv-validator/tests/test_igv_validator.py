@@ -1410,3 +1410,52 @@ def test_summary_page_has_a_reading_guide(summary_dir, tmp_path):
     assert run_cli("--summarize", root, "--output", out).returncode == 0
     page = (out / "summary.html").read_text()
     assert "How to read this page" in page and "trust it" in page and "depth plot" in page
+
+
+# ── A gene track in the screenshots (--annotation GTF/GFF/BED) ────────────────
+
+def _gtf(tmp_path, chrom="chr2", gz=False):
+    lines = [f"{chrom}\tTEST\tgene\t1000\t5000\t.\t+\t.\tgene_id \"G1\"; gene_name \"GENEA\";",
+             f"{chrom}\tTEST\texon\t1000\t1500\t.\t+\t.\tgene_id \"G1\"; transcript_id \"T1\"; gene_name \"GENEA\";",
+             f"{chrom}\tTEST\tgene\t900000\t905000\t.\t+\t.\tgene_id \"G2\"; gene_name \"FARAWAY\";",
+             f"chr9\tTEST\tgene\t1000\t5000\t.\t+\t.\tgene_id \"G3\"; gene_name \"OTHERCHROM\";"]
+    p = tmp_path / ("genes.gtf.gz" if gz else "genes.gtf")
+    import gzip
+    (gzip.open(p, "wt") if gz else open(p, "w")).write("#comment\n" + "\n".join(lines) + "\n")
+    return p
+
+
+@pytest.mark.parametrize("gz", [False, True])
+def test_annotation_is_cut_down_to_the_windows(tmp_path, gz):
+    sub = iv.annotation_subset(_gtf(tmp_path, gz=gz), [("chr2", 500, 6000)], tmp_path / "sub")
+    text = sub.read_text()
+    assert sub.suffix == ".gtf" and "GENEA" in text and "FARAWAY" not in text and "OTHERCHROM" not in text
+    assert "\tgene\t" not in text and "\texon\t" in text   # gene lines only repeat the transcript
+
+
+def test_annotation_chromosome_names_follow_the_bam(tmp_path):
+    """Ensembl GTFs say '2', the BAM says 'chr2' (and the reverse)."""
+    sub = iv.annotation_subset(_gtf(tmp_path, chrom="2"), [("chr2", 500, 6000)], tmp_path / "sub")
+    assert sub.read_text().startswith("chr2\t")
+
+
+def test_no_annotation_in_the_windows_loads_nothing(tmp_path):
+    assert iv.annotation_subset(_gtf(tmp_path), [("chr7", 1, 100)], tmp_path / "sub") is None
+
+
+def test_igv_commands_load_the_gene_track(tmp_path):
+    variants, _ = iv.load_variants(DEMO / "demo_calls.vcf")
+    cmds = iv.igv_commands(variants[0], DEMO / "demo_tumor.bam", None, tmp_path, annotation=tmp_path / "g.gtf")
+    i_bam = next(i for i, c in enumerate(cmds) if c.startswith("load") and "demo_tumor" in c)
+    assert f"load {tmp_path / 'g.gtf'} name=genes" in cmds and cmds.index("expand genes") > i_bam
+    assert cmds[-1].startswith("snapshot") and cmds[-4].startswith("goto")
+
+
+def test_annotation_flag_is_accepted():
+    a = iv.build_parser().parse_args(["--summarize", "x", "--annotation", "g.gtf"])
+    assert a.annotation == "g.gtf"
+
+
+def test_missing_annotation_file_is_a_clear_error(tmp_path):
+    r = run_cli("--demo", "--no-igv", "--annotation", tmp_path / "nope.gtf", "--output", tmp_path / "o")
+    assert r.returncode != 0 and "Traceback" not in r.stderr and "annotation" in r.stderr

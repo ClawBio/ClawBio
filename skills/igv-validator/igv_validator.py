@@ -838,8 +838,60 @@ def _png_name(v: Variant, tag: str) -> str:
     return f"{safe}{'_' + tag if tag else ''}.png"
 
 
+ANNOT_PAD = 50_000   # bp of annotation kept around each screenshot window
+
+
+def _other_chr_name(c: str) -> str:
+    return c[3:] if c.startswith("chr") else "chr" + c
+
+
+def annotation_subset(path, windows: list[tuple[str, int, int]], out_stem: Path) -> Path | None:
+    """The lines of a GTF/GFF/BED gene file (optionally .gz) that overlap the screenshot windows, with chromosome
+    names rewritten to the BAM's style (chr2 vs 2). Returns the small file IGV loads, or None if nothing overlaps."""
+    import gzip
+    path = Path(path)
+    name = path.name[:-3] if path.name.endswith(".gz") else path.name
+    ext = next((e for e in (".gff3", ".gff", ".gtf", ".bed") if name.lower().endswith(e)), None)
+    if ext is None:
+        raise InputError(f"--annotation must be a .gtf, .gff/.gff3 or .bed file (optionally .gz): {path}")
+    bed = ext == ".bed"
+    wins: dict[str, list[tuple[int, int]]] = {}
+    for c, a, b in windows:
+        for key in (c, _other_chr_name(c)):
+            wins.setdefault(key, []).append((max(0, a - ANNOT_PAD), b + ANNOT_PAD))
+    bam_name = {k: c for c, _, _ in windows for k in (c, _other_chr_name(c))}
+    keep = []
+    with (gzip.open(path, "rt") if path.name.endswith(".gz") else open(path)) as fh:
+        for line in fh:
+            if not line.strip() or line.startswith(("#", "track", "browser")):
+                continue
+            f = line.rstrip("\n").split("\t")
+            if len(f) < (3 if bed else 5) or f[0] not in wins:
+                continue
+            if not bed and f[2] == "gene":   # transcripts and exons draw the gene; a gene line only repeats it
+                continue
+            try:
+                a, b = (int(f[1]), int(f[2])) if bed else (int(f[3]), int(f[4]))
+            except ValueError:
+                continue
+            if any(a <= wb and b >= wa for wa, wb in wins[f[0]]):
+                f[0] = bam_name[f[0]]
+                keep.append("\t".join(f))
+    if not keep:
+        return None
+    out = Path(str(out_stem) + ext)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(keep) + "\n")
+    return out
+
+
+def annotation_cmds(sub: Path | None) -> list[str]:
+    return [f"load {Path(sub).resolve()} name=genes", "expand genes"] if sub else []
+
+
 def igv_commands(v: Variant, tumor: Path, normal: Path | None, snapdir: Path, image: int = 0,
-                 tumor_name: str = "tumor", normal_name: str | None = "normal") -> list[str]:
+                 tumor_name: str = "tumor", normal_name: str | None = "normal",
+                 annotation: Path | None = None) -> list[str]:
     """IGV batch commands for one image; a tumor-only run (normal None) loads a single track."""
     tag, locus, sortpos = _loci(v)[image]
     return ["new", f"snapshotDirectory {snapdir}",
@@ -848,6 +900,7 @@ def igv_commands(v: Variant, tumor: Path, normal: Path | None, snapdir: Path, im
             "maxPanelHeight 900",
             f"load {Path(tumor).resolve()} name={tumor_name}",
             *([f"load {Path(normal).resolve()} name={normal_name or 'normal'}"] if normal else []),
+            *annotation_cmds(annotation),
             f"goto {locus}", f"sort base {sortpos}", "expand", f"snapshot {_png_name(v, tag)}"]
 
 
@@ -866,8 +919,14 @@ def image_rendered(png: Path) -> bool:
     return sum(ruler[:120]) >= 500 and sum(tracks[160:215]) / area >= 0.02
 
 
+def _locus_window(locus: str) -> tuple[str, int, int]:
+    c, rng = locus.rsplit(":", 1)
+    a, b = rng.replace(",", "").split("-")
+    return c, int(a), int(b)
+
+
 def take_screenshots(variants, results, tumor, normal, genome, snapdir, igv_path, names,
-                     log_copy: Path | None = None, timeout: int = 300) -> tuple[int, str]:
+                     log_copy: Path | None = None, timeout: int = 300, annotation=None) -> tuple[int, str]:
     argv, cwd, why = find_igv(igv_path)
     if argv is None:
         return 0, why
@@ -879,12 +938,14 @@ def take_screenshots(variants, results, tumor, normal, genome, snapdir, igv_path
     except RuntimeError as e:
         return 0, str(e)
     taken, incomplete, unsorted, note = 0, 0, 0, ""
+    sub = annotation_subset(annotation, [_locus_window(l) for v in variants for _, l, _ in _loci(v)],
+                            snapdir / "_genes") if annotation else None
     try:
         for v in variants:
             for i in range(len(_loci(v))):
                 if igv.current_genome() != Path(genome):
                     raise RuntimeError(f"IGV is no longer on {Path(genome).name}")
-                cmds = igv_commands(v, tumor, normal, snapdir, i, *names)
+                cmds = igv_commands(v, tumor, normal, snapdir, i, *names, annotation=sub)
                 goto, sort, expand, snap = cmds[-4:]
                 for c in cmds[:-3]:          # everything up to and including goto
                     igv.send(c)
@@ -1460,7 +1521,7 @@ def cnv_plot(r: dict, out_png: Path, sample: str):
 
 
 def take_cnv_screenshots(rows, tumor, genome, snapdir, igv_path, name, log_copy=None,
-                         timeout: int = 300) -> tuple[int, str]:
+                         timeout: int = 300, annotation=None) -> tuple[int, str]:
     """IGV coverage/reads view for genes whose window fits (CNV_IGV_MAX); larger genes rely on the depth plot."""
     small = [r for r in rows if (r["end"] - r["start"] + 10_000) <= CNV_IGV_MAX]
     if not small:
@@ -1476,18 +1537,23 @@ def take_cnv_screenshots(rows, tumor, genome, snapdir, igv_path, name, log_copy=
     except RuntimeError as e:
         return 0, str(e)
     taken, note = 0, ""
+    sub = annotation_subset(annotation, [(r["chrom"], r["start"], r["end"]) for r in small],
+                            snapdir / "_genes") if annotation else None
     try:
         for r in small:
             a, b = max(1, r["start"] - 5000), r["end"] + 5000
             png = snapdir / f"{re.sub(r'[^A-Za-z0-9._-]+', '_', r['gene'])}_igv.png"
             for c in ["new", f"snapshotDirectory {snapdir}", "preference SAM.DOWNSAMPLE_READS true",
                       f"preference SAM.MAX_VISIBLE_RANGE {CNV_IGV_MAX // 1000 + 20}", "maxPanelHeight 500",
-                      f"load {Path(tumor).resolve()} name={name}", f"goto {r['chrom']}:{a}-{b}"]:
+                      f"load {Path(tumor).resolve()} name={name}", *annotation_cmds(sub),
+                      f"goto {r['chrom']}:{a}-{b}"]:
                 igv.send(c)
             for attempt in range(3):
                 time.sleep(1.0 * (attempt + 1))
                 igv.send(f"goto {r['chrom']}:{a}-{b}")
-                igv.send("collapse")
+                igv.send(f"collapse {name}")   # reads only; the gene track stays expanded
+                if sub:
+                    igv.send("expand genes")
                 igv.send(f"snapshot {png.name}")
                 if png.exists() and image_rendered(png):
                     break
@@ -1618,7 +1684,8 @@ def run_cnv(args) -> Path:
         else:
             raw = Path(tempfile.mkdtemp(prefix="igv_cnv_"))
             taken, note = take_cnv_screenshots(rows, args.tumor, Path(args.reference).resolve(), raw, args.igv_path,
-                                               name, out / "reproducibility" / "igv.log", args.igv_timeout)
+                                               name, out / "reproducibility" / "igv.log", args.igv_timeout,
+                                               getattr(args, "annotation", None))
             for r in rows:
                 if r.pop("_igv_png", None) is not None:
                     src = raw / f"{re.sub(r'[^A-Za-z0-9._-]+', '_', r['gene'])}_igv.png"
@@ -2117,7 +2184,7 @@ def overview_plan(rows: list[dict], regions: Path) -> list[dict]:
     return plan
 
 
-def take_overviews(plan: list[dict], out: Path, igv_path, timeout: int = 300) -> tuple[dict, str]:
+def take_overviews(plan: list[dict], out: Path, igv_path, timeout: int = 300, annotation=None) -> tuple[dict, str]:
     """Draw the overview images with an isolated IGV; returns {(sample, gene): png path} and a note."""
     done, notes = {}, []
     argv, cwd, why = find_igv(overview_launcher(igv_path, plan))
@@ -2125,6 +2192,8 @@ def take_overviews(plan: list[dict], out: Path, igv_path, timeout: int = 300) ->
         return done, why
     odir = out / "overview"; odir.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix="igv_overview_"))
+    sub = annotation_subset(annotation, [(p["chrom"], p["start"], p["end"]) for p in plan], tmp / "_genes") \
+        if annotation else None
     for ref in sorted({p["ref"] for p in plan if p["ref"]}):
         try:
             igv = IGVSession(argv, cwd, Path(ref), timeout, out / "overview" / "igv.log")
@@ -2138,7 +2207,7 @@ def take_overviews(plan: list[dict], out: Path, igv_path, timeout: int = 300) ->
                 locus = f"{p['chrom']}:{p['start']}-{p['end']}"
                 for c in ["new", f"snapshotDirectory {tmp}", "preference SAM.DOWNSAMPLE_READS true",
                           f"preference SAM.MAX_VISIBLE_RANGE {span_kb}", "maxPanelHeight 450",
-                          f"load {p['bam']} name={p['sample']}"] + ([f"load {bed} name=calls", "expand calls"] if p["bed_lines"] else []) \
+                          f"load {p['bam']} name={p['sample']}"] + ([f"load {bed} name=calls", "expand calls"] if p["bed_lines"] else []) + annotation_cmds(sub) \
                         + [f"goto {locus}"]:
                     igv.send(c)
                 png = tmp / p["png"]
@@ -2147,6 +2216,8 @@ def take_overviews(plan: list[dict], out: Path, igv_path, timeout: int = 300) ->
                     igv.send(f"goto {locus}"); igv.send(f"collapse {p['sample']}")   # reads only: calls stay expanded
                     if p["bed_lines"]:
                         igv.send("expand calls")
+                    if sub:
+                        igv.send("expand genes")
                     igv.send(f"snapshot {png.name}")
                     if png.exists() and image_rendered(png):
                         break
@@ -2162,7 +2233,7 @@ def take_overviews(plan: list[dict], out: Path, igv_path, timeout: int = 300) ->
 
 
 def summarize(root: Path, out: Path | None = None, regions: Path | None = None, igv_path=None,
-              timeout: int = 300, heatmap: Path | None = None) -> Path:
+              timeout: int = 300, heatmap: Path | None = None, annotation: Path | None = None) -> Path:
     """One table and one grid (sample x gene) over every igv-validator run under `root`."""
     root = Path(root)
     if not root.is_dir():
@@ -2180,7 +2251,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
         w = csv.DictWriter(fh, fieldnames=cols, delimiter="\t", extrasaction="ignore"); w.writeheader(); w.writerows(rows)
     overviews, ov_note = ({}, "")
     if regions:
-        overviews, ov_note = take_overviews(overview_plan(rows, regions), out, igv_path, timeout)
+        overviews, ov_note = take_overviews(overview_plan(rows, regions), out, igv_path, timeout, annotation)
     agree = [a for a in (_agreement(r) for r in rows) if a]
     cells = heatmap_vs_igv(rows, heatmap) if heatmap else []
     if heatmap:
@@ -2467,7 +2538,7 @@ def run(args) -> Path:
             raw = Path(tempfile.mkdtemp(prefix="igv_shots_"))
             taken, note = take_screenshots(variants, results, args.tumor, args.normal, Path(args.reference).resolve(),
                                            raw, args.igv_path, names, out / "reproducibility" / "igv.log",
-                                           args.igv_timeout)
+                                           args.igv_timeout, getattr(args, "annotation", None))
             figdir = out / "figures" / "igv"
             if taken:
                 figdir.mkdir(parents=True, exist_ok=True)
@@ -2538,6 +2609,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-igv", action="store_true", help="counts and report only, no screenshots")
     p.add_argument("--igv-timeout", type=int, default=300,
                    help="seconds to wait for IGV to start and load the reference (default 300)")
+    p.add_argument("--annotation", help="gene annotation (GTF/GFF3/BED, optionally .gz, e.g. GENCODE for hg38) "
+                                         "drawn as a 'genes' track in every IGV screenshot")
     p.add_argument("--igv-path", help="IGV .app bundle (macOS) or igv.sh (Linux); found automatically if omitted")
     p.add_argument("--tumor-name", help="label for the tumor track (default: file name)")
     p.add_argument("--normal-name", help="label for the normal track (default: file name)")
@@ -2558,11 +2631,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if getattr(args, "annotation", None) and not Path(args.annotation).exists():
+            raise InputError(f"--annotation file not found: {args.annotation}")
         if args.summarize:
             if args.overview and not args.regions:
                 raise InputError("--overview needs --regions (the BED of genes to draw)")
             out = summarize(Path(args.summarize), args.output, args.regions if args.overview else None,
-                            args.igv_path, args.igv_timeout, args.heatmap)
+                            args.igv_path, args.igv_timeout, args.heatmap, args.annotation)
             print(f"Summary written to {out / 'summary.html'}")
             return 0
         out = run(args)
