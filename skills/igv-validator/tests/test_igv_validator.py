@@ -868,7 +868,7 @@ def test_summary_cnv_rows_name_the_state(summary_dir):
     # no segment: the depth decides what is shown
     assert by[("GAPGENE", "CNV")]["state"] == "no segment; depth neutral"
     page = (root / "summary.html").read_text()
-    assert "CNV del" in page and "CNV neutral" in page
+    assert "CNV del" in page   # neutral copy number is not a call: only in summary.tsv
 
 
 @pytest.mark.parametrize("log2,state", [(-10.0, "deep loss"), (-0.9, "loss"), (0.1, "neutral"), (0.7, "gain")])
@@ -905,7 +905,7 @@ def test_agreement_table_lists_only_caller_calls(summary_dir):
     assert ans[("DEMO1", "SNV/indel")]["igv_agrees"] == "yes"
     assert ans[("DEMO3", "SNV/indel")]["igv_agrees"] == "unclear"
     assert ("NEUTRAL", "CNV") not in ans and ("GAPGENE", "CNV") not in ans   # no call was made there
-    assert "Does IGV agree" in (root / "summary.html").read_text()
+    assert "Raw calls vs IGV" in (root / "summary.html").read_text()
 
 
 # ── Which tool made each call, and what IGV shows, in plain words ──────────────
@@ -1084,14 +1084,14 @@ def test_heatmap_vs_igv_says_where_they_match_and_differ(summary_dir, tmp_path):
                              ("demo_tumor", "ALTGENE", "DEL"), ("demo_tumor", "NEUTRAL", "WT"),
                              ("demo_tumor", "DEMO1", "WT"), ("demo_tumor", "DEMO5", "SV"),
                              ("demo_tumor", "GENEG", "WT")])
-    by = {(c["sample"], c["gene"]): c for c in iv.heatmap_vs_igv(iv._summary_rows(root), hm)}
+    by = {(c["sample"], c["gene"]): c for c in iv.curated_vs_igv(iv._summary_rows(root), hm)}
     assert by[("demo_tumor", "HOMDEL")]["match"] == "matches"
     assert by[("demo_tumor", "WRONGDEL")]["match"] == "differs"
     alt = by[("demo_tumor", "ALTGENE")]
     assert alt["match"] == "differs" and "alternate" in alt["why"]         # the GENED case
     assert by[("demo_tumor", "NEUTRAL")]["match"] == "matches"
     d1 = by[("demo_tumor", "DEMO1")]
-    assert d1["match"] == "differs" and "does not show" in d1["why"]       # a supported SNV the heatmap calls WT
+    assert d1["match"] == "differs" and "do not show" in d1["why"]       # a supported SNV the heatmap calls WT
     assert by[("demo_tumor", "DEMO5")]["match"] == "matches"
     assert ("demo_tumor", "GENEG") not in by                                 # never checked with IGV
 
@@ -1104,7 +1104,7 @@ def test_heatmap_wt_with_a_recurrent_variant_is_explained(tmp_path):
     rows = iv._summary_rows(root)
     iv.mark_recurrent(rows)
     hm = _heatmap(tmp_path, [("S1", "DEMO1", "WT")])
-    c = iv.heatmap_vs_igv(rows, hm)[0]
+    c = iv.curated_vs_igv(rows, hm)[0]
     assert c["match"] == "matches"
     assert "recurrent" in c["igv_found"] and "germline or artifact" in c["why"]
 
@@ -1115,9 +1115,9 @@ def test_heatmap_flag_writes_the_comparison(summary_dir, tmp_path):
     out = tmp_path / "s"
     r = run_cli("--summarize", root, "--heatmap", hm, "--output", out)
     assert r.returncode == 0, r.stderr
-    rows = list(csv.DictReader(open(out / "heatmap_vs_igv.tsv"), delimiter="\t"))
+    rows = list(csv.DictReader(open(out / "curated_vs_igv.tsv"), delimiter="\t"))
     assert {r["gene"]: r["match"] for r in rows} == {"HOMDEL": "matches", "ALTGENE": "differs"}
-    assert "Your heatmap vs IGV" in (out / "summary.html").read_text()
+    assert "Curated calls vs IGV" in (out / "summary.html").read_text()
 
 
 def test_heatmap_needs_sample_gene_alteration(summary_dir, tmp_path):
@@ -1143,7 +1143,7 @@ def _sv_row(sample, gene):
 
 
 def _compare(tmp_path, rows, cells):
-    return {c["gene"]: c for c in iv.heatmap_vs_igv(rows, _heatmap(tmp_path, cells))}
+    return {c["gene"]: c for c in iv.curated_vs_igv(rows, _heatmap(tmp_path, cells))}
 
 
 def test_broad_shallow_cnv_is_left_out_by_design(tmp_path):
@@ -1154,7 +1154,7 @@ def test_broad_shallow_cnv_is_left_out_by_design(tmp_path):
 
 def test_focal_cnv_missing_from_the_heatmap_differs(tmp_path):
     c = _compare(tmp_path, [_cn_row("S", "G", "del", -1.4, 300_000, "loss")], [("S", "G", "WT")])
-    assert c["G"]["match"] == "differs" and "does not show" in c["G"]["why"]
+    assert c["G"]["match"] == "differs" and "do not show" in c["G"]["why"]
 
 
 def test_sv_takes_priority_over_copy_number_in_a_cell(tmp_path):
@@ -1390,8 +1390,8 @@ def test_summary_warns_that_verdicts_are_automatic(summary_dir, tmp_path):
     out = tmp_path / "s"
     assert run_cli("--summarize", root, "--heatmap", hm, "--output", out).returncode == 0
     page = (out / "summary.html").read_text()
-    assert "automatic" in page and "check the image" in page.lower()
-    rows = list(csv.DictReader(open(out / "heatmap_vs_igv.tsv"), delimiter="\t"))
+    assert "automatic" in page and "judge each row yourself" in page
+    rows = list(csv.DictReader(open(out / "curated_vs_igv.tsv"), delimiter="\t"))
     assert "review" in rows[0] and "report" in rows[0]
     assert "review" in next(csv.DictReader(open(out / "igv_agreement.tsv"), delimiter="\t"))
 
@@ -1409,7 +1409,7 @@ def test_summary_page_has_a_reading_guide(summary_dir, tmp_path):
     out = tmp_path / "g"
     assert run_cli("--summarize", root, "--output", out).returncode == 0
     page = (out / "summary.html").read_text()
-    assert "How to read this page" in page and "look at the image last" in page and "depth plot" in page
+    assert "judge each row yourself" in page and "How to read the images" in page and "depth plot" in page.lower()
 
 
 # ── A gene track in the screenshots (--annotation GTF/GFF/BED) ────────────────
@@ -1467,11 +1467,11 @@ def test_with_a_heatmap_the_other_tables_are_folded(summary_dir, tmp_path):
     out = tmp_path / "f"
     assert run_cli("--summarize", root, "--heatmap", hm, "--output", out).returncode == 0
     page = (out / "summary.html").read_text()
-    assert page.index("Your heatmap vs IGV") < page.index("Does IGV agree with the callers? (")  # heatmap first
-    assert page.count("click to show") >= 2 and "Does IGV agree with the callers?" in page
+    assert page.index("Curated calls vs IGV") < page.index("Raw calls vs IGV (before filtering")  # curated first
+    assert page.count("click to show") >= 2 and "Raw calls vs IGV" in page
     plain = tmp_path / "p"
     assert run_cli("--summarize", root, "--output", plain).returncode == 0
-    assert "individual calls) (click to show)" not in (plain / "summary.html").read_text()  # no heatmap: tables open
+    assert "Raw calls vs IGV (before filtering" not in (plain / "summary.html").read_text()  # no curated calls: open
 
 
 def _gtf_isoforms(tmp_path, tagged=True):
@@ -1540,8 +1540,8 @@ def test_summary_opens_on_the_simple_view(summary_dir, tmp_path):
     assert run_cli("--summarize", root, "--heatmap", hm, "--output", out).returncode == 0
     page = (out / "summary.html").read_text()
     assert "What IGV shows" in page and "Agree?" in page
-    assert page.index("What IGV shows") < page.index("Detailed comparison")
-    rows = list(csv.DictReader(open(out / "heatmap_vs_igv.tsv"), delimiter="\t"))
+    assert page.index("What IGV shows") < page.index("<summary>details</summary>")   # details sit in the rows
+    rows = list(csv.DictReader(open(out / "curated_vs_igv.tsv"), delimiter="\t"))
     assert {"agree", "plain"} <= set(rows[0])
 
 
@@ -1581,3 +1581,20 @@ def test_interactive_page_is_written_and_linked(summary_dir, tmp_path):
     assert page.exists() and page.stat().st_size > 10_000
     html_ = (out / "summary.html").read_text()
     assert "interactive/demo_tumor.html" in html_ and "contains read data" in html_
+
+
+def test_curated_calls_flag_and_heatmap_alias(summary_dir, tmp_path):
+    root, _ = summary_dir
+    cur = _heatmap(tmp_path, [("demo_tumor", "HOMDEL", "DEL")])
+    for flag in ("--curated-calls", "--heatmap"):
+        out = tmp_path / flag.strip("-")
+        assert run_cli("--summarize", root, flag, cur, "--output", out).returncode == 0
+        rows = list(csv.DictReader(open(out / "curated_vs_igv.tsv"), delimiter="\t"))
+        assert rows[0]["curated"] == "DEL" and rows[0]["agree"] == "Yes"
+
+
+def test_raw_calls_keep_their_details(summary_dir):
+    root, _ = summary_dir
+    page = (root / "summary.html").read_text()
+    assert "Raw calls vs IGV" in page and "Caller&#x27;s own counts" in page
+    assert "sample x gene grid" not in page and "All calls</h2>" not in page     # the old duplicate views are gone

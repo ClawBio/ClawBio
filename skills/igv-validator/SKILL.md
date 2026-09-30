@@ -151,7 +151,7 @@ You are **IGV Validator**, a specialised ClawBio agent for somatic variant valid
 5. **Two modes**: tumor + matched normal, or tumor-only (omit `--normal`); the normal-based checks are skipped in tumor-only mode
 6. **Copy-number mode** (`--cnv`): for each gene in `--regions`, the GATK segment call next to the read depth inside the gene versus its flanks, with a depth plot, a `cnv_disagrees` flag, and IGV screenshots for genes that fit a window
 7. **IGV screenshots**: an isolated IGV (own port, own settings folder) on the given reference; one tumor-over-normal (or tumor-only) image per variant, captioned with the BAM and caller counts; closed afterwards
-8. **Summary** (`--summarize <folder>`): reads every run's `result.json` under a folder. First a simple table, **"Does IGV agree with the callers?"** (yes / no / unclear and why, one row per call the workflow made; neutral copy number is not a call unless the depth contradicts it; an SNV/indel found in 3+ samples is shown as 'in reads, recurrent', likely germline or artifact, since independent tumors do not share mutations; also `igv_agreement.tsv`), then `summary.html` details; with `--heatmap heatmap.csv` (any CSV/TSV with sample, gene, alteration), a **"Your heatmap vs IGV"** table first (`heatmap_vs_igv.tsv`): each heatmap cell for a checked gene, what IGV found, matches/differs and why, following the heatmap's rules (SNV/SV before copy number; DEL/AMP only if under 1 Mb or beyond log2 2), judging copy number from the read depth (a call the depth does not show is 'not supported'), per GATK segment when several cover the gene, and reporting sharp depth steps inside a gene (copy-number breakpoints, often at an SV) that the gene average hides; so a WT cell over a recurrent germline/artifact variant reads as a match; every row also says whether to **check the image** (always for a difference, and for known risky situations: ambiguous mapping, several segments over a gene, a depth step, a value near a threshold, no usable flanks, weak support), and the page warns that the verdicts are automatic: the screenshots are the evidence, and a DEL over present-but-ambiguous reads as a difference; with `--overview --regions genes.bed`, one IGV image per gene and sample (whole gene, coverage and reads, a 'calls' track marking SNVs, SV breakpoints/spans and GATK segments, a caption with each call's verdict; overviews reuse the IGV the per-sample runs recorded, so `module load igv` need not be active in the summary terminal), linked from the grid and table (sample x gene grid, colour-coded confirmed / questioned / weak / no call / no reads, linked to each report and image) and `summary.tsv`
+8. **Summary** (`--summarize <folder>`): one page over every run's `result.json` under a folder. With `--curated-calls calls.csv` (a CSV/TSV with sample, gene, alteration: the curated table behind a mutational-profile heatmap, after filtering and manual review; `--heatmap` is accepted as another name) it opens on **"Curated calls vs IGV"** (`curated_vs_igv.tsv`): per sample and gene, what the curated call says, what IGV shows in one plain sentence, *Agree?*, a thumbnail and links to the report, overview and interactive view, with a *details* expander for the technical verdict, reason and review priority. The comparison follows common curated-table rules (SNV/SV before copy number; DEL/AMP only if under 1 Mb or beyond log2 2), judges copy number from the read depth (per GATK segment, reporting depth steps inside a gene), and explains a WT call over a recurrent germline/artifact variant as a match. Below it, folded, **"Raw calls vs IGV"** (`igv_agreement.tsv`): each raw caller call before filtering, with its details. Without `--curated-calls`, the raw calls are the main table. `--overview --regions genes.bed` adds one IGV image per gene and sample; `--interactive` adds zoomable pages; `summary.tsv` keeps every call and field
 9. **Report**: `report.md`, self-contained `report.html`, `result.json`, counts TSV and a reproducibility bundle
 
 ## Scope
@@ -345,7 +345,8 @@ python skills/igv-validator/igv_validator.py --summarize reports/ --overview --r
 ```
 Open `reports/summary.html`. `igv_agreement.tsv` has every call with "Does IGV agree?".
 
-**5. Compare with your heatmap** (optional): a CSV/TSV with at least these columns:
+**5. Compare with your curated calls** (optional): the table your filtering and review produced (for example
+the one behind a mutational-profile heatmap), as a CSV/TSV with at least these columns:
 
 | sample | gene | alteration |
 |---|---|---|
@@ -355,28 +356,26 @@ Open `reports/summary.html`. `igv_agreement.tsv` has every call with "Does IGV a
 
 Labels: WT, SNV, SV, SNV+SV, DEL, AMP, LOH. `sample` must match `--tumor-name`, `gene` the BED names.
 ```bash
-python skills/igv-validator/igv_validator.py --summarize reports/ --heatmap my_heatmap.csv \
-  --overview --regions my_genes.bed --annotation gencode.v44.basic.annotation.gtf.gz
+python skills/igv-validator/igv_validator.py --summarize reports/ --curated-calls my_curated_calls.csv \
+  --overview --interactive --regions my_genes.bed --annotation gencode.v44.basic.annotation.gtf.gz
 ```
-The page then opens on "Your heatmap vs IGV" (`heatmap_vs_igv.tsv`). The comparison assumes a common
-heatmap convention: copy number is shown only when focal (< 1 Mb) or deep (|log2| > 2), and SNV/SV take
-priority over copy number in a cell; changes left out by that rule are explained, not counted as differences.
+The page then opens on "Curated calls vs IGV" (`curated_vs_igv.tsv`). The comparison assumes a common convention
+for curated tables: copy number is kept only when focal (< 1 Mb) or deep (|log2| > 2), and SNV/SV take priority
+over copy number for a gene; changes left out by that rule are explained, not counted as differences. If your
+table follows other rules, read the *details* of each row.
 
-**6. Review the images, not just the verdicts**: work through the Review column (check first, then quick
-look, then low priority), open each row's report and overview image, and use the "How to read the images"
-key on the page. Report a difference only after you have seen it in the image yourself.
+**6. Judge the images yourself**: for each row, open the thumbnail, the report or the interactive view, and use
+the "How to read the images" key on the page. Report a difference only after you have seen it yourself.
 
 ## Reading the summary: what to trust
 
-The verdicts are automatic and can be wrong, especially for copy number. The IGV screenshots and depth plots are
-the evidence; the verdict only points you to them. Every row has a **Review** priority:
-
-| You see | What to do |
-|---|---|
-| Any *differs*, or Review *check first* | open the IGV image and depth plot before reporting; the reason says what to look for |
-| Review *quick look* (copy number left out, not visible, or unclear) | a quick look at the depth plot |
-| Review *low priority* (a clean SV, a deep deletion with the reads gone, a clear match) | most likely right; look at the image last |
-| Anything you will present or publish | look at the image yourself; never cite the verdict alone |
+*Agree?* is an automatic first pass and can be wrong, especially for copy number. The IGV screenshots, depth plots
+and interactive views are the evidence; the verdict only points you to them. Each row's *details* holds the
+technical reason and a review priority: *check first* (a difference or a known risk: ambiguous mapping, several
+segments over a gene, a depth step, a value near a threshold, no usable flanks, weak support), *quick look* (copy
+number left out, not visible or unclear) and *low priority* (a clean SV, a deep deletion with the reads gone, a
+clear match). Whatever the priority, look at the image yourself before presenting a result, and never cite the
+verdict alone.
 
 ### How to read the images
 
@@ -414,7 +413,7 @@ The same key is on every report page and the summary ("How to read the images").
 - **Caller disagreement is a question, not a verdict**: `caller_disagrees` often means the caller capped depth, realigned, or used different filters (a chr4 repeat: DRAGEN 32/104 vs 33/470 MAPQ>=20 reads). Look at `high_depth` and the screenshot before deciding which is right.
 - **SV VCFs have no gene names**: SURVIVOR, Manta and Delly write coordinates only, so `--genes` finds nothing there. Use `--regions` with a BED of the genes: an SV matches if a breakpoint is inside a gene or, for deletions/duplications/inversions, if its span covers the gene (as AnnotSV assigns genes). A run where nothing matches writes a report saying so.
 - **Copy-number ratios are relative**: the ratio compares the gene with its own flanks, so tumor purity, ploidy (whole-genome doubling makes a one-copy loss look like 0.75) and an altered flank all shift it. Read `cnv_disagrees` as "look again", and report ploidy with the result.
-- **Losses called from MAPQ-filtered depth can be mapping artifacts**: do not trust a deep deletion just because the caller, the MAPQ >= 20 depth and a downstream heatmap all agree on it. Check `ambiguous_mapping` first. In regions duplicated on GRCh38 `_alt` contigs, reads get MAPQ 0 with XA hits on the alternate haplotypes, so every MAPQ-filtering tool sees a "homozygous deletion" while IGV shows full coverage (hollow MAPQ-0 reads).
+- **Losses called from MAPQ-filtered depth can be mapping artifacts**: do not trust a deep deletion just because the caller, the MAPQ >= 20 depth and a downstream curated table all agree on it. Check `ambiguous_mapping` first. In regions duplicated on GRCh38 `_alt` contigs, reads get MAPQ 0 with XA hits on the alternate haplotypes, so every MAPQ-filtering tool sees a "homozygous deletion" while IGV shows full coverage (hollow MAPQ-0 reads).
 - **Deep deletions in PDX tumors**: reads left inside a homozygous deletion are often mouse or mismapped reads; `low_mapq_remaining` points at that. Do not count them as evidence against the deletion.
 - **Whole-VCF runs**: the model will want to run on an entire VCF. With no `--genes`/`--variants`, only the first `--max-variants` (50) records in file order are checked, which are rarely the interesting ones. Ask the user which genes or variants they care about first.
 - **No reads is not weak evidence**: `no_coverage` means the BAM has no reads there (a sliced BAM, another sample, another build). Do not report it as "not supported".
