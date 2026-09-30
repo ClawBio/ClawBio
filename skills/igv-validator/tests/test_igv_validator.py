@@ -1766,3 +1766,55 @@ def test_no_index_in_an_unrelated_parent_folder(tmp_path):
 def test_index_of_a_missing_folder_is_a_clear_error(tmp_path):
     r = run_cli("--index", tmp_path / "nope")
     assert r.returncode != 0 and "Traceback" not in r.stderr and "--index" in r.stderr
+
+
+# ── One command per run: a samplesheet, a new dated folder, one summary ───────
+
+def _sheet(tmp_path, rows):
+    bed = tmp_path / "genes.bed"
+    bed.write_text("demo1\t2900\t3100\tDEMO1\ndemo1\t11000\t13000\tDEMO5\n" + (DEMO / "demo_cnv_genes.bed").read_text())
+    sheet = tmp_path / "samples.csv"
+    sheet.write_text("sample,tumor,normal,snv_vcf,sv_vcf,cnv\n" + "".join(",".join(map(str, r)) + "\n" for r in rows))
+    return sheet, bed
+
+
+def _demo_row(name="demo_tumor"):
+    return [name, DEMO / "demo_tumor.bam", DEMO / "demo_normal.bam", DEMO / "demo_calls.vcf",
+            DEMO / "demo_calls.vcf", DEMO / "demo_cnv.tsv"]
+
+
+def test_samplesheet_puts_each_run_in_a_new_dated_folder(tmp_path):
+    sheet, bed = _sheet(tmp_path, [_demo_row()])
+    reports = tmp_path / "igv_reports"
+    for _ in range(2):
+        r = run_cli("--samplesheet", sheet, "--regions", bed, "--reference", DEMO / "demo_ref.fa",
+                    "--reports-dir", reports, "--no-igv")
+        assert r.returncode == 0, r.stderr
+    runs = sorted(d for d in reports.iterdir() if d.is_dir())
+    assert len(runs) == 2 and re.fullmatch(r"\d{4}-\d\d-\d\d_\d\d-\d\d(_\d+)?", runs[0].name)   # never overwritten
+    for d in runs:
+        assert (d / "summary.html").exists()
+        assert all((d / "demo_tumor" / k / "result.json").exists() for k in ("snv", "sv", "cnv"))
+    index = (reports / "index.html").read_text()
+    assert all(f"{d.name}/summary.html" in index for d in runs)
+
+
+def test_samplesheet_keeps_going_when_one_sample_fails(tmp_path):
+    bad = _demo_row("broken"); bad[1] = tmp_path / "missing.bam"
+    sheet, bed = _sheet(tmp_path, [_demo_row(), bad])
+    reports = tmp_path / "igv_reports"
+    r = run_cli("--samplesheet", sheet, "--regions", bed, "--reference", DEMO / "demo_ref.fa",
+                "--reports-dir", reports, "--no-igv")
+    assert r.returncode == 1 and "broken" in r.stderr and "Traceback" not in r.stderr
+    run_dir = next(d for d in reports.iterdir() if d.is_dir())
+    assert (run_dir / "summary.html").exists() and "broken" in (run_dir / "run_log.tsv").read_text()
+
+
+def test_samplesheet_needs_regions_and_its_columns(tmp_path):
+    sheet, _ = _sheet(tmp_path, [_demo_row()])
+    r = run_cli("--samplesheet", sheet, "--reference", DEMO / "demo_ref.fa", "--no-igv")
+    assert r.returncode != 0 and "--regions" in r.stderr
+    bad = tmp_path / "bad.csv"
+    bad.write_text("name,file\nx,y\n")
+    r = run_cli("--samplesheet", bad, "--regions", tmp_path / "genes.bed", "--no-igv")
+    assert r.returncode != 0 and "sample" in r.stderr and "tumor" in r.stderr

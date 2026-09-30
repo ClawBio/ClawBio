@@ -308,7 +308,8 @@ alt-contig case ALTGENE).
 python skills/igv-validator/igv_validator.py --demo --output /tmp/igv_demo
 ```
 
-**A whole project** (several samples, all three call types, then the summary): see *Step by step* below, or ask:
+**A whole project, in one command** (every sample, every check, a new dated folder, its summary and the index of
+runs): `--samplesheet`, see *Step by step* below. Or ask:
 *"Use igv-validator on samples S1 and S2 for KRAS, BRAF and PTEN. The BAMs, Mutect2, SURVIVOR and GATK outputs are
 under `<results folder>`. Tumor-only. Compare with my curated calls in `<table.csv>`, with overview images and
 interactive views."* Claude then writes the gene BED, runs each check per sample and builds the summary; it asks
@@ -331,6 +332,8 @@ for anything missing (file locations, reference, tumor-only or paired).
 | `--caller-sample` | VCF column whose caller counts to compare (default: the tumor's sample name) |
 | `--tumor-name`, `--normal-name` | labels in reports and images (use your sample names) |
 | `--cnv`, `--cnv-sample` | copy-number mode: segment file, and the sample in a multi-sample file |
+| `--samplesheet` | one command for a whole run: every check for every sample, into a new dated folder with its summary |
+| `--reports-dir` | with `--samplesheet`: where runs are kept (default `igv_reports/`) |
 | `--summarize` | build the summary page over every run in a folder (full: with images, interactive pages, zip) |
 | `--index` | write `<folder>/index.html` listing every batch folder with a summary; it then keeps itself updated |
 | `--project` | project folder of all runs: its `summary.html` is refreshed after this check (automatic for later checks once the folder has a summary) |
@@ -450,30 +453,31 @@ chr12   25205245   25250936   KRAS
 chr7    140719326  140924929  BRAF
 ```
 
-**3. Check each sample.** One folder per sample and call type, `reports/<sample>/{snv,sv,cnv}`:
-```bash
-for s in sampleA sampleB; do
-  V="python skills/igv-validator/igv_validator.py --tumor bams/$s.bam --tumor-name $s --reference hg38.fa --project reports"
-  $V --vcf vcf/$s.mutect2.vcf --regions my_genes.bed --output reports/$s/snv      # SNVs/indels
-  $V --vcf vcf/$s.survivor.vcf --regions my_genes.bed --output reports/$s/sv      # SVs
-  $V --cnv cnv/$s.called.seg --cnv-sample $s --regions my_genes.bed --output reports/$s/cnv   # copy number
-done
-```
-`--project reports` keeps `reports/summary.html` up to date after every check; open it to reach every report.
-- Tumor + normal: add `--normal bams/$s.normal.bam`. Tumor-only: leave it out.
-- Gene names instead of a BED: `--genes KRAS,BRAF` (SNV VCFs annotated by VEP, SnpEff or ANNOVAR only).
-- Gene track in every screenshot: add `--annotation gencode.v44.basic.annotation.gtf.gz`.
-- Use the same `--reference` your BAMs were aligned to.
+**3. List your samples** in a samplesheet (CSV or TSV), one row per sample. `sample` and `tumor` are
+required; add whichever calls you have (leave a cell empty to skip that check):
 
-**4. Summarize all samples**:
-```bash
-python skills/igv-validator/igv_validator.py --summarize reports/ --overview --regions my_genes.bed \
-  --annotation gencode.v44.basic.annotation.gtf.gz
-```
-Open `reports/summary.html`. `igv_agreement.tsv` has every call with "Does IGV agree?".
+| sample | tumor | normal | snv_vcf | snv_list | sv_vcf | cnv | cnv_sample |
+|---|---|---|---|---|---|---|---|
+| sampleA | bams/sampleA.bam | | vcf/sampleA.mutect2.vcf | | vcf/sampleA.survivor.vcf | cnv/sampleA.called.seg | |
+| sampleB | bams/sampleB.bam | bams/sampleB_normal.bam | vcf/sampleB.mutect2.vcf | | | cnv/sampleB.called.seg | |
 
-**5. Compare with your curated calls** (optional): the table your filtering and review produced (for example
-the one behind a mutational-profile heatmap), as a CSV/TSV with at least these columns:
+`normal` empty = tumor-only. `snv_list` (optional) = a table of chrom, pos (e.g. your filtered calls) to check
+instead of every SNV in the genes. `cnv_sample` = the sample's name inside a multi-sample copy-number file.
+
+**4. Run everything with one command**:
+```bash
+python skills/igv-validator/igv_validator.py --samplesheet samples.csv --regions my_genes.bed --reference hg38.fa \
+  [--curated-calls curated.csv] [--annotation gencode.v44.basic.annotation.gtf.gz]
+```
+Each run goes into a **new folder named by date and time**, `igv_reports/2026-10-20_14-32/` (never an existing
+one, so nothing is overwritten). The tool runs every check for every sample, then builds that run's
+`summary.html` (with overview images, interactive views and the whole report zipped) and updates
+`igv_reports/index.html`, which lists every run. It prints both paths at the end. A check that fails (say, a
+missing file) is reported and skipped; the others still run (`run_log.tsv` in the run folder), and the run folder
+keeps a copy of the samplesheet. `--reports-dir` changes where runs are kept; `--no-igv` skips screenshots.
+
+**5. Compare with your curated calls** (optional, `--curated-calls` above): the table your filtering and review
+produced (for example the one behind a mutational-profile heatmap), as a CSV/TSV with at least these columns:
 
 | sample | gene | alteration |
 |---|---|---|
@@ -481,15 +485,14 @@ the one behind a mutational-profile heatmap), as a CSV/TSV with at least these c
 | sampleA | BRAF | AMP |
 | sampleB | KRAS | WT |
 
-Labels: WT, SNV, SV, SNV+SV, DEL, AMP, LOH. `sample` must match `--tumor-name`, `gene` the BED names.
-```bash
-python skills/igv-validator/igv_validator.py --summarize reports/ --curated-calls my_curated_calls.csv \
-  --overview --interactive --regions my_genes.bed --annotation gencode.v44.basic.annotation.gtf.gz
-```
-The page then opens on "Curated calls vs IGV" (`curated_vs_igv.tsv`). The comparison assumes a common convention
-for curated tables: copy number is kept only when focal (< 1 Mb) or deep (|log2| > 2), and SNV/SV take priority
-over copy number for a gene; changes left out by that rule are explained, not counted as differences. If your
-table follows other rules, read the *details* of each row.
+Labels: WT, SNV, SV, SNV+SV, DEL, AMP, LOH. `sample` must match the samplesheet, `gene` the BED names. The page
+then opens on "Curated calls vs IGV". The comparison assumes a common convention for curated tables: copy number is
+kept only when focal (< 1 Mb) or deep (|log2| > 2), and SNV/SV take priority over copy number for a gene; changes
+left out by that rule are explained, not counted as differences. If your table follows other rules, read the
+*details* of each row.
+
+*Running single checks instead* (one sample, one call type) works as in *Modes* above; `--project <folder>` then
+keeps that folder's `summary.html` current.
 
 **6. Judge the images yourself**: for each row, open the thumbnail, the report or the interactive view, and use
 the "How to read the images" key on the page. Report a difference only after you have seen it yourself.

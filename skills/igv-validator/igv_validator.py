@@ -2966,6 +2966,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--curated-calls", "--heatmap", dest="curated",
                    help="with --summarize: your curated calls (CSV/TSV with sample, gene, alteration; e.g. the table "
                         "behind a mutational-profile heatmap) to compare call by call with IGV")
+    p.add_argument("--samplesheet", help="run everything in one command: a CSV/TSV with sample, tumor and optional "
+                                          "normal, snv_vcf, snv_list, sv_vcf, cnv, cnv_sample; needs --regions. Each run "
+                                          "goes into a new dated folder under --reports-dir, with its summary, and the "
+                                          "index of all runs is updated")
+    p.add_argument("--reports-dir", default="igv_reports",
+                   help="with --samplesheet: where runs are kept (default igv_reports/)")
     p.add_argument("--index", help="write <folder>/index.html listing every batch folder under it that has a "
                                     "summary.html; it then updates itself whenever a batch's summary changes")
     p.add_argument("--project", help="project folder holding all runs (e.g. reports/, with runs in "
@@ -2983,11 +2989,90 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+SHEET_COLUMNS = ("sample", "tumor", "normal", "snv_vcf", "snv_list", "sv_vcf", "cnv", "cnv_sample")
+
+
+def new_run_dir(reports: Path) -> Path:
+    """A new folder for this run, named by date and time; never an existing one."""
+    base = f"{datetime.now():%Y-%m-%d_%H-%M}"
+    out, n = reports / base, 2
+    while out.exists():
+        out, n = reports / f"{base}_{n}", n + 1
+    out.mkdir(parents=True)
+    return out
+
+
+def run_samplesheet(args) -> tuple[Path, list[tuple[str, str, str]]]:
+    """One command for a whole run: every check for every sample in the sheet, into a new dated folder, then that
+    run's summary and the index of all runs. Returns the run folder and the checks that failed."""
+    sheet = Path(args.samplesheet)
+    if not sheet.exists():
+        raise InputError(f"--samplesheet not found: {sheet}")
+    text = sheet.read_text().splitlines()
+    rows = list(csv.DictReader(text, delimiter="\t" if text and "\t" in text[0] else ","))
+    if not rows or not {"sample", "tumor"} <= set(rows[0]):
+        raise InputError(f"--samplesheet needs the columns sample and tumor (optional: {', '.join(SHEET_COLUMNS[2:])})")
+    if not args.regions or not Path(args.regions).exists():
+        raise InputError("--samplesheet needs --regions (a BED of the genes to check)")
+    reports = Path(args.reports_dir)
+    run_dir = new_run_dir(reports)
+    common = ["--regions", str(args.regions)]
+    for flag, val in (("--reference", args.reference), ("--annotation", args.annotation), ("--igv-path", args.igv_path),
+                      ("--igv-timeout", args.igv_timeout), ("--max-variants", args.max_variants)):
+        if val:
+            common += [flag, str(val)]
+    common += ["--no-igv"] if args.no_igv else []
+    common += ["--pass-only"] if args.pass_only else []
+    log, failed = [], []
+    for row in rows:
+        smp = (row.get("sample") or "").strip()
+        if not smp:
+            continue
+        val = lambda k: (row.get(k) or "").strip()
+        base = ["--tumor", val("tumor"), "--tumor-name", smp] + (["--normal", val("normal")] if val("normal") else [])
+        checks = []
+        if val("snv_vcf"):
+            sel = ["--variants", val("snv_list")] if val("snv_list") else []
+            checks.append(("snv", ["--vcf", val("snv_vcf")] + sel))
+        if val("sv_vcf"):
+            checks.append(("sv", ["--vcf", val("sv_vcf")]))
+        if val("cnv"):
+            checks.append(("cnv", ["--cnv", val("cnv")] + (["--cnv-sample", val("cnv_sample")] if val("cnv_sample") else [])))
+        for kind, extra in checks:
+            argv = base + extra + common + ["--output", str(run_dir / smp / kind)]
+            if kind == "snv" and val("snv_list"):   # an explicit list already selects the calls
+                argv = [a for i, a in enumerate(argv) if a != "--regions" and (i == 0 or argv[i - 1] != "--regions")]
+            print(f"== {smp} {kind}", flush=True)
+            try:
+                run(build_parser().parse_args(argv))
+                log.append((smp, kind, "ok"))
+            except (InputError, OSError, ValueError) as e:
+                print(f"   {smp} {kind} failed: {e}", file=sys.stderr, flush=True)
+                log.append((smp, kind, f"failed: {e}")); failed.append((smp, kind, str(e)))
+    with open(run_dir / "run_log.tsv", "w") as fh:
+        fh.write("sample\tcheck\tresult\n" + "".join(f"{a}\t{b}\t{c}\n" for a, b, c in log))
+    (run_dir / "samplesheet.csv").write_text(sheet.read_text())   # what this run was given
+    import importlib.util
+    summarize(run_dir, curated=args.curated, regions=args.regions, igv_path=args.igv_path, timeout=args.igv_timeout,
+              annotation=args.annotation, overview=not args.no_igv,
+              interactive=importlib.util.find_spec("igv_reports") is not None, bundle=not args.no_bundle)
+    write_index(reports)
+    return run_dir, failed
+
+
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if getattr(args, "annotation", None) and not Path(args.annotation).exists():
             raise InputError(f"--annotation file not found: {args.annotation}")
+        if args.samplesheet:
+            run_dir, failed = run_samplesheet(args)
+            print(f"\nThis run: {run_dir / 'summary.html'}\nAll runs: {Path(args.reports_dir) / 'index.html'}")
+            if failed:
+                print(f"{len(failed)} check(s) failed (see {run_dir / 'run_log.tsv'}): "
+                      + "; ".join(f"{a} {b}" for a, b, _ in failed), file=sys.stderr)
+                return 1
+            return 0
         if args.index:
             if not Path(args.index).is_dir():
                 raise InputError(f"--index folder not found: {args.index}")
