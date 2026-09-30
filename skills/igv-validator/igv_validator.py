@@ -2143,12 +2143,17 @@ def _plain_row(r: dict, ev: tuple[str, str, str]) -> str:
         if verdict == "hidden":
             return "a broad or mild copy-number change, which the curated calls leave out on purpose"
         return "the read depth shows no change"
+    why = "; ".join(WHY[f] for f in flags if f in WHY)
     if r["type"] == "SV":
+        if verdict == "not supported" and why:   # reads are there, but show an artifact pattern
+            return f"{r['igv_shows']}, but {why}"
         return {"real": "reads support the rearrangement (split and discordant reads at the breakpoint)",
                 "weak": "only a few reads support the rearrangement"}.get(verdict, "the reads do not support the rearrangement")
     if verdict == "recurrent":
         return (f"the variant is in the reads but also in {r.get('_recurrent', 'several samples')}: likely inherited "
                 f"or an artifact, not a tumor mutation")
+    if verdict == "not supported" and why:
+        return f"{r['igv_shows']}, but {why}"
     return {"real": f"the variant is in the reads ({r['igv_shows']})",
             "weak": "only a few reads carry the variant"}.get(verdict, "the reads do not support the variant")
 

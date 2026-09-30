@@ -1660,3 +1660,12 @@ def test_page_shows_its_location_and_prints_cleanly(summary_dir):
     page = (root / "summary.html").read_text()
     assert "This page:" in page and str((root / "summary.html").resolve()) in page
     assert "Print / save as PDF" in page and "@media print{.noprint{display:none}" in page
+
+
+def test_flagged_variant_sentence_says_why_not_that_reads_are_missing(tmp_path):
+    """A call with supporting reads but an artifact pattern: the reads are there, the pattern is the problem."""
+    r = _snv_row("S", status="flagged")
+    r.update(flags="strand_bias", igv_shows="5 of 52 reads carry T (9.6%), 5 forward / 0 reverse")
+    c = _compare(tmp_path, [r], [("S", "GENEC", "SNV")])["GENEC"]
+    assert c["agree"] == "No" and "5 of 52 reads carry" in c["plain"] and "one strand" in c["plain"]
+    assert "do not support" not in c["plain"]
