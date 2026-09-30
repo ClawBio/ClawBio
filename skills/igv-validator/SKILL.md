@@ -203,6 +203,9 @@ python skills/igv-validator/igv_validator.py \
 
 # One summary over many runs (e.g. igv_reports/<sample>/{snv,sv,cnv}/): sample x gene grid + table
 python skills/igv-validator/igv_validator.py --summarize igv_reports/
+# Zoomable pages (igv-reports; pip install igv-reports): add --interactive --regions genes.bed to a summary.
+#   One page per sample in interactive/: zoom, scroll, click reads. The pages embed reads: keep them
+#   with the BAMs (large regions or deep samples are subsampled to keep pages near 25 MB)
 # Draw genes (exons, names) in every IGV screenshot: add --annotation to any run or summary
 #   e.g. --annotation gencode.v44.basic.annotation.gtf.gz (only the shown regions are loaded)
 #   gene-level images (overview, copy number, SV) show the Ensembl_canonical transcript, one row per gene;
@@ -299,6 +302,8 @@ output_directory/
 
 **Optional**:
 - IGV desktop >= 2.16 (macOS app, or a Linux `igv.sh` / `igv` command such as an HPC module); screenshots. Tested with 2.16.2 and 2.19.7; IGV <= 2.16 has no `currentGenomePath` command, so the skill watches IGV's log for the genome load instead. `--igv-timeout` (default 300 s) covers slow network file systems. Found automatically, or pass `--igv-path` (a path or a command name). Without it the skill writes counts and the report only.
+- `igv-reports` >= 1.17 (`pip install igv-reports`); `--interactive` browser pages built on igv.js. Tested with 1.17.0.
+- `matplotlib`; depth plots in copy-number mode.
 
 ## Step by step: validating a whole project
 

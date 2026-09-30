@@ -1543,3 +1543,41 @@ def test_summary_opens_on_the_simple_view(summary_dir, tmp_path):
     assert page.index("What IGV shows") < page.index("Detailed comparison")
     rows = list(csv.DictReader(open(out / "heatmap_vs_igv.tsv"), delimiter="\t"))
     assert {"agree", "plain"} <= set(rows[0])
+
+
+# ── Interactive pages (igv-reports): zoom, scroll, click reads ────────────────
+
+def test_interactive_subsample_keeps_small_pages_whole():
+    assert iv.interactive_subsample(total_bp=50_000, depth=60) == 1.0
+    f = iv.interactive_subsample(total_bp=2_000_000, depth=90)
+    assert 0 < f < 1
+
+
+def test_interactive_sites_cover_genes_and_calls():
+    plan = [{"sample": "S", "gene": "G", "chrom": "c1", "start": 1000, "end": 9000,
+             "bed_lines": ["c1\t4999\t5000\tSNV C>A", "c1\t2000\t6000\tGATK del log2 -7.00"]}]
+    lines = iv.interactive_sites(plan)
+    assert lines[0].startswith("c1\t999\t9000\tG ")                 # the whole gene window first
+    assert any("\t4999\t5000\t" in l and "SNV" in l for l in lines)  # then each call
+    assert all(len(l.split("\t")) == 4 for l in lines)
+
+
+def test_interactive_needs_regions(summary_dir):
+    root, _ = summary_dir
+    r = run_cli("--summarize", root, "--interactive")
+    assert r.returncode != 0 and "Traceback" not in r.stderr and "--regions" in r.stderr
+
+
+def test_interactive_page_is_written_and_linked(summary_dir, tmp_path):
+    pytest.importorskip("igv_reports")
+    root, _ = summary_dir
+    bed = tmp_path / "g.bed"
+    bed.write_text("demo3\t20999\t24000\tHOMDEL\n")
+    hm = _heatmap(tmp_path, [("demo_tumor", "HOMDEL", "DEL")])
+    out = tmp_path / "i"
+    r = run_cli("--summarize", root, "--heatmap", hm, "--interactive", "--regions", bed, "--output", out)
+    assert r.returncode == 0, r.stderr
+    page = out / "interactive" / "demo_tumor.html"
+    assert page.exists() and page.stat().st_size > 10_000
+    html_ = (out / "summary.html").read_text()
+    assert "interactive/demo_tumor.html" in html_ and "contains read data" in html_

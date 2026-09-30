@@ -2335,8 +2335,86 @@ def take_overviews(plan: list[dict], out: Path, igv_path, timeout: int = 300, an
     return done, "; ".join(notes)
 
 
+INTERACTIVE_TARGET_MB = 25        # aim for pages about this size; deeper or larger regions are subsampled
+INTERACTIVE_FLANK = 1000           # bp shown around each site in the interactive page
+INTERACTIVE_BYTES_PER_BP_X = 0.55  # rough size of embedded reads: bytes per bp per x of depth
+
+
+def interactive_subsample(total_bp: int, depth: float) -> float:
+    """Fraction of reads to keep so an interactive page stays near INTERACTIVE_TARGET_MB."""
+    est = total_bp * max(depth, 1.0) * INTERACTIVE_BYTES_PER_BP_X
+    return 1.0 if est <= INTERACTIVE_TARGET_MB * 1e6 else round(INTERACTIVE_TARGET_MB * 1e6 / est, 3)
+
+
+def interactive_sites(plan: list[dict]) -> list[str]:
+    """BED lines for one sample's interactive page: each gene window, then each small call (SNV, SV breakpoint)."""
+    lines = []
+    for p in plan:
+        lines.append(f"{p['chrom']}\t{p['start'] - 1}\t{p['end']}\t{p['gene']} (whole gene)")
+        for b in p["bed_lines"]:
+            c, a, e_, name = b.split("\t", 3)
+            if int(e_) - int(a) <= 1000:          # SNVs and breakpoints; segments and spans are on the calls track
+                lines.append(f"{c}\t{a}\t{e_}\t{p['gene']}: {name}")
+    return lines
+
+
+def make_interactive(plan: list[dict], rows: list[dict], out: Path, annotation=None) -> tuple[dict, str]:
+    """One igv-reports page per sample (zoom, scroll, click reads). Returns {sample: html path} and a note."""
+    import importlib.util
+    import subprocess
+    if importlib.util.find_spec("igv_reports") is None:
+        return {}, "interactive pages need igv-reports: pip install igv-reports"
+    done, notes = {}, []
+    odir = out / "interactive"
+    odir.mkdir(parents=True, exist_ok=True)
+    tmp = Path(tempfile.mkdtemp(prefix="igv_interactive_"))
+    try:
+        for smp in sorted({p["sample"] for p in plan}):
+            mine = [p for p in plan if p["sample"] == smp]
+            bam, ref = mine[0]["bam"], mine[0]["ref"]
+            if not bam or not ref:
+                notes.append(f"{smp}: no BAM/reference recorded"); continue
+            safe = re.sub(r"[^A-Za-z0-9._-]+", "_", smp)
+            sites = tmp / f"{safe}_sites.bed"
+            sites.write_text("\n".join(interactive_sites(mine)) + "\n")
+            calls = tmp / f"{safe}_calls.bed"
+            # igv.js cuts BED names at the first space: join the words so the whole label shows
+            calls.write_text("\n".join("\t".join(b.split("\t", 3)[:3] + [b.split("\t", 3)[3].replace(" ", "_")])
+                                       for p in mine for b in p["bed_lines"]) + "\n")
+            tracks = [str(bam)] + ([str(calls)] if calls.read_text().strip() else [])
+            if annotation:
+                g = annotation_subset(annotation, [(p["chrom"], p["start"], p["end"]) for p in mine],
+                                      tmp / f"{safe}_genes", canonical=True)
+                tracks += [str(g)] if g else []
+            depth = next((r["_base"] for r in rows if r["sample"] == smp and r.get("_base")), 60.0)
+            total = sum(p["end"] - p["start"] + 2 * INTERACTIVE_FLANK for p in mine)
+            frac = interactive_subsample(total, depth)
+            dst = odir / f"{safe}.html"
+            header = (f"<p style='font:14px sans-serif;background:#fff6d6;padding:8px'><b>{html.escape(smp)}</b>: "
+                      f"zoom with + / -, drag to scroll, click a read for details. This page contains read data: keep it "
+                      f"with the BAMs; do not email or upload it."
+                      + (f" Reads are subsampled to {frac:.0%} to keep the page small." if frac < 1 else "") + "</p>")
+            head = tmp / f"{safe}_header.html"
+            head.write_text(header)
+            dst.unlink(missing_ok=True)   # never leave an old page behind when this run fails
+            cmd = [sys.executable, "-m", "igv_reports.report", str(sites), "--fasta", str(ref), "--tracks", *tracks,
+                   "--flanking", str(INTERACTIVE_FLANK), "--standalone", "--exclude-flags", "1792",
+                   "--title", f"{smp} interactive IGV", "--header", str(head), "--output", str(dst)]
+            if frac < 1:
+                cmd += ["--subsample", str(frac)]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0 and dst.exists():
+                done[smp] = dst
+            else:
+                notes.append(f"{smp}: igv-reports failed ({(res.stderr or res.stdout).strip().splitlines()[-1:]})")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return done, "; ".join(notes)
+
+
 def summarize(root: Path, out: Path | None = None, regions: Path | None = None, igv_path=None,
-              timeout: int = 300, heatmap: Path | None = None, annotation: Path | None = None) -> Path:
+              timeout: int = 300, heatmap: Path | None = None, annotation: Path | None = None,
+              overview: bool = True, interactive: bool = False) -> Path:
     """One table and one grid (sample x gene) over every igv-validator run under `root`."""
     root = Path(root)
     if not root.is_dir():
@@ -2353,8 +2431,11 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
     with open(out / "summary.tsv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=cols, delimiter="\t", extrasaction="ignore"); w.writeheader(); w.writerows(rows)
     overviews, ov_note = ({}, "")
-    if regions:
+    interactive_pages, it_note = {}, ""
+    if regions and overview:
         overviews, ov_note = take_overviews(overview_plan(rows, regions), out, igv_path, timeout, annotation)
+    if regions and interactive:
+        interactive_pages, it_note = make_interactive(overview_plan(rows, regions), rows, out, annotation)
     agree = [a for a in (_agreement(r) for r in rows) if a]
     cells = heatmap_vs_igv(rows, heatmap) if heatmap else []
     if heatmap:
@@ -2400,6 +2481,12 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
                if (c["sample"], c["gene"].upper()) in overviews else (rel(c["image"]) if c.get("image") else ""))
         return (f"<a href='{e(src)}'><img src='{e(src)}' style='width:260px;border:1px solid #ccc'></a>"
                 if src else "")
+    it_html = ("" if not interactive else
+               "<p><b>Interactive views</b> (zoom, scroll, click reads): " + (" · ".join(
+                   f"<a href='{e(str(Path(os.path.relpath(pg, out))))}'>{e(smp)}</a>"
+                   for smp, pg in sorted(interactive_pages.items())) or "none written") +
+               (f" <i>({e(it_note)})</i>" if it_note else "") +
+               ". Each page contains read data: keep it with the BAMs; do not email or upload it.</p>")
     simple_html = "" if not heatmap else (
         f"<h2>Your heatmap vs IGV</h2><p><b>{sum(c['agree'] == 'Yes' for c in cells)} agree, "
         f"{sum(c['agree'] == 'No' for c in cells)} do not</b> out of {len(cells)} cells. Click an image to enlarge it; "
@@ -2409,7 +2496,9 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             f"<tr><td>{e(c['sample'])}</td><td><b>{e(c['gene'])}</b></td>"
             f"<td>{e(PLAIN_LABEL.get(c['heatmap'].upper(), c['heatmap']))}</td><td>{e(c['plain'])}</td>"
             f"<td style='background:{'#c6e8d2' if c['agree'] == 'Yes' else '#f3c7a8' if c['agree'] == 'No' else '#ecebe7'}'>"
-            f"<b>{e(c['agree'])}</b></td><td>{thumb(c)}</td></tr>"
+            f"<b>{e(c['agree'])}</b></td><td>{thumb(c)}" + (
+                f"<br><a href='{e(str(Path(os.path.relpath(interactive_pages[c['sample']], out))))}'>interactive view</a>"
+                if c["sample"] in interactive_pages else "") + "</td></tr>"
             for c in sorted(cells, key=lambda c: (c["agree"] != "No", c["gene"], c["sample"]))) + "</table></div>")
     heat_html = "" if not heatmap else (
         f"<h2>Your heatmap vs IGV</h2><p><b>{sum(c['match'] == 'matches' for c in cells)} match, "
@@ -2428,7 +2517,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
     fold = lambda title, body: (f"<details style='margin:14px 0'><summary style='cursor:pointer;font-size:1.1em'>"
                                 f"<b>{e(title)}</b> (click to show)</summary>{body}</details>" if heatmap else body)
     heat_html = heat_html.replace("<h2>Your heatmap vs IGV</h2>", "", 1)
-    agree_html = simple_html + warning + IMAGE_KEY_HTML + (
+    agree_html = it_html + simple_html + warning + IMAGE_KEY_HTML + (
         fold("Detailed comparison: verdicts, review priority and reasons", heat_html) if heatmap else "") + (f"<p><i>Overview images: {e(ov_note)}</i></p>" if ov_note else "") + fold(
                   f"Does IGV agree with the callers? ({len(agree)} individual calls)", (
                   f"<h2>Does IGV agree with the callers?</h2><p><b>{counts['yes']} yes, {counts['no']} no, "
@@ -2747,6 +2836,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--summarize", help="write summary.html/summary.tsv over every igv-validator run in this folder")
     p.add_argument("--heatmap", help="with --summarize: your heatmap table (CSV/TSV with sample, gene, alteration, e.g. "
                                       "heatmap.csv) to compare cell by cell with IGV")
+    p.add_argument("--interactive", action="store_true",
+                   help="with --summarize and --regions: one browser page per sample (igv-reports) to zoom, scroll and "
+                        "click reads; the pages contain read data")
     p.add_argument("--overview", action="store_true",
                    help="with --summarize and --regions: one IGV image per gene and sample with every call marked")
     return p
@@ -2760,8 +2852,11 @@ def main(argv=None) -> int:
         if args.summarize:
             if args.overview and not args.regions:
                 raise InputError("--overview needs --regions (the BED of genes to draw)")
-            out = summarize(Path(args.summarize), args.output, args.regions if args.overview else None,
-                            args.igv_path, args.igv_timeout, args.heatmap, args.annotation)
+            if args.interactive and not args.regions:
+                raise InputError("--interactive needs --regions (the BED of genes to show)")
+            out = summarize(Path(args.summarize), args.output, args.regions,
+                            args.igv_path, args.igv_timeout, args.heatmap, args.annotation,
+                            overview=args.overview, interactive=args.interactive)
             print(f"Summary written to {out / 'summary.html'}")
             return 0
         out = run(args)
