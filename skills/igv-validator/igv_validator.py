@@ -2859,7 +2859,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--genes", help="comma-separated gene symbols to check (needs gene names in the VCF)")
     p.add_argument("--variants", help="TSV of chrom pos [ref alt] to check")
     p.add_argument("--regions", help="BED of regions to check (chrom start end [name]); names label the genes, "
-                                     "and an SV matches if either breakpoint falls inside")
+                                     "an SV matches if a breakpoint falls inside or a DEL/DUP/INV spans it; "
+                                     "also the genes for --cnv, --overview and --interactive")
     p.add_argument("--pass-only", action="store_true", help="only calls with FILTER=PASS")
     p.add_argument("--max-variants", type=int, default=MAX_VARIANTS, help=f"cap (default {MAX_VARIANTS})")
     p.add_argument("--no-igv", action="store_true", help="counts and report only, no screenshots")
@@ -2885,8 +2886,8 @@ def build_parser() -> argparse.ArgumentParser:
                         "explanations and depth plots (no read data); full = everything, including screenshots and "
                         "interactive pages (contains read data)")
     p.add_argument("--interactive", action="store_true",
-                   help="with --summarize and --regions: one browser page per sample (igv-reports) to zoom, scroll and "
-                        "click reads; the pages contain read data")
+                   help="with --summarize and --regions: one browser page per sample and gene (igv-reports) to zoom, "
+                        "scroll and click reads; the pages contain read data")
     p.add_argument("--overview", action="store_true",
                    help="with --summarize and --regions: one IGV image per gene and sample with every call marked")
     return p

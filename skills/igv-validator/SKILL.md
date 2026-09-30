@@ -136,11 +136,28 @@ You are **IGV Validator**, a specialised ClawBio agent for somatic variant valid
 - The user wants sequencing QC (FastQC, coverage summaries): route to `multiqc-reporter` / `seq-wrangler`
 - Germline variant review in a single normal sample: the flags assume a tumor sample
 
-## Why This Exists
+## What It's For (and What It Isn't)
+
+**Two uses:**
+1. **Faster review and reporting.** Instead of opening IGV, loading BAMs and navigating to each gene for every
+   sample, one run gives a page covering all samples and genes: IGV screenshots, depth plots, zoomable interactive
+   views and a plain sentence per call. It is reproducible, and a PI or collaborator can review it without IGV.
+2. **Catching errors in calls and pipelines.** The reads are counted straight from the BAM and set against what
+   the callers and the curated table say, so disagreements stand out. Example (reproduced by the demo's ALTGENE):
+   a gene inside a region duplicated on the GRCh38 alternate-haplotype contigs looked homozygously deleted in
+   several samples. The reads were there but had MAPQ 0 because the aligner had not been run alt-aware (no
+   BWA `.alt` file), so every MAPQ-filtering caller saw no coverage. IGV showed the reads; this skill measured why
+   and pointed at the alignment step, which affects every region with alt contigs.
+
+**What it isn't:** a variant caller or an automatic truth. Copy number from read depth is a simple measure,
+tumor-only data cannot separate inherited from somatic variants, and every verdict is a first pass. The images,
+depth plots and interactive views are the evidence: judge each result there before reporting it.
 
 - **Without it**: reviewers open IGV by hand, type each locus, eyeball reads and guess counts from pictures
-- **With it**: every call gets exact tumor/normal counts from the BAM, automatic artifact flags, and a standard tumor-over-normal screenshot in minutes
-- **Why ClawBio**: counts come from pysam with fixed filters and were cross-checked against samtools and caller `AD`; the screenshot shows the evidence, it is never the source of numbers
+- **With it**: every call gets exact read counts from the BAM, artifact flags, the caller's own counts next to
+  them, and standard images, in minutes
+- **Why ClawBio**: counts come from pysam with fixed filters and were cross-checked against samtools and caller
+  `AD`; the screenshot shows the evidence, it is never the source of numbers
 
 ## Core Capabilities
 
@@ -178,48 +195,130 @@ You are **IGV Validator**, a specialised ClawBio agent for somatic variant valid
 6. **Screenshot** (prescriptive): unless `--no-igv` or IGV is not found, start the isolated IGV, take one image per variant (two for SVs), check each image rendered, caption it, close IGV.
 7. **Report** (flexible): write the outputs. When presenting results, the agent may add its own reading of the screenshots, labelled as a reviewer judgement and kept separate from the automatic status.
 
-## CLI Reference
+## Modes
 
+Each mode below shows what it does, what to ask Claude (Claude Code or another agent with ClawBio), and the
+command to run yourself. Names are placeholders: replace samples, genes and paths with your own.
+
+**1. Check variant calls, tumor + normal.** Counts tumor and normal reads for each SNV, indel or SV in a VCF,
+compares them with the caller's own counts, flags artifacts (normal support, strand bias, read ends, low VAF...)
+and takes a tumor-over-normal IGV screenshot per call.
+- Prompt: *"Use igv-validator to check the KRAS and BRAF calls in my annotated `calls.vcf` against `tumor.bam`
+  and `normal.bam` (reference `hg38.fa`)."*
 ```bash
-# Standard usage
-python skills/igv-validator/igv_validator.py \
-  --vcf calls.vcf.gz --tumor tumor.bam --normal normal.bam \
-  --reference hg38.fa --genes KRAS,BRAF --output <report_dir>
-
-# Exact variants, counts and report only (no IGV, e.g. on an HPC node)
-python skills/igv-validator/igv_validator.py \
-  --vcf calls.vcf.gz --tumor tumor.bam --normal normal.bam \
-  --variants my_variants.tsv --no-igv --output <report_dir>
-
-# Tumor-only: do the caller's calls agree with the reads?
-python skills/igv-validator/igv_validator.py \
-  --vcf calls.vcf.gz --tumor tumor.bam --reference hg38.fa --genes KRAS \
-  [--caller-sample <VCF tumor column>] --output <report_dir>
-
-# Copy-number mode: do the GATK segment calls match the read depth in these genes?
-python skills/igv-validator/igv_validator.py \
-  --cnv sample.cnv.tsv --tumor tumor.bam --regions genes.bed \
-  --reference hg38.fa [--cnv-sample <name>] --output <report_dir>
-
-# One summary over many runs (e.g. igv_reports/<sample>/{snv,sv,cnv}/): sample x gene grid + table
-python skills/igv-validator/igv_validator.py --summarize igv_reports/
-# Zoomable pages (igv-reports; pip install igv-reports): add --interactive --regions genes.bed to a summary.
-#   One page per sample and gene in interactive/: zoom, scroll, click reads. The pages embed reads: keep them
-#   with the BAMs (large regions or deep samples are subsampled to keep pages near 25 MB)
-# Draw genes (exons, names) in every IGV screenshot: add --annotation to any run or summary
-#   e.g. --annotation gencode.v44.basic.annotation.gtf.gz (only the shown regions are loaded)
-#   gene-level images (overview, copy number, SV) show the Ensembl_canonical transcript, one row per gene;
-#   SNV/indel close-ups show every transcript at that base
-# ...plus one IGV image per gene and sample, with every call marked on a 'calls' track
-python skills/igv-validator/igv_validator.py --summarize igv_reports/ --overview --regions genes.bed
-
-# Demo mode (synthetic data, no user files needed)
-python skills/igv-validator/igv_validator.py --demo --output /tmp/igv_validator_demo
-python skills/igv-validator/igv_validator.py --demo-cnv --output /tmp/igv_validator_cnv_demo
-
-# Via ClawBio runner
-python clawbio.py run igv-validator --demo
+python skills/igv-validator/igv_validator.py --vcf calls.vcf --tumor tumor.bam --normal normal.bam \
+  --reference hg38.fa --genes KRAS,BRAF --output reports/sampleA/snv
 ```
+
+**2. Check variant calls, tumor-only.** The same without a normal (leave out `--normal`); normal-based checks
+are skipped, so the result says whether the reads support the call, not whether it is somatic.
+- Prompt: *"Tumor-only: do the Mutect2 calls in `sampleA.vcf` for the genes in `my_genes.bed` agree with
+  `sampleA.bam`?"*
+```bash
+python skills/igv-validator/igv_validator.py --vcf sampleA.vcf --tumor sampleA.bam --reference hg38.fa \
+  --regions my_genes.bed --output reports/sampleA/snv
+```
+`--genes` needs gene names in the VCF (VEP, SnpEff, ANNOVAR); a plain caller VCF is selected with `--regions`
+(or `--variants` with a list from your own filtered table).
+
+**3. Check structural variants (SVs).** SV VCFs (Manta, Delly, SvABA, SURVIVOR) have no gene names, so select by
+gene coordinates: an SV is kept when a breakpoint falls in a gene, or a DEL/DUP/INV spans it. Split reads and
+discordant pairs are counted at both ends.
+- Prompt: *"Check the SURVIVOR SVs in `sampleA.sv.vcf` that hit the genes in `my_genes.bed`."*
+```bash
+python skills/igv-validator/igv_validator.py --vcf sampleA.sv.vcf --tumor sampleA.bam --reference hg38.fa \
+  --regions my_genes.bed --output reports/sampleA/sv
+```
+
+**4. Check copy-number calls.** For each gene in the BED, sets the caller's segment (GATK `called.seg` or a table
+with contig/start/end/log2/cn_call) against the read depth, per segment when several cover the gene, and reports
+depth steps inside a gene, ambiguous mapping (MAPQ 0 reads that match alt contigs), a depth plot and an IGV view.
+- Prompt: *"Do the GATK copy-number calls for sampleA match the read depth in PTEN and BRAF?"*
+```bash
+python skills/igv-validator/igv_validator.py --cnv sampleA.called.seg --cnv-sample sampleA --tumor sampleA.bam \
+  --reference hg38.fa --regions my_genes.bed --output reports/sampleA/cnv
+```
+
+**5. Summarize many samples.** Reads every run under a folder (`reports/<sample>/{snv,sv,cnv}`) and writes one
+page: each raw call vs the reads (`igv_agreement.tsv`), plus `summary.tsv`.
+- Prompt: *"Summarize all igv-validator runs in `reports/`."*
+```bash
+python skills/igv-validator/igv_validator.py --summarize reports/
+```
+
+**6. Compare with your curated calls.** Your final table after filtering and review (for example the one behind a
+mutational-profile heatmap): CSV/TSV with `sample, gene, alteration` (WT, SNV, SV, SNV+SV, DEL, AMP, LOH). The page
+then opens on "Curated calls vs IGV": one row per sample and gene with a plain sentence of what IGV shows,
+*Agree?*, a thumbnail and links; raw calls are folded below.
+- Prompt: *"Compare my curated calls in `curated.csv` with IGV for all samples in `reports/`."*
+```bash
+python skills/igv-validator/igv_validator.py --summarize reports/ --curated-calls curated.csv
+```
+
+**7. Images and interactive views.** `--overview` draws one IGV image per gene and sample with every call marked;
+`--interactive` writes zoomable pages (igv-reports) per sample and gene, where reads can be clicked;
+`--annotation` adds a genes track (exons, names) to every image. The last two need `--regions`.
+- Prompt: *"Add overview images and interactive views for the genes in `my_genes.bed`, with GENCODE genes drawn."*
+```bash
+python skills/igv-validator/igv_validator.py --summarize reports/ --curated-calls curated.csv \
+  --overview --interactive --regions my_genes.bed --annotation gencode.v44.basic.annotation.gtf.gz
+```
+
+**8. Share the results.** The page shows its own path (to open it on the server), a "Print / save as PDF" button,
+and with `--bundle` download links: `light` (tables, sentences and depth plots, no read data) or `full`
+(everything, including screenshots and interactive pages; contains read data, so keep it where the BAMs may be).
+- Prompt: *"Make a light download of the summary for my PI."*
+```bash
+python skills/igv-validator/igv_validator.py --summarize reports/ --curated-calls curated.csv --bundle light
+```
+
+**9. Counts only, no IGV.** For compute nodes without a display: counts, flags and reports, no screenshots.
+- Prompt: *"Count read support for the PASS calls in `calls.vcf`, no screenshots, I'm on the cluster."*
+```bash
+python skills/igv-validator/igv_validator.py --vcf calls.vcf --tumor tumor.bam --pass-only --no-igv \
+  --output reports/sampleA/snv
+```
+
+**10. Demo.** Synthetic data, no files needed: `--demo` (variants) and `--demo-cnv` (copy number, including the
+alt-contig case ALTGENE).
+- Prompt: *"Run the igv-validator demo."*
+```bash
+python skills/igv-validator/igv_validator.py --demo --output /tmp/igv_demo
+```
+
+**A whole project** (several samples, all three call types, then the summary): see *Step by step* below, or ask:
+*"Use igv-validator on samples S1 and S2 for KRAS, BRAF and PTEN. The BAMs, Mutect2, SURVIVOR and GATK outputs are
+under `<results folder>`. Tumor-only. Compare with my curated calls in `<table.csv>`, with overview images and
+interactive views."* Claude then writes the gene BED, runs each check per sample and builds the summary; it asks
+for anything missing (file locations, reference, tumor-only or paired).
+
+## All Options
+
+| Option | What it does |
+|---|---|
+| `--vcf` (`--input`) | VCF/VCF.gz of SNV, indel or SV calls (any caller) |
+| `--tumor` | tumor BAM/CRAM, indexed (required except for `--summarize`) |
+| `--normal` | matched normal BAM/CRAM; leave out for tumor-only |
+| `--tumor-only` | ignore any normal (e.g. with `--demo`) |
+| `--reference` | FASTA the BAMs were aligned to (screenshots, indel rescue, CRAM) |
+| `--genes` | gene symbols; needs gene names in the VCF (VEP, SnpEff, ANNOVAR, GENE) |
+| `--regions` | BED of genes (chrom, start, end, name): selects variants/SVs, sets copy-number genes, overview and interactive windows |
+| `--variants` | TSV of chrom, pos, [ref, alt] to check exactly (e.g. a filtered table) |
+| `--pass-only` | only FILTER=PASS calls |
+| `--max-variants` | cap per run (default 50) |
+| `--caller-sample` | VCF column whose caller counts to compare (default: the tumor's sample name) |
+| `--tumor-name`, `--normal-name` | labels in reports and images (use your sample names) |
+| `--cnv`, `--cnv-sample` | copy-number mode: segment file, and the sample in a multi-sample file |
+| `--summarize` | build the summary page over every run in a folder |
+| `--curated-calls` (`--heatmap`) | curated table to compare with IGV (sample, gene, alteration) |
+| `--overview` | with `--summarize` and `--regions`: one IGV image per gene and sample |
+| `--interactive` | with `--summarize` and `--regions`: zoomable pages per sample and gene (needs igv-reports; contain read data) |
+| `--annotation` | GTF/GFF3/BED of genes (e.g. GENCODE) drawn as a genes track in every image |
+| `--bundle light\|full\|both` | with `--summarize`: downloadable zips linked from the page |
+| `--no-igv` | counts and reports only |
+| `--igv-path`, `--igv-timeout` | IGV to use (found automatically) and how long to wait for it (default 300 s) |
+| `--output` | output folder |
+| `--demo`, `--demo-cnv` | run on the bundled synthetic data |
 
 ## Demo
 
@@ -237,7 +336,7 @@ Expected output: a report on 6 synthetic variants on two synthetic contigs: 3 su
 4. **Flags** on the tumor/normal pair: `normal_support` (any supporting read in normal), `low_support` (< 3 reads), `low_vaf` (< 5%), `strand_bias` (>= 4 reads, all one strand; chance 1 in 2^(n-1)), `read_end` (> 50% of alt bases within 10 bp of a read end), `low_depth` (< 10 reads in tumor or normal), `germline_site` (SNV where >= 20% of normal reads carry a third allele), `high_depth` (depth > 2.5x the run median, with >= 3 variants: repeat or mismapping), `caller_disagrees` (caller-reported VAF differs from the BAM by > 10 points, or the caller reports >= 3 alt reads where the BAM has none). In tumor-only mode `normal_support`, `germline_site` and the swap check are skipped.
    - The caller's column is the VCF sample named like the tumor BAM's `SM`, the only sample, the one sample with "tumor" in its name, or `--caller-sample`; otherwise the comparison is skipped and the report says why.
 5. **Status**: `supported` (>= 3 reads, no flags), `flagged` (supporting reads with at least one flag), `insufficient` (< 3 reads), `no_coverage` (no reads in either BAM). Records the skill cannot evaluate are listed separately with the reason.
-6. **Copy number** (`--cnv`): read starts per bin (MAPQ >= 20, and all MAPQ) in each gene. **Depth log2** = log2(gene depth / sample-wide depth), the sample-wide depth being the median over 300 random 10 kb windows on the genes' chromosomes, which is GATK's scale; `cnv_disagrees` when it does not reproduce the segment log2 (off by > 0.5, or deep, below -2, on one side only). The **local ratio** compares the gene with flanks 3x its length (10 kb-1 Mb) placed outside any focal (<= 3 Mb) gain/loss and its adjacent same-call segments, to show focal changes. `no_segment` when the gene sits between segments; `ambiguous_mapping` (status flagged for a called gain/loss) when most reads in the gene have MAPQ < 20 with alternative hits (XA) or MAPQ 0, and the all-reads depth log2 (as IGV shows) is reported next to the MAPQ >= 20 one; `low_mapq_remaining` when the reads left in a deep loss are mostly MAPQ < 20 without alternative hits.
+6. **Copy number** (`--cnv`): read starts per bin (MAPQ >= 20, and all MAPQ) in each gene. **Depth log2** = log2(gene depth / sample-wide depth), the sample-wide depth being the median over 300 random 10 kb windows on all autosomes (so a gain or loss of the gene's own chromosome cannot shift the scale); `cnv_disagrees` when it does not reproduce the segment log2 (off by > 0.5, or deep, below -2, on one side only). The **local ratio** compares the gene with flanks 3x its length (10 kb-1 Mb) placed outside any focal (<= 3 Mb) gain/loss and its adjacent same-call segments, to show focal changes. `no_segment` when the gene sits between segments; `ambiguous_mapping` (status flagged for a called gain/loss) when most reads in the gene have MAPQ < 20 with alternative hits (XA) or MAPQ 0, and the all-reads depth log2 (as IGV shows) is reported next to the MAPQ >= 20 one; `low_mapq_remaining` when the reads left in a deep loss are mostly MAPQ < 20 without alternative hits.
 7. **Run-level checks**: stop if the reference's contigs or lengths differ from the BAM; warn when the normal carries most of the support (samples probably swapped); warn when variants have no reads (region not in the BAMs).
 
 **Key thresholds / parameters**:
@@ -248,6 +347,9 @@ Expected output: a report on 6 synthetic variants on two synthetic contigs: 3 su
 ## Example Queries
 
 - "Validate the KRAS and BRAF calls from my Mutect2 VCF in IGV"
+- "Use igv-validator on samples S1 and S2 for KRAS, BRAF and PTEN; compare with my curated calls in curated.csv"
+- "Does the GATK deletion in PTEN for sample S1 hold up in the reads?"
+- "Make interactive IGV pages for these genes so my PI can zoom in"
 - "Is the ODF1 G>T call real? Check tumor and normal reads"
 - "Take IGV screenshots of these 10 variants for my PI"
 - "Count read support for my PASS variants, no screenshots, I'm on the cluster"
@@ -413,6 +515,7 @@ The same key is on every report page and the summary ("How to read the images").
 - **Caller disagreement is a question, not a verdict**: `caller_disagrees` often means the caller capped depth, realigned, or used different filters (a chr4 repeat: DRAGEN 32/104 vs 33/470 MAPQ>=20 reads). Look at `high_depth` and the screenshot before deciding which is right.
 - **SV VCFs have no gene names**: SURVIVOR, Manta and Delly write coordinates only, so `--genes` finds nothing there. Use `--regions` with a BED of the genes: an SV matches if a breakpoint is inside a gene or, for deletions/duplications/inversions, if its span covers the gene (as AnnotSV assigns genes). A run where nothing matches writes a report saying so.
 - **Copy-number ratios are relative**: the ratio compares the gene with its own flanks, so tumor purity, ploidy (whole-genome doubling makes a one-copy loss look like 0.75) and an altered flank all shift it. Read `cnv_disagrees` as "look again", and report ploidy with the result.
+- **Check how the BAMs were aligned**: `samtools view -H tumor.bam | grep '^@PG'` shows the aligner command. With a GRCh38 reference that includes alt contigs (e.g. the Broad `Homo_sapiens_assembly38.fasta`), BWA is alt-aware only when `<index>.alt` sits next to the index; without it, reads in duplicated regions get MAPQ 0 and MAPQ-filtering callers report false losses there. The fix is upstream (alt-aware alignment or a no-alt reference), not in this skill
 - **Losses called from MAPQ-filtered depth can be mapping artifacts**: do not trust a deep deletion just because the caller, the MAPQ >= 20 depth and a downstream curated table all agree on it. Check `ambiguous_mapping` first. In regions duplicated on GRCh38 `_alt` contigs, reads get MAPQ 0 with XA hits on the alternate haplotypes, so every MAPQ-filtering tool sees a "homozygous deletion" while IGV shows full coverage (hollow MAPQ-0 reads).
 - **Deep deletions in PDX tumors**: reads left inside a homozygous deletion are often mouse or mismapped reads; `low_mapq_remaining` points at that. Do not count them as evidence against the deletion.
 - **Whole-VCF runs**: the model will want to run on an entire VCF. With no `--genes`/`--variants`, only the first `--max-variants` (50) records in file order are checked, which are rarely the interesting ones. Ask the user which genes or variants they care about first.
