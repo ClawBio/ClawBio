@@ -1726,3 +1726,43 @@ def test_quick_refresh_keeps_images_pages_and_zip_already_built(summary_dir, tmp
     page = (work / "summary.html").read_text()
     assert "overview/demo_tumor_HOMDEL.png" in page and "igv_validation_full.zip" in page
     assert "Curated calls vs IGV" in page                                           # remembered from settings
+
+
+# ── Separate batches, one index page ──────────────────────────────────────────
+
+def _batch(root, name, sample):
+    out = root / name
+    assert run_cli("--demo", "--no-igv", "--tumor-name", sample, "--output", out / sample / "snv").returncode == 0
+    assert run_cli("--summarize", out, "--no-bundle").returncode == 0
+    return out
+
+
+def test_index_lists_every_batch(tmp_path):
+    root = tmp_path / "igv_reports"
+    _batch(root, "2026-09-30_first", "S1")
+    _batch(root, "2026-10-20_second", "S2")
+    assert not (root / "index.html").exists()                  # only made when asked for
+    r = run_cli("--index", root)
+    assert r.returncode == 0, r.stderr
+    page = (root / "index.html").read_text()
+    assert "2026-09-30_first/summary.html" in page and "2026-10-20_second/summary.html" in page
+    assert page.index("2026-10-20_second") < page.index("2026-09-30_first")      # newest first
+    assert "S1" in page and "S2" in page
+
+
+def test_index_updates_itself_when_a_batch_changes(tmp_path):
+    root = tmp_path / "igv_reports"
+    _batch(root, "2026-09-30_first", "S1")
+    assert run_cli("--index", root).returncode == 0
+    _batch(root, "2026-11-02_third", "S3")                     # a new batch, summarized later
+    assert "2026-11-02_third/summary.html" in (root / "index.html").read_text()
+
+
+def test_no_index_in_an_unrelated_parent_folder(tmp_path):
+    _batch(tmp_path, "reports", "S1")
+    assert not (tmp_path / "index.html").exists()
+
+
+def test_index_of_a_missing_folder_is_a_clear_error(tmp_path):
+    r = run_cli("--index", tmp_path / "nope")
+    assert r.returncode != 0 and "Traceback" not in r.stderr and "--index" in r.stderr

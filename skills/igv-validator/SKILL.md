@@ -279,6 +279,21 @@ python skills/igv-validator/igv_validator.py --summarize reports/ --curated-call
 # -> reports/summary.html and reports/igv_validation_full.zip
 ```
 
+**Batches: a separate report each time.** Give every batch its own folder inside one reports folder, for
+example `igv_reports/2026-09-30_panel8/` and `igv_reports/2026-10-20_newsamples/`, each with its own
+`summary.html`, reports and zip (`--project igv_reports/<batch>`). Nothing is overwritten between batches, and the
+same sample can be checked again in a later batch. Run `--index igv_reports/` once: it writes
+`igv_reports/index.html`, one row per batch (date, samples, genes, curated agreement, download) linking to each
+summary, and it updates itself whenever a batch's summary is built or refreshed. It is only written where you
+asked for it.
+- Prompt: *"Run the new samples as a separate batch in `igv_reports/2026-10-20_newsamples` and keep the batch index."*
+```bash
+B=igv_reports/2026-10-20_newsamples
+python skills/igv-validator/igv_validator.py --vcf S3.vcf --tumor S3.bam --reference hg38.fa --regions my_genes.bed \
+  --output $B/S3/snv --project $B
+python skills/igv-validator/igv_validator.py --index igv_reports/     # once; afterwards it keeps itself current
+```
+
 **9. Counts only, no IGV.** For compute nodes without a display: counts, flags and reports, no screenshots.
 - Prompt: *"Count read support for the PASS calls in `calls.vcf`, no screenshots, I'm on the cluster."*
 ```bash
@@ -317,6 +332,7 @@ for anything missing (file locations, reference, tumor-only or paired).
 | `--tumor-name`, `--normal-name` | labels in reports and images (use your sample names) |
 | `--cnv`, `--cnv-sample` | copy-number mode: segment file, and the sample in a multi-sample file |
 | `--summarize` | build the summary page over every run in a folder (full: with images, interactive pages, zip) |
+| `--index` | write `<folder>/index.html` listing every batch folder with a summary; it then keeps itself updated |
 | `--project` | project folder of all runs: its `summary.html` is refreshed after this check (automatic for later checks once the folder has a summary) |
 | `--curated-calls` (`--heatmap`) | curated table to compare with IGV (sample, gene, alteration) |
 | `--overview` | with `--summarize` and `--regions`: one IGV image per gene and sample |

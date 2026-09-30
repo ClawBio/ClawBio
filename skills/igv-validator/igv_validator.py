@@ -2440,6 +2440,57 @@ BUNDLE_NAME = "igv_validation_full.zip"
 SETTINGS_NAME = "summary_settings.json"   # marks a project folder; remembers the curated calls for quick refreshes
 
 
+INDEX_MARK = "<!-- igv-validator batch index -->"   # an index.html this skill made and keeps updated
+
+
+def write_index(root: Path) -> Path:
+    """<root>/index.html: one row per batch folder under root that has a summary.html (newest name first), with
+    its date, samples, genes, curated agreement and links to its summary and download."""
+    root = Path(root)
+    e = html.escape
+    rows = []
+    for d in sorted((x for x in root.iterdir() if x.is_dir() and (x / "summary.html").exists()),
+                    key=lambda x: x.name, reverse=True):
+        def tsv(name):
+            f = d / name
+            return list(csv.DictReader(open(f), delimiter="\t")) if f.exists() else []
+        calls, cur = tsv("summary.tsv"), tsv("curated_vs_igv.tsv")
+        samples = sorted({c["sample"] for c in calls})
+        genes = sorted({c["gene"] for c in calls})
+        when = datetime.fromtimestamp((d / "summary.html").stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+        agree = (f"{sum(c['agree'] == 'Yes' for c in cur)} agree, {sum(c['agree'] == 'No' for c in cur)} do not"
+                 if cur else "")
+        zp = d / BUNDLE_NAME
+        rows.append(
+            f"<tr><td><a href='{e(d.name)}/summary.html'><b>{e(d.name)}</b></a></td><td>{e(when)}</td>"
+            f"<td>{len(samples)}: {e(', '.join(samples[:12]) + (' ...' if len(samples) > 12 else ''))}</td>"
+            f"<td>{len(genes)}: {e(', '.join(genes[:12]) + (' ...' if len(genes) > 12 else ''))}</td>"
+            f"<td>{e(agree)}</td><td>" + (f"<a href='{e(d.name)}/{BUNDLE_NAME}' download>zip "
+                                         f"({zp.stat().st_size / 1e6:.1f} MB)</a>" if zp.exists() else "")
+            + "</td></tr>")
+    page = (f"<!doctype html><html lang=en><head><meta charset=utf-8>{INDEX_MARK}<title>IGV validation batches</title>"
+            f"<style>body{{font:14px/1.45 system-ui,sans-serif;max-width:1300px;margin:0 auto;padding:24px 16px;"
+            f"background:#fbfaf8;color:#1d1d1b}}table{{border-collapse:collapse}}th,td{{border:1px solid #e4e1db;"
+            f"padding:6px 8px;text-align:left;vertical-align:top}}a{{color:inherit}}</style></head><body>"
+            f"<h1>IGV validation batches</h1><p>Each batch is a separate, complete report; open its summary to see "
+            f"everything. This page updates itself when a batch's summary is built or refreshed.</p>"
+            f"<table><tr><th>Batch</th><th>Last updated</th><th>Samples</th><th>Genes</th><th>Curated calls vs IGV</th>"
+            f"<th>Download</th></tr>{''.join(rows) or '<tr><td colspan=6>no batch with a summary yet</td></tr>'}"
+            f"</table><p><i>{e(DISCLAIMER)}</i></p></body></html>")
+    (root / "index.html").write_text(page)
+    return root / "index.html"
+
+
+def _refresh_index(batch: Path) -> None:
+    """Keep the parent's batch index current, but only where one was asked for (never create it uninvited)."""
+    idx = Path(batch).resolve().parent / "index.html"
+    try:
+        if idx.exists() and INDEX_MARK in idx.read_text(errors="ignore")[:500]:
+            write_index(idx.parent)
+    except OSError:
+        pass
+
+
 def find_project(out: Path) -> Path | None:
     """The project folder a run belongs to: the nearest folder above it (up to two levels, the usual
     <project>/<sample>/<check> layout) that already has a summary."""
@@ -2670,6 +2721,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
         write_bundle(out / BUNDLE_NAME, render(), root, out)
         mode["bundle"] = False
     (out / "summary.html").write_text(render())
+    _refresh_index(out)
     return out
 
 
@@ -2914,6 +2966,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--curated-calls", "--heatmap", dest="curated",
                    help="with --summarize: your curated calls (CSV/TSV with sample, gene, alteration; e.g. the table "
                         "behind a mutational-profile heatmap) to compare call by call with IGV")
+    p.add_argument("--index", help="write <folder>/index.html listing every batch folder under it that has a "
+                                    "summary.html; it then updates itself whenever a batch's summary changes")
     p.add_argument("--project", help="project folder holding all runs (e.g. reports/, with runs in "
                                       "reports/<sample>/<check>): its summary.html is updated after this check. "
                                       "Once a folder has a summary, later checks inside it update it by themselves")
@@ -2934,6 +2988,11 @@ def main(argv=None) -> int:
     try:
         if getattr(args, "annotation", None) and not Path(args.annotation).exists():
             raise InputError(f"--annotation file not found: {args.annotation}")
+        if args.index:
+            if not Path(args.index).is_dir():
+                raise InputError(f"--index folder not found: {args.index}")
+            print(f"Batch index written to {write_index(Path(args.index))}")
+            return 0
         if args.summarize:
             if args.overview and not args.regions:
                 raise InputError("--overview needs --regions (the BED of genes to draw)")
