@@ -1091,6 +1091,18 @@ IMAGE_KEY_HTML = (
     "SV).</li></ul></div></details>")
 
 
+def anchor(text: str) -> str:
+    """A bookmark id for a gene or call ('gene-X', 'call-Y') that summary links can jump to."""
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", str(text))
+
+
+def _gene_marks(genes: str, seen: set) -> str:
+    """Empty bookmarks for each gene not yet marked on this page (a call can name several genes)."""
+    new = [g for g in (x.strip() for x in (genes or "").split(",")) if g and g.upper() not in seen]
+    seen.update(g.upper() for g in new)
+    return "".join(f"<a id='gene-{anchor(g)}'></a>" for g in new)
+
+
 def write_reports(out: Path, rows: list[dict], skipped: list[dict], meta: dict) -> list[Path]:
     paired = meta["mode"] == "tumor_normal"
     tables = out / "tables"; tables.mkdir(parents=True, exist_ok=True)
@@ -1177,8 +1189,10 @@ def write_reports(out: Path, rows: list[dict], skipped: list[dict], meta: dict) 
         + f"<td class=n>{e(_caller_text(r['caller']))}</td>"
         f"<td>{e('; '.join(r['flags']) or 'none')}</td><td><span class='b {r['status']}'>{e(r['status'])}</span></td></tr>"
         for r in rows)
+    marked = set()
     cards = "".join(
-        f"<section class=card><h3>{e(r['id'])} {e(r['gene'])} <span class=m>{e(r['label'])}</span> "
+        _gene_marks(r["gene"], marked) +
+        f"<section class=card id='call-{anchor(r['id'])}'><h3>{e(r['id'])} {e(r['gene'])} <span class=m>{e(r['label'])}</span> "
         f"<span class='b {r['status']}'>{e(r['status'])}</span></h3>"
         f"<p>{e(meta['tumor_name'])}: {e(_support_text(r['tumor'], r['sv']) + _strand_text(r['tumor']))}<br>"
         + (f"{e(meta['normal_name'])}: {e(_support_text(r['normal'], r['sv']) + _strand_text(r['normal']))}<br>"
@@ -1669,7 +1683,7 @@ def write_cnv_reports(out: Path, rows: list[dict], meta: dict) -> list[Path]:
     body = "".join(f"<tr><td><b>{e(r['gene'])}</b></td><td>{e(segtxt(r))}</td><td>{r['gene_depth']}x</td>"
                    f"<td>{r['baseline_depth']}x</td><td>{e(str(r['depth_log2']))}</td><td>{e(str(r['depth_ratio']))}</td>"
                    f"<td>{e('; '.join(r['flags']) or 'none')}</td><td><b>{e(r['status'])}</b></td></tr>" for r in rows)
-    figs = "".join(f"<h3>{e(r['gene'])}</h3>" + "".join(f"<img src='{img(p)}' alt='{e(r['gene'])}'>" for p in r["figures"])
+    figs = "".join(f"<h3 id='gene-{anchor(r['gene'])}'>{e(r['gene'])}</h3>" + "".join(f"<img src='{img(p)}' alt='{e(r['gene'])}'>" for p in r["figures"])
                    for r in rows)
     page = (f"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,"
             f"initial-scale=1'><title>IGV Validator: Copy Number</title><style>body{{font:15px/1.5 system-ui,sans-serif;"
@@ -1819,7 +1833,7 @@ def _summary_rows(root: Path, empty_runs: list | None = None) -> list[dict]:
                              "_chrom": c["chrom"], "_gstart": c["start"], "_gend": c["end"], "_segs": c["segments"],
                              "_depth": depth_state(c["depth_log2"]), "_depth_log2": c["depth_log2"],
                              "_step": c.get("step"), "_parts": c.get("parts") or [], "_base": c["baseline_depth"],
-                             "_ratio": c.get("depth_ratio"),
+                             "_ratio": c.get("depth_ratio"), "_anchor": f"gene-{anchor(c['gene'])}",
                              "call": (f"{sg['cn_call']} log2 {sg['log2']:.2f}" + (" LOH" if sg["loh"] else "")) if sg
                              else "no segment",
                              "location": f"{c['chrom']}:{c['start']}-{c['end']}",
@@ -1860,6 +1874,7 @@ def _summary_rows(root: Path, empty_runs: list | None = None) -> list[dict]:
                              "caller": f"{c['alt']}/{c['depth']} ({c['vaf_pct']}%)" if c else "",
                              "flags": ";".join(v["flags"]), "status": v["status"],
                              "concordance": CONCORDANCE.get(v["status"], v["status"]), "report": report,
+                             "_anchor": f"call-{anchor(v['id'])}",
                              "figures": ";".join(str((run / f).relative_to(root)) for f in v["figures"])})
     return rows
 
@@ -1974,7 +1989,7 @@ def _agreement(r: dict) -> dict | None:
         called = f"CNV {r['call']}"
         return {"sample": r["sample"], "gene": r["gene"], "type": r["type"], "tool": r["tool"], "caller_called": called,
                 "igv_shows": r["igv_shows"], "igv_agrees": "unclear", "report": r["report"],
-                "location": r.get("location", ""), "flags": r.get("flags", ""), "caller_counts": r.get("caller", ""),
+                "location": r.get("location", ""), "flags": r.get("flags", ""), "caller_counts": r.get("caller", ""), "anchor": r.get("_anchor", ""),
                 "review": _check(review_reasons(r)),
                 "why": f"the change is too small to confirm from read depth (a normal gene also reads within "
                        f"{CNV_LOG2_TOL:g} log2 of it)"}
@@ -1989,7 +2004,7 @@ def _agreement(r: dict) -> dict | None:
     called = f"{r['type']} {r['call']}" if r["type"] != "CNV" else f"CNV {r['call']}"
     return {"sample": r["sample"], "gene": r["gene"], "type": r["type"], "tool": r["tool"], "caller_called": called,
             "igv_shows": r["igv_shows"], "igv_agrees": agrees, "why": why, "report": r["report"],
-            "location": r.get("location", ""), "flags": r.get("flags", ""), "caller_counts": r.get("caller", ""),
+            "location": r.get("location", ""), "flags": r.get("flags", ""), "caller_counts": r.get("caller", ""), "anchor": r.get("_anchor", ""),
             "review": _check((["IGV does not agree"] if agrees == "no" else []) + review_reasons(r),
                                   ["unclear from the depth; confirm on the depth plot"]
                                   if r["type"] == "CNV" and agrees == "unclear" else None)}
@@ -2358,7 +2373,8 @@ def interactive_sites(plan: list[dict]) -> list[str]:
 
 
 def make_interactive(plan: list[dict], rows: list[dict], out: Path, annotation=None) -> tuple[dict, str]:
-    """One igv-reports page per sample (zoom, scroll, click reads). Returns {sample: html path} and a note."""
+    """One igv-reports page per sample and gene (zoom, scroll, click reads). Returns {(sample, GENE): html path}
+    and a note."""
     import importlib.util
     import subprocess
     if importlib.util.find_spec("igv_reports") is None:
@@ -2368,12 +2384,13 @@ def make_interactive(plan: list[dict], rows: list[dict], out: Path, annotation=N
     odir.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix="igv_interactive_"))
     try:
-        for smp in sorted({p["sample"] for p in plan}):
-            mine = [p for p in plan if p["sample"] == smp]
+        for key in sorted({(p["sample"], p["gene"]) for p in plan}):
+            smp, gene = key
+            mine = [p for p in plan if (p["sample"], p["gene"]) == key]
             bam, ref = mine[0]["bam"], mine[0]["ref"]
             if not bam or not ref:
-                notes.append(f"{smp}: no BAM/reference recorded"); continue
-            safe = re.sub(r"[^A-Za-z0-9._-]+", "_", smp)
+                notes.append(f"{smp} {gene}: no BAM/reference recorded"); continue
+            safe = re.sub(r"[^A-Za-z0-9._-]+", "_", f"{smp}_{gene}")
             sites = tmp / f"{safe}_sites.bed"
             sites.write_text("\n".join(interactive_sites(mine)) + "\n")
             calls = tmp / f"{safe}_calls.bed"
@@ -2389,7 +2406,8 @@ def make_interactive(plan: list[dict], rows: list[dict], out: Path, annotation=N
             total = sum(p["end"] - p["start"] + 2 * INTERACTIVE_FLANK for p in mine)
             frac = interactive_subsample(total, depth)
             dst = odir / f"{safe}.html"
-            header = (f"<p style='font:14px sans-serif;background:#fff6d6;padding:8px'><b>{html.escape(smp)}</b>: "
+            header = (f"<p style='font:14px sans-serif;background:#fff6d6;padding:8px'><b>{html.escape(smp)} · "
+                      f"{html.escape(gene)}</b>: "
                       f"zoom with + / -, drag to scroll, click a read for details. This page contains read data: keep it "
                       f"with the BAMs; do not email or upload it."
                       + (f" Reads are subsampled to {frac:.0%} to keep the page small." if frac < 1 else "") + "</p>")
@@ -2398,14 +2416,14 @@ def make_interactive(plan: list[dict], rows: list[dict], out: Path, annotation=N
             dst.unlink(missing_ok=True)   # never leave an old page behind when this run fails
             cmd = [sys.executable, "-m", "igv_reports.report", str(sites), "--fasta", str(ref), "--tracks", *tracks,
                    "--flanking", str(INTERACTIVE_FLANK), "--standalone", "--exclude-flags", "1792",
-                   "--title", f"{smp} interactive IGV", "--header", str(head), "--output", str(dst)]
+                   "--title", f"{smp} {gene} interactive IGV", "--header", str(head), "--output", str(dst)]
             if frac < 1:
                 cmd += ["--subsample", str(frac)]
             res = subprocess.run(cmd, capture_output=True, text=True)
             if res.returncode == 0 and dst.exists():
-                done[smp] = dst
+                done[(smp, gene.upper())] = dst
             else:
-                notes.append(f"{smp}: igv-reports failed ({(res.stderr or res.stdout).strip().splitlines()[-1:]})")
+                notes.append(f"{smp} {gene}: igv-reports failed ({(res.stderr or res.stdout).strip().splitlines()[-1:]})")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return done, "; ".join(notes)
@@ -2441,24 +2459,27 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
     if curated:
         with open(out / "curated_vs_igv.tsv", "w", newline="") as fh:
             w = csv.DictWriter(fh, fieldnames=["sample", "gene", "curated", "agree", "plain", "igv_found", "match",
-                                               "review", "why", "details", "report", "image"], delimiter="\t")
+                                               "review", "why", "details", "report", "image"], delimiter="\t",
+                               extrasaction="ignore")
             w.writeheader(); w.writerows(cells)
     acols = ["sample", "gene", "type", "tool", "caller_called", "igv_shows", "igv_agrees", "review", "why",
              "location", "caller_counts", "flags", "report"]
     with open(out / "igv_agreement.tsv", "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=acols, delimiter="\t"); w.writeheader(); w.writerows(agree)
+        w = csv.DictWriter(fh, fieldnames=acols, delimiter="\t", extrasaction="ignore")
+        w.writeheader(); w.writerows(agree)
 
     e = html.escape
     relp = lambda p: e(str(Path(os.path.relpath(p, out))))          # a path written under `out`
     rel = lambda p: e(str(Path(os.path.relpath(root / p, out))))     # a path relative to `root`
     green, red, grey = "#c6e8d2", "#f3c7a8", "#ecebe7"
 
-    def links(smp, gene, report):
-        bits = [f"<a href='{rel(report)}'>report</a>"] if report else []
-        if (smp, gene.upper()) in overviews:
-            bits.append(f"<a href='{relp(overviews[(smp, gene.upper())])}'>overview</a>")
-        if smp in interactive_pages:
-            bits.append(f"<a href='{relp(interactive_pages[smp])}'>interactive</a>")
+    def links(smp, gene, report, mark=""):
+        key = (smp, gene.upper())
+        bits = [f"<a href='{rel(report)}{'#' + e(mark) if mark else ''}'>report</a>"] if report else []
+        if key in overviews:
+            bits.append(f"<a href='{relp(overviews[key])}'>overview</a>")
+        if key in interactive_pages:
+            bits.append(f"<a href='{relp(interactive_pages[key])}'>interactive</a>")
         return " · ".join(bits)
 
     def thumb(c):
@@ -2471,9 +2492,10 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
         return f"<details><summary>details</summary><small>{body}</small></details>" if body else ""
 
     it_html = ("" if not interactive else
-               "<p><b>Interactive views</b> (zoom, scroll, click reads): " + (" · ".join(
-                   f"<a href='{relp(pg)}'>{e(smp)}</a>" for smp, pg in sorted(interactive_pages.items()))
-                   or "none written") + (f" <i>({e(it_note)})</i>" if it_note else "") +
+               "<p><b>Interactive views</b> (zoom, scroll, click reads): " + ("; ".join(
+                   f"{e(smp)}: " + " · ".join(f"<a href='{relp(pg)}'>{e(g)}</a>" for (s_, g), pg in
+                                              sorted(interactive_pages.items()) if s_ == smp)
+                   for smp in sorted({s_ for s_, _ in interactive_pages})) or "none written") + (f" <i>({e(it_note)})</i>" if it_note else "") +
                ". Each page contains read data: keep it with the BAMs; do not email or upload it.</p>")
     curated_html = "" if not curated else (
         f"<h2>Curated calls vs IGV</h2><p><b>{sum(c['agree'] == 'Yes' for c in cells)} agree, "
@@ -2486,7 +2508,8 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             + details([("Verdict", c["match"]), ("Review", c["review"]), ("Reason", c["why"]),
                        ("IGV found", c["igv_found"]), ("More", c["details"] if c["details"] != c["why"] else "")])
             + f"</td><td style='background:{green if c['agree'] == 'Yes' else red if c['agree'] == 'No' else grey}'>"
-            f"<b>{e(c['agree'])}</b></td><td>{thumb(c)}{links(c['sample'], c['gene'], c['report'])}</td></tr>"
+            f"<b>{e(c['agree'])}</b></td><td>{thumb(c)}"
+            f"{links(c['sample'], c['gene'], c['report'], 'gene-' + anchor(c['gene']))}</td></tr>"
             for c in sorted(cells, key=lambda c: (c["agree"] != "No", c["gene"], c["sample"]))) + "</table></div>")
     warning = ("<div style='border:2px solid #d9a400;background:#fff6d6;padding:10px 14px;margin:12px 0'>"
                "<b>Agree? is an automatic first pass and can be wrong</b>, especially for copy number (reference "
@@ -2510,7 +2533,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             + details([("Reason", a["why"]), ("Review", a["review"]), ("Location", a["location"]),
                        ("Caller's own counts", a["caller_counts"]), ("Flags", a["flags"])])
             + f"</td><td style='background:{acolor[a['igv_agrees']]}'><b>{e(a['igv_agrees'])}</b></td>"
-            f"<td>{links(a['sample'], a['gene'], a['report'])}</td></tr>"
+            f"<td>{links(a['sample'], a['gene'], a['report'], a.get('anchor', ''))}</td></tr>"
             for a in sorted(agree, key=lambda a: ({"no": 0, "in reads, recurrent": 1, "unclear": 2, "yes": 3}
                                                   [a["igv_agrees"]], a["gene"], a["sample"]))) + "</table></div>"
         + (f"<p><b>Runs with no calls in the selected genes:</b> "

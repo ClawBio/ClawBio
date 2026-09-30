@@ -204,7 +204,7 @@ python skills/igv-validator/igv_validator.py \
 # One summary over many runs (e.g. igv_reports/<sample>/{snv,sv,cnv}/): sample x gene grid + table
 python skills/igv-validator/igv_validator.py --summarize igv_reports/
 # Zoomable pages (igv-reports; pip install igv-reports): add --interactive --regions genes.bed to a summary.
-#   One page per sample in interactive/: zoom, scroll, click reads. The pages embed reads: keep them
+#   One page per sample and gene in interactive/: zoom, scroll, click reads. The pages embed reads: keep them
 #   with the BAMs (large regions or deep samples are subsampled to keep pages near 25 MB)
 # Draw genes (exons, names) in every IGV screenshot: add --annotation to any run or summary
 #   e.g. --annotation gencode.v44.basic.annotation.gtf.gz (only the shown regions are loaded)

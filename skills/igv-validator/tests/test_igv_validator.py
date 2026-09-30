@@ -1577,10 +1577,10 @@ def test_interactive_page_is_written_and_linked(summary_dir, tmp_path):
     out = tmp_path / "i"
     r = run_cli("--summarize", root, "--heatmap", hm, "--interactive", "--regions", bed, "--output", out)
     assert r.returncode == 0, r.stderr
-    page = out / "interactive" / "demo_tumor.html"
+    page = out / "interactive" / "demo_tumor_HOMDEL.html"      # one page per sample and gene
     assert page.exists() and page.stat().st_size > 10_000
     html_ = (out / "summary.html").read_text()
-    assert "interactive/demo_tumor.html" in html_ and "contains read data" in html_
+    assert "interactive/demo_tumor_HOMDEL.html" in html_ and "contains read data" in html_
 
 
 def test_curated_calls_flag_and_heatmap_alias(summary_dir, tmp_path):
@@ -1598,3 +1598,21 @@ def test_raw_calls_keep_their_details(summary_dir):
     page = (root / "summary.html").read_text()
     assert "Raw calls vs IGV" in page and "Caller&#x27;s own counts" in page
     assert "sample x gene grid" not in page and "All calls</h2>" not in page     # the old duplicate views are gone
+
+
+# ── Links land on the gene or call that was clicked ───────────────────────────
+
+def test_reports_have_bookmarks_per_gene_and_call(demo_out, cnv_result):
+    cnv_out, _ = cnv_result
+    v = (demo_out / "report.html").read_text()
+    assert "id='call-V1'" in v and "id='gene-DEMO1'" in v
+    assert "id='gene-HOMDEL'" in (cnv_out / "report.html").read_text()
+
+
+def test_summary_links_jump_to_the_gene(summary_dir, tmp_path):
+    root, _ = summary_dir
+    cur = _heatmap(tmp_path, [("demo_tumor", "HOMDEL", "DEL")])
+    out = tmp_path / "a"
+    assert run_cli("--summarize", root, "--curated-calls", cur, "--output", out).returncode == 0
+    page = (out / "summary.html").read_text()
+    assert "report.html#gene-HOMDEL" in page and "report.html#call-V1" in page
