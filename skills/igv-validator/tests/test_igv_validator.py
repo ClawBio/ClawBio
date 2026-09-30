@@ -1647,10 +1647,17 @@ def test_whole_report_is_zipped_by_default_and_linked(summary_dir, tmp_path):
     assert "light" not in page.lower() and "window.print" not in page
 
 
-def test_no_bundle_skips_the_zip(summary_dir, tmp_path):
-    work = _bundle_run(summary_dir, tmp_path, "--no-bundle")
+def test_no_bundle_makes_no_new_zip_and_keeps_an_old_one(summary_dir, tmp_path):
+    root, _ = summary_dir
+    work = tmp_path / "rep"
+    shutil.copytree(root, work)
+    (work / "igv_validation_full.zip").unlink(missing_ok=True)
+    assert run_cli("--summarize", work, "--no-bundle").returncode == 0
     assert not (work / "igv_validation_full.zip").exists()
     assert "Download" not in (work / "summary.html").read_text()
+    assert run_cli("--summarize", work).returncode == 0                   # makes one
+    assert run_cli("--summarize", work, "--no-bundle").returncode == 0    # keeps it, with its date
+    assert "made 20" in (work / "summary.html").read_text()
 
 
 def test_old_bundle_option_still_works(summary_dir, tmp_path):
@@ -1671,3 +1678,51 @@ def test_flagged_variant_sentence_says_why_not_that_reads_are_missing(tmp_path):
     c = _compare(tmp_path, [r], [("S", "GENEC", "SNV")])["GENEC"]
     assert c["agree"] == "No" and "5 of 52 reads carry" in c["plain"] and "one strand" in c["plain"]
     assert "do not support" not in c["plain"]
+
+
+# ── One page that links everything, kept up to date after every check ─────────
+
+def test_a_curated_row_links_every_report_for_its_gene(tmp_path):
+    snv = _snv_row("S"); snv.update(report="S/snv/report.html", _anchor="call-V1")
+    cnv = _cn_row("S", "GENEC", "neutral", 0.0, 50_000_000, "neutral")
+    cnv.update(report="S/cnv/report.html", _depth_log2=0.0)
+    c = _compare(tmp_path, [snv, cnv], [("S", "GENEC", "WT")])["GENEC"]
+    assert [lab for lab, _ in c["reports"]] == ["CNV", "SNV"]
+
+
+def test_page_lists_every_run_including_empty_ones(tmp_path):
+    bed = tmp_path / "g.bed"
+    bed.write_text("demo1\t100\t200\tEMPTYGENE\n")
+    root = tmp_path / "rep"
+    assert run_cli("--vcf", DEMO / "demo_calls.vcf", "--tumor", DEMO / "demo_tumor.bam", "--tumor-name", "S1",
+                   "--regions", bed, "--no-igv", "--output", root / "S1" / "sv").returncode == 0
+    assert run_cli("--demo-cnv", "--no-igv", "--tumor-name", "S1", "--output", root / "S1" / "cnv").returncode == 0
+    assert run_cli("--summarize", root, "--no-bundle").returncode == 0
+    page = (root / "summary.html").read_text()
+    top = page[page.index("Reports"):page.index("Reports") + 400]
+    assert "S1/sv/report.html" in top and "S1/cnv/report.html" in top
+
+
+def test_each_check_refreshes_the_project_page(tmp_path):
+    proj = tmp_path / "proj"
+    r = run_cli("--demo-cnv", "--no-igv", "--output", proj / "S" / "cnv", "--project", proj)
+    assert r.returncode == 0, r.stderr
+    assert (proj / "summary.html").exists() and (proj / "summary_settings.json").exists()
+    # a later check in the same project, without --project: the page updates by itself
+    r = run_cli("--demo", "--no-igv", "--tumor-name", "S", "--output", proj / "S" / "snv")
+    assert r.returncode == 0, r.stderr
+    assert "S/snv/report.html" in (proj / "summary.html").read_text()
+
+
+def test_quick_refresh_keeps_images_pages_and_zip_already_built(summary_dir, tmp_path):
+    root, _ = summary_dir
+    work = tmp_path / "rep"
+    shutil.copytree(root, work)
+    (work / "overview").mkdir(exist_ok=True)
+    (work / "overview" / "demo_tumor_HOMDEL.png").write_bytes((DEMO.parent / "demo" / "demo_ref.fa").read_bytes()[:10])
+    cur = _heatmap(tmp_path, [("demo_tumor", "HOMDEL", "DEL")])
+    assert run_cli("--summarize", work, "--curated-calls", cur).returncode == 0      # full summary: makes the zip
+    iv.refresh_summary(work)                                                        # quick: no zip, no IGV
+    page = (work / "summary.html").read_text()
+    assert "overview/demo_tumor_HOMDEL.png" in page and "igv_validation_full.zip" in page
+    assert "Curated calls vs IGV" in page                                           # remembered from settings

@@ -240,7 +240,11 @@ python skills/igv-validator/igv_validator.py --cnv sampleA.called.seg --cnv-samp
 ```
 
 **5. Summarize many samples.** Reads every run under a folder (`reports/<sample>/{snv,sv,cnv}`) and writes one
-page: each raw call vs the reads (`igv_agreement.tsv`), plus `summary.tsv`.
+page, `reports/summary.html`, that links everything: every check of every sample (a *Reports* line at the top,
+and each row's own reports, opening at its gene), images and interactive views. Also `igv_agreement.tsv` and
+`summary.tsv`. **The page keeps itself up to date:** give the first check `--project reports`, and from then on
+every check inside `reports/` refreshes `summary.html` when it finishes (in a second or two: tables and links;
+overview images, interactive pages and the zip are rebuilt only by a full `--summarize`, and stay linked).
 - Prompt: *"Summarize all igv-validator runs in `reports/`."*
 ```bash
 python skills/igv-validator/igv_validator.py --summarize reports/
@@ -312,7 +316,8 @@ for anything missing (file locations, reference, tumor-only or paired).
 | `--caller-sample` | VCF column whose caller counts to compare (default: the tumor's sample name) |
 | `--tumor-name`, `--normal-name` | labels in reports and images (use your sample names) |
 | `--cnv`, `--cnv-sample` | copy-number mode: segment file, and the sample in a multi-sample file |
-| `--summarize` | build the summary page over every run in a folder |
+| `--summarize` | build the summary page over every run in a folder (full: with images, interactive pages, zip) |
+| `--project` | project folder of all runs: its `summary.html` is refreshed after this check (automatic for later checks once the folder has a summary) |
 | `--curated-calls` (`--heatmap`) | curated table to compare with IGV (sample, gene, alteration) |
 | `--overview` | with `--summarize` and `--regions`: one IGV image per gene and sample |
 | `--interactive` | with `--summarize` and `--regions`: zoomable pages per sample and gene (needs igv-reports; contain read data) |
@@ -432,12 +437,13 @@ chr7    140719326  140924929  BRAF
 **3. Check each sample.** One folder per sample and call type, `reports/<sample>/{snv,sv,cnv}`:
 ```bash
 for s in sampleA sampleB; do
-  V="python skills/igv-validator/igv_validator.py --tumor bams/$s.bam --tumor-name $s --reference hg38.fa"
+  V="python skills/igv-validator/igv_validator.py --tumor bams/$s.bam --tumor-name $s --reference hg38.fa --project reports"
   $V --vcf vcf/$s.mutect2.vcf --regions my_genes.bed --output reports/$s/snv      # SNVs/indels
   $V --vcf vcf/$s.survivor.vcf --regions my_genes.bed --output reports/$s/sv      # SVs
   $V --cnv cnv/$s.called.seg --cnv-sample $s --regions my_genes.bed --output reports/$s/cnv   # copy number
 done
 ```
+`--project reports` keeps `reports/summary.html` up to date after every check; open it to reach every report.
 - Tumor + normal: add `--normal bams/$s.normal.bam`. Tumor-only: leave it out.
 - Gene names instead of a BED: `--genes KRAS,BRAF` (SNV VCFs annotated by VEP, SnpEff or ANNOVAR only).
 - Gene track in every screenshot: add `--annotation gencode.v44.basic.annotation.gtf.gz`.

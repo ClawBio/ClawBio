@@ -2254,6 +2254,8 @@ def curated_vs_igv(rows: list[dict], curated: Path) -> list[dict]:
                                                  for r, (_, v, _) in zip(mine, [_evidence(x) for x in mine])) else None),
                     "report": next((r.get("report", "") for r in mine), ""),
                     "agree": {"matches": "Yes", "differs": "No"}.get(match, "Not checked"),
+                    "reports": sorted({(Path(r["report"]).parent.name.upper(), r["report"])
+                                       for r in mine if r.get("report")}),
                     "plain": _plain_cell(mine, ev_all, wanted, match),
                     "image": next((f for r in mine for f in (r.get("figures") or "").split(";")
                                    if f.endswith(".png") and "_igv" not in f), "")})
@@ -2435,6 +2437,29 @@ def make_interactive(plan: list[dict], rows: list[dict], out: Path, annotation=N
 
 
 BUNDLE_NAME = "igv_validation_full.zip"
+SETTINGS_NAME = "summary_settings.json"   # marks a project folder; remembers the curated calls for quick refreshes
+
+
+def find_project(out: Path) -> Path | None:
+    """The project folder a run belongs to: the nearest folder above it (up to two levels, the usual
+    <project>/<sample>/<check> layout) that already has a summary."""
+    for up in (out.parent, out.parent.parent):
+        if (up / SETTINGS_NAME).exists():
+            return up
+    return None
+
+
+def refresh_summary(project: Path) -> Path:
+    """Quick update of <project>/summary.html after a check: tables, sentences and links, reusing the overview
+    images, interactive pages and zip already built (no IGV, no zipping)."""
+    project = Path(project)
+    try:
+        settings = json.loads((project / SETTINGS_NAME).read_text())
+    except (OSError, ValueError):
+        settings = {}
+    cur = settings.get("curated")
+    return summarize(project, curated=Path(cur) if cur and Path(cur).exists() else None,
+                     overview=False, interactive=False, bundle=False)
 
 
 def write_bundle(zpath: Path, page: str, root: Path, out: Path) -> Path:
@@ -2475,10 +2500,19 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
         w = csv.DictWriter(fh, fieldnames=cols, delimiter="\t", extrasaction="ignore"); w.writeheader(); w.writerows(rows)
     overviews, ov_note = ({}, "")
     interactive_pages, it_note = {}, ""
+    settings = {"curated": str(Path(curated).resolve()) if curated else None}
+    (out / SETTINGS_NAME).write_text(json.dumps(settings, indent=1) + "\n")
     if regions and overview:
         overviews, ov_note = take_overviews(overview_plan(rows, regions), out, igv_path, timeout, annotation)
     if regions and interactive:
         interactive_pages, it_note = make_interactive(overview_plan(rows, regions), rows, out, annotation)
+    safe_name = lambda smp, g: re.sub(r"[^A-Za-z0-9._-]+", "_", f"{smp}_{g}")
+    for smp, g in sorted({(r["sample"], r["gene"]) for r in rows}):   # link what earlier summaries already built
+        png, page_ = out / "overview" / f"{safe_name(smp, g.upper())}.png", out / "interactive" / f"{safe_name(smp, g.upper())}.html"
+        if (smp, g.upper()) not in overviews and png.exists():
+            overviews[(smp, g.upper())] = png
+        if (smp, g.upper()) not in interactive_pages and page_.exists():
+            interactive_pages[(smp, g.upper())] = page_
     agree = [a for a in (_agreement(r) for r in rows) if a]
     cells = curated_vs_igv(rows, curated) if curated else []
     if curated:
@@ -2500,9 +2534,13 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
 
     mode = {"bundle": False}   # True while rendering the copy that goes inside the zip
 
-    def links(smp, gene, report, mark=""):
+    def links(smp, gene, report, mark="", reports=None):
         key = (smp, gene.upper())
-        bits = [f"<a href='{rel(report)}{'#' + e(mark) if mark else ''}'>report</a>"] if report else []
+        tail = f"#{e(mark)}" if mark else ""
+        if reports:   # every check run on this sample and gene, each opening at the gene
+            bits = [f"<a href='{rel(rp)}{tail}'>{e(lab.lower())} report</a>" for lab, rp in reports]
+        else:
+            bits = [f"<a href='{rel(report)}{tail}'>report</a>"] if report else []
         if key in overviews:
             bits.append(f"<a href='{relp(overviews[key])}'>overview</a>")
         if key in interactive_pages:
@@ -2540,7 +2578,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             f"summary</a></p></body></html>")
         index_pages[smp] = idx
     def render():
-        it_html = ("" if not interactive else
+        it_html = ("" if not interactive_pages else
                    "<p><b>Interactive views</b> (zoom, scroll, click reads): " + (" · ".join(
                        f"<a href='{relp(pg)}'>{e(smp)}</a>" for smp, pg in sorted(index_pages.items())) or "none written") + (f" <i>({e(it_note)})</i>" if it_note else "") +
                    ". Each page contains read data: keep it with the BAMs; do not email or upload it.</p>")
@@ -2556,7 +2594,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
                            ("IGV found", c["igv_found"]), ("More", c["details"] if c["details"] != c["why"] else "")])
                 + f"</td><td style='background:{green if c['agree'] == 'Yes' else red if c['agree'] == 'No' else grey}'>"
                 f"<b>{e(c['agree'])}</b></td><td>{thumb(c)}"
-                f"{links(c['sample'], c['gene'], c['report'], 'gene-' + anchor(c['gene']))}</td></tr>"
+                f"{links(c['sample'], c['gene'], c['report'], 'gene-' + anchor(c['gene']), c.get('reports'))}</td></tr>"
                 for c in sorted(cells, key=lambda c: (c["agree"] != "No", c["gene"], c["sample"]))) + "</table></div>")
         warning = ("<div style='border:2px solid #d9a400;background:#fff6d6;padding:10px 14px;margin:12px 0'>"
                    "<b>Agree? is an automatic first pass and can be wrong</b>, especially for copy number (reference "
@@ -2603,20 +2641,31 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
                 + f"<p><i>{e(DISCLAIMER)}</i></p></body></html>")
         return page
 
+    runs = {}
+    for r in rows:
+        if r.get("report"):
+            runs.setdefault(r["sample"], {})[Path(r["report"]).parent.name.upper()] = r["report"]
+    for smp, kind, rep_ in empty_runs:
+        runs.setdefault(smp, {})[Path(rep_).parent.name.upper()] = rep_
+    runs_html = ("<p><b>Reports</b> (every check run): " + "; ".join(
+        f"{e(smp)}: " + " · ".join(f"<a href='{rel(rp)}'>{e(lab)}</a>" for lab, rp in sorted(kinds.items()))
+        for smp, kinds in sorted(runs.items())) + "</p>") if runs else ""
+
     def top_html():
-        """Above the tables: where this page lives on the server, and the download of the whole report."""
+        """Above the tables: where this page lives, the download of the whole report, and every report."""
         if mode["bundle"]:
-            return ""
+            return runs_html
         zp = out / BUNDLE_NAME
+        made = datetime.fromtimestamp(zp.stat().st_mtime).strftime("%Y-%m-%d %H:%M") if zp.exists() else ""
         return (f"<p><small>This page: <code>{e(str((out / 'summary.html').resolve()))}</code></small>"
                 + (f"<br><b>Download:</b> <a href='{e(BUNDLE_NAME)}' download>the whole report "
-                   f"({zp.stat().st_size / 1e6:.1f} MB)</a>: every page, image and interactive view; unzip and open "
-                   f"summary.html. It contains read data: keep it where the BAMs may be." if zp.exists() else "")
-                + "</p>")
+                   f"({zp.stat().st_size / 1e6:.1f} MB, made {made})</a>: every page, image and interactive view; "
+                   f"unzip and open summary.html. It contains read data: keep it where the BAMs may be."
+                   if zp.exists() else "") + "</p>" + runs_html)
 
     (out / "igv_validation_light.zip").unlink(missing_ok=True)   # from older versions of this skill
-    (out / BUNDLE_NAME).unlink(missing_ok=True)                  # a new run replaces the old download
     if bundle:
+        (out / BUNDLE_NAME).unlink(missing_ok=True)              # a new summary replaces the old download
         mode["bundle"] = True
         write_bundle(out / BUNDLE_NAME, render(), root, out)
         mode["bundle"] = False
@@ -2865,6 +2914,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--curated-calls", "--heatmap", dest="curated",
                    help="with --summarize: your curated calls (CSV/TSV with sample, gene, alteration; e.g. the table "
                         "behind a mutational-profile heatmap) to compare call by call with IGV")
+    p.add_argument("--project", help="project folder holding all runs (e.g. reports/, with runs in "
+                                      "reports/<sample>/<check>): its summary.html is updated after this check. "
+                                      "Once a folder has a summary, later checks inside it update it by themselves")
     p.add_argument("--no-bundle", action="store_true",
                    help="with --summarize: do not write igv_validation_full.zip (by default the whole report is "
                         "zipped next to summary.html and linked from the page for download)")
@@ -2897,6 +2949,13 @@ def main(argv=None) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 2
     print(f"Report written to {out / 'report.md'}")
+    project = Path(args.project) if args.project else find_project(Path(out))
+    if project:
+        try:
+            refresh_summary(project)
+            print(f"Summary updated: {project / 'summary.html'}")
+        except (InputError, OSError, ValueError) as e:   # the check itself succeeded; say why the page did not
+            print(f"Note: summary not updated ({e})", file=sys.stderr)
     return 0
 
 
