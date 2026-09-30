@@ -264,12 +264,15 @@ python skills/igv-validator/igv_validator.py --summarize reports/ --curated-call
   --overview --interactive --regions my_genes.bed --annotation gencode.v44.basic.annotation.gtf.gz
 ```
 
-**8. Share the results.** The page shows its own path (to open it on the server), a "Print / save as PDF" button,
-and with `--bundle` download links: `light` (tables, sentences and depth plots, no read data) or `full`
-(everything, including screenshots and interactive pages; contains read data, so keep it where the BAMs may be).
-- Prompt: *"Make a light download of the summary for my PI."*
+**8. Keep and share the report.** Every summary is saved in the folder you summarized (`summary.html`, the
+tables, `overview/`, `interactive/`), and the whole report is also zipped there as `igv_validation_full.zip`,
+linked from the top of the page as a download, next to the page's own path on the server. Unzip it anywhere and
+open `summary.html`: every page, image and interactive view works offline. It contains read data, so keep it
+where the BAMs may be. `--no-bundle` skips the zip.
+- Prompt: *"Summarize `reports/` and give me the download of the whole report for my PI."*
 ```bash
-python skills/igv-validator/igv_validator.py --summarize reports/ --curated-calls curated.csv --bundle light
+python skills/igv-validator/igv_validator.py --summarize reports/ --curated-calls curated.csv
+# -> reports/summary.html and reports/igv_validation_full.zip
 ```
 
 **9. Counts only, no IGV.** For compute nodes without a display: counts, flags and reports, no screenshots.
@@ -314,7 +317,7 @@ for anything missing (file locations, reference, tumor-only or paired).
 | `--overview` | with `--summarize` and `--regions`: one IGV image per gene and sample |
 | `--interactive` | with `--summarize` and `--regions`: zoomable pages per sample and gene (needs igv-reports; contain read data) |
 | `--annotation` | GTF/GFF3/BED of genes (e.g. GENCODE) drawn as a genes track in every image |
-| `--bundle light\|full\|both` | with `--summarize`: downloadable zips linked from the page |
+| `--no-bundle` | with `--summarize`: skip `igv_validation_full.zip` (made by default: the whole report, linked from the page) |
 | `--no-igv` | counts and reports only |
 | `--igv-path`, `--igv-timeout` | IGV to use (found automatically) and how long to wait for it (default 300 s) |
 | `--output` | output folder |

@@ -1624,42 +1624,44 @@ def test_summary_links_jump_to_the_gene(summary_dir, tmp_path):
 
 # ── Sharing: on-server location, download bundles, print to PDF ───────────────
 
-def _bundle_run(summary_dir, tmp_path, which):
+def _bundle_run(summary_dir, tmp_path, *flags):
     root, _ = summary_dir
     work = tmp_path / "rep"
     shutil.copytree(root, work)
     cur = _heatmap(tmp_path, [("demo_tumor", "HOMDEL", "DEL")])
-    r = run_cli("--summarize", work, "--curated-calls", cur, "--bundle", which)
+    r = run_cli("--summarize", work, "--curated-calls", cur, *flags)
     assert r.returncode == 0, r.stderr
     return work
 
 
-def test_light_bundle_has_no_read_data(summary_dir, tmp_path):
+def test_whole_report_is_zipped_by_default_and_linked(summary_dir, tmp_path):
     import zipfile
-    work = _bundle_run(summary_dir, tmp_path, "light")
-    z = zipfile.ZipFile(work / "igv_validation_light.zip")
-    names = z.namelist()
-    assert "summary.html" in names and any(n.endswith(".png") and "/cnv/" in n for n in names)   # depth plots
-    assert not any(k in n for n in names for k in ("interactive/", "figures/igv", "overview/", "report.html", ".bam"))
-    page = z.read("summary.html").decode()
-    assert "Light version" in page and "This page:" not in page and "Download" not in page
-
-
-def test_full_bundle_keeps_everything_and_page_links_both(summary_dir, tmp_path):
-    import zipfile
-    work = _bundle_run(summary_dir, tmp_path, "both")
+    work = _bundle_run(summary_dir, tmp_path)
     names = zipfile.ZipFile(work / "igv_validation_full.zip").namelist()
     assert "summary.html" in names and any(n.endswith("report.html") for n in names)
     assert not any(n.endswith(".zip") for n in names)
+    inside = zipfile.ZipFile(work / "igv_validation_full.zip").read("summary.html").decode()
+    assert "Download" not in inside and "This page:" not in inside        # the zipped copy has no server links
     page = (work / "summary.html").read_text()
-    assert "igv_validation_light.zip" in page and "igv_validation_full.zip" in page and "contains read data" in page
+    assert "igv_validation_full.zip" in page and "contains read data" in page
+    assert "light" not in page.lower() and "window.print" not in page
 
 
-def test_page_shows_its_location_and_prints_cleanly(summary_dir):
+def test_no_bundle_skips_the_zip(summary_dir, tmp_path):
+    work = _bundle_run(summary_dir, tmp_path, "--no-bundle")
+    assert not (work / "igv_validation_full.zip").exists()
+    assert "Download" not in (work / "summary.html").read_text()
+
+
+def test_old_bundle_option_still_works(summary_dir, tmp_path):
+    work = _bundle_run(summary_dir, tmp_path, "--bundle", "both")
+    assert (work / "igv_validation_full.zip").exists() and not (work / "igv_validation_light.zip").exists()
+
+
+def test_page_shows_its_location(summary_dir):
     root, _ = summary_dir
     page = (root / "summary.html").read_text()
     assert "This page:" in page and str((root / "summary.html").resolve()) in page
-    assert "Print / save as PDF" in page and "@media print{.noprint{display:none}" in page
 
 
 def test_flagged_variant_sentence_says_why_not_that_reads_are_missing(tmp_path):

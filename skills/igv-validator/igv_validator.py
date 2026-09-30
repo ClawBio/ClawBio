@@ -2434,33 +2434,29 @@ def make_interactive(plan: list[dict], rows: list[dict], out: Path, annotation=N
     return done, "; ".join(notes)
 
 
-def write_bundle(zpath: Path, page: str, root: Path, out: Path, light: bool, cells: list[dict]) -> Path:
-    """Zip the summary for download, keeping the relative links working. Light: the page, the depth plots it
-    shows and the two comparison tables (no reads). Full: every file of every run, plus the summary's own files."""
+BUNDLE_NAME = "igv_validation_full.zip"
+
+
+def write_bundle(zpath: Path, page: str, root: Path, out: Path) -> Path:
+    """Zip the whole report for download or archiving, keeping the relative links working: every file of every
+    run under `root`, plus the summary's own files (tables, overview images, interactive pages)."""
     import zipfile
     base = Path(os.path.commonpath([root.resolve(), out.resolve()]))
     arc = lambda p: str(Path(p).resolve().relative_to(base))
     page_arc = arc(out / "summary.html")
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr(page_arc, page)
-        tables = [out / t for t in ("curated_vs_igv.tsv", "igv_agreement.tsv") if (out / t).exists()]
-        if light:
-            pics = {root / c["image"] for c in cells if c.get("image") and "/cnv/" in c["image"]
-                    and "_igv" not in c["image"] and (root / c["image"]).exists()}
-            for f in sorted(pics) + tables:
-                z.write(f, arc(f))
-        else:
-            seen = {page_arc}
-            for top in {root.resolve(), out.resolve()}:
-                for f in sorted(top.rglob("*")):
-                    if f.is_file() and f.suffix != ".zip" and arc(f) not in seen:
-                        seen.add(arc(f)); z.write(f, arc(f))
+        seen = {page_arc}
+        for top in {root.resolve(), out.resolve()}:
+            for f in sorted(top.rglob("*")):
+                if f.is_file() and f.suffix != ".zip" and arc(f) not in seen:
+                    seen.add(arc(f)); z.write(f, arc(f))
     return zpath
 
 
 def summarize(root: Path, out: Path | None = None, regions: Path | None = None, igv_path=None,
               timeout: int = 300, curated: Path | None = None, annotation: Path | None = None,
-              overview: bool = True, interactive: bool = False, bundle: str | None = None) -> Path:
+              overview: bool = True, interactive: bool = False, bundle: bool = True) -> Path:
     """One page over every igv-validator run under `root`: curated calls vs IGV (with --curated-calls), then the
     raw calls vs IGV; the images, per-sample reports and TSV files hold every detail."""
     root = Path(root)
@@ -2502,11 +2498,9 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
     rel = lambda p: e(str(Path(os.path.relpath(root / p, out))))     # a path relative to `root`
     green, red, grey = "#c6e8d2", "#f3c7a8", "#ecebe7"
 
-    mode = {"light": False, "bundle": False}   # light: no reads, screenshots or paths; bundle: inside a zip
+    mode = {"bundle": False}   # True while rendering the copy that goes inside the zip
 
     def links(smp, gene, report, mark=""):
-        if mode["light"]:
-            return ""
         key = (smp, gene.upper())
         bits = [f"<a href='{rel(report)}{'#' + e(mark) if mark else ''}'>report</a>"] if report else []
         if key in overviews:
@@ -2517,10 +2511,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
 
     def thumb(c):
         key = (c["sample"], c["gene"].upper())
-        if mode["light"]:   # only depth plots: they show read counts, not reads
-            src = rel(c["image"]) if c.get("image") and "/cnv/" in c["image"] and "_igv" not in c["image"] else ""
-        else:
-            src = relp(overviews[key]) if key in overviews else (rel(c["image"]) if c.get("image") else "")
+        src = relp(overviews[key]) if key in overviews else (rel(c["image"]) if c.get("image") else "")
         return f"<a href='{src}'><img src='{src}' style='width:260px;border:1px solid #ccc'></a><br>" if src else ""
 
     def details(pairs):
@@ -2550,8 +2541,6 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
         index_pages[smp] = idx
     def render():
         it_html = ("" if not interactive else
-                   "<p><b>Interactive views and IGV screenshots</b> are in the full version (they contain read data).</p>"
-                   if mode["light"] else
                    "<p><b>Interactive views</b> (zoom, scroll, click reads): " + (" · ".join(
                        f"<a href='{relp(pg)}'>{e(smp)}</a>" for smp, pg in sorted(index_pages.items())) or "none written") + (f" <i>({e(it_note)})</i>" if it_note else "") +
                    ". Each page contains read data: keep it with the BAMs; do not email or upload it.</p>")
@@ -2607,8 +2596,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
                 f"max-width:1300px;margin:0 auto;padding:24px 16px;background:#fbfaf8;color:#1d1d1b}}table{{border-collapse:"
                 f"collapse;margin:8px 0 24px}}th,td{{border:1px solid #e4e1db;padding:6px 8px;text-align:left;"
                 f"vertical-align:top}}a{{color:inherit}}.w{{overflow-x:auto}}summary{{cursor:pointer}}"
-                f"@media print{{.noprint{{display:none}}body{{max-width:none;background:#fff}}"
-                f"tr,img{{page-break-inside:avoid}}}}</style></head><body>"
+                f"</style></head><body>"
                 f"<h1>IGV validation summary</h1><p>{len(rows)} call(s) · {len(samples)} sample(s) · {len(genes)} gene(s) "
                 f"· {e(datetime.now(timezone.utc).strftime('%Y-%m-%d'))}</p>"
                 + top_html() + it_html + curated_html + warning + IMAGE_KEY_HTML + raw_html
@@ -2616,31 +2604,22 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
         return page
 
     def top_html():
-        """What sits above the tables: the page's location on the server, downloads, and a print button."""
-        if mode["light"]:
-            return ("<p style='background:#eef6ee;padding:8px 12px'><b>Light version:</b> tables, plain explanations "
-                    "and depth plots only; no reads, IGV screenshots or interactive views.</p>")
+        """Above the tables: where this page lives on the server, and the download of the whole report."""
         if mode["bundle"]:
-            return "<p class=noprint><button onclick='window.print()'>Print / save as PDF</button></p>"
-        dl = [(f, lab) for f, lab in (("igv_validation_light.zip", "light: tables and depth plots, no read data"),
-                                      ("igv_validation_full.zip", "full: everything; contains read data"))
-              if (out / f).exists()]
-        return (f"<p class=noprint><small>This page: <code>{e(str((out / 'summary.html').resolve()))}</code></small><br>"
-                "<button onclick='window.print()'>Print / save as PDF</button>"
-                + ("" if not dl else " &nbsp; <b>Download:</b> " + " · ".join(
-                    f"<a href='{e(f)}' download>{e(lab)} ({(out / f).stat().st_size / 1e6:.1f} MB)</a>" for f, lab in dl))
+            return ""
+        zp = out / BUNDLE_NAME
+        return (f"<p><small>This page: <code>{e(str((out / 'summary.html').resolve()))}</code></small>"
+                + (f"<br><b>Download:</b> <a href='{e(BUNDLE_NAME)}' download>the whole report "
+                   f"({zp.stat().st_size / 1e6:.1f} MB)</a>: every page, image and interactive view; unzip and open "
+                   f"summary.html. It contains read data: keep it where the BAMs may be." if zp.exists() else "")
                 + "</p>")
 
-    for f in ("igv_validation_light.zip", "igv_validation_full.zip"):   # a new run replaces old bundles
-        if bundle and (out / f).exists():
-            (out / f).unlink()
-    if bundle in ("light", "both"):
-        mode.update(light=True, bundle=True)
-        write_bundle(out / "igv_validation_light.zip", render(), root, out, light=True, cells=cells)
-    if bundle in ("full", "both"):
-        mode.update(light=False, bundle=True)
-        write_bundle(out / "igv_validation_full.zip", render(), root, out, light=False, cells=cells)
-    mode.update(light=False, bundle=False)
+    (out / "igv_validation_light.zip").unlink(missing_ok=True)   # from older versions of this skill
+    (out / BUNDLE_NAME).unlink(missing_ok=True)                  # a new run replaces the old download
+    if bundle:
+        mode["bundle"] = True
+        write_bundle(out / BUNDLE_NAME, render(), root, out)
+        mode["bundle"] = False
     (out / "summary.html").write_text(render())
     return out
 
@@ -2886,10 +2865,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--curated-calls", "--heatmap", dest="curated",
                    help="with --summarize: your curated calls (CSV/TSV with sample, gene, alteration; e.g. the table "
                         "behind a mutational-profile heatmap) to compare call by call with IGV")
-    p.add_argument("--bundle", choices=["light", "full", "both"],
-                   help="with --summarize: also write downloadable zips linked from the page. light = tables, "
-                        "explanations and depth plots (no read data); full = everything, including screenshots and "
-                        "interactive pages (contains read data)")
+    p.add_argument("--no-bundle", action="store_true",
+                   help="with --summarize: do not write igv_validation_full.zip (by default the whole report is "
+                        "zipped next to summary.html and linked from the page for download)")
+    p.add_argument("--bundle", nargs="?", const="full", help=argparse.SUPPRESS)   # older option, now the default
     p.add_argument("--interactive", action="store_true",
                    help="with --summarize and --regions: one browser page per sample and gene (igv-reports) to zoom, "
                         "scroll and click reads; the pages contain read data")
@@ -2910,7 +2889,7 @@ def main(argv=None) -> int:
                 raise InputError("--interactive needs --regions (the BED of genes to show)")
             out = summarize(Path(args.summarize), args.output, args.regions,
                             args.igv_path, args.igv_timeout, args.curated, args.annotation,
-                            overview=args.overview, interactive=args.interactive, bundle=args.bundle)
+                            overview=args.overview, interactive=args.interactive, bundle=not args.no_bundle)
             print(f"Summary written to {out / 'summary.html'}")
             return 0
         out = run(args)
