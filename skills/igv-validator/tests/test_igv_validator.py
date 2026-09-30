@@ -1508,3 +1508,38 @@ def test_reports_explain_how_to_read_the_images(demo_out, cnv_result, summary_di
         text = page.read_text()
         assert "How to read the images" in text, page
         assert all(w in text.lower() for w in ("hollow", "soft-clipped", "blue line")), page
+
+
+# ── Simple view: one plain sentence, Agree yes/no, the image ──────────────────
+
+def test_plain_sentence_for_the_alt_contig_artifact(tmp_path):
+    r = _cn_row("S", "G", "del", -7.0, 200_000, "neutral", status="flagged", flags="ambiguous_mapping")
+    c = _compare(tmp_path, [r], [("S", "G", "DEL")])["G"]
+    assert c["agree"] == "No" and "other copies of this region" in c["plain"]
+    assert "MAPQ" not in c["plain"].split("(")[0]          # jargon only in brackets, if at all
+
+
+def test_plain_sentence_for_a_recurrent_variant(tmp_path):
+    rows = [_snv_row(s) for s in "ABCDE"]
+    iv.mark_recurrent(rows)
+    c = _compare(tmp_path, rows, [("A", "GENEC", "WT")])["GENEC"]
+    assert c["agree"] == "Yes" and "inherited or an artifact" in c["plain"]
+
+
+def test_plain_sentence_for_a_real_deletion_and_an_sv(tmp_path):
+    d = _cn_row("S", "G", "del", -6.0, 190_000, "deep loss")
+    d["_depth_log2"] = -6.1
+    assert "almost gone" in _compare(tmp_path, [d], [("S", "G", "DEL")])["G"]["plain"]
+    assert "rearrangement" in _compare(tmp_path, [_sv_row("S", "H")], [("S", "H", "SV")])["H"]["plain"]
+
+
+def test_summary_opens_on_the_simple_view(summary_dir, tmp_path):
+    root, _ = summary_dir
+    hm = _heatmap(tmp_path, [("demo_tumor", "HOMDEL", "DEL"), ("demo_tumor", "ALTGENE", "DEL")])
+    out = tmp_path / "sv"
+    assert run_cli("--summarize", root, "--heatmap", hm, "--output", out).returncode == 0
+    page = (out / "summary.html").read_text()
+    assert "What IGV shows" in page and "Agree?" in page
+    assert page.index("What IGV shows") < page.index("Detailed comparison")
+    rows = list(csv.DictReader(open(out / "heatmap_vs_igv.tsv"), delimiter="\t"))
+    assert {"agree", "plain"} <= set(rows[0])

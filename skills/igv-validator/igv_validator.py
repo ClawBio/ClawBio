@@ -2102,6 +2102,60 @@ def read_heatmap(path: Path) -> list[dict]:
     return rows
 
 
+PLAIN_LABEL = {"WT": "no change (WT)", "SNV": "point mutation (SNV)", "SV": "rearrangement (SV)", "DEL": "deletion",
+               "AMP": "gain", "LOH": "loss of heterozygosity", "SNV+SV": "point mutation and rearrangement"}
+
+
+def _plain_row(r: dict, ev: tuple[str, str, str]) -> str:
+    """What IGV shows for one call, in one plain sentence for readers who do not know the flags."""
+    kind, verdict, _ = ev
+    flags = r["flags"].split(";")
+    if r["type"] == "CNV":
+        d = r.get("_depth_log2")
+        st = r.get("_step") or {}
+        part = "part of the gene" if st and min(st.get("left_log2", 0), st.get("right_log2", 0)) <= CNV_DEEP_LOG2 \
+            else "the gene"
+        if "ambiguous_mapping" in flags:
+            return ("reads are present, but they also match other copies of this region in the reference (mapping "
+                    "quality 0), so the caller missed them and saw a false loss")
+        if verdict in ("real", "depth only"):
+            if kind == "AMP":
+                return "more reads than normal over the gene: a gain"
+            if verdict == "depth only" or (d is not None and d <= CNV_DEEP_LOG2):
+                return f"the reads are almost gone over {part}: a deletion"
+            return "fewer reads than normal over the gene: a loss"
+        if verdict == "not supported":
+            return f"the read depth looks normal, so the called {'gain' if kind == 'AMP' else 'loss'} is not visible"
+        if verdict == "hidden":
+            return "a broad or mild copy-number change, which the heatmap leaves out on purpose"
+        return "the read depth shows no change"
+    if r["type"] == "SV":
+        return {"real": "reads support the rearrangement (split and discordant reads at the breakpoint)",
+                "weak": "only a few reads support the rearrangement"}.get(verdict, "the reads do not support the rearrangement")
+    if verdict == "recurrent":
+        return (f"the variant is in the reads but also in {r.get('_recurrent', 'several samples')}: likely inherited "
+                f"or an artifact, not a tumor mutation")
+    return {"real": f"the variant is in the reads ({r['igv_shows']})",
+            "weak": "only a few reads carry the variant"}.get(verdict, "the reads do not support the variant")
+
+
+def _plain_cell(mine: list[dict], ev: list[tuple], wanted: set, match: str) -> str:
+    """One plain sentence for a heatmap cell: what IGV shows about the label, then anything else worth knowing."""
+    said = [(r, e) for r, e in zip(mine, ev) if e[1] != "nothing"]
+    main = [_plain_row(r, e) for r, e in said if e[0] in wanted and e[1] in ("real", "depth only")]
+    if match == "differs":
+        main = [_plain_row(r, e) for r, e in said if e[0] in wanted] or \
+               [f"no {PLAIN_LABEL.get(k, k)} was found among the calls checked" for k in sorted(wanted)]
+        main += [_plain_row(r, e) + " (not in the heatmap)" for r, e in said
+                 if e[0] not in wanted and e[1] in ("real", "depth only")]
+    elif not wanted:
+        main = [_plain_row(r, e) for r, e in said] or ["the reads show no change"]
+    else:   # a match: add what the reads show beyond the label, when it is a clear finding
+        main += [_plain_row(r, e) for r, e in said if e[0] not in wanted and e[1] == "depth only"]
+    text = "; ".join(dict.fromkeys(main)) or "the reads show no change"
+    return text[0].upper() + text[1:] + "."
+
+
 def heatmap_vs_igv(rows: list[dict], heatmap: Path) -> list[dict]:
     """One line per heatmap cell for a gene IGV checked: heatmap label, what IGV found, matches/differs, why.
 
@@ -2114,8 +2168,8 @@ def heatmap_vs_igv(rows: list[dict], heatmap: Path) -> list[dict]:
         if gene.upper() not in checked:
             continue
         mine = [r for r in rows if r["sample"] == smp and r["gene"].upper() == gene.upper()]
-        ev = [_evidence(r) for r in mine]
-        ev = [x for x in ev if x[1] != "nothing"]
+        ev_all = [_evidence(r) for r in mine]
+        ev = [x for x in ev_all if x[1] != "nothing"]
         wanted = set() if label.upper() == "WT" else set(label.upper().split("+"))
         have = {k for k, v, _ in ev if v in ("real", "depth only")}
         missing = sorted(wanted - have - {"LOH"})
@@ -2179,7 +2233,11 @@ def heatmap_vs_igv(rows: list[dict], heatmap: Path) -> list[dict]:
                                           ["a copy-number change is left out or not visible; confirm on the depth plot"]
                                           if any(r["type"] == "CNV" and v in ("hidden", "not supported")
                                                  for r, (_, v, _) in zip(mine, [_evidence(x) for x in mine])) else None),
-                    "report": next((r.get("report", "") for r in mine), "")})
+                    "report": next((r.get("report", "") for r in mine), ""),
+                    "agree": {"matches": "Yes", "differs": "No"}.get(match, "Not checked"),
+                    "plain": _plain_cell(mine, ev_all, wanted, match),
+                    "image": next((f for r in mine for f in (r.get("figures") or "").split(";")
+                                   if f.endswith(".png") and "_igv" not in f), "")})
     return out
 
 
@@ -2301,8 +2359,8 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
     cells = heatmap_vs_igv(rows, heatmap) if heatmap else []
     if heatmap:
         with open(out / "heatmap_vs_igv.tsv", "w", newline="") as fh:
-            w = csv.DictWriter(fh, fieldnames=["sample", "gene", "heatmap", "igv_found", "match", "review", "why", "details",
-                                           "report"],
+            w = csv.DictWriter(fh, fieldnames=["sample", "gene", "heatmap", "agree", "plain", "igv_found", "match", "review",
+                                           "why", "details", "report", "image"],
                                delimiter="\t")
             w.writeheader(); w.writerows(cells)
     acols = ["sample", "gene", "type", "tool", "caller_called", "igv_shows", "igv_agrees", "review", "why",
@@ -2337,6 +2395,22 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
                "</td><td>most likely right; look at the image last</td></tr>"
                "<tr><td>Anything you will present or publish</td><td>look at the image yourself; never cite the "
                "verdict alone</td></tr></table></div>")
+    def thumb(c):
+        src = (str(Path(os.path.relpath(overviews[(c["sample"], c["gene"].upper())], out)))
+               if (c["sample"], c["gene"].upper()) in overviews else (rel(c["image"]) if c.get("image") else ""))
+        return (f"<a href='{e(src)}'><img src='{e(src)}' style='width:260px;border:1px solid #ccc'></a>"
+                if src else "")
+    simple_html = "" if not heatmap else (
+        f"<h2>Your heatmap vs IGV</h2><p><b>{sum(c['agree'] == 'Yes' for c in cells)} agree, "
+        f"{sum(c['agree'] == 'No' for c in cells)} do not</b> out of {len(cells)} cells. Click an image to enlarge it; "
+        f"the image, not this sentence, is the evidence.</p>"
+        "<div class=w><table><tr><th>Sample</th><th>Gene</th><th>Heatmap says</th><th>What IGV shows</th>"
+        "<th>Agree?</th><th>Image</th></tr>" + "".join(
+            f"<tr><td>{e(c['sample'])}</td><td><b>{e(c['gene'])}</b></td>"
+            f"<td>{e(PLAIN_LABEL.get(c['heatmap'].upper(), c['heatmap']))}</td><td>{e(c['plain'])}</td>"
+            f"<td style='background:{'#c6e8d2' if c['agree'] == 'Yes' else '#f3c7a8' if c['agree'] == 'No' else '#ecebe7'}'>"
+            f"<b>{e(c['agree'])}</b></td><td>{thumb(c)}</td></tr>"
+            for c in sorted(cells, key=lambda c: (c["agree"] != "No", c["gene"], c["sample"]))) + "</table></div>")
     heat_html = "" if not heatmap else (
         f"<h2>Your heatmap vs IGV</h2><p><b>{sum(c['match'] == 'matches' for c in cells)} match, "
         f"{sum(c['match'] == 'differs' for c in cells)} differ</b> out of {len(cells)} heatmap cell(s) for the genes "
@@ -2353,7 +2427,9 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             for c in sorted(cells, key=lambda c: (c["match"] != "differs", c["gene"], c["sample"]))) + "</table></div>")
     fold = lambda title, body: (f"<details style='margin:14px 0'><summary style='cursor:pointer;font-size:1.1em'>"
                                 f"<b>{e(title)}</b> (click to show)</summary>{body}</details>" if heatmap else body)
-    agree_html = warning + IMAGE_KEY_HTML + heat_html + (f"<p><i>Overview images: {e(ov_note)}</i></p>" if ov_note else "") + fold(
+    heat_html = heat_html.replace("<h2>Your heatmap vs IGV</h2>", "", 1)
+    agree_html = simple_html + warning + IMAGE_KEY_HTML + (
+        fold("Detailed comparison: verdicts, review priority and reasons", heat_html) if heatmap else "") + (f"<p><i>Overview images: {e(ov_note)}</i></p>" if ov_note else "") + fold(
                   f"Does IGV agree with the callers? ({len(agree)} individual calls)", (
                   f"<h2>Does IGV agree with the callers?</h2><p><b>{counts['yes']} yes, {counts['no']} no, "
                   f"{counts['unclear']} unclear, {counts['in reads, recurrent']} in reads but recurrent</b> out of {len(agree)} call(s) the workflow made "
@@ -2412,8 +2488,8 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             f"vertical-align:top}}td.empty{{color:#aaa;text-align:center}}.chip{{padding:2px 8px;border-radius:9px;"
             f"margin-right:4px}}a{{color:inherit}}.w{{overflow-x:auto}}.quiet{{color:#9a988f}}</style></head><body>"
             f"<h1>IGV validation summary</h1><p>{len(rows)} call(s) · {len(samples)} sample(s) · {len(genes)} gene(s) "
-            f"· {e(datetime.now(timezone.utc).strftime('%Y-%m-%d'))}</p><p>{legend}</p>"
-            + agree_html + fold("Details: sample x gene grid and every call", 
+            f"· {e(datetime.now(timezone.utc).strftime('%Y-%m-%d'))}</p>{'' if heatmap else f'<p>{legend}</p>'}"
+            + agree_html + fold("Details: sample x gene grid and every call", (f"<p>{legend}</p>" if heatmap else "") +
             f"<h2>Details</h2><p>Each call from the workflow is compared with the reads: <b>confirmed</b> = the reads support it "
             f"(status supported); <b>questioned</b> = the reads disagree (e.g. caller_disagrees, cnv_disagrees, "
             f"artifact flags); <b>weak</b> = too few supporting reads; <b>recurrent</b> = the same SNV/indel in several samples (likely germline or artifact); <b>no call</b> = no segment covers the gene "
