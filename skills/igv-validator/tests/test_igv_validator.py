@@ -1581,6 +1581,9 @@ def test_interactive_page_is_written_and_linked(summary_dir, tmp_path):
     assert page.exists() and page.stat().st_size > 10_000
     html_ = (out / "summary.html").read_text()
     assert "interactive/demo_tumor_HOMDEL.html" in html_ and "contains read data" in html_
+    index = out / "interactive" / "demo_tumor.html"                 # the top line links one index per sample
+    assert "interactive/demo_tumor.html'>demo_tumor</a>" in html_ and index.exists()
+    assert "demo_tumor_HOMDEL.html" in index.read_text() and "HOMDEL" in index.read_text()
 
 
 def test_curated_calls_flag_and_heatmap_alias(summary_dir, tmp_path):

@@ -2491,11 +2491,30 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
         body = "".join(f"<div><b>{e(k)}:</b> {e(v)}</div>" for k, v in pairs if v)
         return f"<details><summary>details</summary><small>{body}</small></details>" if body else ""
 
+    # one small index page per sample, listing its genes; the summary's top line links only the samples
+    index_pages = {}
+    by_cell = {(c["sample"], c["gene"].upper()): c for c in cells}
+    for smp in sorted({s_ for s_, _ in interactive_pages}):
+        genes_here = sorted((g, pg) for (s_, g), pg in interactive_pages.items() if s_ == smp)
+        rows_html = "".join(
+            f"<tr><td><a href='{e(pg.name)}'><b>{e(g)}</b></a></td>"
+            + (f"<td>{e(PLAIN_LABEL.get(by_cell[(smp, g)]['curated'].upper(), by_cell[(smp, g)]['curated']))}</td>"
+               f"<td>{e(by_cell[(smp, g)]['agree'])}</td>" if (smp, g) in by_cell else ("<td></td><td></td>" if cells else ""))
+            + "</tr>" for g, pg in genes_here)
+        idx = out / "interactive" / f"{re.sub(r'[^A-Za-z0-9._-]+', '_', smp)}.html"
+        idx.write_text(
+            f"<!doctype html><html lang=en><head><meta charset=utf-8><title>{e(smp)} interactive views</title>"
+            f"<style>body{{font:15px/1.5 system-ui,sans-serif;max-width:800px;margin:0 auto;padding:24px 16px}}"
+            f"table{{border-collapse:collapse}}th,td{{border:1px solid #ddd;padding:6px 10px;text-align:left}}</style>"
+            f"</head><body><h1>{e(smp)}: interactive views</h1><p>Click a gene to open it: zoom with + / -, drag to "
+            f"scroll, click a read for details. These pages contain read data: keep them with the BAMs; do not "
+            f"email or upload them.</p><table><tr><th>Gene</th>" + ("<th>Curated call</th><th>Agree?</th>" if cells else "")
+            + f"</tr>{rows_html}</table><p><a href='{e(os.path.relpath(out / 'summary.html', idx.parent))}'>back to the "
+            f"summary</a></p></body></html>")
+        index_pages[smp] = idx
     it_html = ("" if not interactive else
-               "<p><b>Interactive views</b> (zoom, scroll, click reads): " + ("; ".join(
-                   f"{e(smp)}: " + " · ".join(f"<a href='{relp(pg)}'>{e(g)}</a>" for (s_, g), pg in
-                                              sorted(interactive_pages.items()) if s_ == smp)
-                   for smp in sorted({s_ for s_, _ in interactive_pages})) or "none written") + (f" <i>({e(it_note)})</i>" if it_note else "") +
+               "<p><b>Interactive views</b> (zoom, scroll, click reads): " + (" · ".join(
+                   f"<a href='{relp(pg)}'>{e(smp)}</a>" for smp, pg in sorted(index_pages.items())) or "none written") + (f" <i>({e(it_note)})</i>" if it_note else "") +
                ". Each page contains read data: keep it with the BAMs; do not email or upload it.</p>")
     curated_html = "" if not curated else (
         f"<h2>Curated calls vs IGV</h2><p><b>{sum(c['agree'] == 'Yes' for c in cells)} agree, "
