@@ -12,7 +12,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,7 +29,16 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from clawbio.common.checksums import sha256_file
 from clawbio.common.report import DISCLAIMER, write_result_json
+from clawbio.common.reproducibility import (
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
+from clawbio.common.textio import write_text_lf_atomic
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -842,6 +853,44 @@ def _minimal_demo_profile() -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _write_reproducibility_bundle(
+    output_dir: Path, profile_path: Path | None, inputs: dict[str, str], *, demo: bool,
+) -> None:
+    """Record the input identity and a portable replay of report synthesis."""
+    repo_root = _PROJECT_ROOT.resolve()
+    args: list[str | ReproPath] = ["--demo"] if demo else ["--profile"]
+    if not demo:
+        if profile_path is None:
+            raise ValueError("A profile path is required for non-demo replay.")
+        profile_path = profile_path.resolve()
+        if profile_path.is_relative_to(repo_root):
+            relative = profile_path.relative_to(repo_root).as_posix()
+            args.append(f'"$CLAWBIO_ROOT"/{shlex.quote(relative)}')
+        else:
+            args.append(shlex.quote(str(profile_path)))
+    args.extend(["--output", ReproPath(output_dir, "output_dir")])
+    write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/profile-report/profile_report.py"),
+            args=args,
+            comment="Reproduce this profile-report synthesis",
+        ),
+        repo_root=repo_root,
+    )
+    write_environment_yml(
+        output_dir, env_name="clawbio-profile-report", pip_deps=[],
+        python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
+    )
+    repro_dir = output_dir / "reproducibility"
+    write_text_lf_atomic(repro_dir / "inputs.json", json.dumps(inputs, indent=2) + "\n")
+    write_checksums(
+        [output_dir / "profile_report.md", output_dir / "result.json",
+         repro_dir / "commands.sh", repro_dir / "environment.yml", repro_dir / "inputs.json"],
+        output_dir, anchor=output_dir,
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Profile Report — unified personal genomic profile report",
@@ -869,9 +918,26 @@ def main() -> None:
     if args.demo:
         print("Loading demo profile...")
         profile = build_demo_profile()
+        demo_file = _SCRIPT_DIR / "demo_full_profile.json"
+        profile_path = demo_file if demo_file.exists() else None
     else:
         print(f"Loading profile: {args.profile}")
         profile = load_profile(args.profile)
+        profile_path = Path(args.profile).resolve()
+
+    if profile_path is not None:
+        inputs = {
+            "input_sha256": sha256_file(profile_path),
+            "input_kind": "demo-file" if args.demo else "profile-file",
+            "checksum_kind": "file-bytes",
+        }
+    else:
+        canonical = json.dumps(profile, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        inputs = {
+            "input_sha256": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+            "input_kind": "generated-demo",
+            "checksum_kind": "canonical-json",
+        }
 
     # Generate report
     completed = get_completed_skills(profile)
@@ -904,8 +970,10 @@ def main() -> None:
             "skills_completed": completed,
             "skills_missing": [s for s in ALL_SKILLS if s not in completed],
         },
+        input_checksum=inputs["input_sha256"],
     )
     print(f"Result JSON written: {out_dir / 'result.json'}")
+    _write_reproducibility_bundle(out_dir, profile_path, inputs, demo=args.demo)
     print("Done.")
 
 

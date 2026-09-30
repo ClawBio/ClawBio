@@ -9,6 +9,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 # Add parent dir to path so we can import the skill modules
 SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_DIR))
@@ -86,17 +88,13 @@ def test_merge_phewas_structure():
 
 
 def test_merge_eqtls():
-    """eQTL merge should combine GTEx and eQTL Catalogue results."""
+    """eQTL merge should normalise GTEx results."""
     from gwas_lookup_core.normalise import merge_eqtls
 
-    gtex = load_fixture("gtex")
-    eqtl_cat = load_fixture("eqtl_catalogue")
-    merged = merge_eqtls(gtex, eqtl_cat)
+    merged = merge_eqtls(load_fixture("gtex"))
 
-    assert len(merged) == 3  # 2 GTEx + 1 eQTL Catalogue
-    sources = {e["source"] for e in merged}
-    assert "gtex" in sources
-    assert "eqtl_catalogue" in sources
+    assert len(merged) == 2
+    assert {e["source"] for e in merged} == {"gtex"}
 
 
 def test_merge_all_structure():
@@ -110,7 +108,6 @@ def test_merge_all_structure():
         "finngen": {"source": "finngen", "status": "ok", "associations": []},
         "pheweb_bbj": {"source": "pheweb_bbj", "status": "ok", "associations": []},
         "gtex": load_fixture("gtex"),
-        "eqtl_catalogue": load_fixture("eqtl_catalogue"),
     }
 
     merged = merge_all(api_results)
@@ -184,7 +181,6 @@ def test_merge_with_error_api():
         "finngen": load_fixture("error_api"),  # error
         "pheweb_bbj": {"source": "pheweb_bbj", "status": "error", "message": "404"},
         "gtex": load_fixture("gtex"),
-        "eqtl_catalogue": load_fixture("eqtl_catalogue"),
     }
 
     merged = merge_all(api_results)
@@ -207,7 +203,6 @@ def test_merge_with_all_errors():
         "finngen": {"source": "finngen", "status": "error", "message": "timeout"},
         "pheweb_bbj": {"source": "pheweb_bbj", "status": "error", "message": "timeout"},
         "gtex": {"source": "gtex", "status": "error", "message": "timeout"},
-        "eqtl_catalogue": {"source": "eqtl_catalogue", "status": "error", "message": "timeout"},
     }
 
     merged = merge_all(api_results)
@@ -286,11 +281,11 @@ def test_demo_data_loads():
 
 
 def test_demo_data_has_all_sources():
-    """Demo data should include results from all 8 API modules."""
+    """Demo data should include results from every queried API."""
     demo = load_demo_data()
     expected = [
-        "gwas_catalog", "open_targets", "open_targets_credsets",
-        "pheweb_ukb", "finngen", "pheweb_bbj", "gtex", "eqtl_catalogue",
+        "gwas_catalog", "open_targets_credsets",
+        "pheweb_ukb", "finngen", "pheweb_bbj", "gtex",
     ]
     for src in expected:
         assert src in demo["api_results"], f"Missing demo data for {src}"
@@ -348,3 +343,68 @@ def test_gwas_catalog_forwards_max_hits_as_page_size(monkeypatch):
     assert result["status"] == "ok"
     assert result["total_associations"] == 25
     assert len(result["associations"]) == 25
+
+
+# ── Open Targets Platform schema ──────────────────────────────────────────────
+
+
+def test_open_targets_credsets_parse_platform_schema(monkeypatch):
+    """Credible sets come from variant.credibleSets.rows with this variant's locus stats."""
+    from gwas_lookup_api import open_targets
+
+    class FakeClient:
+        def post(self, endpoint, json_body, params=None):
+            return load_fixture("open_targets_platform_credsets")
+
+    monkeypatch.setattr(open_targets, "_make_client", lambda *a, **k: FakeClient())
+    result = open_targets.get_credible_sets("6", 160540105, "T", "C")
+
+    assert result["status"] == "ok"
+    assert result["total_credible_sets"] == 226  # count from the API, not the page
+    first = result["credible_sets"][0]
+    assert first["study_id"] == "GCST90498998"
+    assert first["trait"] == "Total lipids in medium VLDL"
+    assert first["pval"] == pytest.approx(6.561e-127, rel=1e-3)
+    assert first["posterior_probability"] == pytest.approx(0.8493, rel=1e-3)
+    assert first["beta"] == pytest.approx(-0.18998)
+    assert first["is_95_credible"] is True
+
+
+def test_open_targets_graphql_errors_are_errors_not_empty(monkeypatch):
+    """GraphQL reports schema errors in the body; they must not read as 'no data'."""
+    from gwas_lookup_api import open_targets
+
+    class FakeClient:
+        def post(self, endpoint, json_body, params=None):
+            return {"data": None, "errors": [{"message": "Cannot query field 'rsId' on type 'Variant'."}]}
+
+    monkeypatch.setattr(open_targets, "_make_client", lambda *a, **k: FakeClient())
+    result = open_targets.get_credible_sets("6", 160540105, "T", "C")
+
+    assert result["status"] == "error"
+    assert "Cannot query field" in result["message"]
+
+
+# ── Failed sources are surfaced ───────────────────────────────────────────────
+
+
+def test_failed_sources_listed_in_result_json(tmp_path):
+    """A source that errors must be named in result.json, not only printed."""
+    import gwas_lookup
+
+    demo = load_demo_data()
+    demo["api_results"]["gtex"] = {"source": "gtex", "status": "error", "message": "HTTP 410 Gone"}
+    gwas_lookup.run_lookup("rs3798220", tmp_path, make_figures=False, demo_data=demo)
+
+    summary = json.loads((tmp_path / "result.json").read_text())["summary"]
+    assert summary["apis_failed"] == {"gtex": "HTTP 410 Gone"}
+
+
+def test_credible_set_total_reports_api_count_not_page():
+    """The report must not present the first page as the whole set."""
+    from gwas_lookup_core.normalise import merge_all
+
+    credsets = load_fixture("open_targets_credsets")
+    credsets["total_credible_sets"] = 226
+    merged = merge_all({"open_targets_credsets": credsets})
+    assert merged["summary"]["total_credible_sets"] == 226

@@ -1,5 +1,8 @@
 import importlib.util
 import json
+import shlex
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -31,6 +34,41 @@ def test_build_catalog_populates_cli_aliases_from_package_registry():
     assert catalog["fastreer"]["demo_command"] == "python clawbio.py run fastreer --demo"
     assert catalog["analyze-fasta"]["cli_alias"] == "analyze-fasta"
     assert catalog["analyze-fasta"]["demo_command"] == "python clawbio.py run analyze-fasta --demo"
+
+
+def test_ancestry_demo_command_supplies_the_synthetic_patients_ancestry():
+    generate_catalog = _load_generate_catalog_module()
+    catalog = {entry["name"]: entry for entry in generate_catalog.build_catalog()}
+
+    assert catalog["ancestry-risk-profiler"]["demo_command"] == (
+        "python skills/ancestry-risk-profiler/ancestry_risk_profiler.py --demo --ancestry SAS"
+    )
+
+
+def test_ancestry_catalog_demo_runs_with_user_supplied_ancestry(tmp_path, monkeypatch):
+    """Run the published command, not a separately maintained demo invocation."""
+    root = Path(__file__).resolve().parents[1]
+    catalog = json.loads((root / "skills" / "catalog.json").read_text(encoding="utf-8"))
+    entry = next(skill for skill in catalog["skills"] if skill["name"] == "ancestry-risk-profiler")
+    argv = shlex.split(entry["demo_command"])
+    assert argv[0] == "python"
+    argv[0] = sys.executable
+    output_dir = tmp_path / "ancestry demo"
+    monkeypatch.delenv("CLAWBIO_OTLP_ENDPOINT", raising=False)
+    monkeypatch.setenv("CLAWBIO_AUDIT_LOG", str(tmp_path / "audit.jsonl"))
+
+    proc = subprocess.run(
+        [*argv, "--output", str(output_dir)],
+        cwd=root, capture_output=True, text=True, timeout=30, check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads((output_dir / "ancestry_risk_result.json").read_text(encoding="utf-8"))
+    assert result["inferred_ancestry"] == "SAS"
+    assert result["confidence"] == "user-supplied"
+    assert result["overridden"] is True
+    report = (output_dir / "ancestry_risk_report.md").read_text(encoding="utf-8")
+    assert "No ancestry inference was performed" in report
 
 
 def test_build_catalog_adds_objective_maturity_tiers():

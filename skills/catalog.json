@@ -128,7 +128,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/ancestry-risk-profiler/ancestry_risk_profiler.py --demo",
+      "demo_command": "python skills/ancestry-risk-profiler/ancestry_risk_profiler.py --demo --ancestry SAS",
       "dependencies": [
         "python>=3.11",
         "matplotlib>=3.6"
@@ -2240,7 +2240,7 @@
     {
       "name": "gwas-lookup",
       "cli_alias": "gwas",
-      "description": "Federated variant lookup across 9 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, eQTL Catalogue, and more.",
+      "description": "Federated variant lookup across 8 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, and more.",
       "version": "0.1.0",
       "status": "mvp",
       "maturity_tier": "ci-validated",

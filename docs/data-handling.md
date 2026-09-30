@@ -9,9 +9,27 @@ so the list cannot silently fall behind the code.
 
 ## The short version
 
-- The `clawbio` package (CLI, runner, shared helpers) makes no network calls.
-  There is no telemetry, no update check, no analytics. The audit layer in
-  `clawbio/common/audit.py` writes a local JSONL file and nothing else.
+- The `clawbio` package (CLI, runner, shared helpers) makes no network calls
+  of its own. There is no telemetry, no update check, no analytics, and the
+  audit layer in `clawbio/common/audit.py` writes a local JSONL file. It has
+  one opt-in exception, described next.
+- **Audit spans can be exported, if you ask for it.** Setting
+  `CLAWBIO_OTLP_ENDPOINT` sends every audit span to that collector over OTLP,
+  in addition to the local JSONL. There is no default endpoint, and with the
+  variable unset nothing is sent and the exporter package is not even
+  imported. A span carries: the skill name and version, the input file path,
+  the output directory, the input checksum, each tool or phase name, its
+  command line and keyword arguments, the exit code, up to 500 characters of
+  `stderr` on failure, and the error text. In practice that means VCF paths,
+  output directories and anything a caller passes, which can include sample
+  identifiers. Setting `OPENINFERENCE_HIDE_INPUTS=true` and
+  `OPENINFERENCE_HIDE_OUTPUTS=true` replaces those values with
+  `__REDACTED__`, but only the values: span names, tool names and attribute
+  keys are always sent, so an identifier put in a skill or attribute *name*
+  is outside their reach. The transport is plain OTLP/HTTP, so point the
+  variable at a collector on this machine or at an `https://` URL. A local
+  collector (Phoenix, say) keeps all of it on this machine; a remote one does
+  not.
 - Most skills never touch the network. They read your files, compute, and write
   to the output directory you name.
 - The skills that do reach the network are all listed below, in five classes,

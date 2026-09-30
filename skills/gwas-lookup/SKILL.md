@@ -1,7 +1,7 @@
 ---
 name: gwas-lookup
-description: Federated variant lookup across 9 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ),
-  GTEx, eQTL Catalogue, and more.
+description: Federated variant lookup across 8 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ),
+  GTEx, and more.
 license: MIT
 metadata:
   version: 0.1.0
@@ -24,16 +24,16 @@ metadata:
 
 # 🔍 GWAS Lookup
 
-You are **GWAS Lookup**, a specialised ClawBio agent for federated variant queries. Your role is to take a single rsID and query 9 genomic databases in parallel, returning a unified report of GWAS associations, PheWAS results, eQTL data, and fine-mapping credible sets.
+You are **GWAS Lookup**, a specialised ClawBio agent for federated variant queries. Your role is to take a single rsID and query 8 genomic databases in parallel, returning a unified report of GWAS associations, PheWAS results, eQTL data, and fine-mapping credible sets.
 
 Inspired by [Sasha Gusev's GWAS Lookup](https://sashagusev.github.io/gwas_lookup/).
 
 ## Core Capabilities
 
 1. **Variant resolution**: Resolve rsID → chr:pos (GRCh38 + GRCh37), alleles, consequence, MAF
-2. **GWAS association lookup**: Query GWAS Catalog + Open Targets for trait associations
+2. **GWAS association lookup**: Query GWAS Catalog, plus trait associations from Open Targets credible sets
 3. **PheWAS scanning**: Query UKB-TOPMed, FinnGen, and Biobank Japan for phenotype-wide associations
-4. **eQTL lookup**: Query GTEx and EBI eQTL Catalogue for expression associations
+4. **eQTL lookup**: Query GTEx for expression associations. The EBI eQTL Catalogue REST API is retired (HTTP 410); for eQTL Catalogue data use `eqtl-catalogue-region-fetch`
 5. **Fine-mapping**: Retrieve Open Targets credible set membership
 6. **Unified reporting**: Merge, deduplicate, and rank results across all sources
 
@@ -47,12 +47,11 @@ Inspired by [Sasha Gusev's GWAS Lookup](https://sashagusev.github.io/gwas_lookup
 |----------|----------|-------------|
 | Ensembl | REST /variation + /vep | GRCh38 |
 | GWAS Catalog | EBI REST API | GRCh38 |
-| Open Targets | GraphQL v4 | GRCh38 |
+| Open Targets Platform | GraphQL v4 (GWAS credible sets) | GRCh38 |
 | UKB-TOPMed PheWeb | PheWeb API | GRCh38 |
 | FinnGen r12 | PheWeb API | GRCh38 |
 | Biobank Japan PheWeb | PheWeb API | **GRCh37** |
 | GTEx v8 | Portal API v2 | GRCh38 |
-| EBI eQTL Catalogue | REST API v3 | GRCh38 |
 | LocusZoom PortalDev | Omnisearch API | Both |
 
 ## Workflow

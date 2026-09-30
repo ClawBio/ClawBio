@@ -2966,8 +2966,10 @@ def main():
                     if remaining:
                         print(f"\n  {DIM}... ({remaining} more lines in {report}){RESET}")
                     print(f"{BOLD}{'━' * 60}{RESET}")
-        if not result["success"] and result["stderr"]:
-            print(f"\n  {RED}Error:{RESET}\n{result['stderr'][-800:]}")
+        # Many skills print their error to stdout, so fall back to it.
+        error = result["stderr"] or result["stdout"]
+        if not result["success"] and error:
+            print(f"\n  {RED}Error:{RESET}\n{error[-800:]}")
         sys.exit(0 if result["success"] else 1)
     else:
         parser.print_help()

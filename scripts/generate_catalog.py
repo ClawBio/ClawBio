@@ -14,6 +14,7 @@ from __future__ import annotations
 import ast
 import json
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -405,6 +406,13 @@ def detect_tests(skill_dir: Path) -> bool:
     return False
 
 
+# Extra inputs required by bundled synthetic demos. The South Asian fixture's
+# small AIM panel cannot support automatic ancestry inference.
+DEMO_EXTRA_ARGS = {
+    "ancestry-risk-profiler": ("--ancestry", "SAS"),
+}
+
+
 def demo_invocation(script: Path | None, root: Path | None = None) -> str | None:
     """Render the command that actually runs `script` in demo mode."""
     if script is None:
@@ -564,6 +572,9 @@ def build_catalog() -> list[dict]:
             demo_command = f"python clawbio.py run {cli_alias} --demo"
         else:
             demo_command = demo_invocation(entry_point)
+        extra_demo_args = DEMO_EXTRA_ARGS.get(folder_name, ())
+        if demo_command and extra_demo_args:
+            demo_command = f"{demo_command} {shlex.join(extra_demo_args)}"
         has_demo = demo_command is not None
         cli_registered = bool(cli_alias and cli_alias in registered_aliases)
         ci_tested = folder_name in ci_tested_folders

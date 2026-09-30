@@ -45,17 +45,16 @@ DEFAULT_CACHE_DIR = Path.home() / ".clawbio" / "gwas_lookup_cache"
 MAX_WORKERS = 8
 
 ALL_API_NAMES = [
-    "gwas_catalog", "open_targets", "open_targets_credsets",
+    "gwas_catalog", "open_targets_credsets",
     "pheweb_ukb", "finngen", "pheweb_bbj",
-    "gtex", "eqtl_catalogue",
+    "gtex",
 ]
 
 SKIP_ALIASES = {
     "gwas": "gwas_catalog",
-    "ot": "open_targets",
+    "ot": "open_targets_credsets",
     "ukb": "pheweb_ukb",
     "bbj": "pheweb_bbj",
-    "eqtl": "eqtl_catalogue",
 }
 
 
@@ -67,17 +66,6 @@ SKIP_ALIASES = {
 def _fetch_gwas_catalog(rsid, variant, cache_dir, use_cache, max_hits):
     from gwas_lookup_api.gwas_catalog import get_associations
     return "gwas_catalog", get_associations(rsid, max_hits=max_hits, cache_dir=cache_dir, use_cache=use_cache)
-
-
-def _fetch_open_targets(rsid, variant, cache_dir, use_cache, max_hits):
-    from gwas_lookup_api.open_targets import get_variant
-    chr_val = variant.get("chr", "")
-    pos = variant.get("pos_grch38")
-    ref = variant.get("ref", "")
-    alt = variant.get("alt", "")
-    if not all([chr_val, pos, ref, alt]):
-        return "open_targets", {"source": "open_targets", "status": "skipped", "message": "Missing coordinates"}
-    return "open_targets", get_variant(chr_val, pos, ref, alt, cache_dir=cache_dir, use_cache=use_cache)
 
 
 def _fetch_open_targets_credsets(rsid, variant, cache_dir, use_cache, max_hits):
@@ -135,20 +123,13 @@ def _fetch_gtex(rsid, variant, cache_dir, use_cache, max_hits):
     return "gtex", get_eqtls(chr_val, pos, ref, alt, cache_dir=cache_dir, use_cache=use_cache)
 
 
-def _fetch_eqtl_catalogue(rsid, variant, cache_dir, use_cache, max_hits):
-    from gwas_lookup_api.eqtl_catalogue import get_associations
-    return "eqtl_catalogue", get_associations(rsid, cache_dir=cache_dir, use_cache=use_cache)
-
-
 API_DISPATCHERS = {
     "gwas_catalog": _fetch_gwas_catalog,
-    "open_targets": _fetch_open_targets,
     "open_targets_credsets": _fetch_open_targets_credsets,
     "pheweb_ukb": _fetch_pheweb_ukb,
     "finngen": _fetch_finngen,
     "pheweb_bbj": _fetch_pheweb_bbj,
     "gtex": _fetch_gtex,
-    "eqtl_catalogue": _fetch_eqtl_catalogue,
 }
 
 
@@ -235,6 +216,16 @@ def run_lookup(
         if name not in api_results:
             api_results[name] = {"source": name, "status": "skipped", "message": "Skipped by user"}
 
+    failed = {
+        name: result.get("message", "")
+        for name, result in api_results.items()
+        if result.get("status") == "error"
+    }
+    if failed:
+        print(f"  WARNING: {len(failed)} source(s) failed; the report omits their data:")
+        for name, message in failed.items():
+            print(f"    {name}: {message[:200]}")
+
     print()
 
     # --- Step 3: Merge results ---
@@ -292,6 +283,7 @@ def run_lookup(
             "total_credible_sets": summary.get("total_credible_sets", 0),
             "apis_queried": len(api_results),
             "apis_skipped": len(skip_set),
+            "apis_failed": failed,
         },
         data={
             "variant": variant,

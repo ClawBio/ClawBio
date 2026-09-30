@@ -116,8 +116,8 @@ def merge_phewas(ukb: dict, finngen: dict, bbj: dict) -> dict:
     return result
 
 
-def merge_eqtls(gtex: dict, eqtl_catalogue: dict) -> list[dict]:
-    """Merge eQTL results from GTEx and eQTL Catalogue."""
+def merge_eqtls(gtex: dict) -> list[dict]:
+    """Normalise eQTL results from GTEx."""
     merged = []
 
     if gtex.get("status") == "ok":
@@ -134,21 +134,6 @@ def merge_eqtls(gtex: dict, eqtl_catalogue: dict) -> list[dict]:
                 "genome_wide_significant": pval is not None and pval < GWS_THRESHOLD,
             })
 
-    if eqtl_catalogue.get("status") == "ok":
-        for a in eqtl_catalogue.get("associations", []):
-            pval = _safe_float(a.get("pval"))
-            merged.append({
-                "source": "eqtl_catalogue",
-                "gene": a.get("gene_name", ""),
-                "gene_id": a.get("gene_id", ""),
-                "tissue": a.get("tissue", ""),
-                "tissue_name": a.get("tissue", ""),
-                "pval": pval,
-                "effect_size": a.get("beta"),
-                "study": a.get("study", ""),
-                "genome_wide_significant": pval is not None and pval < GWS_THRESHOLD,
-            })
-
     return _sort_by_pval(merged)
 
 
@@ -156,8 +141,8 @@ def merge_all(api_results: dict) -> dict:
     """
     Merge all API results into a unified structure.
 
-    api_results keys: gwas_catalog, open_targets, open_targets_credsets,
-                      pheweb_ukb, finngen, pheweb_bbj, gtex, eqtl_catalogue
+    api_results keys: gwas_catalog, open_targets_credsets,
+                      pheweb_ukb, finngen, pheweb_bbj, gtex
     """
     gwas = merge_gwas(
         api_results.get("gwas_catalog", {}),
@@ -168,10 +153,7 @@ def merge_all(api_results: dict) -> dict:
         api_results.get("finngen", {}),
         api_results.get("pheweb_bbj", {}),
     )
-    eqtls = merge_eqtls(
-        api_results.get("gtex", {}),
-        api_results.get("eqtl_catalogue", {}),
-    )
+    eqtls = merge_eqtls(api_results.get("gtex", {}))
 
     # Credible sets (pass through from Open Targets)
     credible_sets = []
@@ -200,6 +182,6 @@ def merge_all(api_results: dict) -> dict:
             "total_phewas_finngen": len(phewas["finngen"]),
             "total_phewas_bbj": len(phewas["bbj"]),
             "total_eqtls": len(eqtls),
-            "total_credible_sets": len(credible_sets),
+            "total_credible_sets": ot_cred.get("total_credible_sets", len(credible_sets)),
         },
     }

@@ -16,8 +16,8 @@ ClawBio is a bioinformatics AI agent skill library built on [OpenClaw](https://g
 # Clone
 git clone https://github.com/ClawBio/ClawBio.git && cd ClawBio
 
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (from pyproject.toml + uv.lock)
+uv sync
 
 # Verify
 python clawbio.py list                      # List all skills
@@ -85,7 +85,6 @@ the catalog and SKILL.md `--help` do not make obvious:
 | `just-prs`, `fine-mapping` (SuSiE) | Optional extras: `uv sync --extra just-prs` / `--extra fine-mapping`, then `uv run --extra <name> ...` |
 | nf-core wrappers (`sarek-pipeline`, `rnaseq-pipeline`, `scrnaseq-pipeline`) | `--check` validates the run plan without executing; `--demo` pulls nf-core's public test data (needs network; `NXF_OFFLINE` is detected and reported) |
 | `flow-bio`, `protocols-io`, `labstep`, `galaxy-bridge` | Credentials via env vars or `--login`; see the skill's SKILL.md |
-| `ancestry-risk-profiler` demo | `--demo --ancestry SAS`. The catalog `demo_command` omits `--ancestry` and exits with an error: the bundled patient's high-Fst AIM coverage is below the automatic-inference floor |
 
 ## Shared Demo Data
 
@@ -113,25 +112,25 @@ python -m pytest skills/pharmgx-reporter/tests/ -v     # Single skill
 python -m pytest -k "test_demo" -v                     # By pattern
 ```
 
-Tests must pass on Python 3.10, 3.11, and 3.12. CI runs all three via GitHub Actions.
+Tests must pass on Python 3.11, 3.12, and 3.13. CI runs all three via GitHub Actions.
 
 ## Code Style
 
-- **Python**: 3.10+ (type hints encouraged, `X | None` syntax over `Optional[X]`)
+- **Python**: 3.11+ (type hints encouraged, `X | None` syntax over `Optional[X]`)
 - **Paths**: Always use `pathlib.Path`. Derive from `Path(__file__).resolve().parent`. Never hardcode absolute paths.
 - **Naming**: Skill folders use lowercase-hyphens (`gwas-lookup`). Python files use lowercase_underscores (`gwas_lookup.py`).
 - **Imports**: Sibling modules loaded via `importlib.util.spec_from_file_location` — no package structure.
 - **CLI**: Every skill script accepts `--input`, `--output`, and `--demo`. Use `argparse`.
 - **Output**: Skills write to `<output_dir>/report.md` (primary), plus `figures/` and `tables/` subdirectories as needed. Return a `result.json` with structured findings.
 - **Reproducibility**: Every skill with a Python implementation writes `<output_dir>/reproducibility/` (`commands.sh`, `environment.yml`, `checksums.sha256`) using `clawbio.common.reproducibility` — `write_commands_sh`, `write_environment_yml`, `write_checksums`. Do not hand-roll these writers. Label checksums relative to the output directory (`anchor=output_dir`) so `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256` resolves.
-- **Dependencies**: Add to `requirements.txt` for core deps. Skill-specific heavy deps go in the skill's SKILL.md YAML `install` section.
+- **Dependencies**: Add core deps with `uv add <package>` (updates `pyproject.toml`; commit `uv.lock`). Skill-specific heavy deps go in the skill's SKILL.md YAML `install` section.
 
 ## Project Structure
 
 ```
 ClawBio/
-├── clawbio.py              # Main CLI runner + Python API (SKILLS dict here)
-├── clawbio/                # Shared utilities package
+├── clawbio.py              # CLI entry point (delegates to clawbio/cli.py)
+├── clawbio/                # Package: cli.py (SKILLS dict, runner) + shared utilities
 ├── skills/                 # One directory per skill
 │   ├── pharmgx-reporter/   # Example MVP skill
 │   │   ├── SKILL.md        # Skill specification (YAML frontmatter + methodology)
@@ -143,7 +142,7 @@ ClawBio/
 │   ├── gwas-lookup/        # Example with subpackages
 │   │   ├── SKILL.md
 │   │   ├── gwas_lookup.py
-│   │   ├── api/            # API clients for 9 databases
+│   │   ├── gwas_lookup_api/  # API clients for 9 databases
 │   │   ├── core/           # Normalisation, resolution, reporting
 │   │   └── tests/
 │   └── catalog.json        # Machine-readable skill index (auto-generated)
@@ -160,7 +159,7 @@ ClawBio/
 ├── corpas-30x/             # Corpas 30x WGS reference genome and benchmark inputs
 ├── docs/                   # Tutorials and reference docs
 ├── bot/                    # RoboTerri Telegram integration
-├── requirements.txt        # Core Python dependencies
+├── pyproject.toml          # Dependencies and optional extras (pinned by uv.lock)
 ├── pytest.ini              # Test configuration
 ├── Makefile                # Convenience targets
 ├── AGENTS.md               # This file — the single set of agent instructions
@@ -173,7 +172,7 @@ Every skill is defined by a `SKILL.md` file with:
 1. **YAML frontmatter** (`openclaw` schema) — name, description, version, dependencies, install instructions, emoji, OS compatibility
 2. **Markdown body** — Core Capabilities, Workflow, Output Structure, Dependencies, Safety, Integration with Bio Orchestrator
 
-Skills with Python implementations are registered in the `SKILLS` dict in `clawbio.py` (line ~252). Each entry maps a CLI alias to its script path, demo args, description, allowed flags, and capabilities.
+Skills with Python implementations are registered in the `SKILLS` dict in `clawbio/cli.py`. Each entry maps a CLI alias to its script path, demo args, description, allowed flags, and capabilities.
 
 The **Bio Orchestrator** (`skills/bio-orchestrator/`) routes user queries to the right skill based on file type and keywords.
 
@@ -213,7 +212,7 @@ This applies to: new skills, bug fixes, feature additions, refactors, and any co
 5. **Write tests first (red/green TDD)**: create `skills/<name>/tests/test_<name>.py` covering expected inputs, outputs, edge cases, and demo mode. Run them and confirm they fail.
 6. **Add the Python implementation** to make the tests pass (optional — SKILL.md alone is a usable skill). Accept `--input`, `--output`, `--demo`. Write the reproducibility bundle with `clawbio.common.reproducibility` (`write_commands_sh`, `write_environment_yml`, `write_checksums`) rather than hand-rolling it, and keep `reproducibility/` listed in the SKILL.md `## Output Structure` tree — do not prune it to make `TestOutputContract` pass.
 7. **Stress test** (run 10 times with varied inputs). Every correction becomes a Gotcha.
-8. **Register in `clawbio.py`**: add an entry to the `SKILLS` dict with script path, demo_args, description, and allowed_extra_flags
+8. **Register in `clawbio/cli.py`**: add an entry to the `SKILLS` dict with script path, demo_args, description, and allowed_extra_flags
 9. **Tests are collected automatically**: `pytest.ini` globs `skills/*/tests`, so there is nothing to register
 10. **Regenerate the catalog**: `python scripts/generate_catalog.py`
 11. **Verify and self-audit**: `python -m pytest` passes, `python clawbio.py list` shows the skill, and all 18 conformance checks below PASS. Read `CONTRIBUTING.md` for naming conventions, code standards, and the wanted-skills list.
@@ -272,7 +271,7 @@ python tests/benchmark/mock_api_server.py &
 
 - Branch from `main` — name branches `feat/<skill-name>` or `fix/<skill-name>`
 - **One skill per PR** — keep changes focused
-- Tests must pass on Python 3.10, 3.11, and 3.12
+- Tests must pass on Python 3.11, 3.12, and 3.13
 - Include demo output in the PR description so reviewers can verify
 - Update `skills/catalog.json` if you changed any SKILL.md YAML frontmatter
 - When opening a PR, use `.github/PULL_REQUEST_TEMPLATE.md` as the body — fill in every section, do not leave placeholders
@@ -328,7 +327,7 @@ Before improvising a common workflow, check `commands/` for reusable slash comma
 | File | Purpose |
 |------|---------|
 | `AGENTS.md` | This file: routing method, development rules, and safety boundaries |
-| `clawbio.py` | CLI runner, SKILLS dict, security filtering, profile management |
+| `clawbio/cli.py` | CLI runner, SKILLS dict, security filtering, profile management (`clawbio.py` is the entry point) |
 | `skills/catalog.json` | **Single source of truth** for skills: triggers, aliases, demo commands (auto-generated) |
 | `commands/` | Slash commands for analysis, skill scaffolding, skill listing, and demos |
 | `llms.txt` | Token-optimized project summary and LLM entry point |
@@ -339,6 +338,6 @@ Before improvising a common workflow, check `commands/` for reusable slash comma
 | `scripts/nightly_demo_sweep.py` | Nightly demo and benchmark sweep across skills |
 | `tests/benchmark/mock_api_server.py` | Deterministic mock API server for offline CI and local testing |
 | `tests/benchmark/benchmark_scorer.py` | Benchmark scoring CLI and Python API |
-| `requirements.txt` | Core Python dependencies |
+| `pyproject.toml` | Dependencies and optional extras (`uv sync`; pinned by `uv.lock`) |
 | `pytest.ini` | Test configuration (`skills/*/tests` collected by glob) |
 | `Makefile` | `make test`, `make demo`, `make list` |
