@@ -7,6 +7,7 @@ when it planted each synthetic variant. None of these tests need IGV.
 """
 
 import csv
+import shutil
 import json
 import time
 import re
@@ -1619,3 +1620,43 @@ def test_summary_links_jump_to_the_gene(summary_dir, tmp_path):
     assert run_cli("--summarize", root, "--curated-calls", cur, "--output", out).returncode == 0
     page = (out / "summary.html").read_text()
     assert "report.html#gene-HOMDEL" in page and "report.html#call-V1" in page
+
+
+# ── Sharing: on-server location, download bundles, print to PDF ───────────────
+
+def _bundle_run(summary_dir, tmp_path, which):
+    root, _ = summary_dir
+    work = tmp_path / "rep"
+    shutil.copytree(root, work)
+    cur = _heatmap(tmp_path, [("demo_tumor", "HOMDEL", "DEL")])
+    r = run_cli("--summarize", work, "--curated-calls", cur, "--bundle", which)
+    assert r.returncode == 0, r.stderr
+    return work
+
+
+def test_light_bundle_has_no_read_data(summary_dir, tmp_path):
+    import zipfile
+    work = _bundle_run(summary_dir, tmp_path, "light")
+    z = zipfile.ZipFile(work / "igv_validation_light.zip")
+    names = z.namelist()
+    assert "summary.html" in names and any(n.endswith(".png") and "/cnv/" in n for n in names)   # depth plots
+    assert not any(k in n for n in names for k in ("interactive/", "figures/igv", "overview/", "report.html", ".bam"))
+    page = z.read("summary.html").decode()
+    assert "Light version" in page and "This page:" not in page and "Download" not in page
+
+
+def test_full_bundle_keeps_everything_and_page_links_both(summary_dir, tmp_path):
+    import zipfile
+    work = _bundle_run(summary_dir, tmp_path, "both")
+    names = zipfile.ZipFile(work / "igv_validation_full.zip").namelist()
+    assert "summary.html" in names and any(n.endswith("report.html") for n in names)
+    assert not any(n.endswith(".zip") for n in names)
+    page = (work / "summary.html").read_text()
+    assert "igv_validation_light.zip" in page and "igv_validation_full.zip" in page and "contains read data" in page
+
+
+def test_page_shows_its_location_and_prints_cleanly(summary_dir):
+    root, _ = summary_dir
+    page = (root / "summary.html").read_text()
+    assert "This page:" in page and str((root / "summary.html").resolve()) in page
+    assert "Print / save as PDF" in page and "@media print{.noprint{display:none}" in page

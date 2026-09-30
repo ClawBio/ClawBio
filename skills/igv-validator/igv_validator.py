@@ -2429,9 +2429,33 @@ def make_interactive(plan: list[dict], rows: list[dict], out: Path, annotation=N
     return done, "; ".join(notes)
 
 
+def write_bundle(zpath: Path, page: str, root: Path, out: Path, light: bool, cells: list[dict]) -> Path:
+    """Zip the summary for download, keeping the relative links working. Light: the page, the depth plots it
+    shows and the two comparison tables (no reads). Full: every file of every run, plus the summary's own files."""
+    import zipfile
+    base = Path(os.path.commonpath([root.resolve(), out.resolve()]))
+    arc = lambda p: str(Path(p).resolve().relative_to(base))
+    page_arc = arc(out / "summary.html")
+    with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr(page_arc, page)
+        tables = [out / t for t in ("curated_vs_igv.tsv", "igv_agreement.tsv") if (out / t).exists()]
+        if light:
+            pics = {root / c["image"] for c in cells if c.get("image") and "/cnv/" in c["image"]
+                    and "_igv" not in c["image"] and (root / c["image"]).exists()}
+            for f in sorted(pics) + tables:
+                z.write(f, arc(f))
+        else:
+            seen = {page_arc}
+            for top in {root.resolve(), out.resolve()}:
+                for f in sorted(top.rglob("*")):
+                    if f.is_file() and f.suffix != ".zip" and arc(f) not in seen:
+                        seen.add(arc(f)); z.write(f, arc(f))
+    return zpath
+
+
 def summarize(root: Path, out: Path | None = None, regions: Path | None = None, igv_path=None,
               timeout: int = 300, curated: Path | None = None, annotation: Path | None = None,
-              overview: bool = True, interactive: bool = False) -> Path:
+              overview: bool = True, interactive: bool = False, bundle: str | None = None) -> Path:
     """One page over every igv-validator run under `root`: curated calls vs IGV (with --curated-calls), then the
     raw calls vs IGV; the images, per-sample reports and TSV files hold every detail."""
     root = Path(root)
@@ -2473,7 +2497,11 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
     rel = lambda p: e(str(Path(os.path.relpath(root / p, out))))     # a path relative to `root`
     green, red, grey = "#c6e8d2", "#f3c7a8", "#ecebe7"
 
+    mode = {"light": False, "bundle": False}   # light: no reads, screenshots or paths; bundle: inside a zip
+
     def links(smp, gene, report, mark=""):
+        if mode["light"]:
+            return ""
         key = (smp, gene.upper())
         bits = [f"<a href='{rel(report)}{'#' + e(mark) if mark else ''}'>report</a>"] if report else []
         if key in overviews:
@@ -2484,7 +2512,10 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
 
     def thumb(c):
         key = (c["sample"], c["gene"].upper())
-        src = relp(overviews[key]) if key in overviews else (rel(c["image"]) if c.get("image") else "")
+        if mode["light"]:   # only depth plots: they show read counts, not reads
+            src = rel(c["image"]) if c.get("image") and "/cnv/" in c["image"] and "_igv" not in c["image"] else ""
+        else:
+            src = relp(overviews[key]) if key in overviews else (rel(c["image"]) if c.get("image") else "")
         return f"<a href='{src}'><img src='{src}' style='width:260px;border:1px solid #ccc'></a><br>" if src else ""
 
     def details(pairs):
@@ -2512,67 +2543,100 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             + f"</tr>{rows_html}</table><p><a href='{e(os.path.relpath(out / 'summary.html', idx.parent))}'>back to the "
             f"summary</a></p></body></html>")
         index_pages[smp] = idx
-    it_html = ("" if not interactive else
-               "<p><b>Interactive views</b> (zoom, scroll, click reads): " + (" · ".join(
-                   f"<a href='{relp(pg)}'>{e(smp)}</a>" for smp, pg in sorted(index_pages.items())) or "none written") + (f" <i>({e(it_note)})</i>" if it_note else "") +
-               ". Each page contains read data: keep it with the BAMs; do not email or upload it.</p>")
-    curated_html = "" if not curated else (
-        f"<h2>Curated calls vs IGV</h2><p><b>{sum(c['agree'] == 'Yes' for c in cells)} agree, "
-        f"{sum(c['agree'] == 'No' for c in cells)} do not</b> out of {len(cells)} curated calls "
-        f"(sample x gene) for the genes checked.</p>"
-        "<div class=w><table><tr><th>Sample</th><th>Gene</th><th>Curated call</th><th>What IGV shows</th>"
-        "<th>Agree?</th><th>Evidence</th></tr>" + "".join(
-            f"<tr><td>{e(c['sample'])}</td><td><b>{e(c['gene'])}</b></td>"
-            f"<td>{e(PLAIN_LABEL.get(c['curated'].upper(), c['curated']))}</td><td>{e(c['plain'])}"
-            + details([("Verdict", c["match"]), ("Review", c["review"]), ("Reason", c["why"]),
-                       ("IGV found", c["igv_found"]), ("More", c["details"] if c["details"] != c["why"] else "")])
-            + f"</td><td style='background:{green if c['agree'] == 'Yes' else red if c['agree'] == 'No' else grey}'>"
-            f"<b>{e(c['agree'])}</b></td><td>{thumb(c)}"
-            f"{links(c['sample'], c['gene'], c['report'], 'gene-' + anchor(c['gene']))}</td></tr>"
-            for c in sorted(cells, key=lambda c: (c["agree"] != "No", c["gene"], c["sample"]))) + "</table></div>")
-    warning = ("<div style='border:2px solid #d9a400;background:#fff6d6;padding:10px 14px;margin:12px 0'>"
-               "<b>Agree? is an automatic first pass and can be wrong</b>, especially for copy number (reference "
-               "duplications, GC-rich DNA, chromosome ends, noisy samples). Open the image or the interactive view "
-               "and judge each row yourself before reporting it; never cite the verdict alone. <i>Agree</i> means the "
-               "reads are consistent with the call, not that it is a tumor mutation (tumor-only data cannot separate "
-               "inherited variants). Each row's <i>details</i> has the technical reason and a review priority "
-               "(check first, quick look, low priority).</div>")
-    acolor = {"yes": green, "no": red, "unclear": "#f6e3a1", "in reads, recurrent": "#dcd6ec"}
-    counts = {k: sum(a["igv_agrees"] == k for a in agree) for k in acolor}
-    raw_body = (
-        f"<p><b>{counts['yes']} yes, {counts['no']} no, {counts['unclear']} unclear, "
-        f"{counts['in reads, recurrent']} in reads but recurrent</b> out of {len(agree)} raw calls from the callers "
-        f"(SNVs/indels, SVs, copy-number gains/losses), before any filtering. <i>In reads, recurrent</i>: the same "
-        f"variant is in {RECURRENT_MIN}+ samples, so it is likely inherited or an artifact.</p>"
-        + (f"<p><i>Overview images: {e(ov_note)}</i></p>" if ov_note else "")
-        + "<div class=w><table><tr><th>Sample</th><th>Gene</th><th>Tool</th><th>The caller called</th>"
-          "<th>What IGV shows</th><th>IGV agrees?</th><th>Evidence</th></tr>" + "".join(
-            f"<tr><td>{e(a['sample'])}</td><td><b>{e(a['gene'])}</b></td><td>{e(a['tool'])}</td>"
-            f"<td>{e(a['caller_called'])}</td><td>{e(a['igv_shows'])}"
-            + details([("Reason", a["why"]), ("Review", a["review"]), ("Location", a["location"]),
-                       ("Caller's own counts", a["caller_counts"]), ("Flags", a["flags"])])
-            + f"</td><td style='background:{acolor[a['igv_agrees']]}'><b>{e(a['igv_agrees'])}</b></td>"
-            f"<td>{links(a['sample'], a['gene'], a['report'], a.get('anchor', ''))}</td></tr>"
-            for a in sorted(agree, key=lambda a: ({"no": 0, "in reads, recurrent": 1, "unclear": 2, "yes": 3}
-                                                  [a["igv_agrees"]], a["gene"], a["sample"]))) + "</table></div>"
-        + (f"<p><b>Runs with no calls in the selected genes:</b> "
-           + ", ".join(f"<a href='{rel(rep_)}'>{e(smp)} ({e(kind)})</a>" for smp, kind, rep_ in empty_runs)
-           + "</p>" if empty_runs else ""))
-    raw_html = (f"<details style='margin:14px 0'><summary style='cursor:pointer;font-size:1.1em'><b>Raw calls vs "
-                f"IGV (before filtering, {len(agree)} calls)</b> (click to show)</summary>{raw_body}</details>"
-                if curated else f"<h2>Raw calls vs IGV</h2>{raw_body}")
-    samples = sorted({r["sample"] for r in rows})
-    genes = sorted({r["gene"] for r in rows})
-    page = (f"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,"
-            f"initial-scale=1'><title>IGV Validation Summary</title><style>body{{font:14px/1.45 system-ui,sans-serif;"
-            f"max-width:1300px;margin:0 auto;padding:24px 16px;background:#fbfaf8;color:#1d1d1b}}table{{border-collapse:"
-            f"collapse;margin:8px 0 24px}}th,td{{border:1px solid #e4e1db;padding:6px 8px;text-align:left;"
-            f"vertical-align:top}}a{{color:inherit}}.w{{overflow-x:auto}}summary{{cursor:pointer}}</style></head><body>"
-            f"<h1>IGV validation summary</h1><p>{len(rows)} call(s) · {len(samples)} sample(s) · {len(genes)} gene(s) "
-            f"· {e(datetime.now(timezone.utc).strftime('%Y-%m-%d'))}</p>"
-            + it_html + curated_html + warning + IMAGE_KEY_HTML + raw_html
-            + f"<p><i>{e(DISCLAIMER)}</i></p></body></html>")
-    (out / "summary.html").write_text(page)
+    def render():
+        it_html = ("" if not interactive else
+                   "<p><b>Interactive views and IGV screenshots</b> are in the full version (they contain read data).</p>"
+                   if mode["light"] else
+                   "<p><b>Interactive views</b> (zoom, scroll, click reads): " + (" · ".join(
+                       f"<a href='{relp(pg)}'>{e(smp)}</a>" for smp, pg in sorted(index_pages.items())) or "none written") + (f" <i>({e(it_note)})</i>" if it_note else "") +
+                   ". Each page contains read data: keep it with the BAMs; do not email or upload it.</p>")
+        curated_html = "" if not curated else (
+            f"<h2>Curated calls vs IGV</h2><p><b>{sum(c['agree'] == 'Yes' for c in cells)} agree, "
+            f"{sum(c['agree'] == 'No' for c in cells)} do not</b> out of {len(cells)} curated calls "
+            f"(sample x gene) for the genes checked.</p>"
+            "<div class=w><table><tr><th>Sample</th><th>Gene</th><th>Curated call</th><th>What IGV shows</th>"
+            "<th>Agree?</th><th>Evidence</th></tr>" + "".join(
+                f"<tr><td>{e(c['sample'])}</td><td><b>{e(c['gene'])}</b></td>"
+                f"<td>{e(PLAIN_LABEL.get(c['curated'].upper(), c['curated']))}</td><td>{e(c['plain'])}"
+                + details([("Verdict", c["match"]), ("Review", c["review"]), ("Reason", c["why"]),
+                           ("IGV found", c["igv_found"]), ("More", c["details"] if c["details"] != c["why"] else "")])
+                + f"</td><td style='background:{green if c['agree'] == 'Yes' else red if c['agree'] == 'No' else grey}'>"
+                f"<b>{e(c['agree'])}</b></td><td>{thumb(c)}"
+                f"{links(c['sample'], c['gene'], c['report'], 'gene-' + anchor(c['gene']))}</td></tr>"
+                for c in sorted(cells, key=lambda c: (c["agree"] != "No", c["gene"], c["sample"]))) + "</table></div>")
+        warning = ("<div style='border:2px solid #d9a400;background:#fff6d6;padding:10px 14px;margin:12px 0'>"
+                   "<b>Agree? is an automatic first pass and can be wrong</b>, especially for copy number (reference "
+                   "duplications, GC-rich DNA, chromosome ends, noisy samples). Open the image or the interactive view "
+                   "and judge each row yourself before reporting it; never cite the verdict alone. <i>Agree</i> means the "
+                   "reads are consistent with the call, not that it is a tumor mutation (tumor-only data cannot separate "
+                   "inherited variants). Each row's <i>details</i> has the technical reason and a review priority "
+                   "(check first, quick look, low priority).</div>")
+        acolor = {"yes": green, "no": red, "unclear": "#f6e3a1", "in reads, recurrent": "#dcd6ec"}
+        counts = {k: sum(a["igv_agrees"] == k for a in agree) for k in acolor}
+        raw_body = (
+            f"<p><b>{counts['yes']} yes, {counts['no']} no, {counts['unclear']} unclear, "
+            f"{counts['in reads, recurrent']} in reads but recurrent</b> out of {len(agree)} raw calls from the callers "
+            f"(SNVs/indels, SVs, copy-number gains/losses), before any filtering. <i>In reads, recurrent</i>: the same "
+            f"variant is in {RECURRENT_MIN}+ samples, so it is likely inherited or an artifact.</p>"
+            + (f"<p><i>Overview images: {e(ov_note)}</i></p>" if ov_note else "")
+            + "<div class=w><table><tr><th>Sample</th><th>Gene</th><th>Tool</th><th>The caller called</th>"
+              "<th>What IGV shows</th><th>IGV agrees?</th><th>Evidence</th></tr>" + "".join(
+                f"<tr><td>{e(a['sample'])}</td><td><b>{e(a['gene'])}</b></td><td>{e(a['tool'])}</td>"
+                f"<td>{e(a['caller_called'])}</td><td>{e(a['igv_shows'])}"
+                + details([("Reason", a["why"]), ("Review", a["review"]), ("Location", a["location"]),
+                           ("Caller's own counts", a["caller_counts"]), ("Flags", a["flags"])])
+                + f"</td><td style='background:{acolor[a['igv_agrees']]}'><b>{e(a['igv_agrees'])}</b></td>"
+                f"<td>{links(a['sample'], a['gene'], a['report'], a.get('anchor', ''))}</td></tr>"
+                for a in sorted(agree, key=lambda a: ({"no": 0, "in reads, recurrent": 1, "unclear": 2, "yes": 3}
+                                                      [a["igv_agrees"]], a["gene"], a["sample"]))) + "</table></div>"
+            + (f"<p><b>Runs with no calls in the selected genes:</b> "
+               + ", ".join(f"<a href='{rel(rep_)}'>{e(smp)} ({e(kind)})</a>" for smp, kind, rep_ in empty_runs)
+               + "</p>" if empty_runs else ""))
+        raw_html = (f"<details style='margin:14px 0'><summary style='cursor:pointer;font-size:1.1em'><b>Raw calls vs "
+                    f"IGV (before filtering, {len(agree)} calls)</b> (click to show)</summary>{raw_body}</details>"
+                    if curated else f"<h2>Raw calls vs IGV</h2>{raw_body}")
+        samples = sorted({r["sample"] for r in rows})
+        genes = sorted({r["gene"] for r in rows})
+        page = (f"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,"
+                f"initial-scale=1'><title>IGV Validation Summary</title><style>body{{font:14px/1.45 system-ui,sans-serif;"
+                f"max-width:1300px;margin:0 auto;padding:24px 16px;background:#fbfaf8;color:#1d1d1b}}table{{border-collapse:"
+                f"collapse;margin:8px 0 24px}}th,td{{border:1px solid #e4e1db;padding:6px 8px;text-align:left;"
+                f"vertical-align:top}}a{{color:inherit}}.w{{overflow-x:auto}}summary{{cursor:pointer}}"
+                f"@media print{{.noprint{{display:none}}body{{max-width:none;background:#fff}}"
+                f"tr,img{{page-break-inside:avoid}}}}</style></head><body>"
+                f"<h1>IGV validation summary</h1><p>{len(rows)} call(s) · {len(samples)} sample(s) · {len(genes)} gene(s) "
+                f"· {e(datetime.now(timezone.utc).strftime('%Y-%m-%d'))}</p>"
+                + top_html() + it_html + curated_html + warning + IMAGE_KEY_HTML + raw_html
+                + f"<p><i>{e(DISCLAIMER)}</i></p></body></html>")
+        return page
+
+    def top_html():
+        """What sits above the tables: the page's location on the server, downloads, and a print button."""
+        if mode["light"]:
+            return ("<p style='background:#eef6ee;padding:8px 12px'><b>Light version:</b> tables, plain explanations "
+                    "and depth plots only; no reads, IGV screenshots or interactive views.</p>")
+        if mode["bundle"]:
+            return "<p class=noprint><button onclick='window.print()'>Print / save as PDF</button></p>"
+        dl = [(f, lab) for f, lab in (("igv_validation_light.zip", "light: tables and depth plots, no read data"),
+                                      ("igv_validation_full.zip", "full: everything; contains read data"))
+              if (out / f).exists()]
+        return (f"<p class=noprint><small>This page: <code>{e(str((out / 'summary.html').resolve()))}</code></small><br>"
+                "<button onclick='window.print()'>Print / save as PDF</button>"
+                + ("" if not dl else " &nbsp; <b>Download:</b> " + " · ".join(
+                    f"<a href='{e(f)}' download>{e(lab)} ({(out / f).stat().st_size / 1e6:.1f} MB)</a>" for f, lab in dl))
+                + "</p>")
+
+    for f in ("igv_validation_light.zip", "igv_validation_full.zip"):   # a new run replaces old bundles
+        if bundle and (out / f).exists():
+            (out / f).unlink()
+    if bundle in ("light", "both"):
+        mode.update(light=True, bundle=True)
+        write_bundle(out / "igv_validation_light.zip", render(), root, out, light=True, cells=cells)
+    if bundle in ("full", "both"):
+        mode.update(light=False, bundle=True)
+        write_bundle(out / "igv_validation_full.zip", render(), root, out, light=False, cells=cells)
+    mode.update(light=False, bundle=False)
+    (out / "summary.html").write_text(render())
     return out
 
 
@@ -2816,6 +2880,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--curated-calls", "--heatmap", dest="curated",
                    help="with --summarize: your curated calls (CSV/TSV with sample, gene, alteration; e.g. the table "
                         "behind a mutational-profile heatmap) to compare call by call with IGV")
+    p.add_argument("--bundle", choices=["light", "full", "both"],
+                   help="with --summarize: also write downloadable zips linked from the page. light = tables, "
+                        "explanations and depth plots (no read data); full = everything, including screenshots and "
+                        "interactive pages (contains read data)")
     p.add_argument("--interactive", action="store_true",
                    help="with --summarize and --regions: one browser page per sample (igv-reports) to zoom, scroll and "
                         "click reads; the pages contain read data")
@@ -2836,7 +2904,7 @@ def main(argv=None) -> int:
                 raise InputError("--interactive needs --regions (the BED of genes to show)")
             out = summarize(Path(args.summarize), args.output, args.regions,
                             args.igv_path, args.igv_timeout, args.curated, args.annotation,
-                            overview=args.overview, interactive=args.interactive)
+                            overview=args.overview, interactive=args.interactive, bundle=args.bundle)
             print(f"Summary written to {out / 'summary.html'}")
             return 0
         out = run(args)

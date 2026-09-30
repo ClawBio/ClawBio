@@ -1237,7 +1237,7 @@ SKILLS = {
         "demo_args": ["--demo"],
         "description": "IGV validation of somatic calls: tumor/normal read support, artifact flags, IGV screenshots",
         "allowed_extra_flags": {
-            "--vcf", "--tumor", "--normal", "--reference", "--genes", "--variants", "--regions", "--cnv", "--cnv-sample", "--demo-cnv", "--summarize", "--overview", "--heatmap", "--annotation", "--interactive", "--pass-only",
+            "--vcf", "--tumor", "--normal", "--reference", "--genes", "--variants", "--regions", "--cnv", "--cnv-sample", "--demo-cnv", "--summarize", "--overview", "--heatmap", "--annotation", "--interactive", "--bundle", "--pass-only",
             "--max-variants", "--no-igv", "--igv-timeout", "--igv-path", "--tumor-only", "--caller-sample", "--tumor-name", "--normal-name",
         },
         "no_input_required": False,
