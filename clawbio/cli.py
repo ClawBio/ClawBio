@@ -480,6 +480,16 @@ SKILLS = {
         },
         "accepts_genotypes": False,
     },
+    "prs-gate": {
+        "script": SKILLS_DIR / "prs-applicability-gate" / "prs_applicability_gate.py",
+        "demo_args": ["--demo"],
+        "description": "PRS applicability gate: SUPPORTED / RAW_ONLY / ABSTAIN for one already-computed PGS result",
+        # Deliberately empty: the gate's --config (an alternative calibration) is
+        # not forwarded, so a run through this runner always uses the shipped
+        # config/calibration.yaml and an agent cannot swap its thresholds.
+        "allowed_extra_flags": set(),
+        "accepts_genotypes": False,
+    },
     "pubmed-summariser": {
         "script": SKILLS_DIR / "pubmed-summariser" / "pubmed_summariser.py",
         "demo_args": ["--demo"],
