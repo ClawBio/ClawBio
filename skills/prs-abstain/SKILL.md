@@ -214,6 +214,7 @@ python skills/prs-abstain/prs_abstain.py --demo --output /tmp/d --ref-pop EUR --
 | `--min-weight-coverage` | `0.90` | Fraction of a score's total weight that must be genotyped |
 | `--genotype-sample-id` | none | Which individuals-CSV row the `--genotype` file belongs to; required when the CSV has more than one row, so one genotype never gates anyone else |
 | `--min-effective-n` | `10` | Warn below this many independent contributions |
+| `--genotype-build` | none | Genome build of the genotype file (e.g. `GRCh37`). Checked against each score's declared build; a mismatch refuses. Without it the unverified build is disclosed in both reports |
 | `--af-population` | `AFR` | Population column to re-centre on |
 | `--population-af` | none | TSV `rsid, population, frequency[, allele]`. Name the allele the frequency counts; without it, any rsid whose effect allele differs between the supplied scores is skipped rather than re-centred with a guessed sign |
 | `--ld-window-kb` | `250` | Group variants this close as potentially correlated |

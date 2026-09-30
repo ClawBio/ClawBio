@@ -473,7 +473,7 @@ SKILLS = {
             "--min-markers", "--pcs", "--no-figures", "--scores", "--genotype",
             "--genotype-sample-id", "--population-af", "--af-population",
             "--min-weight-coverage", "--min-effective-n", "--ld-window-kb", "--no-pdf",
-            "--allow-threshold-overreach",
+            "--allow-threshold-overreach", "--genotype-build",
         },
         "accepts_genotypes": True,
     },

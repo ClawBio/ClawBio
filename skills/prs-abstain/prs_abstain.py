@@ -120,6 +120,27 @@ SEX_SPECIFIC = {
     "male": ("prostate", "testicular"),
 }
 
+# "cervical" also names the neck: cervical artery dissection, cervical spine
+# or disc disease, cervical dystonia, cervical rib. A trait that uses the word
+# in that sense is not a cancer of the cervix and must not be sex-restricted
+# by a substring match (Manuel, PR #348 review). Only the word "cervical" is
+# re-read here; every other sex-specific keyword keeps its plain match.
+_NON_GYN_CERVICAL = re.compile(
+    r"\bcervical\s+(?:\w+\s+)?(?:arter\w*|carotid|spine|spinal|spondyl\w*|vertebr\w*"
+    r"|disc|discs|radiculopath\w*|myelopath\w*|dystonia|rib|ribs|lymph\w*)\b")
+
+
+def _sex_keyword_hits(t: str, keywords: tuple[str, ...]) -> bool:
+    for k in keywords:
+        if k not in t:
+            continue
+        if k == "cervical":
+            gyn = re.sub(_NON_GYN_CERVICAL, "", t)
+            if "cervical" not in gyn:
+                continue
+        return True
+    return False
+
 
 @dataclass
 class ScoreDefinition:
@@ -131,6 +152,16 @@ class ScoreDefinition:
     # reference mean is Sum(2*AF*w) over af_reference by construction. An
     # authentic PGS Catalog file carries no such guarantee.
     curated: bool = False
+    # The file's own #weights header says the effect weights are not the
+    # published betas (the ClawBio curated demo panels declare
+    # "#weights=approximate; NOT the published betas"). Kept verbatim so the
+    # refusal can quote it; empty when the file makes no such declaration.
+    weights_declaration: str = ""
+
+    @property
+    def weights_approximate(self) -> bool:
+        w = self.weights_declaration.lower()
+        return "approximate" in w or "not the published" in w or "illustrative" in w
 
 
 @dataclass
@@ -219,6 +250,11 @@ def load_score_definitions(path: Path) -> dict[str, ScoreDefinition]:
     out: dict[str, ScoreDefinition] = {}
     for fp in sorted(Path(path).glob("*.txt")):
         hdr: dict[str, str] = {}
+        # A header key can continue over several lines (the curated panels
+        # spread #weights= over four). hdr keeps the last value, as before;
+        # the weights declaration is read from all of its lines, since the
+        # word that matters ("approximate") sits on the first one.
+        weights_lines: list[str] = []
         cols: dict[str, int] | None = None
         variants: list[dict[str, Any]] = []
         for lineno, line in enumerate(fp.read_text().splitlines(), start=1):
@@ -226,6 +262,8 @@ def load_score_definitions(path: Path) -> dict[str, ScoreDefinition]:
                 if "=" in line:
                     k, v = line[1:].split("=", 1)
                     hdr[k.strip()] = v.strip()
+                    if k.strip() == "weights":
+                        weights_lines.append(v.strip())
                 continue
             if not line.strip():
                 continue
@@ -295,7 +333,8 @@ def load_score_definitions(path: Path) -> dict[str, ScoreDefinition]:
                                        (hdr.get("HmPOS_build") or hdr.get("hmpos_build")
                                         or hdr.get("genome_build")), variants,
                                        curated=("clawbio_panel_id" in hdr
-                                                or "clawbio_panel" in hdr))
+                                                or "clawbio_panel" in hdr),
+                                       weights_declaration=" ".join(weights_lines))
     return out
 
 
@@ -407,7 +446,7 @@ def check_applicability(score: dict[str, Any] | ScoreDefinition, sex: str | None
     for required_sex, keywords in SEX_SPECIFIC.items():
         if required_sex == "female" and male_override:
             continue
-        if any(k in t for k in keywords) or (required_sex == "male" and male_override):
+        if _sex_keyword_hits(t, keywords) or (required_sex == "male" and male_override):
             if sex_norm is None:
                 return Applicability(False, (
                     f"{trait} is a sex-specific trait and no sex was recorded for this "
@@ -640,7 +679,8 @@ def integrity_verdict(audit: ScoreAudit | None, min_weight_coverage: float = 0.9
                       min_effective_n: float = 10.0,
                       max_palindromic_share: float = 0.10,
                       ld: "LDAudit | None" = None,
-                      max_clustered_weight_share: float = 0.30) -> IntegrityVerdict:
+                      max_clustered_weight_share: float = 0.30,
+                      score: "ScoreDefinition | None" = None) -> IntegrityVerdict:
     """A score computed on too little of itself is not that score.
 
     Runs with or without a genotype-level audit. Duplicate positions, weight
@@ -650,6 +690,12 @@ def integrity_verdict(audit: ScoreAudit | None, min_weight_coverage: float = 0.9
     genotype was supplied, never silently.
     """
     reasons, warnings = [], []
+    if score is not None and score.weights_approximate:
+        reasons.append(
+            f"Illustrative weights: the scoring file declares \"{score.weights_declaration}\". "
+            f"A percentile computed from weights that are not the published effect sizes has "
+            f"no calibrated meaning for this individual, so it is not released, whatever the "
+            f"ancestry gate says.")
     if ld is not None and ld.duplicate_positions:
         pairs = "; ".join(
             f"chr{d['chr']}:{d['pos']} ({', '.join(d['rsids'])})" for d in ld.duplicate_positions[:3])
@@ -775,7 +821,11 @@ def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, Any]],
             # effect allele IS the other allele, so a complement match cannot
             # tell the two strands apart and would flip the sign of delta_mean.
             # Only an exact allele match is usable there.
-            if ((v["effect_allele"], v.get("other_allele")) in PALINDROMIC
+            # When the scoring file carries no other_allele, palindromy cannot
+            # be ruled out, so the complement match is equally ambiguous: only
+            # an exact allele match is usable there too (Manuel, PR #348).
+            other = (v.get("other_allele") or "").upper()
+            if ((not other or (v["effect_allele"], other) in PALINDROMIC)
                     and tab_allele.upper() != v["effect_allele"].upper()):
                 skipped_palindromic += 1
                 continue
@@ -1141,7 +1191,18 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
         if decision.verdict != "REPORT":
             reasons.append(f"Ancestry gate: {decision.verdict}.")
 
-        if score_pop is None:
+        curated_record = bool(s_.get("curated_demo_panel")) or s_.get("curated_panel_id") is not None
+        if curated_record and not (score_pop or "").lower().startswith("estimated"):
+            # gwas-prs labels the curated reference "EUR" by default
+            # (ref.get("population", "EUR")), but that reference is the
+            # allele-frequency expectation Sum(2*AF*w), not a named cohort.
+            # The label is not trusted; the provenance is.
+            reasons.append(
+                f"Reference provenance: this is a ClawBio curated demonstration panel. Its "
+                f"reference distribution is an allele-frequency expectation, not a named cohort, "
+                f"even though it is labelled {score_pop or 'with no population'}. A percentile "
+                f"centred on it cannot be released.")
+        elif score_pop is None:
             reasons.append(
                 "Reference provenance: this score does not declare a reference_population, so "
                 "the population its percentile is centred on is unknown. A percentile of "
@@ -2130,10 +2191,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         # records which checks were skipped instead of skipping the tier.
         integrity[pid] = integrity_verdict(
             audits.get(pid), min_weight_coverage=args.min_weight_coverage,
-            min_effective_n=args.min_effective_n, ld=lds[pid])
+            min_effective_n=args.min_effective_n, ld=lds[pid], score=sdef)
         integrity_nogt[pid] = integrity_verdict(
             None, min_weight_coverage=args.min_weight_coverage,
-            min_effective_n=args.min_effective_n, ld=lds[pid])
+            min_effective_n=args.min_effective_n, ld=lds[pid], score=sdef)
 
     # A genotype file bounds every credible marker declaration: no individual
     # can share more markers with the panel than there are valid calls.

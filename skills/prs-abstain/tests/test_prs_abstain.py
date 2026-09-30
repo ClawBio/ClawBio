@@ -18,6 +18,19 @@ FIXTURES = SKILL_DIR / "tests" / "fixtures"
 sys.path.insert(0, str(SKILL_DIR))
 
 
+def cohort_referenced_results(tmp_path):
+    """The demo results with the curated-panel provenance removed, standing
+    in for a score whose reference is a named cohort. Tests of the release
+    path use it: a curated demo panel can never be released (PR #348)."""
+    recs = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
+    for r in recs:
+        r.pop("curated_demo_panel", None)
+        r.pop("curated_panel_id", None)
+    out = tmp_path / "cohort_prs_results.json"
+    out.write_text(json.dumps(recs))
+    return out
+
+
 def run_cli(args):
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args], capture_output=True, text=True
@@ -142,7 +155,13 @@ class TestGating:
         import prs_abstain as pa
 
         ind = pa.Individual("EUR_001", "EUR", [-3.005, -2.385, -2.002, 0.345], 480)
-        _, gated, _ = self._gate(ind)
+        panel = pa.load_reference_panel(EXAMPLES / "demo_reference_pcs.csv")
+        cal = pa.calibrate(panel, ref_pop="EUR", k_sd=3.0)
+        scores = [{k: v for k, v in s_.items()
+                   if k not in ("curated_demo_panel", "curated_panel_id")}
+                  for s_ in pa.load_prs_results(EXAMPLES / "demo_prs_results.json")
+                  if s_.get("sample_id") == ind.sample_id]
+        gated = pa.gate_scores(scores, pa.decide(ind, cal, min_markers=30), cal)
         general = [g for g in gated if g["trait"] not in ("Breast cancer", "Prostate cancer")]
         assert general and all(g["percentile"] is not None for g in general)
 
@@ -950,7 +969,9 @@ class TestGateWiringThroughTheCli:
         """The documented standard command (no --scores): every released
         percentile must carry the integrity-not-verified caveat rather than
         passing the tier silently."""
-        r = run_cli(self._standard(tmp_path))
+        args = self._standard(tmp_path)
+        args[args.index("--prs-results") + 1] = str(cohort_referenced_results(tmp_path))
+        r = run_cli(args)
         assert r.returncode == 0, r.stderr
         released = [s for s in self._eur_scores(tmp_path) if s["percentile"] is not None]
         assert released, "demo data should release at least one percentile here"
@@ -1305,7 +1326,7 @@ class TestClinicianSurfaceParity:
         test drives --demo, which always supplies scores."""
         r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
                      "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
-                     "--prs-results", str(EXAMPLES / "demo_prs_results.json"),
+                     "--prs-results", str(cohort_referenced_results(tmp_path)),
                      "--output", str(tmp_path), "--no-figures", "--no-pdf"])
         assert r.returncode == 0, r.stderr
         clin = (tmp_path / "report_clinician.md").read_text()
@@ -1845,3 +1866,90 @@ class TestSinglePopulationPanel:
         out = json.loads((tmp_path / "result.json").read_text())
         assert out["calibration"]["overreach_check"] == "ran"
 
+
+
+class TestRound18ManuelReview:
+    """PR #348 review of 29 Sep 2026 (head 9b22424): one test per point."""
+
+    def test_curated_panel_never_releases_even_labelled_eur(self, tmp_path):
+        """Blocking point: gwas-prs labels the curated AF-formula reference
+        'EUR' by default, and that label passed the provenance tier. The demo
+        run with the demo PC panel must now release no curated percentile."""
+        out = tmp_path / "out"
+        r = run_cli(["--demo", "--output", str(out), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        res = json.loads((out / "result.json").read_text())
+        scores = [s for d in res["decisions"] for s in d["scores"]]
+        assert scores
+        assert all(s["percentile"] is None for s in scores)
+        assert any("curated demonstration panel" in x
+                   for s in scores for x in s["withheld_reasons"])
+        clin = (out / "report_clinician.md").read_text()
+        assert "| Released |" not in clin and "Released —" not in clin
+
+    def test_approximate_weights_are_carried_and_refused(self):
+        import prs_abstain as pa
+        defs = pa.load_score_definitions(EXAMPLES / "scores")
+        sdef = defs["CLAWBIO-T2D-8"]
+        assert sdef.weights_approximate
+        v = pa.integrity_verdict(None, ld=pa.ld_audit(sdef), score=sdef)
+        assert not v.passed
+        assert any("Illustrative weights" in r and "NOT the published" in r for r in v.reasons)
+
+    def test_authentic_file_is_not_flagged_illustrative(self):
+        import prs_abstain as pa
+        sdef = pa.load_score_definitions(SKILL_DIR / "tests" / "fixtures")["PGS000001"]
+        assert not sdef.weights_approximate
+        v = pa.integrity_verdict(None, ld=pa.ld_audit(sdef), score=sdef)
+        assert not any("Illustrative weights" in r for r in v.reasons)
+
+    def test_missing_other_allele_cannot_flip_the_sign(self):
+        """An A/T site in a file with no other_allele column: a frequency
+        table naming the complement (A->T) must not be taken as the effect
+        allele, because the site may be palindromic."""
+        import prs_abstain as pa
+        variants = [{"rsid": f"rs{i}", "chr": "1", "pos": str(1000 * i),
+                     "effect_allele": "G", "other_allele": "", "weight": 0.1,
+                     "af_reference": 0.3} for i in range(1, 20)]
+        variants.append({"rsid": "rsAT", "chr": "1", "pos": "999999",
+                         "effect_allele": "A", "other_allele": "", "weight": 2.0,
+                         "af_reference": 0.2})
+        sdef = pa.ScoreDefinition("PGSTEST", "Height", "GRCh37", variants)
+        table = pa.AFTable({v["rsid"]: {"AFR": 0.3, "_allele": "G"} for v in variants[:-1]})
+        table["rsAT"] = {"AFR": 0.9, "_allele": "T"}  # complement of A
+        sh = pa.af_shift(sdef, table, sd=1.0, population="AFR", min_weight_coverage=0.0)
+        assert sh is not None
+        assert all(p["rsid"] != "rsAT" for p in sh.per_variant)
+
+    def test_exact_allele_match_still_used_without_other_allele(self):
+        import prs_abstain as pa
+        variants = [{"rsid": "rs1", "chr": "1", "pos": "1", "effect_allele": "A",
+                     "other_allele": "", "weight": 1.0, "af_reference": 0.2}]
+        sdef = pa.ScoreDefinition("PGSTEST", "Height", "GRCh37", variants)
+        table = pa.AFTable({"rs1": {"AFR": 0.5, "_allele": "A"}})
+        sh = pa.af_shift(sdef, table, sd=1.0, population="AFR", min_weight_coverage=0.0)
+        assert sh is not None and sh.per_variant[0]["rsid"] == "rs1"
+
+    @pytest.mark.parametrize("trait", [
+        "Cervical artery dissection", "Cervical spine degeneration",
+        "Cervical disc herniation", "Cervical dystonia", "Cervical rib",
+        "Cervical spondylosis", "Cervical radiculopathy",
+        "Cervical vertebral artery dissection"])
+    def test_neck_cervical_traits_are_not_sex_restricted(self, trait):
+        import prs_abstain as pa
+        app = pa.check_applicability({"trait": trait}, "male")
+        assert app.applicable, app.reason
+
+    @pytest.mark.parametrize("trait", [
+        "Cervical cancer", "Cervical intraepithelial neoplasia",
+        "Cervical squamous cell carcinoma", "Cervical adenocarcinoma"])
+    def test_cervix_traits_stay_female_only(self, trait):
+        import prs_abstain as pa
+        assert not pa.check_applicability({"trait": trait}, "male").applicable
+        assert pa.check_applicability({"trait": trait}, "female").applicable
+
+    def test_genotype_build_reachable_through_clawbio_run(self):
+        sys.path.insert(0, str(SKILL_DIR.parent.parent))
+        from clawbio.cli import SKILLS
+        assert "--genotype-build" in SKILLS["prs-abstain"]["allowed_extra_flags"]
+        assert "`--genotype-build`" in (SKILL_DIR / "SKILL.md").read_text()
