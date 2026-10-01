@@ -486,7 +486,13 @@ cd "$(dirname "$0")"
 python ClawBio/skills/igv-validator/igv_validator.py --samplesheet samples.csv --reference /path/to/hg38.fa \
   --curated-calls curated.csv --annotation gencode.v44.basic.annotation.gtf.gz "$@"
 ```
-(`"$@"` passes extra options through, e.g. `bash run_igv_validation.sh --genes KRAS,BRAF` for a smaller run.)
+The last line, `"$@"`, passes extra options on, so a run with fewer genes needs no edit:
+```bash
+bash run_igv_validation.sh --genes KRAS,BRAF,PTEN
+```
+- `bash run_igv_validation.sh` checks every gene in the curated table.
+- `bash run_igv_validation.sh --genes ...` checks only the genes listed (curated rows for other genes are left out
+  of that run).
 Each run goes into a **new folder named by date and time**, `igv_reports/2026-10-20_14-32/` (never an existing
 one, so nothing is overwritten). The tool runs every check for every sample, then builds that run's
 `summary.html` (with overview images, interactive views and the whole report zipped) and updates
@@ -514,11 +520,12 @@ left out by that rule are explained, not counted as differences. If your table f
 **Next run, other samples or genes: edit and run.**
 1. **Samples**: edit `samples.csv` (add or remove rows), or make a new file, e.g. `samples_batch2.csv`, and point
    the script's `--samplesheet` line at it.
-2. **Genes**: add them to your curated table, or set them in the script with `--genes` (below).
+2. **Genes**: add them to your curated table, or list them when you run: `bash run_igv_validation.sh --genes A,B`.
 3. **Run** `the same command again`. The run gets its own dated folder; earlier runs stay as they are, and
    `igv_reports/index.html` lists all of them.
 
-**Without a curated table**, remove the `--curated-calls` line and give the genes with `--genes`, either typed in
+**Without a curated table**, remove the `--curated-calls` line and give the genes with `--genes`, either when you
+run (`bash run_igv_validation.sh --genes KRAS,BRAF,PTEN`) or typed in
 the script:
 ```
   --genes KRAS,BRAF,PTEN
