@@ -310,10 +310,11 @@ python skills/igv-validator/igv_validator.py --demo --output /tmp/igv_demo
 
 **A whole project, in one command** (every sample, every check, a new dated folder, its summary and the index of
 runs): `--samplesheet`, see *Step by step* below. Or ask:
-*"Use igv-validator on samples S1 and S2 for KRAS, BRAF and PTEN. The BAMs, Mutect2, SURVIVOR and GATK outputs are
-under `<results folder>`. Tumor-only. Compare with my curated calls in `<table.csv>`, with overview images and
-interactive views."* Claude then writes the gene BED, runs each check per sample and builds the summary; it asks
-for anything missing (file locations, reference, tumor-only or paired).
+*"Use igv-validator on samples S1 and S2. The BAMs, Mutect2, SURVIVOR and GATK outputs are under
+`<results folder>`. Tumor-only. Compare with my curated calls in `<table.csv>`."* (add *"only for KRAS, BRAF and
+PTEN"* to narrow the genes). Claude then writes `samples.csv`, checks that every file exists and that the reference
+matches the BAMs (`@SQ` lines vs the `.fai`), runs `--samplesheet` with `--annotation` and gives the path of the
+run's `summary.html`; it asks for anything missing (file locations, reference, tumor-only or paired).
 
 ## All Options
 
