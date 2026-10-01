@@ -1085,7 +1085,10 @@ def test_heatmap_vs_igv_says_where_they_match_and_differ(summary_dir, tmp_path):
                              ("demo_tumor", "ALTGENE", "DEL"), ("demo_tumor", "NEUTRAL", "WT"),
                              ("demo_tumor", "DEMO1", "WT"), ("demo_tumor", "DEMO5", "SV"),
                              ("demo_tumor", "GENEG", "WT")])
-    by = {(c["sample"], c["gene"]): c for c in iv.curated_vs_igv(iv._summary_rows(root), hm)}
+    rows = iv._summary_rows(root)
+    for r in rows:
+        r["_unfiltered"] = False          # as if the SNVs came from a filtered list (--variants / snv_list)
+    by = {(c["sample"], c["gene"]): c for c in iv.curated_vs_igv(rows, hm)}
     assert by[("demo_tumor", "HOMDEL")]["match"] == "matches"
     assert by[("demo_tumor", "WRONGDEL")]["match"] == "differs"
     alt = by[("demo_tumor", "ALTGENE")]
@@ -1095,6 +1098,41 @@ def test_heatmap_vs_igv_says_where_they_match_and_differ(summary_dir, tmp_path):
     assert d1["match"] == "differs" and "do not show" in d1["why"]       # a supported SNV the heatmap calls WT
     assert by[("demo_tumor", "DEMO5")]["match"] == "matches"
     assert ("demo_tumor", "GENEG") not in by                                 # never checked with IGV
+
+
+def test_unfiltered_snvs_do_not_count_against_a_curated_wt(summary_dir, tmp_path):
+    root, _ = summary_dir
+    rows = iv._summary_rows(root)          # the demo checks every SNV in the VCF: no --variants list
+    assert any(r.get("_unfiltered") for r in rows if r["gene"] == "DEMO1")
+    hm = _heatmap(tmp_path, [("demo_tumor", "DEMO1", "WT"), ("demo_tumor", "DEMO5", "SV")])
+    by = {c["gene"]: c for c in iv.curated_vs_igv(rows, hm)}
+    d1 = by["DEMO1"]
+    assert d1["match"] == "matches" and "unfiltered" in d1["why"] and "unfiltered SNV file" in d1["plain"]
+    assert "do not count against" in d1["details"]
+    assert by["DEMO5"]["match"] == "matches"
+
+
+def test_unfiltered_snv_still_supports_a_curated_snv(summary_dir, tmp_path):
+    root, _ = summary_dir
+    c = iv.curated_vs_igv(iv._summary_rows(root), _heatmap(tmp_path, [("demo_tumor", "DEMO1", "SNV")]))[0]
+    assert c["match"] == "matches"
+
+
+def test_many_extra_calls_become_one_short_sentence():
+    rows = [{"type": "SNV/indel", "flags": "", "igv_shows": f"{i} of 9 reads", "call": f"V{i}"} for i in range(6)]
+    ev = [("SNV", "real", f"V{i}") for i in range(6)]
+    text = iv._plain_cell(rows, ev, {"DEL"}, "differs")
+    assert "6 other calls are in the reads" in text and text.count("reads carry") == 0 and len(text) < 300
+
+
+def test_samplesheet_warns_when_snvs_are_unfiltered(tmp_path):
+    sheet, bed = _sheet(tmp_path, [_demo_row("demo_tumor")])
+    cur = tmp_path / "cur.csv"
+    cur.write_text("sample,gene,alteration\ndemo_tumor,DEMO1,WT\n")
+    r = run_cli("--samplesheet", sheet, "--regions", bed, "--reference", DEMO / "demo_ref.fa", "--curated-calls", cur,
+                "--reports-dir", tmp_path / "reports", "--no-igv", "--no-bundle")
+    assert r.returncode == 0, r.stderr
+    assert "no snv_list for demo_tumor" in r.stderr
 
 
 def test_heatmap_wt_with_a_recurrent_variant_is_explained(tmp_path):

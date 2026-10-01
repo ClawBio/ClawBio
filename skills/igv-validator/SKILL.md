@@ -466,8 +466,10 @@ required; add whichever calls you have (leave a cell empty to skip that check):
 | sampleA | bams/sampleA.bam | | vcf/sampleA.mutect2.vcf | | vcf/sampleA.survivor.vcf | cnv/sampleA.called.seg | |
 | sampleB | bams/sampleB.bam | bams/sampleB_normal.bam | vcf/sampleB.mutect2.vcf | | | cnv/sampleB.called.seg | |
 
-`normal` empty = tumor-only. `snv_list` (optional) = a table of chrom, pos (e.g. your filtered calls) to check
-instead of every SNV in the genes. `cnv_sample` = the sample's name inside a multi-sample copy-number file.
+`normal` empty = tumor-only. `snv_list` = a table of chrom, pos to check instead of every SNV in the genes.
+**When you compare with curated calls (step 5), give `snv_list`: the filtered variants your curated table was made
+from.** Without it, every caller SNV in the genes is checked; in tumor-only data most are inherited, so the run warns,
+and those variants are listed under *details* without counting against a curated call. `cnv_sample` = the sample's name inside a multi-sample copy-number file.
 
 **4. Run everything with one command**:
 ```bash

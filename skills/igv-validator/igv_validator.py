@@ -1703,7 +1703,8 @@ def _inputs(args) -> dict:
     """Absolute input paths, so --summarize --overview can reopen the same BAM and reference."""
     ab = lambda x: str(Path(x).resolve()) if x else None
     return {"tumor": ab(args.tumor), "normal": ab(getattr(args, "normal", None)), "reference": ab(args.reference),
-            "igv": igv_location(getattr(args, "igv_path", None))}
+            "igv": igv_location(getattr(args, "igv_path", None)),
+            "variants_list": bool(getattr(args, "variants", None))}
 
 
 def run_cnv(args) -> Path:
@@ -1869,6 +1870,7 @@ def _summary_rows(root: Path, empty_runs: list | None = None) -> list[dict]:
                              "igv_shows": shows, "_bam": inputs.get("tumor"), "_ref": inputs.get("reference"), "_igv": inputs.get("igv"),
                              "_chrom": v["chrom"], "_pos": v["pos"], "_chrom2": v.get("chrom2"), "_pos2": v.get("pos2"),
                              "_kind": v["kind"], "_vaf": t.get("vaf_pct"),
+                             "_unfiltered": not sv and inputs.get("variants_list") is False,
                              "state": v["kind"].upper() if sv else "", "call": v["label"],
                              "location": f"{v['chrom']}:{v['pos']}", "reads": reads,
                              "caller": f"{c['alt']}/{c['depth']} ({c['vaf_pct']}%)" if c else "",
@@ -2097,6 +2099,8 @@ def _evidence(r: dict) -> tuple[str, str, str]:
     kind = "SV" if r["type"] == "SV" else "SNV"
     if "recurrent" in flags:
         return kind, "recurrent", f"{r['call']} is in the reads but in {r['_recurrent']}"
+    if r["status"] == "supported" and r.get("_unfiltered"):
+        return kind, "unfiltered", f"{r['call']}: {r['igv_shows']}"
     if r["status"] == "supported":
         return kind, "real", f"{r['call']}: {r['igv_shows']}"
     if r["status"] == "flagged":
@@ -2155,22 +2159,38 @@ def _plain_row(r: dict, ev: tuple[str, str, str]) -> str:
     if verdict == "not supported" and why:
         return f"{r['igv_shows']}, but {why}"
     return {"real": f"the variant is in the reads ({r['igv_shows']})",
+            "unfiltered": f"the variant is in the reads ({r['igv_shows']})",
             "weak": "only a few reads carry the variant"}.get(verdict, "the reads do not support the variant")
+
+
+UNFILTERED_NOTE = ("{n} variant{s} from the unfiltered SNV file {are} in the reads but not in the curated calls; a "
+                   "curated table filters these out (inherited, non-coding or low impact), so they do not count against "
+                   "it (see details)")
+MANY_CALLS = 3   # above this many extra calls in a gene, the plain cell gives a count instead of one sentence each
 
 
 def _plain_cell(mine: list[dict], ev: list[tuple], wanted: set, match: str) -> str:
     """One plain sentence for a curated call: what IGV shows about the label, then anything else worth knowing."""
-    said = [(r, e) for r, e in zip(mine, ev) if e[1] != "nothing"]
+    n_unf = sum(1 for e in ev if e[1] == "unfiltered" and e[0] not in wanted)
+    ev = [(e[0], "real", e[2]) if e[1] == "unfiltered" and e[0] in wanted else e for e in ev]
+    said = [(r, e) for r, e in zip(mine, ev) if e[1] not in ("nothing", "unfiltered")]
     main = [_plain_row(r, e) for r, e in said if e[0] in wanted and e[1] in ("real", "depth only")]
     if match == "differs":
         main = [_plain_row(r, e) for r, e in said if e[0] in wanted] or \
                [f"no {PLAIN_LABEL.get(k, k)} was found among the calls checked" for k in sorted(wanted)]
-        main += [_plain_row(r, e) + " (not in the curated calls)" for r, e in said
-                 if e[0] not in wanted and e[1] in ("real", "depth only")]
+        more = [_plain_row(r, e) + " (not in the curated calls)" for r, e in said
+                if e[0] not in wanted and e[1] in ("real", "depth only")]
+        main += more if len(more) <= MANY_CALLS else \
+            [f"{len(more)} other calls are in the reads but not in the curated calls (see details)"]
     elif not wanted:
-        main = [_plain_row(r, e) for r, e in said] or ["the reads show no change"]
+        main = [_plain_row(r, e) for r, e in said]
+        if len(main) > MANY_CALLS:
+            main = [f"{len(main)} calls here, none a change the curated calls keep (see details)"]
+        main = main or ([] if n_unf else ["the reads show no change"])
     else:   # a match: add what the reads show beyond the label, when it is a clear finding
         main += [_plain_row(r, e) for r, e in said if e[0] not in wanted and e[1] == "depth only"]
+    if n_unf:
+        main.append(UNFILTERED_NOTE.format(n=n_unf, s="" if n_unf == 1 else "s", are="is" if n_unf == 1 else "are"))
     text = "; ".join(dict.fromkeys(main)) or "the reads show no change"
     return text[0].upper() + text[1:] + "."
 
@@ -2189,8 +2209,10 @@ def curated_vs_igv(rows: list[dict], curated: Path) -> list[dict]:
             continue
         mine = [r for r in rows if r["sample"] == smp and r["gene"].upper() == gene.upper()]
         ev_all = [_evidence(r) for r in mine]
-        ev = [x for x in ev_all if x[1] != "nothing"]
         wanted = set() if label.upper() == "WT" else set(label.upper().split("+"))
+        unf = [t for k, v, t in ev_all if v == "unfiltered" and k not in wanted]
+        ev = [(k, "real", t) if v == "unfiltered" else (k, v, t) for k, v, t in ev_all
+              if v != "nothing" and not (v == "unfiltered" and k not in wanted)]
         have = {k for k, v, _ in ev if v in ("real", "depth only")}
         missing = sorted(wanted - have - {"LOH"})
         extra = sorted(have - wanted)
@@ -2212,11 +2234,14 @@ def curated_vs_igv(rows: list[dict], curated: Path) -> list[dict]:
             why.append("; ".join(rec) + ": independent tumors do not share mutations, so it is likely germline or "
                        "artifact" + (", and not showing it is right" if "SNV" not in wanted else ""))
         why += [t for k, v, t in ev if v == "hidden"]
+        if unf:
+            why.append(f"{len(unf)} variant(s) from the unfiltered SNV file are in the reads but not in the curated "
+                       f"calls (a curated table filters these out; they do not count against it): " + "; ".join(unf))
         why += [f"{t}, so leaving it out is right" for k, v, t in ev if v == "not supported" and k not in wanted]
         why += [f"weak: {t}" for k, v, t in ev if v == "weak" and k not in missing]
         if "LOH" in wanted:
             why.append("LOH is not checked (it needs allele counts, not depth)")
-        found = "; ".join(f"{k} {v}" for k, v, _ in ev) or "nothing called"
+        found = "; ".join(f"{k} {v}" for k, v, _ in ev_all if v != "nothing") or "nothing called"
         match = "differs" if missing or extra else ("not checked" if wanted == {"LOH"} else "matches")
         nothing = "nothing was called here and the reads show no change either"
         details = ". ".join(why) or nothing
@@ -2244,6 +2269,8 @@ def curated_vs_igv(rows: list[dict], curated: Path) -> list[dict]:
                                     if "alternate contigs" in t else "the reads disagree with it"))
             if any(v == "weak" for _, v, _ in ev):
                 reasons.append("only weak read support for the calls here")
+            if unf:
+                reasons.append(f"{len(unf)} unfiltered variant(s) in the reads, filtered out of the curated calls")
             short = ("WT is right: " + "; ".join(reasons)) if reasons else nothing
         review = (["the verdict differs from the curated call"] if match == "differs" else []) + \
             [x for r in mine for x in review_reasons(r)] + (["LOH is not checked"] if "LOH" in wanted else [])
@@ -3075,6 +3102,12 @@ def run_samplesheet(args) -> tuple[Path, list[tuple[str, str, str]]]:
             if twin:
                 raise InputError(f"sample '{c}' in the curated calls is not in the samplesheet; did you mean "
                                  f"'{twin[0]}'? Sample names must match exactly")
+    raw = [(r.get("sample") or "").strip() for r in rows
+           if (r.get("snv_vcf") or "").strip() and not (r.get("snv_list") or "").strip()]
+    if args.curated and raw:
+        print(f"Warning: no snv_list for {', '.join(raw)}: every SNV in the VCF inside the genes is checked. To compare "
+              f"with your curated calls, put the filtered variants behind them in the samplesheet's snv_list column. "
+              f"Unfiltered variants are listed but do not count against a curated call.", file=sys.stderr)
     reports = Path(args.reports_dir)
     run_dir = new_run_dir(reports)
     if bed_lines is not None:
