@@ -484,8 +484,9 @@ you run it, so the script starts in its own folder and works for anyone who copi
 #!/bin/bash
 cd "$(dirname "$0")"
 python ClawBio/skills/igv-validator/igv_validator.py --samplesheet samples.csv --reference /path/to/hg38.fa \
-  --curated-calls curated.csv --annotation gencode.v44.basic.annotation.gtf.gz
+  --curated-calls curated.csv --annotation gencode.v44.basic.annotation.gtf.gz "$@"
 ```
+(`"$@"` passes extra options through, e.g. `bash run_igv_validation.sh --genes KRAS,BRAF` for a smaller run.)
 Each run goes into a **new folder named by date and time**, `igv_reports/2026-10-20_14-32/` (never an existing
 one, so nothing is overwritten). The tool runs every check for every sample, then builds that run's
 `summary.html` (with overview images, interactive views and the whole report zipped) and updates
