@@ -1656,8 +1656,8 @@ def test_no_bundle_makes_no_new_zip_and_keeps_an_old_one(summary_dir, tmp_path):
     assert not (work / "igv_validation_full.zip").exists()
     assert "Download" not in (work / "summary.html").read_text()
     assert run_cli("--summarize", work).returncode == 0                   # makes one
-    assert run_cli("--summarize", work, "--no-bundle").returncode == 0    # keeps it, with its date
-    assert "made 20" in (work / "summary.html").read_text()
+    assert run_cli("--summarize", work, "--no-bundle").returncode == 0    # keeps it
+    assert "Download" in (work / "summary.html").read_text()
 
 
 def test_old_bundle_option_still_works(summary_dir, tmp_path):
@@ -1690,17 +1690,13 @@ def test_a_curated_row_links_every_report_for_its_gene(tmp_path):
     assert [lab for lab, _ in c["reports"]] == ["CNV", "SNV"]
 
 
-def test_page_lists_every_run_including_empty_ones(tmp_path):
-    bed = tmp_path / "g.bed"
-    bed.write_text("demo1\t100\t200\tEMPTYGENE\n")
-    root = tmp_path / "rep"
-    assert run_cli("--vcf", DEMO / "demo_calls.vcf", "--tumor", DEMO / "demo_tumor.bam", "--tumor-name", "S1",
-                   "--regions", bed, "--no-igv", "--output", root / "S1" / "sv").returncode == 0
-    assert run_cli("--demo-cnv", "--no-igv", "--tumor-name", "S1", "--output", root / "S1" / "cnv").returncode == 0
-    assert run_cli("--summarize", root, "--no-bundle").returncode == 0
-    page = (root / "summary.html").read_text()
-    top = page[page.index("Reports"):page.index("Reports") + 400]
-    assert "S1/sv/report.html" in top and "S1/cnv/report.html" in top
+def test_page_top_is_short_and_rows_link_one_report(summary_dir, tmp_path):
+    root, _ = summary_dir
+    work = tmp_path / "rep"
+    shutil.copytree(root, work)
+    assert run_cli("--summarize", work, "--no-bundle").returncode == 0
+    page = (work / "summary.html").read_text()
+    assert "every check run" not in page and " report</a>" not in page and ">report</a>" in page
 
 
 def test_each_check_refreshes_the_project_page(tmp_path):

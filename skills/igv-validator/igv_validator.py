@@ -2586,13 +2586,10 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
 
     mode = {"bundle": False}   # True while rendering the copy that goes inside the zip
 
-    def links(smp, gene, report, mark="", reports=None):
+    def links(smp, gene, report, mark=""):
         key = (smp, gene.upper())
         tail = f"#{e(mark)}" if mark else ""
-        if reports:   # every check run on this sample and gene, each opening at the gene
-            bits = [f"<a href='{rel(rp)}{tail}'>{e(lab.lower())} report</a>" for lab, rp in reports]
-        else:
-            bits = [f"<a href='{rel(report)}{tail}'>report</a>"] if report else []
+        bits = [f"<a href='{rel(report)}{tail}'>report</a>"] if report else []
         if key in overviews:
             bits.append(f"<a href='{relp(overviews[key])}'>overview</a>")
         if key in interactive_pages:
@@ -2649,7 +2646,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
                            ("IGV found", c["igv_found"]), ("More", c["details"] if c["details"] != c["why"] else "")])
                 + f"</td><td style='background:{green if c['agree'] == 'Yes' else red if c['agree'] == 'No' else grey}'>"
                 f"<b>{e(c['agree'])}</b></td><td>{thumb(c)}"
-                f"{links(c['sample'], c['gene'], c['report'], 'gene-' + anchor(c['gene']), c.get('reports'))}</td></tr>"
+                f"{links(c['sample'], c['gene'], c['report'], 'gene-' + anchor(c['gene']))}</td></tr>"
                 for c in sorted(cells, key=lambda c: (c["agree"] != "No", c["gene"], c["sample"]))) + "</table></div>")
         warning = ("<div style='border:2px solid #d9a400;background:#fff6d6;padding:10px 14px;margin:12px 0'>"
                    "<b>Agree? is an automatic first pass and can be wrong</b>, especially for copy number (reference "
@@ -2691,32 +2688,21 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
                 f"vertical-align:top}}a{{color:inherit}}.w{{overflow-x:auto}}summary{{cursor:pointer}}"
                 f"</style></head><body>"
                 f"<h1>IGV validation summary</h1><p>{len(rows)} call(s) · {len(samples)} sample(s) · {len(genes)} gene(s) "
-                f"· {e(datetime.now(timezone.utc).strftime('%Y-%m-%d'))}</p>"
+                f"· {e(datetime.now().strftime('%Y-%m-%d'))}</p>"
                 + top_html() + it_html + curated_html + warning + IMAGE_KEY_HTML + raw_html
                 + f"<p><i>{e(DISCLAIMER)}</i></p></body></html>")
         return page
 
-    runs = {}
-    for r in rows:
-        if r.get("report"):
-            runs.setdefault(r["sample"], {})[Path(r["report"]).parent.name.upper()] = r["report"]
-    for smp, kind, rep_ in empty_runs:
-        runs.setdefault(smp, {})[Path(rep_).parent.name.upper()] = rep_
-    runs_html = ("<p><b>Reports</b> (every check run): " + "; ".join(
-        f"{e(smp)}: " + " · ".join(f"<a href='{rel(rp)}'>{e(lab)}</a>" for lab, rp in sorted(kinds.items()))
-        for smp, kinds in sorted(runs.items())) + "</p>") if runs else ""
-
     def top_html():
-        """Above the tables: where this page lives, the download of the whole report, and every report."""
+        """Above the tables: where this page lives and the download of the whole report."""
         if mode["bundle"]:
-            return runs_html
+            return ""
         zp = out / BUNDLE_NAME
-        made = datetime.fromtimestamp(zp.stat().st_mtime).strftime("%Y-%m-%d %H:%M") if zp.exists() else ""
         return (f"<p><small>This page: <code>{e(str((out / 'summary.html').resolve()))}</code></small>"
                 + (f"<br><b>Download:</b> <a href='{e(BUNDLE_NAME)}' download>the whole report "
-                   f"({zp.stat().st_size / 1e6:.1f} MB, made {made})</a>: every page, image and interactive view; "
+                   f"({zp.stat().st_size / 1e6:.1f} MB)</a>: every page, image and interactive view; "
                    f"unzip and open summary.html. It contains read data: keep it where the BAMs may be."
-                   if zp.exists() else "") + "</p>" + runs_html)
+                   if zp.exists() else "") + "</p>")
 
     (out / "igv_validation_light.zip").unlink(missing_ok=True)   # from older versions of this skill
     if bundle:
