@@ -506,6 +506,36 @@ kept only when focal (< 1 Mb) or deep (|log2| > 2), and SNV/SV take priority ove
 left out by that rule are explained, not counted as differences. If your table follows other rules, read the
 *details* of each row.
 
+**Next run, other samples or genes: edit and run.**
+1. **Samples**: edit `samples.csv` (add or remove rows), or make a new file, e.g. `samples_batch2.csv`, and point
+   the script's `--samplesheet` line at it.
+2. **Genes**: add them to your curated table, or set them in the script with `--genes` (below).
+3. **Run** `the same command again`. The run gets its own dated folder; earlier runs stay as they are, and
+   `igv_reports/index.html` lists all of them.
+
+**Without a curated table**, remove the `--curated-calls` line and give the genes with `--genes`, either typed in
+the script:
+```
+  --genes KRAS,BRAF,PTEN
+```
+or from a text file, e.g. `genes.txt` with one name per line:
+```
+KRAS
+BRAF
+PTEN
+```
+and `--genes genes.txt` in the script. The page then compares each raw caller call with IGV instead of curated
+calls. With neither a curated table nor `--genes`, the run stops and asks for genes.
+
+**Which genes are checked**, in order:
+1. `--regions genes.bed`, if given (your own coordinates).
+2. `--genes`, if given. Curated rows for other genes are left out of that run.
+3. Otherwise, the genes in the curated table.
+
+**When the curated table and the samples don't line up**:
+- New samples with no curated rows are still checked; they appear only under the raw calls.
+- Curated rows for samples that aren't in this run are listed as "not compared".
+
 *Running single checks instead* (one sample, one call type) works as in *Modes* above; `--project <folder>` then
 keeps that folder's `summary.html` current.
 
