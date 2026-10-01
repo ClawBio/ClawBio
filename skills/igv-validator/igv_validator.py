@@ -1096,6 +1096,21 @@ def anchor(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]+", "_", str(text))
 
 
+GENE_FILTER = """<p id=onlybar style='display:none;padding:8px 12px;background:#fff6d6;border-radius:8px'>Showing
+<b id=onlyname></b> only · <a href='#all'>show all genes</a></p><script>(function(){
+function apply(){var h=decodeURIComponent(location.hash.slice(1)),g=null,t=h?document.getElementById(h):null;
+if(h.indexOf('gene-')===0)g=h.slice(5);else if(t&&t.dataset.gene)g=t.dataset.gene.split(',')[0];
+document.querySelectorAll('[data-gene]').forEach(function(el){el.style.display=(!g||el.dataset.gene.split(',').indexOf(g)>=0)?'':'none';});
+document.getElementById('onlybar').style.display=g?'':'none';document.getElementById('onlyname').textContent=g||'';
+if(t)t.scrollIntoView();else if(h==='all')window.scrollTo(0,0);}
+window.addEventListener('hashchange',apply);window.addEventListener('load',apply);apply();})();</script>"""
+
+
+def _data_gene(genes: str) -> str:
+    """data-gene attribute: the bookmark names of a row's genes, so a report link can show one gene only."""
+    return ",".join(anchor(g.strip()) for g in (genes or "").split(",") if g.strip())
+
+
 def _gene_marks(genes: str, seen: set) -> str:
     """Empty bookmarks for each gene not yet marked on this page (a call can name several genes)."""
     new = [g for g in (x.strip() for x in (genes or "").split(",")) if g and g.upper() not in seen]
@@ -1183,7 +1198,7 @@ def write_reports(out: Path, rows: list[dict], skipped: list[dict], meta: dict) 
         return "data:image/png;base64," + base64.b64encode((out / p).read_bytes()).decode()
 
     body = "".join(
-        f"<tr><td>{e(r['id'])}</td><td><b>{e(r['gene'] or '-')}</b></td><td>{e(r['label'])}</td>"
+        f"<tr data-gene='{e(_data_gene(r['gene']))}'><td>{e(r['id'])}</td><td><b>{e(r['gene'] or '-')}</b></td><td>{e(r['label'])}</td>"
         f"<td class=n>{e(_support_text(r['tumor'], r['sv']))}</td>"
         + (f"<td class=n>{e(_support_text(r['normal'], r['sv']))}</td>" if paired else "")
         + f"<td class=n>{e(_caller_text(r['caller']))}</td>"
@@ -1192,7 +1207,7 @@ def write_reports(out: Path, rows: list[dict], skipped: list[dict], meta: dict) 
     marked = set()
     cards = "".join(
         _gene_marks(r["gene"], marked) +
-        f"<section class=card id='call-{anchor(r['id'])}'><h3>{e(r['id'])} {e(r['gene'])} <span class=m>{e(r['label'])}</span> "
+        f"<section class=card id='call-{anchor(r['id'])}' data-gene='{e(_data_gene(r['gene']))}'><h3>{e(r['id'])} {e(r['gene'])} <span class=m>{e(r['label'])}</span> "
         f"<span class='b {r['status']}'>{e(r['status'])}</span></h3>"
         f"<p>{e(meta['tumor_name'])}: {e(_support_text(r['tumor'], r['sv']) + _strand_text(r['tumor']))}<br>"
         + (f"{e(meta['normal_name'])}: {e(_support_text(r['normal'], r['sv']) + _strand_text(r['normal']))}<br>"
@@ -1215,7 +1230,7 @@ img{{max-width:100%;margin-top:8px;border:1px solid var(--line)}}.disc{{margin-t
 <p class=m>{e(meta['vcf'])} · tumor {e(meta['tumor_name'])} · {e('normal ' + meta['normal_name'] if paired else 'tumor-only (no normal)')} · {e(meta['date'])}</p>
 <p><b>{counts['supported']} supported, {counts['flagged']} flagged, {counts['insufficient']} insufficient</b>. {e(shot_line.replace('`', ''))}</p>
 <p class=m>Counts come from the BAMs, never from the screenshots. Status is a rule-based summary of the flags, not a verdict.</p>
-<div class=w><table><tr><th>ID</th><th>Gene</th><th>Variant</th><th>Tumor</th>{'<th>Normal</th>' if paired else ''}<th>Caller (VCF)</th><th>Flags</th><th>Status</th></tr>{body}</table></div>
+{GENE_FILTER}<div class=w><table><tr><th>ID</th><th>Gene</th><th>Variant</th><th>Tumor</th>{'<th>Normal</th>' if paired else ''}<th>Caller (VCF)</th><th>Flags</th><th>Status</th></tr>{body}</table></div>
 {IMAGE_KEY_HTML}{cards}<p class=disc>{e(DISCLAIMER)}</p></main></body></html>"""
     (out / "report.html").write_text(page)
     return [out / "report.md", out / "report.html", tsv]
@@ -1227,6 +1242,7 @@ img{{max-width:100%;margin-top:8px;border:1px solid var(--line)}}.disc{{margin-t
 
 CNV_FLANK_MIN, CNV_FLANK_MAX = 10_000, 1_000_000   # flank on each side: 3x the gene, within these bounds
 CNV_BIN_MIN = 1000                                  # bp; genes are split into about 50 bins
+CNV_MIN_FLANK_DEPTH = 5.0                           # x; below this the local ratio is not computed
 CNV_DEEP_LOG2 = -2.0                                # a segment below this is a deep (homozygous) deletion
 CNV_IGV_MAX = 100_000                               # IGV screenshot only for windows up to this size
 CNV_LOG2_TOL = 0.5                                  # depth log2 within this of the segment log2 = agreement
@@ -1477,7 +1493,8 @@ def cnv_gene(bam_path, fasta, gene: str, chrom: str, gstart: int, gend: int, seg
     gene_depth = sum(g_good) / len(g_good) * to_depth if g_good else 0.0
     flank_vals = sorted(v * to_depth for v in flank_vals)
     flank_depth = flank_vals[len(flank_vals) // 2] if flank_vals else 0.0
-    ratio = round(gene_depth / flank_depth, 3) if flank_depth else None
+    # the flanks must have reads to compare with (a gene near a telomere or a gap can have almost none)
+    ratio = round(gene_depth / flank_depth, 3) if flank_depth >= CNV_MIN_FLANK_DEPTH else None
     gene_all, gene_good = sum(g_all), sum(g_good)
     frac_low = round(1 - gene_good / gene_all, 3) if gene_all else None
     all_depth = sum(g_all) / len(g_all) * to_depth if g_all else 0.0
@@ -1680,10 +1697,11 @@ def write_cnv_reports(out: Path, rows: list[dict], meta: dict) -> list[Path]:
     def img(p):
         return "data:image/png;base64," + base64.b64encode((out / p).read_bytes()).decode()
 
-    body = "".join(f"<tr><td><b>{e(r['gene'])}</b></td><td>{e(segtxt(r))}</td><td>{r['gene_depth']}x</td>"
-                   f"<td>{r['baseline_depth']}x</td><td>{e(str(r['depth_log2']))}</td><td>{e(str(r['depth_ratio']))}</td>"
+    body = "".join(f"<tr data-gene='{anchor(r['gene'])}'><td><b>{e(r['gene'])}</b></td><td>{e(segtxt(r))}</td><td>{r['gene_depth']}x</td>"
+                   f"<td>{r['baseline_depth']}x</td><td>{e(str(r['depth_log2']))}</td><td>{e('flanks too low' if r['depth_ratio'] is None else str(r['depth_ratio']))}</td>"
                    f"<td>{e('; '.join(r['flags']) or 'none')}</td><td><b>{e(r['status'])}</b></td></tr>" for r in rows)
-    figs = "".join(f"<h3 id='gene-{anchor(r['gene'])}'>{e(r['gene'])}</h3>" + "".join(f"<img src='{img(p)}' alt='{e(r['gene'])}'>" for p in r["figures"])
+    figs = "".join(f"<section data-gene='{anchor(r['gene'])}'><h3 id='gene-{anchor(r['gene'])}'>{e(r['gene'])}</h3>"
+                   + "".join(f"<img src='{img(p)}' alt='{e(r['gene'])}'>" for p in r["figures"]) + "</section>"
                    for r in rows)
     page = (f"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,"
             f"initial-scale=1'><title>IGV Validator: Copy Number</title><style>body{{font:15px/1.5 system-ui,sans-serif;"
@@ -1691,7 +1709,7 @@ def write_cnv_reports(out: Path, rows: list[dict], meta: dict) -> list[Path]:
             f"collapse;width:100%}}td,th{{border-bottom:1px solid #e4e1db;padding:6px 8px;text-align:left}}img{{max-width:"
             f"100%}}@media (prefers-color-scheme:dark){{body{{background:#181817;color:#ecebe7}}}}</style></head><body>"
             f"<h1>IGV Validator: copy number</h1><p>{e(meta['cnv'])} · {e(meta['tumor_name'])} · {e(meta['date'])}</p>"
-            f"<table><tr><th>Gene</th><th>Segment call(s)</th><th>Gene depth</th><th>Sample depth</th><th>Depth log2</th>"
+            f"{GENE_FILTER}<table><tr><th>Gene</th><th>Segment call(s)</th><th>Gene depth</th><th>Sample depth</th><th>Depth log2</th>"
             f"<th>Local ratio</th>"
             f"<th>Flags</th><th>Status</th></tr>{body}</table>{IMAGE_KEY_HTML}{figs}<p><i>{e(DISCLAIMER)}</i></p>"
             f"</body></html>")
@@ -1863,13 +1881,14 @@ def _summary_rows(root: Path, empty_runs: list | None = None) -> list[dict]:
                 shows = "no reads at this position"
             else:
                 what = v["alt"] if v["kind"] == "snv" else f"the {v['kind']}"
-                shows = (f"{t['alt']} of {t['depth']} reads carry {what} ({t['vaf_pct']}%), {t['alt_fwd']} forward / "
-                         f"{t['alt_rev']} reverse" if t["alt"] else f"no read of {t['depth']} carries {what}")
+                shows = (f"{t['alt']} of {t['depth']} reads carry {what} ({t['vaf_pct']}%)" if t["alt"]
+                         else f"no read of {t['depth']} carries {what}")
             for gene in (v["gene"].split(",") if v["gene"] else ["-"]):
                 rows.append({"sample": sample, "gene": gene, "type": "SV" if sv else "SNV/indel", "tool": tool,
                              "igv_shows": shows, "_bam": inputs.get("tumor"), "_ref": inputs.get("reference"), "_igv": inputs.get("igv"),
                              "_chrom": v["chrom"], "_pos": v["pos"], "_chrom2": v.get("chrom2"), "_pos2": v.get("pos2"),
                              "_kind": v["kind"], "_vaf": t.get("vaf_pct"),
+                             "_strand": "" if sv or not t["alt"] else f"{t['alt_fwd']} forward / {t['alt_rev']} reverse",
                              "_unfiltered": not sv and inputs.get("variants_list") is False,
                              "state": v["kind"].upper() if sv else "", "call": v["label"],
                              "location": f"{v['chrom']}:{v['pos']}", "reads": reads,
@@ -1991,6 +2010,7 @@ def _agreement(r: dict) -> dict | None:
         called = f"CNV {r['call']}"
         return {"sample": r["sample"], "gene": r["gene"], "type": r["type"], "tool": r["tool"], "caller_called": called,
                 "igv_shows": r["igv_shows"], "igv_agrees": "unclear", "report": r["report"],
+                "plain": "The change is too small to see in the read depth.", "reads": r["igv_shows"],
                 "location": r.get("location", ""), "flags": r.get("flags", ""), "caller_counts": r.get("caller", ""), "anchor": r.get("_anchor", ""),
                 "review": _check(review_reasons(r)),
                 "why": f"the change is too small to confirm from read depth (a normal gene also reads within "
@@ -2006,6 +2026,8 @@ def _agreement(r: dict) -> dict | None:
     called = f"{r['type']} {r['call']}" if r["type"] != "CNV" else f"CNV {r['call']}"
     return {"sample": r["sample"], "gene": r["gene"], "type": r["type"], "tool": r["tool"], "caller_called": called,
             "igv_shows": r["igv_shows"], "igv_agrees": agrees, "why": why, "report": r["report"],
+            "plain": _sentence(_plain_row(r, _evidence(r))), "reads": r["igv_shows"] + (
+                f"; {r['_strand']}" if r.get("_strand") else ""),
             "location": r.get("location", ""), "flags": r.get("flags", ""), "caller_counts": r.get("caller", ""), "anchor": r.get("_anchor", ""),
             "review": _check((["IGV does not agree"] if agrees == "no" else []) + review_reasons(r),
                                   ["unclear from the depth; confirm on the depth plot"]
@@ -2158,8 +2180,8 @@ def _plain_row(r: dict, ev: tuple[str, str, str]) -> str:
                 f"or an artifact, not a tumor mutation")
     if verdict == "not supported" and why:
         return f"{r['igv_shows']}, but {why}"
-    return {"real": f"the variant is in the reads ({r['igv_shows']})",
-            "unfiltered": f"the variant is in the reads ({r['igv_shows']})",
+    return {"real": f"the variant is in the reads: {r['igv_shows']}",
+            "unfiltered": f"the variant is in the reads: {r['igv_shows']}",
             "weak": "only a few reads carry the variant"}.get(verdict, "the reads do not support the variant")
 
 
@@ -2167,6 +2189,10 @@ UNFILTERED_NOTE = ("{n} variant{s} from the unfiltered SNV file {are} in the rea
                    "curated table filters these out (inherited, non-coding or low impact), so they do not count against "
                    "it (see details)")
 MANY_CALLS = 3   # above this many extra calls in a gene, the plain cell gives a count instead of one sentence each
+
+
+def _sentence(text: str) -> str:
+    return (text[0].upper() + text[1:] + ".") if text else ""
 
 
 def _plain_cell(mine: list[dict], ev: list[tuple], wanted: set, match: str) -> str:
@@ -2693,8 +2719,9 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             + "<div class=w><table><tr><th>Sample</th><th>Gene</th><th>Tool</th><th>The caller called</th>"
               "<th>What IGV shows</th><th>IGV agrees?</th><th>Evidence</th></tr>" + "".join(
                 f"<tr><td>{e(a['sample'])}</td><td><b>{e(a['gene'])}</b></td><td>{e(a['tool'])}</td>"
-                f"<td>{e(a['caller_called'])}</td><td>{e(a['igv_shows'])}"
-                + details([("Reason", a["why"]), ("Review", a["review"]), ("Location", a["location"]),
+                f"<td>{e(a['caller_called'])}</td><td>{e(a['plain'])}"
+                + details([("Reason", a["why"]), ("Review", a["review"]), ("Read counts", a["reads"]),
+                           ("Location", a["location"]),
                            ("Caller's own counts", a["caller_counts"]), ("Flags", a["flags"])])
                 + f"</td><td style='background:{acolor[a['igv_agrees']]}'><b>{e(a['igv_agrees'])}</b></td>"
                 f"<td>{links(a['sample'], a['gene'], a['report'], a.get('anchor', ''))}</td></tr>"

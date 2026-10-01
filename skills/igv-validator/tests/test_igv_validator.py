@@ -1751,6 +1751,21 @@ def test_page_top_is_short_and_rows_link_one_report(summary_dir, tmp_path):
     assert "every check run" not in page and " report</a>" not in page and ">report</a>" in page
 
 
+def test_report_link_can_show_one_gene_only(summary_dir):
+    root, _ = summary_dir
+    cnv = (root / "demo_tumor" / "cnv" / "report.html").read_text()
+    var = (root / "demo_tumor" / "variants" / "report.html").read_text()
+    for page in (cnv, var):
+        assert "id=onlybar" in page and "show all genes" in page and "data-gene=" in page
+    assert "<section data-gene='HOMDEL'><h3 id='gene-HOMDEL'>" in cnv
+
+
+def test_raw_table_says_what_igv_shows_in_one_plain_sentence(summary_dir):
+    root, _ = summary_dir
+    raw = (root / "summary.html").read_text().split("Raw calls vs IGV", 1)[1]
+    assert "Read counts" in raw and "forward /" not in raw.split("<details", 1)[0]
+
+
 def test_each_check_refreshes_the_project_page(tmp_path):
     proj = tmp_path / "proj"
     r = run_cli("--demo-cnv", "--no-igv", "--output", proj / "S" / "cnv", "--project", proj)
