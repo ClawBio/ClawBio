@@ -3139,8 +3139,6 @@ def run_samplesheet(args) -> tuple[Path, list[tuple[str, str, str]]]:
             checks.append(("cnv", ["--cnv", val("cnv")] + (["--cnv-sample", val("cnv_sample")] if val("cnv_sample") else [])))
         for kind, extra in checks:
             argv = base + extra + common + ["--output", str(run_dir / smp / kind)]
-            if kind == "snv" and val("snv_list"):   # an explicit list already selects the calls
-                argv = [a for i, a in enumerate(argv) if a != "--regions" and (i == 0 or argv[i - 1] != "--regions")]
             print(f"== {smp} {kind}", flush=True)
             try:
                 run(build_parser().parse_args(argv))

@@ -1125,6 +1125,20 @@ def test_many_extra_calls_become_one_short_sentence():
     assert "6 other calls are in the reads" in text and text.count("reads carry") == 0 and len(text) < 300
 
 
+def test_samplesheet_snv_list_is_limited_to_the_genes(tmp_path):
+    lst = tmp_path / "filtered.tsv"          # a genome-wide filtered table: only DEMO1 (2900-3100) is a checked gene
+    lst.write_text("chr\tstart\tgene\n" + "".join(f"demo1\t{p}\tX\n" for p in (3000, 5000, 7000, 9000, 15000)))
+    sheet = tmp_path / "samples.csv"
+    sheet.write_text(f"sample,tumor,snv_vcf,snv_list\ndemo_tumor,{DEMO / 'demo_tumor.bam'},{DEMO / 'demo_calls.vcf'},{lst}\n")
+    bed = tmp_path / "genes.bed"
+    bed.write_text("demo1\t2900\t3100\tDEMO1\n")
+    r = run_cli("--samplesheet", sheet, "--regions", bed, "--reference", DEMO / "demo_ref.fa",
+                "--reports-dir", tmp_path / "reports", "--no-igv", "--no-bundle")
+    assert r.returncode == 0, r.stderr
+    res = json.loads(next((tmp_path / "reports").glob("*/demo_tumor/snv/result.json")).read_text())
+    assert [v["pos"] for v in res["data"]["variants"]] == [3000]
+
+
 def test_samplesheet_warns_when_snvs_are_unfiltered(tmp_path):
     sheet, bed = _sheet(tmp_path, [_demo_row("demo_tumor")])
     cur = tmp_path / "cur.csv"
