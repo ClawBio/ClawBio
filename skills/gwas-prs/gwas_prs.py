@@ -38,6 +38,7 @@ for _import_path in (_PROJECT_ROOT, _SKILL_DIR):
     if str(_import_path) not in sys.path:
         sys.path.insert(0, str(_import_path))
 
+from prs_evidence import assess as assess_evidence  # noqa: E402
 from repro_bundle import create_reproducibility_bundle  # noqa: E402
 
 from clawbio.common.checksums import sha256_hex  # noqa: E402
@@ -52,7 +53,7 @@ from clawbio.common.report import write_result_json  # noqa: E402
 PGS_API_BASE = "https://www.pgscatalog.org/rest"
 RATE_LIMIT_INTERVAL = 0.55  # seconds between requests (stay under 2 req/sec)
 CACHE_TTL = 86400  # 24 hours
-USER_AGENT = "ClawBio-GWAS-PRS/0.2.0"
+USER_AGENT = "ClawBio-GWAS-PRS/0.3.0"
 
 DISCLAIMER = _SHARED_DISCLAIMER
 
@@ -962,6 +963,13 @@ def generate_report(
             f"| **Overlap** | {prs['overlap_fraction'] * 100:.1f}% |"
         )
         lines.append(f"| **Raw PRS** | {prs['raw_score']:.6f} |")
+        assessment = r.get("evidence_assessment")
+        if assessment:
+            lines.append(f"| **Evidence assessment** | {assessment['status']} |")
+            for reason in assessment["reasons"]:
+                lines.append(f"| {reason['code']} | {reason['action']} |")
+            lines.append("| **Interpretation** | Research percentile only; no individual disease-risk or causal claim |")
+
         if pct_info["percentile"] is not None:
             lines.append(
                 f"| **Percentile** | {pct_info['percentile']:.1f}% |"
@@ -981,7 +989,7 @@ def generate_report(
                     f"{pct_info['reference_population']} |"
                 )
         else:
-            lines.append("| **Percentile** | N/A (no reference available) |")
+            lines.append("| **Percentile** | Withheld (see evidence assessment or reference availability) |")
         lines.append("")
 
         # Variant breakdown (show scored variants, limit to top contributors)
@@ -1070,6 +1078,18 @@ def generate_report(
     lines.append("")
     lines.append("**Genome build**: " + args.build)
     lines.append("")
+
+    if any(r.get("evidence_assessment") for r in results):
+        lines.append(
+            "**Evidence policy 1.0.0**: Research percentiles require caller-supplied, "
+            "hash-bound evidence for the exact score and input, complete compatible "
+            "variants, independent validation and a normal reference distribution "
+            "for the target population/context. Earlier percentile methods above "
+            "apply only to the synthetic demo. Evidence is not independently "
+            "verified; a supported percentile does not establish clinical utility "
+            "or causality. Unsupported raw sums are retained for audit only."
+        )
+        lines.append("")
 
     # ----- Limitations -----
     lines.append("## Limitations")
@@ -1165,7 +1185,26 @@ def main():
         help="Cache directory (default: ~/.clawbio/pgs_cache/)",
     )
 
+    parser.add_argument(
+        "--evidence-json",
+        help="Local hash-bound score/input evidence manifest for research percentiles",
+    )
     args = parser.parse_args()
+    evidence = None
+    if args.evidence_json:
+        try:
+            evidence = json.loads(Path(args.evidence_json).read_text())
+            if (not isinstance(evidence, dict) or evidence.get("schema_version") != 1
+                    or not isinstance(evidence.get("input"), dict)
+                    or not isinstance(evidence.get("scores"), dict)):
+                raise ValueError("expected schema_version 1 with input and scores objects")
+        except (OSError, ValueError) as exc:
+            parser.error(f"Invalid --evidence-json: {exc}")
+    evidence_gate = not args.demo or bool(args.evidence_json)
+    if args.output and any((Path(args.output) / name).exists() for name in (
+            "prs_report.md", "prs_results.json", "prs_variants.csv", "result.json", "reproducibility")):
+        parser.error("Output artifacts already exist; choose a new directory.")
+
 
     selectors = [args.demo, args.trait, args.pgs_id, args.panel_id]
     if sum(bool(value) for value in selectors) > 1:
@@ -1553,7 +1592,7 @@ def main():
         )
 
         # Check minimum overlap
-        if prs["overlap_fraction"] < args.min_overlap:
+        if prs["overlap_fraction"] < args.min_overlap and not evidence_gate:
             print(
                 f"  Skipping: overlap {prs['overlap_fraction'] * 100:.1f}% "
                 f"below --min-overlap {args.min_overlap * 100:.0f}%"
@@ -1562,10 +1601,26 @@ def main():
 
         print(f"  Raw PRS: {prs['raw_score']:.6f}")
 
-        # Estimate percentile
-        pct_info = estimate_percentile(
-            prs["raw_score"], score_id, scoring_variants
-        )
+        # Real inputs always require explicit evidence. Only the built-in
+        # synthetic demo retains illustrative legacy percentile estimates.
+        evidence_assessment = None
+        if evidence_gate:
+            evidence_assessment = assess_evidence(
+                score_id=score_id, scoring_path=filepath, input_path=input_path,
+                build=args.build, variants=scoring_variants,
+                genotypes=genotype_dict, raw_score=prs["raw_score"],
+                evidence=evidence, curated=is_curated_demo_panel(filepath),
+            )
+            pct_info = {key: evidence_assessment[key] for key in (
+                "percentile", "z_score", "risk_category", "method", "reference_population"
+            )}
+            print("  Evidence assessment: " + evidence_assessment["status"])
+            for reason in evidence_assessment["reasons"]:
+                print("    " + reason["code"] + ": " + reason["action"])
+        else:
+            pct_info = estimate_percentile(
+                prs["raw_score"], score_id, scoring_variants
+            )
         if pct_info["percentile"] is not None:
             print(
                 f"  Percentile: {pct_info['percentile']:.1f}% "
@@ -1587,6 +1642,8 @@ def main():
             "trait": trait,
             "prs": prs,
             "percentile_info": pct_info,
+            "evidence_assessment": evidence_assessment,
+            "interpretation_scope": "research_percentile" if evidence_gate else "synthetic_demo_only",
             "metadata": metadata,
             "scoring_variants": scoring_variants,
             "scoring_file_path": Path(filepath),
@@ -1639,6 +1696,8 @@ def main():
                 "variants_used": r["prs"]["variants_used"],
                 "variants_total": r["prs"]["variants_total"],
                 "overlap_fraction": r["prs"]["overlap_fraction"],
+                "evidence_assessment": r.get("evidence_assessment"),
+                "interpretation_scope": r.get("interpretation_scope"),
                 "percentile": r["percentile_info"]["percentile"],
                 "risk_category": r["percentile_info"]["risk_category"],
                 "z_score": r["percentile_info"]["z_score"],
@@ -1676,7 +1735,7 @@ def main():
         result_json_path = write_result_json(
             output_dir=output_dir,
             skill="gwas-prs",
-            version="0.2.0",
+            version="0.3.0",
             summary={
                 "scores_calculated": len(all_results),
                 "trait": first.get("trait", ""),
@@ -1693,6 +1752,8 @@ def main():
                 ),
                 "pgs_catalog_id": first.get("pgs_catalog_id"),
                 "raw_score": first.get("prs", {}).get("raw_score"),
+                "evidence_assessment": first.get("evidence_assessment"),
+                "interpretation_scope": first.get("interpretation_scope"),
                 "percentile": first_pct.get("percentile"),
                 "risk_category": first_pct.get("risk_category"),
                 "overlap_fraction": first.get("prs", {}).get("overlap_fraction"),
