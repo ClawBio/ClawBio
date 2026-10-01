@@ -324,7 +324,7 @@ for anything missing (file locations, reference, tumor-only or paired).
 | `--normal` | matched normal BAM/CRAM; leave out for tumor-only |
 | `--tumor-only` | ignore any normal (e.g. with `--demo`) |
 | `--reference` | FASTA the BAMs were aligned to (screenshots, indel rescue, CRAM) |
-| `--genes` | gene symbols; needs gene names in the VCF (VEP, SnpEff, ANNOVAR, GENE) |
+| `--genes` | gene symbols. With `--samplesheet`: the genes to check, found in `--annotation` (default: the curated calls' genes). In a single check: selects VCF records by their gene names (VEP, SnpEff, ANNOVAR, GENE) |
 | `--regions` | BED of genes (chrom, start, end, name): selects variants/SVs, sets copy-number genes, overview and interactive windows |
 | `--variants` | TSV of chrom, pos, [ref, alt] to check exactly (e.g. a filtered table) |
 | `--pass-only` | only FILTER=PASS calls |
@@ -333,6 +333,7 @@ for anything missing (file locations, reference, tumor-only or paired).
 | `--tumor-name`, `--normal-name` | labels in reports and images (use your sample names) |
 | `--cnv`, `--cnv-sample` | copy-number mode: segment file, and the sample in a multi-sample file |
 | `--samplesheet` | one command for a whole run: every check for every sample, into a new dated folder with its summary |
+| `--skip-unknown-genes` | with `--samplesheet`: run without gene names the annotation does not know (default: stop with suggestions) |
 | `--reports-dir` | with `--samplesheet`: where runs are kept (default `igv_reports/`) |
 | `--summarize` | build the summary page over every run in a folder (full: with images, interactive pages, zip) |
 | `--index` | write `<folder>/index.html` listing every batch folder with a summary; it then keeps itself updated |
@@ -447,11 +448,14 @@ python skills/igv-validator/igv_validator.py --demo
 IGV desktop (2.16 or later) must be installed, or loaded (`module load igv` on an HPC; run from a desktop
 session, since IGV needs a display). Add `--no-igv` to skip screenshots.
 
-**2. Write down your genes** in a BED file (chrom, start, end, name; start is 0-based):
-```
-chr12   25205245   25250936   KRAS
-chr7    140719326  140924929  BRAF
-```
+**2. Choose your genes.** Gene names are enough: the tool finds each gene in the `--annotation` GTF (GENCODE).
+- By default, the genes of your curated calls (`--curated-calls`, step 5).
+- `--genes KRAS,BRAF` (or a text file with one name per line) checks just these.
+- `--regions my_genes.bed` (chrom, start, end, name; start is 0-based) for your own coordinates.
+
+Names must be official symbols (e.g. `CDKN2A`, not `p16`). An unknown or misspelled name stops the run before
+anything runs, with suggestions ("did you mean HOMDEL?"); `--skip-unknown-genes` runs without them instead. The run
+folder keeps the coordinates it used in `genes.bed`.
 
 **3. List your samples** in a samplesheet (CSV or TSV), one row per sample. `sample` and `tumor` are
 required; add whichever calls you have (leave a cell empty to skip that check):
@@ -466,8 +470,16 @@ instead of every SNV in the genes. `cnv_sample` = the sample's name inside a mul
 
 **4. Run everything with one command**:
 ```bash
-python skills/igv-validator/igv_validator.py --samplesheet samples.csv --regions my_genes.bed --reference hg38.fa \
-  [--curated-calls curated.csv] [--annotation gencode.v44.basic.annotation.gtf.gz]
+python skills/igv-validator/igv_validator.py --samplesheet samples.csv --reference hg38.fa \
+  --curated-calls curated.csv --annotation gencode.v44.basic.annotation.gtf.gz [--genes KRAS,BRAF]
+```
+To rerun later, keep the command in a script next to `samples.csv` (paths in the samplesheet are relative to where
+you run it, so the script starts in its own folder and works for anyone who copies the folder):
+```bash
+#!/bin/bash
+cd "$(dirname "$0")"
+python ClawBio/skills/igv-validator/igv_validator.py --samplesheet samples.csv --reference /path/to/hg38.fa \
+  --curated-calls curated.csv --annotation gencode.v44.basic.annotation.gtf.gz
 ```
 Each run goes into a **new folder named by date and time**, `igv_reports/2026-10-20_14-32/` (never an existing
 one, so nothing is overwritten). The tool runs every check for every sample, then builds that run's
@@ -485,7 +497,9 @@ produced (for example the one behind a mutational-profile heatmap), as a CSV/TSV
 | sampleA | BRAF | AMP |
 | sampleB | KRAS | WT |
 
-Labels: WT, SNV, SV, SNV+SV, DEL, AMP, LOH. `sample` must match the samplesheet, `gene` the BED names. The page
+Labels: WT, SNV, SV, SNV+SV, DEL, AMP, LOH. `sample` must match the samplesheet exactly: a near miss (`sample-A`
+for `sampleA`) stops the run with a "did you mean"; samples not in this run are listed on the page, not compared.
+`gene` must be the official symbol. The page
 then opens on "Curated calls vs IGV". The comparison assumes a common convention for curated tables: copy number is
 kept only when focal (< 1 Mb) or deep (|log2| > 2), and SNV/SV take priority over copy number for a gene; changes
 left out by that rule are explained, not counted as differences. If your table follows other rules, read the

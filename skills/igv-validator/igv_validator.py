@@ -2181,10 +2181,11 @@ def curated_vs_igv(rows: list[dict], curated: Path) -> list[dict]:
     Follows the usual curated-table rules: one label per cell with SNV/SV before copy number, and copy number only when
     focal or deep. Changes left out by those rules are explained, not counted as differences."""
     checked = {r["gene"].upper() for r in rows}
+    ran = {r["sample"] for r in rows}
     out = []
     for cell in read_curated(curated):
         smp, gene, label = cell["sample"], cell["gene"], (cell["alteration"] or "WT").strip()
-        if gene.upper() not in checked:
+        if gene.upper() not in checked or smp not in ran:   # not part of this run: noted on the page instead
             continue
         mine = [r for r in rows if r["sample"] == smp and r["gene"].upper() == gene.upper()]
         ev_all = [_evidence(r) for r in mine]
@@ -2633,7 +2634,10 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
                    "<p><b>Interactive views</b> (zoom, scroll, click reads): " + (" · ".join(
                        f"<a href='{relp(pg)}'>{e(smp)}</a>" for smp, pg in sorted(index_pages.items())) or "none written") + (f" <i>({e(it_note)})</i>" if it_note else "") +
                    ". Each page contains read data: keep it with the BAMs; do not email or upload it.</p>")
+        not_run = sorted({c["sample"] for c in read_curated(curated)} - {r["sample"] for r in rows}) if curated else []
         curated_html = "" if not curated else (
+            (f"<p><i>Curated calls for samples not in this run (not compared): {e(', '.join(not_run))}. Sample "
+             f"names must match exactly.</i></p>" if not_run else "") +
             f"<h2>Curated calls vs IGV</h2><p><b>{sum(c['agree'] == 'Yes' for c in cells)} agree, "
             f"{sum(c['agree'] == 'No' for c in cells)} do not</b> out of {len(cells)} curated calls "
             f"(sample x gene) for the genes checked.</p>"
@@ -2970,6 +2974,8 @@ def build_parser() -> argparse.ArgumentParser:
                                           "normal, snv_vcf, snv_list, sv_vcf, cnv, cnv_sample; needs --regions. Each run "
                                           "goes into a new dated folder under --reports-dir, with its summary, and the "
                                           "index of all runs is updated")
+    p.add_argument("--skip-unknown-genes", action="store_true",
+                   help="with --samplesheet: run without gene names the annotation does not know (default: stop)")
     p.add_argument("--reports-dir", default="igv_reports",
                    help="with --samplesheet: where runs are kept (default igv_reports/)")
     p.add_argument("--index", help="write <folder>/index.html listing every batch folder under it that has a "
@@ -2987,6 +2993,44 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--overview", action="store_true",
                    help="with --summarize and --regions: one IGV image per gene and sample with every call marked")
     return p
+
+
+def gene_regions(names: list[str], annotation) -> tuple[list[str], dict]:
+    """BED lines (chrom, 0-based start, end, name) for gene symbols, from the gene records of a GTF/GFF3 (optionally
+    .gz), in the order given. Returns the lines and {unknown name: [close matches]}. A name on several contigs takes
+    the primary chromosome."""
+    import difflib
+    import gzip
+    path = Path(annotation)
+    found: dict[str, tuple[str, int, int]] = {}
+    with (gzip.open(path, "rt") if path.name.endswith(".gz") else open(path)) as fh:
+        for line in fh:
+            if line.startswith("#") or "\tgene\t" not in line:
+                continue
+            f = line.rstrip("\n").split("\t")
+            if len(f) < 9 or f[2] != "gene":
+                continue
+            m = re.search(r'gene_name[ =]"?([^";]+)"?', f[8]) or re.search(r"(?:^|;)Name=([^;]+)", f[8])
+            if not m:
+                continue
+            g, rec = m.group(1), (f[0], int(f[3]) - 1, int(f[4]))
+            if g not in found or ("_" in found[g][0] and "_" not in f[0]):   # prefer the primary chromosome
+                found[g] = rec
+    upper = {g.upper(): g for g in found}
+    lines, unknown = [], {}
+    for n in dict.fromkeys(x.strip() for x in names if x.strip()):
+        if n in found:
+            c, a, b = found[n]
+            lines.append(f"{c}\t{a}\t{b}\t{n}")
+        else:
+            close = [upper[n.upper()]] if n.upper() in upper else \
+                [upper[x] for x in difflib.get_close_matches(n.upper(), list(upper), n=3, cutoff=0.8)]
+            unknown[n] = close
+    return lines, unknown
+
+
+def _norm_name(x: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", x.lower())
 
 
 SHEET_COLUMNS = ("sample", "tumor", "normal", "snv_vcf", "snv_list", "sv_vcf", "cnv", "cnv_sample")
@@ -3012,10 +3056,46 @@ def run_samplesheet(args) -> tuple[Path, list[tuple[str, str, str]]]:
     rows = list(csv.DictReader(text, delimiter="\t" if text and "\t" in text[0] else ","))
     if not rows or not {"sample", "tumor"} <= set(rows[0]):
         raise InputError(f"--samplesheet needs the columns sample and tumor (optional: {', '.join(SHEET_COLUMNS[2:])})")
-    if not args.regions or not Path(args.regions).exists():
-        raise InputError("--samplesheet needs --regions (a BED of the genes to check)")
+    sheet_samples = [(r.get("sample") or "").strip() for r in rows if (r.get("sample") or "").strip()]
+    # the genes: a BED, else names (--genes, or the curated calls' genes) looked up in the annotation
+    bed_lines, gene_note = None, ""
+    if args.regions:
+        if not Path(args.regions).exists():
+            raise InputError(f"--regions file not found: {args.regions}")
+    else:
+        if args.genes:
+            names = (Path(args.genes).read_text().split() if Path(args.genes).is_file()
+                     else [g for g in args.genes.split(",")])
+        elif args.curated:
+            names = [c["gene"] for c in read_curated(args.curated)]
+        else:
+            raise InputError("--samplesheet needs the genes: --curated-calls (its genes), --genes or --regions (a BED)")
+        if not args.annotation:
+            raise InputError("gene names need --annotation (e.g. gencode.v44.basic.annotation.gtf.gz) to find where "
+                             "each gene is; or give --regions with a BED")
+        bed_lines, unknown = gene_regions(names, args.annotation)
+        if unknown:
+            msg = "; ".join(f"{n}" + (f" (did you mean {' or '.join(c)}?)" if c else "") for n, c in unknown.items())
+            if not args.skip_unknown_genes:
+                raise InputError(f"these genes are not in {Path(args.annotation).name}: {msg}. Fix the names in your "
+                                 f"curated calls or gene list, or pass --skip-unknown-genes to run without them")
+            gene_note = f"Not checked (not in the annotation): {msg}"
+        if not bed_lines:
+            raise InputError("none of the genes were found in the annotation")
+    # sample names: a curated sample that looks like a typo of a samplesheet sample stops the run
+    if args.curated:
+        for c in sorted({c["sample"] for c in read_curated(args.curated)} - set(sheet_samples)):
+            twin = [s_ for s_ in sheet_samples if _norm_name(s_) == _norm_name(c)]
+            if twin:
+                raise InputError(f"sample '{c}' in the curated calls is not in the samplesheet; did you mean "
+                                 f"'{twin[0]}'? Sample names must match exactly")
     reports = Path(args.reports_dir)
     run_dir = new_run_dir(reports)
+    if bed_lines is not None:
+        (run_dir / "genes.bed").write_text("\n".join(bed_lines) + "\n")
+        args.regions = str(run_dir / "genes.bed")
+    if gene_note:
+        print(gene_note, file=sys.stderr)
     common = ["--regions", str(args.regions)]
     for flag, val in (("--reference", args.reference), ("--annotation", args.annotation), ("--igv-path", args.igv_path),
                       ("--igv-timeout", args.igv_timeout), ("--max-variants", args.max_variants)):

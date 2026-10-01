@@ -1818,3 +1818,73 @@ def test_samplesheet_needs_regions_and_its_columns(tmp_path):
     bad.write_text("name,file\nx,y\n")
     r = run_cli("--samplesheet", bad, "--regions", tmp_path / "genes.bed", "--no-igv")
     assert r.returncode != 0 and "sample" in r.stderr and "tumor" in r.stderr
+
+
+# ── Genes by name (from the curated calls or --genes), checked against the annotation ──
+
+def _demo_gtf(tmp_path):
+    lines = ['demo1\tT\tgene\t2901\t3100\t.\t+\t.\tgene_id "g1"; gene_name "DEMO1";',
+             'demo1\tT\tgene\t11001\t13000\t.\t+\t.\tgene_id "g5"; gene_name "DEMO5";',
+             'demo3\tT\tgene\t21000\t24000\t.\t+\t.\tgene_id "g9"; gene_name "HOMDEL";',
+             'demo3\tT\tgene\t55501\t57500\t.\t+\t.\tgene_id "g10"; gene_name "ALTGENE";']
+    p = tmp_path / "genes.gtf"
+    p.write_text("\n".join(lines) + "\n")
+    return p
+
+
+def test_gene_names_are_found_in_the_annotation(tmp_path):
+    bed, unknown = iv.gene_regions(["DEMO1", "HOMDEL"], _demo_gtf(tmp_path))
+    assert bed == ["demo1\t2900\t3100\tDEMO1", "demo3\t20999\t24000\tHOMDEL"] and unknown == {}
+
+
+def test_unknown_gene_names_come_with_suggestions(tmp_path):
+    _, unknown = iv.gene_regions(["DEMO1", "homdel", "NOPE"], _demo_gtf(tmp_path))
+    assert unknown == {"homdel": ["HOMDEL"], "NOPE": []}
+
+
+def _curated_run(tmp_path, cur_rows, *extra):
+    sheet, _ = _sheet(tmp_path, [_demo_row()])
+    cur = tmp_path / "curated.csv"
+    cur.write_text("sample,gene,alteration\n" + "".join(",".join(r) + "\n" for r in cur_rows))
+    reports = tmp_path / "igv_reports"
+    r = run_cli("--samplesheet", sheet, "--reference", DEMO / "demo_ref.fa", "--curated-calls", cur,
+                "--annotation", _demo_gtf(tmp_path), "--reports-dir", reports, "--no-igv", *extra)
+    return r, reports
+
+
+def test_genes_default_to_the_curated_calls(tmp_path):
+    r, reports = _curated_run(tmp_path, [("demo_tumor", "HOMDEL", "DEL"), ("demo_tumor", "DEMO1", "SNV")])
+    assert r.returncode == 0, r.stderr
+    run_dir = next(d for d in reports.iterdir() if d.is_dir())
+    assert sorted(l.split("\t")[3] for l in (run_dir / "genes.bed").read_text().split("\n") if l) == ["DEMO1", "HOMDEL"]
+    rows = list(csv.DictReader(open(run_dir / "curated_vs_igv.tsv"), delimiter="\t"))
+    assert {x["gene"]: x["agree"] for x in rows} == {"HOMDEL": "Yes", "DEMO1": "Yes"}
+
+
+def test_genes_option_overrides_the_curated_list(tmp_path):
+    r, reports = _curated_run(tmp_path, [("demo_tumor", "HOMDEL", "DEL"), ("demo_tumor", "DEMO1", "SNV")],
+                              "--genes", "HOMDEL")
+    assert r.returncode == 0, r.stderr
+    run_dir = next(d for d in reports.iterdir() if d.is_dir())
+    assert "DEMO1" not in (run_dir / "genes.bed").read_text()
+
+
+def test_unknown_gene_stops_the_run_before_anything_runs(tmp_path):
+    r, reports = _curated_run(tmp_path, [("demo_tumor", "homdel", "DEL")])
+    assert r.returncode != 0 and "Traceback" not in r.stderr
+    assert "homdel" in r.stderr and "HOMDEL" in r.stderr
+    assert not reports.exists() or not any(reports.iterdir())          # no run folder made
+
+
+def test_sample_name_typo_stops_the_run(tmp_path):
+    r, _ = _curated_run(tmp_path, [("demo-tumor", "HOMDEL", "DEL")])
+    assert r.returncode != 0 and "demo-tumor" in r.stderr and "demo_tumor" in r.stderr
+
+
+def test_curated_samples_not_in_this_run_are_noted_not_called_different(tmp_path):
+    r, reports = _curated_run(tmp_path, [("demo_tumor", "HOMDEL", "DEL"), ("OTHERSAMPLE", "HOMDEL", "DEL")])
+    assert r.returncode == 0, r.stderr
+    run_dir = next(d for d in reports.iterdir() if d.is_dir())
+    rows = list(csv.DictReader(open(run_dir / "curated_vs_igv.tsv"), delimiter="\t"))
+    assert [x["sample"] for x in rows] == ["demo_tumor"]
+    assert "OTHERSAMPLE" in (run_dir / "summary.html").read_text()
