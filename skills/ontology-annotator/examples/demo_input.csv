@@ -1,0 +1,6 @@
+sample_id,tissue,cell_type,disease,trait
+S1,lung,T cell,type 2 diabetes,body mass index
+S2,liver,hepatocyte,asthma,blood pressure
+S3,kynee,fibroblast,diabetes melitus,bmi
+S4,heart,unknown cell type,asthma,blood pressure
+S5,Lung,T cell,Type 2 Diabetes,Body Mass Index
