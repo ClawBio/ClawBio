@@ -94,6 +94,7 @@ cell-detection = [
 labstep = ["labstep>=3.0"]
 galaxy-bridge = ["bioblend>=1.2"]
 affinity-proteomics = ["statsmodels>=0.14", "seaborn>=0.12"]
+drug-repurposing-screen = ["pyarrow>=14.0"]
 
 # PDF rendering in prs-abstain; the skill degrades to markdown-only without them.
 prs-abstain = [

@@ -5,7 +5,7 @@
 ## Docs
 
 - [README](README.md): Project overview, quick start, current skill table, architecture, benchmark summary
-- [AGENTS.md](AGENTS.md): The single agent guide — routing table, CLI reference, demo data, development rules, safety rules, script-first execution guidance
+- [AGENTS.md](AGENTS.md): The single agent guide — routing method (via `skills/catalog.json`), non-obvious invocations, shared demo data, development rules, safety rules
 - [commands/](commands/): Reusable slash-command workflows for analysis, skill scaffolding, skill listing, and demos
 - [CHANGELOG.md](CHANGELOG.md): Release milestones through `v0.7.1`
 - [REMEDIATION-PLAN.md](REMEDIATION-PLAN.md): External audit findings and remediation roadmap
@@ -25,8 +25,8 @@
 ## Project State
 
 - Current public release: `v0.7.1`
-- Public framing in `README.md`: `98 skills + 8,182 Galaxy tools + 4,730 tests + benchmark validation`
-- Catalog status split: `29` MVP skills and `68` planned / legacy skills
+- Public framing in `README.md`: `99 skills + 8,182 Galaxy tools + 5,040 tests + benchmark validation`
+- Catalog status split: `29` MVP skills and `70` planned / legacy skills
 - Counts above are derived, not hand-written. Regenerate them before editing:
   - skills and Galaxy tools: `skill_count` / `galaxy_tool_count` in `skills/catalog.json`,
     itself produced by `python scripts/generate_catalog.py`

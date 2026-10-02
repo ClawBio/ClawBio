@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def _load_generate_catalog_module():
     module_path = Path(__file__).resolve().parents[1] / "scripts" / "generate_catalog.py"
@@ -212,7 +214,7 @@ def test_frontmatter_parser_reads_artefact_licences():
 
 
 def test_frontmatter_parser_reads_nested_artefact_licences():
-    """The no-yaml fallback path has to find them under `metadata` too."""
+    """Nested `metadata.*_license` fields must resolve too."""
     generate_catalog = _load_generate_catalog_module()
 
     raw = "\n".join(
@@ -403,3 +405,14 @@ class TestStatusAndEvidenceCannotContradict:
                 assert entry["maturity_tier"] != "spec-only", (
                     f"{entry['name']} is advertised mvp but has no evidence of code"
                 )
+
+
+def test_frontmatter_parser_has_no_regex_fallback(monkeypatch):
+    """Without PyYAML the parser must fail loudly, not fall back to regexes
+    that backtrack catastrophically on crafted frontmatter (ReDoS)."""
+    generate_catalog = _load_generate_catalog_module()
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    raw = "---\nname: x\ndependencies:\n" + "  a: 1\n" * 5000 + "---\n"
+
+    with pytest.raises(ImportError):
+        generate_catalog.parse_yaml_frontmatter(raw)

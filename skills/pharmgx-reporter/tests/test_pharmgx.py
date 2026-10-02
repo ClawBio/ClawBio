@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pharmgx_reporter import (
@@ -845,3 +847,82 @@ def test_unknown_build_still_forces_indeterminate_end_to_end(tmp_path):
     )
     combined = (result.stdout + result.stderr).lower()
     assert "unknown_build" in combined
+
+
+def test_confident_phenotype_accounts_for_every_detected_allele():
+    """Exhaustive check that no detected allele is silently dropped.
+
+    For every star-allele/DPYD gene and every fully genotyped input with at most
+    two alt copies in total, a non-Indeterminate phenotype must come from a
+    diplotype that names every detected allele. Regression: DPYD *2A + *13
+    compound hets were reported as Normal/*2A (Intermediate).
+    """
+    from itertools import product
+
+    failures = []
+    for gene, gdef in GENE_DEFS.items():
+        if gdef.get("type") in ("genotype", "mthfr"):
+            continue
+        variants = list(gdef["variants"].items())
+        for copies in product((0, 1, 2), repeat=len(variants)):
+            if sum(copies) > 2:
+                continue
+            pgx = {rsid: {"genotype": vdef["alt"] * n + "N" * (2 - n)}
+                   for (rsid, vdef), n in zip(variants, copies)}
+            diplotype = call_diplotype(gene, pgx)
+            phenotype = call_phenotype(gene, diplotype)
+            # Unmapped diplotypes are only asserted for DPYD in this test.
+            if gene == "DPYD" and phenotype.startswith("Unknown"):
+                failures.append((gene, copies, diplotype, phenotype))
+            if phenotype.startswith(("Indeterminate", "Unknown")):
+                continue
+            called = set(diplotype.split(" (")[0].split("/"))
+            detected = {vdef["allele"] for (_, vdef), n in zip(variants, copies) if n}
+            if not detected <= called:
+                failures.append((gene, copies, diplotype, phenotype))
+    assert not failures, failures
+
+
+@pytest.mark.parametrize("rsids", [
+    ("rs3918290", "rs55886062"),   # *2A + *13
+    ("rs3918290", "rs67376798"),   # *2A + D949V
+    ("rs55886062", "rs67376798"),  # *13 + D949V
+])
+def test_dpyd_compound_heterozygote_is_poor_metabolizer(rsids):
+    """CPIC presumes two different DPYD variants lie on different gene copies."""
+    variants = GENE_DEFS["DPYD"]["variants"]
+    pgx = {r: {"genotype": (v["alt"] + "N") if r in rsids else "NN"} for r, v in variants.items()}
+    assert call_phenotype("DPYD", call_diplotype("DPYD", pgx)) == "Poor Metabolizer"
+
+
+def _dpyd(genotypes):
+    """call_phenotype(call_diplotype) for DPYD from {rsid: genotype}."""
+    d = call_diplotype("DPYD", {r: {"genotype": g} for r, g in genotypes.items()})
+    return d, call_phenotype("DPYD", d)
+
+
+@pytest.mark.parametrize("genotypes", [
+    {"rs3918290": "TT", "rs55886062": "AC", "rs67376798": "TT"},   # *2A/*2A + *13 het
+    {"rs3918290": "CT", "rs55886062": "CC", "rs67376798": "TT"},   # *13/*13 + *2A het
+    {"rs3918290": "TT", "rs55886062": "AA", "rs67376798": "TA"},   # *2A/*2A + D949V het
+    {"rs3918290": "CT", "rs55886062": "AA", "rs67376798": "AA"},   # D949V/D949V + *2A het
+])
+def test_dpyd_more_than_two_variant_alleles_stays_poor(genotypes):
+    """Two no/decreased-function alleles with a no-function one is Poor under any phase."""
+    assert _dpyd(genotypes)[1] == "Poor Metabolizer"
+
+
+def test_dpyd_homozygous_d949v_is_intermediate():
+    assert _dpyd({"rs3918290": "CC", "rs55886062": "AA", "rs67376798": "AA"})[1] == "Intermediate Metabolizer"
+
+
+def test_dpyd_partial_panel_with_detected_variant_is_flagged():
+    """An untested DPYD SNP could turn a single-variant Intermediate into Poor."""
+    diplotype, phenotype = _dpyd({"rs3918290": "CT"})
+    assert "1/3 SNPs tested" in diplotype
+    assert phenotype.startswith("Indeterminate")
+
+
+def test_dpyd_partial_panel_poor_is_not_downgraded():
+    """Two no-function alleles are Poor whatever else is untested."""
+    assert _dpyd({"rs3918290": "TT"})[1] == "Poor Metabolizer"

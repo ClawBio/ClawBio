@@ -27,12 +27,11 @@ from protocols_io import (
     format_search_results,
     format_protocol_detail,
     format_steps,
+    get_access_token,
     search_protocols,
     get_protocol,
     get_protocol_steps,
-    load_tokens,
     main,
-    save_tokens,
 )
 
 
@@ -222,27 +221,15 @@ def test_format_steps_empty():
 
 
 # ---------------------------------------------------------------------------
-# Token persistence
+# Token from environment
 # ---------------------------------------------------------------------------
 
 
-def test_save_and_load_tokens(tmp_path):
-    """Tokens round-trip through save/load."""
-    token_file = tmp_path / "tokens.json"
-    with patch("protocols_io.TOKEN_FILE", token_file), \
-         patch("protocols_io.CONFIG_DIR", tmp_path):
-        save_tokens({"access_token": "abc123", "token_type": "bearer"})
-        result = load_tokens()
-    assert result["access_token"] == "abc123"
-    assert result["token_type"] == "bearer"
-    assert "saved_at" in result
-
-
-def test_load_tokens_missing(tmp_path):
-    """Missing token file returns None."""
-    with patch("protocols_io.TOKEN_FILE", tmp_path / "nonexistent.json"):
-        result = load_tokens()
-    assert result is None
+def test_get_access_token_reads_env(monkeypatch):
+    monkeypatch.setenv("PROTOCOLS_IO_ACCESS_TOKEN", "abc123")
+    assert get_access_token() == "abc123"
+    monkeypatch.delenv("PROTOCOLS_IO_ACCESS_TOKEN")
+    assert get_access_token() is None
 
 
 # ---------------------------------------------------------------------------

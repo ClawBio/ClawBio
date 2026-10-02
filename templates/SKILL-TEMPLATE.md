@@ -214,7 +214,7 @@ output_directory/
 
 ## Dependencies
 
-**Required** (in `requirements.txt` or skill-level install):
+**Required** (in `pyproject.toml` or skill-level install):
 - `package` >= version; purpose
 
 **Optional**:

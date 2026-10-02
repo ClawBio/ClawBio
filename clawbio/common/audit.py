@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -66,15 +65,6 @@ def _hide(value: str, env_var: str) -> str:
 _TRACER_KEY = _otel_context.create_key("clawbio.tracer")
 
 
-def _set_append_only(path: Path) -> None:
-    if sys.platform != "darwin":
-        return
-    try:
-        subprocess.run(["chflags", "uappend", str(path)], check=False, capture_output=True)
-    except OSError:
-        pass
-
-
 def _ns_to_iso(ns: int) -> str:
     return datetime.fromtimestamp(ns / 1e9, tz=timezone.utc).isoformat()
 
@@ -102,7 +92,6 @@ class _JsonlExporter(SpanExporter):
                         record["parent_span_id"] = f"{span.parent.span_id:016x}"
                     record.update(dict(span.attributes or {}))
                     f.write(json.dumps(record, default=str) + "\n")
-            _set_append_only(self._log_path)
         except OSError:
             pass
         return SpanExportResult.SUCCESS
@@ -119,7 +108,6 @@ def write(event: str, *, log_path: Path | str | None = None, **kwargs) -> None:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, default=str) + "\n")
-        _set_append_only(log_path)
     except OSError:
         pass
 

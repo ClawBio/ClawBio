@@ -6,8 +6,10 @@ parses through clawbio.common.parsers), the API (caller-built dicts) and the
 report guard.
 """
 
+import importlib.util
 import json
 import sys
+import types
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -15,6 +17,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from extract_genotypes import extract_snp_genotypes
 
 SKILL_DIR = Path(__file__).parent.parent
+
+
+def load_nutrigx_api():
+    spec = importlib.util.spec_from_file_location("nutrigx_api", SKILL_DIR / "api.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 PANEL = SKILL_DIR / "data" / "snp_panel.json"
 
 
@@ -49,8 +58,15 @@ def test_cli_path_applies_the_whitelist():
     assert "clean_genotype_table(genotypes_to_simple(records))" in src
 
 
+def test_api_path_ignores_another_skills_api_module(monkeypatch):
+    # Several skills ship an api.py imported by bare name; another skill's may
+    # already sit in sys.modules when this test runs.
+    monkeypatch.setitem(sys.modules, "api", types.ModuleType("api"))
+    assert hasattr(load_nutrigx_api(), "run")
+
+
 def test_api_path_applies_the_whitelist():
-    import api
+    api = load_nutrigx_api()
 
     result = api.run({"rs1801133": "<script>", "rs4988235": "AG", "rs9939609": "TT"})
     assert result["snp_calls"]["rs1801133"]["status"] == "no_call"

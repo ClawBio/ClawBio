@@ -119,7 +119,7 @@ Tests must pass on Python 3.11, 3.12, and 3.13. CI runs all three via GitHub Act
 - **Python**: 3.11+ (type hints encouraged, `X | None` syntax over `Optional[X]`)
 - **Paths**: Always use `pathlib.Path`. Derive from `Path(__file__).resolve().parent`. Never hardcode absolute paths.
 - **Naming**: Skill folders use lowercase-hyphens (`gwas-lookup`). Python files use lowercase_underscores (`gwas_lookup.py`).
-- **Imports**: Sibling modules loaded via `importlib.util.spec_from_file_location` — no package structure.
+- **Imports**: Sibling modules loaded via `importlib.util.spec_from_file_location` — no package structure. Bare-name imports (`import foo`) share `sys.modules` across skills, so give skill-level modules names unique across skills (`nutrigx_repro_bundle.py`, not `repro_bundle.py`).
 - **CLI**: Every skill script accepts `--input`, `--output`, and `--demo`. Use `argparse`.
 - **Output**: Skills write to `<output_dir>/report.md` (primary), plus `figures/` and `tables/` subdirectories as needed. Return a `result.json` with structured findings.
 - **Reproducibility**: Every skill with a Python implementation writes `<output_dir>/reproducibility/` (`commands.sh`, `environment.yml`, `checksums.sha256`) using `clawbio.common.reproducibility` — `write_commands_sh`, `write_environment_yml`, `write_checksums`. Do not hand-roll these writers. Label checksums relative to the output directory (`anchor=output_dir`) so `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256` resolves.

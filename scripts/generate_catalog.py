@@ -40,100 +40,10 @@ def parse_yaml_frontmatter(text: str) -> dict:
     if not match:
         return {}
     raw = match.group(1)
-    try:
-        import yaml
+    import yaml
 
-        data = yaml.safe_load(raw) or {}
-        return data if isinstance(data, dict) else {}
-    except ImportError:
-        result: dict = {}
-
-        def _strip(value: str) -> str:
-            return value.strip().strip('"').strip("'")
-
-        name_match = re.search(r"^name:\s*(.+)", raw, re.MULTILINE)
-        if name_match:
-            result["name"] = _strip(name_match.group(1))
-
-        desc_match = re.search(r"^description:\s*(.+)", raw, re.MULTILINE)
-        if desc_match:
-            result["description"] = _strip(desc_match.group(1))
-
-        for field in (
-            "version", "author", "domain", "license",
-            "model_license", "data_license",
-        ):
-            # `^\s*` so a field nested under `metadata:` is found too. `\s*`
-            # cannot bridge into another key: `^\s*license:` does not match the
-            # line `model_license: ...`, because `^` anchors at the line start.
-            match = re.search(rf"^\s*{field}:\s*(.+)", raw, re.MULTILINE)
-            if match:
-                result[field] = _strip(match.group(1))
-
-        tags_match = re.search(r"^tags:\s*\[([^\]]*)\]", raw, re.MULTILINE)
-        if tags_match:
-            result["tags"] = [_strip(v) for v in tags_match.group(1).split(",") if v.strip()]
-
-        dep_python_match = re.search(r"^dependencies:\s*\n(?:\s+.+\n)*?\s+python:\s*(.+)", raw, re.MULTILINE)
-        dep_packages_match = re.search(r"^dependencies:\s*\n(?:\s+.+\n)*?\s+packages:\s*\n((?:\s+-\s+.+\n)*)", raw, re.MULTILINE)
-        if dep_python_match or dep_packages_match:
-            deps: dict = {}
-            if dep_python_match:
-                deps["python"] = _strip(dep_python_match.group(1))
-            if dep_packages_match:
-                deps["packages"] = [
-                    _strip(line.strip().lstrip("- "))
-                    for line in dep_packages_match.group(1).splitlines()
-                    if line.strip()
-                ]
-            result["dependencies"] = deps
-
-        metadata_match = re.search(r"^metadata:\s*\n((?:\s+.+\n)*)", raw, re.MULTILINE)
-        if metadata_match:
-            metadata_block = metadata_match.group(1)
-            metadata: dict = {}
-            for field in ("version", "author", "domain"):
-                match = re.search(rf"^\s+{field}:\s*(.+)", metadata_block, re.MULTILINE)
-                if match:
-                    metadata[field] = _strip(match.group(1))
-
-            tags_block = re.search(r"^\s+tags:\s*\n((?:\s+-\s+.+\n)*)", metadata_block, re.MULTILINE)
-            if tags_block:
-                metadata["tags"] = [
-                    _strip(line.strip().lstrip("- "))
-                    for line in tags_block.group(1).splitlines()
-                    if line.strip()
-                ]
-
-            dep_meta_python = re.search(r"^\s+dependencies:\s*\n(?:\s+.+\n)*?\s+python:\s*(.+)", metadata_block, re.MULTILINE)
-            dep_meta_packages = re.search(r"^\s+dependencies:\s*\n(?:\s+.+\n)*?\s+packages:\s*\n((?:\s+-\s+.+\n)*)", metadata_block, re.MULTILINE)
-            if dep_meta_python or dep_meta_packages:
-                deps: dict = {}
-                if dep_meta_python:
-                    deps["python"] = _strip(dep_meta_python.group(1))
-                if dep_meta_packages:
-                    deps["packages"] = [
-                        _strip(line.strip().lstrip("- "))
-                        for line in dep_meta_packages.group(1).splitlines()
-                        if line.strip()
-                    ]
-                metadata["dependencies"] = deps
-
-            openclaw_block = re.search(r"^\s+openclaw:\s*\n((?:\s+.+\n)*)", metadata_block, re.MULTILINE)
-            if openclaw_block:
-                oc: dict = {}
-                trigger_block = re.search(r"trigger_keywords:\s*\n((?:\s+-\s+.+\n)*)", openclaw_block.group(1))
-                if trigger_block:
-                    oc["trigger_keywords"] = [
-                        _strip(line.strip().lstrip("- "))
-                        for line in trigger_block.group(1).splitlines()
-                        if line.strip()
-                    ]
-                metadata["openclaw"] = oc
-
-            result["metadata"] = metadata
-
-        return result
+    data = yaml.safe_load(raw) or {}
+    return data if isinstance(data, dict) else {}
 
 
 def normalize_skill_metadata(raw: dict) -> dict:

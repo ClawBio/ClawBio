@@ -22,6 +22,6 @@ python clawbio.py run clinpgx --demo
 python clawbio.py run prs --demo
 python clawbio.py run gwas --demo
 python clawbio.py run profile --demo
-python clawbio.py run ukb --demo
+python skills/ukb-navigator/ukb_navigator.py --demo
 python clawbio.py run galaxy --demo
 ```

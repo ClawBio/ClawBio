@@ -2,7 +2,6 @@
 
 import json
 import stat
-import sys
 from pathlib import Path
 
 import subprocess
@@ -141,14 +140,6 @@ def test_tool_call_captures_exit_code_on_failure(tmp_path):
     cli = next(r for r in records if r["event"] == "execute_tool false")
     assert cli["status"] == "ERROR"
     assert "exit_code" in cli
-
-
-@pytest.mark.skipif(sys.platform != "darwin", reason="chflags is macOS-only")
-def test_uappend_flag_prevents_truncation(tmp_path):
-    log = tmp_path / "audit.jsonl"
-    write("user_event", skill="pharmgx", log_path=log)
-    with pytest.raises(OSError):
-        log.write_text("wiped")
 
 
 def test_otlp_exporter_is_opt_in(tmp_path, monkeypatch):

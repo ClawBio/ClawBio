@@ -16,7 +16,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-import repro_bundle
+import nutrigx_repro_bundle as repro_bundle
 from clawbio.common.checksums import sha256_file as common_sha256_file
 
 SKILL_DIR = Path(__file__).parent.parent
@@ -149,17 +149,12 @@ def test_commands_sh_requires_panel_when_a_custom_panel_was_used(tmp_path):
     output_dir = tmp_path / "out"
     output_dir.mkdir()
     (output_dir / "nutrigx_report.md").write_text("# report\n")
-    # Passed as a mapping: gwas-prs and wgs-prs also define a repro_bundle module
-    # with a keyword-only create_reproducibility_bundle, and CodeQL cannot tell
-    # which one this import resolves to, so explicit keywords are reported as
-    # wrong argument names.
-    kwargs = {
-        "input_file": str(SYNTHETIC),
-        "output_dir": str(output_dir),
-        "panel_path": str(PANEL),
-        "args": {"input": str(SYNTHETIC), "output": str(output_dir), "panel": str(PANEL)},
-    }
-    repro_bundle.create_reproducibility_bundle(**kwargs)
+    repro_bundle.create_reproducibility_bundle(
+        input_file=str(SYNTHETIC),
+        output_dir=str(output_dir),
+        panel_path=str(PANEL),
+        args={"input": str(SYNTHETIC), "output": str(output_dir), "panel": str(PANEL)},
+    )
     content = (output_dir / "reproducibility" / "commands.sh").read_text()
     assert '--panel "$PANEL_FILE"' in content
     assert str(PANEL) not in content, "the panel path must not be recorded"
