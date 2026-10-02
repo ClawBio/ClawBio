@@ -1258,6 +1258,17 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "harmonize": {
+        "script": SKILLS_DIR / "gwas-sumstats-harmonize" / "gwas_sumstats_harmonize.py",
+        "demo_args": ["--demo"],
+        "description": "GWAS Sumstats Harmonizer — canonical columns, BETA/SE/P derivation, QC, reference allele alignment",
+        "allowed_extra_flags": {
+            "--reference", "--columns", "--palindromic", "--min-maf", "--drop-indels",
+            "--keep-unmatched", "--build", "--engine", "--cores",
+        },
+        "extra_path_flags": {"--reference", "--columns"},
+        "accepts_genotypes": False,
+    },
 }
 
 try:

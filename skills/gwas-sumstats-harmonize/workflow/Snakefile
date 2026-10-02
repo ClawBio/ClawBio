@@ -1,0 +1,64 @@
+"""
+Snakefile — GWAS summary-statistics harmonization.
+
+Pipeline stages (one rule each, in rules/*.smk):
+  map_columns -> derive_effects -> qc_filter -> align_reference
+
+Config lives with each run, not here:
+  snakemake -s <skill>/workflow/Snakefile -d <run_dir> --cores 4 \
+      --config config_dir=<run_dir>/config
+"""
+import json
+import os
+import re
+import sys
+
+WORKFLOW_DIR = workflow.basedir
+sys.path.insert(0, os.path.join(WORKFLOW_DIR, "config"))
+from config_loader import load_config
+
+CFG = load_config(config.get("config_dir"))
+
+PYTHON = sys.executable  # same interpreter that runs Snakemake, never a bare `python`
+# The run directory (-d) is not the workflow directory, so scripts are
+# addressed absolutely rather than as scripts/<stage>.py.
+SCRIPTS = os.path.join(WORKFLOW_DIR, "scripts").replace("\\", "/")
+OUT = CFG["analysis"]["output_dir"]
+TARGETS = CFG["analysis"]["targets"]
+DATASETS = CFG["data"]["datasets"]
+REFERENCE = CFG["analysis"]["resources"]["reference"]
+
+
+def _stage(name):
+    return CFG["analysis"][name]
+
+
+def _flag(value):
+    return str(value).lower() if isinstance(value, bool) else str(value)
+
+
+wildcard_constraints:
+    dataset="|".join(re.escape(d) for d in DATASETS),
+
+
+# Per-dataset explicit column maps are a pure function of config: write them
+# eagerly here instead of behind a rule. Only rewrite when the content changes,
+# so an unchanged config never bumps the mtime and re-triggers every dataset.
+os.makedirs(f"{OUT}/tmp", exist_ok=True)
+for _name, _entry in DATASETS.items():
+    _path = f"{OUT}/tmp/{_name}.columns.json"
+    _text = json.dumps(_entry["columns"], indent=2, sort_keys=True)
+    if not os.path.exists(_path) or open(_path).read() != _text:
+        with open(_path, "w") as _fh:
+            _fh.write(_text)
+
+
+include: "rules/map_columns.smk"
+include: "rules/derive_effects.smk"
+include: "rules/qc_filter.smk"
+include: "rules/align_reference.smk"
+
+
+rule all:
+    input:
+        [f"{OUT}/done/align_reference_{d}.done" for d in TARGETS],

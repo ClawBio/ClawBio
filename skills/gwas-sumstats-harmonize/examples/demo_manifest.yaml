@@ -1,0 +1,20 @@
+# Demo manifest for gwas-sumstats-harmonize: five synthetic cohorts, each in a
+# different real-world summary-statistics convention, plus a synthetic reference
+# panel to align alleles against. Paths are relative to this file.
+reference: reference.tsv
+datasets:
+  cohort_ssf:
+    path: cohort_ssf.tsv
+    label: GWAS-Catalog SSF format
+  cohort_plink2:
+    path: cohort_plink2.glm.logistic
+    label: PLINK2 --glm logistic output
+  cohort_metal:
+    path: cohort_metal.tbl
+    label: METAL meta-analysis output
+  cohort_regenie:
+    path: cohort_regenie.regenie
+    label: REGENIE step-2 output
+  cohort_saige:
+    path: cohort_saige.txt
+    label: SAIGE step-2 output
