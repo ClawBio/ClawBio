@@ -1,6 +1,6 @@
 ---
 name: gi-expression
-description: Predict tissue / cell-type expression (log TPM + TPM) from a 9,198–500,000 bp TSS-centered DNA sequence (longer than one 9,198 bp window needs --tss-index) using the Genomic Intelligence G0 Expression model, via the hosted /v1/tasks/expression/predict
+description: Predict tissue / cell-type expression (log TPM + TPM) from 9,198–500,000 bp of DNA around a TSS, at least 4,599 bp each side (anything but exactly 9,198 bp needs --tss-index) using the Genomic Intelligence G0 Expression model, via the hosted /v1/tasks/expression/predict
   API. The model is conditioned on a free-text cell-type / assay description.
 license: MIT
 metadata:
@@ -34,7 +34,7 @@ metadata:
   author: ClawBio + Genomic Intelligence
   demo_data:
   - path: example_data/expression_hbb_k562.fa
-    description: HBB (β-globin) TSS-centered 9,198 bp window, reverse-complemented to gene-sense. K562 is the demo cell context — HBB is highly expressed in K562 erythroleukemia.
+    description: HBB (β-globin), 9,198 bp centred on the TSS, reverse-complemented to gene-sense. K562 is the demo cell context — HBB is highly expressed in K562 erythroleukemia.
   dependencies:
     python: '>=3.10'
     packages:
@@ -49,7 +49,7 @@ metadata:
     - fa
     - fasta
     - fna
-    description: Single-record FASTA, gene-sense (RC minus-strand genes). Either exactly 9,198 bp centered on the TSS, or 9,198–500,000 bp with --tss-index giving the 0-based TSS offset so the API cuts the window.
+    description: Single-record FASTA, gene-sense (RC minus-strand genes). Either exactly 9,198 bp centered on the TSS, or up to 500,000 bp with --tss-index giving the 0-based TSS offset, at least 4,599 bp from each end.
     required: false
   outputs:
   - name: report
@@ -76,7 +76,7 @@ metadata:
 
 # 🧪 gi-expression
 
-You are **gi-expression**, a ClawBio agent that calls the **Genomic Intelligence** sequence-to-expression model. Given a TSS-centered 9,198 bp window (or a longer locus plus `--tss-index`) and a cell-type description, it returns predicted expression (log TPM + TPM).
+You are **gi-expression**, a ClawBio agent that calls the **Genomic Intelligence** sequence-to-expression model. Given at least 9,198 bp around a TSS (`--tss-index` unless it is exactly 9,198 bp) and a cell-type description, it returns predicted expression (log TPM + TPM).
 
 > ⚠️ **Remote inference — opt-in required.** Unlike most ClawBio skills, this skill uploads your FASTA sequence to the hosted Genomic Intelligence API at `https://api.genomicintelligence.ai`. The same models also run interactively at <https://genomicintelligence.ai>. **Do not submit identifiable patient data** without an appropriate data-use agreement. Key setup: see [Authentication](#authentication) below.
 
@@ -107,7 +107,7 @@ You are **gi-expression**, a ClawBio agent that calls the **Genomic Intelligence
 
 ## Workflow
 
-1. **Parse**: single-record FASTA, gene-sense. Either exactly 9,198 bp TSS-centered, or 9,198–500,000 bp with `--tss-index`. Anything else is rejected locally before the request is sent.
+1. **Parse**: single-record FASTA, gene-sense. Either exactly 9,198 bp TSS-centered, or 9,198–500,000 bp with `--tss-index` at least 4,599 bp from each end. Anything else is rejected locally before the request is sent.
 2. **Build options**: `{"description": "assay term name is polyA plus RNA-seq. biosample summary is Homo sapiens K562."}` by default; override via `--description "..."`.
 3. **POST** to `/v1/tasks/expression/predict`, which is its own operation with its own request schema — each of the six tasks has one, so there is no shared predict body.
 4. **Render**: `report.md` (headline log TPM plus the scored window the API actually used) + `result.json` + `reproducibility/`.
@@ -124,7 +124,7 @@ python skills/gi-expression/gi_expression.py \
   --description "assay term name is polyA plus RNA-seq. biosample summary is Homo sapiens liver." \
   --output report_dir
 
-# Whole locus — the API cuts the 9,198 bp window around --tss-index
+# Whole locus: the model reads around --tss-index
 # (0-based offset into the sequence, counted after whitespace is stripped)
 python skills/gi-expression/gi_expression.py \
   --input my_locus_50kb.fa --tss-index 24000 \
@@ -172,9 +172,9 @@ Bundled fixture is HBB centered on its canonical TSS, RC'd to gene-sense, scored
 
 ## Gotchas
 
-- **9,198 bp is a floor, not a fixed size.** The endpoint accepts 9,198–500,000 bp (`minLength` / `maxLength` on `ExpressionPredictRequest`, counted after whitespace is stripped); what is rigid is the *scored window*, which is always exactly 9,198 bp cut server-side. Submit exactly one window TSS-centered, or submit a longer locus plus `--tss-index` and let the API cut `[tss_index-4599, tss_index+4599)`. Anything shorter than 9,198 bp, longer than 500,000 bp, or missing `--tss-index` on a non-9,198 bp sequence is a `422 validation_failed` — the skill catches all of those locally first. Over-max is a 422, *not* a 413; 413 is the separate 16 MiB raw-body cap. Unlike promoter / splice / enhancer / chromatin, expression does not pad: there is no padded-window regime here, and no opt-out flag.
+- **9,198 bp is a floor, not a fixed size.** The endpoint accepts 9,198–500,000 bp (`minLength` / `maxLength` on `ExpressionPredictRequest`, counted after whitespace is stripped) with the TSS at least 4,599 bp from each end. Submit exactly 9,198 bp TSS-centered, or a longer locus plus `--tss-index`. How far the model reads is its own: `bio_spec.recommended_flank_bp` on `GET /v1/tasks/expression/models` is how much to fetch on each side of the TSS (4,599 bp for the default `g0-expression`, 40,960 bp for `g0-expression-8192`), and the response reports the part it used as `scored_window`, which is only 9,198 bp wide for `g0-expression`. Anything shorter than 9,198 bp, longer than 500,000 bp, or missing `--tss-index` on a non-9,198 bp sequence is a `422 validation_failed` — the skill catches all of those locally first. Over-max is a 422, *not* a 413; 413 is the separate 16 MiB raw-body cap. A TSS closer than 4,599 bp to either end is rejected rather than padded, and there is no opt-out flag.
 - **A `tss_index` error reports at `loc: ["body"]`, never `body.tss_index`.** Both TSS checks are a whole-body validator, so any client branching on the error `loc` will silently never match. Match on `error.code` (`validation_failed`) and use `message` for display only — and read `error.details` defensively: for a validation failure it is the declared `{errors: [{loc, msg, type}, …]}` object.
-- **A wrong `--tss-index` does not error — it lies.** Any offset in `[4599, len-4599]` is legal, so an offset computed against file characters (line-wrapped FASTA newlines) or against a chromosome coordinate instead of an offset into *this* sequence returns a confident number for the wrong window. Always check the "Scored window" line in `report.md`. The response reports the applied window in two places, with identical values: `meta.task_specific_counts.scored_window` (the pair this skill's report reads) and `data.input.scored_window`. The meta one is the window's home: `data.input` is an echo of the request, so the derived window is leaving it, and this skill falls back to the echo only for older responses. The submitted length is a separate field, not part of the window: it is `meta.sequence_length`. Its `data.input.submitted_sequence_length` echo is leaving `data.input` for the same reason, so read the meta one. Offsets are counted on the whitespace-stripped nucleotide string, so compute the offset against that rather than against the raw file. The parser refuses any base outside `ACGTN`, so the two differ only by whitespace.
+- **A wrong `--tss-index` does not error — it lies.** Any offset in `[4599, len-4599]` is legal, so an offset computed against file characters (line-wrapped FASTA newlines) or against a chromosome coordinate instead of an offset into *this* sequence returns a confident number for the wrong window. Always check the "Scored window" line in `report.md`. The response reports the applied window as `meta.task_specific_counts.scored_window`; older responses also echoed it as `data.input.scored_window`, and this skill falls back to that echo only for them. The submitted length is a separate field, not part of the window: it is `meta.sequence_length`. Offsets are counted on the whitespace-stripped nucleotide string, so compute the offset against that rather than against the raw file. The parser refuses any base outside `ACGTN`, so the two differ only by whitespace.
 - **Gene-sense is mandatory.** Minus-strand genes need reverse-complementing. On the bundled HBB fixture the genomic strand scores about an order of magnitude below gene-sense, though the absolute values move with the checkpoint. The wrong strand returns a well-formed low number, not an error.
 - **`description` wording changes the answer.** It is a free-text conditioning input, not an enum, so paraphrases are not equivalent: on the same fixture and the same sequence, `"K562"`, `"K562 cells"` and the canonical assay-format string give three different predictions, spanning roughly a factor of two in TPM. Pick one phrasing and keep it fixed across anything you intend to compare, and prefer the canonical `"assay term name is … biosample summary is …"` format the model was trained on.
 - **`description` is required** — in the published schema as well as at runtime, and it is the *only* key accepted inside expression `options`. The model is conditioned on it; "assay term name is polyA plus RNA-seq. biosample summary is Homo sapiens [tissue]." is the canonical format.

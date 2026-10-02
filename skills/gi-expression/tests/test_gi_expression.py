@@ -28,7 +28,7 @@ def test_demo_input_exists():
 
 
 def test_demo_fixture_is_exactly_one_window():
-    """The bundled fixture must be exactly the 9,198 bp the model scores."""
+    """The bundled fixture is exactly 9,198 bp, so it runs without --tss-index."""
     _name, seq = read_fasta(DEMO_INPUT)
     assert len(seq) == EXPRESSION_WINDOW_BP
 
@@ -48,6 +48,21 @@ def test_short_sequence_is_rejected_before_the_api_call():
     assert problem is not None
     assert "600 bp" in problem and "9198 bp" in problem
     assert "TSS" in problem
+
+
+def test_short_sequence_hint_does_not_promise_a_fixed_scored_window():
+    """9,198 bp is the floor, not the width every model scores.
+
+    The API lists more than one expression model and each reads as far as its
+    own ``bio_spec.recommended_flank_bp`` says (4,599 bp per side for
+    g0-expression, 40,960 for g0-expression-8192), so the hint must state the
+    rule the API enforces and point at that field instead.
+    """
+    problem = validate_expression_input("A" * 600, None)
+    assert problem is not None
+    assert "exactly one" not in problem
+    assert "4599 bp from each end" in problem
+    assert "recommended_flank_bp" in problem
 
 
 def test_oversized_sequence_is_rejected():
