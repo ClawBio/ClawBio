@@ -1,0 +1,140 @@
+{
+    "accession": "PXD084218",
+    "title": "Genetic code expansion enables plant-directed control of bacterial activity",
+    "additionalAttributes": [],
+    "projectDescription": "Microbes have the potential to provide growth-promoting benefits to plants and crops, but effective plant\u2013microbe partnerships require mechanisms to control microbial activity in a programmable and host-specific manner. Using O-methyl-L-tyrosine (OMY), a non-canonical amino acid (ncAA), as a model compound, we established a plant-based approach for controlling the activity of associated microbes. Arabidopsis thaliana plants engineered to produce OMY (proUBQ10::sfGFP-MfnG) exhibited reduced primary root length, decreased lateral root density, and impaired gravitropism compared with wild-type Col-0 plants. To investigate the basis of OMY-associated growth inhibition, we tested whether OMY phytotoxicity results from its misincorporation into endogenous proteins, a mechanism reported for other ncAAs. Specifically, we examined whether OMY-producing Arabidopsis plants accumulate O-methylated L-tyrosine residues in native proteins. Proteomic analysis was performed using shoot and root tissues from OMY-producing proUBQ10::sfGFP-MfnG plants and wild-type controls. The resulting proteomic data were analyzed to identify peptides containing O-methylated L-tyrosine residues and to determine whether their abundance was increased in OMY-producing plants relative to wild-type controls.",
+    "sampleProcessingProtocol": "Arabidopsis thaliana seedlings were grown on 1\u00d7 MS Gelzan plates and harvested at 14 days. Shoot and root tissues were separated, weighed, immediately flash-frozen in liquid nitrogen, and stored at \u221280 \u00b0C until protein extraction. Tissues were homogenized using a bead mill and extracted in 2\u00d7 SDS sample loading buffer. Protein extracts were subjected to a short SDS- PAGE run, with buffer lanes between samples to minimize cross-contamination. For visualization, gels were stained for 6 h using a methanol-free colloidal blue staining solution to avoid potential artificial methylation during sample preparation and subsequently destained overnight with HPLC-grade water. Whole protein bands were excised and cut into approximately 1 mm\u00b2 pieces for in-gel digestion. Gel pieces were extensively destained with ammonium bicarbonate/acetonitrile washes, followed by reduction with dithiothreitol at 56 \u00b0C for 1 h and alkylation with iodoacetamide in the dark at room temperature for 45 min. Gel pieces were  washed, dried, rehydrated with sequencing-grade trypsin in ammonium bicarbonate, and digested overnight at 37 \u00b0C. Peptides were extracted from the gel pieces using 50% acetonitrile/0.1% formic acid, with three sequential extraction steps. Combined peptide extracts were centrifuged, dried by SpeedVac, and desalted using C18 ZipTips. LC-MS/MS was performed on an Orbitrap Eclipse mass spectrometer (Thermo Fisher Scientific) coupled to an Easy-nLC 1200 UPLC system (Thermo Fisher Scientific) using an Acclaim PepMap 100 C18 trapping column and an AUR3-25075C18, 25 cm \u00d7 75 \u00b5m, 1.7 \u00b5m C18 analytical column (IonOpticks). Peptides were eluted at a flow rate of 300 nL/min with a 106 min gradient from 3 to 28% solvent B (80% acetonitrile, 0.1% formic acid), followed by a 15 min gradient from 28 to 44% solvent B and a short wash with 90% solvent B. Precursor scans were acquired from m/z 375 to 1,600 at a resolution of 120,000, and the most intense multiply charged precursors (charge states 2\u20138) were selected for fragmentation using higher-energy collisional dissociation (HCD) with a normalized collision energy (NCE) of 27. MS/MS scans were acquired at a resolution of 15,000 with a 1.4 m/z isolation window and a 3 s cycle time. Dynamic exclusion was enabled for 30 s.",
+    "dataProcessingProtocol": "MS/MS spectra were searched separately against the Araport11 database Arabidopsis thaliana\u00a0(https://www.arabidopsis.org/), concatenated with decoy protein sequences using the MSFragger 4.1 software by including O-methylation at tyrosine (delta mass of +14.01565) as a variable modification with default criteria to obtain Label Free Quantitative (LFQ) intensities. The search results were analyzed separately in Perseus (version 2.0.10.0). The processing in Perseus was as follows: MSFragger intensities were log2-transformed. Only proteins that had at least three valid values in at least one group (WT or proUBQ10::sfGFPMfnG) were kept. The remaining missing MaxLFQ intensities were then imputed from a normal distribution that is downshifted by 1.8 and a width of 0.3 column-wise. A two-sample t-test was conducted with a permutation-based (n=250) FDR = 0.05 and S 0 = 1.5.",
+    "projectTags": [],
+    "keywords": [
+        "Bioengineering",
+        "Non-canonical amino acids",
+        "Bacillus subtilis",
+        "Plant-microbe interactions",
+        "O-methyl-l-tyrosine (omy)"
+    ],
+    "doi": "",
+    "submissionType": "PARTIAL",
+    "license": "Creative Commons Public Domain (CC0)",
+    "submissionDate": "2026-09-15",
+    "publicationDate": "2026-09-16",
+    "submitters": [
+        {
+            "title": "Dr",
+            "firstName": "Shouling",
+            "lastName": "Xu",
+            "identifier": "141690138",
+            "affiliation": "Carnegie Institution at Stanford",
+            "email": "sxu@ciw.edu",
+            "country": "United States",
+            "orcid": "0000-0002-6741-9506",
+            "name": "Shouling Xu",
+            "id": "141690138"
+        }
+    ],
+    "labPIs": [
+        {
+            "title": "Dr",
+            "firstName": "Shouling",
+            "lastName": "Xu",
+            "identifier": "3567135",
+            "affiliation": "Carnegie Science Mass Spectrometry Facility",
+            "email": "sxu@ciw.edu",
+            "country": "",
+            "orcid": "",
+            "name": "Shouling Xu",
+            "id": "3567135"
+        }
+    ],
+    "instruments": [
+        {
+            "@type": "CvParam",
+            "cvLabel": "MS",
+            "accession": "MS:1003029",
+            "name": "Orbitrap Eclipse"
+        }
+    ],
+    "softwares": [],
+    "experimentTypes": [
+        {
+            "@type": "CvParam",
+            "cvLabel": "PRIDE",
+            "accession": "PRIDE:0000428",
+            "name": "Bottom-up proteomics"
+        }
+    ],
+    "quantificationMethods": [],
+    "countries": [
+        "United States"
+    ],
+    "sampleAttributes": [
+        {
+            "@type": "Tuple",
+            "key": {
+                "cvLabel": "EFO",
+                "accession": "EFO:0000635",
+                "name": "organism part"
+            },
+            "value": [
+                {
+                    "cvLabel": "BTO",
+                    "accession": "BTO:0001188",
+                    "name": "root"
+                },
+                {
+                    "cvLabel": "BTO",
+                    "accession": "BTO:0001243",
+                    "name": "shoot"
+                }
+            ]
+        },
+        {
+            "@type": "Tuple",
+            "key": {
+                "cvLabel": "EFO",
+                "accession": "OBI:0100026",
+                "name": "organism"
+            },
+            "value": [
+                {
+                    "cvLabel": "NEWT",
+                    "accession": "NEWT:3702",
+                    "name": "Arabidopsis thaliana (Mouse-ear cress)"
+                }
+            ]
+        }
+    ],
+    "organisms": [
+        {
+            "@type": "CvParam",
+            "cvLabel": "NEWT",
+            "accession": "NEWT:3702",
+            "name": "Arabidopsis thaliana (mouse-ear cress)"
+        }
+    ],
+    "organismParts": [
+        {
+            "@type": "CvParam",
+            "cvLabel": "BTO",
+            "accession": "BTO:0001243",
+            "name": "Shoot"
+        },
+        {
+            "@type": "CvParam",
+            "cvLabel": "BTO",
+            "accession": "BTO:0001188",
+            "name": "Root"
+        }
+    ],
+    "diseases": [],
+    "references": [],
+    "identifiedPTMStrings": [
+        {
+            "@type": "CvParam",
+            "cvLabel": "PRIDE",
+            "accession": "PRIDE:0000398",
+            "name": "No PTMs are included in the dataset"
+        }
+    ],
+    "totalFileDownloads": 0
+}
