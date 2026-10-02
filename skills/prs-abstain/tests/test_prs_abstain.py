@@ -18,14 +18,23 @@ FIXTURES = SKILL_DIR / "tests" / "fixtures"
 sys.path.insert(0, str(SKILL_DIR))
 
 
+def as_cohort_referenced(rec):
+    """One demo record rewritten to stand in for a cohort-referenced score.
+    Dropping the two curated keys is no longer enough: a curated panel is
+    also recognised by method == "curated_reference" and by its CLAWBIO- id
+    (PR #348, review of 2 Oct 2026), so the stand-in changes those too."""
+    r = {k: v for k, v in rec.items() if k not in ("curated_demo_panel", "curated_panel_id")}
+    r["method"] = "cohort_reference"
+    r["pgs_id"] = str(r["pgs_id"]).replace("CLAWBIO-", "COHORT-")
+    return r
+
+
 def cohort_referenced_results(tmp_path):
     """The demo results with the curated-panel provenance removed, standing
     in for a score whose reference is a named cohort. Tests of the release
     path use it: a curated demo panel can never be released (PR #348)."""
-    recs = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
-    for r in recs:
-        r.pop("curated_demo_panel", None)
-        r.pop("curated_panel_id", None)
+    recs = [as_cohort_referenced(r) for r in
+            json.loads((EXAMPLES / "demo_prs_results.json").read_text())]
     out = tmp_path / "cohort_prs_results.json"
     out.write_text(json.dumps(recs))
     return out
@@ -157,8 +166,7 @@ class TestGating:
         ind = pa.Individual("EUR_001", "EUR", [-3.005, -2.385, -2.002, 0.345], 480)
         panel = pa.load_reference_panel(EXAMPLES / "demo_reference_pcs.csv")
         cal = pa.calibrate(panel, ref_pop="EUR", k_sd=3.0)
-        scores = [{k: v for k, v in s_.items()
-                   if k not in ("curated_demo_panel", "curated_panel_id")}
+        scores = [as_cohort_referenced(s_)
                   for s_ in pa.load_prs_results(EXAMPLES / "demo_prs_results.json")
                   if s_.get("sample_id") == ind.sample_id]
         gated = pa.gate_scores(scores, pa.decide(ind, cal, min_markers=30), cal)
@@ -1942,7 +1950,13 @@ class TestRound18ManuelReview:
 
     @pytest.mark.parametrize("trait", [
         "Cervical cancer", "Cervical intraepithelial neoplasia",
-        "Cervical squamous cell carcinoma", "Cervical adenocarcinoma"])
+        "Cervical squamous cell carcinoma", "Cervical adenocarcinoma",
+        # Round 19 (review of 2 Oct 2026): a neck term after a cervix-cancer
+        # term must not lift the restriction.
+        "Cervical cancer lymph node metastasis",
+        "Cervical carcinoma spinal metastasis",
+        "Cervical cancer with cervical lymph node involvement",
+        "HPV-related cervical dysplasia", "Carcinoma of the cervix"])
     def test_cervix_traits_stay_female_only(self, trait):
         import prs_abstain as pa
         assert not pa.check_applicability({"trait": trait}, "male").applicable
@@ -1953,3 +1967,70 @@ class TestRound18ManuelReview:
         from clawbio.cli import SKILLS
         assert "--genotype-build" in SKILLS["prs-abstain"]["allowed_extra_flags"]
         assert "`--genotype-build`" in (SKILL_DIR / "SKILL.md").read_text()
+
+
+class TestRound19ManuelReview:
+    """PR #348 review of 2 Oct 2026 (head 098e3ca): one test per point."""
+
+    @pytest.mark.parametrize("trait", [
+        "cervical cancer lymph node metastasis",
+        "cervical carcinoma spinal metastasis"])
+    def test_reviewer_strings_hit_the_female_keyword(self, trait):
+        import prs_abstain as pa
+        assert pa._sex_keyword_hits(trait, pa.SEX_SPECIFIC["female"])
+
+    @pytest.mark.parametrize("trait", [
+        "cervical lymph node tuberculosis", "cervical internal carotid artery dissection"])
+    def test_neck_senses_survive_the_tightened_pattern(self, trait):
+        import prs_abstain as pa
+        assert not pa._sex_keyword_hits(trait, pa.SEX_SPECIFIC["female"])
+
+    @pytest.mark.parametrize("strip,keep", [
+        (("curated_demo_panel", "curated_panel_id"), {}),
+        (("curated_demo_panel", "curated_panel_id", "method"), {"pgs_id": "CLAWBIO-T2D-8"}),
+    ])
+    def test_legacy_curated_record_is_withheld_without_scores(self, tmp_path, strip, keep):
+        """A results file written before gwas-prs emitted the curated keys,
+        run without --scores, must not release a percentile on the strength
+        of its EUR label: method == curated_reference or a CLAWBIO- id is
+        enough to recognise the panel."""
+        import prs_abstain as pa
+        recs = pa.load_prs_results(EXAMPLES / "demo_prs_results.json")
+        assert any(r.get("curated_demo_panel") or r.get("curated_panel_id") for r in recs)
+        for rec in recs:
+            for k in strip:
+                rec.pop(k, None)
+            if "method" not in strip:
+                rec["method"] = "curated_reference"
+            rec.update(keep)
+        legacy = tmp_path / "legacy.json"
+        legacy.write_text(json.dumps(recs))
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
+                     "--prs-results", str(legacy), "--output", str(tmp_path / "out"),
+                     "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        res = json.loads((tmp_path / "out" / "result.json").read_text())
+        scores = [s for d in res["decisions"] for s in d["scores"]]
+        assert scores and all(s["percentile"] is None for s in scores)
+        assert any("curated demonstration panel" in x for s in scores for x in s["withheld_reasons"])
+
+    def test_skip_note_separates_missing_other_allele_from_palindromes(self):
+        import prs_abstain as pa
+        variants = [
+            {"rsid": "rs1", "chr": "1", "pos": "1", "effect_allele": "G", "other_allele": "A",
+             "weight": 1.0, "af_reference": 0.2},
+            # C/T site, no other_allele, table names the complement: not palindromic.
+            {"rsid": "rs2", "chr": "1", "pos": "2", "effect_allele": "C", "other_allele": "",
+             "weight": 1.0, "af_reference": 0.2},
+            # true palindrome, complement match
+            {"rsid": "rs3", "chr": "1", "pos": "3", "effect_allele": "A", "other_allele": "T",
+             "weight": 1.0, "af_reference": 0.2}]
+        sdef = pa.ScoreDefinition("PGSTEST", "Height", "GRCh37", variants)
+        table = pa.AFTable({"rs1": {"AFR": 0.5, "_allele": "G"},
+                            "rs2": {"AFR": 0.5, "_allele": "G"},
+                            "rs3": {"AFR": 0.5, "_allele": "T"}})
+        sh = pa.af_shift(sdef, table, sd=1.0, population="AFR", min_weight_coverage=0.0)
+        assert [p["rsid"] for p in sh.per_variant] == ["rs1"]
+        assert "1 palindromic variant(s) skipped" in sh.sd_note
+        assert "1 variant(s) skipped because the table's allele matched only by strand complement and the scoring file names no other allele" in sh.sd_note

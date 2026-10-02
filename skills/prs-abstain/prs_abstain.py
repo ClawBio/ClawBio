@@ -116,7 +116,7 @@ PALINDROMIC = {("A", "T"), ("T", "A"), ("C", "G"), ("G", "C")}
 
 # Traits whose scores are derived in, and clinically meaningful for, one sex only.
 SEX_SPECIFIC = {
-    "female": ("breast", "ovarian", "cervical", "endometrial", "uterine"),
+    "female": ("breast", "ovarian", "cervical", "cervix", "endometrial", "uterine"),
     "male": ("prostate", "testicular"),
 }
 
@@ -125,16 +125,26 @@ SEX_SPECIFIC = {
 # in that sense is not a cancer of the cervix and must not be sex-restricted
 # by a substring match (Manuel, PR #348 review). Only the word "cervical" is
 # re-read here; every other sex-specific keyword keeps its plain match.
+#
+# Order matters. Cervix terms are checked first and win: "cervical cancer
+# lymph node metastasis" names a neck structure but is still a cancer of the
+# cervix, and must stay female-only. The neck pattern takes no free word
+# between "cervical" and the neck term, so "cervical carcinoma spinal
+# metastasis" cannot ride through on an arbitrary middle word either.
+_GYN_CERVICAL = re.compile(
+    r"\b(?:cervix|cancer\w*|carcinoma\w*|adenocarcinoma\w*|neoplas\w*|intraepithelial"
+    r"|dysplasia|tumou?rs?|malignan\w*|squamous|hpv|papillomavirus|cin\s?[123]?|uterine|uteri)\b")
 _NON_GYN_CERVICAL = re.compile(
-    r"\bcervical\s+(?:\w+\s+)?(?:arter\w*|carotid|spine|spinal|spondyl\w*|vertebr\w*"
-    r"|disc|discs|radiculopath\w*|myelopath\w*|dystonia|rib|ribs|lymph\w*)\b")
+    r"\bcervical\s+(?:(?:vertebral|internal|carotid)\s+)?(?:arter\w*|carotid|spine|spinal"
+    r"|spondyl\w*|vertebr\w*|disc|discs|radiculopath\w*|myelopath\w*|dystonia|rib|ribs"
+    r"|lymph\w*)\b")
 
 
 def _sex_keyword_hits(t: str, keywords: tuple[str, ...]) -> bool:
     for k in keywords:
         if k not in t:
             continue
-        if k == "cervical":
+        if k == "cervical" and not _GYN_CERVICAL.search(t):
             gyn = re.sub(_NON_GYN_CERVICAL, "", t)
             if "cervical" not in gyn:
                 continue
@@ -798,6 +808,7 @@ def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, Any]],
     per: list[dict[str, Any]] = []
     skipped_allele = 0
     skipped_palindromic = 0
+    skipped_no_other_allele = 0
     orientation_unverified = bool(getattr(af_table, "orientation_unverified", False))
     w_total = sum(abs(v["weight"]) for v in score.variants) or 0.0
     w_cov = 0.0
@@ -825,10 +836,13 @@ def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, Any]],
             # be ruled out, so the complement match is equally ambiguous: only
             # an exact allele match is usable there too (Manuel, PR #348).
             other = (v.get("other_allele") or "").upper()
-            if ((not other or (v["effect_allele"], other) in PALINDROMIC)
-                    and tab_allele.upper() != v["effect_allele"].upper()):
-                skipped_palindromic += 1
-                continue
+            if tab_allele.upper() != v["effect_allele"].upper():
+                if not other:
+                    skipped_no_other_allele += 1
+                    continue
+                if (v["effect_allele"].upper(), other) in PALINDROMIC:
+                    skipped_palindromic += 1
+                    continue
         elif ambiguous_rsids and v["rsid"] in ambiguous_rsids:
             skipped_allele += 1
             continue
@@ -862,6 +876,11 @@ def af_shift(score: ScoreDefinition, af_table: dict[str, dict[str, Any]],
         note = (note + " " if note else "") + (
             f"{skipped_palindromic} palindromic variant(s) skipped because the table's allele "
             f"matched only by strand complement, which is ambiguous for A/T and C/G sites.")
+    if skipped_no_other_allele:
+        note = (note + " " if note else "") + (
+            f"{skipped_no_other_allele} variant(s) skipped because the table's allele matched "
+            f"only by strand complement and the scoring file names no other allele, so a "
+            f"strand-ambiguous site could not be ruled out.")
     if orientation_unverified:
         note = (note + " " if note else "") + (
             "The frequency table names no allele, so which allele each frequency counts is "
@@ -1191,7 +1210,16 @@ def gate_scores(scores: Iterable[dict[str, Any]], decision: Decision, cal: Calib
         if decision.verdict != "REPORT":
             reasons.append(f"Ancestry gate: {decision.verdict}.")
 
-        curated_record = bool(s_.get("curated_demo_panel")) or s_.get("curated_panel_id") is not None
+        # Results files written before gwas-prs emitted curated_demo_panel /
+        # curated_panel_id carry neither key. They are still recognisable:
+        # gwas-prs stamps method="curated_reference" on every percentile it
+        # centres on a curated panel, and the panel ids share one prefix.
+        curated_record = (
+            bool(s_.get("curated_demo_panel"))
+            or s_.get("curated_panel_id") is not None
+            or str(s_.get("method") or "").strip().lower() == "curated_reference"
+            or any(str(s_.get(k) or "").upper().startswith("CLAWBIO-")
+                   for k in ("pgs_id", "legacy_pgs_id", "curated_panel_id")))
         if curated_record and not (score_pop or "").lower().startswith("estimated"):
             # gwas-prs labels the curated reference "EUR" by default
             # (ref.get("population", "EUR")), but that reference is the
