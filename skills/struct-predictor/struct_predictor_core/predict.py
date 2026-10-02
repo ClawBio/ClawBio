@@ -1,11 +1,12 @@
 """
-predict.py — subprocess wrapper for `boltz predict`.
+predict.py — subprocess wrappers for `run_openfold predict` and `boltz predict`.
 
-Calls Boltz-2 CLI, streams output, and locates the resulting CIF and
+Calls the backend CLI, streams output, and locates the resulting CIF and
 confidence JSON in the output directory.
 """
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -93,4 +94,80 @@ def _find_cif(boltz_output_dir: Path) -> dict:
         "cif_path": cif_path,
         "confidence_json_path": conf_candidates[0] if conf_candidates else None,
         "boltz_output_dir": boltz_output_dir,
+    }
+
+
+def run_openfold3(query_json_path: Path, output_dir: Path) -> dict:
+    """Run `run_openfold predict` and return paths to the best-ranked sample.
+
+    Fully offline: no MSA server, no templates. Needs a CUDA GPU.
+
+    Returns:
+        {"cif_path": Path, "confidence_json_path": Path | None, "output_dir": Path}
+
+    Raises:
+        RuntimeError: If openfold3 is not installed or exits non-zero.
+        FileNotFoundError: If no CIF is found after a successful run.
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    cmd = _build_openfold3_cmd(query_json_path, output_dir)
+    print(f"  Running: {' '.join(str(c) for c in cmd)}")
+
+    try:
+        proc = subprocess.run(cmd, capture_output=False, text=True)
+    except FileNotFoundError:
+        raise RuntimeError(
+            "run_openfold not found. Install with: pip install openfold3 "
+            "&& setup_openfold  (or omit --backend to use Boltz-2)"
+        )
+
+    if proc.returncode != 0:
+        raise RuntimeError(f"OpenFold3 exited with code {proc.returncode}.")
+
+    return _find_openfold3_output(output_dir)
+
+
+def _build_openfold3_cmd(query_json_path: Path, output_dir: Path) -> list[str]:
+    """Build the run_openfold predict command (fully offline)."""
+    return [
+        "run_openfold", "predict",
+        f"--query-json={query_json_path}",
+        f"--output-dir={output_dir}",
+        "--use-msa-server=false",
+        "--use-templates=false",
+    ]
+
+
+def _find_openfold3_output(output_dir: Path) -> dict:
+    """Locate the best-ranked sample written by OpenFold3.
+
+    OpenFold3 writes, per sample:
+        <out>/<name>/seed_<n>/<name>_seed_<n>_sample_<k>_model.cif
+        <out>/<name>/seed_<n>/<name>_seed_<n>_sample_<k>_confidences.json
+        <out>/<name>/seed_<n>/<name>_seed_<n>_sample_<k>_confidences_aggregated.json
+    The sample with the highest ``sample_ranking_score`` is returned.
+    """
+    output_dir = Path(output_dir)
+    cifs = list(output_dir.rglob("*_model.cif"))
+    if not cifs:
+        raise FileNotFoundError(
+            f"No CIF file found under {output_dir}. "
+            "OpenFold3 may not have produced output — check the logs above."
+        )
+
+    def score(cif: Path) -> float:
+        agg = cif.with_name(cif.name.replace("_model.cif", "_confidences_aggregated.json"))
+        try:
+            return float(json.loads(agg.read_text())["sample_ranking_score"])
+        except (OSError, KeyError, ValueError):
+            return float("-inf")
+
+    best = max(cifs, key=score)
+    conf = best.with_name(best.name.replace("_model.cif", "_confidences.json"))
+    return {
+        "cif_path": best,
+        "confidence_json_path": conf if conf.exists() else None,
+        "output_dir": output_dir,
     }

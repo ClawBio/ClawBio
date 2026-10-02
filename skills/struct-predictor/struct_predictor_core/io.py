@@ -7,6 +7,7 @@ Writes a normalised input file that Boltz can consume.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 # Standard 20 amino acids + selenocysteine (U) + pyrrolysine (O)
@@ -65,6 +66,31 @@ def validate_and_prepare(
         "input_type": "yaml",
         "sequences": sequences,
     }
+
+
+def write_openfold3_query(sequences: list[dict], name: str, work_dir: Path) -> Path:
+    """Write an OpenFold3 query JSON from ``validate_and_prepare`` sequences.
+
+    MSAs are disabled (``use_msas: false``) so the run stays fully offline.
+    """
+    chains = []
+    for seq in sequences:
+        kind = seq.get("entity_type", "protein")
+        chain: dict = {"molecule_type": kind, "chain_ids": [seq["chain_id"]]}
+        if kind != "ligand":
+            chain["sequence"] = seq["sequence"]
+        elif seq.get("smiles"):
+            chain["smiles"] = seq["smiles"]
+        else:
+            chain["ccd_codes"] = [seq["ccd"]]
+        chains.append(chain)
+
+    work_dir = Path(work_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    out_path = work_dir / f"{name}.json"
+    out_path.write_text(json.dumps(
+        {"queries": {name: {"chains": chains, "use_msas": False}}}, indent=2))
+    return out_path
 
 
 def _parse_sequences_from_data(data: dict, input_path: Path | None = None) -> list[dict]:

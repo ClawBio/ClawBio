@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
-Struct Predictor — Protein structure prediction with Boltz-2.
+Struct Predictor — Protein structure prediction with Boltz-2 (default) or OpenFold3.
 
 Usage:
     # Single protein or multi-chain complex (YAML)
     python skills/struct-predictor/struct_predictor.py \
         --input complex.yaml --output /tmp/struct_out
+
+    # Same input, OpenFold3 instead of Boltz-2 (needs a CUDA GPU)
+    python skills/struct-predictor/struct_predictor.py \
+        --input complex.yaml --output /tmp/struct_out --backend openfold3
 
     # Demo (Trp-cage miniprotein, no input needed)
     python skills/struct-predictor/struct_predictor.py \
@@ -26,8 +30,8 @@ if str(_PROJECT_ROOT) not in sys.path:
 if str(_SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(_SKILL_DIR))
 
-from struct_predictor_core.io import validate_and_prepare
-from struct_predictor_core.predict import run_boltz
+from struct_predictor_core.io import validate_and_prepare, write_openfold3_query
+from struct_predictor_core.predict import run_boltz, run_openfold3
 from struct_predictor_core.confidence import extract_confidence
 from struct_predictor_core.report import generate_report
 
@@ -48,6 +52,7 @@ def run_struct_prediction(
     input_path: Path | None,
     output_dir: Path,
     demo: bool = False,
+    backend: str = "boltz",
 ) -> dict:
     """Run the full struct-predictor pipeline (fully offline, no MSA server).
 
@@ -55,6 +60,7 @@ def run_struct_prediction(
         input_path: Path to YAML input. Required unless demo=True.
         output_dir: Where to write the final report and artefacts.
         demo: Run with Trp-cage miniprotein (PDB 1L2Y, 20 residues).
+        backend: "boltz" (default) or "openfold3".
 
     Returns:
         result dict (same content as result.json).
@@ -65,10 +71,15 @@ def run_struct_prediction(
     if not demo and input_path is None:
         raise ValueError("Provide --input or --demo.")
 
+    if backend not in ("openfold3", "boltz"):
+        raise ValueError(f"Unknown backend {backend!r}. Use 'openfold3' or 'boltz'.")
+
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Step 1: Prepare input YAML in a temp dir (adds msa: empty for offline run)
+    # Step 1: Validate input and prepare it in a temp dir. The Boltz YAML
+    # (msa: empty, offline) is written either way; OpenFold3 reads the
+    # validated sequences from it and gets its own query JSON.
     with tempfile.TemporaryDirectory(prefix="struct_predictor_input_") as _tmpdir:
         work_dir = Path(_tmpdir)
 
@@ -83,20 +94,25 @@ def run_struct_prediction(
 
         print(f"  Chains: {len(prepared['sequences'])}, type: {prepared['input_type']}")
 
-        # Step 2: Boltz writes directly to output_dir, preserving its native layout:
-        #   output_dir/lightning_logs/
-        #   output_dir/predictions/<name>/<name>_model_0.cif
-        #   output_dir/predictions/<name>/confidence_<name>_model_0.json
-        print("  Running Boltz-2 prediction...")
-        predict_result = run_boltz(
-            input_path=prepared["boltz_input_path"],
-            boltz_output_dir=output_dir,
-        )
+        # Step 2: the backend writes directly to output_dir, preserving its native layout:
+        #   boltz:     output_dir/predictions/<name>/<name>_model_0.cif
+        #   openfold3: output_dir/<name>/seed_<n>/<name>_seed_<n>_sample_<k>_model.cif
+        if backend == "openfold3":
+            name = DEMO_NAME if demo else Path(input_path).stem
+            query = write_openfold3_query(prepared["sequences"], name, work_dir / "openfold3_input")
+            print("  Running OpenFold3 prediction...")
+            predict_result = run_openfold3(query, output_dir)
+        else:
+            print("  Running Boltz-2 prediction...")
+            predict_result = run_boltz(
+                input_path=prepared["boltz_input_path"],
+                boltz_output_dir=output_dir,
+            )
 
     cif_path = predict_result["cif_path"]
     conf_json_path = predict_result["confidence_json_path"]
 
-    cmd = _build_cmd(input_label=input_label, output_dir=output_dir, demo=demo)
+    cmd = _build_cmd(input_label=input_label, output_dir=output_dir, demo=demo, backend=backend)
 
     # Step 3: Extract confidence
     print("  Extracting pLDDT and PAE...")
@@ -120,6 +136,7 @@ def run_struct_prediction(
         cmd=cmd,
         input_label=input_label,
         demo=demo,
+        backend=backend,
     )
 
     result = json.loads((output_dir / "result.json").read_text())
@@ -133,13 +150,14 @@ def run_struct_prediction(
     return result
 
 
-def _build_cmd(input_label: str, output_dir: Path, demo: bool) -> str:
+def _build_cmd(input_label: str, output_dir: Path, demo: bool, backend: str) -> str:
     parts = ["python skills/struct-predictor/struct_predictor.py"]
     if demo:
         parts.append("--demo")
     else:
         parts.append(f"--input {input_label}")
     parts.append(f"--output {output_dir}")
+    parts.append(f"--backend {backend}")
     return " \\\n  ".join(parts)
 
 
@@ -150,10 +168,12 @@ def _build_cmd(input_label: str, output_dir: Path, demo: bool) -> str:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Struct Predictor — protein structure prediction with Boltz-2"
+        description="Struct Predictor — protein structure prediction with Boltz-2 or OpenFold3"
     )
     parser.add_argument("--input", "-i", help="Input YAML file")
     parser.add_argument("--output", "-o", required=True, help="Output directory")
+    parser.add_argument("--backend", choices=["boltz", "openfold3"], default="boltz",
+                        help="Prediction engine (default: boltz)")
     parser.add_argument("--demo", action="store_true",
                         help="Run demo with Trp-cage miniprotein, PDB 1L2Y (no input needed)")
     return parser
@@ -168,7 +188,7 @@ def main():
         print("\nError: provide --input or --demo")
         sys.exit(1)
 
-    print("Struct Predictor — Boltz-2")
+    print(f"Struct Predictor — {'OpenFold3' if args.backend == 'openfold3' else 'Boltz-2'}")
     print("=" * 60)
     print()
 
@@ -176,6 +196,7 @@ def main():
         input_path=Path(args.input) if args.input else None,
         output_dir=Path(args.output),
         demo=args.demo,
+        backend=args.backend,
     )
 
 

@@ -61,6 +61,7 @@ def generate_viewer_html(
     cif_path: Path,
     plddt: np.ndarray,
     chain_boundaries: list[dict],
+    engine: str = "Boltz-2",
 ) -> None:
     """Write a self-contained HTML file with an embedded 3Dmol.js viewer.
 
@@ -123,7 +124,7 @@ def generate_viewer_html(
 <body>
   <div id="header">
     <h1>Struct Predictor — 3D Structure Viewer</h1>
-    <p>Coloured by pLDDT confidence &nbsp;|&nbsp; Boltz-2</p>
+    <p>Coloured by pLDDT confidence &nbsp;|&nbsp; {engine}</p>
   </div>
   <div id="main">
     <div id="viewer"></div>
