@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 98,
+  "skill_count": 99,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -4105,6 +4105,51 @@
         "add a skill",
         "build a skill",
         "make a skill"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "snakemake-bio-scaffold",
+      "cli_alias": "snakemake-scaffold",
+      "description": "Generate a ready-to-run Snakemake bioinformatics project in a config-by-concern layout (data/analysis/software.yaml + one config loader, one rule file and one standalone CLI script per stage, done-sentinels, closed wildcard sets) from a short YAML spec.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run snakemake-scaffold --demo",
+      "dependencies": [
+        "python>=3.11",
+        "pyyaml>=6.0"
+      ],
+      "tags": [
+        "snakemake",
+        "workflow",
+        "pipeline",
+        "scaffold",
+        "reproducibility",
+        "gwas"
+      ],
+      "trigger_keywords": [
+        "snakemake project",
+        "scaffold a snakemake pipeline",
+        "new snakemake pipeline",
+        "snakemake template",
+        "snakemake project structure",
+        "set up a bioinformatics pipeline"
       ],
       "chaining_partners": [],
       "license": "MIT",

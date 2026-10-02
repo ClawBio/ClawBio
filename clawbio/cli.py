@@ -1258,6 +1258,15 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "snakemake-scaffold": {
+        "script": SKILLS_DIR / "snakemake-bio-scaffold" / "snakemake_bio_scaffold.py",
+        "demo_args": ["--demo"],
+        "description": "Snakemake Bio Scaffold — generate a config-by-concern Snakemake project from a YAML spec",
+        # Quick mode (--name + --stages) needs no input file.
+        "allowed_extra_flags": {"--name", "--stages", "--items", "--force", "--check"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
 }
 
 try:
