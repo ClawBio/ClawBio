@@ -230,6 +230,10 @@ python skills/prs-abstain/prs_abstain.py --demo --output /tmp/prs-abstain-demo
 Expected output: a report covering three individuals producing all three verdicts, a calibrated
 threshold of 3.47 from 22 EUR reference individuals, and four figures.
 
+The demo releases no percentile for anyone, including `EUR_001`. `REPORT` is the ancestry verdict
+only: the bundled scores are curated demonstration panels with illustrative weights, so every
+percentile is withheld on provenance and score integrity even where the ancestry gate passes.
+
 ## Algorithm / Methodology
 
 1. **Centroid**: arithmetic mean of PC1–PC4 across reference-population members.

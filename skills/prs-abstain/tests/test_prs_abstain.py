@@ -2034,3 +2034,21 @@ class TestRound19ManuelReview:
         assert [p["rsid"] for p in sh.per_variant] == ["rs1"]
         assert "1 palindromic variant(s) skipped" in sh.sd_note
         assert "1 variant(s) skipped because the table's allele matched only by strand complement and the scoring file names no other allele" in sh.sd_note
+
+
+class TestRound20ManuelReview:
+    """PR #348 audit of 4 Oct 2026 (head 6be8992): one test per point."""
+
+    def test_demo_section_says_no_percentile_is_released(self, tmp_path):
+        """Example Output shows EUR_001 as REPORT; the Demo section must say
+        that the demo releases no percentile, and that must stay true."""
+        text = (SKILL_DIR / "SKILL.md").read_text()
+        demo = text.split("\n## Demo\n", 1)[1].split("\n## ", 1)[0]
+        assert "The demo releases no percentile for anyone, including `EUR_001`." in demo
+        r = run_cli(["--demo", "--output", str(tmp_path / "out"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        res = json.loads((tmp_path / "out" / "result.json").read_text())
+        by_id = {d["sample_id"]: d for d in res["decisions"]}
+        assert by_id["EUR_001"]["verdict"] == "REPORT"
+        scores = [s for d in res["decisions"] for s in d["scores"]]
+        assert scores and all(s["percentile"] is None for s in scores)
