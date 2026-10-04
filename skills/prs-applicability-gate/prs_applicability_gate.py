@@ -20,8 +20,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import shlex
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -48,12 +50,19 @@ DEMO_DIR = SKILL_DIR / "examples"
 SUPPORTED, RAW_ONLY, ABSTAIN = "SUPPORTED", "RAW_ONLY", "ABSTAIN"
 SEVERITY = {SUPPORTED: 0, RAW_ONLY: 1, ABSTAIN: 2}
 GROUPS = ("AFR", "AMR", "EAS", "EUR", "SAS")
+# The assemblies PGS Catalog releases harmonised scoring files on, and the only ones upstream harmonisation
+# trusts positions for. Anything else (NCBI36, T2T, an unnormalised alias such as hg19) fails G3.
+SUPPORTED_BUILDS = ("GRCh37", "GRCh38")
 
 REASON_CODES = {
     "INVALID_GATE_INPUT": "The gate input is missing required fields, has wrong types, or fails its digest.",
     "UNSUPPORTED_SCORE_FORMAT": "The scoring file is not a plain additive log-scale score (ratio weights, "
                                 "dosage-specific weights, haplotype/interaction terms, or unreadable rows).",
-    "BUILD_UNRESOLVED": "The genotype file's genome build could not be established; positions cannot be trusted.",
+    "SCORE_FORMAT_UNVERIFIED": "The scoring file's format was not reported (ratio_weight_type not a boolean or "
+                               "unsupported_features not a list), so it cannot be confirmed as a plain additive "
+                               "log-scale score.",
+    "BUILD_UNRESOLVED": "The genotype file's genome build was not established as a supported assembly "
+                        "(GRCh37 or GRCh38); positions cannot be trusted.",
     "ALLELE_HARMONIZATION_FAILED": "Too many located variants have alleles that cannot be reconciled with the "
                                    "scoring file (wrong strand/build/file suspected).",
     "LOW_SCOREABILITY": "The score computable from this genotype correlates too weakly with the published score.",
@@ -64,6 +73,9 @@ REASON_CODES = {
     "DUPLICATE_OR_CONFLICTING_VARIANTS": "Duplicated or position-conflicting variants are the largest loss.",
     "SEX_POPULATION_MISMATCH": "The score or all of its relevant evaluations are specific to the other sex.",
     "SEX_NOT_PROVIDED": "The score is sex-specific but the person's sex was not provided.",
+    "SEX_EVALUATION_UNVERIFIED": "No informative evaluation is known to include the person's sex (sex composition "
+                                 "not reported, or the person's sex not provided and no evaluation includes both "
+                                 "sexes).",
     "METADATA_CONTRADICTION": "PGS Catalog metadata for this score failed a blocking consistency check.",
     "EVALUATION_METADATA_UNAVAILABLE": "PGS Catalog metadata for this score could not be retrieved.",
     "TARGET_REFERENCE_UNRESOLVED": "The person could not be placed stably inside one reference group "
@@ -71,8 +83,12 @@ REASON_CODES = {
     "NO_RELEVANT_EVALUATION": "No single-ancestry evaluation in the person's reference group reports a metric.",
     "EVALUATION_NOT_INFORMATIVE": "Relevant evaluations exist but none shows evidence of association in the score's "
                                   "direction (no metric's 95% CI lies entirely above the null).",
-    "REFERENCE_DISTRIBUTION_UNAVAILABLE": "No reference distribution on the person's matched variant set.",
+    "REFERENCE_DISTRIBUTION_UNAVAILABLE": "No usable reference distribution on the person's matched variant set "
+                                          "(none, another group's, or no positive reference size and variant "
+                                          "intersection).",
     "REFERENCE_SENSITIVE": "The percentile depends on which reference population is chosen within the group.",
+    "REFERENCE_SENSITIVITY_UNVERIFIED": "Whether the percentile depends on the reference population chosen was not "
+                                        "reported (reference_sensitive is not a boolean).",
 }
 LOSS_CODES = {"palindromic_excluded": "PALINDROMIC_VARIANT_UNRESOLVED", "missing": "VARIANTS_MISSING",
               "no_call": "VARIANTS_MISSING", "allele_mismatch": "ALLELE_HARMONIZATION_FAILED",
@@ -199,8 +215,31 @@ def validate_input(gi: Any) -> list[str]:
     return p
 
 
+def _finite_number(v: Any) -> bool:
+    """A real number: not a bool, NaN or +/-inf. Ints are never converted to float, so a huge int cannot overflow."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return False
+    return isinstance(v, int) or math.isfinite(v)
+
+
 def _number_in(v: Any, lo: float, hi: float) -> bool:
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and v == v and lo <= v <= hi
+    return _finite_number(v) and lo <= v <= hi
+
+
+def _positive_int(v: Any) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool) and v > 0
+
+
+def _is_bool(v: Any) -> bool:
+    return isinstance(v, bool)
+
+
+def _is_list(v: Any) -> bool:
+    return isinstance(v, list)
+
+
+def _supported_build(v: Any) -> bool:
+    return isinstance(v, str) and v in SUPPORTED_BUILDS
 
 
 # ---------------------------------------------------------------------------
@@ -221,9 +260,12 @@ class Trace:
         self.used: dict[str, Any] = {}
         self.missing: list[str] = []
 
-    def use(self, path: str, value: Any, needed: bool = True) -> Any:
+    def use(self, path: str, value: Any, needed: bool = True, *,
+            usable: Callable[[Any], bool] | None = None) -> Any:
+        """Record a field a rule read. A needed field that is null, or fails `usable`, is missing evidence."""
         self.used[path] = value
-        if value is None and needed and path not in self.missing:
+        unusable = value is None or (usable is not None and not usable(value))
+        if unusable and needed and path not in self.missing:
             self.missing.append(path)
         return value
 
@@ -242,9 +284,25 @@ def _metric_ok(m: dict) -> bool | None:
     for interpreting the score. Evidence of association is NOT evidence of clinically useful discrimination or
     calibration."""
     lo, hi, null = m.get("ci_lower"), m.get("ci_upper"), m.get("null")
-    if not all(isinstance(x, (int, float)) for x in (lo, hi, null)):
+    if not all(_finite_number(x) for x in (lo, hi, null)) or lo > hi:
         return None
     return lo > null
+
+
+def _includes_sex(percent_male: float, sex: str | None) -> bool:
+    """Whether a unit with this known percent_male includes participants of `sex` (both sexes when sex is None)."""
+    if sex == "female":
+        return percent_male < 100
+    if sex == "male":
+        return percent_male > 0
+    return 0 < percent_male < 100
+
+
+def _largest_losses(loss: dict) -> list[str]:
+    """The status(es) with the largest weight loss, whatever the input's key order: every status tied at the
+    maximum, in name order; none when nothing was lost. Values are validated fractions in [0, 1]."""
+    most = max(loss.values(), default=0)
+    return sorted(k for k, v in loss.items() if v == most) if most > 0 else []
 
 
 def invalid_input(gi: Any, cfg: dict, detail: str) -> dict:
@@ -274,8 +332,14 @@ def _evaluate(gi: dict, cfg: dict) -> dict:
     rd = gi.get("reference_distribution") or {}
 
     # G2 score format ------------------------------------------------------------------------------------
-    unsup = list(t.use("score_file.unsupported_features", sf.get("unsupported_features") or [], False))
-    if t.use("score_file.ratio_weight_type", sf.get("ratio_weight_type"), False):
+    # The weight scale and the feature list must be reported: unknown is not evidence of a plain additive score.
+    features = t.use("score_file.unsupported_features", sf.get("unsupported_features"), usable=_is_list)
+    ratio = t.use("score_file.ratio_weight_type", sf.get("ratio_weight_type"), usable=_is_bool)
+    unverified = [f"{k} {v!r} not reported as {kind}" for k, v, kind, ok in (
+        ("ratio_weight_type", ratio, "true/false", _is_bool(ratio)),
+        ("unsupported_features", features, "a list", _is_list(features))) if not ok]
+    unsup = list(features) if _is_list(features) else []
+    if ratio is True:
         unsup.append(f"ratio-scale weight_type {sf.get('weight_type')!r}")
     inter = t.use("score_file.variants_interactions", sf.get("variants_interactions"), False)
     if isinstance(inter, int) and inter > 0:
@@ -283,17 +347,25 @@ def _evaluate(gi: dict, cfg: dict) -> dict:
     bad_rows = t.use("score_file.n_parse_problems", sf.get("n_parse_problems"), False)
     if isinstance(bad_rows, int) and bad_rows > 0:
         unsup.append(f"{bad_rows} unreadable scoring rows")
+    codes = (["UNSUPPORTED_SCORE_FORMAT"] if unsup else []) + (["SCORE_FORMAT_UNVERIFIED"] if unverified else [])
+    changes = (["a scoring file without the unsupported features"] if unsup else []) + (
+        [("an evidence builder that reports score_file.ratio_weight_type (true/false) and "
+          "score_file.unsupported_features (a list)")] if unverified else [])
     t.add("G2", "SCORE_FORMAT", "Is the scoring file a plain additive score on a log scale?",
-          "fail" if unsup else "pass", ABSTAIN, ["UNSUPPORTED_SCORE_FORMAT"],
-          "; ".join(unsup) or f"additive; weight_type {sf.get('weight_type')!r}",
-          "a scoring file without the unsupported features")
+          "fail" if codes else "pass", ABSTAIN, codes,
+          "; ".join(unsup + unverified) or f"additive; weight_type {sf.get('weight_type')!r}",
+          "; ".join(changes))
 
     # G3 build ---------------------------------------------------------------------------------------------
-    build = t.use("genotype.build", gt.get("build"))
+    build = t.use("genotype.build", gt.get("build"), usable=_supported_build)
+    build_ok = _supported_build(build)
+    method = (gt.get("build_evidence") or {}).get("method")
     t.add("G3", "BUILD", "Is the genotype file's genome build established (never assumed)?",
-          "fail" if build in (None, "UNRESOLVED") else "pass", ABSTAIN, ["BUILD_UNRESOLVED"],
-          f"build {build}; method {(gt.get('build_evidence') or {}).get('method')}",
-          "a genotype file whose build is declared in its header or verifiable from rsID positions")
+          "pass" if build_ok else "fail", ABSTAIN, ["BUILD_UNRESOLVED"],
+          f"build {build}; method {method}" if build_ok else
+          f"build {build!r} is not established as {' or '.join(SUPPORTED_BUILDS)}; method {method}",
+          f"a genotype file on {' or '.join(SUPPORTED_BUILDS)} whose build is declared in its header or "
+          "verifiable from rsID positions")
 
     # G4 alleles ---------------------------------------------------------------------------------------------
     mm = t.use("harmonisation.allele_mismatch_fraction", h.get("allele_mismatch_fraction"), False)
@@ -318,14 +390,13 @@ def _evaluate(gi: dict, cfg: dict) -> dict:
               "reference-panel genotypes (or reported allele frequencies) for this score's variants")
     else:
         codes = ["LOW_SCOREABILITY"]
-        if r < r_min and loss:
-            top = next(iter(loss))
-            if top in LOSS_CODES:
-                codes.append(LOSS_CODES[top])
+        top = _largest_losses(loss)
+        if r < r_min:
+            codes += list(dict.fromkeys(LOSS_CODES[s] for s in top if s in LOSS_CODES))
         t.add("G5", "SCOREABILITY", "Does the computable score represent the published score (r >= r_min)?",
               "fail" if r < r_min else "pass", ABSTAIN, codes,
               f"r = {r:.3f} ({sc.get('method')}); r_min {r_min}; {h['n_matched']}/{h['n_variants']} variants "
-              f"matched; largest loss: {next(iter(loss), 'none')}",
+              f"matched; largest loss: {', '.join(top) or 'none'}",
               f"genotype data covering the score's heavily weighted variants so that r >= {r_min} "
               "(e.g. sequencing or imputation instead of a sparse array)")
 
@@ -373,7 +444,7 @@ def _evaluate(gi: dict, cfg: dict) -> dict:
         t.add("G10", "SEX_EVALUATION", "Do the informative evaluations include the person's sex?",
               "not_applicable", detail="no resolved reference group")
     else:
-        rel = [u for u in units if u.get("code") == group and not u.get("pooled")]
+        rel = [u for u in units if u.get("code") == group and u.get("pooled") is False]
         with_metric = [u for u in rel if u.get("metrics")]
         informative = [u for u in with_metric if any(_metric_ok(m) for m in u["metrics"])]
         t.use("evaluation.relevant_units", len(rel), False)
@@ -396,22 +467,34 @@ def _evaluate(gi: dict, cfg: dict) -> dict:
                   "pass", detail=f"{len(informative)} {group} evaluation units with a 95% CI above the null "
                                  f"({len(with_metric)} with metrics; {n_rel:,} individuals)")
         # G10 evaluation sex -----------------------------------------------------------------------------
-        if sex and informative:
-            other = [u for u in informative if isinstance(u.get("percent_male"), (int, float)) and
-                     ((sex == "male" and u["percent_male"] == 0) or (sex == "female" and u["percent_male"] == 100))]
-            unknown = [u for u in informative if not isinstance(u.get("percent_male"), (int, float))]
-            if len(other) == len(informative):
+        # Unknown sex composition never counts as including the person, and a person whose sex is not provided
+        # is covered only by an evaluation that includes both sexes.
+        if informative:
+            known = [p for p in (u.get("percent_male") for u in informative) if _number_in(p, 0.0, 100.0)]
+            n_unknown = t.use("evaluation.informative_units_sex_unknown", len(informative) - len(known), False)
+            n_cover = sum(_includes_sex(p, sex) for p in known)
+            who = f"{sex} participants" if sex else "both sexes"
+            if n_cover:
+                t.add("G10", "SEX_EVALUATION", "Do the informative evaluations include the person's sex?", "pass",
+                      detail=f"{n_cover} of {len(informative)} informative {group} evaluations include {who}; "
+                             f"{n_unknown} of unknown sex composition")
+            elif sex and not n_unknown:
                 t.add("G10", "SEX_EVALUATION", "Do the informative evaluations include the person's sex?", "fail",
                       RAW_ONLY, ["SEX_POPULATION_MISMATCH"],
                       f"all {len(informative)} informative {group} evaluations contain only the other sex",
                       f"an evaluation including {sex} participants")
             else:
-                t.add("G10", "SEX_EVALUATION", "Do the informative evaluations include the person's sex?", "pass",
-                      detail=f"{len(informative) - len(other) - len(unknown)} include {sex} participants; "
-                             f"{len(unknown)} do not report sex")
+                if not sex:
+                    t.use("person.sex", sex)
+                t.add("G10", "SEX_EVALUATION", "Do the informative evaluations include the person's sex?", "fail",
+                      RAW_ONLY, ["SEX_EVALUATION_UNVERIFIED"],
+                      f"no informative {group} evaluation is known to include {who} ({n_unknown} of "
+                      f"{len(informative)} of unknown sex composition{'' if sex else '; person sex not provided'})",
+                      f"an informative {group} evaluation that reports its sex composition and includes {who}"
+                      + ("" if sex else ", or the person's sex"))
         else:
             t.add("G10", "SEX_EVALUATION", "Do the informative evaluations include the person's sex?",
-                  "not_applicable", detail="person's sex not provided or no informative evaluation")
+                  "not_applicable", detail="no informative evaluation")
 
     # G11/G12 reference distribution -----------------------------------------------------------------------------
     if pst != "RESOLVED":
@@ -420,22 +503,45 @@ def _evaluate(gi: dict, cfg: dict) -> dict:
         t.add("G12", "REFERENCE_SENSITIVITY", "Is the percentile robust to the reference population chosen?",
               "not_applicable", detail="no resolved reference group")
     else:
+        # Structural validity only (the distribution exists for this group, on a non-empty variant set); no
+        # sample-size threshold is applied here.
         avail = t.use("reference_distribution.available", rd.get("available"))
-        ok = avail is True and rd.get("reference_group") == group
+        claimed = avail is True
+        ref_group = t.use("reference_distribution.reference_group", rd.get("reference_group"), claimed)
+        ref_n = t.use("reference_distribution.reference_n", rd.get("reference_n"), claimed, usable=_positive_int)
+        n_inter = t.use("reference_distribution.n_intersection", rd.get("n_intersection"), claimed,
+                        usable=_positive_int)
+        if not claimed:
+            problems = [f"unavailable: {rd.get('detail')}"]
+        else:
+            problems = [msg for bad, msg in (
+                (ref_group != group, f"reference group {ref_group!r} is not the placed group {group}"),
+                (not _positive_int(ref_n), f"reference_n {ref_n!r} is not a positive integer"),
+                (not _positive_int(n_inter), f"n_intersection {n_inter!r} is not a positive integer")) if bad]
+        ok = not problems
         t.add("G11", "REFERENCE_DISTRIBUTION", "Is there a reference distribution on the matched variants?",
               "pass" if ok else "fail", RAW_ONLY, ["REFERENCE_DISTRIBUTION_UNAVAILABLE"],
-              (f"{rd.get('reference_n')} {group} reference individuals scored on {rd.get('n_intersection')} "
-               "matched variants") if ok else f"unavailable: {rd.get('detail')}",
+              f"{ref_n} {group} reference individuals scored on {n_inter} matched variants" if ok else
+              "; ".join(problems),
               "reference-panel genotypes at this score's variants")
-        sens = t.use("reference_distribution.reference_sensitive", rd.get("reference_sensitive"), ok)
-        if ok:
+        sens = t.use("reference_distribution.reference_sensitive", rd.get("reference_sensitive"), ok,
+                     usable=_is_bool)
+        if ok and sens is True:
             pairs = rd.get("reference_sensitive_pairs") or []
             t.add("G12", "REFERENCE_SENSITIVITY", "Is the percentile robust to the reference population chosen?",
-                  "fail" if sens else "pass", RAW_ONLY, ["REFERENCE_SENSITIVE"],
-                  ("disjoint 95% intervals between " + ", ".join("/".join(p) for p in pairs)) if sens else
-                  f"percentile intervals overlap across {group} reference populations",
+                  "fail", RAW_ONLY, ["REFERENCE_SENSITIVE"],
+                  "disjoint 95% intervals between " + ", ".join("/".join(p) for p in pairs),
                   "a reference distribution matched more finely to the person (not a choice the agent may make "
                   "to obtain a preferred percentile)")
+        elif ok and sens is not False:
+            t.add("G12", "REFERENCE_SENSITIVITY", "Is the percentile robust to the reference population chosen?",
+                  "fail", RAW_ONLY, ["REFERENCE_SENSITIVITY_UNVERIFIED"],
+                  f"reference_sensitive {sens!r} is not reported as true/false",
+                  "a reference distribution that reports whether the percentile changes with the reference "
+                  "population (reference_sensitive true or false)")
+        elif ok:
+            t.add("G12", "REFERENCE_SENSITIVITY", "Is the percentile robust to the reference population chosen?",
+                  "pass", detail=f"percentile intervals overlap across {group} reference populations")
         else:
             t.add("G12", "REFERENCE_SENSITIVITY", "Is the percentile robust to the reference population chosen?",
                   "not_applicable", detail="no reference distribution")
@@ -587,7 +693,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         cfg = load_config(args.config)
     except (OSError, ValueError, yaml.YAMLError) as exc:
-        ap.error(f"cannot use calibration config {args.config}: {exc}")
+        ap.error(f"cannot use calibration config {args.config}: {exc}")  # exits with status 2
+        return 2  # not reached; makes the exit explicit, so cfg is provably bound below
     if not cfg["_canonical"]:
         print(f"WARNING: NON-CANONICAL CALIBRATION: {args.config.name} is not the shipped config/calibration.yaml; "
               "every result is labelled config_canonical: false (calibration research only).", file=sys.stderr)

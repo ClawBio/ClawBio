@@ -131,16 +131,20 @@ by PRSGuard's evidence builder; the gate never fetches or infers it.
 |---|---|---|
 | `schema` | `"prs-applicability-gate.input.v2"` | G1 |
 | `candidate` | `pgs_id` (string), `sex_specific` (`female` / `male` / null) | G1, G6 |
-| `score_file` | `weight_type`, `ratio_weight_type`, `unsupported_features` (list), `variants_interactions`, `n_parse_problems` | G2 |
-| `genotype` | `build` (null or `UNRESOLVED` fails), `build_evidence.method` | G3 |
+| `score_file` | `weight_type`, `ratio_weight_type` (boolean), `unsupported_features` (list), `variants_interactions`, `n_parse_problems` | G2 |
+| `genotype` | `build` (exactly `GRCh37` or `GRCh38`, the assemblies PGS Catalog harmonises scoring files to; anything else fails, including null, `UNRESOLVED`, `NCBI36` and `""`), `build_evidence.method` | G3 |
 | `person` | `sex` (`female` / `male` / null) | G6, G10 |
-| `harmonisation` | `n_variants`, `n_matched`, `n_located` (integers >= 0); `allele_mismatch_fraction` in [0, 1], null exactly when `n_located` is 0; `weight_loss_by_status` (status to fraction, largest loss first) | G4, G5 |
+| `harmonisation` | `n_variants`, `n_matched`, `n_located` (integers >= 0); `allele_mismatch_fraction` in [0, 1], null exactly when `n_located` is 0; `weight_loss_by_status` (status to fraction; the gate names the largest, every status tied at it, whatever the key order) | G4, G5 |
 | `scoreability` | `r`: correlation, in the placed reference group, of the score computable from this genotype with the complete published score ([-1, 1] or null); `method` | G5 |
 | `placement` | `status` (`RESOLVED` / `INTERMEDIATE` / `UNSTABLE` / `UNRESOLVED`); `placement` (`AFR` / `AMR` / `EAS` / `EUR` / `SAS`, required when RESOLVED); `placement_stability` ([0, 1] or null); `detail` | G8 |
 | `catalog_metadata` | `status` (`resolved`, `contradictory`, anything else = unavailable), `detail` | G7 |
-| `evaluation` | `units`: list of `{code, pooled, n, percent_male, metrics: [{name, ci_lower, ci_upper, null}]}` | G9, G10 |
-| `reference_distribution` | `available`, `reference_group`, `reference_n`, `n_intersection`, `reference_sensitive`, `reference_sensitive_pairs` | G11, G12 |
+| `evaluation` | `units`: list of `{code, pooled (false to count), n, percent_male ([0, 100] or null), metrics: [{name, ci_lower, ci_upper, null}]}` | G9, G10 |
+| `reference_distribution` | `available` (true), `reference_group` (the placed group), `reference_n` and `n_intersection` (positive integers), `reference_sensitive` (boolean), `reference_sensitive_pairs` | G11, G12 |
 | `input_digest` (optional) | `sha256:` of the canonical JSON (sorted keys, compact) of every other field | G1 |
+
+**Unknown never passes.** A rule passes only on explicit evidence. A field it needs that is missing, null,
+non-finite or of the wrong type fails the rule (an `*_UNVERIFIED` code when the evidence was not reported rather
+than shown to be bad), and a missing field is listed in `evidence_missing`.
 
 ## Workflow
 
@@ -195,17 +199,17 @@ intermediate placement between two reference clouds); `PGS_SYNTHETIC_C` ABSTAIN 
 | Rule | Question | Fails with | Effect |
 |---|---|---|---|
 | G1 INPUT_VALID | Well-formed, in range, digest intact? | INVALID_GATE_INPUT | ABSTAIN |
-| G2 SCORE_FORMAT | Plain additive score on a log scale? | UNSUPPORTED_SCORE_FORMAT | ABSTAIN |
-| G3 BUILD | Genotype build established, never assumed? | BUILD_UNRESOLVED | ABSTAIN |
+| G2 SCORE_FORMAT | Plain additive score on a log scale? | UNSUPPORTED_SCORE_FORMAT, SCORE_FORMAT_UNVERIFIED | ABSTAIN |
+| G3 BUILD | Genotype build established as GRCh37 or GRCh38, never assumed? | BUILD_UNRESOLVED | ABSTAIN |
 | G4 ALLELES | Located variants' alleles reconcilable (<= `max_mismatch_fraction`)? | ALLELE_HARMONIZATION_FAILED | ABSTAIN |
 | G5 SCOREABILITY | r(computable score, published score) >= `r_min`? | LOW_SCOREABILITY (+ PALINDROMIC_VARIANT_UNRESOLVED / VARIANTS_MISSING / DUPLICATE_OR_CONFLICTING_VARIANTS naming the largest loss), SCOREABILITY_UNVERIFIED | ABSTAIN |
 | G6 SEX_SCORE | Sex-specific score used for that sex? | SEX_POPULATION_MISMATCH (ABSTAIN), SEX_NOT_PROVIDED (RAW_ONLY) | |
 | G7 METADATA | PGS Catalog record resolved and consistent? | METADATA_CONTRADICTION, EVALUATION_METADATA_UNAVAILABLE | RAW_ONLY |
 | G8 PLACEMENT | Person stably inside one reference group? | TARGET_REFERENCE_UNRESOLVED | RAW_ONLY |
-| G9 EVALUATION | Single-ancestry evaluation in that group with a metric whose 95% CI lies entirely above the null? | NO_RELEVANT_EVALUATION, EVALUATION_NOT_INFORMATIVE | RAW_ONLY |
-| G10 SEX_EVALUATION | Do those evaluations include the person's sex? | SEX_POPULATION_MISMATCH | RAW_ONLY |
-| G11 REFERENCE_DISTRIBUTION | Reference distribution on the person's matched variants? | REFERENCE_DISTRIBUTION_UNAVAILABLE | RAW_ONLY |
-| G12 REFERENCE_SENSITIVITY | Percentile robust across equally defensible reference populations? | REFERENCE_SENSITIVE | RAW_ONLY |
+| G9 EVALUATION | Single-ancestry evaluation in that group with a metric whose finite 95% CI lies entirely above the null? | NO_RELEVANT_EVALUATION, EVALUATION_NOT_INFORMATIVE | RAW_ONLY |
+| G10 SEX_EVALUATION | Is one of those evaluations known to include the person's sex (both sexes if not provided)? | SEX_POPULATION_MISMATCH, SEX_EVALUATION_UNVERIFIED | RAW_ONLY |
+| G11 REFERENCE_DISTRIBUTION | Reference distribution for the placed group, with positive `reference_n` and `n_intersection`? | REFERENCE_DISTRIBUTION_UNAVAILABLE | RAW_ONLY |
+| G12 REFERENCE_SENSITIVITY | Percentile robust across equally defensible reference populations (`reference_sensitive` false)? | REFERENCE_SENSITIVE, REFERENCE_SENSITIVITY_UNVERIFIED | RAW_ONLY |
 
 **Key parameters** (`config/calibration.yaml`, `calibration_version` `2026.09.26-3`; derivations and experiments in
 [PRSGuard `docs/calibration.md`](https://github.com/rinatrizvanov/prsguard-demo/blob/v1.0.1/docs/calibration.md)):
@@ -364,8 +368,11 @@ absolute risk, or override, soften or reinterpret the status.
 - **Provenance**: originated in PRSGuard, one of the winning projects of the ClawBio Boston Hackathon (Challenge 3;
   team Rinat Rizvanov, Timur Rizvanov, Takato Honda, Bradley Sheppard). This v2 gate was rewritten, calibrated and
   tested afterwards by Rinat Rizvanov (PRSGuard gate 2.1.1). 2.2.0 adapts it to ClawBio (result envelope,
-  reproducibility bundle, synthetic demo) and completes the trace (G10 is recorded when placement is unresolved);
-  no threshold or decision changed.
+  reproducibility bundle, synthetic demo), completes the trace (G10 is recorded when placement is unresolved) and
+  fails closed where 2.1.1 failed open: unreported score-format flags (G2), builds other than GRCh37/GRCh38 (G3),
+  key-order-dependent largest loss (G5), non-finite CIs and units not marked single-ancestry (G9), unknown sex
+  composition (G10), reference distributions without a positive size and intersection (G11) and an unreported
+  `reference_sensitive` (G12). No threshold changed.
 
 ## Citations
 

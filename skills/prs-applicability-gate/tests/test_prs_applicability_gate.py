@@ -239,6 +239,282 @@ def test_negative_correlation_is_valid_input_but_low_scoreability():
     assert res["status"] == "ABSTAIN" and "LOW_SCOREABILITY" in res["reason_codes"]
 
 
+# ---- unknown evidence never passes a rule ---------------------------------------------------------------------------
+# SKILL.md: "Missing stays in evidence_missing and the affected rule fails." Each test below fails if the guard it
+# names is deleted or relaxed.
+
+MISSING = object()  # sentinel: delete the key instead of setting a value
+
+
+def with_field(block: str, key: str, value, gi: dict | None = None) -> dict:
+    gi = base_input() if gi is None else gi
+    if value is MISSING:
+        del gi[block][key]
+    else:
+        gi[block][key] = value
+    return gi
+
+
+def set_units(gi: dict, *percent_male) -> dict:
+    """Make the informative EUR evaluation units carry exactly these percent_male values (MISSING deletes it)."""
+    template = gi["evaluation"]["units"][0]
+    units = []
+    for pm in percent_male:
+        u = copy.deepcopy(template)
+        if pm is MISSING:
+            del u["percent_male"]
+        else:
+            u["percent_male"] = pm
+        units.append(u)
+    gi["evaluation"]["units"] = units
+    return gi
+
+
+# G2: ratio_weight_type and unsupported_features must be reported explicitly.
+
+@pytest.mark.parametrize("value, outcome, code", [
+    (False, "pass", None),
+    (True, "fail", "UNSUPPORTED_SCORE_FORMAT"),
+    (MISSING, "fail", "SCORE_FORMAT_UNVERIFIED"),
+    (None, "fail", "SCORE_FORMAT_UNVERIFIED"),
+    ("false", "fail", "SCORE_FORMAT_UNVERIFIED"),
+    (0, "fail", "SCORE_FORMAT_UNVERIFIED"),
+    (1, "fail", "SCORE_FORMAT_UNVERIFIED"),
+])
+def test_g2_ratio_weight_type_must_be_an_explicit_boolean(value, outcome, code):
+    res = run(with_field("score_file", "ratio_weight_type", value, mutate(score_file__weight_type="OR")))
+    assert rule(res, "G2")["outcome"] == outcome, rule(res, "G2")
+    if code is None:
+        assert res["status"] == "SUPPORTED"
+    else:
+        assert res["status"] == "ABSTAIN" and res["primary_reason"]["code"] == code
+        assert res["allowed_claims"]["raw_score"] is False
+    if code == "SCORE_FORMAT_UNVERIFIED":
+        assert "score_file.ratio_weight_type" in res["evidence_missing"]
+
+
+@pytest.mark.parametrize("value", [MISSING, None, "", 0, {}])
+def test_g2_unsupported_features_must_be_a_reported_list(value):
+    res = run(with_field("score_file", "unsupported_features", value))
+    assert res["status"] == "ABSTAIN" and "SCORE_FORMAT_UNVERIFIED" in res["reason_codes"]
+
+
+def test_g2_known_unsupported_feature_outranks_unverified_flag():
+    gi = with_field("score_file", "ratio_weight_type", MISSING, mutate(score_file__variants_interactions=3))
+    res = run(gi)
+    assert res["reason_codes"][:2] == ["UNSUPPORTED_SCORE_FORMAT", "SCORE_FORMAT_UNVERIFIED"]
+
+
+# G3: the build must be one of the supported assemblies, exactly.
+
+def test_supported_builds_are_the_pgs_catalog_harmonised_assemblies():
+    assert gate.SUPPORTED_BUILDS == ("GRCh37", "GRCh38")
+
+
+@pytest.mark.parametrize("build", ["GRCh37", "GRCh38"])
+def test_g3_passes_every_supported_build(build):
+    res = run(mutate(genotype__build=build))
+    assert rule(res, "G3")["outcome"] == "pass" and res["status"] == "SUPPORTED"
+
+
+@pytest.mark.parametrize("build", [MISSING, None, "", "UNRESOLVED", "GRCh99", "NCBI36", "hg19", "grch38",
+                                   " GRCh38", 38, ["GRCh38"], {"build": "GRCh38"}])
+def test_g3_fails_anything_but_a_supported_build(build):
+    res = run(with_field("genotype", "build", build))
+    assert rule(res, "G3")["outcome"] == "fail", rule(res, "G3")
+    assert res["status"] == "ABSTAIN" and res["primary_reason"]["code"] == "BUILD_UNRESOLVED"
+    assert "genotype.build" in res["evidence_missing"]
+
+
+# G5: the largest loss is the largest value, not the first key.
+
+@pytest.mark.parametrize("loss", [{"missing": 0.1, "palindromic_excluded": 0.3},
+                                  {"palindromic_excluded": 0.3, "missing": 0.1}])
+def test_g5_names_the_largest_loss_whatever_the_key_order(loss):
+    res = run(mutate(scoreability__r=0.8, harmonisation__weight_loss_by_status=loss))
+    assert res["reason_codes"] == ["LOW_SCOREABILITY", "PALINDROMIC_VARIANT_UNRESOLVED"]
+    assert rule(res, "G5")["detail"].endswith("largest loss: palindromic_excluded")
+
+
+def test_g5_tied_largest_losses_are_all_named_independently_of_key_order():
+    a = run(mutate(scoreability__r=0.8,
+                   harmonisation__weight_loss_by_status={"palindromic_excluded": 0.2, "missing": 0.2}))
+    b = run(mutate(scoreability__r=0.8,
+                   harmonisation__weight_loss_by_status={"missing": 0.2, "palindromic_excluded": 0.2}))
+    assert a["reason_codes"] == b["reason_codes"] == ["LOW_SCOREABILITY", "VARIANTS_MISSING",
+                                                      "PALINDROMIC_VARIANT_UNRESOLVED"]
+    assert rule(a, "G5")["detail"] == rule(b, "G5")["detail"]
+
+
+def test_g5_zero_loss_names_no_loss():
+    res = run(mutate(scoreability__r=0.8, harmonisation__weight_loss_by_status={"missing": 0.0}))
+    assert res["reason_codes"] == ["LOW_SCOREABILITY"]
+    assert rule(res, "G5")["detail"].endswith("largest loss: none")
+
+
+# G9: strict CI above the null, finite numbers, explicitly single-ancestry units.
+
+@pytest.mark.parametrize("ci_lower, ci_upper, null, informative", [
+    (1.0, 1.3, 1.0, False),              # lower bound ON the null: not above it (strict >)
+    (0.5, 0.6, 0.5, False),
+    (1.0001, 1.3, 1.0, True),
+    (float("inf"), float("inf"), 1.0, False),
+    (float("nan"), 1.3, 1.0, False),
+    (1.5, 1.2, 1.0, False),              # lower > upper is not a confidence interval
+    (True, 2, False, False),             # booleans are not numbers
+])
+def test_g9_metric_must_be_a_finite_ci_strictly_above_the_null(ci_lower, ci_upper, null, informative):
+    gi = base_input()
+    gi["evaluation"]["units"][0]["metrics"] = [{"name": "OR", "ci_lower": ci_lower, "ci_upper": ci_upper,
+                                                "null": null}]
+    res = run(gi)
+    assert (rule(res, "G9")["outcome"] == "pass") is informative, rule(res, "G9")
+    if not informative:
+        assert res["primary_reason"]["code"] == "EVALUATION_NOT_INFORMATIVE"
+
+
+@pytest.mark.parametrize("pooled", [MISSING, None, "false", 0])
+def test_g9_unit_counts_only_when_explicitly_not_pooled(pooled):
+    gi = base_input()
+    if pooled is MISSING:
+        del gi["evaluation"]["units"][0]["pooled"]
+    else:
+        gi["evaluation"]["units"][0]["pooled"] = pooled
+    assert run(gi)["primary_reason"]["code"] == "NO_RELEVANT_EVALUATION"
+
+
+# G10: sex composition must be known to include the person's sex.
+
+@pytest.mark.parametrize("sex, percent_male, outcome, code", [
+    # known compatible, including the single-sex boundaries
+    ("female", [48.0], "pass", None),
+    ("male", [48.0], "pass", None),
+    ("female", [0.0], "pass", None),
+    ("male", [100.0], "pass", None),
+    ("female", [99.9], "pass", None),
+    ("male", [0.1], "pass", None),
+    # known incompatible: only the other sex
+    ("female", [100.0], "fail", "SEX_POPULATION_MISMATCH"),
+    ("female", [100], "fail", "SEX_POPULATION_MISMATCH"),
+    ("male", [0.0], "fail", "SEX_POPULATION_MISMATCH"),
+    ("male", [0.0, 0], "fail", "SEX_POPULATION_MISMATCH"),
+    # unknown composition is never assumed to include the person
+    ("female", [MISSING], "fail", "SEX_EVALUATION_UNVERIFIED"),
+    ("male", [None], "fail", "SEX_EVALUATION_UNVERIFIED"),
+    ("female", ["50"], "fail", "SEX_EVALUATION_UNVERIFIED"),
+    ("female", [float("nan")], "fail", "SEX_EVALUATION_UNVERIFIED"),
+    ("male", [150.0], "fail", "SEX_EVALUATION_UNVERIFIED"),
+    ("male", [-1.0], "fail", "SEX_EVALUATION_UNVERIFIED"),
+    ("male", [0.0, None], "fail", "SEX_EVALUATION_UNVERIFIED"),  # the unknown unit is not a mismatch either
+    ("female", [None, 40.0], "pass", None),                      # one known compatible unit suffices
+    # unknown target sex: only an evaluation including both sexes covers the person
+    (None, [48.0], "pass", None),
+    (None, [0.0], "fail", "SEX_EVALUATION_UNVERIFIED"),
+    (None, [100.0], "fail", "SEX_EVALUATION_UNVERIFIED"),
+    (None, [None], "fail", "SEX_EVALUATION_UNVERIFIED"),
+    (None, [0.0, 100.0], "fail", "SEX_EVALUATION_UNVERIFIED"),
+])
+def test_g10_evaluation_sex_composition(sex, percent_male, outcome, code):
+    res = run(set_units(mutate(person__sex=sex), *percent_male))
+    g10 = rule(res, "G10")
+    assert g10["outcome"] == outcome, g10
+    if code is None:
+        assert res["status"] == "SUPPORTED"
+    else:
+        assert res["status"] == "RAW_ONLY" and g10["codes"] == [code]
+        assert res["allowed_claims"]["percentile"] is False
+
+
+def test_g10_not_applicable_without_an_informative_evaluation():
+    res = run(mutate(placement__placement="SAS", reference_distribution__reference_group="SAS"))
+    assert rule(res, "G10")["outcome"] == "not_applicable"
+
+
+# G11: a real reference distribution for the placed group, on a non-empty variant intersection.
+
+@pytest.mark.parametrize("key, value", [
+    ("reference_n", MISSING), ("reference_n", None), ("reference_n", 0), ("reference_n", -5),
+    ("reference_n", "502"), ("reference_n", 502.0), ("reference_n", True),
+    ("n_intersection", MISSING), ("n_intersection", None), ("n_intersection", 0), ("n_intersection", -1),
+    ("n_intersection", "290"), ("n_intersection", 290.5), ("n_intersection", True),
+    ("reference_group", "AFR"), ("reference_group", None), ("reference_group", MISSING),
+    ("available", "true"), ("available", 1),
+])
+def test_g11_rejects_missing_or_invalid_reference_structure(key, value):
+    res = run(with_field("reference_distribution", key, value))
+    assert rule(res, "G11")["outcome"] == "fail", rule(res, "G11")
+    assert res["status"] == "RAW_ONLY" and res["primary_reason"]["code"] == "REFERENCE_DISTRIBUTION_UNAVAILABLE"
+    assert rule(res, "G12")["outcome"] == "not_applicable"
+
+
+@pytest.mark.parametrize("reference_n, n_intersection", [(1, 1), (502, 290)])
+def test_g11_passes_positive_integer_sizes(reference_n, n_intersection):
+    res = run(mutate(reference_distribution__reference_n=reference_n,
+                     reference_distribution__n_intersection=n_intersection))
+    assert rule(res, "G11")["outcome"] == "pass" and res["status"] == "SUPPORTED"
+    assert {"reference_distribution.reference_n", "reference_distribution.n_intersection"} <= set(res["evidence_used"])
+
+
+def test_g11_invalid_size_of_an_available_distribution_is_missing_evidence():
+    res = run(mutate(reference_distribution__reference_n=None))
+    assert "reference_distribution.reference_n" in res["evidence_missing"]
+
+
+# G12: only an explicit false passes.
+
+@pytest.mark.parametrize("value, outcome, code", [
+    (False, "pass", None),
+    (True, "fail", "REFERENCE_SENSITIVE"),
+    (MISSING, "fail", "REFERENCE_SENSITIVITY_UNVERIFIED"),
+    (None, "fail", "REFERENCE_SENSITIVITY_UNVERIFIED"),
+    ("false", "fail", "REFERENCE_SENSITIVITY_UNVERIFIED"),
+    (0, "fail", "REFERENCE_SENSITIVITY_UNVERIFIED"),
+    ([], "fail", "REFERENCE_SENSITIVITY_UNVERIFIED"),
+])
+def test_g12_reference_sensitive_must_be_explicitly_false(value, outcome, code):
+    gi = with_field("reference_distribution", "reference_sensitive", value)
+    if value is True:
+        gi["reference_distribution"]["reference_sensitive_pairs"] = [["FIN", "TSI"]]
+    res = run(gi)
+    assert rule(res, "G12")["outcome"] == outcome, rule(res, "G12")
+    if code is None:
+        assert res["status"] == "SUPPORTED" and res["allowed_claims"]["percentile"] is True
+    else:
+        assert res["status"] == "RAW_ONLY" and res["primary_reason"]["code"] == code
+        assert res["allowed_claims"]["percentile"] is False
+    if code == "REFERENCE_SENSITIVITY_UNVERIFIED":
+        assert "reference_distribution.reference_sensitive" in res["evidence_missing"]
+
+
+# Numeric domains: finite numbers only.
+
+@pytest.mark.parametrize("value, expected", [
+    (0.0, True), (1.0, True), (0, True), (1, True), (0.5, True),
+    (-1e-12, False), (1.0000001, False),
+    (float("nan"), False), (float("inf"), False), (float("-inf"), False),
+    (10 ** 400, False), (-(10 ** 400), False),
+    (True, False), (False, False), ("0.5", False), (None, False),
+])
+def test_number_in_accepts_only_finite_numbers_in_range(value, expected):
+    assert gate._number_in(value, 0.0, 1.0) is expected
+
+
+@pytest.mark.parametrize("changes", [
+    {"scoreability__r": float("inf")}, {"scoreability__r": float("-inf")}, {"scoreability__r": float("nan")},
+    {"placement__placement_stability": float("inf")}, {"placement__placement_stability": float("-inf")},
+    {"harmonisation__allele_mismatch_fraction": float("inf")},
+    {"harmonisation__weight_loss_by_status": {"missing": float("nan")}},
+    {"harmonisation__weight_loss_by_status": {"missing": float("inf")}},
+])
+def test_non_finite_numbers_are_invalid_input(changes):
+    assert _invalid(run(mutate(**changes)))
+
+
+@pytest.mark.parametrize("r", [-1.0, 1.0, -1, 1])
+def test_scoreability_r_domain_boundaries_are_valid(r):
+    assert "INVALID_GATE_INPUT" not in run(mutate(scoreability__r=r))["reason_codes"]
+
+
 # ---- fail-closed input validation -----------------------------------------------------------------------------------
 
 def _invalid(res: dict) -> bool:
@@ -301,7 +577,7 @@ def test_non_object_input_abstains(not_an_object):
 
 def test_gate_never_raises_on_mutated_inputs():
     rng = random.Random(20260926)
-    weird = [None, -1, 2.5, "x", [], {}, True, float("nan"), {"a": [1]}, [None]]
+    weird = [None, -1, 2.5, "x", [], {}, True, float("nan"), float("inf"), 10 ** 400, {"a": [1]}, [None]]
     base = base_input()
     paths = [(blk, k) for blk, v in base.items() if isinstance(v, dict) for k in v]
     for _ in range(400):
@@ -566,8 +842,32 @@ def test_invalid_config_is_a_clean_error(tmp_path):
     bad = tmp_path / "bad.yaml"
     bad.write_text("calibration_version: x\nscoreability: {r_min: 1.5}\n", encoding="utf-8")
     proc = run_cli("--demo", "--output", tmp_path / "out", "--config", bad)
-    assert proc.returncode != 0
+    assert proc.returncode == 2, "SKILL.md: an unusable --config is a usage error (exit 2)"
     assert "Traceback" not in proc.stderr and "config" in proc.stderr
+    assert not (tmp_path / "out" / "result.json").exists(), "no decision is written without a usable config"
+
+
+@pytest.mark.parametrize("content", ["calibration_version: x\nscoreability: {r_min: 1.5}\n", None])
+def test_main_exits_2_on_unusable_config_without_writing(tmp_path, content, capsys):
+    config = tmp_path / "calibration.yaml"
+    if content is not None:
+        config.write_text(content, encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        gate.main(["--demo", "--output", str(tmp_path / "out"), "--config", str(config)])
+    assert exc.value.code == 2
+    assert "cannot use calibration config" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()
+
+
+@pytest.mark.parametrize("token", ["Infinity", "-Infinity", "NaN", "1" + "0" * 400])
+def test_non_finite_or_huge_json_numbers_fail_closed_from_the_cli(tmp_path, token):
+    text = SUPPORTED_EXAMPLE.read_text(encoding="utf-8").replace('"r": 0.962', f'"r": {token}')
+    assert token in text
+    bad = tmp_path / "bad.gate_input.json"
+    bad.write_text(text, encoding="utf-8")
+    proc = run_cli("--input", bad, "--output", tmp_path / "out")
+    assert proc.returncode == 0 and "Traceback" not in proc.stderr, proc.stderr
+    assert _invalid(load_result(tmp_path / "out")["data"]["decisions"][0])
 
 
 # ---- ClawBio integration ----------------------------------------------------------------------------------------------
