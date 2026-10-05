@@ -886,6 +886,8 @@ def test_confident_phenotype_accounts_for_every_detected_allele():
 # Phenotypes from the CPIC diplotype-phenotype tables (files.cpicpgx.org,
 # data/report/current/diplotype_phenotype/<GENE>_Diplotype_Phenotype_Table.xlsx).
 CPIC_PHENOTYPES = [
+    ("CYP2C19", "*3/*17", "Intermediate Metabolizer"),
+    ("CYP2C19", "*4/*17", "Intermediate Metabolizer"),
     ("CYP2D6", "*1/*41", "Normal Metabolizer"),
     ("CYP2D6", "*2/*41", "Normal Metabolizer"),
     ("CYP2D6", "*4/*41", "Intermediate Metabolizer"),

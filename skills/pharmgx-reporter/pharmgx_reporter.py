@@ -112,7 +112,7 @@ GENE_DEFS = {
             "Ultrarapid Metabolizer":  ["*17/*17"],
             "Rapid Metabolizer":       ["*1/*17"],
             "Normal Metabolizer":      ["*1/*1"],
-            "Intermediate Metabolizer": ["*1/*2", "*1/*3", "*2/*17", "*1/*4"],
+            "Intermediate Metabolizer": ["*1/*2", "*1/*3", "*2/*17", "*3/*17", "*4/*17", "*1/*4"],
             "Poor Metabolizer":        ["*2/*2", "*2/*3", "*3/*3", "*2/*4", "*3/*4", "*4/*4"],
         },
     },
