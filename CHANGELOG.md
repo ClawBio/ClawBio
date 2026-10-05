@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **New skill**: `isolate-amr-typing` (alias `isolate-amr`), the typing and resistance
+  genotype of one assembled bacterial isolate: MLST from `mlst`, AMR genes and point
+  mutations from AMRFinderPlus, plasmid replicons from PlasmidFinder. It runs the tools on
+  an assembly or reads results already produced, tiers each AMR call by AMRFinderPlus
+  method, states whether point mutations were actually screened, and reports the
+  nearest replicon on each gene's contig with the distance to it. The Bio Orchestrator routes MLST, AMRFinderPlus and
+  plasmid-replicon queries to it. Run end to end on five public reference genomes with
+  mlst 2.35.0, AMRFinderPlus 3.12.8 and 4.2.7, PlasmidFinder 2.1.6 and 3.0.3, and abricate
+  1.4.0. mlst scheme ties, which that mlst version produces across genera and breaks at
+  random, are reported as ambiguous and never used to choose the organism. The demo uses
+  hand-written synthetic tool outputs.
+
 ## [0.7.1] - 2026-09-05
 
 ### Fixed

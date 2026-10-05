@@ -1,0 +1,4 @@
+Database	Plasmid	Identity	Query / Template length	Contig	Position in contig	Note	Accession number
+enterobacteriales	IncFII	100.00	261 / 261	contig_2 synthetic random sequence, not a real genome	3800..4060		SYNTHETIC
+enterobacteriales	IncFIA	99.74	388 / 388	contig_3 synthetic random sequence, not a real genome	5100..5487		SYNTHETIC
+enterobacteriales	Col156	98.70	154 / 154	contig_4 synthetic random sequence, not a real genome	400..553		SYNTHETIC
