@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """DnaSP  -  Population Genetics Analysis of DNA Sequence Alignments.
 
-Python reimplementation of core DnaSP statistics, faithful to the original
-Visual Basic source (Rozas et al., Mol. Biol. Evol. 2017, doi:10.1093/molbev/msx248).
+Python reimplementation of core DnaSP statistics, implemented from the primary
+literature and checked against the original Visual Basic source of DnaSP 6
+(Rozas et al., Mol. Biol. Evol. 2017, doi:10.1093/molbev/msx248). This skill
+contains no DnaSP source code.
 
 Statistical formulas follow:
   - Tajima (1989) Genetics 123:585-595  (Tajima's D)
@@ -56,7 +58,7 @@ Usage:
 
 from __future__ import annotations
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 __author__  = "David De Lorenzo"
 __credits__ = [
     # Python reimplementation and ClawBio adaptation
@@ -1178,8 +1180,7 @@ def ramos_onsins_r2(seqs: list[str], k: float, S: int) -> Optional[float]:
         return None
     n = len(seqs)
     _, per_seq = compute_singletons(seqs)
-    total = sum((u - k / 2) ** 2 for u in per_seq)
-    return math.sqrt(total / n) / S
+    return math.sqrt(_r2_deviation_sum(per_seq, k) / n) / S
 
 
 def watterson_theta(S: int, n: int, L_net: int) -> tuple[float, float]:
@@ -1314,7 +1315,7 @@ def _tree_statistics(tree: _Genealogy, counts: list[int]) -> _TreeStats:
         mask[i] = mask[parent[i]] | own[i]
     H = len(set(mask[:n]))
 
-    R2 = math.sqrt(sum((u - k / 2) ** 2 for u in per_seq) / n) / S if S else None
+    R2 = math.sqrt(_r2_deviation_sum(per_seq, k) / n) / S if S else None
     return _TreeStats(S=S, k=k, H=H, TajimaD=tajima_d(k, S, n), R2=R2,
                       Fs=fu_fs_statistic(n, H, k))
 
@@ -1343,14 +1344,33 @@ def _tree_sequences(tree: _Genealogy, counts: list[int]) -> list[str]:
     return ["".join(r) for r in rows]
 
 
+def _r2_deviation_sum(per_seq: list[float], k: float) -> float:
+    """Sum of (u - k/2)^2 over the per-sequence singleton counts, summed the same way
+    whatever order the sequences arrive in, so that the observed value and a simulated
+    replicate of the same genealogy agree bit for bit and a tie is a tie."""
+    return math.fsum(sorted((u - k / 2) ** 2 for u in per_seq))
+
+
 def _tail_counts(observed: Optional[float],
                  null: list[Optional[float]]) -> Optional[tuple[int, int, int]]:
     """Replicates <= observed, replicates >= observed, and the replicates where the
-    statistic is defined. None if there is nothing to compare."""
+    statistic is defined. None if there is nothing to compare.
+
+    A replicate that equals the observed value counts in both tails; equality is exact,
+    both sides having summed their terms in the same order (see _r2_deviation_sum)."""
     values = [v for v in null if v is not None]
     if observed is None or not values:
         return None
     return sum(v <= observed for v in values), sum(v >= observed for v in values), len(values)
+
+
+def _varies(values: list[Optional[float]]) -> bool:
+    """True when a simulated null takes more than one value. A statistic that is the same
+    in every replicate (R2 with two sequences; Fu's Fs with two sequences given S; any
+    statistic that is always undefined) cannot be tested, and its P-value would be 1
+    whatever the data show."""
+    seen = {v for v in values if v is not None}
+    return len(seen) > 1
 
 
 def _monte_carlo_p(count: Optional[int], n_valid: int) -> Optional[float]:
@@ -1366,6 +1386,20 @@ def _two_tailed(lower: Optional[float], upper: Optional[float]) -> Optional[floa
     if lower is None or upper is None:
         return None
     return min(1.0, 2.0 * min(lower, upper))
+
+
+def _simulation_cost_warning(n: int, n_sim: int, S: int) -> Optional[str]:
+    """Each replicate costs about n^2 for the genealogy plus n x S for the mutations, in
+    pure Python, so a large alignment with many replicates can run for a long time with no
+    output. Warn before starting rather than after."""
+    if n_sim * (n * n + n * max(S, 0)) <= _SIMULATION_COST_LIMIT:
+        return None
+    return (f"--n-sim {n_sim} on {n} sequences with {S} segregating sites is a large "
+            f"simulation and may take a long time; the cost of a replicate grows with the "
+            f"square of the number of sequences and with the number of segregating sites.")
+
+
+_SIMULATION_COST_LIMIT = 2_000_000_000
 
 
 @dataclass
@@ -1444,23 +1478,40 @@ def coalescent_test(rs: RegionStats, n_sim: int, given: str = "S",
         null_R2.append(st.R2)
         null_Fs.append(st.Fs)
 
-    result.n_valid_TajimaD = sum(v is not None for v in null_D)
-    result.n_valid_R2 = sum(v is not None for v in null_R2)
-    result.n_valid_Fs = sum(v is not None for v in null_Fs)
-    tails = _tail_counts(rs.TajimaD, null_D)
-    if tails is not None:
-        result.TajimaD_count_lower, result.TajimaD_count_upper, _ = tails
-        result.TajimaD_p_lower = _monte_carlo_p(result.TajimaD_count_lower, result.n_valid_TajimaD)
-        result.TajimaD_p_upper = _monte_carlo_p(result.TajimaD_count_upper, result.n_valid_TajimaD)
-        result.TajimaD_p_two_tailed = _two_tailed(result.TajimaD_p_lower, result.TajimaD_p_upper)
-    tails = _tail_counts(rs.R2, null_R2)
-    if tails is not None:
-        result.R2_count_lower = tails[0]
-        result.R2_p_lower = _monte_carlo_p(result.R2_count_lower, result.n_valid_R2)
-    tails = _tail_counts(result.Fs, null_Fs)
-    if tails is not None:
-        result.Fs_count_lower = tails[0]
-        result.Fs_p_lower = _monte_carlo_p(result.Fs_count_lower, result.n_valid_Fs)
+    # A statistic is tested only where its simulated null actually varies: R2 does not with
+    # two sequences, nor does Fu's Fs with two sequences given S, and Tajima's D is
+    # undefined until n = 4. The rule is per statistic, so theta conditioning still tests
+    # Fu's Fs with two sequences, where the number of mutations varies.
+    constant = []
+    if _varies(null_D):
+        result.n_valid_TajimaD = sum(v is not None for v in null_D)
+        tails = _tail_counts(rs.TajimaD, null_D)
+        if tails is not None:
+            result.TajimaD_count_lower, result.TajimaD_count_upper, _ = tails
+            result.TajimaD_p_lower = _monte_carlo_p(result.TajimaD_count_lower, result.n_valid_TajimaD)
+            result.TajimaD_p_upper = _monte_carlo_p(result.TajimaD_count_upper, result.n_valid_TajimaD)
+            result.TajimaD_p_two_tailed = _two_tailed(result.TajimaD_p_lower, result.TajimaD_p_upper)
+    elif rs.TajimaD is not None:
+        constant.append("Tajima's D")
+    if _varies(null_R2):
+        result.n_valid_R2 = sum(v is not None for v in null_R2)
+        tails = _tail_counts(rs.R2, null_R2)
+        if tails is not None:
+            result.R2_count_lower = tails[0]
+            result.R2_p_lower = _monte_carlo_p(result.R2_count_lower, result.n_valid_R2)
+    elif rs.R2 is not None:
+        constant.append("R2")
+    if _varies(null_Fs):
+        result.n_valid_Fs = sum(v is not None for v in null_Fs)
+        tails = _tail_counts(result.Fs, null_Fs)
+        if tails is not None:
+            result.Fs_count_lower = tails[0]
+            result.Fs_p_lower = _monte_carlo_p(result.Fs_count_lower, result.n_valid_Fs)
+    elif result.Fs is not None:
+        constant.append("Fu's Fs")
+    if constant:
+        result.note = (", ".join(constant) + " takes the same value in every replicate, so it "
+                       f"is not tested given {result.given}")
     return result
 
 
@@ -4133,6 +4184,9 @@ def run_analysis(
             print("Warning: fst analysis requires --pop-file", file=sys.stderr)
 
     if n_sim:
+        warning = _simulation_cost_warning(global_stats.n, n_sim, global_stats.S)
+        if warning:
+            print(f"Warning: {warning}", file=sys.stderr)
         results["coalescent"] = coalescent_test(global_stats, n_sim, sim_given, sim_seed, sim_label)
 
     return results
@@ -4444,8 +4498,9 @@ def write_report(
             f"coalescent, constant population size, infinite sites and no recombination, "
             f"conditioned on {conditioning} with n = {ct.n}"
             + (f", region {ct.label}" if ct.label else "")
-            + f". Seed {ct.seed}; rerun with "
-            f"`--sim-seed {ct.seed}` to reproduce them.",
+            + f". Seed {ct.seed}; rerun with `--sim-seed {ct.seed}` on the same Python to "
+            f"reproduce them, the replicates coming from `random.Random`, whose algorithms "
+            f"may change between versions.",
             "",
         ]
         if ct.note:
@@ -4468,8 +4523,11 @@ def write_report(
                  "tails, as twice the smaller tail P-value capped at 1, which does not assume a "
                  "symmetric null; R2 and Fu's Fs in the lower tail, the direction population growth "
                  "produces. A significant result rejects the standard neutral model, not selection "
-                 "or growth in particular: demography, population structure and selection can each "
-                 "produce it. Sliding windows are not simulated."),
+                 "or growth in particular: demography, population structure, recombination and "
+                 "selection can each produce it. The null has no recombination, so for a "
+                 "recombining region a low Fu's Fs P-value may reflect recombination rather than "
+                 "population growth; Tajima's D and R2 are conservative there instead. Sliding "
+                 "windows are not simulated."),
                 "",
             ]
 

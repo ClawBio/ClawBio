@@ -296,26 +296,121 @@ def test_two_sequences_tree_statistics_match_analyse_region(seed, S):
     assert fast.R2 == pytest.approx(ref.R2, abs=1e-9)
 
 
-def test_two_sequences_still_give_r2_and_fs_p_values():
+def test_a_statistic_with_no_variation_in_the_null_gets_no_p_value():
+    # At n = 2 under the fixed-S null every replicate has R2 = 0.5 and Fs = ln(S), so a
+    # P-value could only ever be 1. Report nothing rather than "no significant departure".
     seqs = ["AAAAAA", "AGAGAA"]
     rs = dnasp.analyse_region(seqs, ["a", "b"], "r", 6)
     ct = dnasp.coalescent_test(rs, n_sim=200, given="S", seed=4, label="r")
+    assert (ct.TajimaD_p_two_tailed, ct.R2_p_lower, ct.Fs_p_lower) == (None, None, None)
+    assert (ct.n_valid_TajimaD, ct.n_valid_R2, ct.n_valid_Fs) == (0, 0, 0)
+    assert "takes the same value in every replicate" in ct.note
+
+
+def test_the_rule_is_per_statistic_so_theta_conditioning_still_tests_fs_at_n_2():
+    # Given theta the number of mutations varies, so Fu's Fs varies and can be tested,
+    # while R2 is still constant at n = 2 and Tajima's D is still undefined.
+    seqs = ["AAAAAA", "AGAGAA"]
+    rs = dnasp.analyse_region(seqs, ["a", "b"], "r", 6)
+    ct = dnasp.coalescent_test(rs, n_sim=400, given="theta", seed=4, label="r")
+    assert ct.Fs_p_lower is not None and ct.n_valid_Fs > 0
+    assert ct.R2_p_lower is None and ct.TajimaD_p_two_tailed is None
+
+
+def test_three_sequences_test_r2_and_fs_but_not_tajimas_d():
+    # Tajima's D has zero variance until n = 4 (c1 = c2 = 0 at n = 3), so it has no P-value.
+    seqs = ["AAAAAA", "AGAGAA", "AGAAAA"]
+    rs = dnasp.analyse_region(seqs, ["a", "b", "c"], "r", 6)
+    ct = dnasp.coalescent_test(rs, n_sim=200, given="S", seed=4, label="r")
+    assert dnasp.tajima_d(1.0, 5, 3) is None and dnasp.tajima_d(1.0, 5, 4) is not None
     assert ct.TajimaD_p_two_tailed is None and ct.n_valid_TajimaD == 0
     assert ct.R2_p_lower is not None and ct.n_valid_R2 == 200
-    assert ct.Fs_p_lower is not None
+    assert ct.Fs_p_lower is not None and ct.n_valid_Fs == 200
 
 
-def _one_site_three_sequences():
-    seqs = ["AAAA", "AAGA", "AAAA"]
+def test_r2_sums_identically_however_the_sequences_are_ordered():
+    # The observed value sums in input order and a replicate in leaf order. Summing the
+    # same terms must give the same float, so a genuine tie is bitwise equal and counted.
+    per_seq, k = [3.0, 0.0, 1.0, 2.0, 0.0, 4.0], 2.7
+    shuffled = [0.0, 4.0, 2.0, 3.0, 0.0, 1.0]
+    assert dnasp._r2_deviation_sum(per_seq, k) == dnasp._r2_deviation_sum(shuffled, k)
+
+
+def test_a_tie_is_counted_in_both_tails_but_a_close_value_is_not():
+    observed = 1.0
+    lower, upper, m = dnasp._tail_counts(observed, [1.0, math.nextafter(1.0, 2.0), 0.5])
+    assert (lower, upper, m) == (2, 2, 3)      # the tie counts twice, the larger value once
+
+
+def test_r2_and_fs_p_values_come_from_the_lower_tail_of_the_simulated_null():
+    # Wiring, not just the helper: recount the null here and require the stored counts to be
+    # the lower tail. Reading the upper-tail count in coalescent_test would fail this.
+    rs = _region(n=12, seed=21)
+    ct = dnasp.coalescent_test(rs, n_sim=300, given="S", seed=8, label="r")
+    rng = random.Random("dnasp-coalescent:8:r")
+    lower_r2 = lower_fs = 0
+    for _ in range(300):
+        tree = dnasp._coalescent_tree(rng, rs.n)
+        counts = dnasp._place_mutations(rng, tree, n_mutations=rs.S)
+        st = dnasp._tree_statistics(tree, counts)
+        lower_r2 += st.R2 <= rs.R2
+        lower_fs += st.Fs <= ct.Fs
+    assert (ct.R2_count_lower, ct.Fs_count_lower) == (lower_r2, lower_fs)
+    assert ct.R2_count_lower + ct.R2_p_lower * 0 < ct.n_valid_R2 or ct.R2_count_lower == ct.n_valid_R2
+
+
+def test_a_costly_run_is_flagged_before_it_starts(capsys):
+    assert dnasp._simulation_cost_warning(20, 1000, 50) is None
+    warning = dnasp._simulation_cost_warning(2000, 10000, 500)
+    assert warning is not None and "2000 sequences" in warning and "10000" in warning
+    # a large number of segregating sites also costs, so it counts towards the warning
+    assert dnasp._simulation_cost_warning(200, 10000, 20000) is not None
+    # and run_analysis must actually print it, so removing the call would fail here
+    aln = dnasp.load_alignment(SKILL_DIR / "tests" / "fixtures" / "inputs" / "rp49_36.nex")
+    dnasp.run_analysis(aln, n_sim=1, sim_seed=1)
+    assert "may take a long time" not in capsys.readouterr().err
+    monkey = dnasp._SIMULATION_COST_LIMIT
+    try:
+        dnasp._SIMULATION_COST_LIMIT = 0
+        dnasp.run_analysis(aln, n_sim=1, sim_seed=1)
+        assert "may take a long time" in capsys.readouterr().err
+    finally:
+        dnasp._SIMULATION_COST_LIMIT = monkey
+
+
+def test_the_documents_state_the_assumptions_a_user_would_be_misled_without(tmp_path):
+    skill = (SKILL_DIR / "SKILL.md").read_text()
+    reference = (SKILL_DIR / "docs" / "index.md").read_text()
+    module = dnasp.__doc__
+    for text, what in ((skill, "SKILL.md"), (reference, "docs/index.md")):
+        assert "no recombination" in text, what
+        assert "same Python" in text, what
+    assert "contains no DnaSP source code" in module
+    assert "checked against" in module
+
+    out = tmp_path / "out"
+    assert dnasp.main(["--input", str(SKILL_DIR / "tests" / "fixtures" / "inputs" / "rp49_36.nex"),
+                       "--analysis", "polymorphism,fufs", "--n-sim", "30", "--sim-seed", "1",
+                       "--output", str(out)]) == 0
+    report = (out / "report.md").read_text()
+    section = report[report.index("## Coalescent simulation"):]
+    assert "no recombination" in section and "recombination rather than" in section
+    assert "same Python" in section
+
+
+def _three_sequences_two_sites():
+    # Tajima's D is undefined at n = 3, but R2 varies once there are two segregating sites
+    # (with one site every genealogy gives the same folded singleton count).
+    seqs = ["AAAA", "AAGA", "AGAA"]
     return dnasp.analyse_region(seqs, ["a", "b", "c"], "r", 4)
 
 
 def test_report_shows_r2_p_value_even_when_tajimas_d_has_no_valid_replicate(tmp_path):
-    rs = _one_site_three_sequences()
+    rs = _three_sequences_two_sites()
     ct = dnasp.coalescent_test(rs, n_sim=100, given="S", seed=2, label="r")
-    assert ct.n_valid_R2 > 0
+    assert ct.n_valid_R2 > 0 and ct.TajimaD_p_two_tailed is None
     src = tmp_path / "three.fas"
-    src.write_text(">a\nAAAA\n>b\nAAGA\n>c\nAAAA\n")
+    src.write_text(">a\nAAAA\n>b\nAAGA\n>c\nAGAA\n")
     out = tmp_path / "out"
     assert dnasp.main(["--input", str(src), "--n-sim", "100", "--sim-seed", "2", "--output", str(out)]) == 0
     report = (out / "report.md").read_text()

@@ -2,6 +2,24 @@
 
 Every change listed alters results unless marked otherwise.
 
+**0.6.1** (3 October 2026)
+
+- P-values are reported only where the simulated null varies, per statistic and per
+  conditioning: R2 is constant with two sequences, Fu's Fs is constant with two
+  sequences given S but not given theta, and Tajima's D has no variance below four
+  sequences. A constant null is reported with no P-value, and the note says which
+  statistic, instead of the P of 1 such a test would always give. In 0.6.0 two
+  sequences gave R2 and Fu's Fs a P-value.
+- The observed value and a replicate sum the terms of R2 in the same order, so a
+  genuine tie is bitwise equal and counts in both tails rather than being lost to
+  rounding.
+- Not result-changing: SKILL.md, the report and the reference now say that the null
+  has no recombination, and name recombination as a cause of a low Fu's Fs P-value.
+- Not result-changing: a run warns before a very large simulation starts; the report
+  says a seed replays only on the same Python; and the module header says the
+  statistics were implemented from the primary literature and checked against the
+  DnaSP 6 source, of which the skill contains none.
+
 **0.6.0** (17 September 2026)
 
 - New, opt-in: coalescent-simulation P-values for Tajima's D (two-tailed),

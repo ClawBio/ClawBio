@@ -88,6 +88,30 @@ def test_version_is_consistent_across_the_skill() -> None:
     assert len(set(versions.values())) == 1, f"versions disagree: {versions}"
 
 
+def test_documented_version_matches_the_code() -> None:
+    """The version a reader sees must be the version that runs: the newest entry of
+    the version history, the reference's opening line and SKILL.md's pointer to the
+    history all name dnasp.__version__. A bump that leaves any of them behind
+    describes one release while shipping another."""
+    history = (SKILL_DIR / "docs" / "version_history.md").read_text(encoding="utf-8")
+    entries = re.findall(r"^\*\*(\d+\.\d+\.\d+)\*\*", history, flags=re.M)
+    assert entries, "docs/version_history.md lists no version"
+    documented = {"version_history.md newest entry": entries[0]}
+
+    reference = (SKILL_DIR / "docs" / "index.md").read_text(encoding="utf-8")
+    m = re.search(r"^Version (\d+\.\d+\.\d+) implements", reference, flags=re.M)
+    assert m, "docs/index.md no longer opens with the version it describes"
+    documented["docs/index.md"] = m.group(1)
+
+    m = re.search(r"^Current version (\d+\.\d+\.\d+)\.", (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8"),
+                  flags=re.M)
+    if m:
+        documented["SKILL.md body"] = m.group(1)
+
+    stale = {where: v for where, v in documented.items() if v != dnasp.__version__}
+    assert not stale, f"documents lag dnasp.__version__ = {dnasp.__version__}: {stale}"
+
+
 # The mapping is asserted explicitly, not merely checked for existence. Four tests
 # that only ask "does this flag exist" would pass if window_size and step_size were
 # swapped, or alignment mapped to --vcf. This table is the contract.
