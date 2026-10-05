@@ -2285,6 +2285,30 @@
       ]
     },
     {
+      "name": "scrna-embedding-audit",
+      "slug": "scrna-embedding-audit",
+      "license": "MIT",
+      "description": "Score one or more single-cell embeddings stored in an h5ad (obsm) against cell-type labels and batch with scIB-style metrics, compute a PCA baseline from the same cells' raw counts in the same run, and state per metric whether each embedding scored higher, lower or not separably from that baseline.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "audit cell embedding",
+        "score embedding against PCA baseline",
+        "compare embeddings scIB metrics",
+        "batch integration metrics for obsm",
+        "is my scVI embedding better than PCA",
+        "evaluate foundation model embedding",
+        "iLISI cLISI silhouette for an h5ad"
+      ],
+      "tags": [
+        "single-cell",
+        "embedding",
+        "batch-integration",
+        "benchmark",
+        "scib",
+        "foundation-model"
+      ]
+    },
+    {
       "name": "scrna-orchestrator",
       "slug": "scrna-orchestrator",
       "license": "MIT",
