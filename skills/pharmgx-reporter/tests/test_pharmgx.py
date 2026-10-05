@@ -925,6 +925,12 @@ CPIC_PHENOTYPES = [
     ("DPYD", "*2A/*13", "Poor Metabolizer"),
     ("DPYD", "*2A/D949V", "Poor Metabolizer"),
     ("DPYD", "*13/D949V", "Poor Metabolizer"),
+    # HapB3 (c.1129-5923C>G): CPIC DPYD_Diplotype_Phenotype_Table.xlsx, generated 2026-08-07
+    ("DPYD", "Normal/HapB3", "Intermediate Metabolizer"),  # AS 1.5
+    ("DPYD", "HapB3/HapB3", "Intermediate Metabolizer"),   # AS 1.0
+    ("DPYD", "D949V/HapB3", "Intermediate Metabolizer"),   # AS 1.0
+    ("DPYD", "*2A/HapB3", "Poor Metabolizer"),             # AS 0.5
+    ("DPYD", "*13/HapB3", "Poor Metabolizer"),             # AS 0.5
 ]
 
 
@@ -963,16 +969,33 @@ def test_dpyd_more_than_two_variant_alleles_stays_poor(genotypes):
 
 
 def test_dpyd_homozygous_d949v_is_intermediate():
-    assert _dpyd({"rs3918290": "CC", "rs55886062": "AA", "rs67376798": "AA"})[1] == "Intermediate Metabolizer"
+    genotypes = {"rs3918290": "CC", "rs55886062": "AA", "rs67376798": "AA", "rs75017182": "GG"}
+    assert _dpyd(genotypes)[1] == "Intermediate Metabolizer"
 
 
 def test_dpyd_partial_panel_with_detected_variant_is_flagged():
     """An untested DPYD SNP could turn a single-variant Intermediate into Poor."""
     diplotype, phenotype = _dpyd({"rs3918290": "CT"})
-    assert "1/3 SNPs tested" in diplotype
+    assert "1/4 SNPs tested" in diplotype
     assert phenotype.startswith("Indeterminate")
 
 
 def test_dpyd_partial_panel_poor_is_not_downgraded():
     """Two no-function alleles are Poor whatever else is untested."""
     assert _dpyd({"rs3918290": "TT"})[1] == "Poor Metabolizer"
+
+
+_DPYD_REF = {"rs3918290": "CC", "rs55886062": "AA", "rs67376798": "TT", "rs75017182": "GG"}
+
+
+def test_dpyd_hapb3_carrier_is_intermediate():
+    """HapB3 (rs75017182 G>C) is CPIC's most common decreased-function DPYD variant."""
+    diplotype, phenotype = _dpyd({**_DPYD_REF, "rs75017182": "GC"})
+    assert diplotype == "Normal/HapB3"
+    assert phenotype == "Intermediate Metabolizer"
+
+
+def test_dpyd_without_hapb3_is_not_called_normal():
+    """Testing only *2A/*13/D949V cannot rule out HapB3, so it must not read Normal."""
+    genotypes = {r: g for r, g in _DPYD_REF.items() if r != "rs75017182"}
+    assert _dpyd(genotypes)[1].startswith("Indeterminate")

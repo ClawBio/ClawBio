@@ -68,6 +68,7 @@ PGX_SNPS = {
     "rs3918290":  {"gene": "DPYD", "allele": "*2A",  "effect": "no_function"},
     "rs55886062": {"gene": "DPYD", "allele": "*13",  "effect": "no_function"},
     "rs67376798": {"gene": "DPYD", "allele": "D949V", "effect": "decreased_function"},
+    "rs75017182": {"gene": "DPYD", "allele": "HapB3", "effect": "decreased_function"},
     # TPMT
     "rs1800460":  {"gene": "TPMT", "allele": "*3B", "effect": "no_function"},
     "rs1142345":  {"gene": "TPMT", "allele": "*3C", "effect": "no_function"},
@@ -199,11 +200,15 @@ GENE_DEFS = {
             "rs3918290":  {"allele": "*2A",  "alt": "T", "effect": "no_function"},
             "rs55886062": {"allele": "*13",  "alt": "C", "effect": "no_function"},
             "rs67376798": {"allele": "D949V", "alt": "A", "effect": "decreased_function"},
+            # c.1129-5923C>G, the likely HapB3 causal variant (CPIC allele definition table)
+            "rs75017182": {"allele": "HapB3", "alt": "C", "effect": "decreased_function"},
         },
         "phenotypes": {
             "Normal Metabolizer":       ["Normal/Normal"],
-            "Intermediate Metabolizer": ["Normal/*2A", "Normal/*13", "Normal/D949V", "D949V/D949V"],
-            "Poor Metabolizer":         ["*2A/*2A", "*2A/*13", "*13/*13", "*2A/D949V", "*13/D949V"],
+            "Intermediate Metabolizer": ["Normal/*2A", "Normal/*13", "Normal/D949V", "D949V/D949V",
+                                         "Normal/HapB3", "HapB3/HapB3", "D949V/HapB3"],
+            "Poor Metabolizer":         ["*2A/*2A", "*2A/*13", "*13/*13", "*2A/D949V", "*13/D949V",
+                                         "*2A/HapB3", "*13/HapB3"],
         },
     },
     "TPMT": {

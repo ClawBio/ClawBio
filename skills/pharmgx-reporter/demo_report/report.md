@@ -1,11 +1,11 @@
 # ClawBio PharmGx Report
 
-**Date**: 2026-10-05 12:22 UTC
+**Date**: 2026-10-05 12:26 UTC
 **Input**: `demo_patient.txt`
 **Format detected**: 23andme
 **Checksum (SHA-256)**: `ffe44b340edfbb21abf648f00c2ce68715f5c9453a590caef753bc25e316c5cc`
 **Total SNPs in file**: 23
-**Pharmacogenomic SNPs found**: 23/32
+**Pharmacogenomic SNPs found**: 23/33
 **Genes profiled**: 13
 **Drugs assessed**: 59
 
@@ -25,7 +25,7 @@
 
 ## Panel Limitations
 
-This report uses **SNP-based genotyping only** from a panel of 32 pharmacogenomic variants. The following cannot be detected:
+This report uses **SNP-based genotyping only** from a panel of 33 pharmacogenomic variants. The following cannot be detected:
 
 - **Copy number variants (CNVs)**: Gene deletions (e.g. CYP2D6\*5) and duplications (e.g. CYP2D6\*1xN, \*2xN)
 - **Structural variants**: CYP2D6-CYP2D7 hybrid alleles (e.g. \*13, \*36)
@@ -90,7 +90,7 @@ The following clinically relevant pharmacogenomic genes are **not included** in 
 | CYP2C9 | Cytochrome P450 2C9 | *1/*2 | Intermediate Metabolizer |
 | VKORC1 | Vitamin K Epoxide Reductase | TT | High Warfarin Sensitivity |
 | SLCO1B1 | Solute Carrier Organic Anion Transporter 1B1 | TT | Normal Function |
-| DPYD | Dihydropyrimidine Dehydrogenase | Normal/Normal (2/3 SNPs tested) | Indeterminate (incomplete coverage: 2/3 SNPs tested) |
+| DPYD | Dihydropyrimidine Dehydrogenase | Normal/Normal (2/4 SNPs tested) | Indeterminate (incomplete coverage: 2/4 SNPs tested) |
 | TPMT | Thiopurine S-Methyltransferase | *1/*1 (2/3 SNPs tested) | Indeterminate (incomplete coverage: 2/3 SNPs tested) |
 | UGT1A1 | UDP-Glucuronosyltransferase 1A1 | Indeterminate (rs8175347 not tested) | Indeterminate (rs8175347 not tested) |
 | CYP3A5 | Cytochrome P450 3A5 | *3/*3 | CYP3A5 Non-expressor |
