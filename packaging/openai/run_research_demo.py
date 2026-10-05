@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import hashlib
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 import json
 import os
 from pathlib import Path
@@ -40,6 +40,13 @@ def main() -> int:
     output = args.output.resolve()
     if output.exists() or output.is_relative_to(ROOT):
         print("OUTPUT_REFUSED: choose a fresh directory outside the plugin", file=sys.stderr)
+        return 2
+    distributions = ("numpy", "pandas", "matplotlib", "scikit-learn", "PyYAML", "opentelemetry-sdk")
+    try:
+        dependency_versions = [f"{name}=={version(name)}" for name in distributions]
+    except PackageNotFoundError as exc:
+        print(f"DEPENDENCY_MISSING: {exc.name}; install the plugin requirements.txt "
+              "in the chosen Python environment before running a demo", file=sys.stderr)
         return 2
     runtime = ROOT / "runtime"
     workflows = {
@@ -100,9 +107,8 @@ def main() -> int:
     existing_environment = output / "reproducibility/environment.yml"
     if existing_environment.exists():
         existing_environment.rename(output / "reproducibility/upstream_environment.yml")
-    distributions = ("numpy", "pandas", "matplotlib", "scikit-learn", "PyYAML", "opentelemetry-sdk")
     write_environment_yml(
-        output, "clawbio-research-demo", [f"{name}=={version(name)}" for name in distributions],
+        output, "clawbio-research-demo", dependency_versions,
         python_version=".".join(map(str, sys.version_info[:3])), channels=["conda-forge", "nodefaults"],
     )
     existing_checksums = output / "reproducibility/checksums.sha256"

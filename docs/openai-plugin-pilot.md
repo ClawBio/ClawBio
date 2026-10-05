@@ -68,6 +68,11 @@ missing CYP2D6 abstention, verify output checksums, and reject private-input
 flags, runtime tampering and existing output directories. A successful run is
 execution evidence, not independent scientific validation.
 
+The launcher checks all declared dependency versions before analysis begins.
+A missing package produces `DEPENDENCY_MISSING` without creating the output
+directory, so a completed analysis cannot be stranded by missing version metadata
+while its reproducibility bundle is being written.
+
 The integrity check compares bytes with this package's manifest. It is not a
 signature, a security sandbox or proof of publisher authenticity. The underlying
 source scripts retain upstream interfaces; unsupported direct invocation is not

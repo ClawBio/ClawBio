@@ -49,7 +49,7 @@ def test_archive_is_reproducible_and_has_only_curated_skills(tmp_path):
         assert not any(n.startswith(("profiles/", "corpas-30x/", "GENOMEBOOK/")) for n in names)
 
 
-def invoke(package, work, *args):
+def invoke(package, work, *args, missing_distribution=None):
     env = dict(os.environ)
     # Deny actual network connections in the launcher and its subprocess.
     hook = work / "network_guard"
@@ -60,11 +60,22 @@ def invoke(package, work, *args):
         "    raise RuntimeError('network forbidden during bundled demos')\n"
         "socket.socket.connect = deny\n"
         "socket.create_connection = deny\n"
+        "import importlib.metadata, os\n"
+        "original_version = importlib.metadata.version\n"
+        "def simulated_version(name):\n"
+        "    if name == os.environ.get('CLAWBIO_TEST_MISSING_DISTRIBUTION'):\n"
+        "        raise importlib.metadata.PackageNotFoundError(name)\n"
+        "    return original_version(name)\n"
+        "importlib.metadata.version = simulated_version\n"
     )
     env["PYTHONPATH"] = str(hook)
     env["CLAWBIO_AUDIT_LOG"] = str(work / "audit.jsonl")
     # No optional telemetry exporter should be invoked during package tests.
     env.pop("CLAWBIO_OTLP_ENDPOINT", None)
+    if missing_distribution:
+        env["CLAWBIO_TEST_MISSING_DISTRIBUTION"] = missing_distribution
+    else:
+        env.pop("CLAWBIO_TEST_MISSING_DISTRIBUTION", None)
     return subprocess.run(
         [sys.executable, str(package / "scripts/run_research_demo.py"), *args],
         cwd=work, env=env, capture_output=True, text=True, timeout=90,
@@ -117,3 +128,14 @@ def test_tampered_runtime_abstains_before_execution(package, tmp_path):
     assert result.returncode != 0
     assert "PACKAGE_INTEGRITY_FAILED" in result.stderr
     assert not output.exists()
+
+
+def test_missing_dependency_refused_before_creating_output(package, tmp_path):
+    output = tmp_path / "out"
+    result = invoke(package, tmp_path, "pharmgx", "--output", str(output),
+                    missing_distribution="scikit-learn")
+    assert result.returncode != 0
+    assert not output.exists(), "Dependency preflight must precede analysis and output writes"
+    assert "DEPENDENCY_MISSING: scikit-learn" in result.stderr
+    assert "requirements.txt" in result.stderr
+    assert "Traceback" not in result.stderr
