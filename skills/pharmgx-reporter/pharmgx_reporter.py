@@ -99,9 +99,12 @@ PGX_SNPS = {
 
 # Where and when the GENE_DEFS diplotype->phenotype tables were last checked
 # against CPIC. The CPIC API serves the live database and reports no release
-# number, so the query date is the version. Not covered by that check: DPYD (star
-# names, not CPIC's HGVS/activity-score form), CYP1A2 and MTHFR (no CPIC guideline).
-CPIC_TABLES_CHECKED = "api.cpicpgx.org, 2026-10-05"
+# number, so the query date is the version. DPYD uses star names, not CPIC's
+# HGVS form, so it was checked against CPIC's DPYD diplotype table file, which
+# is dated. Not covered: CYP1A2 and MTHFR (no CPIC guideline).
+CPIC_TABLES_CHECKED = (
+    "api.cpicpgx.org, 2026-10-05; DPYD against CPIC DPYD_Diplotype_Phenotype_Table.xlsx generated 2026-08-07"
+)
 
 GENE_DEFS = {
     "CYP2C19": {
@@ -1873,7 +1876,7 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
     lines.append("- Corpas, M. (2026). ClawBio. https://github.com/ClawBio/ClawBio")
     lines.append("- CPIC. Clinical Pharmacogenetics Implementation Consortium. https://cpicpgx.org/")
     lines.append(f"- Diplotype-to-phenotype tables checked against CPIC ({CPIC_TABLES_CHECKED});"
-                 " DPYD, CYP1A2 and MTHFR not covered.")
+                 " CYP1A2 and MTHFR not covered (no CPIC guideline).")
     lines.append("- Caudle, K.E. et al. (2014). Standardizing terms for clinical pharmacogenetic test results. Genet Med, 16(9), 655-663.")
     lines.append("- PharmGKB. https://www.pharmgkb.org/")
     lines.append("")
