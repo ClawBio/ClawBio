@@ -1,6 +1,6 @@
 # ClawBio PharmGx Report
 
-**Date**: 2026-09-27 22:41 UTC
+**Date**: 2026-10-05 12:13 UTC
 **Input**: `demo_patient.txt`
 **Format detected**: 23andme
 **Checksum (SHA-256)**: `ffe44b340edfbb21abf648f00c2ce68715f5c9453a590caef753bc25e316c5cc`
@@ -225,5 +225,6 @@ python pharmgx_reporter.py --input demo_patient.txt --output report
 
 - Corpas, M. (2026). ClawBio. https://github.com/ClawBio/ClawBio
 - CPIC. Clinical Pharmacogenetics Implementation Consortium. https://cpicpgx.org/
+- Diplotype-to-phenotype tables checked against CPIC (api.cpicpgx.org, 2026-10-05); DPYD, CYP1A2 and MTHFR not covered.
 - Caudle, K.E. et al. (2014). Standardizing terms for clinical pharmacogenetic test results. Genet Med, 16(9), 655-663.
 - PharmGKB. https://www.pharmgkb.org/

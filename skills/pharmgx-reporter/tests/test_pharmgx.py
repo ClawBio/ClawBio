@@ -8,6 +8,7 @@ so that all assertions are deterministic and reproducible.
 """
 
 import re
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import pharmgx_reporter
 from pharmgx_reporter import (
     PGX_SNPS,
     GENE_DEFS,
@@ -466,6 +468,24 @@ def test_documented_outputs_are_produced(tmp_path):
         "SKILL.md Output Structure promises artifacts the skill did not produce: "
         f"{missing}"
     )
+
+
+def test_report_states_cpic_tables_checked():
+    _, _, pgx, _ = parse_file(str(DEMO))
+    p = _profiles()
+    report = generate_report(str(DEMO), "23andme", 31, pgx, p, lookup_drugs(p))
+    assert pharmgx_reporter.CPIC_TABLES_CHECKED in report
+
+
+def test_result_json_records_cpic_tables_checked(tmp_path):
+    skill_dir = Path(__file__).resolve().parent.parent
+    subprocess.run(
+        [sys.executable, str(skill_dir / "pharmgx_reporter.py"),
+         "--demo", "--output", str(tmp_path), "--no-enrich"],
+        capture_output=True, text=True, check=True,
+    )
+    data = json.loads((tmp_path / "result.json").read_text())["data"]
+    assert data["cpic_tables_checked"] == pharmgx_reporter.CPIC_TABLES_CHECKED
 
 
 # ── Data Integrity ─────────────────────────────────────────────────────────────
