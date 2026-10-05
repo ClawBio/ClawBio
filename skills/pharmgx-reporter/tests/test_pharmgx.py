@@ -896,6 +896,7 @@ CPIC_PHENOTYPES = [
     ("CYP2B6", "*9/*18", "Poor Metabolizer"),
     ("UGT1A1", "*6/*28", "Poor Metabolizer"),
     ("CYP3A5", "*7/*7", "CYP3A5 Non-expressor"),
+    ("CYP3A5", "*6/*7", "CYP3A5 Non-expressor"),
     ("DPYD", "D949V/D949V", "Intermediate Metabolizer"),
     ("DPYD", "*2A/*13", "Poor Metabolizer"),
     ("DPYD", "*2A/D949V", "Poor Metabolizer"),

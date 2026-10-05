@@ -238,7 +238,7 @@ GENE_DEFS = {
         "phenotypes": {
             "CYP3A5 Expressor":          ["*1/*1"],
             "Intermediate Expressor":     ["*1/*3", "*1/*6", "*1/*7"],
-            "CYP3A5 Non-expressor":       ["*3/*3", "*3/*6", "*6/*6", "*3/*7", "*7/*7"],
+            "CYP3A5 Non-expressor":       ["*3/*3", "*3/*6", "*6/*6", "*3/*7", "*7/*7", "*6/*7"],
         },
     },
     "CYP2B6": {
