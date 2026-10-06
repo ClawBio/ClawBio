@@ -1,0 +1,186 @@
+# Verbatim copy of workflow/config/config_test.yaml from
+# https://github.com/mobashirrahman/metagenomics-workflow.git
+# at commit 7351a702d29857801963cae7aeff6600d59ebe77 (MIT).
+# Do not edit by hand: it is the schema this wrapper renders against.
+#####################################################################
+# Test configuration
+#
+# Two synthetic samples with no host decontamination, MetaPhlAn
+# profiling disabled and no binning, so the whole thing runs in a couple
+# of minutes on a laptop. This tests QC, assembly and reporting; it does
+# not validate taxonomic profiling, bin recovery or genome quality.
+#####################################################################
+
+samplesheet: "test/data/samplesheet.tsv"
+
+# Test outputs live under test/ so a test run never touches real results.
+results_dir: "test/results"
+
+database_dir: "test/data/dbs"
+
+threads:
+  adapter: 2
+  bbdutk: 2
+  bwa: 2
+  depth: 1
+  spades: 4
+  coassembly: 4
+  metabat: 2
+  maxbin: 2
+  dastool: 2
+  vamb: 2
+  metaphlan: 2
+  checkm2: 2
+  drep: 2
+  gtdbtk: 2
+  sra: 2
+  bowtie2: 2
+  prodigal: 1
+  diamond: 2
+  hmmer: 2
+  minpath: 1
+  multiqc: 1
+  misc: 1
+
+mem_mb:
+  bbduk_first: 500
+  bbduk_host: 4000
+  spades: 8000
+  coassembly: 8000
+  metaphlan: 4000
+  checkm2: 4000
+  drep: 4000
+  gtdbtk: 8000
+  default: 2000
+
+fetch:
+  # No synthetic fixture has a public run accession, so fetching stays off.
+  sra:
+    enabled: false
+    cache: null
+    technical: false
+
+qc:
+  adapter:
+    enabled: true
+    fasta: "workflow/resources/illumina_adapters.fa"
+    kmer_size: 23
+    mink: 11
+    hamming_distance: 1
+    ktrim: r
+  decontaminate:
+    # Disabled in CI: downloading GRCh38 (~3 GB) per run is impractical.
+    enabled: false
+    fasta: null
+    fasta_url: "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_46/GRCh38.primary_assembly.genome.fa.gz"
+    fasta_name: "GRCh38.primary_assembly.genome.fa.gz"
+    fasta_md5: null
+  filter:
+    average_quality: 20
+    minlength: 50
+    kmer_size: 31
+    min_covered_fraction: 0.5
+  sourmash:
+    enabled: false
+    k: [21, 31]
+    scaled: 1000
+    compare_k: 31
+
+profile:
+  # Every profiler needs a reference database, and building the MetaPhlAn
+  # index alone takes hours. Reference-dependent stages need a separate
+  # integration benchmark with real genomes and compatible databases.
+  profiler: none
+  metaphlan4:
+    threads_key: metaphlan
+    index: "mpa_vJan26_CHOCOPhlAnSGB_202605"
+    sgb_tree_url: "https://github.com/biobakery/MetaPhlAn/raw/master/metaphlan/utils/mpa_vJan26_CHOCOPhlAnSGB_202605.nwk"
+    unclassified_estimation: true
+    to_gtdb: false
+  kraken2:
+    db: null
+  motus:
+    gtdb_taxa_url: "https://sunagawalab.ethz.ch/share/MOTU_GTDB/mOTUs_3.0.0_GTDB_tax.tsv"
+  sourmash:
+    db: null
+    db_sheet: null
+
+assembly:
+  enabled: true
+  coassemble: false
+  min_contig_length: 500
+  spades:
+    isolate: false
+
+binning:
+  enabled: false
+  joint_abundance: false
+  metabat:
+    min_contig_length: 1500
+    seed: 420
+  maxbin:
+    min_contig_length: 1000
+  # Binning is disabled in CI, but the settings are declared so the config stays
+  # a valid instance of the documented schema.
+  binners: [metabat, maxbin, vamb]
+  vamb:
+    min_contig_length: 2000
+    min_contigs: 2
+  dastool:
+    search_engine: diamond
+    score_threshold: 0
+
+mag:
+  enabled: false
+  checkm2:
+    min_completeness: 50.0
+    max_contamination: 10.0
+    db: null
+  drep:
+    completeness: 90.0
+    contamination: 5.0
+    ani_threshold: 0.95
+    cov_threshold: 0.10
+    algorithm: ANImf
+  gtdbtk:
+    db: null
+
+taxonomy:
+  # Needs two large databases that are not bundled; disabled in CI.
+  enabled: false
+  db: null
+  taxdump: null
+  evalue: 0.001
+  max_target_seqs: 10
+  sensitivity: mid-sensitive
+  id_columns: [qseqid, sseqid, pident, bitscore]
+  rank: genus
+  consensus_minimum: 0.5
+  best_hit_bitscore_fraction: 0.95
+
+annotation:
+  # Needs three external databases and a MinPath checkout; disabled in CI.
+  enabled: false
+  kegg_db: null
+  cog_db: null
+  pfam_db: null
+  evalue: 0.001
+  max_target_seqs: 10
+  id_columns: [qseqid, sseqid, pident, bitscore]
+  min_hits_for_average: 3
+  minpath:
+    script_url: "https://raw.githubusercontent.com/mgtools/MinPath/46d3e81a4dca2310d558bea970bc002b15d44767/MinPath.py"
+    script_md5: "9c9996ebc3dbccb00f67461f8bb7de9a"
+    data_dir: null
+
+heterogeneity:
+  # Binning is off in CI, so this stage never runs; the settings are declared so
+  # the config remains a valid instance of the documented schema.
+  enabled: true
+  min_depth: 10
+  min_base_quality: 30
+  max_dominant_fraction: 0.8
+
+report:
+  multiqc: true
+  title: "Pipeline test run (synthetic data)"

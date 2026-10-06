@@ -1,0 +1,263 @@
+# Verbatim copy of workflow/config/config.yaml from
+# https://github.com/mobashirrahman/metagenomics-workflow.git
+# at commit 7351a702d29857801963cae7aeff6600d59ebe77 (MIT).
+# Do not edit by hand: it is the schema this wrapper renders against.
+#####################################################################
+# Main pipeline configuration
+#
+# This file is READ-ONLY at runtime. Sample discovery writes to
+# data/sample_description.yml, never back into the config.
+#
+# Relative paths are resolved against the pipeline root (the directory
+# containing workflow/), so the pipeline is location-independent.
+#####################################################################
+
+# ---------------------------------------------------------------------
+# Data
+# ---------------------------------------------------------------------
+samplesheet: "workflow/config/samplesheet.tsv"
+
+# Where outputs are written, relative to the pipeline root.
+results_dir: "results"
+
+# Directory holding the (git-ignored) downloaded reference databases
+database_dir: "data/dbs"
+
+# ---------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------
+threads:
+  adapter: 8        # bbduk adapter trimming
+  bbdutk: 8         # bbduk host subtraction
+  bwa: 8            # bwa-mem2 alignment
+  depth: 1          # jgi_summarize_bam_contig_depths
+  spades: 30        # per-sample assembly
+  coassembly: 60    # group co-assembly
+  metabat: 10
+  maxbin: 10
+  dastool: 20
+  vamb: 8
+  metaphlan: 20
+  checkm2: 16
+  drep: 16
+  gtdbtk: 32
+  sra: 8              # fasterq-dump decompression threads
+  bowtie2: 8          # strain heterogeneity mapping
+  prodigal: 1
+  diamond: 8
+  hmmer: 4
+  minpath: 1
+  multiqc: 1
+  misc: 1
+
+# Memory limits in MiB. Schedule with --resources mem_mb=TOTAL.
+mem_mb:
+  bbduk_first: 500
+  bbduk_host: 90000      # scales with host reference genome size
+  spades: 250000
+  coassembly: 500000
+  metaphlan: 60000
+  checkm2: 64000
+  drep: 64000
+  gtdbtk: 200000
+  sra: 8000
+  default: 8000
+
+# ---------------------------------------------------------------------
+# Fetch
+# ---------------------------------------------------------------------
+# A samplesheet row may name a public SRA/ENA/DRA run in `sra_run` instead of
+# FASTQ paths. Such a row must declare `layout`, because sra-tools discovers the
+# layout only while downloading, which is too late for the DAG.
+fetch:
+  sra:
+    enabled: false
+    # Prefetched runs are kept here. Leave null to use the sra-tools default
+    # under $HOME; on a cluster set it to fast local or shared storage.
+    cache: null
+    # fasterq-dump drops the technical reads (0, 11, 12) by default, matching
+    # how the major archives present a run. Enable only when they are the signal.
+    technical: false
+
+# ---------------------------------------------------------------------
+# Quality control
+# ---------------------------------------------------------------------
+qc:
+  adapter:
+    enabled: true
+    fasta: "workflow/resources/illumina_adapters.fa"
+    kmer_size: 23
+    mink: 11
+    hamming_distance: 1
+    ktrim: r
+
+  decontaminate:
+    enabled: true
+    fasta: null    # optional existing decompressed host FASTA, resolved from project root
+    # Pinned release, NOT latest_release, so the run is reproducible.
+    fasta_url: "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_46/GRCh38.primary_assembly.genome.fa.gz"
+    fasta_name: "GRCh38.primary_assembly.genome.fa.gz"
+    fasta_md5: null    # optional checksum of decompressed FASTA; pin explicitly
+
+  filter:
+    average_quality: 20
+    minlength: 50
+    kmer_size: 31
+    min_covered_fraction: 0.5
+
+  sourmash:
+    enabled: true
+    k: [21, 31, 51]
+    scaled: 1000
+    compare_k: 31
+
+# ---------------------------------------------------------------------
+# Taxonomic profiling
+# ---------------------------------------------------------------------
+profile:
+  # One of: metaphlan4, none
+  profiler: metaphlan4
+  metaphlan4:
+    threads_key: metaphlan
+    # MetaPhlAn 4.2.5 / ChocoPhlAn database vJan26_202605
+    index: "mpa_vJan26_CHOCOPhlAnSGB_202605"
+    sgb_tree_url: "https://github.com/biobakery/MetaPhlAn/raw/master/metaphlan/utils/mpa_vJan26_CHOCOPhlAnSGB_202605.nwk"
+    unclassified_estimation: true
+    to_gtdb: false
+
+# ---------------------------------------------------------------------
+# Assembly
+# ---------------------------------------------------------------------
+assembly:
+  enabled: true
+  # false -> per-sample assembly (fast, lower sensitivity)
+  # true  -> group-wise co-assembly; compare against individual assembly
+  #          because pooling distinct strains can introduce chimeras
+  coassemble: false
+  min_contig_length: 500
+  spades:
+    isolate: false
+
+# ---------------------------------------------------------------------
+# Binning
+# ---------------------------------------------------------------------
+binning:
+  enabled: true
+  # Joint abundance maps each assembly against every sample.
+  # This retains differential coverage and costs N x M alignments.
+  joint_abundance: true
+  # Binners run before consensus and are passed to DAS Tool in this order.
+  # Any subset of metabat, maxbin and vamb is valid; at least two are needed
+  # for a consensus to mean anything.
+  binners: [metabat, maxbin, vamb]
+  metabat:
+    min_contig_length: 1500
+    seed: 420
+  maxbin:
+    min_contig_length: 1500
+  vamb:
+    min_contig_length: 2000
+    # VAMB assigns every contig to a cluster, including single-contig clusters it
+    # labels `loner`. Those are dropped so VAMB contributes bins, not singletons.
+    min_contigs: 2
+  dastool:
+    search_engine: diamond
+    score_threshold: 0
+
+# ---------------------------------------------------------------------
+# MAG quality / taxonomy
+# ---------------------------------------------------------------------
+mag:
+  enabled: true
+  checkm2:
+    # CheckM2 1.1.0 (GTDB r202 reference)
+    min_completeness: 50.0
+    max_contamination: 10.0
+    db: null    # compatible external CheckM2 1.1.0 DIAMOND .dmnd file required
+  drep:
+    completeness: 90.0
+    contamination: 5.0
+    ani_threshold: 0.95
+    cov_threshold: 0.10
+    algorithm: ANImf
+  gtdbtk:
+    db: null       # path to compatible extracted GTDB-Tk reference directory
+
+# ---------------------------------------------------------------------
+# Contig taxonomy
+# ---------------------------------------------------------------------
+# Neither database is bundled.
+#   db       DIAMOND-indexed protein database whose subject identifiers end in
+#            an NCBI taxid, e.g. from nr or a clustered equivalent
+#   taxdump   unpacked NCBI taxdump directory holding nodes.dmp and names.dmp
+taxonomy:
+  enabled: true
+  db: null
+  taxdump: null
+  evalue: 0.001
+  max_target_seqs: 10
+  # One of DIAMOND_SENSITIVITIES: fast, mid-sensitive, sensitive,
+  # more-sensitive, very-sensitive, ultra-sensitive. Faster is acceptable for a
+  # taxonomic read; more sensitive finds distant homologues, which gives the LCA
+  # deeper ancestors to agree on.
+  sensitivity: mid-sensitive
+  # Field order of the DIAMOND tabular output, which the LCA step reads by name.
+  id_columns: [qseqid, sseqid, pident, bitscore]
+  # Finest rank to report. Anything coarser is available from the same data.
+  rank: genus
+  # Fraction of a contig's assigned genes that must agree before a taxon becomes
+  # the contig's consensus.
+  consensus_minimum: 0.5
+  # Hits below this fraction of a gene's best bitscore are ignored entirely.
+  best_hit_bitscore_fraction: 0.95
+
+# ---------------------------------------------------------------------
+# Functional annotation
+# ---------------------------------------------------------------------
+# None of these databases are bundled. Each is a user-supplied reference, like
+# the taxonomy and MAG databases above.
+annotation:
+  enabled: true
+  # DIAMOND-indexed protein databases. `kegg_db` subjects are KEGG orthology
+  # groups (ko:K#####), `cog_db` subjects are COG identifiers.
+  kegg_db: null
+  cog_db: null
+  # Pfam-A profile database for hmmsearch.
+  pfam_db: null
+  evalue: 0.001
+  max_target_seqs: 10
+  id_columns: [qseqid, sseqid, pident, bitscore]
+  # Best-average assignment needs at least this many hits, below which the
+  # best-average score is not distinguishable from the best hit alone.
+  min_hits_for_average: 3
+
+  # Parsimonious pathway reconstruction. MinPath has no conda package, so the
+  # script is fetched at run time from a pinned commit and checked against
+  # `script_md5`; point `data_dir` at a directory holding MinPath's own
+  # KEGG-pathway.txt, KEGG-family.txt and KEGG-mapping.txt.
+  minpath:
+    script_url: "https://raw.githubusercontent.com/mgtools/MinPath/46d3e81a4dca2310d558bea970bc002b15d44767/MinPath.py"
+    script_md5: "9c9996ebc3dbccb00f67461f8bb7de9a"
+    data_dir: null
+
+# ---------------------------------------------------------------------
+# Strain heterogeneity
+# ---------------------------------------------------------------------
+# Replaces the CMSeq estimator, which cannot be installed for linux-64.
+heterogeneity:
+  enabled: true
+  # Coding positions below this depth are excluded entirely: below it the
+  # second-commonest allele is usually a sequencing artefact rather than a strain.
+  min_depth: 10
+  # Base quality floor, applied before the depth test.
+  min_base_quality: 30
+  # A site counts as polymorphic only when the commonest allele holds less than
+  # this fraction of the depth. Above it the site is treated as consensus.
+  max_dominant_fraction: 0.8
+
+# ---------------------------------------------------------------------
+# Reports
+# ---------------------------------------------------------------------
+report:
+  multiqc: true
+  title: "Shotgun metagenomics: QC, profile, assembly and binning"
