@@ -29,6 +29,38 @@ from sklearn.metrics import (
 )
 from sklearn.neighbors import KNeighborsClassifier, NearestNeighbors
 
+# Loaded by scrna_embedding_audit.py through importlib (no package), so the public
+# surface is declared here; the constants are read by the main script and the tests.
+__all__ = [
+    "BATCH_METRICS",
+    "BIO_METRICS",
+    "CEILING",
+    "DIFF_TOLERANCE",
+    "GROUP_TITLES",
+    "METRIC_DEFINITIONS",
+    "METRIC_GROUPS",
+    "METRIC_NAMES",
+    "OMITTED_METRICS",
+    "SD_FACTOR",
+    "TRANSFER_METRICS",
+    "bras",
+    "clisi",
+    "degeneracy_reason",
+    "duplicate_row_fraction",
+    "exact_knn",
+    "graph_connectivity",
+    "ilisi",
+    "isolated_labels",
+    "kmeans_nmi_ari",
+    "knn_transfer_accuracy",
+    "lisi_per_cell",
+    "score_embedding",
+    "silhouette_batch",
+    "silhouette_label",
+    "stratified_subsample",
+    "verdict",
+]
+
 BIO_METRICS = (
     "silhouette_label",
     "isolated_labels",
