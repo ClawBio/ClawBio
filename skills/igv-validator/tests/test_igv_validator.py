@@ -1443,7 +1443,7 @@ def test_summary_warns_that_verdicts_are_automatic(summary_dir, tmp_path):
     out = tmp_path / "s"
     assert run_cli("--summarize", root, "--heatmap", hm, "--output", out).returncode == 0
     page = (out / "summary.html").read_text()
-    assert "automatic" in page and "judge each row yourself" in page
+    assert "Nothing on this page is a verdict" in page and "your own look at the image" in page
     rows = list(csv.DictReader(open(out / "curated_vs_igv.tsv"), delimiter="\t"))
     assert "review" in rows[0] and "report" in rows[0]
     assert "review" in next(csv.DictReader(open(out / "igv_agreement.tsv"), delimiter="\t"))
@@ -1462,7 +1462,7 @@ def test_summary_page_has_a_reading_guide(summary_dir, tmp_path):
     out = tmp_path / "g"
     assert run_cli("--summarize", root, "--output", out).returncode == 0
     page = (out / "summary.html").read_text()
-    assert "judge each row yourself" in page and "How to read the images" in page and "depth plot" in page.lower()
+    assert "your own look at the image" in page and "How to read the images" in page and "depth plot" in page.lower()
 
 
 # ── A gene track in the screenshots (--annotation GTF/GFF/BED) ────────────────
@@ -1592,10 +1592,12 @@ def test_summary_opens_on_the_simple_view(summary_dir, tmp_path):
     out = tmp_path / "sv"
     assert run_cli("--summarize", root, "--heatmap", hm, "--output", out).returncode == 0
     page = (out / "summary.html").read_text()
-    assert "What IGV shows" in page and "Agree?" in page
+    assert "What IGV shows" in page and "Start here" in page
+    assert "Agree?" not in page and "IGV agrees?" not in page and "Nothing on this page is a verdict" in page
+    assert "Look first" in page and "to look at first" in page
     assert page.index("What IGV shows") < page.index("<summary>details</summary>")   # details sit in the rows
     rows = list(csv.DictReader(open(out / "curated_vs_igv.tsv"), delimiter="\t"))
-    assert {"agree", "plain"} <= set(rows[0])
+    assert {"agree", "look", "plain"} <= set(rows[0])
 
 
 # ── Interactive pages (igv-reports): zoom, scroll, click reads ────────────────

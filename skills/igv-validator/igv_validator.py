@@ -2191,6 +2191,15 @@ UNFILTERED_NOTE = ("{n} variant{s} from the unfiltered SNV file {are} in the rea
 MANY_CALLS = 3   # above this many extra calls in a gene, the plain cell gives a count instead of one sentence each
 
 
+LOOK = {"No": "Look first", "Yes": "Consistent so far", "Not checked": "Not checked"}
+RAW_LOOK = {"no": "Look first", "unclear": "Unclear", "in reads, recurrent": "Likely inherited or artifact",
+            "yes": "Consistent so far"}
+LOOK_NOTE = ("Nothing on this page is a verdict. <b>Look first</b>: the reads and the call differ. <b>Consistent so "
+             "far</b>: the reads fit the call, which still needs your own look at the image or interactive view "
+             "before you report it; it also does not mean a tumor mutation (tumor-only data cannot separate inherited "
+             "variants). Each row's <i>details</i> has the reason and what to check.")
+
+
 def _sentence(text: str) -> str:
     return (text[0].upper() + text[1:] + ".") if text else ""
 
@@ -2308,6 +2317,7 @@ def curated_vs_igv(rows: list[dict], curated: Path) -> list[dict]:
                                                  for r, (_, v, _) in zip(mine, [_evidence(x) for x in mine])) else None),
                     "report": next((r.get("report", "") for r in mine), ""),
                     "agree": {"matches": "Yes", "differs": "No"}.get(match, "Not checked"),
+                    "look": LOOK[{"matches": "Yes", "differs": "No"}.get(match, "Not checked")],
                     "reports": sorted({(Path(r["report"]).parent.name.upper(), r["report"])
                                        for r in mine if r.get("report")}),
                     "plain": _plain_cell(mine, ev_all, wanted, match),
@@ -2512,8 +2522,8 @@ def write_index(root: Path) -> Path:
         samples = sorted({c["sample"] for c in calls})
         genes = sorted({c["gene"] for c in calls})
         when = datetime.fromtimestamp((d / "summary.html").stat().st_mtime).strftime("%Y-%m-%d %H:%M")
-        agree = (f"{sum(c['agree'] == 'Yes' for c in cur)} agree, {sum(c['agree'] == 'No' for c in cur)} do not"
-                 if cur else "")
+        agree = (f"{sum(c['agree'] == 'No' for c in cur)} to look at first, "
+                 f"{sum(c['agree'] == 'Yes' for c in cur)} consistent so far" if cur else "")
         zp = d / BUNDLE_NAME
         rows.append(
             f"<tr><td><a href='{e(d.name)}/summary.html'><b>{e(d.name)}</b></a></td><td>{e(when)}</td>"
@@ -2622,7 +2632,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
     cells = curated_vs_igv(rows, curated) if curated else []
     if curated:
         with open(out / "curated_vs_igv.tsv", "w", newline="") as fh:
-            w = csv.DictWriter(fh, fieldnames=["sample", "gene", "curated", "agree", "plain", "igv_found", "match",
+            w = csv.DictWriter(fh, fieldnames=["sample", "gene", "curated", "look", "agree", "plain", "igv_found", "match",
                                                "review", "why", "details", "report", "image"], delimiter="\t",
                                extrasaction="ignore")
             w.writeheader(); w.writerows(cells)
@@ -2635,7 +2645,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
     e = html.escape
     relp = lambda p: e(str(Path(os.path.relpath(p, out))))          # a path written under `out`
     rel = lambda p: e(str(Path(os.path.relpath(root / p, out))))     # a path relative to `root`
-    green, red, grey = "#c6e8d2", "#f3c7a8", "#ecebe7"
+    green, red, grey, soft = "#c6e8d2", "#f3c7a8", "#ecebe7", "#e4efe7"
 
     mode = {"bundle": False}   # True while rendering the copy that goes inside the zip
 
@@ -2666,7 +2676,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
         rows_html = "".join(
             f"<tr><td><a href='{e(pg.name)}'><b>{e(g)}</b></a></td>"
             + (f"<td>{e(PLAIN_LABEL.get(by_cell[(smp, g)]['curated'].upper(), by_cell[(smp, g)]['curated']))}</td>"
-               f"<td>{e(by_cell[(smp, g)]['agree'])}</td>" if (smp, g) in by_cell else ("<td></td><td></td>" if cells else ""))
+               f"<td>{e(LOOK.get(by_cell[(smp, g)]['agree'], ''))}</td>" if (smp, g) in by_cell else ("<td></td><td></td>" if cells else ""))
             + "</tr>" for g, pg in genes_here)
         idx = out / "interactive" / f"{re.sub(r'[^A-Za-z0-9._-]+', '_', smp)}.html"
         idx.write_text(
@@ -2675,7 +2685,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             f"table{{border-collapse:collapse}}th,td{{border:1px solid #ddd;padding:6px 10px;text-align:left}}</style>"
             f"</head><body><h1>{e(smp)}: interactive views</h1><p>Click a gene to open it: zoom with + / -, drag to "
             f"scroll, click a read for details. These pages contain read data: keep them with the BAMs; do not "
-            f"email or upload them.</p><table><tr><th>Gene</th>" + ("<th>Curated call</th><th>Agree?</th>" if cells else "")
+            f"email or upload them.</p><table><tr><th>Gene</th>" + ("<th>Curated call</th><th>Start here</th>" if cells else "")
             + f"</tr>{rows_html}</table><p><a href='{e(os.path.relpath(out / 'summary.html', idx.parent))}'>back to the "
             f"summary</a></p></body></html>")
         index_pages[smp] = idx
@@ -2688,42 +2698,36 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
         curated_html = "" if not curated else (
             (f"<p><i>Curated calls for samples not in this run (not compared): {e(', '.join(not_run))}. Sample "
              f"names must match exactly.</i></p>" if not_run else "") +
-            f"<h2>Curated calls vs IGV</h2><p><b>{sum(c['agree'] == 'Yes' for c in cells)} agree, "
-            f"{sum(c['agree'] == 'No' for c in cells)} do not</b> out of {len(cells)} curated calls "
-            f"(sample x gene) for the genes checked.</p>"
+            f"<h2>Curated calls vs IGV</h2><p><b>{sum(c['agree'] == 'No' for c in cells)} to look at first, "
+            f"{sum(c['agree'] == 'Yes' for c in cells)} consistent so far</b> out of {len(cells)} curated calls "
+            f"(sample x gene). Open each row's image before citing any of them.</p>"
             "<div class=w><table><tr><th>Sample</th><th>Gene</th><th>Curated call</th><th>What IGV shows</th>"
-            "<th>Agree?</th><th>Evidence</th></tr>" + "".join(
+            "<th>Start here</th><th>Evidence</th></tr>" + "".join(
                 f"<tr><td>{e(c['sample'])}</td><td><b>{e(c['gene'])}</b></td>"
                 f"<td>{e(PLAIN_LABEL.get(c['curated'].upper(), c['curated']))}</td><td>{e(c['plain'])}"
                 + details([("Verdict", c["match"]), ("Review", c["review"]), ("Reason", c["why"]),
                            ("IGV found", c["igv_found"]), ("More", c["details"] if c["details"] != c["why"] else "")])
-                + f"</td><td style='background:{green if c['agree'] == 'Yes' else red if c['agree'] == 'No' else grey}'>"
-                f"<b>{e(c['agree'])}</b></td><td>{thumb(c)}"
+                + f"</td><td style='background:{soft if c['agree'] == 'Yes' else red if c['agree'] == 'No' else grey}'>"
+                f"<b>{e(LOOK.get(c['agree'], c['agree']))}</b></td><td>{thumb(c)}"
                 f"{links(c['sample'], c['gene'], c['report'], 'gene-' + anchor(c['gene']))}</td></tr>"
                 for c in sorted(cells, key=lambda c: (c["agree"] != "No", c["gene"], c["sample"]))) + "</table></div>")
-        warning = ("<div style='border:2px solid #d9a400;background:#fff6d6;padding:10px 14px;margin:12px 0'>"
-                   "<b>Agree? is an automatic first pass and can be wrong</b>, especially for copy number (reference "
-                   "duplications, GC-rich DNA, chromosome ends, noisy samples). Open the image or the interactive view "
-                   "and judge each row yourself before reporting it; never cite the verdict alone. <i>Agree</i> means the "
-                   "reads are consistent with the call, not that it is a tumor mutation (tumor-only data cannot separate "
-                   "inherited variants). Each row's <i>details</i> has the technical reason and a review priority "
-                   "(check first, quick look, low priority).</div>")
-        acolor = {"yes": green, "no": red, "unclear": "#f6e3a1", "in reads, recurrent": "#dcd6ec"}
+        warning = f"<div style='border:2px solid #d9a400;background:#fff6d6;padding:10px 14px;margin:12px 0'>{LOOK_NOTE}</div>"
+        acolor = {"yes": soft, "no": red, "unclear": "#f6e3a1", "in reads, recurrent": "#dcd6ec"}
         counts = {k: sum(a["igv_agrees"] == k for a in agree) for k in acolor}
         raw_body = (
-            f"<p><b>{counts['yes']} yes, {counts['no']} no, {counts['unclear']} unclear, "
-            f"{counts['in reads, recurrent']} in reads but recurrent</b> out of {len(agree)} raw calls from the callers "
-            f"(SNVs/indels, SVs, copy-number gains/losses), before any filtering. <i>In reads, recurrent</i>: the same "
-            f"variant is in {RECURRENT_MIN}+ samples, so it is likely inherited or an artifact.</p>"
+            f"<p><b>{counts['no']} to look at first, {counts['unclear']} unclear, {counts['in reads, recurrent']} likely "
+            f"inherited or artifact, {counts['yes']} consistent so far</b> out of {len(agree)} raw calls from the callers "
+            f"(SNVs/indels, SVs, copy-number gains/losses), before any filtering. <i>Likely inherited or artifact</i>: "
+            f"the same variant is in {RECURRENT_MIN}+ samples.</p>"
             + (f"<p><i>Overview images: {e(ov_note)}</i></p>" if ov_note else "")
             + "<div class=w><table><tr><th>Sample</th><th>Gene</th><th>Tool</th><th>The caller called</th>"
-              "<th>What IGV shows</th><th>IGV agrees?</th><th>Evidence</th></tr>" + "".join(
+              "<th>What IGV shows</th><th>Start here</th><th>Evidence</th></tr>" + "".join(
                 f"<tr><td>{e(a['sample'])}</td><td><b>{e(a['gene'])}</b></td><td>{e(a['tool'])}</td>"
                 f"<td>{e(a['caller_called'])}</td><td>{e(a['plain'])}"
                 + details([("Reason", a["why"]), ("Review", a["review"]), ("Read counts", a["reads"]),
                            ("Location", a["location"]),
                            ("Caller's own counts", a["caller_counts"]), ("Flags", a["flags"])])
-                + f"</td><td style='background:{acolor[a['igv_agrees']]}'><b>{e(a['igv_agrees'])}</b></td>"
+                + f"</td><td style='background:{acolor[a['igv_agrees']]}'><b>{e(RAW_LOOK[a['igv_agrees']])}</b></td>"
                 f"<td>{links(a['sample'], a['gene'], a['report'], a.get('anchor', ''))}</td></tr>"
                 for a in sorted(agree, key=lambda a: ({"no": 0, "in reads, recurrent": 1, "unclear": 2, "yes": 3}
                                                       [a["igv_agrees"]], a["gene"], a["sample"]))) + "</table></div>"

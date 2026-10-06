@@ -168,7 +168,7 @@ depth plots and interactive views are the evidence: judge each result there befo
 5. **Two modes**: tumor + matched normal, or tumor-only (omit `--normal`); the normal-based checks are skipped in tumor-only mode
 6. **Copy-number mode** (`--cnv`): for each gene in `--regions`, the GATK segment call next to the read depth inside the gene versus its flanks, with a depth plot, a `cnv_disagrees` flag, and IGV screenshots for genes that fit a window
 7. **IGV screenshots**: an isolated IGV (own port, own settings folder) on the given reference; one tumor-over-normal (or tumor-only) image per variant, captioned with the BAM and caller counts; closed afterwards
-8. **Summary** (`--summarize <folder>`): one page over every run's `result.json` under a folder. With `--curated-calls calls.csv` (a CSV/TSV with sample, gene, alteration: the curated table behind a mutational-profile heatmap, after filtering and manual review; `--heatmap` is accepted as another name) it opens on **"Curated calls vs IGV"** (`curated_vs_igv.tsv`): per sample and gene, what the curated call says, what IGV shows in one plain sentence, *Agree?*, a thumbnail and links to the report, overview and interactive view, with a *details* expander for the technical verdict, reason and review priority. The comparison follows common curated-table rules (SNV/SV before copy number; DEL/AMP only if under 1 Mb or beyond log2 2), judges copy number from the read depth (per GATK segment, reporting depth steps inside a gene), and explains a WT call over a recurrent germline/artifact variant as a match. Below it, folded, **"Raw calls vs IGV"** (`igv_agreement.tsv`): each raw caller call before filtering, in one plain sentence, with the read counts and flags under *details*. A row's *report* link opens that check's report showing only that gene (a "show all genes" link returns to the full report). Without `--curated-calls`, the raw calls are the main table. `--overview --regions genes.bed` adds one IGV image per gene and sample; `--interactive` adds zoomable pages; `summary.tsv` keeps every call and field
+8. **Summary** (`--summarize <folder>`): one page over every run's `result.json` under a folder. With `--curated-calls calls.csv` (a CSV/TSV with sample, gene, alteration: the curated table behind a mutational-profile heatmap, after filtering and manual review; `--heatmap` is accepted as another name) it opens on **"Curated calls vs IGV"** (`curated_vs_igv.tsv`): per sample and gene, what the curated call says, what IGV shows in one plain sentence, *Start here* (*Look first* where the reads and the call differ, *Consistent so far* where they fit; never a verdict), a thumbnail and links to the report, overview and interactive view, with a *details* expander for the technical verdict, reason and review priority. The comparison follows common curated-table rules (SNV/SV before copy number; DEL/AMP only if under 1 Mb or beyond log2 2), judges copy number from the read depth (per GATK segment, reporting depth steps inside a gene), and explains a WT call over a recurrent germline/artifact variant as a match. Below it, folded, **"Raw calls vs IGV"** (`igv_agreement.tsv`): each raw caller call before filtering, in one plain sentence, with the read counts and flags under *details*. A row's *report* link opens that check's report showing only that gene (a "show all genes" link returns to the full report). Without `--curated-calls`, the raw calls are the main table. `--overview --regions genes.bed` adds one IGV image per gene and sample; `--interactive` adds zoomable pages; `summary.tsv` keeps every call and field
 9. **Report**: `report.md`, self-contained `report.html`, `result.json`, counts TSV and a reproducibility bundle
 
 ## Scope
@@ -253,7 +253,7 @@ python skills/igv-validator/igv_validator.py --summarize reports/
 **6. Compare with your curated calls.** Your final table after filtering and review (for example the one behind a
 mutational-profile heatmap): CSV/TSV with `sample, gene, alteration` (WT, SNV, SV, SNV+SV, DEL, AMP, LOH). The page
 then opens on "Curated calls vs IGV": one row per sample and gene with a plain sentence of what IGV shows,
-*Agree?*, a thumbnail and links; raw calls are folded below.
+*Start here* (*Look first* / *Consistent so far*), a thumbnail and links; raw calls are folded below.
 - Prompt: *"Compare my curated calls in `curated.csv` with IGV for all samples in `reports/`."*
 ```bash
 python skills/igv-validator/igv_validator.py --summarize reports/ --curated-calls curated.csv
@@ -556,8 +556,10 @@ the "How to read the images" key on the page. Report a difference only after you
 
 ## Reading the summary: what to trust
 
-*Agree?* is an automatic first pass and can be wrong, especially for copy number. The IGV screenshots, depth plots
-and interactive views are the evidence; the verdict only points you to them. Each row's *details* holds the
+The page gives no verdicts. *Start here* only orders your review: *Look first* where the reads and the call
+differ, *Consistent so far* where they fit, which still needs your own look before you report it. It is rule-based
+and can be wrong, especially for copy number. The IGV screenshots, depth plots and interactive views are the
+evidence; the labels only point you to them. Each row's *details* holds the
 technical reason and a review priority: *check first* (a difference or a known risk: ambiguous mapping, several
 segments over a gene, a depth step, a value near a threshold, no usable flanks, weak support), *quick look* (copy
 number left out, not visible or unclear) and *low priority* (a clean SV, a deep deletion with the reads gone, a
