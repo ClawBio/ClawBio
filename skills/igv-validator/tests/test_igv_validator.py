@@ -959,7 +959,7 @@ def test_overview_plan_one_entry_per_sample_gene(summary_dir, tmp_path):
     assert h["chrom"] == "demo3" and h["start"] < 21000 and h["end"] > 24000
     assert h["bam"].endswith("demo_tumor.bam")
     assert any("del" in b for b in h["bed_lines"])                 # the GATK segment is marked
-    assert any("HOMDEL" in c and "agrees" in c for c in h["caption"]) or any("IGV agrees" in c for c in h["caption"])
+    assert any(c.startswith("CNV") and "reads: consistent so far" in c for c in h["caption"])
     d5 = by[("demo_tumor", "DEMO5")]
     assert any("12000" in b or "11999" in b for b in d5["bed_lines"])  # the SV breakpoint is marked
 
@@ -1004,7 +1004,7 @@ def test_no_segment_with_ambiguous_reads_is_not_called_a_deep_loss(odd_cnv_rows,
 
 def test_neutral_call_contradicted_by_depth_is_a_disagreement(odd_cnv_rows, tmp_path):
     cap = _caption(odd_cnv_rows, "NEUTRAL", tmp_path)
-    assert "the reads agree" not in cap and "IGV agrees: no" in cap
+    assert "the reads agree" not in cap and "reads: look first" in cap
     ag = iv._agreement(odd_cnv_rows["NEUTRAL"])
     assert ag and ag["igv_agrees"] == "no" and "does not match" in ag["why"]
 
@@ -1149,6 +1149,19 @@ def test_samplesheet_warns_when_snvs_are_unfiltered(tmp_path):
     assert "no snv_list for demo_tumor" in r.stderr
 
 
+def test_low_level_copies_count_toward_recurrence():
+    def snv(s, alt, depth, status):
+        return {"sample": s, "gene": "G", "type": "SNV/indel", "location": "chr1:100", "call": "chr1:100 T>G",
+                "status": status, "flags": "", "concordance": "", "_alt": alt, "_vaf": 100 * alt / depth}
+    rows = [snv("A", 24, 78, "supported"), snv("B", 8, 178, "insufficient"), snv("C", 5, 81, "insufficient"),
+            snv("D", 1, 80, "insufficient")]
+    iv.mark_recurrent(rows)
+    assert all("recurrent" in r["flags"] for r in rows) and rows[0]["_recurrent"] == "4 of 4 samples"
+    lone = [snv("A", 24, 78, "supported"), snv("B", 1, 178, "insufficient"), snv("C", 1, 81, "insufficient")]
+    iv.mark_recurrent(lone)
+    assert not any("recurrent" in r["flags"] for r in lone)          # single stray reads do not make it recurrent
+
+
 def test_heatmap_wt_with_a_recurrent_variant_is_explained(tmp_path):
     """GENEC: WT in the heatmap, a G in the reads. Not a contradiction: the variant is in every sample."""
     root = tmp_path / "rep"
@@ -1231,7 +1244,7 @@ def test_depth_only_deep_loss_counts_as_a_deletion(tmp_path):
 
 
 def test_wt_over_ambiguous_reads_explains_itself(tmp_path):
-    """S2 GENED: no segment, all reads MAPQ 0. WT is right, but not because 'the reads show no change'."""
+    """S2 GENED: no segment, all reads MAPQ 0. Consistent with WT, but not because 'the reads show no change'."""
     rows = [_cn_row("S", "GENED", "no segment; reads ambiguous", None, 0, "deep loss", status="no_segment",
                     flags="ambiguous_mapping")]
     c = _compare(tmp_path, rows, [("S", "GENED", "WT")])["GENED"]
@@ -1251,7 +1264,7 @@ def test_matching_cell_gets_a_one_line_why_and_full_details(tmp_path):
     rows.append(_cn_row("A", "GENEC", "no segment; depth loss", None, 0, "loss", status="no_segment", chrom="chrX"))
     iv.mark_recurrent(rows)
     c = _compare(tmp_path, rows, [("A", "GENEC", "WT")])["GENEC"]
-    assert c["match"] == "matches" and c["why"].startswith("WT is right")
+    assert c["match"] == "matches" and c["why"].startswith("Consistent with WT")
     assert len(c["why"]) < 160 and "5 of 5 samples" in c["why"]
     assert "chrX:1000100 T>G" in c["details"] and "mild loss" in c["details"]
 
@@ -1423,7 +1436,7 @@ def test_a_difference_always_asks_for_the_image(tmp_path):
     r = _cn_row("S", "G", "del", -7.0, 200_000, "neutral", status="flagged", flags="ambiguous_mapping")
     c = _compare(tmp_path, [r], [("S", "G", "DEL")])["G"]
     assert c["match"] == "differs" and c["review"].startswith("check first")
-    assert "differs" in c["review"] and "MAPQ 0" in c["review"]
+    assert "differ" in c["review"] and "MAPQ 0" in c["review"]
 
 
 def test_risky_copy_number_situations_ask_for_the_image():

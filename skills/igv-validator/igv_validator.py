@@ -1887,7 +1887,7 @@ def _summary_rows(root: Path, empty_runs: list | None = None) -> list[dict]:
                 rows.append({"sample": sample, "gene": gene, "type": "SV" if sv else "SNV/indel", "tool": tool,
                              "igv_shows": shows, "_bam": inputs.get("tumor"), "_ref": inputs.get("reference"), "_igv": inputs.get("igv"),
                              "_chrom": v["chrom"], "_pos": v["pos"], "_chrom2": v.get("chrom2"), "_pos2": v.get("pos2"),
-                             "_kind": v["kind"], "_vaf": t.get("vaf_pct"),
+                             "_kind": v["kind"], "_vaf": t.get("vaf_pct"), "_alt": t.get("alt"),
                              "_strand": "" if sv or not t["alt"] else f"{t['alt_fwd']} forward / {t['alt_rev']} reverse",
                              "_unfiltered": not sv and inputs.get("variants_list") is False,
                              "state": v["kind"].upper() if sv else "", "call": v["label"],
@@ -1936,6 +1936,7 @@ def dedupe_svs(rows: list[dict]) -> list[dict]:
 
 LOW_GERMLINE_VAF = 35.0  # %: an inherited variant sits near 50% (one copy) or 100%, not below this in every sample
 RECURRENT_MIN = 3  # samples sharing one SNV/indel before it is treated as germline or artifact
+RECURRENT_MIN_READS = 2  # supporting reads (MAPQ >= 20) for a sample to count as carrying a shared variant
 
 
 def mark_recurrent(rows: list[dict], min_samples: int = RECURRENT_MIN) -> None:
@@ -1946,11 +1947,13 @@ def mark_recurrent(rows: list[dict], min_samples: int = RECURRENT_MIN) -> None:
     for r in rows:
         if r["type"] == "SNV/indel":
             seen.setdefault((r["location"], r["call"]), set()).add(r["sample"])
-            if r["status"] == "supported":
+            # a sample counts once a few reads carry the variant: an inherited variant or artifact can sit at a low
+            # fraction in some samples (subclonal loss, mouse reads in a PDX, mapping), so "clearly" is too strict
+            if r["status"] == "supported" or (r.get("_alt") or 0) >= RECURRENT_MIN_READS:
                 strong.setdefault((r["location"], r["call"]), set()).add(r["sample"])
     for r in rows:
         k = (r.get("location"), r["call"])
-        # recurrent once enough samples carry it clearly; weak copies of the same variant are then recurrent too
+        # recurrent once enough samples carry it (each with a few reads at least); every copy is then recurrent
         if r["type"] == "SNV/indel" and len(strong.get(k, ())) >= min_samples and \
                 r["status"] in ("supported", "insufficient"):
             r["flags"] = ";".join([f for f in r["flags"].split(";") if f] + ["recurrent"])
@@ -2040,7 +2043,7 @@ def _no_call_note(r: dict) -> str:
         return "reads are present but ambiguous (MAPQ 0, alternate contigs); depth cannot judge copy number here"
     if r["state"].startswith("no segment"):
         return "no copy-number call; " + r["state"].split("; ", 1)[1]
-    return "no copy-number change; the reads agree"
+    return "no copy-number call; the read depth shows no change either"
 
 
 CURATED_FOCAL_BP = 1_000_000   # curated calls show a DEL/AMP segment if it is smaller than this ...
@@ -2255,24 +2258,24 @@ def curated_vs_igv(rows: list[dict], curated: Path) -> list[dict]:
         hidden_cn = [k for k in extra if k in ("DEL", "AMP") and wanted & {"SNV", "SV"}]
         extra = [k for k in extra if k not in hidden_cn]
         words = lambda k, vs: "; ".join(t for kk, v, t in ev if kk == k and v in vs)
-        why = [f"IGV supports the {NAMES.get(k, k)}" for k in sorted(wanted & have)]
+        why = [f"the reads show the {NAMES.get(k, k)}" for k in sorted(wanted & have)]
         for k in missing:
             bad = words(k, ("not supported", "weak"))
             why.append(f"curated {k}, but " + (bad or "no such call was among the calls checked with IGV"))
         for k in extra:
-            why.append(f"IGV supports a {NAMES.get(k, k)} the curated calls do not show: {words(k, ('real', 'depth only'))}")
+            why.append(f"the reads show a {NAMES.get(k, k)} the curated calls do not show: {words(k, ('real', 'depth only'))}")
         for k in hidden_cn:
             why.append(f"also a {NAMES[k]} ({words(k, ('real', 'depth only'))}); not shown because a curated call "
                        f"gives SNV/SV priority over copy number")
         rec = [t for k, v, t in ev if v == "recurrent"]
         if rec:
             why.append("; ".join(rec) + ": independent tumors do not share mutations, so it is likely germline or "
-                       "artifact" + (", and not showing it is right" if "SNV" not in wanted else ""))
+                       "artifact" + (", consistent with leaving it out" if "SNV" not in wanted else ""))
         why += [t for k, v, t in ev if v == "hidden"]
         if unf:
             why.append(f"{len(unf)} variant(s) from the unfiltered SNV file are in the reads but not in the curated "
                        f"calls (a curated table filters these out; they do not count against it): " + "; ".join(unf))
-        why += [f"{t}, so leaving it out is right" for k, v, t in ev if v == "not supported" and k not in wanted]
+        why += [f"{t}, consistent with leaving it out" for k, v, t in ev if v == "not supported" and k not in wanted]
         why += [f"weak: {t}" for k, v, t in ev if v == "weak" and k not in missing]
         if "LOH" in wanted:
             why.append("LOH is not checked (it needs allele counts, not depth)")
@@ -2282,11 +2285,11 @@ def curated_vs_igv(rows: list[dict], curated: Path) -> list[dict]:
         details = ". ".join(why) or nothing
         # the answer in one line; everything IGV saw in the gene stays in `details`
         if match == "differs":
-            short = ". ".join(w for w in why if w.startswith(("curated ", "IGV supports a ")))
+            short = ". ".join(w for w in why if w.startswith(("curated ", "the reads show a ")))
         elif match == "not checked":
             short = "LOH is not checked (it needs allele counts, not depth)"
         elif wanted:
-            short = "; ".join([f"IGV supports the {NAMES.get(k, k)}" for k in sorted(wanted & have)] +
+            short = "; ".join([f"the reads show the {NAMES.get(k, k)}" for k in sorted(wanted & have)] +
                               [f"the {NAMES[k]} under it is not shown because SNV/SV takes priority in a cell"
                                for k in hidden_cn])
         else:
@@ -2306,8 +2309,8 @@ def curated_vs_igv(rows: list[dict], curated: Path) -> list[dict]:
                 reasons.append("only weak read support for the calls here")
             if unf:
                 reasons.append(f"{len(unf)} unfiltered variant(s) in the reads, filtered out of the curated calls")
-            short = ("WT is right: " + "; ".join(reasons)) if reasons else nothing
-        review = (["the verdict differs from the curated call"] if match == "differs" else []) + \
+            short = ("Consistent with WT: " + "; ".join(reasons)) if reasons else nothing
+        review = (["the reads and the curated call differ"] if match == "differs" else []) + \
             [x for r in mine for x in review_reasons(r)] + (["LOH is not checked"] if "LOH" in wanted else [])
         out.append({"sample": smp, "gene": gene, "curated": label, "igv_found": found, "match": match,
                     "why": short or details, "details": details,
@@ -2348,7 +2351,7 @@ def overview_plan(rows: list[dict], regions: Path) -> list[dict]:
         beds, caption = [], [f"{smp}  ·  {gene}  {chrom}:{a:,}-{b:,}  (all calls in this gene)"]
         for r in mine:
             ag = _agreement(r)
-            verdict = f"IGV agrees: {ag['igv_agrees']}" if ag else _no_call_note(r)
+            verdict = f"reads: {RAW_LOOK[ag['igv_agrees']].lower()}" if ag else _no_call_note(r)
             if r["type"] == "CNV":
                 for sg in r.get("_segs") or []:
                     beds.append(f"{sg['contig']}\t{sg['start'] - 1}\t{sg['end']}\tGATK {sg['cn_call']} log2 {sg['log2']:.2f}")
@@ -2705,7 +2708,7 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
             "<th>Start here</th><th>Evidence</th></tr>" + "".join(
                 f"<tr><td>{e(c['sample'])}</td><td><b>{e(c['gene'])}</b></td>"
                 f"<td>{e(PLAIN_LABEL.get(c['curated'].upper(), c['curated']))}</td><td>{e(c['plain'])}"
-                + details([("Verdict", c["match"]), ("Review", c["review"]), ("Reason", c["why"]),
+                + details([("Comparison", {"matches": "consistent", "differs": "differs"}.get(c["match"], c["match"])), ("Review", c["review"]), ("Reason", c["why"]),
                            ("IGV found", c["igv_found"]), ("More", c["details"] if c["details"] != c["why"] else "")])
                 + f"</td><td style='background:{soft if c['agree'] == 'Yes' else red if c['agree'] == 'No' else grey}'>"
                 f"<b>{e(LOOK.get(c['agree'], c['agree']))}</b></td><td>{thumb(c)}"
