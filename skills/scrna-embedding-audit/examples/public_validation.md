@@ -11,8 +11,11 @@ statement about which integration method is best.
   COVID-19", Nature Medicine 2020, doi:10.1038/s41591-020-0944-y. Raw data GEO GSE150728.
 - CELLxGENE Discover collection `a72afd53-ab92-4511-88da-252fb0e26b9a`, dataset
   `456e8b9b-f872-488b-871d-94534090a865`, dataset version `8d7fad46-2f37-4aa0-ac9d-babbc36efb6f`
-  (schema 7.1.0). Distributed by CELLxGENE Discover under its open data policy (CC-BY 4.0 / CC0;
-  the per-dataset `license` field in the API is null, so the licence is taken from the policy).
+  (schema 7.1.0). Licence: CC-BY 4.0 by CELLxGENE Discover's publication policy ("Contribute and
+  Publish Data", https://cellxgene.cziscience.com/docs/032__Contribute%20and%20Publish%20Data, read
+  2026-10-06: "anyone will be able to access it subject to a CC-BY 4.0 license, meaning they can
+  download, share, and use the data without restriction beyond providing attribution to the original
+  data contributor(s)"); the collection API carries no per-dataset licence field.
 - 44,721 Seq-Well PBMCs, 24,505 genes (Ensembl IDs), 13 donors (`donor_id`: 7 COVID-19, 6
   healthy), 19 author cell types (`cell_type`). Raw UMI counts in `raw.X`; `X` is log-normalised.
 - Labels come from the authors' annotation of their own clustering, so the circularity caveat
