@@ -84,6 +84,7 @@ the catalog and SKILL.md `--help` do not make obvious:
 |---|---|
 | `just-prs`, `fine-mapping` (SuSiE) | Optional extras: `uv sync --extra just-prs` / `--extra fine-mapping`, then `uv run --extra <name> ...` |
 | nf-core wrappers (`sarek-pipeline`, `rnaseq-pipeline`, `scrnaseq-pipeline`) | `--check` validates the run plan without executing; `--demo` pulls nf-core's public test data (needs network; `NXF_OFFLINE` is detected and reported) |
+| `mag-pipeline` | Needs `snakemake` ≥ 9 and `conda`/`mamba` on PATH; `--check` validates and dry-runs without executing; `--demo` generates synthetic reads and needs network to build the tool conda environments. `--preset full` additionally needs CheckM2/GTDB-Tk/taxdump/KEGG/COG/Pfam databases passed as flags |
 | `flow-bio`, `protocols-io`, `labstep`, `galaxy-bridge` | Credentials via env vars or `--login`; see the skill's SKILL.md |
 
 ## Shared Demo Data
