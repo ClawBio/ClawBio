@@ -420,6 +420,7 @@ CHAINING: dict[str, list[str]] = {
     "nfcore-scrnaseq-wrapper": ["scrna-orchestrator", "scrna-embedding", "bio-orchestrator"],
     "nfcore-rnaseq-wrapper": ["rnaseq-de", "diff-visualizer", "bio-orchestrator"],
     "nfcore-sarek-wrapper": ["variant-annotation", "clinical-variant-reporter", "bio-orchestrator"],
+    "metagenome-mag-pipeline": ["claw-metagenomics", "multiqc-reporter", "phylogenetics-builder", "bio-orchestrator"],
     "scrna-orchestrator": [],
     "scrna-embedding": ["scrna-orchestrator"],
     "rnaseq-de": ["diff-visualizer"],
