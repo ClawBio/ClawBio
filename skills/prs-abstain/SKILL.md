@@ -383,6 +383,12 @@ number is a policy choice rather than a published value, it says so.
 | Sex-specific traits | breast, ovarian, cervical, endometrial, uterine (female); prostate, testicular (male) | Trait applicability; these scores are derived in single-sex cohorts | Reporting them for the wrong sex produces a confident, meaningless percentile |
 | Duplicate genomic positions | Block the score | Two scored variants at one coordinate is a lift-over error or a locus counted twice; both corrupt the sum | This is a defect in the input file, not a property of the person, so it blocks rather than warns |
 
+**Known limitation: "cervical" in a neck-cancer trait.** A trait that contains "cervical" and
+any tumour term anywhere in its name is read as a cancer of the cervix. Neck traits that also
+name a tumour, such as "thyroid cancer cervical lymph node metastasis" or "cervical spine
+tumour", are therefore withheld from men. The error runs toward refusal, never toward a
+percentile for the wrong sex.
+
 **The mechanism these decisions serve.** For every curated score tested, the reference mean
 equals `Sum(2 * AF_ref(i) * w(i))` to within rounding (verified: CLAWBIO-T2D-8 1.1186 vs 1.12;
 CLAWBIO-CAD-46 2.8428 vs 2.84; CLAWBIO-PC-147 7.1080 vs 7.11). The percentile is centred on a European

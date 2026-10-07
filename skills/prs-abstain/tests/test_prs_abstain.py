@@ -2052,3 +2052,60 @@ class TestRound20ManuelReview:
         assert by_id["EUR_001"]["verdict"] == "REPORT"
         scores = [s for d in res["decisions"] for s in d["scores"]]
         assert scores and all(s["percentile"] is None for s in scores)
+
+
+class TestRound21ManuelReview:
+    """PR #348 approval of 7 Oct 2026 (head 12b0d7d): one test per follow-up."""
+
+    @pytest.mark.parametrize("trait", [
+        "thyroid cancer cervical lymph node metastasis", "cervical spine tumour"])
+    def test_neck_tumour_traits_err_toward_refusal_and_are_documented(self, trait):
+        import prs_abstain as pa
+        assert pa._sex_keyword_hits(trait, pa.SEX_SPECIFIC["female"])
+        text = (SKILL_DIR / "SKILL.md").read_text()
+        assert '**Known limitation: "cervical" in a neck-cancer trait.**' in text
+        assert '"thyroid cancer cervical lymph node metastasis"' in text
+
+    def test_cervix_term_guard_holds_on_its_own(self, monkeypatch):
+        """With the neck pattern loosened to swallow any trailing text, only
+        the cervix-term check keeps a cancer of the cervix female-only."""
+        import prs_abstain as pa
+        monkeypatch.setattr(pa, "_NON_GYN_CERVICAL", re.compile(r"\bcervical\b.*"))
+        assert pa._sex_keyword_hits("cervical cancer lymph node metastasis",
+                                    pa.SEX_SPECIFIC["female"])
+
+    def test_tight_neck_pattern_holds_on_its_own(self, monkeypatch):
+        """With the cervix-term check disabled, only the no-free-word neck
+        pattern keeps "cervical carcinoma spinal metastasis" female-only,
+        while the neck senses still pass."""
+        import prs_abstain as pa
+        monkeypatch.setattr(pa, "_GYN_CERVICAL", re.compile(r"(?!x)x"))
+        female = pa.SEX_SPECIFIC["female"]
+        assert pa._sex_keyword_hits("cervical carcinoma spinal metastasis", female)
+        assert pa._sex_keyword_hits("cervical cancer lymph node metastasis", female)
+        for neck in ("cervical artery dissection", "cervical spine disease", "cervical dystonia"):
+            assert not pa._sex_keyword_hits(neck, female)
+
+    def test_legacy_record_recognised_by_method_alone(self, tmp_path):
+        """No curated keys and no CLAWBIO- id anywhere: method alone must
+        identify the curated panel."""
+        import prs_abstain as pa
+        recs = pa.load_prs_results(EXAMPLES / "demo_prs_results.json")
+        for rec in recs:
+            for k in ("curated_demo_panel", "curated_panel_id", "legacy_pgs_id"):
+                rec.pop(k, None)
+            rec["pgs_id"] = "PGS999999"
+            rec["method"] = "curated_reference"
+        assert not any("CLAWBIO-" in json.dumps(r) for r in recs)
+        legacy = tmp_path / "legacy.json"
+        legacy.write_text(json.dumps(recs))
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
+                     "--prs-results", str(legacy), "--output", str(tmp_path / "out"),
+                     "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        res = json.loads((tmp_path / "out" / "result.json").read_text())
+        scores = [s for d in res["decisions"] for s in d["scores"]]
+        assert scores and all(s["percentile"] is None for s in scores)
+        assert all(any("curated demonstration panel" in x for x in s["withheld_reasons"])
+                   for s in scores)
