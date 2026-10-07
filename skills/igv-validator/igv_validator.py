@@ -1471,7 +1471,9 @@ def cnv_gene(bam_path, fasta, gene: str, chrom: str, gstart: int, gend: int, seg
              baseline: float | None = None) -> dict:
     """Depth in the gene vs flanks outside its gain/loss segment, the overlapping segment(s), flags, status."""
     glen = gend - gstart + 1
-    binsize = max(CNV_BIN_MIN, glen // 50)
+    # a gene shorter than one bin is one bin of its own length: a longer bin would count the reads over the gene
+    # but divide them by the bin length, so a 500 bp gene would show about half its real depth
+    binsize = glen if glen < CNV_BIN_MIN else max(CNV_BIN_MIN, glen // 50)
     segs = sorted((sg for sg in segments if sg["contig"] == chrom and sg["end"] >= gstart and sg["start"] <= gend),
                   key=lambda sg: -(min(sg["end"], gend) - max(sg["start"], gstart)))
     with _open_bam(bam_path, fasta) as bam:

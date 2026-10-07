@@ -578,6 +578,14 @@ def test_cnv_wrong_call_is_flagged(cnv_result):
     assert "cnv_disagrees" in g["WRONGDEL"]["flags"] and g["WRONGDEL"]["status"] == "flagged"
 
 
+def test_short_gene_depth_is_not_diluted():
+    """A gene shorter than one depth bin (about 500 bp) must read the same depth as the DNA around it."""
+    bam, ref = DEMO / "demo_tumor.bam", DEMO / "demo_ref.fa"
+    long_ = iv.cnv_gene(bam, ref, "LONG", "demo3", 11000, 14000, [])
+    short = iv.cnv_gene(bam, ref, "SHORT", "demo3", 12000, 12540, [])
+    assert abs(short["gene_depth"] - long_["gene_depth"]) / long_["gene_depth"] < 0.25
+
+
 def test_cnv_gene_between_segments(cnv_result):
     """Like GENEB in S5: no segment covers the gene, but its depth is still measured."""
     _, g = cnv_result
