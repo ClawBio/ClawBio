@@ -2176,3 +2176,18 @@ class TestRound22MaintainerReview:
         assert expected in out
         if forbidden:
             assert forbidden not in out
+
+
+class TestRound23ManuelReview:
+    """PR #348 review by manuelcorpas of 8 Oct 2026: keep the curated-panel provenance caveat."""
+
+    GWAS_PRS_DATA = SKILL_DIR.parent / "gwas-prs" / "data"
+    CAVEAT = ("#weights=effect sizes. Vassy 2014 is a 62-locus score and Abraham 2016 is\n"
+              "#weights=49,310 SNPs, against 8 and 46 loci here.\n")
+
+    @pytest.mark.parametrize("panel", ["AF-12", "BC-77", "BMI-97", "CAD-46", "PC-147", "T2D-8"])
+    def test_curated_panel_headers_keep_published_score_caveat(self, panel):
+        name = f"CLAWBIO-{panel}_GRCh37.txt"
+        source = (self.GWAS_PRS_DATA / name).read_text()
+        assert self.CAVEAT in source, name
+        assert (EXAMPLES / "scores" / name).read_bytes() == (self.GWAS_PRS_DATA / name).read_bytes()
