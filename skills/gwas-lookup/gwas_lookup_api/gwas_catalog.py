@@ -1,5 +1,5 @@
 """
-gwas_catalog.py — NHGRI-EBI GWAS Catalog REST API v2.
+gwas_catalog.py: NHGRI-EBI GWAS Catalog REST API v2.
 
 Endpoint:
   GET /v2/associations?rs_id={rsid}&page={n}&size={k}&sort=p_value&direction=asc
