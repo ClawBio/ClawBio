@@ -499,7 +499,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
     # ----- Manifest + report
     manifest = {
         "skill": "locuscompare",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "lead_variant_id": lead_variant_id,
         "lead_rs_id": lead_rs_id,
         "n_pairs": result.n_pairs,

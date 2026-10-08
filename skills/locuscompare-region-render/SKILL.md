@@ -11,7 +11,7 @@ description: |
 license: MIT
 metadata:
   skill-author: Aviv Madar
-  version: 0.1.0
+  version: 0.2.0
   domain: bioinformatics
   tags:
     - regional-plot
@@ -239,7 +239,7 @@ A real run on the SORT1 × cholesterol-VLDL canonical demo (`examples/02_eqtl_ca
 
 ```yaml
 skill: locuscompare-region-render
-version: 0.1.0
+version: 0.2.0
 lead_variant_id: 1_109274968_G_T
 lead_rs_id: rs12740374
 n_pairs: 2547
@@ -299,7 +299,7 @@ Output directory layout:
 
 9. **`p = 0` on rare extremely-significant variants.** Some sources emit `p = 0` when the actual value is below floating-point precision. The renderer substitutes the underflow floor (`5e-324`) before plotting on `-log10`. The reported `-log10(p)` for such variants is ~323, not their true magnitude.
 
-10. **An outcome that publishes odds ratios is plotted as log odds.** A case-control GWAS Catalog study may publish an odds ratio and its 95% CI with no beta. The composer converts each such outcome row to β = ln(OR), with the SE from the CI (or from the p-value when there is no CI), before the allele flip, so a swapped-allele row negates the derived β like a reported one. The conversion lives in `_region_harmonise.py`, a standard-library-only module that is kept byte-identical wherever it is copied, so it gives the same numbers in every copy. The effect-size axis then reads "log odds ratio, derived from the reported odds ratio"; a window in which some rows report a β and others only an odds ratio is labelled "mixed scales", because the reported β's scale is unknown; a FinnGen case-control endpoint (an outcome whose upstream study id starts `FINNGEN_` and does not end `_IRN`) is labelled "log odds ratio, as reported by FinnGen". Any other reported β is left as a plain β. The manifest block records `outcome_beta_source` (`native`, `or_derived`, `mixed`, or null when the window has no outcome effect size), its label, and `outcome_effect_scale_label`.
+10. **An outcome that publishes odds ratios is plotted as log odds.** A case-control GWAS Catalog study may publish an odds ratio and its 95% CI with no beta. The composer converts each such outcome row to β = ln(OR), with the SE from the CI (or from the p-value when there is no CI), before the allele flip, so a swapped-allele row negates the derived β like a reported one. The CI bounds come from `gwas-catalog-region-fetch` 0.2.0 or later, which carries them on each variant. The conversion lives in `_region_harmonise.py`, a standard-library-only module that is kept byte-identical wherever it is copied, so it gives the same numbers in every copy. The effect-size axis then reads "log odds ratio, derived from the reported odds ratio"; a window in which some rows report a β and others only an odds ratio is labelled "mixed scales", because the reported β's scale is unknown; a FinnGen case-control endpoint (an outcome whose upstream study id starts `FINNGEN_` and does not end `_IRN`) is labelled "log odds ratio, as reported by FinnGen". Any other reported β is left as a plain β. The manifest block records `outcome_beta_source` (`native`, `or_derived`, `mixed`, or null when the window has no outcome effect size), its label, and `outcome_effect_scale_label`.
 
 11. **An empty effect-size panel says why.** When no joined, non-palindromic variant has a β on both sides, the panel reads "No effect sizes to plot: <reason>" instead of drawing bare axes, and the reason names the side: the exposure publishes no per-variant effect sizes, the outcome publishes p-values only, the outcome's odds ratios admit no standard error (no CI, and no usable p-value or an odds ratio of exactly 1), or every joined variant is palindromic. The same sentence is written to `effect_size_panel_unavailable_reason` in the manifest block and to the notes.
 
