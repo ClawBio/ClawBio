@@ -408,6 +408,54 @@ def test_eqtl_render_omits_credible_set_caveat_for_full_nominal_pass(
     )
 
 
+def test_a_cc_backed_panel_discloses_the_filter_even_with_no_quant_method(tmp_path):
+    """The disclosure is about the FILE CLASS, so losing the quant_method label
+    must not lose it. `quant_method` is an optional presentation label and is None
+    when the dataset metadata is unavailable; gated on it, a genuinely `.cc`-backed
+    panel rendered with no disclosure that its summary statistics are credible-set
+    filtered, and a reader not told the panel is filtered reads an absence as
+    biology."""
+    cassette = _load_eqtl_cassette()
+    cassette.release.quant_method = None
+    cassette.file_class = "cc"
+    result = render_locuscompare_for_lead(
+        spec=_eqtl_spec(),
+        eqtl_client=_CassetteEQTLClient(cassette),  # type: ignore[arg-type]
+        gwas_client=_CassetteGWASClient(_load_gwas_cassette()),  # type: ignore[arg-type]
+        ld_client=None,
+        out_path=tmp_path / "sort1_cc_no_qm.png",
+        ukb_ppp_client=None,
+    )
+    caveats = result.manifest_block["ancestry_caveats"]
+    assert any("credible-set-filtered" in c for c in caveats), (
+        f"a .cc-backed panel rendered with no filter disclosure; caveats: {caveats}")
+    # and it reads the same with or without the label, so it never prints a
+    # dangling empty clause
+    assert not any("quant_method=)" in c or "quant_method=;" in c for c in caveats)
+
+
+def test_an_all_backed_panel_is_not_labelled_credible_set_filtered(tmp_path):
+    """The other direction, and it is an affirmatively WRONG statement rather than
+    a missing one. QTD000584 is an aptamer dataset that ships `.all` regardless of
+    its quant_method (documented in eqtl-catalogue-region-fetch), so the
+    quant-method rule told the reader a full-nominal-pass panel was credible-set
+    filtered. The class the fetch actually served is the authority."""
+    cassette = _load_eqtl_cassette()
+    cassette.release.quant_method = "aptamer"
+    cassette.file_class = "all"
+    result = render_locuscompare_for_lead(
+        spec=_eqtl_spec(),
+        eqtl_client=_CassetteEQTLClient(cassette),  # type: ignore[arg-type]
+        gwas_client=_CassetteGWASClient(_load_gwas_cassette()),  # type: ignore[arg-type]
+        ld_client=None,
+        out_path=tmp_path / "sort1_all_aptamer.png",
+        ukb_ppp_client=None,
+    )
+    caveats = result.manifest_block["ancestry_caveats"]
+    assert not any("credible-set-filtered" in c for c in caveats), (
+        f"an .all-backed panel was labelled credible-set filtered; caveats: {caveats}")
+
+
 # ----------------------- fetcher-notes propagation -----------------------
 #
 # Each fetcher's `RegionResult.notes` (schema-drift complaints, pagination

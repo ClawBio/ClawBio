@@ -534,20 +534,46 @@ def _render_for_spec(
         exposure_ancestry_label = ""
         exposure_eqtl_release = exposure.release
         data_source_warnings.extend(f"eqtl_catalogue: {n}" for n in exposure.notes)
-        # Surface the file-class disclosure for non-ge / non-microarray
-        # exposures. The fetcher uses .cc.tsv.gz (credible-set-filtered
-        # sumstats) for splicing / exon / transcript quant methods because
-        # the eQTL Catalogue does not ship .all.tsv.gz for them. The .cc
-        # file retains the strongest molecular trait per fine-mapped signal
-        # (the same trait used for the upstream coloc), so coloc inference
-        # is preserved, but the rendered window is sparser than a true
-        # nominal-pass run. Let the user see this in the caveats list.
+        # Surface the file-class disclosure when the window came out of
+        # .cc.tsv.gz rather than the full nominal pass. Per the catalogue's
+        # docs/Columns_parquet.md, .cc keeps only the traits with permutation
+        # FDR < 1% and a credible set, each with all its variants; for exon /
+        # transcript / splicing data it also keeps one trait per fine-mapped
+        # signal, so a trait that was not the top one of its signal is absent
+        # from the file. The sentence is scoped by quant method so it stays
+        # true if a ge .cc is ever rendered.
+        #
+        # Gated on the file class the fetch actually served, not on
+        # quant_method. quant_method is a best-effort presentation label and is
+        # None whenever the metadata it comes from is unavailable, so gating on
+        # it skips the disclosure for a genuinely .cc-backed panel. It is also
+        # wrong in the other direction: QTD000584 (aptamer) ships .all, so the
+        # quant-method rule would state ".cc.tsv.gz" about a panel built from
+        # the full nominal pass. The fetcher records the class of the file it
+        # opened on the result, so that is the authority here.
+        #
+        # file_class is None only for a result that never read one (a
+        # hand-built test double or a replayed fixture); the quant-method rule
+        # is kept as the fallback for that case alone.
+        _fc = (exposure.file_class or "").lower()
         _qm = (exposure.release.quant_method or "").lower()
-        if _qm and _qm not in {"ge", "microarray"}:
+        _credible_set_filtered = (
+            _fc == "cc" if _fc else bool(_qm) and _qm not in {"ge", "microarray"}
+        )
+        if _credible_set_filtered:
+            # The quant_method clause is dropped rather than printed empty when
+            # the label is unavailable: the disclosure is about the file class.
+            _qm_clause = f"; quant_method={_qm}" if _qm else ""
+            if _qm in {"ge", "microarray", "aptamer"}:
+                _rule = ("keeps only molecular traits with a significant signal "
+                         "and a fine-mapped credible set, each with all its variants")
+            else:
+                _rule = ("keeps one molecular trait per fine-mapped signal, so a "
+                         "trait that was not the top one of its signal is absent "
+                         "from the file")
             extra_caveats.append(
                 f"sumstats are credible-set-filtered (eQTL Catalogue "
-                f".cc.tsv.gz; quant_method={_qm}); retains the strongest "
-                f"molecular trait per fine-mapped signal"
+                f".cc.tsv.gz{_qm_clause}); {_rule}"
             )
 
     # 2. Outcome region (GWAS Catalog harmonised).

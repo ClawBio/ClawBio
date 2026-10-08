@@ -36,23 +36,25 @@ by swapping `dataset_id` in `config.yaml`.
 
 ## Source-file choice: `.cc.tsv.gz`
 
-eQTL Catalogue ships two per-variant FTP files for each dataset:
+eQTL Catalogue publishes up to two per-variant FTP files per dataset:
 
-- `<QTD>.all.tsv.gz`: full nominal-pass sumstats. Available **only** for
-  `ge` and `microarray` quant methods.
-- `<QTD>.cc.tsv.gz`: credible-set-filtered sumstats. Retains the strongest
-  molecular trait per fine-mapped signal (same trait the eQTL Catalogue
-  used for upstream coloc). ~98% size reduction relative to `.all.tsv.gz`
-  while keeping almost all significant loci.
+- `<QTD>.all.tsv.gz`: full nominal-pass sumstats, every tested (trait, variant)
+  pair. Listed for 306 of the 758 datasets in the catalogue's r7 dataset table
+  (every `ge` and `microarray` dataset, plus the one `aptamer` dataset,
+  QTD000584). Every `.all` dataset probed also serves a `.cc` (17 of the 306, in
+  a 33-dataset probe on 2026-09-13; see eqtl-catalogue-region-fetch gotcha 6);
+  the other 452 are listed `.cc` only.
+- `<QTD>.cc.tsv.gz`: only the molecular traits with permutation FDR < 1% and
+  at least one fine-mapped credible set, each with every tested variant (the
+  catalogue's `docs/Columns_parquet.md`, written for its parquet release). For exon / tx / txrevise / leafcutter
+  (the only file those methods serve) it further keeps only the top trait per
+  independent fine-mapped signal, ~98% smaller (Kerimov 2023 PLoS Genet
+  19(9):e1010932, doi:10.1371/journal.pgen.1010932, PMID 37721944).
 
-The fetcher picks the suffix from the dataset's `quant_method` metadata
-(`ge`/`microarray` → `.all.tsv.gz`; everything else → `.cc.tsv.gz`).
-For coloc/LocusCompare use cases this is lossless: the trait kept in
-`.cc.tsv.gz` is exactly the one Open Targets called the coloc on.
-
-For background on the FTP layout audit and the official eQTL Catalogue
-endorsement of `.cc.tsv.gz` for coloc workflows, see the eqtl-catalogue-
-region-fetch skill's SKILL.md.
+So a txrevise event that is not the tag of its signal is absent from `.cc`
+altogether. Whether the event Open Targets called the coloc on is always the
+tag has not been checked; this example's event is present, which is why it
+renders.
 
 ## OT coloc row resolved
 
