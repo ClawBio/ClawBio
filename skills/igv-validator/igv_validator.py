@@ -1990,6 +1990,11 @@ def review_reasons(r: dict) -> list[str]:
             out.append(f"depth close to a threshold (log2 {d:+.2f})")
         if "_ratio" in r and r["_ratio"] is None and d is not None and r["status"] != "no_coverage":
             out.append("no usable reads around the gene to compare with (duplicated or unmappable flanks)")
+        a, b = r.get("_gstart"), r.get("_gend")
+        glen = b - a + 1 if a and b else 0
+        # a short gene's depth rests on few reads: a change it suggests is worth a look, a quiet one is not
+        if 0 < glen < CNV_BIN_MIN and d is not None and (abs(d) >= 0.4 or "cnv_disagrees" in flags):
+            out.append(f"short gene ({glen} bp): its depth comes from few reads, so judge it on the depth plot or in IGV")
     elif r["status"] == "insufficient":
         out.append("weak read support")
     return list(dict.fromkeys(out))

@@ -586,6 +586,16 @@ def test_short_gene_depth_is_not_diluted():
     assert abs(short["gene_depth"] - long_["gene_depth"]) / long_["gene_depth"] < 0.25
 
 
+def test_short_gene_change_asks_for_the_plot():
+    row = {"type": "CNV", "flags": "cnv_disagrees", "status": "flagged", "_depth_log2": 1.06, "_ratio": 1.4,
+           "_gstart": 169764520, "_gend": 169765060}
+    assert any("short gene (541 bp)" in x for x in iv.review_reasons(row))
+    quiet = dict(row, flags="", status="supported", _depth_log2=0.1)
+    assert not any("short gene" in x for x in iv.review_reasons(quiet))
+    long_ = dict(row, _gend=169799999)
+    assert not any("short gene" in x for x in iv.review_reasons(long_))
+
+
 def test_cnv_gene_between_segments(cnv_result):
     """Like GENEB in S5: no segment covers the gene, but its depth is still measured."""
     _, g = cnv_result
