@@ -63,6 +63,16 @@ def test_allowed_equals_form_forwarded(monkeypatch, tmp_path):
     assert "--gene=CYP2D6" in cmd
 
 
+def test_blocked_demo_does_not_swallow_next_flag(monkeypatch, tmp_path):
+    cmd = _forwarded_cmd(monkeypatch, tmp_path, "clinpgx", ["--demo", "--gene", "CYP2D6"])
+    assert cmd[cmd.index("--gene") + 1] == "CYP2D6"
+
+
+def test_blocked_flag_after_first_position_skips_only_itself(monkeypatch, tmp_path):
+    cmd = _forwarded_cmd(monkeypatch, tmp_path, "clinpgx", ["--no-cache", "--output=/tmp/evil", "--gene", "CYP2D6"])
+    assert cmd[cmd.index("--gene") + 1] == "CYP2D6"
+
+
 def test_valueless_flag_does_not_swallow_next_token(monkeypatch, tmp_path):
     cmd = _forwarded_cmd(monkeypatch, tmp_path, "bigquery", ["--dry-run", "swallowed"])
     assert "--dry-run" in cmd

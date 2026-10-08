@@ -1,0 +1,1009 @@
+{
+  "accno": "E-MTAB-10030",
+  "attributes": [
+    {
+      "name": "Title",
+      "value": "Single-cell RNA-seq of rat microglia in monoculture and in coculture with neurons and astrocytes"
+    },
+    {
+      "name": "ReleaseDate",
+      "value": "2021-03-23"
+    },
+    {
+      "name": "RootPath",
+      "value": "E-MTAB-10030"
+    },
+    {
+      "name": "AttachTo",
+      "value": "ArrayExpress"
+    }
+  ],
+  "section": {
+    "accno": "s-E-MTAB-10030",
+    "type": "Study",
+    "attributes": [
+      {
+        "name": "Title",
+        "value": "Single-cell RNA-seq of rat microglia in monoculture and in coculture with neurons and astrocytes"
+      },
+      {
+        "name": "Study type",
+        "value": "RNA-seq of coding RNA from single cells",
+        "valqual": [
+          {
+            "name": "Ontology",
+            "value": "EFO"
+          },
+          {
+            "name": "TermId",
+            "value": "EFO_0005684"
+          }
+        ]
+      },
+      {
+        "name": "Organism",
+        "value": "Rattus norvegicus"
+      },
+      {
+        "name": "Description",
+        "value": "Microglia, brain resident macrophages, require instruction from the central nervous system microenvironment to maintain their identity, morphology, and to regulate inflammatory responses. We investigated the heterogeneity of response of microglia to the presence of neurons and astrocytes by performing single-cell sequencing of microglia in both monoculture, and in coculture with neurons and astrocytes."
+      }
+    ],
+    "links": [
+      [
+        {
+          "url": "E-MTAB-7776",
+          "attributes": [
+            {
+              "name": "Type",
+              "value": "Biostudies"
+            }
+          ]
+        }
+      ],
+      [
+        {
+          "url": "ERP126470",
+          "attributes": [
+            {
+              "name": "Type",
+              "value": "ENA"
+            }
+          ]
+        }
+      ]
+    ],
+    "subsections": [
+      [
+        {
+          "accno": "P-MTAB-105599",
+          "type": "Protocols",
+          "attributes": [
+            {
+              "name": "Name",
+              "value": "P-MTAB-105599"
+            },
+            {
+              "name": "Type",
+              "value": "nucleic acid sequencing protocol",
+              "valqual": [
+                {
+                  "name": "Ontology",
+                  "value": "EFO"
+                },
+                {
+                  "name": "TermId",
+                  "value": "EFO_0004170"
+                }
+              ]
+            },
+            {
+              "name": "Description",
+              "value": "Sequencing was performed using Illumina NextSeq technology."
+            },
+            {
+              "name": "Hardware",
+              "value": "NextSeq 550"
+            }
+          ]
+        },
+        {
+          "accno": "P-MTAB-105598",
+          "type": "Protocols",
+          "attributes": [
+            {
+              "name": "Name",
+              "value": "P-MTAB-105598"
+            },
+            {
+              "name": "Type",
+              "value": "nucleic acid library construction protocol",
+              "valqual": [
+                {
+                  "name": "Ontology",
+                  "value": "EFO"
+                },
+                {
+                  "name": "TermId",
+                  "value": "EFO_0004184"
+                }
+              ]
+            },
+            {
+              "name": "Description",
+              "value": "Libraries were prepared using the Chromium Single Cell 3’ GEM, Library and Gel Bead Kit v3 (10X Genomics) as per manufacturer’s instructions."
+            },
+            {
+              "name": "Hardware"
+            }
+          ]
+        },
+        {
+          "accno": "P-MTAB-105597",
+          "type": "Protocols",
+          "attributes": [
+            {
+              "name": "Name",
+              "value": "P-MTAB-105597"
+            },
+            {
+              "name": "Type",
+              "value": "nucleic acid extraction protocol",
+              "valqual": [
+                {
+                  "name": "Ontology",
+                  "value": "EFO"
+                },
+                {
+                  "name": "TermId",
+                  "value": "EFO_0002944"
+                }
+              ]
+            },
+            {
+              "name": "Description",
+              "value": "Suspension sufficient to generate 5000 single cell GEMs (gel beads in emulsion) per sample was loaded into a Chromium controller (10X Genomics) in a Single Cell 3’ Chip."
+            },
+            {
+              "name": "Hardware"
+            }
+          ]
+        },
+        {
+          "accno": "P-MTAB-105596",
+          "type": "Protocols",
+          "attributes": [
+            {
+              "name": "Name",
+              "value": "P-MTAB-105596"
+            },
+            {
+              "name": "Type",
+              "value": "sample collection protocol",
+              "valqual": [
+                {
+                  "name": "Ontology",
+                  "value": "EFO"
+                },
+                {
+                  "name": "TermId",
+                  "value": "EFO_0005518"
+                }
+              ]
+            },
+            {
+              "name": "Description",
+              "value": "Primary rat microglia were generated from postnatal rat pups (P0-P2). Briefly, neocortices were dissected, enzymatically digested, homogenized to single cell suspension and plated down onto poly-D-Lysine-coated flasks. Cultures were maintained for 12 days in DMEM+10% FBS, with medium replacements every 3-4 days. After this period of time, the culture contains predominantly astrocytes and microglia, since the neurons have largely died off under the sub-optimal (for them) culture conditions. To detach the weakly adherent microglia, flasks were placed on an orbital shaker shake at 250 rpm for 1 h at 37C, centrifuged to obtain a pellet, then resuspended in Neurobasal A medium and counted using a hemocytometer, adjusting the concentration to 2 X 105 cells/ml, ready for seeding onto neuron-astrocyte co-cultures or onto poly-D-Lysine-coated 24 well plates for generating mono-cultures. Human astrocytes (Caltag Medsystems cat. no. SC-1800) were maintained on poly-D-lysine-coated tissue culture flasks in Astrocyte Medium (Caltag Medsystems cat. no. SC-1801), and passaged according manufacturer’s instructions. Astrocytes were always used at 7 passages or less and seeded at 3-5 X 105 cells per well of a 24-well plate (poly-D-Lysine-coated). The cells were left until 80-90% confluent, which typically took 3 days. At this point, primary mouse neocortical neurons were prepared from E17.5 CD1 mice and seeded at 1 X 105 cells per well onto the astrocyte monolayer. These co-cultures were maintained for 7 days in Neurobasal A medium, plus 1% rat serum, in the presence of AraC to prevent any mouse astrocyte proliferation, and any further human astrocyte proliferation. At this point, microglia were seeded onto the co-culture at 2 X 105 cells per well and maintained for 3 further days in Neurobasal A medium. Cells were then physically dissociated from the culture dishes in ice-cold dPBS with sodium pyruvate (ThermoFisher) + 0.4% BSA and stained with PE conjugated anti-mouse CD11b (Biolegend). A pure single-cell suspension of microglia was sorted using a BD Aria FACS system."
+            },
+            {
+              "name": "Hardware"
+            }
+          ]
+        }
+      ],
+      {
+        "type": "Author",
+        "attributes": [
+          {
+            "name": "Name",
+            "value": "Owen Robert Dando"
+          },
+          {
+            "name": "Email",
+            "value": "owen.dando@ed.ac.uk"
+          },
+          {
+            "name": "Role",
+            "value": "submitter"
+          },
+          {
+            "name": "affiliation",
+            "value": "o1",
+            "reference": true
+          }
+        ]
+      },
+      {
+        "accno": "o1",
+        "type": "Organization",
+        "attributes": [
+          {
+            "name": "Name",
+            "value": "Centre for Discovery Brain Sciences, University of Edinburgh"
+          },
+          {
+            "name": "Address",
+            "value": "Hugh Robson Building 15 George Square Edinburgh"
+          }
+        ]
+      },
+      {
+        "type": "Publication",
+        "attributes": [
+          {
+            "name": "Title",
+            "value": "Microglial identity and inflammatory responses are controlled by the combined effects of neurons and astrocytes"
+          },
+          {
+            "name": "Authors",
+            "value": "Baxter P. S., Dando O., Emelianova K., He X., McKay S., Hardingham G. E., Qiu J."
+          },
+          {
+            "name": "DOI",
+            "value": "10.1016/j.celrep.2021.108882"
+          }
+        ],
+        "links": [
+          {
+            "url": "10.1016/j.celrep.2021.108882",
+            "attributes": [
+              {
+                "name": "Type",
+                "value": "DOI"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "accno": "s-samples-factors-E-MTAB-10030",
+        "type": "Samples",
+        "attributes": [
+          {
+            "name": "Sample count",
+            "value": "6"
+          },
+          {
+            "name": "Experimental Designs",
+            "value": "growth condition design",
+            "valqual": [
+              {
+                "name": "TermId",
+                "value": "EFO:0001759"
+              }
+            ]
+          },
+          {
+            "name": "Experimental Factors",
+            "value": "growth condition",
+            "valqual": [
+              {
+                "name": "TermName",
+                "value": "growth condition"
+              }
+            ]
+          }
+        ],
+        "subsections": [
+          {
+            "accno": "exp_factor-E-MTAB-10030",
+            "type": "Experimental Factors",
+            "attributes": [
+              {
+                "name": "Growth condition",
+                "value": "co-culture with neurons and astrocytes"
+              },
+              {
+                "name": "Growth condition",
+                "value": "monoculture"
+              }
+            ],
+            "subsections": [
+              [
+                {
+                  "accno": "factors_0",
+                  "type": "Factors Table",
+                  "attributes": [
+                    {
+                      "name": "growth condition",
+                      "value": "co-culture with neurons and astrocytes"
+                    },
+                    {
+                      "name": "No. of Samples",
+                      "value": "3",
+                      "valqual": [
+                        {
+                          "name": "url",
+                          "value": "https://www.ebi.ac.uk/ena/browser/view/ERS5592419-ERS5592421"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "accno": "factors_1",
+                  "type": "Factors Table",
+                  "attributes": [
+                    {
+                      "name": "growth condition",
+                      "value": "monoculture"
+                    },
+                    {
+                      "name": "No. of Samples",
+                      "value": "3",
+                      "valqual": [
+                        {
+                          "name": "url",
+                          "value": "https://www.ebi.ac.uk/ena/browser/view/ERS5592422-ERS5592424"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            ]
+          },
+          {
+            "accno": "source_chars-E-MTAB-10030",
+            "type": "Source Characteristics",
+            "attributes": [
+              {
+                "name": "Organism",
+                "value": "Rattus norvegicus"
+              },
+              {
+                "name": "Strain",
+                "value": "Sprague Dawley"
+              },
+              {
+                "name": "Age",
+                "value": "0 to 2"
+              },
+              {
+                "name": "Developmental stage",
+                "value": "postnatal"
+              },
+              {
+                "name": "Sex",
+                "value": "mixed"
+              },
+              {
+                "name": "Genotype",
+                "value": "wild type genotype"
+              },
+              {
+                "name": "Organism part",
+                "value": "neocortex"
+              },
+              {
+                "name": "Individual",
+                "value": "pooled"
+              },
+              {
+                "name": "Cell type",
+                "value": "microglial cell"
+              },
+              {
+                "name": "Growth condition",
+                "value": "co-culture with neurons and astrocytes"
+              },
+              {
+                "name": "Growth condition",
+                "value": "monoculture"
+              },
+              {
+                "name": "Biological sample",
+                "value": "3"
+              },
+              {
+                "name": "Biological sample",
+                "value": "1"
+              },
+              {
+                "name": "Biological sample",
+                "value": "2"
+              },
+              {
+                "name": "Biological sample",
+                "value": "4"
+              },
+              {
+                "name": "Culture batch",
+                "value": "1"
+              },
+              {
+                "name": "Culture batch",
+                "value": "2"
+              },
+              {
+                "name": "Sequencing batch",
+                "value": "1"
+              },
+              {
+                "name": "Sequencing batch",
+                "value": "2"
+              }
+            ],
+            "subsections": [
+              [
+                {
+                  "accno": "source_0",
+                  "type": "Characteristics Table",
+                  "attributes": [
+                    {
+                      "name": "growth condition",
+                      "value": "co-culture with neurons and astrocytes"
+                    },
+                    {
+                      "name": "biological sample",
+                      "value": "2"
+                    },
+                    {
+                      "name": "culture batch",
+                      "value": "1"
+                    },
+                    {
+                      "name": "sequencing batch",
+                      "value": "1"
+                    },
+                    {
+                      "name": "No. of Samples",
+                      "value": "1",
+                      "valqual": [
+                        {
+                          "name": "url",
+                          "value": "https://www.ebi.ac.uk/ena/browser/view/ERS5592419"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "accno": "source_1",
+                  "type": "Characteristics Table",
+                  "attributes": [
+                    {
+                      "name": "growth condition",
+                      "value": "co-culture with neurons and astrocytes"
+                    },
+                    {
+                      "name": "biological sample",
+                      "value": "4"
+                    },
+                    {
+                      "name": "culture batch",
+                      "value": "2"
+                    },
+                    {
+                      "name": "sequencing batch",
+                      "value": "1"
+                    },
+                    {
+                      "name": "No. of Samples",
+                      "value": "1",
+                      "valqual": [
+                        {
+                          "name": "url",
+                          "value": "https://www.ebi.ac.uk/ena/browser/view/ERS5592420"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "accno": "source_2",
+                  "type": "Characteristics Table",
+                  "attributes": [
+                    {
+                      "name": "growth condition",
+                      "value": "co-culture with neurons and astrocytes"
+                    },
+                    {
+                      "name": "biological sample",
+                      "value": "2"
+                    },
+                    {
+                      "name": "culture batch",
+                      "value": "1"
+                    },
+                    {
+                      "name": "sequencing batch",
+                      "value": "2"
+                    },
+                    {
+                      "name": "No. of Samples",
+                      "value": "1",
+                      "valqual": [
+                        {
+                          "name": "url",
+                          "value": "https://www.ebi.ac.uk/ena/browser/view/ERS5592421"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "accno": "source_3",
+                  "type": "Characteristics Table",
+                  "attributes": [
+                    {
+                      "name": "growth condition",
+                      "value": "monoculture"
+                    },
+                    {
+                      "name": "biological sample",
+                      "value": "1"
+                    },
+                    {
+                      "name": "culture batch",
+                      "value": "1"
+                    },
+                    {
+                      "name": "sequencing batch",
+                      "value": "1"
+                    },
+                    {
+                      "name": "No. of Samples",
+                      "value": "1",
+                      "valqual": [
+                        {
+                          "name": "url",
+                          "value": "https://www.ebi.ac.uk/ena/browser/view/ERS5592422"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "accno": "source_4",
+                  "type": "Characteristics Table",
+                  "attributes": [
+                    {
+                      "name": "growth condition",
+                      "value": "monoculture"
+                    },
+                    {
+                      "name": "biological sample",
+                      "value": "3"
+                    },
+                    {
+                      "name": "culture batch",
+                      "value": "2"
+                    },
+                    {
+                      "name": "sequencing batch",
+                      "value": "1"
+                    },
+                    {
+                      "name": "No. of Samples",
+                      "value": "1",
+                      "valqual": [
+                        {
+                          "name": "url",
+                          "value": "https://www.ebi.ac.uk/ena/browser/view/ERS5592423"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "accno": "source_5",
+                  "type": "Characteristics Table",
+                  "attributes": [
+                    {
+                      "name": "growth condition",
+                      "value": "monoculture"
+                    },
+                    {
+                      "name": "biological sample",
+                      "value": "1"
+                    },
+                    {
+                      "name": "culture batch",
+                      "value": "1"
+                    },
+                    {
+                      "name": "sequencing batch",
+                      "value": "2"
+                    },
+                    {
+                      "name": "No. of Samples",
+                      "value": "1",
+                      "valqual": [
+                        {
+                          "name": "url",
+                          "value": "https://www.ebi.ac.uk/ena/browser/view/ERS5592424"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "accno": "s-assays-data-E-MTAB-10030",
+        "type": "Assays and Data",
+        "attributes": [
+          {
+            "name": "Assay count",
+            "value": "6"
+          },
+          {
+            "name": "Technology",
+            "value": "Sequencing assay"
+          },
+          {
+            "name": "Assay by Molecule",
+            "value": "RNA assay"
+          }
+        ],
+        "subsections": [
+          {
+            "accno": "raw-data",
+            "type": "Raw Data",
+            "files": [
+              [
+                {
+                  "path": "B1_S2_R1.fastq.gz",
+                  "size": 2608854551,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 2"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Read 1"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B1_S2_R2.fastq.gz",
+                  "size": 2823794346,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 2"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Read 2"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B1_S2_I1.fastq.gz",
+                  "size": 427160570,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 2"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Index 1"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B1_S4_R1.fastq.gz",
+                  "size": 4991718428,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 4"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Read 1"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B1_S4_R2.fastq.gz",
+                  "size": 5216968590,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 4"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Read 2"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B1_S4_I1.fastq.gz",
+                  "size": 777240263,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 4"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Index 1"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B2_S2_R1.fastq.gz",
+                  "size": 1483407903,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 6"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Read 1"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B2_S2_R2.fastq.gz",
+                  "size": 1719034285,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 6"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Read 2"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B2_S2_I1.fastq.gz",
+                  "size": 247703776,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 6"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Index 1"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B1_S1_R1.fastq.gz",
+                  "size": 1649147648,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 1"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Read 1"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B1_S1_R2.fastq.gz",
+                  "size": 1806913320,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 1"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Read 2"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B1_S1_I1.fastq.gz",
+                  "size": 277961552,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 1"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Index 1"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B1_S3_R1.fastq.gz",
+                  "size": 8960636020,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 3"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Read 1"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B1_S3_R2.fastq.gz",
+                  "size": 9299329622,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 3"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Read 2"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B1_S3_I1.fastq.gz",
+                  "size": 1378440463,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 3"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Index 1"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B2_S1_R1.fastq.gz",
+                  "size": 1915465169,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 5"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Read 1"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B2_S1_R2.fastq.gz",
+                  "size": 2252667303,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 5"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Read 2"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "B2_S1_I1.fastq.gz",
+                  "size": 315655053,
+                  "attributes": [
+                    {
+                      "name": "Samples",
+                      "value": "Sample 5"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Index 1"
+                    }
+                  ],
+                  "type": "file"
+                }
+              ]
+            ]
+          },
+          {
+            "accno": "mt-E-MTAB-10030",
+            "type": "MAGE-TAB Files",
+            "files": [
+              [
+                {
+                  "path": "E-MTAB-10030.idf.txt",
+                  "size": 5544,
+                  "attributes": [
+                    {
+                      "name": "Type",
+                      "value": "IDF File"
+                    },
+                    {
+                      "name": "Format",
+                      "value": "tab-delimited text"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Investigation Design Format (IDF)"
+                    }
+                  ],
+                  "type": "file"
+                },
+                {
+                  "path": "E-MTAB-10030.sdrf.txt",
+                  "size": 7242,
+                  "attributes": [
+                    {
+                      "name": "Type",
+                      "value": "SDRF File"
+                    },
+                    {
+                      "name": "Format",
+                      "value": "tab-delimited text"
+                    },
+                    {
+                      "name": "Description",
+                      "value": "Sample and Data Relationship Format (SDRF)"
+                    }
+                  ],
+                  "type": "file"
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "accno": "score-E-MTAB-10030",
+        "type": "MINSEQE Score",
+        "attributes": [
+          {
+            "name": "Exp. Design",
+            "value": "*"
+          },
+          {
+            "name": "Variables",
+            "value": "*"
+          },
+          {
+            "name": "Processed",
+            "value": "-"
+          },
+          {
+            "name": "Raw",
+            "value": "*"
+          },
+          {
+            "name": "Protocols",
+            "value": "*"
+          }
+        ]
+      }
+    ]
+  },
+  "type": "submission"
+}

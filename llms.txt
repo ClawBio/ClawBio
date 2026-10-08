@@ -25,8 +25,8 @@
 ## Project State
 
 - Current public release: `v0.7.1`
-- Public framing in `README.md`: `100 skills + 8,182 Galaxy tools + 5,040 tests + benchmark validation`
-- Catalog status split: `29` MVP skills and `70` planned / legacy skills
+- Public framing in `README.md`: `105 skills + 8,182 Galaxy tools + 5,040 tests + benchmark validation`
+- Catalog status split: see the `status` field in `skills/catalog.json`
 - Counts above are derived, not hand-written. Regenerate them before editing:
   - skills and Galaxy tools: `skill_count` / `galaxy_tool_count` in `skills/catalog.json`,
     itself produced by `python scripts/generate_catalog.py`
@@ -58,7 +58,6 @@
 - [equity-scorer](skills/equity-scorer/SKILL.md) — alias `equity`: HEIM diversity metrics from VCF or ancestry CSV
 - [nutrigx](skills/nutrigx/SKILL.md) — alias `nutrigx`: Personalised nutrigenomics from consumer genetic data
 - [claw-metagenomics](skills/claw-metagenomics/SKILL.md) — alias `metagenomics`: Kraken2 / RGI / HUMAnN3 metagenomic profiling
-- [isolate-amr-typing](skills/isolate-amr-typing/SKILL.md) — alias `isolate-amr`: MLST, AMR genes, point mutations and plasmid replicons for one bacterial isolate assembly
 - [galaxy-bridge](skills/galaxy-bridge/SKILL.md) — alias `galaxy`: Search, run, and chain 8,000+ Galaxy tools
 - [scrna-orchestrator](skills/scrna-orchestrator/SKILL.md) — alias `scrna`: Scanpy single-cell RNA-seq automation
 - [scrna-embedding](skills/scrna-embedding/SKILL.md) — alias `scrna-embedding`: scVI/scANVI latent embedding and integration
@@ -122,6 +121,6 @@ These skills are referenced in `AGENTS.md`, `skills/catalog.json`, or executable
 
 ## Optional
 
-- [skills/catalog.json](skills/catalog.json): Machine-readable skill index; current catalog contains `97` entries
+- [skills/catalog.json](skills/catalog.json): Machine-readable skill index (`skill_count` gives the current total)
 - [templates/SKILL-TEMPLATE.md](templates/SKILL-TEMPLATE.md): Template for new skills
 - [clawbio.py](clawbio.py): Main CLI runner and alias registry for `python clawbio.py run <alias>`

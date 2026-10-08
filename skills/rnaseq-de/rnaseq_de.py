@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import shlex
 import sys
 import warnings
 from datetime import datetime, timezone
@@ -493,25 +494,41 @@ def write_repro_files(
     formula: str,
     contrast: str,
     backend: str,
+    min_count: int,
+    min_samples: int,
 ) -> None:
     write_commands_sh(
         output_dir,
-        "python rnaseq_de.py "
-        f"--counts {counts_path} "
-        f"--metadata {metadata_path} "
-        f'--formula "{formula}" '
-        f'--contrast "{contrast}" '
-        f"--backend {backend} "
-        f"--output {output_dir}",
+        shlex.join(
+            [
+                "python", str(Path(__file__).resolve()),
+                "--counts", str(counts_path),
+                "--metadata", str(metadata_path),
+                "--formula", formula,
+                "--contrast", contrast,
+                "--backend", backend,
+                "--min-count", str(min_count),
+                "--min-samples", str(min_samples),
+                "--output", str(output_dir),
+            ]
+        ),
     )
-    environment_path = write_environment_yml(
+    write_environment_yml(
         output_dir,
         env_name="clawbio-rnaseq-de",
         pip_deps=["pydeseq2"],
         conda_deps=["pandas", "numpy", "scipy", "matplotlib", "scikit-learn"],
     )
+
+
+def write_output_checksums(output_dir: Path) -> None:
+    """Checksum only files inside output_dir; input labels could not resolve under sha256sum -c."""
     write_checksums(
-        [counts_path, metadata_path, environment_path]
+        [
+            output_dir / "report.md",
+            output_dir / "result.json",
+            output_dir / "reproducibility" / "environment.yml",
+        ]
         + sorted((output_dir / "tables").glob("*.csv"))
         + sorted((output_dir / "figures").glob("*.png")),
         output_dir,
@@ -635,7 +652,9 @@ def run_analysis(
     plot_volcano(de_results, output_dir / "figures" / "volcano.png")
     plot_ma(de_results, output_dir / "figures" / "ma_plot.png")
 
-    write_repro_files(output_dir, counts_path, metadata_path, formula, contrast, backend)
+    write_repro_files(
+        output_dir, counts_path, metadata_path, formula, contrast, backend, min_count, min_samples
+    )
     write_report(
         output_dir,
         n_samples=counts.shape[1],
@@ -672,6 +691,7 @@ def run_analysis(
             "disclaimer": DISCLAIMER,
         },
     )
+    write_output_checksums(output_dir)
 
     return {
         "output_dir": str(output_dir),

@@ -311,7 +311,7 @@ def test_demo_full_pipeline(tmp_path):
     assert (tmp_path / "tables" / "gwas_associations.csv").exists()
 
     # Write reproducibility
-    write_reproducibility(tmp_path, variant, [])
+    write_reproducibility(tmp_path, "python skills/gwas-lookup/gwas_lookup.py --demo", [])
     assert (tmp_path / "reproducibility" / "commands.sh").exists()
     assert (tmp_path / "reproducibility" / "api_versions.json").exists()
 
@@ -398,6 +398,33 @@ def test_failed_sources_listed_in_result_json(tmp_path):
 
     summary = json.loads((tmp_path / "result.json").read_text())["summary"]
     assert summary["apis_failed"] == {"gtex": "HTTP 410 Gone"}
+
+
+def test_demo_writes_verifiable_reproducibility_bundle(tmp_path):
+    """--demo writes commands.sh, environment.yml and checksums that all verify."""
+    import hashlib
+    import subprocess
+
+    out = tmp_path / "out"
+    subprocess.run(
+        [sys.executable, str(SKILL_DIR / "gwas_lookup.py"), "--demo", "--output", str(out)],
+        check=True, capture_output=True,
+    )
+
+    repro = out / "reproducibility"
+    commands = (repro / "commands.sh").read_text()
+    assert "--demo" in commands
+    assert "requests" in (repro / "environment.yml").read_text()
+
+    lines = (repro / "checksums.sha256").read_text().splitlines()
+    labels = {line.split("  ", 1)[1] for line in lines}
+    assert {"report.md", "result.json", "reproducibility/environment.yml"} <= labels
+    assert "tables/gwas_associations.csv" in labels
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        target = out / label
+        assert target.resolve().is_relative_to(out.resolve()), label
+        assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, label
 
 
 def test_credible_set_total_reports_api_count_not_page():

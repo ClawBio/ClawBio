@@ -183,13 +183,42 @@ Even skills without Python scripts are usable — an AI agent reads the SKILL.md
 ## Development Rules (STRICT)
 
 **All skill development and modification MUST use red/green TDD:**
-1. Write tests first that define the expected behaviour
+1. Write tests first that define the expected behaviour (for maths and parsing, include a property test; see below)
 2. Run the tests and watch them fail (red)
 3. Implement the code to make the tests pass (green)
 4. Run the tests again and confirm they pass
 5. Refactor if needed, re-run tests to confirm no regression
 
 This applies to: new skills, bug fixes, feature additions, refactors, and any code change touching skill logic. No PR or commit should ship code that was not validated by this cycle. Agents: when asked to build or modify a skill, always start by writing or updating the test suite before touching implementation code.
+
+### Property-based tests for maths and parsing
+
+Example tests only check the inputs someone thought of. For skill code that
+computes or converts, add at least one [Hypothesis](https://hypothesis.readthedocs.io/)
+property alongside them. Hypothesis is in the `dev` group, so `uv sync` installs it.
+
+Write one for: scores and indices, thresholds, ACMG-style combining rules,
+statistics, file parsers, and coordinate or allele conversions. Useful properties,
+with examples:
+
+| Property | Example |
+|---|---|
+| NaN, infinity and empty input never produce a confident result | `min(1.0, nan)` is `1.0`, so a population with no calls scored as perfect heterozygosity balance (equity-scorer) |
+| Evidence for one allele is never read from another | gnomAD AF taken as the maximum over every ALT at a site lets a rare variant inherit a common neighbour's AF |
+| A conversion round-trips | VCF to VEP region conversion that assumes a one-base anchor sends `AT>ATT` as an insertion of `TT` |
+| More evidence in one direction never moves the result the other way | ACMG combining rules |
+| Output does not depend on input order | anything built from a directory listing or `git ls-files` |
+
+In the red/green cycle, the property is the step 1 test. For new code, write the
+property before the implementation. For a bug, let Hypothesis find the minimal
+failing input, then pin it with `@example(...)` on the property. Hypothesis
+generates inputs at random, so without the pin a red run may not repeat.
+
+Keep strategies small and domain-shaped (`st.sampled_from("ACGT")`). Bounded
+`st.floats(0, 1)` never generates NaN or infinity, so add them explicitly with
+`| st.just(float("nan"))` when the code must handle them. Use
+`@settings(deadline=None)` for properties that run a skill end to end;
+Hypothesis's default 200 ms deadline otherwise makes them flaky in CI.
 
 ## How to Add a New Skill
 
@@ -309,7 +338,8 @@ These are non-negotiable constraints:
 2. **Disclaimer required**: Every report must include: *"ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions."*
 3. **No hallucinated science**: Gene-drug associations, thresholds, and parameters must trace back to SKILL.md methodology or cited databases (CPIC, PharmGKB, ClinVar, etc.). Never invent bioinformatics values.
 4. **Security filtering**: `clawbio.py` enforces per-skill `allowed_extra_flags` whitelists (INT-001). Do not bypass this.
-5. **Warn before overwriting**: Check for existing output before writing to a directory.
+5. **Ask before destructive actions**: Check for existing output before writing to a directory. Ask before deleting data, force-pushing, or editing files outside this repository other than skill output directories.
+6. **Mark what you could not confirm**: In reports, PR descriptions and summaries, flag any claim you did not verify and say where you looked.
 
 ## Slash Commands
 
@@ -321,23 +351,3 @@ Before improvising a common workflow, check `commands/` for reusable slash comma
 | `/new-skill` | Scaffold a new skill from the official template |
 | `/list-skills` | List available skills from `skills/catalog.json` |
 | `/run-demo` | Run a skill demo with built-in sample data |
-
-## Key Files Reference
-
-| File | Purpose |
-|------|---------|
-| `AGENTS.md` | This file: routing method, development rules, and safety boundaries |
-| `clawbio/cli.py` | CLI runner, SKILLS dict, security filtering, profile management (`clawbio.py` is the entry point) |
-| `skills/catalog.json` | **Single source of truth** for skills: triggers, aliases, demo commands (auto-generated) |
-| `commands/` | Slash commands for analysis, skill scaffolding, skill listing, and demos |
-| `llms.txt` | Token-optimized project summary and LLM entry point |
-| `CONTRIBUTING.md` | Human contributor guide and wanted skills list |
-| `templates/SKILL-TEMPLATE.md` | Canonical template for creating new skills |
-| `commands/` | Slash command definitions such as `/analyse`, `/new-skill`, `/list-skills`, `/run-demo` |
-| `scripts/generate_catalog.py` | Auto-generates `skills/catalog.json` from skill metadata |
-| `scripts/nightly_demo_sweep.py` | Nightly demo and benchmark sweep across skills |
-| `tests/benchmark/mock_api_server.py` | Deterministic mock API server for offline CI and local testing |
-| `tests/benchmark/benchmark_scorer.py` | Benchmark scoring CLI and Python API |
-| `pyproject.toml` | Dependencies and optional extras (`uv sync`; pinned by `uv.lock`) |
-| `pytest.ini` | Test configuration (`skills/*/tests` collected by glob) |
-| `Makefile` | `make test`, `make demo`, `make list` |
