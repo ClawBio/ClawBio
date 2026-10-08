@@ -513,7 +513,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
     lead_line = (
         f"- **Lead variant:** `{lead_variant_id}`"
         + (f" ({lead_rs_id}; " if lead_rs_id else " (")
-        + f"chr{chromosome}:{lead_position_bp}, ±{window_bp//1000} kb)"
+        + f"chr{chromosome}:{lead_position_bp}, ±{window_bp//2000} kb)"
     )
     report_lines = [
         "# locuscompare report",

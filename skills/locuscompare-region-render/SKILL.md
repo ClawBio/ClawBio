@@ -222,7 +222,7 @@ A real run on the SORT1 × cholesterol-VLDL canonical demo (`examples/02_eqtl_ca
 ```markdown
 # locuscompare-region-render report
 
-- **Lead variant:** `1_109274968_G_T` (rs12740374; chr1:109274968, ±1000 kb)
+- **Lead variant:** `1_109274968_G_T` (rs12740374; chr1:109274968, ±500 kb)
 - **Exposure:** SORT1 expression - minor salivary gland (eQTL Catalogue QTD000276)
 - **Outcome:** cholesterol in medium VLDL (GWAS Catalog GCST90269602)
 - **n_pairs joined:** 2547

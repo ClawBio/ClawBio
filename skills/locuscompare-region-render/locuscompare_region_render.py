@@ -773,7 +773,7 @@ def _render_for_spec(
             if ld_client is not None and panel_id != "none"
             else "no LD reference (plot rendered without LD coloring)"
         ),
-        window_label=f"+/-{window_bp // 1000} kb of lead {lead_variant_id}{pip_label}",
+        window_label=f"+/-{window_bp // 2000} kb of lead {lead_variant_id}{pip_label}",
         exposure_label=exposure_label_long,
         outcome_label=(
             f"GWAS Catalog harmonised; study {gwas_accession}{spec.outcome_id_extra}"

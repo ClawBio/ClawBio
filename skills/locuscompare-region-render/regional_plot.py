@@ -905,7 +905,7 @@ def render_full_locuscompare(
 
     title = inp.title or (
         f"Regional LocusCompare: {len(inp.pairs)} variants joined "
-        f"(±{inp.window_bp // 1000} kb of {inp.lead_variant_id})"
+        f"(±{inp.window_bp // 2000} kb of {inp.lead_variant_id})"
     )
     fig.suptitle(title, fontsize=11)
     caption = _build_caption(inp, n_palindromic_excluded)
