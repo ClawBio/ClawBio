@@ -17,8 +17,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import pharmgx_reporter
 from pharmgx_reporter import (
+    CPIC_TABLES_CHECKED,
     PGX_SNPS,
     GENE_DEFS,
     GUIDELINES,
@@ -474,7 +474,7 @@ def test_report_states_cpic_tables_checked():
     _, _, pgx, _ = parse_file(str(DEMO))
     p = _profiles()
     report = generate_report(str(DEMO), "23andme", 31, pgx, p, lookup_drugs(p))
-    assert pharmgx_reporter.CPIC_TABLES_CHECKED in report
+    assert CPIC_TABLES_CHECKED in report
 
 
 def test_result_json_records_cpic_tables_checked(tmp_path):
@@ -485,7 +485,7 @@ def test_result_json_records_cpic_tables_checked(tmp_path):
         capture_output=True, text=True, check=True,
     )
     data = json.loads((tmp_path / "result.json").read_text())["data"]
-    assert data["cpic_tables_checked"] == pharmgx_reporter.CPIC_TABLES_CHECKED
+    assert data["cpic_tables_checked"] == CPIC_TABLES_CHECKED
 
 
 # ── Data Integrity ─────────────────────────────────────────────────────────────
