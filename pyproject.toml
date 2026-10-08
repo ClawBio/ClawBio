@@ -135,6 +135,7 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.168.4",
     "skills-ref>=0.1.1,<1",
 ]
 bot = [

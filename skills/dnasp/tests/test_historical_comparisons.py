@@ -4,7 +4,7 @@ Two checks per row, both against recorded values rather than a new GUI run:
 - test_recorded_python_value pins the skill's value recorded in S1 (a regression
   check of this code, not evidence of agreement with DnaSP);
 - test_value_agrees_with_dnasp checks the current value against DnaSP's own
-  printed figure at DnaSP's printed precision, except for the seven rows in
+  printed figure at DnaSP's printed precision, except for the six rows in
   DIVERGENT, whose recorded difference from DnaSP is documented there.
 """
 from pathlib import Path
@@ -108,7 +108,6 @@ def value_for(row):
 
 # Rows whose recorded DnaSP figure differs from the skill's, with the reason.
 DIVERGENT = {
-    ('A', 'Variance of Hd'): 'last displayed digit',
     ('C', 'ω = Ka/Ks'): 'DnaSP divides its two rounded 5-dp values (0.02561/0.83011)',
     ('C', 'Nonsynonymous sites (mean)'): 'last displayed digit (681 - 168.222 = 512.778)',
     ('H1', 'Fu & Li F*'): "DnaSP's multi-alignment output uses the Achaz (2009) variance; "
