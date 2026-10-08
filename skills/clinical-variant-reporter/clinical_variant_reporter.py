@@ -74,6 +74,8 @@ class VcfRecord:
     filt: str
     info: dict[str, str]
     genotype: str | None = None
+    sample: dict[str, str] | None = None  # FORMAT key -> value for the first sample (GT, AD, DP, ...)
+    alt_index: int = 1  # 1-based index of this ALT among the record's ALT alleles
 
 
 def parse_vcf(path: Path) -> list[VcfRecord]:
@@ -103,10 +105,12 @@ def parse_vcf(path: Path) -> list[VcfRecord]:
                     info[item] = "true"
 
             genotype = None
+            sample = None
             if len(fields) >= 10:
                 genotype = fields[9].split(":")[0]
+                sample = dict(zip(fields[8].split(":"), fields[9].split(":")))
 
-            for alt_allele in fields[4].split(","):
+            for alt_idx, alt_allele in enumerate(fields[4].split(","), start=1):
                 records.append(VcfRecord(
                     chrom=fields[0],
                     pos=int(fields[1]),
@@ -117,6 +121,8 @@ def parse_vcf(path: Path) -> list[VcfRecord]:
                     filt=fields[6],
                     info=info,
                     genotype=genotype,
+                    sample=sample,
+                    alt_index=alt_idx,
                 ))
 
     return records
@@ -461,7 +467,7 @@ def run_classification(
     for ev in evidence_list:
         cv = classify_variant(ev)
         rec = record_by_key.get(f"{ev.chrom}:{ev.pos}:{ev.ref}:{ev.alt}")
-        audit = audit_classified(cv, expected_from_record(rec))
+        audit = audit_classified(cv, expected_from_record(rec), record=rec)
         cv.audit_violations = audit.violations
         if not audit.passed:
             cv.classification = ABSTAIN_LABEL

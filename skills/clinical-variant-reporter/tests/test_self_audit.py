@@ -121,3 +121,54 @@ def test_run_classification_hard_abstains_on_identity_mismatch():
     assert len(out) == 1
     assert out[0].classification == ABSTAIN_LABEL
     assert "IDENTITY_MISMATCH" in [v.code for v in out[0].audit_violations]
+
+
+# ---- ALLELE_IMBALANCE (low-fraction indel cluster regression) --------------
+
+def _rec(gt="0/1", ad="30,4", alt="GTTTT", ref="G"):
+    return VcfRecord(chrom="19", pos=39056319, id=".", ref=ref, alt=alt, qual="69.6",
+                     filt="PASS", info={}, genotype=gt,
+                     sample={"GT": gt, "AD": ad, "DP": "34"}, alt_index=1)
+
+
+def test_low_fraction_het_abstains():
+    # RYR1 cluster seen on a real exome: 8 calls in 17 bp, each on the same 4/34 reads
+    res = audit_classified(_cv(gene="RYR1", hgvsp=""), {}, record=_rec(ad="30,4"))
+    assert not res.passed
+    assert "ALLELE_IMBALANCE" in res.reason_codes()
+
+
+def test_balanced_het_passes():
+    res = audit_classified(_cv(gene="RYR1", hgvsp=""), {}, record=_rec(ad="144,149"))
+    assert "ALLELE_IMBALANCE" not in res.reason_codes()
+
+
+def test_too_few_alt_reads_abstains_even_if_fraction_ok():
+    res = audit_classified(_cv(gene="RYR1", hgvsp=""), {}, record=_rec(ad="3,3"))
+    assert "ALLELE_IMBALANCE" in res.reason_codes()
+
+
+def test_hom_alt_with_low_fraction_abstains():
+    res = audit_classified(_cv(gene="RYR1", hgvsp=""), {}, record=_rec(gt="1/1", ad="20,10"))
+    assert "ALLELE_IMBALANCE" in res.reason_codes()
+
+
+def test_no_ad_field_is_not_judged():
+    rec = _rec(); rec.sample = {"GT": "0/1"}
+    res = audit_classified(_cv(gene="RYR1", hgvsp=""), {}, record=rec)
+    assert "ALLELE_IMBALANCE" not in res.reason_codes()
+
+
+def test_multiallelic_uses_this_alt_index():
+    rec = _rec(gt="1/2", ad="2,30,4", alt="T"); rec.alt_index = 2
+    res = audit_classified(_cv(gene="RYR1", hgvsp=""), {}, record=rec)
+    assert "ALLELE_IMBALANCE" in res.reason_codes()   # second ALT has only 4 reads
+
+
+def test_parse_vcf_keeps_format_fields(tmp_path):
+    from clinical_variant_reporter import parse_vcf
+    vcf = tmp_path / "t.vcf"
+    vcf.write_text("##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"
+                   "19\t39056319\t.\tG\tGTTTT\t69.6\tPASS\t.\tGT:AD:DP:GQ\t0/1:30,4:34:77\n")
+    rec = parse_vcf(vcf)[0]
+    assert rec.sample["AD"] == "30,4" and rec.alt_index == 1

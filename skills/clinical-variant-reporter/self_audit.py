@@ -19,6 +19,13 @@ The invariants encode failure classes observed in practice:
                         pathogenicity applied simultaneously.
   MISSING_PROVENANCE  — a criterion is triggered but carries no evidence source
                         (fired citing "no data"), so its contribution is unauditable.
+  ALLELE_IMBALANCE    — the genotype call is not supported by its own read counts:
+                        a heterozygous call with an alternate-allele fraction below
+                        HET_MIN_ALT_FRACTION, or fewer than MIN_ALT_READS alternate
+                        reads (FORMAT/AD). Clusters of low-fraction indels in one
+                        window are a classic misalignment artefact; classifying them
+                        as loss-of-function (PVS1) produces confident false positives.
+                        Only applied when the VCF carries AD.
 
 These are deterministic and reproducible; they cannot hallucinate. Every new failure
 class the adversarial review surfaces should be promoted to an invariant here.
@@ -33,6 +40,45 @@ ABSTAIN_LABEL = "Abstained (self-audit)"
 _MUTUALLY_EXCLUSIVE = [("PP3", "BP4")]
 # phrases an evaluator uses when it has no underlying data
 _NO_DATA_MARKERS = ("no in silico data", "no data available", "not available", "")
+# read-support floors for a called genotype (germline, diploid)
+HET_MIN_ALT_FRACTION = 0.20
+HOM_MIN_ALT_FRACTION = 0.80
+MIN_ALT_READS = 4
+
+
+def _allele_balance(record) -> AuditViolation | None:
+    """Check that the called genotype is supported by its own AD counts."""
+    sample = getattr(record, "sample", None) or {}
+    gt = (sample.get("GT") or getattr(record, "genotype", "") or "").replace("|", "/")
+    ad = sample.get("AD", "")
+    if not gt or not ad or "." in ad:
+        return None
+    try:
+        counts = [int(x) for x in ad.split(",")]
+        alleles = [int(a) for a in gt.split("/")]
+    except ValueError:
+        return None
+    idx = getattr(record, "alt_index", 1)
+    if idx >= len(counts) or idx not in alleles:
+        return None
+    total = sum(counts)
+    if total <= 0:
+        return None
+    alt_reads = counts[idx]
+    frac = alt_reads / total
+    het = len(set(alleles)) > 1
+    if alt_reads < MIN_ALT_READS:
+        return AuditViolation("ALLELE_IMBALANCE",
+                              f"only {alt_reads} of {total} reads support the alternate allele (GT {gt})")
+    if het and frac < HET_MIN_ALT_FRACTION:
+        return AuditViolation("ALLELE_IMBALANCE",
+                              f"heterozygous call with alternate-allele fraction {frac:.0%} "
+                              f"({alt_reads}/{total} reads), below {HET_MIN_ALT_FRACTION:.0%}")
+    if not het and frac < HOM_MIN_ALT_FRACTION:
+        return AuditViolation("ALLELE_IMBALANCE",
+                              f"homozygous-alternate call with alternate-allele fraction {frac:.0%} "
+                              f"({alt_reads}/{total} reads), below {HOM_MIN_ALT_FRACTION:.0%}")
+    return None
 
 
 @dataclass
@@ -89,7 +135,7 @@ def expected_from_record(record) -> dict:
     }
 
 
-def audit_classified(classified, expected: dict | None = None) -> AuditResult:
+def audit_classified(classified, expected: dict | None = None, record=None) -> AuditResult:
     """Run the fail-closed invariants against a ClassifiedVariant."""
     ev = classified.evidence
     expected = expected or {}
@@ -131,5 +177,11 @@ def audit_classified(classified, expected: dict | None = None) -> AuditResult:
             violations.append(AuditViolation(
                 "MISSING_PROVENANCE",
                 f"{code} triggered but its evidence source is empty/absent"))
+
+    # 4. ALLELE_IMBALANCE — the call is not supported by its own read counts
+    if record is not None:
+        imbalance = _allele_balance(record)
+        if imbalance:
+            violations.append(imbalance)
 
     return AuditResult(passed=not violations, violations=violations)
