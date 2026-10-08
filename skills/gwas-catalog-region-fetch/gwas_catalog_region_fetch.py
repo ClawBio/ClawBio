@@ -68,6 +68,11 @@ class RegionVariant:
     p_value: float | None
     odds_ratio: float | None
     effect_allele_frequency: float | None
+    # Odds-ratio 95% CI bounds, present for binary-trait studies that publish them.
+    # Passed through as published so a consumer can derive beta = ln(OR) and a
+    # CI-based SE; the fetcher does not derive them itself.
+    ci_lower: float | None = None
+    ci_upper: float | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -314,7 +319,13 @@ def _normalise_row(row: dict[str, Any]) -> RegionVariant | None:
     Schema reference: GWAS Catalog harmonised columns include
         hm_variant_id, hm_chrom, hm_pos, hm_other_allele, hm_effect_allele,
         hm_beta, hm_odds_ratio, standard_error, p_value, hm_effect_allele_frequency
+        (+ the optional ci_lower / ci_upper of an odds-ratio study)
     Returns None if essentials are missing.
+
+    The parse is faithful: a binary-trait study's `odds_ratio` and its
+    `ci_lower` / `ci_upper` are passed through as their own fields, and no
+    `beta` is synthesised that the source did not report. Deriving log(OR) is
+    left to the consumer.
     """
     chrom = (row.get("hm_chrom") or row.get("chromosome") or "").lstrip("chr")
     pos = _maybe_int(row.get("hm_pos") or row.get("base_pair_location"))
@@ -333,6 +344,8 @@ def _normalise_row(row: dict[str, Any]) -> RegionVariant | None:
         se=_maybe_float(row.get("standard_error") or row.get("se")),
         p_value=_maybe_float(row.get("p_value") or row.get("pvalue")),
         odds_ratio=_maybe_float(row.get("hm_odds_ratio") or row.get("odds_ratio")),
+        ci_lower=_maybe_float(row.get("hm_ci_lower") or row.get("ci_lower")),
+        ci_upper=_maybe_float(row.get("hm_ci_upper") or row.get("ci_upper")),
         effect_allele_frequency=_maybe_float(
             row.get("hm_effect_allele_frequency") or row.get("effect_allele_frequency")
         ),
@@ -427,7 +440,7 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest = {
         "skill": "gwas-catalog-region-fetch",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "accession": cfg["accession"],
         "region": {"chromosome": str(cfg["chromosome"]),
                    "start_bp": int(cfg["start_bp"]),
@@ -520,9 +533,17 @@ def _print_available_demos() -> None:
         print(f"  {p.stem}{marker}    [{p.name}]")
 
 
+# Bumped when the cached row shape changes, so an entry written by an earlier
+# version (for example one without the odds-ratio CI bounds) is never served.
+_CACHE_SCHEMA = "v2"
+
+
 def _cache_key(cfg: dict) -> str:
     chrom = str(cfg["chromosome"]).lstrip("chr")
-    return f"{cfg['accession']}__chr{chrom}_{int(cfg['start_bp'])}_{int(cfg['end_bp'])}.json"
+    return (
+        f"{cfg['accession']}__chr{chrom}_{int(cfg['start_bp'])}_{int(cfg['end_bp'])}"
+        f"__{_CACHE_SCHEMA}.json"
+    )
 
 
 def _fetch_with_cache(*, client, cfg: dict, cache_dir: Path | None) -> "RegionResult":
@@ -557,6 +578,7 @@ def _region_result_from_cache(d: dict) -> "RegionResult":
             ref=v["ref"], alt=v["alt"],
             beta=v.get("beta"), se=v.get("se"), p_value=v.get("p_value"),
             odds_ratio=v.get("odds_ratio"),
+            ci_lower=v.get("ci_lower"), ci_upper=v.get("ci_upper"),
             effect_allele_frequency=v.get("effect_allele_frequency"),
             raw=v.get("raw") or {},
         ) for v in d.get("variants", [])

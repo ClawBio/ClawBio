@@ -2377,7 +2377,7 @@
       "name": "gwas-catalog-region-fetch",
       "cli_alias": "gwas-region",
       "description": "Fetch a region of GWAS summary statistics from the NHGRI-EBI GWAS Catalog\nharmonised collection via tabix-on-FTP. Use when an agent needs GWAS beta /\nSE / p-value for every variant in a window for one specific study (GCST\naccession). Input: accession, chromosome, start, end. Output: harmonised\nTSV slice in canonical format.\n",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
