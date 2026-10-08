@@ -507,6 +507,8 @@ def _count_indel(bam, v: Variant, fa) -> dict:
     # the inserted bases of the call (VCF pads with the anchor base); an insertion of the same length but another
     # sequence is not support. Shifted within a tandem repeat, the same event reads as a rotation of these bases.
     ins_seq = (v.alt[len(v.ref):] if v.alt.startswith(v.ref) else v.alt[1:]).upper() if size > 0 else ""
+    # the deleted bases, checked against the reference where the read places its deletion (needs --reference)
+    del_seq = (v.ref[len(v.alt):] if v.ref.startswith(v.alt) else v.ref[1:]).upper() if size < 0 else ""
     depth, hits = set(), {}
     # count molecules, not reads: overlapping mates would otherwise count one DNA fragment twice
     for r in bam.fetch(v.chrom, max(0, pos - 1), pos + abs(size) + 1):
@@ -525,7 +527,9 @@ def _count_indel(bam, v: Variant, fa) -> dict:
                 qp += n
             elif op == 2:
                 if size < 0 and n == -size and abs(rp - pos) <= INDEL_WINDOW:
-                    hit = qp; break
+                    gone = fa.fetch(v.chrom, rp, rp + n).upper() if fa is not None and rp != pos else del_seq
+                    if gone == del_seq or gone in del_seq + del_seq:   # a rotation = the same event in a repeat
+                        hit = qp; break
                 rp += n
             elif op == 4:
                 qp += n
@@ -1054,7 +1058,7 @@ def caption(png: Path, out: Path, lines: list[str]):
 
 def _support_text(c: dict, sv: bool) -> str:
     if sv:
-        return f"{c['alt']} ({c['split']} split, {c['discordant']} pairs) / {c['depth']}"
+        return f"{c['alt']} ({c['split']} split, {c['discordant']} pairs) / {c['depth']} fragments"
     if not c["depth"]:
         return f"{c['alt']}/0 (no reads)"
     return f"{c['alt']}/{c['depth']} ({c['vaf_pct']}%)"
@@ -1900,14 +1904,15 @@ def _summary_rows(root: Path, empty_runs: list | None = None) -> list[dict]:
             # SV callers (Manta, SURVIVOR) write many deletions/insertions as sequence: from 50 bp they are SVs, though
             # their reads are counted like an indel's (reads carrying the change, not split/discordant pairs)
             big = not sv and v["kind"] != "snv" and abs(len(v.get("ref") or "") - len(v.get("alt") or "")) >= SV_INDEL_MIN
-            reads = (f"{t['alt']} reads ({t['split']} split, {t['discordant']} pairs) / {t['depth']}" if sv else
+            reads = (f"{t['alt']} fragments ({t['split']} split reads, {t['discordant']} pairs) / {t['depth']} fragments"
+                     if sv else
                      f"{t['alt']}/{t['depth']} ({t['vaf_pct']}%)")
             if v.get("normal"):
                 n = v["normal"]
                 reads += f"; normal {n['alt']}/{n['depth']}"
             c = v.get("caller")
             if sv:
-                shows = (f"{t['alt']} reads support the rearrangement ({t['split']} split, {t['discordant']} "
+                shows = (f"{t['alt']} DNA fragments support the rearrangement ({t['split']} split reads, {t['discordant']} "
                          f"discordant pairs, counted at both breakends); {t['depth']} DNA fragments (read pairs) at the first breakend" if t["alt"] else
                          f"no read supports the rearrangement ({t['depth']} DNA fragments at the breakpoint)")
             elif t["depth"] == 0:

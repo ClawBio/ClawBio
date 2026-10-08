@@ -16,7 +16,7 @@ Read counts come from the BAMs (MAPQ >= 20, base quality >= 20, duplicate/second
 | V2 | DEMO2 | demo1:5,000 A>T | 6/53 (11.3%) | 0/55 (0.0%) | 6/53 (11.3%) | strand_bias | **flagged** |
 | V3 | DEMO3 | demo1:7,000 A>T | 2/46 (4.3%) | 0/60 (0.0%) | 12/56 (21.4%) | low_support; low_vaf; caller_disagrees | **insufficient** |
 | V4 | DEMO4 | demo1:9,000 12 bp deletion | 15/60 (25.0%) | 0/63 (0.0%) | 15/60 (25.0%) | none | **supported** |
-| V5_1 | DEMO5 | demo1:12,000 <-> demo2:5,001 breakend | 14 (6 split, 8 pairs) / 96 | 0 (0 split, 0 pairs) / 99 | - | none | **supported** |
+| V5_1 | DEMO5 | demo1:12,000 <-> demo2:5,001 breakend | 14 (6 split, 8 pairs) / 96 fragments | 0 (0 split, 0 pairs) / 99 fragments | - | none | **supported** |
 | V6 | DEMO6 | demo1:15,000 A>G | 31/63 (49.2%) | 25/50 (50.0%) | 31/63 (49.2%) | normal_support | **flagged** |
 
 ## Flags
@@ -68,8 +68,8 @@ Read counts come from the BAMs (MAPQ >= 20, base quality >= 20, duplicate/second
 
 ### V5_1 DEMO5: supported
 
-- demo_tumor: 14 (6 split, 8 pairs) / 96
-- demo_normal: 0 (0 split, 0 pairs) / 99
+- demo_tumor: 14 (6 split, 8 pairs) / 96 fragments
+- demo_normal: 0 (0 split, 0 pairs) / 99 fragments
 - Caller reported (VCF): -
 - Flags: none
 

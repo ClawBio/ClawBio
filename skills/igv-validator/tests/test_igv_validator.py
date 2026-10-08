@@ -242,6 +242,36 @@ def test_interactive_page_does_not_fetch_the_igv_genome_list():
     assert iv.offline_igv_page(out) == out            # applying it twice changes nothing
 
 
+def test_deletion_support_needs_the_deleted_bases(tmp_path):
+    """Outside a repeat, a same-length deletion 3 bp away removes other bases and is not support (as for insertions)."""
+    import random
+    rng = random.Random(7)
+    seq = "".join(rng.choice("ACGT") for _ in range(400))
+    fa = tmp_path / "r.fa"
+    fa.write_text(">c1\n" + seq + "\n"); pysam.faidx(str(fa))
+    header = {"HD": {"VN": "1.6"}, "SQ": [{"SN": "c1", "LN": 400}]}
+    raw = tmp_path / "u.bam"
+    with pysam.AlignmentFile(str(raw), "wb", header=header) as out:
+        for name, k in [("alt1", 50), ("alt2", 50), ("other1", 53), ("other2", 53)]:   # 4 bp deleted after k bases
+            a = pysam.AlignedSegment(out.header)
+            a.query_name, a.flag, a.reference_id, a.reference_start = name, 0, 0, 150
+            a.cigarstring, a.mapping_quality = f"{k}M4D{100 - k}M", 60
+            a.query_sequence = seq[150:150 + k] + seq[154 + k:254]
+            a.query_qualities = pysam.qualitystring_to_array("?" * 100)
+            out.write(a)
+    bam = tmp_path / "o.bam"
+    pysam.sort("-o", str(bam), str(raw)); pysam.index(str(bam))
+    assert seq[200:204] != seq[203:207]                       # the two deletions remove different bases
+    v = iv.Variant(id="d", chrom="c1", pos=200, ref=seq[199:204], alt=seq[199], kind="deletion")
+    assert iv.count_variant(v, bam, fasta=fa)["alt"] == 2
+
+
+def test_sv_support_is_described_in_fragments(summary_dir):
+    _, rows = summary_dir
+    sv = next(r for r in rows if r["type"] == "SV")
+    assert "fragments" in sv["reads"] and " reads (" not in sv["reads"]
+
+
 # ── Tumor-only mode ────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
