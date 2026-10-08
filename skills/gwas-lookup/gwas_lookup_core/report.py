@@ -327,26 +327,26 @@ def generate_figures(output_dir: Path, merged: dict, variant: dict):
 # ---------------------------------------------------------------------------
 
 
-def write_reproducibility(output_dir: Path, variant: dict, skip_apis: list[str]):
-    """Write commands.sh and api_versions.json for reproducibility."""
+def write_reproducibility(output_dir: Path, command: str, skip_apis: list[str]):
+    """Write the reproducibility bundle. Call last: checksums cover every output file."""
+    import json
+
+    from clawbio.common.reproducibility import (
+        write_checksums,
+        write_commands_sh,
+        write_environment_yml,
+    )
+
     repro_dir = output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
 
-    rsid = variant.get("rsid", "unknown")
-    skip_str = ",".join(skip_apis) if skip_apis else ""
-    skip_flag = f" --skip {skip_str}" if skip_str else ""
+    write_commands_sh(output_dir, command)
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-gwas-lookup",
+        pip_deps=["requests>=2.28", "matplotlib>=3.5"],
+    )
 
-    commands = f"""#!/bin/bash
-# Reproduce this GWAS Lookup report
-# Generated: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
-
-python skills/gwas-lookup/gwas_lookup.py \\
-  --rsid {rsid}{skip_flag} \\
-  --output {output_dir}
-"""
-    (repro_dir / "commands.sh").write_text(commands)
-
-    import json
     versions = {
         "tool": "ClawBio GWAS Lookup",
         "version": "0.2.0",
@@ -364,3 +364,7 @@ python skills/gwas-lookup/gwas_lookup.py \\
         "generated": datetime.now(timezone.utc).isoformat(),
     }
     (repro_dir / "api_versions.json").write_text(json.dumps(versions, indent=2))
+
+    checksum_file = repro_dir / "checksums.sha256"
+    outputs = sorted(p for p in output_dir.rglob("*") if p.is_file() and p != checksum_file)
+    write_checksums(outputs, output_dir, anchor=output_dir)

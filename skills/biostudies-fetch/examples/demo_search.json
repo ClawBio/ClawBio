@@ -1,0 +1,40 @@
+{
+  "totalHits": 271771,
+  "hits": [
+    {
+      "accession": "S-BSST2074",
+      "title": "An mm10-based reference genome N-masked in positions of SNPs between Mus musculus and three other mouse species",
+      "type": "study",
+      "author": "",
+      "release_date": "2026-08-14"
+    },
+    {
+      "accession": "S-EPMC5374595",
+      "title": "Visualization of consensus genome structure without using a reference genome.",
+      "type": "study",
+      "author": "Tada I Tanizawa Y Arita M",
+      "release_date": "2017-01-01"
+    },
+    {
+      "accession": "S-EPMC7265644",
+      "title": "Assembly and annotation of an Ashkenazi human reference genome.",
+      "type": "study",
+      "author": "Shumate A Zimin AV Sherman RM Puiu D Wagner JM Olson ND Pertea M Salit ML Zook JM Salzberg SL",
+      "release_date": "2020-01-01"
+    },
+    {
+      "accession": "S-EPMC9509377",
+      "title": "A chromosome-scale reference genome for Spironucleus salmonicida.",
+      "type": "study",
+      "author": "Xu F Jimenez-Gonzalez A Kurt Z Astvaldsson A Andersson JO Svard SG",
+      "release_date": "2022-01-01"
+    },
+    {
+      "accession": "S-EPMC5123046",
+      "title": "An ethnically relevant consensus Korean reference genome is a step towards personal reference genomes.",
+      "type": "study",
+      "author": "Cho YS Kim H Kim HM Jho S Jun J Lee YJ Chae KS Kim CG Kim S Eriksson A Edwards JS Lee S Kim BC Manica A Oh TK Church GM Bhak J",
+      "release_date": "2016-01-01"
+    }
+  ]
+}

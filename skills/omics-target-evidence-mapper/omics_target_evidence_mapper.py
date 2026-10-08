@@ -66,7 +66,9 @@ def fetch_uniprot_summary(gene: str) -> dict[str, Any]:
     }
     data = safe_request_json("GET", url, params=params)
 
-    if not data or not data.get("results"):
+    if data is None:
+        return {"status": "unavailable", "gene": gene}
+    if not data.get("results"):
         return {"status": "no_result", "gene": gene}
 
     entry = data["results"][0]
@@ -91,7 +93,7 @@ def fetch_uniprot_summary(gene: str) -> dict[str, Any]:
     }
 
 
-def fetch_pubmed_hits(gene: str, disease: str | None, max_papers: int) -> list[dict[str, Any]]:
+def fetch_pubmed_hits(gene: str, disease: str | None, max_papers: int) -> dict[str, Any]:
     term = gene if not disease else f"{gene} AND {disease}"
     search_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     search_params = {
@@ -103,12 +105,12 @@ def fetch_pubmed_hits(gene: str, disease: str | None, max_papers: int) -> list[d
     }
     search_data = safe_request_json("GET", search_url, params=search_params)
 
-    if not search_data:
-        return []
+    if search_data is None:
+        return {"status": "unavailable", "items": []}
 
     pmids = search_data.get("esearchresult", {}).get("idlist", [])
     if not pmids:
-        return []
+        return {"status": "no_result", "items": []}
 
     summary_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
     summary_params = {
@@ -117,8 +119,8 @@ def fetch_pubmed_hits(gene: str, disease: str | None, max_papers: int) -> list[d
         "retmode": "json",
     }
     summary_data = safe_request_json("GET", summary_url, params=summary_params)
-    if not summary_data:
-        return []
+    if summary_data is None:
+        return {"status": "unavailable", "items": []}
 
     results = []
     for pmid in pmids:
@@ -133,7 +135,7 @@ def fetch_pubmed_hits(gene: str, disease: str | None, max_papers: int) -> list[d
                 "source": item.get("source"),
             }
         )
-    return results
+    return {"status": "ok" if results else "no_result", "items": results}
 
 
 def fetch_open_targets_evidence(gene: str, disease: str | None) -> dict[str, Any]:
@@ -186,7 +188,7 @@ def fetch_open_targets_evidence(gene: str, disease: str | None) -> dict[str, Any
     }
 
 
-def fetch_trials(gene: str, disease: str | None, max_trials: int) -> list[dict[str, Any]]:
+def fetch_trials(gene: str, disease: str | None, max_trials: int) -> dict[str, Any]:
     query = gene if not disease else f"{gene} {disease}"
     url = "https://clinicaltrials.gov/api/v2/studies"
     params = {
@@ -196,8 +198,8 @@ def fetch_trials(gene: str, disease: str | None, max_trials: int) -> list[dict[s
     }
     data = safe_request_json("GET", url, params=params)
 
-    if not data:
-        return []
+    if data is None:
+        return {"status": "unavailable", "items": []}
 
     results = []
     for study in data.get("studies", []):
@@ -213,7 +215,7 @@ def fetch_trials(gene: str, disease: str | None, max_trials: int) -> list[dict[s
                 "phase": (design_mod.get("phases") or [None])[0],
             }
         )
-    return results
+    return {"status": "ok" if results else "no_result", "items": results}
 
 
 def build_evidence(args: argparse.Namespace) -> dict[str, Any]:
@@ -225,6 +227,21 @@ def build_evidence(args: argparse.Namespace) -> dict[str, Any]:
     literature = fetch_pubmed_hits(gene, disease, args.max_papers)
     trials = fetch_trials(gene, disease, args.max_trials)
 
+    limitations = [
+        "This tool aggregates public evidence for research triage only.",
+        "It does not infer causality from association evidence.",
+        "It does not provide clinical recommendations.",
+        "Public API availability may affect completeness.",
+    ]
+    if target_summary.get("status") == "unavailable":
+        limitations.append("UniProt was unavailable; target summary was not assessed.")
+    if disease_association.get("status") == "unavailable":
+        limitations.append("Open Targets was unavailable; disease association was not assessed.")
+    if literature.get("status") == "unavailable":
+        limitations.append("PubMed was unavailable; literature was not assessed.")
+    if trials.get("status") == "unavailable":
+        limitations.append("ClinicalTrials.gov was unavailable; trials were not assessed.")
+
     return {
         "query": {
             "gene": gene,
@@ -235,12 +252,7 @@ def build_evidence(args: argparse.Namespace) -> dict[str, Any]:
         "disease_association": disease_association,
         "literature": literature,
         "trials": trials,
-        "limitations": [
-            "This tool aggregates public evidence for research triage only.",
-            "It does not infer causality from association evidence.",
-            "It does not provide clinical recommendations.",
-            "Public API availability may affect completeness.",
-        ],
+        "limitations": limitations,
         "provenance": {
             "sources": ["UniProt", "Open Targets", "PubMed", "ClinicalTrials.gov"],
             "generated_at_utc": datetime.now(UTC).isoformat(),
@@ -254,8 +266,20 @@ def build_report(evidence: dict[str, Any]) -> str:
     target = evidence["target_summary"]
     disease_assoc = evidence["disease_association"]
     literature = evidence["literature"]
+    if not isinstance(literature, dict):
+        literature = {
+            "status": "ok" if literature else "no_result",
+            "items": literature or [],
+        }
     trials = evidence["trials"]
+    if not isinstance(trials, dict):
+        trials = {
+            "status": "ok" if trials else "no_result",
+            "items": trials or [],
+        }
     limitations = evidence["limitations"]
+    literature_items = literature.get("items") or []
+    trial_items = trials.get("items") or []
 
     lines = [
         "# Omics-to-Target Evidence Mapper Report",
@@ -282,8 +306,10 @@ def build_report(evidence: dict[str, Any]) -> str:
         "## Literature Snapshot",
     ]
 
-    if literature:
-        for paper in literature:
+    if literature.get("status") == "unavailable":
+        lines.append("- Literature unavailable; not assessed.")
+    elif literature_items:
+        for paper in literature_items:
             lines.extend(
                 [
                     f"- PMID: {paper.get('pmid')}",
@@ -296,8 +322,10 @@ def build_report(evidence: dict[str, Any]) -> str:
         lines.append("- No literature hits found.")
 
     lines.extend(["", "## Trial Landscape"])
-    if trials:
-        for trial in trials:
+    if trials.get("status") == "unavailable":
+        lines.append("- Trials unavailable; not assessed.")
+    elif trial_items:
+        for trial in trial_items:
             lines.extend(
                 [
                     f"- NCT ID: {trial.get('nct_id')}",
@@ -332,6 +360,20 @@ def write_json(path: Path, content: dict[str, Any]) -> None:
     path.write_text(json.dumps(content, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+def _source_items(block: Any) -> list[Any]:
+    if isinstance(block, dict):
+        items = block.get("items")
+        return items if isinstance(items, list) else []
+    if isinstance(block, list):
+        return block
+    return []
+
+
+def _source_status(block: Any) -> str:
+    if isinstance(block, dict) and isinstance(block.get("status"), str):
+        return block["status"]
+    return "ok" if block else "no_result"
+
 
 def main() -> None:
     args = parse_args()
@@ -352,8 +394,12 @@ def main() -> None:
         "query": evidence["query"],
         "sources": evidence["provenance"]["sources"],
         "counts": {
-            "literature": len(evidence["literature"]),
-            "trials": len(evidence["trials"]),
+            "literature": len(_source_items(evidence["literature"])),
+            "trials": len(_source_items(evidence["trials"])),
+        },
+        "status": {
+            "literature": _source_status(evidence["literature"]),
+            "trials": _source_status(evidence["trials"]),
         },
     }
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -138,6 +139,22 @@ API_DISPATCHERS = {
 # ---------------------------------------------------------------------------
 
 
+def _reproduce_command(rsid, output_dir, skip_apis, max_hits, make_figures, use_cache, demo):
+    """The CLI call that reproduces this run, run from the ClawBio repo root."""
+    args = ["python", "skills/gwas-lookup/gwas_lookup.py"]
+    args += ["--demo"] if demo else ["--rsid", rsid]
+    if skip_apis:
+        args += ["--skip", ",".join(skip_apis)]
+    if max_hits != 100:
+        args += ["--max-hits", str(max_hits)]
+    if not make_figures:
+        args.append("--no-figures")
+    if not use_cache:
+        args.append("--no-cache")
+    args += ["--output", str(output_dir.resolve())]
+    return "# Run from the ClawBio repo root\n" + shlex.join(args)
+
+
 def run_lookup(
     rsid: str,
     output_dir: Path,
@@ -253,9 +270,6 @@ def run_lookup(
         print("  Generating figures...")
         generate_figures(output_dir, merged, variant)
 
-    print("  Writing reproducibility bundle...")
-    write_reproducibility(output_dir, variant, list(skip_set))
-
     # Save raw JSON for debugging
     raw_path = output_dir / "raw_results.json"
     raw_path.write_text(json.dumps({
@@ -289,6 +303,14 @@ def run_lookup(
             "variant": variant,
             "merged": merged,
         },
+    )
+
+    print("  Writing reproducibility bundle...")
+    write_reproducibility(
+        output_dir,
+        _reproduce_command(rsid, output_dir, sorted(skip_set), max_hits,
+                           make_figures, use_cache, demo=demo_data is not None),
+        sorted(skip_set),
     )
 
     print(f"\n  Report: {output_dir / 'report.md'}")

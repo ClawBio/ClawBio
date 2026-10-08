@@ -75,6 +75,7 @@ When the user asks to look up a variant:
 ```
 output_directory/
 ├── report.md                    # Full markdown report
+├── result.json                  # Standardised result envelope
 ├── raw_results.json             # Raw API responses (debug)
 ├── tables/
 │   ├── gwas_associations.csv
@@ -87,8 +88,10 @@ output_directory/
 │   ├── gwas_traits_dotplot.png
 │   └── allele_freq_populations.png
 └── reproducibility/
-    ├── commands.sh
-    └── api_versions.json
+    ├── commands.sh              # Command that reproduces this run
+    ├── environment.yml
+    ├── api_versions.json
+    └── checksums.sha256         # cd <output_dir> && sha256sum -c reproducibility/checksums.sha256
 ```
 
 ## Dependencies
