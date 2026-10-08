@@ -151,3 +151,46 @@ def test_no_primacy_claim_anywhere():
             if PRIMACY.search(line):
                 hits.append(f"{rel}:{lineno}: {line.strip()[:100]}")
     assert not hits, "primacy claim found (the project does not evidence it):\n" + "\n".join(hits)
+
+
+# Listings a reader sees before the README (the plugin store and the Zenodo
+# record) cannot show the live badge, so they state a floor such as "100+
+# skills". A floor stays true as skills are added, so new-skill PRs never touch
+# it; it only has to stay at or below the catalog's skill_count.
+FLOOR_FILES = [
+    ".zenodo.json",
+    ".claude-plugin/plugin.json",
+    ".claude-plugin/marketplace.json",
+]
+FLOOR_PATTERN = re.compile(r"(?<![\d.,])(\d[\d,]*)\+\s+(?:Agent\s+)?skills\b", re.IGNORECASE)
+
+
+def _floors(text: str) -> list[int]:
+    return [int(m.group(1).replace(",", "")) for m in FLOOR_PATTERN.finditer(text)]
+
+
+def _floor_problems(relpath: str, text: str, skill_count: int) -> list[str]:
+    floors = _floors(text)
+    if not floors:
+        return [f"{relpath} states no '<N>+ skills' floor"]
+    return [f"{relpath} claims {n}+ skills but catalog skill_count={skill_count}"
+            for n in floors if n > skill_count]
+
+
+@pytest.mark.parametrize("relpath", FLOOR_FILES)
+def test_listing_states_a_true_skill_floor(relpath: str):
+    problems = _floor_problems(relpath, (ROOT / relpath).read_text(), _catalog()["skill_count"])
+    assert not problems, problems
+
+
+def test_floor_guard_fires_when_floor_exceeds_catalog():
+    assert _floor_problems("x.json", "Bioinformatics: 200+ skills.", 104)
+
+
+def test_floor_guard_fires_when_floor_is_missing():
+    assert _floor_problems("x.json", "Bioinformatics Agent Skills.", 104)
+
+
+def test_floor_is_not_a_hand_typed_count():
+    assert _hand_typed_counts("100+ skills and 100+ Agent Skills") == []
+    assert _floors("100+ Agent Skills") == [100]
