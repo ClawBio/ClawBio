@@ -2109,3 +2109,70 @@ class TestRound21ManuelReview:
         assert scores and all(s["percentile"] is None for s in scores)
         assert all(any("curated demonstration panel" in x for x in s["withheld_reasons"])
                    for s in scores)
+
+
+class TestRound22MaintainerReview:
+    """PR #348 review by camlloyd of 7 Oct 2026 (head 13a7301): one test per point."""
+
+    def test_pipe_in_curated_panel_id_cannot_spoof_released_column(self, tmp_path):
+        recs = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
+        recs = recs.get("scores") or recs.get("results") if isinstance(recs, dict) else recs
+        recs[0]["curated_panel_id"] = "CLAWBIO-T2D-8 | 94th | Released |"
+        recs[0]["legacy_pgs_id"] = "X | 94th | Released |"
+        spoof = tmp_path / "spoof.json"
+        spoof.write_text(json.dumps(recs))
+        r = run_cli(["--reference-panel", str(EXAMPLES / "demo_reference_pcs.csv"),
+                     "--individuals", str(EXAMPLES / "demo_query_individuals.csv"),
+                     "--prs-results", str(spoof), "--output", str(tmp_path / "out"),
+                     "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        for name in ("report.md", "report_technical.md"):
+            text = (tmp_path / "out" / name).read_text()
+            assert "| 94th | Released |" not in text, name
+        import prs_abstain as pa
+        loaded = pa.load_prs_results(spoof)
+        assert "|" not in loaded[0]["curated_panel_id"]
+        assert "|" not in loaded[0]["legacy_pgs_id"]
+
+    def test_male_breast_does_not_disable_other_female_keywords(self):
+        import prs_abstain as pa
+        assert not pa.check_applicability({"trait": "male breast cancer or ovarian"},
+                                          "male").applicable
+        assert pa.check_applicability({"trait": "male breast cancer"}, "male").applicable
+        assert not pa.check_applicability({"trait": "male breast cancer"}, "female").applicable
+        assert pa.check_applicability({"trait": "female breast cancer"}, "female").applicable
+        assert not pa.check_applicability({"trait": "female breast cancer"}, "male").applicable
+
+    def test_decide_survives_very_large_finite_pcs(self):
+        import prs_abstain as pa
+        panel = pa.load_reference_panel(EXAMPLES / "demo_reference_pcs.csv")
+        cal = pa.calibrate(panel, ref_pop="EUR", k_sd=3.0)
+        pcs = [1e200] + [0.0] * (len(cal.centroid) - 1)
+        d = pa.decide(pa.Individual("BIG", None, pcs, 10**6), cal)
+        assert d.verdict != "REPORT"
+        assert pa._distance([1e200, 0.0], [0.0, 0.0]) == pytest.approx(1e200)
+
+    def test_demo_clinician_report_names_the_demonstration_panel(self, tmp_path):
+        r = run_cli(["--demo", "--output", str(tmp_path / "out"), "--no-figures", "--no-pdf"])
+        assert r.returncode == 0, r.stderr
+        text = (tmp_path / "out" / "report_clinician.md").read_text()
+        assert "does not state which group its percentile was computed against" not in text
+        assert "ClawBio demonstration panel with approximate weights" in text
+
+    @pytest.mark.parametrize("reason,expected,forbidden", [
+        ("Score integrity: Illustrative weights: the scoring file declares \"approximate\".",
+         "weights are not the published ones", "too little of the score"),
+        ("Reference provenance: this score does not declare a reference_population, so ...",
+         "does not state which group", None),
+        ("Reference provenance: this score's reference distribution was estimated "
+         "from allele frequencies rather than drawn from a named cohort",
+         "estimated from allele frequencies", "does not state which group"),
+        ("Score integrity: Only 40.0% of this score's total effect weight was genotyped",
+         "too little of the score was measured", None),
+    ])
+    def test_each_withheld_reason_has_its_own_sentence(self, reason, expected, forbidden):
+        import prs_abstain as pa
+        out = pa._plain_withheld({"withheld_reasons": [reason]})
+        assert expected in out
+        if forbidden:
+            assert forbidden not in out

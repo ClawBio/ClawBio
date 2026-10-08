@@ -452,11 +452,14 @@ def check_applicability(score: dict[str, Any] | ScoreDefinition, sex: str | None
     # Common single-letter and localised spellings; anything else stays as
     # written and fails the match below (closed), rather than being guessed.
     sex_norm = {"f": "female", "w": "female", "m": "male"}.get(sex_norm, sex_norm)
-    male_override = re.search(r"(?<![a-z])male breast", t) is not None
+    male_breast = re.compile(r"(?<![a-z])male breast")
+    male_override = male_breast.search(t) is not None
+    # "male breast" removes only its own "breast" from the female check. Skipping
+    # the whole female list would let "male breast cancer or ovarian" reach a man.
+    t_female = male_breast.sub(" ", t)
     for required_sex, keywords in SEX_SPECIFIC.items():
-        if required_sex == "female" and male_override:
-            continue
-        if _sex_keyword_hits(t, keywords) or (required_sex == "male" and male_override):
+        text = t_female if required_sex == "female" else t
+        if _sex_keyword_hits(text, keywords) or (required_sex == "male" and male_override):
             if sex_norm is None:
                 return Applicability(False, (
                     f"{trait} is a sex-specific trait and no sex was recorded for this "
@@ -978,7 +981,10 @@ def load_prs_results(path: Path) -> list[dict[str, Any]]:
             raise ValueError(
                 f"record {i}: reference_population must be a string or null, got {v!r}. "
                 f"A non-string would crash the provenance gate after outputs are written.")
-        for fld in ("trait", "pgs_id", "note"):
+        # curated_panel_id is the display identity (score_id prefers it), so it
+        # reaches the same table cells as pgs_id and needs the same treatment.
+        for fld in ("trait", "pgs_id", "note", "curated_panel_id", "legacy_pgs_id",
+                    "reference_population"):
             v = rec.get(fld)
             if isinstance(v, str) and "|" in v:
                 # A pipe splits every markdown table row it lands in, and the PDF
@@ -991,7 +997,10 @@ def load_prs_results(path: Path) -> list[dict[str, Any]]:
 # ── Calibration ───────────────────────────────────────────────────────────────
 
 def _distance(pcs: Sequence[float], centroid: Sequence[float]) -> float:
-    return math.sqrt(sum((a - b) ** 2 for a, b in zip(pcs, centroid)))
+    # math.dist scales internally, so a finite coordinate near 1e154 does not
+    # overflow the sum of squares. zip's truncation to the shorter is kept.
+    n = min(len(pcs), len(centroid))
+    return math.dist(tuple(pcs)[:n], tuple(centroid)[:n])
 
 
 def calibrate(
@@ -1721,15 +1730,26 @@ def _plain_withheld(x: dict[str, Any]) -> str:
         return "Withheld: the score's trait could not be read, so it is unclear whether it applies"
     if "not applicable" in joined or "does not apply" in joined:
         return "Withheld: trait does not apply to this person"
-    if "reference provenance" in joined:
+    if "curated demonstration panel" in joined:
+        return ("Withheld: this is a ClawBio demonstration panel with approximate weights, "
+                "not a published score, and its percentile is not measured against a real group")
+    if "does not declare a reference_population" in joined:
         return "Withheld: the score does not state which group its percentile was computed against"
+    if "estimated from allele frequencies" in joined:
+        return ("Withheld: the score's comparison group was estimated from allele frequencies, "
+                "not measured in a real group of people")
     if "never inspected" in joined:
         return "Withheld: the score's definition file was not available for checking"
-    if "score integrity" in joined:
-        if "more than one scored variant" in joined:
-            return ("Withheld: the score file lists the same position in the genome more "
-                    "than once, so the sum cannot be trusted")
+    if "illustrative weights" in joined:
+        return ("Withheld: the score file says its weights are not the published ones, "
+                "so the percentile has no clinical meaning")
+    if "more than one scored variant" in joined:
+        return ("Withheld: the score file lists the same position in the genome more "
+                "than once, so the sum cannot be trusted")
+    if "effect weight was genotyped" in joined or "weight coverage" in joined:
         return "Withheld: too little of the score was measured"
+    if "score integrity" in joined:
+        return "Withheld: the score file failed an integrity check (see the full report)"
     if "ancestry gate" in joined:
         return "Withheld: ancestry comparison does not hold"
     if "reference mismatch" in joined:
