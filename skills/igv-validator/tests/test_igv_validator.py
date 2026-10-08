@@ -233,6 +233,15 @@ def test_sv_vaf_counts_fragments_in_both_numbers(tmp_path):
     assert c["alt"] == 5 and c["depth"] == 20 and c["vaf_pct"] == pytest.approx(25.0, abs=0.1)
 
 
+def test_interactive_page_does_not_fetch_the_igv_genome_list():
+    """igv.js fetches igv.org/genomes/genomes3.json unless told not to; the pages must work offline (PR #549)."""
+    page = ("<script>const options =\n            {\n                sessionURL: s,\n            }\n"
+            "igv.createBrowser(igvDiv, options)</script>")
+    out = iv.offline_igv_page(page)
+    assert "loadDefaultGenomes: false" in out and out.count("loadDefaultGenomes") == 1
+    assert iv.offline_igv_page(out) == out            # applying it twice changes nothing
+
+
 # ── Tumor-only mode ────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="module")

@@ -2536,12 +2536,21 @@ def make_interactive(plan: list[dict], rows: list[dict], out: Path, annotation=N
                 cmd += ["--subsample", str(frac)]
             res = subprocess.run(cmd, capture_output=True, text=True)
             if res.returncode == 0 and dst.exists():
+                dst.write_text(offline_igv_page(dst.read_text()))
                 done[(smp, gene.upper())] = dst
             else:
                 notes.append(f"{smp} {gene}: igv-reports failed ({(res.stderr or res.stdout).strip().splitlines()[-1:]})")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return done, "; ".join(notes)
+
+
+def offline_igv_page(page: str) -> str:
+    """An igv-reports page that makes no network request: igv.js otherwise fetches its list of hosted genomes
+    (igv.org/genomes/genomes3.json) on load. Everything the page shows is embedded, so it does not need the list."""
+    if re.search(r"const options\s*=\s*\{\s*loadDefaultGenomes", page):
+        return page                       # already set
+    return re.sub(r"(const options\s*=\s*\{)", r"\1 loadDefaultGenomes: false,", page, count=1)
 
 
 BUNDLE_NAME = "igv_validation_full.zip"
