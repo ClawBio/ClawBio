@@ -472,6 +472,7 @@ from**, the same file the curated table was built from (it may cover the whole g
 genes are checked; `chr`/`start` columns work). Each listed variant must also be in `snv_vcf`, which supplies the
 caller's counts. Without it, every caller SNV in the genes is checked; in tumor-only data most are inherited, so the run warns,
 and those variants are listed under *details* without counting against a curated call. `cnv_sample` = the sample's name inside a multi-sample copy-number file.
+**The same goes for `sv_vcf` and `cnv`: use the files your curated table was made from.** A pipeline often writes several SV VCFs (raw, merged, repeat-filtered, size-filtered, final); if the table came from an annotated version (e.g. AnnotSV output), give the VCF that annotation was run on. A different file checks other calls, and a curated SV missing from it shows as *Look first* for the wrong reason. To find it, match a few positions from your table against each candidate VCF.
 
 **4. Run everything with one command**:
 ```bash
