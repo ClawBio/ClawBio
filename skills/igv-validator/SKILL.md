@@ -272,7 +272,8 @@ python skills/igv-validator/igv_validator.py --summarize reports/ --curated-call
 tables, `overview/`, `interactive/`), and the whole report is also zipped there as `igv_validation_full.zip`,
 linked from the top of the page as a download, next to the page's own path on the server. Unzip it anywhere and
 open `summary.html`: every page, image and interactive view works offline. It contains read data, so keep it
-where the BAMs may be. `--no-bundle` skips the zip.
+where the BAMs may be. `--no-bundle` skips the zip. A report folder can be moved or copied and summarized
+again: relative BAM and reference paths in it are looked up from the folder itself.
 - Prompt: *"Summarize `reports/` and give me the download of the whole report for my PI."*
 ```bash
 python skills/igv-validator/igv_validator.py --summarize reports/ --curated-calls curated.csv
