@@ -34,6 +34,10 @@ PANEL: dict[str, dict] = {
         "gene": "MTHFR",
         "variant": "C677T",
         "risk_allele": "T",
+        # Gene on the GRCh37 minus strand. DTC files (23andMe, AncestryDNA) report the
+        # forward (+) strand, where this variant reads G, A and the risk allele is A.
+        "plus_strand_alleles": ("G", "A"),
+        "plus_strand_risk_allele": "A",
         "effect": "Decreased Folate to 5-MTHF Conversion",
         # Heterozygous ~65%, homozygous ~30% residual activity (thermolability assay).
         # source: doi:10.1038/ng0595-111 (Frosst et al., Nat Genet 1995)
@@ -46,6 +50,10 @@ PANEL: dict[str, dict] = {
         "gene": "MTHFR",
         "variant": "A1298C",
         "risk_allele": "C",
+        # Gene on the GRCh37 minus strand. DTC files (23andMe, AncestryDNA) report the
+        # forward (+) strand, where this variant reads T, G and the risk allele is G.
+        "plus_strand_alleles": ("T", "G"),
+        "plus_strand_risk_allele": "G",
         "effect": "Decreased MTHFR Activity (modifier)",
         # Heterozygous ~80%, homozygous ~60% residual activity.
         # source: doi:10.1086/301927 (van der Put et al., Am J Hum Genet 1998)
@@ -81,6 +89,10 @@ PANEL: dict[str, dict] = {
         "gene": "CBS",
         "variant": "C699T",
         "risk_allele": "T",
+        # Gene on the GRCh37 minus strand. DTC files (23andMe, AncestryDNA) report the
+        # forward (+) strand, where this variant reads G, A and the risk allele is A.
+        "plus_strand_alleles": ("G", "A"),
+        "plus_strand_risk_allele": "A",
         "effect": "Increased CBS Activity (diverts homocysteine to transsulfuration)",
         # CBS risk allele INCREASES activity (inverse effect on methylation capacity).
         # Heterozygous ~120%, homozygous ~140% of normal CBS flux.
@@ -107,6 +119,10 @@ PANEL: dict[str, dict] = {
         "gene": "SHMT1",
         "variant": "C1420T",
         "risk_allele": "T",
+        # Gene on the GRCh37 minus strand. DTC files (23andMe, AncestryDNA) report the
+        # forward (+) strand, where this variant reads G, A and the risk allele is A.
+        "plus_strand_alleles": ("G", "A"),
+        "plus_strand_risk_allele": "A",
         "effect": "Decreased Serine Hydroxymethyltransferase Activity",
         # Heterozygous ~80%, homozygous ~60% residual activity.
         # source: doi:10.1093/carcin/bgm139 (Perry et al., Carcinogenesis 2007)
@@ -182,8 +198,18 @@ def parse_genotype_file(path: Path) -> dict[str, str]:
 # Analysis
 # ---------------------------------------------------------------------------
 
-def count_risk_alleles(genotype: str, risk_allele: str) -> int:
-    """Count occurrences of the risk allele in a genotype string."""
+def count_risk_alleles(genotype: str, risk_allele: str, snp_def: dict | None = None) -> int:
+    """Count risk alleles in a genotype string, on whichever strand it is written.
+
+    The panel states risk alleles on the gene's coding strand (e.g. MTHFR C677T -> "T").
+    Consumer files report the GRCh37 forward strand, so for genes on the minus strand
+    the same carrier reads "AG", not "CT". When every allele in the genotype belongs to
+    the forward-strand pair, the forward-strand risk allele is counted instead.
+    """
+    if snp_def and "plus_strand_alleles" in snp_def:
+        plus = set(snp_def["plus_strand_alleles"])
+        if genotype and set(genotype) <= plus:
+            return genotype.count(snp_def["plus_strand_risk_allele"])
     return genotype.count(risk_allele)
 
 
@@ -251,7 +277,7 @@ def analyse(genotypes: dict[str, str]) -> dict:
         if rsid in genotypes:
             found_rsids.append(rsid)
             gt = genotypes[rsid]
-            n_risk = count_risk_alleles(gt, snp_def["risk_allele"])
+            n_risk = count_risk_alleles(gt, snp_def["risk_allele"], snp_def)
             activity = estimate_activity(snp_def, n_risk)
             status = (
                 "normal" if n_risk == 0
