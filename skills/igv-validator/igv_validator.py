@@ -1824,6 +1824,17 @@ def depth_state(log2: float | None) -> str:
     return "neutral"
 
 
+def _locate(path, *bases) -> str | None:
+    """A recorded input path as one that exists: absolute paths as they are; a relative one (a moved or shared report
+    folder) is tried against the summarized folder, the run folder, then the current folder."""
+    if not path or Path(path).is_absolute():
+        return path
+    for b in bases:
+        if (Path(b) / path).exists():
+            return str((Path(b) / path).resolve())
+    return str(Path(path).resolve()) if Path(path).exists() else path
+
+
 def _summary_rows(root: Path, empty_runs: list | None = None) -> list[dict]:
     rows = []
     empty_runs = [] if empty_runs is None else empty_runs
@@ -1838,7 +1849,9 @@ def _summary_rows(root: Path, empty_runs: list | None = None) -> list[dict]:
         report = str((run / "report.html").relative_to(root))
         data = d.get("data", {})
         tool = data.get("tool", "")
-        inputs = data.get("inputs") or {}
+        inputs = dict(data.get("inputs") or {})
+        for k in ("tumor", "normal", "reference"):
+            inputs[k] = _locate(inputs.get(k), root, run)
         if "cnv" in data:
             sample = data.get("sample") or run.parent.name
             for c in data["cnv"]:

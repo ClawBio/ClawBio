@@ -1136,6 +1136,19 @@ def test_unfiltered_snv_still_supports_a_curated_snv(summary_dir, tmp_path):
     assert c["match"] == "matches"
 
 
+def test_relative_input_paths_are_found_from_the_report_folder(tmp_path):
+    """A report folder whose recorded paths are relative (moved or shared) still finds its BAM and reference."""
+    root = tmp_path / "rep"; run = root / "S" / "sv"; run.mkdir(parents=True)
+    (root / "ref").mkdir(); (root / "ref" / "g.fa").write_text(">c\nA\n"); (root / "t.bam").write_text("")
+    v = {"id": "V", "chrom": "c", "pos": 1, "ref": "A", "alt": "T", "kind": "snv", "gene": "G", "label": "c:1 A>T",
+         "flags": [], "status": "supported", "chrom2": None, "pos2": None, "figures": [],
+         "tumor": {"alt": 5, "depth": 10, "vaf_pct": 50.0, "alt_fwd": 3, "alt_rev": 2}}
+    (run / "result.json").write_text(json.dumps({"skill": "igv-validator", "data": {
+        "variants": [v], "samples": {"tumor": "S"}, "inputs": {"tumor": "t.bam", "reference": "ref/g.fa"}}}))
+    r = iv._summary_rows(root)[0]
+    assert r["_ref"] == str((root / "ref" / "g.fa").resolve()) and r["_bam"] == str((root / "t.bam").resolve())
+
+
 def test_sequence_deletion_from_an_sv_caller_counts_as_sv(tmp_path):
     """A 799 bp deletion written out as sequence (Manta, SURVIVOR) supports a curated SV; a 12 bp one stays an indel."""
     root = tmp_path / "r"
