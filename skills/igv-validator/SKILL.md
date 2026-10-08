@@ -320,7 +320,8 @@ output_directory/
 ├── report.html            # Self-contained HTML report (images embedded)
 ├── result.json            # Machine-readable results
 ├── tables/
-│   └── support_counts.tsv # Tumor/normal read support per variant
+│   ├── support_counts.tsv # Tumor/normal read support per variant
+│   └── cnv_depth.tsv      # Copy-number mode: depth, log2, local ratio, flags per gene (optional, --cnv only)
 ├── figures/
 │   ├── igv/               # Captioned tumor-over-normal screenshots (optional, needs IGV)
 │   └── cnv/               # Copy-number mode: depth plots and IGV views (optional, --cnv only)
@@ -328,6 +329,22 @@ output_directory/
     ├── commands.sh         # Exact command to reproduce
     ├── environment.yml     # Conda/pip environment snapshot
     └── checksums.sha256    # Checksums of the outputs
+```
+
+A summary (`--summarize`, or each `--samplesheet` run folder) adds:
+
+```
+summary_folder/
+├── summary.html             # The one page: curated calls vs IGV, raw calls, links to everything
+├── summary.tsv              # Every call and field
+├── curated_vs_igv.tsv       # One row per curated call (with --curated-calls)
+├── igv_agreement.tsv        # One row per raw caller call
+├── summary_settings.json    # Options used, so later checks can refresh the page (--project)
+├── overview/<sample>_<GENE>.png      # One IGV image per gene and sample (--overview; needs IGV)
+├── interactive/<sample>_<GENE>.html  # Zoomable igv-reports page per gene and sample (--interactive); embeds reads
+├── interactive/<sample>.html         # Index of a sample's interactive pages
+├── igv_validation_full.zip  # The whole report, for sharing (not with --no-bundle); contains read data
+└── genes.bed, run_log.tsv, samplesheet.csv   # --samplesheet runs: genes used, per-check log, a copy of the sheet
 ```
 
 ## Dependencies
