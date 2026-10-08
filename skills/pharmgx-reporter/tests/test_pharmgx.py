@@ -159,7 +159,7 @@ def test_mthfr_forward_strand_conversion_corpas():
     }
     diplotype = call_diplotype("MTHFR", pgx)
     assert diplotype == "677CC/1298AC", f"Expected 677CC/1298AC, got {diplotype}"
-    assert call_phenotype("MTHFR", diplotype) == "Reduced MTHFR enzyme activity (677CT)"
+    assert call_phenotype("MTHFR", diplotype) == "Reduced MTHFR enzyme activity (1298AC)"
 
 
 def test_mthfr_level2_reduced():
@@ -926,3 +926,25 @@ def test_dpyd_partial_panel_with_detected_variant_is_flagged():
 def test_dpyd_partial_panel_poor_is_not_downgraded():
     """Two no-function alleles are Poor whatever else is untested."""
     assert _dpyd({"rs3918290": "TT"})[1] == "Poor Metabolizer"
+
+
+def test_mthfr_compound_het_label_names_the_observed_genotype():
+    """677CT/1298AC keeps the strongly-reduced grouping but is not printed as 677TT."""
+    label = call_phenotype("MTHFR", "677CT/1298AC")
+    assert label.startswith("Strongly reduced MTHFR enzyme activity")
+    assert "677TT" not in label
+    assert "677CT/1298AC" in label
+
+
+def test_mthfr_1298ac_alone_label():
+    label = call_phenotype("MTHFR", "677CC/1298AC")
+    assert label.startswith("Reduced MTHFR enzyme activity")
+    assert "677CT" not in label
+
+
+def test_mthfr_new_labels_map_to_same_activity_categories():
+    from pharmgx_reporter import call_phenotype as cp
+    import pharmgx_reporter as m
+    fn = m.phenotype_to_key
+    assert fn(cp("MTHFR", "677CT/1298AC")) == fn(cp("MTHFR", "677TT/1298AA"))
+    assert fn(cp("MTHFR", "677CC/1298AC")) == fn(cp("MTHFR", "677CT/1298AA"))

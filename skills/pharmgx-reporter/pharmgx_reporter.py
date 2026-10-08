@@ -297,8 +297,13 @@ GENE_DEFS = {
             # Activity labels follow DPWG MTHFR nomenclature with genotype detail
             "Normal MTHFR enzyme activity (677CC)":          ["677CC/1298AA", "677CC/1298NOT_TESTED",
                                                               "677NOT_TESTED/1298AA"],
-            "Reduced MTHFR enzyme activity (677CT)":         ["677CT/1298AA", "677CC/1298AC"],
-            "Strongly reduced MTHFR enzyme activity (677TT)": ["677TT/1298AA", "677CT/1298AC"],
+            # The parenthesis names the genotype that was actually observed, so a reader never
+            # sees "677TT" printed for someone who is 677CT/1298AC. Activity grouping is unchanged:
+            # 1298AC alone groups with 677CT, the 677CT/1298AC compound heterozygote with 677TT.
+            "Reduced MTHFR enzyme activity (677CT)":         ["677CT/1298AA"],
+            "Reduced MTHFR enzyme activity (1298AC)":        ["677CC/1298AC"],
+            "Strongly reduced MTHFR enzyme activity (677TT)": ["677TT/1298AA"],
+            "Strongly reduced MTHFR enzyme activity (677CT/1298AC compound heterozygous)": ["677CT/1298AC"],
         },
     },
 }
@@ -1280,6 +1285,8 @@ def phenotype_to_key(phenotype_desc):
         "Normal MTHFR enzyme activity (677CC)": "normal_activity",
         "Reduced MTHFR enzyme activity (677CT)": "intermediate_activity",
         "Strongly reduced MTHFR enzyme activity (677TT)": "reduced_activity",
+        "Reduced MTHFR enzyme activity (1298AC)": "intermediate_activity",
+        "Strongly reduced MTHFR enzyme activity (677CT/1298AC compound heterozygous)": "reduced_activity",
     }
     # Try exact match first, then strip qualifiers like "(inferred)"
     key = mapping.get(phenotype_desc)
