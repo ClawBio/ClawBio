@@ -22,6 +22,11 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 SCRIPT = SKILL_DIR / "igv_validator.py"
 DEMO = SKILL_DIR / "demo"
 TRUTH = json.loads((DEMO / "demo_truth.json").read_text())["variants"]
+
+
+def _tsv(path) -> list[dict]:
+    """Rows of a tab-separated file (read in full, so no file handle stays open)."""
+    return list(csv.DictReader(Path(path).read_text().splitlines(), delimiter="\t"))
 DISCLAIMER_START = "ClawBio is a research and educational tool"
 
 sys.path.insert(0, str(SKILL_DIR))
@@ -873,7 +878,7 @@ def summary_dir(tmp_path_factory):
         assert r.returncode == 0, r.stderr
     r = run_cli("--summarize", root)
     assert r.returncode == 0, r.stderr
-    rows = list(csv.DictReader(open(root / "summary.tsv"), delimiter="\t"))
+    rows = _tsv(root / "summary.tsv")
     return root, rows
 
 
@@ -984,7 +989,7 @@ def test_real_homozygous_deletion_is_not_ambiguous(cnv_result):
 
 def test_agreement_table_lists_only_caller_calls(summary_dir):
     root, _ = summary_dir
-    rows = list(csv.DictReader(open(root / "igv_agreement.tsv"), delimiter="\t"))
+    rows = _tsv(root / "igv_agreement.tsv")
     ans = {(r["gene"], r["type"]): r for r in rows}
     assert ans[("HOMDEL", "CNV")]["igv_agrees"] == "yes"
     assert ans[("WRONGDEL", "CNV")]["igv_agrees"] == "no"
@@ -1018,7 +1023,7 @@ def test_vcf_tool_falls_back_to_file_name():
 
 def test_agreement_table_says_what_igv_shows(summary_dir):
     root, _ = summary_dir
-    rows = {(r["gene"], r["type"]): r for r in csv.DictReader(open(root / "igv_agreement.tsv"), delimiter="\t")}
+    rows = {(r["gene"], r["type"]): r for r in _tsv(root / "igv_agreement.tsv")}
     assert rows[("DEMO1", "SNV/indel")]["tool"] == "demo_calls.vcf"
     assert "18 of 64 reads carry" in rows[("DEMO1", "SNV/indel")]["igv_shows"]
     assert "support the rearrangement" in rows[("DEMO5", "SV")]["igv_shows"]
@@ -1151,7 +1156,7 @@ def test_recurrent_flag_reaches_the_summary_page(tmp_path):
     for s in ("S1", "S2", "S3"):
         assert run_cli("--demo", "--no-igv", "--tumor-name", s, "--output", root / s / "snv").returncode == 0
     assert run_cli("--summarize", root).returncode == 0
-    rows = list(csv.DictReader(open(root / "igv_agreement.tsv"), delimiter="\t"))
+    rows = _tsv(root / "igv_agreement.tsv")
     assert any(r["igv_agrees"] == "in reads, recurrent" for r in rows)
     assert "recurrent" in (root / "summary.html").read_text()
 
@@ -1300,7 +1305,7 @@ def test_heatmap_flag_writes_the_comparison(summary_dir, tmp_path):
     out = tmp_path / "s"
     r = run_cli("--summarize", root, "--heatmap", hm, "--output", out)
     assert r.returncode == 0, r.stderr
-    rows = list(csv.DictReader(open(out / "curated_vs_igv.tsv"), delimiter="\t"))
+    rows = _tsv(out / "curated_vs_igv.tsv")
     assert {r["gene"]: r["match"] for r in rows} == {"HOMDEL": "matches", "ALTGENE": "differs"}
     assert "Curated calls vs IGV" in (out / "summary.html").read_text()
 
@@ -1576,9 +1581,9 @@ def test_summary_warns_that_verdicts_are_automatic(summary_dir, tmp_path):
     assert run_cli("--summarize", root, "--heatmap", hm, "--output", out).returncode == 0
     page = (out / "summary.html").read_text()
     assert "Nothing on this page is a verdict" in page and "your own look at the image" in page
-    rows = list(csv.DictReader(open(out / "curated_vs_igv.tsv"), delimiter="\t"))
+    rows = _tsv(out / "curated_vs_igv.tsv")
     assert "review" in rows[0] and "report" in rows[0]
-    assert "review" in next(csv.DictReader(open(out / "igv_agreement.tsv"), delimiter="\t"))
+    assert "review" in _tsv(out / "igv_agreement.tsv")[0]
 
 
 def test_left_out_copy_number_gets_a_glance(tmp_path):
@@ -1728,7 +1733,7 @@ def test_summary_opens_on_the_simple_view(summary_dir, tmp_path):
     assert "Agree?" not in page and "IGV agrees?" not in page and "Nothing on this page is a verdict" in page
     assert "Look first" in page and "to look at first" in page
     assert page.index("What IGV shows") < page.index("<summary>details</summary>")   # details sit in the rows
-    rows = list(csv.DictReader(open(out / "curated_vs_igv.tsv"), delimiter="\t"))
+    rows = _tsv(out / "curated_vs_igv.tsv")
     assert {"agree", "look", "plain"} <= set(rows[0])
 
 
@@ -1779,7 +1784,7 @@ def test_curated_calls_flag_and_heatmap_alias(summary_dir, tmp_path):
     for flag in ("--curated-calls", "--heatmap"):
         out = tmp_path / flag.strip("-")
         assert run_cli("--summarize", root, flag, cur, "--output", out).returncode == 0
-        rows = list(csv.DictReader(open(out / "curated_vs_igv.tsv"), delimiter="\t"))
+        rows = _tsv(out / "curated_vs_igv.tsv")
         assert rows[0]["curated"] == "DEL" and rows[0]["agree"] == "Yes"
 
 
@@ -2054,7 +2059,7 @@ def test_genes_default_to_the_curated_calls(tmp_path):
     assert r.returncode == 0, r.stderr
     run_dir = next(d for d in reports.iterdir() if d.is_dir())
     assert sorted(l.split("\t")[3] for l in (run_dir / "genes.bed").read_text().split("\n") if l) == ["DEMO1", "HOMDEL"]
-    rows = list(csv.DictReader(open(run_dir / "curated_vs_igv.tsv"), delimiter="\t"))
+    rows = _tsv(run_dir / "curated_vs_igv.tsv")
     assert {x["gene"]: x["agree"] for x in rows} == {"HOMDEL": "Yes", "DEMO1": "Yes"}
 
 
@@ -2082,6 +2087,6 @@ def test_curated_samples_not_in_this_run_are_noted_not_called_different(tmp_path
     r, reports = _curated_run(tmp_path, [("demo_tumor", "HOMDEL", "DEL"), ("OTHERSAMPLE", "HOMDEL", "DEL")])
     assert r.returncode == 0, r.stderr
     run_dir = next(d for d in reports.iterdir() if d.is_dir())
-    rows = list(csv.DictReader(open(run_dir / "curated_vs_igv.tsv"), delimiter="\t"))
+    rows = _tsv(run_dir / "curated_vs_igv.tsv")
     assert [x["sample"] for x in rows] == ["demo_tumor"]
     assert "OTHERSAMPLE" in (run_dir / "summary.html").read_text()

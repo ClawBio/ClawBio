@@ -771,7 +771,7 @@ class IGVSession:
                 shutil.copy(self.home / "igv.log", log_copy)
                 msg += f" (IGV log: {log_copy})"
             except OSError:
-                pass
+                pass   # the log copy is a convenience; the error below still explains what failed
         self.close()
         raise RuntimeError(msg)
 
@@ -821,7 +821,7 @@ class IGVSession:
             if self.f:
                 self.f.write("exit\n"); self.f.flush()
         except OSError:
-            pass
+            pass   # IGV already closed the connection; the process is stopped below either way
         try:
             self.proc.wait(timeout=15)
         except subprocess.TimeoutExpired:
@@ -1164,24 +1164,24 @@ def write_reports(out: Path, rows: list[dict], skipped: list[dict], meta: dict) 
           + (f", {counts['no_coverage']} no coverage" if counts["no_coverage"] else "")
           + (f"; {len(skipped):,} not evaluated ({_reason_summary(skipped)})" if skipped else "") + ".", ""]
     if not rows:
-        md += ["**No calls in the selected regions or genes.** The VCF has no call touching them "
-               "(for SVs: no breakpoint inside, and no deletion/duplication/inversion spanning them).", ""]
+        md += [("**No calls in the selected regions or genes.** The VCF has no call touching them "
+                "(for SVs: no breakpoint inside, and no deletion/duplication/inversion spanning them)."), ""]
     if not paired:
-        md += ["> **Tumor-only mode:** without a matched normal the skill cannot tell a somatic mutation from an "
-               "inherited (germline) variant, and the normal-based checks (support in the normal, germline site, "
-               "swapped samples) are skipped.", ""]
+        md += [("> **Tumor-only mode:** without a matched normal the skill cannot tell a somatic mutation from an "
+                "inherited (germline) variant, and the normal-based checks (support in the normal, germline site, "
+                "swapped samples) are skipped."), ""]
     if meta.get("caller_note"):
         md += [f"> Caller counts: {meta['caller_note']}.", ""]
     if meta.get("swap_warning"):
         md += [f"> **Warning:** {meta['swap_warning']}", ""]
     if counts["no_coverage"]:
-        md += [f"> **Warning:** {counts['no_coverage']} variant(s) have no reads in either BAM. Check that the BAMs "
-               "cover these regions (a sliced BAM, a different sample, or a VCF from another reference build).", ""]
+        md += [(f"> **Warning:** {counts['no_coverage']} variant(s) have no reads in either BAM. Check that the BAMs "
+                "cover these regions (a sliced BAM, a different sample, or a VCF from another reference build)."), ""]
     md += [
           shot_line, "",
-          "Read counts come from the BAMs (MAPQ >= 20, base quality >= 20, duplicate/secondary/supplementary "
-          "reads removed, each DNA molecule counted once), never from the screenshots. **Status** is a rule-based "
-          "summary of the flags, not a verdict on whether the variant is real.", "",
+          ("Read counts come from the BAMs (MAPQ >= 20, base quality >= 20, duplicate/secondary/supplementary "
+           "reads removed, each DNA molecule counted once), never from the screenshots. **Status** is a rule-based "
+           "summary of the flags, not a verdict on whether the variant is real."), "",
           "| ID | Gene | Variant | Tumor support | " + ("Normal support | " if paired else "")
           + "Caller reported (VCF) | Flags | Status |",
           "|---|---|---|---|" + ("---|" if paired else "") + "---|---|---|"]
@@ -1688,14 +1688,14 @@ def write_cnv_reports(out: Path, rows: list[dict], meta: dict) -> list[Path]:
           f"**{counts['supported']} supported, {counts['flagged']} flagged, {counts['no_segment']} without a segment"
           + (f", {counts['no_coverage']} no coverage" if counts["no_coverage"] else "") + "**.", "",
           f"IGV screenshots: {meta['shots']}.", "",
-          "A copy-number call is checked by **read depth** (MAPQ >= 20, duplicates removed). **Depth log2** is the "
-          "gene's mean depth over the sample-wide typical depth, on the same scale as GATK's log2, so it should "
-          "reproduce the segment's log2 (about -1 for a one-copy loss in a diploid genome, very negative for a "
-          "homozygous deletion, 0 for neutral). The **local ratio** compares the gene with the regions beside it "
-          "(outside a focal gain/loss) and picks up focal changes inside a larger segment. Purity and ploidy shift "
-          "these values; **status** summarises agreement with the segment call, it is not a verdict.", "",
-          "| Gene | Region | Segment call(s) | Gene depth | Sample depth | Depth log2 | Depth log2, all reads (as IGV "
-          "shows) | Local ratio | Ambiguous reads | Flags | Status |", "|---|---|---|---|---|---|---|---|---|---|---|"]
+          ("A copy-number call is checked by **read depth** (MAPQ >= 20, duplicates removed). **Depth log2** is the "
+           "gene's mean depth over the sample-wide typical depth, on the same scale as GATK's log2, so it should "
+           "reproduce the segment's log2 (about -1 for a one-copy loss in a diploid genome, very negative for a "
+           "homozygous deletion, 0 for neutral). The **local ratio** compares the gene with the regions beside it "
+           "(outside a focal gain/loss) and picks up focal changes inside a larger segment. Purity and ploidy shift "
+           "these values; **status** summarises agreement with the segment call, it is not a verdict."), "",
+          ("| Gene | Region | Segment call(s) | Gene depth | Sample depth | Depth log2 | Depth log2, all reads (as IGV "
+           "shows) | Local ratio | Ambiguous reads | Flags | Status |"), "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         md.append(f"| {r['gene']} | {r['chrom']}:{r['start']:,}-{r['end']:,} | {segtxt(r)} | {r['gene_depth']}x | "
                   f"{r['baseline_depth']}x | {'NA' if r['depth_log2'] is None else r['depth_log2']} | "
@@ -2561,7 +2561,7 @@ def write_index(root: Path) -> Path:
                     key=lambda x: x.name, reverse=True):
         def tsv(name):
             f = d / name
-            return list(csv.DictReader(open(f), delimiter="\t")) if f.exists() else []
+            return list(csv.DictReader(f.read_text().splitlines(), delimiter="\t")) if f.exists() else []
         calls, cur = tsv("summary.tsv"), tsv("curated_vs_igv.tsv")
         samples = sorted({c["sample"] for c in calls})
         genes = sorted({c["gene"] for c in calls})
@@ -2596,7 +2596,7 @@ def _refresh_index(batch: Path) -> None:
         if idx.exists() and INDEX_MARK in idx.read_text(errors="ignore")[:500]:
             write_index(idx.parent)
     except OSError:
-        pass
+        pass   # the index of runs is optional: an unreadable or locked index must not fail the run
 
 
 def find_project(out: Path) -> Path | None:
