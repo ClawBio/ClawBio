@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "clawbio",
   "metadata": {
-    "description": "Bioinformatics-native AI agent skill library for Claude Code: 104 Agent Skills, local-first and reproducible.",
+    "description": "Bioinformatics-native AI agent skill library for Claude Code: 105 Agent Skills, local-first and reproducible.",
     "version": "0.7.1"
   },
   "owner": {

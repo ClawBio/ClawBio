@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 104,
+  "skill_count": 105,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -4137,6 +4137,54 @@
         "multiqc-reporter",
         "seq-wrangler"
       ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "scarf-single-cell",
+      "cli_alias": null,
+      "description": "Analyze single-cell data with core Scarf, the out-of-core Zarr DataStore library with immutable artifacts and pipeline runs. Covers opening, converting and mounting stores (including Cytebase datasets), QC with removal audits, HVG/PCA/neighbour graphs, Leiden/Paris clustering, UMAP, markers and cautious annotation, batch correction and donor-level comparisons, headless plotting, provenance and export. Use when a task involves a Scarf .zarr store, a Cytebase dataset, scarf.DataStore, ds.pipeline, or converting H5AD/10x/MTX/Seurat data for Scarf. Does not cover scarf.agent (the automated agent package).",
+      "version": "0.4.0",
+      "status": "planned",
+      "maturity_tier": "tested",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": false,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python skills/scarf-single-cell/scarf_single_cell.py --demo",
+      "dependencies": [
+        "python>=3.12",
+        "scarf[extra]>=1.0.0rc17"
+      ],
+      "tags": [
+        "scrna",
+        "single-cell",
+        "scarf",
+        "out-of-core",
+        "zarr",
+        "provenance"
+      ],
+      "trigger_keywords": [
+        "scarf",
+        "scarf datastore",
+        "scarf zarr store",
+        "out-of-core single-cell",
+        "million-cell scRNA-seq",
+        "single-cell atlas larger than memory",
+        "cytebase",
+        "scrna on object storage",
+        "provenance-tracked single-cell analysis"
+      ],
+      "chaining_partners": [],
       "license": "MIT",
       "model_license": "",
       "data_license": ""
