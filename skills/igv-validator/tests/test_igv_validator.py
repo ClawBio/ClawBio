@@ -1125,7 +1125,7 @@ def test_unfiltered_snvs_do_not_count_against_a_curated_wt(summary_dir, tmp_path
     hm = _heatmap(tmp_path, [("demo_tumor", "DEMO1", "WT"), ("demo_tumor", "DEMO5", "SV")])
     by = {c["gene"]: c for c in iv.curated_vs_igv(rows, hm)}
     d1 = by["DEMO1"]
-    assert d1["match"] == "matches" and "unfiltered" in d1["why"] and "unfiltered SNV file" in d1["plain"]
+    assert d1["match"] == "matches" and "unfiltered" in d1["why"] and "unfiltered caller output" in d1["plain"]
     assert "do not count against" in d1["details"]
     assert by["DEMO5"]["match"] == "matches"
 
@@ -1134,6 +1134,26 @@ def test_unfiltered_snv_still_supports_a_curated_snv(summary_dir, tmp_path):
     root, _ = summary_dir
     c = iv.curated_vs_igv(iv._summary_rows(root), _heatmap(tmp_path, [("demo_tumor", "DEMO1", "SNV")]))[0]
     assert c["match"] == "matches"
+
+
+def test_sequence_deletion_from_an_sv_caller_counts_as_sv(tmp_path):
+    """A 799 bp deletion written out as sequence (Manta, SURVIVOR) supports a curated SV; a 12 bp one stays an indel."""
+    root = tmp_path / "r"
+    for dlen in (799, 12):
+        run = root / f"S{dlen}" / "sv"; run.mkdir(parents=True)
+        v = {"id": "V", "chrom": "c", "pos": 100, "ref": "A" + "T" * dlen, "alt": "A", "kind": "deletion", "gene": "G",
+             "label": f"c:100 {dlen} bp deletion", "flags": [], "status": "supported", "chrom2": None, "pos2": None,
+             "tumor": {"alt": 20, "depth": 40, "vaf_pct": 50.0, "alt_fwd": 10, "alt_rev": 10}, "figures": []}
+        (run / "result.json").write_text(json.dumps({"skill": "igv-validator", "data": {
+            "variants": [v], "samples": {"tumor": f"S{dlen}"}, "inputs": {"variants_list": False}}}))
+    rows = iv._summary_rows(root)
+    by = {r["sample"]: r for r in rows}
+    assert by["S799"]["type"] == "SV" and not by["S799"]["_unfiltered"]
+    assert by["S12"]["type"] == "SNV/indel"
+    cur = tmp_path / "c.csv"; cur.write_text("sample,gene,alteration\nS799,G,SV\nS12,G,WT\n")
+    c = {x["sample"]: x for x in iv.curated_vs_igv(rows, cur)}
+    assert c["S799"]["match"] == "matches" and "deletion is in the reads" in c["S799"]["plain"]
+    assert "unfiltered caller output" in c["S12"]["plain"] and "SNV file" not in c["S12"]["plain"]
 
 
 def test_many_extra_calls_become_one_short_sentence():

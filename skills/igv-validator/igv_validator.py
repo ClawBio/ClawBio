@@ -60,6 +60,7 @@ INDEL_WINDOW = 5         # an indel of the same length within ±5 bp counts
 MIN_CLIP = 5             # soft clip length for indel clip rescue
 SPLIT_WINDOW = 500       # SA tag must land within 500 bp of the partner breakpoint
 PAIR_WINDOW = 1000       # discordant mate within 1 kb of the partner breakpoint
+SV_INDEL_MIN = 50        # bp: a deletion/insertion written out as sequence counts as an SV from this size (VCF convention)
 MIN_SV_LEN = 1000        # symbolic <DEL>/<DUP>/<INV> shorter than this are not evaluable
 MIN_INV_LEN = 50         # inversions of any size are evaluated from same-strand read pairs
 MIN_SUPPORT = 3          # fewer supporting reads -> insufficient
@@ -1869,6 +1870,9 @@ def _summary_rows(root: Path, empty_runs: list | None = None) -> list[dict]:
             sample = (data.get("samples") or {}).get("tumor") or run.parent.name
             t = v["tumor"]
             sv = v["kind"] not in ("snv", "insertion", "deletion")
+            # SV callers (Manta, SURVIVOR) write many deletions/insertions as sequence: from 50 bp they are SVs, though
+            # their reads are counted like an indel's (reads carrying the change, not split/discordant pairs)
+            big = not sv and v["kind"] != "snv" and abs(len(v.get("ref") or "") - len(v.get("alt") or "")) >= SV_INDEL_MIN
             reads = (f"{t['alt']} reads ({t['split']} split, {t['discordant']} pairs) / {t['depth']}" if sv else
                      f"{t['alt']}/{t['depth']} ({t['vaf_pct']}%)")
             if v.get("normal"):
@@ -1886,13 +1890,13 @@ def _summary_rows(root: Path, empty_runs: list | None = None) -> list[dict]:
                 shows = (f"{t['alt']} of {t['depth']} reads carry {what} ({t['vaf_pct']}%)" if t["alt"]
                          else f"no read of {t['depth']} carries {what}")
             for gene in (v["gene"].split(",") if v["gene"] else ["-"]):
-                rows.append({"sample": sample, "gene": gene, "type": "SV" if sv else "SNV/indel", "tool": tool,
+                rows.append({"sample": sample, "gene": gene, "type": "SV" if sv or big else "SNV/indel", "tool": tool,
                              "igv_shows": shows, "_bam": inputs.get("tumor"), "_ref": inputs.get("reference"), "_igv": inputs.get("igv"),
                              "_chrom": v["chrom"], "_pos": v["pos"], "_chrom2": v.get("chrom2"), "_pos2": v.get("pos2"),
                              "_kind": v["kind"], "_vaf": t.get("vaf_pct"), "_alt": t.get("alt"),
                              "_strand": "" if sv or not t["alt"] else f"{t['alt_fwd']} forward / {t['alt_rev']} reverse",
-                             "_unfiltered": not sv and inputs.get("variants_list") is False,
-                             "state": v["kind"].upper() if sv else "", "call": v["label"],
+                             "_unfiltered": not sv and not big and inputs.get("variants_list") is False,
+                             "state": v["kind"].upper() if sv or big else "", "call": v["label"],
                              "location": f"{v['chrom']}:{v['pos']}", "reads": reads,
                              "caller": f"{c['alt']}/{c['depth']} ({c['vaf_pct']}%)" if c else "",
                              "flags": ";".join(v["flags"]), "status": v["status"],
@@ -2183,6 +2187,9 @@ def _plain_row(r: dict, ev: tuple[str, str, str]) -> str:
     if r["type"] == "SV":
         if verdict == "not supported" and why:   # reads are there, but show an artifact pattern
             return f"{r['igv_shows']}, but {why}"
+        if r.get("_kind") in ("deletion", "insertion"):   # written out as sequence: reads carry it like an indel
+            return {"real": f"the {r['_kind']} is in the reads: {r['igv_shows']}",
+                    "weak": f"only a few reads carry the {r['_kind']}"}.get(verdict, f"the reads do not support the {r['_kind']}")
         return {"real": "reads support the rearrangement (split and discordant reads at the breakpoint)",
                 "weak": "only a few reads support the rearrangement"}.get(verdict, "the reads do not support the rearrangement")
     if verdict == "recurrent":
@@ -2195,7 +2202,7 @@ def _plain_row(r: dict, ev: tuple[str, str, str]) -> str:
             "weak": "only a few reads carry the variant"}.get(verdict, "the reads do not support the variant")
 
 
-UNFILTERED_NOTE = ("{n} variant{s} from the unfiltered SNV file {are} in the reads but not in the curated calls; a "
+UNFILTERED_NOTE = ("{n} SNV{s}/indel{s} from unfiltered caller output {are} in the reads but not in the curated calls; a "
                    "curated table filters these out (inherited, non-coding or low impact), so they do not count against "
                    "it (see details)")
 MANY_CALLS = 3   # above this many extra calls in a gene, the plain cell gives a count instead of one sentence each
@@ -2280,7 +2287,7 @@ def curated_vs_igv(rows: list[dict], curated: Path) -> list[dict]:
                        "artifact" + (", consistent with leaving it out" if "SNV" not in wanted else ""))
         why += [t for k, v, t in ev if v == "hidden"]
         if unf:
-            why.append(f"{len(unf)} variant(s) from the unfiltered SNV file are in the reads but not in the curated "
+            why.append(f"{len(unf)} SNV(s)/indel(s) from unfiltered caller output are in the reads but not in the curated "
                        f"calls (a curated table filters these out; they do not count against it): " + "; ".join(unf))
         why += [f"{t}, consistent with leaving it out" for k, v, t in ev if v == "not supported" and k not in wanted]
         why += [f"weak: {t}" for k, v, t in ev if v == "weak" and k not in missing]

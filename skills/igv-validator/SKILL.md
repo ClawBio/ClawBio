@@ -189,7 +189,7 @@ depth plots and interactive views are the evidence: judge each result there befo
 
 1. **Validate** (prescriptive): VCF, both BAMs and their indexes exist; contig names in the VCF are in the BAM headers; reference (if given) has a `.fai`. Stop with a clear message otherwise.
 2. **Select** (prescriptive): apply `--variants` / `--regions` / `--genes` (combined with AND) and `--pass-only`; cap at `--max-variants` (default 50) and say how many were skipped.
-3. **Classify** (prescriptive): SNV, insertion, deletion, BND (bracket notation, or symbolic `<TRA>`/`<BND>` with `CHR2`/`END` as SURVIVOR and Delly write) or symbolic `<DEL>/<DUP>/<INV>` of at least 1 kb. Other records (MNVs, small symbolic SVs, CNV-only records) are listed as "not evaluable", never counted.
+3. **Classify** (prescriptive): SNV, insertion, deletion, BND (bracket notation, or symbolic `<TRA>`/`<BND>` with `CHR2`/`END` as SURVIVOR and Delly write) or symbolic `<DEL>/<DUP>/<INV>` of at least 1 kb. Other records (MNVs, small symbolic SVs, CNV-only records) are listed as "not evaluable", never counted. Deletions and insertions written out as sequence (as Manta and SURVIVOR often do) are counted like indels, and from 50 bp they count as SVs in the summary and the curated comparison.
 4. **Count** (prescriptive): run the counters with MAPQ >= 20, base quality >= 20, no duplicate/secondary/supplementary/QC-fail reads.
 5. **Flag** (prescriptive): apply the rules in *Algorithm*; derive the automatic status.
 6. **Screenshot** (prescriptive): unless `--no-igv` or IGV is not found, start the isolated IGV, take one image per variant (two for SVs), check each image rendered, caption it, close IGV.
