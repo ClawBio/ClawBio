@@ -80,6 +80,18 @@ from ukb_ppp_region_fetch import (
     UKBPPPAccessError,
     UKBPPPClient,
 )
+# The odds ratio -> log-odds conversion and the beta-source labels. The module is kept
+# byte-identical wherever it is copied, so the conversion gives the same numbers in
+# every copy; edit it only by re-syncing the whole file. It imports only the stdlib.
+from _region_harmonise import (
+    BETA_SOURCE_MIXED,
+    BETA_SOURCE_NATIVE,
+    BETA_SOURCE_OR_DERIVED,
+    OR_NO_SE_REASON,
+    beta_source_label,
+    derive_beta_from_or,
+    outcome_effect_scale_label,
+)
 from regional_plot import (
     GeneTrackEntry,
     LocusVariant,
@@ -226,6 +238,10 @@ class LocusCompareSpec:
     exposure_id_extra: str = ""
     outcome_id_extra: str = ""
     provenance_prefix: str = ""
+    # The outcome's upstream study id when it differs from `gwas_accession` (e.g. an
+    # OT `FINNGEN_R12_*` id mapped to a GWAS Catalog accession). Used only to name the
+    # outcome effect's scale: FinnGen disease endpoints report log odds.
+    outcome_source_study_id: str = ""
 
     release_tag: str = ""
 
@@ -350,6 +366,7 @@ def render_tier2_for_lead(
             outcome_trait_label=study_mapping.outcome_trait_label,
             exposure_id_extra=f" (OT studyId {study_mapping.ot_left_study_id})",
             outcome_id_extra=f" (OT studyId {study_mapping.ot_right_study_id})",
+            outcome_source_study_id=study_mapping.ot_right_study_id,
             provenance_prefix=f"OT release: {ot_release} | ",
             release_tag=ot_release,
             notes=list(study_mapping.notes),
@@ -376,6 +393,7 @@ def render_tier2_for_lead(
             outcome_trait_label=study_mapping.outcome_trait_label,
             exposure_id_extra=f" (OT studyId {study_mapping.ot_left_study_id})",
             outcome_id_extra=f" (OT studyId {study_mapping.ot_right_study_id})",
+            outcome_source_study_id=study_mapping.ot_right_study_id,
             provenance_prefix=f"OT release: {ot_release} | ",
             release_tag=ot_release,
             notes=list(study_mapping.notes),
@@ -551,6 +569,52 @@ def _render_for_spec(
         )
     data_source_warnings.extend(f"gwas_catalog: {n}" for n in outcome.notes)
 
+    # 2b. Odds ratio -> log-odds effect size, on the FETCHED rows, before the allele
+    # flip in `harmonise_regions_for_locuscompare`, so a flipped row negates the derived
+    # beta exactly as it would a reported one. Without it, a case-control study that
+    # publishes odds ratios and no beta drew bare effect-size axes.
+    n_native_outcome = sum(1 for v in outcome.variants if v.beta is not None)
+    outcome_rows, or_events = derive_beta_from_or(list(outcome.variants))
+    if or_events and n_native_outcome:
+        # Some rows reported a beta and others only an odds ratio. The derived-log-odds
+        # label would be false for the reported points, so the window is labelled mixed
+        # and no scale is claimed for it.
+        outcome_beta_source: str | None = BETA_SOURCE_MIXED
+    elif or_events:
+        outcome_beta_source = BETA_SOURCE_OR_DERIVED
+    elif n_native_outcome:
+        outcome_beta_source = BETA_SOURCE_NATIVE
+    else:
+        outcome_beta_source = None  # the window carries no outcome effect size at all
+    outcome_scale_label = (
+        # Not a scale, a warning on the axis: the reported points' scale is unknown.
+        "mixed scales: reported effect sizes and derived log odds ratios"
+        if outcome_beta_source == BETA_SOURCE_MIXED
+        else outcome_effect_scale_label(
+            outcome_beta_source, spec.outcome_source_study_id or gwas_accession,
+        )
+    )
+    n_or_unconverted = sum(
+        1 for v in outcome_rows if v.beta is None and v.odds_ratio is not None
+    )
+    if or_events:
+        notes.append(
+            f"outcome effect sizes are log odds ratios derived from the reported odds "
+            f"ratios ({len(or_events)} of {len(outcome_rows)} outcome variants converted)"
+        )
+    if or_events and n_native_outcome:
+        notes.append(
+            f"the outcome window mixes effect-size scales: {n_native_outcome} variants "
+            f"report an effect size and {len(or_events)} carry a log odds ratio derived "
+            f"from a reported odds ratio, so the effect-size axis names no single scale"
+        )
+    if or_events and n_or_unconverted:
+        notes.append(
+            f"{n_or_unconverted} outcome variants report an odds ratio from which "
+            f"{OR_NO_SE_REASON}, so no effect size was derived for them; they appear on "
+            f"the p-value panels only"
+        )
+
     # 3. LD r² (optional; gracefully degrade when plink not installed).
     r2_by_variant: dict[str, float] = {lead_variant_id: 1.0}
     plink_version = ""
@@ -581,7 +645,7 @@ def _render_for_spec(
     # 4. Harmonise + join.
     pairs = harmonise_regions_for_locuscompare(
         exposure_variants=exposure_variants,
-        outcome_variants=outcome.variants,
+        outcome_variants=outcome_rows,
         r2_by_variant=r2_by_variant,
         lead_variant_id=lead_variant_id,
     )
@@ -593,6 +657,22 @@ def _render_for_spec(
         )
 
     n_palindromic = sum(1 for p in pairs if p.palindromic_excluded)
+
+    # Never bare axes: when the effect-size panel will have nothing to plot, say which
+    # side lacks effect sizes and why, on the panel, in the notes and in the manifest.
+    effect_size_reason = _effect_size_unavailable_reason(
+        pairs=pairs,
+        exposure_rows=exposure_variants,
+        outcome_rows=outcome_rows,
+        exposure_label=(
+            f"UKB-PPP protein {exposure_protein_label}"
+            if spec.exposure_kind == EXPOSURE_KIND_UKB_PPP
+            else _study_label(exposure_study_id)
+        ),
+        outcome_label=_study_label(gwas_accession),
+    )
+    if effect_size_reason:
+        notes.append(f"effect-size panel not drawn: {effect_size_reason}")
 
     # 5. Render.
     fetched_at = _now_utc()
@@ -606,7 +686,7 @@ def _render_for_spec(
     # not just the joined intersection. The eQTL Catalogue and UKB-PPP
     # RegionVariant shapes are field-compatible.
     exposure_track = [_eqtl_to_locus_variant(v) for v in exposure_variants]
-    outcome_track = [_gwas_to_locus_variant(v) for v in outcome.variants]
+    outcome_track = [_gwas_to_locus_variant(v) for v in outcome_rows]
 
     exposure_short_label, outcome_short_label = _build_short_labels_from_spec(
         spec,
@@ -681,6 +761,8 @@ def _render_for_spec(
         outcome_short_label=outcome_short_label,
         gene_track=gene_track,
         focal_gene_symbol=spec.exposure_gene_symbol or None,
+        outcome_effect_scale_label=outcome_scale_label,
+        effect_size_unavailable_reason=effect_size_reason,
     )
     render_full_locuscompare(inp, out_path)
 
@@ -717,6 +799,12 @@ def _render_for_spec(
         plot_artifact=str(out_path.name),
         fetched_at=fetched_at,
     )
+    # Where the outcome effect sizes came from, with the human label beside the code,
+    # and why the effect-size panel is empty when it is.
+    block["outcome_beta_source"] = outcome_beta_source
+    block["outcome_beta_source_label"] = beta_source_label(outcome_beta_source)
+    block["outcome_effect_scale_label"] = outcome_scale_label
+    block["effect_size_panel_unavailable_reason"] = effect_size_reason
 
     return Tier2Result(
         plot_path=out_path,
@@ -724,6 +812,59 @@ def _render_for_spec(
         n_pairs=len(pairs),
         n_palindromic_excluded=n_palindromic,
         notes=notes,
+    )
+
+
+def _study_label(study_id: str) -> str:
+    """A study id for a reader. The CLI's pre-fetched path has no accession and passes
+    the placeholder `prefetched`, which names our input route, not a study."""
+    return "supplied as a file" if study_id == "prefetched" else study_id
+
+
+def _effect_size_unavailable_reason(
+    *,
+    pairs,
+    exposure_rows,
+    outcome_rows,
+    exposure_label: str,
+    outcome_label: str,
+) -> str | None:
+    """Why the effect-size panel has no point to draw, naming the side; None if it has.
+
+    Mirrors the panel's own filter: palindromic pairs are left off it, and a point needs
+    a beta on both sides. `outcome_rows` are the rows AFTER the odds-ratio conversion.
+    """
+    drawable = [p for p in pairs if not p.palindromic_excluded]
+    if any(p.beta_exposure is not None and p.beta_outcome is not None for p in drawable):
+        return None
+    reasons: list[str] = []
+    if not any(v.beta is not None for v in exposure_rows):
+        reasons.append(
+            f"the exposure study ({exposure_label}) publishes no per-variant effect "
+            f"sizes in this window"
+        )
+    if not any(v.beta is not None for v in outcome_rows):
+        if any(getattr(v, "odds_ratio", None) is not None for v in outcome_rows):
+            # The conversion returns None when it cannot derive a standard error, and
+            # does not fill a beta without one (OR_NO_SE_REASON).
+            reasons.append(
+                f"the outcome study ({outcome_label}) reports odds ratios from which "
+                f"{OR_NO_SE_REASON}, so no log odds effect size could be derived"
+            )
+        else:
+            reasons.append(
+                f"the outcome study ({outcome_label}) publishes p-values only, with no "
+                f"effect size or odds ratio, in this window"
+            )
+    if reasons:
+        return "; ".join(reasons)
+    if pairs and not drawable:
+        return (
+            "every variant joined across the two studies is strand-ambiguous "
+            "(palindromic) and is left off this panel"
+        )
+    return (
+        "no variant joined across the two studies carries an effect size on both sides"
     )
 
 

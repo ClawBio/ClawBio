@@ -41,7 +41,7 @@ metadata:
       description: 4-panel regional LocusCompare PNG (exposure Manhattan + outcome Manhattan + gene track + cross-trait scatter)
     - name: manifest
       type: file
-      description: Reproducibility manifest (YAML) with source releases, LD panel id, plink version, n_pairs, palindromic-exclusion count
+      description: Reproducibility manifest (YAML) with source releases, LD panel id, plink version, n_pairs, palindromic-exclusion count, the outcome effect-size source and scale, and why the effect-size panel is empty when it is
   dependencies:
     - python>=3.10
     - numpy>=1.24
@@ -299,6 +299,10 @@ Output directory layout:
 
 9. **`p = 0` on rare extremely-significant variants.** Some sources emit `p = 0` when the actual value is below floating-point precision. The renderer substitutes the underflow floor (`5e-324`) before plotting on `-log10`. The reported `-log10(p)` for such variants is ~323, not their true magnitude.
 
+10. **An outcome that publishes odds ratios is plotted as log odds.** A case-control GWAS Catalog study may publish an odds ratio and its 95% CI with no beta. The composer converts each such outcome row to β = ln(OR), with the SE from the CI (or from the p-value when there is no CI), before the allele flip, so a swapped-allele row negates the derived β like a reported one. The conversion lives in `_region_harmonise.py`, a standard-library-only module that is kept byte-identical wherever it is copied, so it gives the same numbers in every copy. The effect-size axis then reads "log odds ratio, derived from the reported odds ratio"; a window in which some rows report a β and others only an odds ratio is labelled "mixed scales", because the reported β's scale is unknown; a FinnGen case-control endpoint (an outcome whose upstream study id starts `FINNGEN_` and does not end `_IRN`) is labelled "log odds ratio, as reported by FinnGen". Any other reported β is left as a plain β. The manifest block records `outcome_beta_source` (`native`, `or_derived`, `mixed`, or null when the window has no outcome effect size), its label, and `outcome_effect_scale_label`.
+
+11. **An empty effect-size panel says why.** When no joined, non-palindromic variant has a β on both sides, the panel reads "No effect sizes to plot: <reason>" instead of drawing bare axes, and the reason names the side: the exposure publishes no per-variant effect sizes, the outcome publishes p-values only, the outcome's odds ratios admit no standard error (no CI, and no usable p-value or an odds ratio of exactly 1), or every joined variant is palindromic. The same sentence is written to `effect_size_panel_unavailable_reason` in the manifest block and to the notes.
+
 ## Safety
 
 **Not for clinical decisions.** This skill returns a visualisation of summary-statistic colocalisation; it is an interpretation aid, not a clinical or regulatory artifact. Do not use rendered plots for direct clinical decision-making.
@@ -319,6 +323,7 @@ The skill renders a 4-panel LocusCompare visualisation for a colocalisation resu
 - **NOT cherry-pick variants outside the rendered window for downstream interpretation.** The visual establishes context for the rendered window only.
 - **Cite the rendered window, LD reference + super-pop, OT release (when applicable), exposure / outcome study ids, and lead variant** in the user-facing reply. Per the user-friendly enum-expansion rule (`AGENTS.md`): `STRN × heart failure (FINNGEN_R12_I9_HEARTFAIL); window ±500 kb of lead chr2:36910110:C>T; LD = 1000G Phase 3 EUR; OT release 26.03`.
 - **Surface the manifest's caveats list** (palindromic exclusions, missing-lead proxy notes, ancestry mismatches) verbatim in the user-facing reply.
+- **Name the scale of the outcome effect sizes** when `outcome_effect_scale_label` is set (log odds derived from an odds ratio, log odds as reported by FinnGen, or mixed scales), and quote `effect_size_panel_unavailable_reason` when the effect-size panel is empty, rather than reading an empty panel as "no effect".
 - **NOT decide GO/NO-GO on a target** based on the visual alone. Chain to `target-validation-scorer` for synthesis; this skill is one input among many.
 - **NOT silently swap super-populations.** If the upstream cohort's ancestry does not match the requested LD super-pop, surface explicitly and ask the user to confirm before proceeding.
 
