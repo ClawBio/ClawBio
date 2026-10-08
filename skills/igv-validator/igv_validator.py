@@ -504,6 +504,9 @@ def _clip_supports(r, v: Variant, fa) -> bool:
 def _count_indel(bam, v: Variant, fa) -> dict:
     size = len(v.alt) - len(v.ref)  # negative = deletion
     pos = v.pos                      # 0-based coordinate of the first inserted/deleted base
+    # the inserted bases of the call (VCF pads with the anchor base); an insertion of the same length but another
+    # sequence is not support. Shifted within a tandem repeat, the same event reads as a rotation of these bases.
+    ins_seq = (v.alt[len(v.ref):] if v.alt.startswith(v.ref) else v.alt[1:]).upper() if size > 0 else ""
     depth, hits = set(), {}
     # count molecules, not reads: overlapping mates would otherwise count one DNA fragment twice
     for r in bam.fetch(v.chrom, max(0, pos - 1), pos + abs(size) + 1):
@@ -516,7 +519,9 @@ def _count_indel(bam, v: Variant, fa) -> dict:
                 rp += n; qp += n
             elif op == 1:
                 if size > 0 and n == size and abs(rp - pos) <= INDEL_WINDOW:
-                    hit = qp; break
+                    got = (r.query_sequence or "")[qp:qp + n].upper()
+                    if got == ins_seq or (rp != pos and got in ins_seq + ins_seq):
+                        hit = qp; break
                 qp += n
             elif op == 2:
                 if size < 0 and n == -size and abs(rp - pos) <= INDEL_WINDOW:

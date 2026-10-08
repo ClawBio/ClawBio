@@ -160,6 +160,47 @@ def test_overlapping_mates_count_once(tmp_path):
     assert iv.count_variant(v, bam, fasta=fa)["alt"] == 1
 
 
+def _insertion_bam(tmp_path, reads):
+    """Reads at c1:150 with an insertion after 50 (+ shift) aligned bases; reads = [(name, inserted bases[, shift])]."""
+    seq = "".join("ACGT"[(i * 7) % 4] for i in range(400))
+    fa = tmp_path / "r.fa"
+    fa.write_text(">c1\n" + seq + "\n"); pysam.faidx(str(fa))
+    header = {"HD": {"VN": "1.6"}, "SQ": [{"SN": "c1", "LN": 400}]}
+    raw = tmp_path / "u.bam"
+    with pysam.AlignmentFile(str(raw), "wb", header=header) as out:
+        for name, ins, *shift in reads:
+            k = 50 + (shift[0] if shift else 0)
+            a = pysam.AlignedSegment(out.header)
+            a.query_name, a.flag, a.reference_id, a.reference_start = name, 0, 0, 150
+            a.cigarstring = f"{k}M{len(ins)}I{100 - k}M" if ins else "100M"
+            a.mapping_quality = 60
+            a.query_sequence = seq[150:150 + k] + ins + seq[150 + k:250]
+            a.query_qualities = pysam.qualitystring_to_array("?" * len(a.query_sequence))
+            out.write(a)
+    bam = tmp_path / "o.bam"
+    pysam.sort("-o", str(bam), str(raw)); pysam.index(str(bam))
+    return seq, fa, bam
+
+
+def test_insertion_support_needs_the_inserted_bases(tmp_path):
+    """A nearby insertion of the same length but another sequence is not support (reviewer, PR #549)."""
+    reads = [("alt1", "GATTACA"), ("alt2", "GATTACA"), ("alt3", "GATTACA"),
+             ("other1", "CCCCCCC"), ("other2", "CCCCCCC"), ("ref1", "")]
+    seq, fa, bam = _insertion_bam(tmp_path, reads)
+    v = iv.Variant(id="i", chrom="c1", pos=200, ref=seq[199], alt=seq[199] + "GATTACA", kind="insertion")
+    c = iv.count_variant(v, bam, fasta=fa)
+    assert c["alt"] == 3 and c["depth"] == 6
+
+
+def test_insertion_shifted_inside_a_repeat_still_counts(tmp_path):
+    """The reference here is a 4 bp tandem repeat: one more unit, aligned 1 bp later, is the same event."""
+    seq = "".join("ACGT"[(i * 7) % 4] for i in range(400))      # the reference _insertion_bam writes
+    unit = seq[200:204]
+    seq, fa, bam = _insertion_bam(tmp_path, [("here", unit), ("shifted", seq[201:205], 1), ("other", "CCCC")])
+    v = iv.Variant(id="i", chrom="c1", pos=200, ref=seq[199], alt=seq[199] + unit, kind="insertion")
+    assert iv.count_variant(v, bam, fasta=fa)["alt"] == 2
+
+
 # ── Tumor-only mode ────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
