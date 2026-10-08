@@ -307,3 +307,67 @@ class TestNeurotransmitterImpact:
     def test_severely_reduced_both_at_very_low_bh4(self):
         assert _dopamine_impact(20) == "Severely Reduced"
         assert _serotonin_impact(20) == "Severely Reduced"
+
+
+# ---------------------------------------------------------------------------
+# Forward-strand (23andMe / AncestryDNA) genotypes for minus-strand genes
+# ---------------------------------------------------------------------------
+
+# Same person as a compound heterozygote (C677T + A1298C), written the way a real
+# 23andMe file writes it: GRCh37 forward strand. MTHFR, CBS and SHMT1 sit on the
+# minus strand, so C677T reads A/G and A1298C reads T/G.
+FORWARD_STRAND_INPUT = """\
+# rsid\tchromosome\tposition\tgenotype
+rs1801133\t1\t11856378\tAG
+rs1801131\t1\t11854476\tGT
+rs1801394\t5\t7870973\tAG
+rs1805087\t1\t237048500\tAA
+rs234706\t21\t44485350\tAG
+rs3733890\t5\t78421959\tGG
+rs1979277\t17\t18232096\tAA
+rs4680\t22\t19951271\tAG
+"""
+
+
+class TestForwardStrandGenotypes:
+    def _result(self, text):
+        return analyse(parse_genotype_file(write_temp(text)))
+
+    def test_mthfr_c677t_forward_het_counted(self):
+        assert self._result(FORWARD_STRAND_INPUT)["gene_results"]["rs1801133"]["n_risk_alleles"] == 1
+
+    def test_mthfr_a1298c_forward_het_counted(self):
+        assert self._result(FORWARD_STRAND_INPUT)["gene_results"]["rs1801131"]["n_risk_alleles"] == 1
+
+    def test_compound_het_detected_on_forward_strand(self):
+        assert self._result(FORWARD_STRAND_INPUT)["summary"]["mthfr_compound_heterozygous"] is True
+
+    def test_forward_strand_compound_het_not_reported_as_normal(self):
+        assert self._result(FORWARD_STRAND_INPUT)["summary"]["mthfr_combined_activity"] < 100
+
+    def test_cbs_and_shmt1_forward_strand(self):
+        g = self._result(FORWARD_STRAND_INPUT)["gene_results"]
+        assert g["rs234706"]["n_risk_alleles"] == 1
+        assert g["rs1979277"]["n_risk_alleles"] == 2
+
+    def test_forward_strand_wildtype_is_zero(self):
+        text = "rs1801133\t1\t11856378\tGG\nrs1801131\t1\t11854476\tTT\n"
+        g = self._result(text)["gene_results"]
+        assert g["rs1801133"]["n_risk_alleles"] == 0
+        assert g["rs1801131"]["n_risk_alleles"] == 0
+
+    def test_forward_strand_homozygous_c677t(self):
+        g = self._result("rs1801133\t1\t11856378\tAA\n")["gene_results"]
+        assert g["rs1801133"]["n_risk_alleles"] == 2
+
+    def test_coding_strand_input_still_works(self):
+        g = self._result("rs1801133\t1\t11856378\tCT\nrs1801131\t1\t11854476\tAC\n")["gene_results"]
+        assert g["rs1801133"]["n_risk_alleles"] == 1
+        assert g["rs1801131"]["n_risk_alleles"] == 1
+
+    def test_plus_strand_genes_unchanged(self):
+        # MTRR, MTR, BHMT, COMT are on the plus strand: no strand logic applies
+        g = self._result(FORWARD_STRAND_INPUT)["gene_results"]
+        assert g["rs1801394"]["n_risk_alleles"] == 1
+        assert g["rs1805087"]["n_risk_alleles"] == 0
+        assert g["rs4680"]["n_risk_alleles"] == 1
