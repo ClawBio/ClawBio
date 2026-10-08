@@ -409,12 +409,44 @@ def test_environment_yml_declares_every_imported_dependency(tmp_path):
 
 
 def test_checksums_label_outputs_relative_to_output_dir(tmp_path):
-    """Output files stay anchored to the report dir; inputs fall back to bare names."""
+    """Output files stay anchored to the report dir; inputs outside it are not listed."""
     checksums = (_repro_run(tmp_path) / "checksums.sha256").read_text()
     assert "tables/de_results.csv" in checksums
     assert "figures/volcano.png" in checksums
-    assert "demo_counts.csv" in checksums
+    assert "demo_counts.csv" not in checksums
     for line in checksums.strip().splitlines():
         digest, _, label = line.partition("  ")
         assert len(digest) == 64, line
         assert label
+
+
+def test_demo_bundle_checksums_verify_from_output_dir(tmp_path):
+    """`cd <out> && sha256sum -c reproducibility/checksums.sha256` must pass."""
+    import hashlib
+    import subprocess
+
+    out_dir = tmp_path / "demo"
+    subprocess.run(
+        [sys.executable, str(HERE / "rnaseq_de.py"), "--demo", "--output", str(out_dir)],
+        check=True,
+        capture_output=True,
+    )
+    repro = out_dir / "reproducibility"
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (repro / name).is_file(), name
+
+    labels = []
+    for line in (repro / "checksums.sha256").read_text().strip().splitlines():
+        digest, _, label = line.partition("  ")
+        target = out_dir / label
+        assert target.is_file(), f"{label} does not resolve inside output_dir"
+        assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, label
+        labels.append(label)
+    for expected in (
+        "report.md",
+        "result.json",
+        "reproducibility/environment.yml",
+        "tables/de_results.csv",
+        "figures/volcano.png",
+    ):
+        assert expected in labels, f"{expected} missing from checksums"

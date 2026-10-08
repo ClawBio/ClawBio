@@ -4441,8 +4441,8 @@
     {
       "name": "struct-predictor",
       "cli_alias": null,
-      "description": "Protein structure prediction with Boltz-2. Accepts YAML inputs (single protein or multi-chain complex), runs boltz predict, extracts per-residue pLDDT and PAE confidence, and writes a markdown report with figures.",
-      "version": "0.2.0",
+      "description": "Protein structure prediction with Boltz-2 (default) or OpenFold3. Accepts YAML inputs (single protein or multi-chain complex), runs the chosen backend offline, extracts per-residue pLDDT and PAE confidence, and writes a markdown report with figures.",
+      "version": "0.3.0",
       "status": "planned",
       "maturity_tier": "tested",
       "maturity_evidence": {

@@ -34,7 +34,7 @@
       "label": "Variance of Hd",
       "python_display": "0.000051",
       "dnasp_display": "0.00005",
-      "historical_outcome": "last displayed digit"
+      "historical_outcome": "match (0.00005 at DnaSP's five decimals; first recorded as a last-displayed-digit difference)"
     },
     {
       "case": "A",

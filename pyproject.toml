@@ -141,6 +141,7 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.168.4",
     "skills-ref>=0.1.1,<1",
     # prs-abstain tests inspect the rendered PDFs.
     "pypdf>=4,<7",

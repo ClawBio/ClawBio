@@ -362,8 +362,8 @@ use `read.delim("results.tsv", skip=2, check.names=FALSE)` and inspect headers.
 ## Validation evidence and limits
 
 The checked-in historical fixture maps all 170 recorded S1 comparisons to input
-files, settings and expected values. The recorded assessment is 163 matches,
-three last-displayed-digit differences and four F* mode differences. Unit tests
+files, settings and expected values. The recorded assessment is 164 matches,
+two last-displayed-digit differences and four F* mode differences. Unit tests
 protect those observations; they do not constitute a new DnaSP GUI run. The
 four historical F* Python cells were padded to six decimal places after rounding
 to four; their regression precision is explicitly recorded as four decimals.
