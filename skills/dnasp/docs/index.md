@@ -1,6 +1,6 @@
 # DnaSP ClawBio statistical reference
 
-Version 0.6.0 implements 16 selected population-genetic analysis modules. Its
+Version 0.6.1 implements 16 selected population-genetic analysis modules. Its
 methods combine published estimators with documented DnaSP 6 implementation
 conventions. Agreement on the validation datasets does not establish equivalence
 for every DnaSP mode, input or statistic.
@@ -250,8 +250,28 @@ generated if not given, and separated per CHROM for multi-CHROM VCF runs. Slidin
 windows are not simulated.
 
 A small P-value rejects the standard neutral model. It does not by itself identify
-selection or population growth: population structure, other demographic histories
-and selection can each produce it.
+selection or population growth: population structure, other demographic histories,
+recombination and selection can each produce it.
+
+The null has no recombination, and that asymmetry matters. Under recombination Fu's
+Fs rejects far more often than its nominal rate against a no-recombination null,
+while Tajima's D and R2 become conservative. So for a nuclear, recombining region a
+low Fs P-value may be recombination rather than growth. DnaSP 6 offers a
+recombination setting for its own simulations; this skill does not, so treat Fs
+P-values for recombining regions as an upper bound on the evidence against
+neutrality, or restrict the test to a non-recombining region.
+
+A statistic is tested only where its simulated null varies. Tajima's D has no
+variance until n = 4 (c1 = c2 = 0 at n = 3). At n = 2 every replicate gives the
+same R2, and the same Fs when the number of segregating sites is fixed, though not
+when it is drawn from theta, in which case Fs is still tested. R2 is also constant
+with three sequences and a single segregating site, every genealogy giving the same
+folded singleton count. Where the null is constant the statistic is reported with no
+P-value and the run says which statistic and why, rather than reporting the P of 1
+that such a test would always give.
+
+The seed makes a run repeatable on the same Python: the replicates come from
+`random.Random`, whose algorithms may change between Python versions.
 
 ### Site frequency spectrum and Ts/Tv
 

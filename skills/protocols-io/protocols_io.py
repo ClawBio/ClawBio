@@ -6,7 +6,6 @@ Search, browse, and retrieve scientific protocols from protocols.io
 via REST API with client token authentication.
 
 Usage:
-    python protocols_io.py --login
     python protocols_io.py --search "RNA extraction"
     python protocols_io.py --protocol 30756
     python protocols_io.py --protocol 30756 --output /tmp/protocols_io
@@ -18,7 +17,6 @@ from __future__ import annotations
 
 import argparse
 import collections
-import getpass
 import itertools
 import json
 import os
@@ -81,9 +79,6 @@ from clawbio.common.reproducibility import (  # noqa: E402
     write_environment_yml,
     write_portable_commands_sh,
 )
-CONFIG_DIR = Path.home() / ".clawbio"
-TOKEN_FILE = CONFIG_DIR / "protocols_io_tokens.json"
-
 API_V3 = "https://www.protocols.io/api/v3"
 API_V4 = "https://www.protocols.io/api/v4"
 RATE_LIMIT = 100  # requests per 60-second window (protocols.io API)
@@ -132,71 +127,9 @@ _rate_limiter = _RateLimiter()
 # ---------------------------------------------------------------------------
 
 
-def load_tokens() -> dict | None:
-    """Load saved access token from disk."""
-    if TOKEN_FILE.exists():
-        try:
-            data = json.loads(TOKEN_FILE.read_text(encoding="utf-8"))
-            if data.get("access_token"):
-                return data
-        except (json.JSONDecodeError, KeyError):
-            pass
-    return None
-
-
-def save_tokens(tokens: dict) -> None:
-    """Persist access token to disk."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    tokens["saved_at"] = datetime.now(timezone.utc).isoformat()
-    TOKEN_FILE.write_text(json.dumps(tokens, indent=2), encoding="utf-8")
-    TOKEN_FILE.chmod(0o600)
-    print(f"  Token saved to {TOKEN_FILE}")
-
-
 def get_access_token() -> str | None:
-    """Resolve access token from env var or saved file."""
-    env_token = os.environ.get("PROTOCOLS_IO_ACCESS_TOKEN")
-    if env_token:
-        return env_token
-    tokens = load_tokens()
-    if tokens and tokens.get("access_token"):
-        return tokens["access_token"]
-    return None
-
-
-def token_login() -> str | None:
-    """
-    Login by pasting a client access token from protocols.io/developers.
-    Verifies the token against the API and saves it locally.
-    """
-    print("\n  Paste your access token from https://www.protocols.io/developers")
-    print("  (Log in → Your Applications → copy the 'Access Token')\n")
-    token = getpass.getpass("  Access Token: ").strip()
-
-    if not token:
-        print("ERROR: No token provided.", file=sys.stderr)
-        return None
-
-    print("  Verifying token...")
-    try:
-        resp = requests.get(
-            f"{API_V3}/session/profile",
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-            timeout=30,
-        )
-        data = resp.json()
-    except Exception as e:
-        print(f"ERROR: Could not verify token: {e}", file=sys.stderr)
-        return None
-
-    if resp.status_code != 200 or data.get("status_code") != 0:
-        print(f"ERROR: Token rejected by protocols.io: {data.get('error_message', resp.text[:200])}", file=sys.stderr)
-        return None
-
-    save_tokens({"access_token": token, "token_type": "bearer"})
-    user = data.get("user", {})
-    print(f"  Logged in as: {user.get('name', 'unknown')} (@{user.get('username', '?')})")
-    return token
+    """Access token from the PROTOCOLS_IO_ACCESS_TOKEN env var."""
+    return os.environ.get("PROTOCOLS_IO_ACCESS_TOKEN")
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +180,7 @@ def _api_get(url: str, params: dict | None = None, token: str | None = None) -> 
             return None
 
         if data.get("status_code") == 1219:
-            print("ERROR: Token expired. Run --login again to paste a new token.", file=sys.stderr)
+            print("ERROR: Token expired. Set a new PROTOCOLS_IO_ACCESS_TOKEN.", file=sys.stderr)
             return None
 
         if resp.status_code != 200:
@@ -653,22 +586,10 @@ def download_protocol_pdf(uri: str, output_path: Path | None = None) -> Path | N
     return output_path
 
 
-def _prompt_for_token() -> str | None:
-    """Inline token prompt for commands that need auth but have no saved token."""
-    print("  Get your token at: https://www.protocols.io/developers")
-    print("  (Log in → Your Applications → copy the 'Access Token')\n")
-    token = getpass.getpass("  Access Token (or press Enter to skip): ").strip()
-    if not token:
-        return None
-    save_tokens({"access_token": token, "token_type": "bearer"})
-    return token
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="protocols.io bridge -- search, browse, and retrieve scientific protocols"
     )
-    parser.add_argument("--login", action="store_true", help="Authenticate with access token")
     parser.add_argument("--search", type=str, help="Search protocols by keyword")
     parser.add_argument("--protocol", type=str, help="Retrieve full protocol by ID, URI, or DOI")
     parser.add_argument("--steps", type=str, help="Retrieve protocol steps by ID, URI, or DOI")
@@ -693,23 +614,15 @@ def main() -> None:
         run_demo()
         return
 
-    if args.login:
-        result = token_login()
-        if result:
-            print("\n  Authentication successful!")
-        else:
-            print("\n  Authentication failed.", file=sys.stderr)
-            sys.exit(1)
-        return
-
     if args.search:
         token = get_access_token()
         if not token:
-            print("  No access token found. Run --login first, or paste a token now.\n")
-            token = _prompt_for_token()
-            if not token:
-                print("ERROR: Cannot search without an access token.", file=sys.stderr)
-                sys.exit(1)
+            print(
+                "ERROR: No access token. Set PROTOCOLS_IO_ACCESS_TOKEN "
+                "(get one at https://www.protocols.io/developers).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
         # Parse --published-on: accept Unix timestamp int or YYYY-MM-DD string
         published_on: int | None = None

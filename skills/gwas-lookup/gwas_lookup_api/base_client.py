@@ -14,9 +14,20 @@ from pathlib import Path
 from typing import Any, Optional
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 DEFAULT_CACHE_TTL = 86400  # 24 hours
 DEFAULT_TIMEOUT = 30  # seconds
+MAX_RETRY_AFTER = 60  # seconds
+
+
+class _Retry(Retry):
+    """Honour Retry-After, capped: urllib3 waits up to 6 h (unbounded before 2.6.3)."""
+
+    def get_retry_after(self, response):
+        after = super().get_retry_after(response)
+        return None if after is None else min(after, MAX_RETRY_AFTER)
 
 
 class BaseClient:
@@ -45,6 +56,18 @@ class BaseClient:
             "Accept": "application/json",
             "User-Agent": user_agent,
         })
+        # 429: honour Retry-After, else back off; urllib3 ships with requests.
+        retry = _Retry(
+            total=3,
+            status_forcelist=(429,),
+            allowed_methods=None,  # POST too: these endpoints are read-only queries
+            backoff_factor=1,
+            respect_retry_after_header=True,
+            raise_on_status=False,  # the last 429 reaches _check
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
         if self.use_cache and self.cache_dir:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -87,6 +110,16 @@ class BaseClient:
 
     # --- Core requests ---
 
+    @staticmethod
+    def _check(resp: requests.Response) -> Any:
+        """Raise with the server's explanation (APIs say why they reject a request)."""
+        if not resp.ok:
+            raise requests.HTTPError(
+                f"{resp.status_code} {resp.reason} for {resp.url}: {resp.text[:300]}",
+                response=resp,
+            )
+        return resp.json()
+
     def get(self, endpoint: str, params: dict | None = None) -> Any:
         """HTTP GET with rate-limiting, caching, and 429 retry."""
         params = params or {}
@@ -99,14 +132,7 @@ class BaseClient:
                 return cached
 
         self._throttle()
-        resp = self.session.get(url, params=params, timeout=self.timeout)
-
-        if resp.status_code == 429:
-            time.sleep(2.0)
-            resp = self.session.get(url, params=params, timeout=self.timeout)
-
-        resp.raise_for_status()
-        data = resp.json()
+        data = self._check(self.session.get(url, params=params, timeout=self.timeout))
 
         if self.use_cache:
             self._set_cached(cache_key, data)
@@ -124,14 +150,7 @@ class BaseClient:
                 return cached
 
         self._throttle()
-        resp = self.session.post(url, json=json_body, params=params, timeout=self.timeout)
-
-        if resp.status_code == 429:
-            time.sleep(2.0)
-            resp = self.session.post(url, json=json_body, params=params, timeout=self.timeout)
-
-        resp.raise_for_status()
-        data = resp.json()
+        data = self._check(self.session.post(url, json=json_body, params=params, timeout=self.timeout))
 
         if self.use_cache:
             self._set_cached(cache_key, data)

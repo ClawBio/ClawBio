@@ -17,7 +17,7 @@ PROJECT_ROOT = SKILL_DIR.parents[1]
 sys.path.insert(0, str(SKILL_DIR))
 sys.path.insert(0, str(PROJECT_ROOT))
 
-import repro_bundle  # noqa: E402
+import gwas_prs_repro_bundle as repro_bundle  # noqa: E402
 
 from clawbio.common.checksums import sha256_file  # noqa: E402
 
@@ -356,7 +356,7 @@ def test_selection_precedence_matches_the_order_in_main_source() -> None:
             key=lambda item: item[1],
         )
     ]
-    bundle_source = (SKILL_DIR / "repro_bundle.py").read_text(encoding="utf-8")
+    bundle_source = (SKILL_DIR / "gwas_prs_repro_bundle.py").read_text(encoding="utf-8")
     selection_body = bundle_source[bundle_source.index("def _selection("):]
     order_in_bundle = [
         name

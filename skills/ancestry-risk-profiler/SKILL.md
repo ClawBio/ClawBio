@@ -40,6 +40,26 @@ metadata:
       format:
         - png
       description: Ancestry Elevation Score bar chart (exploratory)
+    - name: reproducibility/commands.sh
+      type: file
+      format:
+        - sh
+      description: Replay command with the original --demo/--input mode, output path, and user-supplied --ancestry value
+    - name: reproducibility/environment.yml
+      type: file
+      format:
+        - yml
+      description: Runtime environment summary including Python minor version and Matplotlib dependency
+    - name: reproducibility/checksums.sha256
+      type: file
+      format:
+        - sha256
+      description: Output-relative SHA256 manifest for report, result JSON, source-hash manifest, reproducibility files, and optional AES chart
+    - name: reproducibility/inputs.json
+      type: file
+      format:
+        - json
+      description: SHA256 source-hash manifest for genotype input, aisnp_panel.csv, and ancestry_risk_associations.json
   dependencies:
     python: ">=3.11"
     packages:
@@ -134,6 +154,7 @@ You are **ancestry-risk-profiler**, a ClawBio agent for ancestry-stratified dise
 6. **Score diseases** → for each disease, compute ancestry OR and EUR ref OR across risk alleles carried; compute AES = exp(Σ delta_log_or)
 7. **Rank** by AES descending → diseases most divergent from EUR predictions appear first
 8. **Generate report** → markdown with OR comparison table, AES bar chart, variant detail, gwas-prs referral, disclaimer
+9. **Write reproducibility bundle** → for successful scoring runs, write `reproducibility/commands.sh`, `environment.yml`, `checksums.sha256`, and `inputs.json` using the shared `ReproCommand` / `ReproPath` helpers. Do not write a risk report or reproducibility bundle when automatic inference fails with `InsufficientCoverageError`
 
 ## CLI Reference
 
@@ -151,6 +172,13 @@ python skills/ancestry-risk-profiler/ancestry_risk_profiler.py \
 python skills/ancestry-risk-profiler/ancestry_risk_profiler.py \
   --demo --ancestry SAS --output /tmp/ancestry_risk_demo
 ```
+
+Successful runs with `--demo --ancestry SAS` or `--input <file> --ancestry EUR|SAS|...`
+also write a reproducibility bundle. `commands.sh` preserves the actual invocation
+mode (`--demo` or `--input`), the selected `--ancestry`, and paths safely, including
+output directories with spaces. Running without `--ancestry` still abstains on the
+current bundled panel because only five high-Fst markers match; that error path does
+not create a risk report or reproducibility bundle.
 
 ## Example Output
 
@@ -205,9 +233,30 @@ the stored one-hot assignment is not an estimated probability.
 output_directory/
 ├── ancestry_risk_report.md       # Primary report
 ├── ancestry_risk_result.json     # Machine-readable results
-└── figures/
-    └── aes_chart.png             # AES horizontal bar chart (optional)
+├── figures/
+│   └── aes_chart.png             # AES horizontal bar chart (optional)
+└── reproducibility/
+    ├── commands.sh               # Replay command, preserving --demo/--input and --ancestry
+    ├── environment.yml           # Python minor + runtime dependency summary
+    ├── checksums.sha256          # Output-relative SHA256 manifest
+    └── inputs.json               # Source SHA256 manifest; no raw genotype copy
 ```
+
+`inputs.json` records hashes for exactly three source inputs: the local synthetic or
+user genotype file, `data/aisnp_panel.csv`, and `data/ancestry_risk_associations.json`.
+It does not copy or embed genotype data. `checksums.sha256` covers the report,
+result JSON, `inputs.json`, `commands.sh`, `environment.yml`, and `figures/aes_chart.png`
+when the chart is created. Paths in `checksums.sha256` are relative to the output
+directory so `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256`
+works.
+
+Replay is not self-contained. `environment.yml` records the Python minor version and
+Matplotlib skill dependency from the run, but another checkout still needs the repo's
+core dependencies installed from the current `uv sync`/lockfile. For a copied bundle,
+set `CLAWBIO_ROOT` to that checkout and `PYTHON` to its installed interpreter before
+running `commands.sh`. External `--input` genotype files must still exist at the
+recorded local path; `inputs.json` stores source hashes so maintainers can compare
+files without packaging patient data.
 
 ## Scoring Methodology
 
@@ -240,10 +289,17 @@ These thresholds are for display colouring only. AES has no published external v
 - **The curated panel covers ~10 diseases.** Diseases not in the panel are simply not reported — do not extrapolate or add unsupported associations.
 - **AES is exploratory.** Do not present it as a validated score, percentile, or clinical probability. Always use the word "exploratory" when explaining it to the user.
 - **"Genetic super-population" ≠ "ethnicity".** Use precise language. Never say "your ethnicity" when you mean "your inferred genetic super-population."
+- **Reproducibility is computational, not clinical.** The bundle records the command,
+  environment, and file hashes needed to replay the same local calculation. It does
+  not validate AES clinically and does not certify real-world disease risk.
 
 ## Safety
 
 - **Local-first**: All computation runs on-device; no genotype data is uploaded
+- **Reproducibility bundle**: Successful scoring runs write `reproducibility/` via
+  shared `ReproCommand` / `ReproPath` helpers. `commands.sh` preserves the user's
+  real `--ancestry` value and safe local paths; `inputs.json` stores SHA256 hashes
+  only and never duplicates raw genotype data.
 - **Disclaimer**: Every report includes the ClawBio medical disclaimer
 - **Cited sources**: Every association entry carries a non-null PMID (enforced by a CI test). One entry (ALDH2 rs671 ESCC) uses PMID 22960999 (Wu et al. 2012 Nat Genet) with GWAS Catalog accession GCST001563; the entry note flags that the accession-to-PMID mapping was not independently confirmed via the Catalog. See `data/PROVENANCE.md` for full correction history.
 - **LCT entries removed in v1.3.0**: All `rs4988235` Lactose Intolerance entries were removed because (a) PMID 14507249 cited as Enattah 2002 resolves to an unrelated bladder-cancer paper, and (b) the EUR `or=0.45` and non-EUR `or=3.2–6.8` encoded opposite outcome framings for the same allele, manufacturing spurious AES of 7–15x.

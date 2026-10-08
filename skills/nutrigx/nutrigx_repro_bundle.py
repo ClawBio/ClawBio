@@ -1,5 +1,5 @@
 """
-repro_bundle.py — Creates reproducibility artefacts for NutriGx Advisor
+nutrigx_repro_bundle.py — Creates reproducibility artefacts for NutriGx Advisor
 
 Delegates to the shared clawbio.common reproducibility layer.
 Outputs (in <output_dir>/reproducibility/): commands.sh, environment.yml,

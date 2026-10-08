@@ -64,16 +64,9 @@ def get_labstep_user():
 
     key = os.environ.get("LABSTEP_API_KEY")
     if not key:
-        settings_path = Path(".claude/settings.json")
-        if settings_path.exists():
-            cfg = json.loads(settings_path.read_text(encoding="utf-8"))
-            key = cfg.get("skillsConfig", {}).get("labstep", {}).get("apiKey")
-
-    if not key:
         print(
             "ERROR: No Labstep API key found.\n"
-            "  Set the LABSTEP_API_KEY environment variable, or configure\n"
-            "  .claude/settings.json → skillsConfig.labstep.apiKey",
+            "  Set the LABSTEP_API_KEY environment variable.",
             file=sys.stderr,
         )
         sys.exit(1)

@@ -218,21 +218,20 @@ def write_reproducibility_bundle(
         "# Reproduce this Illumina bundle import",
         f"# Date: {datetime.now(timezone.utc).isoformat()}",
     ]
-    if demo:
-        commands.append(f"python clawbio.py run {SKILL_ALIAS} --demo --output {shlex.quote(str(output_dir))}")
-    else:
-        parts = [
-            f"python clawbio.py run {SKILL_ALIAS}",
-            f"--input {shlex.quote(str(bundle.bundle_dir))}",
-            f"--output {shlex.quote(str(output_dir))}",
-        ]
-        if metadata_provider:
-            parts.append(f"--metadata-provider {metadata_provider}")
-        if ica_project_id:
-            parts.append(f"--ica-project-id {shlex.quote(ica_project_id)}")
-        if ica_run_id:
-            parts.append(f"--ica-run-id {shlex.quote(ica_run_id)}")
-        commands.append(" ".join(parts))
+    parts = [
+        f"python clawbio.py run {SKILL_ALIAS}",
+        "--demo" if demo else f"--input {shlex.quote(str(bundle.bundle_dir))}",
+        f"--output {shlex.quote(str(output_dir))}",
+    ]
+    if metadata_provider:
+        parts.append(f"--metadata-provider {metadata_provider}")
+    if ica_project_id:
+        parts.append(f"--ica-project-id {shlex.quote(ica_project_id)}")
+    if ica_run_id:
+        parts.append(f"--ica-run-id {shlex.quote(ica_run_id)}")
+    if metadata_status == "mocked-demo":
+        parts.insert(0, "ILLUMINA_ICA_API_KEY=")
+    commands.append(" ".join(parts))
     (repro_dir / "commands.sh").write_text("\n".join(commands) + "\n", encoding="utf-8")
 
     env_yaml = [
@@ -324,7 +323,10 @@ def write_markdown_report(
         )
     if metadata_result.run:
         metadata_lines.append(
-            f"- **Run**: {metadata_result.run.get('name') or metadata_result.run.get('id')}"
+            f"- **Analysis**: {metadata_result.run.get('name') or metadata_result.run.get('id')}"
+        )
+        metadata_lines.append(
+            f"- **Analysis status**: {metadata_result.run.get('status') or 'unknown'}"
         )
     for warning in metadata_result.warnings:
         metadata_lines.append(f"- **Warning**: {warning}")
@@ -481,7 +483,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--sample-sheet", dest="sample_sheet", help="Explicit SampleSheet path override")
     parser.add_argument("--metadata-provider", choices=["none", "ica"], default="none")
     parser.add_argument("--ica-project-id", help="ICA project ID for metadata enrichment")
-    parser.add_argument("--ica-run-id", help="ICA analysis/run ID for metadata enrichment")
+    parser.add_argument(
+        "--ica-run-id",
+        help="ICA analysis ID for metadata enrichment (not a sequencing run ID)",
+    )
     return parser.parse_args(argv)
 
 

@@ -6,7 +6,7 @@ description: Population genetics of pre-aligned DNA sequences or multi-sample VC
   phasing or clinical interpretation.
 license: MIT
 metadata:
-  version: 0.6.0
+  version: 0.6.1
   author: David De Lorenzo
   domain: molecular-evolution
   tags:
@@ -267,7 +267,11 @@ source conventions, file formats, examples and release validation evidence.
   Rohlf corrected CV; Harpending (1994) raggedness; Model 1 diallelic InDel diversity.
 - Divergence and Hudson Fst between populations; outgroup Fu and Li D/F.
 - Two-locus HKA, McDonald-Kreitman, Nei-Gojobori Ka/Ks, Fu's Fs and SFS.
-- Opt-in coalescent P-values (`--n-sim`) for Tajima's D, R2 and Fu's Fs.
+- Opt-in coalescent P-values (`--n-sim`) for Tajima's D, R2 and Fu's Fs under a
+  null with no recombination. A statistic whose simulated null takes one value
+  (R2 with two sequences; Fu's Fs with two sequences given S; Tajima's D below
+  four, its variance being zero at three) is reported without a P-value. A seed
+  replays only on the same Python.
 - Ts/Tv, codon counts/RSCU including stops, named per-sequence ENC and its
   synonymous-codon-weighted summary.
 - Sliding windows mirror DnaSP's **Gaps in Sliding Window = considered** mode:
@@ -409,12 +413,18 @@ Differences of setting or definition, not errors:
   places them in a frequency class.
 - Sliding windows with no segregating site report Tajima's D as undefined;
   DnaSP prints 0.0000.
+- Coalescent simulation (`--n-sim`): the null has no recombination, so for a
+  recombining region a low Fu's Fs P-value may reflect recombination rather than
+  growth (Tajima's D and R2 are conservative there). DnaSP 6 offers a
+  recombination setting; DnaSP 6's own one-locus module conditions on theta only,
+  fixed S being its v5 routine; and DnaSP reports the one-tailed P(Sim <= Obs),
+  where this skill reports twice the smaller tail for Tajima's D.
 - Ts/Tv has no DnaSP 6 counterpart, and raw Fay and Wu H and Zeng E are not
   DnaSP's normalised Hn and ZE.
 
 ## Version History
 
-Current version 0.6.0. Every change that alters a result, and the version compared
+Current version 0.6.1. Every change that alters a result, and the version compared
 with DnaSP 6.12.03 (0.5.2), is recorded in `docs/version_history.md`.
 
 ## Safety

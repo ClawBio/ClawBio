@@ -43,12 +43,12 @@ dependencies = [
     "biopython>=1.88",
     "conda-lock>=4.0.2",
     "google-auth>=2.58.0,<3",
-    "google-cloud-bigquery>=3.45.1,<4",
+    "google-cloud-bigquery>=3.45.2,<4",
     "matplotlib>=3.11.2",
     "numpy>=2.4.6",
-    "openai>=3.13.0",
+    "openai>=3.17.0",
     "opentelemetry-sdk>=1.44.0,<2",
-    "pandas>=3.0.5",
+    "pandas>=3.0.6",
     "pyyaml>=6.0",
     "pydeseq2>=0.4",
     "rocrate>=0.15.1",
@@ -71,6 +71,11 @@ just-prs = [
 fine-mapping = [
     "sushie>=0.20,<0.21",
 ]
+# Ship audit spans to a tracing backend; opt in with CLAWBIO_OTLP_ENDPOINT.
+# Plain OTLP/HTTP, so point it at a localhost collector or an https:// URL.
+otlp = [
+    "opentelemetry-exporter-otlp-proto-http>=1.44.0,<2",
+]
 # Shared by the four region skills (eqtl-catalogue-region-fetch,
 # gwas-catalog-region-fetch, ld-1000g-region-compute, ukb-ppp-region-fetch).
 # Declared here so `uv sync --all-extras` in CI can run their test suites;
@@ -89,6 +94,16 @@ cell-detection = [
 labstep = ["labstep>=3.0"]
 galaxy-bridge = ["bioblend>=1.2"]
 affinity-proteomics = ["statsmodels>=0.14", "seaborn>=0.12"]
+drug-repurposing-screen = ["pyarrow>=14.0"]
+# Scanpy/Leiden for skills/spatial-transcriptomics. Squidpy is not on this
+# extra: 1.4–1.6 all pull spatialdata + dask + s3fs into `uv sync --all-extras`
+# for every CI job. Spatial statistics (Moran's I, neighbourhood enrichment,
+# co-occurrence) are implemented in the skill against the same estimators
+# Squidpy documents, so the analysis does not need that stack.
+spatial = [
+    "scanpy>=1.10",
+    "leidenalg>=0.10",
+]
 
 [tool.uv]
 # glimix-core (a hard dependency of sushie) requires liknorm, and liknorm 2.0.0

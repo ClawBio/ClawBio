@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 98,
+  "skill_count": 105,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -128,7 +128,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/ancestry-risk-profiler/ancestry_risk_profiler.py --demo",
+      "demo_command": "python skills/ancestry-risk-profiler/ancestry_risk_profiler.py --demo --ancestry SAS",
       "dependencies": [
         "python>=3.11",
         "matplotlib>=3.6"
@@ -186,6 +186,50 @@
         "Sprime",
         "hmmix",
         "introgressed segments"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "arrayexpress-fetch",
+      "cli_alias": "arrayexpress-fetch",
+      "description": "Query metadata and download data from ArrayExpress, EMBL-EBI's functional genomics collection, now hosted inside BioStudies. Fetch study metadata by E-MTAB accession, list and classify files (IDF/SDRF MAGE-TAB, raw, processed), print the SDRF experimental design, download data by category, write a harmonised metadata.tsv, and build an nf-core/rnaseq or nf-core/scrnaseq samplesheet.csv from the SDRF.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run arrayexpress-fetch --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "arrayexpress",
+        "embl-ebi",
+        "functional-genomics",
+        "mage-tab",
+        "data-retrieval",
+        "public-archives"
+      ],
+      "trigger_keywords": [
+        "ArrayExpress",
+        "E-MTAB",
+        "MAGE-TAB",
+        "SDRF",
+        "IDF",
+        "functional genomics experiment"
       ],
       "chaining_partners": [],
       "license": "MIT",
@@ -475,6 +519,49 @@
       "license": "MIT",
       "model_license": "",
       "data_license": ""
+    },
+    {
+      "name": "biostudies-fetch",
+      "cli_alias": "biostudies-fetch",
+      "description": "Query metadata and download data from EMBL-EBI BioStudies, the database that describes biological studies and links their data across collections (ArrayExpress, BioImages, BioModels, EGA-linked studies and standalone submissions). Fetch study metadata by accession, list and download attached files, search across collections, and write a harmonised metadata.tsv.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run biostudies-fetch --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "biostudies",
+        "embl-ebi",
+        "data-retrieval",
+        "metadata",
+        "public-archives"
+      ],
+      "trigger_keywords": [
+        "BioStudies",
+        "S-BSST",
+        "S-BIAD",
+        "BioImage Archive",
+        "supplementary study data EBI",
+        "EBI study metadata"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": "CC0-1.0"
     },
     {
       "name": "busco-assessor",
@@ -1325,7 +1412,7 @@
       "name": "dnasp",
       "cli_alias": "dnasp",
       "description": "Population genetics of pre-aligned DNA sequences or multi-sample VCFs using selected DnaSP 6 methods. Use for diversity, neutrality statistics, linkage disequilibrium, InDel polymorphism, divergence, MK, Ka/Ks and codon usage; not alignment, phasing or clinical interpretation.",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -1503,6 +1590,53 @@
       "license": "MIT",
       "model_license": "",
       "data_license": ""
+    },
+    {
+      "name": "ena-fetch",
+      "cli_alias": "ena-fetch",
+      "description": "Query metadata and download sequencing data from the European Nucleotide Archive (ENA) via the Portal and Browser APIs. Works with ENA/SRA accessions (PRJEB/PRJNA studies, ERR/SRR/DRR runs, ERX/SRX experiments, SAMEA/SAMN samples), listing runs and FASTQ links, building custom file reports, running advanced metadata searches, and emitting a standardised metadata.tsv plus a pipeline-ready nf-core/rnaseq or nf-core/scrnaseq samplesheet.csv.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run ena-fetch --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "ena",
+        "embl-ebi",
+        "sequencing",
+        "fastq",
+        "samplesheet",
+        "nf-core",
+        "public-archives"
+      ],
+      "trigger_keywords": [
+        "ENA",
+        "European Nucleotide Archive",
+        "PRJEB",
+        "ERR run accession",
+        "filereport",
+        "FASTQ links",
+        "samplesheet",
+        "nf-core samplesheet"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": "CC0-1.0"
     },
     {
       "name": "eqtl-catalogue-region-fetch",
@@ -1881,6 +2015,54 @@
       "data_license": ""
     },
     {
+      "name": "geo-fetch",
+      "cli_alias": "geo-fetch",
+      "description": "Query metadata and download data from the NCBI Gene Expression Omnibus (GEO). Works with GEO accessions (GSE series, GSM samples, GPL platforms, GDS datasets) to search GEO DataSets, fetch series and sample metadata, list and download series matrix / SOFT / MINiML / supplementary files, fetch the SRA Run Selector files, and emit a standardised metadata.tsv plus a pipeline-ready nf-core/rnaseq or nf-core/scrnaseq samplesheet.csv.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run geo-fetch --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "geo",
+        "ncbi",
+        "transcriptomics",
+        "samplesheet",
+        "nf-core",
+        "sra",
+        "public-archives"
+      ],
+      "trigger_keywords": [
+        "GEO",
+        "GSE",
+        "GSM",
+        "gene expression omnibus",
+        "series matrix",
+        "GEO supplementary",
+        "SraRunTable",
+        "SRR_Acc_List",
+        "samplesheet"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
       "name": "gi-annotation",
       "cli_alias": null,
       "description": "Predict gene and transcript structure (intervals, exons, strand) from a DNA sequence using the Genomic Intelligence DNA Annotation model, via the hosted /v1/tasks/annotation/predict API. Submitted asynchronously — the pipeline takes ~20 s for ~20 kbp.",
@@ -2041,7 +2223,7 @@
     {
       "name": "gi-expression",
       "cli_alias": null,
-      "description": "Predict tissue / cell-type expression (log TPM + TPM) from a 9,198–500,000 bp TSS-centered DNA sequence (longer than one 9,198 bp window needs --tss-index) using the Genomic Intelligence G0 Expression model, via the hosted /v1/tasks/expression/predict API. The model is conditioned on a free-text cell-type / assay description.",
+      "description": "Predict tissue / cell-type expression (log TPM + TPM) from 9,198–500,000 bp of DNA around a TSS, at least 4,599 bp each side (anything but exactly 9,198 bp needs --tss-index) using the Genomic Intelligence G0 Expression model, via the hosted /v1/tasks/expression/predict API. The model is conditioned on a free-text cell-type / assay description.",
       "version": "0.1.0",
       "status": "planned",
       "maturity_tier": "tested",
@@ -2240,7 +2422,7 @@
     {
       "name": "gwas-lookup",
       "cli_alias": "gwas",
-      "description": "Federated variant lookup across 9 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, eQTL Catalogue, and more.",
+      "description": "Federated variant lookup across 8 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, and more.",
       "version": "0.1.0",
       "status": "mvp",
       "maturity_tier": "ci-validated",
@@ -3028,6 +3210,57 @@
       "data_license": ""
     },
     {
+      "name": "nfcore-rnastructurome-wrapper",
+      "cli_alias": null,
+      "description": "Wrapper skill for running nf-core/rnastructurome — chemical-probing RNA structure analysis (SHAPE/DMS, RT-stop/MaP readout) from FASTQ to per-base reactivity, secondary-structure predictions, and 2D diagrams.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "spec-only",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": false,
+        "has_tests": false,
+        "has_demo": false,
+        "cli_registered": false,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": false,
+      "has_tests": false,
+      "has_demo": false,
+      "demo_command": null,
+      "dependencies": [],
+      "tags": [
+        "rna-structure",
+        "shape",
+        "dms",
+        "chemical-probing",
+        "rna-framework",
+        "nextflow",
+        "nf-core",
+        "reactivity",
+        "secondary-structure"
+      ],
+      "trigger_keywords": [
+        "nf-core rnastructurome",
+        "RNA structure probing pipeline",
+        "SHAPE-MaP",
+        "SHAPE-seq",
+        "DMS-MaP",
+        "DMS-seq",
+        "RT-stop reactivity",
+        "mutational profiling RNA structure",
+        "RNA Framework pipeline",
+        "rf-count rf-norm rf-fold",
+        "R2DT structure diagram",
+        "per-base RNA reactivity"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
       "name": "nfcore-sarek-wrapper",
       "cli_alias": "sarek-pipeline",
       "description": "ClawBio wrapper around nf-core/sarek 3.8.1 covering mapping through annotation for germline, tumor-only, and somatic paired analyses.",
@@ -3462,6 +3695,54 @@
       "license": "Apache-2.0",
       "model_license": "",
       "data_license": ""
+    },
+    {
+      "name": "pride-fetch",
+      "cli_alias": "pride-fetch",
+      "description": "Query metadata and download data from the PRIDE Archive, EMBL-EBI's proteomics identifications database, via the PRIDE Archive REST API v3. Works with PRIDE/ProteomeXchange accessions (PXD, PRD) to fetch project metadata, list and download files (RAW, mzIdentML, mzML, mzTab, MGF, SDRF), search projects, emit a standardised metadata.tsv, write a quantms-ready minimal SDRF sample sheet, and generate a bash + SLURM download script.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run pride-fetch --demo",
+      "dependencies": [
+        "python>=3.10"
+      ],
+      "tags": [
+        "pride",
+        "proteomics",
+        "mass-spectrometry",
+        "proteomexchange",
+        "sdrf",
+        "quantms",
+        "public-archives"
+      ],
+      "trigger_keywords": [
+        "PRIDE",
+        "ProteomeXchange",
+        "PXD",
+        "proteomics data",
+        "mass spectrometry archive",
+        "mzML",
+        "mzIdentML",
+        "SDRF",
+        "quantms"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": "CC0-1.0"
     },
     {
       "name": "profile-report",
@@ -4104,6 +4385,56 @@
         "add a skill",
         "build a skill",
         "make a skill"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "spatial-transcriptomics",
+      "cli_alias": "spatial",
+      "description": "Analyse 10x Visium spatial transcriptomics: SpaceRanger outs or spatial h5ad in, then QC, Leiden clustering, Wilcoxon markers, Moran's I, neighbourhood enrichment and co-occurrence in one local report.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run spatial --demo",
+      "dependencies": [
+        "python>=3.11",
+        "scanpy>=1.10",
+        "leidenalg>=0.10",
+        "numpy>=1.24",
+        "pandas>=2.0",
+        "matplotlib>=3.7",
+        "scikit-learn>=1.3",
+        "scipy>=1.10"
+      ],
+      "tags": [
+        "spatial-transcriptomics",
+        "visium",
+        "scanpy",
+        "moran",
+        "clustering"
+      ],
+      "trigger_keywords": [
+        "visium",
+        "spatial transcriptomics",
+        "SpaceRanger",
+        "Moran's I",
+        "neighbourhood enrichment",
+        "spatially variable genes"
       ],
       "chaining_partners": [],
       "license": "MIT",

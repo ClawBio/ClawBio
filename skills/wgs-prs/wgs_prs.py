@@ -56,7 +56,7 @@ for _import_path in (_PROJECT_ROOT, _SKILL_DIR):
 from clawbio.common.sarek import SarekConfig, SarekWrapper
 from clawbio.common.vcf_qc import QcConfig, VcfQC, QcResult
 
-from repro_bundle import create_reproducibility_bundle  # noqa: E402
+from wgs_prs_repro_bundle import create_reproducibility_bundle  # noqa: E402
 
 log = logging.getLogger(__name__)
 

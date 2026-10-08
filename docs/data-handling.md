@@ -2,16 +2,34 @@
 
 ClawBio is local-first. This page says exactly what that means, skill by skill,
 so that an institution can decide which skills it may run on data it is
-responsible for. It was written against `main` on 2026-09-04 by reading the
+responsible for. It was written against `main` on 2026-09-04, and updated on 2026-09-23 when the archive-fetch skills landed, by reading the
 code, not the descriptions. `tests/test_data_handling_doc.py` scans every skill
 for outbound-call code and fails if a networked skill is missing from this page,
 so the list cannot silently fall behind the code.
 
 ## The short version
 
-- The `clawbio` package (CLI, runner, shared helpers) makes no network calls.
-  There is no telemetry, no update check, no analytics. The audit layer in
-  `clawbio/common/audit.py` writes a local JSONL file and nothing else.
+- The `clawbio` package (CLI, runner, shared helpers) makes no network calls
+  of its own. There is no telemetry, no update check, no analytics, and the
+  audit layer in `clawbio/common/audit.py` writes a local JSONL file. It has
+  one opt-in exception, described next.
+- **Audit spans can be exported, if you ask for it.** Setting
+  `CLAWBIO_OTLP_ENDPOINT` sends every audit span to that collector over OTLP,
+  in addition to the local JSONL. There is no default endpoint, and with the
+  variable unset nothing is sent and the exporter package is not even
+  imported. A span carries: the skill name and version, the input file path,
+  the output directory, the input checksum, each tool or phase name, its
+  command line and keyword arguments, the exit code, up to 500 characters of
+  `stderr` on failure, and the error text. In practice that means VCF paths,
+  output directories and anything a caller passes, which can include sample
+  identifiers. Setting `OPENINFERENCE_HIDE_INPUTS=true` and
+  `OPENINFERENCE_HIDE_OUTPUTS=true` replaces those values with
+  `__REDACTED__`, but only the values: span names, tool names and attribute
+  keys are always sent, so an identifier put in a skill or attribute *name*
+  is outside their reach. The transport is plain OTLP/HTTP, so point the
+  variable at a collector on this machine or at an `https://` URL. A local
+  collector (Phoenix, say) keeps all of it on this machine; a remote one does
+  not.
 - Most skills never touch the network. They read your files, compute, and write
   to the output directory you name.
 - The skills that do reach the network are all listed below, in five classes,
@@ -91,7 +109,73 @@ cache them locally where noted.
 | `busco-assessor` | eutils.ncbi.nlm.nih.gov, ftp.ensemblgenomes.org | Taxonomy lookups and BUSCO lineage datasets. | `NCBI_API_KEY` (optional) |
 | `deepspot-m` | huggingface.co | Model weights on first use. Inference is local. | none |
 | `proteomics-clock` | raw.githubusercontent.com | Published coefficient tables, cached under `CLAWBIO_CACHE`. | none |
+| `arrayexpress-fetch` | www.ebi.ac.uk (BioStudies API, BioSamples), ftp.ebi.ac.uk | The accession or search phrase you typed. `--command download` fetches MAGE-TAB, raw or processed files from the FTP host the API advertises; `--command sdrf` and `--command samplesheet` read the attached SDRF from that same host. It emits no download script: FASTQ reads are brokered to ENA, so use `ena-fetch` for those. | none |
+| `biostudies-fetch` | www.ebi.ac.uk (BioStudies API, BioSamples), ftp.ebi.ac.uk | The accession or search phrase you typed. `--command download` fetches the study's attached files from the FTP host the API advertises. | none |
+| `ena-fetch` | www.ebi.ac.uk (ENA Portal + Browser), ftp.sra.ebi.ac.uk | The accession or Portal query you typed. `--command download` fetches FASTQ or submitted files. `--command download-script` only writes a script; `--run`/`--submit` execute it and are off by default. | none |
+| `geo-fetch` | eutils.ncbi.nlm.nih.gov, www.ncbi.nlm.nih.gov (GEO accession pages), ftp.ncbi.nlm.nih.gov, www.ebi.ac.uk (ENA Portal) | The accession or search phrase you typed. GEO series are resolved to their SRA project and then to ENA for FASTQ links; `samplesheet`, `runtable` and `metadata-table` also read GEO's accession pages on www.ncbi.nlm.nih.gov. `--command download` fetches series matrix / SOFT / MINiML / supplementary files. | `NCBI_EMAIL`, `NCBI_API_KEY` — read from the environment but **only sent with `--use-ncbi-credentials`**; presence of the variable is not consent |
+| `pride-fetch` | www.ebi.ac.uk (PRIDE API), ftp.pride.ebi.ac.uk | The accession or keyword you typed. `--command download` fetches project files, and a submitter SDRF is read from the FTP host. `--command download-script` only writes a script. | none |
 | `nfcore-rnaseq-wrapper`, `nfcore-sarek-wrapper`, `nfcore-scrnaseq-wrapper` | nf-co.re, github.com, and the container registries the pipeline declares | Nextflow pulls the pinned pipeline and its containers. Your samples stay in the local work directory. Set `NXF_OFFLINE=true` with pre-pulled assets to forbid all of it. | none (Sentieon licence variables for that sarek path only) |
+
+### Allowlisting for the public-archive skills
+
+The archive skills split their traffic across two kinds of host, and networks
+routinely allow one and block the other. That produces a confusing failure in
+which `metadata` and `search` work normally while `download` hangs and times
+out. It looks like a bad accession; it is a firewall.
+
+**This is not a port problem, and opening FTP ports will not fix it.** Despite
+the `ftp.*` hostnames, these skills never speak the FTP protocol: every
+`ftp://` URL an archive advertises is rewritten to `https://` before it is
+opened, so all traffic is ordinary **HTTPS on TCP/443**. What differs is the
+destination host, not the port or protocol.
+
+Checked 2026-09-22, the EBI file hosts share one address, distinct from the
+metadata host:
+
+| Host | Role | Address (2026-09-22) |
+|---|---|---|
+| `www.ebi.ac.uk` | BioStudies / ENA / PRIDE **metadata** APIs | `193.62.193.80` |
+| `ftp.ebi.ac.uk` | BioStudies + ArrayExpress **file bytes** | `193.62.193.165` |
+| `ftp.sra.ebi.ac.uk` | ENA **FASTQ** bytes | `193.62.193.165` |
+| `ftp.pride.ebi.ac.uk` | PRIDE **file** bytes, submitter SDRFs | `193.62.193.165` |
+| `eutils.ncbi.nlm.nih.gov` | GEO E-utilities | `34.107.134.59` |
+| `www.ncbi.nlm.nih.gov` | GEO accession pages (SRA project, sample SOFT) | `34.107.134.59` (2026-09-30) |
+| `ftp.ncbi.nlm.nih.gov` | GEO series matrix / SOFT / supplementary | `130.14.250.7`, `130.14.250.10` |
+
+So the request to a network administrator is *"allow these destination
+hostnames outbound on TCP/443"*, not *"open a port"*. Prefer allowlisting by
+hostname — the addresses above are load balancers and can change.
+
+Diagnose with the host, not the accession:
+
+```bash
+for h in www.ebi.ac.uk ftp.ebi.ac.uk ftp.sra.ebi.ac.uk ftp.pride.ebi.ac.uk \
+         eutils.ncbi.nlm.nih.gov www.ncbi.nlm.nih.gov ftp.ncbi.nlm.nih.gov; do
+  printf '%-26s %s\n' "$h" "$(curl -sS -o /dev/null -m 15 -w '%{http_code}' "https://$h/" 2>&1)"
+done
+# 200/3xx/403 = reachable (the server answered);  000 = blocked before it could
+```
+
+Generated download scripts are built to survive a flaky link. **`curl` is the
+default**; `--tool wget` is the alternative, and both resume a dropped
+multi-gigabyte transfer rather than restarting it (`-C -` for curl, `-c` for
+wget — verified against GNU Wget 1.25.0 on 2026-09-23: a truncated file
+produced `206 Partial Content`, only the remainder was transferred, and the
+result was byte-identical to a fresh download). Both also get `--retry 5` with
+a 10 s wait and a 30 s connect timeout.
+
+curl is the default for the two things wget cannot do. It aborts a transfer
+that has stalled near 0 B/s (`--speed-limit`/`--speed-time`) instead of hanging
+until the job's walltime, and it retries an HTTP **403** — which EBI returns
+under a burst of requests, and which a plain `--retry` does not cover.
+`--retry-all-errors` is probed for at run time rather than hardcoded, because
+it needs curl >= 7.71 and older clusters ship 7.29.
+
+Two traps worth knowing. A generated `download-script` is often run on a
+compute node with stricter egress than the login node it was written on, so
+test the hosts where the script will actually run. And `geo-fetch` reads run
+metadata from **ENA**, so the samplesheets it writes carry
+`ftp.sra.ebi.ac.uk` URLs even though the skill itself only touched NCBI hosts.
 
 ## Class 5: the RoboTerri bot
 

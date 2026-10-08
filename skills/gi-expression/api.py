@@ -25,7 +25,7 @@ def run(input_path: Optional[str] = None, output_dir: Optional[str] = None, demo
     overrides the default K562 cell-type prompt the expression model is
     conditioned on. ``tss_index`` is the 0-based TSS offset into the
     whitespace-stripped sequence — required unless the FASTA holds exactly
-    one 9,198 bp window.
+    9,198 bp.
     """
     out = Path(output_dir) if output_dir else Path(tempfile.mkdtemp(prefix="gi-expression-"))
     cmd = [sys.executable, str(_SCRIPT), "--output", str(out)]

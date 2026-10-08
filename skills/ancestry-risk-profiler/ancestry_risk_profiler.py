@@ -25,9 +25,11 @@ import argparse
 import csv
 import json
 import math
+import shlex
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
 from typing import Optional
 
@@ -37,6 +39,15 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from clawbio.common.parsers import parse_genetic_file, genotypes_to_simple
 from clawbio.common.report import DISCLAIMER
+from clawbio.common.checksums import sha256_file
+from clawbio.common.reproducibility import (
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
+from clawbio.common.textio import write_text_lf_atomic
 
 SKILL_DIR = Path(__file__).resolve().parent
 DATA_DIR = SKILL_DIR / "data"
@@ -530,8 +541,8 @@ def generate_report(
     ancestry_result: dict,
     output_dir: Path,
     scoring_note: Optional[str] = None,
-) -> None:
-    """Write ancestry_risk_report.md, ancestry_risk_result.json, and figures/."""
+) -> Path | None:
+    """Write report artifacts and return the chart path if generated this run."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     figs_dir = output_dir / "figures"
@@ -765,10 +776,10 @@ def generate_report(
     json_path = output_dir / "ancestry_risk_result.json"
     json_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
 
-    _try_write_aes_chart(risks, figs_dir)
+    return _try_write_aes_chart(risks, figs_dir)
 
 
-def _try_write_aes_chart(risks: list[DiseaseRisk], figs_dir: Path) -> None:
+def _try_write_aes_chart(risks: list[DiseaseRisk], figs_dir: Path) -> Path | None:
     """Write a horizontal AES bar chart; silently skip if matplotlib unavailable."""
     try:
         import matplotlib
@@ -806,8 +817,68 @@ def _try_write_aes_chart(risks: list[DiseaseRisk], figs_dir: Path) -> None:
     ax.set_title("Ancestry-Stratified Disease Signal\n(AES > 1 = ancestry-specific OR exceeds EUR reference; not a validated risk score)")
     ax.legend(fontsize=8)
     plt.tight_layout()
-    fig.savefig(figs_dir / "aes_chart.png", dpi=150)
+    chart_path = figs_dir / "aes_chart.png"
+    fig.savefig(chart_path, dpi=150)
     plt.close(fig)
+    return chart_path
+
+
+def _write_reproducibility_bundle(
+    output_dir: Path, input_file: Path, ancestry_override: str | None,
+    *, demo: bool, chart_path: Path | None,
+) -> None:
+    """Record source identities and a replay command after a successful run."""
+    output_dir = Path(output_dir)
+    input_file = Path(input_file).resolve()
+    repo_root = _PROJECT_ROOT.resolve()
+    repro_dir = output_dir / "reproducibility"
+    repro_dir.mkdir(parents=True, exist_ok=True)
+
+    inputs = {
+        "input_sha256": sha256_file(input_file),
+        "aisnp_panel_sha256": sha256_file(DATA_DIR / "aisnp_panel.csv"),
+        "associations_sha256": sha256_file(DATA_DIR / "ancestry_risk_associations.json"),
+    }
+    write_text_lf_atomic(repro_dir / "inputs.json", json.dumps(inputs, indent=2) + "\n")
+
+    args: list[str | ReproPath] = ["--demo"] if demo else ["--input"]
+    if not demo:
+        if input_file.is_relative_to(repo_root):
+            relative = input_file.relative_to(repo_root).as_posix()
+            args.append(f'"$CLAWBIO_ROOT"/{shlex.quote(relative)}')
+        else:
+            args.append(shlex.quote(str(input_file)))
+    if ancestry_override is not None:
+        args.extend(["--ancestry", ancestry_override])
+    args.extend(["--output", ReproPath(output_dir, "output_dir")])
+    command = ReproCommand(
+        script_path=Path("skills/ancestry-risk-profiler/ancestry_risk_profiler.py"),
+        args=args,
+        comment="Reproduce this ancestry-risk-profiler run",
+    )
+    write_portable_commands_sh(output_dir, command, repo_root=repo_root)
+
+    try:
+        pip_deps = [f"matplotlib=={metadata.version('matplotlib')}"]
+    except metadata.PackageNotFoundError:
+        pip_deps = []
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-ancestry-risk-profiler",
+        pip_deps=pip_deps,
+        python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
+    )
+
+    outputs = [
+        output_dir / "ancestry_risk_report.md",
+        output_dir / "ancestry_risk_result.json",
+        repro_dir / "commands.sh",
+        repro_dir / "environment.yml",
+        repro_dir / "inputs.json",
+    ]
+    if chart_path is not None:
+        outputs.append(chart_path)
+    write_checksums(outputs, output_dir, anchor=output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -825,7 +896,10 @@ def run_demo(output_dir: Path, ancestry_override: Optional[str] = None) -> None:
     genotypes = genotypes_to_simple(parse_genetic_file(demo_file))
     ancestry_result = infer_ancestry(genotypes, panel, ancestry_override=ancestry_override)
     risks, scoring_note = _get_risks_with_confidence_gating(genotypes, ancestry_result, associations)
-    generate_report(risks, ancestry_result, output_dir, scoring_note=scoring_note)
+    chart_path = generate_report(risks, ancestry_result, output_dir, scoring_note=scoring_note)
+    _write_reproducibility_bundle(
+        output_dir, demo_file, ancestry_override, demo=True, chart_path=chart_path,
+    )
 
     print(f"\n[ancestry-risk-profiler] Demo complete → {output_dir}/ancestry_risk_report.md")
     print(f"Genetic super-population: {ancestry_result['inferred_ancestry']} (confidence: {ancestry_result['confidence']})")
@@ -900,7 +974,10 @@ def main(argv: list[str] | None = None) -> None:
     if scoring_note:
         print(f"\n  NOTE: {scoring_note}")
 
-    generate_report(risks, ancestry_result, output_dir, scoring_note=scoring_note)
+    chart_path = generate_report(risks, ancestry_result, output_dir, scoring_note=scoring_note)
+    _write_reproducibility_bundle(
+        output_dir, input_path, args.ancestry, demo=False, chart_path=chart_path,
+    )
 
     print(f"\n[ancestry-risk-profiler] Done → {output_dir}/ancestry_risk_report.md")
     if risks:

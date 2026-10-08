@@ -26,6 +26,37 @@ metadata:
     - my profile
     - genomic profile
     - personal profile
+  outputs:
+  - name: profile_report.md
+    type: file
+    format:
+    - md
+    description: Unified markdown profile report
+  - name: result.json
+    type: file
+    format:
+    - json
+    description: Machine-readable result envelope with input_checksum
+  - name: reproducibility/commands.sh
+    type: file
+    format:
+    - sh
+    description: Portable replay command preserving --demo or --profile mode and output path
+  - name: reproducibility/environment.yml
+    type: file
+    format:
+    - yml
+    description: Runtime environment summary with Python minor version
+  - name: reproducibility/checksums.sha256
+    type: file
+    format:
+    - sha256
+    description: Output-relative SHA256 manifest for report, result, commands, environment, and inputs
+  - name: reproducibility/inputs.json
+    type: file
+    format:
+    - json
+    description: Input hash manifest for the PatientProfile source without copying raw profile data
 ---
 
 # 📋 Profile Report
@@ -59,6 +90,7 @@ You are **Profile Report**, a specialised ClawBio agent for generating unified p
 4. **Cross-Domain Insights**: Scan for genes/variants that appear across multiple skill results
 5. **Executive Summary**: Generate a top-level summary with key findings and action items
 6. **Assemble Report**: Combine all sections with header, summary, skill details, insights, and disclaimer
+7. **Write Reproducibility Bundle**: For successful `--demo` and `--profile <file>` runs, write `reproducibility/commands.sh`, `environment.yml`, `checksums.sha256`, and `inputs.json` using shared `ReproCommand`, `ReproPath`, `write_portable_commands_sh`, `write_environment_yml`, and `write_checksums`
 
 ## CLI Reference
 
@@ -95,13 +127,47 @@ output_directory/
 │   ├── Genome Comparison (from compare)
 │   ├── Cross-Domain Insights
 │   └── Disclaimer
-└── result.json          # Machine-readable result envelope
+├── result.json          # Machine-readable result envelope; input_checksum matches inputs.json
+└── reproducibility/
+    ├── commands.sh      # Replay command preserving --demo or --profile mode
+    ├── environment.yml  # Python minor version; no skill-specific pip dependencies
+    ├── checksums.sha256 # Output-relative SHA256 manifest, excluding itself
+    └── inputs.json      # PatientProfile source hash manifest; no raw profile copy
 ```
+
+`commands.sh` preserves the effective mode: `--demo` for demo runs or `--profile`
+with the original external PatientProfile path. Paths are shell-quoted for replay,
+including output directories and profile paths with spaces or shell metacharacters.
+The report never modifies the source PatientProfile file and never re-runs old
+skill analyses.
+
+`inputs.json` records `input_sha256`, `input_kind`, and `checksum_kind`. Prebuilt
+`demo_full_profile.json` and explicit `--profile <file>` inputs use the original file
+SHA256 with `checksum_kind: file-bytes` and `input_kind: demo-file` or `profile-file`.
+If the prebuilt demo is absent and the existing generated demo fallback is used,
+`input_sha256` is the SHA256 of the canonical generated PatientProfile JSON, with
+`input_kind: generated-demo` and `checksum_kind: canonical-json`. `result.json`
+keeps the same hash in its existing `input_checksum` field.
+Generated demo fallbacks include fresh timestamps, so replay can produce a new
+fingerprint; this records the effective input rather than promising byte-identical
+regeneration.
+
+`checksums.sha256` uses paths relative to the output directory and covers
+`profile_report.md`, `result.json`, `reproducibility/commands.sh`,
+`reproducibility/environment.yml`, and `reproducibility/inputs.json`. It does not
+hash itself.
 
 ## Dependencies
 
 **Required**:
-- Python 3.10+ (standard library only)
+- Python 3.11+ with the repo core environment
+
+No skill-specific pip dependencies are added. `environment.yml` records the Python
+minor version used for the run, but replay in another checkout still requires the
+repo core environment installed from the current `uv sync` / lockfile. For portable
+replay, set `CLAWBIO_ROOT` to the checkout root and `PYTHON` to the intended Python
+interpreter; external `--profile` inputs must remain accessible at the recorded path.
+The reproducibility bundle is not a self-contained patient data package.
 
 ## Safety
 

@@ -191,8 +191,8 @@ GENE_DEFS = {
         },
         "phenotypes": {
             "Normal Metabolizer":       ["Normal/Normal"],
-            "Intermediate Metabolizer": ["Normal/*2A", "Normal/*13", "Normal/D949V"],
-            "Poor Metabolizer":         ["*2A/*2A", "*2A/*13", "*13/*13"],
+            "Intermediate Metabolizer": ["Normal/*2A", "Normal/*13", "Normal/D949V", "D949V/D949V"],
+            "Poor Metabolizer":         ["*2A/*2A", "*2A/*13", "*13/*13", "*2A/D949V", "*13/D949V"],
         },
     },
     "TPMT": {
@@ -1169,10 +1169,21 @@ def call_diplotype(gene, pgx_snps):
             if len(tested) == len(gene_rsids):
                 return "Normal/Normal"
             return f"Normal/Normal ({len(tested)}/{len(gene_rsids)} SNPs tested)"
-        v = detected[0]
-        if v["copies"] == 2:
-            return f"{v['allele']}/{v['allele']}"
-        return f"Normal/{v['allele']}"
+        # CPIC: "If two different decreased/no function variants are present,
+        # they are presumed to be on different gene copies."
+        # With >2 variant alleles keep the two lowest-function ones (no_function first).
+        # Phase is unknown for unphased data, so this can over-call if the
+        # variants are in cis; it never under-calls.
+        ranked = sorted(((v["allele"], v["effect"]) for v in detected for _ in range(v["copies"])),
+                        key=lambda a: a[1] != "no_function")[:2]
+        diplotype = "/".join(a for a, _ in ranked)
+        if len(ranked) == 1:
+            diplotype = f"Normal/{diplotype}"
+        # An untested SNP can only change the call unless it is already two alleles
+        # with at least one no-function (activity score <= 0.5, Poor).
+        if len(tested) < len(gene_rsids) and not (len(ranked) == 2 and ranked[0][1] == "no_function"):
+            diplotype += f" ({len(tested)}/{len(gene_rsids)} SNPs tested)"
+        return diplotype
 
     if not detected:
         if len(tested) == len(gene_rsids):

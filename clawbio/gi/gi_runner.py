@@ -57,9 +57,9 @@ SEQUENCE_NAME_MAX_CHARS = 128
 # Extra operator-facing context appended to a too-short rejection.
 TASK_MIN_BP_HINT: Dict[str, str] = {
     "expression": (
-        "the model scores exactly one TSS-centred window of that size "
-        "(TSS ± 4599). Submit at least a full window, or submit a longer "
-        "locus and pass --tss-index."
+        "the TSS must be at least 4599 bp from each end. A 9198 bp sequence "
+        "centred on the TSS needs no --tss-index; anything longer does. Each "
+        "model's bio_spec.recommended_flank_bp is how much to fetch on each side."
     ),
     "annotation": "the gene finder needs a genomic region, not a single exon.",
 }
@@ -79,10 +79,13 @@ TASK_CONTEXT_WINDOW_BP: Dict[str, Optional[int]] = {
     "expression": None,
 }
 
-# Expression scores exactly one TSS-centred 9,198 bp window (radius 4,599),
-# cut server-side; a longer locus is allowed up to REQUEST_MAX_BP provided
-# ``tss_index`` says where to cut. Unlike the other tasks, expression does not
-# pad — its floor and its window are the same number.
+# Expression needs at least 9,198 bp with the TSS at least 4,599 bp from each
+# end; a longer locus is allowed up to REQUEST_MAX_BP provided ``tss_index``
+# says where the TSS is, and is required unless the sequence is exactly
+# 9,198 bp. 9,198 is the floor, not the width scored: how far each model reads
+# is its own (``bio_spec.recommended_flank_bp`` per side), and the response
+# reports the part used as ``meta.task_specific_counts.scored_window``.
+# Expression does not pad a TSS that is too close to either end.
 EXPRESSION_WINDOW_BP = TASK_MIN_BP["expression"]
 EXPRESSION_TSS_RADIUS = EXPRESSION_WINDOW_BP // 2  # 4599
 EXPRESSION_MAX_BP = REQUEST_MAX_BP  # kept as an alias; the cap is task-wide
@@ -156,8 +159,8 @@ def validate_expression_input(sequence: str, tss_index: Optional[int]) -> Option
     if not low <= tss_index <= high:
         return (
             f"--tss-index {tss_index} is outside the allowed range [{low}, {high}] for a "
-            f"{n:,} bp sequence — the model needs a full ±{EXPRESSION_TSS_RADIUS} bp window "
-            f"around the TSS; submit more flanking sequence"
+            f"{n:,} bp sequence — the API needs at least {EXPRESSION_TSS_RADIUS} bp "
+            f"on each side of the TSS; submit more flanking sequence"
         )
     return None
 
@@ -295,8 +298,9 @@ def _summarize(task: str, body: Dict[str, Any]) -> Dict[str, Any]:
         pred = _as_obj(data.get("prediction"), "data.prediction")
         out["log_tpm"] = pred.get("expression_log_tpm")
         out["tpm"] = pred.get("expression_tpm")
-        # Windowing provenance — the API cuts the scored 9,198 bp window
-        # itself, so this is the only way to confirm it cut where you meant.
+        # Windowing provenance: the API picks the part of the sequence the
+        # model reads around tss_index, and its width depends on the model,
+        # so this is the only way to confirm it read where you meant.
         inp = _as_obj(data.get("input"), "data.input")
         meta = _as_obj(body.get("meta"), "meta")
         out["tss_index"] = inp.get("tss_index")

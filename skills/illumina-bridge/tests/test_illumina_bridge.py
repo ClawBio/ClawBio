@@ -38,16 +38,46 @@ _RUNNER_SPEC.loader.exec_module(clawbio_runner)
 
 
 DEMO_BUNDLE = SKILL_DIR / "demo_bundle"
+ICA_PROJECT_ID = "00000000-0000-4000-8000-000000000074"
+ICA_ANALYSIS_ID = "00000000-0000-4000-8000-000000000075"
+
+
+@pytest.fixture(autouse=True)
+def isolated_ica_environment(monkeypatch):
+    """Ambient tenant credentials must not turn offline tests into live lookups."""
+    monkeypatch.delenv("ILLUMINA_ICA_API_KEY", raising=False)
+    monkeypatch.delenv("ILLUMINA_ICA_BASE_URL", raising=False)
+
+
+@pytest.fixture
+def ica_v3_payload():
+    """Relevant Project/AnalysisV3 response fields, with invented identifiers."""
+    return {
+        "project": {"id": ICA_PROJECT_ID, "name": "Demo ICA Project", "active": True},
+        "run": {
+            "id": ICA_ANALYSIS_ID,
+            "reference": "synthetic-analysis-74",
+            "userReference": "DRAGEN Germline Demo",
+            "status": "SUCCEEDED",
+            "pipeline": {"code": "DRAGEN Germline 4.3"},
+        },
+    }
 
 
 class FakeResponse:
-    def __init__(self, payload):
+    def __init__(self, payload, status_code=200):
         self.payload = payload
+        self.status_code = status_code
 
     def raise_for_status(self):
-        return None
+        response = requests.Response()
+        response.status_code = self.status_code
+        response.url = "https://tenant.illumina.com/ica/rest/synthetic-private-id"
+        response.raise_for_status()
 
     def json(self):
+        if isinstance(self.payload, Exception):
+            raise self.payload
         return self.payload
 
 
@@ -67,7 +97,10 @@ class FakeSession:
         )
         if not self.responses:
             raise AssertionError(f"Unexpected GET request: {url}")
-        return self.responses.pop(0)
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 BASESPACE_SAMPLE_SHEET = """[Header],
 FileFormatVersion,2
@@ -252,7 +285,93 @@ def test_build_summary_and_data_is_deterministic(copied_bundle):
     assert data1 == data2
 
 
-def test_ica_provider_merges_project_run_and_sample_metadata(copied_bundle):
+@pytest.mark.parametrize("active", [True, False])
+def test_ica_v3_project_and_analysis_fields(copied_bundle, ica_v3_payload, active):
+    ica_v3_payload["project"]["active"] = active
+    session = FakeSession([FakeResponse(ica_v3_payload["project"]), FakeResponse(ica_v3_payload["run"])])
+    result = ICAMetadataProvider(api_key="test-key", session=session).enrich(
+        bundle_dir=copied_bundle, project_id=ICA_PROJECT_ID, run_id=ICA_ANALYSIS_ID,
+    )
+    assert result.status == "enriched"
+    assert result.project == {
+        "id": ICA_PROJECT_ID, "name": "Demo ICA Project", "active": active, "status": "",
+    }
+    assert result.run["name"] == "DRAGEN Germline Demo"
+    assert result.run["status"] == "SUCCEEDED"
+    assert result.run["pipeline"] == "DRAGEN Germline 4.3"
+    assert [call["url"] for call in session.calls] == [
+        f"https://ica.illumina.com/ica/rest/api/projects/{ICA_PROJECT_ID}",
+        f"https://ica.illumina.com/ica/rest/api/projects/{ICA_PROJECT_ID}/analyses/{ICA_ANALYSIS_ID}",
+    ]
+    assert session.headers["Accept"] == "application/vnd.illumina.v3+json"
+
+
+@pytest.mark.parametrize("analysis_status", [
+    "REQUESTED", "AWAITINGINPUT", "INPROGRESS", "FAILED", "FAILEDFINAL", "ABORTED",
+])
+def test_ica_non_succeeded_analysis_warns_without_changing_enriched_status(
+    copied_bundle, ica_v3_payload, analysis_status,
+):
+    ica_v3_payload["run"]["status"] = analysis_status
+    session = FakeSession([FakeResponse(ica_v3_payload["project"]), FakeResponse(ica_v3_payload["run"])])
+    result = ICAMetadataProvider(api_key="test-key", session=session).enrich(
+        bundle_dir=copied_bundle, project_id=ICA_PROJECT_ID, run_id=ICA_ANALYSIS_ID,
+    )
+    assert result.status == "enriched"
+    assert result.run["status"] == analysis_status
+    assert any(analysis_status in warning and "not SUCCEEDED" in warning for warning in result.warnings)
+
+
+def test_ica_reference_fallback_and_missing_active(copied_bundle, ica_v3_payload):
+    del ica_v3_payload["run"]["userReference"]
+    del ica_v3_payload["project"]["active"]
+    session = FakeSession([FakeResponse(ica_v3_payload["project"]), FakeResponse(ica_v3_payload["run"])])
+    result = ICAMetadataProvider(api_key="test-key", session=session).enrich(
+        bundle_dir=copied_bundle, project_id=ICA_PROJECT_ID, run_id=ICA_ANALYSIS_ID,
+    )
+    assert result.run["name"] == "synthetic-analysis-74"
+    assert result.project["active"] is None
+
+
+def test_ica_existing_status_and_pipeline_name_remain_compatible(copied_bundle, ica_v3_payload):
+    ica_v3_payload["project"]["status"] = "legacy-status"
+    ica_v3_payload["run"]["pipeline"]["name"] = "Legacy pipeline name"
+    session = FakeSession([FakeResponse(ica_v3_payload["project"]), FakeResponse(ica_v3_payload["run"])])
+    result = ICAMetadataProvider(api_key="test-key", session=session).enrich(
+        bundle_dir=copied_bundle, project_id=ICA_PROJECT_ID, run_id=ICA_ANALYSIS_ID,
+    )
+    assert result.project["status"] == "legacy-status"
+    assert result.run["pipeline"] == "Legacy pipeline name"
+
+
+def test_ica_v3_does_not_infer_sample_metadata(copied_bundle, ica_v3_payload):
+    # An uncontracted legacy field must not silently enable sample-name matching.
+    ica_v3_payload["run"]["samples"] = [{
+        "sample_id": "DEMO_SAMPLE_01", "id": "unverified-sample", "status": "SUCCEEDED",
+    }]
+    session = FakeSession([FakeResponse(ica_v3_payload["project"]), FakeResponse(ica_v3_payload["run"])])
+    result = ICAMetadataProvider(api_key="test-key", session=session).enrich(
+        bundle_dir=copied_bundle, project_id=ICA_PROJECT_ID, run_id=ICA_ANALYSIS_ID,
+    )
+    assert result.samples == []
+    assert any("sample-level" in warning and "unavailable" in warning for warning in result.warnings)
+    assert not any("not SUCCEEDED" in warning for warning in result.warnings)
+    assert len(session.calls) == 2
+
+
+def test_ica_mock_contains_v3_metadata_without_sample_enrichment(copied_bundle):
+    result = ICAMetadataProvider(api_key="").enrich(
+        bundle_dir=copied_bundle, project_id=ICA_PROJECT_ID, run_id=ICA_ANALYSIS_ID, allow_mock=True,
+    )
+    assert result.status == "mocked-demo"
+    assert result.project["active"] is True
+    assert result.project["status"] == ""
+    assert result.run["name"] == "DRAGEN Germline Demo"
+    assert result.samples == []
+    assert any("sample-level" in warning and "unavailable" in warning for warning in result.warnings)
+
+
+def test_ica_mock_keeps_local_samples_without_remote_annotations(copied_bundle):
     provider = ICAMetadataProvider(api_key="")
     result = provider.enrich(
         bundle_dir=copied_bundle,
@@ -265,12 +384,14 @@ def test_ica_provider_merges_project_run_and_sample_metadata(copied_bundle):
     assert result.status == "mocked-demo"
     assert result.project["name"] == "Demo ICA Project"
     assert result.run["status"] == "SUCCEEDED"
-    assert merge["samples_enriched"] == 2
-    assert merged_rows[0]["ica_sample_id"] == "ica-sample-001"
+    assert merge == {"samples_in_bundle": 2, "samples_enriched": 0, "samples_unmatched": 2}
+    assert merged_rows[0]["sample_id"] == "DEMO_SAMPLE_01"
+    assert merged_rows[0]["ica_sample_id"] == ""
 
 
 def test_ica_provider_missing_api_key_yields_warning(copied_bundle):
-    provider = ICAMetadataProvider(api_key="")
+    session = FakeSession()
+    provider = ICAMetadataProvider(api_key="", session=session)
     assert provider.api_key is None
     result = provider.enrich(
         bundle_dir=copied_bundle,
@@ -280,22 +401,104 @@ def test_ica_provider_missing_api_key_yields_warning(copied_bundle):
     )
     assert result.status == "warning"
     assert "ILLUMINA_ICA_API_KEY" in result.warnings[0]
+    assert session.calls == []
 
 
-def test_ica_provider_network_failure_yields_warning(copied_bundle, monkeypatch):
-    provider = ICAMetadataProvider(api_key="test-key")
+@pytest.mark.parametrize("project_id, analysis_id", [
+    (None, ICA_ANALYSIS_ID), (ICA_PROJECT_ID, None), (None, None),
+])
+def test_ica_missing_ids_explain_flags_without_requests(copied_bundle, project_id, analysis_id):
+    session = FakeSession()
+    result = ICAMetadataProvider(api_key="test-key", session=session).enrich(
+        bundle_dir=copied_bundle, project_id=project_id, run_id=analysis_id,
+    )
+    assert result.status == "skipped"
+    assert "--ica-project-id" in result.warnings[0]
+    assert "--ica-run-id" in result.warnings[0]
+    assert "analysis ID" in result.warnings[0]
+    assert session.calls == []
 
-    def raise_request_error(endpoint: str):
-        raise requests.RequestException("network down")
 
-    monkeypatch.setattr(provider, "_fetch_json", raise_request_error)
+@pytest.mark.parametrize("lookup", ["project", "analysis"])
+@pytest.mark.parametrize("status_code, hint", [
+    (401, "ILLUMINA_ICA_API_KEY"),
+    (403, "permissions"),
+    (404, "--ica-"),
+    (429, "retry"),
+    (500, "retry"),
+    (503, "retry"),
+    (418, "access"),
+])
+def test_ica_http_failure_identifies_lookup_and_keeps_local_import(
+    tmp_path, monkeypatch, ica_v3_payload, lookup, status_code, hint,
+):
+    responses = [FakeResponse({}, status_code=status_code)]
+    if lookup == "analysis":
+        responses.insert(0, FakeResponse(ica_v3_payload["project"]))
+    session = FakeSession(responses)
+    monkeypatch.setenv("ILLUMINA_ICA_API_KEY", "test-key")
+    monkeypatch.setattr(requests, "Session", lambda: session)
+    output_dir = tmp_path / "import"
+    result = illumina_bridge.import_bundle(
+        bundle_dir=DEMO_BUNDLE, output_dir=output_dir, metadata_provider_name="ica",
+        ica_project_id=ICA_PROJECT_ID, ica_run_id=ICA_ANALYSIS_ID,
+    )
+    metadata = result["data"]["metadata_enrichment"]
+    warning = " ".join(metadata["warnings"])
+    assert metadata["status"] == "warning"
+    assert f"ICA {lookup} lookup" in warning
+    assert f"HTTP {status_code}" in warning
+    assert hint.lower() in warning.lower()
+    if status_code == 404:
+        assert ("--ica-project-id" if lookup == "project" else "--ica-run-id") in warning
+    assert "synthetic-private-id" not in warning
+    assert "https://" not in warning
+    assert len(session.calls) == (1 if lookup == "project" else 2)
+    assert result["summary"]["sample_count"] == 2
+    assert result["summary"]["metadata_status"] == "warning"
+    assert metadata["merge"]["samples_enriched"] == 0
+    assert (output_dir / "report.md").exists()
+    assert (output_dir / "result.json").exists()
+    assert (output_dir / "tables" / "sample_manifest.csv").exists()
+    assert (output_dir / "reproducibility" / "commands.sh").exists()
+    assert warning in (output_dir / "report.md").read_text()
+
+
+@pytest.mark.parametrize("lookup", ["project", "analysis"])
+@pytest.mark.parametrize("error, hint", [
+    (requests.Timeout("synthetic-private-id"), "timed out"),
+    (requests.ConnectionError("synthetic-private-id"), "network"),
+    (requests.RequestException("synthetic-private-id"), "request failed"),
+    (ValueError("synthetic-private-id"), "JSON"),
+])
+def test_ica_transport_failure_has_actionable_warning(
+    copied_bundle, ica_v3_payload, lookup, error, hint,
+):
+    responses = [FakeResponse(error) if isinstance(error, ValueError) else error]
+    if lookup == "analysis":
+        responses.insert(0, FakeResponse(ica_v3_payload["project"]))
+    session = FakeSession(responses)
+    provider = ICAMetadataProvider(api_key="test-key", session=session)
     result = provider.enrich(
         bundle_dir=copied_bundle,
-        project_id="ica-project-demo",
-        run_id="ica-run-demo",
+        project_id=ICA_PROJECT_ID,
+        run_id=ICA_ANALYSIS_ID,
     )
     assert result.status == "warning"
-    assert "network down" in result.warnings[0]
+    warning = " ".join(result.warnings)
+    assert f"ICA {lookup} lookup" in warning
+    assert hint.lower() in warning.lower()
+    assert "synthetic-private-id" not in warning
+    assert len(session.calls) == (1 if lookup == "project" else 2)
+
+
+@pytest.mark.parametrize("payload", [None, [], "not an object"])
+def test_ica_non_object_response_warns_instead_of_crashing(copied_bundle, payload):
+    provider = ICAMetadataProvider(api_key="test-key", session=FakeSession([FakeResponse(payload)]))
+    result = provider.enrich(bundle_dir=copied_bundle, project_id=ICA_PROJECT_ID, run_id=ICA_ANALYSIS_ID)
+    assert result.status == "warning"
+    assert "ICA project lookup" in result.warnings[0]
+    assert "JSON" in result.warnings[0]
 
 
 def test_ica_provider_does_not_store_api_key_in_session_headers():
@@ -321,11 +524,11 @@ def test_ica_provider_repr_redacts_api_key():
     assert "has_api_key=True" in rendered
 
 
-def test_ica_provider_invalid_base_url_falls_back_with_warning(copied_bundle):
+def test_ica_provider_invalid_base_url_falls_back_with_warning(copied_bundle, ica_v3_payload):
     session = FakeSession(
         [
-            FakeResponse({"id": "project-1", "name": "Demo Project", "status": "READY"}),
-            FakeResponse({"id": "run-1", "name": "Demo Run", "status": "SUCCEEDED", "samples": []}),
+            FakeResponse(ica_v3_payload["project"]),
+            FakeResponse(ica_v3_payload["run"]),
         ]
     )
     provider = ICAMetadataProvider(
@@ -352,6 +555,46 @@ def test_ica_provider_accepts_trusted_illumina_base_url():
     )
     assert provider.base_url == "https://tenant.illumina.com/ica/rest"
     assert provider._initialization_warnings == []
+
+
+@pytest.mark.parametrize("analysis_status", ["SUCCEEDED", "REQUESTED", "FAILED"])
+def test_import_report_distinguishes_enrichment_from_analysis_status(
+    tmp_path, monkeypatch, ica_v3_payload, analysis_status,
+):
+    ica_v3_payload["run"]["status"] = analysis_status
+    session = FakeSession([FakeResponse(ica_v3_payload["project"]), FakeResponse(ica_v3_payload["run"])])
+    monkeypatch.setenv("ILLUMINA_ICA_API_KEY", "test-key")
+    monkeypatch.setattr(requests, "Session", lambda: session)
+    output_dir = tmp_path / "enriched"
+    illumina_bridge.import_bundle(
+        bundle_dir=DEMO_BUNDLE, output_dir=output_dir, metadata_provider_name="ica",
+        ica_project_id=ICA_PROJECT_ID, ica_run_id=ICA_ANALYSIS_ID,
+    )
+    payload = json.loads((output_dir / "result.json").read_text())
+    metadata = payload["data"]["metadata_enrichment"]
+    report = (output_dir / "report.md").read_text()
+    assert payload["summary"]["metadata_status"] == "enriched"
+    assert metadata["status"] == "enriched"
+    assert metadata["project"]["active"] is True
+    assert metadata["project"]["status"] == ""
+    assert metadata["run"]["name"] == "DRAGEN Germline Demo"
+    assert metadata["run"]["status"] == analysis_status
+    assert metadata["samples"] == []
+    assert metadata["merge"]["samples_enriched"] == 0
+    assert "**Analysis**: DRAGEN Germline Demo" in report
+    assert f"**Analysis status**: {analysis_status}" in report
+    assert "sample-level enrichment is unavailable" in report
+    for call in session.calls:
+        assert call["headers"] == {"X-API-Key": "test-key"}
+
+
+def test_ica_run_id_help_describes_analysis_id(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        illumina_bridge.parse_args(["--help"])
+    assert exc_info.value.code == 0
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert "ICA analysis ID" in help_text
+    assert "not a sequencing run ID" in help_text
 
 
 def test_import_bundle_demo_creates_standard_outputs(tmp_path):
@@ -418,6 +661,27 @@ def test_clawbio_run_illumina_input_bundle_completes(tmp_path):
     assert payload["data"]["platform"] == "illumina"
 
 
+def test_clawbio_run_illumina_forwards_ica_flags_offline(tmp_path):
+    output_dir = tmp_path / "ica_cli_output"
+    proc = subprocess.run(
+        [sys.executable, str(PROJECT_ROOT / "clawbio.py"), "run", "illumina", "--demo",
+         "--metadata-provider", "ica", "--ica-project-id", ICA_PROJECT_ID,
+         "--ica-run-id", ICA_ANALYSIS_ID, "--output", str(output_dir)],
+        capture_output=True, text=True, cwd=str(PROJECT_ROOT), check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads((output_dir / "result.json").read_text())
+    metadata = payload["data"]["metadata_enrichment"]
+    assert payload["summary"]["metadata_status"] == "mocked-demo"
+    assert metadata["project"]["active"] is True
+    assert metadata["run"]["name"] == "DRAGEN Germline Demo"
+    assert metadata["samples"] == []
+    commands = (output_dir / "reproducibility" / "commands.sh").read_text()
+    assert "\nILLUMINA_ICA_API_KEY= python clawbio.py run illumina --demo" in commands
+    assert f"--ica-project-id {ICA_PROJECT_ID}" in commands
+    assert f"--ica-run-id {ICA_ANALYSIS_ID}" in commands
+
+
 def test_orchestrator_routes_illumina_keywords():
     skill, _ = orchestrator.detect_skill_with_hint_from_query(
         "Import this Illumina DRAGEN sample sheet bundle and add ICA metadata"
@@ -444,7 +708,7 @@ def test_security_filter_rejects_unsupported_flags_for_illumina(tmp_path):
 
 def test_sample_manifest_csv_contains_expected_columns(tmp_path):
     output_dir = tmp_path / "manifest_output"
-    illumina_bridge.import_bundle(
+    result = illumina_bridge.import_bundle(
         bundle_dir=DEMO_BUNDLE,
         output_dir=output_dir,
         metadata_provider_name="ica",
@@ -456,4 +720,7 @@ def test_sample_manifest_csv_contains_expected_columns(tmp_path):
     with manifest.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
     assert rows[0]["sample_id"] == "DEMO_SAMPLE_01"
-    assert rows[0]["ica_sample_id"] == "ica-sample-001"
+    assert result["summary"]["metadata_status"] == "mocked-demo"
+    for row in rows:
+        for field in ("ica_sample_id", "ica_analysis_status", "ica_cohort", "ica_notes"):
+            assert row[field] == ""
