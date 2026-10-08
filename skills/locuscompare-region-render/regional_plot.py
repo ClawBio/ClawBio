@@ -465,6 +465,53 @@ class GeneTrackEntry:
     biotype: str = "protein_coding"
 
 
+def _position_from_variant_id(variant_id: str | None) -> int | None:
+    """Parse the base-pair position from a GRCh38 `chr_pos_ref_alt` variant id
+    (e.g. ``7_100482234_A_T`` -> ``100482234``). Returns None for a malformed or
+    missing id. Used so the plot window can be centered on the lead even when the
+    lead is absent from the harmonised exposure-intersect-outcome pairs."""
+    if not variant_id:
+        return None
+    parts = variant_id.split("_")
+    if len(parts) < 2:
+        return None
+    try:
+        return int(parts[1])
+    except ValueError:
+        return None
+
+
+def _lead_position(pairs, lead_variant_id: str | None) -> int | None:
+    """The lead's bp position: from the harmonised pair when present, else parsed
+    from the lead variant id."""
+    pos = next(
+        (p.position for p in pairs if p.variant_id == lead_variant_id and p.position),
+        None,
+    )
+    return pos if pos is not None else _position_from_variant_id(lead_variant_id)
+
+
+def _compute_xlim_bp(
+    pairs, lead_variant_id: str | None, window_bp: int | None
+) -> tuple[int, int] | None:
+    """Window-centered x-range for the regional panels + gene track.
+
+    The lead position must NOT depend on the lead being in `pairs` (the harmonised
+    exposure-intersect-outcome set): when the shared lead is absent from one side's
+    summary statistics, the lead is missing from the harmonised pairs. Previously
+    that left `lead_pos = None -> xlim_bp = None`, which gated out the gene-track
+    render and left the panel blank. Order of resolution: lead position (pair or
+    variant-id) + window; else the data extent; else None."""
+    lead_pos = _lead_position(pairs, lead_variant_id)
+    if lead_pos is not None and window_bp:
+        half = window_bp // 2
+        return (max(0, lead_pos - half), lead_pos + half)
+    data_positions = [p.position for p in pairs if p.position]
+    if data_positions:
+        return (min(data_positions), max(data_positions))
+    return None
+
+
 def _stack_genes_into_rows(
     genes: list[GeneTrackEntry],
     min_gap_bp: int = 20_000,
@@ -775,14 +822,8 @@ def render_full_locuscompare(
 
     # Compute window-centered xlim from the lead position so matplotlib does
     # not auto-snap to the data's actual extent.
-    xlim_bp: tuple[int, int] | None = None
-    lead_pos: int | None = next(
-        (p.position for p in inp.pairs if p.variant_id == inp.lead_variant_id and p.position),
-        None,
-    )
-    if lead_pos is not None and inp.window_bp:
-        half = inp.window_bp // 2
-        xlim_bp = (max(0, lead_pos - half), lead_pos + half)
+    lead_pos = _lead_position(inp.pairs, inp.lead_variant_id)
+    xlim_bp = _compute_xlim_bp(inp.pairs, inp.lead_variant_id, inp.window_bp)
 
     has_gene_track = bool(inp.gene_track)
     if has_gene_track:

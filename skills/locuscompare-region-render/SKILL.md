@@ -287,7 +287,7 @@ Output directory layout:
 
 3. **All four inputs MUST be region-aligned to the same window.** Mismatched windows produce a silent garbage plot. The skill validates that the exposure slice, outcome slice, LD panel, and gene track all overlap the requested `(lead, window_bp)` and refuses to render with mismatched coverage.
 
-4. **Lead variant must be present in BOTH the eQTL and GWAS slices.** If the lead is missing from one side (commonly: low-MAF variant dropped by one harmoniser), the renderer falls back to a proxy variant in LD (r² > 0.8); the manifest records the substitution. If no proxy exists, the skill refuses to render and the orchestrator falls back to a credible-set-only view.
+4. **The lead has to be in both slices to be drawn.** There is no proxy substitution: a lead absent from one side (for example a low-frequency variant one source did not test) has no diamond and no annotation in the scatters, while the rest of the figure renders and `n_pairs` counts the variants that did join. The window is still centred on the lead, using its position from the lead variant id, so the Manhattan tracks and the gene track cover the requested region. Check the figure for the diamond before describing the lead's position.
 
 5. **Effect-allele harmonisation across the four inputs is the renderer's input contract, not its job.** The two sumstats slices and the LD panel must arrive in the canonical (chr, pos, ref, alt) GRCh38 ALT-effect form - this is what the bundled fetchers (`eqtl-catalogue-region-fetch`, `gwas-catalog-region-fetch`) emit. User-supplied TSVs not in this form should be normalised upstream (`bcftools norm` for indels). The renderer's harmonisation step is for cross-trait flip / palindromic handling, not for single-trait normalisation.
 
@@ -322,7 +322,7 @@ The skill renders a 4-panel LocusCompare visualisation for a colocalisation resu
 - **Surface the H3 vs H4 ambiguity when the visual is two-cluster.** Even with PP-H4 > 0.8, a two-cluster visual pattern indicates likely distinct causal variants in LD; flag for human review.
 - **NOT cherry-pick variants outside the rendered window for downstream interpretation.** The visual establishes context for the rendered window only.
 - **Cite the rendered window, LD reference + super-pop, OT release (when applicable), exposure / outcome study ids, and lead variant** in the user-facing reply. Per the user-friendly enum-expansion rule (`AGENTS.md`): `STRN × heart failure (FINNGEN_R12_I9_HEARTFAIL); window ±500 kb of lead chr2:36910110:C>T; LD = 1000G Phase 3 EUR; OT release 26.03`.
-- **Surface the manifest's caveats list** (palindromic exclusions, missing-lead proxy notes, ancestry mismatches) verbatim in the user-facing reply.
+- **Surface the manifest's caveats list** (palindromic exclusions, ancestry mismatches, missing LD or gene track) verbatim in the user-facing reply.
 - **Name the scale of the outcome effect sizes** when `outcome_effect_scale_label` is set (log odds derived from an odds ratio, log odds as reported by FinnGen, or mixed scales), and quote `effect_size_panel_unavailable_reason` when the effect-size panel is empty, rather than reading an empty panel as "no effect".
 - **NOT decide GO/NO-GO on a target** based on the visual alone. Chain to `target-validation-scorer` for synthesis; this skill is one input among many.
 - **NOT silently swap super-populations.** If the upstream cohort's ancestry does not match the requested LD super-pop, surface explicitly and ask the user to confirm before proceeding.
