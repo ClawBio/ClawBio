@@ -181,6 +181,8 @@ AI coding agents (Codex, Devin, Claude Code, Cursor, etc.) should follow the sam
 3. Use `python clawbio.py list` to verify skills still load after changes
 4. Run `python -m pytest skills/your-skill-name/tests/ -v` to confirm your skill's tests pass. Do not run a bare `pytest -v` across the whole repo — it fails at collection time on a `conftest.py` module-name collision between skills; see [docs/testing.md](docs/testing.md)
 5. Regenerate `skills/catalog.json` if you changed any SKILL.md YAML frontmatter: `python scripts/generate_catalog.py`
+6. Do not hand-type skill, demo or CLI counts anywhere (README, llms.txt, CITATION.cff, .zenodo.json, .claude-plugin/). The only count is `skill_count` in `skills/catalog.json`, and the README badge reads it live. `tests/test_public_claims.py` fails if a literal count appears in those files.
+7. If `skills/catalog.json` conflicts with `main`, take `main`'s version (`git checkout origin/main -- skills/catalog.json`), run `python scripts/generate_catalog.py` to add your skill back, and commit the result. Never resolve the conflict by hand.
 
 ### SKILL.md Quality Checklist
 
