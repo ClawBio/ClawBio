@@ -201,6 +201,33 @@ def test_insertion_shifted_inside_a_repeat_still_counts(tmp_path):
     assert iv.count_variant(v, bam, fasta=fa)["alt"] == 2
 
 
+def test_sv_vaf_counts_fragments_in_both_numbers(tmp_path):
+    """Support is counted per DNA fragment, so depth must be too (reviewer, PR #549): 10 reference pairs whose
+    mates both cover the breakpoint are 10 fragments, not 20 reads, and 5 reference pairs whose reads flank it (the
+    fragment spans it, no read crosses it) count like the 5 supporting pairs placed the same way: VAF 5/20."""
+    header = {"HD": {"VN": "1.6"}, "SQ": [{"SN": "c1", "LN": 5000}, {"SN": "c2", "LN": 5000}]}
+    raw = tmp_path / "u.bam"
+    with pysam.AlignmentFile(str(raw), "wb", header=header) as out:
+        def rd(name, flag, ref, start, mref, mstart, tlen):
+            a = pysam.AlignedSegment(out.header)
+            a.query_name, a.flag, a.reference_id, a.reference_start = name, flag, ref, start
+            a.cigarstring, a.mapping_quality, a.query_sequence = "100M", 60, "A" * 100
+            a.query_qualities = pysam.qualitystring_to_array("?" * 100)
+            a.next_reference_id, a.next_reference_start, a.template_length = mref, mstart, tlen
+            out.write(a)
+        for i in range(10):                      # reference pairs: both mates span c1:1000
+            rd(f"ref{i}", 99, 0, 950 + i, 0, 960 + i, 160); rd(f"ref{i}", 147, 0, 960 + i, 0, 950 + i, -160)
+        for i in range(5):                       # reference pairs spanning c1:1000 with neither read on it
+            rd(f"span{i}", 99, 0, 800 + i, 0, 1100 + i, 400); rd(f"span{i}", 147, 0, 1100 + i, 0, 800 + i, -400)
+        for i in range(5):                       # supporting pairs: one mate at c1:1000, its mate at c2:3000
+            rd(f"alt{i}", 97, 0, 940 + i * 5, 1, 2990, 0); rd(f"alt{i}", 145, 1, 2990, 0, 940 + i * 5, 0)
+    bam = tmp_path / "o.bam"
+    pysam.sort("-o", str(bam), str(raw)); pysam.index(str(bam))
+    v = iv.Variant(id="b", chrom="c1", pos=1000, ref="A", alt="A[c2:3000[", kind="bnd", chrom2="c2", pos2=3000)
+    c = iv.count_variant(v, bam)
+    assert c["alt"] == 5 and c["depth"] == 20 and c["vaf_pct"] == pytest.approx(25.0, abs=0.1)
+
+
 # ── Tumor-only mode ────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="module")

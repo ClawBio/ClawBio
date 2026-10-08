@@ -545,13 +545,19 @@ def _sv_side(bam, chrom, pos, chrom2, pos2, inversion: bool = False):
     Discordant pairs: mate near the partner breakpoint and, on the same chromosome, either both mates
     on the same strand (inversions, any size) or an improper pair with a long insert (DEL/DUP >= 1 kb).
     """
-    split, disc, depth = set(), set(), 0
+    split, disc, depth = set(), set(), set()   # all three as read names: one DNA fragment counts once
     same_chrom = chrom2 == chrom
     for r in bam.fetch(chrom, max(0, pos - SPLIT_WINDOW), pos + SPLIT_WINDOW):
         if not _ok(r):
             continue
         if r.reference_start <= pos <= r.reference_end:
-            depth += 1
+            depth.add(r.query_name)
+        elif r.is_proper_pair and r.next_reference_id == r.reference_id and r.template_length:
+            # a reference fragment spanning the breakpoint with neither read on it (as supporting discordant
+            # pairs can be): it counts in the depth too, or the two numbers would see different fragments
+            a = min(r.reference_start, r.next_reference_start)
+            if a <= pos <= a + abs(r.template_length):
+                depth.add(r.query_name)
         if r.has_tag("SA"):
             for sa in r.get_tag("SA").strip(";").split(";"):
                 ch, sp = sa.split(",")[:2]
@@ -576,7 +582,10 @@ def _count_sv(bam, v: Variant) -> dict:
     s1, d1, depth = _sv_side(bam, v.chrom, v.pos, v.chrom2, v.pos2, inv)
     s2, d2, _ = _sv_side(bam, v.chrom2, v.pos2, v.chrom, v.pos, inv)
     split, disc = s1 | s2, (d1 | d2) - (s1 | s2)
-    return {"depth": depth, "split": len(split), "discordant": len(disc), "union": len(split | disc)}
+    # depth in the same unit as support (fragments), and every supporting fragment in it: a discordant pair
+    # supports the breakpoint without either mate covering it
+    return {"depth": len(depth | split | disc), "split": len(split), "discordant": len(disc),
+            "union": len(split | disc)}
 
 
 def count_variant(v: Variant, bam_path, fasta=None) -> dict:
@@ -1899,8 +1908,8 @@ def _summary_rows(root: Path, empty_runs: list | None = None) -> list[dict]:
             c = v.get("caller")
             if sv:
                 shows = (f"{t['alt']} reads support the rearrangement ({t['split']} split, {t['discordant']} "
-                         f"discordant pairs, counted at both breakends); {t['depth']} reads cover the first breakend" if t["alt"] else
-                         f"no read supports the rearrangement ({t['depth']} reads at the breakpoint)")
+                         f"discordant pairs, counted at both breakends); {t['depth']} DNA fragments (read pairs) at the first breakend" if t["alt"] else
+                         f"no read supports the rearrangement ({t['depth']} DNA fragments at the breakpoint)")
             elif t["depth"] == 0:
                 shows = "no reads at this position"
             else:
