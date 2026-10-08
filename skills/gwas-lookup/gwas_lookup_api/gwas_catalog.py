@@ -25,21 +25,37 @@ def _make_client(cache_dir: Optional[Path], use_cache: bool) -> BaseClient:
     )
 
 
+def _format_error(field: str, value: object) -> dict:
+    return {
+        "source": "gwas_catalog",
+        "status": "error",
+        "message": f"Unexpected response format: {field} is {type(value).__name__}",
+    }
+
+
 def get_associations(rsid: str, max_hits: int = 100, cache_dir: Optional[Path] = None, use_cache: bool = True) -> dict:
     """Fetch GWAS associations for a given rsID from the GWAS Catalog."""
     client = _make_client(cache_dir, use_cache)
     try:
-        # The Catalog pages associations at 20 by default. Forward size so
-        # max_hits is applied by the API rather than silently truncated.
-        data = client.get(
-            f"singleNucleotidePolymorphisms/{rsid}/associations",
-            params={"size": max_hits},
-        )
+        # This endpoint is not paged and ignores size: it returns every
+        # association for the SNP, and the [:max_hits] slice below caps output.
+        data = client.get(f"singleNucleotidePolymorphisms/{rsid}/associations")
     except Exception as e:
         return {"source": "gwas_catalog", "status": "error", "message": str(e)}
 
+    # A missing _embedded, or a missing or null associations key, is treated
+    # as empty. Any other shape is schema drift: return an error so Data
+    # Sources shows a WARNING for gwas_catalog instead of an OK badge.
+    if not isinstance(data, dict):
+        return _format_error("response body", data)
     embedded = data.get("_embedded", {})
-    raw_assocs = embedded.get("associations", [])
+    if not isinstance(embedded, dict):
+        return _format_error("_embedded", embedded)
+    raw_assocs = embedded.get("associations")
+    if raw_assocs is None:
+        raw_assocs = []
+    elif not isinstance(raw_assocs, list):
+        return _format_error("_embedded.associations", raw_assocs)
 
     associations = []
     for a in raw_assocs[:max_hits]:
