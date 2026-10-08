@@ -103,8 +103,11 @@ class TestMockAPIResponses:
         resp = _gwas_catalog_associations("rs6733839")
         assocs = resp["_embedded"]["associations"]
         assert len(assocs) == 1
-        assert assocs[0]["efoTraits"][0]["trait"] == "Alzheimer's disease"
-        assert assocs[0]["pvalue"] == pytest.approx(2.1e-173, rel=0.01)
+        # GWAS Catalog REST API v2 shape
+        assert assocs[0]["efo_traits"][0]["efo_trait"] == "Alzheimer's disease"
+        assert assocs[0]["p_value"] == pytest.approx(2.1e-173, rel=0.01)
+        assert assocs[0]["snp_effect_allele"] == ["rs6733839-A"]
+        assert resp["page"]["totalElements"] == 1
 
     def test_clinpgx_gene_response(self):
         resp = _clinpgx_gene("CYP2D6")
@@ -144,8 +147,16 @@ class TestMockAPIServer:
         assert resp[0]["transcript_consequences"][0]["gene_symbol"] == "BIN1"
 
     def test_gwas_catalog_endpoint(self):
-        resp = self._get("/gwas/rest/api/singleNucleotidePolymorphisms/rs6733839/associations")
-        assert resp["_embedded"]["associations"][0]["efoTraits"][0]["trait"] == "Alzheimer's disease"
+        resp = self._get("/gwas/rest/api/v2/associations?rs_id=rs6733839")
+        assert resp["_embedded"]["associations"][0]["efo_traits"][0]["efo_trait"] == "Alzheimer's disease"
+
+    def test_gwas_catalog_legacy_v1_path_is_gone(self):
+        """The real v1 API answers 410; the mock must not keep it alive."""
+        try:
+            self._get("/gwas/rest/api/singleNucleotidePolymorphisms/rs6733839/associations")
+            assert False, "Should have raised"
+        except urllib.error.HTTPError as e:
+            assert e.code == 410
 
     def test_clinpgx_gene_endpoint(self):
         resp = self._get("/clinpgx/v1/gene/CYP2D6")
