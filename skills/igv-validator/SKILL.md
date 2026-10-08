@@ -466,6 +466,14 @@ required; add whichever calls you have (leave a cell empty to skip that check):
 | sampleA | bams/sampleA.bam | | vcf/sampleA.mutect2.vcf | filtered/sampleA.snvs.tsv | vcf/sampleA.survivor.vcf | cnv/sampleA.called.seg | |
 | sampleB | bams/sampleB.bam | bams/sampleB_normal.bam | vcf/sampleB.mutect2.vcf | filtered/sampleB.snvs.tsv | | cnv/sampleB.called.seg | |
 
+When file names follow a pattern, a loop writes the samplesheet (check every path exists before running):
+```bash
+echo "sample,tumor,normal,snv_vcf,snv_list,sv_vcf,cnv,cnv_sample" > samples.csv
+for s in S1 S2; do
+  echo "$s,/data/bams/$s.bam,,/data/vcf/$s.mutect2.vcf,/data/filtered/$s.snvs.tsv,/data/vcf/$s.survivor.vcf,/data/cnv/$s.called.seg," >> samples.csv
+done
+tail -n +2 samples.csv | tr ',' '\n' | grep '^/' | while read f; do [ -e "$f" ] || echo "MISSING: $f"; done
+```
 `normal` empty = tumor-only. `snv_list` = a table of chrom, pos to check instead of every SNV in the genes.
 **When you compare with curated calls (step 5), give `snv_list`: the filtered variants your curated table was made
 from**, the same file the curated table was built from (it may cover the whole genome; only variants in the
@@ -479,14 +487,25 @@ and those variants are listed under *details* without counting against a curated
 python skills/igv-validator/igv_validator.py --samplesheet samples.csv --reference hg38.fa \
   --curated-calls curated.csv --annotation gencode.v44.basic.annotation.gtf.gz [--genes KRAS,BRAF]
 ```
-To rerun later, keep the command in a script next to `samples.csv` (paths in the samplesheet are relative to where
-you run it, so the script starts in its own folder and works for anyone who copies the folder):
+To rerun later, save the command as a script next to `samples.csv`, once. This block writes it and shows its end
+(replace the paths; on an HPC add your `module load` lines, e.g. `module load igv`, above `python`). The script starts
+in its own folder, so anyone who copies the folder can run it:
 ```bash
+cat > run_igv_validation.sh <<'EOF'
 #!/bin/bash
+# IGV validation: each run = one new dated folder in igv_reports/ (never overwrites)
 cd "$(dirname "$0")"
-python ClawBio/skills/igv-validator/igv_validator.py --samplesheet samples.csv --reference /path/to/hg38.fa \
-  --curated-calls curated.csv --annotation gencode.v44.basic.annotation.gtf.gz "$@"
+python ClawBio/skills/igv-validator/igv_validator.py \
+  --samplesheet samples.csv \
+  --reference /path/to/hg38.fa \
+  --curated-calls curated.csv \
+  --annotation gencode.v44.basic.annotation.gtf.gz \
+  "$@"
+EOF
+tail -3 run_igv_validation.sh      # the last line should be "$@"
 ```
+Before the first run, check that the reference is the one the BAMs were aligned to: the BAM's `@SQ` lines must match
+the reference `.fai` (names and lengths).
 The last line, `"$@"`, passes extra options on, so a run with fewer genes needs no edit:
 ```bash
 bash run_igv_validation.sh --genes KRAS,BRAF,PTEN
