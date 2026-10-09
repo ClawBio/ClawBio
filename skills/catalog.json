@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 104,
+  "skill_count": 105,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -2616,6 +2616,60 @@
         "samplesheet"
       ],
       "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "isolate-amr-typing",
+      "cli_alias": "isolate-amr",
+      "description": "MLST sequence type, AMR genes, resistance point mutations and plasmid replicons for one assembled bacterial isolate genome, from mlst, AMRFinderPlus and PlasmidFinder.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run isolate-amr --demo",
+      "dependencies": [
+        "python>=3.11",
+        "matplotlib>=3.8"
+      ],
+      "tags": [
+        "bacterial-isolate",
+        "antimicrobial-resistance",
+        "mlst",
+        "amrfinderplus",
+        "plasmidfinder",
+        "plasmid-replicons",
+        "point-mutations",
+        "genomic-surveillance"
+      ],
+      "trigger_keywords": [
+        "isolate AMR typing",
+        "bacterial isolate resistance genes",
+        "MLST sequence type",
+        "AMRFinderPlus",
+        "plasmid replicon typing",
+        "resistance point mutations",
+        "type this bacterial genome",
+        "what ST is this isolate"
+      ],
+      "chaining_partners": [
+        "busco-assessor",
+        "ncbi-datasets",
+        "phylogenetics-builder",
+        "fastreer"
+      ],
       "license": "MIT",
       "model_license": "",
       "data_license": ""

@@ -427,6 +427,7 @@ CHAINING: dict[str, list[str]] = {
     "claw-ancestry-pca": ["genome-compare"],
     "claw-semantic-sim": ["equity-scorer"],
     "claw-metagenomics": [],
+    "isolate-amr-typing": ["busco-assessor", "ncbi-datasets", "phylogenetics-builder", "fastreer"],
     "bio-orchestrator": [],
     "ukb-navigator": ["llm-biobank-bench"],
     "llm-biobank-bench": ["ukb-navigator", "pubmed-summariser", "lit-synthesizer"],

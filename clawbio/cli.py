@@ -1294,6 +1294,22 @@ SKILLS = {
         "allowed_extra_flags": set(),
         "accepts_genotypes": False,
     },
+    "isolate-amr": {
+        "script": SKILLS_DIR / "isolate-amr-typing" / "isolate_amr_typing.py",
+        "demo_args": ["--demo"],
+        "description": "Bacterial isolate typing (MLST, AMR genes, point mutations, plasmid replicons)",
+        "allowed_extra_flags": {
+            "--mlst",
+            "--amrfinder",
+            "--plasmidfinder",
+            "--organism",
+            "--mlst-scheme",
+            "--sample-name",
+            "--threads",
+            "--plasmidfinder-db",
+        },
+        "accepts_genotypes": False,
+    },
     "deepspot-m": {
         "script": SKILLS_DIR / "deepspot-m" / "deepspot_m.py",
         "demo_args": ["--demo"],
