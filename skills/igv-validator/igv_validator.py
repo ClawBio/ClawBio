@@ -933,7 +933,7 @@ def labelled_transcripts(gtf: Path, out_stem: Path) -> Path:
         a, b = ex[0][0], max(e for _, e in ex)
         ta, tb = (min(x for x, _ in t["cds"]), max(y for _, y in t["cds"])) if t["cds"] else (a, a)
         rows.append((t["chrom"], a, "\t".join(map(str, [
-            t["chrom"], a, b, t["name"], 0, t["strand"], ta, tb, "0,0,0", len(ex),
+            t["chrom"], a, b, t["name"], 0, t["strand"], ta, tb, "0,0,178", len(ex),   # IGV's default blue
             ",".join(str(y - x) for x, y in ex), ",".join(str(x - a) for x, _ in ex)]))))
     out = Path(str(out_stem) + ".bed")
     out.write_text("\n".join(r for _, _, r in sorted(rows)) + "\n")
@@ -2552,7 +2552,7 @@ def make_interactive(plan: list[dict], rows: list[dict], out: Path, annotation=N
                 g = annotation_subset(annotation, [(p["chrom"], p["start"], p["end"]) for p in mine],
                                       tmp / f"{safe}_genes", canonical=True)
                 if g and g.suffix == ".gtf":     # label by gene name and transcript, not the transcript ID alone
-                    g = labelled_transcripts(g, tmp / f"{safe}_genes_named")
+                    g = labelled_transcripts(g, tmp / f"{safe}_genes")
                 tracks += [str(g)] if g else []
             depth = next((r["_base"] for r in rows if r["sample"] == smp and r.get("_base")), 60.0)
             total = sum(p["end"] - p["start"] + 2 * INTERACTIVE_FLANK for p in mine)
