@@ -1,0 +1,6 @@
+# Conda environment for the stage scripts, used with `snakemake --use-conda`.
+# The stage scripts need only the Python standard library.
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.11

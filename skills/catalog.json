@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 104,
+  "skill_count": 105,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -2535,6 +2535,52 @@
         "profile-report",
         "gwas-lookup"
       ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "gwas-sumstats-harmonize",
+      "cli_alias": "harmonize",
+      "description": "Harmonize GWAS summary statistics from any common format (GWAS-Catalog SSF, PLINK 1.9/2, REGENIE, METAL, BOLT, SAIGE) to one canonical table (SNP CHR BP EA NEA EAF BETA SE P N): column detection, BETA/SE/P derivation, QC with drop reasons, and allele alignment to a reference panel, run as a Snakemake workflow.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run harmonize --demo",
+      "dependencies": [
+        "python>=3.11",
+        "pyyaml>=6.0"
+      ],
+      "tags": [
+        "gwas",
+        "summary-statistics",
+        "harmonization",
+        "allele-alignment",
+        "meta-analysis",
+        "snakemake"
+      ],
+      "trigger_keywords": [
+        "harmonize summary statistics",
+        "harmonise GWAS sumstats",
+        "standardize GWAS columns",
+        "align alleles to reference",
+        "flip alleles strand palindromic",
+        "prepare sumstats for meta-analysis",
+        "format sumstats for LDSC MR coloc"
+      ],
+      "chaining_partners": [],
       "license": "MIT",
       "model_license": "",
       "data_license": ""
