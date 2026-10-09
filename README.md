@@ -8,6 +8,7 @@
 <p align="center">
   <a href="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml"><img src="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.11+-blue?logo=python&logoColor=white" alt="Python 3.11+"></a>
+  <a href="skills/catalog.json"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FClawBio%2FClawBio%2Fmain%2Fskills%2Fcatalog.json&query=%24.skill_count&label=skills&color=3fb950" alt="Skill count, read live from skills/catalog.json"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
   <a href="https://luma.com/clawbio"><img src="https://img.shields.io/badge/Events-Follow_on_Luma-7c3aed" alt="Follow ClawBio Events on Luma"></a>
   <a href="https://clawbioworkspace.slack.com/channels/all-clawbio"><img src="https://img.shields.io/badge/slack-%23all--clawbio-4A154B?logo=slack&logoColor=white" alt="Get help on the ClawBio Slack"></a>
@@ -69,7 +70,7 @@ uv run python clawbio.py run pharmgx --demo
 
 ## What ClawBio Does Today
 
-**104 skills (98 with runnable demo data) + 8,182 Galaxy tools + 5,040 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
+**Agent skills, most with runnable demo data (live count in the badge above and `skill_count` in [`skills/catalog.json`](skills/catalog.json)) + 8,182 Galaxy tools + 5,040 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
 > **v0.5.0 released** (4 Apr 2026): Validation and Benchmark Infrastructure. AD ground truth benchmark, mock API server for offline testing, swappable fine-mapping pipeline (SuSiE vs ABF), 74 benchmark tests, red/green TDD mandate. [Release notes](https://github.com/ClawBio/ClawBio/releases/tag/v0.5.0). DOI: [10.5281/zenodo.19420648](https://doi.org/10.5281/zenodo.19420648).
 
 Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card — on your machine, in seconds:
@@ -194,7 +195,7 @@ The exact contents can vary by skill, and some replays also require the original
 
 ## Skills
 
-A curated cross-section of ClawBio's 104 skills. The full machine-readable catalog (with status flags, objective `maturity_tier` evidence, trigger keywords, demo commands, and chaining partners) lives in [`skills/catalog.json`](skills/catalog.json); browse the directory at [`skills/`](skills/) to see every skill folder.
+A curated cross-section of ClawBio's skills. The full machine-readable catalog (with status flags, objective `maturity_tier` evidence, trigger keywords, demo commands, and chaining partners) lives in [`skills/catalog.json`](skills/catalog.json); browse the directory at [`skills/`](skills/) to see every skill folder.
 
 Catalog maturity tiers are computed from repository evidence: `spec-only` (SKILL.md only), `scripted` (has runnable code), `tested` (has skill tests), `cli-registered` (available via `python clawbio.py run`), `ci-validated` (explicitly tested in CI), and `bench-validated` (reserved for skills with blocking scientific benchmark validation).
 
@@ -695,7 +696,7 @@ ClawBio follows [Semantic Versioning](https://semver.org/). The current release 
 
 ### What is ClawBio?
 
-ClawBio is a **bioinformatics-native AI agent skill library**. Built on OpenClaw (180k+ GitHub stars), it provides 104 skills (98 with runnable demo data) for genomics analysis, pharmacogenomics, ancestry profiling, and more. Local-first, privacy-focused, and reproducible.
+ClawBio is a **bioinformatics-native AI agent skill library**. Built on OpenClaw (180k+ GitHub stars), it provides agent skills, most with runnable demo data, for genomics analysis, pharmacogenomics, ancestry profiling, and more. Local-first, privacy-focused, and reproducible.
 
 ### What are ClawBio skills?
 

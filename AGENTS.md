@@ -243,7 +243,7 @@ Hypothesis's default 200 ms deadline otherwise makes them flaky in CI.
 7. **Stress test** (run 10 times with varied inputs). Every correction becomes a Gotcha.
 8. **Register in `clawbio/cli.py`**: add an entry to the `SKILLS` dict with script path, demo_args, description, and allowed_extra_flags
 9. **Tests are collected automatically**: `pytest.ini` globs `skills/*/tests`, so there is nothing to register
-10. **Regenerate the catalog**: `python scripts/generate_catalog.py`
+10. **Regenerate the catalog**: `python scripts/generate_catalog.py`. Do not hand-type skill, demo or CLI counts into README.md, llms.txt, CITATION.cff, .zenodo.json or `.claude-plugin/`; `skill_count` in `skills/catalog.json` is the only count and `tests/test_public_claims.py` rejects literals. On a `catalog.json` merge conflict, take `main`'s version and regenerate
 11. **Verify and self-audit**: `python -m pytest` passes, `python clawbio.py list` shows the skill, and all 18 conformance checks below PASS. Read `CONTRIBUTING.md` for naming conventions, code standards, and the wanted-skills list.
 
 ### SKILL.md Conformance Checklist (must all PASS)
