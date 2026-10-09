@@ -13,20 +13,16 @@ import json
 import os
 import subprocess
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Sequence
+from typing import TYPE_CHECKING, List, Sequence
 
-from opentelemetry import context as _otel_context
-from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace.export import (
-    BatchSpanProcessor,
-    SimpleSpanProcessor,
-    SpanExporter,
-    SpanExportResult,
-)
-from opentelemetry.trace import StatusCode
+# The SDK is imported inside skill_run and tool_call: skills reach write()
+# through report.py, and must not need opentelemetry installed to start.
+if TYPE_CHECKING:
+    from opentelemetry.sdk.trace import ReadableSpan
+    from opentelemetry.sdk.trace.export import SpanExportResult
 
 _DEFAULT_LOG = Path.home() / ".clawbio" / "audit.jsonl"
 _REDACTED = "__REDACTED__"
@@ -62,20 +58,27 @@ def _hide(value: str, env_var: str) -> str:
     if value and os.environ.get(env_var, "").strip().lower() == "true":
         return _REDACTED
     return value
-_TRACER_KEY = _otel_context.create_key("clawbio.tracer")
+_TRACER = ContextVar("clawbio.audit.tracer", default=None)
 
 
 def _ns_to_iso(ns: int) -> str:
     return datetime.fromtimestamp(ns / 1e9, tz=timezone.utc).isoformat()
 
 
-class _JsonlExporter(SpanExporter):
-    """Exports OTEL spans as JSONL to a local file."""
+class _JsonlExporter:
+    """Exports OTEL spans as JSONL to a local file.
+
+    Duck-typed rather than subclassing SpanExporter, so the class can be
+    defined without importing the SDK; SimpleSpanProcessor only calls
+    export() and shutdown().
+    """
 
     def __init__(self, log_path: Path) -> None:
         self._log_path = Path(log_path)
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        from opentelemetry.sdk.trace.export import SpanExportResult
+
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with self._log_path.open("a", encoding="utf-8") as f:
@@ -137,6 +140,11 @@ def skill_run(
     scrubbing: a caller that puts an identifier in a skill name or an attrs
     key is outside their reach.
     """
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
+    from opentelemetry.trace import StatusCode
+
     provider = TracerProvider(resource=Resource.create({
         "service.name": "clawbio",
         # Phoenix groups traces by this; without it everything lands in "default".
@@ -159,8 +167,7 @@ def skill_run(
         )
     tracer = provider.get_tracer("clawbio")
 
-    ctx = _otel_context.set_value(_TRACER_KEY, tracer)
-    token = _otel_context.attach(ctx)
+    token = _TRACER.set(tracer)
     try:
         # The SDK would otherwise record an exception event and overwrite the
         # status description, both carrying the raw text past the hide flags.
@@ -191,7 +198,7 @@ def skill_run(
                 span.set_status(StatusCode.ERROR, _hide_either(str(exc)))
                 raise
     finally:
-        _otel_context.detach(token)
+        _TRACER.reset(token)
         provider.shutdown()  # flush; a short run exits before the next batch tick
 
 
@@ -216,10 +223,11 @@ def tool_call(
     paths, sample IDs, and any patient-identifiable values before passing
     them here.
     """
-    tracer = _otel_context.get_value(_TRACER_KEY)
+    tracer = _TRACER.get()
     if tracer is None:
         yield None
         return
+    from opentelemetry.trace import StatusCode
 
     with tracer.start_as_current_span(
         f"execute_tool {name}", record_exception=False, set_status_on_exception=False

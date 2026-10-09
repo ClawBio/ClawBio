@@ -40,21 +40,14 @@ from clawbio.common.textio import write_text_lf  # noqa: E402
 
 SCHEMA_VERSION = 1
 
-# Everything the replay environment must install before ``gwas_prs.py`` can
-# import. ``requests`` is imported by the skill itself. The other three arrive
-# through ``clawbio.common``: its package ``__init__`` imports ``audit``
-# (opentelemetry) and ``scrna_io`` (numpy, pandas) eagerly, so any skill that
-# imports ``clawbio.common.checksums`` pays for them even though this skill
-# never calls them. Verified by running ``--demo`` in a clean interpreter with
-# only ``requests`` and ``opentelemetry-sdk`` installed: it fails on
-# ``import numpy``. ``scipy`` and ``matplotlib`` are optional at runtime and
-# are deliberately not declared.
-# What a replay needs at import time, nothing more. numpy and pandas were here
-# because clawbio/common/__init__ imported scrna_io eagerly and dragged both in
-# for a skill that calls neither; the package resolves its exports lazily now.
+# What a replay needs at import time, nothing more. numpy, pandas and
+# opentelemetry-sdk were here because clawbio.common pulled them in eagerly for
+# a skill that calls none of them; the package resolves its exports lazily and
+# audit imports the SDK only inside skill_run, so ``requests`` is all that is
+# left. ``scipy`` and ``matplotlib`` are optional at runtime and are
+# deliberately not declared.
 REPLAY_PIP_DEPENDENCIES: tuple[str, ...] = (
     "requests>=2.31",
-    "opentelemetry-sdk>=1.20,<2",
 )
 
 _VERSION_LINE = re.compile(r"^\s*version:\s*['\"]?([0-9]+\.[0-9]+\.[0-9]+)['\"]?\s*$")

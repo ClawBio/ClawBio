@@ -22,3 +22,11 @@ print(json.dumps(sorted({m.split('.')[0] for m in sys.modules})))"""
 
     loaded = set(json.loads(out.stdout))
     assert not (loaded & HEAVY), f"heavy imports pulled in by the helper: {sorted(loaded & HEAVY)}"
+
+
+def test_report_import_does_not_load_opentelemetry():
+    """Skills write result.json through report, which imports audit.write. The
+    SDK belongs to skill_run alone, so a skill must not need it to start."""
+    code = "import sys, clawbio.common.report; print(any(m.startswith('opentelemetry') for m in sys.modules))"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "False"
