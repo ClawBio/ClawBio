@@ -1,0 +1,89 @@
+{
+  "comment": "Synthetic demo data for igv-validator. This is NOT real patient data.",
+  "variants": {
+    "V1": {
+      "demo_tumor": {
+        "alt": 18,
+        "depth": 64
+      },
+      "demo_normal": {
+        "alt": 0,
+        "depth": 60
+      }
+    },
+    "V2": {
+      "demo_tumor": {
+        "alt": 6,
+        "depth": 53
+      },
+      "demo_normal": {
+        "alt": 0,
+        "depth": 55
+      }
+    },
+    "V3": {
+      "demo_tumor": {
+        "alt": 2,
+        "depth": 46
+      },
+      "demo_normal": {
+        "alt": 0,
+        "depth": 60
+      }
+    },
+    "V6": {
+      "demo_tumor": {
+        "alt": 31,
+        "depth": 63
+      },
+      "demo_normal": {
+        "alt": 25,
+        "depth": 50
+      }
+    },
+    "V4": {
+      "demo_tumor": {
+        "alt": 15,
+        "alt_without_clip_rescue": 11,
+        "depth": 60
+      },
+      "demo_normal": {
+        "alt": 0,
+        "depth": 63
+      }
+    },
+    "V5": {
+      "demo_tumor": {
+        "split": 6,
+        "discordant": 8,
+        "union": 14
+      },
+      "demo_normal": {
+        "union": 0
+      }
+    },
+    "CNV": {
+      "HOMDEL": {
+        "ratio_max": 0.1,
+        "low_mapq": true
+      },
+      "HEMI": {
+        "ratio_min": 0.35,
+        "ratio_max": 0.65
+      },
+      "NEUTRAL": {
+        "ratio_min": 0.8,
+        "ratio_max": 1.2
+      },
+      "WRONGDEL": {
+        "disagrees": true
+      },
+      "GAPGENE": {
+        "no_segment": true
+      },
+      "ALTGENE": {
+        "ambiguous": true
+      }
+    }
+  }
+}

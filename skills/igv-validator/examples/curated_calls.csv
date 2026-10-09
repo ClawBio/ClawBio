@@ -1,0 +1,6 @@
+sample,gene,alteration
+demo_tumor,DEMO1,SNV
+demo_tumor,DEMO5,SV
+demo_tumor,HOMDEL,DEL
+demo_tumor,WRONGDEL,DEL
+demo_tumor,NEUTRAL,WT
