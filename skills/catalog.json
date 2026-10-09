@@ -2377,7 +2377,7 @@
       "name": "gwas-catalog-region-fetch",
       "cli_alias": "gwas-region",
       "description": "Fetch a region of GWAS summary statistics from the NHGRI-EBI GWAS Catalog\nharmonised collection via tabix-on-FTP. Use when an agent needs GWAS beta /\nSE / p-value for every variant in a window for one specific study (GCST\naccession). Input: accession, chromosome, start, end. Output: harmonised\nTSV slice in canonical format.\n",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -2809,7 +2809,7 @@
       "name": "locuscompare-region-render",
       "cli_alias": "locuscompare-region",
       "description": "Render a 4-panel regional LocusCompare diagnostic for one (lead variant,\nexposure study, outcome study) tuple - overlays GWAS Manhattan, QTL Manhattan,\nGENCODE gene track, and cross-trait scatter colored by LD r². Use when an\nagent needs visual confirmation that two GWAS / QTL signals share the same\ncausal variant (the Liu 2019 LocusCompare convention). Inputs: lead variant +\ntwo pre-fetched harmonised sumstats slices (or eQTL Catalogue / GWAS Catalog\nidentifiers for bundled fetch). Output: PNG + JSON manifest.\n",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {

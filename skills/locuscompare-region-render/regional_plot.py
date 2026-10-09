@@ -15,6 +15,7 @@ single outlier.
 from __future__ import annotations
 
 import math
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -129,6 +130,14 @@ class RegionalLocusCompareInput:
     # visually in 10-30-gene windows. Threaded from the orchestrator's
     # `spec.exposure_gene_symbol`.
     focal_gene_symbol: str | None = None
+    # Scale of the outcome effect sizes on the effect-size panel, when it can be stated
+    # (e.g. "log odds ratio, derived from the reported odds ratio"); None leaves the
+    # axis as a plain beta.
+    outcome_effect_scale_label: str | None = None
+    # Why the effect-size panel has nothing to plot, naming the side, e.g. "the outcome
+    # study (GCST...) publishes p-values only". The panel states it instead of drawing
+    # bare axes. When None and the panel is still empty, a generic reason is drawn.
+    effect_size_unavailable_reason: str | None = None
 
 
 def _build_caption(inp: RegionalLocusCompareInput, n_excluded_palindromic: int) -> str:
@@ -456,6 +465,53 @@ class GeneTrackEntry:
     biotype: str = "protein_coding"
 
 
+def _position_from_variant_id(variant_id: str | None) -> int | None:
+    """Parse the base-pair position from a GRCh38 `chr_pos_ref_alt` variant id
+    (e.g. ``7_100482234_A_T`` -> ``100482234``). Returns None for a malformed or
+    missing id. Used so the plot window can be centered on the lead even when the
+    lead is absent from the harmonised exposure-intersect-outcome pairs."""
+    if not variant_id:
+        return None
+    parts = variant_id.split("_")
+    if len(parts) < 2:
+        return None
+    try:
+        return int(parts[1])
+    except ValueError:
+        return None
+
+
+def _lead_position(pairs, lead_variant_id: str | None) -> int | None:
+    """The lead's bp position: from the harmonised pair when present, else parsed
+    from the lead variant id."""
+    pos = next(
+        (p.position for p in pairs if p.variant_id == lead_variant_id and p.position),
+        None,
+    )
+    return pos if pos is not None else _position_from_variant_id(lead_variant_id)
+
+
+def _compute_xlim_bp(
+    pairs, lead_variant_id: str | None, window_bp: int | None
+) -> tuple[int, int] | None:
+    """Window-centered x-range for the regional panels + gene track.
+
+    The lead position must NOT depend on the lead being in `pairs` (the harmonised
+    exposure-intersect-outcome set): when the shared lead is absent from one side's
+    summary statistics, the lead is missing from the harmonised pairs. Previously
+    that left `lead_pos = None -> xlim_bp = None`, which gated out the gene-track
+    render and left the panel blank. Order of resolution: lead position (pair or
+    variant-id) + window; else the data extent; else None."""
+    lead_pos = _lead_position(pairs, lead_variant_id)
+    if lead_pos is not None and window_bp:
+        half = window_bp // 2
+        return (max(0, lead_pos - half), lead_pos + half)
+    data_positions = [p.position for p in pairs if p.position]
+    if data_positions:
+        return (min(data_positions), max(data_positions))
+    return None
+
+
 def _stack_genes_into_rows(
     genes: list[GeneTrackEntry],
     min_gap_bp: int = 20_000,
@@ -648,8 +704,28 @@ def _render_locuscompare_scatter(ax, pairs: list[HarmonisedRegionPair], lead_var
     ax.grid(True, linestyle=":", alpha=0.4)
 
 
-def _render_effect_size_scatter(ax, pairs: list[HarmonisedRegionPair], lead_variant_id: str):
-    """β_eQTL vs β_GWAS colored by r². Optional Wald-ratio slope through origin."""
+# Said on the effect-size panel when it has nothing to plot and the caller gave no
+# reason. Never bare axes: an empty panel reads as "no effect", which is a claim.
+EFFECT_SIZE_EMPTY_FALLBACK_REASON = (
+    "no variant joined across the two studies carries an effect size on both sides"
+)
+
+
+def _render_effect_size_scatter(
+    ax,
+    pairs: list[HarmonisedRegionPair],
+    lead_variant_id: str,
+    *,
+    outcome_scale_label: str | None = None,
+    unavailable_reason: str | None = None,
+) -> int:
+    """β_eQTL vs β_GWAS colored by r². Optional Wald-ratio slope through origin.
+
+    Returns the number of points drawn. When that is zero the panel states why
+    (`unavailable_reason`, else a generic sentence) instead of drawing empty axes.
+    `outcome_scale_label` names the outcome axis scale when known (e.g. log odds
+    ratio derived from the reported odds ratio).
+    """
     bins_data: dict[str, list[HarmonisedRegionPair]] = {label: [] for *_, label in LD_R2_BINS}
     lead_pair: HarmonisedRegionPair | None = None
     for p in pairs:
@@ -658,6 +734,7 @@ def _render_effect_size_scatter(ax, pairs: list[HarmonisedRegionPair], lead_vari
             continue
         _, label = _r2_color(p.r2_with_lead)
         bins_data[label].append(p)
+    n_drawn = 0
     ax.axhline(0, color="0.85", linewidth=0.8, zorder=0)
     ax.axvline(0, color="0.85", linewidth=0.8, zorder=0)
     for _, _, color, label in reversed(LD_R2_BINS):
@@ -669,9 +746,11 @@ def _render_effect_size_scatter(ax, pairs: list[HarmonisedRegionPair], lead_vari
             xs.append(m.beta_exposure)
             ys.append(m.beta_outcome)
         if xs:
+            n_drawn += len(xs)
             ax.scatter(xs, ys, s=18.0, c=color, edgecolors="0.4",
                        linewidths=0.3, alpha=0.85, zorder=2)
     if lead_pair is not None and lead_pair.beta_exposure is not None and lead_pair.beta_outcome is not None:
+        n_drawn += 1
         ax.scatter([lead_pair.beta_exposure], [lead_pair.beta_outcome],
                    s=140.0, marker="D", facecolors=LEAD_COLOR,
                    edgecolors="black", linewidths=1.4, zorder=4)
@@ -690,11 +769,28 @@ def _render_effect_size_scatter(ax, pairs: list[HarmonisedRegionPair], lead_vari
                         color="black", linestyle="--", linewidth=0.9,
                         zorder=1, label=f"WR slope (lead) = {wr:+.3g}")
     ax.set_xlabel("β (eQTL / exposure)", fontsize=9)
-    ax.set_ylabel("β (GWAS / outcome)", fontsize=9)
+    if outcome_scale_label:
+        ax.set_ylabel(f"{outcome_scale_label}\n(GWAS / outcome)", fontsize=8)
+    else:
+        ax.set_ylabel("β (GWAS / outcome)", fontsize=9)
     ax.set_title("Effect-size scatter (LocusCompareR convention)", fontsize=9)
+    if n_drawn == 0:
+        reason = unavailable_reason or EFFECT_SIZE_EMPTY_FALLBACK_REASON
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.text(
+            0.5, 0.5,
+            textwrap.fill(f"No effect sizes to plot: {reason}.", width=46),
+            transform=ax.transAxes, ha="center", va="center",
+            fontsize=9, color="#2c3e50",
+            bbox=dict(boxstyle="round,pad=0.5", facecolor="#fafafa",
+                      edgecolor="#bfbfbf", linewidth=0.8),
+        )
+        return 0
     ax.grid(True, linestyle=":", alpha=0.4)
     if ax.get_legend_handles_labels()[0]:
         ax.legend(loc="best", fontsize=7, frameon=True)
+    return n_drawn
 
 
 def render_full_locuscompare(
@@ -726,14 +822,8 @@ def render_full_locuscompare(
 
     # Compute window-centered xlim from the lead position so matplotlib does
     # not auto-snap to the data's actual extent.
-    xlim_bp: tuple[int, int] | None = None
-    lead_pos: int | None = next(
-        (p.position for p in inp.pairs if p.variant_id == inp.lead_variant_id and p.position),
-        None,
-    )
-    if lead_pos is not None and inp.window_bp:
-        half = inp.window_bp // 2
-        xlim_bp = (max(0, lead_pos - half), lead_pos + half)
+    lead_pos = _lead_position(inp.pairs, inp.lead_variant_id)
+    xlim_bp = _compute_xlim_bp(inp.pairs, inp.lead_variant_id, inp.window_bp)
 
     has_gene_track = bool(inp.gene_track)
     if has_gene_track:
@@ -848,11 +938,15 @@ def render_full_locuscompare(
             fontsize=9,
         )
     _render_locuscompare_scatter(ax_lc, pairs, inp.lead_variant_id)
-    _render_effect_size_scatter(ax_es, pairs, inp.lead_variant_id)
+    _render_effect_size_scatter(
+        ax_es, pairs, inp.lead_variant_id,
+        outcome_scale_label=inp.outcome_effect_scale_label,
+        unavailable_reason=inp.effect_size_unavailable_reason,
+    )
 
     title = inp.title or (
         f"Regional LocusCompare: {len(inp.pairs)} variants joined "
-        f"(±{inp.window_bp // 1000} kb of {inp.lead_variant_id})"
+        f"(±{inp.window_bp // 2000} kb of {inp.lead_variant_id})"
     )
     fig.suptitle(title, fontsize=11)
     caption = _build_caption(inp, n_palindromic_excluded)
