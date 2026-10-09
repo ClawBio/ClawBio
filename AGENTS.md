@@ -114,6 +114,11 @@ python -m pytest -k "test_demo" -v                     # By pattern
 
 Tests must pass on Python 3.11, 3.12, and 3.13. CI runs all three via GitHub Actions.
 
+### Pytest conventions
+
+- Use `tmp_path` for temporary inputs and outputs instead of fixed shared paths or custom temporary-directory helpers. It provides a unique `pathlib.Path` directory per test; it does not change cwd.
+- Use `monkeypatch` for environment variables, attributes and cwd changes. Prefer `monkeypatch.chdir(tmp_path)` to manual `os.chdir()` / `try/finally` cleanup; pytest restores changes after the test. Patch names where the code looks them up.
+
 ## Code Style
 
 - **Python**: 3.11+ (type hints encouraged, `X | None` syntax over `Optional[X]`)
