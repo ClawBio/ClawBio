@@ -912,6 +912,34 @@ def annotation_subset(path, windows: list[tuple[str, int, int]], out_stem: Path,
     return out
 
 
+def labelled_transcripts(gtf: Path, out_stem: Path) -> Path:
+    """A GTF subset as BED12, one row per transcript named GENE_TRANSCRIPT (igv.js labels GTF features by the
+    transcript ID alone and cuts names at spaces). Thick part = CDS; a non-coding transcript has none."""
+    tx: dict[str, dict] = {}
+    for line in Path(gtf).read_text().splitlines():
+        f = line.split("\t")
+        if len(f) < 9 or f[2] not in ("exon", "CDS"):
+            continue
+        tid = re.search(r'transcript_id "([^"]+)"', f[8])
+        if not tid:
+            continue
+        gname = re.search(r'gene_name "([^"]+)"', f[8])
+        t = tx.setdefault(tid.group(1), {"chrom": f[0], "strand": f[6], "exons": [], "cds": [],
+                                         "name": f"{gname.group(1)}_{tid.group(1)}" if gname else tid.group(1)})
+        t["exons" if f[2] == "exon" else "cds"].append((int(f[3]) - 1, int(f[4])))
+    rows = []
+    for t in tx.values():
+        ex = sorted(t["exons"]) or sorted(t["cds"])
+        a, b = ex[0][0], max(e for _, e in ex)
+        ta, tb = (min(x for x, _ in t["cds"]), max(y for _, y in t["cds"])) if t["cds"] else (a, a)
+        rows.append((t["chrom"], a, "\t".join(map(str, [
+            t["chrom"], a, b, t["name"], 0, t["strand"], ta, tb, "0,0,0", len(ex),
+            ",".join(str(y - x) for x, y in ex), ",".join(str(x - a) for x, _ in ex)]))))
+    out = Path(str(out_stem) + ".bed")
+    out.write_text("\n".join(r for _, _, r in sorted(rows)) + "\n")
+    return out
+
+
 def annotation_cmds(sub: Path | None) -> list[str]:
     return [f"load {Path(sub).resolve()} name=genes", "expand genes"] if sub else []
 
@@ -1121,7 +1149,8 @@ function apply(){var h=decodeURIComponent(location.hash.slice(1)),g=null,t=h?doc
 if(h.indexOf('gene-')===0)g=h.slice(5);else if(t&&t.dataset.gene)g=t.dataset.gene.split(',')[0];
 document.querySelectorAll('[data-gene]').forEach(function(el){el.style.display=(!g||el.dataset.gene.split(',').indexOf(g)>=0)?'':'none';});
 document.getElementById('onlybar').style.display=g?'':'none';document.getElementById('onlyname').textContent=g||'';
-if(t)t.scrollIntoView();else if(h==='all')window.scrollTo(0,0);}
+if(t)t.scrollIntoView();else if(h==='all')window.scrollTo(0,0);
+document.querySelectorAll('a.checktab').forEach(function(a){a.href=a.getAttribute('href').split('#')[0]+location.hash;});}
 window.addEventListener('hashchange',apply);window.addEventListener('load',apply);apply();})();</script>"""
 
 
@@ -1245,7 +1274,7 @@ table{{border-collapse:collapse;width:100%;font-size:13.5px}}th,td{{padding:7px 
 .b{{padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600}}.supported{{color:var(--g);background:var(--gb)}}.flagged{{color:var(--y);background:var(--yb)}}.insufficient,.no_coverage{{color:var(--r);background:var(--rb)}}
 .card{{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0}}.card h3{{margin:0 0 6px;font-size:16px}}
 img{{max-width:100%;margin-top:8px;border:1px solid var(--line)}}.disc{{margin-top:32px;padding:12px;border:1px solid var(--line);border-radius:8px;color:var(--m)}}
-</style></head><body><main><h1>IGV Validator Report</h1>
+</style></head><body><main><h1>IGV Validator Report</h1><!--checks--><!--/checks-->
 <p class=m>{e(meta['vcf'])} · tumor {e(meta['tumor_name'])} · {e('normal ' + meta['normal_name'] if paired else 'tumor-only (no normal)')} · {e(meta['date'])}</p>
 <p><b>{counts['supported']} supported, {counts['flagged']} flagged, {counts['insufficient']} insufficient</b>. {e(shot_line.replace('`', ''))}</p>
 <p class=m>Counts come from the BAMs, never from the screenshots. Status is a rule-based summary of the flags, not a verdict.</p>
@@ -1729,7 +1758,7 @@ def write_cnv_reports(out: Path, rows: list[dict], meta: dict) -> list[Path]:
             f"max-width:1100px;margin:0 auto;padding:24px 16px;background:#fbfaf8;color:#1d1d1b}}table{{border-collapse:"
             f"collapse;width:100%}}td,th{{border-bottom:1px solid #e4e1db;padding:6px 8px;text-align:left}}img{{max-width:"
             f"100%}}@media (prefers-color-scheme:dark){{body{{background:#181817;color:#ecebe7}}}}</style></head><body>"
-            f"<h1>IGV Validator: copy number</h1><p>{e(meta['cnv'])} · {e(meta['tumor_name'])} · {e(meta['date'])}</p>"
+            f"<h1>IGV Validator: copy number</h1><!--checks--><!--/checks--><p>{e(meta['cnv'])} · {e(meta['tumor_name'])} · {e(meta['date'])}</p>"
             f"{GENE_FILTER}<table><tr><th>Gene</th><th>Segment call(s)</th><th>Gene depth</th><th>Sample depth</th><th>Depth log2</th>"
             f"<th>Local ratio</th>"
             f"<th>Flags</th><th>Status</th></tr>{body}</table>{IMAGE_KEY_HTML}{figs}<p><i>{e(DISCLAIMER)}</i></p>"
@@ -2364,7 +2393,8 @@ def curated_vs_igv(rows: list[dict], curated: Path) -> list[dict]:
                                           ["a copy-number change is left out or not visible; confirm on the depth plot"]
                                           if any(r["type"] == "CNV" and v in ("hidden", "not supported")
                                                  for r, (_, v, _) in zip(mine, [_evidence(x) for x in mine])) else None),
-                    "report": next((r.get("report", "") for r in mine), ""),
+                    "report": next((r["report"] for r in mine if r["type"] == "CNV" and r.get("report")),
+                                   next((r.get("report", "") for r in mine), "")),
                     "agree": {"matches": "Yes", "differs": "No"}.get(match, "Not checked"),
                     "look": LOOK[{"matches": "Yes", "differs": "No"}.get(match, "Not checked")],
                     "reports": sorted({(Path(r["report"]).parent.name.upper(), r["report"])
@@ -2521,6 +2551,8 @@ def make_interactive(plan: list[dict], rows: list[dict], out: Path, annotation=N
             if annotation:
                 g = annotation_subset(annotation, [(p["chrom"], p["start"], p["end"]) for p in mine],
                                       tmp / f"{safe}_genes", canonical=True)
+                if g and g.suffix == ".gtf":     # label by gene name and transcript, not the transcript ID alone
+                    g = labelled_transcripts(g, tmp / f"{safe}_genes_named")
                 tracks += [str(g)] if g else []
             depth = next((r["_base"] for r in rows if r["sample"] == smp and r.get("_base")), 60.0)
             total = sum(p["end"] - p["start"] + 2 * INTERACTIVE_FLANK for p in mine)
@@ -2652,6 +2684,35 @@ def write_bundle(zpath: Path, page: str, root: Path, out: Path) -> Path:
     return zpath
 
 
+TAB_ORDER = {"CNV": 0, "SNV": 1, "SV": 2}
+
+
+def add_check_tabs(root: Path, reports: list[tuple[str, str]]) -> None:
+    """Tabs at the top of each report to the same sample's other reports (CNV first, then SNV, SV): one click to
+    another check, staying on the gene. `reports` = (sample, report path relative to root); rewritten in place."""
+    by_sample: dict[str, set] = {}
+    for smp, rp in reports:
+        by_sample.setdefault(smp, set()).add(rp)
+    for smp, paths in by_sample.items():
+        if len(paths) < 2:
+            continue
+        ordered = sorted(paths, key=lambda rp: (TAB_ORDER.get(Path(rp).parent.name.upper(), 9), rp))
+        for rp in ordered:
+            page = root / rp
+            if not page.exists():
+                continue
+            tabs = " · ".join(
+                f"<b>{html.escape(Path(o).parent.name.upper())}</b>" if o == rp else
+                f"<a class=checktab href='{html.escape(os.path.relpath(root / o, page.parent))}'>"
+                f"{html.escape(Path(o).parent.name.upper())}</a>" for o in ordered)
+            bar = (f"<p style='font-size:15px;margin:4px 0 12px'>{html.escape(smp)} reports: {tabs}</p>")
+            text = page.read_text()
+            new = re.sub(r"<!--checks-->.*?<!--/checks-->", lambda m: f"<!--checks-->{bar}<!--/checks-->", text,
+                         count=1, flags=re.S)
+            if new != text:
+                page.write_text(new)
+
+
 def summarize(root: Path, out: Path | None = None, regions: Path | None = None, igv_path=None,
               timeout: int = 300, curated: Path | None = None, annotation: Path | None = None,
               overview: bool = True, interactive: bool = False, bundle: bool = True) -> Path:
@@ -2663,6 +2724,8 @@ def summarize(root: Path, out: Path | None = None, regions: Path | None = None, 
     empty_runs = []
     rows = dedupe_svs(_summary_rows(root, empty_runs))
     mark_recurrent(rows)
+    add_check_tabs(root, [(r["sample"], r["report"]) for r in rows if r.get("report")]
+                   + [(smp, rep_) for smp, _, rep_ in empty_runs])
     if not rows and not empty_runs:
         raise InputError(f"no igv-validator result.json files under {root}; run the checks first")
     out = Path(out) if out else root

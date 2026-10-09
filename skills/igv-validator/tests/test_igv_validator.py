@@ -272,6 +272,23 @@ def test_sv_support_is_described_in_fragments(summary_dir):
     assert "fragments" in sv["reads"] and " reads (" not in sv["reads"]
 
 
+def test_interactive_gene_track_shows_gene_name_and_transcript(tmp_path):
+    """igv.js labels GTF features by transcript ID only; the interactive pages get BED12 labelled GENE_TRANSCRIPT."""
+    gtf = tmp_path / "g.gtf"
+    attr = 'gene_id "G1"; transcript_id "ENST0001.2"; gene_name "DEMOG"; tag "Ensembl_canonical";'
+    gtf.write_text("\n".join([
+        f"c1\tHAVANA\ttranscript\t101\t500\t.\t-\t.\t{attr}",
+        f"c1\tHAVANA\texon\t101\t200\t.\t-\t.\t{attr}",
+        f"c1\tHAVANA\texon\t301\t500\t.\t-\t.\t{attr}",
+        f"c1\tHAVANA\tCDS\t151\t200\t.\t-\t0\t{attr}",
+        f"c1\tHAVANA\tCDS\t301\t450\t.\t-\t0\t{attr}"]) + "\n")
+    bed = iv.labelled_transcripts(gtf, tmp_path / "g")
+    f = bed.read_text().strip().split("\t")
+    assert bed.suffix == ".bed" and f[3] == "DEMOG_ENST0001.2" and f[5] == "-"
+    assert (f[1], f[2], f[6], f[7]) == ("100", "500", "150", "450")            # 0-based, thick = CDS
+    assert f[9] == "2" and f[10] == "100,200" and f[11] == "0,200"             # two exons: sizes and starts
+
+
 # ── Tumor-only mode ────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
@@ -1942,6 +1959,24 @@ def test_raw_table_says_what_igv_shows_in_one_plain_sentence(summary_dir):
     root, _ = summary_dir
     raw = (root / "summary.html").read_text().split("Raw calls vs IGV", 1)[1]
     assert "Read counts" in raw and "forward /" not in raw.split("<details", 1)[0]
+
+
+def test_reports_link_to_the_other_checks_of_the_sample(summary_dir):
+    """Each report gets tabs to the sample's other reports, keeping the gene (CNV, SNV, SV in that order)."""
+    root, _ = summary_dir
+    cnv = (root / "demo_tumor" / "cnv" / "report.html").read_text()
+    var = (root / "demo_tumor" / "variants" / "report.html").read_text()
+    assert "class=checktab href='../variants/report.html'" in cnv and "<b>CNV</b>" in cnv
+    assert "class=checktab href='../cnv/report.html'" in var and "<b>VARIANTS</b>" in var
+    assert cnv.count("<!--checks-->") == 1                                   # refreshing does not stack tabs
+
+
+def test_a_curated_row_opens_the_copy_number_report_first(tmp_path):
+    snv = _snv_row("S"); snv.update(report="S/snv/report.html")
+    cnv = _cn_row("S", "GENEC", "neutral", 0.0, 50_000_000, "neutral")
+    cnv.update(report="S/cnv/report.html", _depth_log2=0.0)
+    c = _compare(tmp_path, [snv, cnv], [("S", "GENEC", "SNV")])["GENEC"]
+    assert c["report"] == "S/cnv/report.html"
 
 
 def test_each_check_refreshes_the_project_page(tmp_path):

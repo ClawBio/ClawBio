@@ -274,8 +274,10 @@ number left out, not visible or unclear) and *low priority* (a clean SV, a deep 
 clear match). Whatever the priority, look at the image yourself before presenting a result, and never cite the
 verdict alone.
 
-The *report* link of a row opens the full report for that sample and check, showing only that gene's table row and
-plots; *show all genes* at the top brings back the rest.
+The *report* link of a curated row opens the sample's copy-number report (or its only report), showing only that
+gene's table row and plots. Tabs at the top (CNV · SNV · SV) switch to the sample's other reports on the same gene;
+*show all genes* brings back the rest. In the interactive views, gene-track labels read GENE_TRANSCRIPT, the gene
+name and the transcript drawn.
 
 ### How to read the images
 
