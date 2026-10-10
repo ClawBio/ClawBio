@@ -1,0 +1,45 @@
+# prs-applicability-gate v2: every numeric parameter the gate uses, with its justification.
+# Derivations and the experiments behind them: docs/calibration.md (PRSGuard repository).
+# The gate refuses to run if any parameter is missing or out of range. The agent must never edit this file
+# to change a result; a change requires a new calibration_version and re-running the benchmarks.
+
+calibration_version: "2026.09.26-3"
+
+scoreability:
+  # Minimum correlation, in the placed 1000 Genomes reference group, between the score computed on the
+  # person's matched variants and the complete published score (variants absent from the panel accounted for).
+  # Policy anchored in the published metric: the reduced score's per-SD association is ~ r x the published
+  # per-SD association, so r >= 0.90 retains >= 90% of the published effect per SD. Consequences measured by
+  # masking experiments (percentile error, rank stability): docs/calibration.md#scoreability.
+  r_min: 0.90
+
+allele_harmonisation:
+  # Maximum fraction of located variants whose alleles cannot be reconciled with the scoring file.
+  # Detected mismatches estimate a similar rate of UNDETECTABLE wrong calls (a random error on a biallelic SNV
+  # lands on a valid allele about half the time), which attenuate the score roughly as r ~ 1 - e. 0.05 keeps
+  # that attenuation within the scoreability tolerance; every real, correctly built public file tested shows
+  # <= 0.4% (docs/calibration.md#alleles), a >10x margin.
+  max_mismatch_fraction: 0.05
+
+placement:
+  # Reference placement is computed once per person (prsguard.reference.projection). The gate only reads its
+  # status; the calibrated placement parameters live with the placement code and are recorded here so that a
+  # change to them changes the calibration version. RESOLVED requires membership of exactly one core cloud
+  # (benchmarks/multicloud_benchmark.py; docs/calibration.md section 4).
+  min_sites: 200
+  min_stability: 0.95
+  cloud_quantile: 0.999
+
+evaluation:
+  # Qualitative rule, no fraction or sample-size cut-off: at least one single-ancestry PGS Catalog evaluation
+  # unit in the person's placed group reporting a performance metric whose 95% CI lies entirely ABOVE the
+  # metric's null (OR/HR/RR > 1, beta > 0, AUROC/C-index > 0.5, r > 0): evidence of association in the direction
+  # the score is built for. Inverse associations (e.g. case-only subtype comparisons) and pooled multi-ancestry
+  # units do not count. This is evidence of association only, NOT of clinically useful discrimination or
+  # calibration; SUPPORTED is a research-prototype reportability state, not a clinical recommendation.
+  require_ci_excluding_null: true
+
+reference_distribution:
+  # Percentile intervals are reported at this level; sensitivity = disjoint intervals between constituent
+  # 1000 Genomes populations of the placed group.
+  interval: 0.95

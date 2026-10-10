@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 104,
+  "skill_count": 105,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -3855,6 +3855,50 @@
         "protocol steps",
         "protocol DOI",
         "methods repository"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "prs-applicability-gate",
+      "cli_alias": "prs-gate",
+      "description": "Deterministic gate for ONE already-computed polygenic score result and ONE person: returns SUPPORTED (raw score, standardised score and reference percentile may be shown), RAW_ONLY (raw score only) or ABSTAIN (nothing), with reason codes, a full rule trace and what would change the result. Never produces absolute risk.",
+      "version": "2.2.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run prs-gate --demo",
+      "dependencies": [
+        "python>=3.11",
+        "pyyaml>=6.0"
+      ],
+      "tags": [
+        "polygenic-score",
+        "prs",
+        "applicability",
+        "ancestry",
+        "pgs-catalog",
+        "safety-gate"
+      ],
+      "trigger_keywords": [
+        "can this polygenic score be interpreted",
+        "is this PRS percentile valid for me",
+        "PRS applicability",
+        "prs gate",
+        "should this PGS percentile be shown"
       ],
       "chaining_partners": [],
       "license": "MIT",
