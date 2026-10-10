@@ -54,7 +54,16 @@ from openai import AsyncOpenAI, APIError
 
 # Shared bot security helpers (identity isolation + webhook signature check).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from security import is_sender_allowed, scoped_get, verify_whatsapp_signature
+from security import (
+    UnsafePath,
+    is_allowed_extension,
+    safe_write_path,
+    sanitize_filename,
+    scoped_get,
+    is_sender_allowed,
+    verify_whatsapp_signature,
+    upload_tmp_path,
+)
 
 # --------------------------------------------------------------------------- #
 # Config
@@ -630,41 +639,6 @@ TOOLS = [
 # --------------------------------------------------------------------------- #
 
 
-def _sanitize_filename(filename: str) -> str:
-    """Strip path traversal components and dangerous characters from a filename."""
-    filename = Path(filename).name
-    filename = re.sub(r"[\x00-\x1f]", "", filename)
-    filename = filename.replace("..", "").replace("/", "").replace("\\", "")
-    if not filename:
-        filename = "unnamed_file"
-    return filename
-
-
-def _resolve_dest(folder: str | None) -> Path:
-    """Resolve a destination folder, restricted to CLAWBIO_DIR."""
-    dest = Path(folder) if folder else DATA_DIR
-    if not dest.is_absolute():
-        dest = CLAWBIO_DIR / dest
-    try:
-        dest.resolve().relative_to(CLAWBIO_DIR.resolve())
-    except ValueError:
-        logger.warning(f"Path escape blocked: {dest}")
-        _audit("security", severity="HIGH", detail="path_escape_blocked",
-               attempted_path=str(dest), function="_resolve_dest")
-        dest = DATA_DIR
-    dest.mkdir(parents=True, exist_ok=True)
-    return dest
-
-
-def _validate_path(filepath: Path, allowed_root: Path) -> bool:
-    """Ensure filepath is under allowed_root (path traversal defense)."""
-    try:
-        filepath.resolve().relative_to(allowed_root.resolve())
-        return True
-    except ValueError:
-        return False
-
-
 # --------------------------------------------------------------------------- #
 # execute_clawbio
 # --------------------------------------------------------------------------- #
@@ -894,12 +868,14 @@ async def execute_save_file(args: dict, phone: str) -> str:
     if not src_path.exists():
         return "The temporary file has expired. Please send it again."
 
-    dest_path = _resolve_dest(args.get("destination_folder"))
-    filename = _sanitize_filename(args.get("filename") or file_info["filename"])
-    final_path = dest_path / filename
-
-    if not _validate_path(final_path, dest_path):
-        return f"Error: filename '{filename}' would escape the destination directory."
+    try:
+        final_path = safe_write_path(
+            args.get("destination_folder"),
+            args.get("filename") or file_info["filename"],
+            root=DATA_DIR, require_allowed_extension=True,
+        )
+    except UnsafePath as exc:
+        return f"Error: {exc}"
 
     shutil.copy2(str(src_path), str(final_path))
     logger.info(f"Saved file: {final_path}")
@@ -926,12 +902,12 @@ async def execute_write_file(args: dict, phone: str) -> str:
     if not filename:
         return "Error: 'filename' is required (e.g. 'report.md')."
 
-    dest = _resolve_dest(args.get("destination_folder"))
-    filename = _sanitize_filename(filename)
-    filepath = dest / filename
-
-    if not _validate_path(filepath, dest):
-        return f"Error: filename '{filename}' would escape the destination directory."
+    try:
+        filepath = safe_write_path(
+            args.get("destination_folder"), filename, root=DATA_DIR,
+        )
+    except UnsafePath as exc:
+        return f"Error: {exc}"
 
     filepath.write_text(content, encoding="utf-8")
     logger.info(f"Wrote file: {filepath} ({len(content)} chars)")
@@ -954,14 +930,15 @@ async def execute_generate_audio(args: dict, phone: str) -> str:
     if not filename.endswith(".mp3"):
         filename += ".mp3"
 
-    filename = _sanitize_filename(filename)
     voice = args.get("voice", "en-GB-RyanNeural")
     rate = args.get("rate", "-5%")
-    dest = _resolve_dest(args.get("destination_folder"))
-    filepath = dest / filename
-
-    if not _validate_path(filepath, dest):
-        return f"Error: filename '{filename}' would escape the destination directory."
+    try:
+        filepath = safe_write_path(
+            args.get("destination_folder"), filename, root=DATA_DIR,
+        )
+    except UnsafePath as exc:
+        return f"Error: {exc}"
+    dest = filepath.parent
 
     text_path = dest / f".tmp_{filename}.txt"
     text_path.write_text(text, encoding="utf-8")
@@ -1446,8 +1423,8 @@ def handle_whatsapp_message(phone: str, msg: dict):
 
         img_b64 = base64.standard_b64encode(img_bytes).decode("ascii")
 
-        filename = _sanitize_filename(f"whatsapp_image_{datetime.now().strftime('%H%M%S')}.jpg")
-        tmp_path = Path(tempfile.gettempdir()) / f"roboterri_{filename}"
+        filename = sanitize_filename(f"whatsapp_image_{datetime.now().strftime('%H%M%S')}.jpg")
+        tmp_path = upload_tmp_path(phone, filename)
         tmp_path.write_bytes(img_bytes)
         _received_files[phone] = {"path": str(tmp_path), "filename": filename}
 
@@ -1497,7 +1474,7 @@ def handle_whatsapp_message(phone: str, msg: dict):
     elif msg_type == "document":
         doc_info = msg.get("document", {})
         media_id = doc_info.get("id", "")
-        filename = _sanitize_filename(doc_info.get("filename", "document"))
+        filename = sanitize_filename(doc_info.get("filename", "document"))
         mime_type = doc_info.get("mime_type", "application/octet-stream")
         caption = doc_info.get("caption", "")
 
@@ -1518,7 +1495,7 @@ def handle_whatsapp_message(phone: str, msg: dict):
                 return
 
             img_b64 = base64.standard_b64encode(img_bytes).decode("ascii")
-            tmp_path = Path(tempfile.gettempdir()) / f"roboterri_{filename}"
+            tmp_path = upload_tmp_path(phone, filename)
             tmp_path.write_bytes(img_bytes)
             _received_files[phone] = {"path": str(tmp_path), "filename": filename}
 
@@ -1556,7 +1533,7 @@ def handle_whatsapp_message(phone: str, msg: dict):
 
         _audit("document", phone=phone, filename=filename, size_bytes=len(file_bytes))
 
-        tmp_path = Path(tempfile.gettempdir()) / f"roboterri_{filename}"
+        tmp_path = upload_tmp_path(phone, filename)
         tmp_path.write_bytes(file_bytes)
         _received_files[phone] = {"path": str(tmp_path), "filename": filename}
 

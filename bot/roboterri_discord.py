@@ -41,7 +41,14 @@ if str(_PROJECT_ROOT_FOR_IMPORT) not in sys.path:
 
 # Shared bot security helpers (strict per-user identity isolation).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from security import scoped_get
+from security import (
+    UnsafePath,
+    is_allowed_extension,
+    safe_write_path,
+    sanitize_filename,
+    scoped_get,
+    upload_tmp_path,
+)
 
 from clawbio.skill_intents import (
     load_default_skill_registry,
@@ -522,41 +529,6 @@ TOOLS = [
 # --------------------------------------------------------------------------- #
 
 
-def _sanitize_filename(filename: str) -> str:
-    """Strip path traversal components and dangerous characters from a filename."""
-    filename = Path(filename).name
-    filename = re.sub(r"[\x00-\x1f]", "", filename)
-    filename = filename.replace("..", "").replace("/", "").replace("\\", "")
-    if not filename:
-        filename = "unnamed_file"
-    return filename
-
-
-def _resolve_dest(folder: str | None) -> Path:
-    """Resolve a destination folder, restricted to CLAWBIO_DIR."""
-    dest = Path(folder) if folder else DATA_DIR
-    if not dest.is_absolute():
-        dest = CLAWBIO_DIR / dest
-    try:
-        dest.resolve().relative_to(CLAWBIO_DIR.resolve())
-    except ValueError:
-        logger.warning(f"Path escape blocked: {dest}")
-        _audit("security", severity="HIGH", detail="path_escape_blocked",
-               attempted_path=str(dest), function="_resolve_dest")
-        dest = DATA_DIR
-    dest.mkdir(parents=True, exist_ok=True)
-    return dest
-
-
-def _validate_path(filepath: Path, allowed_root: Path) -> bool:
-    """Ensure filepath is under allowed_root (path traversal defense)."""
-    try:
-        filepath.resolve().relative_to(allowed_root.resolve())
-        return True
-    except ValueError:
-        return False
-
-
 # --------------------------------------------------------------------------- #
 # execute_clawbio
 # --------------------------------------------------------------------------- #
@@ -995,13 +967,6 @@ async def execute_clawbio(args: dict) -> str:
 # --------------------------------------------------------------------------- #
 
 
-_PROTECTED_NAMES = frozenset({
-    "soul.md", "claude.md", "agents.md", ".env",
-    "roboterri.py", "roboterri_discord.py", "roboterri_whatsapp.py",
-    "clawbio.py", "requirements.txt", "contributing.md",
-})
-
-
 async def execute_save_file(args: dict) -> str:
     """Save the most recently received file to the requested destination."""
     channel_id = args.get("_channel_id")
@@ -1014,14 +979,14 @@ async def execute_save_file(args: dict) -> str:
     if not src_path.exists():
         return "The temporary file has expired. Please send it again."
 
-    dest_path = _resolve_dest(args.get("destination_folder"))
-    filename = _sanitize_filename(args.get("filename") or file_info["filename"])
-    if filename.lower() in _PROTECTED_NAMES:
-        return f"Error: refusing to overwrite the protected file '{filename}'."
-    final_path = dest_path / filename
-
-    if not _validate_path(final_path, dest_path):
-        return f"Error: filename '{filename}' would escape the destination directory."
+    try:
+        final_path = safe_write_path(
+            args.get("destination_folder"),
+            args.get("filename") or file_info["filename"],
+            root=DATA_DIR, require_allowed_extension=True,
+        )
+    except UnsafePath as exc:
+        return f"Error: {exc}"
 
     shutil.copy2(str(src_path), str(final_path))
     logger.info(f"Saved file: {final_path}")
@@ -1048,14 +1013,12 @@ async def execute_write_file(args: dict) -> str:
     if not filename:
         return "Error: 'filename' is required (e.g. 'report.md')."
 
-    dest = _resolve_dest(args.get("destination_folder"))
-    filename = _sanitize_filename(filename)
-    if filename.lower() in _PROTECTED_NAMES:
-        return f"Error: refusing to overwrite the protected file '{filename}'."
-    filepath = dest / filename
-
-    if not _validate_path(filepath, dest):
-        return f"Error: filename '{filename}' would escape the destination directory."
+    try:
+        filepath = safe_write_path(
+            args.get("destination_folder"), filename, root=DATA_DIR,
+        )
+    except UnsafePath as exc:
+        return f"Error: {exc}"
 
     filepath.write_text(content, encoding="utf-8")
     logger.info(f"Wrote file: {filepath} ({len(content)} chars)")
@@ -1078,13 +1041,14 @@ async def execute_generate_audio(args: dict) -> str:
     if not filename.endswith(".mp3"):
         filename += ".mp3"
 
-    filename = _sanitize_filename(filename)
     voice = args.get("voice", "nova")
-    dest = _resolve_dest(args.get("destination_folder"))
-    filepath = dest / filename
-
-    if not _validate_path(filepath, dest):
-        return f"Error: filename '{filename}' would escape the destination directory."
+    try:
+        filepath = safe_write_path(
+            args.get("destination_folder"), filename, root=DATA_DIR,
+        )
+    except UnsafePath as exc:
+        return f"Error: {exc}"
+    dest = filepath.parent
 
     # OpenAI TTS has a 4096-char input limit - split if needed
     MAX_CHUNK = 4096
@@ -1798,13 +1762,13 @@ async def on_message(message: discord.Message):
             img_b64 = base64.standard_b64encode(img_bytes).decode("ascii")
 
             media_type = content_type if content_type.startswith("image/") else "image/jpeg"
-            filename = _sanitize_filename(attachment.filename)
+            filename = sanitize_filename(attachment.filename)
             logger.info(f"Image received: {filename} ({len(img_bytes)} bytes, {media_type})")
             _audit("photo", **_user_ctx(message), size_bytes=len(img_bytes),
                    media_type=media_type)
 
             # Store for potential file-based skill use
-            tmp_path = Path(tempfile.gettempdir()) / f"roboterri_{filename}"
+            tmp_path = upload_tmp_path(message.channel.id, filename)
             tmp_path.write_bytes(img_bytes)
             _received_files[message.channel.id] = {
                 "path": str(tmp_path), "filename": filename,
@@ -1877,8 +1841,8 @@ async def on_message(message: discord.Message):
                 )
                 return
 
-            filename = _sanitize_filename(attachment.filename)
-            tmp_path = Path(tempfile.gettempdir()) / f"roboterri_{filename}"
+            filename = sanitize_filename(attachment.filename)
+            tmp_path = upload_tmp_path(message.channel.id, filename)
             tmp_path.write_bytes(file_bytes)
             logger.info(f"Document received: {filename} ({len(file_bytes)} bytes)")
             _audit("document", **_user_ctx(message), filename=filename,
