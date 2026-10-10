@@ -133,6 +133,9 @@ def load_config(path: Path = DEFAULT_CONFIG) -> dict:
     num("scoreability", "r_min", 0.5, 1.0)
     num("allele_harmonisation", "max_mismatch_fraction", 0.0, 0.5)
     num("placement", "min_stability", 0.5, 1.0)
+    min_sites = (cfg.get("placement") or {}).get("min_sites")
+    if not isinstance(min_sites, int) or isinstance(min_sites, bool) or min_sites < 1:
+        problems.append(f"placement.min_sites={min_sites!r} must be a positive integer")
     num("reference_distribution", "interval", 0.5, 0.999)
     if (cfg.get("evaluation") or {}).get("require_ci_excluding_null") is not True:
         problems.append("evaluation.require_ci_excluding_null must be true")
@@ -427,18 +430,31 @@ def _evaluate(gi: dict, cfg: dict) -> dict:
               "a consistent PGS Catalog record (the discrepancy reported to the Catalog and corrected)")
 
     # G8 placement -------------------------------------------------------------------------------------------
+    # A RESOLVED status is not taken on trust: it must rest on enough placement sites and a stable placement, at
+    # the calibrated thresholds. Low-marker over-calls are the commonest ancestry-placement failure.
     pst = t.use("placement.status", pl.get("status"))
-    group = t.use("placement.placement", pl.get("placement"), pst == "RESOLVED")
-    t.use("placement.placement_stability", pl.get("placement_stability"), False)
+    claimed = pst == "RESOLVED"
+    group = t.use("placement.placement", pl.get("placement"), claimed)
+    sites = t.use("placement.n_sites_used", pl.get("n_sites_used"), claimed)
+    stability = t.use("placement.placement_stability", pl.get("placement_stability"), claimed)
+    min_sites, min_stability = cfg["placement"]["min_sites"], cfg["placement"]["min_stability"]
+    shortfalls = []
+    if claimed:
+        if not (isinstance(sites, int) and not isinstance(sites, bool) and sites >= min_sites):
+            shortfalls.append(f"n_sites_used={sites!r}, needs an integer >= min_sites {min_sites}")
+        if not (_number_in(stability, 0.0, 1.0) and stability >= min_stability):
+            shortfalls.append(f"placement_stability={stability!r}, needs >= min_stability {min_stability}")
+    resolved = claimed and not shortfalls
     t.add("G8", "PLACEMENT", "Is the person placed stably inside one reference group?",
-          "pass" if pst == "RESOLVED" else "fail", RAW_ONLY, ["TARGET_REFERENCE_UNRESOLVED"],
-          f"{pst}: {pl.get('detail')}",
-          "a reference panel that represents this person's genetic background (e.g. admixed references with "
+          "pass" if resolved else "fail", RAW_ONLY, ["TARGET_REFERENCE_UNRESOLVED"],
+          f"{pst}: {pl.get('detail')}" + (f"; RESOLVED not supported: {'; '.join(shortfalls)}" if shortfalls else ""),
+          f"a placement RESOLVED from at least {min_sites} sites with stability >= {min_stability}, against a "
+          "reference panel that represents this person's genetic background (e.g. admixed references with "
           "local-ancestry-aware scoring); not something the gate can relax")
 
     # G9 evaluation ------------------------------------------------------------------------------------------
     units = gi["evaluation"]["units"]
-    if pst != "RESOLVED":
+    if not resolved:
         t.add("G9", "EVALUATION", G9_QUESTION,
               "not_applicable", detail="no resolved reference group to match evaluations against")
         t.add("G10", "SEX_EVALUATION", "Do the informative evaluations include the person's sex?",
@@ -497,7 +513,7 @@ def _evaluate(gi: dict, cfg: dict) -> dict:
                   "not_applicable", detail="no informative evaluation")
 
     # G11/G12 reference distribution -----------------------------------------------------------------------------
-    if pst != "RESOLVED":
+    if not resolved:
         t.add("G11", "REFERENCE_DISTRIBUTION", "Is there a reference distribution on the matched variants?",
               "not_applicable", detail="no resolved reference group")
         t.add("G12", "REFERENCE_SENSITIVITY", "Is the percentile robust to the reference population chosen?",

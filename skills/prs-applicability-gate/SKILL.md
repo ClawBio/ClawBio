@@ -136,7 +136,7 @@ by PRSGuard's evidence builder; the gate never fetches or infers it.
 | `person` | `sex` (`female` / `male` / null) | G6, G10 |
 | `harmonisation` | `n_variants`, `n_matched`, `n_located` (integers >= 0); `allele_mismatch_fraction` in [0, 1], null exactly when `n_located` is 0; `weight_loss_by_status` (status to fraction; the gate names the largest, every status tied at it, whatever the key order) | G4, G5 |
 | `scoreability` | `r`: correlation, in the placed reference group, of the score computable from this genotype with the complete published score ([-1, 1] or null); `method` | G5 |
-| `placement` | `status` (`RESOLVED` / `INTERMEDIATE` / `UNSTABLE` / `UNRESOLVED`); `placement` (`AFR` / `AMR` / `EAS` / `EUR` / `SAS`, required when RESOLVED); `placement_stability` ([0, 1] or null); `detail` | G8 |
+| `placement` | `status` (`RESOLVED` / `INTERMEDIATE` / `UNSTABLE` / `UNRESOLVED`); `placement` (`AFR` / `AMR` / `EAS` / `EUR` / `SAS`, required when RESOLVED); `n_sites_used` (integer; RESOLVED needs >= `min_sites`); `placement_stability` ([0, 1] or null; RESOLVED needs >= `min_stability`); `detail` | G8 |
 | `catalog_metadata` | `status` (`resolved`, `contradictory`, anything else = unavailable), `detail` | G7 |
 | `evaluation` | `units`: list of `{code, pooled (false to count), n, percent_male ([0, 100] or null), metrics: [{name, ci_lower, ci_upper, null}]}` | G9, G10 |
 | `reference_distribution` | `available` (true), `reference_group` (the placed group), `reference_n` and `n_intersection` (positive integers), `reference_sensitive` (boolean), `reference_sensitive_pairs` | G11, G12 |
@@ -205,7 +205,7 @@ intermediate placement between two reference clouds); `PGS_SYNTHETIC_C` ABSTAIN 
 | G5 SCOREABILITY | r(computable score, published score) >= `r_min`? | LOW_SCOREABILITY (+ PALINDROMIC_VARIANT_UNRESOLVED / VARIANTS_MISSING / DUPLICATE_OR_CONFLICTING_VARIANTS naming the largest loss), SCOREABILITY_UNVERIFIED | ABSTAIN |
 | G6 SEX_SCORE | Sex-specific score used for that sex? | SEX_POPULATION_MISMATCH (ABSTAIN), SEX_NOT_PROVIDED (RAW_ONLY) | |
 | G7 METADATA | PGS Catalog record resolved and consistent? | METADATA_CONTRADICTION, EVALUATION_METADATA_UNAVAILABLE | RAW_ONLY |
-| G8 PLACEMENT | Person stably inside one reference group? | TARGET_REFERENCE_UNRESOLVED | RAW_ONLY |
+| G8 PLACEMENT | Status RESOLVED, from >= `min_sites` sites, with stability >= `min_stability`? | TARGET_REFERENCE_UNRESOLVED | RAW_ONLY |
 | G9 EVALUATION | Single-ancestry evaluation in that group with a metric whose finite 95% CI lies entirely above the null? | NO_RELEVANT_EVALUATION, EVALUATION_NOT_INFORMATIVE | RAW_ONLY |
 | G10 SEX_EVALUATION | Is one of those evaluations known to include the person's sex (both sexes if not provided)? | SEX_POPULATION_MISMATCH, SEX_EVALUATION_UNVERIFIED | RAW_ONLY |
 | G11 REFERENCE_DISTRIBUTION | Reference distribution for the placed group, with positive `reference_n` and `n_intersection`? | REFERENCE_DISTRIBUTION_UNAVAILABLE | RAW_ONLY |
@@ -219,8 +219,10 @@ intermediate placement between two reference clouds); `PGS_SYNTHETIC_C` ABSTAIN 
   which attenuate the score roughly as r ~ 1 - e; every real, correctly built public file tested showed <= 0.4%.
 - Evaluation rule: qualitative (at least one single-ancestry evaluation in the placed group whose metric CI lies
   entirely above its null); no sample-size or fraction cut-off. Pooled units and inverse associations never count.
-- Placement parameters (`min_sites = 200`, `min_stability = 0.95`, cloud quantile 0.999) belong to the upstream
-  placement step and are recorded in the config so that changing them changes `calibration_version`.
+- Placement parameters (`min_sites = 200`, `min_stability = 0.95`, cloud quantile 0.999) are calibrated for the
+  upstream placement step. G8 does not take a RESOLVED status on trust: it re-checks `n_sites_used >= min_sites`
+  and `placement_stability >= min_stability` (inclusive), and a missing, null, non-numeric or lower value fails G8,
+  so G9-G12 are never evaluated against an unverified group.
 
 **What SUPPORTED means, and does not.** G9 establishes evidence of association in a relevant evaluation group. It
 does not establish clinically useful discrimination (an AUROC of 0.55 with a CI above 0.5 passes) or calibration.
@@ -372,7 +374,8 @@ absolute risk, or override, soften or reinterpret the status.
   fails closed where 2.1.1 failed open: unreported score-format flags (G2), builds other than GRCh37/GRCh38 (G3),
   key-order-dependent largest loss (G5), non-finite CIs and units not marked single-ancestry (G9), unknown sex
   composition (G10), reference distributions without a positive size and intersection (G11) and an unreported
-  `reference_sensitive` (G12). No threshold changed.
+  `reference_sensitive` (G12), and a RESOLVED placement claimed from too few sites or at low stability (G8). No
+  threshold changed.
 
 ## Citations
 

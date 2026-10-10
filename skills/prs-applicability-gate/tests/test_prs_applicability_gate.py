@@ -170,6 +170,68 @@ def test_each_reason_code(changes, status, code):
     assert res["allowed_claims"]["raw_score"] is (status == "RAW_ONLY")
 
 
+# ---- G8: a RESOLVED claim must be backed by enough sites and a stable placement ---------------------------------
+
+def _assert_g8_refuses(res: dict) -> None:
+    assert rule(res, "G8")["outcome"] == "fail", rule(res, "G8")
+    assert res["status"] == "RAW_ONLY" and res["reason_codes"] == ["TARGET_REFERENCE_UNRESOLVED"]
+    assert res["allowed_claims"]["percentile"] is False and res["allowed_claims"]["standardized_score"] is False
+    for rid in ("G9", "G10", "G11", "G12"):
+        assert rule(res, rid)["outcome"] == "not_applicable", f"{rid} must not use an unverified group"
+
+
+@pytest.mark.parametrize("changes", [
+    {"placement__n_sites_used": 47, "placement__placement_stability": 0.5},  # the over-call class from review
+    {"placement__n_sites_used": 47},
+    {"placement__n_sites_used": 199},
+    {"placement__n_sites_used": 0},
+    {"placement__n_sites_used": -5},
+    {"placement__n_sites_used": None},
+    {"placement__n_sites_used": "6000"},
+    {"placement__n_sites_used": True},
+    {"placement__n_sites_used": 250.0},
+    {"placement__placement_stability": 0.5},
+    {"placement__placement_stability": 0.949},
+    {"placement__placement_stability": None},
+])
+def test_g8_resolved_needs_min_sites_and_min_stability(changes):
+    _assert_g8_refuses(run(mutate(**changes)))
+
+
+@pytest.mark.parametrize("field", ["n_sites_used", "placement_stability"])
+def test_g8_missing_field_fails_and_is_reported_missing(field):
+    gi = base_input()
+    del gi["placement"][field]
+    res = run(gi)
+    _assert_g8_refuses(res)
+    assert f"placement.{field}" in res["evidence_missing"]
+
+
+def test_g8_thresholds_are_inclusive():
+    p = CFG["placement"]
+    res = run(mutate(placement__n_sites_used=p["min_sites"], placement__placement_stability=p["min_stability"]))
+    assert rule(res, "G8")["outcome"] == "pass" and res["status"] == "SUPPORTED"
+
+
+def test_g8_thresholds_come_from_the_calibration(tmp_path):
+    alt = tmp_path / "alt_placement.yaml"
+    alt.write_text(SHIPPED_CONFIG.read_text(encoding="utf-8").replace("min_sites: 200", "min_sites: 7000")
+                   .replace("min_stability: 0.95", "min_stability: 0.999"), encoding="utf-8")
+    cfg = gate.load_config(alt)
+    gi = mutate(placement__n_sites_used=6000)
+    assert rule(gate.evaluate(gi, cfg), "G8")["outcome"] == "fail"
+    assert rule(gate.evaluate(mutate(placement__placement_stability=0.998), cfg), "G8")["outcome"] == "fail"
+    assert rule(gate.evaluate(base_input(), CFG), "G8")["outcome"] == "pass"
+
+
+@pytest.mark.parametrize("bad", ["min_sites: 0", "min_sites: 2.5", "min_sites: true", "min_sites: null"])
+def test_config_requires_a_positive_integer_min_sites(tmp_path, bad):
+    alt = tmp_path / "bad_sites.yaml"
+    alt.write_text(SHIPPED_CONFIG.read_text(encoding="utf-8").replace("min_sites: 200", bad), encoding="utf-8")
+    with pytest.raises(ValueError):
+        gate.load_config(alt)
+
+
 @pytest.mark.parametrize("changes", [
     {},
     {"placement__status": "INTERMEDIATE", "placement__placement": None},
