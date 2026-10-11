@@ -132,44 +132,7 @@ Tests must pass on Python 3.11, 3.12, and 3.13. CI runs all three via GitHub Act
 
 ## Project Structure
 
-```
-ClawBio/
-├── clawbio.py              # CLI entry point (delegates to clawbio/cli.py)
-├── clawbio/                # Package: cli.py (SKILLS dict, runner) + shared utilities
-├── skills/                 # One directory per skill
-│   ├── pharmgx-reporter/   # Example MVP skill
-│   │   ├── SKILL.md        # Skill specification (YAML frontmatter + methodology)
-│   │   ├── pharmgx_reporter.py  # Implementation
-│   │   ├── api.py          # Importable API (optional)
-│   │   ├── demo_patient.txt     # Demo data
-│   │   └── tests/
-│   │       └── test_pharmgx.py
-│   ├── gwas-lookup/        # Example with subpackages
-│   │   ├── SKILL.md
-│   │   ├── gwas_lookup.py
-│   │   ├── gwas_lookup_api/  # API clients for 9 databases
-│   │   ├── core/           # Normalisation, resolution, reporting
-│   │   └── tests/
-│   └── catalog.json        # Machine-readable skill index (auto-generated)
-├── commands/               # Slash commands for Claude Code and compatible agents
-├── scripts/                # Repo automation (catalog generation, nightly sweep, helpers)
-├── templates/
-│   └── SKILL-TEMPLATE.md   # Template for new skills
-├── tests/
-│   └── benchmark/          # AD ground truth, mock APIs, scoring, fine-mapping benchmark
-├── examples/               # Shared demo data (VCFs, CSVs)
-├── profiles/               # PatientProfile JSONs
-├── output/                 # Generated reports (timestamped)
-├── GENOMEBOOK/             # Synthetic-genetics sandbox data and reports
-├── corpas-30x/             # Corpas 30x WGS reference genome and benchmark inputs
-├── docs/                   # Tutorials and reference docs
-├── bot/                    # RoboTerri Telegram integration
-├── pyproject.toml          # Dependencies and optional extras (pinned by uv.lock)
-├── pytest.ini              # Test configuration
-├── Makefile                # Convenience targets
-├── AGENTS.md               # This file — the single set of agent instructions
-└── llms.txt                # LLM-friendly project summary
-```
+`clawbio/` holds the CLI (`cli.py`, `SKILLS` dict) and shared utilities; each `skills/<name>/` is one skill (`SKILL.md`, script, `tests/`); repo-level tests live in `tests/`. Run `ls` for the rest.
 
 ## Skill Architecture
 
