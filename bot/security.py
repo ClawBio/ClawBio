@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
+import tempfile
+from pathlib import Path
 from typing import Any, Mapping, Optional, Set
 
 
@@ -69,3 +72,100 @@ def is_sender_allowed(
     if admin and user_id == admin:
         return True
     return user_id in allowed
+
+
+# --------------------------------------------------------------------------- #
+# Filesystem containment for the chat-facing save_file / write_file tools.
+#
+# Every adapter routes its model-supplied destination_folder / filename through
+# safe_write_path, so the three adapters cannot drift apart.
+# --------------------------------------------------------------------------- #
+
+
+class UnsafePath(ValueError):
+    """A model-supplied destination was refused. The message is user-facing."""
+
+
+# Files the write_file and save_file tools must never overwrite.
+# Checked case-insensitively - all entries must be lowercase.
+PROTECTED_NAMES = frozenset({
+    "soul.md", "claude.md", "agents.md", ".env",
+    "roboterri.py", "roboterri_discord.py", "roboterri_whatsapp.py",
+    "clawbio.py", "requirements.txt", "contributing.md",
+})
+
+ALLOWED_UPLOAD_EXTENSIONS = frozenset({
+    ".txt", ".csv", ".vcf", ".fastq", ".fq",   # genetic data (uncompressed)
+    ".h5ad",                                     # single-cell AnnData
+    ".tif", ".tiff", ".png", ".jpg", ".jpeg", ".heic", ".heif",  # microscopy / photos
+    ".tsv",                                      # tab-separated counts
+    # .pdf, .html, .md excluded - active content risk / prompt injection
+})
+
+# Compound suffixes allowed for gzip-compressed files (e.g. "data.vcf.gz").
+# Bare ".gz" is intentionally excluded - it could wrap arbitrary content.
+ALLOWED_GZ_STEMS = frozenset({
+    ".vcf.gz", ".fastq.gz", ".fq.gz", ".txt.gz", ".tsv.gz", ".csv.gz", ".bed.gz",
+})
+
+
+def is_allowed_extension(filename: str) -> bool:
+    """True if the file's extension (or compound .*.gz suffix) is permitted."""
+    suffixes = Path(filename).suffixes
+    if not suffixes:
+        return False
+    if "".join(suffixes[-2:]).lower() in ALLOWED_GZ_STEMS:
+        return True
+    return suffixes[-1].lower() in ALLOWED_UPLOAD_EXTENSIONS
+
+
+def sanitize_filename(filename: str) -> str:
+    """Reduce to a bare basename with no traversal or control characters."""
+    filename = Path(filename).name.strip()
+    filename = re.sub(r"[\x00-\x1f]", "", filename)
+    filename = filename.replace("..", "").replace("/", "").replace("\\", "")
+    return filename or "unnamed_file"
+
+
+def upload_tmp_path(owner_id: Any, filename: str) -> Path:
+    """Temp path for an upload, namespaced by the sender or channel that sent it."""
+    owner = re.sub(r"[^A-Za-z0-9_-]", "", str(owner_id)) or "unknown"
+    return Path(tempfile.gettempdir()) / f"roboterri_{owner}_{sanitize_filename(filename)}"
+
+
+def safe_write_path(
+    folder: str | None,
+    filename: str,
+    *,
+    root: Path,
+    require_allowed_extension: bool = False,
+) -> Path:
+    """Resolve a model-supplied folder + filename to a path safe to write.
+
+    Containment is to ``root``, the user data directory: a destination that
+    escapes it falls back to ``root`` rather than being honoured.
+
+    Raises UnsafePath for a protected filename, and for a disallowed extension
+    when ``require_allowed_extension`` is set (the save_file path, where the
+    model may rename an upload).
+    """
+    root = Path(root).resolve()
+
+    dest = Path(folder) if folder else root
+    if not dest.is_absolute():
+        dest = root / dest
+    if not dest.resolve().is_relative_to(root):
+        dest = root
+
+    filename = sanitize_filename(filename)
+    if filename.lower() in PROTECTED_NAMES:
+        raise UnsafePath(f"'{filename}' is a protected file and cannot be written.")
+    if require_allowed_extension and not is_allowed_extension(filename):
+        raise UnsafePath(f"'{filename}' is not an allowed file type.")
+
+    final = dest / filename
+    if not final.resolve().is_relative_to(root):
+        raise UnsafePath(f"'{filename}' would escape the destination directory.")
+
+    dest.mkdir(parents=True, exist_ok=True)
+    return final

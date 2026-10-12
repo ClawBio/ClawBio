@@ -14,6 +14,7 @@ import argparse
 import csv
 import hashlib
 import json
+import shlex
 import sys
 import time
 from datetime import datetime, timezone
@@ -27,6 +28,11 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from clawbio.common.report import write_result_json
+from clawbio.common.reproducibility import (
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -725,6 +731,20 @@ def main():
                 "gene_results": gene_results,
                 "drug_results": drug_results,
             },
+        )
+
+        # Reproducibility bundle
+        write_commands_sh(
+            output_dir, shlex.join(["python", "skills/clinpgx/clinpgx.py", *sys.argv[1:]])
+        )
+        env_path = write_environment_yml(
+            output_dir, "clawbio-clinpgx", pip_deps=["requests>=2.28.0"]
+        )
+        write_checksums(
+            [report_path, output_dir / "result.json", env_path,
+             *sorted((output_dir / "tables").glob("*.csv"))],
+            output_dir,
+            anchor=output_dir,
         )
 
         print(f"\nFull output in {output_dir}/")

@@ -1,7 +1,7 @@
 """Output writers for clinical-trial-finder.
 
 Generates: report.md, summary.json, fhir_bundle.json, phase chart,
-commands.sh, and checksums.sha256.  Each writer takes trial data and
+and the reproducibility/ bundle.  Each writer takes trial data and
 an output directory, creates the file, and returns its Path.
 """
 
@@ -9,6 +9,7 @@ import argparse
 import csv
 import html as _html
 import json
+import shlex
 import sys
 import urllib.parse
 from collections import Counter, defaultdict
@@ -19,7 +20,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from clawbio.common.checksums import sha256_file as _sha256  # noqa: E402
+from clawbio.common.reproducibility import (  # noqa: E402
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 from constants import (  # noqa: E402
     CSV_COLUMNS,
     DEFAULT_PAGE_SIZE,
@@ -162,8 +167,9 @@ def write_report(
         "",
         "## Reproducibility",
         "",
-        "- `commands.sh` -- exact command to reproduce",
-        "- `checksums.sha256` -- SHA-256 of all outputs",
+        "- `reproducibility/commands.sh` -- exact command to reproduce",
+        "- `reproducibility/environment.yml` -- conda environment",
+        "- `reproducibility/checksums.sha256` -- SHA-256 of all outputs",
         "",
         "---",
         "",
@@ -662,80 +668,62 @@ def validate_fhir_bundle(bundle: dict) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Reproducibility -- commands.sh and checksums.sha256
+# Reproducibility -- <output_dir>/reproducibility/ via clawbio.common
 # ---------------------------------------------------------------------------
 
 
-def write_commands(args: argparse.Namespace, output_dir: Path) -> Path:
-    """Write commands.sh with the exact CLI invocation to reproduce the run.
+def write_reproducibility(args: argparse.Namespace, output_dir: Path) -> Path:
+    """Write reproducibility/{commands.sh,environment.yml,checksums.sha256}.
 
-    Reconstructs the command from parsed args (not sys.argv) so the output
-    is always canonical, even if the user passed args in a different order.
-    Only includes non-default values to keep the command minimal.
+    commands.sh is rebuilt from parsed args (not sys.argv) so it is canonical
+    and lists only non-default values. Checksums cover files inside
+    output_dir only, labelled relative to it, so
+    `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256` passes.
     """
-    parts = ["python skills/clinical-trial-finder/clinical_trial_finder.py"]
-
-    def _sq(val: str) -> str:
-        """Shell-quote a value using single quotes (handles spaces and special chars)."""
-        return "'" + str(val).replace("'", "'\\''") + "'"
+    argv = ["python", "skills/clinical-trial-finder/clinical_trial_finder.py"]
 
     # Source mode -- mutually exclusive
     if args.demo:
-        parts.append("--demo")
+        argv.append("--demo")
     elif args.input:
-        parts.append(f"--input {_sq(args.input)}")
+        argv += ["--input", str(args.input)]
     elif args.query:
-        parts.append(f"--query {_sq(args.query)}")
+        argv += ["--query", args.query]
     elif args.gene:
-        parts.append(f"--gene {_sq(args.gene)}")
-    elif getattr(args, "rsid", None):
-        parts.append(f"--rsid {_sq(args.rsid)}")
+        argv += ["--gene", args.gene]
+    elif args.rsid:
+        argv += ["--rsid", args.rsid]
 
     # Optional filters and flags -- only if non-default
     if args.status:
-        parts.append(f"--status {args.status}")
-    if getattr(args, "country", None):
-        parts.append(f"--country {_sq(args.country)}")
+        argv += ["--status", args.status]
+    if args.country:
+        argv += ["--country", args.country]
     if args.max_results != DEFAULT_PAGE_SIZE:
-        parts.append(f"--max-results {args.max_results}")
+        argv += ["--max-results", str(args.max_results)]
     if args.fhir:
-        parts.append("--fhir")
-    if getattr(args, "euctr", False):
-        parts.append("--euctr")
-    if getattr(args, "ot_min_score", 0.6) != 0.6:
-        parts.append(f"--ot-min-score {args.ot_min_score}")
-    if getattr(args, "ot_max_diseases", 5) != 5:
-        parts.append(f"--ot-max-diseases {args.ot_max_diseases}")
+        argv.append("--fhir")
+    if args.euctr:
+        argv.append("--euctr")
+    if args.ot_min_score != 0.6:
+        argv += ["--ot-min-score", str(args.ot_min_score)]
+    if args.ot_max_diseases != 5:
+        argv += ["--ot-max-diseases", str(args.ot_max_diseases)]
+    argv += ["--output", str(output_dir)]
 
-    parts.append(f"--output {_sq(output_dir)}")
-    path = output_dir / "commands.sh"
-    path.write_text(" \\\n  ".join(parts) + "\n")
-    return path
-
-
-def write_checksums(output_dir: Path) -> Path:
-    """Write checksums.sha256 with SHA-256 digests of all generated outputs.
-
-    Uses standard sha256sum format (hex digest, two spaces, relative path)
-    so users can verify with: sha256sum -c checksums.sha256
-    Skips files that don't exist (e.g. fhir_bundle.json when --fhir is off).
-    """
+    write_commands_sh(output_dir, shlex.join(argv))
+    env = write_environment_yml(
+        output_dir, "clawbio-clinical-trial-finder", ["matplotlib>=3.11.2"]
+    )
     targets = [
-        "report.md",
-        "summary.json",
-        "fhir_bundle.json",
-        "report.html",
-        "tables/trials.csv",
-        "figures/phase_distribution.png",
-        "commands.sh",
+        output_dir / rel
+        for rel in (
+            "report.md",
+            "report.html",
+            "summary.json",
+            "fhir_bundle.json",
+            "tables/trials.csv",
+            "figures/phase_distribution.png",
+        )
     ]
-    lines = []
-    for rel in targets:
-        p = output_dir / rel
-        try:
-            lines.append(f"{_sha256(p)}  {rel}")
-        except FileNotFoundError:
-            pass  # Skip outputs that weren't generated (e.g. fhir_bundle.json without --fhir)
-    path = output_dir / "checksums.sha256"
-    path.write_text("\n".join(lines) + "\n")
-    return path
+    return write_checksums([*targets, env], output_dir, anchor=output_dir)

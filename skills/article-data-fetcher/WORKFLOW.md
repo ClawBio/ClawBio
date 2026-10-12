@@ -51,7 +51,7 @@ flowchart TD
     CONF -->|Yes| DL
     WARN -->|No| DL
 
-    DL[download_file\nStream with tqdm progress bar\nVerify MD5 checksum if available]
+    DL[download_file\nStream to disk\nVerify MD5 checksum if available]
     DL --> UZ{--no-unzip\nflag?}
     UZ -->|No = default| UNZIP[unzip_file\nDecompress .gz\nDelete original]
     UZ -->|Yes| KEEP[Keep compressed]

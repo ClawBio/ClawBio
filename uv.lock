@@ -751,6 +751,10 @@ otlp = [
 region-fetch = [
     { name = "pysam" },
 ]
+robotary = [
+    { name = "fastapi" },
+    { name = "uvicorn" },
+]
 spatial = [
     { name = "leidenalg" },
     { name = "scanpy", version = "1.11.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -775,6 +779,7 @@ requires-dist = [
     { name = "bioblend", marker = "extra == 'galaxy-bridge'", specifier = ">=1.2" },
     { name = "biopython", specifier = ">=1.88" },
     { name = "conda-lock", specifier = ">=4.0.2" },
+    { name = "fastapi", marker = "extra == 'robotary'", specifier = ">=0.143.0" },
     { name = "fastmcp", marker = "extra == 'just-prs'", specifier = ">=3.4.4,<4" },
     { name = "google-auth", specifier = ">=2.58.0,<3" },
     { name = "google-cloud-bigquery", specifier = ">=3.45.2,<4" },
@@ -801,8 +806,9 @@ requires-dist = [
     { name = "sushie", marker = "extra == 'fine-mapping'", specifier = ">=0.20,<0.21" },
     { name = "tifffile", marker = "extra == 'cell-detection'", specifier = ">=2024.8.30" },
     { name = "typer", marker = "extra == 'just-prs'", specifier = ">=0.27.2,<1" },
+    { name = "uvicorn", marker = "extra == 'robotary'", specifier = ">=0.51.0" },
 ]
-provides-extras = ["affinity-proteomics", "cell-detection", "drug-repurposing-screen", "fine-mapping", "galaxy-bridge", "just-prs", "labstep", "mcp", "otlp", "region-fetch", "spatial"]
+provides-extras = ["affinity-proteomics", "cell-detection", "drug-repurposing-screen", "fine-mapping", "galaxy-bridge", "just-prs", "labstep", "mcp", "otlp", "region-fetch", "robotary", "spatial"]
 
 [package.metadata.requires-dev]
 bot = [
@@ -1253,6 +1259,23 @@ accel = [
 ]
 sparse = [
     { name = "scipy", marker = "python_full_version >= '3.12'" },
+]
+
+[[package]]
+name = "fastapi"
+version = "0.143.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "annotated-doc" },
+    { name = "opentelemetry-api" },
+    { name = "pydantic" },
+    { name = "starlette" },
+    { name = "typing-extensions" },
+    { name = "typing-inspection" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0b/d7/6a8753ab6c1d432dc53703c3e1b92974a94531b7d047c32bbaae461ea844/fastapi-0.143.0.tar.gz", hash = "sha256:1acffe48206a80917cf7dac21992b5c44b25384e8902bf745c1fd9dabcf6c51f", size = 468391, upload-time = "2026-10-08T12:29:46.54Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/f4/27e386913417ad32aae42bba48b0c0cce40e9ff2fba1a871ca2702c37324/fastapi-0.143.0-py3-none-any.whl", hash = "sha256:3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d", size = 144665, upload-time = "2026-10-08T12:29:44.853Z" },
 ]
 
 [[package]]

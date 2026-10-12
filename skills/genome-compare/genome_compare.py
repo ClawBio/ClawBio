@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -38,6 +39,11 @@ from clawbio.common.parsers import (
 )
 from clawbio.common.checksums import sha256_hex
 from clawbio.common.report import write_result_json
+from clawbio.common.reproducibility import (
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 
 # --------------------------------------------------------------------------- #
 # Paths
@@ -722,6 +728,16 @@ def run_comparison(
     is_demo: bool = False,
 ) -> dict:
     """Run full genome comparison pipeline."""
+    cmd = ["python", "skills/genome-compare/genome_compare.py"]
+    cmd += ["--demo"] if is_demo else ["--input", str(input_path)]
+    if reference_path is not None:
+        cmd += ["--reference", str(reference_path)]
+    if aims_path is not None:
+        cmd += ["--aims-panel", str(aims_path)]
+    if no_figures:
+        cmd.append("--no-figures")
+    cmd += ["--output", str(output_dir)]
+
     if reference_path is None:
         reference_path = REFERENCE_FILE
     if aims_path is None:
@@ -855,6 +871,15 @@ def run_comparison(
         },
         input_checksum=sha256_hex(str(input_path)),
     )
+
+    # Reproducibility bundle
+    write_commands_sh(output_dir, shlex.join(cmd))
+    env_path = write_environment_yml(
+        output_dir, "clawbio-genome-compare", [], ["numpy>=1.24", "matplotlib>=3.7"]
+    )
+    outputs = [output_dir / "report.md", output_dir / "result.json", env_path]
+    outputs += [fig_dir / name for name in figures.values()]
+    write_checksums(outputs, output_dir, anchor=output_dir)
 
     return {
         "ibs_score": ibs_score,

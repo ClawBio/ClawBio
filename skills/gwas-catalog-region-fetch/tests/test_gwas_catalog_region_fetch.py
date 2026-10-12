@@ -165,3 +165,98 @@ def test_fetch_region_raises_on_unopenable_index(monkeypatch):
     with pytest.raises(GWASCatalogFetchError):
         # Valid GCST format but the tabix open will fail (mocked).
         client.fetch_region("GCST99999999", "2", 1, 1000)
+
+
+# ----------------------- odds-ratio studies -----------------------
+# A binary-trait study can publish an odds ratio and its CI with no beta. The
+# fetcher passes those through as published and never synthesises a beta.
+
+
+def test_normalise_row_or_only_passes_or_ci_through_beta_stays_none():
+    from gwas_catalog_region_fetch import _normalise_row
+    row = {
+        "chromosome": "1", "base_pair_location": "12345",
+        "other_allele": "C", "effect_allele": "T",
+        "odds_ratio": "2.0", "ci_lower": "1.5", "ci_upper": "2.7",
+        "p_value": "1e-8", "effect_allele_frequency": "0.2",
+    }
+    v = _normalise_row(row)
+    assert isinstance(v, RegionVariant)
+    assert v.beta is None and v.se is None
+    assert v.odds_ratio == pytest.approx(2.0)
+    assert v.ci_lower == pytest.approx(1.5)
+    assert v.ci_upper == pytest.approx(2.7)
+    assert v.p_value == pytest.approx(1e-8)
+
+
+def test_normalise_row_native_beta_row_has_no_ci():
+    from gwas_catalog_region_fetch import _normalise_row
+    row = {
+        "chromosome": "1", "base_pair_location": "12345",
+        "other_allele": "C", "effect_allele": "T",
+        "beta": "-0.05", "standard_error": "0.008", "p_value": "1e-9",
+    }
+    v = _normalise_row(row)
+    assert v.beta == pytest.approx(-0.05)
+    assert v.odds_ratio is None
+    assert v.ci_lower is None and v.ci_upper is None
+
+
+def test_normalise_row_reads_hm_prefixed_ci():
+    from gwas_catalog_region_fetch import _normalise_row
+    row = {
+        "hm_chrom": "2", "hm_pos": "500", "hm_other_allele": "A", "hm_effect_allele": "G",
+        "hm_odds_ratio": "1.3", "hm_ci_lower": "1.1", "hm_ci_upper": "1.5", "p_value": "1e-4",
+    }
+    v = _normalise_row(row)
+    assert v.odds_ratio == pytest.approx(1.3)
+    assert v.ci_lower == pytest.approx(1.1)
+    assert v.ci_upper == pytest.approx(1.5)
+    assert v.beta is None
+
+
+_OR_HEADER = [
+    "chromosome", "base_pair_location", "other_allele", "effect_allele",
+    "odds_ratio", "ci_lower", "ci_upper", "p_value", "effect_allele_frequency",
+]
+_OR_ROWS = [
+    "\t".join(["1", "100", "C", "T", "2.0", "1.5", "2.7", "1e-8", "0.2"]),
+    "\t".join(["1", "200", "A", "G", "1.5", "1.2", "1.9", "5e-6", "0.3"]),
+]
+
+
+def test_fetch_region_exposes_or_ci_without_deriving_a_beta(monkeypatch):
+    tbx = _mock_tabix(_OR_ROWS, _OR_HEADER)
+    monkeypatch.setattr("pysam.TabixFile", lambda url: tbx)
+    result = GWASCatalogClient().fetch_region("GCST90475990", "1", 1, 1_000)
+    assert result.n_variants == 2
+    assert all(v.beta is None for v in result.variants)
+    assert [(v.ci_lower, v.ci_upper) for v in result.variants] == [(1.5, 2.7), (1.2, 1.9)]
+    assert not any("log(OR)" in n for n in result.notes)
+
+
+def test_cached_window_keeps_the_ci(monkeypatch, tmp_path):
+    """A window served from the cache carries the same CI bounds as a fresh fetch."""
+    from gwas_catalog_region_fetch import _fetch_with_cache
+    tbx = _mock_tabix(_OR_ROWS, _OR_HEADER)
+    monkeypatch.setattr("pysam.TabixFile", lambda url: tbx)
+    cfg = {"accession": "GCST90475990", "chromosome": "1", "start_bp": 1, "end_bp": 1_000}
+    fresh = _fetch_with_cache(client=GWASCatalogClient(), cfg=cfg, cache_dir=tmp_path)
+
+    def must_not_fetch(url):
+        raise AssertionError("served from cache, so no tabix open is expected")
+    monkeypatch.setattr("pysam.TabixFile", must_not_fetch)
+    cached = _fetch_with_cache(client=GWASCatalogClient(), cfg=cfg, cache_dir=tmp_path)
+    assert [(v.ci_lower, v.ci_upper) for v in cached.variants] == \
+        [(v.ci_lower, v.ci_upper) for v in fresh.variants]
+
+
+def test_cache_entry_from_before_the_ci_fields_is_not_served(monkeypatch, tmp_path):
+    """An entry under the previous key (written without CI bounds) is ignored."""
+    from gwas_catalog_region_fetch import _fetch_with_cache
+    (tmp_path / "GCST90475990__chr1_1_1000.json").write_text("not json")
+    tbx = _mock_tabix(_OR_ROWS, _OR_HEADER)
+    monkeypatch.setattr("pysam.TabixFile", lambda url: tbx)
+    cfg = {"accession": "GCST90475990", "chromosome": "1", "start_bp": 1, "end_bp": 1_000}
+    result = _fetch_with_cache(client=GWASCatalogClient(), cfg=cfg, cache_dir=tmp_path)
+    assert result.variants[0].ci_lower == pytest.approx(1.5)

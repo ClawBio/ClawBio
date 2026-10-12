@@ -11,6 +11,7 @@ import argparse
 import json
 import math
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,16 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -612,6 +623,25 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def write_reproducibility(
+    output_dir: Path, opts: argparse.Namespace, outputs: List[Path]
+) -> None:
+    """Write reproducibility/ (commands.sh, environment.yml, checksums.sha256)."""
+    cmd = ["python", "skills/archaic-introgression/archaic_introgression.py"]
+    if opts.demo:
+        cmd.append("--demo")
+    else:
+        cmd += ["--input", opts.input, "--archaic", opts.archaic]
+    cmd += ["--output", str(output_dir), "--method", opts.method, "--lod", str(opts.lod)]
+    if opts.samples:
+        cmd += ["--samples", opts.samples]
+    write_commands_sh(output_dir, shlex.join(cmd))
+    env_path = write_environment_yml(
+        output_dir, "clawbio-archaic-introgression", [], conda_deps=["numpy"]
+    )
+    write_checksums([*outputs, env_path], output_dir, anchor=output_dir)
+
+
 def main(args: Optional[List[str]] = None) -> int:
     """Main entry point."""
     parser = build_parser()
@@ -642,6 +672,7 @@ def main(args: Optional[List[str]] = None) -> int:
     # Write outputs
     json_path = write_result_json(segments, output_dir, opts.method, opts.lod)
     bed_path = write_report(segments, output_dir, opts.method, opts.lod)
+    write_reproducibility(output_dir, opts, [json_path, bed_path])
 
     # Print summary
     summary = compute_summary(segments)

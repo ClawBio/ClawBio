@@ -1,0 +1,150 @@
+{
+  "demo_label": "SYNTHETIC demo input for prs-applicability-gate: every value is invented. No person, no genotype data, no real PGS Catalog record.",
+  "schema": "prs-applicability-gate.input.v2",
+  "candidate": {
+    "pgs_id": "PGS_SYNTHETIC_B",
+    "pre_rank": 1,
+    "trait_reported": "Synthetic trait (demo)",
+    "sex_specific": null
+  },
+  "score_file": {
+    "name": "synthetic_score.txt",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "build": "GRCh38",
+    "weight_type": "beta",
+    "ratio_weight_type": false,
+    "unsupported_features": [],
+    "n_parse_problems": 0,
+    "variants_interactions": 0
+  },
+  "genotype": {
+    "file_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "format": "vcf",
+    "n_calls": 48000,
+    "n_called": 47910,
+    "build": "GRCh38",
+    "build_evidence": {
+      "header_declared": "GRCh38",
+      "method": "empirical (rsID anchor positions) + declaration"
+    }
+  },
+  "person": {
+    "sex": "male"
+  },
+  "harmonisation": {
+    "n_variants": 1200,
+    "n_matched": 1152,
+    "n_located": 1170,
+    "status_counts": {
+      "matched": 1152,
+      "missing": 30,
+      "palindromic_excluded": 16,
+      "allele_mismatch": 2
+    },
+    "allele_mismatch_fraction": 0.0017,
+    "weight_loss_by_status": {
+      "missing": 0.021,
+      "palindromic_excluded": 0.012,
+      "allele_mismatch": 0.001
+    },
+    "fraction_matched": 0.96,
+    "fraction_abs_weight_matched": 0.966
+  },
+  "scoreability": {
+    "r": 0.955,
+    "method": "reference_panel_correlation",
+    "measured_in": "AFR",
+    "n_samples": 500
+  },
+  "placement": {
+    "status": "INTERMEDIATE",
+    "placement": null,
+    "nearest_reference": "AFR",
+    "placement_stability": 0.41,
+    "n_sites_used": 5100,
+    "detail": "between the AFR and EUR reference clouds (intermediate placement)"
+  },
+  "catalog_metadata": {
+    "status": "resolved",
+    "failed_checks": [],
+    "detail": "metadata resolved; all blocking consistency checks passed",
+    "warnings": []
+  },
+  "evaluation": {
+    "reported": true,
+    "unit": "(publication, sample set) pairs",
+    "units": [
+      {
+        "pgp_id": "SYNTHETIC-PGP-1",
+        "pss_id": "SYNTHETIC-PSS-1",
+        "code": "EUR",
+        "pooled": false,
+        "n": 12000,
+        "cases": 1500,
+        "percent_male": 48.0,
+        "metrics": [
+          {
+            "name": "OR",
+            "estimate": 1.42,
+            "ci_lower": 1.33,
+            "ci_upper": 1.52,
+            "null": 1.0
+          },
+          {
+            "name": "AUROC",
+            "estimate": 0.61,
+            "ci_lower": 0.59,
+            "ci_upper": 0.63,
+            "null": 0.5
+          }
+        ]
+      },
+      {
+        "pgp_id": "SYNTHETIC-PGP-2",
+        "pss_id": "SYNTHETIC-PSS-2",
+        "code": "AFR",
+        "pooled": false,
+        "n": 2100,
+        "cases": 260,
+        "percent_male": 45.0,
+        "metrics": [
+          {
+            "name": "OR",
+            "estimate": 1.08,
+            "ci_lower": 0.95,
+            "ci_upper": 1.23,
+            "null": 1.0
+          }
+        ]
+      },
+      {
+        "pgp_id": "SYNTHETIC-PGP-3",
+        "pss_id": "SYNTHETIC-PSS-3",
+        "code": "MAE",
+        "pooled": true,
+        "n": 30000,
+        "cases": 3600,
+        "percent_male": 47.0,
+        "metrics": [
+          {
+            "name": "OR",
+            "estimate": 1.35,
+            "ci_lower": 1.29,
+            "ci_upper": 1.41,
+            "null": 1.0
+          }
+        ]
+      }
+    ]
+  },
+  "reference_distribution": {
+    "available": false,
+    "reference_group": null,
+    "reference_n": null,
+    "n_intersection": null,
+    "reference_sensitive": null,
+    "reference_sensitive_pairs": [],
+    "detail": "no resolved reference group"
+  },
+  "input_digest": "sha256:1688974ec54de2a16444c90abb7acfe51b9be3ac1a4a597abe8d79f934345a17"
+}

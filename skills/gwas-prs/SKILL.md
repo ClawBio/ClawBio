@@ -179,9 +179,8 @@ as an unsalted SHA-256 fingerprint: trait names are a small search space, so
 the digest lets a replay confirm it used the same query but does not anonymise
 it. Non-demo `commands.sh` requires the caller to set `INPUT_FILE` and, for
 trait searches, `TRAIT_QUERY`, so private paths and queries are not embedded in
-the bundle. `environment.yml` declares `numpy` and `pandas` as well as
-`requests` and `opentelemetry-sdk` because importing `clawbio.common` loads
-them eagerly.
+the bundle. `environment.yml` declares only `requests`, the one package a
+replay imports.
 
 ## Dependencies
 

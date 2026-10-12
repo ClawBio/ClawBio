@@ -114,6 +114,11 @@ python -m pytest -k "test_demo" -v                     # By pattern
 
 Tests must pass on Python 3.11, 3.12, and 3.13. CI runs all three via GitHub Actions.
 
+### Pytest conventions
+
+- Use `tmp_path` for temporary inputs and outputs instead of fixed shared paths or custom temporary-directory helpers. It provides a unique `pathlib.Path` directory per test; it does not change cwd.
+- Use `monkeypatch` for environment variables, attributes and cwd changes. Prefer `monkeypatch.chdir(tmp_path)` to manual `os.chdir()` / `try/finally` cleanup; pytest restores changes after the test. Patch names where the code looks them up.
+
 ## Code Style
 
 - **Python**: 3.11+ (type hints encouraged, `X | None` syntax over `Optional[X]`)
@@ -222,7 +227,7 @@ Hypothesis's default 200 ms deadline otherwise makes them flaky in CI.
 
 ## How to Add a New Skill
 
-**Every new skill MUST conform to `templates/SKILL-TEMPLATE.md`.** No exceptions. The `/pr-audit` command enforces this on every PR.
+**Every new skill MUST conform to `templates/SKILL-TEMPLATE.md`.** No exceptions.
 
 1. **Create the directories**: `mkdir -p skills/<your-skill-name>/tests skills/<your-skill-name>/examples`
 2. **Copy the template**: `cp templates/SKILL-TEMPLATE.md skills/<your-skill-name>/SKILL.md`
@@ -280,13 +285,12 @@ Hypothesis's default 200 ms deadline otherwise makes them flaky in CI.
 
 ## Benchmark Infrastructure
 
-ClawBio `v0.5.0` added benchmark and validation infrastructure that agents should know about when developing or testing skills:
+Benchmark and validation tools for developing or testing skills:
 
 - `tests/benchmark/ad_ground_truth.json` — curated AD ground-truth gene and variant benchmark set
 - `tests/benchmark/mock_api_server.py` — deterministic mock APIs for offline CI and local testing
 - `tests/benchmark/benchmark_scorer.py` — CLI and Python API for scoring outputs against ground truth
 - `tests/benchmark/finemapping_benchmark.py` — ABF vs SuSiE benchmark runner for fine-mapping
-- `AGENTS.md` — source of truth for the red/green TDD mandate now required for skill work (see **Development Rules (STRICT)** above)
 
 Useful commands:
 
@@ -310,15 +314,11 @@ python tests/benchmark/mock_api_server.py &
 The automated site-stats agent regenerates parts of `index.html`. These constraints
 are deliberate and must survive every regeneration:
 
-- **The skills grid shows exactly 5 cards.** It is a sample, not a directory. On
-  2026-07-29 it was trimmed from 25 to 5; the 30 Jul automated run pushed it back to
-  12. Do not add cards. Browsing the full set is what `skills/` and the marketplace
-  are for.
+- **The skills grid shows exactly 5 cards.** It is a sample, not a directory; do not
+  add cards. Browsing the full set is what `skills/` and the marketplace are for.
 - **The "+ N more skills" line must equal `skill_count` in `skills/catalog.json`
-  minus the 5 shown.** Never hand-write N. It has been wrong twice (read "+ 69 more"
-  against 25 shown out of 95).
-- **"Latest from the community" shows at most 10 cards**, newest first. It had grown
-  to 69, going back to April.
+  minus the 5 shown.** Never hand-write N.
+- **"Latest from the community" shows at most 10 cards**, newest first.
 - **Every count on the page derives from a source, never from memory**: skills and
   Galaxy tools from `skills/catalog.json` (which excludes proprietary/local-only
   folders, so never count `SKILL.md` directories); tests from
@@ -326,9 +326,8 @@ are deliberate and must survive every regeneration:
   contributors from `gh api` at run time; benchmark scores from the most recent
   `bench-leaderboard` run, not from whatever the page currently says.
 - **Never publish a benchmark figure without its date and scope.** The suite is a
-  `--smoke` run over 10 of 95 skills and its overall verdict is currently `pass:
-  false`. Presenting the pass rate alone as a success headline is how the site came
-  to advertise 92.3% for 87 days while the real figure was 88.5%.
+  `--smoke` run over a subset of skills; a pass rate shown alone reads as a success
+  headline and goes stale silently.
 
 ## Safety Boundaries
 

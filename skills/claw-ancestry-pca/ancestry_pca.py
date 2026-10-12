@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from collections import Counter
 from datetime import datetime, timezone
@@ -37,6 +38,11 @@ from clawbio.common.report import (
     generate_report_header,
     generate_report_footer,
     write_result_json,
+)
+from clawbio.common.reproducibility import (
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
 )
 
 # ---------------------------------------------------------------------------
@@ -359,6 +365,7 @@ def run_analysis(
     output_dir: Path,
     n_components: int = 10,
     no_figures: bool = False,
+    demo: bool = False,
 ) -> dict:
     """Full ancestry PCA pipeline with report output."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -456,6 +463,29 @@ def run_analysis(
             "variance_explained": [round(float(v), 6) for v in explained_var],
         },
         input_checksum=_sha256_file(input_path) if input_path.exists() else "",
+    )
+
+    # Reproducibility bundle
+    cmd = ["python", "skills/claw-ancestry-pca/ancestry_pca.py"]
+    if demo:
+        cmd.append("--demo")
+    else:
+        cmd += ["--input", str(input_path)]
+        if pop_map_path:
+            cmd += ["--pop-map", str(pop_map_path)]
+    cmd += ["--output", str(output_dir), "--n-components", str(n_components)]
+    if no_figures:
+        cmd.append("--no-figures")
+    write_commands_sh(output_dir, shlex.join(cmd))
+    env_path = write_environment_yml(
+        output_dir, "clawbio-claw-ancestry-pca",
+        pip_deps=["numpy", "pandas", "scikit-learn", "matplotlib"],
+    )
+    write_checksums(
+        [report_path, output_dir / "result.json",
+         tables_dir / "pc_coordinates.csv", tables_dir / "variance_explained.csv",
+         figures_dir / "pca_composite.png", env_path],
+        output_dir, anchor=output_dir,
     )
 
     print("\nDone.")
@@ -561,6 +591,7 @@ def main() -> None:
         output_dir=output_dir,
         n_components=args.n_components,
         no_figures=args.no_figures,
+        demo=args.demo,
     )
 
 

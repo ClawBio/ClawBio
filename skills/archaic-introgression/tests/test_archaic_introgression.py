@@ -266,6 +266,32 @@ class TestCLI:
         assert "lod_threshold" in data
         assert "num_samples" in data
 
+    def test_demo_writes_verifiable_repro_bundle(self, tmp_path):
+        """--demo writes commands.sh, environment.yml and checksums that verify."""
+        import hashlib
+
+        outdir = tmp_path / "demo_repro"
+        assert ai.main(["--demo", "--output", str(outdir)]) == 0
+        repro = outdir / "reproducibility"
+        for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+            assert (repro / name).exists(), name
+
+        commands = (repro / "commands.sh").read_text()
+        assert "python skills/archaic-introgression/archaic_introgression.py" in commands
+        assert "--demo" in commands
+        assert str(SKILL_DIR) not in commands
+        assert "numpy" in (repro / "environment.yml").read_text()
+
+        lines = (repro / "checksums.sha256").read_text().splitlines()
+        labels = {line.split("  ", 1)[1] for line in lines}
+        assert {"introgression_results.json", "segments.bed",
+                "reproducibility/environment.yml"} <= labels
+        for line in lines:
+            digest, label = line.split("  ", 1)
+            target = outdir / label
+            assert target.resolve().is_relative_to(outdir.resolve()), label
+            assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, label
+
     def test_missing_input_returns_error(self):
         """Missing --input without --demo causes an error."""
         with pytest.raises(SystemExit):

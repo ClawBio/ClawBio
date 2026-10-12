@@ -104,6 +104,11 @@ spatial = [
     "scanpy>=1.10",
     "leidenalg>=0.10",
 ]
+# The Robotary web UI (robotary/server.py).
+robotary = [
+    "fastapi>=0.143.0",
+    "uvicorn>=0.51.0",
+]
 
 [tool.uv]
 # glimix-core (a hard dependency of sushie) requires liknorm, and liknorm 2.0.0

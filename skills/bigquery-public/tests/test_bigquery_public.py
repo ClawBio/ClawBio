@@ -17,10 +17,7 @@ import bigquery_backends as backends  # noqa: E402
 import bigquery_public as skill  # noqa: E402
 
 
-_RUNNER_SPEC = importlib.util.spec_from_file_location("clawbio_runner", PROJECT_ROOT / "clawbio.py")
-assert _RUNNER_SPEC and _RUNNER_SPEC.loader
-clawbio_runner = importlib.util.module_from_spec(_RUNNER_SPEC)
-_RUNNER_SPEC.loader.exec_module(clawbio_runner)
+from clawbio import cli as clawbio_runner  # noqa: E402
 
 _CATALOG_SPEC = importlib.util.spec_from_file_location("generate_catalog_module", PROJECT_ROOT / "scripts" / "generate_catalog.py")
 assert _CATALOG_SPEC and _CATALOG_SPEC.loader

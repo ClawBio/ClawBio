@@ -354,3 +354,37 @@ class TestDemoMode:
         pops = set(result["pop_counts"].keys())
         assert "AFR" in pops
         assert "EUR" in pops
+
+
+# ---------------------------------------------------------------------------
+# Reproducibility bundle
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not DEMO_VCF.exists(), reason="Demo VCF not available")
+def test_demo_writes_verifiable_repro_bundle(tmp_path):
+    import hashlib
+    import subprocess
+
+    out = tmp_path / "out"
+    subprocess.run(
+        [sys.executable, str(_SKILL_DIR / "ancestry_pca.py"),
+         "--demo", "--output", str(out), "--no-figures"],
+        check=True, cwd=_PROJECT_ROOT, capture_output=True,
+    )
+    repro = out / "reproducibility"
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (repro / name).exists(), name
+
+    cmd = (repro / "commands.sh").read_text()
+    assert "python skills/claw-ancestry-pca/ancestry_pca.py" in cmd
+    assert "--demo" in cmd
+    assert str(_PROJECT_ROOT) not in cmd
+
+    lines = (repro / "checksums.sha256").read_text().splitlines()
+    labels = {line.split("  ", 1)[1] for line in lines}
+    assert {"report.md", "result.json", "reproducibility/environment.yml",
+            "tables/pc_coordinates.csv"} <= labels
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        assert hashlib.sha256((out / label).read_bytes()).hexdigest() == digest, label

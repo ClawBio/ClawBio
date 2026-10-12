@@ -69,6 +69,10 @@ If the skill includes tests, run:
 python -m pytest skills/your-skill-name/tests/ -v
 ```
 
+Use pytest's built-in fixtures where needed: `tmp_path` for temporary files and
+`monkeypatch` for environment/cwd changes. See
+[Pytest conventions](AGENTS.md#pytest-conventions) for the full fixture guidance.
+
 If the skill computes scores, applies thresholds, parses files or converts
 coordinates, include at least one Hypothesis property test. See
 [Property-based tests for maths and parsing](AGENTS.md#property-based-tests-for-maths-and-parsing)

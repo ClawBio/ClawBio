@@ -143,6 +143,23 @@ Reproducibility:
   commands.sh | environment.yml | checksums.sha256
 ```
 
+## Output Structure
+
+```
+<output_dir>/
+├── report.md
+├── result.json
+├── tables/
+│   ├── pc_coordinates.csv
+│   └── variance_explained.csv
+├── figures/
+│   └── pca_composite.png        # omitted with --no-figures
+└── reproducibility/
+    ├── commands.sh              # command that reproduces this run
+    ├── environment.yml
+    └── checksums.sha256         # cd <output_dir> && sha256sum -c reproducibility/checksums.sha256
+```
+
 ## Interpretation Guide
 
 - **PC1** typically captures the largest axis of global differentiation (often Africa vs non-Africa)
