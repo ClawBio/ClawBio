@@ -1,6 +1,6 @@
 # ClawBio PharmGx Report
 
-**Date**: 2026-10-05 12:26 UTC
+**Date**: 2026-10-12 16:49 UTC
 **Input**: `demo_patient.txt`
 **Format detected**: 23andme
 **Checksum (SHA-256)**: `ffe44b340edfbb21abf648f00c2ce68715f5c9453a590caef753bc25e316c5cc`
@@ -56,9 +56,9 @@ The following clinically relevant pharmacogenomic genes are **not included** in 
 | Category | Count |
 |----------|-------|
 | Standard dosing | 31 |
-| Use with caution | 10 |
+| Use with caution | 9 |
 | Avoid / use alternative | 1 |
-| Insufficient data | 17 |
+| Insufficient data | 18 |
 
 ### Actionable Alerts
 
@@ -74,7 +74,6 @@ The following clinically relevant pharmacogenomic genes are **not included** in 
 - **Piroxicam** (Feldene) [CYP2C9]
 - **Meloxicam** (Mobic) [CYP2C9]
 - **Efavirenz** (Sustiva) [CYP2B6]
-- **Methotrexate** (Rheumatrex / Trexall) [MTHFR]
 - **Ibuprofen** (Advil / Motrin) [CYP2C9]
 - **Naproxen** (Aleve / Naprosyn) [CYP2C9]
 - **Methadone** (Dolophine) [CYP2B6]
@@ -97,7 +96,7 @@ The following clinically relevant pharmacogenomic genes are **not included** in 
 | CYP2B6 | Cytochrome P450 2B6 | *1/*9 | Intermediate Metabolizer |
 | NUDT15 | Nudix Hydrolase 15 | *1/*1 (1/2 SNPs tested) | Indeterminate (incomplete coverage: 1/2 SNPs tested) |
 | CYP1A2 | Cytochrome P450 1A2 | *1/*1F | Normal Metabolizer |
-| MTHFR | Methylenetetrahydrofolate Reductase | 677CC/1298AC | Reduced MTHFR enzyme activity (677CT) |
+| MTHFR | Methylenetetrahydrofolate Reductase | 677CC/1298AC | Mildly reduced MTHFR enzyme activity (1298AC) |
 | HLA-B | HLA-B*57:01 | Not assessed | Indeterminate (not in panel) |
 | MT-RNR1 | MT-RNR1 (mitochondrial) | Not assessed | Indeterminate (not in panel) |
 | G6PD | Glucose-6-Phosphate Dehydrogenase | Not assessed | Indeterminate (not in panel) |
@@ -144,7 +143,6 @@ The following clinically relevant pharmacogenomic genes are **not included** in 
 | Ibuprofen | Advil / Motrin | NSAID | CYP2C9 | CAUTION |
 | Meloxicam | Mobic | NSAID | CYP2C9 | CAUTION |
 | Methadone | Dolophine | Opioid Analgesic | CYP2B6 | CAUTION |
-| Methotrexate | Rheumatrex / Trexall | DMARD / Antineoplastic | MTHFR | CAUTION |
 | Naproxen | Aleve / Naprosyn | NSAID | CYP2C9 | CAUTION |
 | Phenytoin | Dilantin | Antiepileptic | CYP2C9 | CAUTION |
 | Piroxicam | Feldene | NSAID | CYP2C9 | CAUTION |
@@ -160,6 +158,7 @@ The following clinically relevant pharmacogenomic genes are **not included** in 
 | Irinotecan | Camptosar | Antineoplastic | UGT1A1 | INDETERMINATE - INSUFFICIENT DATA |
 | Lansoprazole | Prevacid | Proton Pump Inhibitor | CYP2C19 | INDETERMINATE - INSUFFICIENT DATA |
 | Mercaptopurine | Purinethol | Immunosuppressant | TPMT | INDETERMINATE - INSUFFICIENT DATA |
+| Methotrexate | Rheumatrex / Trexall | DMARD / Antineoplastic | MTHFR | INDETERMINATE - INSUFFICIENT DATA — No CPIC or DPWG guideline uses MTHFR genotype for methotrexate, and published meta-analyses are inconsistent. MTHFR genotype is shown for information only; it does not change the recommendation. |
 | Omeprazole | Prilosec | Proton Pump Inhibitor | CYP2C19 | INDETERMINATE - INSUFFICIENT DATA |
 | Pantoprazole | Protonix | Proton Pump Inhibitor | CYP2C19 | INDETERMINATE - INSUFFICIENT DATA |
 | Sertraline | Zoloft | SSRI Antidepressant | CYP2C19 | INDETERMINATE - INSUFFICIENT DATA |

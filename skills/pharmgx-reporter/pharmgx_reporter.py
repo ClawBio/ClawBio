@@ -301,7 +301,7 @@ GENE_DEFS = {
     },
     "MTHFR": {
         "name": "Methylenetetrahydrofolate Reductase",
-        "function": "Folate metabolism; affects methotrexate toxicity",
+        "function": "Folate metabolism (no CPIC or DPWG drug guideline; reported for information only)",
         "type": "mthfr",
         "rsid_677": "rs1801133",
         "rsid_1298": "rs1801131",
@@ -310,16 +310,22 @@ GENE_DEFS = {
             "rs1801131": {"allele": "1298C", "alt": "C", "effect": "decreased_function"},
         },
         "phenotypes": {
-            # Activity labels follow DPWG MTHFR nomenclature with genotype detail
+            # Informational activity labels; no drug recommendation is derived from them (no CPIC or
+            # DPWG guideline uses MTHFR genotype). The parenthesis names the genotype actually observed.
+            # Wording follows measured activity rather than a dosing category (issue #594):
+            # - single heterozygotes: activity reduced, less than in the compound heterozygote
+            #   (Weisberg 1998, PMID 9719624; van der Put 1998, PMID 9545395)
+            # - 677CT/1298AC: "50-60% of control activity" and 1298CC "approximately 60%"
+            #   (Weisberg 1998, PMID 9719624)
+            # - 677TT: thermolabile enzyme with reduced activity; homozygotes have elevated plasma
+            #   homocysteine (Frosst 1995, PMID 7647779)
             "Normal MTHFR enzyme activity (677CC)":          ["677CC/1298AA", "677CC/1298NOT_TESTED",
                                                               "677NOT_TESTED/1298AA"],
-            # The parenthesis names the genotype that was actually observed, so a reader never
-            # sees "677TT" printed for someone who is 677CT/1298AC. Activity grouping is unchanged:
-            # 1298AC alone groups with 677CT, the 677CT/1298AC compound heterozygote with 677TT.
-            "Reduced MTHFR enzyme activity (677CT)":         ["677CT/1298AA"],
-            "Reduced MTHFR enzyme activity (1298AC)":        ["677CC/1298AC"],
-            "Strongly reduced MTHFR enzyme activity (677TT)": ["677TT/1298AA"],
-            "Strongly reduced MTHFR enzyme activity (677CT/1298AC compound heterozygous)": ["677CT/1298AC"],
+            "Mildly reduced MTHFR enzyme activity (677CT)":  ["677CT/1298AA"],
+            "Mildly reduced MTHFR enzyme activity (1298AC)": ["677CC/1298AC"],
+            "Moderately reduced MTHFR enzyme activity (677CT/1298AC compound heterozygous)": ["677CT/1298AC"],
+            "Moderately reduced MTHFR enzyme activity (1298CC)": ["677CC/1298CC"],
+            "Reduced MTHFR enzyme activity (677TT)":         ["677TT/1298AA"],
         },
     },
 }
@@ -721,11 +727,15 @@ GUIDELINES = {
     # --- MTHFR drug ---
     "Methotrexate": {
         "brand": "Rheumatrex / Trexall", "class": "DMARD / Antineoplastic", "gene": "MTHFR",
-        "recs": {
-            "normal_activity": "standard",
-            "intermediate_activity": "caution",
-            "reduced_activity": "caution",
-        },
+        # Issue #594: no CPIC or DPWG guideline uses MTHFR genotype for methotrexate, and the
+        # meta-analyses disagree (association with toxicity for 677T in Fisher 2009, PMID 19208607;
+        # no association with efficacy or toxicity across 17 studies in Owen 2013, PMID 21931346).
+        # The genotype is shown for information only and never grades the drug.
+        "informational_only": True,
+        "note": ("No CPIC or DPWG guideline uses MTHFR genotype for methotrexate, and published "
+                 "meta-analyses are inconsistent. MTHFR genotype is shown for information only; "
+                 "it does not change the recommendation."),
+        "recs": {},
     },
     # --- Additional CYP2C9 NSAIDs ---
     "Diclofenac": {
@@ -880,13 +890,16 @@ def lookup_single_drug(drug_name, profiles):
     prof = profiles[gene]
     pheno_key = phenotype_to_key(prof["phenotype"])
     recs = info.get("recs", {})
-    classification = recs.get(pheno_key, "indeterminate")
+    classification = "indeterminate" if info.get("informational_only") else recs.get(pheno_key, "indeterminate")
 
-    return {
+    result = {
         "drug": drug_name, "brand": info["brand"], "class": info["class"],
         "gene": gene, "diplotype": prof["diplotype"], "phenotype": prof["phenotype"],
         "classification": classification,
     }
+    if info.get("note"):
+        result["note"] = info["note"]
+    return result
 
 
 _CLASS_LABELS = {
@@ -1297,12 +1310,13 @@ def phenotype_to_key(phenotype_desc):
         "CYP3A5 Expressor": "extensive_metabolizer",
         "Intermediate Expressor": "intermediate_metabolizer",
         "CYP3A5 Non-expressor": "poor_metabolizer",
-        # MTHFR activity labels (DPWG nomenclature with genotype detail)
+        # MTHFR activity labels (informational; no drug in GUIDELINES is graded on them)
         "Normal MTHFR enzyme activity (677CC)": "normal_activity",
-        "Reduced MTHFR enzyme activity (677CT)": "intermediate_activity",
-        "Strongly reduced MTHFR enzyme activity (677TT)": "reduced_activity",
-        "Reduced MTHFR enzyme activity (1298AC)": "intermediate_activity",
-        "Strongly reduced MTHFR enzyme activity (677CT/1298AC compound heterozygous)": "reduced_activity",
+        "Mildly reduced MTHFR enzyme activity (677CT)": "mildly_reduced_activity",
+        "Mildly reduced MTHFR enzyme activity (1298AC)": "mildly_reduced_activity",
+        "Moderately reduced MTHFR enzyme activity (677CT/1298AC compound heterozygous)": "moderately_reduced_activity",
+        "Moderately reduced MTHFR enzyme activity (1298CC)": "moderately_reduced_activity",
+        "Reduced MTHFR enzyme activity (677TT)": "reduced_activity",
     }
     # Try exact match first, then strip qualifiers like "(inferred)"
     key = mapping.get(phenotype_desc)
@@ -1380,6 +1394,14 @@ def lookup_drugs(profiles):
             continue
 
         recs = drug.get("recs", {})
+        if drug.get("informational_only"):
+            # no guideline uses this gene for this drug: never graded (issue #594)
+            results["indeterminate"].append({
+                "drug": drug_name, "brand": drug["brand"],
+                "class": drug["class"], "gene": gene,
+                "classification": "indeterminate", "note": drug.get("note", ""),
+            })
+            continue
         classification = recs.get(pheno_key, "indeterminate")
 
         results.setdefault(classification, []).append({
