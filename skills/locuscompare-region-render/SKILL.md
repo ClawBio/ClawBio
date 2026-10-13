@@ -208,6 +208,9 @@ Bundled examples in `examples/` (each runnable via `--demo <NAME>` once any requ
 - `05_sqtl_sort1_liver_txrev/` - SORT1 sQTL in GTEx liver (txrev quant method)
 - `06_sceqtl_sort1_onek1k_cd14_mono/` - SORT1 sceQTL in OneK1K CD14+ monocytes
 - `07_pqtl_sort1_ukbppp_eur/` - SORT1 plasma sortilin via UKB-PPP (pQTL dispatch path)
+- `08_open_targets_credible_set/` - IL23R plasma protein × IBD, starting from an Open Targets credible-set page
+
+Starting from an Open Targets page, an rsID or your own files: `references/entry_points.md` maps each starting point to the config, and `references/from_open_targets.md` walks the Open Targets route.
 
 The `examples/chains/` and `examples/recipes/` subdirectories are documentation patterns, not numbered demos: `chains/finemapping_chain/` documents the `fine-mapping` skill -> locuscompare chain (requires `fine-mapping` to have run first; not in `--list-demos`); `recipes/` ships harmonisation scripts that convert FinnGen / Pan-UKBB / UKB-PPP / GTEx v10 native formats into the canonical INPUT_SCHEMA TSV for use via `sumstats_path:`.
 

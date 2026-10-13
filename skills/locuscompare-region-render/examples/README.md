@@ -15,6 +15,7 @@ non-bundled data sources.
 | `05_sqtl_sort1_liver_txrev/` | bundled fetchers (`.cc.tsv.gz`) | Yes | sQTL exposure (splicing); SORT1 in GTEx liver |
 | `06_sceqtl_sort1_onek1k_cd14_mono/` | bundled fetchers | Yes | sceQTL exposure (single-cell eQTL); SORT1 in OneK1K CD14+ monocytes |
 | `07_pqtl_sort1_ukbppp_eur/` | bundled fetchers (UKB-PPP dispatch) | Yes | pQTL exposure via `UKB_PPP_*` dispatch; SORT1 plasma sortilin |
+| `08_open_targets_credible_set/` | bundled fetchers (eQTL Catalogue aptamer + GWAS Catalog) | Yes | start from an Open Targets credible-set page; IL23R plasma protein × IBD |
 
 ## Chain pattern (not in `--list-demos`; requires upstream skill output first)
 
