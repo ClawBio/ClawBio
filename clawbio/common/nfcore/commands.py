@@ -1,5 +1,7 @@
 """Nextflow argv construction; callers own profile composition."""
+
 from __future__ import annotations
+
 import shlex
 import subprocess
 import sys
@@ -31,7 +33,12 @@ def build_nextflow_command(
     # across macOS, Linux, and Windows (native or via WSL2).
     command.extend(["-profile", profile, "-params-file", params_path.as_posix()])
     if work_dir is not None:
-        command.extend(["-work-dir", work_dir if isinstance(work_dir, str) else work_dir.as_posix()])
+        command.extend(
+            [
+                "-work-dir",
+                work_dir if isinstance(work_dir, str) else work_dir.as_posix(),
+            ]
+        )
     for cfg in extra_configs or []:
         command.extend(["-c", cfg.as_posix()])
     if resume:

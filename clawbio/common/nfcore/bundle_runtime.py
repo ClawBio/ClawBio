@@ -1,11 +1,12 @@
 """Standard-library relocation mechanics embedded into standalone bundle scripts."""
+
 import csv
-import shutil
 import re
 import shlex
+import shutil
 import sys
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Callable, Sequence
 
 
 def write_text_lf(path: Path, text: str) -> None:
@@ -21,11 +22,13 @@ def write_text_lf(path: Path, text: str) -> None:
     normalised = text.replace("\r\n", "\n").replace("\r", "\n")
     Path(path).write_bytes(normalised.encode("utf-8"))
 
+
 def prefix_matches(path: str, prefix: str) -> bool:
     if path == prefix:
         return True
     sep = "" if prefix.endswith("/") else "/"
     return path.startswith(prefix + sep)
+
 
 def remap_csv(
     samplesheet: Path,
@@ -45,13 +48,17 @@ def remap_csv(
     for row in rows:
         for col in columns:
             if col in row and row[col] and prefix_matches(row[col], old_prefix):
-                new_val = new_prefix + row[col][len(old_prefix):]
+                new_val = new_prefix + row[col][len(old_prefix) :]
                 changes.append((col, row[col], new_val))
                 if not dry_run:
                     row[col] = new_val
 
     if not dry_run and changes:
-        backup = backup_path if backup_path is not None else samplesheet.with_name(samplesheet.name + ".bak")
+        backup = (
+            backup_path
+            if backup_path is not None
+            else samplesheet.with_name(samplesheet.name + ".bak")
+        )
         shutil.copy2(samplesheet, backup)
         with samplesheet.open("w", newline="", encoding="utf-8") as fh:
             # lineterminator="\n" matches how the wrapper first wrote the samplesheet
@@ -63,6 +70,7 @@ def remap_csv(
 
     return changes
 
+
 def run_actions(actions: Sequence[Callable[[], int]]) -> int:
     exit_code = 0
     for action in actions:
@@ -73,7 +81,13 @@ def run_actions(actions: Sequence[Callable[[], int]]) -> int:
 
 
 def escape_double_quoted(value: str) -> str:
-    return value.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`")
+    return (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("$", "\\$")
+        .replace("`", "\\`")
+    )
+
 
 def format_output_value(new_output_dir: str, *, old_value: str) -> str:
     if old_value.startswith('"') and old_value.endswith('"'):
@@ -88,7 +102,16 @@ def format_output_value(new_output_dir: str, *, old_value: str) -> str:
         return f'"{escape_double_quoted(new_output_dir)}"'
     return new_output_dir
 
-def repair_bundle(bundle_dir: Path, *, required_files: tuple[str, ...], commands_finder: Callable, regenerate_manifest: Callable, regenerate_environment: Callable, regenerate_checksums: Callable) -> int:
+
+def repair_bundle(
+    bundle_dir: Path,
+    *,
+    required_files: tuple[str, ...],
+    commands_finder: Callable,
+    regenerate_manifest: Callable,
+    regenerate_environment: Callable,
+    regenerate_checksums: Callable,
+) -> int:
     """Regenerate missing bundle files from existing bundle contents.
 
     checksums.sha256 is recomputed from whatever files are present — fully
@@ -119,18 +142,22 @@ def repair_bundle(bundle_dir: Path, *, required_files: tuple[str, ...], commands
         wrote_new_files = False
         if "manifest.json" in missing:
             regenerate_manifest(bd, commands_sh)
-            print("  [OK] manifest.json  (post-hoc stub - original metadata unavailable)")
+            print(
+                "  [OK] manifest.json  (post-hoc stub - original metadata unavailable)"
+            )
             wrote_new_files = True
         if "environment.yml" in missing:
             regenerate_environment(bd)
-            print("  [OK] environment.yml  (post-hoc stub - original snapshot unavailable)")
+            print(
+                "  [OK] environment.yml  (post-hoc stub - original snapshot unavailable)"
+            )
             wrote_new_files = True
         # Always recompute checksums when any file was written (or checksums itself was
         # missing), so the checksum file covers the full post-repair bundle state.
         if wrote_new_files or "checksums.sha256" in missing:
             regenerate_checksums(bd)
             print("  [OK] checksums.sha256  (recomputed from current bundle contents)")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - preserve best-effort repair diagnostics
         print(f"ERROR: Repair failed: {exc}", file=sys.stderr)
         return 1
 
@@ -142,7 +169,9 @@ def repair_bundle(bundle_dir: Path, *, required_files: tuple[str, ...], commands
         )
         return 1
 
-    stubs_regenerated = [f for f in ("manifest.json", "environment.yml") if f in missing]
+    stubs_regenerated = [
+        f for f in ("manifest.json", "environment.yml") if f in missing
+    ]
     if stubs_regenerated:
         stub_list = " and ".join(stubs_regenerated)
         stub_word = "stubs" if len(stubs_regenerated) > 1 else "stub"

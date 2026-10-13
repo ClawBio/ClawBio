@@ -1,13 +1,15 @@
 """Nextflow process mechanics with explicit caller-specific failure policy."""
+
 from __future__ import annotations
+
 import os
 import signal
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
-from .errors import SkillError
 
+from .errors import SkillError
 
 _MEMORY_FAILURE_SIGNATURES = (
     "process requirement exceeds available memory",
@@ -26,6 +28,7 @@ _CONFIG_PARSE_FAILURE_SIGNATURES = (
     "configparseexception",
 )
 
+
 def _read_log_tail(path: Path, limit: int = 65536) -> str:
     """Best-effort tail read of a captured log; never raises."""
     try:
@@ -33,6 +36,7 @@ def _read_log_tail(path: Path, limit: int = 65536) -> str:
             return fh.read()[-limit:]
     except OSError:
         return ""
+
 
 def environment_failure_hints(
     stdout_path: Path, stderr_path: Path, nextflow_log_path: Path | None = None
@@ -80,6 +84,7 @@ def environment_failure_hints(
         )
     return "".join(hints)
 
+
 def execute_nextflow(
     command: list[str],
     *,
@@ -103,7 +108,10 @@ def execute_nextflow(
     if sys.platform != "win32":
         popen_kwargs["start_new_session"] = True
 
-    with stdout_path.open("w", encoding="utf-8") as stdout_fh, stderr_path.open("w", encoding="utf-8") as stderr_fh:
+    with (
+        stdout_path.open("w", encoding="utf-8") as stdout_fh,
+        stderr_path.open("w", encoding="utf-8") as stderr_fh,
+    ):
         try:
             proc = subprocess.Popen(
                 command,
@@ -160,6 +168,7 @@ def execute_nextflow(
         "stdout_path": str(stdout_path),
         "stderr_path": str(stderr_path),
     }
+
 
 def terminate_process_tree(proc: subprocess.Popen, *, grace_seconds: int = 10) -> None:
     if sys.platform != "win32":

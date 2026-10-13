@@ -1,7 +1,10 @@
 """Structured failures shared by nf-core wrappers."""
+
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Any
+
 
 @dataclass
 class SkillError(Exception):

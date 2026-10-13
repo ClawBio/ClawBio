@@ -1,10 +1,12 @@
 """Shared error serialization and explicit module ownership contracts."""
+
 import importlib
 import itertools
 import subprocess
 import sys
 import types
 from pathlib import Path
+
 import pytest
 
 
@@ -12,8 +14,19 @@ def test_skill_error_payload_is_unchanged():
     module = importlib.import_module("clawbio.common.nfcore.errors")
     error = module.SkillError("validation", "INVALID_FASTQ", "bad", "fix", {"line": 3})
     assert str(error) == "bad"
-    assert error.to_dict() == {"status": "error", "ok": False, "stage": "validation", "error_code": "INVALID_FASTQ", "message": "bad", "fix": "fix", "details": {"line": 3}}
-    assert module.SkillError("s", "c", "m", "f").details is not module.SkillError("s", "c", "m", "f").details
+    assert error.to_dict() == {
+        "status": "error",
+        "ok": False,
+        "stage": "validation",
+        "error_code": "INVALID_FASTQ",
+        "message": "bad",
+        "fix": "fix",
+        "details": {"line": 3},
+    }
+    assert (
+        module.SkillError("s", "c", "m", "f").details
+        is not module.SkillError("s", "c", "m", "f").details
+    )
 
 
 def test_purge_respects_explicit_owner(tmp_path, monkeypatch):
@@ -30,7 +43,9 @@ def test_purge_respects_explicit_owner(tmp_path, monkeypatch):
     assert foreign.__name__ not in sys.modules
 
 
-@pytest.mark.parametrize("order", list(itertools.permutations(["rnaseq", "sarek", "scrnaseq"])))
+@pytest.mark.parametrize(
+    "order", list(itertools.permutations(["rnaseq", "sarek", "scrnaseq"]))
+)
 def test_wrapper_exception_identity_survives_loading_order(order, tmp_path):
     root = Path(__file__).resolve().parents[3]
     code = """
@@ -47,5 +62,11 @@ for name in [*sys.argv[2:], sys.argv[2]]:
     assert errors.SkillError is SkillError
     assert schemas.SKILL_NAME == 'nfcore-' + name + '-wrapper'
 """
-    result = subprocess.run([sys.executable, "-c", code, str(root), *order], cwd=root, capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(root), *order],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     assert result.returncode == 0, result.stderr

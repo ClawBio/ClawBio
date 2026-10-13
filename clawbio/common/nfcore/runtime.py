@@ -1,5 +1,7 @@
 """Runtime probes return facts; adapters retain validation and fallback policy."""
+
 from __future__ import annotations
+
 import os
 import re
 import shutil
@@ -7,9 +9,18 @@ import subprocess
 from collections.abc import Sequence
 
 
-def run_probe(command: Sequence[str], *, timeout_seconds: float) -> subprocess.CompletedProcess[str] | None:
+def run_probe(
+    command: Sequence[str], *, timeout_seconds: float
+) -> subprocess.CompletedProcess[str] | None:
     try:
-        return subprocess.run(command, capture_output=True, text=True, errors="replace", timeout=timeout_seconds)
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=timeout_seconds,
+            check=False,
+        )
     except (subprocess.TimeoutExpired, OSError):
         return None
 
@@ -26,8 +37,10 @@ def parse_version_tuple(text: str) -> tuple[int, ...]:
         return (int(m.group(1)),)
     return ()
 
+
 def pad_version(t: tuple[int, ...], length: int = 3) -> tuple[int, ...]:
     return t + (0,) * max(0, length - len(t))
+
 
 def host_memory_gb() -> int | None:
     """Return total physical RAM in whole GB, or None when it cannot be determined."""
@@ -38,7 +51,8 @@ def host_memory_gb() -> int | None:
         return None
     if page_size <= 0 or phys_pages <= 0:
         return None
-    return int((page_size * phys_pages) / (1024 ** 3))
+    return int((page_size * phys_pages) / (1024**3))
+
 
 def docker_memory_gb() -> int | None:
     """Return the Docker VM's total memory in whole GB, or None when unknown.
@@ -57,6 +71,7 @@ def docker_memory_gb() -> int | None:
             capture_output=True,
             text=True,
             timeout=10,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -65,7 +80,7 @@ def docker_memory_gb() -> int | None:
     raw = proc.stdout.strip()
     if not raw.isdigit():
         return None
-    gb = int(int(raw) / (1024 ** 3))
+    gb = int(int(raw) / (1024**3))
     return gb or None
 
 

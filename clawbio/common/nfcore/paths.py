@@ -1,4 +1,5 @@
 """Path mechanics with no pipeline-specific validation policy."""
+
 from pathlib import Path
 
 
