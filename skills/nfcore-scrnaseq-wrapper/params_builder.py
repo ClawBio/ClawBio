@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.paths import resolve_path_or_uri
+
 from clawbio.common.nfcore.parameters import serialize_params_yaml as _serialize_params, write_params_yaml as _write_params
 
 import re
@@ -51,19 +53,8 @@ def _posix(value: str) -> str:
 
 
 def _posix_or_uri(value: str) -> str:
-    """Like :func:`_posix`, but pass remote URIs (``s3://``, ``gs://``, ``https://``,
-    ``ftp://`` …) through unchanged.
-
-    ``Path(...).resolve()`` on a URI corrupts it: the ``//`` collapses and the
-    scheme is anchored to the current directory
-    (``https://host/x`` → ``<cwd>/https:/host/x``), which nf-core then rejects at
-    parameter validation. Remote references are gated behind ``--allow-remote-inputs``
-    at preflight and staged by Nextflow, so they must reach ``params.yaml`` verbatim.
-    Mirrors ``igenomes_base`` handling and the nfcore-rnaseq/sarek wrappers.
-    """
-    if "://" in str(value):
-        return str(value)
-    return _posix(value)
+    resolved = resolve_path_or_uri(str(value), base_dir=Path.cwd())
+    return resolved if isinstance(resolved, str) else resolved.as_posix()
 
 
 def build_params_file(
