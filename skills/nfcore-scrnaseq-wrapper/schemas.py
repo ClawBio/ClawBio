@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.paths import is_under_tmp as _shared_is_under_tmp
+
 from pathlib import Path
 
 
@@ -115,25 +117,7 @@ ALL_REFERENCE_PATH_FIELDS = GENOME_REFERENCE_FIELDS + AUXILIARY_PATH_FIELDS
 
 
 def is_under_tmp(path: Path) -> bool:
-    """Return True when ``path`` resolves to (or inside) /tmp or /private/tmp.
-
-    Single source of truth for the macOS+Docker /tmp guard, shared by preflight
-    (pre-run WARNING) and executor (post-failure hint) so the two cannot diverge.
-    On macOS, Colima/Docker does not share /tmp into its VM, so a work-dir under
-    /tmp surfaces as a confusing '.command.run: No such file or directory'.
-    """
-    try:
-        resolved = path.resolve()
-    except OSError:
-        return False
-    tmp = Path("/tmp").resolve()
-    private_tmp = Path("/private/tmp").resolve()
-    return (
-        resolved == tmp
-        or resolved == private_tmp
-        or tmp in resolved.parents
-        or private_tmp in resolved.parents
-    )
+    return _shared_is_under_tmp(path)
 
 
 def profile_components(profile: str) -> list[str]:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.parameters import serialize_params_yaml as _serialize_params, write_params_yaml as _write_params
+
 import re
 import sys
 from pathlib import Path
@@ -260,19 +262,8 @@ def _add_reference_path_params(params: dict[str, object], args) -> None:
 
 
 def write_params_yaml(params: dict[str, object], *, output_dir: Path) -> Path:
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
-    params_path = repro_dir / "params.yaml"
-    write_text_lf(params_path, serialize_params_yaml(params))
-    return params_path
+    return _write_params(params, output_dir=output_dir, pipeline_name="nf-core/scrnaseq")
 
 
 def serialize_params_yaml(params: dict[str, object]) -> str:
-    # Explanatory header mirrors nfcore-rnaseq/sarek so a reader knows the
-    # relative-path convention and the recommended replay path.
-    header = (
-        "# 'input' and 'outdir' are relative to the Nextflow launch directory (output_dir).\n"
-        "# Use reproducibility/commands.sh for the recommended replay path.\n"
-        "# Manual replay: cd <output_dir> && nextflow run nf-core/scrnaseq -params-file reproducibility/params.yaml\n"
-    )
-    return header + yaml.dump(params, allow_unicode=True, sort_keys=False)
+    return _serialize_params(params, pipeline_name="nf-core/scrnaseq")

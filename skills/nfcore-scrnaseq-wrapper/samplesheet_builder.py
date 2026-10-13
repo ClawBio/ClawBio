@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.artifacts import write_csv_lf
+
 import csv
 import re
 import sys
@@ -793,16 +795,5 @@ def _reject_inconsistent_repeated_sample_metadata(
         )
 
 
-def _write_normalized_samplesheet(
-    output_path: Path,
-    output_columns: list[str],
-    normalized_rows: list[dict[str, str]],
-) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    # newline="" + lineterminator="\n": csv.writer defaults to CRLF, which would
-    # make the bundle samplesheet differ from every other (LF) artifact and vary
-    # its checksum. Force LF on every OS for a byte-stable bundle.
-    with output_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=output_columns, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(normalized_rows)
+def _write_normalized_samplesheet(output_path: Path, output_columns: list[str], normalized_rows: list[dict[str, str]]) -> None:
+    write_csv_lf(output_path, output_columns, normalized_rows)

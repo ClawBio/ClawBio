@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.commands import build_nextflow_command as _shared_command
+
 import shlex
 import subprocess
 import sys
@@ -22,33 +24,4 @@ def build_nextflow_command(
     work_dir: Path | str | None = None,
     extra_configs: list[Path] | None = None,
 ) -> tuple[list[str], str]:
-    source_kind = str(pipeline_source["source_kind"])
-    source_ref = str(pipeline_source["source_ref"])
-    resolved_version = str(pipeline_source["resolved_version"])
-
-    command = ["nextflow", "run"]
-    if source_kind == "local_checkout":
-        # Convert to forward slashes: Nextflow (Java) accepts them on all platforms,
-        # and they avoid backslash ambiguity when the path is logged or copy-pasted.
-        command.append(Path(source_ref).as_posix())
-    else:
-        command.extend([source_ref, "-r", resolved_version])
-
-    # Use forward-slash paths for -params-file and -c so the command is portable
-    # across macOS, Linux, and Windows (native or via WSL2).
-    command.extend(["-profile", profile, "-params-file", params_path.as_posix()])
-    if work_dir is not None:
-        command.extend(["-work-dir", _command_path(work_dir)])
-    for cfg in extra_configs or []:
-        command.extend(["-c", cfg.as_posix()])
-    if resume:
-        command.append("-resume")
-
-    # command_str is the human-readable form stored in result.json / report.md.
-    # Use platform-appropriate quoting so it can be pasted directly into a terminal.
-    if sys.platform == "win32":
-        command_str = subprocess.list2cmdline(command)
-    else:
-        command_str = " ".join(shlex.quote(part) for part in command)
-
-    return command, command_str
+    return _shared_command(pipeline_source=pipeline_source, profile=profile, params_path=params_path, resume=resume, work_dir=_command_path(work_dir) if work_dir is not None else None, extra_configs=extra_configs)
