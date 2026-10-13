@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.bundle_emit import write_standalone_remapper, render_standalone_remapper
+
 from clawbio.common.nfcore.artifacts import safe_config_basename, stage_config_files
 
 import json
@@ -624,7 +626,7 @@ def _apply_idempotent_resume(content: str, output_dir: Path) -> str:
 
 def _write_remap_script(repro_dir: Path) -> None:
     repro_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(SKILL_DIR / "remap_paths.py", repro_dir / "remap_paths.py")
+    write_standalone_remapper(repro_dir / "remap_paths.py", adapter_path=SKILL_DIR / "remap_paths.py", substitutions={})
 
 
 def _value_or(value: object, fallback: str) -> str:
