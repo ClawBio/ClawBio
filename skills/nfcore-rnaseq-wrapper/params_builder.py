@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.paths import resolve_path_or_uri
+
 from clawbio.common.nfcore.parameters import serialize_params_yaml as _serialize_params, write_params_yaml as _write_params
 
 import sys
@@ -285,10 +287,8 @@ def _add_contaminant_params(params: dict[str, object], args) -> None:
 
 
 def _posix_or_uri(value: str) -> str:
-    """Expand to absolute POSIX path, but pass URI schemes (s3://, http://) through unchanged."""
-    if "://" in value:
-        return value
-    return Path(value).expanduser().resolve().as_posix()
+    resolved = resolve_path_or_uri(str(value), base_dir=Path.cwd())
+    return resolved if isinstance(resolved, str) else resolved.as_posix()
 
 
 def _posix_multi(value: str) -> str:
