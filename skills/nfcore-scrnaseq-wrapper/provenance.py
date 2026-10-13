@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.artifacts import write_json_lf, write_json_snapshots
+
 import json
 import platform
 import sys
@@ -268,8 +270,7 @@ def build_skill_payload(params_payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _write_provenance_payloads(provenance_dir: Path, payloads: dict[str, Any]) -> None:
-    for filename, payload in payloads.items():
-        write_text_lf(provenance_dir / filename, json.dumps(payload, indent=2))
+    write_json_snapshots(provenance_dir, payloads)
 
 
 def _copy_policy_files(bundle_dir: Path) -> None:
@@ -386,5 +387,5 @@ def write_reproducibility_manifest(
         "checksums_file": _relativise(checksum_file, output_dir),
     }
     manifest_path = output_dir / "reproducibility" / "manifest.json"
-    write_text_lf(manifest_path, json.dumps(manifest, indent=2))
+    write_json_lf(manifest_path, manifest, trailing_newline=False)
     return manifest_path
