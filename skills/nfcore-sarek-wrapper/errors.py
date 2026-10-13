@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
 
 
-from clawbio.common.nfcore.errors import SkillError
+from clawbio.common.nfcore.errors import SkillError as SkillError
 
 
 class ErrorCode:
