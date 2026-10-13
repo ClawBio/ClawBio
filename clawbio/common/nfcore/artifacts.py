@@ -2,6 +2,7 @@
 import csv
 import json
 import re
+import shutil
 from pathlib import Path
 from clawbio.common.textio import write_text_lf
 
@@ -21,3 +22,16 @@ def write_csv_lf(output_path: Path, fieldnames: list[str], rows: list[dict[str, 
 def safe_config_basename(name: str) -> str:
     safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._")
     return safe or "nextflow.config"
+
+
+def stage_config_files(config_paths: list[Path], *, destination_dir: Path, filenames: list[str]) -> list[Path]:
+    if len(config_paths) != len(filenames):
+        raise ValueError("Each config source needs one destination filename.")
+    if config_paths:
+        destination_dir.mkdir(parents=True, exist_ok=True)
+    copied = []
+    for source, filename in zip(config_paths, filenames):
+        destination = destination_dir / filename
+        shutil.copyfile(source, destination)
+        copied.append(destination)
+    return copied
