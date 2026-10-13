@@ -1,6 +1,7 @@
 """Relocation mechanics and emitted single-file standard-library bundles."""
 
 import csv
+import hashlib
 import importlib
 import subprocess
 import sys
@@ -105,6 +106,61 @@ def test_emitter_rejects_missing_and_duplicate_markers():
         api.render_standalone_remapper(
             adapter_source=block + block, runtime_source="", substitutions={}
         )
+
+
+@pytest.mark.parametrize("pipeline", ["rnaseq", "sarek", "scrnaseq"])
+def test_standalone_remapper_mutates_verifies_and_repairs_bundle(pipeline, tmp_path):
+    api = importlib.import_module("clawbio.common.nfcore.bundle_emit")
+    root = Path(__file__).resolve().parents[3]
+    adapter = root / "skills" / f"nfcore-{pipeline}-wrapper/remap_paths.py"
+    bundle = tmp_path / "relocated é bundle" / "reproducibility"
+    dest = bundle / "remap_paths.py"
+    api.write_standalone_remapper(dest, adapter_path=adapter, substitutions={})
+    reads = tmp_path / "moved é reads"
+    reads.mkdir()
+    (reads / "a.fq.gz").write_bytes(b"public test read")
+    samplesheet = bundle / "samplesheet.valid.csv"
+    original = b"sample,fastq_1\nA,/old/a.fq.gz\n"
+    samplesheet.write_bytes(original)
+    (bundle / "commands.sh").write_text("#!/bin/bash\ntrue\n")
+    (bundle / "params.yaml").write_text(
+        "input: reproducibility/samplesheet.valid.csv\n"
+    )
+    (bundle.parent / "report.md").write_text("Synthetic test report\n")
+
+    def run(*args):
+        result = subprocess.run(
+            [sys.executable, "-I", "-S", str(dest), *args],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+
+    run("--old", "/old", "--new", str(reads))
+    backup = (
+        samplesheet.with_suffix(".bak")
+        if pipeline == "scrnaseq"
+        else samplesheet.with_name(samplesheet.name + ".bak")
+    )
+    assert backup.read_bytes() == original
+    assert list(csv.DictReader(samplesheet.read_text().splitlines())) == [
+        {"sample": "A", "fastq_1": str(reads / "a.fq.gz")}
+    ]
+    run("--repair-bundle", "--verify")
+    required = ("manifest.json", "environment.yml", "checksums.sha256")
+    repaired = {name: (bundle / name).read_bytes() for name in required}
+    assert b'"regenerated_post_hoc": true' in repaired["manifest.json"]
+    for line in repaired["checksums.sha256"].decode().splitlines():
+        digest, relative = line.split("  ", 1)
+        assert (
+            hashlib.sha256((bundle.parent / relative).read_bytes()).hexdigest()
+            == digest
+        )
+    assert repaired["checksums.sha256"]
+    run("--repair-bundle", "--verify")
+    assert {name: (bundle / name).read_bytes() for name in required} == repaired
 
 
 def test_repair_bundle_recomputes_checksum_after_new_metadata(tmp_path):
