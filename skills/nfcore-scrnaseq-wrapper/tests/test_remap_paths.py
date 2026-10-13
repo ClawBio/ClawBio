@@ -286,14 +286,11 @@ def test_bundle_copy_regenerates_keys_even_if_in_repo_literal_drifts(
     import reporting
     from schemas import ALL_REFERENCE_PATH_FIELDS
 
-    drifted_source = (
-        "from pathlib import Path\n"
-        "import re\n"
-        "_BUNDLE_DIR = Path(__file__).resolve().parent\n"
-        "# >>> AUTO-GENERATED reference keys (do not edit by hand) >>>\n"
-        '_PARAMS_REFERENCE_KEYS = ("WRONG_DRIFTED_KEY",)\n'
-        "# <<< AUTO-GENERATED reference keys <<<\n"
-        "_PARAMS_REF_RE = re.compile('|'.join(re.escape(k) for k in _PARAMS_REFERENCE_KEYS))\n"
+    source = reporting._REMAP_SCRIPT_SRC.read_text(encoding="utf-8")
+    drifted_source = reporting._REMAP_AUTOGEN_RE.sub(
+        reporting._REMAP_AUTOGEN_START + '\n_PARAMS_REFERENCE_KEYS = ("WRONG_DRIFTED_KEY",)\n' + reporting._REMAP_AUTOGEN_END,
+        source,
+        count=1,
     )
     fake_src = tmp_path / "src_remap_paths.py"
     fake_src.write_text(drifted_source, encoding="utf-8")

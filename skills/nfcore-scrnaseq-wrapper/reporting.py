@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.bundle_emit import write_standalone_remapper, render_standalone_remapper
+
 from clawbio.common.nfcore.artifacts import safe_config_basename, stage_config_files
 
 import json
@@ -280,7 +282,10 @@ def _write_remap_script(repro_dir: Path) -> None:
         raise RuntimeError(
             f"Expected exactly one AUTO-GENERATED reference-keys block in {_REMAP_SCRIPT_SRC}, found {n}."
         )
-    write_text_lf(repro_dir / "remap_paths.py", regenerated)
+    from clawbio.common.nfcore import bundle_runtime
+    runtime_source = Path(bundle_runtime.__file__)
+    generated = render_standalone_remapper(adapter_source=regenerated, runtime_source=runtime_source.read_text(encoding="utf-8"), substitutions={})
+    write_text_lf(repro_dir / "remap_paths.py", generated)
 
 
 def write_result(

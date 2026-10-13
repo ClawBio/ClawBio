@@ -37,23 +37,29 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 _BUNDLE_DIR = Path(__file__).resolve().parent
+
+# >>> SHARED NFCORE RUNTIME >>>
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+from clawbio.common.nfcore.bundle_runtime import (
+    write_text_lf as _nfcore_write_text_lf,
+    prefix_matches as _nfcore_prefix_matches,
+    remap_csv as _nfcore_remap_csv,
+    run_actions as _nfcore_run_actions,
+    repair_bundle as _nfcore_repair_bundle,
+    format_output_value as _nfcore_format_output_value,
+    escape_double_quoted as _nfcore_escape_double_quoted,
+)
+# <<< SHARED NFCORE RUNTIME <<<
+
 # Regenerable bundle files (crash recovery). commands.sh is the required input and
 # is never regenerated. Matches nfcore-rnaseq/nfcore-sarek.
 _REQUIRED_BUNDLE_FILES = ("manifest.json", "checksums.sha256", "environment.yml")
 
 
 def _write_text_lf(path: Path, text: str) -> None:
-    """Write ``text`` with LF line endings on every OS (self-contained).
-
-    This script is shipped inside the reproducibility bundle and runs standalone at
-    replay (no ClawBio package available), so it cannot import the shared
-    ``clawbio.common.textio`` helper. CRLF/CR are normalised to LF and the result is
-    written as bytes (bypassing text-mode newline translation) so a rewrite on
-    Windows never reintroduces CRLF into checksums.sha256, manifest.json, or
-    environment.yml. Mirrors the nfcore-rnaseq/nfcore-sarek helper.
-    """
-    normalised = text.replace("\r\n", "\n").replace("\r", "\n")
-    Path(path).write_bytes(normalised.encode("utf-8"))
+    _nfcore_write_text_lf(path, text)
 
 
 _FASTQ_COLUMNS = ("fastq_1", "fastq_2", "fastq_barcode")
@@ -116,40 +122,8 @@ def find_commands_sh(bundle_dir: Path | None = None) -> Path | None:
     return p if p.exists() else None
 
 
-def remap_csv(
-    samplesheet: Path,
-    old_prefix: str,
-    new_prefix: str,
-    *,
-    dry_run: bool,
-) -> list[tuple[str, str, str]]:
-    """Return list of (column, old_path, new_path) for every changed cell."""
-    text = samplesheet.read_text(encoding="utf-8")
-    fieldnames = list(csv.DictReader(text.splitlines()).fieldnames or [])
-    rows = list(csv.DictReader(text.splitlines()))
-    changes: list[tuple[str, str, str]] = []
-
-    for row in rows:
-        for col in _FASTQ_COLUMNS:
-            # Boundary-aware match (same semantics as the params.yaml remapper):
-            # a prefix of "/data/sample1" must NOT match "/data/sample10/...".
-            if col in row and row[col] and _prefix_matches(row[col], old_prefix):
-                new_val = new_prefix + row[col][len(old_prefix) :]
-                changes.append((col, row[col], new_val))
-                if not dry_run:
-                    row[col] = new_val
-
-    if not dry_run and changes:
-        backup = samplesheet.with_suffix(".bak")
-        shutil.copy2(samplesheet, backup)
-        # lineterminator="\n": preserve the bundle's LF line endings (csv defaults
-        # to CRLF) so remapping does not change the file's line-ending convention.
-        with samplesheet.open("w", newline="", encoding="utf-8") as fh:
-            writer = csv.DictWriter(fh, fieldnames=fieldnames, lineterminator="\n")
-            writer.writeheader()
-            writer.writerows(rows)
-
-    return changes
+def remap_csv(samplesheet: Path, old_prefix: str, new_prefix: str, *, dry_run: bool) -> list[tuple[str, str, str]]:
+    return _nfcore_remap_csv(samplesheet, old_prefix, new_prefix, columns=_FASTQ_COLUMNS, dry_run=dry_run, backup_path=samplesheet.with_suffix(".bak"))
 
 
 def verify_paths(samplesheet: Path) -> list[str]:
@@ -169,10 +143,7 @@ def verify_paths(samplesheet: Path) -> list[str]:
 
 
 def _prefix_matches(path: str, prefix: str) -> bool:
-    if path == prefix:
-        return True
-    sep = "" if prefix.endswith("/") else "/"
-    return path.startswith(prefix + sep)
+    return _nfcore_prefix_matches(path, prefix)
 
 
 def find_params(bundle_dir: Path | None = None) -> Path | None:
@@ -689,26 +660,19 @@ examples:
     # a zero exit code implying all was well. (rnaseq/sarek had the mirror image, dropping
     # --output-dir instead.) Actions compose; none is discarded. The first non-zero step
     # decides the exit code, but later steps still run so every problem shows in one pass.
-    exit_code = 0
-
-    def _record(rc: int) -> None:
-        nonlocal exit_code
-        if exit_code == 0 and rc != 0:
-            exit_code = rc
+    actions = []
 
     if args.repair_bundle:
-        _record(cmd_repair_bundle(bundle_dir=bundle_dir))
+        actions.append(lambda: cmd_repair_bundle(bundle_dir=bundle_dir))
     if args.old is not None:
-        _record(cmd_remap(args.old, args.new, dry_run=args.dry_run, bundle_dir=bundle_dir))
+        actions.append(lambda: cmd_remap(args.old, args.new, dry_run=args.dry_run, bundle_dir=bundle_dir))
     if args.refs_old is not None:
-        _record(cmd_remap_references(args.refs_old, args.refs_new, dry_run=args.dry_run, bundle_dir=bundle_dir))
+        actions.append(lambda: cmd_remap_references(args.refs_old, args.refs_new, dry_run=args.dry_run, bundle_dir=bundle_dir))
     if args.output_dir is not None:
-        _record(cmd_output_dir_hint(args.output_dir))
+        actions.append(lambda: cmd_output_dir_hint(args.output_dir))
     if args.verify:
-        _record(cmd_verify(bundle_dir=bundle_dir))
-    return exit_code
-    parser.print_help()
-    return 1
+        actions.append(lambda: cmd_verify(bundle_dir=bundle_dir))
+    return _nfcore_run_actions(actions)
 
 
 if __name__ == "__main__":
