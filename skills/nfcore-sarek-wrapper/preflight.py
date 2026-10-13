@@ -12,6 +12,8 @@ the rules, accumulating warnings and notes.
 """
 from __future__ import annotations
 
+from clawbio.common.nfcore import runtime as _runtime
+
 import hashlib
 import os
 import re
@@ -352,35 +354,18 @@ def run_preflight(
 # --- §5.1: Java -----------------------------------------------------------
 
 def _command_output(args: list[str]) -> str:
-    """Return combined stdout/stderr of ``args`` (empty string on error)."""
-    try:
-        proc = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            errors="replace",
-            timeout=_SUBPROCESS_TIMEOUT,
-        )
-    except (subprocess.TimeoutExpired, OSError):
+    proc = _runtime.run_probe(args, timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if proc is None:
         return ""
     return ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
 
 
 def _parse_version_tuple(text: str) -> tuple[int, ...]:
-    m = re.search(r"\b(\d+)\.(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
-    m = re.search(r"\b(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)))
-    m = re.search(r"\b(\d+)\b", text)
-    if m:
-        return (int(m.group(1)),)
-    return ()
+    return _runtime.parse_version_tuple(text)
 
 
 def _pad_version(t: tuple[int, ...], length: int = 3) -> tuple[int, ...]:
-    return t + (0,) * max(0, length - len(t))
+    return _runtime.pad_version(t, length)
 
 
 def _detected_version_string(text: str) -> str:

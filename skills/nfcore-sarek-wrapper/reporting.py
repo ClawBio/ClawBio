@@ -18,6 +18,8 @@ network, no logging beyond the returned ``warnings`` list.
 
 from __future__ import annotations
 
+from clawbio.common.nfcore.artifacts import safe_config_basename, stage_config_files
+
 import dataclasses
 import gzip
 import json
@@ -965,8 +967,7 @@ def _build_commands_sh(
 
 
 def _safe_config_basename(name: str) -> str:
-    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._")
-    return safe or "nextflow.config"
+    return safe_config_basename(name)
 
 
 def _within(path: Path, anchor: Path) -> bool:
@@ -1014,7 +1015,7 @@ def _stage_external_nextflow_configs(
                     config_dir
                     / f"config_{copied:02d}_{_safe_config_basename(resolved.name)}"
                 )
-                shutil.copyfile(resolved, destination)
+                stage_config_files([resolved], destination_dir=destination.parent, filenames=[destination.name])
                 out.append("-c")
                 out.append(destination.as_posix())
                 skip_next = True
