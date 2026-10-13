@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+
 import argparse
 import hashlib
 import json
@@ -43,6 +44,7 @@ purge_foreign_bare_modules(
 )
 
 from clawbio.common.textio import write_text_lf
+from clawbio.common.nfcore import runtime as _runtime
 from command_builder import build_nextflow_command
 from errors import ErrorCode, SkillError
 from executor import execute_nextflow
@@ -1047,37 +1049,12 @@ _RESOURCE_LIMITS_MEMORY_FLOOR_GB = 8
 
 
 def _host_memory_gb() -> int:
-    """Best-effort total physical RAM in whole GB (portable; falls back to 16)."""
-    try:
-        return max(1, int(os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") / (1024 ** 3)))
-    except (ValueError, OSError, AttributeError):
-        return 16
+    value = _runtime.host_memory_bytes()
+    return max(1, int(value / (1024 ** 3))) if value is not None else 16
 
 
 def _docker_vm_memory_gb() -> int | None:
-    """Docker runtime's total memory in whole GB, or None when unknown.
-
-    On native Linux this reports the host's cgroup memory (≈ physical RAM). Best-effort:
-    any failure (docker absent, daemon down, unparseable output) returns None.
-    """
-    if not shutil.which("docker"):
-        return None
-    try:
-        proc = subprocess.run(
-            ["docker", "info", "--format", "{{.MemTotal}}"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if proc.returncode != 0:
-        return None
-    raw = proc.stdout.strip()
-    if not raw.isdigit():
-        return None
-    gb = int(int(raw) / (1024 ** 3))
-    return gb or None
+    return _runtime.docker_memory_gb()
 
 
 def _resource_limits_memory_gb() -> int:
