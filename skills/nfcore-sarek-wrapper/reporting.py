@@ -18,6 +18,8 @@ network, no logging beyond the returned ``warnings`` list.
 
 from __future__ import annotations
 
+from clawbio.common.nfcore.bundle_emit import write_standalone_remapper, render_standalone_remapper
+
 from clawbio.common.nfcore.artifacts import safe_config_basename, stage_config_files
 
 import dataclasses
@@ -194,7 +196,7 @@ def write_reports(
     remap_src = skill_dir / "remap_paths.py"
     remap_dst = repro_dir / "remap_paths.py"
     if remap_src.exists():
-        shutil.copy2(remap_src, remap_dst)
+        write_standalone_remapper(remap_dst, adapter_path=remap_src, substitutions={})
         try:
             shutil.copymode(remap_src, remap_dst)
         except OSError:

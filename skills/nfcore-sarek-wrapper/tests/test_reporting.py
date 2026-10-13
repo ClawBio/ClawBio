@@ -754,7 +754,7 @@ def test_commands_sh_warns_when_unsafe_absolute_paths(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_remap_paths_py_copied(tmp_path: Path) -> None:
+def test_remap_paths_py_generated_standalone(tmp_path: Path) -> None:
     output_dir = _make_output_dir(tmp_path)
     artifacts = write_reports(
         output_dir=output_dir,
@@ -769,7 +769,12 @@ def test_remap_paths_py_copied(tmp_path: Path) -> None:
     src = _skill_dir() / "remap_paths.py"
     dst = artifacts.remap_paths_py
     assert dst.exists()
-    assert dst.read_bytes() == src.read_bytes()
+    import subprocess
+    import sys
+    result = subprocess.run([sys.executable, "-I", "-S", str(dst), "--help"], cwd=tmp_path, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "--repair-bundle" in result.stdout
+    assert dst.stat().st_mode & 0o777 == src.stat().st_mode & 0o777
 
 
 # ---------------------------------------------------------------------------
