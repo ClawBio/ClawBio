@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.artifacts import write_json_lf, write_json_snapshots
+
 import json
 import os
 import platform
@@ -316,13 +318,12 @@ def write_reproducibility_manifest(
     }
     manifest_path = output_dir / "reproducibility" / "manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    write_text_lf(manifest_path, json.dumps(manifest, indent=2))
+    write_json_lf(manifest_path, manifest, trailing_newline=False)
     return manifest_path
 
 
 def _write_provenance_payloads(provenance_dir: Path, payloads: dict[str, Any]) -> None:
-    for filename, payload in payloads.items():
-        write_text_lf(provenance_dir / filename, json.dumps(payload, indent=2))
+    write_json_snapshots(provenance_dir, payloads)
 
 
 def _dir_checksum(path: Path) -> str:
