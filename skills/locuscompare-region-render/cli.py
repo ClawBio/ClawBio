@@ -170,6 +170,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
     from locuscompare_region_render import (
         EXPOSURE_KIND_EQTL_CATALOGUE,
         EXPOSURE_KIND_UKB_PPP,
+        _QUANT_METHOD_MODALITY,
         LocusCompareSpec,
         Tier2NotAvailable,
         render_locuscompare_for_lead,
@@ -351,6 +352,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
         gencode_gtf_path = Path(gencode_gtf_path)
     gene_biotypes = tuple(gene_track_block.get("biotypes") or ("protein_coding",))
     prefetched_gene_track = None
+    gene_track_label: str | None = None
     gt_source = gene_track_block.get("source", "gencode_v39")
     if gt_source == "synthetic":
         from _prefetched import load_synthetic_gene_track
@@ -364,6 +366,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
             return 2
         genes_full = _resolve_path(genes_path, config_dir)
         prefetched_gene_track = load_synthetic_gene_track(genes_full)
+        gene_track_label = f"synthetic TSV {genes_full.name}"
         print(
             f"info: gene track from synthetic TSV ({len(prefetched_gene_track)} "
             f"genes): {genes_full}",
@@ -393,6 +396,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
                 )
                 for g in genes
             ]
+            gene_track_label = f"{release_meta['release_label']}, {', '.join(gene_biotypes)}"
             print(
                 f"info: gene track from Ensembl REST ({len(prefetched_gene_track)} genes, "
                 f"{release_meta['release_label']})",
@@ -434,6 +438,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
         gencode_gtf_path=gencode_gtf_path,
         gene_biotypes=gene_biotypes,
         prefetched_gene_track=prefetched_gene_track,
+        gene_track_label=gene_track_label,
         lead_rs_id=lead_rs_id,
     )
 
@@ -442,12 +447,25 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
     # `sumstats_path:`, else the live fetcher matching the dispatched kind.
     if exposure_prefetched:
         from _prefetched import PrefetchedEQTLClient, load_sumstats_tsv
+        # A declared quantification must be one we can name; an unknown or
+        # misspelt code would otherwise turn into a "QTL" figure with no word
+        # about why, so refuse it here instead.
+        declared_qm = str(exposure.get("quant_method") or "").strip().lower() or None
+        if declared_qm is not None and declared_qm not in _QUANT_METHOD_MODALITY:
+            print(
+                f"exposure.quant_method {exposure.get('quant_method')!r} is not a known "
+                f"quantification code; use one of: "
+                f"{', '.join(sorted(_QUANT_METHOD_MODALITY))}, or leave it out.",
+                file=sys.stderr,
+            )
+            return 2
         exposure_tsv = _resolve_path(exposure["sumstats_path"], config_dir)
         exposure_variants = load_sumstats_tsv(exposure_tsv)
         eqtl_client = PrefetchedEQTLClient(
             variants=exposure_variants,
             dataset_id=eqtl_dataset_id,
             study_label=exposure.get("trait_label") or None,
+            quant_method=declared_qm,
         )
         ukb_ppp_client = None
         print(
@@ -499,7 +517,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
     # ----- Manifest + report
     manifest = {
         "skill": "locuscompare",
-        "version": "0.2.1",
+        "version": "0.2.2",
         "lead_variant_id": lead_variant_id,
         "lead_rs_id": lead_rs_id,
         "n_pairs": result.n_pairs,

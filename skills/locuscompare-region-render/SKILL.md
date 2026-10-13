@@ -11,7 +11,7 @@ description: |
 license: MIT
 metadata:
   skill-author: Aviv Madar
-  version: 0.2.1
+  version: 0.2.2
   domain: bioinformatics
   tags:
     - regional-plot
@@ -136,7 +136,7 @@ When an agent asks for a regional LocusCompare for a (lead, exposure, outcome) t
 
 1. **Validate**: parse the config (JSON or YAML); validate against the embedded pydantic schema; check input files exist and conform to `INPUT_SCHEMA.md`. The lead variant must be in `chr_pos_ref_alt` GRCh38 form; the window defaults to ±500 kb of lead.
 2. **Fetch (optional)**: for each side using a bundled fetcher (`source: eqtl_catalogue` or `source: gwas_catalog`), tabix-fetch the region from the source's FTP via the corresponding sibling skill (`eqtl-catalogue-region-fetch` or `gwas-catalog-region-fetch`). Cache to `~/.clawbio/locuscompare_cache/<source>/`.
-3. **LD compute (optional)**: pull the 1000G region VCF (~5-50 MB) via the `ld-1000g-region-compute` sibling skill; run `plink --r2` (plink 1.9) against the lead variant; cache to `~/.clawbio/locuscompare_cache/1000g/`. Falls back to grey coloring when the LD source is unavailable (caveat surfaced in manifest).
+3. **LD compute (optional)**: pull the 1000G region VCF (~5-50 MB) via the `ld-1000g-region-compute` sibling skill; run `plink --r2` (plink 1.9) against the lead variant; cache to `~/.clawbio/locuscompare_cache/1000g/`. When the LD source is unavailable, or a variant is not in the panel, its points draw as hollow grey circles under a "no LD value" legend entry (caveat surfaced in manifest).
 4. **Gene track (optional)**: fetch the locus's GENCODE GTF region via Ensembl REST; parse exon / intron / strand for protein-coding genes (default; configurable via `gene_track.biotypes`). Cache to `~/.clawbio/locuscompare_cache/gencode/`.
 5. **Harmonise + render + emit**: join exposure × outcome on `variant_id`; flip `beta_outcome` for swapped alleles; exclude palindromic A/T or G/C variants from the scatter (count surfaced in manifest; configurable). Render the 4-panel matplotlib PNG. Emit `manifest.yaml` with full provenance, `report.md` human-readable summary, `tables/pairs.tsv` with all joined pairs, `tables/palindromic_excluded.tsv`, and a `reproducibility/` subdir with `commands.sh`, `environment.yml`, `input_config.yaml` (resolved defaults), and `checksums.sha256`.
 
@@ -195,6 +195,8 @@ ld:
   super_pop: "EUR"
 ```
 
+A pre-fetched exposure may add an optional `exposure.quant_method` (eQTL Catalogue vocabulary: ge, exon, tx, txrev, leafcutter, microarray, aptamer). The figure names the QTL kind from it everywhere it names the exposure, in the panel title and on both scatter x-axes (aptamer is a pQTL, leafcutter an sQTL, txrev a tuQTL, UKB-PPP always a pQTL); with no code it says QTL; a declared code it does not know (matched without regard to case) stops the run with exit 2 rather than being relabelled QTL. A pre-fetched side is recorded as `prefetched` in the manifest and its caption names no upstream source. The manifest block carries `exposure_modality`, `exposure_quant_method` and a plain label for each. The gene-track panel is labelled "Genes"; the caption's "Genes:" line names the source actually used (the Ensembl REST release and biotypes, or the synthetic TSV), and is left out when the source is not known.
+
 Mix-and-match (one side pre-fetched, other side via fetcher) is supported. See `INPUT_SCHEMA.md` for the canonical TSV column spec; `examples/recipes/` for harmonisation scripts converting other sources (FinnGen, Pan-UKBB, UKB-PPP, GTEx v10) into this format.
 
 Optional `lead.rs_id: "rsXXXXXX"` (string) propagates into the emitted manifest + report alongside the canonical `variant_id`. Upstream agents (e.g. ai_scientist `coloc_with_mr` workflow) resolve and populate this automatically from OT / dbSNP; manual configs may set it for human readability. The orchestrator joins on `variant_id` (chr_pos_ref_alt), not rs_id; the rs_id is human-readability metadata only.
@@ -242,7 +244,7 @@ A real run on the SORT1 × cholesterol-VLDL canonical demo (`examples/02_eqtl_ca
 
 ```yaml
 skill: locuscompare-region-render
-version: 0.2.1
+version: 0.2.2
 lead_variant_id: 1_109274968_G_T
 lead_rs_id: rs12740374
 n_pairs: 2547
@@ -252,6 +254,10 @@ render_block:
   exposure_source: eqtl_catalogue
   exposure_source_release: v7+
   exposure_study_id: QTD000276
+  exposure_modality: eqtl
+  exposure_modality_label: expression QTL
+  exposure_quant_method: ge
+  exposure_quant_method_label: gene expression
   outcome_source: gwas_catalog_harmonised
   outcome_source_release: '2026-05-06'
   outcome_study_id: GCST90269602

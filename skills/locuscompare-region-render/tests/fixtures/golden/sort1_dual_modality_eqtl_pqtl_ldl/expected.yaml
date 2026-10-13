@@ -21,6 +21,12 @@ eqtl_render:
     exposure_protein_label: ""
     exposure_ancestry: ""
     exposure_ancestry_label: ""
+    # Four keys naming the exposure's QTL kind and quantification. New keys,
+    # no existing value moved.
+    exposure_modality: "eqtl"
+    exposure_modality_label: "expression QTL"
+    exposure_quant_method: "ge"
+    exposure_quant_method_label: "gene expression"
     exposure_harmonisation_version: ""
     outcome_source: "gwas_catalog_harmonised"
     outcome_source_release: "2026-05-15"
@@ -37,7 +43,7 @@ eqtl_render:
     scatter_downsampled: false
     scatter_downsample_target: 5000
     ancestry_caveats:
-      - "LD r\xB2 unavailable (no plink client provided); points show as grey"
+      - "LD r\xB2 unavailable (no plink client provided); points drawn hollow (no LD value)"
     # v1.4 addition: data_source_warnings carries prefixed fetcher notes.
     # The cassettes for this golden fixture were captured with zero notes
     # from all three fetchers, so the locked value is the empty list.
@@ -52,6 +58,12 @@ pqtl_render:
     exposure_protein_label: "SORT1 (Q99523, OID20213)"
     exposure_ancestry: "EUR"
     exposure_ancestry_label: "European (discovery)"
+    # New keys, no existing value moved. UKB-PPP is a protein QTL; the source
+    # states no quantification code.
+    exposure_modality: "pqtl"
+    exposure_modality_label: "protein QTL"
+    exposure_quant_method: null
+    exposure_quant_method_label: null
     exposure_harmonisation_version: ""
     outcome_source: "gwas_catalog_harmonised"
     outcome_source_release: "2026-05-15"
@@ -68,5 +80,5 @@ pqtl_render:
     scatter_downsampled: false
     scatter_downsample_target: 5000
     ancestry_caveats:
-      - "LD r\xB2 unavailable (no plink client provided); points show as grey"
+      - "LD r\xB2 unavailable (no plink client provided); points drawn hollow (no LD value)"
     data_source_warnings: []

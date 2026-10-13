@@ -425,3 +425,25 @@ def test_an_ot_finngen_outcome_row_is_labelled_log_odds(tmp_path, es_panel, monk
     )
     assert LOG_ODDS_FINNGEN_LABEL in es_panel["ylabel"]
     assert result.manifest_block["outcome_effect_scale_label"] == LOG_ODDS_FINNGEN_LABEL
+
+
+def test_ld_with_no_pairs_says_why_the_points_are_hollow(tmp_path):
+    """An LD client that finds neither the lead nor any partner in its panel returns
+    no pairs instead of raising; the caption must then say LD is unavailable rather
+    than show an all-hollow plot with no caveat."""
+    from types import SimpleNamespace
+
+    class _EmptyLD:
+        def r2_with_lead(self, **_kw):
+            return SimpleNamespace(pairs=[], plink_version="plink test",
+                                   panel_id="panel", panel_version="v")
+
+    result = render_locuscompare_for_lead(
+        _spec(),
+        eqtl_client=PrefetchedEQTLClient(variants=_exposure_rows()),
+        gwas_client=PrefetchedGWASClient(variants=_or_outcome_rows(), accession=GCST),
+        ld_client=_EmptyLD(),
+        out_path=tmp_path / "lc.png",
+    )
+    caveats = " ".join(result.manifest_block.get("ancestry_caveats") or []) + " ".join(result.notes)
+    assert "LD r² unavailable" in caveats, caveats

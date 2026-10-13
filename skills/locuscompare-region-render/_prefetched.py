@@ -253,7 +253,10 @@ class PrefetchedEQTLClient:
     dataset_release: str = "prefetched"
     study_label: str | None = None
     tissue_label: str | None = None
-    quant_method: str = "ge"
+    # The eQTL Catalogue quantification code the file was produced with, when the
+    # config states it (`exposure.quant_method`). None means not stated: the
+    # figure then says "QTL" instead of assuming gene expression.
+    quant_method: str | None = None
     notes: list[str] = field(default_factory=list)
 
     def fetch_region(

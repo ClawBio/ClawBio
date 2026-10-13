@@ -118,6 +118,31 @@ Producers SHOULD ship a `<file>.provenance.json` next to the TSV with at least:
 
 `locuscompare` reads this sidecar when present and folds it into the rendered plot's manifest block. Absence is non-fatal but reduces reproducibility.
 
+## Declaring what a pre-fetched exposure measures
+
+A TSV does not say what kind of QTL its rows are, so the run config may: set
+the optional `exposure.quant_method` next to `exposure.sumstats_path`, using
+the eQTL Catalogue quantification vocabulary (`ge`, `microarray`, `exon`,
+`tx`, `txrev`, `leafcutter`, `aptamer`).
+
+```yaml
+exposure:
+  trait_label: "SORT1 plasma protein"
+  sumstats_path: "path/to/exposure_slice.tsv"
+  quant_method: "aptamer"   # optional; figure says pQTL
+```
+
+The panel title, both scatter x-axes and the manifest
+(`exposure_modality`, `exposure_quant_method` and their labels) follow it:
+`ge` / `microarray` -> eQTL, `exon` -> exon eQTL, `tx` -> transcript eQTL,
+`txrev` -> tuQTL, `leafcutter` -> sQTL, `aptamer` -> pQTL. Codes are matched
+without regard to case. Absent, the figure says "QTL" and assumes nothing; a
+code that is not in the vocabulary stops the run (exit 2) instead of being
+quietly relabelled "QTL". A pre-fetched side is recorded as
+`exposure_source: prefetched` / `outcome_source: prefetched`, and its caption
+reads "pre-fetched file" rather than naming a source the file may not have
+come from.
+
 ## Validation
 
 `locuscompare` validates input files at the start of every run:
