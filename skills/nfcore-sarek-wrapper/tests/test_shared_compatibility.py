@@ -59,3 +59,22 @@ def test_old_manifest_resume_contract(tmp_path):
     result.write_text('{"status":"success","old":true}')
     wrapper._write_error_result_if_safe(tmp_path, {"error_code": "INVALID_RESUME_STATE", "message": "new"})
     assert json.loads(result.read_text()) == {"error_code": "INVALID_RESUME_STATE", "message": "new"}
+
+
+def test_parameter_fingerprint_contract():
+    values = {"second": False, "first": 7}
+    if _PIPELINE == "sarek":
+        api = importlib.import_module("provenance")
+        expected = "sha256:" + hashlib.sha256(b'{"first":7,"second":false}').hexdigest()
+        assert api.compute_params_checksum(values) == expected
+    elif _PIPELINE == "rnaseq":
+        api = importlib.import_module("preflight")
+        expected = "sha256:" + hashlib.sha256(b'second: false\nfirst: 7\n').hexdigest()
+        assert api.params_payload_checksum(values) == expected
+    else:
+        api = importlib.import_module("nfcore_scrnaseq_wrapper")
+        header = ("# 'input' and 'outdir' are relative to the Nextflow launch directory (output_dir).\n"
+                  "# Use reproducibility/commands.sh for the recommended replay path.\n"
+                  "# Manual replay: cd <output_dir> && nextflow run nf-core/scrnaseq -params-file reproducibility/params.yaml\n")
+        expected = hashlib.sha256((header + "second: false\nfirst: 7\n").encode()).hexdigest()
+        assert api._params_payload_checksum(values) == expected

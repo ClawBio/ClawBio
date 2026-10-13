@@ -26,6 +26,10 @@ treated as ``None``/``False`` per the policy's ``legacy_field_defaults`` map.
 
 from __future__ import annotations
 
+from clawbio.common.checksums import sha256_file
+
+from clawbio.common.nfcore.artifacts import write_json_lf, write_json_snapshots
+
 import hashlib
 import glob
 import json
@@ -125,15 +129,7 @@ class ProvenanceBundle:
 
 
 def _sha256_file(path: Path) -> str:
-    """Streamed SHA-256 of a file's bytes."""
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        while True:
-            chunk = handle.read(_CHECKSUM_BUF_SIZE)
-            if not chunk:
-                break
-            digest.update(chunk)
-    return f"sha256:{digest.hexdigest()}"
+    return "sha256:" + sha256_file(path)
 
 
 def compute_params_checksum(params: dict[str, Any]) -> str:
@@ -275,9 +271,7 @@ def _json_safe(value: Any, *, anchor: Path | None = None, warnings: list[str] | 
 
 def _dump_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    write_text_lf(
-        path, json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n"
-    )
+    write_json_lf(path, payload, trailing_newline=True, sort_keys=True, default=str)
 
 
 # ---------------------------------------------------------------------------
