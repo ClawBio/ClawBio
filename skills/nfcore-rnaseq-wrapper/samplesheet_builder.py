@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.artifacts import write_csv_lf
+
 import csv
 import os
 import re
@@ -473,8 +475,4 @@ def _reject_duplicate_fastq_row(
 
 
 def _write_normalized_samplesheet(output_path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
+    write_csv_lf(output_path, fieldnames, rows)

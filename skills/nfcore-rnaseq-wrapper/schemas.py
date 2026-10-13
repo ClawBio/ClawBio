@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.paths import is_under_tmp as _shared_is_under_tmp
+
 import re
 from pathlib import Path
 
@@ -51,27 +53,7 @@ NEXTFLOW_MIN_VERSION = (25, 4, 3)
 
 
 def is_under_tmp(path: Path) -> bool:
-    """Return True when ``path`` resolves to (or inside) /tmp or /private/tmp.
-
-    Single source of truth for the macOS+Docker /tmp guard, shared by preflight
-    (pre-run WARNING) and executor (post-failure hint) so the two cannot diverge.
-    On macOS, Colima/Docker does not share /tmp into its VM, so a work-dir under
-    /tmp surfaces as a confusing '.command.run: No such file or directory'.
-    Resolve-based (not a string prefix) so symlinks and the canonical
-    /tmp -> /private/tmp mapping are handled. Mirrors the nfcore-scrnaseq helper.
-    """
-    try:
-        resolved = path.resolve()
-    except OSError:
-        return False
-    tmp = Path("/tmp").resolve()
-    private_tmp = Path("/private/tmp").resolve()
-    return (
-        resolved == tmp
-        or resolved == private_tmp
-        or tmp in resolved.parents
-        or private_tmp in resolved.parents
-    )
+    return _shared_is_under_tmp(path)
 PIPELINE_REQUIRED_FILES = ("main.nf", "nextflow.config", "assets/schema_input.json")
 
 SUPPORTED_ALIGNERS = {"star_salmon", "star_rsem", "hisat2", "bowtie2_salmon"}
