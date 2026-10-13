@@ -974,10 +974,10 @@ def test_dpyd_homozygous_d949v_is_intermediate():
 
 
 def test_dpyd_partial_panel_with_detected_variant_is_flagged():
-    """An untested DPYD SNP could turn a single-variant Intermediate into Poor."""
+    """An untested DPYD SNP could turn a single-variant Intermediate into Poor (#602)."""
     diplotype, phenotype = _dpyd({"rs3918290": "CT"})
     assert "1/4 SNPs tested" in diplotype
-    assert phenotype.startswith("Indeterminate")
+    assert phenotype.startswith("Intermediate or Poor Metabolizer")
 
 
 def test_dpyd_partial_panel_poor_is_not_downgraded():
@@ -999,3 +999,62 @@ def test_dpyd_without_hapb3_is_not_called_normal():
     """Testing only *2A/*13/D949V cannot rule out HapB3, so it must not read Normal."""
     genotypes = {r: g for r, g in _DPYD_REF.items() if r != "rs75017182"}
     assert _dpyd(genotypes)[1].startswith("Indeterminate")
+
+
+# --- #602: a detected decreased/no-function DPYD allele bounds the phenotype ---
+# CPIC DPYD activity score bands (api.cpicpgx.org gene_result, 2026-10-13):
+# AS 2.0 Normal; AS 1.0 and 1.5 Intermediate; AS 0.5 and 0.0 Poor.
+# CPIC fluoropyrimidine recommendation: AS 1.0/1.5 reduce starting dose by 50%;
+# AS 0.5 avoid (or strongly reduced dose with early TDM if no alternative).
+
+_NO_HAPB3 = {r: g for r, g in _DPYD_REF.items() if r != "rs75017182"}
+
+
+def test_issue_602_dpyd_2a_het_with_hapb3_untested_is_not_indeterminate():
+    """*2A het caps AS at 1.0, so at least IM; HapB3 in trans would make it Poor."""
+    diplotype, phenotype = _dpyd({**_NO_HAPB3, "rs3918290": "CT"})
+    assert not phenotype.startswith("Indeterminate"), phenotype
+    assert phenotype == "Intermediate or Poor Metabolizer (HapB3 not tested)"
+
+
+def test_issue_602_dpyd_13_het_with_hapb3_untested_is_im_or_pm():
+    _, phenotype = _dpyd({**_NO_HAPB3, "rs55886062": "AC"})
+    assert phenotype == "Intermediate or Poor Metabolizer (HapB3 not tested)"
+
+
+def test_issue_602_dpyd_d949v_het_with_only_hapb3_untested_is_intermediate():
+    """D949V het: AS 1.5; HapB3 in trans gives 1.0. Both bounds are Intermediate."""
+    _, phenotype = _dpyd({**_NO_HAPB3, "rs67376798": "AT"})
+    assert phenotype == "Intermediate Metabolizer (HapB3 not tested)"
+
+
+def test_issue_602_dpyd_two_no_function_alleles_is_poor_regardless_of_hapb3():
+    _, phenotype = _dpyd({**_NO_HAPB3, "rs3918290": "CT", "rs55886062": "AC"})
+    assert phenotype == "Poor Metabolizer"
+
+
+def test_issue_602_dpyd_nothing_detected_hapb3_untested_stays_indeterminate():
+    _, phenotype = _dpyd(_NO_HAPB3)
+    assert phenotype.startswith("Indeterminate")
+
+
+def test_issue_602_dpyd_fully_tested_2a_het_unchanged():
+    _, phenotype = _dpyd({**_DPYD_REF, "rs3918290": "CT"})
+    assert phenotype == "Intermediate Metabolizer"
+
+
+def test_issue_602_fluoropyrimidines_keep_dose_reduction_and_flag_poor():
+    """The drug recommendation must keep the IM 50% reduction and flag possible PM."""
+    from pharmgx_reporter import lookup_drugs, lookup_single_drug
+    d, ph = _dpyd({**_NO_HAPB3, "rs3918290": "CT"})
+    profiles = {"DPYD": {"diplotype": d, "phenotype": ph}}
+    drugs = lookup_drugs(profiles)
+    for name in ("Fluorouracil", "Capecitabine"):
+        entry = next(e for e in drugs["caution"] if e["drug"] == name)
+        assert "50%" in entry["note"]
+        assert "Poor Metabolizer" in entry["note"]
+        assert "HapB3" in entry["note"]
+        single = lookup_single_drug(name, profiles)
+        assert single["classification"] == "caution"
+        assert single["note"] == entry["note"]
+    assert not any(e["gene"] == "DPYD" for e in drugs["indeterminate"])
