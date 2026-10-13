@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+
 import argparse
 import json
 import os
@@ -74,6 +75,7 @@ from schemas import (
 )
 
 from clawbio.common.textio import write_text_lf
+from clawbio.common.nfcore import runtime as _runtime
 
 
 _DASH_VALUE_OPTIONS = {
@@ -1197,44 +1199,11 @@ _MACOS_DOCKER_MEMORY_FLOOR_GB = 8
 
 
 def _detect_host_memory_gb() -> int | None:
-    """Return total physical RAM in whole GB, or None when it cannot be determined."""
-    try:
-        page_size = os.sysconf("SC_PAGE_SIZE")
-        phys_pages = os.sysconf("SC_PHYS_PAGES")
-    except (ValueError, OSError, AttributeError):
-        return None
-    if page_size <= 0 or phys_pages <= 0:
-        return None
-    return int((page_size * phys_pages) / (1024 ** 3))
+    return _runtime.host_memory_gb()
 
 
 def _docker_vm_memory_gb() -> int | None:
-    """Return the Docker VM's total memory in whole GB, or None when unknown.
-
-    On macOS, Docker Desktop runs containers in a Linux VM whose RAM is usually
-    smaller than the host's. `docker info` reports that VM's MemTotal (bytes), which
-    is the true ceiling a container process can use before being OOM-killed
-    (audit F-8). Best-effort: any failure (docker absent, daemon down, unparseable
-    output) returns None so the caller falls back to the host-derived heuristic.
-    """
-    if not shutil.which("docker"):
-        return None
-    try:
-        proc = subprocess.run(
-            ["docker", "info", "--format", "{{.MemTotal}}"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if proc.returncode != 0:
-        return None
-    raw = proc.stdout.strip()
-    if not raw.isdigit():
-        return None
-    gb = int(int(raw) / (1024 ** 3))
-    return gb or None
+    return _runtime.docker_memory_gb()
 
 
 def _macos_docker_memory_gb() -> int:

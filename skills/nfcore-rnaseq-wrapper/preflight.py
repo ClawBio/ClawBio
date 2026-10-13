@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore import runtime as _runtime
+
 import gzip
 import hashlib
 import json
@@ -210,9 +212,8 @@ def check_resume_samplesheet_checksum(samplesheet_path: Path, output_dir: Path) 
 
 
 def _command_output(args: list[str]) -> str:
-    try:
-        proc = subprocess.run(args, capture_output=True, text=True, errors="replace", timeout=_SUBPROCESS_TIMEOUT)
-    except (subprocess.TimeoutExpired, OSError):
+    proc = _runtime.run_probe(args, timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if proc is None:
         return ""
     if proc.returncode != 0:
         return ""
@@ -220,7 +221,7 @@ def _command_output(args: list[str]) -> str:
 
 
 def _pad_version(t: tuple[int, ...], length: int = 3) -> tuple[int, ...]:
-    return t + (0,) * max(0, length - len(t))
+    return _runtime.pad_version(t, length)
 
 
 def _detected_version_string(text: str) -> str:
@@ -238,16 +239,7 @@ def _detected_version_string(text: str) -> str:
 
 
 def _parse_version_tuple(text: str) -> tuple[int, ...]:
-    m = re.search(r"\b(\d+)\.(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
-    m = re.search(r"\b(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)))
-    m = re.search(r"\b(\d+)\b", text)
-    if m:
-        return (int(m.group(1)),)
-    return ()
+    return _runtime.parse_version_tuple(text)
 
 
 def _check_java() -> dict[str, str]:

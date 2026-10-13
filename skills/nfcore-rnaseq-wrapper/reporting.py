@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.artifacts import safe_config_basename, stage_config_files
+
 import json
 import re
 import shlex
@@ -437,8 +439,7 @@ def build_repro_command_args(output_dir: Path, *, args) -> dict[str, str | None]
 
 
 def _safe_config_basename(name: str) -> str:
-    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._")
-    return safe or "nextflow.config"
+    return safe_config_basename(name)
 
 
 def _stage_user_nextflow_configs(output_dir: Path, config_paths: list[str]) -> list[str]:
@@ -473,7 +474,7 @@ def _stage_user_nextflow_configs(output_dir: Path, config_paths: list[str]) -> l
             staged.append(f"${{SCRIPT_DIR}}/nextflow_configs/{source.name}")
             continue
         destination = config_dir / f"config_{index:02d}_{_safe_config_basename(source.name)}"
-        shutil.copyfile(source, destination)
+        stage_config_files([source], destination_dir=destination.parent, filenames=[destination.name])
         staged.append(f"${{SCRIPT_DIR}}/nextflow_configs/{destination.name}")
     return staged
 
