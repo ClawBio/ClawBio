@@ -1400,7 +1400,7 @@ def _range_note(gene, phenotype):
     untested = phenotype.split("(", 1)[1].split(" not tested")[0] if "(" in phenotype else "a DPYD marker"
     return ("At least Intermediate Metabolizer (activity score <= 1.0): CPIC recommends "
             "reducing the starting dose by 50%, then titrating on toxicity or TDM. "
-            f"Possible Poor Metabolizer (activity score 0.5) because {untested} was not tested: "
+            f"Possible Poor Metabolizer (activity score 0.5 or lower) because {untested} was not tested: "
             "CPIC then recommends avoiding fluoropyrimidines, or a strongly reduced dose with "
             f"early TDM if no alternative exists. Genotype {untested} before the first dose.")
 
