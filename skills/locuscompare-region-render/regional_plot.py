@@ -167,13 +167,29 @@ class RegionalLocusCompareInput:
     # Short QTL tag for the exposure ("eQTL", "sQTL", "pQTL", ...), used on both
     # scatter x-axes and in the fallback panel title. "QTL" when not stated.
     exposure_modality_tag: str = "QTL"
+    # The variant the data window was fetched around, when it differs from the lead
+    # drawn (a lead fallback inside the credible set). The x-range and title stay on
+    # the fetched window so a gap at its edge is not misread as the source's coverage.
+    window_centre_variant_id: str | None = None
+
+
+_CAPTION_WRAP = 140  # characters per caption line
+_CAPTION_BASE_LINES = 7  # caption lines the fixed bottom margin was sized for
+_CAPTION_LINE_IN = 8 * 1.25 / 72  # one 8 pt monospace line, in inches
 
 
 def _build_caption(inp: RegionalLocusCompareInput, n_excluded_palindromic: int) -> str:
     caveats = list(inp.caveats)
     if n_excluded_palindromic:
         caveats.append(f"{n_excluded_palindromic} palindromic-ambiguous variants excluded from LD panel")
-    caveats_str = "; ".join(caveats) if caveats else "none"
+    # One caveat per line, wrapped: a caption line is as wide as its text, so an
+    # unwrapped run of sentences stretched the whole figure (7,457 px for three
+    # substitution caveats).
+    caveats_str = (
+        "\n" + "\n".join(textwrap.fill(f"- {c}", width=_CAPTION_WRAP, subsequent_indent="  ")
+                          for c in caveats)
+        if caveats else "none"
+    )
     return (
         f"LD: {inp.ld_panel_label}\n"
         f"Window: {inp.window_label}\n"
@@ -507,6 +523,29 @@ def _position_from_variant_id(variant_id: str | None) -> int | None:
         return int(parts[1])
     except ValueError:
         return None
+
+
+def _variant_locus_key(variant_id: str | None):
+    """Canonical ``(chrom, pos, {ref, alt})`` key for a ``chr_pos_ref_alt`` id, so
+    a variant matches its allele-FLIPPED representation (``7_100482234_A_T`` ==
+    ``7_100482234_T_A``). Returns None for a malformed id."""
+    if not variant_id:
+        return None
+    parts = variant_id.split("_")
+    if len(parts) < 4:
+        return None
+    chrom, pos, ref, alt = parts[0], parts[1], parts[2], parts[3]
+    return (chrom.lstrip("chr"), pos, frozenset({ref.upper(), alt.upper()}))
+
+
+def _matches_lead(variant_id: str | None, lead_variant_id: str | None) -> bool:
+    """True when ``variant_id`` is the lead, ALLELE-ORIENTATION-robust: a source can
+    write the alleles in the opposite order from the lead id. Falls back to
+    exact-string equality when either id is not a parseable ``chr_pos_ref_alt``."""
+    if variant_id == lead_variant_id:
+        return True
+    k = _variant_locus_key(variant_id)
+    return k is not None and k == _variant_locus_key(lead_variant_id)
 
 
 def _lead_position(pairs, lead_variant_id: str | None) -> int | None:
@@ -858,7 +897,8 @@ def render_full_locuscompare(
     # Compute window-centered xlim from the lead position so matplotlib does
     # not auto-snap to the data's actual extent.
     lead_pos = _lead_position(inp.pairs, inp.lead_variant_id)
-    xlim_bp = _compute_xlim_bp(inp.pairs, inp.lead_variant_id, inp.window_bp)
+    xlim_bp = _compute_xlim_bp(
+        inp.pairs, inp.window_centre_variant_id or inp.lead_variant_id, inp.window_bp)
 
     has_gene_track = bool(inp.gene_track)
     if has_gene_track:
@@ -873,7 +913,12 @@ def render_full_locuscompare(
         top_heights = [2.4, 2.4]
 
     bottom_height = 4.6  # square-ish scatter row
-    fig_height = sum(top_heights) + bottom_height + 1.4  # title + caption padding
+    # The caption sits under the scatter row. The fixed 1.4 in of padding fits a
+    # caption of up to _CAPTION_BASE_LINES lines; each wrapped caveat line beyond that
+    # grows the figure, so the caption never runs into the scatter panels.
+    caption = _build_caption(inp, n_palindromic_excluded)
+    extra_caption_in = max(0, caption.count("\n") + 1 - _CAPTION_BASE_LINES) * _CAPTION_LINE_IN
+    fig_height = sum(top_heights) + bottom_height + 1.4 + extra_caption_in
     fig = plt.figure(figsize=(13.0, fig_height))
 
     # Nested gridspec: outer 2-row split (top stack vs scatter row) with a
@@ -987,15 +1032,20 @@ def render_full_locuscompare(
 
     title = inp.title or (
         f"Regional LocusCompare: {len(inp.pairs)} variants joined "
-        f"(±{inp.window_bp // 2000} kb of {inp.lead_variant_id})"
+        f"(±{inp.window_bp // 2000} kb of {inp.window_centre_variant_id or inp.lead_variant_id}"
+        + (f"; lead shown {inp.lead_variant_id}" if inp.window_centre_variant_id
+           and inp.window_centre_variant_id != inp.lead_variant_id else "")
+        + ")"
     )
     fig.suptitle(title, fontsize=11)
-    caption = _build_caption(inp, n_palindromic_excluded)
     fig.text(
         0.5, 0.005, caption, ha="center", va="bottom",
         fontsize=8, family="monospace",
     )
-    fig.subplots_adjust(top=0.94, bottom=0.13)
+    fig.subplots_adjust(
+        top=0.94,
+        bottom=(0.13 * (fig_height - extra_caption_in) + extra_caption_in) / fig_height,
+    )
     fig.savefig(out_path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     return out_path

@@ -11,7 +11,7 @@ description: |
 license: MIT
 metadata:
   skill-author: Aviv Madar
-  version: 0.2.2
+  version: 0.3.0
   domain: bioinformatics
   tags:
     - regional-plot
@@ -199,7 +199,7 @@ A pre-fetched exposure may add an optional `exposure.quant_method` (eQTL Catalog
 
 Mix-and-match (one side pre-fetched, other side via fetcher) is supported. See `INPUT_SCHEMA.md` for the canonical TSV column spec; `examples/recipes/` for harmonisation scripts converting other sources (FinnGen, Pan-UKBB, UKB-PPP, GTEx v10) into this format.
 
-Optional `lead.rs_id: "rsXXXXXX"` (string) propagates into the emitted manifest + report alongside the canonical `variant_id`. Upstream agents (e.g. ai_scientist `coloc_with_mr` workflow) resolve and populate this automatically from OT / dbSNP; manual configs may set it for human readability. The orchestrator joins on `variant_id` (chr_pos_ref_alt), not rs_id; the rs_id is human-readability metadata only.
+Optional `lead.rs_id: "rsXXXXXX"` (string) propagates into the emitted manifest + report alongside the canonical `variant_id`. Upstream agents (e.g. a colocalisation workflow) resolve and populate this automatically from OT / dbSNP; manual configs may set it for human readability. The orchestrator joins on `variant_id` (chr_pos_ref_alt), not rs_id; the rs_id is human-readability metadata only. An optional lead.candidates list of credible-set members ({variant_id, pip}, written by ot_credible_set.py) lets the render fall back, when the configured lead is missing from either dataset or from the LD panel, is strand-ambiguous, or lies more than a tenth of the window from its centre, to the first usable of the configured lead and then the members by PIP, preferring presence in both datasets over presence in the LD panel; the drawn lead then carries the diamond, the labels and the Wald-ratio slope and is the manifest's lead_variant_id, while the x-range stays on the window fetched around the requested lead; the request, the reason and one status row per candidate are recorded beside it, the swap is printed as a caveat, the plot file keeps the requested lead's name, and the rs_id, which names the requested lead, is left out of the manifest on a swap.
 
 Bundled examples in `examples/` (each runnable via `--demo <NAME>` once any required upstream data is in place):
 
@@ -211,8 +211,9 @@ Bundled examples in `examples/` (each runnable via `--demo <NAME>` once any requ
 - `06_sceqtl_sort1_onek1k_cd14_mono/` - SORT1 sceQTL in OneK1K CD14+ monocytes
 - `07_pqtl_sort1_ukbppp_eur/` - SORT1 plasma sortilin via UKB-PPP (pQTL dispatch path)
 - `08_open_targets_credible_set/` - IL23R plasma protein × IBD, starting from an Open Targets credible-set page
+- `09_open_targets_credible_set_many_qtls/` - PCSK9 lung expression × hypercholesterolemia, from a page listing ten QTLs whose GWAS file is unreadable
 
-Starting from an Open Targets page, an rsID or your own files: `references/entry_points.md` maps each starting point to the config, and `references/from_open_targets.md` walks the Open Targets route.
+Starting from an Open Targets page, an rsID or your own files: `references/entry_points.md` maps each starting point to the config, and `references/from_open_targets.md` walks the Open Targets route, where `ot_credible_set.py` lists the choices, recommends a pair with its reasons and writes the config.
 
 The `examples/chains/` and `examples/recipes/` subdirectories are documentation patterns, not numbered demos: `chains/finemapping_chain/` documents the `fine-mapping` skill -> locuscompare chain (requires `fine-mapping` to have run first; not in `--list-demos`); `recipes/` ships harmonisation scripts that convert FinnGen / Pan-UKBB / UKB-PPP / GTEx v10 native formats into the canonical INPUT_SCHEMA TSV for use via `sumstats_path:`.
 
@@ -244,7 +245,7 @@ A real run on the SORT1 × cholesterol-VLDL canonical demo (`examples/02_eqtl_ca
 
 ```yaml
 skill: locuscompare-region-render
-version: 0.2.2
+version: 0.3.0
 lead_variant_id: 1_109274968_G_T
 lead_rs_id: rs12740374
 n_pairs: 2547
@@ -296,7 +297,7 @@ Output directory layout:
 
 3. **All four inputs MUST be region-aligned to the same window.** Mismatched windows produce a silent garbage plot. The skill validates that the exposure slice, outcome slice, LD panel, and gene track all overlap the requested `(lead, window_bp)` and refuses to render with mismatched coverage.
 
-4. **The lead has to be in both slices to be drawn.** There is no proxy substitution: a lead absent from one side (for example a low-frequency variant one source did not test) has no diamond and no annotation in the scatters, while the rest of the figure renders and `n_pairs` counts the variants that did join. The window is still centred on the lead, using its position from the lead variant id, so the Manhattan tracks and the gene track cover the requested region. Check the figure for the diamond before describing the lead's position.
+4. **The lead has to be in both slices to be drawn.** There is no proxy substitution: a lead absent from one side (for example a low-frequency variant one source did not test) has no diamond and no annotation in the scatters, while the rest of the figure renders and `n_pairs` counts the variants that did join. The window is still centred on the lead, using its position from the requested lead's id, so the Manhattan tracks and the gene track cover the requested region. Check the figure for the diamond before describing the lead's position. Without lead candidates in the config there is no substitution; with them, the render falls back to a credible-set member that is in both slices and the LD panel (see the lead configuration above), keeps the x-range on the window it fetched, and says so in the caveats; when none is usable it keeps the requested lead and says that too.
 
 5. **Effect-allele harmonisation across the four inputs is the renderer's input contract, not its job.** The two sumstats slices and the LD panel must arrive in the canonical (chr, pos, ref, alt) GRCh38 ALT-effect form - this is what the bundled fetchers (`eqtl-catalogue-region-fetch`, `gwas-catalog-region-fetch`) emit. User-supplied TSVs not in this form should be normalised upstream (`bcftools norm` for indels). The renderer's harmonisation step is for cross-trait flip / palindromic handling, not for single-trait normalisation.
 
@@ -331,7 +332,7 @@ The skill renders a 4-panel LocusCompare visualisation for a colocalisation resu
 - **Surface the H3 vs H4 ambiguity when the visual is two-cluster.** Even with PP-H4 > 0.8, a two-cluster visual pattern indicates likely distinct causal variants in LD; flag for human review.
 - **NOT cherry-pick variants outside the rendered window for downstream interpretation.** The visual establishes context for the rendered window only.
 - **Cite the rendered window, LD reference + super-pop, OT release (when applicable), exposure / outcome study ids, and lead variant** in the user-facing reply. Per the user-friendly enum-expansion rule (`AGENTS.md`): `STRN × heart failure (FINNGEN_R12_I9_HEARTFAIL); window ±500 kb of lead chr2:36910110:C>T; LD = 1000G Phase 3 EUR; OT release 26.03`.
-- **Surface the manifest's caveats list** (palindromic exclusions, ancestry mismatches, missing LD or gene track) verbatim in the user-facing reply.
+- **Surface the manifest's caveats list** (palindromic exclusions, lead fallback, ancestry mismatches, missing LD or gene track) verbatim in the user-facing reply.
 - **Name the scale of the outcome effect sizes** when `outcome_effect_scale_label` is set (log odds derived from an odds ratio, log odds as reported by FinnGen, or mixed scales), and quote `effect_size_panel_unavailable_reason` when the effect-size panel is empty, rather than reading an empty panel as "no effect".
 - **NOT decide GO/NO-GO on a target** based on the visual alone. Chain to `target-validation-scorer` for synthesis; this skill is one input among many.
 - **NOT silently swap super-populations.** If the upstream cohort's ancestry does not match the requested LD super-pop, surface explicitly and ask the user to confirm before proceeding.

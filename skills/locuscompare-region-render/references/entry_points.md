@@ -9,7 +9,7 @@ locuscompare renders one pair: one molecular QTL (the exposure) and one GWAS (th
 
 | The user has | Where the four values come from | Worked example |
 |---|---|---|
-| An Open Targets credible-set page (a URL) | The Open Targets API, from the id in the URL; see `from_open_targets.md` | `examples/08_open_targets_credible_set/` |
+| An Open Targets credible-set page (a URL) | `ot_credible_set.py options <URL>` lists the colocalising QTLs and checks the GWAS file; `config` writes the run config; see `from_open_targets.md` | `examples/08_open_targets_credible_set/` (one QTL), `examples/09_open_targets_credible_set_many_qtls/` (ten QTLs, GWAS substituted) |
 | An Open Targets colocalisation row (two study ids and a lead) | The QTL study's `summarystatsLocation` and `target.id`; the GWAS study id is the accession; see `from_open_targets.md` | `examples/03_open_targets_followup/` |
 | An rsID and a `gwas-lookup` result | The GWAS and eQTL tables `gwas-lookup` writes | `examples/04_gwas_lookup_followup/` |
 | A protein of interest in UKB-PPP | `source: ukb_ppp` with the protein label and ancestry | `examples/07_pqtl_sort1_ukbppp_eur/` |

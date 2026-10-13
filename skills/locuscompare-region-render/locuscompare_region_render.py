@@ -74,7 +74,12 @@ from ld_1000g_region_compute import (
 )
 from ondemand_client import (
     OnDemand1000GLDClient,
+    OnDemandLDError,
 )
+
+# The on-demand LD client raises its own error class, not LDComputeError; both mean
+# "no LD for this lead" and both degrade the render rather than failing it.
+_LD_ERRORS = (LDComputeError, OnDemandLDError)
 from ukb_ppp_region_fetch import (
     RegionResult as UKBPPPRegionResult,
     UKBPPPAccessError,
@@ -96,6 +101,9 @@ from regional_plot import (
     GeneTrackEntry,
     LocusVariant,
     RegionalLocusCompareInput,
+    _matches_lead,
+    _position_from_variant_id,
+    _variant_locus_key,
     harmonise_regions_for_locuscompare,
     render_full_locuscompare,
 )
@@ -304,6 +312,11 @@ class LocusCompareSpec:
     # variant_id (chr_pos_ref_alt), not rs_id; this field is human-readability
     # metadata only.
     lead_rs_id: str | None = None
+    # Optional credible-set members that may stand in for the lead at render time,
+    # as (variant_id, pip). Empty: the configured lead is drawn whatever happens to
+    # it. Non-empty: `_choose_lead` picks the first usable of the configured lead
+    # and then these by PIP (high to low); see the lead-fallback rule there.
+    lead_candidates: list[tuple[str, float]] = field(default_factory=list)
 
     exposure_id_extra: str = ""
     outcome_id_extra: str = ""
@@ -736,6 +749,28 @@ def _render_for_spec(
             f"the p-value panels only"
         )
 
+    # 2c. Lead fallback (only when the config lists credible-set candidates). The
+    # configured lead can be missing from one dataset or from the LD panel; a
+    # credible-set member present in all three then carries the diamond, the labels
+    # and the Wald-ratio slope, while the x-range stays on the fetched window, and the
+    # swap is stated as a caveat.
+    requested_lead_variant_id = lead_variant_id
+    lead_choice: LeadChoice | None = None
+    if spec.lead_candidates:
+        lead_choice = _choose_lead(
+            configured=lead_variant_id,
+            candidates=spec.lead_candidates,
+            lead_position_bp=lead_position_bp,
+            window_bp=window_bp,
+            chromosome=chromosome,
+            exposure_variants=exposure_variants,
+            outcome_rows=outcome_rows,
+            ld_client=ld_client,
+        )
+        lead_variant_id = lead_choice.used
+        if lead_choice.sentence:
+            extra_caveats.append(lead_choice.sentence)
+
     # 3. LD r² (optional; gracefully degrade when plink not installed).
     r2_by_variant: dict[str, float] = {lead_variant_id: 1.0}
     plink_version = ""
@@ -744,13 +779,24 @@ def _render_for_spec(
     if ld_client is not None:
         partner_ids = [v.variant_id for v in exposure_variants if v.variant_id != lead_variant_id]
         try:
-            ld = ld_client.r2_with_lead(
-                lead=lead_variant_id,
-                partners=partner_ids,
-                chromosome=chromosome,
-                window_bp=window_bp,
+            if (lead_choice is not None and lead_choice.ld_error is not None
+                    and lead_variant_id not in lead_choice.ld_results):
+                # The fallback loop hit an LD failure before the drawn lead's own LD
+                # was computed; the render degrades exactly as a failed first call
+                # would. When the drawn lead's LD did come back, that result stands.
+                raise lead_choice.ld_error
+            ld = (
+                lead_choice.ld_results.get(lead_variant_id)
+                if lead_choice is not None else None
             )
-        except LDComputeError as e:
+            if ld is None:
+                ld = ld_client.r2_with_lead(
+                    lead=lead_variant_id,
+                    partners=partner_ids,
+                    chromosome=chromosome,
+                    window_bp=window_bp,
+                )
+        except _LD_ERRORS as e:
             notes.append(f"LD computation failed: {e!s}; rendering without LD coloring")
             extra_caveats.append("LD r² unavailable (compute failed); points drawn hollow (no LD value)")
         else:
@@ -899,7 +945,14 @@ def _render_for_spec(
             if ld_client is not None and panel_id != "none"
             else "no LD reference (plot rendered without LD coloring)"
         ),
-        window_label=f"+/-{window_bp // 2000} kb of lead {lead_variant_id}{pip_label}",
+        window_label=(
+            f"+/-{window_bp // 2000} kb of lead {lead_variant_id}{pip_label}"
+            if lead_variant_id == spec.lead_variant_id else
+            f"+/-{window_bp // 2000} kb of the requested lead {spec.lead_variant_id} "
+            f"(window as fetched); lead shown {lead_variant_id}"
+        ),
+        window_centre_variant_id=(
+            spec.lead_variant_id if lead_variant_id != spec.lead_variant_id else None),
         exposure_label=exposure_label_long,
         outcome_label=outcome_label_long,
         provenance_label=f"{spec.provenance_prefix}Rendered: {fetched_at}",
@@ -965,6 +1018,12 @@ def _render_for_spec(
     block["outcome_beta_source_label"] = beta_source_label(outcome_beta_source)
     block["outcome_effect_scale_label"] = outcome_scale_label
     block["effect_size_panel_unavailable_reason"] = effect_size_reason
+    # The lead actually drawn is `lead_variant_id` above; these record what was asked
+    # for and, when they differ, why. Added here rather than in the shared manifest
+    # builder, which other callers use unchanged.
+    block["lead_requested_variant_id"] = requested_lead_variant_id
+    block["lead_fallback"] = lead_choice.fallback if lead_choice is not None else None
+    block["lead_candidates"] = lead_choice.rows if lead_choice is not None else []
 
     return Tier2Result(
         plot_path=out_path,
@@ -972,6 +1031,234 @@ def _render_for_spec(
         n_pairs=len(pairs),
         n_palindromic_excluded=n_palindromic,
         notes=notes,
+    )
+
+
+# ---------------------------------------------------------------- lead fallback
+# One status per id in {configured lead} plus the config's credible-set candidates.
+LEAD_CANDIDATE_STATUSES: tuple[str, ...] = (
+    "used",
+    "not_in_exposure",
+    "not_in_outcome",
+    "alleles_irreconcilable",
+    "palindromic",
+    "beyond_window_bound",
+    "not_in_ld_panel",
+    "ld_failed",
+    "not_evaluated",
+)
+
+# LD is tried for at most this many eligible variants (each try is one plink run and
+# one region fetch); the rest are recorded as not evaluated.
+MAX_LEAD_LD_ATTEMPTS = 10
+# How many passed-over members the swap sentence names (the manifest lists them all).
+_PASSED_OVER_NAMED = 3
+
+# Why a variant could not carry the plot, as a clause after "the requested lead X".
+_LEAD_STATUS_TEXT: dict[str, str] = {
+    "not_in_exposure": "is not in the exposure data",
+    "not_in_outcome": "is not in the outcome data",
+    "alleles_irreconcilable": (
+        "is in both datasets but did not join across them (its alleles are written "
+        "differently in the two)"
+    ),
+    "palindromic": (
+        "is strand-ambiguous (an A/T or G/C variant), so its alleles cannot be aligned"
+    ),
+    "beyond_window_bound": "is too far from the centre of the fetched window",
+    "not_in_ld_panel": (
+        "is not in the LD reference panel, so no point could be coloured by LD with it"
+    ),
+    "ld_failed": "could not be checked against the LD reference panel (the LD run failed)",
+}
+
+
+class LeadChoiceError(RuntimeError):
+    """The lead-candidate rows do not partition the candidates (a bug, not data)."""
+
+
+@dataclass
+class LeadChoice:
+    used: str
+    rows: list[dict[str, Any]]
+    fallback: dict[str, str] | None
+    sentence: str | None
+    ld_results: dict[str, Any] = field(default_factory=dict)
+    ld_error: Exception | None = None  # an LDComputeError or OnDemandLDError
+
+
+def _choose_lead(
+    *,
+    configured: str,
+    candidates: list[tuple[str, float]],
+    lead_position_bp: int,
+    window_bp: int,
+    chromosome: str,
+    exposure_variants,
+    outcome_rows,
+    ld_client,
+) -> LeadChoice:
+    """Pick the variant the plot is centred on.
+
+    Order: the configured lead, then the candidates by PIP (high to low). Eligible
+    = in both datasets (matched allele-order-robustly, as the diamond is), not
+    palindromic, and within window_bp // 10 of the fetched window's centre (the
+    window is not refetched). Eligible ids are tried against the LD panel in that
+    order, stopping at the first that returns any LD pairs. When none does, the
+    first eligible id is used: being in both datasets outranks being in the LD
+    panel, and the configured lead wins ties. When none is eligible the configured
+    lead is kept. With no LD client, LD is not a criterion. An LD failure ends the
+    loop; the caller then degrades as it would without the fallback.
+
+    Every id gets exactly one status row; a broken partition raises.
+    """
+    ordered: list[tuple[str, float | None]] = [(configured, None)]
+    ordered += [(vid, float(pip)) for vid, pip in sorted(candidates, key=lambda c: -float(c[1]))]
+    ids: list[str] = []
+    pips: dict[str, float | None] = {}
+    first_by_key: dict[Any, str] = {}
+    for vid, pip in ordered:
+        key = _variant_locus_key(vid) or vid
+        if key in first_by_key:
+            first = first_by_key[key]
+            if pips[first] is None:
+                pips[first] = pip  # the configured lead's own PIP, when it is listed
+            continue
+        first_by_key[key] = vid
+        ids.append(vid)
+        pips[vid] = pip
+
+    exposure_keys = {_variant_locus_key(v.variant_id) for v in exposure_variants}
+    outcome_keys = {_variant_locus_key(v.variant_id) for v in outcome_rows}
+    joined = harmonise_regions_for_locuscompare(
+        exposure_variants=exposure_variants,
+        outcome_variants=outcome_rows,
+        r2_by_variant={},
+        lead_variant_id=configured,
+    )
+    bound = window_bp // 10
+
+    def dataset_status(vid: str) -> str | None:
+        key = _variant_locus_key(vid)
+        if key not in exposure_keys:
+            return "not_in_exposure"
+        if key not in outcome_keys:
+            return "not_in_outcome"
+        pair = next((p for p in joined if _matches_lead(p.variant_id, vid)), None)
+        if pair is None:
+            return "alleles_irreconcilable"
+        if pair.palindromic_excluded:
+            return "palindromic"
+        pos = _position_from_variant_id(vid)
+        if pos is None or abs(pos - lead_position_bp) > bound:
+            return "beyond_window_bound"
+        return None
+
+    status: dict[str, str] = {}
+    eligible: list[str] = []
+    for vid in ids:
+        st = dataset_status(vid)
+        if st is None:
+            eligible.append(vid)
+        else:
+            status[vid] = st
+    configured_own = status.get(configured)
+
+    used: str | None = None
+    ld_results: dict[str, Any] = {}
+    ld_error: Exception | None = None  # an LDComputeError or OnDemandLDError
+    if ld_client is not None:
+        for vid in eligible[:MAX_LEAD_LD_ATTEMPTS]:
+            try:
+                res = ld_client.r2_with_lead(
+                    lead=vid,
+                    partners=[v.variant_id for v in exposure_variants if v.variant_id != vid],
+                    chromosome=chromosome,
+                    window_bp=window_bp,
+                )
+            except _LD_ERRORS as e:
+                ld_error = e
+                status[vid] = "ld_failed"
+                break
+            ld_results[vid] = res
+            if res.pairs:
+                used = vid
+                break
+            status[vid] = "not_in_ld_panel"
+    if used is None:
+        used = eligible[0] if eligible else configured
+    configured_reason = status.get(configured)
+    # A lead kept although something about it failed keeps that reason as data.
+    kept_despite = status.get(used)
+    status[used] = "used"
+    for vid in ids:
+        status.setdefault(vid, "not_evaluated")
+
+    rows = [
+        {
+            "variant_id": vid,
+            "pip": pips[vid],
+            "configured_lead": vid == configured,
+            "status": status[vid],
+            "used_despite": kept_despite if vid == used else None,
+        }
+        for vid in ids
+    ]
+    n_used = sum(1 for r in rows if r["status"] == "used")
+    unknown = {r["status"] for r in rows} - set(LEAD_CANDIDATE_STATUSES)
+    if len(rows) != len(ids) or len(set(ids)) != len(ids) or n_used != 1 or unknown:
+        raise LeadChoiceError(
+            f"lead candidates not partitioned: {len(ids)} ids, {len(rows)} rows, "
+            f"{n_used} marked used, unknown statuses {sorted(unknown)}"
+        )
+
+    def why(st: str | None) -> str:
+        if st == "beyond_window_bound":
+            return f"is more than {bound // 1000} kb from the centre of the fetched window"
+        return _LEAD_STATUS_TEXT.get(st or "", "could not be used")
+
+    fallback: dict[str, str] | None = None
+    sentence: str | None = None
+    if used != configured:
+        in_ld = used in ld_results and bool(ld_results[used].pairs)
+        where = (
+            "the exposure data, the outcome data and the LD reference panel"
+            if in_ld else "both the exposure and the outcome data"
+        )
+        pip_txt = f" (PIP {pips[used]:.3f})" if pips[used] is not None else ""
+        reason = f"the requested lead {why(configured_reason)}"
+        fallback = {"requested": configured, "used": used, "reason": reason}
+        # Name every member ranked above the one used, with why it was passed over, so
+        # the sentence cannot read as "nothing better existed" when a rule excluded it.
+        above = [v for v in ids[1:ids.index(used)] if v != configured]
+        passed = "".join(
+            f" {v}" + (f" (PIP {pips[v]:.3f})" if pips[v] is not None else "") + f" {why(status[v])}."
+            for v in above[:_PASSED_OVER_NAMED])
+        if len(above) > _PASSED_OVER_NAMED:
+            passed += (f" {len(above) - _PASSED_OVER_NAMED} more higher-PIP members were passed "
+                       f"over; the manifest's lead_candidates lists each with its reason.")
+        sentence = (
+            f"The plot's lead is {used}, not the requested lead {configured}: "
+            f"{reason}. {used}{pip_txt} is the highest-PIP credible-set member that is in "
+            f"{where}, is not strand-ambiguous and lies near the centre of the fetched "
+            f"window.{passed}"
+        )
+    elif configured_own is not None:
+        # Kept although it is unusable: say no candidate could stand in, rather than
+        # letting a missing diamond pass for a fine lead.
+        sentence = (
+            f"The requested lead {configured} {why(configured_own)}, and none of the "
+            f"{len(ids) - 1} other credible-set candidates is usable in its place, so "
+            f"the plot stays centred on it."
+        )
+    # Draw the lead under the id the joined data carries: a candidate listed with its
+    # alleles in the other order matches by locus, and the panels look ids up exactly.
+    drawn = next((p.variant_id for p in joined if _matches_lead(p.variant_id, used)), used)
+    if drawn != used and used in ld_results:
+        ld_results[drawn] = ld_results[used]
+    return LeadChoice(
+        used=drawn, rows=rows, fallback=fallback, sentence=sentence,
+        ld_results=ld_results, ld_error=ld_error,
     )
 
 
@@ -1334,6 +1621,8 @@ __all__ = [
     "EXPOSURE_KIND_EQTL_CATALOGUE",
     "EXPOSURE_KIND_UKB_PPP",
     "EXPOSURE_MODALITY_LABELS",
+    "LEAD_CANDIDATE_STATUSES",
+    "LeadChoiceError",
     "LocusCompareSpec",
     "StudyIdMapping",
     "Tier2NotAvailable",

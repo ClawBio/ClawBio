@@ -93,3 +93,15 @@ def test_a_render_without_ld_claims_no_low_ld_bin(tmp_path, monkeypatch):
         labels = [label for label, _ in entries]
         assert NO_LD_LABEL in labels
         assert "r² 0.0 - 0.2" not in labels
+
+
+def test_long_caveats_are_wrapped_not_one_wide_line():
+    inp = regional_plot.RegionalLocusCompareInput(
+        pairs=[_pair(LEAD, 67240275, 1.0)], lead_variant_id=LEAD, chromosome="1",
+        window_bp=1_000_000, ld_panel_label="test", window_label="+/-500 kb",
+        exposure_label="x", outcome_label="y", provenance_label="test",
+        caveats=["word " * 80, "second caveat"],
+    )
+    caption = regional_plot._build_caption(inp, 0)
+    assert max(len(line) for line in caption.splitlines()) <= regional_plot._CAPTION_WRAP
+    assert "\n- second caveat" in caption

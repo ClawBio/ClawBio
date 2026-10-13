@@ -8,6 +8,16 @@ It shows an inflammatory bowel disease signal at IL23R and, under its colocalisa
 
 The page itself is a JavaScript application, so its content cannot be read from the URL. The id at the end of the URL is enough: `references/from_open_targets.md` turns it into this config in four Open Targets API steps.
 
+## In a conversation
+
+The skill is meant to be driven by an assistant (Claude, ChatGPT or another model that can run the skill's scripts). The user pastes the page and says what they want; the assistant runs `ot_credible_set.py`, relays what it found, and renders. An example exchange (the assistant's lines restate what the helper prints for this page):
+
+> **User:** I'm looking at https://platform.opentargets.org/credible-set/2f6755df0a7737586c9ff36fa2643c61 . Can you make the LocusCompare plot for the molecular QTL there?
+>
+> **Assistant:** This is an inflammatory bowel disease signal (GCST90225550, Mize 2022) led by rs11209026, the IL23R R381Q missense variant. Open Targets lists one molecular QTL for it: the IL23R plasma protein QTL from Sun 2018 (colocalisation H4 0.991). The GWAS file can be read by region, so I'm plotting that pair. One caution: rs11209026 changes the protein sequence, which can affect how the assay binds as well as how much protein there is.
+
+With a single QTL and a readable GWAS there is nothing to choose, so the assistant does not ask.
+
 ## Resolved pair
 
 | | Open Targets | Config |
