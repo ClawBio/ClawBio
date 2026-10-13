@@ -316,8 +316,8 @@ def test_demo_full_pipeline(tmp_path):
     assert (tmp_path / "reproducibility" / "api_versions.json").exists()
 
 
-def test_gwas_catalog_forwards_max_hits_as_page_size(monkeypatch):
-    """GWAS Catalog pages at 20 unless size is sent with the request."""
+def test_gwas_catalog_caps_associations_at_max_hits(monkeypatch):
+    """The associations endpoint is not paged, so max_hits is applied locally."""
     from gwas_lookup_api import gwas_catalog
 
     captured = {}
@@ -325,24 +325,72 @@ def test_gwas_catalog_forwards_max_hits_as_page_size(monkeypatch):
     class FakeClient:
         def get(self, endpoint, params=None):
             captured["endpoint"] = endpoint
-            captured["params"] = params or {}
-            page_size = captured["params"].get("size", 20)
             return {
                 "_embedded": {
                     "associations": [
                         {"pvalue": i, "efoTraits": [], "riskAlleles": []}
                         for i in range(30)
-                    ][:page_size]
+                    ]
                 }
             }
 
     monkeypatch.setattr(gwas_catalog, "_make_client", lambda *args, **kwargs: FakeClient())
     result = gwas_catalog.get_associations("rs1", max_hits=25)
     assert captured["endpoint"] == "singleNucleotidePolymorphisms/rs1/associations"
-    assert captured["params"] == {"size": 25}
     assert result["status"] == "ok"
-    assert result["total_associations"] == 25
+    assert result["total_associations"] == 30
     assert len(result["associations"]) == 25
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"_embedded": {"associations": []}},
+        {"_embedded": {"associations": None}},
+    ],
+    ids=["no-embedded", "empty-list", "null-associations"],
+)
+def test_gwas_catalog_missing_or_null_associations_are_empty(monkeypatch, payload):
+    """A missing _embedded or a null associations list is an empty OK result."""
+    from gwas_lookup_api import gwas_catalog
+
+    class FakeClient:
+        def get(self, endpoint, params=None):
+            return payload
+
+    monkeypatch.setattr(gwas_catalog, "_make_client", lambda *args, **kwargs: FakeClient())
+    result = gwas_catalog.get_associations("rs1")
+    assert result["status"] == "ok"
+    assert result["associations"] == []
+    assert result["total_associations"] == 0
+
+
+@pytest.mark.parametrize(
+    "payload, field, type_name",
+    [
+        ({"_embedded": {"associations": {"rs1": []}}}, "_embedded.associations", "dict"),
+        ({"_embedded": {"associations": {}}}, "_embedded.associations", "dict"),
+        ({"_embedded": {"associations": "rs1"}}, "_embedded.associations", "str"),
+        ({"_embedded": {"associations": ""}}, "_embedded.associations", "str"),
+        ({"_embedded": None}, "_embedded", "NoneType"),
+        ({"_embedded": ["rs1"]}, "_embedded", "list"),
+        ({"_embedded": []}, "_embedded", "list"),
+        ([], "response body", "list"),
+    ],
+)
+def test_gwas_catalog_malformed_associations_are_errors(monkeypatch, payload, field, type_name):
+    """Schema drift returns status error instead of an empty OK result."""
+    from gwas_lookup_api import gwas_catalog
+
+    class FakeClient:
+        def get(self, endpoint, params=None):
+            return payload
+
+    monkeypatch.setattr(gwas_catalog, "_make_client", lambda *args, **kwargs: FakeClient())
+    result = gwas_catalog.get_associations("rs1")
+    assert result["status"] == "error"
+    assert result["message"] == f"Unexpected response format: {field} is {type_name}"
 
 
 # ── Open Targets Platform schema ──────────────────────────────────────────────
