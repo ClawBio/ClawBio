@@ -44,3 +44,18 @@ def test_safe_config_basename_has_stable_fallback():
     api = importlib.import_module('clawbio.common.nfcore.artifacts')
     assert api.safe_config_basename(' a é.config ') == 'a_.config'
     assert api.safe_config_basename('...') == 'nextflow.config'
+
+
+def test_json_snapshots_preserve_names_and_newline_policy(tmp_path):
+    api = importlib.import_module('clawbio.common.nfcore.artifacts')
+    api.write_json_snapshots(tmp_path, {'one.json': {'z': 1}, 'two.json': {'a': False}})
+    assert {p.name for p in tmp_path.iterdir()} == {'one.json','two.json'}
+    assert (tmp_path/'one.json').read_bytes() == b'{\n  "z": 1\n}'
+    assert (tmp_path/'two.json').read_bytes() == b'{\n  "a": false\n}'
+
+
+def test_sorted_json_writer_supports_legacy_path_conversion(tmp_path):
+    api = importlib.import_module('clawbio.common.nfcore.artifacts')
+    path = tmp_path/'record.json'
+    api.write_json_lf(path, {'z': 1, 'a': Path('file')}, trailing_newline=True, sort_keys=True, default=str)
+    assert path.read_bytes() == b'{\n  "a": "file",\n  "z": 1\n}\n'

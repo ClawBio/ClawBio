@@ -3,12 +3,13 @@ import csv
 import json
 import re
 import shutil
+from typing import Callable
 from pathlib import Path
 from clawbio.common.textio import write_text_lf
 
 
-def write_json_lf(path: Path, payload: object, *, trailing_newline: bool) -> None:
-    write_text_lf(path, json.dumps(payload, indent=2) + ("\n" if trailing_newline else ""))
+def write_json_lf(path: Path, payload: object, *, trailing_newline: bool, sort_keys: bool = False, default: Callable | None = None) -> None:
+    write_text_lf(path, json.dumps(payload, indent=2, sort_keys=sort_keys, default=default) + ("\n" if trailing_newline else ""))
 
 
 def write_csv_lf(output_path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
@@ -35,3 +36,8 @@ def stage_config_files(config_paths: list[Path], *, destination_dir: Path, filen
         shutil.copyfile(source, destination)
         copied.append(destination)
     return copied
+
+
+def write_json_snapshots(directory: Path, payloads: dict[str, object]) -> None:
+    for filename, payload in payloads.items():
+        write_json_lf(directory / filename, payload, trailing_newline=False)
