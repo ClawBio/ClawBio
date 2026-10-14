@@ -191,6 +191,19 @@ def build_effective_params(
     return params
 
 
+def tuning_params(args) -> dict[str, object]:
+    """Parameters a real run writes for tuning flags: all but input, outdir, aligner
+    and references. A hermetic test profile owns every one of them."""
+    params: dict[str, object] = {}
+    _add_aligner_params(params, args)
+    _add_contaminant_params(params, args)
+    _add_ribo_params(params, args)
+    _add_umi_params(params, args)
+    _add_flags(params, args)
+    _add_tuning_params(params, args)
+    return params
+
+
 def _build_base_params(args, *, normalized_samplesheet: Path, output_dir: Path) -> dict[str, object]:
     params: dict[str, object] = {
         # Relative so nf-core's ^\S+$ schema validator accepts paths with spaces.

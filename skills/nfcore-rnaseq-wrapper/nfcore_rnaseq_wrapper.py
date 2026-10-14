@@ -47,7 +47,7 @@ from command_builder import build_nextflow_command
 from errors import ErrorCode, SkillError
 from executor import execute_nextflow
 from outputs_parser import parse_outputs
-from params_builder import build_effective_params, write_params_yaml
+from params_builder import build_effective_params, tuning_params, write_params_yaml
 from pipeline_source import resolve_pipeline_source
 from preflight import check_resume_params_checksum, check_resume_samplesheet_checksum, run_preflight
 from provenance import write_provenance_bundle
@@ -642,42 +642,51 @@ _DEMO_CLEARED_REFERENCE_FIELDS = (
 )
 
 
-# High-signal tuning flags a user is most likely to *believe* took effect under
-# --demo but that the hermetic upstream `test` profile silently owns and ignores
-# (a -params-file value would override the profile, so build_effective_params
-# deliberately writes none of them in demo mode). Warned — never errored — so a
-# demo run is not mistaken for e.g. a UMI-deduplicated or contaminant-screened one
-# (audit F-02). Reference/index flags are handled separately above.
-_DEMO_IGNORED_TUNING_FIELDS = (
-    "pseudo_aligner",
-    "contaminant_screening",
-    "remove_ribo_rna",
-    "ribo_removal_tool",
-    "with_umi",
-    "skip_umi_extract",
-    "gencode",
-    "bbsplit_fasta_list",
-    "bbsplit_index",
-)
+# Wrapper flags that compose a Nextflow profile (arm64, prokaryotic) instead of only
+# writing a pipeline parameter, so a hermetic test profile still honours them.
+_PROFILE_MODIFIER_FIELDS = frozenset({"arm", "prokaryotic"})
+
+
+def _hermetic_ignored_flags(args: argparse.Namespace) -> list[str]:
+    """CLI flags whose pipeline parameters a hermetic test profile owns.
+
+    Derived from the params builder: a flag is listed when, on its own, it changes
+    the tuning parameters a real run would write. A new pipeline flag therefore can
+    never be dropped silently under --demo or --profile test. Reference flags and
+    --aligner/--input have their own warnings.
+    """
+    parser = build_parser()
+    defaults = parser.parse_args(["--output", "."])
+    baseline = tuning_params(defaults)
+    flags: list[str] = []
+    for dest, default in vars(defaults).items():
+        value = getattr(args, dest, default)
+        if dest in _PROFILE_MODIFIER_FIELDS or value == default:
+            continue
+        probe = argparse.Namespace(**vars(defaults))
+        setattr(probe, dest, value)
+        if tuning_params(probe) != baseline:
+            flags.append(_option_for(parser, dest, value))
+    return flags
+
+
+def _option_for(parser: argparse.ArgumentParser, dest: str, value: object) -> str:
+    """The long option that sets ``dest`` to ``value`` (``--no-deseq2-vst`` for False)."""
+    actions = [a for a in parser._actions if a.dest == dest and a.option_strings]
+    chosen = next((a for a in actions if a.nargs == 0 and a.const == value), actions[0])
+    return next(o for o in chosen.option_strings if o.startswith("--"))
 
 
 def _warn_about_ignored_hermetic_tuning_flags(args: argparse.Namespace, *, mechanism: str = "--demo") -> None:
     """Warn that tuning flags are ignored under a hermetic test profile.
 
     Both ``--demo`` and a self-contained nf-core test profile (``--profile test``/
-    ``test_full``/…) run a profile that owns every pipeline parameter, so any tuning
-    flag the user set has no effect. ``mechanism`` names which one fired so the
-    message is accurate for either path (audit F1).
+    ``test_full``/…) run a profile that owns every pipeline parameter (a -params-file
+    value would override it, so build_effective_params writes none of them), and any
+    tuning flag the user set has no effect. Warned, never errored, so a demo run is
+    not mistaken for e.g. a UMI-deduplicated one. ``mechanism`` names which one fired.
     """
-    set_flags = [
-        "--" + field.replace("_", "-")
-        for field in _DEMO_IGNORED_TUNING_FIELDS
-        if getattr(args, field, None)
-    ]
-    # --trimmer defaults to a non-None sentinel (DEFAULT_TRIMMER); only a non-default
-    # choice is a meaningful, silently-ignored override.
-    if getattr(args, "trimmer", DEFAULT_TRIMMER) not in (None, DEFAULT_TRIMMER):
-        set_flags.append("--trimmer")
+    set_flags = _hermetic_ignored_flags(args)
     if set_flags:
         print(
             f"WARNING: {mechanism} ignores tuning flags ({', '.join(set_flags)}); the upstream "
@@ -1337,15 +1346,39 @@ def _nextflow_replay_command(command_str: str, cwd: Path) -> str:
     return f"cd {shlex.quote(cwd.as_posix())} && {command_str}"
 
 
+def _recorded_pipeline_params(output_dir: Path) -> dict[str, object]:
+    """Parameters nf-core recorded for its latest launch (pipeline_info/params_*.json)."""
+    records = list((output_dir / "upstream" / "results" / "pipeline_info").glob("params_*.json"))
+    if not records:
+        return {}
+    latest = max(records, key=lambda path: (path.stat().st_mtime_ns, path.name))
+    try:
+        recorded = json.loads(latest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return recorded if isinstance(recorded, dict) else {}
+
+
 def _parse_outputs_with_effective_aligner(output_dir: Path, args: argparse.Namespace) -> dict[str, object]:
     aligner = getattr(args, "aligner", "star_salmon")
+    pseudo_aligner = getattr(args, "pseudo_aligner", None)
+    # A hermetic test profile owns pseudo_aligner (rnaseq 3.26.0's `test` runs Salmon
+    # pseudo-alignment) and ignores the flag, so report what nf-core recorded instead.
+    recorded = (
+        _recorded_pipeline_params(output_dir)
+        if getattr(args, "demo", False) or getattr(args, "_noinput", False)
+        else {}
+    )
+    if "pseudo_aligner" in recorded:
+        pseudo_aligner = recorded["pseudo_aligner"] or None
     parsed = parse_outputs(
         output_dir,
         aligner=aligner,
-        pseudo_aligner=getattr(args, "pseudo_aligner", None),
+        pseudo_aligner=pseudo_aligner,
         skip_alignment=bool(getattr(args, "skip_alignment", False)),
         skip_quantification_merge=bool(getattr(args, "skip_quantification_merge", False)),
     )
+    parsed["pseudo_aligner_from_pipeline"] = "pseudo_aligner" in recorded
     parsed["aligner_effective"] = aligner
     # parse_outputs already sets handoff_available (counts present AND not a skipped
     # merge); the only adjustment here is forcing it off for the HISAT2 alignment-only
