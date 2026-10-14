@@ -1643,6 +1643,12 @@ def _flag_value(args: list[str], flag: str) -> str | None:
     return value
 
 
+def _warning_lines(stderr: str) -> list[str]:
+    """The distinct ``WARNING:`` lines a skill wrote to stderr, in order."""
+    lines = (line.strip() for line in (stderr or "").splitlines())
+    return list(dict.fromkeys(line for line in lines if line.startswith("WARNING:")))
+
+
 def _runner_timeout_seconds(
     skill_info: dict, extra_args: list[str] | None, *, requested: int
 ) -> int | None:
@@ -3179,6 +3185,11 @@ def main():
             print(f"  Output:   {result['output_dir']}")
         if result["files"]:
             print(f"  Files:    {', '.join(result['files'])}")
+        # stderr is shown only on failure, so relay a successful run's warnings: a
+        # flag the skill forced or ignored must not pass unnoticed.
+        if result["success"]:
+            for line in _warning_lines(result["stderr"]):
+                print(f"  {YELLOW}{line}{RESET}")
         # Show a preview of the report if one was generated
         if result["success"] and result["output_dir"]:
             report = Path(result["output_dir"]) / "report.md"

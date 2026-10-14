@@ -71,7 +71,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `clawbio run` killed the wrappers at 12h10m whatever `--timeout-hours` said;
   both now stop Nextflow cleanly, as does a SIGTERM to the wrapper (exit 143). Relocating a reproducibility bundle no longer
   silently skips paths containing spaces with apostrophes, `$`, quotes or YAML
-  special characters. Per-skill details are in each wrapper's CHANGELOG.
+  special characters. A refused sarek `--resume` no longer replaces the completed
+  run's samplesheet, and the rnaseq demo report states the Salmon pseudo-alignment
+  nf-core's test profile runs. Per-skill details are in each wrapper's CHANGELOG.
+- **`clawbio run` relays a successful skill's `WARNING:` lines.** stderr was shown
+  only on failure, so e.g. `--demo --skip-qc` succeeded without saying the flag had
+  no effect.
 
 ### Notes
 - Upstream's `--out` defaults were relative to the working directory; every
