@@ -14,8 +14,10 @@ import argparse
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, cast
@@ -575,8 +577,32 @@ def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
         ),
     )
 
+    # A resume validates its samplesheet in a scratch directory and replaces the
+    # completed run's copy only once preflight accepts it, so a refused resume leaves
+    # the earlier bundle exactly as it was (as nfcore-rnaseq/scrnaseq do).
+    run_kwargs = {
+        "pipeline_source": pipeline_source,
+        "composed_profile": composed_profile,
+        "igenomes_notice": igenomes_notice,
+    }
+    if args.resume:
+        with tempfile.TemporaryDirectory(prefix="clawbio-sarek-resume-") as staging:
+            return _run_with_samplesheet(args, output_dir, staging_dir=Path(staging), **run_kwargs)
+    return _run_with_samplesheet(args, output_dir, staging_dir=None, **run_kwargs)
+
+
+def _run_with_samplesheet(
+    args: argparse.Namespace,
+    output_dir: Path,
+    *,
+    staging_dir: Path | None,
+    pipeline_source: dict[str, Any],
+    composed_profile: str,
+    igenomes_notice: str | None,
+) -> int:
     # --- samplesheet preparation ---
-    samplesheet_report, normalized_csv = _prepare_samplesheet(args, output_dir)
+    samplesheet_report, staged_csv = _prepare_samplesheet(args, output_dir, staging_dir=staging_dir)
+    normalized_csv = output_dir / "reproducibility" / staged_csv.name
 
     # --- preflight ---
     repo_root = _detect_repo_root()
@@ -606,6 +632,11 @@ def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
         resume_manifest=resume_manifest,
         allow_remote_inputs=bool(getattr(args, "allow_remote_inputs", False)),
     )
+    if staging_dir is not None:
+        normalized_csv.parent.mkdir(parents=True, exist_ok=True)
+        for staged in sorted(staging_dir.iterdir()):
+            shutil.copyfile(staged, normalized_csv.parent / staged.name)
+        samplesheet_report["normalized_path"] = normalized_csv
     # Record the auto-igenomes-ignore notice in the report's warning list too, so the
     # behaviour change is provenance-visible (not only on stderr at emit time).
     if igenomes_notice:
@@ -1111,10 +1142,14 @@ def _tool_list(raw: Any) -> list[str]:
 
 
 def _prepare_samplesheet(
-    args: argparse.Namespace, output_dir: Path
+    args: argparse.Namespace, output_dir: Path, *, staging_dir: Path | None = None
 ) -> tuple[dict[str, Any], Path]:
-    """Validate the user's samplesheet (or write a demo stub) and return (report, csv_path)."""
-    repro_dir = output_dir / "reproducibility"
+    """Validate the user's samplesheet (or write a demo stub) and return (report, csv_path).
+
+    Files are written to ``staging_dir`` when given, otherwise to the bundle directory;
+    the bundle name is the returned file's name either way.
+    """
+    repro_dir = staging_dir or output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
     if args.demo:
         normalized_csv = repro_dir / "samplesheet.demo.csv"

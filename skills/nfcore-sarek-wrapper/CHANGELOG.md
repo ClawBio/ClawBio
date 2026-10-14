@@ -12,8 +12,11 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   3.8.1's configs (`Unexpected input: ':'`); the wrapper sets `NXF_SYNTAX_PARSER=v1`
   for the run, the recorded command and `commands.sh`.
 - **Ctrl+C now stops Nextflow** instead of leaving it running after the wrapper exits.
-- **A refused `--resume` keeps the completed run's `result.json`.** `RESUME_DRIFT`
-  overwrote it with the refusal while that run's outputs were still on disk.
+- **A refused `--resume` leaves the completed run untouched.** `RESUME_DRIFT`
+  overwrote its `result.json` with the refusal, and the new samplesheet had already
+  replaced `reproducibility/samplesheet.valid.csv`, so replaying that bundle would have
+  analysed the refused request's samples. A resume now validates the samplesheet in a
+  scratch directory and commits it only after preflight accepts the resume.
 - **Checksums survive later runs in place.** Nextflow's rotated `.nextflow.log.N` files
   were hashed, so `sha256sum -c` failed after any `--resume`; `--repair-bundle` now
   selects exactly the files a fresh run lists.
