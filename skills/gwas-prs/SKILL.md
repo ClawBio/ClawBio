@@ -75,11 +75,18 @@ When the user asks for a polygenic risk score calculation:
 
    > The panel files use names such as `CLAWBIO-T2D-8_GRCh37.txt`; they no
    > longer occupy PGS Catalog download-cache paths. `--trait` and all PGS
-   > accessions except PGS000013 therefore use genuine Catalog data. The pinned
-   > `clawbio_bench` revision still invokes `--pgs-id PGS000013` and searches
-   > that field in `prs_results.json`, so that single call is an explicit,
-   > marked compatibility alias for `CLAWBIO-T2D-8`. Normal panel runs must use
-   > `--panel-id CLAWBIO-T2D-8`. See issue #356.
+   > accessions therefore use genuine Catalog data, PGS000013 included:
+   > `--pgs-id PGS000013` fetches Khera 2018 (coronary artery disease,
+   > 6,630,150 variants) from the Catalog and refuses to substitute the
+   > 8-variant curated panel. Normal panel runs must use
+   > `--panel-id CLAWBIO-T2D-8`.
+   >
+   > One exception exists for the benchmark. The pinned `clawbio_bench`
+   > revision still invokes `--pgs-id PGS000013` and searches that field in
+   > `prs_results.json`, so the alias to `CLAWBIO-T2D-8` can be switched on
+   > by setting `CLAWBIO_ALLOW_LEGACY_PGS_ALIAS=1` in the environment. The
+   > benchmark workflow sets it; nothing else should. Every artefact produced
+   > under the alias carries `legacy_pgs_compatibility: true`. See issue #356.
 
 3. **Parse scoring file**: Read the PGS harmonised scoring file. Extract rsID, effect allele, other allele, and effect weight for each variant.
 

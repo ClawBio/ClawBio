@@ -119,3 +119,12 @@ output_directory/
 **Chaining partners**:
 - `full-profile pipeline`: Run `python clawbio.py run full-profile` first (pharmgx → nutrigx → prs → compare), then profile-report
 - `Individual skills`: Run any combination of pharmgx, nutrigx, prs, compare, then profile-report to unify
+
+## PRS evidence scope
+
+Preserve `gwas-prs` evidence assessments in unified reports. Research percentiles
+are not individual disease-risk categories. Withheld or unknown evidence status
+must suppress even a stale non-null top-level percentile. Explicit synthetic
+demo results remain illustrative. Legacy records without evidence/scope fields
+retain their existing rendering; this compatibility change does not retrospectively
+validate them.

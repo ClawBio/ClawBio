@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "clawbio"
-description = "The first bioinformatics-native AI agent skill library. Local-first, reproducible, built on OpenClaw."
+description = "Bioinformatics-native AI agent skill library. Local-first, reproducible, built on OpenClaw."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -40,19 +40,19 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
 dependencies = [
-    "biopython>=1.82",
-    "conda-lock>=2.0",
-    "google-auth>=2,<3",
-    "google-cloud-bigquery>=3,<4",
-    "matplotlib>=3.7",
-    "numpy>=1.24",
-    "openai>=1.0",
-    "opentelemetry-sdk>=1.20,<2",
-    "pandas>=2.0",
+    "biopython>=1.88",
+    "conda-lock>=4.0.2",
+    "google-auth>=2.57.1,<3",
+    "google-cloud-bigquery>=3.45.0,<4",
+    "matplotlib>=3.11.1",
+    "numpy>=2.4.6",
+    "openai>=3.8.0",
+    "opentelemetry-sdk>=1.44.0,<2",
+    "pandas>=3.0.5",
     "pyyaml>=6.0",
     "pydeseq2>=0.4",
-    "rocrate>=0.15.0",
-    "scikit-learn>=1.3",
+    "rocrate>=0.15.1",
+    "scikit-learn>=1.9.0",
     "scipy>=1.10",
 ]
 
@@ -63,8 +63,13 @@ dependencies = [
 mcp = ["mcp>=1.9,<2"]
 just-prs = [
     "fastmcp>=3.4.4,<4",
-    "typer>=0.27,<1",
+    "typer>=0.27.2,<1",
 ]
+# Shared by the four region skills (eqtl-catalogue-region-fetch,
+# gwas-catalog-region-fetch, ld-1000g-region-compute, ukb-ppp-region-fetch).
+# Declared here so `uv sync --all-extras` in CI can run their test suites;
+# each SKILL.md already documents pysam>=0.22 for local installs (#406).
+region-fetch = ["pysam>=0.22"]
 
 [project.scripts]
 clawbio = "clawbio.cli:main"
@@ -80,11 +85,11 @@ dev = [
     "skills-ref>=0.1.1,<1",
 ]
 bot = [
-    "python-telegram-bot[job-queue]>=21.0",
+    "python-telegram-bot[job-queue]>=22.8",
     "discord.py>=2.3.0",
     "flask>=3.0.0",
-    "requests>=2.31.0",
-    "python-dotenv>=1.0",
+    "requests>=2.34.2",
+    "python-dotenv>=1.2.3",
 ]
 
 [tool.hatch.version]

@@ -174,7 +174,7 @@ AI coding agents (Codex, Devin, Claude Code, Cursor, etc.) should follow the sam
 1. Read [`AGENTS.md`](AGENTS.md) for setup, commands, code style, and project structure
 2. Read the target skill's `SKILL.md` before modifying any code
 3. Use `python clawbio.py list` to verify skills still load after changes
-4. Run `python -m pytest -v` to confirm all tests pass
+4. Run `python -m pytest skills/your-skill-name/tests/ -v` to confirm your skill's tests pass. Do not run a bare `pytest -v` across the whole repo — it fails at collection time on a `conftest.py` module-name collision between skills; see [docs/testing.md](docs/testing.md)
 5. Regenerate `skills/catalog.json` if you changed any SKILL.md YAML frontmatter: `python scripts/generate_catalog.py`
 
 ### SKILL.md Quality Checklist

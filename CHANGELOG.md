@@ -5,6 +5,58 @@ All notable changes to ClawBio are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.7.1] - 2026-09-05
+
+### Fixed
+- **Tagged releases publish themselves again.** Every previous run of
+  `publish.yml` failed with `invalid-publisher`, so 0.5.2, 0.6.1 and 0.7.0 were
+  uploaded by hand. The workflow was correct: the OIDC claims GitHub sends match
+  what `packaging/README.md` documents, and no matching publisher is registered
+  on PyPI. Until it is, the job authenticates with an API token held as an
+  environment secret on `pypi`, an environment that accepts `v*` tags only.
+
+### Added
+- **`SECURITY.md`**: a private disclosure path (GitHub private vulnerability reporting,
+  now enabled on the repository, with an email fallback), response commitments, what is
+  in and out of scope, and which versions receive fixes.
+- **`docs/data-handling.md`**: every skill that can send data off the machine, grouped by
+  what it sends (reference downloads only, query terms you typed, your variants, whole
+  sequences or files, or chat messages to a hosted LLM), with the host, the trigger, the
+  credential variable and the offline behaviour for each. Enforced by
+  `tests/test_data_handling_doc.py`, which scans every skill for outbound-call code and
+  fails if a networked skill is absent from the page.
+
+### Changed
+- README and `docs/architecture.md` no longer claim that "no network calls" are made for
+  data processing. Several skills send variants to Ensembl VEP, gnomAD and ClinVar, and the
+  six `gi-*` skills upload whole sequences to a hosted model. The privacy statement now says
+  exactly that and points at the data-handling page. The README versioning line also read
+  `v0.5.0` two releases late; it now says `v0.7.0`.
+
+### Removed
+- **`soul2dna` is no longer a ClawBio skill** (#111). The skill folder was a thin
+  wrapper around the Genomebook sandbox compiler and presented "compile character
+  profiles into synthetic genomes" as a catalogued bioinformatics capability, which
+  the external audit rightly called out: there is no scientific basis for mapping
+  traits of character to genotypes, and a skill catalogue that hopes to be trusted
+  with clinical work should not carry one that implies there is. The compiler itself
+  stays where it always lived, `GENOMEBOOK/PYTHON/01-soul2dna.py`, inside the
+  sandbox whose README now states its scope: synthetic fixtures for exercising the
+  orchestrator, with no biological meaning. `genome-match` and `recombinator`, which
+  consume those fixtures, are unchanged. Catalogue count 97 to 96.
+
+### Fixed
+- **gwas-prs no longer substitutes the curated T2D panel for PGS000013** (#356,
+  remaining half). `--pgs-id PGS000013` now goes to the PGS Catalog like any other
+  accession and, when it cannot, fails with a message saying what the accession is
+  (Khera 2018, coronary artery disease, 6,630,150 variants) and how to request the
+  curated panel instead (`--panel-id CLAWBIO-T2D-8`). The benchmark compatibility
+  alias still exists but is opt-in through `CLAWBIO_ALLOW_LEGACY_PGS_ALIAS=1`, which
+  only `.github/workflows/bench-leaderboard.yml` sets for the pinned `clawbio_bench`
+  revision. A network failure on that path now reports cleanly instead of raising.
+
 ## [0.7.0] - 2026-09-03
 
 ### Deprecated

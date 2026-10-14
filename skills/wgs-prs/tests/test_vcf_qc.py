@@ -84,6 +84,21 @@ class TestPythonStats:
         assert stats["number of heterozygous SNPs:"] >= 0
         assert stats["number of homozygous SNPs:"] >= 0
 
+    def test_gt_only_terminal_field_counts_het_and_hom_calls(self, tmp_path):
+        """The final GT field must not retain its trailing line ending."""
+        vcf = tmp_path / "gt_only.vcf"
+        vcf.write_text(
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n"
+            "1\t1\trs1\tA\tG\t50\tPASS\t.\tGT\t0/1\n"
+            "1\t2\trs2\tC\tT\t50\tPASS\t.\tGT\t1/1\n"
+            "1\t3\trs3\tG\tA\t50\tPASS\t.\tGT\t1/0\n"
+        )
+
+        stats = VcfQC.__new__(VcfQC)._python_stats(vcf)
+
+        assert stats["number of heterozygous SNPs:"] == 2
+        assert stats["number of homozygous SNPs:"] == 1
+
 
 # ---------------------------------------------------------------------------
 # Parse bcftools stats output
@@ -176,6 +191,90 @@ class TestPassFail:
 # ---------------------------------------------------------------------------
 
 class TestFullRunNoBcftools:
+    def test_missing_calls_fail_the_configured_missingness_limit(self, tmp_path):
+        vcf = tmp_path / "missing.vcf"
+        vcf.write_text(
+            "##fileformat=VCFv4.2\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n"
+            "1\t1\trs1\tA\tG\t50\tPASS\t.\tGT\t./.\n"
+            "1\t2\trs2\tC\tA\t50\tPASS\t.\tGT\t./.\n"
+            "1\t3\trs3\tG\tA\t50\tPASS\t.\tGT\t./.\n"
+            "1\t4\trs4\tT\tG\t50\tPASS\t.\tGT\t./.\n"
+        )
+        cfg = QcConfig(min_snp_count=1, max_missing_rate=0.1)
+        with patch("clawbio.common.vcf_qc.shutil.which", return_value=None):
+            result = VcfQC(cfg).run(vcf, tmp_path / "qc")
+
+        assert not result.passes_qc
+        assert any("Missing genotype rate" in reason for reason in result.fail_reasons)
+
+    @pytest.mark.parametrize(
+        "format_field, genotype",
+        [("GT:DP", "./.:30"), ("GT:DP", "0/.:30"), ("GT:DP", ".|1:30"),
+         ("DP", "30"), ("DP:GT", "30"), ("PGT", "0|1")],
+    )
+    def test_missing_or_unreadable_gt_is_counted(self, tmp_path, format_field, genotype):
+        vcf = tmp_path / "calls.vcf"
+        vcf.write_text(
+            "##fileformat=VCFv4.2\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n"
+            f"1\t1\trs1\tA\tG\t50\tPASS\t.\t{format_field}\t{genotype}\n"
+        )
+        assert VcfQC._missing_genotype_rate(vcf) == 1.0
+        assert VcfQC()._python_stats(vcf)["number of heterozygous SNPs:"] == 0
+
+    def test_haploid_and_polyploid_calls_are_present(self, tmp_path):
+        vcf = tmp_path / "ploidy.vcf"
+        vcf.write_text("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS\n1\t1\trs1\tA\tG\t50\tPASS\t.\tGT\t1\n1\t2\trs2\tA\tG\t50\tPASS\t.\tGT\t0/1/1\n")
+        assert VcfQC._missing_genotype_rate(vcf) == 0.0
+
+    def test_partial_gt_does_not_count_as_heterozygous(self, tmp_path):
+        vcf = tmp_path / "partial.vcf"
+        vcf.write_text("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS\n1\t1\trs1\tA\tG\t50\tPASS\t.\tGT\t1/.\n")
+        stats = VcfQC.__new__(VcfQC)._python_stats(vcf)
+        assert stats["number of heterozygous SNPs:"] == 0
+
+    def test_missingness_uses_all_samples_and_persists_threshold_equality(self, tmp_path):
+        vcf = tmp_path / "multi.vcf"
+        vcf.write_text(
+            "##fileformat=VCFv4.2\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tA\tB\n"
+            "1\t1\trs1\tA\tG\t50\tPASS\t.\tGT\t0/1\t./.\n"
+        )
+        cfg = QcConfig(min_snp_count=1, max_missing_rate=0.5)
+        with patch("clawbio.common.vcf_qc.shutil.which", return_value=None):
+            result = VcfQC(cfg).run(vcf, tmp_path / "qc")
+        assert result.missing_genotype_rate == 0.5
+        assert not any("Missing genotype rate" in reason for reason in result.fail_reasons)
+        assert json.loads(result.metrics_json.read_text())["metrics"]["missing_genotype_rate"] == 0.5
+
+    def test_missingness_just_over_the_threshold_fails_on_bcftools_path(self, tmp_path):
+        vcf = tmp_path / "multi.vcf"
+        vcf.write_text(
+            "##fileformat=VCFv4.2\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tA\tB\tC\n"
+            "1\t1\trs1\tA\tG\t50\tPASS\t.\tGT\t0/1\t0/1\t./.\n"
+        )
+        cfg = QcConfig(min_snp_count=1, max_missing_rate=0.3)
+        qc = VcfQC(cfg)
+        qc._bcftools = "bcftools"
+        canonical = tmp_path / "canonical.vcf.gz"
+        canonical.write_text("placeholder\n")
+        with patch.object(qc, "_normalise", return_value=canonical), \
+             patch.object(qc, "_hard_filter", return_value=(canonical, 0)), \
+             patch.object(qc, "_compute_stats", return_value={
+                 "number of SNPs:": 1,
+                 "number of indels:": 0,
+                 "number of heterozygous SNPs:": 1,
+                 "number of homozygous SNPs:": 1,
+                 "titv_ratio": 2.0,
+             }):
+            result = qc.run(vcf, tmp_path / "qc")
+
+        assert result.missing_genotype_rate == pytest.approx(1 / 3)
+        assert not result.passes_qc
+        assert any("Missing genotype rate" in reason for reason in result.fail_reasons)
+
     def test_run_without_bcftools_uses_python_fallback(self, minimal_vcf, tmp_path):
         cfg = QcConfig(min_snp_count=1)   # low threshold so tiny VCF passes
         with patch("clawbio.common.vcf_qc.shutil.which", return_value=None):

@@ -105,7 +105,30 @@ def _get_prs_scores(results: dict) -> list[dict]:
     scores = prs_data.get("scores")
     if scores is None:
         scores = prs_data.get("results")
-    return scores if isinstance(scores, list) else []
+    if not isinstance(scores, list):
+        return []
+    normalised = []
+    for score in scores:
+        row = dict(score)
+        scope = row.get("interpretation_scope")
+        assessment = row.get("evidence_assessment")
+        if scope == "synthetic_demo_only":
+            row["_evidence_scope"] = "illustrative"
+            row["risk_category"] = "Illustrative only"
+        elif scope is not None or assessment is not None:
+            # Never revive stale top-level percentiles after an evidence refusal.
+            row["_evidence_scope"] = "withheld"
+            row["percentile"] = None
+            row["risk_category"] = "Withheld"
+            if isinstance(assessment, dict) and scope == "research_percentile":
+                pct = assessment.get("percentile")
+                if (assessment.get("status") == "supported"
+                        and type(pct) in (int, float) and 0 <= pct <= 100):
+                    row["_evidence_scope"] = "research"
+                    row["percentile"] = pct
+                    row["risk_category"] = "Research only"
+        normalised.append(row)
+    return normalised
 
 
 # ---------------------------------------------------------------------------
@@ -141,10 +164,17 @@ def render_executive_summary(profile: dict) -> str:
             trait = score.get("trait", "Unknown")
             percentile = score.get("percentile")
             category = score.get("risk_category", "")
-            if percentile is not None:
-                trait_summaries.append(f"{category} {trait} risk ({percentile:.0f}th percentile)")
+            scope = score.get("_evidence_scope")
+            if scope == "withheld":
+                trait_summaries.append(f"{trait}: interpretation withheld")
+            elif percentile is not None:
+                if scope in ("research", "illustrative"):
+                    trait_summaries.append(f"{trait}: {scope} percentile ({percentile:.0f}th)")
+                else:
+                    trait_summaries.append(f"{category} {trait} risk ({percentile:.0f}th percentile)")
         if trait_summaries:
-            lines.append(f"- **Disease Risk**: {' · '.join(trait_summaries[:3])}")
+            label = "Polygenic Scores" if any(s.get("_evidence_scope") for s in scores) else "Disease Risk"
+            lines.append(f"- **{label}**: {' · '.join(trait_summaries[:3])}")
             if len(trait_summaries) > 3:
                 lines.append(f"  _(+{len(trait_summaries) - 3} more traits assessed)_")
         else:
@@ -355,6 +385,19 @@ def render_prs_section(profile: dict) -> str:
 
         # Per-trait detail
         for score in scores:
+            scope = score.get("_evidence_scope")
+            if scope:
+                label = {"withheld": "Interpretation withheld", "research": "Research percentile only",
+                         "illustrative": "Illustrative synthetic result"}[scope]
+                lines.append(f"> **{label}**: {score.get('trait', 'Unknown')}. No individual disease-risk conclusion.")
+                assessment = score.get("evidence_assessment")
+                if scope == "withheld" and isinstance(assessment, dict):
+                    codes = [str(reason.get("code", "")) for reason in assessment.get("reasons", [])
+                             if isinstance(reason, dict)]
+                    if codes:
+                        lines.append("> Evidence reasons: " + ", ".join(codes))
+                lines.append("")
+                continue
             percentile = score.get("percentile")
             if percentile is not None and percentile >= 90:
                 trait = score.get("trait", "Unknown")

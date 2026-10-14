@@ -18,7 +18,7 @@
     "Accept a list of sample IDs from a plain-text file (one per line)",
     "Produce a formatted markdown report greeting each sample",
     "Write a machine-readable result.json with sample count and IDs",
-    "Provide a full reproducibility bundle (commands.sh + environment.yml)"
+    "Provide a full reproducibility bundle (commands.sh, environment.yml, checksums.sha256)"
   ],
   "input_formats": [
     {

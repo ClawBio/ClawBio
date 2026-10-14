@@ -56,6 +56,32 @@ DEMO_SPEC_PATH = SCRIPT_DIR / "demo_spec.json"
 # Sentinel file that marks the ClawBio repo root
 REPO_SENTINEL = "clawbio.py"
 
+
+def _repro_helpers():
+    """Load clawbio.common.reproducibility without importing it at module load.
+
+    A top-level import pulls in ``clawbio.common.__init__`` (OpenTelemetry),
+    which would make ``--validate-only`` and ``--help`` depend on extras that
+    this skill's SKILL.md still lists as stdlib-only.
+    """
+    root = SCRIPT_DIR.parents[1]
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from clawbio.common.reproducibility import (  # noqa: E402
+        ReproCommand,
+        ReproPath,
+        write_checksums,
+        write_environment_yml,
+        write_portable_commands_sh,
+    )
+    return (
+        ReproCommand,
+        ReproPath,
+        write_checksums,
+        write_environment_yml,
+        write_portable_commands_sh,
+    )
+
 # Sections required in every SKILL.md body (from CONTRIBUTING.md checklist)
 REQUIRED_SECTIONS = [
     ("YAML frontmatter",             r"^---"),
@@ -525,9 +551,14 @@ def validate_spec(spec: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def _yaml_list(items: list[str], indent: int = 6) -> str:
-    """Render a YAML block list with given indent."""
+    """Render a YAML block list with given indent.
+
+    Never emit a flow sequence such as ``[]``: skills-ref/strictyaml rejects it.
+    """
     pad = " " * indent
-    return "\n".join(f"{pad}- {item}" for item in items) if items else f"{' ' * indent}[]"
+    if not items:
+        return f"{pad}- TODO"
+    return "\n".join(f"{pad}- {item}" for item in items)
 
 
 def _md_input_table(formats: list) -> str:
@@ -596,12 +627,6 @@ def _md_deps(deps: dict) -> str:
     return "\n".join(lines)
 
 
-def _yaml_inline_list(items: list[str]) -> str:
-    if not items:
-        return "[]"
-    return "[" + ", ".join(items) + "]"
-
-
 def generate_skill_md(spec: dict) -> str:
     """Generate a complete SKILL.md from a skill spec dict."""
     name         = spec["name"]
@@ -625,39 +650,40 @@ def generate_skill_md(spec: dict) -> str:
         f"{i+1}. **Capability {i+1}**: {cap}" for i, cap in enumerate(capabilities)
     )
 
-    install_section: str
     req_pkgs = deps.get("required", [])
     if req_pkgs:
         install_lines = "\n".join(
-            f"      - kind: pip\n        package: {p.split()[0]}\n        bins: []"
+            f"      - kind: pip\n        package: {p.split()[0]}"
             for p in req_pkgs
         )
-        install_section = f"    install:\n{install_lines}"
+        install_block = f"    install:\n{install_lines}\n"
     else:
-        install_section = "    install: []"
+        # Empty `install: []` is a flow sequence; skills-ref/strictyaml rejects it.
+        install_block = ""
+
+    tags_section = f"  tags:\n{_yaml_list(tags, indent=4)}\n" if tags else ""
 
     return f"""\
 ---
 name: {name}
 description: >-
   {description}
-version: {version}
-author: {author}
 license: {license_}
-tags: {_yaml_inline_list(tags)}
 metadata:
-  openclaw:
+  version: "{version}"
+  author: "{author}"
+  domain: {domain}
+{tags_section}  openclaw:
     requires:
       bins:
         - python3
-      env: []
-      config: []
     always: false
     emoji: "{emoji}"
     homepage: https://github.com/ClawBio/ClawBio
-    os: [darwin, linux]
-{install_section}
-    trigger_keywords:
+    os:
+      - darwin
+      - linux
+{install_block}    trigger_keywords:
 {_yaml_list(trigger_kws, indent=8)}
 ---
 
@@ -739,8 +765,12 @@ output_directory/
 │   └── results.csv        # Tabular data
 └── reproducibility/
     ├── commands.sh        # Exact commands to reproduce
-    └── environment.yml    # Conda/pip environment snapshot
+    ├── environment.yml    # Conda/pip environment snapshot
+    └── checksums.sha256   # SHA-256 of outputs, relative to output_directory
 ```
+
+Verify the run with
+`cd <output_directory> && sha256sum -c reproducibility/checksums.sha256`.
 
 ## Dependencies
 
@@ -785,6 +815,7 @@ def generate_skill_py(spec: dict) -> str:
         "\n".join(f"# import {p.split()[0].split('=')[0].split('>')[0].strip()}" for p in req_pkgs)
         if req_pkgs else "# No external dependencies required"
     )
+    pip_deps_repr = "[" + ", ".join(repr(p) for p in req_pkgs) + "]"
 
     return textwrap.dedent(f'''\
         #!/usr/bin/env python3
@@ -811,9 +842,55 @@ def generate_skill_py(spec: dict) -> str:
 
         {import_hint}
 
+        SKILL_DIR = Path(__file__).resolve().parent
+        _PROJECT_ROOT = SKILL_DIR.parents[1]
+        if str(_PROJECT_ROOT) not in sys.path:
+            sys.path.insert(0, str(_PROJECT_ROOT))
+
+        from clawbio.common.reproducibility import (  # noqa: E402
+            write_checksums,
+            write_commands_sh,
+            write_environment_yml,
+        )
+
         # ---------------------------------------------------------------------------
         # Core logic
         # ---------------------------------------------------------------------------
+
+        def write_reproducibility_bundle(output_dir: Path, invocation: str) -> None:
+            """Write commands.sh, environment.yml and checksums.sha256 via clawbio.common.
+
+            Do not hand-roll these writers: the shared helpers keep line endings,
+            the checksum format and the bundle layout identical across skills.
+            """
+            write_commands_sh(
+                output_dir,
+                "# {title} - reproducibility\\n"
+                "set -euo pipefail\\n"
+                "\\n"
+                "# 1. Recreate the environment\\n"
+                "conda env create -f environment.yml\\n"
+                "conda activate {name}\\n"
+                "\\n"
+                "# 2. Re-run the analysis\\n"
+                f"python {script_name}.py {{invocation}}\\n"
+                "\\n"
+                "# 3. Verify output checksums (labels are relative to the output directory)\\n"
+                '( cd "$(dirname "$0")/.." && sha256sum -c reproducibility/checksums.sha256 )',
+            )
+            write_environment_yml(
+                output_dir,
+                env_name="{name}",
+                python_version="3.11",
+                pip_deps={pip_deps_repr},
+                conda_deps=[],
+            )
+            write_checksums(
+                [output_dir / "report.md", output_dir / "result.json"],
+                output_dir,
+                anchor=output_dir,
+            )
+
 
         def run(input_path: Path, output_dir: Path) -> dict:
             """
@@ -829,8 +906,6 @@ def generate_skill_py(spec: dict) -> str:
             output_dir.mkdir(parents=True, exist_ok=True)
             (output_dir / "figures").mkdir(exist_ok=True)
             (output_dir / "tables").mkdir(exist_ok=True)
-            repro_dir = output_dir / "reproducibility"
-            repro_dir.mkdir(exist_ok=True)
 
             # ------------------------------------------------------------------
             # TODO: Implement your skill logic here.
@@ -872,18 +947,9 @@ def generate_skill_py(spec: dict) -> str:
                 json.dumps(results, indent=2, default=str), encoding="utf-8"
             )
 
-            # --- Write reproducibility bundle ---
-            cmd = (
-                f"python skills/{name}/{script_name}.py "
-                f"--input {{input_path}} --output {{output_dir}}"
-            )
-            (repro_dir / "commands.sh").write_text(
-                f"#!/bin/bash\\n# Reproduced: {{datetime.now().isoformat()}}\\n{{cmd}}\\n",
-                encoding="utf-8",
-            )
-            (repro_dir / "environment.yml").write_text(
-                "name: {name}\\nchannels:\\n  - conda-forge\\ndependencies:\\n  - python=3.11\\n",
-                encoding="utf-8",
+            write_reproducibility_bundle(
+                output_dir,
+                f"--input {{input_path}} --output {{output_dir}}",
             )
 
             return results
@@ -1027,11 +1093,12 @@ def generate_test_py(spec: dict) -> str:
 
 
         def test_reproducibility_bundle(tmp_output: Path) -> None:
-            """Reproducibility bundle (commands.sh + environment.yml) should be present."""
+            """Reproducibility bundle must include commands, environment, and checksums."""
             run_demo(tmp_output)
             repro = tmp_output / "reproducibility"
             assert (repro / "commands.sh").exists(), "commands.sh missing"
             assert (repro / "environment.yml").exists(), "environment.yml missing"
+            assert (repro / "checksums.sha256").exists(), "checksums.sha256 missing"
 
 
         # ---------------------------------------------------------------------------
@@ -1548,11 +1615,9 @@ def write_skill_builder_report(
     spec: dict,
     repo_root: Path | None,
 ) -> None:
-    """Write the skill-builder's own report.md + result.json to output_dir."""
-    name      = spec["name"]
-    cli_alias = spec.get("cli_alias") or name.split("-")[0]
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
+    """Write the skill-builder's own report.md, result.json, and repro bundle."""
+    name = spec["name"]
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # report.md — numbered fresh after deciding which conditional steps apply
     steps: list[str] = []
@@ -1620,11 +1685,39 @@ def write_skill_builder_report(
     (output_dir / "report.md").write_text("\n".join(report_lines), encoding="utf-8")
     (output_dir / "result.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
-    cmd_input = spec.get("_source_path", "spec.json")
-    (repro_dir / "commands.sh").write_text(
-        f"#!/bin/bash\n# Reproduced: {manifest['generated_at']}\n"
-        f"python skills/skill-builder/skill_builder.py --input {cmd_input}\n",
-        encoding="utf-8",
+    spec_path = Path(spec.get("_source_path", "spec.json"))
+    (
+        ReproCommand,
+        ReproPath,
+        write_checksums,
+        write_environment_yml,
+        write_portable_commands_sh,
+    ) = _repro_helpers()
+    write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/skill-builder/skill_builder.py"),
+            args=[
+                "--input",
+                ReproPath(spec_path, anchor="auto"),
+                "--output",
+                ReproPath(output_dir, anchor="output_dir"),
+            ],
+            comment=f"Reproduced: {manifest['generated_at']}",
+        ),
+        repo_root=repo_root,
+    )
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-skill-builder",
+        python_version="3.11",
+        pip_deps=[],
+        conda_deps=[],
+    )
+    write_checksums(
+        [output_dir / "report.md", output_dir / "result.json"],
+        output_dir,
+        anchor=output_dir,
     )
 
 

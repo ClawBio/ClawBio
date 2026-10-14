@@ -108,12 +108,15 @@ return the standard report and output bundle.
 
 ## Privacy Model
 
-ClawBio enforces a strict local-first privacy model:
+ClawBio is local-first, which means something specific rather than absolute:
 
-- **No network calls** for data processing. All computation happens locally.
-- **Optional network** only for: literature search (PubMed API), structure database queries (PDB/UniProt), and package installation.
-- **Explicit consent** required before any data leaves the machine.
-- **File access scoping**: Skills operate within the current working directory by default. Access to parent directories requires user confirmation.
+- **The `clawbio` package makes no network calls.** No telemetry, no update checks, no analytics. The audit layer (`clawbio/common/audit.py`) writes to a local JSONL file only.
+- **Most skills never touch the network.** They read your files, compute, and write to the output directory.
+- **Some skills do reach external services**, and they fall into classes: reference data downloads (nothing of yours is sent), query terms you typed (gene symbols, rsIDs, free text), your variants (VEP, gnomAD and ClinVar lookups send chromosome, position and alleles from your VCF), and whole sequences or files uploaded to a hosted model or platform (the `gi-*` skills, `galaxy-bridge --run`). Each such skill is listed by name, with what it sends, in [data-handling.md](data-handling.md), and `tests/test_data_handling_doc.py` fails if a networked skill is missing from that page.
+- **Nothing is sent unless you run the skill.** `--demo` runs are offline except where the page says otherwise. Credentials are read from environment variables and never stored by ClawBio.
+- **File access scoping**: skills operate within the current working directory by default. Access to parent directories requires user confirmation.
+
+ClawBio does not currently offer a local backend for the Ensembl VEP-dependent skills, so a fully air-gapped deployment must exclude them or supply its own annotation source.
 
 ## Reproducibility Contract
 

@@ -9,6 +9,39 @@ import re
 from pathlib import Path
 
 
+# Genotype calls are read from a user-supplied file and later rendered into a
+# Markdown report, so they are untrusted text until proven otherwise. Only
+# nucleotide calls are accepted: A/C/G/T plus D and I, which 23andMe uses for
+# deletions and insertions. A run is allowed because a VCF call joins REF/ALT
+# alleles and an indel can be several bases. Anything else is discarded rather
+# than scored -- a "genotype" that is not a genotype cannot be biologically
+# meaningful, and must never reach the report.
+_VALID_GENOTYPE = re.compile(r"^[ACGTDI]{1,32}$")
+
+
+def clean_genotype(value):
+    """Return an uppercased genotype call, or None if it is not a valid call."""
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip().upper().replace("-", "")
+    if not cleaned or not _VALID_GENOTYPE.match(cleaned):
+        return None
+    return cleaned
+
+
+def clean_genotype_table(table: dict) -> dict:
+    """
+    Apply clean_genotype to every call in an already-parsed {rsid: genotype} table.
+
+    The nutrigx CLI parses through clawbio.common.parsers and api.py accepts a
+    caller-built dict, so neither path goes through this module's parsers. Both
+    pass their table through here before scoring. An invalid call becomes "" rather
+    than being dropped, so it is reported as a failed call ("no_call") and not as
+    an untyped SNP ("not_tested").
+    """
+    return {rsid: (clean_genotype(g) or "") for rsid, g in table.items()}
+
+
 def detect_format(filepath: str) -> str:
     """Auto-detect genetic file format from header."""
     with open(filepath, encoding="utf-8", errors="replace") as f:
@@ -53,27 +86,25 @@ def parse_23andme(filepath: str) -> dict:
 
 
 def parse_ancestry(filepath: str) -> dict:
-    """Parse AncestryDNA raw data file. Returns {rsid: genotype}."""
+    """
+    Parse an AncestryDNA raw data file. Returns {rsid: genotype}.
+
+    The file is streamed. csv.DictReader accepts any iterable of strings, so
+    comment lines are filtered by a generator rather than by first building a
+    list of every line in the file: consumer genetic files are large, and
+    materialising one made memory use scale with input size.
+    """
     genotypes = {}
     with open(filepath, encoding="utf-8", errors="replace") as f:
-        reader = csv.DictReader(f, delimiter="\t")
-        # Handle comment lines
-        raw = f.read() if not hasattr(reader, 'fieldnames') else ""
-    
-    # Re-read skipping comments
-    lines = []
-    with open(filepath, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            if not line.startswith("#"):
-                lines.append(line)
-    
-    reader = csv.DictReader(lines, delimiter="\t")
-    for row in reader:
-        rsid = row.get("rsid", "").strip()
-        allele1 = row.get("allele1", "").strip()
-        allele2 = row.get("allele2", "").strip()
-        if rsid.startswith("rs"):
-            genotypes[rsid] = allele1 + allele2
+        rows = (line for line in f if not line.startswith("#"))
+        # restval="" so a truncated row yields empty strings rather than None,
+        # which would make the .strip() calls below raise.
+        for row in csv.DictReader(rows, delimiter="\t", restval=""):
+            rsid = row.get("rsid", "").strip()
+            allele1 = row.get("allele1", "").strip()
+            allele2 = row.get("allele2", "").strip()
+            if rsid.startswith("rs"):
+                genotypes[rsid] = allele1 + allele2
     return genotypes
 
 
@@ -156,4 +187,6 @@ def parse_genetic_file(filepath: str, fmt: str = "auto") -> dict:
     if fmt not in parsers:
         raise ValueError(f"Unknown format: {fmt}. Choose from: {list(parsers.keys())}")
     
-    return parsers[fmt](filepath)
+    # Validate once here rather than inside each parser: every format passes
+    # through the same whitelist, and the parsers stay untouched.
+    return clean_genotype_table(parsers[fmt](filepath))

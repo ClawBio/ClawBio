@@ -41,6 +41,11 @@ from typing import Optional
 log = logging.getLogger(__name__)
 
 
+def _is_complete_genotype(value: str) -> bool:
+    """Whether a GT contains one or more fully specified numeric alleles."""
+    return bool(re.fullmatch(r"\d+(?:[|/]\d+)*", value))
+
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -92,6 +97,7 @@ class QcResult:
     hom_alt_count: int = 0
     het_hom_ratio: Optional[float] = None
     filtered_out: int = 0
+    missing_genotype_rate: float | None = None
 
     def summary(self) -> str:
         lines = [
@@ -167,6 +173,7 @@ class VcfQC:
             stats = self._python_stats(input_vcf)
 
         self._populate_result(result, stats)
+        result.missing_genotype_rate = self._missing_genotype_rate(input_vcf)
         self._evaluate_pass_fail(result)
 
         metrics_path = output_dir / "qc_metrics.json"
@@ -298,12 +305,14 @@ class VcfQC:
             for line in fh:
                 if line.startswith("#"):
                     continue
-                parts = line.split("\t")
+                parts = line.rstrip("\r\n").split("\t")
                 if len(parts) < 10:
                     continue
                 ref, alt = parts[3], parts[4]
-                fmt_idx = parts[8].split(":").index("GT") if "GT" in parts[8] else -1
-                gt_raw = parts[9].split(":")[fmt_idx] if fmt_idx >= 0 else "."
+                format_fields = parts[8].split(":")
+                fmt_idx = format_fields.index("GT") if "GT" in format_fields else -1
+                sample_fields = parts[9].split(":")
+                gt_raw = sample_fields[fmt_idx] if 0 <= fmt_idx < len(sample_fields) else "."
 
                 # SNP vs indel
                 is_snp = len(ref) == 1 and len(alt) == 1 and alt != "."
@@ -318,8 +327,8 @@ class VcfQC:
                     metrics["number of indels:"] += 1
 
                 # Het / hom
-                gt = re.split(r"[|/]", gt_raw.replace(".", "0"))
-                if len(gt) == 2:
+                gt = re.split(r"[|/]", gt_raw)
+                if _is_complete_genotype(gt_raw) and len(gt) == 2:
                     if gt[0] != gt[1]:
                         metrics["number of heterozygous SNPs:"] += 1
                     elif gt[0] != "0":
@@ -327,8 +336,39 @@ class VcfQC:
 
         if tv_count > 0:
             metrics["titv_ratio"] = round(ti_count / tv_count, 4)
-
         return metrics
+
+    @staticmethod
+    def _missing_genotype_rate(vcf: Path) -> float | None:
+        """Return missing-call rate across every sample and variant in a VCF.
+
+        A missing allele (`./.`, `0/.`) and a sample without a readable GT
+        field are both missing calls. This scan deliberately runs regardless
+        of whether bcftools produced the other QC statistics, so the configured
+        missingness gate has identical semantics on both execution paths.
+        """
+        opener = gzip.open if str(vcf).endswith(".gz") else open
+        calls_seen = 0
+        missing_calls = 0
+        with opener(vcf, "rt") as fh:
+            for line in fh:
+                if line.startswith("#"):
+                    continue
+                parts = line.rstrip("\r\n").split("\t")
+                if len(parts) < 10:
+                    continue
+                format_fields = parts[8].split(":")
+                try:
+                    gt_index = format_fields.index("GT")
+                except ValueError:
+                    gt_index = -1
+                for sample in parts[9:]:
+                    calls_seen += 1
+                    sample_fields = sample.split(":")
+                    gt = sample_fields[gt_index] if 0 <= gt_index < len(sample_fields) else "."
+                    if not _is_complete_genotype(gt):
+                        missing_calls += 1
+        return missing_calls / calls_seen if calls_seen else None
 
     # ------------------------------------------------------------------
     # Step 4: Populate result and evaluate pass/fail
@@ -353,6 +393,11 @@ class VcfQC:
         if result.snp_count < cfg.min_snp_count:
             reasons.append(
                 f"Too few SNPs: {result.snp_count} < {cfg.min_snp_count}"
+            )
+
+        if result.missing_genotype_rate is not None and result.missing_genotype_rate > cfg.max_missing_rate:
+            reasons.append(
+                f"Missing genotype rate too high: {result.missing_genotype_rate:.3f} > {cfg.max_missing_rate:.3f}"
             )
 
         if result.titv_ratio is not None:
@@ -423,6 +468,7 @@ class VcfQC:
                 "hom_alt_count": result.hom_alt_count,
                 "het_hom_ratio": result.het_hom_ratio,
                 "filtered_out": result.filtered_out,
+                "missing_genotype_rate": result.missing_genotype_rate,
             },
         }
         path.write_text(json.dumps(metrics, indent=2))
