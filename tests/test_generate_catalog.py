@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 
 def _load_generate_catalog_module():
@@ -95,6 +97,29 @@ def test_build_catalog_adds_objective_maturity_tiers():
 
     assert catalog["claw-semantic-sim"]["maturity_tier"] == "spec-only"
     assert catalog["claw-semantic-sim"]["maturity_evidence"]["has_script"] is False
+
+
+@settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(st.lists(st.sampled_from(["rna", "sarek", "scrna"]), min_size=1, unique=True))
+def test_ci_coverage_includes_every_pytest_skill_argument(tmp_path, folders):
+    generator = _load_generate_catalog_module()
+    workflow = tmp_path / "ci.yml"
+    # Folded YAML is how the mixed-wrapper gate spells its several test paths.
+    workflow.write_text(
+        "jobs:\n  test:\n    steps:\n      - run: >-\n"
+        "          uv run pytest -q\n"
+        + "".join(f"          skills/{folder}/tests/\n" for folder in folders)
+        + "      - run: echo 'pytest skills/unexecuted/tests/'\n"
+        + "# pytest skills/commented/tests/\n"
+    )
+    generator.CI_WORKFLOW_PATH = workflow
+    assert generator.load_ci_tested_skill_folders() == set(folders)
+
+
+def test_all_nfcore_wrappers_have_explicit_ci_coverage():
+    generator = _load_generate_catalog_module()
+    tested = generator.load_ci_tested_skill_folders()
+    assert {f"nfcore-{name}-wrapper" for name in ("rnaseq", "sarek", "scrnaseq")} <= tested
 
 
 def test_checked_in_catalog_is_current():

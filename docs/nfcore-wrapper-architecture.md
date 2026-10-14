@@ -32,6 +32,8 @@ RNA's commands.sh is still assembled and written atomically, so an in-place repl
 
 Run the shared tests and all three wrapper suites together. CI does this on Python 3.11, 3.12 and 3.13, including changes confined to common code. Six loading-order tests cover local schema ownership and shared exception identity. Tests retain each wrapper's different parameter fingerprint serialization and artifact conventions.
 
+The catalog derives CI evidence from every explicit skill argument in workflow pytest commands. Regenerate it when changing CI coverage, including a mixed-wrapper test step, even if SKILL.md metadata is unchanged. Its workflow reader ignores comments and quoted command examples.
+
 Bundle tests exercise previews, backups, prefix boundaries, Unicode, literal shell characters, action order and standalone execution without site packages. Filesystem property tests disable timing deadlines because a busy server or network volume must not cause timing-only failures.
 
 For distribution changes, build a wheel from the sdist, install outside the checkout, unset PYTHONPATH, exercise all pipeline --help routes, and generate a standalone remapper through the installed package. The emitter needs its runtime source in the wheel; the existing package build includes this Python resource.
