@@ -120,3 +120,30 @@ def test_pipeline_environment_overrides_the_callers(tmp_path, monkeypatch):
         env={"NXF_SYNTAX_PARSER": "v1"},
     )
     assert (tmp_path / "logs/stdout.txt").read_text() == "v1 yes"
+
+
+def test_log_tail_reads_only_the_tail_of_a_large_log(tmp_path, monkeypatch):
+    """Failure hints scan the end of Nextflow's logs, which can run to gigabytes on
+    a long run; reading them whole just to keep the last 64 KiB wastes memory."""
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    log = tmp_path / "stdout.txt"
+    log.write_bytes(b"x" * 1_000_000 + "é tail marker".encode())
+    read_sizes = []
+    real_open = Path.open
+
+    def spy_open(self, *args, **kwargs):
+        handle = real_open(self, *args, **kwargs)
+        real_read = handle.read
+
+        def read(size=-1):
+            read_sizes.append(size)
+            return real_read(size)
+
+        handle.read = read
+        return handle
+
+    monkeypatch.setattr(Path, "open", spy_open)
+    tail = api.read_log_tail(log, limit=1024)
+    assert tail.endswith("é tail marker")
+    assert len(tail.encode()) <= 1024
+    assert read_sizes and all(0 <= size <= 1024 for size in read_sizes)

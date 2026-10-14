@@ -33,10 +33,16 @@ _CONFIG_PARSE_FAILURE_SIGNATURES = (
 
 
 def read_log_tail(path: Path, limit: int = 65536) -> str:
-    """Best-effort tail read of a captured log; never raises."""
+    """The last ``limit`` bytes of a captured log, decoded; never raises.
+
+    Seeks rather than reading the whole file: a long run's Nextflow logs can reach
+    gigabytes, and the failure hints only scan their end.
+    """
     try:
-        with path.open("r", encoding="utf-8", errors="replace") as fh:
-            return fh.read()[-limit:]
+        with path.open("rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            fh.seek(max(0, fh.tell() - limit))
+            return fh.read(limit).decode("utf-8", errors="replace")
     except OSError:
         return ""
 
