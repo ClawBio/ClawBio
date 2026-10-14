@@ -132,7 +132,7 @@ process execution. The single-cell preview reported
 `conf/test.config`; that key is absent from wrapper-generated params.
 
 The repository regression suite uses the locked dependencies with all optional
-extras and excludes tests marked `integration`, `network`, or `slow`: **7,318 passed,
+extras and excludes tests marked `integration`, `network`, or `slow`: **7,325 passed,
 76 skipped, 15 deselected, 2 expected failures, and 1 failure**. Its one
 remaining failure,
 `skills/proteomics-clock/tests/test_proteomics_clock.py::test_mortality_to_years`,
