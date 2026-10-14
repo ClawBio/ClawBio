@@ -8,6 +8,7 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ### Fixed
 
+- Route launcher defaults outside the source tree and correct example output paths.
 - Validate emitted values against the pinned 4.1.0 scalar schema and reject ambiguous CSV inputs.
 - Canonicalize recognized protocol aliases and preserve remote MultiQC configuration URIs.
 - Record launch manifests before execution and verify samplesheet checksums on resumed runs/checks.

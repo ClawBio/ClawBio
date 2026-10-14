@@ -49,6 +49,9 @@ nf-schema or its runtime file checks.
   the test profile owns its samples and reference data.
 - Parse local pipeline manifest versions without confusing quoted braces, URLs, or
   comments. Sarek now checks local versions against the supported release policy.
+- Route the three launcher aliases' checkout defaults to `~/clawbio-runs/` instead
+  of a destination the wrappers reject inside the source tree. Preserve explicit
+  destinations and other skills' output policy; correct the documented examples.
 - Align the bulk wrapper's Python requirement with the repository's Python 3.11 floor.
 
 ### Resume and execution safety
@@ -90,6 +93,7 @@ limits requests; it cannot make an analysis fit a machine with insufficient RAM.
 ## Validation
 
 The existing wrapper suite initially passed with **1,349 passed, 2 skipped**.
+The final suite also covers launcher output routing and config/flag forwarding.
 Regression tests were added before fixes and exercised through failing and passing
 runs. The final focused suite includes Hypothesis parsing/protocol/timeout checks,
 mocked launch/failure/resume cases, shell replay tests, official schema comparisons,
@@ -97,9 +101,9 @@ and three real Nextflow scheduler tests.
 
 | Python | Final focused result |
 | --- | --- |
-| 3.11.17 | 1,468 passed, 2 skipped |
-| 3.12.15 | 1,468 passed, 2 skipped |
-| 3.13.13 | 1,468 passed, 2 skipped |
+| 3.11.17 | 1,509 passed, 2 skipped |
+| 3.12.15 | 1,509 passed, 2 skipped |
+| 3.13.13 | 1,509 passed, 2 skipped |
 
 The two existing skips require optional sibling pipeline checkouts. Both comparisons
 (STAR arguments and the protocol matrix) also passed separately against the
@@ -110,7 +114,11 @@ downloaded scrnaseq 4.1.0 release on all three Python versions. Set
 CLAWBIO_NFCORE_UPSTREAM_DIR=/path/to/releases python -m pytest \
   tests/test_nfcore_contract_generation.py tests/test_nfcore_resource_replay.py \
   tests/test_nfcore_wrapper_audit.py skills/nfcore-rnaseq-wrapper/tests \
-  skills/nfcore-scrnaseq-wrapper/tests skills/nfcore-sarek-wrapper/tests -q
+  skills/nfcore-scrnaseq-wrapper/tests skills/nfcore-sarek-wrapper/tests \
+  clawbio/tests/test_nfcore_default_output.py \
+  clawbio/tests/test_pipeline_config_forwarding.py \
+  clawbio/tests/test_pipeline_flag_spelling.py \
+  clawbio/tests/test_extra_args_allowlist.py -q
 ```
 
 Using Nextflow **25.10.4** and Java **21.0.7**, all three generated scheduler configs
@@ -133,6 +141,12 @@ observed 3.81255). The affected file is unchanged by this audit. Initial broad r
 exhausted disk space; temporary audit outputs were cleared and dependency setup
 was adjusted to reuse the installed environment before the clean run.
 
+The built wheel contains the shared helper and all three scalar contracts.
+Installed outside the checkout with the locked dependency environment available,
+all three console/direct help commands and valid parameter emission/invalid-enum
+rejection checks passed. With Docker stopped, all three installed preflights
+returned structured `DOCKER_NOT_RUNNING` errors.
+
 All three skill specifications passed `agentskills validate`. Contract-generation
 checks, targeted unused-name lint, Python compilation, and `git diff --check` passed.
 
@@ -142,6 +156,11 @@ The available Docker VM exposed **2 CPUs and approximately 1.91 GiB RAM**. A ful
 rnaseq demo attempted during the audit reached upstream tasks but repeatedly
 returned exit 137 in BBMap/BBSplit, consistent with memory pressure, and was stopped.
 The scheduler fixes were subsequently validated with the real-engine tests above.
+A subsequent run used 4 CPUs, approximately 7.74 GiB Docker RAM, and Rosetta.
+Deliberate interruption preserved its launch manifest; resumed check mode passed,
+and the resumed run executed BBSplit successfully. It later failed with
+`No space left on device` on the host. Temporary work files were removed and the
+original Docker CPU/memory/emulation settings and stopped state were restored.
 No complete biological pipeline run is claimed for any of the three wrappers.
 Full container-based demos and scientific-output parity still require a host with
 adequate RAM, storage, network access, and the applicable execution backend.

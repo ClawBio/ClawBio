@@ -198,15 +198,15 @@ A failure raises a structured `SkillError` with `stage`, `error_code`, `message`
 ```bash
 # Preflight only; no Nextflow execution
 python clawbio.py run sarek-pipeline \
-  --input samplesheet.csv --output ./sarek_check --check \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/sarek_check" --check \
   --genome GATK.GRCh38 --tools haplotypecaller
 
 # Demo mode using upstream -profile test
-python clawbio.py run sarek-pipeline --demo --output /tmp/sarek_demo
+python clawbio.py run sarek-pipeline --demo --output "$HOME/clawbio-runs/sarek_demo"
 
 # Germline WES with custom targeted reference resources
 python clawbio.py run sarek-pipeline \
-  --input samplesheet.csv --output ./sarek_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/sarek_run" \
   --tools haplotypecaller,strelka \
   --genome null --igenomes-ignore --fasta /refs/genome.fa \
   --known-indels /refs/known_indels.vcf.gz \
@@ -214,13 +214,13 @@ python clawbio.py run sarek-pipeline \
 
 # Somatic paired (tumor + normal in same patient) with Mutect2 + Strelka + Manta
 python clawbio.py run sarek-pipeline \
-  --input samplesheet_paired.csv --output ./sarek_somatic \
+  --input samplesheet_paired.csv --output "$HOME/clawbio-runs/sarek_somatic" \
   --tools mutect2,strelka,manta,vep \
   --genome GATK.GRCh38
 
 # Tumor-only with Mutect2 + PON
 python clawbio.py run sarek-pipeline \
-  --input samplesheet_tumor_only.csv --output ./sarek_to \
+  --input samplesheet_tumor_only.csv --output "$HOME/clawbio-runs/sarek_to" \
   --tools mutect2 \
   --genome null --igenomes-ignore --fasta /refs/genome.fa \
   --known-indels /refs/known_indels.vcf.gz \
@@ -229,19 +229,19 @@ python clawbio.py run sarek-pipeline \
 
 # Explicit FASTA reference (non-default genome build)
 python clawbio.py run sarek-pipeline \
-  --input samplesheet.csv --output ./sarek_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/sarek_run" \
   --genome null --igenomes-ignore \
   --fasta /refs/genome.fa --fasta-fai /refs/genome.fa.fai --dict /refs/genome.dict \
   --bwa /refs/bwa/
 
 # ARM (Apple M-series, AWS Graviton) — composes -profile docker,arm64
 python clawbio.py run sarek-pipeline \
-  --input samplesheet.csv --output ./sarek_arm \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/sarek_arm" \
   --profile docker --arm --genome GATK.GRCh38
 
 # Opt-in downstream handoff to clinical-variant-reporter
 python clawbio.py run sarek-pipeline \
-  --input samplesheet.csv --output ./sarek_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/sarek_run" \
   --tools haplotypecaller,vep \
   --genome GATK.GRCh38 \
   --run-downstream --downstream-skill clinical-variant-reporter
@@ -253,7 +253,7 @@ python clawbio.py run sarek-pipeline \
 #   --allow-pipeline-version-override    run a non-3.8.1 --pipeline-version at your own risk
 #   --allow-remote-inputs               opt in to remote inputs/refs (default local-first)
 python clawbio.py run sarek-pipeline \
-  --input samplesheet.csv --output ./sarek_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/sarek_run" \
   --genome GATK.GRCh38 --tools haplotypecaller \
   --timeout-hours 0 --work-dir s3://my-bucket/sarek/work
 ```
@@ -261,7 +261,7 @@ python clawbio.py run sarek-pipeline \
 ## Demo
 
 ```bash
-python clawbio.py run sarek-pipeline --demo --output /tmp/sarek_demo
+python clawbio.py run sarek-pipeline --demo --output "$HOME/clawbio-runs/sarek_demo"
 ```
 
 Expected output: upstream `nf-core/sarek -profile test` outputs (synthetic small dataset) under `upstream/results/`, `report.md` and `result.json` at the output root, and the ClawBio `reproducibility/` bundle (params/commands/samplesheet snapshots, provenance JSON, `environment.yml`, `checksums.sha256`).

@@ -185,58 +185,58 @@ Readability is never pre-checked: Nextflow reads inputs in the true execution co
 ```bash
 # Standard real-data usage (explicit protocol and reference are required)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./scrnaseq_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/scrnaseq_run" \
   --preset star --protocol 10XV3 --genome GRCh38
 
 # Preflight check only (no Nextflow execution)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./scrnaseq_run --check \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/scrnaseq_run" --check \
   --preset star --protocol 10XV3 --genome GRCh38
 
 # Demo mode (runs the upstream nf-core test profile; forces star preset; uses the
 # selected backend — default --profile docker, which must be running)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --demo --output ./scrnaseq_demo
+  --demo --output "$HOME/clawbio-runs/scrnaseq_demo"
 
 # Via ClawBio runner
-python clawbio.py run scrnaseq-pipeline --input samplesheet.csv --output ./scrnaseq_run \
+python clawbio.py run scrnaseq-pipeline --input samplesheet.csv --output "$HOME/clawbio-runs/scrnaseq_run" \
   --preset star --protocol 10XV3 --genome GRCh38
-python clawbio.py run scrnaseq-pipeline --demo --output ./scrnaseq_demo
+python clawbio.py run scrnaseq-pipeline --demo --output "$HOME/clawbio-runs/scrnaseq_demo"
 
 # STARsolo with local FASTA+GTF (STAR index built by the pipeline)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset star --protocol 10XV3 \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset star --protocol 10XV3 \
   --fasta /refs/hg38.fa --gtf /refs/hg38.gtf
 
 # STARsolo with prebuilt STAR index
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset star --protocol 10XV3 \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset star --protocol 10XV3 \
   --star-index /refs/star_index
 
 # STARsolo RNA velocity (star requires an explicit --protocol like every star/standard/kallisto run)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset star --protocol 10XV3 \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset star --protocol 10XV3 \
   --star-feature "Gene Velocyto" --star-ignore-sjdbgtf \
   --fasta /refs/hg38.fa --gtf /refs/hg38.gtf
 
 # Simpleaf (standard) with UMI resolution override
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset standard --protocol 10XV3 \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset standard --protocol 10XV3 \
   --simpleaf-umi-resolution cr-like-em --genome GRCh38
 
 # Kallisto RNA velocity (NAC workflow)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset kallisto --protocol 10XV3 \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset kallisto --protocol 10XV3 \
   --kb-workflow nac --fasta /refs/hg38.fa --gtf /refs/hg38.gtf
 
 # Air-gapped cluster: local iGenomes mirror
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset star --protocol 10XV3 \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset star --protocol 10XV3 \
   --genome GRCh38 --igenomes-base /mnt/local_igenomes
 
 # CellRanger Multi (CMO multiplexing)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset cellrangermulti \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset cellrangermulti \
   --cellranger-index /refs/refdata-gex-GRCh38 \
   --gex-cmo-set /refs/cmo_set.csv \
   --cellranger-multi-barcodes /refs/multi_barcodes.csv

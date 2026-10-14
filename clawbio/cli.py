@@ -1661,7 +1661,13 @@ def run_skill(
         out_dir = Path(output_dir).expanduser().resolve()
     else:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_dir = DEFAULT_OUTPUT_ROOT / f"{skill_name}_{ts}"
+        output_root = DEFAULT_OUTPUT_ROOT
+        if (
+            skill_name in _NFCORE_PIPELINE_SKILLS
+            and output_root.resolve().is_relative_to(CLAWBIO_DIR.resolve())
+        ):
+            output_root = Path.home() / "clawbio-runs"
+        out_dir = output_root / f"{skill_name}_{ts}"
     if out_dir:
         output_error = _ensure_output_directory(out_dir)
         if output_error:

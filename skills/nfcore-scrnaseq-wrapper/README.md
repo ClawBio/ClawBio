@@ -21,7 +21,7 @@ ClawBio wrapper for running the upstream `scrnaseq` Nextflow pipeline from FASTQ
 ## Quick Start
 
 ```bash
-python clawbio.py run scrnaseq-pipeline --demo --output ./outputs/scrnaseq_demo
+python clawbio.py run scrnaseq-pipeline --demo --output "$HOME/clawbio-runs/scrnaseq_demo"
 ```
 
 For real data:
@@ -29,13 +29,13 @@ For real data:
 ```bash
 python clawbio.py run scrnaseq-pipeline \
   --input samplesheet.csv \
-  --output ./scrnaseq_run \
+  --output "$HOME/clawbio-runs/scrnaseq_run" \
   --preset star \
   --protocol 10XV3 \
   --genome GRCh38
 ```
 
-Use `--check` to run preflight without launching Nextflow.
+Use `--check` to run preflight without launching Nextflow. Checkout-mode runs without `--output` default to `~/clawbio-runs/`; explicit destinations must be outside the repository.
 
 ## nf-core/scrnaseq 4.1.0 Compatibility Policy
 

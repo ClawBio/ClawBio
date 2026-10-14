@@ -25,7 +25,7 @@ ClawBio wrapper around `nf-core/sarek` 3.8.1 covering mapping through annotation
 python skills/nfcore-sarek-wrapper/nfcore_sarek_wrapper.py --help
 
 # Synthetic demo using the upstream -profile test dataset
-python clawbio.py run sarek-pipeline --demo --output /tmp/sarek_demo
+python clawbio.py run sarek-pipeline --demo --output "$HOME/clawbio-runs/sarek_demo"
 ```
 
 For real data:
@@ -33,12 +33,12 @@ For real data:
 ```bash
 python clawbio.py run sarek-pipeline \
   --input samplesheet.csv \
-  --output ./sarek_run \
+  --output "$HOME/clawbio-runs/sarek_run" \
   --genome GATK.GRCh38 \
   --tools haplotypecaller,vep
 ```
 
-Use `--check` to run preflight without launching Nextflow.
+Use `--check` to run preflight without launching Nextflow. Checkout-mode runs without `--output` default to `~/clawbio-runs/`; explicit destinations must be outside the repository.
 
 `clawbio.py run sarek-pipeline` promotes the common flags to first-class options; any other sarek parameter is passed through with `--extra-param key=value`.
 

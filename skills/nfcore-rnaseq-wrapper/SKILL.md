@@ -154,56 +154,56 @@ iGenomes `--genome` catalogue is supported here for legacy compatibility and con
 ```bash
 # Preflight only; no Nextflow execution
 python clawbio.py run rnaseq-pipeline \
-  --input samplesheet.csv --output ./rnaseq_check --check \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/rnaseq_check" --check \
   --genome GRCh38
 
 # Demo mode using upstream test profile
-python clawbio.py run rnaseq-pipeline --demo --output ./rnaseq_demo
+python clawbio.py run rnaseq-pipeline --demo --output "$HOME/clawbio-runs/rnaseq_demo"
 
 # STAR + Salmon default route
 python clawbio.py run rnaseq-pipeline \
-  --input samplesheet.csv --output ./rnaseq_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/rnaseq_run" \
   --aligner star_salmon --genome GRCh38
 
 # Explicit FASTA/GTF reference
 python clawbio.py run rnaseq-pipeline \
-  --input samplesheet.csv --output ./rnaseq_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/rnaseq_run" \
   --fasta /refs/genome.fa --gtf /refs/genes.gtf
 
 # RSEM route
 python clawbio.py run rnaseq-pipeline \
-  --input samplesheet.csv --output ./rsem_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/rsem_run" \
   --aligner star_rsem --genome GRCh38
 
 # Contaminant screening with Kraken2 + Bracken
 python clawbio.py run rnaseq-pipeline \
-  --input samplesheet.csv --output ./rnaseq_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/rnaseq_run" \
   --genome GRCh38 \
   --contaminant-screening kraken2_bracken \
   --kraken-db /refs/kraken2_db --bracken-precision G
 
 # Auto-handoff to rnaseq-de when all flags are provided
 python clawbio.py run rnaseq-pipeline \
-  --input samplesheet.csv --output ./rnaseq_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/rnaseq_run" \
   --genome GRCh38 --run-downstream \
   --metadata metadata.csv --formula "~ batch + condition" \
   --contrast "condition,treated,control"
 
 # Prokaryotic transcriptomes via Bowtie2+Salmon
 python clawbio.py run rnaseq-pipeline \
-  --input samplesheet.csv --output ./prok_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/prok_run" \
   --aligner bowtie2_salmon --fasta /refs/genome.fa --gtf /refs/genes.gtf \
   --profile docker --prokaryotic
 
 # ARM architecture (Apple M-series, AWS Graviton) — composes -profile docker,arm64
 python clawbio.py run rnaseq-pipeline \
-  --input samplesheet.csv --output ./rnaseq_arm \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/rnaseq_arm" \
   --genome GRCh38 --profile docker --arm
 
 # BAM reprocessing from nf-core samplesheet_with_bams.csv output
 python clawbio.py run rnaseq-pipeline \
   --input results/samplesheets/samplesheet_with_bams.csv \
-  --output ./rnaseq_reprocess \
+  --output "$HOME/clawbio-runs/rnaseq_reprocess" \
   --skip-alignment
 
 # Wrapper runtime controls (parity with scrnaseq/sarek):
@@ -213,7 +213,7 @@ python clawbio.py run rnaseq-pipeline \
 #   --allow-pipeline-version-override    run a non-3.26.0 --pipeline-version at your own risk
 #   --allow-remote-inputs               opt in to remote inputs/refs (default local-first)
 python clawbio.py run rnaseq-pipeline \
-  --input samplesheet.csv --output ./rnaseq_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/rnaseq_run" \
   --genome GRCh38 --aligner star_salmon \
   --timeout-hours 0 --work-dir s3://my-bucket/rnaseq/work
 ```
@@ -221,7 +221,7 @@ python clawbio.py run rnaseq-pipeline \
 ## Demo
 
 ```bash
-python clawbio.py run rnaseq-pipeline --demo --output /tmp/rnaseq_demo
+python clawbio.py run rnaseq-pipeline --demo --output "$HOME/clawbio-runs/rnaseq_demo"
 ```
 
 Expected output: upstream `nf-core/rnaseq` test profile outputs plus ClawBio `report.md`, `result.json`, `provenance/`, and `reproducibility/`.
