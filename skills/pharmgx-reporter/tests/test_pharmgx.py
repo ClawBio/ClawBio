@@ -165,12 +165,12 @@ def test_mthfr_forward_strand_conversion_corpas():
 
 
 def test_mthfr_level2_reduced():
-    """MTHFR 677TT/1298AA: reduced activity (Frosst 1995); informational, no drug grade."""
-    assert call_phenotype("MTHFR", "677TT/1298AA") == "Reduced MTHFR enzyme activity (677TT)"
+    """MTHFR 677TT/1298AA: lowest activity (Frosst 1995); informational, no drug grade."""
+    assert call_phenotype("MTHFR", "677TT/1298AA") == "Severely reduced MTHFR enzyme activity (677TT)"
 
 
 def test_mthfr_level2_intermediate():
-    """MTHFR 677CT/1298AA: DPWG guideline: Reduced MTHFR enzyme activity."""
+    """MTHFR 677CT/1298AA: mildly reduced activity; informational, no drug grade."""
     assert call_phenotype("MTHFR", "677CT/1298AA") == "Mildly reduced MTHFR enzyme activity (677CT)"
 
 
@@ -1002,7 +1002,7 @@ def test_dpyd_without_hapb3_is_not_called_normal():
 
 
 def test_mthfr_compound_het_label_names_the_observed_genotype():
-    """677CT/1298AC keeps the strongly-reduced grouping but is not printed as 677TT."""
+    """677CT/1298AC is labelled moderately reduced and is not printed as 677TT."""
     label = call_phenotype("MTHFR", "677CT/1298AC")
     assert label.startswith("Moderately reduced MTHFR enzyme activity")
     assert "677TT" not in label
@@ -1020,11 +1020,28 @@ def test_mthfr_labels_map_to_activity_categories():
     cp, fn = m.call_phenotype, m.phenotype_to_key
     assert fn(cp("MTHFR", "677CT/1298AA")) == fn(cp("MTHFR", "677CC/1298AC")) == "mildly_reduced_activity"
     assert fn(cp("MTHFR", "677CT/1298AC")) == fn(cp("MTHFR", "677CC/1298CC")) == "moderately_reduced_activity"
-    assert fn(cp("MTHFR", "677TT/1298AA")) == "reduced_activity"
+    assert fn(cp("MTHFR", "677CT/1298CC")) == "moderately_reduced_activity"
+    assert fn(cp("MTHFR", "677TT/1298AA")) == fn(cp("MTHFR", "677TT/1298AC")) == "severely_reduced_activity"
+
+
+def test_mthfr_double_variant_genotypes_are_mapped():
+    """677TT/1298AC and 677CT/1298CC get a label (extrapolated, see GENE_DEFS comment)."""
+    assert call_phenotype("MTHFR", "677TT/1298AC") == "Severely reduced MTHFR enzyme activity (677TT/1298AC)"
+    assert call_phenotype("MTHFR", "677CT/1298CC") == "Moderately reduced MTHFR enzyme activity (677CT/1298CC)"
+
+
+def test_mthfr_label_order_follows_activity():
+    """677TT (lowest measured activity) must not read milder than the compound heterozygote."""
+    import pharmgx_reporter as m
+    rank = {"normal_activity": 0, "mildly_reduced_activity": 1,
+            "moderately_reduced_activity": 2, "severely_reduced_activity": 3}
+    r = lambda d: rank[m.phenotype_to_key(m.call_phenotype("MTHFR", d))]
+    assert r("677CC/1298AA") < r("677CT/1298AA") < r("677CT/1298AC") < r("677TT/1298AA")
+    assert r("677CC/1298AC") < r("677CC/1298CC")
 
 # Issue #594: MTHFR has no CPIC or DPWG drug guideline, so no drug may be graded on it.
 _MTHFR_GENOTYPES = ["677CC/1298AA", "677CT/1298AA", "677CC/1298AC", "677CT/1298AC",
-                    "677CC/1298CC", "677TT/1298AA"]
+                    "677CC/1298CC", "677TT/1298AA", "677TT/1298AC", "677CT/1298CC"]
 
 
 def _mthfr_profiles(diplotype):
