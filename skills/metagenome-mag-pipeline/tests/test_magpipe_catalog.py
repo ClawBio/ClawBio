@@ -53,13 +53,17 @@ def test_catalog_entry_advertises_the_cli_alias() -> None:
     assert entry["cli_alias"] == ALIAS
     assert entry["has_script"] is True
     assert entry["has_tests"] is True
-    assert entry["demo_command"] == f"python clawbio.py run {ALIAS} --demo"
+    # The demo command must carry the fetch-consent flag: the demo clones the
+    # pinned third-party workflow when the cache is empty.
+    assert entry["demo_command"] == f"python clawbio.py run {ALIAS} --demo --allow-fetch"
 
 
 def test_alias_is_registered_with_the_same_script() -> None:
     info = SKILLS[ALIAS]
     assert Path(info["script"]) == SKILL_DIR / "metagenome_mag_pipeline.py"
-    assert info["demo_args"] == ["--demo"]
+    # --allow-fetch: the demo clones the pinned third-party workflow, so the
+    # registered demo command carries the consent flag explicitly.
+    assert info["demo_args"] == ["--demo", "--allow-fetch"]
     assert info["accepts_genotypes"] is False
     assert Path(info["script"]).is_file()
 

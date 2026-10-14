@@ -137,8 +137,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Permit cloning the pinned workflow into the cache when no --pipeline-dir "
-            "is given; without it a run with no cached checkout refuses. --demo "
-            "always fetches, because demonstrating the workflow is the point"
+            "is given; without it a run (--demo included) with no cached checkout "
+            "refuses"
         ),
     )
     parser.add_argument(
@@ -343,21 +343,13 @@ def run(args: argparse.Namespace) -> int:
         _reject_demo_conflicts(args)
 
     cache_dir = default_cache_dir()
-    if args.demo and not args.allow_fetch:
-        # The demo needs the checkout to generate its data, so it fetches by
-        # design; say so rather than letting the clone be silent.
-        print(
-            f"[{SKILL_NAME}] --demo fetches the pinned workflow checkout when it is "
-            "not already cached (public code; no user data is involved).",
-            file=sys.stderr,
-        )
-    # Non-demo runs clone the upstream workflow only with --allow-fetch: running
-    # its Snakefile is executing third-party code and needs explicit consent.
+    # The clone happens only with --allow-fetch: running the checkout's Snakefile
+    # is executing third-party code and needs explicit consent, for --demo too.
     source = resolve_pipeline_source(
         Path(args.pipeline_dir) if args.pipeline_dir else None,
         cache_dir=cache_dir,
         ref=PINNED_REF,
-        allow_fetch=args.allow_fetch or args.demo,
+        allow_fetch=args.allow_fetch,
     )
     checkout = Path(source["path"])
 

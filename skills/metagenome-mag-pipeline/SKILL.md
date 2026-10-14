@@ -148,7 +148,7 @@ Multiple lanes of one sample are semicolon-separated in matching order and remai
 ## Workflow
 
 1. **Check the output directory**: refuse a non-empty one unless `--force`, and confirm it is writable. Then create `<output>/pipeline/`. *(prescriptive)*
-2. **Resolve the pipeline source**: use `--pipeline-dir` when given, else a cached clone at `~/.cache/clawbio/pipelines/metagenomics-workflow-<ref[:12]>`; clone the upstream repo only with `--allow-fetch` (`--demo` fetches by design) and check out the pinned commit. Verify `PIPELINE_REQUIRED_FILES` first. *(prescriptive)*
+2. **Resolve the pipeline source**: use `--pipeline-dir` when given, else a cached clone at `~/.cache/clawbio/pipelines/metagenomics-workflow-<ref[:12]>`; clone the upstream repo only with `--allow-fetch` and check out the pinned commit. Verify `PIPELINE_REQUIRED_FILES` first. *(prescriptive)*
 3. **Build the samplesheet**: in `--demo`, run the checkout's own `test/make_test_dataset.py` and read the samplesheet it writes; otherwise load `--input` as a file or discover samples from a directory. Write `<output>/pipeline/samplesheet.tsv` with absolute paths. *(prescriptive)*
 4. **Render the config**: load the checkout's `workflow/config/config.yaml` (`config_test.yaml` in demo mode), apply the preset switches, the database paths, `fetch.sra.enabled`, and the host-removal decision (`--host-fasta`, `--allow-host-download` or `--skip-host-removal` — a run with none of them is refused), then the `--cores`/`--mem-mb` caps, and write `<output>/pipeline/config.yaml`. *(prescriptive)*
 5. **Validate the config** against upstream's own guards — binning needs assembly, MAG needs binning, metaSPAdes needs paired-end reads, isolate mode is incompatible, `taxonomy.sensitivity` must be a DIAMOND setting, every enabled stage must have its databases — and confirm each configured database path exists. *(prescriptive)*
@@ -186,7 +186,7 @@ python clawbio.py run mag-pipeline --demo --check --output /tmp/plan
 |------|---------|
 | `--input PATH` | Samplesheet TSV, or a directory of FASTQ files |
 | `--output DIR` | Output directory (required) |
-| `--demo` | Synthetic reads, upstream's own test configuration; refuses flags that configure a stage it does not enable |
+| `--demo` | Synthetic reads, upstream's own test configuration; needs `--allow-fetch` (or a `--pipeline-dir`/cached checkout) and refuses flags that configure a stage it does not enable |
 | `--check` | Validate and dry-run only; nothing is executed |
 | `--preset {qc,profile,assembly,full}` | Stage switches (default `assembly`) |
 | `--cores INT` | Cores for snakemake; caps every `threads.*` value (default 4) |
@@ -204,7 +204,7 @@ python clawbio.py run mag-pipeline --demo --check --output /tmp/plan
 | `--cog-db PATH` | DIAMOND COG database |
 | `--pfam-db PATH` | Pfam-A profile database |
 | `--pipeline-dir PATH` | Use an existing checkout instead of cloning |
-| `--allow-fetch` | Permit cloning the pinned workflow when there is no `--pipeline-dir` and no cache; `--demo` always fetches |
+| `--allow-fetch` | Permit cloning the pinned workflow when there is no `--pipeline-dir` or cached checkout; the registered demo command includes it |
 | `--conda-prefix PATH` | Where tool environments are built (default `<cache>/conda-envs`) |
 | `--allow-remote-inputs` | Permit `sra_run` rows that download public runs |
 | `--timeout-hours FLOAT` | Wall-clock cap (default 12) |
@@ -222,6 +222,8 @@ Expected output: the demo generates synthetic reads with the pinned checkout's
 provenance, producing a report with per-sample retained reads, QUAST assembly
 metrics and the read-loss diagnostic. It needs snakemake ≥ 9, conda and network
 access to build tool environments; with `--check` it needs only the checkout.
+
+The `clawbio.py run` demo command itself includes `--allow-fetch`; a direct run needs the flag too.
 
 The synthetic reads have no biological truth. The demo proves execution, and the
 report says so.
@@ -413,10 +415,10 @@ external databases for CheckM2, GTDB-Tk, contig taxonomy and annotation.
   SE data with metaSPAdes. Do not; upstream requires paired-end reads. Use
   `--preset qc` or `--preset profile` for single-end input, and remember a
   co-assembled bin belongs to a `group`, not to one sample.
-- **A fresh machine needs `--allow-fetch` to clone.** The model will want a run
-  with no `--pipeline-dir` and no cache to just clone the workflow. Do not; that
-  is third-party code execution and the run refuses without `--allow-fetch`.
-  `--demo` is the exception: demonstrating the pinned checkout is the point.
+- **Cloning the workflow needs `--allow-fetch`, the demo included.** The model
+  will want a run or demo with no `--pipeline-dir` and no cache to just clone
+  it. Do not; that is third-party code execution and it refuses without
+  `--allow-fetch` (the ClawBio runner adds the flag to its demo command).
 - **Host removal needs a decision, not a default download.** The model will want
   to leave `--host-fasta` off and let the reference download. Do not; rendering
   that config exits with `HOST_REFERENCE_NOT_ALLOWED` until you pass

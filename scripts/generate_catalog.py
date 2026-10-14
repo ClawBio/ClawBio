@@ -317,9 +317,11 @@ def detect_tests(skill_dir: Path) -> bool:
 
 
 # Extra inputs required by bundled synthetic demos. The South Asian fixture's
-# small AIM panel cannot support automatic ancestry inference.
+# small AIM panel cannot support automatic ancestry inference, and the MAG
+# pipeline's demo clones the pinned third-party workflow on a cold cache.
 DEMO_EXTRA_ARGS = {
     "ancestry-risk-profiler": ("--ancestry", "SAS"),
+    "metagenome-mag-pipeline": ("--allow-fetch",),
 }
 
 

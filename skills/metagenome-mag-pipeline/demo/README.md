@@ -1,8 +1,8 @@
 # Demo
 
 The demo has no bundled input file. At run time it clones the pinned upstream
-checkout (or uses `--pipeline-dir`) and asks upstream's own generator for
-synthetic reads:
+checkout (with `--allow-fetch`, or uses `--pipeline-dir` if given) and asks
+upstream's own generator for synthetic reads:
 
 ```
 python3 <pipeline>/test/make_test_dataset.py \

@@ -1049,7 +1049,9 @@ SKILLS = {
     },
     "mag-pipeline": {
         "script": SKILLS_DIR / "metagenome-mag-pipeline" / "metagenome_mag_pipeline.py",
-        "demo_args": ["--demo"],
+        # --allow-fetch: the demo clones the pinned third-party workflow on a cold
+        # cache, so the registered demo command carries the consent flag.
+        "demo_args": ["--demo", "--allow-fetch"],
         "description": "Shotgun metagenomics QC, assembly, binning and MAG assessment (Snakemake wrapper)",
         # Kept above the wrapper's own --timeout-hours cap (12 h) so the wrapper
         # terminates the process group before the runner gives up on it.

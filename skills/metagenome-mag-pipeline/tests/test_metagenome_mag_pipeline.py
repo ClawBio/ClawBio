@@ -598,8 +598,10 @@ class TestHostReferenceConsent:
 class TestFetchConsent:
     """Cloning the pinned workflow runs third-party code, so it needs --allow-fetch.
 
-    --demo is the exception: demonstrating the pinned workflow is what the user
-    asked for, so a demo fetches the checkout when the cache is empty.
+    A demo is no exception: it executes the checkout's code, so --demo without
+    the flag refuses exactly like a normal run. The ClawBio runner's registered
+    demo command includes the flag, which is why `python clawbio.py run
+    mag-pipeline --demo` still works out of the box.
     """
 
     def _fake_git(self, bindir: Path, checkout: Path) -> Path:
@@ -644,8 +646,16 @@ class TestFetchConsent:
         assert not called.exists(), "git ran, so the refusal came too late"
         assert not (tmp_path / "cache").exists()
 
-    def test_demo_fetches_the_pinned_checkout(self, fake_pipeline: Path, tmp_path: Path) -> None:
-        called = self._fake_git(tmp_path / "bindir", fake_pipeline)
+    def test_demo_without_the_flag_refuses_before_any_clone(
+        self, fake_pipeline: Path, tmp_path: Path
+    ) -> None:
+        """--demo runs third-party code too: it needs the same consent flag."""
+        bindir = tmp_path / "bindir"
+        bindir.mkdir()
+        called = bindir / "git_called"
+        git = bindir / "git"
+        git.write_text(f'#!/bin/sh\nprintf "%s\\n" "$*" >> "{called}"\nexit 1\n')
+        git.chmod(0o755)
         out = tmp_path / "out"
         result = run_cli(
             ["--demo", "--output", str(out), "--conda-prefix", str(tmp_path / "conda")],
@@ -653,8 +663,26 @@ class TestFetchConsent:
             tmp_path=tmp_path,
             extra_env={"CLAWBIO_CACHE_DIR": str(tmp_path / "cache")},
         )
+        assert result.returncode == 1
+        payload = error_of(result)
+        assert payload["error_code"] == "PIPELINE_FETCH_FAILED"
+        assert "--allow-fetch" in payload["fix"]
+        assert not called.exists(), "git ran, so the refusal came too late"
+        assert not (tmp_path / "cache").exists()
+
+    def test_demo_with_the_flag_fetches_the_pinned_checkout(
+        self, fake_pipeline: Path, tmp_path: Path
+    ) -> None:
+        called = self._fake_git(tmp_path / "bindir", fake_pipeline)
+        out = tmp_path / "out"
+        result = run_cli(
+            ["--demo", "--allow-fetch", "--output", str(out),
+             "--conda-prefix", str(tmp_path / "conda")],
+            fake_pipeline=fake_pipeline,
+            tmp_path=tmp_path,
+            extra_env={"CLAWBIO_CACHE_DIR": str(tmp_path / "cache")},
+        )
         assert result.returncode == 0, result.stderr
-        assert "--demo fetches the pinned workflow" in result.stderr
         assert called.exists(), "the demo should have cloned into the empty cache"
         assert json.loads((out / "result.json").read_text())["status"] == "ok"
 
