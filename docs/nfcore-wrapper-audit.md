@@ -11,6 +11,33 @@ retained; the catalog was regenerated from the combined tree. The focused matrix
 below was repeated after this integration. The rebuilt wheel also passed installed
 launcher success/failure audit logging and default-output routing checks.
 
+## Alignment with PR #623
+
+The audit now incorporates [PR #623](https://github.com/ClawBio/ClawBio/pull/623)
+at `dc7951ef71fc8cd4dd64fb1ec3158f1180ce4914`. Its shared package is the
+foundation; the competing `clawbio/common/nfcore.py` file has been removed.
+The shared execution, command, path, failure-reporting, import-isolation, bundle
+runtime, and bundle emitter modules are unchanged from that revision. The new
+runner timeout, parser-environment, portable-remapping, checksum, demo-reporting,
+and warning-relay fixes are retained.
+
+Complementary audit helpers live in the relevant package modules: `parameters`
+for strict mappings and scalar contracts, `source` for literal manifest versions,
+`runtime` for Docker CPU probes, `cli` for manifest work-directory spelling,
+`errors` for JSON-safe details, and `artifacts` for strict CSV input and atomic
+prepared manifests. `resources` contains local Docker eligibility and the portable
+replay guard. Wrappers still own scientific defaults, reference/input policies,
+manifest payloads, checksums, and resource calculations. See
+[nf-core wrapper architecture](nfcore-wrapper-architecture.md).
+
+Sarek uses #623's `_run_with_samplesheet` boundary; fresh launches also stage
+snapshots until complete emitted-parameter validation succeeds. Both refused
+resumes and rejected fresh plans preserve unaccepted input snapshots. The bulk
+wrapper's test setup no longer replaces the public package with a stub, so shared,
+wrapper, and public API tests can run together in either collection order. Tests
+that probe ignored demo flags use schema-valid sample values and retain their
+exhaustive warning assertions.
+
 ## Upstream contracts
 
 | Wrapper | Pipeline release | Minimum Nextflow | Parameters in scalar contract |
@@ -101,7 +128,8 @@ limits requests; it cannot make an analysis fit a machine with insufficient RAM.
 ## Validation
 
 The existing wrapper suite initially passed with **1,349 passed, 2 skipped**.
-The final suite also covers launcher output routing and config/flag forwarding.
+The package-integration suite also covers the shared modules, launcher routing,
+runner/public package APIs, catalog generation, and config/flag forwarding.
 Regression tests were added before fixes and exercised through failing and passing
 runs. The final focused suite includes Hypothesis parsing/protocol/timeout checks,
 mocked launch/failure/resume cases, shell replay tests, official schema comparisons,
@@ -109,9 +137,9 @@ and three real Nextflow scheduler tests.
 
 | Python | Final focused result |
 | --- | --- |
-| 3.11.17 | 1,510 passed, 2 skipped |
-| 3.12.15 | 1,510 passed, 2 skipped |
-| 3.13.13 | 1,510 passed, 2 skipped |
+| 3.11.17 | 1,730 passed, 2 skipped |
+| 3.12.15 | 1,730 passed, 2 skipped |
+| 3.13.13 | 1,730 passed, 2 skipped |
 
 The two existing skips require optional sibling pipeline checkouts. Both comparisons
 (STAR arguments and the protocol matrix) also passed separately against the
@@ -121,37 +149,51 @@ downloaded scrnaseq 4.1.0 release on all three Python versions. Set
 ```bash
 CLAWBIO_NFCORE_UPSTREAM_DIR=/path/to/releases python -m pytest \
   tests/test_nfcore_contract_generation.py tests/test_nfcore_resource_replay.py \
-  tests/test_nfcore_wrapper_audit.py skills/nfcore-rnaseq-wrapper/tests \
+  tests/test_nfcore_wrapper_audit.py tests/test_nfcore_packaging.py \
+  clawbio/common/tests/test_nfcore_*.py skills/nfcore-rnaseq-wrapper/tests \
   skills/nfcore-scrnaseq-wrapper/tests skills/nfcore-sarek-wrapper/tests \
   clawbio/tests/test_nfcore_default_output.py \
   clawbio/tests/test_pipeline_config_forwarding.py \
   clawbio/tests/test_pipeline_flag_spelling.py \
-  clawbio/tests/test_extra_args_allowlist.py -q
+  clawbio/tests/test_extra_args_allowlist.py clawbio/tests/test_runner.py \
+  clawbio/tests/test_package_api.py clawbio/tests/test_packaging.py \
+  tests/test_generate_catalog.py -q
 ```
 
 Using Nextflow **25.10.4** and Java **21.0.7**, all three generated scheduler configs
 serialized a real three-task workflow constrained to one task's memory budget;
-execution traces confirmed that the tasks did not overlap. All three pinned
-pipeline sources also started successfully with wrapper-generated parameters and
+execution traces confirmed that the tasks did not overlap. During the original
+pre-package audit, all three pinned pipeline sources also started successfully with wrapper-generated parameters and
 `-profile test,docker --help`, then completed `-preview` with those same params.
 Preview exercised upstream validation and workflow construction while skipping all
 process execution. The single-cell preview reported
 `validationSchemaIgnoreParams: genomes`, which originates in the pinned upstream
 `conf/test.config`; that key is absent from wrapper-generated params.
 
-The repository regression suite was repeated after integrating main, using the
-updated locked dependencies with all optional extras. It excludes tests marked
-`integration`, `network`, or `slow`: **7,934 passed, 63 skipped, 20 deselected,
-2 expected failures, and 1 failure**. Its one
-remaining failure,
-`skills/proteomics-clock/tests/test_proteomics_clock.py::test_mortality_to_years`,
-was reproduced again on the original revision with the updated dependency
-environment (expected 5–15,
-observed 3.81255). The affected file is unchanged by this audit. Initial broad runs
-exhausted disk space; temporary audit outputs were cleared and dependency setup
-was adjusted to reuse the installed environment before the clean run.
+After package adoption, a Nextflow 26.04.3 preview through the shared command and
+execution adapters parsed the unmodified Sarek release with the forced v1 parser,
+then timed out while downloading the official `nf-amazon@3.9.1` plugin. The registry
+returned HTTP 200; a thread dump located the wait in the plugin downloader's socket
+read, and a separate transfer also timed out. This is not recorded as a successful
+preview or biological workflow run. Release-environment override, timeout, SIGINT,
+SIGTERM and process-group cleanup are covered by the passing shared tests.
 
-The built wheel contains the shared helper and all three scalar contracts.
+The post-package repository regression suite uses the locked dependencies with
+all optional extras and excludes tests marked `integration`, `network`, or `slow`:
+**8,104 passed, 63 skipped, 20 deselected, 2 expected failures, and 1 failure**.
+Its only failure is
+`skills/proteomics-clock/tests/test_proteomics_clock.py::test_mortality_to_years`,
+which also failed on the original revision with the same dependency environment
+(expected 5–15, observed 3.81255). The affected file is unchanged. An earlier run
+hit DNS errors in unrelated live-API tests and one IGV timing failure; the final
+run completed all of those tests successfully. The IGV case also passed alone.
+The pre-package baseline at `ab0fd04` had 7,934 passed and the same proteomics
+failure. No new repository failures were found after the package integration.
+
+The integration wheel was built from the source distribution. It contains the
+shared package and all three scalar contracts, with no competing monolithic module.
+All shared module bytes match the tested checkout. All three installed package
+remappers run with `python -I -S`, without site packages or `PYTHONPATH`.
 Installed outside the checkout with the locked dependency environment available,
 all three console/direct help commands and valid parameter emission/invalid-enum
 rejection checks passed. With Docker stopped, all three installed preflights

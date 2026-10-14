@@ -23,6 +23,14 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   original path held an apostrophe and a space (as `shlex.quote` writes it) and exited
   0 without changing anything; the replay resume guard broke on output paths with `$`,
   a backtick or `"`. Both now round-trip any path.
+- **`--demo` reports what ran.** nf-core/rnaseq 3.26.0's test profile also runs Salmon
+  pseudo-alignment, but the report said `Pseudo-aligner: none` and omitted its counts.
+  Under a test profile the wrapper now reads the pseudo-aligner from nf-core's own
+  `pipeline_info/params_*.json` and labels it; `result.json` adds
+  `pseudo_aligner_effective`.
+- **Every flag a test profile ignores is named.** The warning covered nine hand-picked
+  flags, so e.g. `--skip-qc` or `--pseudo-aligner-kmer-size` vanished under `--demo`
+  without a word. The list is now derived from the params builder.
 
 - **`remap_paths.py`: combining actions no longer discards one of them silently.**
   `main()` dispatched through a chain of early returns, so only the first matching flag

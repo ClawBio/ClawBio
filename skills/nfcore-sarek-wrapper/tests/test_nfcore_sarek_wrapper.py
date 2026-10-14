@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -794,6 +795,108 @@ def test_rejected_resume_keeps_the_completed_runs_result_json(module, monkeypatc
     rc = module.main(["--output", str(out), "--demo", "--resume", "--no-banner"])
     assert rc == 1
     assert (out / "result.json").read_text(encoding="utf-8") == completed
+
+
+_COMPLETED_SHEET = "patient,sample,lane,fastq_1,fastq_2\nP1,S1,L1,/data/a_1.fq.gz,/data/a_2.fq.gz\n"
+_REQUESTED_SHEET = "patient,sample,lane,fastq_1,fastq_2\nP2,S2,L1,/data/b_1.fq.gz,/data/b_2.fq.gz\n"
+
+
+def _completed_run_with_samplesheet(module, monkeypatch, tmp_path):
+    """A finished run's bundle plus a different samplesheet requested on --resume.
+
+    Normalisation is stubbed as a byte copy so the test sees exactly which file the
+    wrapper writes where; the drift decision itself is pinned in test_preflight.py.
+    """
+    out = tmp_path / "out"
+    (out / "reproducibility").mkdir(parents=True)
+    (out / "reproducibility" / "samplesheet.valid.csv").write_text(_COMPLETED_SHEET, encoding="utf-8")
+    requested = tmp_path / "requested.csv"
+    requested.write_text(_REQUESTED_SHEET, encoding="utf-8")
+    _patch_heavy(monkeypatch, module)
+    monkeypatch.setattr(module, "load_manifest", lambda *a, **kw: {"schema_version": 1})
+
+    def _normalize(input_path, normalized_csv, **kw):
+        Path(normalized_csv).write_bytes(Path(input_path).read_bytes())
+        return {"normalized_path": Path(normalized_csv), "step": "mapping", "pairings": [],
+                "analysis_mode": "germline", "sample_count": 1, "patient_count": 1}
+
+    monkeypatch.setattr(module, "validate_and_normalize_samplesheet", _normalize)
+    return out, requested
+
+
+def test_refused_resume_leaves_the_completed_runs_samplesheet_untouched(module, monkeypatch, tmp_path):
+    """params.yaml and commands.sh of the completed run point at its validated
+    samplesheet. A --resume refused for drift must not replace it, or a later replay
+    of that bundle would analyse the samples of the refused request."""
+    out, requested = _completed_run_with_samplesheet(module, monkeypatch, tmp_path)
+    judged: dict[str, str] = {}
+
+    def _drift(**kw):
+        judged["content"] = Path(kw["samplesheet"]["normalized_path"]).read_text(encoding="utf-8")
+        raise module.SkillError(
+            stage="preflight",
+            error_code=module.ErrorCode.RESUME_DRIFT,
+            message="Resume manifest is incompatible with the current run.",
+            fix="Use a fresh output directory.",
+        )
+
+    monkeypatch.setattr(module, "run_preflight", _drift)
+    rc = module.main(["--output", str(out), "--input", str(requested), "--genome", "GATK.GRCh38",
+                      "--resume", "--no-banner"])
+    assert rc == 1
+    # Drift is still judged on the samplesheet that was requested ...
+    assert judged["content"] == _REQUESTED_SHEET
+    # ... but the completed run keeps its own.
+    assert (out / "reproducibility" / "samplesheet.valid.csv").read_text(encoding="utf-8") == _COMPLETED_SHEET
+    assert sorted(p.name for p in (out / "reproducibility").iterdir()) == ["samplesheet.valid.csv"]
+
+
+def test_refused_demo_resume_does_not_rewrite_the_demo_samplesheet(module, monkeypatch, tmp_path):
+    out = tmp_path / "out"
+    sheet = out / "reproducibility" / "samplesheet.demo.csv"
+    sheet.parent.mkdir(parents=True)
+    sheet.write_text("patient,sample,lane,fastq_1,fastq_2\n", encoding="utf-8")
+    os.utime(sheet, ns=(1_000_000_000, 1_000_000_000))
+    _patch_heavy(monkeypatch, module)
+    monkeypatch.setattr(module, "load_manifest", lambda *a, **kw: {"schema_version": 1})
+
+    def _drift(**kw):
+        raise module.SkillError(stage="preflight", error_code=module.ErrorCode.RESUME_DRIFT,
+                                message="drift", fix="fresh output")
+
+    monkeypatch.setattr(module, "run_preflight", _drift)
+    assert module.main(["--output", str(out), "--demo", "--resume", "--no-banner"]) == 1
+    assert sheet.stat().st_mtime_ns == 1_000_000_000
+
+
+def test_accepted_resume_commits_the_validated_samplesheet(module, monkeypatch, tmp_path):
+    """Once preflight accepts the resume the validated samplesheet replaces the old
+    copy, params.yaml keeps pointing at the bundle path, and no scratch path leaks
+    into what the run records."""
+    out, requested = _completed_run_with_samplesheet(module, monkeypatch, tmp_path)
+    call_log = _patch_heavy(monkeypatch, module)
+    monkeypatch.setattr(module, "load_manifest", lambda *a, **kw: {"schema_version": 1})
+    monkeypatch.setattr(module, "validate_and_normalize_samplesheet",
+                        lambda input_path, normalized_csv, **kw: (
+                            Path(normalized_csv).write_bytes(Path(input_path).read_bytes()),
+                            {"normalized_path": Path(normalized_csv), "step": "mapping", "pairings": [],
+                             "analysis_mode": "germline", "sample_count": 1, "patient_count": 1},
+                        )[1])
+    seen: dict[str, object] = {}
+
+    def _build_effective_params(args, *, normalized_samplesheet, output_dir):
+        seen.setdefault("normalized_samplesheet", []).append(Path(normalized_samplesheet))
+        return {"outdir": "upstream/results", "step": "mapping"}
+
+    monkeypatch.setattr(module, "build_effective_params", _build_effective_params)
+    rc = module.main(["--output", str(out), "--input", str(requested), "--genome", "GATK.GRCh38",
+                      "--resume", "--no-banner"])
+    assert rc == 0
+    final = out / "reproducibility" / "samplesheet.valid.csv"
+    assert final.read_text(encoding="utf-8") == _REQUESTED_SHEET
+    assert all(p == final for p in seen["normalized_samplesheet"])
+    assert call_log["write_provenance_bundle"]["samplesheet_csv_src"] == final
+    assert call_log["write_reports"]["samplesheet_report"]["normalized_path"] == final
 
 
 def test_main_extra_param_merges_into_run(module, monkeypatch, tmp_path):

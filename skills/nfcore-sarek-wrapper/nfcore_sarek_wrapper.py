@@ -17,8 +17,8 @@ import shlex
 import shutil
 import subprocess
 import sys
-import time
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlsplit
@@ -590,11 +590,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
-    with tempfile.TemporaryDirectory(prefix="clawbio-sarek-") as staging:
-        return _run_wrapper_staged(args, output_dir, staging_dir=Path(staging))
-
-
-def _run_wrapper_staged(args: argparse.Namespace, output_dir: Path, *, staging_dir: Path) -> int:
     # Materialise config-provided step/tools before input validation. In
     # particular, downstream Sarek steps may omit input and retrieve their CSV
     # handoff, whereas mapping may not.
@@ -649,6 +644,29 @@ def _run_wrapper_staged(args: argparse.Namespace, output_dir: Path, *, staging_d
 
     _check_pipeline_source_version(args, pipeline_source)
 
+    # A resume validates its samplesheet in a scratch directory and replaces the
+    # completed run's copy only once preflight accepts it, so a refused resume leaves
+    # the earlier bundle exactly as it was (as nfcore-rnaseq/scrnaseq do).
+    run_kwargs = {
+        "pipeline_source": pipeline_source,
+        "composed_profile": composed_profile,
+        "igenomes_notice": igenomes_notice,
+    }
+    # Fresh launches also stage input snapshots until complete scalar validation
+    # succeeds, so a rejected run cannot commit a misleading normalized sheet.
+    with tempfile.TemporaryDirectory(prefix="clawbio-sarek-") as staging:
+        return _run_with_samplesheet(args, output_dir, staging_dir=Path(staging), **run_kwargs)
+
+
+def _run_with_samplesheet(
+    args: argparse.Namespace,
+    output_dir: Path,
+    *,
+    staging_dir: Path | None,
+    pipeline_source: dict[str, Any],
+    composed_profile: str,
+    igenomes_notice: str | None,
+) -> int:
     # --- samplesheet preparation ---
     samplesheet_report, staged_csv = _prepare_samplesheet(args, output_dir, staging_dir=staging_dir)
     normalized_csv = output_dir / "reproducibility" / staged_csv.name
@@ -704,9 +722,11 @@ def _run_wrapper_staged(args: argparse.Namespace, output_dir: Path, *, staging_d
         output_dir=output_dir,
     )
 
-    normalized_csv.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(staged_csv, normalized_csv)
-    samplesheet_report["normalized_path"] = normalized_csv
+    if staging_dir is not None:
+        normalized_csv.parent.mkdir(parents=True, exist_ok=True)
+        for staged in sorted(staging_dir.iterdir()):
+            shutil.copyfile(staged, normalized_csv.parent / staged.name)
+        samplesheet_report["normalized_path"] = normalized_csv
 
     # --- check mode: stop here ---
     if args.check:
@@ -1218,8 +1238,12 @@ def _tool_list(raw: Any) -> list[str]:
 def _prepare_samplesheet(
     args: argparse.Namespace, output_dir: Path, *, staging_dir: Path | None = None
 ) -> tuple[dict[str, Any], Path]:
-    """Validate the user's samplesheet (or write a demo stub) and return (report, csv_path)."""
-    repro_dir = staging_dir if staging_dir is not None else output_dir / "reproducibility"
+    """Validate the user's samplesheet (or write a demo stub) and return (report, csv_path).
+
+    Files are written to ``staging_dir`` when given, otherwise to the bundle directory;
+    the bundle name is the returned file's name either way.
+    """
+    repro_dir = staging_dir or output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
     if args.demo:
         normalized_csv = repro_dir / "samplesheet.demo.csv"

@@ -145,3 +145,38 @@ def test_runner_outlasts_the_wrappers_own_timeout(alias, monkeypatch, tmp_path):
     # An explicit runner --timeout still wins; a bad value is the wrapper's usage error.
     assert _runner_timeout_for(monkeypatch, tmp_path, alias, "--demo", "--timeout-hours", "48", "--timeout", "999") == 999
     assert _runner_timeout_for(monkeypatch, tmp_path, alias, "--demo", "--timeout-hours", "nan") == default
+
+
+def _run_main_with(monkeypatch, tmp_path, capsys, *, success, stderr):
+    import sys
+
+    def fake_run_skill(**kwargs):
+        return {"skill": kwargs["skill_name"], "success": success, "exit_code": 0 if success else 1,
+                "output_dir": str(tmp_path), "files": [], "stdout": "", "stderr": stderr,
+                "duration_seconds": 0}
+
+    monkeypatch.setattr(clawbio_runner, "run_skill", fake_run_skill)
+    monkeypatch.setattr(sys, "argv", ["clawbio", "run", "rnaseq-pipeline", "--demo", "--output", str(tmp_path)])
+    with pytest.raises(SystemExit):
+        clawbio_runner.main()
+    return capsys.readouterr().out
+
+
+def test_successful_run_relays_the_skills_warnings(monkeypatch, tmp_path, capsys):
+    """A skill's stderr was shown only on failure, so `clawbio run rnaseq-pipeline
+    --demo --skip-qc` succeeded without saying --skip-qc had no effect."""
+    stderr = (
+        "progress line\n"
+        "WARNING: --demo ignores tuning flags (--skip-qc); the upstream test profile ...\n"
+        "WARNING: --demo forces --aligner star_salmon (requested: 'hisat2').\n"
+        "WARNING: --demo forces --aligner star_salmon (requested: 'hisat2').\n"
+    )
+    out = _run_main_with(monkeypatch, tmp_path, capsys, success=True, stderr=stderr)
+    assert out.count("WARNING: --demo ignores tuning flags (--skip-qc)") == 1
+    assert out.count("WARNING: --demo forces --aligner star_salmon") == 1
+    assert "progress line" not in out
+
+
+def test_successful_run_without_warnings_prints_none(monkeypatch, tmp_path, capsys):
+    out = _run_main_with(monkeypatch, tmp_path, capsys, success=True, stderr="progress line\n")
+    assert "WARNING" not in out

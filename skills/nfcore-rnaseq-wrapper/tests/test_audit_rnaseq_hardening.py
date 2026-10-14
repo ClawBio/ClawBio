@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import importlib.util
 from argparse import Namespace
+import json
+import os
 from pathlib import Path
 import sys
 
@@ -518,3 +520,128 @@ def test_no_skipped_samples_hint_without_signal(tmp_path):
             _parsed(), args=_gate_args(), output_dir=tmp_path
         )
     assert "min-trimmed-reads" not in exc.value.fix
+
+
+# ── Hermetic test profiles: ignored flags are named, what ran is reported ─────
+
+_REAL_RUN = ["--output", "/tmp/x", "--input", "s.csv"]
+_SAMPLE_VALUES = (
+    "3", "0.5", "31", "x", "reference.fasta", "annotation.gtf",
+    "annotation.gff", "genes.bed", "user@example.org", "3.GB",
+)
+
+
+def _real_params(parser, extra):
+    args = parser.parse_args([*_REAL_RUN, *extra])
+    return build_effective_params(
+        args,
+        normalized_samplesheet=Path("/tmp/x/reproducibility/samplesheet.valid.csv"),
+        output_dir=Path("/tmp/x"),
+    )
+
+
+def _sample_argv(parser, action):
+    """A value accepted by both the parser and the pinned scalar contract."""
+    flag = next(option for option in action.option_strings if option.startswith("--"))
+    if action.nargs == 0:
+        return [flag]
+    if action.choices:
+        values = [choice for choice in action.choices if choice != action.default][:1]
+    else:
+        values = list(_SAMPLE_VALUES)
+    for value in values:
+        try:
+            parser.parse_args([*_REAL_RUN, flag, str(value)])
+        except SystemExit:
+            continue
+        try:
+            _real_params(parser, [flag, str(value)])
+        except SkillError:
+            continue
+        return [flag, str(value)]
+    assert not values, f"No schema-valid sample for {flag} among {values}"
+    return None
+
+
+def test_demo_names_every_pipeline_flag_it_ignores(capsys):
+    """--demo runs nf-core's test profile, which owns every pipeline parameter. Each
+    flag that would change a real run's params.yaml has no effect there and must be
+    named in a warning (--skip-qc used to vanish without one); flags that compose a
+    Nextflow profile (--arm, --prokaryotic) still apply and must not be named."""
+    parser = wrapper.build_parser()
+    baseline = _real_params(parser, [])
+    named: list[str] = []
+    for action in parser._actions:
+        if not action.option_strings or action.dest in {"help", "output", "input", "demo"}:
+            continue
+        argv = _sample_argv(parser, action)
+        if argv is None:
+            continue
+        changes_params = _real_params(parser, argv) != baseline
+        wrapper._apply_demo_overrides(parser.parse_args(["--output", "/tmp/x", "--demo", *argv]))
+        err = capsys.readouterr().err
+        if changes_params and action.dest not in {"arm", "prokaryotic"}:
+            assert argv[0] in err, f"{argv[0]} is ignored under --demo without a warning"
+            named.append(argv[0])
+        else:
+            tuning = [line for line in err.splitlines() if "ignores tuning flags" in line]
+            assert not any(argv[0] + ")" in line or argv[0] + "," in line for line in tuning), argv[0]
+    assert "--skip-qc" in named and "--pseudo-aligner" in named
+
+
+def _hermetic_results(output_dir: Path, *launches: dict) -> None:
+    """A demo results tree: STAR+Salmon and Salmon pseudo-alignment counts, plus one
+    nf-core params record per launch, oldest first."""
+    results = output_dir / "upstream" / "results"
+    info = results / "pipeline_info"
+    info.mkdir(parents=True)
+    for second, recorded in enumerate(launches):
+        record = info / f"params_2026-10-14_15-57-{second:02d}.json"
+        record.write_text(json.dumps(recorded), encoding="utf-8")
+        os.utime(record, (1_700_000_000 + second, 1_700_000_000 + second))
+    for quant in ("star_salmon", "salmon"):
+        (results / quant).mkdir()
+        (results / quant / "salmon.merged.gene_counts.tsv").write_text(
+            "gene_id\tgene_name\tS1\nG1\tG1\t5\n", encoding="utf-8"
+        )
+
+
+def test_demo_reports_the_pseudo_aligner_nf_core_recorded(tmp_path):
+    """nf-core/rnaseq 3.26.0's test profile also runs Salmon pseudo-alignment. The demo
+    report said 'Pseudo-aligner: none' and left those counts out; it must state what
+    ran, even when the user asked for a pseudo-aligner the profile ignored."""
+    _hermetic_results(tmp_path, {"aligner": "star_salmon", "pseudo_aligner": "salmon"})
+    args = wrapper.build_parser().parse_args(
+        ["--output", str(tmp_path), "--demo", "--pseudo-aligner", "kallisto"]
+    )
+    wrapper._apply_demo_overrides(args)
+    parsed = wrapper._parse_outputs_with_effective_aligner(tmp_path, args)
+    results = tmp_path / "upstream" / "results"
+    assert parsed["pseudo_aligner_effective"] == "salmon"
+    assert parsed["salmon_pseudo_counts_tsv"] == str(results / "salmon" / "salmon.merged.gene_counts.tsv")
+    assert parsed["raw_counts_tsv"] == str(results / "star_salmon" / "salmon.merged.gene_counts.tsv")
+    report = wrapper.write_report(
+        tmp_path, args=args, pipeline_source={"source_kind": "remote_repo", "resolved_version": "3.26.0"},
+        preflight_result={"warnings": []}, parsed_outputs=parsed, command_str="nextflow run",
+    ).read_text(encoding="utf-8")
+    assert "- Pseudo-aligner: `salmon` (set by the test profile)" in report
+
+
+def test_demo_reads_the_latest_launch_record(tmp_path):
+    _hermetic_results(tmp_path, {"aligner": "star_salmon", "pseudo_aligner": None},
+                      {"aligner": "star_salmon", "pseudo_aligner": "salmon"})
+    args = wrapper.build_parser().parse_args(["--output", str(tmp_path), "--demo"])
+    wrapper._apply_demo_overrides(args)
+    assert wrapper._parse_outputs_with_effective_aligner(tmp_path, args)["pseudo_aligner_effective"] == "salmon"
+
+
+def test_real_run_reports_the_requested_pseudo_aligner(tmp_path):
+    """Outside a test profile the wrapper writes pseudo_aligner itself, so the request
+    is what ran and the report keeps saying so."""
+    _hermetic_results(tmp_path, {"aligner": "star_salmon", "pseudo_aligner": "salmon"})
+    args = wrapper.build_parser().parse_args(
+        ["--output", str(tmp_path), "--input", "s.csv", "--pseudo-aligner", "salmon"]
+    )
+    parsed = wrapper._parse_outputs_with_effective_aligner(tmp_path, args)
+    assert parsed["pseudo_aligner_effective"] == "salmon"
+    assert not parsed.get("pseudo_aligner_from_pipeline")

@@ -252,6 +252,15 @@ def write_report(
     return report_path
 
 
+def _pseudo_aligner_summary(args, parsed_outputs: dict[str, object]) -> str:
+    """The pseudo-aligner that ran; a test profile's own choice is labelled as such."""
+    pseudo = parsed_outputs.get("pseudo_aligner_effective", getattr(args, "pseudo_aligner", None))
+    text = f"`{pseudo or 'none'}`"
+    if parsed_outputs.get("pseudo_aligner_from_pipeline"):
+        text += " (set by the test profile)"
+    return text
+
+
 def build_report_lines(
     output_dir: Path,
     *,
@@ -281,7 +290,7 @@ def build_report_lines(
         "## Summary",
         "",
         f"- Aligner: `{getattr(args, 'aligner', '')}`",
-        f"- Pseudo-aligner: `{getattr(args, 'pseudo_aligner', None) or 'none'}`",
+        f"- Pseudo-aligner: {_pseudo_aligner_summary(args, parsed_outputs)}",
         f"- Trimmer: `{getattr(args, 'trimmer', '')}`",
         f"- Samples: `{parsed_outputs.get('samples_detected', 0)}`",
         f"- Strandedness mode: `{_strandedness_summary(preflight_result)}`",
@@ -531,6 +540,7 @@ def build_result_summary(
         "aligner": getattr(args, "aligner", ""),
         "aligner_effective": parsed_outputs.get("aligner_effective", ""),
         "pseudo_aligner": getattr(args, "pseudo_aligner", None),
+        "pseudo_aligner_effective": parsed_outputs.get("pseudo_aligner_effective", ""),
         "pipeline_source_kind": pipeline_source.get("source_kind", ""),
         "pipeline_version_or_commit": pipeline_source.get("resolved_version", ""),
         "profile": getattr(args, "profile", ""),

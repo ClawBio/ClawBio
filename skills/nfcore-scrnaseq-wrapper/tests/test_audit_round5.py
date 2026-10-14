@@ -179,6 +179,53 @@ def test_demo_ignored_flags_helper_lists_non_reference_flags():
     assert wrapper._demo_ignored_flags(_full_args(demo=True, preset="star")) == []
 
 
+def test_demo_names_every_pipeline_flag_it_ignores():
+    """Each flag that would change a real run's params.yaml is owned by the test
+    profile under --demo and must be named, so a new flag cannot be dropped silently.
+    The exceptions are the settings --demo enforces itself (CellBender off, iGenomes
+    ignored), which the user gets regardless."""
+    parser = wrapper.build_parser()
+    real = ["--output", "/tmp/x", "--input", "s.csv"]
+
+    def real_params(extra):
+        return build_effective_params(
+            parser.parse_args([*real, *extra]),
+            normalized_samplesheet=Path("/tmp/x/reproducibility/samplesheet.valid.csv"),
+            output_dir=Path("/tmp/x"),
+        )
+
+    baseline = real_params([])
+    enforced_by_demo = {"--preset", "--skip-cellbender", "--skip-emptydrops", "--igenomes-ignore"}
+    named = []
+    for action in parser._actions:
+        if not action.option_strings or action.dest in {"help", "output", "input", "demo"}:
+            continue
+        flag = next(option for option in action.option_strings if option.startswith("--"))
+        candidates = [[flag]] if action.nargs == 0 else [
+            [flag, str(value)]
+            for value in ([c for c in action.choices if c != action.default][:1] if action.choices else [
+                "3", "0.5", "x", "reference.fasta", "user@example.org", "3.GB",
+            ])
+        ]
+        for argv in candidates:
+            try:
+                parser.parse_args([*real, *argv])
+            except SystemExit:
+                continue
+            try:
+                params = real_params(argv)
+            except SkillError:
+                continue
+            if params != baseline and flag not in enforced_by_demo:
+                ignored = wrapper._demo_ignored_flags(parser.parse_args(["--output", "/tmp/x", "--demo", *argv]))
+                assert flag in ignored, f"{flag} is ignored under --demo without a warning"
+                named.append(flag)
+            break
+        else:
+            assert not candidates, f"No schema-valid sample for {flag} among {candidates}"
+    assert {"--protocol", "--skip-fastqc"} <= set(named)
+
+
 def test_demo_validation_requires_fastqc_and_multiqc_even_if_user_passed_skip(tmp_path):
     # Build a results tree WITHOUT multiqc/fastqc; the hermetic demo must still
     # require them because the skip flags were not written to params.yaml.

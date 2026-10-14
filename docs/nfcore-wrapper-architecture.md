@@ -4,21 +4,30 @@ The three implemented nf-core skills use `clawbio.common.nfcore` for mechanical 
 
 | Module | Responsibility |
 |---|---|
-| errors | The structured SkillError every wrapper raises; each skill keeps its own ErrorCode constants |
+| errors | The structured SkillError every wrapper raises, with JSON-safe failure details; each skill keeps its own ErrorCode constants |
 | imports | Bare-module isolation with an explicit skill directory |
 | paths | URI preservation, path containment and the single /tmp predicate |
-| cli | `--timeout-hours` parsing (finite, non-negative), timeout seconds and `--work-dir` resolution |
+| cli | `--timeout-hours` parsing (finite, non-negative), timeout seconds, `--work-dir` resolution and stable manifest spelling |
 | commands | Nextflow argv and the display form, including the environment the release needs |
-| parameters | params.yaml text: fixed header, key order, one value per line |
+| parameters | params.yaml text: fixed header, key order, one value per line; strict mapping parsing and pinned scalar-contract validation |
 | execution | Logs, process-group lifecycle (timeout, Ctrl+C and SIGTERM all stop Nextflow), bounded log reads, ordered failure hints |
 | failures | result.json, stdout box and stderr JSON for SkillError and unexpected errors |
-| runtime | Executable, version and memory probes; the `--demo` offline refusal |
-| source | Bounded Git probes and required-file inspection |
-| artifacts | JSON/CSV writing, config basenames and the safe error result.json writer |
+| runtime | Executable, version, memory and Docker CPU probes; the `--demo` offline refusal |
+| source | Bounded Git probes, required-file inspection and literal manifest-version parsing |
+| artifacts | JSON/CSV reading and writing, config basenames, atomic prepared-manifest writing and the safe error result.json writer |
+| resources | Local Docker eligibility and the standalone replay capacity guard; wrappers supply profiles and choose resource budgets |
 | bundle_runtime | Standard-library relocation: shell and YAML quoting, remap/verify, repair, stubs |
 | bundle_emit | Embed the relocation runtime in a single-file remap_paths.py |
 
 Shared modules never import a skill's bare `schemas`, `errors`, or orchestrator. Pass values explicitly. Keep reference rules, samplesheet columns, presets, source fallback/dirty rules, resource calculations, manifests, checksum target selection, scientific output ranking and downstream handoff local. Preserve each skill's validation order and warning channel.
+
+The compatibility audit builds on the shared package from PR #623. There is no
+competing `clawbio/common/nfcore.py` module or second execution/relocation runtime.
+Scalar contracts stay beside each pinned skill; the shared parameter validator
+receives the selected contract explicitly. Prepared-manifest payloads and resource
+ceilings remain pipeline policy; shared helpers only write the supplied checkpoint
+or render a replay guard. Combined tests also check that collecting wrapper tests
+preserves the real public `clawbio` package instead of substituting a partial stub.
 
 Each skill's `executor.py` and `command_builder.py` are thin adapters that supply pipeline policy: timeout advice, scRNA's CellBender hint, profile composition, and `schemas.NEXTFLOW_ENV`. Pipeline pinning remains in each skill's schemas and compatibility JSON rather than a global registry.
 
