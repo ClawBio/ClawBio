@@ -102,6 +102,10 @@ spatial = [
     "scanpy>=1.10",
     "leidenalg>=0.10",
 ]
+# cv2 for skills/data-extractor's axis calibration (data_extractor_core/cv_calibration.py).
+data-extractor = [
+    "opencv-python-headless>=5.0.0.93",
+]
 # Python BigQuery client for skills/bigquery-public, which imports it lazily
 # and falls back to the `bq` CLI when it is absent.
 bigquery = [
