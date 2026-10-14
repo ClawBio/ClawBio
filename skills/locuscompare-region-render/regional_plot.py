@@ -73,7 +73,7 @@ def _ld_legend_label(label: str) -> str:
 
 def _r2_color(r2: float | None) -> tuple[str, str]:
     """Return (hex_color, bin_label) for a given r² value. None -> the no-LD bin."""
-    if r2 is None or r2 != r2:  # None or NaN: no measured value
+    if r2 is None or math.isnan(r2):  # no measured value
         return NO_LD_COLOR, NO_LD_LABEL
     for lo, hi, color, label in LD_R2_BINS:
         if lo <= r2 < hi:

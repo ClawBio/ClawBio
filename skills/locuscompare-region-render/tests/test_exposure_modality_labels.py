@@ -115,7 +115,7 @@ def test_exposure_modality_rule():
     assert exposure_modality(eq, "leafcutter", "single-cell")[:2] == ("sqtl", "sQTL")
 
 
-@pytest.mark.parametrize("quant_method", list(_CASES), ids=lambda q: str(q))
+@pytest.mark.parametrize("quant_method", list(_CASES), ids=str)
 def test_cassette_replay_names_the_modality_everywhere(tmp_path, drawn, quant_method):
     code, tag = _CASES[quant_method]
     cassette = _load_eqtl_cassette()
