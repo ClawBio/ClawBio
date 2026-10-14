@@ -101,7 +101,9 @@ and three real Nextflow scheduler tests.
 | 3.12.15 | 1,468 passed, 2 skipped |
 | 3.13.13 | 1,468 passed, 2 skipped |
 
-The two existing skips require optional sibling pipeline checkouts. Set
+The two existing skips require optional sibling pipeline checkouts. Both comparisons
+(STAR arguments and the protocol matrix) also passed separately against the
+downloaded scrnaseq 4.1.0 release on all three Python versions. Set
 `CLAWBIO_NFCORE_UPSTREAM_DIR` to enable the source-contract comparison:
 
 ```bash
@@ -122,7 +124,8 @@ process execution. The single-cell preview reported
 `conf/test.config`; that key is absent from wrapper-generated params.
 
 The repository regression suite uses the locked dependencies with all optional
-extras and excludes tests marked `integration`, `network`, or `slow`. Its one
+extras and excludes tests marked `integration`, `network`, or `slow`: **7,318 passed,
+76 skipped, 15 deselected, 2 expected failures, and 1 failure**. Its one
 remaining failure,
 `skills/proteomics-clock/tests/test_proteomics_clock.py::test_mortality_to_years`,
 was reproduced on the original revision in the same environment (expected 5–15,
