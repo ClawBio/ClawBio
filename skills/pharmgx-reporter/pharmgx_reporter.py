@@ -68,6 +68,7 @@ PGX_SNPS = {
     "rs3918290":  {"gene": "DPYD", "allele": "*2A",  "effect": "no_function"},
     "rs55886062": {"gene": "DPYD", "allele": "*13",  "effect": "no_function"},
     "rs67376798": {"gene": "DPYD", "allele": "D949V", "effect": "decreased_function"},
+    "rs75017182": {"gene": "DPYD", "allele": "HapB3", "effect": "decreased_function"},
     # TPMT
     "rs1800460":  {"gene": "TPMT", "allele": "*3B", "effect": "no_function"},
     "rs1142345":  {"gene": "TPMT", "allele": "*3C", "effect": "no_function"},
@@ -97,6 +98,15 @@ PGX_SNPS = {
 # 2. Gene definitions with phenotype rules (from phenotype.js)
 # ---------------------------------------------------------------------------
 
+# Where and when the GENE_DEFS diplotype->phenotype tables were last checked
+# against CPIC. The CPIC API serves the live database and reports no release
+# number, so the query date is the version. DPYD uses star names, not CPIC's
+# HGVS form, so it was checked against CPIC's DPYD diplotype table file, which
+# is dated. Not covered: CYP1A2 and MTHFR (no CPIC guideline).
+CPIC_TABLES_CHECKED = (
+    "api.cpicpgx.org, 2026-10-05; DPYD against CPIC DPYD_Diplotype_Phenotype_Table.xlsx generated 2026-08-07"
+)
+
 GENE_DEFS = {
     "CYP2C19": {
         "name": "Cytochrome P450 2C19",
@@ -112,7 +122,7 @@ GENE_DEFS = {
             "Ultrarapid Metabolizer":  ["*17/*17"],
             "Rapid Metabolizer":       ["*1/*17"],
             "Normal Metabolizer":      ["*1/*1"],
-            "Intermediate Metabolizer": ["*1/*2", "*1/*3", "*2/*17", "*1/*4"],
+            "Intermediate Metabolizer": ["*1/*2", "*1/*3", "*2/*17", "*3/*17", "*4/*17", "*1/*4"],
             "Poor Metabolizer":        ["*2/*2", "*2/*3", "*3/*3", "*2/*4", "*3/*4", "*4/*4"],
         },
     },
@@ -130,9 +140,11 @@ GENE_DEFS = {
         "phenotypes": {
             # CPIC 2020 (Caudle, PMID 31647186): NM at AS >= 1.25
             # *1/*10 has AS = 1.0 + 0.25 = 1.25 -> NM (not IM)
-            "Normal Metabolizer":       ["*1/*1", "*1/*2", "*2/*2", "*1/*10"],
-            "Intermediate Metabolizer": ["*1/*4", "*1/*41", "*2/*41", "*10/*10", "*4/*10", "*10/*41", "*41/*41"],
-            "Poor Metabolizer":         ["*4/*4", "*4/*6", "*6/*6", "*4/*41"],
+            # *41 has AS 0.5, so *1/*41 and *2/*41 (AS 1.5) are NM and *4/*41 (AS 0.5) is IM
+            "Normal Metabolizer":       ["*1/*1", "*1/*2", "*2/*2", "*1/*10", "*2/*10", "*1/*41", "*2/*41"],
+            "Intermediate Metabolizer": ["*1/*4", "*1/*6", "*10/*10", "*4/*10", "*10/*41", "*41/*41", "*4/*41",
+                                         "*2/*4", "*2/*6", "*6/*10", "*6/*41"],
+            "Poor Metabolizer":         ["*4/*4", "*4/*6", "*6/*6"],
         },
     },
     "CYP2C9": {
@@ -188,11 +200,15 @@ GENE_DEFS = {
             "rs3918290":  {"allele": "*2A",  "alt": "T", "effect": "no_function"},
             "rs55886062": {"allele": "*13",  "alt": "C", "effect": "no_function"},
             "rs67376798": {"allele": "D949V", "alt": "A", "effect": "decreased_function"},
+            # c.1129-5923C>G, the likely HapB3 causal variant (CPIC allele definition table)
+            "rs75017182": {"allele": "HapB3", "alt": "C", "effect": "decreased_function"},
         },
         "phenotypes": {
             "Normal Metabolizer":       ["Normal/Normal"],
-            "Intermediate Metabolizer": ["Normal/*2A", "Normal/*13", "Normal/D949V", "D949V/D949V"],
-            "Poor Metabolizer":         ["*2A/*2A", "*2A/*13", "*13/*13", "*2A/D949V", "*13/D949V"],
+            "Intermediate Metabolizer": ["Normal/*2A", "Normal/*13", "Normal/D949V", "D949V/D949V",
+                                         "Normal/HapB3", "HapB3/HapB3", "D949V/HapB3"],
+            "Poor Metabolizer":         ["*2A/*2A", "*2A/*13", "*13/*13", "*2A/D949V", "*13/D949V",
+                                         "*2A/HapB3", "*13/HapB3"],
         },
     },
     "TPMT": {
@@ -221,8 +237,8 @@ GENE_DEFS = {
         },
         "phenotypes": {
             "Normal Metabolizer":       ["*1/*1"],
-            "Intermediate Metabolizer": ["*1/*28", "*1/*6", "*6/*28"],
-            "Poor Metabolizer":         ["*28/*28", "*6/*6"],
+            "Intermediate Metabolizer": ["*1/*28", "*1/*6"],
+            "Poor Metabolizer":         ["*28/*28", "*6/*6", "*6/*28"],
         },
     },
     "CYP3A5": {
@@ -237,7 +253,7 @@ GENE_DEFS = {
         "phenotypes": {
             "CYP3A5 Expressor":          ["*1/*1"],
             "Intermediate Expressor":     ["*1/*3", "*1/*6", "*1/*7"],
-            "CYP3A5 Non-expressor":       ["*3/*3", "*3/*6", "*6/*6", "*3/*7"],
+            "CYP3A5 Non-expressor":       ["*3/*3", "*3/*6", "*6/*6", "*3/*7", "*7/*7", "*6/*7"],
         },
     },
     "CYP2B6": {
@@ -250,8 +266,8 @@ GENE_DEFS = {
         },
         "phenotypes": {
             "Normal Metabolizer":       ["*1/*1"],
-            "Intermediate Metabolizer": ["*1/*9", "*1/*18", "*9/*18"],
-            "Poor Metabolizer":         ["*9/*9", "*18/*18"],
+            "Intermediate Metabolizer": ["*1/*9", "*1/*18"],
+            "Poor Metabolizer":         ["*9/*9", "*18/*18", "*9/*18"],
         },
     },
     "NUDT15": {
@@ -1864,6 +1880,8 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
     lines.append("")
     lines.append("- Corpas, M. (2026). ClawBio. https://github.com/ClawBio/ClawBio")
     lines.append("- CPIC. Clinical Pharmacogenetics Implementation Consortium. https://cpicpgx.org/")
+    lines.append(f"- Diplotype-to-phenotype tables checked against CPIC ({CPIC_TABLES_CHECKED});"
+                 " CYP1A2 and MTHFR not covered (no CPIC guideline).")
     lines.append("- Caudle, K.E. et al. (2014). Standardizing terms for clinical pharmacogenetic test results. Genet Med, 16(9), 655-663.")
     lines.append("- PharmGKB. https://www.pharmgkb.org/")
     lines.append("")
@@ -2301,6 +2319,7 @@ def main():
     result_data = {
         "gene_profiles": profiles,
         "drug_recommendations": drug_results,
+        "cpic_tables_checked": CPIC_TABLES_CHECKED,
     }
     if clinpgx_enrichment:
         result_data["clinpgx_enrichment"] = clinpgx_enrichment

@@ -247,24 +247,23 @@ def format_pharmgx_preview(report_text: str, report_path: str):
         dip_match = re.match(r'^(.+?)\s*(\(\d/\d SNPs tested\))?$', diplotype)
         dip_core = dip_match[1] if dip_match else diplotype
         dip_note = f" {DIM}{dip_match[2]}{RESET}" if dip_match and dip_match[2] else ""
-        # Choose color by phenotype category
-        if "Unknown" in phenotype or "unmapped" in phenotype:
+        # Preserve the report's phenotype, including uncertainty and coverage
+        # qualifiers. Unrecognized phenotypes must never default to "Normal".
+        phenotype_label = phenotype or "Unknown"
+        category = phenotype_label.lower()
+        if any(term in category for term in ("indeterminate", "unknown", "unmapped")):
             pc = YELLOW
-            phenotype_short = "Unknown"
-            extra = f"  {DIM}(needs clinical testing){RESET}"
-        elif "High" in phenotype:
-            pc, phenotype_short, extra = RED, phenotype, ""
-        elif "Poor" in phenotype:
-            pc, phenotype_short, extra = RED, phenotype, ""
-        elif "Intermediate" in phenotype:
-            pc, phenotype_short, extra = YELLOW, "Intermediate", ""
-        elif "Non-expressor" in phenotype:
-            pc, phenotype_short, extra = DIM, "Non-expressor", ""
+        elif any(term in category for term in ("high", "poor", "strongly reduced")):
+            pc = RED
+        elif "non-expressor" in category:
+            pc = DIM
+        elif category.startswith("normal"):
+            pc = GREEN
         else:
-            pc, phenotype_short, extra = GREEN, "Normal", ""
+            pc = YELLOW
         wmark = f"  {RED}← warfarin{RESET}" if gene in ("CYP2C9", "VKORC1") else ""
         print(f"  {BOLD}{gene:<10}{RESET} {DIM}{dip_core:<12}{RESET}"
-              f" {pc}{phenotype_short}{RESET}{extra}{dip_note}{wmark}")
+              f" {pc}{phenotype_label}{RESET}{dip_note}{wmark}")
 
     # ── Drug summary ──
     print(f"\n  {CYAN}{BOLD}Drug Summary{RESET}")
@@ -500,6 +499,16 @@ SKILLS = {
             "--limit",
             "--timeout-seconds",
         },
+        "accepts_genotypes": False,
+    },
+    "prs-gate": {
+        "script": SKILLS_DIR / "prs-applicability-gate" / "prs_applicability_gate.py",
+        "demo_args": ["--demo"],
+        "description": "PRS applicability gate: SUPPORTED / RAW_ONLY / ABSTAIN for one already-computed PGS result",
+        # Deliberately empty: the gate's --config (an alternative calibration) is
+        # not forwarded, so a run through this runner always uses the shipped
+        # config/calibration.yaml and an agent cannot swap its thresholds.
+        "allowed_extra_flags": set(),
         "accepts_genotypes": False,
     },
     "pubmed-summariser": {

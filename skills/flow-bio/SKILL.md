@@ -230,9 +230,6 @@ output_dir/
 **Required:**
 - `requests` >= 2.28 — HTTP client for REST API calls
 
-**Optional:**
-- `tqdm` — progress bars during file upload (graceful degradation without it)
-
 ## Safety
 
 - **Credentials never stored on disk** — tokens held in memory or via environment variables only

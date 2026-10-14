@@ -529,102 +529,51 @@ def test_status_filter_none_returns_all():
 
 
 # ---------------------------------------------------------------------------
-# write_checksums
+# Reproducibility bundle (shared clawbio.common.reproducibility helper)
 # ---------------------------------------------------------------------------
 
 
-def test_write_checksums(tmp_path):
-    (tmp_path / "report.md").write_text("# Test")
-    (tmp_path / "summary.json").write_text("{}")
-    path = wr.write_checksums(tmp_path)
-    assert path.exists()
-    content = path.read_text()
-    lines = [line for line in content.strip().split("\n") if line]
-    assert len(lines) == 2
+def _run_main(argv: list[str]) -> None:
+    with patch.object(sys, "argv", ["clinical_trial_finder.py", *argv]), patch.object(
+        ctf, "fetch_trials", return_value=MOCK_TRIALS
+    ):
+        ctf.main()
+
+
+def test_demo_writes_reproducibility_bundle(tmp_path):
+    import hashlib
+
+    out = tmp_path / "out"
+    _run_main(["--demo", "--fhir", "--output", str(out)])
+
+    repro = out / "reproducibility"
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (repro / name).exists(), name
+    assert not (out / "commands.sh").exists()
+    assert not (out / "checksums.sha256").exists()
+
+    cmd = (repro / "commands.sh").read_text()
+    assert "python skills/clinical-trial-finder/clinical_trial_finder.py --demo" in cmd
+    assert "--fhir" in cmd
+    assert str(SKILL_DIR) not in cmd
+
+    lines = (repro / "checksums.sha256").read_text().splitlines()
+    labels = {line.split("  ", 1)[1] for line in lines}
+    assert {"report.md", "summary.json", "report.html", "tables/trials.csv",
+            "fhir_bundle.json", "reproducibility/environment.yml"} <= labels
     for line in lines:
-        digest, name = line.split("  ", 1)
-        assert len(digest) == 64
-        assert name in ("report.md", "summary.json")
+        digest, label = line.split("  ", 1)
+        assert hashlib.sha256((out / label).read_bytes()).hexdigest() == digest, label
 
 
-def test_write_checksums_skips_missing(tmp_path):
-    (tmp_path / "report.md").write_text("# Test")
-    path = wr.write_checksums(tmp_path)
-    content = path.read_text().strip()
-    assert "summary.json" not in content
-    assert "report.md" in content
-
-
-def test_write_checksums_includes_figures(tmp_path):
-    (tmp_path / "report.md").write_text("x")
-    fig_dir = tmp_path / "figures"
-    fig_dir.mkdir()
-    (fig_dir / "phase_distribution.png").write_bytes(b"\x89PNG")
-    path = wr.write_checksums(tmp_path)
-    assert "figures/phase_distribution.png" in path.read_text()
-
-
-# ---------------------------------------------------------------------------
-# write_commands
-# ---------------------------------------------------------------------------
-
-
-def test_write_commands_demo(tmp_path):
-    args = argparse.Namespace(
-        demo=True,
-        input=None,
-        query=None,
-        gene=None,
-        status=None,
-        max_results=20,
-        fhir=False,
-        ot_min_score=0.6,
-        ot_max_diseases=5,
-    )
-    path = wr.write_commands(args, tmp_path)
-    assert path.exists()
-    content = path.read_text()
-    assert "--demo" in content
-    assert f"--output '{tmp_path}'" in content
-
-
-def test_write_commands_query_with_status(tmp_path):
-    args = argparse.Namespace(
-        demo=False,
-        input=None,
-        query="lung cancer",
-        gene=None,
-        status="RECRUITING",
-        max_results=20,
-        fhir=True,
-        ot_min_score=0.6,
-        ot_max_diseases=5,
-    )
-    path = wr.write_commands(args, tmp_path)
-    content = path.read_text()
-    assert "--query 'lung cancer'" in content
-    assert "--status RECRUITING" in content
-    assert "--fhir" in content
-
-
-def test_write_commands_non_default_ot_params(tmp_path):
-    args = argparse.Namespace(
-        demo=False,
-        input=None,
-        query=None,
-        gene="BRCA1",
-        status=None,
-        max_results=50,
-        fhir=False,
-        ot_min_score=0.3,
-        ot_max_diseases=10,
-    )
-    path = wr.write_commands(args, tmp_path)
-    content = path.read_text()
-    assert "--gene 'BRCA1'" in content
-    assert "--max-results 50" in content
-    assert "--ot-min-score 0.3" in content
-    assert "--ot-max-diseases 10" in content
+def test_commands_sh_records_non_default_args(tmp_path):
+    out = tmp_path / "out"
+    _run_main(["--query", "lung cancer", "--status", "RECRUITING",
+               "--max-results", "50", "--output", str(out)])
+    cmd = (out / "reproducibility" / "commands.sh").read_text()
+    assert "--query 'lung cancer'" in cmd
+    assert "--status RECRUITING" in cmd
+    assert "--max-results 50" in cmd
 
 
 # ---------------------------------------------------------------------------
@@ -968,86 +917,24 @@ def test_fhir_trial_without_summary_has_no_description(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_sha256_produces_correct_hash(tmp_path):
-    """Verify _sha256 matches hashlib directly."""
-    import hashlib
-
-    f = tmp_path / "test.txt"
-    f.write_text("hello world")
-    expected = hashlib.sha256(b"hello world").hexdigest()
-    assert wr._sha256(f) == expected
-
-
-def test_sha256_empty_file(tmp_path):
-    import hashlib
-
-    f = tmp_path / "empty.txt"
-    f.write_bytes(b"")
-    expected = hashlib.sha256(b"").hexdigest()
-    assert wr._sha256(f) == expected
-
-
-# ---------------------------------------------------------------------------
-# writers.py -- write_checksums hash correctness
-# ---------------------------------------------------------------------------
-
-
-def test_write_checksums_hashes_are_correct(tmp_path):
-    """Verify that the checksums in the file match actual SHA-256 of the outputs."""
-    import hashlib
-
-    (tmp_path / "report.md").write_text("# Report")
-    (tmp_path / "summary.json").write_text('{"test": true}')
-    wr.write_checksums(tmp_path)
-    for line in (tmp_path / "checksums.sha256").read_text().strip().split("\n"):
-        digest, rel = line.split("  ", 1)
-        actual = hashlib.sha256((tmp_path / rel).read_bytes()).hexdigest()
-        assert digest == actual, f"Checksum mismatch for {rel}"
-
-
-# ---------------------------------------------------------------------------
-# writers.py -- write_commands edge cases
-# ---------------------------------------------------------------------------
+def _repro_cmd(tmp_path, *argv: str) -> str:
+    args = ctf._build_parser().parse_args(list(argv))
+    wr.write_reproducibility(args, tmp_path)
+    return (tmp_path / "reproducibility" / "commands.sh").read_text()
 
 
 def test_write_commands_with_input_path(tmp_path):
-    args = argparse.Namespace(
-        demo=False,
-        input=Path("/data/queries.txt"),
-        query=None,
-        gene=None,
-        status=None,
-        max_results=20,
-        fhir=False,
-        ot_min_score=0.6,
-        ot_max_diseases=5,
-    )
-    path = wr.write_commands(args, tmp_path)
-    content = path.read_text()
-    assert "--input '/data/queries.txt'" in content
+    content = _repro_cmd(tmp_path, "--input", "/data/my queries.txt")
+    assert "--input '/data/my queries.txt'" in content
     assert "--demo" not in content
 
 
 def test_write_commands_default_omits_optional_flags(tmp_path):
     """Default args should only have source + output, no optional flags."""
-    args = argparse.Namespace(
-        demo=True,
-        input=None,
-        query=None,
-        gene=None,
-        status=None,
-        max_results=20,
-        fhir=False,
-        ot_min_score=0.6,
-        ot_max_diseases=5,
-    )
-    path = wr.write_commands(args, tmp_path)
-    content = path.read_text()
-    assert "--status" not in content
-    assert "--max-results" not in content
-    assert "--fhir" not in content
-    assert "--ot-min-score" not in content
-    assert "--ot-max-diseases" not in content
+    content = _repro_cmd(tmp_path, "--demo")
+    for flag in ("--status", "--max-results", "--fhir", "--country", "--euctr",
+                 "--ot-min-score", "--ot-max-diseases"):
+        assert flag not in content
 
 
 # ---------------------------------------------------------------------------
@@ -1412,56 +1299,21 @@ def test_validate_fhir_bundle_catches_invalid_phase():
 
 
 def test_write_commands_with_country(tmp_path):
-    args = argparse.Namespace(
-        demo=True,
-        input=None,
-        query=None,
-        gene=None,
-        status=None,
-        country="Spain",
-        max_results=20,
-        fhir=False,
-        euctr=False,
-        ot_min_score=0.6,
-        ot_max_diseases=5,
+    assert "--country 'United States'" in _repro_cmd(
+        tmp_path, "--demo", "--country", "United States"
     )
-    path = wr.write_commands(args, tmp_path)
-    assert "--country 'Spain'" in path.read_text()
 
 
 def test_write_commands_with_euctr(tmp_path):
-    args = argparse.Namespace(
-        demo=True,
-        input=None,
-        query=None,
-        gene=None,
-        status=None,
-        country=None,
-        max_results=20,
-        fhir=False,
-        euctr=True,
-        ot_min_score=0.6,
-        ot_max_diseases=5,
-    )
-    path = wr.write_commands(args, tmp_path)
-    assert "--euctr" in path.read_text()
+    assert "--euctr" in _repro_cmd(tmp_path, "--demo", "--euctr")
 
 
-# ---------------------------------------------------------------------------
-# writers.py -- write_checksums includes new targets
-# ---------------------------------------------------------------------------
-
-
-def test_write_checksums_includes_html_and_csv(tmp_path):
-    (tmp_path / "report.md").write_text("x")
-    (tmp_path / "report.html").write_text("<html></html>")
-    tables = tmp_path / "tables"
-    tables.mkdir()
-    (tables / "trials.csv").write_text("nct_id,title\n")
-    path = wr.write_checksums(tmp_path)
-    content = path.read_text()
-    assert "report.html" in content
-    assert "tables/trials.csv" in content
+def test_write_commands_non_default_ot_params(tmp_path):
+    content = _repro_cmd(tmp_path, "--gene", "BRCA1", "--max-results", "50",
+                         "--ot-min-score", "0.3", "--ot-max-diseases", "10")
+    assert "--gene BRCA1" in content
+    assert "--ot-min-score 0.3" in content
+    assert "--ot-max-diseases 10" in content
 
 
 # ---------------------------------------------------------------------------
@@ -1794,30 +1646,12 @@ def test_write_phase_chart_empty_trials(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# writers.py -- write_commands/write_checksums file format
+# writers.py -- commands.sh file format
 # ---------------------------------------------------------------------------
 
 
 def test_write_commands_ends_with_newline(tmp_path):
-    args = argparse.Namespace(
-        demo=True,
-        input=None,
-        query=None,
-        gene=None,
-        status=None,
-        max_results=20,
-        fhir=False,
-        ot_min_score=0.6,
-        ot_max_diseases=5,
-    )
-    path = wr.write_commands(args, tmp_path)
-    assert path.read_text().endswith("\n")
-
-
-def test_write_checksums_ends_with_newline(tmp_path):
-    (tmp_path / "report.md").write_text("x")
-    path = wr.write_checksums(tmp_path)
-    assert path.read_text().endswith("\n")
+    assert _repro_cmd(tmp_path, "--demo").endswith("\n")
 
 
 # ---------------------------------------------------------------------------

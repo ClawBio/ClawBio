@@ -82,9 +82,9 @@ done
 echo ""
 echo "Verify checksums:"
 for dir in "$OUT"/*/; do
-  if [ -f "$dir/checksums.sha256" ]; then
+  if [ -f "$dir/reproducibility/checksums.sha256" ]; then
     name=$(basename "$dir")
-    (cd "$dir" && sha256sum -c checksums.sha256 2>&1 | tail -1) && echo "    $name: ALL OK" || echo "    $name: FAIL"
+    (cd "$dir" && sha256sum -c reproducibility/checksums.sha256 2>&1 | tail -1) && echo "    $name: ALL OK" || echo "    $name: FAIL"
   fi
 done
 echo ""

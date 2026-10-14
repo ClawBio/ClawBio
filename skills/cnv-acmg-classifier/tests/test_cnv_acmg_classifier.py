@@ -378,3 +378,24 @@ def test_demo_cli_writes_expected_outputs(tmp_path):
     assert "conda-forge" in env and "nodefaults" in env
     checksums = (out / "reproducibility" / "checksums.sha256").read_text(encoding="utf-8")
     assert "report.md" in checksums and len(checksums.splitlines()) >= 3
+
+
+def test_demo_reproducibility_bundle_verifies(tmp_path):
+    import hashlib
+
+    out = tmp_path / "cnv_out"
+    subprocess.run([sys.executable, str(MODULE_PATH), "--demo", "--output", str(out)],
+                   text=True, capture_output=True, check=True)
+    repro = out / "reproducibility"
+    commands = (repro / "commands.sh").read_text(encoding="utf-8")
+    assert "python skills/cnv-acmg-classifier/cnv_acmg_classifier.py" in commands
+    assert "--demo" in commands
+    assert str(SKILL_DIR) not in commands
+    assert "name: clawbio-cnv-acmg-classifier" in (repro / "environment.yml").read_text(encoding="utf-8")
+    lines = (repro / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+    labels = {line.split("  ", 1)[1] for line in lines}
+    assert {"report.md", "result.json", "tables/cnv_classifications.csv",
+            "reproducibility/environment.yml"} <= labels
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        assert hashlib.sha256((out / label).read_bytes()).hexdigest() == digest, label

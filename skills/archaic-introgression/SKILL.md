@@ -138,6 +138,10 @@ Runs on bundled `examples/demo_modern.vcf` (3 samples, 10 SNPs on chr22) and
 output_dir/
   introgression_results.json   # Full results with segments and summary
   segments.bed                 # BED file of introgressed regions
+  reproducibility/
+    commands.sh                # Command that reproduces this run
+    environment.yml            # Conda environment (python, numpy)
+    checksums.sha256           # SHA-256 of outputs; verify with sha256sum -c
 ```
 
 ### JSON structure

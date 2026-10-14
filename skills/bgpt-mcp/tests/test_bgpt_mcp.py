@@ -36,8 +36,10 @@ class TestSkillMetadata:
         assert self.meta is not None
 
     def test_required_top_level_fields(self):
-        for field in ("name", "description", "version", "author", "domain", "license"):
+        for field in ("name", "description", "license"):
             assert field in self.meta, f"Missing required field: {field}"
+        for field in ("version", "author", "domain"):
+            assert field in self.meta["metadata"], f"Missing metadata field: {field}"
 
     def test_name_matches_directory(self):
         assert self.meta["name"] == "bgpt-mcp"
@@ -63,17 +65,17 @@ class TestSkillMetadata:
         assert hp.startswith("https://"), f"Homepage should be HTTPS URL: {hp}"
 
     def test_inputs_defined(self):
-        assert "inputs" in self.meta
-        assert len(self.meta["inputs"]) >= 1
+        assert "inputs" in self.meta["metadata"]
+        assert len(self.meta["metadata"]["inputs"]) >= 1
 
     def test_query_input_required(self):
-        query_inputs = [i for i in self.meta["inputs"] if i["name"] == "query"]
+        query_inputs = [i for i in self.meta["metadata"]["inputs"] if i["name"] == "query"]
         assert len(query_inputs) == 1
         assert query_inputs[0]["required"] is True
 
     def test_endpoints_defined(self):
-        assert "endpoints" in self.meta
-        eps = self.meta["endpoints"]
+        assert "endpoints" in self.meta["metadata"]
+        eps = self.meta["metadata"]["endpoints"]
         assert "mcp_sse" in eps or "mcp_stream" in eps
 
 
@@ -133,11 +135,11 @@ class TestDemoMode:
 
     def test_mcp_endpoints_are_https(self):
         """MCP endpoints must use HTTPS."""
-        for key, url in self.meta["endpoints"].items():
+        for key, url in self.meta["metadata"]["endpoints"].items():
             assert url.startswith("https://"), f"Endpoint {key} must be HTTPS: {url}"
 
     def test_version_is_semver(self):
         """Version should follow semver format."""
-        version = self.meta["version"]
+        version = self.meta["metadata"]["version"]
         parts = str(version).split(".")
         assert len(parts) >= 2, f"Version should be semver: {version}"

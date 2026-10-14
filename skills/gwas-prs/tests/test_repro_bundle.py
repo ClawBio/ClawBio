@@ -199,10 +199,7 @@ def test_environment_declares_every_eager_runtime_dependency(tmp_path) -> None:
 
     for dependency in repro_bundle.REPLAY_PIP_DEPENDENCIES:
         assert dependency in environment
-    assert set(repro_bundle.REPLAY_PIP_DEPENDENCIES) == {
-        "requests>=2.31",
-        "opentelemetry-sdk>=1.20,<2",
-    }
+    assert set(repro_bundle.REPLAY_PIP_DEPENDENCIES) == {"requests>=2.31"}
 
 
 def test_declared_dependencies_match_what_is_eagerly_imported() -> None:
@@ -214,6 +211,7 @@ def test_declared_dependencies_match_what_is_eagerly_imported() -> None:
     numpy and pandas used to be declared because clawbio/common/__init__
     imported scrna_io eagerly and pulled both in for a skill that calls
     neither. The package resolves its exports lazily now, so they are gone.
+    opentelemetry went the same way once audit imported the SDK lazily.
     """
     import json
     import subprocess
@@ -228,11 +226,9 @@ print(json.dumps(sorted({m.split('.')[0] for m in sys.modules})))""" % str(skill
     eager = set(json.loads(out.stdout))
 
     declared = {d.split(">")[0].split("<")[0].split("=")[0] for d in repro_bundle.REPLAY_PIP_DEPENDENCIES}
-    # opentelemetry-sdk installs the opentelemetry package
-    declared = {d.replace("opentelemetry-sdk", "opentelemetry") for d in declared}
 
     assert declared <= eager, f"declared but not imported by a replay: {sorted(declared - eager)}"
-    for heavy in ("numpy", "pandas"):
+    for heavy in ("numpy", "pandas", "opentelemetry"):
         assert heavy not in eager, (
             f"{heavy} is eager again; add it back to REPLAY_PIP_DEPENDENCIES")
 

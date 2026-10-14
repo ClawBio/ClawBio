@@ -250,12 +250,6 @@ class FlowClient:
             file_size = file_path.stat().st_size
             total_chunks = max(1, (file_size + chunk_size - 1) // chunk_size)
 
-            try:
-                from tqdm import tqdm
-                progress = tqdm(total=total_chunks, desc=f"Uploading {file_path.name}", unit="chunk")
-            except ImportError:
-                progress = None
-
             with open(file_path, "rb") as fh:
                 for chunk_idx in range(total_chunks):
                     blob = fh.read(chunk_size)
@@ -285,12 +279,6 @@ class FlowClient:
                     )
                     resp.raise_for_status()
                     last_response = resp.json()
-
-                    if progress:
-                        progress.update(1)
-
-            if progress:
-                progress.close()
 
         return last_response
 

@@ -352,7 +352,7 @@ def write_reproducibility(output_dir: Path, command: str, skip_apis: list[str]):
         "version": "0.2.0",
         "apis": {
             "ensembl": "https://rest.ensembl.org",
-            "gwas_catalog": "https://www.ebi.ac.uk/gwas/rest/api",
+            "gwas_catalog": "https://www.ebi.ac.uk/gwas/rest/api/v2",
             "open_targets": "https://api.platform.opentargets.org/api/v4",
             "pheweb_ukb": "https://pheweb.org/UKB-TOPMed",
             "finngen": "https://r12.finngen.fi",

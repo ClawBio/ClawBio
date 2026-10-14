@@ -114,6 +114,24 @@ python -m pytest -k "test_demo" -v                     # By pattern
 
 Tests must pass on Python 3.11, 3.12, and 3.13. CI runs all three via GitHub Actions.
 
+### Optional dependencies
+
+A plain `uv sync` installs no extras, but CI runs `uv sync --all-extras`. A test
+that imports an extra's module unconditionally passes in CI and fails on every
+contributor's machine. For a skill dependency that is not in the core list:
+
+1. Declare it in an extra in `pyproject.toml` (`[project.optional-dependencies]`), so CI can run the test.
+2. Skip the tests that need it when it is missing, and only those:
+   `needs_pysam = pytest.mark.skipif(importlib.util.find_spec("pysam") is None, reason="needs pysam (uv sync --extra region-fetch)")`
+   on each such test, or `pytest.importorskip("pysam")` at module level if the test file cannot import without it.
+
+Step 2 without step 1 hides the tests everywhere. Run `uv sync --all-extras` to run the full suite locally.
+
+### Pytest conventions
+
+- Use `tmp_path` for temporary inputs and outputs instead of fixed shared paths or custom temporary-directory helpers. It provides a unique `pathlib.Path` directory per test; it does not change cwd.
+- Use `monkeypatch` for environment variables, attributes and cwd changes. Prefer `monkeypatch.chdir(tmp_path)` to manual `os.chdir()` / `try/finally` cleanup; pytest restores changes after the test. Patch names where the code looks them up.
+
 ## Code Style
 
 - **Python**: 3.11+ (type hints encouraged, `X | None` syntax over `Optional[X]`)
@@ -222,7 +240,7 @@ Hypothesis's default 200 ms deadline otherwise makes them flaky in CI.
 
 ## How to Add a New Skill
 
-**Every new skill MUST conform to `templates/SKILL-TEMPLATE.md`.** No exceptions. The `/pr-audit` command enforces this on every PR.
+**Every new skill MUST conform to `templates/SKILL-TEMPLATE.md`.** No exceptions.
 
 1. **Create the directories**: `mkdir -p skills/<your-skill-name>/tests skills/<your-skill-name>/examples`
 2. **Copy the template**: `cp templates/SKILL-TEMPLATE.md skills/<your-skill-name>/SKILL.md`
@@ -243,7 +261,7 @@ Hypothesis's default 200 ms deadline otherwise makes them flaky in CI.
 7. **Stress test** (run 10 times with varied inputs). Every correction becomes a Gotcha.
 8. **Register in `clawbio/cli.py`**: add an entry to the `SKILLS` dict with script path, demo_args, description, and allowed_extra_flags
 9. **Tests are collected automatically**: `pytest.ini` globs `skills/*/tests`, so there is nothing to register
-10. **Regenerate the catalog**: `python scripts/generate_catalog.py`
+10. **Regenerate the catalog**: `python scripts/generate_catalog.py`. Do not hand-type skill, demo or CLI counts into README.md, llms.txt, CITATION.cff, .zenodo.json or `.claude-plugin/`; `skill_count` in `skills/catalog.json` is the only count and `tests/test_public_claims.py` rejects literals. On a `catalog.json` merge conflict, take `main`'s version and regenerate
 11. **Verify and self-audit**: `python -m pytest` passes, `python clawbio.py list` shows the skill, and all 18 conformance checks below PASS. Read `CONTRIBUTING.md` for naming conventions, code standards, and the wanted-skills list.
 
 ### SKILL.md Conformance Checklist (must all PASS)
@@ -280,13 +298,12 @@ Hypothesis's default 200 ms deadline otherwise makes them flaky in CI.
 
 ## Benchmark Infrastructure
 
-ClawBio `v0.5.0` added benchmark and validation infrastructure that agents should know about when developing or testing skills:
+Benchmark and validation tools for developing or testing skills:
 
 - `tests/benchmark/ad_ground_truth.json` — curated AD ground-truth gene and variant benchmark set
 - `tests/benchmark/mock_api_server.py` — deterministic mock APIs for offline CI and local testing
 - `tests/benchmark/benchmark_scorer.py` — CLI and Python API for scoring outputs against ground truth
 - `tests/benchmark/finemapping_benchmark.py` — ABF vs SuSiE benchmark runner for fine-mapping
-- `AGENTS.md` — source of truth for the red/green TDD mandate now required for skill work (see **Development Rules (STRICT)** above)
 
 Useful commands:
 
@@ -310,15 +327,11 @@ python tests/benchmark/mock_api_server.py &
 The automated site-stats agent regenerates parts of `index.html`. These constraints
 are deliberate and must survive every regeneration:
 
-- **The skills grid shows exactly 5 cards.** It is a sample, not a directory. On
-  2026-07-29 it was trimmed from 25 to 5; the 30 Jul automated run pushed it back to
-  12. Do not add cards. Browsing the full set is what `skills/` and the marketplace
-  are for.
+- **The skills grid shows exactly 5 cards.** It is a sample, not a directory; do not
+  add cards. Browsing the full set is what `skills/` and the marketplace are for.
 - **The "+ N more skills" line must equal `skill_count` in `skills/catalog.json`
-  minus the 5 shown.** Never hand-write N. It has been wrong twice (read "+ 69 more"
-  against 25 shown out of 95).
-- **"Latest from the community" shows at most 10 cards**, newest first. It had grown
-  to 69, going back to April.
+  minus the 5 shown.** Never hand-write N.
+- **"Latest from the community" shows at most 10 cards**, newest first.
 - **Every count on the page derives from a source, never from memory**: skills and
   Galaxy tools from `skills/catalog.json` (which excludes proprietary/local-only
   folders, so never count `SKILL.md` directories); tests from
@@ -326,9 +339,8 @@ are deliberate and must survive every regeneration:
   contributors from `gh api` at run time; benchmark scores from the most recent
   `bench-leaderboard` run, not from whatever the page currently says.
 - **Never publish a benchmark figure without its date and scope.** The suite is a
-  `--smoke` run over 10 of 95 skills and its overall verdict is currently `pass:
-  false`. Presenting the pass rate alone as a success headline is how the site came
-  to advertise 92.3% for 87 days while the real figure was 88.5%.
+  `--smoke` run over a subset of skills; a pass rate shown alone reads as a success
+  headline and goes stale silently.
 
 ## Safety Boundaries
 

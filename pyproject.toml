@@ -42,8 +42,6 @@ classifiers = [
 dependencies = [
     "biopython>=1.88",
     "conda-lock>=4.0.2",
-    "google-auth>=2.58.0,<3",
-    "google-cloud-bigquery>=3.45.2,<4",
     "matplotlib>=3.11.2",
     "numpy>=2.4.6",
     "openai>=3.17.0",
@@ -104,6 +102,17 @@ spatial = [
     "scanpy>=1.10",
     "leidenalg>=0.10",
 ]
+# Python BigQuery client for skills/bigquery-public, which imports it lazily
+# and falls back to the `bq` CLI when it is absent.
+bigquery = [
+    "google-auth>=2.58.0,<3",
+    "google-cloud-bigquery>=3.45.2,<4",
+]
+# The Robotary web UI (robotary/server.py).
+robotary = [
+    "fastapi>=0.143.0",
+    "uvicorn>=0.51.0",
+]
 
 [tool.uv]
 # glimix-core (a hard dependency of sushie) requires liknorm, and liknorm 2.0.0
@@ -136,6 +145,7 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 [dependency-groups]
 dev = [
     "hypothesis>=6.168.4",
+    "pytest>=9.1.1",
     "skills-ref>=0.1.1,<1",
 ]
 bot = [

@@ -99,7 +99,9 @@ output_directory/
 │   ├── ibs_context.png             # IBS score on relationship spectrum gauge
 │   └── ancestry_comparison.png     # Side-by-side ancestry comparison
 └── reproducibility/
-    └── commands.sh                 # Exact command to reproduce
+    ├── commands.sh                 # Exact command to reproduce
+    ├── environment.yml             # Conda environment (numpy, matplotlib)
+    └── checksums.sha256            # SHA-256 of report, result.json, figures, environment.yml
 ```
 
 ## Dependencies

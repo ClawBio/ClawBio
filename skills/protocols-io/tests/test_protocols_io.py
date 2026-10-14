@@ -559,7 +559,7 @@ def test_download_protocol_pdf_not_pdf_content(mock_get, tmp_path):
 
 
 @patch("protocols_io.requests.get")
-def test_download_protocol_pdf_default_path(mock_get, tmp_path):
+def test_download_protocol_pdf_default_path(mock_get, tmp_path, monkeypatch):
     """When output_path is None, a slugified filename is used in cwd."""
     fake_pdf = b"%PDF-1.4 data"
     resp = MagicMock()
@@ -568,17 +568,12 @@ def test_download_protocol_pdf_default_path(mock_get, tmp_path):
     resp.content = fake_pdf
     mock_get.return_value = resp
 
-    import os
-    original_cwd = os.getcwd()
-    os.chdir(tmp_path)
-    try:
-        with patch("protocols_io.get_access_token", return_value=None):
-            result = download_protocol_pdf("my-cool-protocol-xyz")
-        assert result is not None
-        assert result.suffix == ".pdf"
-        assert result.read_bytes() == fake_pdf
-    finally:
-        os.chdir(original_cwd)
+    monkeypatch.chdir(tmp_path)
+    with patch("protocols_io.get_access_token", return_value=None):
+        result = download_protocol_pdf("my-cool-protocol-xyz")
+    assert result is not None
+    assert result.suffix == ".pdf"
+    assert result.read_bytes() == fake_pdf
 
 
 @patch("protocols_io.requests.get")

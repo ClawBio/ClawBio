@@ -63,11 +63,16 @@ When the user asks about a gene or drug in the ClinPGx database:
 ```
 output_directory/
 ├── report.md                    # Full markdown report
-└── tables/
-    ├── gene_drug_pairs.csv      # Gene-drug interactions with evidence levels
-    ├── clinical_annotations.csv # Curated variant-drug-phenotype annotations
-    ├── guidelines.csv           # CPIC/DPWG clinical guidelines
-    └── alleles.csv              # Known allele definitions
+├── result.json                  # Structured findings
+├── tables/
+│   ├── gene_drug_pairs.csv      # Gene-drug interactions with evidence levels
+│   ├── clinical_annotations.csv # Curated variant-drug-phenotype annotations
+│   ├── guidelines.csv           # CPIC/DPWG clinical guidelines
+│   └── alleles.csv              # Known allele definitions
+└── reproducibility/
+    ├── commands.sh              # Command that reproduces this run
+    ├── environment.yml          # Conda/pip environment
+    └── checksums.sha256         # SHA-256 of outputs (relative to output dir)
 ```
 
 ## Dependencies

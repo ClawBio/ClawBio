@@ -21,13 +21,12 @@ from constants import ALL_STATUSES, DEFAULT_PAGE_SIZE, DEMO_DATA
 from writers import (
     count_recruiting,
     validate_fhir_bundle,
-    write_checksums,
-    write_commands,
     write_csv,
     write_fhir_bundle,
     write_html,
     write_phase_chart,
     write_report,
+    write_reproducibility,
     write_summary,
 )
 
@@ -304,11 +303,8 @@ def main() -> None:
         print(f"Chart   -> {chart}")
 
     # Reproducibility outputs -- always last so checksums cover everything
-    cmds = write_commands(args, args.output)
-    print(f"Repro   -> {cmds}")
-
-    checksums = write_checksums(args.output)
-    print(f"SHA-256 -> {checksums}")
+    checksums = write_reproducibility(args, args.output)
+    print(f"Repro   -> {checksums.parent}")
 
 
 if __name__ == "__main__":

@@ -228,3 +228,25 @@ def test_render_full_locuscompare_falls_back_to_joined_pairs_for_manhattan(tmp_p
     render_full_locuscompare(inp, out_path)
     assert out_path.is_file()
     assert out_path.stat().st_size > 10_000
+
+
+def test_render_default_title_reports_the_half_window(tmp_path, monkeypatch):
+    """window_bp is the full width of the fetched region. With no title override
+    the suptitle reports half of it, the distance covered on each side of the
+    lead: 1,000,000 bp renders as "±500 kb", never "±1000 kb". Captured from the
+    Figure at savefig time, since the renderer closes the figure before returning."""
+    from matplotlib.figure import Figure
+
+    captured: list[str] = []
+    real_savefig = Figure.savefig
+
+    def spy(self, *args, **kwargs):
+        captured.append(self.get_suptitle())
+        return real_savefig(self, *args, **kwargs)
+
+    monkeypatch.setattr(Figure, "savefig", spy)
+    inp = _stub_input(lead_id="1_500000_A_G", with_gene_track=False)
+    inp.title = None
+    inp.window_bp = 1_000_000
+    render_full_locuscompare(inp, tmp_path / "half_window.png")
+    assert captured == ["Regional LocusCompare: 3 variants joined (±500 kb of 1_500000_A_G)"]

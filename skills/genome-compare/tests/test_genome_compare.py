@@ -310,3 +310,32 @@ def test_end_to_end_demo(demo_comparison):
     assert result["n_concordant"] > 0
     assert "EUR" in result["ancestry"]["continental"]
     assert (out / "report.md").exists()
+
+
+# ------------------------------------------------------------------ #
+# Reproducibility bundle
+# ------------------------------------------------------------------ #
+
+
+def test_demo_writes_reproducibility_bundle(tmp_path):
+    """--demo writes commands.sh, environment.yml and checksums that verify."""
+    import hashlib
+    import subprocess
+
+    out = tmp_path / "out"
+    script = Path(__file__).resolve().parent.parent / "genome_compare.py"
+    subprocess.run(
+        [sys.executable, str(script), "--demo", "--no-figures", "--output", str(out)],
+        check=True, capture_output=True,
+    )
+    repro = out / "reproducibility"
+    commands = (repro / "commands.sh").read_text()
+    assert "python skills/genome-compare/genome_compare.py --demo" in commands
+    assert "numpy" in (repro / "environment.yml").read_text()
+
+    lines = (repro / "checksums.sha256").read_text().splitlines()
+    labels = [line.split("  ", 1)[1] for line in lines]
+    assert {"report.md", "result.json", "reproducibility/environment.yml"} <= set(labels)
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        assert hashlib.sha256((out / label).read_bytes()).hexdigest() == digest

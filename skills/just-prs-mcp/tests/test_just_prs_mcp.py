@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -10,6 +11,8 @@ from typing import Any
 
 import pytest
 import yaml
+
+pytest.importorskip("typer", reason="needs the just-prs extra (uv sync --extra just-prs)")
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = SKILL_DIR.parents[1]
@@ -581,17 +584,30 @@ def test_intents_and_runner_registration() -> None:
     } <= registered["allowed_extra_flags"]
 
 
-def test_typer_cli_help_and_validation() -> None:
+# Rich, which renders typer's help, emits ANSI styling when it sees
+# GITHUB_ACTIONS=true or FORCE_COLOR, splitting "--trait" across escape codes.
+# Every GitHub runner sets GITHUB_ACTIONS, so this test passed locally and
+# failed in CI. Run it under each colour trigger so it fails anywhere.
+@pytest.mark.parametrize(
+    "colour_env",
+    [{}, {"GITHUB_ACTIONS": "true"}, {"FORCE_COLOR": "1"}],
+    ids=["plain", "github-actions", "force-color"],
+)
+def test_typer_cli_help_and_validation(colour_env: dict[str, str]) -> None:
     script = SKILL_DIR / "just_prs_mcp_bridge.py"
+    env = {k: v for k, v in os.environ.items() if k not in {"GITHUB_ACTIONS", "FORCE_COLOR", "NO_COLOR"}}
+    env.update(colour_env)
     help_run = subprocess.run(
         [sys.executable, str(script), "--help"],
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
     assert help_run.returncode == 0
-    assert "--trait" in help_run.stdout
-    assert "--pgs-id" in help_run.stdout
+    help_text = re.sub(r"\x1b\[[0-9;]*m", "", help_run.stdout)
+    assert "--trait" in help_text
+    assert "--pgs-id" in help_text
 
     invalid = subprocess.run(
         [

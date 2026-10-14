@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -23,6 +24,8 @@ from screen_engine import (
     ssmd,
 )
 from drug_repurposing_screen import main as cli_main
+
+needs_pyarrow = pytest.mark.skipif(importlib.util.find_spec("pyarrow") is None, reason="needs pyarrow (uv sync --extra drug-repurposing-screen)")
 
 
 @pytest.fixture(scope="module")
@@ -123,6 +126,7 @@ class TestDemoPipeline:
         top_ids = set(result.priority.head(5)["compound_id"])
         assert "BRD-0003" in top_ids or "BRD-0007" in top_ids or "BRD-0015" in top_ids
 
+    @needs_pyarrow
     def test_cli_demo_end_to_end(self, tmp_path):
         out = tmp_path / "demo_out"
         rc = cli_main(["--demo", "--output", str(out)])
@@ -135,6 +139,7 @@ class TestDemoPipeline:
 
 
 class TestCLIBehaviour:
+    @needs_pyarrow
     def test_cli_bundle_mode_round_trip(self, demo_bundle, tmp_path):
         out = tmp_path / "bundle_out"
         rc = cli_main([
@@ -175,6 +180,7 @@ class TestCLIBehaviour:
         ])
         assert rc != 0
 
+    @needs_pyarrow
     def test_report_contains_disclaimer(self, tmp_path):
         out = tmp_path / "disc"
         rc = cli_main(["--demo", "--output", str(out)])
@@ -183,6 +189,7 @@ class TestCLIBehaviour:
         assert "ClawBio is a research and educational tool" in report
         assert "not a medical device" in report
 
+    @needs_pyarrow
     def test_resume_short_circuits_when_cache_present(self, tmp_path):
         out = tmp_path / "resume"
         rc1 = cli_main(["--demo", "--output", str(out)])

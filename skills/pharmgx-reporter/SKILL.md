@@ -151,4 +151,5 @@ output_directory/
 ## Citations
 
 - [CPIC Guidelines](https://cpicpgx.org/) — Clinical Pharmacogenetics Implementation Consortium
+- [CPIC API](https://api.cpicpgx.org/) — diplotype-to-phenotype tables last checked 2026-10-05; DPYD against CPIC's `DPYD_Diplotype_Phenotype_Table.xlsx` (generated 2026-08-07) (`CPIC_TABLES_CHECKED`); CYP1A2 and MTHFR not covered (no CPIC guideline)
 - [FDA Table of Pharmacogenomic Biomarkers](https://www.fda.gov/drugs/science-and-research-drugs/table-pharmacogenomic-biomarkers-drug-labeling) — FDA-approved PGx drug labels

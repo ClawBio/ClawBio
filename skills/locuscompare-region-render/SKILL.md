@@ -11,7 +11,7 @@ description: |
 license: MIT
 metadata:
   skill-author: Aviv Madar
-  version: 0.1.0
+  version: 0.2.0
   domain: bioinformatics
   tags:
     - regional-plot
@@ -41,7 +41,7 @@ metadata:
       description: 4-panel regional LocusCompare PNG (exposure Manhattan + outcome Manhattan + gene track + cross-trait scatter)
     - name: manifest
       type: file
-      description: Reproducibility manifest (YAML) with source releases, LD panel id, plink version, n_pairs, palindromic-exclusion count
+      description: Reproducibility manifest (YAML) with source releases, LD panel id, plink version, n_pairs, palindromic-exclusion count, the outcome effect-size source and scale, and why the effect-size panel is empty when it is
   dependencies:
     - python>=3.10
     - numpy>=1.24
@@ -222,7 +222,7 @@ A real run on the SORT1 × cholesterol-VLDL canonical demo (`examples/02_eqtl_ca
 ```markdown
 # locuscompare-region-render report
 
-- **Lead variant:** `1_109274968_G_T` (rs12740374; chr1:109274968, ±1000 kb)
+- **Lead variant:** `1_109274968_G_T` (rs12740374; chr1:109274968, ±500 kb)
 - **Exposure:** SORT1 expression - minor salivary gland (eQTL Catalogue QTD000276)
 - **Outcome:** cholesterol in medium VLDL (GWAS Catalog GCST90269602)
 - **n_pairs joined:** 2547
@@ -239,7 +239,7 @@ A real run on the SORT1 × cholesterol-VLDL canonical demo (`examples/02_eqtl_ca
 
 ```yaml
 skill: locuscompare-region-render
-version: 0.1.0
+version: 0.2.0
 lead_variant_id: 1_109274968_G_T
 lead_rs_id: rs12740374
 n_pairs: 2547
@@ -287,7 +287,7 @@ Output directory layout:
 
 3. **All four inputs MUST be region-aligned to the same window.** Mismatched windows produce a silent garbage plot. The skill validates that the exposure slice, outcome slice, LD panel, and gene track all overlap the requested `(lead, window_bp)` and refuses to render with mismatched coverage.
 
-4. **Lead variant must be present in BOTH the eQTL and GWAS slices.** If the lead is missing from one side (commonly: low-MAF variant dropped by one harmoniser), the renderer falls back to a proxy variant in LD (r² > 0.8); the manifest records the substitution. If no proxy exists, the skill refuses to render and the orchestrator falls back to a credible-set-only view.
+4. **The lead has to be in both slices to be drawn.** There is no proxy substitution: a lead absent from one side (for example a low-frequency variant one source did not test) has no diamond and no annotation in the scatters, while the rest of the figure renders and `n_pairs` counts the variants that did join. The window is still centred on the lead, using its position from the lead variant id, so the Manhattan tracks and the gene track cover the requested region. Check the figure for the diamond before describing the lead's position.
 
 5. **Effect-allele harmonisation across the four inputs is the renderer's input contract, not its job.** The two sumstats slices and the LD panel must arrive in the canonical (chr, pos, ref, alt) GRCh38 ALT-effect form - this is what the bundled fetchers (`eqtl-catalogue-region-fetch`, `gwas-catalog-region-fetch`) emit. User-supplied TSVs not in this form should be normalised upstream (`bcftools norm` for indels). The renderer's harmonisation step is for cross-trait flip / palindromic handling, not for single-trait normalisation.
 
@@ -298,6 +298,10 @@ Output directory layout:
 8. **Wide windows (> 2 Mb) bloat memory and obscure structure.** The default 1 Mb window is calibrated for typical cis-eQTL × GWAS coloc loci. Going wider rarely helps interpretation and slows the LD compute (plink scales with #variants²). For multi-locus views, render multiple plots and compose them.
 
 9. **`p = 0` on rare extremely-significant variants.** Some sources emit `p = 0` when the actual value is below floating-point precision. The renderer substitutes the underflow floor (`5e-324`) before plotting on `-log10`. The reported `-log10(p)` for such variants is ~323, not their true magnitude.
+
+10. **An outcome that publishes odds ratios is plotted as log odds.** A case-control GWAS Catalog study may publish an odds ratio and its 95% CI with no beta. The composer converts each such outcome row to β = ln(OR), with the SE from the CI (or from the p-value when there is no CI), before the allele flip, so a swapped-allele row negates the derived β like a reported one. The CI bounds come from `gwas-catalog-region-fetch` 0.2.0 or later, which carries them on each variant. The conversion lives in `_region_harmonise.py`, a standard-library-only module that is kept byte-identical wherever it is copied, so it gives the same numbers in every copy. The effect-size axis then reads "log odds ratio, derived from the reported odds ratio"; a window in which some rows report a β and others only an odds ratio is labelled "mixed scales", because the reported β's scale is unknown; a FinnGen case-control endpoint (an outcome whose upstream study id starts `FINNGEN_` and does not end `_IRN`) is labelled "log odds ratio, as reported by FinnGen". Any other reported β is left as a plain β. The manifest block records `outcome_beta_source` (`native`, `or_derived`, `mixed`, or null when the window has no outcome effect size), its label, and `outcome_effect_scale_label`.
+
+11. **An empty effect-size panel says why.** When no joined, non-palindromic variant has a β on both sides, the panel reads "No effect sizes to plot: <reason>" instead of drawing bare axes, and the reason names the side: the exposure publishes no per-variant effect sizes, the outcome publishes p-values only, the outcome's odds ratios admit no standard error (no CI, and no usable p-value or an odds ratio of exactly 1), or every joined variant is palindromic. The same sentence is written to `effect_size_panel_unavailable_reason` in the manifest block and to the notes.
 
 ## Safety
 
@@ -318,7 +322,8 @@ The skill renders a 4-panel LocusCompare visualisation for a colocalisation resu
 - **Surface the H3 vs H4 ambiguity when the visual is two-cluster.** Even with PP-H4 > 0.8, a two-cluster visual pattern indicates likely distinct causal variants in LD; flag for human review.
 - **NOT cherry-pick variants outside the rendered window for downstream interpretation.** The visual establishes context for the rendered window only.
 - **Cite the rendered window, LD reference + super-pop, OT release (when applicable), exposure / outcome study ids, and lead variant** in the user-facing reply. Per the user-friendly enum-expansion rule (`AGENTS.md`): `STRN × heart failure (FINNGEN_R12_I9_HEARTFAIL); window ±500 kb of lead chr2:36910110:C>T; LD = 1000G Phase 3 EUR; OT release 26.03`.
-- **Surface the manifest's caveats list** (palindromic exclusions, missing-lead proxy notes, ancestry mismatches) verbatim in the user-facing reply.
+- **Surface the manifest's caveats list** (palindromic exclusions, ancestry mismatches, missing LD or gene track) verbatim in the user-facing reply.
+- **Name the scale of the outcome effect sizes** when `outcome_effect_scale_label` is set (log odds derived from an odds ratio, log odds as reported by FinnGen, or mixed scales), and quote `effect_size_panel_unavailable_reason` when the effect-size panel is empty, rather than reading an empty panel as "no effect".
 - **NOT decide GO/NO-GO on a target** based on the visual alone. Chain to `target-validation-scorer` for synthesis; this skill is one input among many.
 - **NOT silently swap super-populations.** If the upstream cohort's ancestry does not match the requested LD super-pop, surface explicitly and ask the user to confirm before proceeding.
 

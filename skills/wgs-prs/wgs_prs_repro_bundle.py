@@ -39,13 +39,12 @@ from clawbio.common.textio import write_text_lf  # noqa: E402
 
 SCHEMA_VERSION = 1
 
-# Importing clawbio.common pulls audit (opentelemetry) and scrna_io (numpy,
-# pandas) through package __init__. requests is required because stage 3
+# Importing clawbio.common pulls scrna_io (numpy, pandas) through package
+# __init__. requests is required because stage 3
 # invokes gwas-prs. nextflow/docker/bcftools stay undeclared here: they are
 # binaries, not pip packages, and SKILL.md already lists them.
 REPLAY_PIP_DEPENDENCIES: tuple[str, ...] = (
     "requests>=2.31",
-    "opentelemetry-sdk>=1.20,<2",
     "numpy>=1.24",
     "pandas>=2.0",
 )

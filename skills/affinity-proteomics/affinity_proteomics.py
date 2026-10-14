@@ -26,6 +26,7 @@ import csv
 import hashlib
 import json
 import math
+import shlex
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -39,7 +40,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT_DIR = SCRIPT_DIR.parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+SCRIPT_REL_PATH = "skills/affinity-proteomics/affinity_proteomics.py"
 
+from clawbio.common.reproducibility import write_checksums, write_commands_sh, write_environment_yml
 from clawbio.contract_alerts import make_contract_alert
 
 DISCLAIMER = (
@@ -439,6 +442,7 @@ def generate_report(
     output_dir: Path,
     demo: bool,
     input_label: str,
+    command: list[str],
 ) -> None:
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -449,7 +453,7 @@ def generate_report(
     _write_diff_table(results, output_dir / "tables" / "diff_abundance.tsv")
     _write_report_md(data, results, contrast, group_col, output_dir, timestamp, demo, input_label)
     _write_result_json(data, results, contrast, output_dir, timestamp, demo)
-    _write_reproducibility(output_dir, timestamp, data.platform, demo)
+    _write_reproducibility(output_dir, timestamp, command)
 
 
 def _write_diff_table(results: list[DiffAbundanceResult], path: Path) -> None:
@@ -845,15 +849,30 @@ def handle_action_request(request: dict, output_dir: Path) -> dict:
     return result
 
 
-def _write_reproducibility(output_dir, timestamp, platform, demo):
+def _write_reproducibility(output_dir: Path, timestamp: str, command: list[str]) -> None:
     repro = output_dir / "reproducibility"
     repro.mkdir(exist_ok=True)
-    cmd = f"python {Path(__file__).name} --demo --platform {platform} --output {output_dir}" if demo else "# See commands below"
-    (repro / "commands.sh").write_text(f"#!/usr/bin/env bash\n# Generated: {timestamp}\n{cmd}\n", encoding="utf-8")
     (repro / "software_versions.json").write_text(json.dumps({
         "python": sys.version, "pandas": pd.__version__, "numpy": np.__version__,
         "generated": timestamp,
     }, indent=2), encoding="utf-8")
+    write_commands_sh(output_dir, shlex.join(command))
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-affinity-proteomics",
+        pip_deps=["somadata"],
+        conda_deps=["numpy", "pandas", "scipy>=1.10", "statsmodels>=0.14",
+                    "matplotlib", "seaborn", "scikit-learn"],
+    )
+    outputs = [
+        output_dir / "report.md",
+        output_dir / "result.json",
+        output_dir / "tables" / "diff_abundance.tsv",
+        *(output_dir / "figures" / f for f in ("volcano.png", "heatmap.png", "pca.png")),
+        repro / "environment.yml",
+        repro / "software_versions.json",
+    ]
+    write_checksums(outputs, output_dir, anchor=output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -913,7 +932,17 @@ def run_pipeline(
     pca_plot(data, group_col, output_dir / "figures" / "pca.png")
 
     print("[PROT] Generating report...")
-    generate_report(data, results, contrast, group_col, output_dir, demo, str(input_path))
+    command = ["python", SCRIPT_REL_PATH]
+    if demo:
+        command += ["--demo", "--platform", platform]
+    else:
+        command += ["--platform", platform, "--input", str(input_path)]
+        if meta_path is not None:
+            command += ["--meta", str(meta_path)]
+        command += ["--group-col", group_col, "--contrast", ",".join(contrast),
+                    "--fdr", str(fdr), "--fc", str(fc), "--top-n", str(top_n), "--test", test]
+    command += ["--output", str(output_dir)]
+    generate_report(data, results, contrast, group_col, output_dir, demo, str(input_path), command)
 
     print(f"[PROT] Report written to: {output_dir / 'report.md'}")
     return {

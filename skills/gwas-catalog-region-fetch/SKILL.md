@@ -9,7 +9,7 @@ description: |
 license: MIT
 metadata:
   skill-author: Aviv Madar
-  version: 0.1.0
+  version: 0.2.0
   domain: bioinformatics
   tags:
     - gwas
@@ -38,7 +38,7 @@ metadata:
   outputs:
     - name: variants
       type: list
-      description: Per-variant rows with variant_id, chromosome, position, ref, alt, beta, se, p_value, allele frequencies.
+      description: Per-variant rows with variant_id, chromosome, position, ref, alt, beta, se, p_value, odds_ratio with its ci_lower / ci_upper, allele frequencies.
     - name: release
       type: object
       description: GWASCatalogRelease with accession, harmonised file path, fetched_at_utc.
@@ -107,7 +107,7 @@ The NHGRI-EBI GWAS Catalog (Sollis 2023 *NAR*) maintains harmonised summary stat
 
 When an agent asks for a regional GWAS slice from the GWAS Catalog:
 
-1. **Resolve `accession`**: the canonical `GCST########` identifier. Look up via the GWAS Catalog REST API (`https://www.ebi.ac.uk/gwas/rest/api/studies/<GCST>`) or the web UI at `https://www.ebi.ac.uk/gwas/`. The metadata response includes `hasSummaryStats` (must be `true` to fetch), `pubmedId` (citation), and `ancestries[]` (sample sizes per ancestry bucket).
+1. **Resolve `accession`**: the canonical `GCST########` identifier. Look up via the GWAS Catalog REST API v2 (`https://www.ebi.ac.uk/gwas/rest/api/v2/studies/<GCST>`; the legacy v1 `/gwas/rest/api/studies/` path is retired and returns HTTP 410) or the web UI at `https://www.ebi.ac.uk/gwas/`. The v2 metadata response includes `full_summary_stats_available` (must be `true` to fetch), `pubmed_id` (citation), and `discovery_ancestry[]` / `initial_sample_size` (sample sizes per ancestry); per-ancestry records are at `/v2/studies/<GCST>/ancestries`.
 2. **Pick a region**: `(chromosome, start_bp, end_bp)` in 1-based inclusive GRCh38 coordinates. For LocusCompare-style coloc inspection centre on the lead variant ± 500 kb; for "what does this trait look like in the gene's cis-window" centre on the gene TSS ± 1 Mb.
 3. **Tabix range fetch**: the skill performs a single byte-range request against `<GCST>.h.tsv.gz` on the EBI GWAS Catalog FTP. The `harmonised/` subdirectory is the canonical path; do NOT swap to the raw upload (Gotcha #1).
 4. **Use `hm_*` columns**: the harmonised TSV emits `hm_chrom`, `hm_pos`, `hm_effect_allele`, `hm_other_allele`, `hm_beta`, `hm_se`, `hm_effect_allele_frequency`. The skill maps these to canonical `(variant_id, chromosome, position, ref, alt, beta, se, p_value, maf)` with `alt` as the effect allele.
@@ -146,6 +146,19 @@ Bundled biology demos in `examples/`:
 - `il6r_crp.yaml` - IL6R × CRP at chr1:154425508; canonical IVW MR demo.
 - `tcf7l2_hba1c.json` - TCF7L2 × HbA1c; type-2 diabetes locus.
 
+## Output Structure
+
+```
+<output_dir>/
+├── report.md
+├── variants.tsv
+├── manifest.yaml            # manifest.json if PyYAML is missing
+└── reproducibility/
+    ├── commands.sh
+    ├── environment.yml
+    └── checksums.sha256     # verify: cd <output_dir> && sha256sum -c reproducibility/checksums.sha256
+```
+
 ## Example Output
 
 Running `--demo` (SORT1 × cholesterol-VLDL):
@@ -160,7 +173,7 @@ gwas-catalog-region-fetch: 2914 variants -> /tmp/sort1_vldl_demo/variants.tsv
 
 ```yaml
 skill: gwas-catalog-region-fetch
-version: 0.1.0
+version: 0.2.0
 accession: GCST90269602
 trait_label: cholesterol in medium VLDL
 region:
@@ -230,7 +243,7 @@ The skill returns harmonised GWAS summary statistics (β, SE, p-value, EAF) for 
 - **NOT cherry-pick variants by p-value alone.** Statistical inference requires the full window context (credible set, posterior inclusion probabilities, joint conditional analyses).
 - **NOT compare effect sizes across studies without harmonising effect alleles.** Cross-study comparison requires a step like TwoSampleMR's `harmonise_data`. Sign-flip risk is real for swapped alleles and palindromic ambiguity.
 - **Surface the GCST id, trait label, sample size (cases / controls if binary, total N if continuous), ancestry, and consortium (when present)** alongside any β / p-value the agent quotes. Per the user-friendly enum-expansion rule (`AGENTS.md`), expand each field: `study GCST90269602; trait cholesterol in medium VLDL; ancestry European; N=44,000` (not just `GCST90269602`).
-- **NOT report a binary-trait OR (odds ratio) as if it were a continuous-trait β.** The harmonised file's `hm_beta` for binary traits is log(OR); the manifest carries the trait type so the agent can disambiguate.
+- **NOT report a binary-trait OR (odds ratio) as if it were a continuous-trait β.** A binary-trait study may publish an odds ratio and its 95% CI with no `hm_beta` at all; each `RegionVariant` then carries `odds_ratio`, `ci_lower` and `ci_upper` with `beta` and `se` empty. The fetcher passes these through as published and does not convert them: a consumer that needs an effect size derives log(OR) itself (β = ln(OR), with the SE taken from the CI, or from the p-value when no CI is published). The manifest does not record the trait type, so check the study's metadata before reading a published `hm_beta` as log(OR).
 
 ## Citations
 

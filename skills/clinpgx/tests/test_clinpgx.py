@@ -416,3 +416,41 @@ def test_write_tables_no_data(tmp_path):
     write_tables(tmp_path, [{"found": False, "symbol": "X"}], [])
     tables_dir = tmp_path / "tables"
     assert not any(tables_dir.glob("*.csv"))
+
+
+# ── Reproducibility bundle ───────────────────────────────────────────────────
+
+
+def test_demo_writes_verifiable_reproducibility_bundle(tmp_path, monkeypatch):
+    """--demo writes commands.sh, environment.yml and checksums that verify."""
+    import hashlib
+    import clinpgx
+
+    canned = {
+        "data/gene": [MOCK_GENE_RESPONSE],
+        "data/clinicalAnnotation": [MOCK_ANNOTATION],
+        "data/guidelineAnnotation": [MOCK_GUIDELINE],
+        "data/label": [MOCK_LABEL],
+    }
+    monkeypatch.setattr(
+        ClinPGxClient, "_request", lambda self, endpoint, params=None: {"data": canned[endpoint]}
+    )
+    out = tmp_path / "out"
+    monkeypatch.setattr(
+        sys, "argv",
+        ["clinpgx.py", "--demo", "--output", str(out), "--cache-dir", str(tmp_path / "cache")],
+    )
+    clinpgx.main()
+
+    repro = out / "reproducibility"
+    commands = (repro / "commands.sh").read_text()
+    assert "python skills/clinpgx/clinpgx.py --demo" in commands
+    assert str(Path(clinpgx.__file__).resolve()) not in commands
+    assert "requests" in (repro / "environment.yml").read_text()
+
+    lines = (repro / "checksums.sha256").read_text().splitlines()
+    labels = {line.split("  ", 1)[1] for line in lines}
+    assert {"report.md", "result.json", "reproducibility/environment.yml"} <= labels
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        assert hashlib.sha256((out / label).read_bytes()).hexdigest() == digest

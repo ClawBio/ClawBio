@@ -363,10 +363,10 @@ def test_run_demo_report_contains_disclaimer(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_get_labstep_user_no_key_exits(monkeypatch):
+def test_get_labstep_user_no_key_exits(monkeypatch, tmp_path):
     """Missing API key causes SystemExit."""
     monkeypatch.delenv("LABSTEP_API_KEY", raising=False)
-    monkeypatch.chdir(tmp_path_no_settings())
+    monkeypatch.chdir(tmp_path)
     import labstep as _ls_module  # noqa: F401 — ensure importable
 
     with pytest.raises(SystemExit):
@@ -375,12 +375,6 @@ def test_get_labstep_user_no_key_exits(monkeypatch):
             # Patch away .claude/settings.json
             with patch("labstep.Path.exists", return_value=False):
                 get_labstep_user()
-
-
-def tmp_path_no_settings(tmp_path=None):
-    """Return a temp directory that has no .claude/settings.json."""
-    import tempfile
-    return tempfile.mkdtemp()
 
 
 # ---------------------------------------------------------------------------

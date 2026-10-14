@@ -19,13 +19,24 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
-import hashlib
 import json
+import shlex
 import sys
 from pathlib import Path
 
 
 SKILL_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = SKILL_DIR.parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
+
+SCRIPT_REL = "skills/cnv-acmg-classifier/cnv_acmg_classifier.py"
 DISCLAIMER = (
     "ClawBio is a research and educational tool. It is not a medical device "
     "and does not provide clinical diagnoses. Consult a healthcare professional "
@@ -381,7 +392,6 @@ def write_outputs(result: dict, input_path: Path, output_dir: Path, command: lis
     if output_dir.exists() and any(output_dir.iterdir()):
         print(f"WARNING: output directory exists; files may be overwritten: {output_dir}", file=sys.stderr)
     (output_dir / "tables").mkdir(parents=True, exist_ok=True)
-    (output_dir / "reproducibility").mkdir(parents=True, exist_ok=True)
 
     with (output_dir / "tables" / "cnv_classifications.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=[
@@ -439,20 +449,14 @@ def write_outputs(result: dict, input_path: Path, output_dir: Path, command: lis
     (output_dir / "report.md").write_text("\n".join(lines), encoding="utf-8")
 
     # --- reproducibility bundle (ClawBio contract: commands.sh + environment.yml + checksums) ---
-    repro = output_dir / "reproducibility"
-    (repro / "commands.sh").write_text(
-        "#!/usr/bin/env bash\n" + " ".join(str(c) for c in command) + "\n", encoding="utf-8")
-    (repro / "environment.yml").write_text(
-        "name: clawbio-cnv-acmg-classifier\n"
-        "channels:\n  - conda-forge\n  - nodefaults\n"
-        "dependencies:\n  - python>=3.10\n",
-        encoding="utf-8")
-    checksums = []
-    for path in sorted(output_dir.rglob("*")):
-        if path.is_file() and "reproducibility" not in path.parts[len(output_dir.parts):]:
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            checksums.append(f"{digest}  {path.relative_to(output_dir).as_posix()}")
-    (repro / "checksums.sha256").write_text("\n".join(checksums) + "\n", encoding="utf-8")
+    write_commands_sh(output_dir, shlex.join(command))
+    # stdlib-only skill: no pip deps
+    env_path = write_environment_yml(
+        output_dir, "clawbio-cnv-acmg-classifier", [], channels=["conda-forge", "nodefaults"])
+    write_checksums(
+        [output_dir / "report.md", output_dir / "result.json",
+         output_dir / "tables" / "cnv_classifications.csv", env_path],
+        output_dir, anchor=output_dir)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -480,7 +484,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
-    write_outputs(result, input_path, args.output, [sys.executable, __file__, *(argv or sys.argv[1:])], args.demo)
+    command = ["python", SCRIPT_REL]
+    if args.demo:
+        command.append("--demo")
+    else:
+        command += ["--input", str(args.input)]
+    if args.dosage_map:
+        command += ["--dosage-map", str(args.dosage_map)]
+    if args.gene_model:
+        command += ["--gene-model", str(args.gene_model)]
+    command += ["--output", str(args.output)]
+    write_outputs(result, input_path, args.output, command, args.demo)
     print(f"CNV ACMG Classifier wrote {args.output / 'report.md'} ({result['summary']['cnv_count']} CNVs)")
     return 0
 

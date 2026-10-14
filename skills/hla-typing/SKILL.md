@@ -184,7 +184,8 @@ output_directory/
 │   └── results.csv        # Tabular data
 └── reproducibility/
     ├── commands.sh         # Exact commands to reproduce
-    └── environment.yml     # Environment snapshot
+    ├── environment.yml     # Environment snapshot
+    └── checksums.sha256    # SHA-256 of outputs (cd output_directory && sha256sum -c)
 ```
 
 ## Dependencies

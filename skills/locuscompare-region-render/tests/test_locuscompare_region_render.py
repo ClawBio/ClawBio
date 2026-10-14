@@ -216,6 +216,46 @@ def test_prefetched_synthetic_demo_runs_end_to_end_offline(tmp_path: Path):
     assert manifest.is_file()
     manifest_text = manifest.read_text()
     assert "1_500000_A_T" in manifest_text
+    # window_bp is the full width (1,000,000 here); report.md reports the
+    # half-window the fetch actually covered, +/-500 kb, never +/-1000 kb. The
+    # figure title is asserted in test_regional_plot.py and the caption's
+    # `Window:` line in test_composer_passes_the_half_window_label_to_the_renderer.
+    report = (out / "report.md").read_text()
+    assert "±500 kb" in report and "1000 kb" not in report
+
+
+def test_composer_passes_the_half_window_label_to_the_renderer(tmp_path: Path, monkeypatch):
+    """The caption's `Window:` line is the composer's window_label, so it is
+    checked where it is built (the RegionalLocusCompareInput handed to the
+    renderer) and where it is emitted (the Figure's text artists at savefig time).
+    For the synthetic demo's 1,000,000 bp full window both say +/-500 kb."""
+    from matplotlib.figure import Figure
+
+    import locuscompare_region_render as composer
+
+    handed: list = []
+    real_render = composer.render_full_locuscompare
+
+    def render_spy(inp, out_path):
+        handed.append(inp)
+        return real_render(inp, out_path)
+
+    emitted: list[str] = []
+    real_savefig = Figure.savefig
+
+    def savefig_spy(self, *args, **kwargs):
+        emitted.extend(t.get_text() for t in self.texts)
+        return real_savefig(self, *args, **kwargs)
+
+    monkeypatch.setattr(composer, "render_full_locuscompare", render_spy)
+    monkeypatch.setattr(Figure, "savefig", savefig_spy)
+    rc = locuscompare.main(["--demo", "01_synthetic_demo", "--output", str(tmp_path / "out")])
+    assert rc == 0
+    (inp,) = handed
+    assert inp.window_bp == 1_000_000 and inp.title is None
+    assert inp.window_label == "+/-500 kb of lead 1_500000_A_T"
+    assert any("Window: +/-500 kb of lead 1_500000_A_T" in text for text in emitted), emitted
+    assert not any("1000 kb" in text for text in emitted)
 
 
 def test_focal_gene_highlight_styles_matching_label(tmp_path: Path):

@@ -22,7 +22,17 @@
     "    surviving sets only (see the SKILL.md gotcha), so the case gets no mu",
     "    to score. The case also expects susieR's z-unit r*z moments; sushie",
     "    reports standardised effect-size moments. Raised upstream.",
-    "Restore 95.0 once either case is regraded upstream."
+    "Restore 95.0 once either case is regraded upstream.",
+    "",
+    "pharmgx-reporter is temporarily lowered 95.5 -> 90.9 after PR #557 added",
+    "DPYD HapB3 (rs75017182). The pinned upstream dpyd_2a_het and dpyd_neg",
+    "fixtures omit this marker but still expect determinate phenotypes. Both",
+    "now return Indeterminate (incomplete coverage: 3/4 SNPs tested).",
+    "The two existing failures (grch37_reference_mismatch and tpmt_compound_het)",
+    "are unchanged. This records stale fixture expectations, not a rollback",
+    "of the expanded panel or its incomplete-coverage guard.",
+    "Restore at least 95.5 when CI pins an upstream revision with corrected",
+    "DPYD controls/expectations and a smoke run confirms the recovered passes."
   ],
   "recorded_from": {
     "clawbio_commit": "056826d",
@@ -36,6 +46,19 @@
       "date": "2026-09-16",
       "benchmark_version": "0.1.1",
       "result": "18/20 pass (90.0%), 1 harness error"
+    },
+    "pharmgx-reporter_rerecorded": {
+      "date": "2026-10-13",
+      "clawbio_commit": "5156825",
+      "benchmark_suite_version": "0.1.5",
+      "benchmark_revision": "49a0f11a8393b87a90f0721261a9bec5d52b61db",
+      "mode": "smoke",
+      "run_url": "https://github.com/ClawBio/ClawBio/actions/runs/38367879701",
+      "result": "40/44 pass (90.9%), 0 harness errors",
+      "new_failures": [
+        "dpyd_2a_het",
+        "dpyd_neg"
+      ]
     }
   },
   "harnesses": {
@@ -48,7 +71,7 @@
     "equity-scorer": 100.0,
     "gwas-prs": 62.5,
     "nutrigx-advisor": 0.0,
-    "pharmgx-reporter": 95.5
+    "pharmgx-reporter": 90.9
   },
   "harness_errors": {
     "bio-orchestrator": 0,
