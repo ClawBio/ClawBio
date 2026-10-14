@@ -57,4 +57,3 @@ Domains with no CLI path at all: Quality, Uncategorised.
 - Uncategorised — 1 (0R / 1A)
 
 **Total: 3 skills (1 registered, 2 agent-readable)**
-
