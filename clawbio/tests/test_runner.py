@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 
+import pytest
+
 # The runner engine lives in clawbio.cli; import it directly so monkeypatching
 # its subprocess attribute affects run_skill's behaviour.
 from clawbio import cli as clawbio_runner
@@ -103,3 +105,43 @@ def test_run_skill_audit_record_carries_the_skill_md_version(monkeypatch, tmp_pa
     frontmatter = (PROJECT_ROOT / "skills" / "gwas-lookup" / "SKILL.md").read_text().split("---")[1]
     version = next(l.split(":", 1)[1].strip() for l in frontmatter.splitlines() if l.strip().startswith("version:"))
     assert record["gen_ai.agent.version"] == version
+
+
+_NFCORE_ALIASES = ("rnaseq-pipeline", "sarek-pipeline", "scrnaseq-pipeline")
+
+
+def _runner_timeout_for(monkeypatch, tmp_path, *argv):
+    """The timeout `clawbio run` gives run_skill for the given command line."""
+    import sys
+
+    seen: dict[str, object] = {}
+
+    def fake_run_skill(**kwargs):
+        seen["timeout"] = kwargs["timeout"]
+        return {"skill": kwargs["skill_name"], "success": True, "exit_code": 0,
+                "output_dir": str(tmp_path), "files": [], "stdout": "", "stderr": "",
+                "duration_seconds": 0}
+
+    monkeypatch.setattr(clawbio_runner, "run_skill", fake_run_skill)
+    monkeypatch.setattr(sys, "argv", ["clawbio", "run", *argv, "--output", str(tmp_path)])
+    try:
+        clawbio_runner.main()
+    except SystemExit:
+        pass
+    return seen["timeout"]
+
+
+
+@pytest.mark.parametrize("alias", _NFCORE_ALIASES)
+def test_runner_outlasts_the_wrappers_own_timeout(alias, monkeypatch, tmp_path):
+    """The runner SIGKILLs a skill on timeout, which orphans Nextflow; the wrapper
+    stops Nextflow itself at --timeout-hours, so the runner must wait longer. With
+    the fixed 12h10m cap, --timeout-hours 48 or 0 (no cap) was killed at 12h10m."""
+    default = clawbio_runner.SKILLS[alias]["default_timeout_seconds"]
+    assert _runner_timeout_for(monkeypatch, tmp_path, alias, "--demo") == default
+    assert _runner_timeout_for(monkeypatch, tmp_path, alias, "--demo", "--timeout-hours", "48") == 48 * 3600 + 600
+    assert _runner_timeout_for(monkeypatch, tmp_path, alias, "--demo", "--timeout-hours=0.5") == 1800 + 600
+    assert _runner_timeout_for(monkeypatch, tmp_path, alias, "--demo", "--timeout-hours", "0") is None
+    # An explicit runner --timeout still wins; a bad value is the wrapper's usage error.
+    assert _runner_timeout_for(monkeypatch, tmp_path, alias, "--demo", "--timeout-hours", "48", "--timeout", "999") == 999
+    assert _runner_timeout_for(monkeypatch, tmp_path, alias, "--demo", "--timeout-hours", "nan") == default
