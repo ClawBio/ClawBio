@@ -353,15 +353,19 @@ def parse_mlst(path: Path) -> dict:
 
 
 def parse_mlst_ties(stderr: str) -> list[tuple[str, str]]:
-    """Schemes mlst scored equally, from its stderr warning. Empty when there was no tie.
+    """Schemes mlst scored equally, from its stderr warnings. Empty when there was no tie.
 
-    mlst prints e.g. `WARNING: salmonella(3529)==ecoli_achtman_4(131) score=100 <file>` and
-    then reports one of the two, not always the same one across runs.
+    mlst prints one `WARNING: <top>(<st>)==<other>(<st>) score=…` line per scheme
+    tied with the top scorer, so a three-way tie spans two lines. Keep every
+    unique (scheme, ST) pair, in the order first seen.
     """
-    match = re.search(r"WARNING:\s*(\S+?)\(([^)]*)\)==(\S+?)\(([^)]*)\)\s+score=", stderr or "")
-    if not match:
-        return []
-    return [(match.group(1), match.group(2)), (match.group(3), match.group(4))]
+    pairs = re.findall(r"WARNING:\s*(\S+?)\(([^)]*)\)==(\S+?)\(([^)]*)\)\s+score=", stderr or "")
+    ties: list[tuple[str, str]] = []
+    for left, left_st, right, right_st in pairs:
+        for scheme, st in ((left, left_st), (right, right_st)):
+            if (scheme, st) not in ties:
+                ties.append((scheme, st))
+    return ties
 
 
 def resolve_tie(ties: list[tuple[str, str]], organism: str | None) -> str | None:
@@ -655,8 +659,20 @@ def tool_cmd(name: str) -> list[str]:
 
 
 def override_preflight(env: dict) -> list[str]:
-    """Shell lines that carry the tool-command overrides into commands.sh."""
-    return [f'export {var}="${{{var}:-{env[var]}}}"' for var in _TOOL_ENV.values() if env.get(var)]
+    """Shell lines that carry the tool-command overrides into commands.sh.
+
+    shlex.quote, not `"${VAR:-<value>}"`: an override like `"/path/my tools/mlst"`
+    contains quotes and spaces, and embedding it in a double-quoted parameter
+    expansion either loses the quotes or ends the string early.
+    """
+    lines = []
+    for var in _TOOL_ENV.values():
+        value = env.get(var)
+        if value:
+            lines.append(
+                f'if [ -z "${{{var}:-}}" ]; then export {var}={shlex.quote(value)}; fi'
+            )
+    return lines
 
 
 def build_mlst_cmd(assembly: Path, scheme: str | None = None) -> list[str]:
@@ -936,7 +952,9 @@ def _fmt(value) -> str:
 def _fmt_bp(n: int | None) -> str:
     if n is None:
         return "-"
-    if n >= 1_000_000:
+    # 999_950 rounds to 1.00 at two decimals, so take the Mb branch rather than
+    # printing "1000.0 kb".
+    if n >= 999_950:
         return f"{n / 1_000_000:.2f} Mb"
     return f"{n / 1000:.1f} kb" if n >= 1000 else f"{n} bp"
 
@@ -1252,13 +1270,16 @@ def main(argv: list[str] | None = None) -> int:
         if run["mlst_scheme_forced"]:
             repro_args += ["--mlst-scheme", run["mlst_scheme_forced"]]
         if args.sample_name:
-            repro_args += ["--sample-name", f'"{args.sample_name}"']
+            repro_args += ["--sample-name", shlex.quote(args.sample_name)]
         if need:
             repro_args += ["--threads", str(args.threads)]
     preflight = override_preflight(os.environ) if need else []
     for tool in sorted(need - {"plasmidfinder"}):
         exe = tool_cmd(tool)[0]
-        preflight.append(f'command -v {exe} >/dev/null || {{ echo "{exe} not on PATH" >&2; exit 1; }}')
+        preflight.append(
+            f"command -v {shlex.quote(exe)} >/dev/null "
+            f"|| {{ echo {shlex.quote(f'{exe} not on PATH')} >&2; exit 1; }}"
+        )
 
     write_outputs(result, output_dir, raw, repro_args, preflight)
     options = result["mlst"].get("rerun_options")

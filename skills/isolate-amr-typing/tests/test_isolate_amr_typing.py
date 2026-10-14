@@ -858,8 +858,27 @@ class TestEnvironmentsAndOverrides:
 
     def test_overrides_are_recorded_for_replay(self, mod):
         lines = mod.override_preflight({"CLAWBIO_MLST_CMD": "micromamba run -n typing mlst", "HOME": "/x"})
-        assert lines == ["export CLAWBIO_MLST_CMD=\"${CLAWBIO_MLST_CMD:-micromamba run -n typing mlst}\""]
+        assert lines == [
+            "if [ -z \"${CLAWBIO_MLST_CMD:-}\" ]; then "
+            "export CLAWBIO_MLST_CMD='micromamba run -n typing mlst'; fi"
+        ]
         assert mod.override_preflight({}) == []
+
+    def test_override_with_quotes_and_spaces_is_recorded_intact(self, mod):
+        # `"/path/my tools/mlst"` cannot sit inside "${VAR:-…}": the inner quote
+        # ends the double-quoted expansion. The recorded line must survive bash.
+        lines = mod.override_preflight({"CLAWBIO_MLST_CMD": '"/path/my tools/mlst"'})
+        assert lines == [
+            "if [ -z \"${CLAWBIO_MLST_CMD:-}\" ]; then "
+            "export CLAWBIO_MLST_CMD='\"/path/my tools/mlst\"'; fi"
+        ]
+        probe = subprocess.run(
+            ["bash", "-c", "unset CLAWBIO_MLST_CMD; " + lines[0]
+             + '; printf "%s" "$CLAWBIO_MLST_CMD"'],
+            capture_output=True, text=True,
+        )
+        assert probe.returncode == 0, probe.stderr
+        assert probe.stdout == '"/path/my tools/mlst"'
 
 
 # ── Real tool outputs (see tests/fixtures/README.md) ───────────────────────────
