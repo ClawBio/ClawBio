@@ -69,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nextflow 26.04+, whose strict syntax parser rejects both releases; they now run
   with `NXF_SYNTAX_PARSER=v1`. Ctrl+C left Nextflow running (rnaseq, sarek), and
   `clawbio run` killed the wrappers at 12h10m whatever `--timeout-hours` said;
-  both now stop Nextflow cleanly. Relocating a reproducibility bundle no longer
+  both now stop Nextflow cleanly, as does a SIGTERM to the wrapper (exit 143). Relocating a reproducibility bundle no longer
   silently skips paths containing spaces with apostrophes, `$`, quotes or YAML
   special characters. Per-skill details are in each wrapper's CHANGELOG.
 

@@ -147,3 +147,41 @@ def test_log_tail_reads_only_the_tail_of_a_large_log(tmp_path, monkeypatch):
     assert tail.endswith("é tail marker")
     assert len(tail.encode()) <= 1024
     assert read_sizes and all(0 <= size <= 1024 for size in read_sizes)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals and process groups")
+def test_sigterm_stops_nextflow_before_the_wrapper_exits(tmp_path):
+    """`kill <wrapper>` (or an agent or scheduler stopping it) sends SIGTERM, which
+    by default ends Python at once and leaves Nextflow running in its own session.
+    The runner must stop Nextflow first and then exit 128+SIGTERM."""
+    import os
+    import signal
+    import subprocess
+    import textwrap
+    import time
+
+    pid_file = tmp_path / "child.pid"
+    driver = textwrap.dedent(
+        f"""
+        from pathlib import Path
+        from clawbio.common.nfcore.execution import execute_nextflow
+        execute_nextflow(
+            ["sh", "-c", "echo $$ > {pid_file}; exec sleep 60"],
+            cwd=Path({str(tmp_path)!r}), output_dir=Path({str(tmp_path)!r}),
+            timeout_seconds=None, timeout_fix="",
+        )
+        """
+    )
+    root = Path(__file__).resolve().parents[3]
+    wrapper = subprocess.Popen(
+        [sys.executable, "-c", driver], env={**os.environ, "PYTHONPATH": str(root)}
+    )
+    deadline = time.monotonic() + 30
+    while not pid_file.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert pid_file.exists(), "the stand-in for Nextflow never started"
+    time.sleep(0.2)
+    wrapper.send_signal(signal.SIGTERM)
+    assert wrapper.wait(timeout=30) == 128 + signal.SIGTERM
+    with pytest.raises(ProcessLookupError):
+        os.kill(int(pid_file.read_text()), 0)

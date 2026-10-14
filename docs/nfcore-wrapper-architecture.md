@@ -10,7 +10,7 @@ The three implemented nf-core skills use `clawbio.common.nfcore` for mechanical 
 | cli | `--timeout-hours` parsing (finite, non-negative), timeout seconds and `--work-dir` resolution |
 | commands | Nextflow argv and the display form, including the environment the release needs |
 | parameters | params.yaml text: fixed header, key order, one value per line |
-| execution | Logs, process-group lifecycle (timeout and Ctrl+C both stop Nextflow), ordered failure hints |
+| execution | Logs, process-group lifecycle (timeout, Ctrl+C and SIGTERM all stop Nextflow), bounded log reads, ordered failure hints |
 | failures | result.json, stdout box and stderr JSON for SkillError and unexpected errors |
 | runtime | Executable, version and memory probes; the `--demo` offline refusal |
 | source | Bounded Git probes and required-file inspection |

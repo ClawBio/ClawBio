@@ -6,7 +6,9 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 from collections.abc import Callable, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 
 from .errors import SkillError
@@ -111,6 +113,37 @@ def environment_failure_hints(
     return "".join(hints)
 
 
+class _Terminated(BaseException):
+    """SIGTERM arrived while Nextflow ran (BaseException: no broad handler eats it)."""
+
+    def __init__(self, signum: int) -> None:
+        super().__init__(signum)
+        self.signum = signum
+
+
+def _raise_terminated(signum, frame) -> None:
+    raise _Terminated(signum)
+
+
+@contextmanager
+def _sigterm_raises():
+    """While Nextflow runs, make SIGTERM raise _Terminated instead of ending Python.
+
+    SIGTERM (a plain `kill`, an agent or a scheduler stopping the wrapper) would
+    otherwise leave Nextflow running in its own session. The handler only raises:
+    stopping Nextflow must happen after the stack unwinds out of proc.wait(), which
+    holds Popen's non-reentrant wait lock. Only the main thread can install it.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    previous = signal.signal(signal.SIGTERM, _raise_terminated)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
 def execute_nextflow(
     command: list[str],
     *,
@@ -124,11 +157,11 @@ def execute_nextflow(
     """Run Nextflow with logs on disk and its whole process group under our control.
 
     Nextflow starts in its own session so a timeout can signal the group, which also
-    means the terminal's Ctrl+C never reaches it: an interrupt must terminate the
-    group explicitly, or Nextflow outlives the wrapper still holding the .nextflow
-    lock. timeout_seconds=None disables the wall-clock cap (long HPC/cloud runs whose
-    walltime the scheduler enforces). ``env`` is what the pipeline release needs on
-    top of the caller's environment, and takes precedence over it.
+    means neither the terminal's Ctrl+C nor a SIGTERM to the wrapper reaches it: both
+    must terminate the group explicitly, or Nextflow outlives the wrapper still
+    holding the .nextflow lock. timeout_seconds=None disables the wall-clock cap
+    (long HPC/cloud runs whose walltime the scheduler enforces). ``env`` is what the
+    pipeline release needs on top of the caller's environment, and wins over it.
     """
     logs_dir = output_dir / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -165,10 +198,14 @@ def execute_nextflow(
             ) from exc
 
         try:
-            exit_code = proc.wait(timeout=timeout_seconds)
+            with _sigterm_raises():
+                exit_code = proc.wait(timeout=timeout_seconds)
         except KeyboardInterrupt:
             terminate_process_tree(proc)
             raise
+        except _Terminated as stop:
+            terminate_process_tree(proc)
+            raise SystemExit(128 + stop.signum) from None
         except subprocess.TimeoutExpired:
             terminate_process_tree(proc)
             raise SkillError(
