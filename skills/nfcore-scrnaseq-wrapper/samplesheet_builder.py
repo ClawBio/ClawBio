@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore.artifacts import write_csv_lf
-
 import csv
 import re
 import sys
 from pathlib import Path
 from typing import cast
+
+from clawbio.common.nfcore.artifacts import write_csv_lf
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:

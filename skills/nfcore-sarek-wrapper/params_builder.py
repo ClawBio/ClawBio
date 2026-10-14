@@ -1,13 +1,13 @@
 # ruff: noqa: E402
 from __future__ import annotations
 
-from clawbio.common.nfcore.paths import resolve_path_or_uri
-
-from clawbio.common.nfcore.parameters import serialize_params_yaml as _serialize_params, write_params_yaml as _write_params
-
 import re
 import sys
 from pathlib import Path
+
+from clawbio.common.nfcore.parameters import serialize_params_yaml as _serialize_params
+from clawbio.common.nfcore.parameters import write_params_yaml as _write_params
+from clawbio.common.nfcore.paths import resolve_path_or_uri
 
 import yaml
 
@@ -22,7 +22,6 @@ from _isolated_imports import purge_foreign_bare_modules
 
 purge_foreign_bare_modules("errors", "schemas")
 
-from clawbio.common.textio import write_text_lf
 from errors import ErrorCode, SkillError
 
 

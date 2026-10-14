@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore.artifacts import write_json_lf, write_json_snapshots
-
-import json
 import platform
 import sys
 from datetime import datetime, timezone
@@ -10,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from clawbio.common.checksums import sha256_file
+from clawbio.common.nfcore.artifacts import write_json_lf, write_json_snapshots
 from clawbio.common.reproducibility import write_checksums, write_environment_yml
 
 _SKILL_DIR = Path(__file__).resolve().parent
@@ -21,7 +19,6 @@ from _isolated_imports import purge_foreign_bare_modules
 
 purge_foreign_bare_modules("schemas")
 
-from clawbio.common.textio import write_text_lf
 from schemas import DEFAULT_REMOTE_PIPELINE, SKILL_ALIAS, SKILL_NAME, SKILL_VERSION
 
 

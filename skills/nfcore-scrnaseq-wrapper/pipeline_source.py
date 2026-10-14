@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore import source as _source
-
-import subprocess
 import sys
 from pathlib import Path
+
+from clawbio.common.nfcore import source as _source
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:

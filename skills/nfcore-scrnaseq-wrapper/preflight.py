@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore import runtime as _runtime
-
 import csv
 import json
 import os
@@ -11,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+from clawbio.common.nfcore import runtime as _runtime
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:

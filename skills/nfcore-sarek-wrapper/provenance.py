@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from clawbio.common.checksums import sha256_file
 
-from clawbio.common.nfcore.artifacts import write_json_lf, write_json_snapshots
+from clawbio.common.nfcore.artifacts import write_json_lf
 
 import hashlib
 import glob

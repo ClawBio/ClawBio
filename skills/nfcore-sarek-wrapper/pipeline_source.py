@@ -1,11 +1,10 @@
 # ruff: noqa: E402
 from __future__ import annotations
 
-from clawbio.common.nfcore import source as _source
-
 from pathlib import Path
-import subprocess
 import sys
+
+from clawbio.common.nfcore import source as _source
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:

@@ -61,7 +61,6 @@ from clawbio.common.nfcore.bundle_runtime import (
 # <<< SHARED NFCORE RUNTIME <<<
 
 
-
 def _write_text_lf(path: Path, text: str) -> None:
     _nfcore_write_text_lf(path, text)
 

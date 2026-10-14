@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore.commands import build_nextflow_command as _shared_command
-
 from pathlib import Path
-import shlex
-import subprocess
-import sys
+
+from clawbio.common.nfcore.commands import build_nextflow_command as _shared_command
 
 
 def compose_profile(

@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore.paths import resolve_path_or_uri
-
-from clawbio.common.nfcore.parameters import serialize_params_yaml as _serialize_params, write_params_yaml as _write_params
-
 import sys
 from pathlib import Path
 
-import yaml
+from clawbio.common.nfcore.parameters import serialize_params_yaml as _serialize_params
+from clawbio.common.nfcore.parameters import write_params_yaml as _write_params
+from clawbio.common.nfcore.paths import resolve_path_or_uri
 
-from clawbio.common.textio import write_text_lf
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:

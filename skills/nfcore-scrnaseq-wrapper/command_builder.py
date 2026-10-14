@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore.commands import build_nextflow_command as _shared_command
-
-import shlex
-import subprocess
-import sys
 from pathlib import Path
+
+from clawbio.common.nfcore.commands import build_nextflow_command as _shared_command
 
 
 def _command_path(value: Path | str) -> str:

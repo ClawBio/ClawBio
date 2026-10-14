@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 
-
 from clawbio.common.nfcore.errors import SkillError as SkillError
 
 

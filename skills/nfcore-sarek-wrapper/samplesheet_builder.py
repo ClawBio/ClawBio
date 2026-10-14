@@ -1,8 +1,6 @@
 # ruff: noqa: E402
 from __future__ import annotations
 
-from clawbio.common.nfcore.artifacts import write_csv_lf
-
 import csv
 import json
 import os
@@ -11,6 +9,8 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, cast
+
+from clawbio.common.nfcore.artifacts import write_csv_lf
 
 import yaml
 

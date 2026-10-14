@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore import runtime as _runtime
-
 import gzip
 import hashlib
 import json
@@ -16,6 +14,7 @@ from pathlib import Path
 import yaml
 
 from clawbio.common.checksums import sha256_file
+from clawbio.common.nfcore import runtime as _runtime
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -208,7 +207,6 @@ def check_resume_samplesheet_checksum(samplesheet_path: Path, output_dir: Path) 
     if manifest_checksum != current_checksum:
         _raise_resume_mismatch("samplesheet_checksum", current_checksum, manifest_checksum)
     return current_checksum
-
 
 
 def _command_output(args: list[str]) -> str:

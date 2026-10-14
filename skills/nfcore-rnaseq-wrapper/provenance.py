@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore.artifacts import write_json_lf, write_json_snapshots
-
-import json
 import os
 import platform
 import socket
@@ -12,8 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from clawbio.common.checksums import sha256_file
+from clawbio.common.nfcore.artifacts import write_json_lf, write_json_snapshots
 from clawbio.common.reproducibility import write_checksums, write_environment_yml
-from clawbio.common.textio import write_text_lf
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:

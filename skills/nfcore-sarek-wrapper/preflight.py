@@ -12,8 +12,6 @@ the rules, accumulating warnings and notes.
 """
 from __future__ import annotations
 
-from clawbio.common.nfcore import runtime as _runtime
-
 import hashlib
 import os
 import re
@@ -25,6 +23,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
+
+from clawbio.common.nfcore import runtime as _runtime
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
