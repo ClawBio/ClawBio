@@ -338,6 +338,9 @@ are deliberate and must survive every regeneration:
   `grep -rhoE '^[[:space:]]*def test_' --include='*.py' . | wc -l`; stars, forks and
   contributors from `gh api` at run time; benchmark scores from the most recent
   `bench-leaderboard` run, not from whatever the page currently says.
+- **Before opening a PR that touches `index.html`, run `pytest tests/test_homepage_counts.py`
+  and do not open the PR unless it passes.** It checks every count site on the page against
+  `skills/catalog.json` and against each other; a failure names the stale site.
 - **Never publish a benchmark figure without its date and scope.** The suite is a
   `--smoke` run over a subset of skills; a pass rate shown alone reads as a success
   headline and goes stale silently.
