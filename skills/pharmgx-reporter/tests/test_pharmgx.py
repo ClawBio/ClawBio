@@ -83,21 +83,21 @@ def _profiles():
 
 
 def test_cyp2c19_diplotype():
-    """Demo patient: rs4244285 AG (*2 het) + rs12248560 CT (*17 het) → phase ambiguity."""
+    """Demo coverage is incomplete even when variant markers are present."""
     p = _profiles()
-    assert "Indeterminate (phase ambiguity" in p["CYP2C19"]["diplotype"]
+    assert "Indeterminate (incomplete coverage" in p["CYP2C19"]["diplotype"]
 
 
 def test_cyp2d6_diplotype():
-    """Demo patient: rs16947 AG (*2 het) + rs28371725 CT (*41 het) → *2/*41."""
+    """The demo is missing CYP2D6*6 and must not get a definitive diplotype."""
     p = _profiles()
-    assert p["CYP2D6"]["diplotype"] == "*2/*41"
+    assert "Indeterminate (incomplete coverage" in p["CYP2D6"]["diplotype"]
 
 
 def test_vkorc1_genotype():
-    """Demo patient: rs9923231 TT → TT diplotype (hom variant)."""
+    """Raw TT is normalized to the equivalent coding-strand AA call."""
     p = _profiles()
-    assert p["VKORC1"]["diplotype"] == "TT"
+    assert p["VKORC1"]["diplotype"] == "AA"  # normalized coding-strand equivalent of TT
 
 
 def test_slco1b1_genotype():
@@ -107,9 +107,9 @@ def test_slco1b1_genotype():
 
 
 def test_cyp3a5_diplotype():
-    """Demo patient: rs776746 GG (*3 hom) → *3/*3."""
+    """The demo lacks two CYP3A5 markers; coverage remains explicit."""
     p = _profiles()
-    assert p["CYP3A5"]["diplotype"] == "*3/*3"
+    assert "Indeterminate (incomplete coverage" in p["CYP3A5"]["diplotype"]
 
 
 # ── Phenotype Assignment ──────────────────────────────────────────────────────
@@ -123,7 +123,8 @@ def test_cyp2c19_intermediate():
 def test_cyp2d6_star2_star41_is_normal():
     """CYP2D6 *2/*41: activity score 1 + 0.5 = 1.5 → Normal Metabolizer (CPIC)."""
     p = _profiles()
-    assert p["CYP2D6"]["phenotype"] == "Normal Metabolizer"
+    assert "Indeterminate" in p["CYP2D6"]["phenotype"]
+    assert call_phenotype("CYP2D6", "*2/*41") == "Normal Metabolizer"
 
 
 def test_vkorc1_high_sensitivity():
@@ -140,7 +141,8 @@ def test_slco1b1_normal():
 
 def test_cyp3a5_nonexpressor():
     p = _profiles()
-    assert p["CYP3A5"]["phenotype"] == "CYP3A5 Non-expressor"
+    assert "Indeterminate" in p["CYP3A5"]["phenotype"]
+    assert call_phenotype("CYP3A5", "*3/*3") == "CYP3A5 Non-expressor"
 
 
 def test_mthfr_forward_strand_conversion_hom_1298():
@@ -161,7 +163,7 @@ def test_mthfr_forward_strand_conversion_corpas():
     }
     diplotype = call_diplotype("MTHFR", pgx)
     assert diplotype == "677CC/1298AC", f"Expected 677CC/1298AC, got {diplotype}"
-    assert call_phenotype("MTHFR", diplotype) == "Reduced MTHFR enzyme activity (677CT)"
+    assert call_phenotype("MTHFR", diplotype) == "Reduced MTHFR enzyme activity (1298AC)"
 
 
 def test_mthfr_level2_reduced():
@@ -211,6 +213,7 @@ def test_clopidogrel_indeterminate_for_phase_ambiguous():
 def test_codeine_standard_for_normal_cyp2d6():
     """CYP2D6 *2/*41 → Normal Metabolizer → Codeine should be standard."""
     p = _profiles()
+    p["CYP2D6"] = {"diplotype": "*2/*41", "phenotype": "Normal Metabolizer"}
     results = lookup_drugs(p)
     codeine = [d for d in results["standard"] if d["drug"] == "Codeine"]
     assert len(codeine) == 1, "Codeine should be in standard list for CYP2D6 NM"
@@ -224,12 +227,12 @@ def test_simvastatin_standard_for_normal_slco1b1():
     assert len(simva) == 1, "Simvastatin should be in standard list for SLCO1B1 Normal Function"
 
 
-def test_warfarin_avoid_for_high_vkorc1_sensitivity():
-    """Demo patient VKORC1 TT → High Warfarin Sensitivity → warfarin should be avoid."""
+def test_warfarin_caution_for_high_vkorc1_sensitivity():
+    """High sensitivity requires dosing review, not a blanket contraindication."""
     p = _profiles()
     results = lookup_drugs(p)
-    warfarin = [d for d in results.get("avoid", []) if d["drug"].lower() == "warfarin"]
-    assert len(warfarin) == 1, "Warfarin should be in avoid list for High Warfarin Sensitivity"
+    warfarin = [d for d in results.get("caution", []) if d["drug"].lower() == "warfarin"]
+    assert len(warfarin) == 1
 
 
 # ── get_warfarin_rec ──────────────────────────────────────────────────────────
@@ -250,24 +253,24 @@ def test_get_warfarin_rec_standard():
     assert note is None
 
 
-def test_get_warfarin_rec_avoid_high_vkorc1():
+def test_get_warfarin_rec_caution_high_vkorc1():
     profiles = {
         "CYP2C9": {"phenotype": "Normal Metabolizer"},
         "VKORC1": {"phenotype": "High Warfarin Sensitivity"},
     }
     cls, note = get_warfarin_rec(profiles)
-    assert cls == "avoid"
-    assert note is None
+    assert cls == "caution"
+    assert note and "INR" in note
 
 
-def test_get_warfarin_rec_avoid_poor_cyp2c9():
+def test_get_warfarin_rec_caution_poor_cyp2c9():
     profiles = {
         "CYP2C9": {"phenotype": "Poor Metabolizer"},
         "VKORC1": {"phenotype": "Normal Sensitivity"},
     }
     cls, note = get_warfarin_rec(profiles)
-    assert cls == "avoid"
-    assert note is None
+    assert cls == "caution"
+    assert note and "algorithm" in note
 
 
 def test_get_warfarin_rec_indeterminate_missing_cyp2c9():
@@ -298,8 +301,8 @@ def test_lookup_drugs_warfarin_note_field_when_indeterminate():
     assert warfarin_entries[0]["note"]
 
 
-def test_lookup_drugs_warfarin_no_note_when_avoid():
-    """When warfarin is avoid (no note), the 'note' key should be absent."""
+def test_lookup_drugs_warfarin_note_when_sensitive():
+    """High sensitivity includes the clinical dosing-review rationale."""
     profiles = {
         "CYP2C9": {"phenotype": "Normal Metabolizer"},
         "VKORC1": {"phenotype": "High Warfarin Sensitivity"},
@@ -309,9 +312,9 @@ def test_lookup_drugs_warfarin_no_note_when_avoid():
     p["CYP2C9"] = profiles["CYP2C9"]
     p["VKORC1"] = profiles["VKORC1"]
     results = lookup_drugs(p)
-    warfarin_entries = [d for d in results.get("avoid", []) if d["drug"].lower() == "warfarin"]
+    warfarin_entries = [d for d in results.get("caution", []) if d["drug"].lower() == "warfarin"]
     assert len(warfarin_entries) == 1
-    assert "note" not in warfarin_entries[0]
+    assert "INR" in warfarin_entries[0]["note"]
 
 
 # ── format_dosage_card note override ─────────────────────────────────────────
@@ -674,6 +677,9 @@ def test_html_report_with_enrichment():
     """Evidence data renders when enrichment is provided."""
     _, _, pgx, _ = parse_file(str(DEMO))
     p = _profiles()
+    # Test rendering with synthetic determinate calls, not incomplete demo calls.
+    p["CYP2C19"] = {"diplotype": "*1/*2", "phenotype": "Intermediate Metabolizer"}
+    p["CYP2D6"] = {"diplotype": "*1/*4", "phenotype": "Intermediate Metabolizer"}
     results = lookup_drugs(p)
     enrichment = {
         "clopidogrel": {
@@ -822,7 +828,7 @@ def test_demo_file_is_grch37_and_still_yields_real_diplotypes():
     # Remaining Indeterminates must be scientific (e.g. CYP2C19 *2/*17 phase
     # ambiguity), never coordinate-related.
     determinate = [g for g, d in calls.items() if "Indeterminate" not in d]
-    assert len(determinate) >= 8, f"only {len(determinate)} genes called: {calls}"
+    assert {"CYP2C9", "VKORC1", "SLCO1B1", "MTHFR"} <= set(determinate), calls
 
 
 def test_grch38_lifted_demo_yields_the_same_calls_as_grch37(tmp_path):
@@ -862,7 +868,7 @@ def test_unknown_build_still_forces_indeterminate_end_to_end(tmp_path):
 
     result = subprocess.run(
         [sys.executable, str(Path(__file__).parent.parent / "pharmgx_reporter.py"),
-         "--input", str(target), "--output", str(tmp_path / "out")],
+         "--input", str(target), "--output", str(tmp_path / "out"), "--no-enrich"],
         capture_output=True, text=True,
     )
     combined = (result.stdout + result.stderr).lower()
@@ -879,15 +885,19 @@ def test_confident_phenotype_accounts_for_every_detected_allele():
     """
     from itertools import product
 
+    from pharmgx_reporter import _MARKER_ALLELES
     failures = []
     for gene, gdef in GENE_DEFS.items():
         if gdef.get("type") in ("genotype", "mthfr"):
             continue
         variants = list(gdef["variants"].items())
+        if any(rsid not in _MARKER_ALLELES for rsid, _ in variants):
+            continue  # These array markers are explicitly uncallable, not reference.
         for copies in product((0, 1, 2), repeat=len(variants)):
             if sum(copies) > 2:
                 continue
-            pgx = {rsid: {"genotype": vdef["alt"] * n + "N" * (2 - n)}
+            pgx = {rsid: {"genotype": vdef["alt"] * n
+                         + next(b for b in _MARKER_ALLELES[rsid] if b != vdef["alt"]) * (2 - n)}
                    for (rsid, vdef), n in zip(variants, copies)}
             diplotype = call_diplotype(gene, pgx)
             phenotype = call_phenotype(gene, diplotype)
@@ -947,7 +957,8 @@ def test_phenotype_matches_cpic(gene, diplotype, expected):
 def test_dpyd_compound_heterozygote_is_poor_metabolizer(rsids):
     """CPIC presumes two different DPYD variants lie on different gene copies."""
     variants = GENE_DEFS["DPYD"]["variants"]
-    pgx = {r: {"genotype": (v["alt"] + "N") if r in rsids else "NN"} for r, v in variants.items()}
+    pgx = {r: {"genotype": (v["alt"] + _DPYD_REF[r][0]) if r in rsids else _DPYD_REF[r]}
+           for r, v in variants.items()}
     assert call_phenotype("DPYD", call_diplotype("DPYD", pgx)) == "Poor Metabolizer"
 
 

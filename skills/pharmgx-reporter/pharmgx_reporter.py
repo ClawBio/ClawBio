@@ -4,7 +4,7 @@
 ClawBio PharmGx Reporter
 Pharmacogenomic report generator from DTC genetic data (23andMe/AncestryDNA).
 
-Analyses 33 pharmacogenomic SNPs across 13 genes, calls star alleles and
+Analyses a limited pharmacogenomic marker panel, calls provisional star alleles and
 metabolizer phenotypes, and looks up CPIC drug recommendations for 59 medications.
 
 Usage:
@@ -13,6 +13,7 @@ Usage:
 
 import argparse
 import re
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,9 +26,14 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from clawbio.common.parsers import parse_genetic_file, genotypes_to_simple, genotypes_to_positions
-from clawbio.common.checksums import sha256_hex, sha256_file
+from clawbio.common.checksums import sha256_file
 from clawbio.common.report import write_result_json, DISCLAIMER
 from clawbio.common.html_report import HtmlReportBuilder, write_html_report
+from clawbio.common.reproducibility import (
+    write_commands_sh as _write_commands_sh,
+    write_checksums,
+    write_environment_yml,
+)
 
 # ---------------------------------------------------------------------------
 # Strand utilities (mirrors nutrigx/extract_genotypes.py)
@@ -85,7 +91,9 @@ PGX_SNPS = {
     "rs28399499": {"gene": "CYP2B6", "allele": "*18", "effect": "no_function"},
     # NUDT15
     "rs116855232": {"gene": "NUDT15", "allele": "*3", "effect": "no_function"},
-    "rs147390019": {"gene": "NUDT15", "allele": "*2", "effect": "decreased_function"},
+    # CPIC 2025 update supplement: c.416G>A (p.Arg139His) defines *4, not *2.
+    # Withhold its phenotype pending verified clinical-function translation.
+    "rs147390019": {"gene": "NUDT15", "allele": "*4", "effect": "uncertain_function"},
     # CYP1A2
     "rs762551":   {"gene": "CYP1A2", "allele": "*1F", "effect": "increased_function"},
     "rs2069514":  {"gene": "CYP1A2", "allele": "*1C", "effect": "decreased_function"},
@@ -93,6 +101,111 @@ PGX_SNPS = {
     "rs1801133":  {"gene": "MTHFR", "allele": "677T",  "effect": "decreased_function"},
     "rs1801131":  {"gene": "MTHFR", "allele": "1298C", "effect": "decreased_function"},
 }
+REPORTER_VERSION = "0.3.1"
+
+# Expected nucleotide alphabets in the orientation used by GENE_DEFS.
+# Only non-palindromic, disjoint complements can be normalized automatically.
+# This is a whitelist for the existing panel, not a general strand resolver.
+# Structural/repeat loci are deliberately absent: nucleotide proxies and I/D
+# encodings do not establish those alleles in a consumer SNP-array export.
+_MARKER_ALLELES = {
+    "rs4244285": "GA", "rs4986893": "GA", "rs12248560": "CT",
+    "rs28399504": "AG", "rs3892097": "CT", "rs16947": "GA",
+    "rs1065852": "CT", "rs28371725": "CT", "rs1799853": "CT",
+    "rs1057910": "AC", "rs9923231": "GA", "rs4149056": "TC",
+    "rs3918290": "CT", "rs55886062": "AC", "rs67376798": "TA",
+    "rs75017182": "GC",
+    "rs1800460": "CT", "rs1142345": "TC", "rs1800462": "CG",
+    "rs4148323": "GA", "rs776746": "AG", "rs10264272": "GA",
+    "rs3745274": "GT", "rs28399499": "TC", "rs116855232": "CT",
+    "rs147390019": "GA", "rs762551": "CA", "rs2069514": "GA",
+    "rs1801133": "CT", "rs1801131": "AC",
+}
+_UNSUPPORTED_MARKERS = {
+    "rs5030655": "CYP2D6*6 deletion not reliably assessed from array encoding",
+    "rs8175347": "UGT1A1*28 TA-repeat not reliably assessed from array encoding",
+    "rs41303343": "CYP3A5*7 insertion not reliably assessed from array encoding",
+}
+PANEL_LIMITATIONS = [
+    "Copy number variants: CYP2D6 deletions and duplications are not assessed; "
+    "clinical-grade CYP2D6 testing includes copy-number analysis.",
+    "Structural variants: CYP2D6-CYP2D7 hybrids and array-encoded CYP2D6*6 "
+    "or CYP3A5*7 alleles are not reliably assessed.",
+    "Repeat polymorphisms: UGT1A1*28 (rs8175347) TA-repeat length cannot be "
+    "established by a SNP-array proxy.",
+    "HLA typing, G6PD deficiency and MT-RNR1 mitochondrial drug-risk variants "
+    "are not assessed by this panel.",
+    "Untested variants outside this small panel remain possible, including "
+    "additional DPYD and NUDT15 variants. Normal panel findings are not proof "
+    "of normal enzyme function, drug safety or efficacy.",
+    "Clinical conditions, copy-number deletions such as SMS, medication lists "
+    "and drug interactions are not incorporated. This is not a dosing engine.",
+    "Drug mappings are simplified research annotations, not a complete "
+    "revalidation of all current prescribing guidelines.",
+    "DPYD multi-variant assignments follow CPIC's presumption that different "
+    "decreased/no-function variants lie on separate gene copies; actual phase "
+    "is not established by this array analysis.",
+]
+OUT_OF_PANEL_GENES = [
+    ("HLA-B", "HLA-B*57:01 / HLA-B*58:01", "Abacavir / allopurinol hypersensitivity"),
+    ("MT-RNR1", "MT-RNR1 (mitochondrial)", "Aminoglycoside ototoxicity"),
+    ("G6PD", "Glucose-6-Phosphate Dehydrogenase", "Drug-related hemolysis"),
+    ("HLA-A", "HLA-A*31:01", "Carbamazepine hypersensitivity"),
+]
+
+
+def normalize_marker_genotype(rsid, genotype):
+    """Return (normalized call, limitation), never interpreting invalid calls as reference."""
+    if rsid in _UNSUPPORTED_MARKERS:
+        return None, _UNSUPPORTED_MARKERS[rsid]
+    expected = set(_MARKER_ALLELES.get(rsid, ""))
+    gt = str(genotype).upper().strip()
+    if len(gt) != 2 or not expected or not set(gt) <= set("ACGT"):
+        return None, "unsupported genotype encoding"
+    if set(gt) <= expected:
+        return "".join(sorted(gt)), None
+    complement = {COMPLEMENT[b] for b in expected}
+    if expected.isdisjoint(complement) and set(gt) <= complement:
+        return "".join(sorted(flip_genotype(gt))), None
+    return None, "alleles outside supported marker alphabet"
+
+
+def marker_coverage(pgx_snps):
+    """Separate observed, missing and unsupported markers; presence is not callability."""
+    coverage = {}
+    for gene, gdef in GENE_DEFS.items():
+        expected = list(gdef["variants"])
+        present = [r for r in expected if r in pgx_snps]
+        unsupported = {}
+        normalized = {}
+        for rsid in present:
+            gt, reason = normalize_marker_genotype(rsid, pgx_snps[rsid]["genotype"])
+            if reason:
+                unsupported[rsid] = reason
+            else:
+                normalized[rsid] = gt
+        coverage[gene] = {
+            "total": len(expected),
+            "present": present,
+            "missing": [r for r in expected if r not in pgx_snps],
+            "supported": list(normalized),
+            "unsupported": unsupported,
+            "normalized_genotypes": normalized,
+        }
+    return coverage
+
+
+def build_profiles(pgx_snps, ref_genome=None):
+    """Shared CLI/API calling contract, including all withholding rules."""
+    profiles = {}
+    for gene in GENE_DEFS:
+        diplotype = call_diplotype(gene, pgx_snps)
+        phenotype = call_phenotype(gene, diplotype)
+        if ref_genome == "unknown_build":
+            diplotype = "Indeterminate (coordinates match no known build)"
+            phenotype = "Indeterminate (unrecognised reference genome)"
+        profiles[gene] = {"diplotype": diplotype, "phenotype": phenotype}
+    return profiles
 
 # ---------------------------------------------------------------------------
 # 2. Gene definitions with phenotype rules (from phenotype.js)
@@ -276,12 +389,12 @@ GENE_DEFS = {
         "ref": "*1",
         "variants": {
             "rs116855232": {"allele": "*3", "alt": "T", "effect": "no_function"},
-            "rs147390019": {"allele": "*2", "alt": "A", "effect": "decreased_function"},
+            "rs147390019": {"allele": "*4", "alt": "A", "effect": "uncertain_function"},
         },
         "phenotypes": {
             "Normal Metabolizer":       ["*1/*1"],
-            "Intermediate Metabolizer": ["*1/*2", "*1/*3"],
-            "Poor Metabolizer":         ["*2/*2", "*2/*3", "*3/*3"],
+            "Intermediate Metabolizer": ["*1/*3"],
+            "Poor Metabolizer":         ["*3/*3"],
         },
     },
     "CYP1A2": {
@@ -301,7 +414,7 @@ GENE_DEFS = {
     },
     "MTHFR": {
         "name": "Methylenetetrahydrofolate Reductase",
-        "function": "Folate metabolism; affects methotrexate toxicity",
+        "function": "Folate metabolism; no genotype-only prescribing recommendation",
         "type": "mthfr",
         "rsid_677": "rs1801133",
         "rsid_1298": "rs1801131",
@@ -310,17 +423,18 @@ GENE_DEFS = {
             "rs1801131": {"allele": "1298C", "alt": "C", "effect": "decreased_function"},
         },
         "phenotypes": {
-            # Activity labels follow DPWG MTHFR nomenclature with genotype detail
-            "Normal MTHFR enzyme activity (677CC)":          ["677CC/1298AA", "677CC/1298NOT_TESTED",
-                                                              "677NOT_TESTED/1298AA"],
-            "Reduced MTHFR enzyme activity (677CT)":         ["677CT/1298AA", "677CC/1298AC"],
-            "Strongly reduced MTHFR enzyme activity (677TT)": ["677TT/1298AA", "677CT/1298AC"],
+            # Descriptive activity annotations, not prescribing phenotypes.
+            "Normal MTHFR enzyme activity (677CC)":          ["677CC/1298AA"],
+            "Reduced MTHFR enzyme activity (677CT)":         ["677CT/1298AA"],
+            "Reduced MTHFR enzyme activity (1298AC)":        ["677CC/1298AC"],
+            "Strongly reduced MTHFR enzyme activity (677TT)": ["677TT/1298AA"],
+            "MTHFR compound heterozygous variants (677CT/1298AC)": ["677CT/1298AC"],
         },
     },
 }
 
 # ---------------------------------------------------------------------------
-# 3. CPIC drug guidelines (from cpic-lookup.js, all 51 drugs)
+# 3. Simplified drug mappings (from cpic-lookup.js, with reviewed exceptions)
 # ---------------------------------------------------------------------------
 
 # Phenotype key mapping for lookup
@@ -708,19 +822,24 @@ GUIDELINES = {
     # --- CYP1A2 drugs ---
     "Clozapine": {
         "brand": "Clozaril", "class": "Antipsychotic", "gene": "CYP1A2",
-        "recs": {
-            "ultrarapid_metabolizer": "caution", "normal_metabolizer": "standard",
-            "intermediate_metabolizer": "standard", "poor_metabolizer": "caution",
-        },
+        "recs": {},
+        "no_prescribing_recommendation": (
+            "CYP1A2 genotype alone does not support a clozapine dose adjustment. "
+            "Smoking, interacting medicines, inflammation and drug levels may matter. "
+            "This is an evidence limitation, not a contraindication."
+        ),
+        "source": "https://www.ncbi.nlm.nih.gov/books/NBK367795/",
     },
     # --- MTHFR drug ---
     "Methotrexate": {
         "brand": "Rheumatrex / Trexall", "class": "DMARD / Antineoplastic", "gene": "MTHFR",
-        "recs": {
-            "normal_activity": "standard",
-            "intermediate_activity": "caution",
-            "reduced_activity": "caution",
-        },
+        "recs": {},
+        "no_prescribing_recommendation": (
+            "MTHFR genotype alone does not establish a validated methotrexate "
+            "dose-adjustment recommendation. Use clinical and laboratory monitoring. "
+            "This is an evidence limitation, not a contraindication."
+        ),
+        "source": "https://www.clinpgx.org/cpic/prioritization/guidelines",
     },
     # --- Additional CYP2C9 NSAIDs ---
     "Diclofenac": {
@@ -767,8 +886,11 @@ GUIDELINES = {
         "brand": "Dolophine", "class": "Opioid Analgesic", "gene": "CYP2B6",
         "recs": {
             "normal_metabolizer": "standard",
-            "intermediate_metabolizer": "caution", "poor_metabolizer": "caution",
+            "intermediate_metabolizer": "standard", "poor_metabolizer": "standard",
         },
+        "note": "CPIC recommends standard prescribing, titration and monitoring "
+                "rather than dose changes solely on CYP2B6 genotype.",
+        "source": "https://files.cpicpgx.org/data/guideline/publication/methadone/2024/38863207.pdf",
     },
     "Bupropion": {
         "brand": "Wellbutrin / Zyban", "class": "Antidepressant / Smoking Cessation", "gene": "CYP2B6",
@@ -863,8 +985,49 @@ def lookup_single_drug(drug_name, profiles):
         if warfarin_note:
             result["note"] = warfarin_note
         return result
+    if drug_name in {"Azathioprine", "Mercaptopurine", "Thioguanine"}:
+        genes = ("TPMT", "NUDT15")
+        keys = {g: phenotype_to_key(profiles.get(g, {}).get("phenotype", "")) for g in genes}
+        unresolved = [g for g, key in keys.items() if key == "indeterminate"]
+        risk = [g for g, key in keys.items()
+                if key in {"intermediate_metabolizer", "poor_metabolizer"}]
+        # Preserve established risk even when the other gene is unresolved.
+        if risk:
+            classification = "caution"
+            note = (f"TPMT/NUDT15: reduced function reported for {', '.join(risk)}. "
+                    "Clinical confirmation and specialist dosing review are required; "
+                    "recommendations depend on indication and both genes.")
+        elif unresolved:
+            classification = "indeterminate"
+            note = (f"TPMT/NUDT15: unresolved {', '.join(unresolved)}. "
+                    "A normal result in the other gene does not establish standard dosing.")
+        elif all(key == "normal_metabolizer" for key in keys.values()):
+            classification = "standard"
+            note = "TPMT and NUDT15 panel results are normal; clinical confirmation and blood-count monitoring remain necessary."
+        else:
+            classification = "indeterminate"
+            note = "TPMT/NUDT15 phenotype combination is not supported by this lookup."
+        if risk and unresolved:
+            note += f" Unresolved: {', '.join(unresolved)}."
+        return {
+            "drug": drug_name, "brand": info["brand"], "class": info["class"],
+            "gene": "TPMT+NUDT15",
+            "diplotype": " / ".join(f"{g} {profiles.get(g, {}).get('diplotype', 'NOT_TESTED')}" for g in genes),
+            "phenotype": " / ".join(f"{g} {profiles.get(g, {}).get('phenotype', 'Indeterminate')}" for g in genes),
+            "classification": classification, "note": note,
+            "reason": "unresolved_multigene" if unresolved else "combined_gene_review",
+            "source": "https://files.cpicpgx.org/data/guideline/publication/thiopurines/2026/41618934.pdf",
+        }
 
     gene = info["gene"]
+    if info.get("no_prescribing_recommendation"):
+        return {
+            "drug": drug_name, "brand": info["brand"], "class": info["class"],
+            "gene": gene, "diplotype": profiles.get(gene, {}).get("diplotype", "NOT_TESTED"),
+            "phenotype": profiles.get(gene, {}).get("phenotype", "Indeterminate"),
+            "classification": "indeterminate", "reason": "no_prescribing_recommendation",
+            "note": info["no_prescribing_recommendation"], "source": info["source"],
+        }
     if gene not in profiles:
         return {
             "drug": drug_name, "brand": info["brand"], "class": info["class"],
@@ -877,18 +1040,26 @@ def lookup_single_drug(drug_name, profiles):
     recs = info.get("recs", {})
     classification = recs.get(pheno_key, "indeterminate")
 
-    return {
+    result = {
         "drug": drug_name, "brand": info["brand"], "class": info["class"],
-        "gene": gene, "diplotype": prof["diplotype"], "phenotype": prof["phenotype"],
+        "gene": gene, "diplotype": prof.get("diplotype", "NOT_TESTED"), "phenotype": prof["phenotype"],
         "classification": classification,
     }
+    if classification == "indeterminate":
+        result["reason"] = "unresolved_phenotype"
+        result["note"] = f"{gene}: {prof['phenotype']}. No patient-specific recommendation can be established."
+    if info.get("note"):
+        result["note"] = info["note"] + (" Patient phenotype is unresolved." if classification == "indeterminate" else "")
+    if info.get("source"):
+        result["source"] = info["source"]
+    return result
 
 
 _CLASS_LABELS = {
     "standard": "STANDARD DOSING",
     "caution": "USE WITH CAUTION",
-    "avoid": "AVOID — DO NOT USE",
-    "indeterminate": "INSUFFICIENT DATA",
+    "avoid": "ALTERNATIVE THERAPY REVIEW",
+    "indeterminate": "INSUFFICIENT DATA / EVIDENCE",
 }
 
 
@@ -900,19 +1071,14 @@ def format_dosage_card(result, visible_dose=None):
     # Build dose-aware recommendation line
     cl = result["classification"]
     _CLS_TEXT = {
-        "standard": "Standard dosing expected to be effective.",
+        "standard": "No adjustment flagged by this limited lookup; safety and efficacy are not established.",
         "caution": "Dose adjustment or monitoring may be needed.",
         "avoid": "Consider alternative medication.",
         "indeterminate": "Insufficient data for recommendation.",
     }
     rec_text = result.get("note") or _CLS_TEXT.get(cl, "")
     if visible_dose:
-        if cl == "standard":
-            rec_text = f"Your genotype supports {result['drug']} {visible_dose} as prescribed."
-        elif cl == "caution":
-            rec_text = f"{visible_dose} may need adjustment."
-        elif cl == "avoid":
-            rec_text = f"Your genotype contraindicates {result['drug']} {visible_dose}."
+        rec_text += f" Packaging dose: {visible_dose}; this tool does not validate that dose."
 
     # Wrap recommendation text at ~42 chars
     words = rec_text.split()
@@ -943,9 +1109,7 @@ def format_dosage_card(result, visible_dose=None):
   RECOMMENDATION: {cls_label}
 {rec_block}
 
-  Source: FDA Table of Pharmacogenomic
-  Biomarkers in Drug Labeling & CPIC
-  Guidelines (cpicpgx.org)
+  Source: {result.get('source', 'Simplified research lookup; verify current clinical guidance.')}
 
   DISCLAIMER: Research/educational use only.
   Consult a healthcare professional.
@@ -1101,40 +1265,27 @@ def parse_file(path):
 
 def call_diplotype(gene, pgx_snps):
     gdef = GENE_DEFS[gene]
+    coverage = marker_coverage(pgx_snps)[gene]
+    if not coverage["present"]:
+        return "NOT_TESTED"
+    if gene == "UGT1A1":
+        return "Indeterminate (UGT1A1*28 repeat not reliably assessed)"
+    if coverage["unsupported"]:
+        detail = "; ".join(f"{r}: {reason}" for r, reason in coverage["unsupported"].items())
+        return f"Indeterminate (unsupported markers: {detail})"
+    if coverage["missing"] and gene != "DPYD":
+        return (f"Indeterminate (incomplete coverage: "
+                f"{len(coverage['present'])}/{coverage['total']} SNPs tested; "
+                f"missing {', '.join(coverage['missing'])})")
+    # Keep raw genotypes in reports; use validated normalized calls for counting.
+    pgx_snps = {
+        r: {**pgx_snps[r], "genotype": gt}
+        for r, gt in coverage["normalized_genotypes"].items()
+    }
 
     if gdef.get("type") == "mthfr":
-        # Build combined diplotype: "677{CT}/1298{AC}" using CPIC gene-strand notation.
-        # MTHFR is on the minus strand. The coding strand alleles are:
-        #   rs1801133 (C677T): C (ref) > T (risk)
-        #   rs1801131 (A1298C): A (ref) > C (risk)
-        # The plus strand complement would be G>A and T>G respectively.
-        # Auto-detect strand: if genotype contains C or T for rs1801133,
-        # it is already on the coding strand and should NOT be flipped.
-        # If it contains G or A, it is on the plus strand and needs flipping.
-        rsid_677  = gdef["rsid_677"]
-        rsid_1298 = gdef["rsid_1298"]
-        gt_677  = pgx_snps[rsid_677]["genotype"]  if rsid_677  in pgx_snps else "NOT_TESTED"
-        gt_1298 = pgx_snps[rsid_1298]["genotype"] if rsid_1298 in pgx_snps else "NOT_TESTED"
-        if gt_677 == "NOT_TESTED" and gt_1298 == "NOT_TESTED":
-            return "NOT_TESTED"
-        if gt_677 != "NOT_TESTED":
-            # Auto-detect strand for rs1801133 (C677T):
-            # Coding strand alleles are C and T. Plus strand alleles are G and A.
-            alleles_677 = set(gt_677.upper())
-            on_plus_strand = alleles_677 <= {"G", "A"}
-            if on_plus_strand:
-                gt_677 = "".join(sorted(flip_genotype(gt_677)))
-            else:
-                gt_677 = "".join(sorted(gt_677.upper()))
-        if gt_1298 != "NOT_TESTED":
-            # Auto-detect strand for rs1801131 (A1298C):
-            # Coding strand alleles are A and C. Plus strand alleles are T and G.
-            alleles_1298 = set(gt_1298.upper())
-            on_plus_strand = alleles_1298 <= {"T", "G"}
-            if on_plus_strand:
-                gt_1298 = "".join(sorted(flip_genotype(gt_1298)))
-            else:
-                gt_1298 = "".join(sorted(gt_1298.upper()))
+        gt_677 = pgx_snps[gdef["rsid_677"]]["genotype"]
+        gt_1298 = pgx_snps[gdef["rsid_1298"]]["genotype"]
         return f"677{gt_677}/1298{gt_1298}"
 
     if gdef.get("type") == "genotype":
@@ -1143,48 +1294,24 @@ def call_diplotype(gene, pgx_snps):
             return pgx_snps[rsid]["genotype"]
         return "NOT_TESTED"
 
-    # Exclude structural variant SNPs (DEL, INS, TA7) from both the total
-    # panel count and tested count: they are inherently untestable from DTC data.
-    sv_rsids = {r for r, v in gdef["variants"].items() if v["alt"].upper() in ("DEL", "INS", "TA7")}
-    gene_rsids = [r for r in gdef["variants"].keys() if r not in sv_rsids]
-    tested = [r for r in gene_rsids if r in pgx_snps]
-
-    if not tested:
-        # Check if the only SNPs present are SV SNPs
-        sv_in_data = [r for r in sv_rsids if r in pgx_snps]
-        if sv_in_data:
-            # Gene has data but only at untestable SV positions
-            return "NOT_TESTED"
-        return "NOT_TESTED"
+    # Only fully covered, supported calls reach allele counting.
 
     detected = []
-    sv_untestable = []  # SV SNPs where patient carries a het call
     for rsid, vdef in gdef["variants"].items():
-        if rsid in pgx_snps:
-            gt = pgx_snps[rsid]["genotype"]
-            alt = vdef["alt"].upper()
-            if alt in ("DEL", "INS", "TA7"):
-                # Only flag if patient has a heterozygous call (possible carrier)
-                is_het = len(set(gt)) > 1
-                if is_het:
-                    sv_untestable.append({"rsid": rsid, "allele": vdef["allele"], "alt": alt})
-                continue
-            alt_count = gt.count(alt)
-            if alt_count > 0:
-                detected.append({"rsid": rsid, "allele": vdef["allele"],
-                                 "copies": alt_count, "effect": vdef["effect"]})
-
-    # If patient carries a het call at an SV SNP, the gene result is unreliable.
-    # Report as Indeterminate rather than falsely claiming Normal.
-    if sv_untestable:
-        sv_desc = ", ".join(f"{s['allele']}({s['rsid']})" for s in sv_untestable)
-        return f"Indeterminate (structural variant not assessed: {sv_desc})"
+        if rsid not in pgx_snps:
+            continue
+        alt_count = pgx_snps[rsid]["genotype"].count(vdef["alt"].upper())
+        if alt_count > 0:
+            detected.append({"rsid": rsid, "allele": vdef["allele"],
+                             "copies": alt_count, "effect": vdef["effect"]})
 
     if gdef.get("type") == "dpyd":
         if not detected:
-            if len(tested) == len(gene_rsids):
-                return "Normal/Normal"
-            return f"Normal/Normal ({len(tested)}/{len(gene_rsids)} SNPs tested)"
+            if coverage["missing"]:
+                return (f"Indeterminate (incomplete coverage: "
+                        f"{len(coverage['present'])}/{coverage['total']} SNPs tested; "
+                        f"missing {', '.join(coverage['missing'])})")
+            return "Normal/Normal"
         # CPIC: "If two different decreased/no function variants are present,
         # they are presumed to be on different gene copies."
         # With >2 variant alleles keep the two lowest-function ones (no_function first).
@@ -1195,16 +1322,14 @@ def call_diplotype(gene, pgx_snps):
         diplotype = "/".join(a for a, _ in ranked)
         if len(ranked) == 1:
             diplotype = f"Normal/{diplotype}"
-        # An untested SNP can only change the call unless it is already two alleles
-        # with at least one no-function (activity score <= 0.5, Poor).
-        if len(tested) < len(gene_rsids) and not (len(ranked) == 2 and ranked[0][1] == "no_function"):
-            diplotype += f" ({len(tested)}/{len(gene_rsids)} SNPs tested)"
+        if coverage["missing"] and not (len(ranked) == 2 and ranked[0][1] == "no_function"):
+            return (f"Indeterminate (incomplete coverage: "
+                    f"{len(coverage['present'])}/{coverage['total']} SNPs tested; "
+                    f"missing {', '.join(coverage['missing'])})")
         return diplotype
 
     if not detected:
-        if len(tested) == len(gene_rsids):
-            return f"{gdef['ref']}/{gdef['ref']}"
-        return f"{gdef['ref']}/{gdef['ref']} ({len(tested)}/{len(gene_rsids)} SNPs tested)"
+        return f"{gdef['ref']}/{gdef['ref']}"
 
     detected.sort(key=lambda v: (0 if v["effect"] == "no_function" else 1))
 
@@ -1245,6 +1370,8 @@ def call_phenotype(gene, diplotype):
     # Structural variant limitations: diplotype already flagged as indeterminate
     if diplotype.startswith("Indeterminate"):
         return diplotype
+    if gene == "CYP1A2":
+        return "Indeterminate (CYP1A2 genotype does not establish a clinical metabolizer phenotype)"
 
     gdef = GENE_DEFS[gene]
     norm = diplotype.upper()
@@ -1276,6 +1403,10 @@ def call_phenotype(gene, diplotype):
 
 def phenotype_to_key(phenotype_desc):
     """Map phenotype description to GUIDELINES rec key."""
+    if not phenotype_desc or any(token in phenotype_desc.lower()
+                                 for token in ("indeterminate", "unknown", "incomplete",
+                                               "not tested", "not genotyped", "unsupported")):
+        return "indeterminate"
     mapping = {
         "Normal Metabolizer": "normal_metabolizer",
         "Intermediate Metabolizer": "intermediate_metabolizer",
@@ -1305,10 +1436,9 @@ def phenotype_to_key(phenotype_desc):
     key = mapping.get(stripped)
     if key:
         return key
-    # Try prefix match: "Normal" → "Normal Metabolizer"
-    for label, val in mapping.items():
-        if label.startswith(stripped):
-            return val
+    # Support the legacy explicit alias, never arbitrary or empty prefixes.
+    if stripped == "Normal":
+        return "normal_metabolizer"
     return "indeterminate"
 
 
@@ -1332,54 +1462,20 @@ def get_warfarin_rec(profiles):
     if cyp2c9_normal and vkorc1_normal:
         return "standard", None
     elif "poor" in cyp2c9.lower() or "high" in vkorc1.lower():
-        return "avoid", None
+        return "caution", (
+            "Warfarin sensitivity/clearance flag: use a validated genotype-plus-clinical "
+            "dosing algorithm and INR monitoring. This is not a blanket contraindication "
+            "or a dose calculation."
+        )
     else:
         return "caution", None
 
 
 def lookup_drugs(profiles):
     results = {"standard": [], "caution": [], "avoid": [], "indeterminate": []}
-
-    for drug_name, drug in GUIDELINES.items():
-        if drug.get("special") == "warfarin":
-            classification, warfarin_note = get_warfarin_rec(profiles)
-            entry = {
-                "drug": drug_name, "brand": drug["brand"],
-                "class": drug["class"], "gene": "CYP2C9+VKORC1",
-                "classification": classification,
-            }
-            if warfarin_note:
-                entry["note"] = warfarin_note
-            results.setdefault(classification, []).append(entry)
-            continue
-
-        gene = drug["gene"]
-        if gene not in profiles:
-            results["indeterminate"].append({
-                "drug": drug_name, "brand": drug["brand"],
-                "class": drug["class"], "gene": gene,
-                "classification": "indeterminate",
-            })
-            continue
-
-        pheno_key = phenotype_to_key(profiles[gene]["phenotype"])
-
-        if pheno_key == "indeterminate":
-            results["indeterminate"].append({
-                "drug": drug_name, "brand": drug["brand"],
-                "class": drug["class"], "gene": gene,
-                "classification": "indeterminate",
-            })
-            continue
-
-        recs = drug.get("recs", {})
-        classification = recs.get(pheno_key, "indeterminate")
-
-        results.setdefault(classification, []).append({
-            "drug": drug_name, "brand": drug["brand"],
-            "class": drug["class"], "gene": gene,
-            "classification": classification,
-        })
+    for drug_name in GUIDELINES:
+        entry = lookup_single_drug(drug_name, profiles)
+        results[entry["classification"]].append(entry)
 
     return results
 
@@ -1423,13 +1519,9 @@ def enrich_with_clinpgx(drug_results, cache_dir=None):
     all_drugs = []
     for cat_list in drug_results.values():
         all_drugs.extend(cat_list)
-    genes = sorted({d["gene"] for d in all_drugs if d["gene"] not in ("", "CYP2C9+VKORC1")})
-    # Add both genes for warfarin
-    if any(d["gene"] == "CYP2C9+VKORC1" for d in all_drugs):
-        for g in ("CYP2C9", "VKORC1"):
-            if g not in genes:
-                genes.append(g)
-        genes.sort()
+    genes = sorted({g.strip() for d in all_drugs
+                    for g in d["gene"].replace(",", "+").split("+")
+                    if g.strip() in GENE_DEFS})
 
     enrichment = {}
     total = len(genes)
@@ -1535,7 +1627,9 @@ def extract_phenotype_recs(enrichment, drug_results, profiles):
         for d in cat_drugs:
             gene = d.get("gene", "")
             drug_key = d["drug"].lower()
-            if gene in profiles:
+            if (gene in profiles and phenotype_to_key(profiles[gene]["phenotype"]) != "indeterminate"
+                    and d.get("reason") != "no_prescribing_recommendation"
+                    and d.get("classification") != "indeterminate"):
                 drug_phenotype[drug_key] = {
                     "gene": gene,
                     "phenotype": profiles[gene]["phenotype"],
@@ -1572,10 +1666,10 @@ def extract_phenotype_recs(enrichment, drug_results, profiles):
 
 
 _CLASSIFICATION_SUMMARY = {
-    "standard": "Standard dosing expected to be effective.",
+    "standard": "No adjustment flagged by this limited lookup; not proof of safety or efficacy.",
     "caution": "Dose adjustment or monitoring may be needed.",
     "avoid": "Consider alternative medication.",
-    "indeterminate": "Insufficient data for recommendation.",
+    "indeterminate": "Insufficient patient data or prescribing evidence; see the reason below.",
 }
 
 
@@ -1642,6 +1736,24 @@ def _evidence_cell_html(enrichment_entry, classification=""):
 
 ICON = {"standard": "STANDARD", "caution": "CAUTION", "avoid": "AVOID", "indeterminate": "INDETERMINATE - INSUFFICIENT DATA"}
 
+def coverage_rows(pgx_snps):
+    """Common table payload for both human-readable reports."""
+    rows = []
+    for gene, coverage in marker_coverage(pgx_snps).items():
+        unsupported = "; ".join(f"{r}: {why}" for r, why in coverage["unsupported"].items())
+        rows.append([
+            gene, f"{len(coverage['present'])}/{coverage['total']}",
+            ", ".join(coverage["present"]) or "None",
+            ", ".join(coverage["missing"]) or "None", unsupported or "None",
+        ])
+    return rows
+
+
+def quality_messages(profiles):
+    """Keep missing coverage distinct from a genuinely unmapped diplotype."""
+    return [f"{gene}: {p['phenotype']}" for gene, p in profiles.items()
+            if phenotype_to_key(p["phenotype"]) == "indeterminate"]
+
 
 def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_results):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -1659,35 +1771,24 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
     lines.append(f"**Pharmacogenomic SNPs found**: {len(pgx_snps)}/{len(PGX_SNPS)}")
     lines.append(f"**Genes profiled**: {len(profiles)}")
     lines.append(f"**Drugs assessed**: {sum(len(v) for v in drug_results.values())}")
+    lines.append(f"**Version**: {REPORTER_VERSION}")
+    lines.append("")
+    lines.append("Provisional research annotations only. Standard means no adjustment "
+                 "flagged by this limited lookup, not proof of safety or efficacy. "
+                 "Insufficient data includes missing/unsupported calls and insufficient prescribing evidence.")
     lines.append("")
     lines.append("---")
     lines.append("")
 
     # Data quality warning
     not_tested = [g for g, p in profiles.items() if p["diplotype"] == "NOT_TESTED"]
-    unknown_pheno = [g for g, p in profiles.items()
-                     if "unknown" in p["phenotype"].lower() or "indeterminate" in p["phenotype"].lower()]
+    unknown_pheno = [g for g, p in profiles.items() if "unknown" in p["phenotype"].lower()]
 
-    # Per-gene limitation warnings for genes with known CNV/SV/repeat issues
-    # These must appear in the report body (not just stderr) for disclosure compliance.
-    _GENE_LIMITATIONS = {
-        "CYP2D6": (
-            "CYP2D6: Copy number variation (gene deletion CYP2D6*5, duplication CYP2D6*1xN/*2xN, "
-            "hybrid alleles CYP2D6*13/*36) cannot be detected from DTC genotyping data. "
-            "Phenotype assignment may be incomplete. Clinical-grade CYP2D6 testing includes CNV analysis."
-        ),
-        "UGT1A1": (
-            "UGT1A1: The UGT1A1*28 allele (rs8175347) is a TA-repeat polymorphism that cannot be "
-            "reliably genotyped by SNP arrays. If rs8175347 is present in the input, the reported "
-            "genotype is a proxy SNP call and may not reflect true TA repeat count."
-        ),
-        "CYP3A5": (
-            "CYP3A5: The CYP3A5*7 allele (rs41303343) is an insertion/deletion variant. "
-            "DTC genotyping platforms use proxy SNP calls that may not accurately detect this allele."
-        ),
-    }
 
     lines.append("## DATA QUALITY WARNING")
+    lines.append("")
+    for message in quality_messages(profiles):
+        lines.append(f"- {message}")
     lines.append("")
     if not_tested:
         lines.append(f"**{len(not_tested)} gene(s) could not be assessed** because the "
@@ -1705,19 +1806,6 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
                          "to a known phenotype. Clinical pharmacogenomic testing is recommended.")
             lines.append("")
 
-    # Always emit per-gene limitation warnings for genes present in the profile
-    # These are placed directly in the DQW body (no subsection header) so that
-    # harness regex captures them as part of the DATA QUALITY WARNING text.
-    gene_warnings = []
-    for gene_name in sorted(profiles.keys()):
-        if gene_name in _GENE_LIMITATIONS:
-            gene_warnings.append(_GENE_LIMITATIONS[gene_name])
-    if gene_warnings:
-        lines.append("**Gene-Specific Limitations:**")
-        lines.append("")
-        for warning in gene_warnings:
-            lines.append(f"- {warning}")
-        lines.append("")
 
     lines.append("---")
     lines.append("")
@@ -1725,34 +1813,28 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
     # Panel limitations disclosure
     lines.append("## Panel Limitations")
     lines.append("")
-    lines.append("This report uses **SNP-based genotyping only** from a panel of "
-                 f"{len(PGX_SNPS)} pharmacogenomic variants. The following cannot be detected:")
+    for limitation in PANEL_LIMITATIONS:
+        lines.append(f"- {limitation}")
     lines.append("")
-    lines.append("- **Copy number variants (CNVs)**: Gene deletions (e.g. CYP2D6\\*5) "
-                 "and duplications (e.g. CYP2D6\\*1xN, \\*2xN)")
-    lines.append("- **Structural variants**: CYP2D6-CYP2D7 hybrid alleles (e.g. \\*13, \\*36)")
-    lines.append("- **Repeat polymorphisms**: UGT1A1\\*28 (TA7 repeat in rs8175347)")
-    lines.append("- **HLA typing**: HLA-B\\*57:01 (abacavir hypersensitivity)")
-    lines.append("- **Mitochondrial variants**: MT-RNR1 m.1555A>G (aminoglycoside ototoxicity)")
-    lines.append("- **G6PD deficiency**: G6PD A- and Mediterranean variants")
+    lines.append("## Marker Coverage")
     lines.append("")
-    lines.append("For CYP2D6, a result of 'Normal Metabolizer' does NOT rule out "
-                 "gene deletions or duplications that alter metabolizer status. "
-                 "Clinical-grade CYP2D6 testing includes CNV analysis.")
+    lines.append("Present markers are not necessarily supported for interpretation. "
+                 "Missing markers are unavailable, not negative variant tests.")
+    lines.append("")
+    lines.append("| Gene | Present/panel | Present markers | Missing markers | Unsupported markers |")
+    lines.append("|------|---------------|-----------------|-----------------|---------------------|")
+    for row in coverage_rows(pgx_snps):
+        lines.append("| " + " | ".join(row) + " |")
     lines.append("")
     lines.append("## Genes Not Assessed by This Panel")
     lines.append("")
     lines.append("The following clinically relevant pharmacogenomic genes are **not included** "
                  "in this panel. Consider targeted testing if indicated:")
     lines.append("")
-    lines.append("| Gene | Clinical Relevance | CPIC Guideline |")
-    lines.append("|------|-------------------|----------------|")
-    lines.append("| HLA-B\\*57:01 | Abacavir hypersensitivity | CPIC Abacavir (2014, updated 2020) |")
-    lines.append("| HLA-B\\*58:01 | Allopurinol hypersensitivity (SJS/TEN) | CPIC Allopurinol (Hershfield 2013, updated 2015) |")
-    lines.append("| G6PD | Rasburicase, chloroquine contraindication | CPIC G6PD (2014) |")
-    lines.append("| MT-RNR1 | Aminoglycoside ototoxicity | FDA label |")
-    lines.append("| HLA-A\\*31:01 | Carbamazepine hypersensitivity | CPIC Carbamazepine (2017) |")
-    lines.append("| CYP2B6 | Efavirenz metabolism | CPIC Efavirenz (2019) |")
+    lines.append("| Gene | Name / allele | Clinical Relevance |")
+    lines.append("|------|---------------|--------------------|")
+    for row in OUT_OF_PANEL_GENES:
+        lines.append("| " + " | ".join(row) + " |")
     lines.append("")
     lines.append("---")
     lines.append("")
@@ -1802,26 +1884,19 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
         if gene in profiles:
             p = profiles[gene]
             lines.append(f"| {gene} | {GENE_DEFS[gene]['name']} | {p['diplotype']} | {p['phenotype']} |")
-    # CPIC Level 1A genes not in this panel: explicit "not assessed" disclosure
-    # These must appear in the gene profiles table, not just a separate section.
-    # HLA-B*57:01: abacavir hypersensitivity (~48% risk in carriers)
-    # MT-RNR1: aminoglycoside ototoxicity (permanent deafness, single dose)
-    # G6PD: rasburicase/chloroquine contraindication
-    _out_of_panel = [
-        ("HLA-B", "HLA-B*57:01", "Not assessed", "Indeterminate (not in panel)"),
-        ("MT-RNR1", "MT-RNR1 (mitochondrial)", "Not assessed", "Indeterminate (not in panel)"),
-        ("G6PD", "Glucose-6-Phosphate Dehydrogenase", "Not assessed", "Indeterminate (not in panel)"),
-        ("HLA-A", "HLA-A*31:01", "Not assessed", "Indeterminate (not in panel)"),
-        # CYP2B6 removed: it IS in the SNP panel (rs3745274, rs28399499)
-    ]
-    for gene_sym, full_name, dip, pheno in _out_of_panel:
-        lines.append(f"| {gene_sym} | {full_name} | {dip} | {pheno} |")
+    # Keep explicitly unassessed genes visible in both report formats.
+    for gene_sym, full_name, _relevance in OUT_OF_PANEL_GENES:
+        lines.append(f"| {gene_sym} | {full_name} | Not assessed | Indeterminate (not in panel) |")
     lines.append("")
 
     # Detected variants
     lines.append("## Detected Variants")
     lines.append("")
-    lines.append("| rsID | Gene | Star Allele | Genotype | Effect |")
+    lines.append("The variant allele and its annotated effect describe the marker, "
+                 "not proof that this allele is present in the sample. Genotypes below "
+                 "are raw input calls; normalization is recorded in result.json.")
+    lines.append("")
+    lines.append("| rsID | Gene | Variant allele (marker annotation) | Raw genotype | Annotated variant effect |")
     lines.append("|------|------|-------------|----------|--------|")
     for rsid, info in sorted(pgx_snps.items(), key=lambda x: x[1]["gene"]):
         lines.append(f"| {rsid} | {info['gene']} | {info['allele']} | {info['genotype']} | {info['effect']} |")
@@ -1838,6 +1913,8 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
         for d in sorted(drug_results.get(cat, []), key=lambda x: x["drug"]):
             status = ICON.get(d["classification"], d["classification"].upper())
             note_suffix = f" — {d['note']}" if d.get("note") else ""
+            if d.get("source"):
+                note_suffix += f" Source: {d['source']}"
             lines.append(f"| {d['drug']} | {d['brand']} | {d['class']} | {d['gene']} | {status}{note_suffix} |")
     lines.append("")
 
@@ -1846,11 +1923,13 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
     lines.append("")
     lines.append("## Disclaimer")
     lines.append("")
+    lines.append(DISCLAIMER)
+    lines.append("")
     lines.append("This report is for **research and educational purposes only**. "
                  "It is NOT a diagnostic device and should NOT be used to make medication decisions "
                  "without consulting a qualified healthcare professional.")
     lines.append("")
-    lines.append("Pharmacogenomic recommendations are based on CPIC guidelines (cpicpgx.org). "
+    lines.append("Drug annotations use simplified mappings and cited evidence where available. "
                  "DTC genetic tests have limitations: they may not detect all relevant variants, "
                  "and results should be confirmed by clinical-grade testing before clinical use.")
     lines.append("")
@@ -1858,18 +1937,22 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
     # Methods
     lines.append("## Methods")
     lines.append("")
-    lines.append("- **Tool**: ClawBio PharmGx Reporter v0.2.0")
-    lines.append("- **SNP panel**: 31 pharmacogenomic variants across 12 genes")
+    lines.append(f"- **Tool**: ClawBio PharmGx Reporter v{REPORTER_VERSION}")
+    lines.append(f"- **SNP panel**: {len(PGX_SNPS)} pharmacogenomic variants across {len(GENE_DEFS)} genes")
     lines.append("- **Star allele calling**: Simplified DTC-compatible algorithm (single-SNP per allele)")
-    lines.append("- **Phenotype assignment**: CPIC-based diplotype-to-phenotype mapping")
-    lines.append("- **Drug guidelines**: 51 drugs from CPIC (cpicpgx.org), simplified for DTC context")
+    lines.append("- **Phenotype assignment**: Provisional panel mappings; incomplete or unsupported calls withheld")
+    lines.append(f"- **Drug lookup**: {len(GUIDELINES)} drugs; simplified research mappings, not a complete current-guideline audit")
     lines.append("")
 
     # Reproducibility
     lines.append("## Reproducibility")
     lines.append("")
+    lines.append("From this report directory, run the saved command bundle. It retains "
+                 "the original paths and enrichment option, writes to a new reproduced "
+                 "subdirectory and refuses to overwrite existing output.")
+    lines.append("")
     lines.append("```bash")
-    lines.append(f"python pharmgx_reporter.py --input {fname} --output report")
+    lines.append("bash reproducibility/commands.sh")
     lines.append("```")
     lines.append("")
     lines.append(f"**Input checksum**: `{checksum}`")
@@ -1884,6 +1967,9 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
                  " CYP1A2 and MTHFR not covered (no CPIC guideline).")
     lines.append("- Caudle, K.E. et al. (2014). Standardizing terms for clinical pharmacogenetic test results. Genet Med, 16(9), 655-663.")
     lines.append("- PharmGKB. https://www.pharmgkb.org/")
+    for source in sorted({d["source"] for bucket in drug_results.values()
+                          for d in bucket if d.get("source")}):
+        lines.append(f"- Reviewed interpretation source: {source}")
     lines.append("")
 
     return "\n".join(lines)
@@ -1937,15 +2023,14 @@ def generate_html_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_r
 
     gene_rsid_map = _build_gene_rsid_map(pgx_snps)
     not_tested = [g for g, p in profiles.items() if p["diplotype"] == "NOT_TESTED"]
-    n_genes_tested = len(profiles) - len(not_tested)
 
-    b = HtmlReportBuilder("ClawBio PharmGx Report", "PharmGx Reporter v0.2.0")
+    b = HtmlReportBuilder("ClawBio PharmGx Report", f"PharmGx Reporter v{REPORTER_VERSION}")
 
     # ── Disclaimer at top ──
     b.add_disclaimer()
 
     # ── Branded header ──
-    b.add_header_block("Your Medication Report", "How your genes affect your medications")
+    b.add_header_block("Your Medication Report", "Provisional pharmacogenomic research annotations")
 
     # ── Executive summary ──
     avoid_drugs = sorted(drug_results.get("avoid", []), key=lambda x: x["drug"])
@@ -1956,18 +2041,31 @@ def generate_html_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_r
         )
         avoid_item = ("\u26d4", f"{n_avo} drug(s) to avoid", avoid_lines, "avoid")
     else:
-        avoid_item = ("\u2705", "No drugs to avoid",
-                      "No high-risk gene-drug interactions detected.", "ok")
+        avoid_item = ("\u2139", "No avoid flags in this limited lookup",
+                      "Not proof of medication safety; untested risks remain possible.", "info")
     b.add_executive_summary([
         avoid_item,
         ("\u26a0\ufe0f", f"{n_cau} drug(s) requiring caution",
          "Dose adjustments or alternatives may be recommended.", "caution"),
     ])
+    b.add_alert_box("caution", "Limited panel, not a prescribing plan",
+                    "Standard labels do not establish safety or efficacy. Insufficient "
+                    "data includes missing markers, unsupported calls and insufficient "
+                    "prescribing evidence. Do not change medication from this report alone.")
+    b.add_section("Panel Limitations")
+    for limitation in PANEL_LIMITATIONS:
+        b.add_alert_box("info", "Limitation", limitation)
+    b.add_section("Marker Coverage")
+    b.add_table(["Gene", "Present/panel", "Present markers", "Missing markers", "Unsupported markers"],
+                coverage_rows(pgx_snps))
+    b.add_section("Genes Not Assessed by This Panel")
+    b.add_table(["Gene", "Name / allele", "Clinical relevance"],
+                [list(row) for row in OUT_OF_PANEL_GENES])
 
     # ── Data quality warnings ──
-    unknown_pheno = [g for g, p in profiles.items()
-                     if "unknown" in p["phenotype"].lower()
-                     or "indeterminate" in p["phenotype"].lower()]
+    for message in quality_messages(profiles):
+        b.add_alert_box("caution", "Unresolved interpretation", message)
+    unknown_pheno = [g for g, p in profiles.items() if "unknown" in p["phenotype"].lower()]
     if not_tested:
         b.add_alert_box(
             "caution",
@@ -1999,10 +2097,17 @@ def generate_html_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_r
 
         drug_cell = f"<strong>{_html.escape(d['drug'])}</strong> ({_html.escape(d['brand'])})"
         evidence_cell = _evidence_level_html(enrichment_entry)
-        rec_cell = badge + _evidence_cell_html(enrichment_entry, classification=cls)
-        notes_cell = _html.escape(d['class'])
+        # A catalog association is not a validated patient-specific recommendation.
+        if cls == "indeterminate" or d.get("reason") == "no_prescribing_recommendation":
+            enrichment_entry = {}
+            evidence_cell = ""
         if d.get("note"):
-            notes_cell += f'<br><small style="color:#c0392b">{_html.escape(d["note"])}</small>'
+            rec_cell = badge + f'<div class="evidence-recs">{_html.escape(d["note"])}</div>'
+        else:
+            rec_cell = badge + _evidence_cell_html(enrichment_entry, classification=cls)
+        notes_cell = _html.escape(d['class'])
+        if d.get("source"):
+            notes_cell += f'<br><a href="{_html.escape(d["source"], quote=True)}" rel="noopener" target="_blank">Evidence source</a>'
         links_cell = _drug_links_html(d["gene"], gene_rsid_map)
 
         return (
@@ -2054,6 +2159,9 @@ def generate_html_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_r
                 f"<td>{_html.escape(p['diplotype'])}</td>"
                 f"<td>{_html.escape(p['phenotype'])}</td></tr>"
             )
+    for gene, name, _relevance in OUT_OF_PANEL_GENES:
+        gene_rows_html.append(f"<tr><td>{_html.escape(gene)}</td><td>{_html.escape(name)}</td>"
+                              "<td>Not assessed</td><td>Indeterminate (not in panel)</td></tr>")
     gene_table_html = (
         '<div class="table-wrap"><table><thead><tr>'
         "<th>Gene</th><th>Full Name</th><th>Diplotype</th><th>Phenotype</th>"
@@ -2075,12 +2183,14 @@ def generate_html_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_r
         )
     var_table_html = (
         '<div class="table-wrap"><table><thead><tr>'
-        "<th>rsID</th><th>Gene</th><th>Star Allele</th><th>Genotype</th><th>Effect</th>"
+        "<th>rsID</th><th>Gene</th><th>Variant allele (marker annotation)</th><th>Raw genotype</th><th>Annotated variant effect</th>"
         "</tr></thead><tbody>"
         + "\n".join(var_rows_html)
         + "</tbody></table></div>"
     )
-    b.add_details("Detected Variants (click to expand)", var_table_html)
+    b.add_details("Detected Variants (click to expand)",
+                  "<p>Variant allele annotations are not proof that the sample carries "
+                  "the allele. Raw calls are shown; normalization is recorded in result.json.</p>" + var_table_html)
 
     # ── Input details (collapsible) ──
     detail_items = {
@@ -2091,6 +2201,7 @@ def generate_html_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_r
         "Pharmacogenomic SNPs found": f"{len(pgx_snps)}/{len(PGX_SNPS)}",
         "Genes profiled": str(len(profiles)),
         "Drugs assessed": str(n_total),
+        "Version": REPORTER_VERSION,
     }
     meta_parts = [
         f"<p><strong>{_html.escape(k)}:</strong> {_html.escape(v)}</p>"
@@ -2098,9 +2209,14 @@ def generate_html_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_r
     ]
     meta_html = f'<div class="metadata">{"".join(meta_parts)}</div>'
     b.add_details("Input Details (click to expand)", meta_html)
+    b.add_details("Reproducibility",
+                  "<p>Run <code>bash reproducibility/commands.sh</code> from the report "
+                  "directory. The script preserves paths and options and refuses to "
+                  "overwrite its reproduced output. Output checksums are in "
+                  "<code>reproducibility/checksums.sha256</code>.</p>")
 
     # ── Footer ──
-    b.add_footer_block("PharmGx Reporter", "0.2.0")
+    b.add_footer_block("PharmGx Reporter", REPORTER_VERSION)
 
     return b.render()
 
@@ -2109,31 +2225,29 @@ def generate_html_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_r
 # 8. Main
 # ---------------------------------------------------------------------------
 
-def write_commands_sh(output_dir, input_path):
+def write_commands_sh(output_dir, input_path, no_enrich=False):
     """Write reproducibility/commands.sh with the exact command to regenerate the report.
 
     The SKILL.md output contract documents output_dir/reproducibility/commands.sh,
     so the script must always produce it (not rely on the calling agent to create it).
     Returns the path to the written file.
     """
-    repro_dir = Path(output_dir) / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
-    fname = Path(input_path).name
-    checksum = sha256_file(str(input_path))
-    script = "\n".join([
-        "#!/usr/bin/env bash",
-        "# Reproduce this ClawBio PharmGx report.",
-        f"# Input file: {fname}",
-        f"# Input SHA-256: {checksum}",
+    source = Path(input_path).resolve()
+    target = Path(output_dir).resolve() / "reproduced"
+    args = ["uv", "run", "--locked", "--project", str(_PROJECT_ROOT), "python",
+            str(Path(__file__).resolve()), "--input", str(source), "--output", str(target)]
+    if no_enrich:
+        args.append("--no-enrich")
+    command = "\n".join([
+        f"# Input SHA-256: {sha256_file(source)}",
         "set -euo pipefail",
-        "",
-        f"python pharmgx_reporter.py --input {fname} --output report",
-        "",
+        f"if [ -e {shlex.quote(str(target))} ]; then",
+        "  printf 'Reproduction output already exists; choose a new directory.\\n' >&2",
+        "  exit 1",
+        "fi",
+        shlex.join(args),
     ])
-    path = repro_dir / "commands.sh"
-    path.write_text(script)
-    path.chmod(0o755)
-    return path
+    return _write_commands_sh(output_dir, command)
 
 
 def main():
@@ -2165,7 +2279,7 @@ def main():
         print(f"Error: input file not found: {args.input}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"ClawBio PharmGx Reporter v0.2.0")
+    print(f"ClawBio PharmGx Reporter v{REPORTER_VERSION}")
     print(f"================================")
     print()
 
@@ -2200,39 +2314,8 @@ def main():
         sys.exit(1)
 
     # Profile genes
-    profiles = {}
-    for gene in GENE_DEFS:
-        diplotype = call_diplotype(gene, pgx_snps)
-        phenotype = call_phenotype(gene, diplotype)
-        profiles[gene] = {"diplotype": diplotype, "phenotype": phenotype}
+    profiles = build_profiles(pgx_snps, ref_genome=ref_genome)
 
-    # Genotypes are matched to the PGx panel by rsID, not by coordinate, so a
-    # GRCh37 file calls identically to the same sample on GRCh38. Only a file
-    # whose coordinates match no known build is withheld: that signals a
-    # corrupt or mis-annotated input whose rsIDs cannot be trusted either.
-    if ref_genome == "unknown_build":
-        for gene in profiles:
-            profiles[gene] = {
-                "diplotype": "Indeterminate (coordinates match no known build)",
-                "phenotype": "Indeterminate (unrecognised reference genome)",
-            }
-
-    # UGT1A1: If the SV marker SNP (rs8175347) is missing from input,
-    # mark UGT1A1 as incomplete/Indeterminate since the key allele (*28)
-    # cannot be assessed. rs8175347 is a TA-repeat polymorphism that most
-    # DTC platforms omit entirely, making any UGT1A1 call without it unreliable.
-    if "UGT1A1" in profiles and ref_genome != "unknown_build":
-        ugt_sv_rsid = "rs8175347"
-        ugt_snp_rsid = "rs4148323"
-        has_sv = ugt_sv_rsid in pgx_snps
-        has_snp = ugt_snp_rsid in pgx_snps
-        if not has_sv:
-            # *28 repeat marker absent: UGT1A1 coverage is incomplete.
-            # Cannot reliably assess the most clinically important allele.
-            profiles["UGT1A1"] = {
-                "diplotype": "Indeterminate (rs8175347 not tested)",
-                "phenotype": "Indeterminate (rs8175347 not tested)",
-            }
 
     not_tested = [g for g, p in profiles.items() if p["diplotype"] == "NOT_TESTED"]
     if not_tested:
@@ -2315,10 +2398,15 @@ def main():
     html_path = write_html_report(outdir, "report.html", html_content)
 
     # Write result.json using shared report helper
-    input_checksum = sha256_hex(str(args.input))
+    input_checksum = sha256_file(args.input)
     result_data = {
+        "pgx_snps": pgx_snps,
         "gene_profiles": profiles,
         "drug_recommendations": drug_results,
+        "marker_coverage": marker_coverage(pgx_snps),
+        "panel_limitations": PANEL_LIMITATIONS,
+        "unassessed_genes": [g[0] for g in OUT_OF_PANEL_GENES],
+        "reference_genome": ref_genome,
         "cpic_tables_checked": CPIC_TABLES_CHECKED,
     }
     if clinpgx_enrichment:
@@ -2326,7 +2414,7 @@ def main():
     result_json_path = write_result_json(
         output_dir=outdir,
         skill="pharmgx",
-        version="0.2.0",
+        version=REPORTER_VERSION,
         summary={
             "total_snps_in_file": total_snps,
             "pgx_snps_found": len(pgx_snps),
@@ -2344,7 +2432,13 @@ def main():
     )
 
     # Write reproducibility/commands.sh (documented in the SKILL.md output contract)
-    commands_path = write_commands_sh(outdir, args.input)
+    commands_path = write_commands_sh(outdir, args.input, no_enrich=args.no_enrich)
+    environment_path = write_environment_yml(
+        outdir, "clawbio-pharmgx", pip_deps=[],
+        python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
+    )
+    write_checksums([report_path, html_path, result_json_path, commands_path, environment_path],
+                    outdir, anchor=outdir)
 
     print(f"Report saved: {report_path}")
     print(f"HTML report:  {html_path}")
