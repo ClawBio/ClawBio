@@ -1118,5 +1118,9 @@ def _enforce_varlociraptor_contamination(
 
 # --- output writing --------------------------------------------------------
 
-def _write_normalized_samplesheet(output_path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
+def _write_normalized_samplesheet(
+    output_path: Path,
+    fieldnames: list[str],
+    rows: list[dict[str, str]],
+) -> None:
     write_csv_lf(output_path, fieldnames, rows)

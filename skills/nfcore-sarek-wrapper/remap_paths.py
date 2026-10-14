@@ -196,8 +196,21 @@ def find_params(bundle_dir: Path | None = None) -> Path | None:
     return p if p.exists() else None
 
 
-def remap_csv(samplesheet: Path, old_prefix: str, new_prefix: str, *, dry_run: bool) -> list[tuple[str, str, str]]:
-    return _nfcore_remap_csv(samplesheet, old_prefix, new_prefix, columns=_REMAPPABLE_COLUMNS, dry_run=dry_run)
+def remap_csv(
+    samplesheet: Path,
+    old_prefix: str,
+    new_prefix: str,
+    *,
+    dry_run: bool,
+) -> list[tuple[str, str, str]]:
+    """Return list of (column, old_path, new_path) for every changed cell."""
+    return _nfcore_remap_csv(
+        samplesheet,
+        old_prefix,
+        new_prefix,
+        columns=_REMAPPABLE_COLUMNS,
+        dry_run=dry_run,
+    )
 
 
 def remap_commands_references(

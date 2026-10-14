@@ -795,5 +795,9 @@ def _reject_inconsistent_repeated_sample_metadata(
         )
 
 
-def _write_normalized_samplesheet(output_path: Path, output_columns: list[str], normalized_rows: list[dict[str, str]]) -> None:
+def _write_normalized_samplesheet(
+    output_path: Path,
+    output_columns: list[str],
+    normalized_rows: list[dict[str, str]],
+) -> None:
     write_csv_lf(output_path, output_columns, normalized_rows)
