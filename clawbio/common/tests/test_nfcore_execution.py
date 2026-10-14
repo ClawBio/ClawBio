@@ -2,6 +2,7 @@
 
 import importlib
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -13,11 +14,6 @@ def _run(api, command, output, **overrides):
         output_dir=output,
         timeout_seconds=overrides.pop("timeout_seconds", 10),
         timeout_fix="site-specific timeout advice",
-        terminate_process=api.terminate_process_tree,
-        terminate_on_interrupt=False,
-        failure_hint=lambda stdout, stderr, log: api.environment_failure_hints(
-            stdout, stderr, log
-        ),
         **overrides,
     )
 
@@ -75,3 +71,36 @@ def test_timeout_uses_supplied_advice_and_cleans_up(tmp_path):
         )
     assert failure.value.fix == "site-specific timeout advice"
     assert failure.value.details == {"timeout_seconds": 0.02}
+
+
+def test_pipeline_hint_follows_the_shared_environment_hints(tmp_path):
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    errors = importlib.import_module("clawbio.common.nfcore.errors")
+    (tmp_path / ".nextflow.log").write_text("Network is unreachable")
+    with pytest.raises(errors.SkillError) as failure:
+        _run(
+            api,
+            [sys.executable, "-c", "raise SystemExit(1)"],
+            tmp_path,
+            pipeline_failure_hint=lambda stdout, stderr: " PIPELINE-HINT",
+        )
+    fix = failure.value.fix
+    assert fix.startswith("Inspect logs/stdout.txt")
+    assert fix.index("preferIPv6Addresses") < fix.index(" PIPELINE-HINT")
+    assert fix.endswith(" PIPELINE-HINT")
+
+
+@pytest.mark.parametrize(
+    ("platform", "under_tmp", "expected"),
+    [("darwin", True, True), ("darwin", False, False), ("linux", True, False)],
+)
+def test_macos_tmp_hint_only_for_macos_output_under_tmp(
+    platform, under_tmp, expected, monkeypatch
+):
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(api, "is_under_tmp", lambda _path: under_tmp)
+    hint = api.macos_tmp_failure_hint(Path("/tmp/run"))
+    assert bool(hint) is expected
+    if expected:
+        assert "/tmp" in hint and "HOME" in hint

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore.paths import is_under_tmp as _shared_is_under_tmp
-
 import re
 from pathlib import Path
+
+from clawbio.common.nfcore.paths import is_under_tmp  # noqa: F401 - single predicate for preflight and execution
 
 
 SKILL_NAME = "nfcore-rnaseq-wrapper"
@@ -50,10 +50,6 @@ SUPPORTED_PROFILES = {
 }
 JAVA_MIN_VERSION = 17
 NEXTFLOW_MIN_VERSION = (25, 4, 3)
-
-
-def is_under_tmp(path: Path) -> bool:
-    return _shared_is_under_tmp(path)
 PIPELINE_REQUIRED_FILES = ("main.nf", "nextflow.config", "assets/schema_input.json")
 
 SUPPORTED_ALIGNERS = {"star_salmon", "star_rsem", "hisat2", "bowtie2_salmon"}

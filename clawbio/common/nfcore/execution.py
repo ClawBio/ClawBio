@@ -1,4 +1,4 @@
-"""Nextflow process mechanics with explicit caller-specific failure policy."""
+"""Nextflow process mechanics; callers supply only pipeline-specific advice."""
 
 from __future__ import annotations
 
@@ -10,6 +10,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .errors import SkillError
+from .paths import is_under_tmp
+
+_TERMINATION_GRACE_SECONDS = 10
 
 _MEMORY_FAILURE_SIGNATURES = (
     "process requirement exceeds available memory",
@@ -29,13 +32,30 @@ _CONFIG_PARSE_FAILURE_SIGNATURES = (
 )
 
 
-def _read_log_tail(path: Path, limit: int = 65536) -> str:
+def read_log_tail(path: Path, limit: int = 65536) -> str:
     """Best-effort tail read of a captured log; never raises."""
     try:
         with path.open("r", encoding="utf-8", errors="replace") as fh:
             return fh.read()[-limit:]
     except OSError:
         return ""
+
+
+def macos_tmp_failure_hint(output_dir: Path) -> str:
+    """Extra fix hint when a run fails with --output under /tmp on macOS.
+
+    Colima/Docker on macOS does not share /tmp into the VM, a frequent cause of
+    '.command.run: No such file or directory' mid-run. Preflight already WARNs about
+    this; the actionable hint is repeated on failure so the cause is obvious. Empty
+    string on other platforms or when --output is not under /tmp.
+    """
+    if sys.platform != "darwin" or not is_under_tmp(output_dir):
+        return ""
+    return (
+        " On macOS, --output is under /tmp, which Docker/Colima does not share into its VM; "
+        "this commonly surfaces as '.command.run: No such file or directory'. "
+        "Move --output to a path under your HOME directory and re-run."
+    )
 
 
 def environment_failure_hints(
@@ -45,16 +65,16 @@ def environment_failure_hints(
     failure — the host being smaller than a process request, or an unreachable
     network. Diagnosed from the actual Nextflow error text (never predicting
     pipeline resource requirements), so no thresholds are fabricated. Empty string
-    when no known signature is present. Shared verbatim across the three wrappers.
+    when no known signature is present.
 
     `.nextflow.log` is scanned in addition to stdout/stderr: when Nextflow fails while
     parsing the config (before the pipeline starts) the top-level stderr may show only
     "Unable to parse config file", while the underlying cause ("Network is unreachable")
     is recorded only in `.nextflow.log`. Without it the IPv6/NAT64 hint never shows.
     """
-    parts = [_read_log_tail(stdout_path), _read_log_tail(stderr_path)]
+    parts = [read_log_tail(stdout_path), read_log_tail(stderr_path)]
     if nextflow_log_path is not None:
-        parts.append(_read_log_tail(nextflow_log_path))
+        parts.append(read_log_tail(nextflow_log_path))
     blob = "\n".join(parts).lower()
     hints: list[str] = []
     if any(sig in blob for sig in _MEMORY_FAILURE_SIGNATURES):
@@ -92,13 +112,16 @@ def execute_nextflow(
     output_dir: Path,
     timeout_seconds: int | None,
     timeout_fix: str,
-    terminate_process: Callable[[subprocess.Popen], None],
-    terminate_on_interrupt: bool,
-    failure_hint: Callable[[Path, Path, Path], str],
+    pipeline_failure_hint: Callable[[Path, Path], str] | None = None,
 ) -> dict[str, object]:
-    # timeout_seconds=None disables the wall-clock cap entirely (long HPC/cloud
-    # runs whose walltime is enforced by the scheduler); proc.wait(timeout=None)
-    # blocks until completion.
+    """Run Nextflow with logs on disk and its whole process group under our control.
+
+    Nextflow starts in its own session so a timeout can signal the group, which also
+    means the terminal's Ctrl+C never reaches it: an interrupt must terminate the
+    group explicitly, or Nextflow outlives the wrapper still holding the .nextflow
+    lock. timeout_seconds=None disables the wall-clock cap (long HPC/cloud runs whose
+    walltime the scheduler enforces).
+    """
     logs_dir = output_dir / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     stdout_path = logs_dir / "stdout.txt"
@@ -134,11 +157,10 @@ def execute_nextflow(
         try:
             exit_code = proc.wait(timeout=timeout_seconds)
         except KeyboardInterrupt:
-            if terminate_on_interrupt:
-                terminate_process(proc)
+            terminate_process_tree(proc)
             raise
         except subprocess.TimeoutExpired:
-            terminate_process(proc)
+            terminate_process_tree(proc)
             raise SkillError(
                 stage="execution",
                 error_code="EXECUTION_FAILED",
@@ -148,14 +170,18 @@ def execute_nextflow(
             )
 
     if exit_code != 0:
+        fix = (
+            "Inspect logs/stdout.txt and logs/stderr.txt, then correct the failing input or environment."
+            + macos_tmp_failure_hint(output_dir)
+            + environment_failure_hints(stdout_path, stderr_path, cwd / ".nextflow.log")
+        )
+        if pipeline_failure_hint is not None:
+            fix += pipeline_failure_hint(stdout_path, stderr_path)
         raise SkillError(
             stage="execution",
             error_code="EXECUTION_FAILED",
             message="Nextflow execution failed.",
-            fix=(
-                "Inspect logs/stdout.txt and logs/stderr.txt, then correct the failing input or environment."
-                + failure_hint(stdout_path, stderr_path, cwd / ".nextflow.log")
-            ),
+            fix=fix,
             details={
                 "exit_code": exit_code,
                 "stdout": str(stdout_path),
@@ -170,35 +196,37 @@ def execute_nextflow(
     }
 
 
-def terminate_process_tree(proc: subprocess.Popen, *, grace_seconds: int = 10) -> None:
-    if sys.platform != "win32":
-        try:
-            pgid = os.getpgid(proc.pid)
-            os.killpg(pgid, signal.SIGTERM)
-            proc.wait(timeout=grace_seconds)
-            return
-        except (OSError, ProcessLookupError, subprocess.TimeoutExpired):
-            pass
-        try:
-            pgid = os.getpgid(proc.pid)
-            os.killpg(pgid, signal.SIGKILL)
-            proc.wait()
-            return
-        except (OSError, ProcessLookupError, subprocess.TimeoutExpired):
-            pass
-    else:
+def terminate_process_tree(
+    proc: subprocess.Popen, *, grace_seconds: int = _TERMINATION_GRACE_SECONDS
+) -> None:
+    """Stop Nextflow and the task processes it spawned, never only the parent."""
+    if sys.platform == "win32":
+        # Windows has no os.killpg; ``taskkill /T`` terminates the whole child tree.
+        # Bounded so a hung taskkill cannot block the wrapper, and followed by
+        # proc.kill() in case taskkill is unavailable. Native Windows is not
+        # officially supported (preflight warns); WSL2 reports "linux".
         try:
             subprocess.run(
-                ["taskkill", "/T", "/F", "/PID", str(proc.pid)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True,
+                timeout=grace_seconds,
             )
-            return
         except (OSError, subprocess.SubprocessError):
             pass
-    proc.kill()
-    try:
+        proc.kill()
         proc.wait()
-    except subprocess.TimeoutExpired:
+        return
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        proc.wait(timeout=grace_seconds)
+        return
+    except (OSError, subprocess.TimeoutExpired):
         pass
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        proc.wait()
+        return
+    except OSError:
+        pass
+    proc.kill()
+    proc.wait()

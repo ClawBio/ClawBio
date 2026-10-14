@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore.paths import is_under_tmp as _shared_is_under_tmp
-
 from pathlib import Path
+
+from clawbio.common.nfcore.paths import is_under_tmp  # noqa: F401 - single predicate for preflight and execution
 
 
 SKILL_NAME = "nfcore-scrnaseq-wrapper"
@@ -114,10 +114,6 @@ AUXILIARY_PATH_FIELDS = (
 SYMBOLIC_REFERENCE_FIELDS = ("genome", "cellrangerarc_reference")
 # Every local path written to params.yaml / existence-checked in preflight.
 ALL_REFERENCE_PATH_FIELDS = GENOME_REFERENCE_FIELDS + AUXILIARY_PATH_FIELDS
-
-
-def is_under_tmp(path: Path) -> bool:
-    return _shared_is_under_tmp(path)
 
 
 def profile_components(profile: str) -> list[str]:

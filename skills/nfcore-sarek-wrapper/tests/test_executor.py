@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import shlex
+import signal
+import sys
+import threading
+import time
 
 import pytest
 
-import executor as executor_module
+from clawbio.common.nfcore import execution as shared_execution
 from errors import SkillError
 from executor import execute_nextflow
 
@@ -44,8 +49,8 @@ def test_macos_tmp_failure_hint_appended_on_failure(tmp_path, monkeypatch):
     nfcore-scrnaseq / nfcore-rnaseq)."""
     output_dir = tmp_path / "out"
     output_dir.mkdir()
-    monkeypatch.setattr(executor_module.sys, "platform", "darwin")
-    monkeypatch.setattr(executor_module, "is_under_tmp", lambda _p: True, raising=False)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(shared_execution, "is_under_tmp", lambda _p: True)
     with pytest.raises(SkillError) as exc:
         execute_nextflow(["sh", "-c", "exit 1"], cwd=output_dir, output_dir=output_dir, timeout_seconds=30)
     assert "No such file or directory" in exc.value.fix
@@ -56,8 +61,8 @@ def test_macos_tmp_failure_hint_absent_when_not_under_tmp(tmp_path, monkeypatch)
     """The macOS /tmp hint must not appear for a non-/tmp output directory."""
     output_dir = tmp_path / "out"
     output_dir.mkdir()
-    monkeypatch.setattr(executor_module.sys, "platform", "darwin")
-    monkeypatch.setattr(executor_module, "is_under_tmp", lambda _p: False, raising=False)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(shared_execution, "is_under_tmp", lambda _p: False)
     with pytest.raises(SkillError) as exc:
         execute_nextflow(["sh", "-c", "exit 1"], cwd=output_dir, output_dir=output_dir, timeout_seconds=30)
     assert "No such file or directory" not in exc.value.fix
@@ -149,3 +154,27 @@ def test_no_config_parse_hint_without_signal(tmp_path):
             cwd=output_dir, output_dir=output_dir, timeout_seconds=30,
         )
     assert "NXF_OFFLINE" not in exc.value.fix
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups and SIGINT")
+def test_ctrl_c_terminates_nextflow_instead_of_orphaning_it(tmp_path):
+    """Nextflow runs in its own session, so the terminal's SIGINT never reaches it.
+    Ctrl+C must therefore stop the child explicitly, or Nextflow keeps running (and
+    holds the .nextflow lock) after the wrapper has exited 130."""
+    pid_file = tmp_path / "child.pid"
+
+    def interrupt_once_child_runs() -> None:
+        deadline = time.monotonic() + 10
+        while not pid_file.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        if pid_file.exists():
+            os.kill(os.getpid(), signal.SIGINT)
+
+    threading.Thread(target=interrupt_once_child_runs, daemon=True).start()
+    with pytest.raises(KeyboardInterrupt):
+        execute_nextflow(
+            ["sh", "-c", f"echo $$ > {shlex.quote(str(pid_file))}; exec sleep 60"],
+            cwd=tmp_path, output_dir=tmp_path, timeout_seconds=None,
+        )
+    with pytest.raises(ProcessLookupError):
+        os.kill(int(pid_file.read_text()), 0)

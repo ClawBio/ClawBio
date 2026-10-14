@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import shlex
+import signal
 import subprocess
 import sys
+import threading
+import time
 
 import pytest
+
+from clawbio.common.nfcore import execution as shared_execution
 
 _SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_SKILL_DIR))
@@ -35,7 +41,6 @@ def _remove_skill_dir_from_sys_path() -> None:
 _purge_foreign_modules("errors", "executor")
 
 from errors import SkillError
-import executor as executor_module
 from executor import execute_nextflow
 
 _purge_local_modules("errors", "executor")
@@ -88,8 +93,8 @@ def test_execute_nextflow_failure_appends_macos_tmp_hint(tmp_path, monkeypatch):
     nfcore-scrnaseq), so the silent cause of the failure is surfaced."""
     proc = _MockProc(returncode=1)
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
-    monkeypatch.setattr(executor_module.sys, "platform", "darwin")
-    monkeypatch.setattr(executor_module, "is_under_tmp", lambda _p: True, raising=False)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(shared_execution, "is_under_tmp", lambda _p: True)
     with pytest.raises(SkillError) as exc:
         execute_nextflow(["nextflow", "run", "test"], cwd=tmp_path, output_dir=tmp_path, timeout_seconds=60)
     assert "No such file or directory" in exc.value.fix
@@ -100,8 +105,8 @@ def test_execute_nextflow_failure_no_tmp_hint_when_not_under_tmp(tmp_path, monke
     """The macOS /tmp hint must not appear for a non-/tmp output directory."""
     proc = _MockProc(returncode=1)
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
-    monkeypatch.setattr(executor_module.sys, "platform", "darwin")
-    monkeypatch.setattr(executor_module, "is_under_tmp", lambda _p: False, raising=False)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(shared_execution, "is_under_tmp", lambda _p: False)
     with pytest.raises(SkillError) as exc:
         execute_nextflow(["nextflow", "run", "test"], cwd=tmp_path, output_dir=tmp_path, timeout_seconds=60)
     assert "No such file or directory" not in exc.value.fix
@@ -128,8 +133,8 @@ def test_execute_nextflow_terminates_process_group_on_posix_timeout(tmp_path, mo
 
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
-    monkeypatch.setattr(executor_module.os, "getpgid", lambda pid: pgid)
-    monkeypatch.setattr(executor_module.os, "killpg", lambda sent_pgid, sig: signals_sent.append((sent_pgid, sig)))
+    monkeypatch.setattr(os, "getpgid", lambda pid: pgid)
+    monkeypatch.setattr(os, "killpg", lambda sent_pgid, sig: signals_sent.append((sent_pgid, sig)))
 
     with pytest.raises(SkillError):
         execute_nextflow(["nextflow", "run", "test"], cwd=tmp_path, output_dir=tmp_path, timeout_seconds=1)
@@ -137,6 +142,30 @@ def test_execute_nextflow_terminates_process_group_on_posix_timeout(tmp_path, mo
     assert signals_sent
     assert all(sent_pgid == pgid for sent_pgid, _ in signals_sent)
     assert proc.killed is False
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups and SIGINT")
+def test_ctrl_c_terminates_nextflow_instead_of_orphaning_it(tmp_path):
+    """Nextflow runs in its own session, so the terminal's SIGINT never reaches it.
+    Ctrl+C must therefore stop the child explicitly, or Nextflow keeps running (and
+    holds the .nextflow lock) after the wrapper has exited 130."""
+    pid_file = tmp_path / "child.pid"
+
+    def interrupt_once_child_runs() -> None:
+        deadline = time.monotonic() + 10
+        while not pid_file.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        if pid_file.exists():
+            os.kill(os.getpid(), signal.SIGINT)
+
+    threading.Thread(target=interrupt_once_child_runs, daemon=True).start()
+    with pytest.raises(KeyboardInterrupt):
+        execute_nextflow(
+            ["sh", "-c", f"echo $$ > {shlex.quote(str(pid_file))}; exec sleep 60"],
+            cwd=tmp_path, output_dir=tmp_path, timeout_seconds=None,
+        )
+    with pytest.raises(ProcessLookupError):
+        os.kill(int(pid_file.read_text()), 0)
 
 
 def test_execute_nextflow_cleans_up_empty_logs_on_popen_failure(tmp_path, monkeypatch):
@@ -175,7 +204,7 @@ def test_timeout_error_fix_mentions_leftover_containers(tmp_path, monkeypatch):
 
 
 def test_terminate_process_tree_falls_back_to_sigkill_when_sigterm_times_out(monkeypatch):
-    """_terminate_process_tree must send SIGKILL when SIGTERM's wait() times out."""
+    """terminate_process_tree must send SIGKILL when SIGTERM's wait() times out."""
     import signal as signal_module
 
     signals_sent: list[int] = []
@@ -201,14 +230,14 @@ def test_terminate_process_tree_falls_back_to_sigkill_when_sigterm_times_out(mon
     pgid = 9999
 
     monkeypatch.setattr(sys, "platform", "linux")
-    monkeypatch.setattr(executor_module.os, "getpgid", lambda pid: pgid)
+    monkeypatch.setattr(os, "getpgid", lambda pid: pgid)
     monkeypatch.setattr(
-        executor_module.os,
+        os,
         "killpg",
         lambda sent_pgid, sig: signals_sent.append(sig),
     )
 
-    executor_module._terminate_process_tree(proc)
+    shared_execution.terminate_process_tree(proc)
 
     # SIGTERM must be sent first, then SIGKILL as the fallback — order matters.
     assert signals_sent == [signal_module.SIGTERM, signal_module.SIGKILL], (

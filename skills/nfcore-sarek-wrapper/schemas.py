@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore.paths import is_under_tmp as _shared_is_under_tmp
-
 from pathlib import Path
+
+from clawbio.common.nfcore.paths import is_under_tmp  # noqa: F401 - single predicate for preflight and execution
 
 
 SKILL_NAME = "nfcore-sarek-wrapper"
@@ -29,9 +29,6 @@ JAVA_MIN_VERSION = 17
 NEXTFLOW_MIN_VERSION = (25, 10, 2)
 PIPELINE_REQUIRED_FILES = ("main.nf", "nextflow.config", "assets/schema_input.json")
 
-
-def is_under_tmp(path: Path) -> bool:
-    return _shared_is_under_tmp(path)
 
 # 25 profiles from nf-core/sarek 3.8.1 nextflow.config (verified against
 # https://github.com/nf-core/sarek/blob/3.8.1/nextflow.config — profiles block).
