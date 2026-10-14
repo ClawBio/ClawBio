@@ -46,7 +46,7 @@ Inspired by [Sasha Gusev's GWAS Lookup](https://sashagusev.github.io/gwas_lookup
 | Database | Endpoint | Coordinates |
 |----------|----------|-------------|
 | Ensembl | REST /variation + /vep | GRCh38 |
-| GWAS Catalog | EBI REST API | GRCh38 |
+| GWAS Catalog | EBI REST API v2 | GRCh38 |
 | Open Targets Platform | GraphQL v4 (GWAS credible sets) | GRCh38 |
 | UKB-TOPMed PheWeb | PheWeb API | GRCh38 |
 | FinnGen r12 | PheWeb API | GRCh38 |

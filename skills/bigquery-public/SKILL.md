@@ -155,6 +155,8 @@ output_directory/
 - `google-cloud-bigquery` — Python BigQuery client
 - `google-auth` — ADC detection and auth
 
+Both ship in the `bigquery` extra: `uv sync --extra bigquery`.
+
 **Optional**:
 - `bq` CLI — fallback backend when ADC is missing
 

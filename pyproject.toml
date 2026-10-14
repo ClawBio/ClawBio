@@ -42,8 +42,6 @@ classifiers = [
 dependencies = [
     "biopython>=1.88",
     "conda-lock>=4.0.2",
-    "google-auth>=2.58.0,<3",
-    "google-cloud-bigquery>=3.45.2,<4",
     "matplotlib>=3.11.2",
     "numpy>=2.4.6",
     "openai>=3.17.0",
@@ -103,6 +101,12 @@ drug-repurposing-screen = ["pyarrow>=14.0"]
 spatial = [
     "scanpy>=1.10",
     "leidenalg>=0.10",
+]
+# Python BigQuery client for skills/bigquery-public, which imports it lazily
+# and falls back to the `bq` CLI when it is absent.
+bigquery = [
+    "google-auth>=2.58.0,<3",
+    "google-cloud-bigquery>=3.45.2,<4",
 ]
 # The Robotary web UI (robotary/server.py).
 robotary = [

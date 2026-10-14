@@ -16,9 +16,20 @@ genotype reporting tool; clinical integration decisions rest with the end user.
 
 import argparse
 import json
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 
 # pandas removed: not used in this module
 
@@ -713,7 +724,7 @@ def main() -> None:
         description="ClawBio claw-methylation-cycle v0.1.3 - Methylation cycle analysis with BH4 axis"
     )
     parser.add_argument(
-        "--input", required=True, type=Path,
+        "--input", type=Path,
         help="Path to raw genotype file (23andMe / AncestryDNA / ADNTRO format)"
     )
     parser.add_argument(
@@ -725,6 +736,8 @@ def main() -> None:
         help="Run with demo_input.txt from the skill directory"
     )
     args = parser.parse_args()
+    if not args.demo and args.input is None:
+        parser.error("--input is required unless --demo is given")
 
     if args.demo:
         demo_path = Path(__file__).parent / "demo_input.txt"
@@ -762,6 +775,14 @@ def main() -> None:
     json_path = output_dir / "result.json"
     json_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"JSON written to {json_path}")
+
+    # Reproducibility bundle
+    cmd = ["python", "skills/claw-methylation-cycle/methylation_cycle.py"]
+    cmd += ["--demo"] if args.demo else ["--input", str(input_path)]
+    cmd += ["--output", str(output_dir)]
+    write_commands_sh(output_dir, shlex.join(cmd))
+    env_path = write_environment_yml(output_dir, "clawbio-claw-methylation-cycle", pip_deps=[])
+    write_checksums([report_path, json_path, env_path], output_dir, anchor=output_dir)
 
     print("\nDone. ClawBio is a research tool. Not a medical device.")
 
