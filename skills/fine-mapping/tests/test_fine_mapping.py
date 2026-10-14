@@ -1,4 +1,5 @@
 """Tests for the SuSiE fine-mapping skill."""
+import importlib.util
 import sys
 import warnings
 import json
@@ -23,6 +24,8 @@ from fine_mapping_core.credible_sets import (
 )
 from fine_mapping_core.io import load_sumstats, load_ld
 from fine_mapping_core.report import generate_markdown
+
+needs_jax = pytest.mark.skipif(importlib.util.find_spec("jax") is None, reason="needs jax (uv sync --extra fine-mapping)")
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +155,7 @@ class TestABF:
 class TestSuSiE:
     """Tests for the sushie-backed SuSiE engine adapter."""
 
+    @needs_jax
     def test_pip_shape(self):
         """run_susie returns PIPs with correct shape."""
         df = _small_locus(n=20)
@@ -159,6 +163,7 @@ class TestSuSiE:
         result = run_susie(z=df["z"].values, R=R, n=5000, L=5)
         assert result["pip"].shape == (20,)
 
+    @needs_jax
     def test_pip_range(self):
         """All PIPs are in [0, 1]."""
         df = _small_locus(n=20)
@@ -167,6 +172,7 @@ class TestSuSiE:
         assert result["pip"].min() >= 0.0
         assert result["pip"].max() <= 1.0
 
+    @needs_jax
     def test_signal_recovers_high_pip(self):
         """The injected signal at index 10 has the highest PIP."""
         df = _small_locus(n=20)
@@ -174,6 +180,7 @@ class TestSuSiE:
         result = run_susie(z=df["z"].values, R=R, n=5000, L=5)
         assert result["pip"].argmax() == 10
 
+    @needs_jax
     def test_alpha_contains_only_active_signals(self):
         """alpha keeps only signals sushie retained as credible sets.
 
@@ -187,12 +194,14 @@ class TestSuSiE:
         assert result["alpha"].shape == (1, 20)
         np.testing.assert_allclose(result["alpha"].sum(axis=1), 1.0, atol=1e-4)
 
+    @needs_jax
     def test_two_signal_demo_keeps_two_alpha_rows(self):
         """Demo locus (two causal variants) keeps exactly two active signals."""
         df, R = fine_mapping.make_demo_data(seed=42)
         result = run_susie(z=df["z"].values, R=R, n=5000, L=10)
         assert result["alpha"].shape == (2, 200)
 
+    @needs_jax
     def test_engine_is_sushie(self):
         """The engine tag identifies the sushie implementation."""
         df = _small_locus(n=20)
@@ -200,6 +209,7 @@ class TestSuSiE:
         result = run_susie(z=df["z"].values, R=R, n=5000, L=3)
         assert result["engine"] == "sushie"
 
+    @needs_jax
     def test_converges_on_clean_signal(self):
         """The engine converges for a clean single signal and reports n_iter."""
         df = _small_locus(n=20)
@@ -208,6 +218,7 @@ class TestSuSiE:
         assert result["converged"] is True
         assert result["n_iter"] >= 1
 
+    @needs_jax
     def test_elbo_tracked(self):
         """ELBO history is recorded and contains finite values."""
         df = _small_locus(n=20)
@@ -217,6 +228,7 @@ class TestSuSiE:
         assert len(elbo) >= 1
         assert all(np.isfinite(e) for e in elbo)
 
+    @needs_jax
     def test_two_signals_recovered(self):
         """Demo locus with two injected causal variants: BOTH are recovered.
 
@@ -234,6 +246,7 @@ class TestSuSiE:
         leads = sorted(int(np.argmax(row)) for row in result["alpha"])
         assert leads == [60, 140], f"credible-set leads were {leads}"
 
+    @needs_jax
     def test_null_locus_no_phantom_pip(self):
         """Null locus (z=0 everywhere) produces near-zero PIPs."""
         p = 50
@@ -247,6 +260,7 @@ class TestSuSiE:
         # No signal survives pruning, so no alpha rows remain
         assert result["alpha"].shape == (0, p)
 
+    @needs_jax
     def test_single_strong_signal_high_pip(self):
         """A lone strong signal receives PIP > 0.8."""
         p = 50
@@ -272,6 +286,7 @@ class TestSuSiE:
         with pytest.raises(ValueError, match="positive"):
             run_susie(z=df["z"].values, R=_identity_ld(20), n=0, L=3)
 
+    @needs_jax
     def test_deterministic(self):
         """Two runs on identical input give identical PIPs."""
         df = _small_locus(n=20)
@@ -299,6 +314,7 @@ class TestSuSiEBenchmarkContract:
 
     HARNESS_KWARGS = dict(w=0.04, max_iter=100, tol=1e-3, min_purity=0.5)
 
+    @needs_jax
     def test_accepts_harness_keyword_set(self):
         """The exact driver call shape does not raise TypeError."""
         df = _small_locus(n=20)
@@ -308,6 +324,7 @@ class TestSuSiEBenchmarkContract:
         )
         assert result["pip"].shape == (20,)
 
+    @needs_jax
     def test_returns_posterior_moments(self):
         """mu (post mean) and mu2 (post second moment) are exposed per signal."""
         df = _small_locus(n=20)
@@ -316,6 +333,7 @@ class TestSuSiEBenchmarkContract:
         assert result["mu"].shape == (n_signals, 20)
         assert result["mu2"].shape == (n_signals, 20)
 
+    @needs_jax
     def test_mu2_is_second_moment_not_variance(self):
         """mu2 >= mu**2 elementwise — it is E[b^2], not Var(b).
 
@@ -326,6 +344,7 @@ class TestSuSiEBenchmarkContract:
         result = run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=5)
         assert np.all(result["mu2"] >= result["mu"] ** 2 - 1e-9)
 
+    @needs_jax
     def test_moments_align_with_alpha_rows(self):
         """mu/mu2 are pruned to the same kept signals as alpha."""
         p = 50
@@ -335,6 +354,7 @@ class TestSuSiEBenchmarkContract:
         assert result["mu"].shape == (0, p)
         assert result["mu2"].shape == (0, p)
 
+    @needs_jax
     def test_min_purity_forwarded_to_engine(self, monkeypatch):
         """min_purity sets sushie's own purity pruning threshold.
 
@@ -355,6 +375,7 @@ class TestSuSiEBenchmarkContract:
                   min_purity=0.8)
         assert seen["purity"] == 0.8
 
+    @needs_jax
     def test_prior_variance_seeds_effect_var(self, monkeypatch):
         """w seeds sushie's prior effect variance rather than being discarded."""
         from sushie.infer_ss import infer_sushie_ss as real_infer
@@ -371,6 +392,7 @@ class TestSuSiEBenchmarkContract:
         assert seen["effect_var"] is not None
         assert float(np.ravel(seen["effect_var"])[0]) == pytest.approx(0.09)
 
+    @needs_jax
     def test_nonconvergence_warns_and_flags(self):
         """Hitting max_iter warns (as susieR does) and reports converged=False.
 
@@ -386,6 +408,7 @@ class TestSuSiEBenchmarkContract:
         assert result["n_iter"] == 1
         assert np.all(np.isfinite(result["pip"]))
 
+    @needs_jax
     def test_coverage_forwarded_to_engine(self, monkeypatch):
         """coverage sets sushie's credible-set threshold at fit time.
 
@@ -406,6 +429,7 @@ class TestSuSiEBenchmarkContract:
                   coverage=0.9)
         assert seen["threshold"] == 0.9
 
+    @needs_jax
     def test_locus_smaller_than_L_still_runs(self):
         """A 9-variant locus under the CLI default L=10 must not error.
 
@@ -421,6 +445,7 @@ class TestSuSiEBenchmarkContract:
         assert result["pip"].shape == (p_small,)
         assert int(result["pip"].argmax()) == 3
 
+    @needs_jax
     def test_L_at_or_below_p_is_not_clamped(self):
         """The clamp is a guard, not a rewrite: L <= p passes through silently."""
         df = _small_locus(n=20)
@@ -429,6 +454,7 @@ class TestSuSiEBenchmarkContract:
             result = run_susie(z=df["z"].values, R=_identity_ld(20), n=5000, L=5)
         assert result["pip"].shape == (20,)
 
+    @needs_jax
     def test_x64_flag_is_restored(self):
         """jax.config is process-global; run_susie must not leave it flipped.
 
@@ -446,6 +472,7 @@ class TestSuSiEBenchmarkContract:
         finally:
             jax.config.update("jax_enable_x64", before)
 
+    @needs_jax
     def test_max_iter_echoed_back(self):
         """The report needs the budget, not just the iterations used."""
         df = _small_locus(n=20)
@@ -471,6 +498,7 @@ _KNOWN_ANSWER_PATH = (
 )
 
 
+@needs_jax
 class TestSuSiEKnownAnswer:
     """Pin the engine's actual numbers, not just their shapes.
 
@@ -616,6 +644,7 @@ class TestCredibleSets:
         cs_list = build_credible_set_abf(pip=df["pip"].values, df=df, coverage=0.95)
         assert cs_list[0]["coverage"] >= 0.95
 
+    @needs_jax
     def test_susie_credible_sets_structure(self):
         """build_credible_sets_susie returns list of dicts with expected keys."""
         df = _small_locus(n=20)
@@ -627,6 +656,7 @@ class TestCredibleSets:
             for key in ("cs_id", "signal_index", "size", "coverage", "lead_rsid", "variants"):
                 assert key in cs, f"Missing key: {key}"
 
+    @needs_jax
     def test_susie_purity_flag(self):
         """Sets with purity < min_purity are flagged pure=False."""
         df = _small_locus(n=20)
@@ -807,6 +837,7 @@ def demo_run(tmp_path_factory):
 class TestRunFinemapping:
     """Integration tests for the top-level pipeline."""
 
+    @needs_jax
     def test_demo_mode_produces_outputs(self, demo_run):
         """Demo mode writes report.md, fine_mapping.json, and tables/pips.tsv."""
         _, tmp = demo_run
@@ -814,17 +845,20 @@ class TestRunFinemapping:
         assert (tmp / "fine_mapping.json").exists()
         assert (tmp / "tables" / "pips.tsv").exists()
 
+    @needs_jax
     def test_demo_results_structure(self, demo_run):
         """Demo run returns a dict with expected top-level keys."""
         results, _ = demo_run
         for key in ("method", "n_variants", "n_credible_sets", "lead_rsid", "lead_pip"):
             assert key in results, f"Missing key: {key}"
 
+    @needs_jax
     def test_demo_susie_method(self, demo_run):
         """Demo mode includes a synthetic LD matrix, so it uses SuSiE."""
         results, _ = demo_run
         assert results["method"] == "SuSiE"
 
+    @needs_jax
     def test_susie_method_with_ld(self, tmp_path):
         """When LD is provided, the pipeline uses SuSiE."""
         df, R = fine_mapping.make_demo_data(seed=42)
@@ -855,17 +889,20 @@ class TestRunFinemapping:
         )
         assert results["method"] == "ABF"
 
+    @needs_jax
     def test_lead_pip_in_range(self, demo_run):
         """Lead PIP is a valid probability in [0, 1]."""
         results, _ = demo_run
         assert 0.0 <= results["lead_pip"] <= 1.0
 
+    @needs_jax
     def test_report_contains_disclaimer(self, demo_run):
         """Generated report contains the required safety disclaimer."""
         _, tmp = demo_run
         report = (tmp / "report.md").read_text()
         assert "ClawBio is a research and educational tool" in report
 
+    @needs_jax
     def test_results_json_parseable(self, demo_run):
         """fine_mapping.json is valid JSON with expected keys."""
         _, tmp = demo_run
@@ -908,6 +945,7 @@ class TestRunFinemapping:
         # Only ~25% of the 200-variant locus falls in this window
         assert results["n_variants"] < 200
 
+    @needs_jax
     def test_gene_track_param_accepted(self, tmp_path):
         """run_finemapping accepts gene_track=True without error (figures skipped)."""
         results = fine_mapping.run_finemapping(

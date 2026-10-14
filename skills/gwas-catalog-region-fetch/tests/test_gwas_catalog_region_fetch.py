@@ -5,6 +5,7 @@ Mocks pysam.TabixFile so tests are offline. Live smoke goes in test_live_gwas_ca
 
 from __future__ import annotations
 
+import importlib.util
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,6 +17,8 @@ from gwas_catalog_region_fetch import (
     gcst_url_base,
     harmonised_file_url,
 )
+
+needs_pysam = pytest.mark.skipif(importlib.util.find_spec("pysam") is None, reason="needs pysam (uv sync --extra region-fetch)")
 
 
 # ----------------------- URL construction -----------------------
@@ -78,6 +81,7 @@ HARMONISED_HEADER = [
 ]
 
 
+@needs_pysam
 def test_fetch_region_parses_harmonised_rows(monkeypatch):
     rows = [
         "\t".join(["2_36910110_C_T", "rs10748691", "2", "36910110", "C", "T",
@@ -108,6 +112,7 @@ def test_fetch_region_parses_harmonised_rows(monkeypatch):
     tbx.close.assert_called_once()
 
 
+@needs_pysam
 def test_fetch_region_skips_rows_with_missing_essentials(monkeypatch):
     rows = [
         "\t".join(["2_36910110_C_T", "rs1", "2", "36910110", "C", "T",
@@ -124,6 +129,7 @@ def test_fetch_region_skips_rows_with_missing_essentials(monkeypatch):
     assert result.n_variants == 1
 
 
+@needs_pysam
 def test_fetch_region_handles_chr_prefix_retry(monkeypatch):
     """Tabix indexes can have 'chr2' or '2'; client retries with the alt form."""
     rows = ["\t".join(["2_1_C_T", "rs1", "2", "1", "C", "T",
@@ -146,6 +152,7 @@ def test_fetch_region_handles_chr_prefix_retry(monkeypatch):
     assert result.n_variants == 1
 
 
+@needs_pysam
 def test_fetch_region_records_release(monkeypatch):
     tbx = _mock_tabix([], HARMONISED_HEADER)
     monkeypatch.setattr("pysam.TabixFile", lambda url: tbx)
@@ -156,6 +163,7 @@ def test_fetch_region_records_release(monkeypatch):
     assert result.release.fetched_at_utc.endswith("Z")
 
 
+@needs_pysam
 def test_fetch_region_raises_on_unopenable_index(monkeypatch):
     def boom(url):
         raise OSError("could not open tabix index")
@@ -225,6 +233,7 @@ _OR_ROWS = [
 ]
 
 
+@needs_pysam
 def test_fetch_region_exposes_or_ci_without_deriving_a_beta(monkeypatch):
     tbx = _mock_tabix(_OR_ROWS, _OR_HEADER)
     monkeypatch.setattr("pysam.TabixFile", lambda url: tbx)
@@ -235,6 +244,7 @@ def test_fetch_region_exposes_or_ci_without_deriving_a_beta(monkeypatch):
     assert not any("log(OR)" in n for n in result.notes)
 
 
+@needs_pysam
 def test_cached_window_keeps_the_ci(monkeypatch, tmp_path):
     """A window served from the cache carries the same CI bounds as a fresh fetch."""
     from gwas_catalog_region_fetch import _fetch_with_cache
@@ -251,6 +261,7 @@ def test_cached_window_keeps_the_ci(monkeypatch, tmp_path):
         [(v.ci_lower, v.ci_upper) for v in fresh.variants]
 
 
+@needs_pysam
 def test_cache_entry_from_before_the_ci_fields_is_not_served(monkeypatch, tmp_path):
     """An entry under the previous key (written without CI bounds) is ignored."""
     from gwas_catalog_region_fetch import _fetch_with_cache

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 
 # The runner engine lives in clawbio.cli; import it directly so monkeypatching
@@ -68,3 +70,36 @@ def test_run_skill_passes_absolute_relative_input_to_subprocess(monkeypatch, tmp
     cmd = captured["cmd"]
     assert cmd[cmd.index("--input") + 1] == str(samplesheet)
     assert captured["cwd"] == str(PROJECT_ROOT / "skills" / "nfcore-sarek-wrapper")
+
+
+def _run_gwas(monkeypatch, tmp_path, returncode):
+    class Proc:
+        stdout = ""
+        stderr = "boom"
+
+    Proc.returncode = returncode
+    monkeypatch.setattr(clawbio_runner.subprocess, "run", lambda *a, **k: Proc())
+    clawbio_runner.run_skill(skill_name="gwas", output_dir=str(tmp_path / "out"), extra_args=["--rsid", "rs861539"])
+    log = Path(os.environ["CLAWBIO_AUDIT_LOG"])
+    return [json.loads(line) for line in log.read_text().splitlines()]
+
+
+def test_run_skill_writes_an_audit_record(monkeypatch, tmp_path):
+    (record,) = _run_gwas(monkeypatch, tmp_path, 0)
+    assert record["event"] == "skill_run"
+    assert record["gen_ai.agent.id"] == "gwas"
+    assert record["status"] == "OK"
+    assert record["output.value"] == str(tmp_path / "out")
+
+
+def test_run_skill_audit_record_marks_a_failed_run(monkeypatch, tmp_path):
+    (record,) = _run_gwas(monkeypatch, tmp_path, 2)
+    assert record["status"] == "ERROR"
+    assert "2" in record["error"]
+
+
+def test_run_skill_audit_record_carries_the_skill_md_version(monkeypatch, tmp_path):
+    (record,) = _run_gwas(monkeypatch, tmp_path, 0)
+    frontmatter = (PROJECT_ROOT / "skills" / "gwas-lookup" / "SKILL.md").read_text().split("---")[1]
+    version = next(l.split(":", 1)[1].strip() for l in frontmatter.splitlines() if l.strip().startswith("version:"))
+    assert record["gen_ai.agent.version"] == version

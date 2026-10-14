@@ -49,6 +49,56 @@ python clawbio.py run pharmgx --demo
 
 This runs the PharmGx reporter against the 21 PGx SNPs extracted from the Corpasome. The output includes a warfarin AVOID alert, gene profile table, and drug summary for 51 medications across 12 pharmacogenes.
 
+## Run PharmGx with your own genotype file
+
+From a source checkout, run `uv sync` first, then use the following Bash/Zsh
+example from the repository root. Replace the input filename with your own
+23andMe or AncestryDNA file:
+
+```bash
+INPUT_FILE="$HOME/genomes/my_genotype.txt"
+REPORT_DIR="$PWD/output/my_pharmgx_$(date +%Y%m%d_%H%M%S)"
+
+if [ ! -f "$INPUT_FILE" ]; then
+  printf 'Input file not found: %s\n' "$INPUT_FILE"
+elif [ -e "$REPORT_DIR" ]; then
+  printf 'Output already exists; choose a new directory: %s\n' "$REPORT_DIR"
+elif uv run python clawbio.py run pharmgx \
+  --input "$INPUT_FILE" \
+  --output "$REPORT_DIR"; then
+  printf 'Report directory: %s\n' "$REPORT_DIR"
+  # Optional on macOS: open the report only after a successful run.
+  if [ "$(uname -s)" = "Darwin" ]; then
+    if [ -f "$REPORT_DIR/report.html" ]; then
+      open "$REPORT_DIR/report.html"
+    elif [ -f "$REPORT_DIR/report.md" ]; then
+      open "$REPORT_DIR/report.md"
+    fi
+  fi
+fi
+```
+
+### Troubleshooting paths and missing reports
+
+- **Use either an absolute path or a path relative to your home directory.**
+  `INPUT_FILE="/path/to/my_genotype.txt"` is absolute;
+  `INPUT_FILE="$HOME/genomes/my_genotype.txt"` is home-relative. Do not prepend
+  `$HOME` to an already absolute path: `"$HOME/Users/example/genomes/file.txt"`
+  joins two paths rather than referring to `/Users/example/genomes/file.txt`.
+- **Quote paths.** Quoting `"$INPUT_FILE"` and `"$REPORT_DIR"` preserves spaces
+  in filenames. Use `$HOME`, not a quoted literal `"~/genomes/file.txt"`,
+  because a quoted tilde does not expand to your home directory.
+- **Check the analysis status before opening a report.** A failed run may
+  leave an empty output directory. An HTML report that does not exist is not
+  evidence of a browser problem; resolve the analysis error first.
+- **Keep personal outputs private.** `output/` is ignored by Git in this
+  repository. Do not force-add genotype files, generated reports, or archives
+  to a public commit or pull request.
+
+ClawBio is a research and educational tool. It is not a medical device and
+does not provide clinical diagnoses. Consult a healthcare professional before
+making any medical decisions.
+
 ## 30x Whole-Genome Sequencing
 
 In addition to the 23andMe SNP chip, ClawBio now ships subsets from Manuel Corpas's **30x Illumina whole-genome sequence** (GRCh37, Dante Labs). The WGS data covers ~4 million SNPs, ~600K indels, structural variants (DEL, DUP, INV, BND, INS), and copy number variants, all licensed CC0.

@@ -247,24 +247,23 @@ def format_pharmgx_preview(report_text: str, report_path: str):
         dip_match = re.match(r'^(.+?)\s*(\(\d/\d SNPs tested\))?$', diplotype)
         dip_core = dip_match[1] if dip_match else diplotype
         dip_note = f" {DIM}{dip_match[2]}{RESET}" if dip_match and dip_match[2] else ""
-        # Choose color by phenotype category
-        if "Unknown" in phenotype or "unmapped" in phenotype:
+        # Preserve the report's phenotype, including uncertainty and coverage
+        # qualifiers. Unrecognized phenotypes must never default to "Normal".
+        phenotype_label = phenotype or "Unknown"
+        category = phenotype_label.lower()
+        if any(term in category for term in ("indeterminate", "unknown", "unmapped")):
             pc = YELLOW
-            phenotype_short = "Unknown"
-            extra = f"  {DIM}(needs clinical testing){RESET}"
-        elif "High" in phenotype:
-            pc, phenotype_short, extra = RED, phenotype, ""
-        elif "Poor" in phenotype:
-            pc, phenotype_short, extra = RED, phenotype, ""
-        elif "Intermediate" in phenotype:
-            pc, phenotype_short, extra = YELLOW, "Intermediate", ""
-        elif "Non-expressor" in phenotype:
-            pc, phenotype_short, extra = DIM, "Non-expressor", ""
+        elif any(term in category for term in ("high", "poor", "strongly reduced")):
+            pc = RED
+        elif "non-expressor" in category:
+            pc = DIM
+        elif category.startswith("normal"):
+            pc = GREEN
         else:
-            pc, phenotype_short, extra = GREEN, "Normal", ""
+            pc = YELLOW
         wmark = f"  {RED}← warfarin{RESET}" if gene in ("CYP2C9", "VKORC1") else ""
         print(f"  {BOLD}{gene:<10}{RESET} {DIM}{dip_core:<12}{RESET}"
-              f" {pc}{phenotype_short}{RESET}{extra}{dip_note}{wmark}")
+              f" {pc}{phenotype_label}{RESET}{dip_note}{wmark}")
 
     # ── Drug summary ──
     print(f"\n  {CYAN}{BOLD}Drug Summary{RESET}")
@@ -482,6 +481,20 @@ SKILLS = {
         "allowed_extra_flags": {
             "--trait", "--pgs-id", "--panel-id", "--min-overlap",
             "--max-variants", "--build",
+        },
+        "accepts_genotypes": True,
+    },
+    "prs-abstain": {
+        "script": SKILLS_DIR / "prs-abstain" / "prs_abstain.py",
+        "demo_args": ["--demo"],
+        "no_input_required": True,
+        "description": "Gate PRS percentiles on ancestry transferability; refuse when uninterpretable",
+        "allowed_extra_flags": {
+            "--reference-panel", "--individuals", "--prs-results", "--ref-pop", "--k-sd",
+            "--min-markers", "--pcs", "--no-figures", "--scores", "--genotype",
+            "--genotype-sample-id", "--population-af", "--af-population",
+            "--min-weight-coverage", "--min-effective-n", "--ld-window-kb", "--no-pdf",
+            "--allow-threshold-overreach", "--genotype-build",
         },
         "accepts_genotypes": True,
     },
@@ -1345,6 +1358,17 @@ SKILLS = {
         "no_input_required": False,
         "accepts_genotypes": False,
     },
+    "igv-validator": {
+        "script": SKILLS_DIR / "igv-validator" / "igv_validator.py",
+        "demo_args": ["--demo"],
+        "description": "IGV validation of somatic calls: tumor/normal read support, artifact flags, IGV screenshots",
+        "allowed_extra_flags": {
+            "--vcf", "--tumor", "--normal", "--reference", "--genes", "--variants", "--regions", "--cnv", "--cnv-sample", "--demo-cnv", "--summarize", "--overview", "--curated-calls", "--heatmap", "--annotation", "--interactive", "--bundle", "--no-bundle", "--project", "--index", "--samplesheet", "--reports-dir", "--skip-unknown-genes", "--pass-only",
+            "--max-variants", "--no-igv", "--igv-timeout", "--igv-path", "--tumor-only", "--caller-sample", "--tumor-name", "--normal-name",
+        },
+        "no_input_required": False,
+        "accepts_genotypes": False,
+    },
     "bioqc": {
         "script": SKILLS_DIR / "bioqc-mcp" / "bioqc_mcp.py",
         "demo_args": ["--demo"],
@@ -1371,6 +1395,17 @@ SKILLS = {
         "description": "Drug repurposing screen — pooled viability QC, hits, selectivity, biomarkers, priority table",
         "allowed_extra_flags": {"--bundle", "--schema", "--objective", "--resume"},
         "no_input_required": True,
+        "accepts_genotypes": False,
+    },
+    "harmonize": {
+        "script": SKILLS_DIR / "gwas-sumstats-harmonize" / "gwas_sumstats_harmonize.py",
+        "demo_args": ["--demo"],
+        "description": "GWAS Sumstats Harmonizer — canonical columns, BETA/SE/P derivation, QC, reference allele alignment",
+        "allowed_extra_flags": {
+            "--reference", "--columns", "--palindromic", "--min-maf", "--drop-indels",
+            "--keep-unmatched", "--build", "--engine", "--cores",
+        },
+        "extra_path_flags": {"--reference", "--columns"},
         "accepts_genotypes": False,
     },
 }
@@ -1573,6 +1608,21 @@ def _canonical_extra_flag(flag: str) -> str:
     return flag
 
 
+class _SkillFailed(Exception):
+    """Marks the audit span ERROR: run_skill reports failure as a dict, not a raise."""
+
+
+def _skill_version(skill_name: str) -> str:
+    """The SKILL.md frontmatter version, so an audit record says which methodology ran."""
+    script = SKILLS.get(skill_name, {}).get("script")
+    try:
+        frontmatter = (script.parent / "SKILL.md").read_text(encoding="utf-8").split("---")[1]
+    except (AttributeError, OSError, IndexError):
+        return "unknown"
+    match = re.search(r"^\s*version:\s*['\"]?([^'\"\s]+)", frontmatter, re.M)
+    return match.group(1) if match else "unknown"
+
+
 def run_skill(
     skill_name: str,
     input_path: str | None = None,
@@ -1587,7 +1637,41 @@ def run_skill(
 
     Returns a structured dict with success status, output paths, and logs.
     Importable by any agent (RoboTerri, RoboIsaac, Claude Code).
+
+    Every run is recorded as a skill_run span in the audit log, so a new skill
+    is covered as soon as it is registered.
     """
+    # Deferred: `import clawbio` reaches this module, and a stdlib-only skill's
+    # reproducibility recipe must not need opentelemetry (test_import_weight).
+    from contextlib import suppress
+
+    from clawbio.common.audit import skill_run
+
+    # skill_run sees _SkillFailed first and marks the span ERROR; suppress then
+    # drops it, so the caller still gets the result dict.
+    with suppress(_SkillFailed), skill_run(
+        skill_name,
+        _skill_version(skill_name),
+        input_file=input_path or "",
+        output_dir=output_dir or "",
+    ):
+        result = _run_skill(
+            skill_name, input_path, output_dir, demo, extra_args, timeout, profile_path
+        )
+        if not result["success"]:
+            raise _SkillFailed(f"exit code {result['exit_code']}")
+    return result
+
+
+def _run_skill(
+    skill_name: str,
+    input_path: str | None,
+    output_dir: str | None,
+    demo: bool,
+    extra_args: list[str] | None,
+    timeout: int,
+    profile_path: str | None,
+) -> dict:
     # Handle full-profile virtual skill
     if skill_name == "full-profile":
         return _run_full_profile(

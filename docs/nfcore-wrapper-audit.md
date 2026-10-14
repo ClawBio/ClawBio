@@ -4,6 +4,12 @@ This audit covers the three implemented Nextflow wrappers: `nfcore-rnaseq-wrappe
 `nfcore-scrnaseq-wrapper`, and `nfcore-sarek-wrapper`. It compares wrapper behavior
 with the exact upstream releases below, rather than with a moving default branch.
 The starting ClawBio revision was `d67bd59af4c8c878e01a5f8deb8cd9a22e2e80b9`.
+The completed audit was subsequently integrated with ClawBio `main` at
+`9405cfd7dcbe2c86046091d58edacb808755c3f7` on 2026-10-14. The launcher audit
+logging changes, updated locked dependencies, and newly registered skills were
+retained; the catalog was regenerated from the combined tree. The focused matrix
+below was repeated after this integration. The rebuilt wheel also passed installed
+launcher success/failure audit logging and default-output routing checks.
 
 ## Upstream contracts
 
@@ -133,12 +139,14 @@ process execution. The single-cell preview reported
 `validationSchemaIgnoreParams: genomes`, which originates in the pinned upstream
 `conf/test.config`; that key is absent from wrapper-generated params.
 
-The repository regression suite uses the locked dependencies with all optional
-extras and excludes tests marked `integration`, `network`, or `slow`: **7,326 passed,
-76 skipped, 15 deselected, 2 expected failures, and 1 failure**. Its one
+The repository regression suite was repeated after integrating main, using the
+updated locked dependencies with all optional extras. It excludes tests marked
+`integration`, `network`, or `slow`: **7,934 passed, 63 skipped, 20 deselected,
+2 expected failures, and 1 failure**. Its one
 remaining failure,
 `skills/proteomics-clock/tests/test_proteomics_clock.py::test_mortality_to_years`,
-was reproduced on the original revision in the same environment (expected 5–15,
+was reproduced again on the original revision with the updated dependency
+environment (expected 5–15,
 observed 3.81255). The affected file is unchanged by this audit. Initial broad runs
 exhausted disk space; temporary audit outputs were cleared and dependency setup
 was adjusted to reuse the installed environment before the clean run.

@@ -114,6 +114,19 @@ python -m pytest -k "test_demo" -v                     # By pattern
 
 Tests must pass on Python 3.11, 3.12, and 3.13. CI runs all three via GitHub Actions.
 
+### Optional dependencies
+
+A plain `uv sync` installs no extras, but CI runs `uv sync --all-extras`. A test
+that imports an extra's module unconditionally passes in CI and fails on every
+contributor's machine. For a skill dependency that is not in the core list:
+
+1. Declare it in an extra in `pyproject.toml` (`[project.optional-dependencies]`), so CI can run the test.
+2. Skip the tests that need it when it is missing, and only those:
+   `needs_pysam = pytest.mark.skipif(importlib.util.find_spec("pysam") is None, reason="needs pysam (uv sync --extra region-fetch)")`
+   on each such test, or `pytest.importorskip("pysam")` at module level if the test file cannot import without it.
+
+Step 2 without step 1 hides the tests everywhere. Run `uv sync --all-extras` to run the full suite locally.
+
 ### Pytest conventions
 
 - Use `tmp_path` for temporary inputs and outputs instead of fixed shared paths or custom temporary-directory helpers. It provides a unique `pathlib.Path` directory per test; it does not change cwd.

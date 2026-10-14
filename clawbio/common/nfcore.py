@@ -230,6 +230,7 @@ def docker_cpu_count() -> int | None:
         if result.returncode == 0 and result.stdout.strip().isdigit():
             return int(result.stdout.strip()) or None
     except (OSError, subprocess.SubprocessError):
+        # Capacity probing is optional; callers fall back to host capacity.
         pass
     return None
 
