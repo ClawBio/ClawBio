@@ -5,6 +5,8 @@ import re
 import sys
 from pathlib import Path
 
+from clawbio.common.nfcore.artifacts import write_csv_lf
+
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
     sys.path.remove(str(_SKILL_DIR))
@@ -156,7 +158,7 @@ def _read_samplesheet(input_path: Path) -> tuple[list[str], list[dict[str, str]]
         )
 
     try:
-        from clawbio.common.nfcore import read_delimited_samplesheet
+        from clawbio.common.nfcore.artifacts import read_delimited_samplesheet
 
         fieldnames, rows = read_delimited_samplesheet(input_path)
     except (OSError, ValueError, csv.Error) as exc:
@@ -800,11 +802,4 @@ def _write_normalized_samplesheet(
     output_columns: list[str],
     normalized_rows: list[dict[str, str]],
 ) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    # newline="" + lineterminator="\n": csv.writer defaults to CRLF, which would
-    # make the bundle samplesheet differ from every other (LF) artifact and vary
-    # its checksum. Force LF on every OS for a byte-stable bundle.
-    with output_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=output_columns, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(normalized_rows)
+    write_csv_lf(output_path, output_columns, normalized_rows)

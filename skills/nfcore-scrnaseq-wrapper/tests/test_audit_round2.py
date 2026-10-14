@@ -756,8 +756,8 @@ def test_is_under_tmp_helper_behaviour():
 
 def test_preflight_and_executor_reuse_the_shared_helper():
     import preflight
-    import executor
+    from clawbio.common.nfcore import execution
 
-    # Both modules must reference the centralised predicate, not a private copy.
+    # The pre-run WARNING and the post-failure hint must use one predicate.
     assert preflight.is_under_tmp is schemas.is_under_tmp
-    assert executor.is_under_tmp is schemas.is_under_tmp
+    assert execution.is_under_tmp is schemas.is_under_tmp

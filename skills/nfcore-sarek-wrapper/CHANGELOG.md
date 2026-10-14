@@ -17,6 +17,17 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 - Bound Docker scheduler/process capacity on macOS/Linux, including demos; preserve user-config precedence and similarly named config snapshots.
 - Anchor replay before resource probes and cap to the smaller recorded/current Docker capacity without changing checksummed originals.
 - Use the shared environment writer; reject nonfinite timeouts, bound failure-log reads, and terminate interrupted process groups.
+- **Runs on Nextflow 26.04+.** Its default strict syntax parser rejects nf-core/sarek
+  3.8.1's configs (`Unexpected input: ':'`); the wrapper sets `NXF_SYNTAX_PARSER=v1`
+  for the run, the recorded command and `commands.sh`.
+- **Ctrl+C now stops Nextflow** instead of leaving it running after the wrapper exits.
+- **A refused `--resume` keeps the completed run's `result.json`.** `RESUME_DRIFT`
+  overwrote it with the refusal while that run's outputs were still on disk.
+- **Checksums survive later runs in place.** Nextflow's rotated `.nextflow.log.N` files
+  were hashed, so `sha256sum -c` failed after any `--resume`; `--repair-bundle` now
+  selects exactly the files a fresh run lists.
+- **`--timeout-hours nan`/`inf` is a usage error**, and `params.yaml` references with
+  YAML quoting or long paths are remapped and verified correctly.
 
 - **`remap_paths.py`: combining actions no longer discards one of them silently.**
   `main()` dispatched through a chain of early returns, so only the first matching flag

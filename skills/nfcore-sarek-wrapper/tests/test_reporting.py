@@ -754,7 +754,7 @@ def test_commands_sh_warns_when_unsafe_absolute_paths(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_remap_paths_py_copied(tmp_path: Path) -> None:
+def test_remap_paths_py_generated_standalone(tmp_path: Path) -> None:
     output_dir = _make_output_dir(tmp_path)
     artifacts = write_reports(
         output_dir=output_dir,
@@ -769,7 +769,12 @@ def test_remap_paths_py_copied(tmp_path: Path) -> None:
     src = _skill_dir() / "remap_paths.py"
     dst = artifacts.remap_paths_py
     assert dst.exists()
-    assert dst.read_bytes() == src.read_bytes()
+    import subprocess
+    import sys
+    result = subprocess.run([sys.executable, "-I", "-S", str(dst), "--help"], cwd=tmp_path, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "--repair-bundle" in result.stdout
+    assert dst.stat().st_mode & 0o777 == src.stat().st_mode & 0o777
 
 
 # ---------------------------------------------------------------------------
@@ -944,3 +949,23 @@ def test_report_and_result_written_at_output_root(tmp_path: Path) -> None:
     assert not (output_dir / "reproducibility" / "result.json").exists()
     # Replay/provenance artifacts remain in the bundle.
     assert artifacts.commands_sh == output_dir / "reproducibility" / "commands.sh"
+
+
+def test_commands_sh_exports_the_syntax_parser_sarek_3_8_1_needs(tmp_path: Path) -> None:
+    """Replay runs Nextflow directly, so it must set the parser the wrapper used:
+    on Nextflow >= 26.04 the default strict parser rejects sarek 3.8.1's configs."""
+    output_dir = _make_output_dir(tmp_path)
+    artifacts = write_reports(
+        output_dir=output_dir,
+        skill_dir=_skill_dir(),
+        params=_minimal_params(),
+        samplesheet_report=_minimal_samplesheet(),
+        pipeline_source=_minimal_pipeline_source(),
+        outputs_report=_FakeOutputsReport(),
+        nextflow_command=_minimal_command(output_dir),
+        pipeline_source_kind="remote",
+        nextflow_version="26.04.3",
+    )
+    text = artifacts.commands_sh.read_text(encoding="utf-8")
+    assert 'export NXF_SYNTAX_PARSER="v1"' in text
+    assert text.index('export NXF_SYNTAX_PARSER="v1"') < text.index('(cd "$SCRIPT_DIR/.."')

@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import platform
 import shlex
@@ -11,7 +12,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import traceback
 from pathlib import Path
 from typing import Any
 
@@ -42,7 +42,11 @@ purge_foreign_bare_modules(
     "schemas",
 )
 
-from clawbio.common.nfcore import uses_local_docker_capacity
+from clawbio.common.nfcore.resources import uses_local_docker_capacity
+from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
+from clawbio.common.nfcore.failures import report_skill_error, report_unexpected_error
+from clawbio.common.nfcore.parameters import LEGACY_LINE_WIDTH
 from clawbio.common.textio import write_text_lf
 from command_builder import build_nextflow_command
 from errors import ErrorCode, SkillError
@@ -126,28 +130,9 @@ _DEMO_IGNORED_FIELDS = (
 )
 
 
-def _timeout_hours(value: str) -> float:
-    try:
-        from clawbio.common.nfcore import finite_nonnegative_hours
-
-        hours = finite_nonnegative_hours(value)
-    except (TypeError, ValueError):
-        raise argparse.ArgumentTypeError(
-            f"--timeout-hours must be a finite number >= 0, got {value!r}"
-        )
-    if hours < 0:
-        raise argparse.ArgumentTypeError(
-            "--timeout-hours must be >= 0 (0 disables the timeout)"
-        )
-    return hours
-
-
 def _resolve_timeout_seconds(args: argparse.Namespace) -> int | None:
     """Translate --timeout-hours into seconds; 0 disables the cap (returns None)."""
-    hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
-    if hours is None or hours == 0:
-        return None
-    return int(round(hours * 3600))
+    return timeout_seconds(getattr(args, "timeout_hours", None), default_hours=_DEFAULT_TIMEOUT_HOURS)
 
 
 class _PresetAction(argparse.Action):
@@ -303,7 +288,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--timeout-hours",
-        type=_timeout_hours,
+        type=timeout_hours,
         default=_DEFAULT_TIMEOUT_HOURS,
         help="Wall-clock cap for the Nextflow run in hours (default 12). Use 0 to disable the cap for long HPC/cloud runs whose walltime is enforced by the scheduler.",
     )
@@ -552,21 +537,6 @@ def _write_demo_samplesheet(samplesheet_path: Path) -> None:
     )
 
 
-def _write_error_result_if_safe(output_dir: Path, payload: dict[str, object]) -> None:
-    """Persist structured errors unless doing so would overwrite a rejected output dir."""
-    error_code = payload.get("error_code")
-    if error_code in {"OUTPUT_DIR_NOT_EMPTY", "OUTPUT_DIR_NOT_WRITABLE"}:
-        return
-    if error_code == "INVALID_RESUME_STATE" and (output_dir / "result.json").exists():
-        return
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        write_text_lf(output_dir / "result.json", json.dumps(payload, indent=2))
-    except OSError:
-        # stderr still receives the structured payload; avoid masking the root error.
-        return
-
-
 _BANNER = (
     "==============================================\n"
     f"  ClawBio :: {SKILL_NAME}\n"
@@ -578,11 +548,6 @@ _BANNER = (
 def _print(msg: str) -> None:
     """Log a human-readable status line to stdout (progress/traceability)."""
     print(msg, flush=True)
-
-
-def _indent(text: str, n: int) -> str:
-    pad = " " * n
-    return "\n".join(pad + line for line in text.splitlines())
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -597,12 +562,12 @@ def main(argv: list[str] | None = None) -> int:
         _check_pipeline_version_supported(args)
         return _run_wrapper(args, output_dir)
     except SkillError as exc:
-        return _handle_skill_error(output_dir, exc, verbose=getattr(args, "verbose", False))
+        return report_skill_error(output_dir, exc, verbose=getattr(args, "verbose", False))
     except KeyboardInterrupt:
         _print("[abort] Interrupted by user.")
         return 130
     except Exception as exc:
-        return _handle_unexpected_error(
+        return report_unexpected_error(
             output_dir, exc, verbose=getattr(args, "verbose", False)
         )
 
@@ -896,7 +861,8 @@ def _build_parameter_support_summary() -> dict[str, object]:
 def _write_launch_manifest(args, *, output_dir, pipeline_source, normalized_samplesheet, params_payload, preflight_result):
     from datetime import datetime, timezone
     from clawbio.common.checksums import sha256_file
-    from clawbio.common.nfcore import canonical_work_dir, write_manifest_checkpoint
+    from clawbio.common.nfcore.cli import canonical_work_dir
+    from clawbio.common.nfcore.artifacts import write_manifest_checkpoint
 
     manifest = {
         "skill_name": SKILL_NAME, "pipeline_source": pipeline_source,
@@ -1016,8 +982,14 @@ def _check_resume_params_checksum(
     if not manifest_path.exists():
         return
     params_checksum = _params_payload_checksum(params_payload)
+    # Bundles written while params.yaml still wrapped long values at 80 columns
+    # fingerprinted that wrapped text; the parameters themselves are the same.
+    accepted = {
+        params_checksum,
+        _params_payload_checksum(params_payload, line_width=LEGACY_LINE_WIDTH),
+    }
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("params_checksum") == params_checksum:
+    if manifest.get("params_checksum") in accepted:
         return
     raise SkillError(
         stage="preflight",
@@ -1031,9 +1003,11 @@ def _check_resume_params_checksum(
     )
 
 
-def _params_payload_checksum(params_payload: dict[str, object]) -> str:
+def _params_payload_checksum(
+    params_payload: dict[str, object], *, line_width: float = math.inf
+) -> str:
     return hashlib.sha256(
-        serialize_params_yaml(params_payload).encode("utf-8")
+        serialize_params_yaml(params_payload, line_width=line_width).encode("utf-8")
     ).hexdigest()
 
 
@@ -1054,13 +1028,7 @@ def _build_nextflow_invocation(
 
 
 def _resolve_nextflow_work_dir(args: argparse.Namespace, output_dir: Path) -> Path | str:
-    raw_work_dir = getattr(args, "work_dir", None)
-    if not raw_work_dir:
-        return output_dir / "upstream" / "work"
-    work_dir = str(raw_work_dir).strip()
-    if "://" in work_dir:
-        return work_dir
-    return Path(work_dir).expanduser().resolve()
+    return resolve_work_dir(getattr(args, "work_dir", None), output_dir=output_dir)
 
 
 def _build_extra_nextflow_configs(
@@ -1100,41 +1068,16 @@ _RESOURCE_LIMITS_MEMORY_FLOOR_GB = 8
 
 
 def _host_memory_gb() -> int:
-    """Best-effort total physical RAM in whole GB (portable; falls back to 16)."""
-    try:
-        return max(1, int(os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") / (1024 ** 3)))
-    except (ValueError, OSError, AttributeError):
-        return 16
+    value = _runtime.host_memory_bytes()
+    return max(1, int(value / (1024 ** 3))) if value is not None else 16
 
 
 def _docker_vm_memory_gb() -> int | None:
-    """Docker runtime's total memory in whole GB, or None when unknown.
-
-    On native Linux this reports the host's cgroup memory (≈ physical RAM). Best-effort:
-    any failure (docker absent, daemon down, unparseable output) returns None.
-    """
-    if not shutil.which("docker"):
-        return None
-    try:
-        proc = subprocess.run(
-            ["docker", "info", "--format", "{{.MemTotal}}"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if proc.returncode != 0:
-        return None
-    raw = proc.stdout.strip()
-    if not raw.isdigit():
-        return None
-    gb = int(int(raw) / (1024 ** 3))
-    return gb or None
+    return _runtime.docker_memory_gb()
 
 
 def _docker_vm_cpu_count() -> int | None:
-    from clawbio.common.nfcore import docker_cpu_count
+    from clawbio.common.nfcore.runtime import docker_cpu_count
 
     return docker_cpu_count()
 
@@ -1408,58 +1351,6 @@ def _write_handoff_provenance(output_dir: Path, record: dict[str, object]) -> No
     provenance_dir = output_dir / "provenance"
     provenance_dir.mkdir(parents=True, exist_ok=True)
     write_text_lf(provenance_dir / "handoff.json", json.dumps(record, indent=2))
-
-
-def _handle_skill_error(
-    output_dir: Path, exc: SkillError, *, verbose: bool = False
-) -> int:
-    payload = exc.to_dict()
-    _write_error_result_if_safe(output_dir, payload)
-    # Human-readable box on stdout (sarek-style traceability).
-    _print("")
-    _print("================ SkillError ================")
-    _print(f"  stage:   {exc.stage}")
-    _print(f"  code:    {exc.error_code}")
-    _print(f"  message: {exc.message}")
-    _print(f"  fix:     {exc.fix}")
-    if exc.details and verbose:
-        _print("  details:")
-        _print(_indent(json.dumps(exc.details, indent=2, default=str), 4))
-    _print("============================================")
-    # Machine-readable error on stderr: always available even when result.json
-    # cannot be written (e.g. the output dir is a file or inside the repo).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    return 1
-
-
-def _handle_unexpected_error(
-    output_dir: Path, exc: Exception, *, verbose: bool = False
-) -> int:
-    payload = {
-        "status": "error",
-        "ok": False,
-        "stage": "internal",
-        "error_code": ErrorCode.UNEXPECTED_ERROR,
-        "message": str(exc),
-        "fix": "Report this as a bug. Include the full traceback and your command arguments.",
-        "details": {
-            "exception_type": type(exc).__name__,
-            "traceback": traceback.format_exc(),
-        },
-    }
-    _write_error_result_if_safe(output_dir, payload)
-    _print("")
-    _print("================ Internal error ================")
-    _print(f"  type:    {type(exc).__name__}")
-    _print(f"  message: {exc}")
-    if verbose:
-        _print(_indent(traceback.format_exc(), 4))
-    else:
-        _print("  Re-run with --verbose for the full traceback.")
-    _print("================================================")
-    # Machine-readable error on stderr (always available; see _handle_skill_error).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    return 1
 
 
 if __name__ == "__main__":

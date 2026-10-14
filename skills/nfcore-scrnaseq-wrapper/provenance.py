@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import platform
 import sys
 from datetime import datetime, timezone
@@ -8,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from clawbio.common.checksums import sha256_file
+from clawbio.common.nfcore.artifacts import write_json_lf, write_json_snapshots
 from clawbio.common.reproducibility import write_checksums, write_environment_yml
 
 _SKILL_DIR = Path(__file__).resolve().parent
@@ -19,7 +19,6 @@ from _isolated_imports import purge_foreign_bare_modules
 
 purge_foreign_bare_modules("schemas")
 
-from clawbio.common.textio import write_text_lf
 from schemas import DEFAULT_REMOTE_PIPELINE, SKILL_ALIAS, SKILL_NAME, SKILL_VERSION
 
 
@@ -268,8 +267,7 @@ def build_skill_payload(params_payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _write_provenance_payloads(provenance_dir: Path, payloads: dict[str, Any]) -> None:
-    for filename, payload in payloads.items():
-        write_text_lf(provenance_dir / filename, json.dumps(payload, indent=2))
+    write_json_snapshots(provenance_dir, payloads)
 
 
 def _copy_policy_files(bundle_dir: Path) -> None:
@@ -386,5 +384,5 @@ def write_reproducibility_manifest(
         "checksums_file": _relativise(checksum_file, output_dir),
     }
     manifest_path = output_dir / "reproducibility" / "manifest.json"
-    write_text_lf(manifest_path, json.dumps(manifest, indent=2))
+    write_json_lf(manifest_path, manifest, trailing_newline=False)
     return manifest_path

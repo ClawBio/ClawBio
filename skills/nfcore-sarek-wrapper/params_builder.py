@@ -6,6 +6,10 @@ import json
 import sys
 from pathlib import Path
 
+from clawbio.common.nfcore.parameters import serialize_params_yaml as _serialize_params
+from clawbio.common.nfcore.parameters import write_params_yaml as _write_params
+from clawbio.common.nfcore.paths import resolve_path_or_uri
+
 import yaml
 
 _SKILL_DIR = Path(__file__).resolve().parent
@@ -19,7 +23,6 @@ from _isolated_imports import purge_foreign_bare_modules
 
 purge_foreign_bare_modules("errors", "schemas")
 
-from clawbio.common.textio import write_text_lf
 from errors import ErrorCode, SkillError
 
 
@@ -155,7 +158,7 @@ _STRING_FIELDS = (
 )
 
 def _validate_native_scalar_params(params: dict[str, object], *, patterns: bool = True) -> None:
-    from clawbio.common.nfcore import validate_parameter_scalars
+    from clawbio.common.nfcore.parameters import validate_parameter_scalars
 
     contract = json.loads((_SKILL_DIR / "reproducibility/upstream_scalar_contract.json").read_text())
     try:
@@ -217,7 +220,7 @@ def _load_user_params_file(params_file: str | None) -> dict[str, object]:
         return {}
     path = Path(params_file).expanduser()
     try:
-        from clawbio.common.nfcore import load_unique_yaml
+        from clawbio.common.nfcore.parameters import load_unique_yaml
 
         loaded = load_unique_yaml(path.read_text(encoding="utf-8"))
     except OSError as exc:
@@ -439,10 +442,8 @@ def _schema_safe_string(field: str, value: str) -> str:
 
 
 def _posix_or_uri(value: str) -> str:
-    """Expand to absolute POSIX path, but pass URI schemes (s3://, http://) through unchanged."""
-    if "://" in value:
-        return value
-    return Path(value).expanduser().resolve().as_posix()
+    resolved = resolve_path_or_uri(str(value), base_dir=Path.cwd())
+    return resolved if isinstance(resolved, str) else resolved.as_posix()
 
 
 def _reference_value(value: object) -> str | bool:
@@ -453,17 +454,8 @@ def _reference_value(value: object) -> str | bool:
 
 
 def write_params_yaml(params: dict[str, object], *, output_dir: Path) -> Path:
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
-    params_path = repro_dir / "params.yaml"
-    write_text_lf(params_path, serialize_params_yaml(params))
-    return params_path
+    return _write_params(params, output_dir=output_dir, pipeline_name="nf-core/sarek")
 
 
 def serialize_params_yaml(params: dict[str, object]) -> str:
-    header = (
-        "# 'input' and 'outdir' are relative to the Nextflow launch directory (output_dir).\n"
-        "# Use reproducibility/commands.sh for the recommended replay path.\n"
-        "# Manual replay: cd <output_dir> && nextflow run nf-core/sarek -params-file reproducibility/params.yaml\n"
-    )
-    return header + yaml.dump(params, allow_unicode=True, sort_keys=False)
+    return _serialize_params(params, pipeline_name="nf-core/sarek")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import sys
 from pathlib import Path
 
@@ -286,14 +287,11 @@ def test_bundle_copy_regenerates_keys_even_if_in_repo_literal_drifts(
     import reporting
     from schemas import ALL_REFERENCE_PATH_FIELDS
 
-    drifted_source = (
-        "from pathlib import Path\n"
-        "import re\n"
-        "_BUNDLE_DIR = Path(__file__).resolve().parent\n"
-        "# >>> AUTO-GENERATED reference keys (do not edit by hand) >>>\n"
-        '_PARAMS_REFERENCE_KEYS = ("WRONG_DRIFTED_KEY",)\n'
-        "# <<< AUTO-GENERATED reference keys <<<\n"
-        "_PARAMS_REF_RE = re.compile('|'.join(re.escape(k) for k in _PARAMS_REFERENCE_KEYS))\n"
+    source = reporting._REMAP_SCRIPT_SRC.read_text(encoding="utf-8")
+    drifted_source = reporting._REMAP_AUTOGEN_RE.sub(
+        reporting._REMAP_AUTOGEN_START + '\n_PARAMS_REFERENCE_KEYS = ("WRONG_DRIFTED_KEY",)\n' + reporting._REMAP_AUTOGEN_END,
+        source,
+        count=1,
     )
     fake_src = tmp_path / "src_remap_paths.py"
     fake_src.write_text(drifted_source, encoding="utf-8")
@@ -385,7 +383,7 @@ def test_regenerated_checksums_verify_against_files(tmp_path):
     """Safety guarantee: every entry in the regenerated checksums.sha256 must match
     the actual file digest, with labels resolving relative to output_dir — i.e.
     `sha256sum -c checksums.sha256` run from the output dir passes."""
-    from remap_paths import _sha256_file, cmd_repair_bundle
+    from remap_paths import cmd_repair_bundle
 
     bundle = _make_repairable_bundle(tmp_path)
     cmd_repair_bundle(bundle_dir=bundle)
@@ -398,7 +396,7 @@ def test_regenerated_checksums_verify_against_files(tmp_path):
         seen_labels.append(label)
         target = output_dir / label
         assert target.is_file(), f"checksum label does not resolve to a file: {label}"
-        assert _sha256_file(target) == digest, f"stale/wrong digest for {label}"
+        assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, f"stale/wrong digest for {label}"
     # The checksum file must never hash itself.
     assert "reproducibility/checksums.sha256" not in seen_labels
     # Must cover the regenerated params.yaml (the file remap mutates) and the output.

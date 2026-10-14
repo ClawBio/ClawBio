@@ -19,7 +19,6 @@ import subprocess
 import sys
 import time
 import tempfile
-import traceback
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlsplit
@@ -57,7 +56,10 @@ purge_foreign_bare_modules(
     "schemas",
 )
 
-from clawbio.common.nfcore import uses_local_docker_capacity
+from clawbio.common.nfcore.resources import uses_local_docker_capacity
+from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
+from clawbio.common.nfcore.failures import report_skill_error, report_unexpected_error
 from clawbio.common.textio import write_text_lf
 from command_builder import build_nextflow_command, compose_profile
 from errors import ErrorCode, SkillError
@@ -339,28 +341,9 @@ def _print(msg: str) -> None:
 _DEFAULT_TIMEOUT_HOURS = DEFAULT_TIMEOUT_SECONDS / 3600
 
 
-def _timeout_hours(value: str) -> float:
-    try:
-        from clawbio.common.nfcore import finite_nonnegative_hours
-
-        hours = finite_nonnegative_hours(value)
-    except (TypeError, ValueError):
-        raise argparse.ArgumentTypeError(
-            f"--timeout-hours must be a finite number >= 0, got {value!r}"
-        )
-    if hours < 0:
-        raise argparse.ArgumentTypeError(
-            "--timeout-hours must be >= 0 (0 disables the timeout)"
-        )
-    return hours
-
-
 def _resolve_timeout_seconds(args: argparse.Namespace) -> int | None:
     """Translate --timeout-hours into seconds; 0 disables the cap (returns None)."""
-    hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
-    if hours is None or hours == 0:
-        return None
-    return int(round(hours * 3600))
+    return timeout_seconds(getattr(args, "timeout_hours", None), default_hours=_DEFAULT_TIMEOUT_HOURS)
 
 
 def _check_pipeline_version_supported(args: argparse.Namespace) -> None:
@@ -401,16 +384,7 @@ def _check_pipeline_version_supported(args: argparse.Namespace) -> None:
 
 
 def _resolve_nextflow_work_dir(args: argparse.Namespace, output_dir: Path) -> Path | str:
-    """Resolve the Nextflow work directory: default <output>/upstream/work, or the
-    user's --work-dir (a local path, or an object-store URI kept verbatim for cloud
-    executors). Parity with nfcore-scrnaseq/rnaseq."""
-    raw_work_dir = getattr(args, "work_dir", None)
-    if not raw_work_dir:
-        return output_dir / "upstream" / "work"
-    work_dir = str(raw_work_dir).strip()
-    if "://" in work_dir:
-        return work_dir
-    return Path(work_dir).expanduser().resolve()
+    return resolve_work_dir(getattr(args, "work_dir", None), output_dir=output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -541,7 +515,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
     parser.add_argument(
         "--timeout-hours",
-        type=_timeout_hours,
+        type=timeout_hours,
         default=_DEFAULT_TIMEOUT_HOURS,
         help=(
             f"Wall-clock cap for the Nextflow run in hours (default {_DEFAULT_TIMEOUT_HOURS:g}). "
@@ -607,12 +581,12 @@ def main(argv: list[str] | None = None) -> int:
         _check_pipeline_version_supported(args)
         return _run_wrapper(args, output_dir)
     except SkillError as exc:
-        return _handle_skill_error(output_dir, exc, verbose=args.verbose)
+        return report_skill_error(output_dir, exc, verbose=args.verbose)
     except KeyboardInterrupt:
         _print("[abort] Interrupted by user.")
         return 130
     except Exception as exc:
-        return _handle_unexpected_error(output_dir, exc, verbose=args.verbose)
+        return report_unexpected_error(output_dir, exc, verbose=args.verbose)
 
 
 def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
@@ -769,7 +743,8 @@ def _run_wrapper_staged(args: argparse.Namespace, output_dir: Path, *, staging_d
     )
 
     from datetime import datetime, timezone
-    from clawbio.common.nfcore import canonical_work_dir, write_manifest_checkpoint
+    from clawbio.common.nfcore.cli import canonical_work_dir
+    from clawbio.common.nfcore.artifacts import write_manifest_checkpoint
 
     manifest = _build_manifest(
         params=params, samplesheet_report=samplesheet_report, pipeline_source=pipeline_source,
@@ -1148,7 +1123,7 @@ def _build_params_for_preflight(args: argparse.Namespace, *, composed_profile: s
     We only need the keys preflight rules inspect.
     """
     params: dict[str, Any] = load_run_params(args)
-    from clawbio.common.nfcore import canonical_work_dir
+    from clawbio.common.nfcore.cli import canonical_work_dir
 
     params["work_dir"] = canonical_work_dir(args, Path(getattr(args, "output", ".")).expanduser().resolve())
     params["profile"] = composed_profile
@@ -1379,38 +1354,12 @@ def _materialize_samplesheet_input(value: str, *, repro_dir: Path) -> Path:
 
 
 def _host_memory_gb() -> int:
-    """Best-effort total physical RAM in GiB (portable; falls back to 16)."""
-    try:
-        return max(1, int(os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") / (1024 ** 3)))
-    except (ValueError, OSError, AttributeError):
-        return 16
+    value = _runtime.host_memory_bytes()
+    return max(1, int(value / (1024 ** 3))) if value is not None else 16
 
 
 def _docker_vm_memory_gb() -> int | None:
-    """Docker runtime's total memory in whole GB, or None when unknown.
-
-    On native Linux this reports the host's cgroup memory (≈ physical RAM); it is
-    the true ceiling before the OOM-killer intervenes. Best-effort: any failure
-    (docker absent, daemon down, unparseable output) returns None.
-    """
-    if not shutil.which("docker"):
-        return None
-    try:
-        proc = subprocess.run(
-            ["docker", "info", "--format", "{{.MemTotal}}"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if proc.returncode != 0:
-        return None
-    raw = proc.stdout.strip()
-    if not raw.isdigit():
-        return None
-    gb = int(int(raw) / (1024 ** 3))
-    return gb or None
+    return _runtime.docker_memory_gb()
 
 
 _RESOURCE_LIMITS_MEMORY_HEADROOM_GB = 4
@@ -1418,7 +1367,7 @@ _RESOURCE_LIMITS_MEMORY_FLOOR_GB = 8
 
 
 def _docker_vm_cpu_count() -> int | None:
-    from clawbio.common.nfcore import docker_cpu_count
+    from clawbio.common.nfcore.runtime import docker_cpu_count
 
     return docker_cpu_count()
 
@@ -1707,73 +1656,6 @@ def _emit_downstream_handoff(
 # ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------
-
-
-def _handle_skill_error(output_dir: Path, exc: SkillError, *, verbose: bool) -> int:
-    payload = exc.to_dict()
-    _print("")
-    _print("================ SkillError ================")
-    _print(f"  stage:   {exc.stage}")
-    _print(f"  code:    {exc.error_code}")
-    _print(f"  message: {exc.message}")
-    _print(f"  fix:     {exc.fix}")
-    if exc.details and verbose:
-        _print("  details:")
-        _print(_indent(json.dumps(exc.details, indent=2, default=str), 4))
-    _print("============================================")
-    _write_error_result_if_safe(output_dir, payload)
-    # Machine-readable error on stderr: always available even when result.json
-    # cannot be written (e.g. the output dir is a file or inside the repo).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    # Exit 1 for a SkillError (parity with nfcore-scrnaseq/rnaseq). Exit 2 is
-    # reserved for argparse CLI-usage errors, so reusing it for validation
-    # failures would make the two indistinguishable to machine consumers.
-    return 1
-
-
-def _handle_unexpected_error(output_dir: Path, exc: Exception, *, verbose: bool) -> int:
-    payload = {
-        "status": "error",
-        "ok": False,
-        "stage": "internal",
-        "error_code": ErrorCode.UNEXPECTED_ERROR,
-        "message": str(exc),
-        "fix": "Report this as a bug. Include the traceback and command arguments.",
-        "details": {"exception_type": type(exc).__name__},
-    }
-    _print("")
-    _print("================ Internal error ================")
-    _print(f"  type:    {type(exc).__name__}")
-    _print(f"  message: {exc}")
-    if verbose:
-        _print(_indent(traceback.format_exc(), 4))
-    else:
-        _print("  Re-run with --verbose for traceback.")
-    _print("================================================")
-    _write_error_result_if_safe(output_dir, payload)
-    # Machine-readable error on stderr (always available; see _handle_skill_error).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    return 1
-
-
-def _write_error_result_if_safe(output_dir: Path, payload: dict[str, Any]) -> None:
-    code = payload.get("error_code")
-    if code in {ErrorCode.OUTPUT_DIR_NOT_EMPTY, ErrorCode.OUTPUT_DIR_NOT_WRITABLE}:
-        return
-    text = json.dumps(payload, indent=2, default=str)
-    # The failure marker lives at the output root, next to where a successful
-    # run writes result.json, so consumers read <output>/result.json regardless
-    # of outcome (parity with nfcore-rnaseq/scrnaseq).
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        write_text_lf(output_dir / "result.json", text)
-    except OSError:
-        return
-
-
-def _indent(text: str, n: int) -> str:
-    pad = " " * n
-    return "\n".join(pad + line for line in text.splitlines())
 
 
 if __name__ == "__main__":

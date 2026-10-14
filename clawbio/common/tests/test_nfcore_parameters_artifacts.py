@@ -1,0 +1,88 @@
+"""Exact parameter bytes and portable artifact-writing contracts."""
+
+import csv
+import importlib
+import json
+from pathlib import Path
+
+import yaml
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
+
+
+def test_parameter_header_and_key_order_are_stable(tmp_path):
+    api = importlib.import_module("clawbio.common.nfcore.parameters")
+    expected = (
+        "# 'input' and 'outdir' are relative to the Nextflow launch directory (output_dir).\n"
+        "# Use reproducibility/commands.sh for the recommended replay path.\n"
+        "# Manual replay: cd <output_dir> && nextflow run nf-core/example -params-file reproducibility/params.yaml\n"
+        "second: false\nfirst: 7\nempty: null\n"
+    )
+    values = {"second": False, "first": 7, "empty": None}
+    assert (
+        api.serialize_params_yaml(values, pipeline_name="nf-core/example") == expected
+    )
+    path = api.write_params_yaml(
+        values, output_dir=tmp_path, pipeline_name="nf-core/example"
+    )
+    assert path.read_bytes() == expected.encode()
+
+
+
+def test_long_reference_paths_stay_on_one_line():
+    """PyYAML wraps long scalars at 80 columns by default; a reference path with a
+    space past that column then spans two lines, which the line-based, stdlib-only
+    remap_paths.py cannot read whole. Every value must stay on its own line."""
+    api = importlib.import_module("clawbio.common.nfcore.parameters")
+    path = "/Users/dana/Library/Mobile_Documents/com~apple~CloudDocs/Project_Data/refs/GRCh38 release v2/genome.fa"
+    text = api.serialize_params_yaml({"fasta": path, "outdir": "upstream/results"}, pipeline_name="nf-core/x")
+    assert f"\nfasta: {path}\n" in text
+    assert yaml.safe_load(text)["fasta"] == path
+
+@settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(st.lists(st.text(alphabet='abc é,"', max_size=20), max_size=5))
+def test_csv_rows_round_trip_with_lf(tmp_path, values):
+    api = importlib.import_module("clawbio.common.nfcore.artifacts")
+    path = tmp_path / "rows.csv"
+    rows = [{"sample": value, "read": "read.fastq.gz"} for value in values]
+    api.write_csv_lf(path, ["sample", "read"], rows)
+    assert b"\r" not in path.read_bytes()
+    with path.open(newline="") as handle:
+        assert list(csv.DictReader(handle)) == rows
+
+
+def test_json_writer_respects_newline_and_unicode(tmp_path):
+    api = importlib.import_module("clawbio.common.nfcore.artifacts")
+    path = tmp_path / "record.json"
+    api.write_json_lf(path, {"name": "é"}, trailing_newline=False)
+    assert path.read_bytes() == b'{\n  "name": "\\u00e9"\n}'
+    api.write_json_lf(path, {"name": "é"}, trailing_newline=True)
+    assert path.read_bytes().endswith(b"\n")
+    assert json.loads(path.read_text()) == {"name": "é"}
+
+
+def test_safe_config_basename_has_stable_fallback():
+    api = importlib.import_module("clawbio.common.nfcore.artifacts")
+    assert api.safe_config_basename(" a é.config ") == "a_.config"
+    assert api.safe_config_basename("...") == "nextflow.config"
+
+
+def test_json_snapshots_preserve_names_and_newline_policy(tmp_path):
+    api = importlib.import_module("clawbio.common.nfcore.artifacts")
+    api.write_json_snapshots(tmp_path, {"one.json": {"z": 1}, "two.json": {"a": False}})
+    assert {p.name for p in tmp_path.iterdir()} == {"one.json", "two.json"}
+    assert (tmp_path / "one.json").read_bytes() == b'{\n  "z": 1\n}'
+    assert (tmp_path / "two.json").read_bytes() == b'{\n  "a": false\n}'
+
+
+def test_sorted_json_writer_supports_legacy_path_conversion(tmp_path):
+    api = importlib.import_module("clawbio.common.nfcore.artifacts")
+    path = tmp_path / "record.json"
+    api.write_json_lf(
+        path,
+        {"z": 1, "a": Path("file")},
+        trailing_newline=True,
+        sort_keys=True,
+        default=str,
+    )
+    assert path.read_bytes() == b'{\n  "a": "file",\n  "z": 1\n}\n'

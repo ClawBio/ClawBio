@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-import subprocess
 import sys
+
+from clawbio.common.nfcore import source as _source
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -29,24 +30,13 @@ def _read_manifest_version(local_dir: Path) -> str:
     Returns "" when the file is unreadable or the key is absent — callers must
     treat an empty string as "unknown" and not as a version mismatch.
     """
-    from clawbio.common.nfcore import read_manifest_version
+    from clawbio.common.nfcore.source import read_manifest_version
 
     return read_manifest_version(local_dir / "nextflow.config")
 
 
 def _git_stdout(path: Path, args: list[str]) -> str:
-    try:
-        proc = subprocess.run(
-            ["git", *args],
-            cwd=str(path),
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=_GIT_TIMEOUT,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError, subprocess.TimeoutExpired):
-        return ""
-    return proc.stdout.strip()
+    return _source.git_stdout(path, args, timeout_seconds=_GIT_TIMEOUT)
 
 
 def resolve_pipeline_source(
@@ -72,7 +62,7 @@ def resolve_pipeline_source(
         )
         local_rejection = {"local_attempted": str(local_dir), "local_rejected_reason": reason}
     elif local_dir.exists():
-        missing = [name for name in PIPELINE_REQUIRED_FILES if not (local_dir / name).exists()]
+        missing = _source.missing_pipeline_files(local_dir, PIPELINE_REQUIRED_FILES)
         if missing:
             raise SkillError(
                 stage="preflight",

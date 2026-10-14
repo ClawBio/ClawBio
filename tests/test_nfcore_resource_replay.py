@@ -8,7 +8,7 @@ import pytest
 
 @pytest.mark.parametrize("system", ["Darwin", "Linux"])
 def test_resource_replay_bounds_capacity_and_preserves_snapshot(tmp_path, system):
-    from clawbio.common import nfcore
+    from clawbio.common.nfcore import resources as nfcore
 
     repro = tmp_path / "reproducibility"
     repro.mkdir()

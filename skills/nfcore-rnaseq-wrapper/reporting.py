@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
-import re
 import shlex
 import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from clawbio.common.nfcore.artifacts import safe_config_basename
+from clawbio.common.nfcore.bundle_emit import write_standalone_remapper
+from clawbio.common.nfcore.bundle_runtime import escape_double_quoted
 from clawbio.common.portable_commands import build_portable_commands_sh
 from clawbio.common.report import generate_report_footer, generate_report_header, write_result_json
 from clawbio.common.textio import write_text_lf, write_text_lf_atomic
@@ -436,11 +438,6 @@ def build_repro_command_args(output_dir: Path, *, args) -> dict[str, str | None]
     return command_args
 
 
-def _safe_config_basename(name: str) -> str:
-    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._")
-    return safe or "nextflow.config"
-
-
 def _stage_user_nextflow_configs(output_dir: Path, config_paths: list[str]) -> list[str]:
     """Copy each user ``-c``/``--nextflow-config`` file into
     ``reproducibility/nextflow_configs/`` and return ``${SCRIPT_DIR}``-relative
@@ -472,7 +469,7 @@ def _stage_user_nextflow_configs(output_dir: Path, config_paths: list[str]) -> l
         if source.parent == config_dir.resolve():
             staged.append(f"${{SCRIPT_DIR}}/nextflow_configs/{source.name}")
             continue
-        destination = config_dir / f"config_{index:02d}_{_safe_config_basename(source.name)}"
+        destination = config_dir / f"config_{index:02d}_{safe_config_basename(source.name)}"
         shutil.copyfile(source, destination)
         staged.append(f"${{SCRIPT_DIR}}/nextflow_configs/{destination.name}")
     return staged
@@ -606,7 +603,8 @@ def _apply_idempotent_resume(content: str, output_dir: Path) -> str:
         return content
     if "\n    --resume" in content:
         return content
-    manifest = f"{output_dir.as_posix()}/reproducibility/manifest.json"
+    # Inside bash double quotes: escape $, `, " and \ so the path stays literal.
+    manifest = escape_double_quoted(f"{output_dir.as_posix()}/reproducibility/manifest.json")
     guard = (
         "# Idempotent replay: resume in place if this output directory already holds a\n"
         "# completed run of this bundle (reproducibility/manifest.json). A fresh or\n"
@@ -623,7 +621,7 @@ def _apply_idempotent_resume(content: str, output_dir: Path) -> str:
 
 def _write_remap_script(repro_dir: Path) -> None:
     repro_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(SKILL_DIR / "remap_paths.py", repro_dir / "remap_paths.py")
+    write_standalone_remapper(repro_dir / "remap_paths.py", adapter_path=SKILL_DIR / "remap_paths.py")
 
 
 def _value_or(value: object, fallback: str) -> str:

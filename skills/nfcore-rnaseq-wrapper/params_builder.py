@@ -4,9 +4,10 @@ import json
 import sys
 from pathlib import Path
 
-import yaml
+from clawbio.common.nfcore.parameters import serialize_params_yaml as _serialize_params
+from clawbio.common.nfcore.parameters import write_params_yaml as _write_params
+from clawbio.common.nfcore.paths import resolve_path_or_uri
 
-from clawbio.common.textio import write_text_lf
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -153,7 +154,7 @@ _BOOLEAN_FIELDS = (
 
 
 def _validate_native_scalar_params(params: dict[str, object]) -> None:
-    from clawbio.common.nfcore import validate_parameter_scalars
+    from clawbio.common.nfcore.parameters import validate_parameter_scalars
 
     contract = json.loads((_SKILL_DIR / "reproducibility/upstream_scalar_contract.json").read_text())
     try:
@@ -300,10 +301,8 @@ def _add_contaminant_params(params: dict[str, object], args) -> None:
 
 
 def _posix_or_uri(value: str) -> str:
-    """Expand to absolute POSIX path, but pass URI schemes (s3://, http://) through unchanged."""
-    if "://" in value:
-        return value
-    return Path(value).expanduser().resolve().as_posix()
+    resolved = resolve_path_or_uri(str(value), base_dir=Path.cwd())
+    return resolved if isinstance(resolved, str) else resolved.as_posix()
 
 
 def _posix_multi(value: str) -> str:
@@ -373,17 +372,8 @@ def _add_tuning_params(params: dict[str, object], args, *, gencode_autodetected:
 
 
 def write_params_yaml(params: dict[str, object], *, output_dir: Path) -> Path:
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
-    params_path = repro_dir / "params.yaml"
-    write_text_lf(params_path, serialize_params_yaml(params))
-    return params_path
+    return _write_params(params, output_dir=output_dir, pipeline_name="nf-core/rnaseq")
 
 
 def serialize_params_yaml(params: dict[str, object]) -> str:
-    header = (
-        "# 'input' and 'outdir' are relative to the Nextflow launch directory (output_dir).\n"
-        "# Use reproducibility/commands.sh for the recommended replay path.\n"
-        "# Manual replay: cd <output_dir> && nextflow run nf-core/rnaseq -params-file reproducibility/params.yaml\n"
-    )
-    return header + yaml.dump(params, allow_unicode=True, sort_keys=False)
+    return _serialize_params(params, pipeline_name="nf-core/rnaseq")

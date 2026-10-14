@@ -47,27 +47,28 @@ def wrapper(request):
 def test_timeout_rejects_nonfinite(wrapper, value):
     _, module, _ = wrapper
     with pytest.raises(argparse.ArgumentTypeError):
-        module._timeout_hours(value)
+        module.timeout_hours(value)
 
 
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(st.floats(min_value=0, max_value=1000, allow_nan=False, allow_infinity=False))
 def test_timeout_round_trips(wrapper, value):
     _, module, _ = wrapper
-    assert module._timeout_hours(str(value)) == value
+    assert module.timeout_hours(str(value)) == value
 
 
 def test_interrupt_terminates_nextflow(wrapper, tmp_path, monkeypatch):
     _, _, companions = wrapper
     executor = companions["executor"]
+    from clawbio.common.nfcore import execution
 
     class Process:
         def wait(self, timeout=None):
             raise KeyboardInterrupt
 
     process, terminated = Process(), []
-    monkeypatch.setattr(executor.subprocess, "Popen", lambda *a, **kw: process)
-    monkeypatch.setattr(executor, "_terminate_process_tree", terminated.append)
+    monkeypatch.setattr(execution.subprocess, "Popen", lambda *a, **kw: process)
+    monkeypatch.setattr(execution, "terminate_process_tree", terminated.append)
     with pytest.raises(KeyboardInterrupt):
         executor.execute_nextflow(
             ["nextflow"], cwd=tmp_path, output_dir=tmp_path, timeout_seconds=None
@@ -76,7 +77,7 @@ def test_interrupt_terminates_nextflow(wrapper, tmp_path, monkeypatch):
 
 
 def test_log_tail_has_bounded_reads(wrapper, tmp_path, monkeypatch):
-    _, _, companions = wrapper
+    from clawbio.common.nfcore.execution import read_log_tail
     path = tmp_path / "large.log"
     path.write_bytes(b"x" * 100000 + b"final error\n")
     original_open, reads = Path.open, []
@@ -102,7 +103,7 @@ def test_log_tail_has_bounded_reads(wrapper, tmp_path, monkeypatch):
         Path, "open", lambda p, *a, **kw: Reader(original_open(p, *a, **kw))
     )
     assert (
-        companions["executor"]._read_log_tail(path, limit=64).endswith("final error\n")
+        read_log_tail(path, limit=64).endswith("final error\n")
     )
     assert reads and all(0 <= size <= 64 for size in reads)
 

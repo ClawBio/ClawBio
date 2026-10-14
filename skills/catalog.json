@@ -3209,14 +3209,14 @@
       "description": "Wrapper skill for running nf-core/rnaseq bulk RNA-seq preprocessing from FASTQ or BAM inputs with strict preflight, reproducibility outputs, and downstream handoff to ClawBio bulk RNA-seq DE skills.",
       "version": "0.1.0",
       "status": "mvp",
-      "maturity_tier": "cli-registered",
+      "maturity_tier": "ci-validated",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
+        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3372,14 +3372,14 @@
       "description": "Wrapper skill for running nf-core/scrnaseq 4.1.0 upstream single-cell RNA-seq preprocessing from FASTQ with strict preflight, reproducibility outputs, and downstream handoff to ClawBio scRNA skills.",
       "version": "0.1.0",
       "status": "mvp",
-      "maturity_tier": "cli-registered",
+      "maturity_tier": "ci-validated",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
+        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,

@@ -20,6 +20,7 @@ Importable:
 
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -656,6 +657,7 @@ SKILLS = {
         # Keep the ClawBio runner timeout above the wrapper's internal Nextflow
         # timeout so the wrapper can terminate the process group cleanly first.
         "default_timeout_seconds": 60 * 60 * 12 + 10 * 60,
+        "timeout_hours_flag": "--timeout-hours",
         "max_output_files_listed": 50,
         "allowed_extra_flags": {
             "--check",
@@ -765,6 +767,7 @@ SKILLS = {
         "demo_args": ["--demo"],
         "description": "Wrapper de preprocessing bulk RNA-seq FASTQ-to-counts vía nf-core/rnaseq",
         "default_timeout_seconds": 60 * 60 * 12 + 10 * 60,
+        "timeout_hours_flag": "--timeout-hours",
         "max_output_files_listed": 50,
         "allowed_extra_flags": {
             "--check",
@@ -973,6 +976,7 @@ SKILLS = {
         "demo_args": ["--demo"],
         "description": "Wrapper de variant calling germinal y somático vía nf-core/sarek 3.8.1",
         "default_timeout_seconds": 60 * 60 * 12 + 10 * 60,
+        "timeout_hours_flag": "--timeout-hours",
         "max_output_files_listed": 50,
         # Keep this allowlist aligned with nfcore_sarek_wrapper.build_parser().
         "allowed_extra_flags": set("""
@@ -1621,6 +1625,49 @@ def _skill_version(skill_name: str) -> str:
         return "unknown"
     match = re.search(r"^\s*version:\s*['\"]?([^'\"\s]+)", frontmatter, re.M)
     return match.group(1) if match else "unknown"
+
+
+# Margin between a skill's own deadline and the runner's, so the skill can stop its
+# children and write its result before the runner kills it.
+_RUNNER_TIMEOUT_MARGIN_SECONDS = 10 * 60
+
+
+def _flag_value(args: list[str], flag: str) -> str | None:
+    """The last value given for ``flag`` as ``flag value`` or ``flag=value``."""
+    value = None
+    for i, arg in enumerate(args):
+        if arg == flag and i + 1 < len(args):
+            value = args[i + 1]
+        elif arg.startswith(flag + "="):
+            value = arg.split("=", 1)[1]
+    return value
+
+
+def _runner_timeout_seconds(
+    skill_info: dict, extra_args: list[str] | None, *, requested: int
+) -> int | None:
+    """Seconds the runner waits for a skill; None waits indefinitely.
+
+    On timeout the runner kills the skill outright, which orphans anything the skill
+    started in its own session (the nf-core wrappers' Nextflow). A skill that enforces
+    its own deadline (``timeout_hours_flag``) must therefore reach it first, so the
+    runner's cap follows that flag plus a margin, and 0 disables both. An explicit
+    --timeout always wins; an unusable value is left for the skill to reject.
+    """
+    if requested != 300:
+        return requested
+    default = skill_info.get("default_timeout_seconds", requested)
+    flag = skill_info.get("timeout_hours_flag")
+    raw = _flag_value(extra_args or [], flag) if flag else None
+    try:
+        hours = float(raw) if raw is not None else None
+    except ValueError:
+        hours = None
+    if hours is None or not math.isfinite(hours * 3600) or hours < 0:
+        return default
+    if hours == 0:
+        return None
+    return math.ceil(hours * 3600) + _RUNNER_TIMEOUT_MARGIN_SECONDS
 
 
 def run_skill(
@@ -3109,9 +3156,9 @@ def main():
         if getattr(args, "json", False):
             extra.append("--json")
 
-        run_timeout = args.timeout
-        if args.timeout == 300:
-            run_timeout = SKILLS.get(args.skill, {}).get("default_timeout_seconds", args.timeout)
+        run_timeout = _runner_timeout_seconds(
+            SKILLS.get(args.skill, {}), extra, requested=args.timeout
+        )
 
         result = run_skill(
             skill_name=args.skill,

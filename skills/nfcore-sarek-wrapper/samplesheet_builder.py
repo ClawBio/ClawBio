@@ -9,6 +9,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, cast
 
+from clawbio.common.nfcore.artifacts import write_csv_lf
+
 import yaml
 
 _SKILL_DIR = Path(__file__).resolve().parent
@@ -189,7 +191,7 @@ def _read_samplesheet(input_path: Path) -> tuple[list[str], list[dict[str, str]]
     if suffix in {".csv", ".tsv"}:
         delimiter = "\t" if suffix == ".tsv" else ","
         try:
-            from clawbio.common.nfcore import read_delimited_samplesheet
+            from clawbio.common.nfcore.artifacts import read_delimited_samplesheet
 
             fieldnames, rows = read_delimited_samplesheet(input_path, delimiter=delimiter)
         except (OSError, ValueError, csv.Error) as exc:
@@ -202,7 +204,7 @@ def _read_samplesheet(input_path: Path) -> tuple[list[str], list[dict[str, str]]
 
     elif suffix in {".json", ".yaml", ".yml"}:
         try:
-            from clawbio.common.nfcore import load_unique_json, load_unique_yaml
+            from clawbio.common.nfcore.parameters import load_unique_json, load_unique_yaml
 
             text = input_path.read_text(encoding="utf-8-sig")
             payload = load_unique_json(text) if suffix == ".json" else load_unique_yaml(text)
@@ -1144,8 +1146,4 @@ def _write_normalized_samplesheet(
     fieldnames: list[str],
     rows: list[dict[str, str]],
 ) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
+    write_csv_lf(output_path, fieldnames, rows)

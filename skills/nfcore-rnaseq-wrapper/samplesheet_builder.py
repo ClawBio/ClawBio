@@ -7,6 +7,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from clawbio.common.nfcore.artifacts import write_csv_lf
+
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
     sys.path.remove(str(_SKILL_DIR))
@@ -87,7 +89,7 @@ def _read_samplesheet(input_path: Path) -> tuple[list[str], list[dict[str, str]]
         )
 
     try:
-        from clawbio.common.nfcore import read_delimited_samplesheet
+        from clawbio.common.nfcore.artifacts import read_delimited_samplesheet
 
         fieldnames, rows = read_delimited_samplesheet(input_path)
     except (OSError, ValueError, csv.Error) as exc:
@@ -479,9 +481,9 @@ def _reject_duplicate_fastq_row(
     seen_fastq_rows.add(key)
 
 
-def _write_normalized_samplesheet(output_path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
+def _write_normalized_samplesheet(
+    output_path: Path,
+    fieldnames: list[str],
+    rows: list[dict[str, str]],
+) -> None:
+    write_csv_lf(output_path, fieldnames, rows)

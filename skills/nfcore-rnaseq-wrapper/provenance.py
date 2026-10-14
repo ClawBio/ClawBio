@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import platform
 import socket
@@ -10,9 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from clawbio.common.checksums import sha256_file
+from clawbio.common.nfcore.artifacts import write_json_lf, write_json_snapshots
 from clawbio.common.reproducibility import write_checksums, write_environment_yml
-from clawbio.common.nfcore import canonical_work_dir
-from clawbio.common.textio import write_text_lf
+from clawbio.common.nfcore.cli import canonical_work_dir
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -318,13 +317,12 @@ def write_reproducibility_manifest(
     }
     manifest_path = output_dir / "reproducibility" / "manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    write_text_lf(manifest_path, json.dumps(manifest, indent=2))
+    write_json_lf(manifest_path, manifest, trailing_newline=False)
     return manifest_path
 
 
 def _write_provenance_payloads(provenance_dir: Path, payloads: dict[str, Any]) -> None:
-    for filename, payload in payloads.items():
-        write_text_lf(provenance_dir / filename, json.dumps(payload, indent=2))
+    write_json_snapshots(provenance_dir, payloads)
 
 
 def _dir_checksum(path: Path) -> str:

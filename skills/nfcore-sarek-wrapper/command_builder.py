@@ -1,10 +1,20 @@
 from __future__ import annotations
 
-from pathlib import Path
-import shlex
-import subprocess
 import sys
+from pathlib import Path
 
+from clawbio.common.nfcore.commands import build_nextflow_command as _shared_command
+
+_SKILL_DIR = Path(__file__).resolve().parent
+if str(_SKILL_DIR) in sys.path:
+    sys.path.remove(str(_SKILL_DIR))
+sys.path.insert(0, str(_SKILL_DIR))
+sys.modules.pop("_isolated_imports", None)
+from _isolated_imports import purge_foreign_bare_modules  # noqa: E402
+
+purge_foreign_bare_modules("schemas")
+
+from schemas import NEXTFLOW_ENV  # noqa: E402
 
 def compose_profile(
     profile: str,
@@ -52,38 +62,12 @@ def build_nextflow_command(
     spark: bool = False,
     mutect_profile: bool = False,
 ) -> tuple[list[str], str]:
-    source_kind = str(pipeline_source["source_kind"])
-    source_ref = str(pipeline_source["source_ref"])
-    resolved_version = str(pipeline_source["resolved_version"])
-    composed_profile = compose_profile(
-        profile,
-        demo=demo,
-        arm=arm,
-        gpu=gpu,
-        spark=spark,
-        mutect_profile=mutect_profile,
+    return _shared_command(
+        pipeline_source=pipeline_source,
+        profile=compose_profile(profile, demo=demo, arm=arm, gpu=gpu, spark=spark, mutect_profile=mutect_profile),
+        params_path=params_path,
+        resume=resume,
+        work_dir=work_dir,
+        extra_configs=extra_configs,
+        env=NEXTFLOW_ENV,
     )
-
-    command = ["nextflow", "run"]
-    if source_kind == "local_checkout":
-        command.append(Path(source_ref).as_posix())
-    else:
-        command.extend([source_ref, "-r", resolved_version])
-
-    command.extend(["-profile", composed_profile, "-params-file", params_path.as_posix()])
-    if work_dir is not None:
-        # work_dir may be a local Path or a remote object-store URI (str, e.g.
-        # s3://bucket/work); preserve URIs verbatim, posix-normalise local paths.
-        work_dir_arg = work_dir if isinstance(work_dir, str) else work_dir.as_posix()
-        command.extend(["-work-dir", work_dir_arg])
-    for cfg in extra_configs or []:
-        command.extend(["-c", cfg.as_posix()])
-    if resume:
-        command.append("-resume")
-
-    if sys.platform == "win32":
-        command_str = subprocess.list2cmdline(command)
-    else:
-        command_str = " ".join(shlex.quote(part) for part in command)
-
-    return command, command_str

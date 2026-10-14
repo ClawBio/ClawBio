@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from clawbio.common.nfcore.artifacts import safe_config_basename
+from clawbio.common.nfcore.bundle_emit import render_standalone_remapper
 from clawbio.common.report import (
     generate_report_footer,
     generate_report_header,
@@ -225,7 +227,7 @@ def _copy_user_nextflow_configs(repro_dir: Path, config_paths: list[str]) -> lis
     for index, raw_path in enumerate(config_paths, start=1):
         source = Path(raw_path).expanduser().resolve()
         destination = (
-            config_dir / f"config_{index:02d}_{_safe_config_basename(source.name)}"
+            config_dir / f"config_{index:02d}_{safe_config_basename(source.name)}"
         )
         shutil.copyfile(source, destination)
         copied.append(f"reproducibility/nextflow_configs/{destination.name}")
@@ -240,11 +242,6 @@ def _replay_work_dir(args) -> str:
     if "://" in work_dir:
         return work_dir
     return Path(work_dir).expanduser().resolve().as_posix()
-
-
-def _safe_config_basename(name: str) -> str:
-    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._")
-    return safe or "nextflow.config"
 
 
 _REMAP_AUTOGEN_START = "# >>> AUTO-GENERATED reference keys (do not edit by hand) >>>"
@@ -279,7 +276,7 @@ def _write_remap_script(repro_dir: Path) -> None:
         raise RuntimeError(
             f"Expected exactly one AUTO-GENERATED reference-keys block in {_REMAP_SCRIPT_SRC}, found {n}."
         )
-    write_text_lf(repro_dir / "remap_paths.py", regenerated)
+    write_text_lf(repro_dir / "remap_paths.py", render_standalone_remapper(regenerated))
 
 
 def write_result(

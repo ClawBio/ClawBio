@@ -21,7 +21,6 @@ from __future__ import annotations
 import dataclasses
 import gzip
 import json
-import re
 import shutil
 import stat
 import sys
@@ -41,9 +40,11 @@ from _isolated_imports import purge_foreign_bare_modules
 
 purge_foreign_bare_modules("schemas")
 
+from clawbio.common.nfcore.artifacts import safe_config_basename  # noqa: E402
+from clawbio.common.nfcore.bundle_emit import write_standalone_remapper  # noqa: E402
 from clawbio.common.report import DISCLAIMER as _DISCLAIMER  # noqa: E402
 from clawbio.common.textio import write_text_lf  # noqa: E402
-from schemas import DEFAULT_ALIGNER, DEFAULT_STEP, SKILL_NAME, SKILL_VERSION  # noqa: E402
+from schemas import DEFAULT_ALIGNER, DEFAULT_STEP, NEXTFLOW_ENV, SKILL_NAME, SKILL_VERSION  # noqa: E402
 
 # Disclaimer text is sourced from the single canonical constant in
 # clawbio.common.report (shared with nfcore-scrnaseq/rnaseq via
@@ -192,11 +193,7 @@ def write_reports(
     remap_src = skill_dir / "remap_paths.py"
     remap_dst = repro_dir / "remap_paths.py"
     if remap_src.exists():
-        shutil.copy2(remap_src, remap_dst)
-        try:
-            shutil.copymode(remap_src, remap_dst)
-        except OSError:
-            pass
+        write_standalone_remapper(remap_dst, adapter_path=remap_src)
     else:
         warnings.append(f"remap_paths.py not found at {remap_src}; skipping copy.")
 
@@ -892,6 +889,10 @@ def _build_commands_sh(
         lines.append("")
     lines.append('cd "$SCRIPT_DIR/.."')
     lines.append("")
+    for key, value in NEXTFLOW_ENV.items():
+        lines.append("# Nextflow setting the pinned nf-core/sarek release needs (see schemas.py).")
+        lines.append(f'export {key}="{value}"')
+        lines.append("")
     # The macOS-only docker config (Apple-Silicon --platform, VirtioFS
     # stageInMode, host-scaled resourceLimits) must apply based on the REPLAY
     # host, not the host that generated the bundle: a macOS-generated bundle
@@ -923,7 +924,7 @@ def _build_commands_sh(
         lines.append("fi")
         lines.append("")
     if has_resource_config:
-        from clawbio.common.nfcore import build_runtime_resource_guard
+        from clawbio.common.nfcore.resources import build_runtime_resource_guard
 
         lines.extend(build_runtime_resource_guard().splitlines())
     # Idempotent replay: reuse the previous run's cache when replaying against an
@@ -973,11 +974,6 @@ def _build_commands_sh(
     return "\n".join(lines), warnings
 
 
-def _safe_config_basename(name: str) -> str:
-    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._")
-    return safe or "nextflow.config"
-
-
 def _within(path: Path, anchor: Path) -> bool:
     try:
         path.relative_to(anchor)
@@ -1021,7 +1017,7 @@ def _stage_external_nextflow_configs(
                 copied += 1
                 destination = (
                     config_dir
-                    / f"config_{copied:02d}_{_safe_config_basename(resolved.name)}"
+                    / f"config_{copied:02d}_{safe_config_basename(resolved.name)}"
                 )
                 shutil.copyfile(resolved, destination)
                 out.append("-c")
