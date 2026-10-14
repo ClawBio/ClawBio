@@ -309,3 +309,45 @@ def test_output_dir_relocates_an_output_quoted_by_shlex(tmp_path):
         assert remap_paths.update_commands_output(commands, target)
         line = next(l for l in commands.read_text(encoding="utf-8").splitlines() if "--output" in l)
         assert shlex.split(line.strip().rstrip("\\")) == ["--output", target]
+
+
+def test_checksum_writers_select_the_same_files(tmp_path: Path):
+    """A repaired bundle must list exactly what a fresh run lists, or sha256sum -c
+    disagrees with the wrapper's own manifest. Nextflow rotates .nextflow.log to
+    .nextflow.log.1, .2, ... on every run in the launch directory; those are logs
+    too, and hashing one made any later run in place fail verification."""
+    import provenance
+
+    output_dir = tmp_path / "out"
+    bundle = output_dir / "reproducibility"
+    files = [
+        "upstream/results/variant_calling/strelka/test/test.strelka.variants.vcf.gz",
+        "upstream/results/multiqc/multiqc_report.html",
+        "upstream/work/ab/cdef/.command.log",
+        "upstream/work/ab/cdef/out.bam",
+        ".nextflow/history",
+        ".nextflow.log",
+        ".nextflow.log.1",
+        ".nextflow.log.12",
+        "logs/stdout.txt",
+        "reproducibility/params.yaml",
+        "report.md",
+        "result.json",
+        "check_result.json",
+        "notes.txt",
+    ]
+    for name in files:
+        (output_dir / name).parent.mkdir(parents=True, exist_ok=True)
+        (output_dir / name).write_text(name, encoding="utf-8")
+
+    fresh = {p.relative_to(output_dir).as_posix() for p in provenance._iter_checksum_paths(output_dir)}
+    remap_paths._regenerate_checksums(bundle)
+    repaired = {
+        line.split("  ", 1)[1]
+        for line in (bundle / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+    }
+    assert fresh == repaired == {
+        "upstream/results/variant_calling/strelka/test/test.strelka.variants.vcf.gz",
+        "upstream/results/multiqc/multiqc_report.html",
+        "notes.txt",
+    }

@@ -521,8 +521,10 @@ def _regenerate_checksums(bundle_dir: Path) -> None:
         # provenance.py._iter_checksum_paths exactly.
         if any(part in exclude_dirs for part in rel.parts[:-1]):
             continue
-        if f.suffix == ".log":
-            continue
+        if f.suffix == ".log" or re.fullmatch(r".+\.log\.\d+", f.name):
+            continue  # including Nextflow's rotated .nextflow.log.N
+        if len(rel.parts) == 1 and rel.name in {"report.md", "result.json", "check_result.json"}:
+            continue  # run summaries, not pipeline outputs
         lines.append(f"{_nfcore_sha256_file(f)}  {rel.as_posix()}")
     _nfcore_write_text_lf(checksum_path, "\n".join(lines) + ("\n" if lines else ""))
 

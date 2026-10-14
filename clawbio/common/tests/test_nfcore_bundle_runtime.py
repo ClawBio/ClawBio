@@ -155,6 +155,8 @@ def test_standalone_remapper_mutates_verifies_and_repairs_bundle(pipeline, tmp_p
         "input: reproducibility/samplesheet.valid.csv\n"
     )
     (bundle.parent / "report.md").write_text("Synthetic test report\n")
+    (bundle.parent / "upstream" / "results").mkdir(parents=True)
+    (bundle.parent / "upstream" / "results" / "calls.vcf").write_text("synthetic\n")
 
     def run(*args):
         result = subprocess.run(
