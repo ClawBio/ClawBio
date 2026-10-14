@@ -31,8 +31,9 @@ manifest payloads, checksums, and resource calculations. See
 [nf-core wrapper architecture](nfcore-wrapper-architecture.md).
 
 Sarek uses #623's `_run_with_samplesheet` boundary; fresh launches also stage
-snapshots until complete emitted-parameter validation succeeds. Both refused
-resumes and rejected fresh plans preserve unaccepted input snapshots. The bulk
+snapshots until complete emitted-parameter validation succeeds. A refused resume
+preserves existing bundle files; a rejected fresh plan does not commit normalized
+snapshots. The bulk
 wrapper's test setup no longer replaces the public package with a stub, so shared,
 wrapper, and public API tests can run together in either collection order. Tests
 that probe ignored demo flags use schema-valid sample values and retain their
@@ -169,6 +170,12 @@ Preview exercised upstream validation and workflow construction while skipping a
 process execution. The single-cell preview reported
 `validationSchemaIgnoreParams: genomes`, which originates in the pinned upstream
 `conf/test.config`; that key is absent from wrapper-generated params.
+
+After package adoption, the bulk RNA and Sarek Nextflow 25.10.4 previews also
+completed through the shared command/execution adapters with all processes
+skipped. The initial single-cell preview rejected one public FASTQ URL during
+upstream file validation; a separate HTTP check of that exact URL returned 200.
+This remote-input check is separate from the passing local source-contract tests.
 
 After package adoption, a Nextflow 26.04.3 preview through the shared command and
 execution adapters parsed the unmodified Sarek release with the forced v1 parser,
