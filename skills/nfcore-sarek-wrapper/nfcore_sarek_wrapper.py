@@ -10,12 +10,10 @@ Run with ``--help`` to see every supported flag.
 """
 from __future__ import annotations
 
-
 import argparse
 import json
 import os
 import shlex
-import shutil
 import subprocess
 import sys
 import time
@@ -57,8 +55,10 @@ purge_foreign_bare_modules(
     "schemas",
 )
 
-from clawbio.common.textio import write_text_lf
 from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.artifacts import write_error_result
+from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
+from clawbio.common.textio import write_text_lf
 from command_builder import build_nextflow_command, compose_profile
 from errors import ErrorCode, SkillError
 from executor import execute_nextflow
@@ -338,26 +338,9 @@ def _print(msg: str) -> None:
 _DEFAULT_TIMEOUT_HOURS = DEFAULT_TIMEOUT_SECONDS / 3600
 
 
-def _timeout_hours(value: str) -> float:
-    try:
-        hours = float(value)
-    except (TypeError, ValueError):
-        raise argparse.ArgumentTypeError(
-            f"--timeout-hours must be a number, got {value!r}"
-        )
-    if hours < 0:
-        raise argparse.ArgumentTypeError(
-            "--timeout-hours must be >= 0 (0 disables the timeout)"
-        )
-    return hours
-
-
 def _resolve_timeout_seconds(args: argparse.Namespace) -> int | None:
     """Translate --timeout-hours into seconds; 0 disables the cap (returns None)."""
-    hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
-    if hours is None or hours == 0:
-        return None
-    return int(round(hours * 3600))
+    return timeout_seconds(getattr(args, "timeout_hours", None), default_hours=_DEFAULT_TIMEOUT_HOURS)
 
 
 def _check_pipeline_version_supported(args: argparse.Namespace) -> None:
@@ -398,16 +381,7 @@ def _check_pipeline_version_supported(args: argparse.Namespace) -> None:
 
 
 def _resolve_nextflow_work_dir(args: argparse.Namespace, output_dir: Path) -> Path | str:
-    """Resolve the Nextflow work directory: default <output>/upstream/work, or the
-    user's --work-dir (a local path, or an object-store URI kept verbatim for cloud
-    executors). Parity with nfcore-scrnaseq/rnaseq."""
-    raw_work_dir = getattr(args, "work_dir", None)
-    if not raw_work_dir:
-        return output_dir / "upstream" / "work"
-    work_dir = str(raw_work_dir).strip()
-    if "://" in work_dir:
-        return work_dir
-    return Path(work_dir).expanduser().resolve()
+    return resolve_work_dir(getattr(args, "work_dir", None), output_dir=output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -484,7 +458,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
     parser.add_argument(
         "--timeout-hours",
-        type=_timeout_hours,
+        type=timeout_hours,
         default=_DEFAULT_TIMEOUT_HOURS,
         help=(
             f"Wall-clock cap for the Nextflow run in hours (default {_DEFAULT_TIMEOUT_HOURS:g}). "
@@ -1594,7 +1568,7 @@ def _handle_skill_error(output_dir: Path, exc: SkillError, *, verbose: bool) -> 
         _print("  details:")
         _print(_indent(json.dumps(exc.details, indent=2, default=str), 4))
     _print("============================================")
-    _write_error_result_if_safe(output_dir, payload)
+    write_error_result(output_dir, payload)
     # Machine-readable error on stderr: always available even when result.json
     # cannot be written (e.g. the output dir is a file or inside the repo).
     print(json.dumps(payload, indent=2), file=sys.stderr)
@@ -1623,25 +1597,10 @@ def _handle_unexpected_error(output_dir: Path, exc: Exception, *, verbose: bool)
     else:
         _print("  Re-run with --verbose for traceback.")
     _print("================================================")
-    _write_error_result_if_safe(output_dir, payload)
+    write_error_result(output_dir, payload)
     # Machine-readable error on stderr (always available; see _handle_skill_error).
     print(json.dumps(payload, indent=2), file=sys.stderr)
     return 1
-
-
-def _write_error_result_if_safe(output_dir: Path, payload: dict[str, Any]) -> None:
-    code = payload.get("error_code")
-    if code in {ErrorCode.OUTPUT_DIR_NOT_EMPTY, ErrorCode.OUTPUT_DIR_NOT_WRITABLE}:
-        return
-    text = json.dumps(payload, indent=2, default=str)
-    # The failure marker lives at the output root, next to where a successful
-    # run writes result.json, so consumers read <output>/result.json regardless
-    # of outcome (parity with nfcore-rnaseq/scrnaseq).
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        write_text_lf(output_dir / "result.json", text)
-    except OSError:
-        return
 
 
 def _indent(text: str, n: int) -> str:

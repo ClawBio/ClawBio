@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 _PIPELINE = Path(__file__).resolve().parent.parent.name.split("-")[1]
 
 
@@ -57,7 +59,7 @@ def test_old_manifest_resume_contract(tmp_path):
     wrapper = importlib.import_module(f"nfcore_{_PIPELINE}_wrapper")
     result = tmp_path / "result.json"
     result.write_text('{"status":"success","old":true}')
-    wrapper._write_error_result_if_safe(tmp_path, {"error_code": "INVALID_RESUME_STATE", "message": "new"})
+    wrapper.write_error_result(tmp_path, {"error_code": "INVALID_RESUME_STATE", "message": "new"})
     assert result.read_text() == '{"status":"success","old":true}'
 
 
@@ -78,3 +80,12 @@ def test_parameter_fingerprint_contract():
                   "# Manual replay: cd <output_dir> && nextflow run nf-core/scrnaseq -params-file reproducibility/params.yaml\n")
         expected = hashlib.sha256((header + "second: false\nfirst: 7\n").encode()).hexdigest()
         assert api._params_payload_checksum(values) == expected
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf", "1e309"])
+def test_non_finite_timeout_is_a_usage_error(value, tmp_path, capsys):
+    wrapper = importlib.import_module(f"nfcore_{_PIPELINE}_wrapper")
+    with pytest.raises(SystemExit) as exit_info:
+        wrapper.build_parser().parse_args(["--output", str(tmp_path), "--timeout-hours", value])
+    assert exit_info.value.code == 2
+    assert "--timeout-hours" in capsys.readouterr().err

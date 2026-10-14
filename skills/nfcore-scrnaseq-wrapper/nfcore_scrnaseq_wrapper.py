@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-
 import argparse
 import hashlib
 import json
@@ -43,8 +42,10 @@ purge_foreign_bare_modules(
     "schemas",
 )
 
-from clawbio.common.textio import write_text_lf
 from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.artifacts import write_error_result
+from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
+from clawbio.common.textio import write_text_lf
 from command_builder import build_nextflow_command
 from errors import ErrorCode, SkillError
 from executor import execute_nextflow
@@ -126,26 +127,9 @@ _DEMO_IGNORED_FIELDS = (
 )
 
 
-def _timeout_hours(value: str) -> float:
-    try:
-        hours = float(value)
-    except (TypeError, ValueError):
-        raise argparse.ArgumentTypeError(
-            f"--timeout-hours must be a number, got {value!r}"
-        )
-    if hours < 0:
-        raise argparse.ArgumentTypeError(
-            "--timeout-hours must be >= 0 (0 disables the timeout)"
-        )
-    return hours
-
-
 def _resolve_timeout_seconds(args: argparse.Namespace) -> int | None:
     """Translate --timeout-hours into seconds; 0 disables the cap (returns None)."""
-    hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
-    if hours is None or hours == 0:
-        return None
-    return int(round(hours * 3600))
+    return timeout_seconds(getattr(args, "timeout_hours", None), default_hours=_DEFAULT_TIMEOUT_HOURS)
 
 
 class _PresetAction(argparse.Action):
@@ -301,7 +285,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--timeout-hours",
-        type=_timeout_hours,
+        type=timeout_hours,
         default=_DEFAULT_TIMEOUT_HOURS,
         help="Wall-clock cap for the Nextflow run in hours (default 12). Use 0 to disable the cap for long HPC/cloud runs whose walltime is enforced by the scheduler.",
     )
@@ -548,21 +532,6 @@ def _write_demo_samplesheet(samplesheet_path: Path) -> None:
     write_text_lf(
         samplesheet_path, "sample,fastq_1,fastq_2,expected_cells,seq_center\n"
     )
-
-
-def _write_error_result_if_safe(output_dir: Path, payload: dict[str, object]) -> None:
-    """Persist structured errors unless doing so would overwrite a rejected output dir."""
-    error_code = payload.get("error_code")
-    if error_code in {"OUTPUT_DIR_NOT_EMPTY", "OUTPUT_DIR_NOT_WRITABLE"}:
-        return
-    if error_code == "INVALID_RESUME_STATE" and (output_dir / "result.json").exists():
-        return
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        write_text_lf(output_dir / "result.json", json.dumps(payload, indent=2))
-    except OSError:
-        # stderr still receives the structured payload; avoid masking the root error.
-        return
 
 
 _BANNER = (
@@ -1003,13 +972,7 @@ def _build_nextflow_invocation(
 
 
 def _resolve_nextflow_work_dir(args: argparse.Namespace, output_dir: Path) -> Path | str:
-    raw_work_dir = getattr(args, "work_dir", None)
-    if not raw_work_dir:
-        return output_dir / "upstream" / "work"
-    work_dir = str(raw_work_dir).strip()
-    if "://" in work_dir:
-        return work_dir
-    return Path(work_dir).expanduser().resolve()
+    return resolve_work_dir(getattr(args, "work_dir", None), output_dir=output_dir)
 
 
 def _build_extra_nextflow_configs(
@@ -1323,7 +1286,7 @@ def _handle_skill_error(
     output_dir: Path, exc: SkillError, *, verbose: bool = False
 ) -> int:
     payload = exc.to_dict()
-    _write_error_result_if_safe(output_dir, payload)
+    write_error_result(output_dir, payload)
     # Human-readable box on stdout (sarek-style traceability).
     _print("")
     _print("================ SkillError ================")
@@ -1356,7 +1319,7 @@ def _handle_unexpected_error(
             "traceback": traceback.format_exc(),
         },
     }
-    _write_error_result_if_safe(output_dir, payload)
+    write_error_result(output_dir, payload)
     _print("")
     _print("================ Internal error ================")
     _print(f"  type:    {type(exc).__name__}")

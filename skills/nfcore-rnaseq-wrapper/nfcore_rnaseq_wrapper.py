@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-
 import argparse
 import json
 import os
@@ -74,8 +73,10 @@ from schemas import (
     SUPPORTED_UMI_TOOLS,
 )
 
-from clawbio.common.textio import write_text_lf
 from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.artifacts import write_error_result
+from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
+from clawbio.common.textio import write_text_lf
 
 
 _DASH_VALUE_OPTIONS = {
@@ -170,7 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume", action="store_true", help="Attempt checksum-validated Nextflow resume")
     parser.add_argument(
         "--timeout-hours",
-        type=_timeout_hours,
+        type=timeout_hours,
         default=DEFAULT_TIMEOUT_HOURS,
         help=(
             f"Wall-clock ceiling for the local Nextflow run before it is terminated "
@@ -1319,20 +1320,6 @@ def _write_resource_limits_config(output_dir: Path, *, timeout_hours: float = DE
     return config_path
 
 
-def _timeout_hours(value: str) -> float:
-    try:
-        hours = float(value)
-    except (TypeError, ValueError):
-        raise argparse.ArgumentTypeError(
-            f"--timeout-hours must be a number, got {value!r}"
-        )
-    if hours < 0:
-        raise argparse.ArgumentTypeError(
-            "--timeout-hours must be >= 0 (0 disables the timeout)"
-        )
-    return hours
-
-
 def _resolve_timeout_hours(args: argparse.Namespace) -> float:
     """Return the effective --timeout-hours, falling back to the pinned default."""
     hours = getattr(args, "timeout_hours", DEFAULT_TIMEOUT_HOURS)
@@ -1340,29 +1327,12 @@ def _resolve_timeout_hours(args: argparse.Namespace) -> float:
 
 
 def _resolve_nextflow_work_dir(args: argparse.Namespace, output_dir: Path) -> Path | str:
-    """Resolve the Nextflow work directory: default <output>/upstream/work, or the
-    user's --work-dir (a local path, or an object-store URI kept verbatim for cloud
-    executors). Parity with nfcore-scrnaseq/sarek."""
-    raw_work_dir = getattr(args, "work_dir", None)
-    if not raw_work_dir:
-        return output_dir / "upstream" / "work"
-    work_dir = str(raw_work_dir).strip()
-    if "://" in work_dir:
-        return work_dir
-    return Path(work_dir).expanduser().resolve()
+    return resolve_work_dir(getattr(args, "work_dir", None), output_dir=output_dir)
 
 
 def _resolve_timeout_seconds(args: argparse.Namespace) -> int | None:
-    """Translate --timeout-hours into seconds; 0 disables the cap (returns None).
-
-    Parity with nfcore-scrnaseq/sarek: the default keeps a wall-clock cap, but an
-    explicit ``--timeout-hours 0`` opts out (long HPC/cloud runs governed by the
-    scheduler's walltime).
-    """
-    hours = _resolve_timeout_hours(args)
-    if hours == 0:
-        return None
-    return int(hours * 60 * 60)
+    """Translate --timeout-hours into seconds; 0 disables the cap (returns None)."""
+    return timeout_seconds(getattr(args, "timeout_hours", None), default_hours=DEFAULT_TIMEOUT_HOURS)
 
 
 def _nextflow_execution_cwd(output_dir: Path) -> Path:
@@ -1585,24 +1555,11 @@ def _downstream_flags_complete(args: argparse.Namespace) -> bool:
     return bool(getattr(args, "metadata", None) and getattr(args, "formula", None) and getattr(args, "contrast", None))
 
 
-def _write_error_result_if_safe(output_dir: Path, payload: dict[str, object]) -> None:
-    error_code = payload.get("error_code")
-    if error_code in {ErrorCode.OUTPUT_DIR_NOT_EMPTY, ErrorCode.OUTPUT_DIR_NOT_WRITABLE}:
-        return
-    if error_code == ErrorCode.INVALID_RESUME_STATE and (output_dir / "result.json").exists():
-        return
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        write_text_lf(output_dir / "result.json", json.dumps(payload, indent=2))
-    except OSError:
-        return
-
-
 def _handle_skill_error(
     output_dir: Path, exc: SkillError, *, verbose: bool = False
 ) -> int:
     payload = exc.to_dict()
-    _write_error_result_if_safe(output_dir, payload)
+    write_error_result(output_dir, payload)
     # Human-readable box on stdout (sarek-style traceability).
     _print("")
     _print("================ SkillError ================")
@@ -1635,7 +1592,7 @@ def _handle_unexpected_error(
             "traceback": traceback.format_exc(),
         },
     }
-    _write_error_result_if_safe(output_dir, payload)
+    write_error_result(output_dir, payload)
     _print("")
     _print("================ Internal error ================")
     _print(f"  type:    {type(exc).__name__}")

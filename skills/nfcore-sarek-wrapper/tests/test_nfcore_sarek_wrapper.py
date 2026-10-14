@@ -773,6 +773,30 @@ def test_main_keyboard_interrupt_returns_130(module, monkeypatch, tmp_path):
 
 
 
+def test_rejected_resume_keeps_the_completed_runs_result_json(module, monkeypatch, tmp_path):
+    """--resume refused for drift leaves the earlier run untouched, so its result.json
+    must survive. Overwriting it with the refusal would record a failure over outputs
+    that are still on disk (parity with nfcore-rnaseq/scrnaseq INVALID_RESUME_STATE)."""
+    out = tmp_path / "out"
+    out.mkdir()
+    completed = '{"status": "success", "ok": true}'
+    (out / "result.json").write_text(completed, encoding="utf-8")
+    _patch_heavy(monkeypatch, module)
+
+    def _drift(**kw):
+        raise module.SkillError(
+            stage="preflight",
+            error_code=module.ErrorCode.RESUME_DRIFT,
+            message="Resume manifest is incompatible with the current run.",
+            fix="Use a fresh output directory.",
+        )
+
+    monkeypatch.setattr(module, "run_preflight", _drift)
+    rc = module.main(["--output", str(out), "--demo", "--resume", "--no-banner"])
+    assert rc == 1
+    assert (out / "result.json").read_text(encoding="utf-8") == completed
+
+
 def test_main_extra_param_merges_into_run(module, monkeypatch, tmp_path):
     call_log = _patch_heavy(monkeypatch, module)
     rc = module.main([
