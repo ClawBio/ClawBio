@@ -113,6 +113,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skip-host-removal", action="store_true", help="Disable host read subtraction"
     )
+    parser.add_argument(
+        "--allow-host-download",
+        action="store_true",
+        help=(
+            "Permit downloading the ~3 GB host reference when decontamination is on "
+            "and no --host-fasta is given (pass --skip-host-removal or --host-fasta "
+            "to avoid the download)"
+        ),
+    )
     parser.add_argument("--checkm2-db", help="CheckM2 1.1.0 DIAMOND .dmnd database")
     parser.add_argument("--gtdbtk-db", help="Extracted GTDB-Tk reference directory")
     parser.add_argument(
@@ -123,6 +132,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cog-db", help="DIAMOND COG database")
     parser.add_argument("--pfam-db", help="Pfam-A profile database")
     parser.add_argument("--pipeline-dir", help="Use an existing checkout of the workflow")
+    parser.add_argument(
+        "--allow-fetch",
+        action="store_true",
+        help=(
+            "Permit cloning the pinned workflow into the cache when no --pipeline-dir "
+            "is given; without it a run with no cached checkout refuses. --demo "
+            "always fetches, because demonstrating the workflow is the point"
+        ),
+    )
     parser.add_argument(
         "--conda-prefix",
         help="Where snakemake builds tool environments (default: <cache>/conda-envs)",
@@ -153,6 +171,7 @@ def _options(args: argparse.Namespace) -> RunOptions:
         coassemble=args.coassemble,
         host_fasta=Path(args.host_fasta) if args.host_fasta else None,
         skip_host_removal=args.skip_host_removal,
+        allow_host_download=args.allow_host_download,
         allow_remote_inputs=args.allow_remote_inputs,
         binners=binners,
         checkm2_db=Path(args.checkm2_db) if args.checkm2_db else None,
@@ -186,6 +205,7 @@ def _demo_conflicts(args: argparse.Namespace) -> list[tuple[str, str]]:
         ("--coassemble", args.coassemble),
         ("--host-fasta", args.host_fasta),
         ("--skip-host-removal", args.skip_host_removal),
+        ("--allow-host-download", args.allow_host_download),
         ("--checkm2-db", args.checkm2_db),
         ("--gtdbtk-db", args.gtdbtk_db),
         ("--taxonomy-db", args.taxonomy_db),
@@ -323,13 +343,21 @@ def run(args: argparse.Namespace) -> int:
         _reject_demo_conflicts(args)
 
     cache_dir = default_cache_dir()
-    # The upstream workflow is public code: cloning it fetches nothing of the
-    # user's, which is why this is unconditional rather than behind a flag.
+    if args.demo and not args.allow_fetch:
+        # The demo needs the checkout to generate its data, so it fetches by
+        # design; say so rather than letting the clone be silent.
+        print(
+            f"[{SKILL_NAME}] --demo fetches the pinned workflow checkout when it is "
+            "not already cached (public code; no user data is involved).",
+            file=sys.stderr,
+        )
+    # Non-demo runs clone the upstream workflow only with --allow-fetch: running
+    # its Snakefile is executing third-party code and needs explicit consent.
     source = resolve_pipeline_source(
         Path(args.pipeline_dir) if args.pipeline_dir else None,
         cache_dir=cache_dir,
         ref=PINNED_REF,
-        allow_fetch=True,
+        allow_fetch=args.allow_fetch or args.demo,
     )
     checkout = Path(source["path"])
 
@@ -454,6 +482,8 @@ def _replay(args: argparse.Namespace) -> str:
         ("--check", args.check),
         ("--coassemble", args.coassemble),
         ("--skip-host-removal", args.skip_host_removal),
+        ("--allow-host-download", args.allow_host_download),
+        ("--allow-fetch", args.allow_fetch),
         ("--allow-remote-inputs", args.allow_remote_inputs),
         ("--force", args.force),
     ):

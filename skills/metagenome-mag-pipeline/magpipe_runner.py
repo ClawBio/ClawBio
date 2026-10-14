@@ -106,6 +106,8 @@ def _terminate_process_group(process: subprocess.Popen) -> None:
         process.kill()
         process.wait(timeout=_TERMINATION_GRACE_SECONDS)
     except (OSError, subprocess.SubprocessError):
+        # The process exited between the last killpg and this wait (or the wait
+        # raced its exit), so there is nothing left to terminate or reap.
         pass
 
 

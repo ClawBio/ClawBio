@@ -42,6 +42,9 @@ class ErrorCode:
     # A samplesheet row naming a public SRA/ENA/DRA run downloads data. That is
     # network egress under a local-first skill, so it needs --allow-remote-inputs.
     REMOTE_INPUT_NOT_ALLOWED = "REMOTE_INPUT_NOT_ALLOWED"
+    # Host read subtraction is on by default, but the ~3 GB GRCh38 reference is
+    # not bundled; the download needs the same explicit consent as remote inputs.
+    HOST_REFERENCE_NOT_ALLOWED = "HOST_REFERENCE_NOT_ALLOWED"
     INVALID_PRESET = "INVALID_PRESET"
     INVALID_CONFIG = "INVALID_CONFIG"
     # taxonomy, annotation and the MAG stage need external databases that upstream

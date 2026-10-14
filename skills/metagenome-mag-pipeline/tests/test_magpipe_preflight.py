@@ -105,6 +105,7 @@ class TestCachedAndFetched:
             )
         assert excinfo.value.error_code == ErrorCode.PIPELINE_FETCH_FAILED
         assert "--pipeline-dir" in excinfo.value.fix
+        assert "--allow-fetch" in excinfo.value.fix
 
     def test_incomplete_cache_is_not_a_hit(self, fake_pipeline: Path, tmp_path: Path) -> None:
         cache = cache_dir_for(fake_pipeline, tmp_path)
@@ -367,3 +368,21 @@ class TestRunPreflight:
         )
         assert summary["snakemake"] is None
         assert summary["conda"] is None
+
+    def test_never_clones_without_consent(self, tmp_path: Path, monkeypatch) -> None:
+        """The aggregate helper must be opt-in for fetching, like the CLI."""
+
+        def forbidden(*args, **kwargs):
+            raise AssertionError("run_preflight ran git without explicit consent")
+
+        monkeypatch.setattr(preflight.subprocess, "run", forbidden)
+        with pytest.raises(SkillError) as excinfo:
+            preflight.run_preflight(
+                output_dir=tmp_path / "out",
+                config=BASE,
+                samples=[],
+                cache_dir=tmp_path / "cache",
+                check_tools=False,
+            )
+        assert excinfo.value.error_code == ErrorCode.PIPELINE_FETCH_FAILED
+        assert "--allow-fetch" in excinfo.value.fix

@@ -1060,14 +1060,15 @@ SKILLS = {
         # tests/test_extra_flags_match_parsers.py enforces the match.
         "allowed_extra_flags": set("""
             --check --preset --cores --mem-mb --coassemble --binners
-            --host-fasta --skip-host-removal
+            --host-fasta --skip-host-removal --allow-host-download
             --checkm2-db --gtdbtk-db --taxonomy-db --taxdump
             --kegg-db --cog-db --pfam-db
-            --pipeline-dir --conda-prefix --allow-remote-inputs
+            --pipeline-dir --conda-prefix --allow-fetch --allow-remote-inputs
             --timeout-hours --force
         """.split()),
         "allowed_extra_flags_without_values": set("""
-            --check --coassemble --skip-host-removal --allow-remote-inputs --force
+            --check --coassemble --skip-host-removal --allow-host-download
+            --allow-fetch --allow-remote-inputs --force
         """.split()),
         # The wrapper decides for itself whether --demo or --input is required.
         "no_input_required": True,

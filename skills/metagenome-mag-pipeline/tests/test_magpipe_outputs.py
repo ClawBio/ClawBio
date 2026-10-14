@@ -35,7 +35,9 @@ def config_for(preset: str, tmp_path: Path, **kwargs) -> dict:
     return build_config(
         copy.deepcopy(BASE),
         [Sample("S1", (Path("/r/S1_R1.fastq.gz"),), (Path("/r/S1_R2.fastq.gz"),), "S1", None, True)],
-        RunOptions(preset=preset, **kwargs),
+        # allow_host_download: parsing tests are not about the host-reference
+        # consent decision, so they permit the download.
+        RunOptions(preset=preset, allow_host_download=True, **kwargs),
         samplesheet=tmp_path / "pipeline" / "samplesheet.tsv",
         results_dir=tmp_path / "results",
         database_dir=tmp_path / "db",
@@ -211,6 +213,25 @@ class TestParseFull:
         assert bins["checkm2"][0]["completeness"] == 94.53
         assert bins["checkm2"][0]["passes_qa"] is True
         assert bins["checkm2"][2]["passes_qa"] is False
+
+    def test_passing_qa_accepts_boolean_encodings(self, fake_results: Path, tmp_path: Path) -> None:
+        """Upstream writes True/False today; 1/0 or yes/no must not undercount."""
+        columns = (
+            "genome", "completeness", "contamination", "passes_qa", "classification",
+            "closest_genome_reference", "closest_genome_reference_score",
+            "closest_genome_taxonomy", "sample",
+        )
+        rows = (
+            ("B1", "94.5", "2.1", "1", "", "", "", "", "S1"),
+            ("B2", "88.0", "3.0", "yes", "", "", "", "", "S1"),
+            ("B3", "40.0", "9.0", "0", "", "", "", "", "S1"),
+        )
+        path = fake_results / "final" / "binning" / "bins.tsv"
+        path.write_text(
+            "\t".join(columns) + "\n" + "\n".join("\t".join(row) for row in rows) + "\n"
+        )
+        parsed = parse_outputs(fake_results, full_config(fake_results, tmp_path))
+        assert parsed["bins"]["passing_qa"] == 2
 
     def test_bin_thresholds_come_from_the_config(self, parsed: dict, fake_results: Path, tmp_path: Path) -> None:
         config = full_config(fake_results, tmp_path)

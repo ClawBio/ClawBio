@@ -56,6 +56,7 @@ def full_config(tmp_path: Path) -> dict:
         [Sample("S1", (Path("/r/R1.fq.gz"),), (Path("/r/R2.fq.gz"),), "S1", None, True)],
         RunOptions(
             preset="full",
+            allow_host_download=True,
             checkm2_db=db / "checkm2.dmnd",
             gtdbtk_db=db / "gtdbtk",
             taxonomy_db=db / "nr.dmnd",
@@ -74,7 +75,7 @@ def assembly_config(tmp_path: Path) -> dict:
     return build_config(
         copy.deepcopy(BASE),
         [Sample("S1", (Path("/r/R1.fq.gz"),), (Path("/r/R2.fq.gz"),), "S1", None, True)],
-        RunOptions(preset="assembly"),
+        RunOptions(preset="assembly", allow_host_download=True),
         samplesheet=tmp_path / "samplesheet.tsv",
         results_dir=tmp_path / "results",
         database_dir=tmp_path / "db",
@@ -171,6 +172,31 @@ class TestReportMd:
         text, _, _ = report
         assert "results/reports/multiqc/multiqc_report.html" in text
         assert "results/reports/assembly/quast.html" in text
+
+    def test_tool_versions_table_is_square_without_an_evidence_column(
+        self, tmp_path: Path, fake_results: Path
+    ) -> None:
+        """Rows always render three cells; a header missing one renders ragged."""
+        versions = fake_results / "provenance" / "software_versions.tsv"
+        versions.write_text("tool\tversion\nbbtools\t39.01\nspades\t4.0\n")
+        config = full_config(tmp_path)
+        findings = parse_outputs(fake_results, config)
+        path = write_report_md(
+            tmp_path,
+            status="ok",
+            mode="run",
+            findings=findings,
+            config=config,
+            pipeline_source=dict(SOURCE),
+            warnings=[],
+        )
+        body = path.read_text().split("### Tool versions", 1)[1].split("\n###", 1)[0]
+        widths = {
+            len(line.strip("|").split("|"))
+            for line in body.splitlines()
+            if line.startswith("|")
+        }
+        assert widths == {3}, f"ragged tool-version table, column counts {widths}"
 
     def test_reproducibility_pointer(self, report) -> None:
         text, _, _ = report

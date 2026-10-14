@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -99,6 +100,12 @@ def full_options(databases: dict[str, Path], **kwargs) -> RunOptions:
 def render(options: RunOptions, samples=None, base=None, tmp_path: Path | None = None):
     root = tmp_path or Path("/out")
     samples = [paired()] if samples is None else samples
+    if not (options.host_fasta or options.skip_host_removal or options.allow_host_download):
+        # Building a default config now needs a host-reference decision: without
+        # one the wrapper refuses to render a config that would silently download
+        # the ~3 GB GRCh38 reference. Tests not about that decision permit the
+        # download, which keeps decontamination on, as it is by default.
+        options = replace(options, allow_host_download=True)
     return build_config(
         copy.deepcopy(base or BASE),
         samples,
@@ -419,6 +426,62 @@ class TestPaths:
         assert config["binning"]["binners"] == ["metabat", "vamb"]
 
 
+class TestHostReferenceConsent:
+    """The default config would download the ~3 GB GRCh38 host reference.
+
+    Host read subtraction is on by default (human reads in a metagenome are
+    personal data), the reference is not bundled, and the download needs the
+    user's explicit say-so — the same consent model as --allow-remote-inputs.
+    """
+
+    def _build(self, tmp_path: Path, options: RunOptions) -> dict:
+        return build_config(
+            copy.deepcopy(BASE),
+            [paired()],
+            options,
+            samplesheet=tmp_path / "s.tsv",
+            results_dir=tmp_path / "results",
+            database_dir=tmp_path / "db",
+        )
+
+    def test_a_run_without_a_decision_is_refused(self, tmp_path: Path) -> None:
+        with pytest.raises(SkillError) as excinfo:
+            self._build(tmp_path, RunOptions(preset="assembly"))
+        assert excinfo.value.error_code == ErrorCode.HOST_REFERENCE_NOT_ALLOWED
+        for flag in ("--host-fasta", "--allow-host-download", "--skip-host-removal"):
+            assert flag in excinfo.value.fix
+        assert "GRCh38" in excinfo.value.message
+        assert "3 GB" in excinfo.value.message
+
+    def test_allow_host_download_permits_the_default(self, tmp_path: Path) -> None:
+        config = self._build(tmp_path, RunOptions(preset="assembly", allow_host_download=True))
+        assert config["qc"]["decontaminate"]["enabled"] is True
+        assert not config["qc"]["decontaminate"]["fasta"]
+
+    def test_a_local_fasta_is_a_decision(self, tmp_path: Path) -> None:
+        host = tmp_path / "host.fa"
+        host.write_text(">h\nACGTACGT\n")
+        config = self._build(tmp_path, RunOptions(preset="assembly", host_fasta=host))
+        assert config["qc"]["decontaminate"]["enabled"] is True
+        assert Path(config["qc"]["decontaminate"]["fasta"]) == host
+
+    def test_skipping_host_removal_is_a_decision(self, tmp_path: Path) -> None:
+        config = self._build(tmp_path, RunOptions(preset="assembly", skip_host_removal=True))
+        assert config["qc"]["decontaminate"]["enabled"] is False
+
+    def test_a_demo_config_needs_no_decision(self, tmp_path: Path) -> None:
+        """The demo uses upstream's test configuration, which has it off."""
+        config = build_config(
+            copy.deepcopy(BASE_TEST),
+            [paired()],
+            RunOptions(preset="assembly", demo=True),
+            samplesheet=tmp_path / "s.tsv",
+            results_dir=tmp_path / "results",
+            database_dir=tmp_path / "db",
+        )
+        assert config["qc"]["decontaminate"]["enabled"] is False
+
+
 class TestResourceCapping:
     def test_threads_capped_at_cores(self) -> None:
         config = render(RunOptions(preset="full", cores=2))
@@ -449,7 +512,7 @@ class TestImmutabilityAndIO:
         build_config(
             base,
             [paired()],
-            RunOptions(preset="full", cores=1),
+            RunOptions(preset="full", cores=1, allow_host_download=True),
             samplesheet=tmp_path / "s.tsv",
             results_dir=tmp_path / "r",
             database_dir=tmp_path / "db",

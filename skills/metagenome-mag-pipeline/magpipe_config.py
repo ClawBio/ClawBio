@@ -101,6 +101,7 @@ class RunOptions:
     coassemble: bool = False
     host_fasta: Path | None = None
     skip_host_removal: bool = False
+    allow_host_download: bool = False
     allow_remote_inputs: bool = False
     binners: tuple[str, ...] = ("metabat", "maxbin", "vamb")
     checkm2_db: Path | None = None
@@ -268,6 +269,21 @@ def build_config(
     host = _absolute(options.host_fasta)
     if host is not None:
         decontaminate["fasta"] = host
+    elif not options.skip_host_removal and not options.allow_host_download:
+        # Decontamination is on by default, the reference is not bundled, and
+        # rendering this config would make the run download ~3 GB without the
+        # user ever choosing to. Refuse and name all three ways to decide.
+        reference = str(decontaminate.get("fasta_name") or "GRCh38")
+        raise _fail(
+            ErrorCode.HOST_REFERENCE_NOT_ALLOWED,
+            "host read subtraction is enabled by default and no local --host-fasta "
+            f"was given, so this run would download the ~3 GB {reference} host "
+            "reference; downloads need explicit consent",
+            "Pass --host-fasta <genome.fasta> to use a local copy, "
+            "--allow-host-download to permit the download, or --skip-host-removal "
+            "to leave host reads in the output.",
+            reference=reference,
+        )
 
     remote = any(getattr(sample, "sra_run", None) for sample in samples)
     config.setdefault("fetch", {}).setdefault("sra", {})["enabled"] = bool(

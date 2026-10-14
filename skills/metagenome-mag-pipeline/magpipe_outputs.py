@@ -124,6 +124,19 @@ def _value(cell: str | None) -> Any:
     return text
 
 
+# How a boolean column may read after `_value`: upstream writes True/False
+# today, but a 1/0 or yes/no encoding must not silently undercount.
+_TRUE_CELLS = {"true", "1", "yes"}
+
+
+def _truthy(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in _TRUE_CELLS
+
+
 def _read_table(path: Path, delimiter: str | None = None) -> list[dict[str, Any]]:
     if delimiter is None:
         delimiter = "," if path.suffix == ".csv" else "\t"
@@ -290,7 +303,7 @@ def parse_outputs(results_dir: Path, config: dict) -> dict:
             "drep": _read_table(found[FINAL_OUTPUTS["drep_genome_info"]]),
             "gtdb": _read_table(found[FINAL_OUTPUTS["gtdb_summary"]]),
             "passing_qa": sum(
-                1 for row in mags if str(row.get("passes_qa")).lower() == "true"
+                1 for row in mags if _truthy(row.get("passes_qa"))
             ),
             "thresholds": thresholds_from_config(config),
         }

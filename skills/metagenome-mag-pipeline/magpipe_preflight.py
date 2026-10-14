@@ -116,8 +116,9 @@ def resolve_pipeline_source(
             "preflight",
             ErrorCode.PIPELINE_FETCH_FAILED,
             f"no cached checkout of the upstream workflow at {target}",
-            "Pass --pipeline-dir <checkout> to use one you already have, or allow "
-            "the skill to clone the public workflow (no user data is fetched).",
+            "Pass --pipeline-dir <checkout> to use one you already have, or "
+            "--allow-fetch to permit cloning the public workflow into the cache "
+            "(no user data is involved).",
             cache_dir=str(cache),
             ref=ref,
         )
@@ -327,11 +328,16 @@ def run_preflight(
     pipeline_dir: Path | None = None,
     cache_dir: Path | None = None,
     ref: str = PINNED_REF,
-    allow_fetch: bool = True,
+    allow_fetch: bool = False,
     force: bool = False,
     check_tools: bool = True,
 ) -> dict:
-    """Run every check and return what was found. Raises on the first failure."""
+    """Run every check and return what was found. Raises on the first failure.
+
+    `allow_fetch` defaults to False: cloning the pinned workflow is executing
+    third-party code, so the caller opts in explicitly, like the CLI's
+    --allow-fetch.
+    """
     check_output_dir(output_dir, force=force)
     source = resolve_pipeline_source(
         pipeline_dir,

@@ -26,6 +26,11 @@ if str(SKILL_DIR) not in sys.path:
 
 COMMON = ["--pipeline-dir", "{pipeline}", "--conda-prefix", "{prefix}"]
 
+# A real run must decide about the ~3 GB host reference before the config is
+# rendered (--host-fasta, --allow-host-download or --skip-host-removal). Tests
+# that are not about that decision leave host reads in the output.
+NO_HOST_REMOVAL = ["--skip-host-removal"]
+
 
 def run_cli(
     args: list[str],
@@ -290,7 +295,7 @@ class TestUserInput:
         sheet = self._sheet(tmp_path, tmp_path / "reads")
         out = tmp_path / "out"
         result = run_cli(
-            ["--input", str(sheet), "--output", str(out), *COMMON],
+            ["--input", str(sheet), "--output", str(out), *COMMON, *NO_HOST_REMOVAL],
             fake_pipeline=fake_pipeline,
             tmp_path=tmp_path,
         )
@@ -309,7 +314,7 @@ class TestUserInput:
                 path.write_bytes(b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03")
         out = tmp_path / "out"
         result = run_cli(
-            ["--input", str(reads), "--output", str(out), *COMMON],
+            ["--input", str(reads), "--output", str(out), *COMMON, *NO_HOST_REMOVAL],
             fake_pipeline=fake_pipeline,
             tmp_path=tmp_path,
         )
@@ -328,7 +333,7 @@ class TestUserInput:
             path.write_bytes(b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03")
         out = tmp_path / "out"
         result = run_cli(
-            ["--input", str(reads), "--output", str(out), "--preset", "full", *COMMON],
+            ["--input", str(reads), "--output", str(out), "--preset", "full", *COMMON, *NO_HOST_REMOVAL],
             fake_pipeline=fake_pipeline,
             tmp_path=tmp_path,
         )
@@ -357,7 +362,7 @@ class TestUserInput:
         path.write_bytes(b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03")
         out = tmp_path / "out"
         result = run_cli(
-            ["--input", str(reads), "--output", str(out), "--preset", "assembly", *COMMON],
+            ["--input", str(reads), "--output", str(out), "--preset", "assembly", *COMMON, *NO_HOST_REMOVAL],
             fake_pipeline=fake_pipeline,
             tmp_path=tmp_path,
         )
@@ -371,7 +376,7 @@ class TestUserInput:
         path.write_bytes(b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03")
         out = tmp_path / "out"
         result = run_cli(
-            ["--input", str(reads), "--output", str(out), "--preset", "qc", *COMMON],
+            ["--input", str(reads), "--output", str(out), "--preset", "qc", *COMMON, *NO_HOST_REMOVAL],
             fake_pipeline=fake_pipeline,
             tmp_path=tmp_path,
         )
@@ -437,8 +442,13 @@ class TestFailures:
         stub = bindir / "snakemake"
         stub.write_text((FIXTURES / "stub_snakemake.py").read_text())
         stub.chmod(0o755)
-        # The stub is `#!/usr/bin/env python3`, so a hermetic PATH still needs one.
-        (bindir / "python3").symlink_to(Path(sys.executable))
+        # The stub is `#!/usr/bin/env python3`, so a hermetic PATH still needs
+        # one. It must be a wrapper that execs the interpreter by its real path,
+        # not a symlink to it: a copied symlink has no pyvenv.cfg beside it, so
+        # CPython resolves sys.prefix to the base installation and a venv-only
+        # dependency (PyYAML on CI) fails to import.
+        (bindir / "python3").write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
+        (bindir / "python3").chmod(0o755)
         out = tmp_path / "out"
         result = run_cli(
             demo_args(out, fake_pipeline, tmp_path),
@@ -489,7 +499,7 @@ class TestFailures:
         )
         out = tmp_path / "out"
         result = run_cli(
-            ["--input", str(sheet), "--output", str(out), *COMMON],
+            ["--input", str(sheet), "--output", str(out), *COMMON, *NO_HOST_REMOVAL],
             fake_pipeline=fake_pipeline,
             tmp_path=tmp_path,
         )
@@ -520,6 +530,152 @@ class TestFailures:
         )
         assert result.returncode == 1
         assert error_of(result)["error_code"] == "MISSING_INPUT"
+
+
+class TestHostReferenceConsent:
+    """The ~3 GB GRCh38 reference downloads only after an explicit decision.
+
+    Host read subtraction is on by default, so without a local `--host-fasta`
+    the default config would download the reference. The run refuses instead,
+    naming all three ways to decide: a local FASTA, --allow-host-download, or
+    --skip-host-removal.
+    """
+
+    def _sheet(self, tmp_path: Path) -> Path:
+        reads = tmp_path / "reads"
+        for mate in ("R1", "R2"):
+            path = reads / "S1" / f"S1_{mate}.fastq.gz"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03")
+        from magpipe_samplesheet import Sample, write_samplesheet
+
+        return write_samplesheet(
+            [
+                Sample(
+                    "S1",
+                    (reads / "S1" / "S1_R1.fastq.gz",),
+                    (reads / "S1" / "S1_R2.fastq.gz",),
+                    "S1",
+                    None,
+                    True,
+                )
+            ],
+            tmp_path / "sheet.tsv",
+        )
+
+    def test_a_run_without_a_decision_is_refused(self, fake_pipeline: Path, tmp_path: Path) -> None:
+        sheet = self._sheet(tmp_path)
+        result = run_cli(
+            ["--input", str(sheet), "--output", str(tmp_path / "out"), *COMMON],
+            fake_pipeline=fake_pipeline,
+            tmp_path=tmp_path,
+        )
+        assert result.returncode == 1
+        payload = error_of(result)
+        assert payload["error_code"] == "HOST_REFERENCE_NOT_ALLOWED"
+        for flag in ("--host-fasta", "--allow-host-download", "--skip-host-removal"):
+            assert flag in payload["fix"]
+        assert "GRCh38" in payload["message"]
+
+    def test_allow_host_download_permits_the_run(self, fake_pipeline: Path, tmp_path: Path) -> None:
+        import yaml
+
+        sheet = self._sheet(tmp_path)
+        out = tmp_path / "out"
+        result = run_cli(
+            ["--input", str(sheet), "--output", str(out), "--allow-host-download", *COMMON],
+            fake_pipeline=fake_pipeline,
+            tmp_path=tmp_path,
+        )
+        assert result.returncode == 0, result.stderr
+        # The download the flag permitted is still announced before launch.
+        assert "GRCh38" in result.stderr
+        config = yaml.safe_load((out / "pipeline" / "config.yaml").read_text())
+        assert config["qc"]["decontaminate"]["enabled"] is True
+        assert not config["qc"]["decontaminate"]["fasta"]
+
+
+class TestFetchConsent:
+    """Cloning the pinned workflow runs third-party code, so it needs --allow-fetch.
+
+    --demo is the exception: demonstrating the pinned workflow is what the user
+    asked for, so a demo fetches the checkout when the cache is empty.
+    """
+
+    def _fake_git(self, bindir: Path, checkout: Path) -> Path:
+        """A `git` that 'clones' a prepared tree and records every invocation."""
+        bindir.mkdir(parents=True, exist_ok=True)
+        called = bindir / "git_called"
+        script = (
+            "#!/bin/sh\n"
+            f'printf "%s\\n" "$*" >> "{called}"\n'
+            'if [ "$1" = "clone" ]; then\n'
+            f'  cp -r "{checkout}" "$4"\n'
+            "fi\n"
+            "exit 0\n"
+        )
+        stub = bindir / "git"
+        stub.write_text(script)
+        stub.chmod(0o755)
+        return called
+
+    def test_a_run_without_the_flag_refuses_before_any_clone(
+        self, fake_pipeline: Path, tmp_path: Path
+    ) -> None:
+        bindir = tmp_path / "bindir"
+        bindir.mkdir()
+        called = bindir / "git_called"
+        git = bindir / "git"
+        git.write_text(f'#!/bin/sh\nprintf "%s\\n" "$*" >> "{called}"\nexit 1\n')
+        git.chmod(0o755)
+        sheet = tmp_path / "reads.tsv"
+        sheet.write_text("never read: the refusal happens while resolving the source\n")
+        result = run_cli(
+            ["--input", str(sheet), "--output", str(tmp_path / "out"),
+             "--conda-prefix", str(tmp_path / "conda")],
+            fake_pipeline=fake_pipeline,
+            tmp_path=tmp_path,
+            extra_env={"CLAWBIO_CACHE_DIR": str(tmp_path / "cache")},
+        )
+        assert result.returncode == 1
+        payload = error_of(result)
+        assert payload["error_code"] == "PIPELINE_FETCH_FAILED"
+        assert "--allow-fetch" in payload["fix"]
+        assert not called.exists(), "git ran, so the refusal came too late"
+        assert not (tmp_path / "cache").exists()
+
+    def test_demo_fetches_the_pinned_checkout(self, fake_pipeline: Path, tmp_path: Path) -> None:
+        called = self._fake_git(tmp_path / "bindir", fake_pipeline)
+        out = tmp_path / "out"
+        result = run_cli(
+            ["--demo", "--output", str(out), "--conda-prefix", str(tmp_path / "conda")],
+            fake_pipeline=fake_pipeline,
+            tmp_path=tmp_path,
+            extra_env={"CLAWBIO_CACHE_DIR": str(tmp_path / "cache")},
+        )
+        assert result.returncode == 0, result.stderr
+        assert "--demo fetches the pinned workflow" in result.stderr
+        assert called.exists(), "the demo should have cloned into the empty cache"
+        assert json.loads((out / "result.json").read_text())["status"] == "ok"
+
+    def test_allow_fetch_permits_a_real_run(self, fake_pipeline: Path, tmp_path: Path) -> None:
+        called = self._fake_git(tmp_path / "bindir", fake_pipeline)
+        reads = tmp_path / "reads"
+        for mate in ("R1", "R2"):
+            path = reads / "S1" / f"S1_{mate}.fastq.gz"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03")
+        out = tmp_path / "out"
+        result = run_cli(
+            ["--input", str(reads), "--output", str(out), "--allow-fetch",
+             "--skip-host-removal", "--conda-prefix", str(tmp_path / "conda")],
+            fake_pipeline=fake_pipeline,
+            tmp_path=tmp_path,
+            extra_env={"CLAWBIO_CACHE_DIR": str(tmp_path / "cache")},
+        )
+        assert result.returncode == 0, result.stderr
+        assert called.exists(), "--allow-fetch should have permitted the clone"
+        assert json.loads((out / "result.json").read_text())["status"] == "ok"
 
 
 class TestDemoFlagConflicts:
@@ -556,6 +712,7 @@ class TestDemoFlagConflicts:
             ["--pfam-db", "/db/Pfam-A.hmm"],
             ["--binners", "metabat,maxbin"],
             ["--allow-remote-inputs"],
+            ["--allow-host-download"],
         ],
     )
     def test_refused(self, args, fake_pipeline: Path, tmp_path: Path) -> None:
@@ -665,7 +822,7 @@ class TestDemoFlagConflicts:
             path.write_bytes(b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03")
         out = tmp_path / "out"
         result = run_cli(
-            ["--input", str(reads), "--output", str(out), *COMMON],
+            ["--input", str(reads), "--output", str(out), *COMMON, *NO_HOST_REMOVAL],
             fake_pipeline=fake_pipeline,
             tmp_path=tmp_path,
         )
@@ -706,7 +863,7 @@ class TestResourceAndFlagPlumbing:
         sheet = self._sheet(tmp_path)
         out = tmp_path / "out"
         result = run_cli(
-            ["--input", str(sheet), "--output", str(out), "--cores", "2", "--mem-mb", "4000", *COMMON],
+            ["--input", str(sheet), "--output", str(out), "--cores", "2", "--mem-mb", "4000", *COMMON, *NO_HOST_REMOVAL],
             fake_pipeline=fake_pipeline, tmp_path=tmp_path,
         )
         assert result.returncode == 0, result.stderr
@@ -721,7 +878,7 @@ class TestResourceAndFlagPlumbing:
         sheet = self._sheet(tmp_path)
         result = run_cli(
             ["--input", str(sheet), "--preset", "full", "--binners", "metabat",
-             "--output", str(tmp_path / "out"), *COMMON],
+             "--output", str(tmp_path / "out"), *COMMON, *NO_HOST_REMOVAL],
             fake_pipeline=fake_pipeline, tmp_path=tmp_path,
         )
         assert result.returncode == 1
@@ -733,7 +890,7 @@ class TestResourceAndFlagPlumbing:
         sheet = self._sheet(tmp_path)
         result = run_cli(
             ["--input", str(sheet), "--preset", "full", "--binners", "metabat,concoct",
-             "--output", str(tmp_path / "out"), *COMMON],
+             "--output", str(tmp_path / "out"), *COMMON, *NO_HOST_REMOVAL],
             fake_pipeline=fake_pipeline, tmp_path=tmp_path,
         )
         assert result.returncode == 1
@@ -807,7 +964,7 @@ class TestCliSurface:
             path.write_bytes(b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03")
         out = tmp_path / preset
         result = run_cli(
-            ["--input", str(reads), "--output", str(out), "--preset", preset, "--check", *COMMON],
+            ["--input", str(reads), "--output", str(out), "--preset", preset, "--check", *COMMON, *NO_HOST_REMOVAL],
             fake_pipeline=fake_pipeline,
             tmp_path=tmp_path,
         )

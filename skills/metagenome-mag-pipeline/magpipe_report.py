@@ -400,8 +400,10 @@ def _section_provenance(findings: dict) -> str:
         [[key, value] for key, value in pipeline.items()],
     )
     text += "\n### Tool versions\n\n"
+    # The rows always carry three cells; deriving the header from the first
+    # row's keys would render the table ragged when a column is absent.
     text += _table(
-        [key for key in ("tool", "version", "evidence") if key in (provenance["tools"][0] if provenance["tools"] else {})],
+        ["tool", "version", "evidence"],
         [
             [row.get(key) for key in ("tool", "version", "evidence")]
             for row in provenance["tools"]

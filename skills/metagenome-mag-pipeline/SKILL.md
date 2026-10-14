@@ -91,11 +91,10 @@ upstream Snakemake workflow correctly and report exactly what it produced.
 
 This skill wraps, and does not reimplement, the workflow at
 <https://github.com/mobashirrahman/metagenomics-workflow> pinned to commit
-`7351a702d29857801963cae7aeff6600d59ebe77` (tag `v0.2.0`, MIT). BBTools QC and host
+`7351a702d29857801963cae7aeff6600d59ebe77` (tag `v0.2.0`, MIT): BBTools QC and host
 subtraction, MetaPhlAn profiles, metaSPAdes assembly, MetaBAT2/MaxBin2/VAMB
-consensus binning through DAS Tool, CheckM2/dRep/GTDB-Tk genome assessment,
-contig taxonomy, functional annotation, strain heterogeneity and a read-loss
-diagnostic.
+consensus binning through DAS Tool, CheckM2/dRep/GTDB-Tk assessment, contig
+taxonomy, functional annotation, strain heterogeneity and a read-loss diagnostic.
 
 ## Trigger
 
@@ -149,9 +148,9 @@ Multiple lanes of one sample are semicolon-separated in matching order and remai
 ## Workflow
 
 1. **Check the output directory**: refuse a non-empty one unless `--force`, and confirm it is writable. Then create `<output>/pipeline/`. *(prescriptive)*
-2. **Resolve the pipeline source**: use `--pipeline-dir` when given, else a cached clone at `~/.cache/clawbio/pipelines/metagenomics-workflow-<ref[:12]>`, else clone the upstream repo and check out the pinned commit. Verify `PIPELINE_REQUIRED_FILES` first. *(prescriptive)*
+2. **Resolve the pipeline source**: use `--pipeline-dir` when given, else a cached clone at `~/.cache/clawbio/pipelines/metagenomics-workflow-<ref[:12]>`; clone the upstream repo only with `--allow-fetch` (`--demo` fetches by design) and check out the pinned commit. Verify `PIPELINE_REQUIRED_FILES` first. *(prescriptive)*
 3. **Build the samplesheet**: in `--demo`, run the checkout's own `test/make_test_dataset.py` and read the samplesheet it writes; otherwise load `--input` as a file or discover samples from a directory. Write `<output>/pipeline/samplesheet.tsv` with absolute paths. *(prescriptive)*
-4. **Render the config**: load the checkout's `workflow/config/config.yaml` (`config_test.yaml` in demo mode), apply the preset switches, the database paths, `qc.decontaminate.*`, `fetch.sra.enabled` and the `--cores`/`--mem-mb` caps, then write `<output>/pipeline/config.yaml`. *(prescriptive)*
+4. **Render the config**: load the checkout's `workflow/config/config.yaml` (`config_test.yaml` in demo mode), apply the preset switches, the database paths, `fetch.sra.enabled`, and the host-removal decision (`--host-fasta`, `--allow-host-download` or `--skip-host-removal` — a run with none of them is refused), then the `--cores`/`--mem-mb` caps, and write `<output>/pipeline/config.yaml`. *(prescriptive)*
 5. **Validate the config** against upstream's own guards — binning needs assembly, MAG needs binning, metaSPAdes needs paired-end reads, isolate mode is incompatible, `taxonomy.sensitivity` must be a DIAMOND setting, every enabled stage must have its databases — and confirm each configured database path exists. *(prescriptive)*
 6. **Preflight the host**: snakemake ≥ 9.0 and conda or mamba on PATH. Print what will use the network — conda environments, `sra_run` downloads, the GRCh38 host FASTA, the MetaPhlAn index, the MinPath script — to stderr before launching. *(prescriptive)*
 7. **Launch**: the snakemake command upstream's own `run_test.sh` uses, plus `--dry-run` under `--check`. Stream combined output to `<output>/pipeline/snakemake.log`; on timeout terminate the whole process group. *(prescriptive)*
@@ -165,10 +164,6 @@ Multiple lanes of one sample are semicolon-separated in matching order and remai
 # Standard usage
 python skills/metagenome-mag-pipeline/metagenome_mag_pipeline.py \
   --input <samplesheet.tsv|reads_dir> --output <output_dir>
-
-# Discover samples from a directory of FASTQ files
-python skills/metagenome-mag-pipeline/metagenome_mag_pipeline.py \
-  --input data/reads --output out
 
 # Inspect the plan without executing anything
 python skills/metagenome-mag-pipeline/metagenome_mag_pipeline.py \
@@ -199,7 +194,8 @@ python clawbio.py run mag-pipeline --demo --check --output /tmp/plan
 | `--coassemble` | Pool cleaned reads by assembly `group` |
 | `--binners LIST` | `metabat,maxbin,vamb`; at least two are required |
 | `--host-fasta PATH` | Decompressed host FASTA instead of the GRCh38 download |
-| `--skip-host-removal` | Disable host read subtraction |
+| `--skip-host-removal` | Disable host read subtraction: the third host-reference decision |
+| `--allow-host-download` | Permit the ~3 GB GRCh38 download: a host-reference decision without a local FASTA |
 | `--checkm2-db PATH` | CheckM2 1.1.0 DIAMOND `.dmnd` file |
 | `--gtdbtk-db PATH` | Extracted GTDB-Tk reference directory |
 | `--taxonomy-db PATH` | DIAMOND protein DB whose subjects end in an NCBI taxid |
@@ -208,6 +204,7 @@ python clawbio.py run mag-pipeline --demo --check --output /tmp/plan
 | `--cog-db PATH` | DIAMOND COG database |
 | `--pfam-db PATH` | Pfam-A profile database |
 | `--pipeline-dir PATH` | Use an existing checkout instead of cloning |
+| `--allow-fetch` | Permit cloning the pinned workflow when there is no `--pipeline-dir` and no cache; `--demo` always fetches |
 | `--conda-prefix PATH` | Where tool environments are built (default `<cache>/conda-envs`) |
 | `--allow-remote-inputs` | Permit `sra_run` rows that download public runs |
 | `--timeout-hours FLOAT` | Wall-clock cap (default 12) |
@@ -232,10 +229,10 @@ report says so.
 A demo run is upstream's `workflow/config/config_test.yaml` with three paths
 moved, so `--demo` together with `--input`, `--preset` other than `assembly`,
 `--coassemble`, `--binners`, `--host-fasta`, `--skip-host-removal`,
-`--allow-remote-inputs` or any database flag is refused with `INVALID_CONFIG`
-naming each one. Drop `--demo` to apply those settings to your own reads.
-`--cores`, `--mem-mb`, `--timeout-hours`, `--pipeline-dir` and `--conda-prefix`
-do apply.
+`--allow-host-download`, `--allow-remote-inputs` or any database flag is refused
+with `INVALID_CONFIG` naming each one. Drop `--demo` to apply those settings to
+your own reads. `--cores`, `--mem-mb`, `--timeout-hours`, `--pipeline-dir` and
+`--conda-prefix` do apply.
 
 ## Algorithm / Methodology
 
@@ -248,7 +245,7 @@ do apply.
    pipeline root rather than the working directory.
 3. **Launch**: `snakemake -s <pipeline>/workflow/Snakefile --configfile … --use-conda
    --conda-frontend conda --conda-prefix … --cores N --resources mem_mb=M
-   --rerun-incomplete --printshellcmds`.
+   --rerun-incomplete --printshellcmds`, plus `--dry-run` under `--check`.
 4. **Parse**: every `final/`, `reports/` and `provenance/` table the enabled stages
    produced, keeping upstream column names, converting numeric strings to numbers
    and empty cells to "not measured".
@@ -266,7 +263,6 @@ do apply.
 ## Example Queries
 
 - "assemble my gut metagenome and recover MAGs from it"
-- "bin these FASTQs with MetaBAT2 and MaxBin and check the genome quality"
 - "which bins pass CheckM2 and what does GTDB-Tk call them"
 - "did my reads get assembled and then lost at binning?" (the bottleneck diagnostic)
 - "profile these shotgun reads with MetaPhlAn" (use `--preset profile`)
@@ -369,9 +365,8 @@ pipeline writes the rest, and only when the matching stage ran:
 `conda` or `mamba` on PATH, since every tool environment is built on first run;
 and `git`, to resolve the pinned checkout.
 
-**Optional**: an existing checkout via `--pipeline-dir`, which avoids the clone.
-Not optional for `--preset full`: CheckM2, GTDB-Tk, contig taxonomy and
-functional annotation each need external databases upstream does not bundle.
+**Optional**: a checkout via `--pipeline-dir`; `--preset full` instead needs
+external databases for CheckM2, GTDB-Tk, contig taxonomy and annotation.
 
 ## Gotchas
 
@@ -401,9 +396,8 @@ functional annotation each need external databases upstream does not bundle.
 - **Relative config paths resolve against the pipeline root.** The model will
   want to write `results_dir: results` and run from the output directory. Do
   not; upstream's `resolve()` joins relative paths to the checkout, not the
-  working directory. Every path this skill writes is absolute.
-- **`qc.adapter.fasta` is the one relative path left alone.** It lives inside the
-  checkout, so making it absolute would point at a file that does not exist.
+  working directory. Every path this skill writes is absolute, and only
+  `qc.adapter.fasta` stays relative because it lives inside the checkout.
 - **Two binners are the minimum, not a suggestion.** The model will want to
   run one binner to keep things simple. Do not; DAS Tool consensus refuses
   fewer than two binners at parse time, so `--binners metabat` alone fails.
@@ -414,27 +408,32 @@ functional annotation each need external databases upstream does not bundle.
 - **No GTDB-Tk database means no MAG tables at all.** The model will want to
   configure binning with `mag.gtdbtk.db` unset and assume only taxonomy is
   lost. Do not; the run fails at classification and `bins.tsv`, `bottleneck.tsv`
-  and `runtime.tsv` are never written. Pass `--gtdbtk-db` or turn MAG off.
+  and `runtime.tsv` are never written.
 - **A single-end library cannot be assembled.** The model will want to assemble
   SE data with metaSPAdes. Do not; upstream requires paired-end reads. Use
   `--preset qc` or `--preset profile` for single-end input, and remember a
   co-assembled bin belongs to a `group`, not to one sample.
-
-**How to populate this section:** run the skill 10 times with varied inputs.
-Every correction goes here and into a regression test.
+- **A fresh machine needs `--allow-fetch` to clone.** The model will want a run
+  with no `--pipeline-dir` and no cache to just clone the workflow. Do not; that
+  is third-party code execution and the run refuses without `--allow-fetch`.
+  `--demo` is the exception: demonstrating the pinned checkout is the point.
+- **Host removal needs a decision, not a default download.** The model will want
+  to leave `--host-fasta` off and let the reference download. Do not; rendering
+  that config exits with `HOST_REFERENCE_NOT_ALLOWED` until you pass
+  `--host-fasta`, `--allow-host-download` or `--skip-host-removal`.
 
 ## Safety
 
 - **Local-first**: no user or patient data is uploaded; reads, references and
   databases are passed to snakemake as local paths. Network use is limited to
   public reference downloads and is listed on stderr before the run starts: tool
-  conda environments on first run, `sra_run` rows (only with
-  `--allow-remote-inputs`), the GRCh38 host FASTA (~3 GB) when host subtraction is
-  on and no `--host-fasta` is given, the MetaPhlAn index when profiling is on, and
-  the MinPath script when its `data_dir` is set.
+  conda environments, `sra_run` rows (only with `--allow-remote-inputs`), the
+  GRCh38 host FASTA (~3 GB, only with `--allow-host-download`), the MetaPhlAn
+  index when profiling is on, and the MinPath script when its `data_dir` is set.
 - **Host subtraction is on by default** because human reads inside a metagenome
-  are personal data. Pass `--skip-host-removal` only when the sample is
-  demonstrably non-human.
+  are personal data, but the reference is not bundled: pass `--host-fasta`,
+  `--allow-host-download` or `--skip-host-removal` (non-human samples only), or
+  the run refuses.
 - **Disclaimer**: every report and every `result.json` carries it —
   ClawBio is a research and educational tool. It is not a medical device and does
   not provide clinical diagnoses. Consult a healthcare professional before making
@@ -492,8 +491,7 @@ and the user wants contigs or MAGs rather than read-level calls.
   [VAMB](https://github.com/RasmussenLab/vamb), [DAS Tool](https://github.com/cmks/DAS_Tool)
 - Genomes: [CheckM2](https://github.com/chklovski/CheckM2),
   [dRep](https://drep.readthedocs.io/), [GTDB-Tk](https://ecogenomics.github.io/GTDBTk/)
-- Annotation: [Prodigal](https://github.com/hyattpd/Prodigal),
+- Annotation and mapping: [Prodigal](https://github.com/hyattpd/Prodigal),
   [DIAMOND](https://github.com/bbuchfink/diamond), [HMMER](http://hmmer.org/),
-  [MinPath](https://github.com/mgtools/MinPath)
-- Mapping: [Bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml),
+  [MinPath](https://github.com/mgtools/MinPath), [Bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml),
   [samtools](https://www.htslib.org/), [bwa-mem2](https://github.com/bwa-mem2/bwa-mem2)
