@@ -108,3 +108,11 @@ def test_nextflow_version_is_pinned_when_provided():
     assert 'export NXF_VER="24.10.1"' in script
     # The pin must precede the run command so Nextflow honours it.
     assert script.index('export NXF_VER="24.10.1"') < script.index("nextflow run")
+
+
+def test_replay_exports_the_syntax_parser_scrnaseq_4_1_0_needs():
+    """Replay runs Nextflow directly, so it must set the parser the wrapper used:
+    on Nextflow >= 26.04 the default strict parser rejects scrnaseq 4.1.0."""
+    script = _build(nextflow_version="26.04.3")
+    assert 'export NXF_SYNTAX_PARSER="v1"' in script
+    assert script.index('export NXF_SYNTAX_PARSER="v1"') < script.index("nextflow run")

@@ -27,6 +27,13 @@ DEFAULT_IGENOMES_BASE = "s3://ngi-igenomes/igenomes/"
 JAVA_MIN_VERSION = 17
 # From nf-core/sarek 3.8.1 nextflow.config: manifest.nextflowVersion = '!>=25.10.2'.
 NEXTFLOW_MIN_VERSION = (25, 10, 2)
+
+# Environment Nextflow needs for the pinned release, applied to the run, shown in
+# the recorded command and exported by commands.sh. nf-core/sarek 3.8.1 predates
+# Nextflow's strict syntax, which Nextflow 26.04 applies by default and which
+# rejects its configs ("Unexpected input: ':'" in conf/modules); the v1 parser
+# runs the release unmodified.
+NEXTFLOW_ENV: dict[str, str] = {"NXF_SYNTAX_PARSER": "v1"}
 PIPELINE_REQUIRED_FILES = ("main.nf", "nextflow.config", "assets/schema_input.json")
 
 

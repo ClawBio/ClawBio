@@ -54,6 +54,13 @@ JAVA_MIN_VERSION = 17
 # which is not a real Nextflow version. Keep both in sync (guarded by a test).
 NEXTFLOW_MIN_VERSION = (25, 4, 0)
 NEXTFLOW_MIN_VERSION_DISPLAY = "25.04.0"
+
+# Environment Nextflow needs for the pinned release, applied to the run, shown in
+# the recorded command and exported by commands.sh. nf-core/scrnaseq 4.1.0 predates
+# Nextflow's strict syntax, which Nextflow 26.04 applies by default: it rejects the
+# release's include of conf/test_multiome.config, a file the tag does not ship. The
+# v1 parser runs the release unmodified.
+NEXTFLOW_ENV: dict[str, str] = {"NXF_SYNTAX_PARSER": "v1"}
 PIPELINE_REQUIRED_FILES = ("main.nf", "nextflow.config", "assets/schema_input.json")
 SUPPORTED_SAMPLE_COLUMNS = {
     "sample",

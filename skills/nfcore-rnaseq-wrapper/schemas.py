@@ -50,6 +50,10 @@ SUPPORTED_PROFILES = {
 }
 JAVA_MIN_VERSION = 17
 NEXTFLOW_MIN_VERSION = (25, 4, 3)
+
+# Environment Nextflow needs for the pinned release. nf-core/rnaseq 3.26.0 parses
+# under both the v1 and the strict v2 syntax parser, so it needs nothing.
+NEXTFLOW_ENV: dict[str, str] = {}
 PIPELINE_REQUIRED_FILES = ("main.nf", "nextflow.config", "assets/schema_input.json")
 
 SUPPORTED_ALIGNERS = {"star_salmon", "star_rsem", "hisat2", "bowtie2_salmon"}

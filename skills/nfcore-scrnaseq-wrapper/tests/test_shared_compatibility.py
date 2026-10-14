@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -89,3 +90,29 @@ def test_non_finite_timeout_is_a_usage_error(value, tmp_path, capsys):
         wrapper.build_parser().parse_args(["--output", str(tmp_path), "--timeout-hours", value])
     assert exit_info.value.code == 2
     assert "--timeout-hours" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell probe")
+def test_pinned_release_gets_the_syntax_parser_it_was_written_for(tmp_path, monkeypatch):
+    """nf-core/sarek 3.8.1 and scrnaseq 4.1.0 predate Nextflow's strict syntax, which
+    Nextflow 26.04 applies by default: their configs then fail to parse. They need
+    NXF_SYNTAX_PARSER=v1 for the run, the displayed command and the replay, even
+    over a user's own setting. rnaseq 3.26.0 parses under both, so it sets nothing."""
+    schemas = importlib.import_module("schemas")
+    expected = {"NXF_SYNTAX_PARSER": "v1"} if _PIPELINE in ("sarek", "scrnaseq") else {}
+    assert schemas.NEXTFLOW_ENV == expected
+
+    monkeypatch.setenv("NXF_SYNTAX_PARSER", "v2")
+    executor = importlib.import_module("executor")
+    executor.execute_nextflow(
+        ["sh", "-c", 'printf %s "$NXF_SYNTAX_PARSER"'],
+        cwd=tmp_path, output_dir=tmp_path, timeout_seconds=30,
+    )
+    assert (tmp_path / "logs" / "stdout.txt").read_text() == expected.get("NXF_SYNTAX_PARSER", "v2")
+
+    builder = importlib.import_module("command_builder")
+    _, display = builder.build_nextflow_command(
+        pipeline_source={"source_kind": "remote_repo", "source_ref": f"nf-core/{_PIPELINE}", "resolved_version": "1.2.3"},
+        profile="docker", params_path=tmp_path / "params.yaml", resume=False,
+    )
+    assert display.startswith("NXF_SYNTAX_PARSER=v1 nextflow run") is bool(expected)

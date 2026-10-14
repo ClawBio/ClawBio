@@ -1,9 +1,20 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from clawbio.common.nfcore.commands import build_nextflow_command as _shared_command
 
+_SKILL_DIR = Path(__file__).resolve().parent
+if str(_SKILL_DIR) in sys.path:
+    sys.path.remove(str(_SKILL_DIR))
+sys.path.insert(0, str(_SKILL_DIR))
+sys.modules.pop("_isolated_imports", None)
+from _isolated_imports import purge_foreign_bare_modules  # noqa: E402
+
+purge_foreign_bare_modules("schemas")
+
+from schemas import NEXTFLOW_ENV  # noqa: E402
 
 def compose_profile(
     profile: str,
@@ -52,4 +63,12 @@ def build_nextflow_command(
     spark: bool = False,
     mutect_profile: bool = False,
 ) -> tuple[list[str], str]:
-    return _shared_command(pipeline_source=pipeline_source, profile=compose_profile(profile, demo=demo, arm=arm, gpu=gpu, spark=spark, mutect_profile=mutect_profile), params_path=params_path, resume=resume, work_dir=work_dir, extra_configs=extra_configs)
+    return _shared_command(
+        pipeline_source=pipeline_source,
+        profile=compose_profile(profile, demo=demo, arm=arm, gpu=gpu, spark=spark, mutect_profile=mutect_profile),
+        params_path=params_path,
+        resume=resume,
+        work_dir=work_dir,
+        extra_configs=extra_configs,
+        env=NEXTFLOW_ENV,
+    )

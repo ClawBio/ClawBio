@@ -101,3 +101,18 @@ def test_local_resolution_uses_explicit_base_and_segment_containment(tmp_path):
     assert api.is_within(tmp_path / "data" / "reads.fq", tmp_path / "data")
     assert not api.is_within(tmp_path / "data2", tmp_path / "data")
     assert api.is_under_tmp(Path("/tmp/child"))
+
+
+def test_displayed_command_carries_the_pipeline_environment(tmp_path):
+    """result.json and report.md show the command a user would copy; it must carry
+    the environment the run needed or the copy fails where the run succeeded."""
+    api = importlib.import_module("clawbio.common.nfcore.commands")
+    command, display = api.build_nextflow_command(
+        pipeline_source={"source_kind": "remote_repo", "source_ref": "nf-core/x", "resolved_version": "1.0"},
+        profile="docker",
+        params_path=tmp_path / "params.yaml",
+        resume=False,
+        env={"NXF_SYNTAX_PARSER": "v1"},
+    )
+    assert command[0] == "nextflow"
+    assert display.startswith("NXF_SYNTAX_PARSER=v1 nextflow run nf-core/x ")

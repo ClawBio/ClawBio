@@ -104,3 +104,19 @@ def test_macos_tmp_hint_only_for_macos_output_under_tmp(
     assert bool(hint) is expected
     if expected:
         assert "/tmp" in hint and "HOME" in hint
+
+
+def test_pipeline_environment_overrides_the_callers(tmp_path, monkeypatch):
+    """A pipeline that needs a specific Nextflow setting (e.g. the v1 syntax parser
+    for releases predating strict syntax) must get it even if the user's shell
+    exports the opposite; everything else is inherited."""
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    monkeypatch.setenv("NXF_SYNTAX_PARSER", "v2")
+    monkeypatch.setenv("CLAWBIO_INHERITED", "yes")
+    _run(
+        api,
+        ["sh", "-c", 'printf "%s %s" "$NXF_SYNTAX_PARSER" "$CLAWBIO_INHERITED"'],
+        tmp_path,
+        env={"NXF_SYNTAX_PARSER": "v1"},
+    )
+    assert (tmp_path / "logs/stdout.txt").read_text() == "v1 yes"

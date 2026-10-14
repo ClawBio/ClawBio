@@ -6,7 +6,7 @@ import os
 import signal
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from .errors import SkillError
@@ -113,6 +113,7 @@ def execute_nextflow(
     timeout_seconds: int | None,
     timeout_fix: str,
     pipeline_failure_hint: Callable[[Path, Path], str] | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
     """Run Nextflow with logs on disk and its whole process group under our control.
 
@@ -120,7 +121,8 @@ def execute_nextflow(
     means the terminal's Ctrl+C never reaches it: an interrupt must terminate the
     group explicitly, or Nextflow outlives the wrapper still holding the .nextflow
     lock. timeout_seconds=None disables the wall-clock cap (long HPC/cloud runs whose
-    walltime the scheduler enforces).
+    walltime the scheduler enforces). ``env`` is what the pipeline release needs on
+    top of the caller's environment, and takes precedence over it.
     """
     logs_dir = output_dir / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -128,6 +130,8 @@ def execute_nextflow(
     stderr_path = logs_dir / "stderr.txt"
 
     popen_kwargs: dict = {}
+    if env:
+        popen_kwargs["env"] = {**os.environ, **env}
     if sys.platform != "win32":
         popen_kwargs["start_new_session"] = True
 

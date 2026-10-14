@@ -5,6 +5,7 @@ from __future__ import annotations
 import shlex
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 
@@ -16,7 +17,13 @@ def build_nextflow_command(
     resume: bool,
     work_dir: Path | str | None = None,
     extra_configs: list[Path] | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> tuple[list[str], str]:
+    """Return the Nextflow argv and the display form a user can paste.
+
+    ``env`` is the environment the pipeline release needs; it is applied by the
+    executor, so it only prefixes the display form here.
+    """
     source_kind = str(pipeline_source["source_kind"])
     source_ref = str(pipeline_source["source_ref"])
     resolved_version = str(pipeline_source["resolved_version"])
@@ -48,7 +55,14 @@ def build_nextflow_command(
     # Use platform-appropriate quoting so it can be pasted directly into a terminal.
     if sys.platform == "win32":
         command_str = subprocess.list2cmdline(command)
+        if env:
+            command_str = " && ".join(
+                [*(f'set "{key}={value}"' for key, value in env.items()), command_str]
+            )
     else:
-        command_str = " ".join(shlex.quote(part) for part in command)
+        command_str = " ".join(
+            [*(f"{key}={shlex.quote(value)}" for key, value in (env or {}).items())]
+            + [shlex.quote(part) for part in command]
+        )
 
     return command, command_str

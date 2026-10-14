@@ -44,7 +44,7 @@ from clawbio.common.nfcore.artifacts import safe_config_basename  # noqa: E402
 from clawbio.common.nfcore.bundle_emit import write_standalone_remapper  # noqa: E402
 from clawbio.common.report import DISCLAIMER as _DISCLAIMER  # noqa: E402
 from clawbio.common.textio import write_text_lf  # noqa: E402
-from schemas import DEFAULT_ALIGNER, DEFAULT_STEP, SKILL_NAME, SKILL_VERSION  # noqa: E402
+from schemas import DEFAULT_ALIGNER, DEFAULT_STEP, NEXTFLOW_ENV, SKILL_NAME, SKILL_VERSION  # noqa: E402
 
 # Disclaimer text is sourced from the single canonical constant in
 # clawbio.common.report (shared with nfcore-scrnaseq/rnaseq via
@@ -886,6 +886,10 @@ def _build_commands_sh(
         )
         lines.append("# cannot drift on replay.")
         lines.append(f'export NXF_VER="{nextflow_version}"')
+        lines.append("")
+    for key, value in NEXTFLOW_ENV.items():
+        lines.append("# Nextflow setting the pinned nf-core/sarek release needs (see schemas.py).")
+        lines.append(f'export {key}="{value}"')
         lines.append("")
     # The macOS-only docker config (Apple-Silicon --platform, VirtioFS
     # stageInMode, host-scaled resourceLimits) must apply based on the REPLAY
