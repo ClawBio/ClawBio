@@ -144,7 +144,9 @@ def test_tool_call_captures_exit_code_on_failure(tmp_path):
 
 def test_otlp_exporter_is_opt_in(tmp_path, monkeypatch):
     """Off by default; CLAWBIO_OTLP_ENDPOINT constructs an OTLP exporter."""
-    from opentelemetry.exporter.otlp.proto.http import trace_exporter
+    trace_exporter = pytest.importorskip(
+        "opentelemetry.exporter.otlp.proto.http.trace_exporter", reason="needs the otlp extra (uv sync --extra otlp)"
+    )
     from opentelemetry.sdk.trace.export import SpanExportResult
 
     endpoints = []
@@ -357,7 +359,9 @@ def test_hide_inputs_redacts_attrs_passed_alongside_cmd(tmp_path, monkeypatch):
 
 def test_otlp_endpoint_may_be_given_with_or_without_the_signal_path(tmp_path, monkeypatch):
     """OTel habit is to set the full /v1/traces URL; appending it again 404s."""
-    from opentelemetry.exporter.otlp.proto.http import trace_exporter
+    trace_exporter = pytest.importorskip(
+        "opentelemetry.exporter.otlp.proto.http.trace_exporter", reason="needs the otlp extra (uv sync --extra otlp)"
+    )
     from opentelemetry.sdk.trace.export import SpanExportResult
 
     endpoints = []

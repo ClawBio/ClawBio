@@ -702,8 +702,6 @@ source = { editable = "." }
 dependencies = [
     { name = "biopython" },
     { name = "conda-lock" },
-    { name = "google-auth" },
-    { name = "google-cloud-bigquery" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "openai" },
@@ -720,6 +718,10 @@ dependencies = [
 affinity-proteomics = [
     { name = "seaborn" },
     { name = "statsmodels" },
+]
+bigquery = [
+    { name = "google-auth" },
+    { name = "google-cloud-bigquery" },
 ]
 cell-detection = [
     { name = "scikit-image" },
@@ -771,6 +773,7 @@ bot = [
 ]
 dev = [
     { name = "hypothesis" },
+    { name = "pytest" },
     { name = "skills-ref" },
 ]
 
@@ -781,8 +784,8 @@ requires-dist = [
     { name = "conda-lock", specifier = ">=4.0.2" },
     { name = "fastapi", marker = "extra == 'robotary'", specifier = ">=0.143.0" },
     { name = "fastmcp", marker = "extra == 'just-prs'", specifier = ">=3.4.4,<4" },
-    { name = "google-auth", specifier = ">=2.58.0,<3" },
-    { name = "google-cloud-bigquery", specifier = ">=3.45.2,<4" },
+    { name = "google-auth", marker = "extra == 'bigquery'", specifier = ">=2.58.0,<3" },
+    { name = "google-cloud-bigquery", marker = "extra == 'bigquery'", specifier = ">=3.45.2,<4" },
     { name = "labstep", marker = "extra == 'labstep'", specifier = ">=3.0" },
     { name = "leidenalg", marker = "extra == 'spatial'", specifier = ">=0.10" },
     { name = "matplotlib", specifier = ">=3.11.2" },
@@ -808,7 +811,7 @@ requires-dist = [
     { name = "typer", marker = "extra == 'just-prs'", specifier = ">=0.27.2,<1" },
     { name = "uvicorn", marker = "extra == 'robotary'", specifier = ">=0.51.0" },
 ]
-provides-extras = ["affinity-proteomics", "cell-detection", "drug-repurposing-screen", "fine-mapping", "galaxy-bridge", "just-prs", "labstep", "mcp", "otlp", "region-fetch", "robotary", "spatial"]
+provides-extras = ["affinity-proteomics", "bigquery", "cell-detection", "drug-repurposing-screen", "fine-mapping", "galaxy-bridge", "just-prs", "labstep", "mcp", "otlp", "region-fetch", "robotary", "spatial"]
 
 [package.metadata.requires-dev]
 bot = [
@@ -820,6 +823,7 @@ bot = [
 ]
 dev = [
     { name = "hypothesis", specifier = ">=6.168.4" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "skills-ref", specifier = ">=0.1.1,<1" },
 ]
 
@@ -4143,10 +4147,11 @@ name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "iniconfig", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
-    { name = "packaging", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
-    { name = "pluggy", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
-    { name = "pygments", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "iniconfig" },
+    { name = "packaging" },
+    { name = "pluggy" },
+    { name = "pygments" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e4/47/b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01/pytest-9.1.1.tar.gz", hash = "sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313", size = 1636369, upload-time = "2026-06-19T10:58:32.857Z" }
 wheels = [

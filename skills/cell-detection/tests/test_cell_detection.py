@@ -1,4 +1,5 @@
 """Tests for the CellposeSAM cell segmentation skill."""
+import importlib.util
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -10,6 +11,8 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_DIR))
 
 import cell_detection
+
+needs_skimage = pytest.mark.skipif(importlib.util.find_spec("skimage") is None, reason="needs skimage (uv sync --extra cell-detection)")
 
 # cellpose pulls torch, whose default Linux wheels carry the CUDA runtime, so
 # CI installs only the light imaging dependencies (the `cell-detection` extra)
@@ -106,6 +109,7 @@ class TestPrepareImage:
 # ---------------------------------------------------------------------------
 
 
+@needs_skimage
 class TestComputeMetrics:
     """Tests for per-cell morphology metric extraction."""
 
@@ -241,6 +245,7 @@ class TestWriteReport:
 # ---------------------------------------------------------------------------
 
 
+@needs_skimage
 class TestSaveMasks:
     """Tests for TIFF mask output."""
 
@@ -324,6 +329,7 @@ class TestDetectGpu:
 class TestLoadImage:
     """Tests for image loading from disk."""
 
+    @needs_skimage
     def test_load_greyscale_tiff(self, tmp_path):
         import tifffile
         img = np.random.randint(0, 255, (64, 64), dtype=np.uint8)
@@ -333,6 +339,7 @@ class TestLoadImage:
         assert arr.shape == (64, 64)
         assert n == 1
 
+    @needs_skimage
     def test_load_rgb_tiff(self, tmp_path):
         import tifffile
         img = np.random.randint(0, 255, (32, 32, 3), dtype=np.uint8)
@@ -1013,6 +1020,7 @@ class TestCliGuardrails:
 # ---------------------------------------------------------------------------
 
 
+@needs_skimage
 class TestReproducibility:
     """Reproducibility artefacts written by main()."""
 

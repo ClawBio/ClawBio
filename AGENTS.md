@@ -114,6 +114,19 @@ python -m pytest -k "test_demo" -v                     # By pattern
 
 Tests must pass on Python 3.11, 3.12, and 3.13. CI runs all three via GitHub Actions.
 
+### Optional dependencies
+
+A plain `uv sync` installs no extras, but CI runs `uv sync --all-extras`. A test
+that imports an extra's module unconditionally passes in CI and fails on every
+contributor's machine. For a skill dependency that is not in the core list:
+
+1. Declare it in an extra in `pyproject.toml` (`[project.optional-dependencies]`), so CI can run the test.
+2. Skip the tests that need it when it is missing, and only those:
+   `needs_pysam = pytest.mark.skipif(importlib.util.find_spec("pysam") is None, reason="needs pysam (uv sync --extra region-fetch)")`
+   on each such test, or `pytest.importorskip("pysam")` at module level if the test file cannot import without it.
+
+Step 2 without step 1 hides the tests everywhere. Run `uv sync --all-extras` to run the full suite locally.
+
 ### Pytest conventions
 
 - Use `tmp_path` for temporary inputs and outputs instead of fixed shared paths or custom temporary-directory helpers. It provides a unique `pathlib.Path` directory per test; it does not change cwd.
@@ -248,7 +261,7 @@ Hypothesis's default 200 ms deadline otherwise makes them flaky in CI.
 7. **Stress test** (run 10 times with varied inputs). Every correction becomes a Gotcha.
 8. **Register in `clawbio/cli.py`**: add an entry to the `SKILLS` dict with script path, demo_args, description, and allowed_extra_flags
 9. **Tests are collected automatically**: `pytest.ini` globs `skills/*/tests`, so there is nothing to register
-10. **Regenerate the catalog**: `python scripts/generate_catalog.py`
+10. **Regenerate the catalog**: `python scripts/generate_catalog.py`. Do not hand-type skill, demo or CLI counts into README.md, llms.txt, CITATION.cff, .zenodo.json or `.claude-plugin/`; `skill_count` in `skills/catalog.json` is the only count and `tests/test_public_claims.py` rejects literals. On a `catalog.json` merge conflict, take `main`'s version and regenerate
 11. **Verify and self-audit**: `python -m pytest` passes, `python clawbio.py list` shows the skill, and all 18 conformance checks below PASS. Read `CONTRIBUTING.md` for naming conventions, code standards, and the wanted-skills list.
 
 ### SKILL.md Conformance Checklist (must all PASS)
