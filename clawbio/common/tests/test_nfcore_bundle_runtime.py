@@ -3,12 +3,14 @@
 import csv
 import hashlib
 import importlib
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-from hypothesis import HealthCheck, given, settings
+import yaml
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 
@@ -244,3 +246,128 @@ def test_portable_shell_value_preserves_literal_metacharacters():
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == value
+
+
+# Paths as users name them: spaces, apostrophes, quotes and shell metacharacters.
+# Everything a POSIX path may hold on one line: NUL is impossible and \n/\r are
+# rejected outright, but tabs, NEL and U+2028 are legal file-name characters.
+_PATHS = st.text(
+    alphabet=st.characters(blacklist_categories=("Cs",), blacklist_characters="\x00\n\r")
+    | st.sampled_from(list(" '\"$`\\;&|()<>*?#~!{}[]:")),
+    max_size=24,
+)
+
+
+@given(path=_PATHS, old=st.sampled_from(['"old"', "'old'", "old"]))
+@example(path="/Users/Dana's Drive/run 1", old="'old'")
+@example(path='/a"b', old="old")
+@example(path="/data/run;touch x", old="old")
+@example(path="", old="old")
+def test_shell_value_round_trips_through_bash_quoting(path, old):
+    """What format_output_value writes, the remappers must read back unchanged,
+    or a second relocation silently finds no --output and leaves the old path."""
+    api = importlib.import_module("clawbio.common.nfcore.bundle_runtime")
+    word = api.format_output_value(path, old_value=old)
+    assert re.fullmatch(api.SHELL_WORD, word)
+    assert api.unquote_shell_word(word) == path
+
+
+@pytest.mark.parametrize(
+    "path", ["/Users/Dana's Drive/run 1", '/x/"q" $HOME `id`', "/plain/out", ""]
+)
+def test_bash_assigns_exactly_the_formatted_value(path):
+    api = importlib.import_module("clawbio.common.nfcore.bundle_runtime")
+    for old in ('"old"', "'old'", "old"):
+        word = api.format_output_value(path, old_value=old)
+        result = subprocess.run(
+            ["bash", "-c", "printf '%s' " + word],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert (result.returncode, result.stdout) == (0, path), (old, word, result.stderr)
+
+
+def test_line_breaks_cannot_be_written_to_a_command_line():
+    api = importlib.import_module("clawbio.common.nfcore.bundle_runtime")
+    with pytest.raises(ValueError, match="line break"):
+        api.format_output_value("/a\nb", old_value="old")
+
+
+@given(path=_PATHS)
+@example(path="/data/a #1/ref.fa")
+@example(path="/data/it's/ref: fa")
+@example(path="true")
+@example(path="")
+@example(path="/a\x85b\u2028c\tq\ufeff")
+def test_yaml_reference_values_round_trip(path):
+    """params.yaml is replayed by Nextflow's YAML parser: a remapped reference must
+    load as exactly the path written, never truncated at ' #' or retyped."""
+    api = importlib.import_module("clawbio.common.nfcore.bundle_runtime")
+    scalar = api.format_yaml_scalar(path)
+    assert yaml.safe_load(f"fasta: {scalar}\n") == {"fasta": path}
+    quote = scalar[0] if scalar[:1] in ("'", '"') else ""
+    raw = scalar[1:-1] if quote else scalar
+    assert api.yaml_scalar_value(quote, raw) == path
+
+
+_REF_KEYS = ("fasta", "fasta_fai")
+_PARAMS_REF = re.compile(
+    r"^(?P<prefix>[ \t]*(?:fasta_fai|fasta)[ \t]*:[ \t]+)(?P<q>[\"']?)(?P<value>.*?)(?P=q)(?P<trail>[ \t]*)$",
+    re.MULTILINE,
+)
+
+
+@settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(tail=_PATHS, new=st.sampled_from(["/moved", "/moved #2", "/Dana's: refs"]))
+def test_yaml_remap_rewrites_only_matching_prefixes_and_stays_loadable(tmp_path, tail, new):
+    api = importlib.import_module("clawbio.common.nfcore.bundle_runtime")
+    params = tmp_path / "params.yaml"
+    original = {"fasta": "/old/" + tail, "fasta_fai": "/elsewhere/x.fai", "outdir": "/old/out"}
+    serialize = importlib.import_module("clawbio.common.nfcore.parameters").serialize_params_yaml
+    params.write_text(serialize(original, pipeline_name="nf-core/x"), encoding="utf-8")
+    changes = api.remap_yaml_references(params, "/old", new, dry_run=False, pattern=_PARAMS_REF)
+    assert changes == [("fasta", "/old/" + tail, new + "/" + tail)]
+    reloaded = yaml.safe_load(params.read_text())
+    assert reloaded == {**original, "fasta": new + "/" + tail}
+    assert params.read_text(encoding="utf-8").startswith("# 'input' and 'outdir'")
+
+
+@settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(tail=_PATHS)
+@example(tail="a\u2028b\x85c.fq.gz")
+def test_csv_remap_keeps_rows_whole(tmp_path, tail):
+    """Python's str.splitlines() also breaks on NEL and U+2028, which may appear in
+    a file name; the samplesheet must be read as CSV, not as text lines."""
+    api = importlib.import_module("clawbio.common.nfcore.bundle_runtime")
+    path = tmp_path / "samplesheet.csv"
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        csv.writer(handle, lineterminator="\n").writerows(
+            [["sample", "fastq_1"], ["A", "/old/" + tail], ["B", "/keep/b.fq"]]
+        )
+    api.remap_csv(path, "/old", "/new", columns=("fastq_1",), dry_run=False)
+    with path.open(newline="", encoding="utf-8") as handle:
+        assert list(csv.reader(handle)) == [
+            ["sample", "fastq_1"], ["A", "/new/" + tail], ["B", "/keep/b.fq"]
+        ]
+
+
+def test_repair_leaves_an_allowlist_checksum_file_alone_when_only_stubs_are_written(tmp_path):
+    """scrnaseq's checksums list a fixed allowlist that never includes the stubs, so
+    writing a stub must not trigger a recompute that could overwrite a valid file."""
+    api = importlib.import_module("clawbio.common.nfcore.bundle_runtime")
+    (tmp_path / "commands.sh").write_text("#!/bin/bash\ntrue\n")
+    (tmp_path / "checksums.sha256").write_text("original\n")
+    assert (
+        api.repair_bundle(
+            tmp_path,
+            required_files=("manifest.json", "environment.yml", "checksums.sha256"),
+            commands_finder=lambda **kw: tmp_path / "commands.sh",
+            regenerate_manifest=lambda d, c: (d / "manifest.json").write_text("{}"),
+            regenerate_environment=lambda d: (d / "environment.yml").write_text("x: 1\n"),
+            regenerate_checksums=lambda _: pytest.fail("allowlist checksums must stand"),
+            checksums_cover_stubs=False,
+        )
+        == 0
+    )
+    assert (tmp_path / "checksums.sha256").read_text() == "original\n"

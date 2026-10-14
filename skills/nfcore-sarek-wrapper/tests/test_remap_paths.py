@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shlex
 
 import remap_paths
 
@@ -290,3 +291,21 @@ def test_main_rejects_half_a_prefix_pair(tmp_path: Path):
         with pytest.raises(SystemExit) as exc:
             remap_paths.main(argv, bundle_dir=bundle)
         assert exc.value.code != 0
+
+
+def test_output_dir_relocates_an_output_quoted_by_shlex(tmp_path):
+    """commands.sh quotes --output with shlex.quote, so /Users/Dana's Mac/run 1 is
+    written as '/Users/Dana'"'"'s Mac/run 1'. --output-dir must find and rewrite
+    it, and again after that; it used to report "nothing to change" and exit 0."""
+    commands = tmp_path / "commands.sh"
+    commands.write_text(
+        "set -euo pipefail\n"
+        '"${PYTHON:-python3}" "$SKILL_SCRIPT" \\\n'
+        "    --output " + shlex.quote("/Users/Dana's Mac/run 1") + " \\\n"
+        "    --profile docker\n",
+        encoding="utf-8",
+    )
+    for target in ("/srv/Lab's data/run 2", "/srv/plain"):
+        assert remap_paths.update_commands_output(commands, target)
+        line = next(l for l in commands.read_text(encoding="utf-8").splitlines() if "--output" in l)
+        assert shlex.split(line.strip().rstrip("\\")) == ["--output", target]

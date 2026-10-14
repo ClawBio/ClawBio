@@ -1,6 +1,7 @@
 """Standard-library relocation mechanics embedded into standalone bundle scripts."""
 
 import csv
+import hashlib
 import re
 import shlex
 import shutil
@@ -23,6 +24,15 @@ def write_text_lf(path: Path, text: str) -> None:
     Path(path).write_bytes(normalised.encode("utf-8"))
 
 
+def sha256_file(path: Path) -> str:
+    """SHA-256 hex digest of one file, streamed."""
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def prefix_matches(path: str, prefix: str) -> bool:
     if path == prefix:
         return True
@@ -40,9 +50,10 @@ def remap_csv(
     backup_path: Path | None = None,
 ) -> list[tuple[str, str, str]]:
     """Return list of (column, old_path, new_path) for every changed cell."""
-    text = samplesheet.read_text(encoding="utf-8")
-    fieldnames = list(csv.DictReader(text.splitlines()).fieldnames or [])
-    rows = list(csv.DictReader(text.splitlines()))
+    with samplesheet.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
     changes: list[tuple[str, str, str]] = []
 
     for row in rows:
@@ -80,6 +91,14 @@ def run_actions(actions: Sequence[Callable[[], int]]) -> int:
     return exit_code
 
 
+# One bash word on a single line, as format_output_value writes it and as shlex.quote
+# writes the original commands.sh: double-quoted runs (with backslash escapes),
+# single-quoted runs, backslash escapes and plain characters, e.g. '/a b/it'"'"'s'.
+SHELL_WORD = r"""(?:"(?:[^"\\\n]|\\.)*"|'[^'\n]*'|\\.|[^\s"'\\])+"""
+# Characters shlex.quote leaves unquoted; anything else in a path needs quoting.
+_SHELL_SAFE = re.compile(r"[\w@%+=:,./-]+", re.ASCII)
+
+
 def escape_double_quoted(value: str) -> str:
     return (
         value.replace("\\", "\\\\")
@@ -89,18 +108,241 @@ def escape_double_quoted(value: str) -> str:
     )
 
 
+def unquote_shell_word(word: str) -> str:
+    """The literal string bash assigns to one SHELL_WORD, without expansions."""
+    out: list[str] = []
+    i = 0
+    while i < len(word):
+        char = word[i]
+        if char == "'":
+            end = word.index("'", i + 1)
+            out.append(word[i + 1 : end])
+            i = end + 1
+        elif char == '"':
+            i += 1
+            while word[i] != '"':
+                # Inside double quotes a backslash escapes only $ ` " and itself.
+                if word[i] == "\\" and word[i + 1] in '$`"\\':
+                    i += 1
+                out.append(word[i])
+                i += 1
+            i += 1
+        elif char == "\\":
+            out.append(word[i + 1])
+            i += 2
+        else:
+            out.append(char)
+            i += 1
+    return "".join(out)
+
+
 def format_output_value(new_output_dir: str, *, old_value: str) -> str:
-    if old_value.startswith('"') and old_value.endswith('"'):
-        return f'"{escape_double_quoted(new_output_dir)}"'
-    if old_value.startswith("'") and old_value.endswith("'"):
+    """Quote a path for commands.sh, keeping the quoting style of the value it replaces.
+
+    The result is always one SHELL_WORD that bash reads back as exactly
+    ``new_output_dir``; an unquoted value stays bare only when no character needs
+    quoting.
+    """
+    if "\n" in new_output_dir or "\r" in new_output_dir:
+        raise ValueError("A path containing a line break cannot be written to commands.sh.")
+    if old_value.startswith("'") and old_value.endswith("'") and len(old_value) > 1:
         if "'" not in new_output_dir:
             return f"'{new_output_dir}'"
         return shlex.quote(new_output_dir)
-    if re.search(r"\s", new_output_dir):
+    if old_value.startswith('"') and old_value.endswith('"') and len(old_value) > 1:
         return f'"{escape_double_quoted(new_output_dir)}"'
-    if re.search(r"""[$'`\\]""", new_output_dir):
-        return f'"{escape_double_quoted(new_output_dir)}"'
-    return new_output_dir
+    if _SHELL_SAFE.fullmatch(new_output_dir):
+        return new_output_dir
+    return f'"{escape_double_quoted(new_output_dir)}"'
+
+
+# Absolute paths YAML reads back as the same plain string.
+_YAML_PLAIN_SAFE = re.compile(r"/[\w@%+=,./~-]*", re.ASCII)
+# YAML's double-quoted escapes (PyYAML reads all of these; yaml.dump writes \xXX).
+_YAML_ESCAPES = {
+    "0": "\0", "a": "\a", "b": "\b", "t": "\t", "\t": "\t", "n": "\n", "v": "\v",
+    "f": "\f", "r": "\r", "e": "\x1b", " ": " ", '"': '"', "\\": "\\", "/": "/",
+    "N": "\x85", "_": "\xa0", "L": "\u2028", "P": "\u2029",
+}
+_YAML_FOLDED_BREAK_RE = re.compile("[ \t]*([\x85\u2028\u2029])[ \t]*")
+_YAML_ESCAPE_RE = re.compile(r"\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|.)")
+
+
+def _yaml_single_quotable(char: str) -> bool:
+    # Printable and not a YAML line break (NEL, U+2028 and U+2029 fold like \n).
+    code = ord(char)
+    return (
+        0x20 <= code <= 0x7E
+        or (0xA0 <= code <= 0xD7FF and char not in "\u2028\u2029")
+        or (0xE000 <= code <= 0xFFFD and char != "\ufeff")
+        or code >= 0x10000
+    )
+
+
+def _yaml_escape(char: str) -> str:
+    if char in '"\\':
+        return "\\" + char
+    if _yaml_single_quotable(char):
+        return char
+    code = ord(char)
+    if code < 0x100:
+        return f"\\x{code:02X}"
+    return f"\\u{code:04X}" if code < 0x10000 else f"\\U{code:08X}"
+
+
+def yaml_scalar_value(quote: str, raw: str) -> str:
+    """The string a single-line YAML scalar holds, given its quote and inner text."""
+    if quote != '"':
+        # NEL, U+2028 and U+2029 are YAML line breaks that \n-based lines keep
+        # inline; YAML drops the blanks around them (yaml.dump indents after one).
+        raw = _YAML_FOLDED_BREAK_RE.sub(r"\1", raw)
+    if quote == "'":
+        return raw.replace("''", "'")
+    if quote == '"':
+
+        def unescape(m: re.Match[str]) -> str:
+            code = m.group(1)
+            if len(code) > 1:
+                return chr(int(code[1:], 16))
+            return _YAML_ESCAPES.get(code, m.group(0))
+
+        return _YAML_ESCAPE_RE.sub(unescape, raw)
+    return raw.strip(" \t")  # YAML trims only spaces and tabs, not U+00A0.
+
+
+def format_yaml_scalar(value: str) -> str:
+    """``value`` as a single-line YAML string that loads back unchanged.
+
+    Plain when unambiguous, single-quoted when every character is printable, and
+    double-quoted with escapes otherwise.
+    """
+    if _YAML_PLAIN_SAFE.fullmatch(value):
+        return value
+    if all(_yaml_single_quotable(char) for char in value):
+        return "'" + value.replace("'", "''") + "'"
+    return '"' + "".join(_yaml_escape(char) for char in value) + '"'
+
+
+def remap_yaml_references(
+    params_yaml: Path,
+    old_prefix: str,
+    new_prefix: str,
+    *,
+    dry_run: bool,
+    pattern: re.Pattern[str],
+    remap_uris: bool = True,
+) -> list[tuple[str, str, str]]:
+    """Rewrite reference paths matched by ``pattern`` in params.yaml.
+
+    ``pattern`` must capture the key prefix, quote, value and trailing blanks of
+    one ``key: value`` line. Return (key, old, new) for each changed value.
+    """
+    content = params_yaml.read_text(encoding="utf-8")
+    changes: list[tuple[str, str, str]] = []
+
+    def replace(m: re.Match[str]) -> str:
+        value = yaml_scalar_value(m.group("q"), m.group("value"))
+        if (not remap_uris and "://" in value) or not prefix_matches(value, old_prefix):
+            return m.group(0)
+        new_value = new_prefix + value[len(old_prefix) :]
+        key = m.group("prefix").strip().rstrip(":").strip()
+        changes.append((key, value, new_value))
+        return f"{m.group('prefix')}{format_yaml_scalar(new_value)}{m.group('trail')}"
+
+    updated = pattern.sub(replace, content)
+    if not dry_run and changes:
+        shutil.copy2(params_yaml, params_yaml.with_suffix(".yaml.bak"))
+        write_text_lf(params_yaml, updated)
+    return changes
+
+
+def missing_yaml_references(params_yaml: Path, *, pattern: re.Pattern[str]) -> list[str]:
+    """Local reference paths in params.yaml that do not exist on this machine.
+
+    URIs, $VAR references, true/false sentinels and glob patterns are skipped:
+    none of them can be checked with a filesystem lookup.
+    """
+    missing: list[str] = []
+    for m in pattern.finditer(params_yaml.read_text(encoding="utf-8")):
+        value = yaml_scalar_value(m.group("q"), m.group("value"))
+        if (
+            not value
+            or value.lower() in ("false", "true")
+            or "://" in value
+            or value.startswith("$")
+            or any(ch in value for ch in "*{}")
+        ):
+            continue
+        if not Path(value).exists():
+            missing.append(value)
+    return missing
+
+
+def remap_flag_references(
+    commands_sh: Path,
+    old_prefix: str,
+    new_prefix: str,
+    *,
+    dry_run: bool,
+    pattern: re.Pattern[str],
+) -> list[tuple[str, str, str]]:
+    """Rewrite reference flags matched by ``pattern`` in commands.sh.
+
+    ``pattern`` captures the flag (group 1), a SHELL_WORD named ``value`` and the
+    line continuation (group 3). Return (flag, old, new) for each changed value.
+    """
+    content = commands_sh.read_text(encoding="utf-8")
+    changes: list[tuple[str, str, str]] = []
+
+    def replace(m: re.Match[str]) -> str:
+        raw = m.group("value")
+        value = unquote_shell_word(raw)
+        if not prefix_matches(value, old_prefix):
+            return m.group(0)
+        new_value = new_prefix + value[len(old_prefix) :]
+        changes.append((m.group(1).strip(), value, new_value))
+        return f"{m.group(1)}{format_output_value(new_value, old_value=raw)}{m.group(3)}"
+
+    updated = pattern.sub(replace, content)
+    if not dry_run and changes:
+        shutil.copy2(commands_sh, commands_sh.with_suffix(".sh.bak"))
+        write_text_lf(commands_sh, updated)
+    return changes
+
+
+def missing_flag_references(commands_sh: Path, *, pattern: re.Pattern[str]) -> list[str]:
+    """Local reference paths in commands.sh that do not exist on this machine.
+
+    Remote URIs and bash variable references are skipped: neither can be checked
+    with a filesystem lookup.
+    """
+    missing: list[str] = []
+    for m in pattern.finditer(commands_sh.read_text(encoding="utf-8")):
+        value = unquote_shell_word(m.group("value"))
+        if not value or value.startswith("$") or "://" in value:
+            continue
+        if not Path(value).exists():
+            missing.append(value)
+    return missing
+
+
+def missing_csv_paths(samplesheet: Path, *, columns: Sequence[str]) -> list[str]:
+    """Local paths in ``columns`` of the samplesheet that do not exist on disk.
+
+    Remote URIs and bash variable references ($VAR/... or ${VAR}/...) are skipped:
+    they are valid for cloud or replay-time execution but cannot be stat-checked.
+    """
+    missing: list[str] = []
+    with samplesheet.open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    for row in rows:
+        for col in columns:
+            value = row.get(col, "")
+            if not value or "://" in value or value.startswith("$"):
+                continue
+            if not Path(value).exists():
+                missing.append(value)
+    return missing
 
 
 def repair_bundle(
@@ -111,13 +353,15 @@ def repair_bundle(
     regenerate_manifest: Callable,
     regenerate_environment: Callable,
     regenerate_checksums: Callable,
+    checksums_cover_stubs: bool = True,
 ) -> int:
     """Regenerate missing bundle files from existing bundle contents.
 
-    checksums.sha256 is recomputed from whatever files are present — fully
-    accurate.  manifest.json and environment.yml are written as post-hoc stubs
-    (marked regenerated_post_hoc: true) because the original runtime metadata
-    cannot be reconstructed without re-running the wrapper.
+    manifest.json and environment.yml are written as post-hoc stubs (marked
+    regenerated_post_hoc: true) because the original runtime metadata cannot be
+    reconstructed without re-running the wrapper. checksums.sha256 is recomputed
+    when it is missing, and also after writing a stub when the checksum file
+    covers the stubs; an allowlist that never lists them is left alone.
 
     Returns 0 when all required files exist after repair, 1 on failure.
     Idempotent: re-running on a complete bundle is a no-op (returns 0).
@@ -152,11 +396,9 @@ def repair_bundle(
                 "  [OK] environment.yml  (post-hoc stub - original snapshot unavailable)"
             )
             wrote_new_files = True
-        # Always recompute checksums when any file was written (or checksums itself was
-        # missing), so the checksum file covers the full post-repair bundle state.
-        if wrote_new_files or "checksums.sha256" in missing:
+        if "checksums.sha256" in missing or (wrote_new_files and checksums_cover_stubs):
             regenerate_checksums(bd)
-            print("  [OK] checksums.sha256  (recomputed from current bundle contents)")
+            print("  [OK] checksums.sha256  (recomputed with the bundle's checksum policy)")
     except Exception as exc:  # noqa: BLE001 - preserve best-effort repair diagnostics
         print(f"ERROR: Repair failed: {exc}", file=sys.stderr)
         return 1

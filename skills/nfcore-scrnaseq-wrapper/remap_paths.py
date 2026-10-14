@@ -27,11 +27,8 @@ remapping before replaying on a different machine:
 from __future__ import annotations
 
 import argparse
-import csv
-import hashlib
 import json
 import re
-import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,20 +40,20 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 from clawbio.common.nfcore.bundle_runtime import (
-    write_text_lf as _nfcore_write_text_lf,
-    prefix_matches as _nfcore_prefix_matches,
+    missing_csv_paths as _nfcore_missing_csv_paths,
+    missing_yaml_references as _nfcore_missing_yaml_references,
     remap_csv as _nfcore_remap_csv,
+    remap_yaml_references as _nfcore_remap_yaml_references,
+    repair_bundle as _nfcore_repair_bundle,
     run_actions as _nfcore_run_actions,
+    sha256_file as _nfcore_sha256_file,
+    write_text_lf as _nfcore_write_text_lf,
 )
 # <<< SHARED NFCORE RUNTIME <<<
 
 # Regenerable bundle files (crash recovery). commands.sh is the required input and
 # is never regenerated. Matches nfcore-rnaseq/nfcore-sarek.
 _REQUIRED_BUNDLE_FILES = ("manifest.json", "checksums.sha256", "environment.yml")
-
-
-def _write_text_lf(path: Path, text: str) -> None:
-    _nfcore_write_text_lf(path, text)
 
 
 _FASTQ_COLUMNS = ("fastq_1", "fastq_2", "fastq_barcode")
@@ -124,23 +121,8 @@ def remap_csv(samplesheet: Path, old_prefix: str, new_prefix: str, *, dry_run: b
 
 
 def verify_paths(samplesheet: Path) -> list[str]:
-    """Return FASTQ paths in the samplesheet that don't exist on disk.
-
-    Remote URIs (s3://, https://, ...) and $VAR references are skipped.
-    """
-    missing: list[str] = []
-    for row in csv.DictReader(samplesheet.read_text(encoding="utf-8").splitlines()):
-        for col in _FASTQ_COLUMNS:
-            val = row.get(col, "")
-            if not val or "://" in val or val.startswith("$"):
-                continue
-            if not Path(val).exists():
-                missing.append(val)
-    return missing
-
-
-def _prefix_matches(path: str, prefix: str) -> bool:
-    return _nfcore_prefix_matches(path, prefix)
+    """Return FASTQ paths in the samplesheet that don't exist on disk."""
+    return _nfcore_missing_csv_paths(samplesheet, columns=_FASTQ_COLUMNS)
 
 
 def find_params(bundle_dir: Path | None = None) -> Path | None:
@@ -156,53 +138,24 @@ def remap_params_references(
     *,
     dry_run: bool,
 ) -> list[tuple[str, str, str]]:
-    """Rewrite reference/index paths stored in params.yaml. Return (key, old, new)."""
-    content = params_yaml.read_text(encoding="utf-8")
-    changes: list[tuple[str, str, str]] = []
+    """Rewrite reference/index paths stored in params.yaml. Return (key, old, new).
 
-    def _replace(m: "re.Match[str]") -> str:
-        value = m.group("value")
-        if "://" in value or not _prefix_matches(value, old_prefix):
-            return m.group(0)
-        new_value = new_prefix + value[len(old_prefix) :]
-        key = m.group("prefix").strip().rstrip(":").strip()
-        changes.append((key, value, new_value))
-        return f"{m.group('prefix')}{m.group('q')}{new_value}{m.group('q')}{m.group('trail')}"
-
-    updated = _PARAMS_REF_RE.sub(_replace, content)
-
-    if not dry_run and changes:
-        backup = params_yaml.with_suffix(".yaml.bak")
-        shutil.copy2(params_yaml, backup)
-        # write bytes with LF normalised: keep params.yaml byte-stable across OS
-        # (Path.write_text would emit CRLF on Windows and change the checksum).
-        params_yaml.write_bytes(
-            updated.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
-        )
-
-    return changes
+    Remote URIs are never rewritten: remote references are gated behind
+    --allow-remote-inputs and staged by Nextflow.
+    """
+    return _nfcore_remap_yaml_references(
+        params_yaml,
+        old_prefix,
+        new_prefix,
+        dry_run=dry_run,
+        pattern=_PARAMS_REF_RE,
+        remap_uris=False,
+    )
 
 
 def verify_params_references(params_yaml: Path) -> list[str]:
-    """Return local reference paths in params.yaml that don't exist on disk.
-
-    URIs, $VAR references, the ``false`` sentinel and glob patterns are skipped.
-    """
-    content = params_yaml.read_text(encoding="utf-8")
-    missing: list[str] = []
-    for m in _PARAMS_REF_RE.finditer(content):
-        value = m.group("value").strip()
-        if (
-            not value
-            or value.lower() in ("false", "true")
-            or "://" in value
-            or value.startswith("$")
-            or any(ch in value for ch in "*{}")
-        ):
-            continue
-        if not Path(value).exists():
-            missing.append(value)
-    return missing
+    """Return local reference paths in params.yaml that don't exist on disk."""
+    return _nfcore_missing_yaml_references(params_yaml, pattern=_PARAMS_REF_RE)
 
 
 def cmd_remap_references(
@@ -342,15 +295,6 @@ def cmd_verify(bundle_dir: Path | None = None) -> int:
     return 0 if ok else 1
 
 
-def _sha256_file(path: Path) -> str:
-    """Compute the SHA-256 hex digest of a single file (stdlib-only, portable)."""
-    h = hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
 def _find_h5ad_candidates(upstream_dir: Path) -> list[Path]:
     """Stdlib-only mirror of outputs_parser.find_h5ad_candidates.
 
@@ -445,10 +389,10 @@ def _regenerate_checksums(bundle_dir: Path) -> None:
     output_dir = bundle_dir.parent
     checksum_path = bundle_dir / "checksums.sha256"
     lines = [
-        f"{_sha256_file(f)}  {f.relative_to(output_dir).as_posix()}"
+        f"{_nfcore_sha256_file(f)}  {f.relative_to(output_dir).as_posix()}"
         for f in _bundle_checksum_targets(output_dir)
     ]
-    _write_text_lf(checksum_path, "\n".join(lines) + ("\n" if lines else ""))
+    _nfcore_write_text_lf(checksum_path, "\n".join(lines) + ("\n" if lines else ""))
 
 
 def _regenerate_manifest_stub(bundle_dir: Path, commands_sh: Path) -> None:
@@ -466,14 +410,14 @@ def _regenerate_manifest_stub(bundle_dir: Path, commands_sh: Path) -> None:
         "commands_sh": str(commands_sh),
         "regenerated_at": datetime.now(timezone.utc).isoformat(),
     }
-    _write_text_lf(bundle_dir / "manifest.json", json.dumps(manifest, indent=2))
+    _nfcore_write_text_lf(bundle_dir / "manifest.json", json.dumps(manifest, indent=2))
 
 
 def _regenerate_environment_stub(bundle_dir: Path) -> None:
     """Write a post-hoc environment.yml stub. The original captures exact
     Java/Nextflow versions detected at run time, which cannot be reconstructed
     without the wrapper context, so this records only a named placeholder."""
-    _write_text_lf(
+    _nfcore_write_text_lf(
         bundle_dir / "environment.yml",
         "# regenerated post-hoc by remap_paths.py --repair-bundle\n"
         "# Original environment snapshot was lost because the wrapper crashed during\n"
@@ -484,71 +428,18 @@ def _regenerate_environment_stub(bundle_dir: Path) -> None:
 
 
 def cmd_repair_bundle(bundle_dir: Path | None = None) -> int:
-    """Regenerate missing bundle files from existing bundle contents.
-
-    checksums.sha256 is recomputed from whatever files are present — fully accurate.
-    manifest.json and environment.yml are written as post-hoc stubs (marked
-    regenerated_post_hoc: true) because the original runtime metadata cannot be
-    reconstructed without re-running the wrapper. Returns 0 when all required files
-    exist after repair, 1 on failure. Idempotent: a complete bundle is a no-op.
-    Parity with nfcore-rnaseq/nfcore-sarek.
-    """
-    bd = bundle_dir or _BUNDLE_DIR
-    commands_sh = find_commands_sh(bundle_dir=bd)
-    if commands_sh is None:
-        print(
-            "ERROR: commands.sh not found in bundle directory.\n"
-            "  Cannot repair bundle without the original command record.",
-            file=sys.stderr,
-        )
-        return 1
-
-    missing = [f for f in _REQUIRED_BUNDLE_FILES if not (bd / f).exists()]
-    if not missing:
-        print("Bundle is complete - all required files are present. Nothing to repair.")
-        return 0
-
-    print(f"Repairing bundle - regenerating {len(missing)} missing file(s):")
-    try:
-        if "manifest.json" in missing:
-            _regenerate_manifest_stub(bd, commands_sh)
-            print("  [OK] manifest.json  (post-hoc stub - original metadata unavailable)")
-        if "environment.yml" in missing:
-            _regenerate_environment_stub(bd)
-            print("  [OK] environment.yml  (post-hoc stub - original snapshot unavailable)")
-        # checksums.sha256 lists only the wrapper's original allowlist (samplesheet,
-        # params.yaml, stdout, stderr, h5ad candidates, MultiQC report); it never
-        # covers the manifest.json / environment.yml stubs, so regenerating those
-        # cannot change it. Recompute only when checksums.sha256 itself is missing —
-        # this never silently overwrites an existing, valid manifest.
-        if "checksums.sha256" in missing:
-            _regenerate_checksums(bd)
-            print("  [OK] checksums.sha256  (recomputed from the original checksum allowlist)")
-    except Exception as exc:  # pragma: no cover - defensive
-        print(f"ERROR: Repair failed: {exc}", file=sys.stderr)
-        return 1
-
-    still_missing = [f for f in _REQUIRED_BUNDLE_FILES if not (bd / f).exists()]
-    if still_missing:
-        print(
-            f"ERROR: Repair incomplete - still missing: {', '.join(still_missing)}",
-            file=sys.stderr,
-        )
-        return 1
-
-    stubs = [f for f in ("manifest.json", "environment.yml") if f in missing]
-    if stubs:
-        stub_list = " and ".join(stubs)
-        word = "stubs" if len(stubs) > 1 else "stub"
-        are_is = "are" if len(stubs) > 1 else "is a"
-        print(
-            f"\nRepair complete. Note: {stub_list} {are_is} post-hoc {word}\n"
-            "(marked regenerated_post_hoc: true). For a fully-original audit bundle,\n"
-            "re-run the wrapper instead."
-        )
-    else:
-        print("\nRepair complete.")
-    return 0
+    # checksums.sha256 lists only the wrapper's original allowlist (samplesheet,
+    # params.yaml, stdout, stderr, h5ad candidates, MultiQC report), never the
+    # manifest/environment stubs, so writing a stub cannot make it stale.
+    return _nfcore_repair_bundle(
+        bundle_dir or _BUNDLE_DIR,
+        required_files=_REQUIRED_BUNDLE_FILES,
+        commands_finder=find_commands_sh,
+        regenerate_manifest=_regenerate_manifest_stub,
+        regenerate_environment=_regenerate_environment_stub,
+        regenerate_checksums=_regenerate_checksums,
+        checksums_cover_stubs=False,
+    )
 
 
 def cmd_output_dir_hint(new_output_dir: str) -> int:

@@ -156,11 +156,11 @@ def _build_full_bundle(tmp_path: Path) -> Path:
 
 
 def test_remap_write_text_lf_helper_normalizes_cr(tmp_path):
-    """The standalone bundle copy cannot import clawbio, so it ships a local LF
-    writer. It must normalise CRLF/CR to LF and write bytes (no OS newline
-    translation), matching the nfcore-sarek helper."""
+    """The standalone bundle copy cannot import clawbio, so it embeds the runtime's
+    LF writer. It must normalise CRLF/CR to LF and write bytes (no OS newline
+    translation)."""
     target = tmp_path / "out.txt"
-    remap_paths._write_text_lf(target, "a\r\nb\rc\n")
+    remap_paths._nfcore_write_text_lf(target, "a\r\nb\rc\n")
     assert target.read_bytes() == b"a\nb\nc\n"
 
 

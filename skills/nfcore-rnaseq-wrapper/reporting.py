@@ -9,6 +9,7 @@ from pathlib import Path
 
 from clawbio.common.nfcore.artifacts import safe_config_basename
 from clawbio.common.nfcore.bundle_emit import write_standalone_remapper
+from clawbio.common.nfcore.bundle_runtime import escape_double_quoted
 from clawbio.common.portable_commands import build_portable_commands_sh
 from clawbio.common.report import generate_report_footer, generate_report_header, write_result_json
 from clawbio.common.textio import write_text_lf, write_text_lf_atomic
@@ -602,7 +603,8 @@ def _apply_idempotent_resume(content: str, output_dir: Path) -> str:
         return content
     if "\n    --resume" in content:
         return content
-    manifest = f"{output_dir.as_posix()}/reproducibility/manifest.json"
+    # Inside bash double quotes: escape $, `, " and \ so the path stays literal.
+    manifest = escape_double_quoted(f"{output_dir.as_posix()}/reproducibility/manifest.json")
     guard = (
         "# Idempotent replay: resume in place if this output directory already holds a\n"
         "# completed run of this bundle (reproducibility/manifest.json). A fresh or\n"

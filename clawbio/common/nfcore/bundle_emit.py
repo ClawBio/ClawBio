@@ -13,13 +13,21 @@ _RUNTIME_END = "# <<< SHARED NFCORE RUNTIME <<<"
 _RUNTIME_PATH = Path(__file__).with_name("bundle_runtime.py")
 # The runtime functions adapters call, bound under private aliases in both modes.
 _EXPORTS = (
-    "write_text_lf",
+    "SHELL_WORD",
+    "escape_double_quoted",
+    "format_output_value",
+    "missing_csv_paths",
+    "missing_flag_references",
+    "missing_yaml_references",
     "prefix_matches",
     "remap_csv",
-    "run_actions",
+    "remap_flag_references",
+    "remap_yaml_references",
     "repair_bundle",
-    "format_output_value",
-    "escape_double_quoted",
+    "run_actions",
+    "sha256_file",
+    "unquote_shell_word",
+    "write_text_lf",
 )
 
 

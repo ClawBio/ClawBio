@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 import pytest
@@ -374,6 +375,33 @@ def test_repro_commands_sh_has_idempotent_resume_guard_for_demo(tmp_path):
     assert '"${PYTHON:-python3}" "$SKILL_SCRIPT" $CLAWBIO_RESUME' in content
     assert "\n    --demo" in content
 
+
+
+def _run_resume_guard(content: str) -> str:
+    start = content.index('CLAWBIO_RESUME=""')
+    end = content.index("\nfi\n", start) + len("\nfi\n")
+    result = subprocess.run(
+        ["bash", "-c", content[start:end] + 'printf %s "$CLAWBIO_RESUME"'],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the guard is bash")
+def test_resume_guard_tests_the_literal_output_dir(tmp_path):
+    """The guard tests the manifest path inside bash double quotes, so an output
+    directory containing $, a backtick or a double quote must stay literal: never
+    expanded, and never able to end the quoted string early."""
+    out = tmp_path / 'run $HOME `false` "q"'
+    out.mkdir()
+    write_repro_commands(out, args=_args(out, output=str(out)))
+    content = (out / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+    assert _run_resume_guard(content) == ""
+    (out / "reproducibility" / "manifest.json").write_text("{}", encoding="utf-8")
+    assert _run_resume_guard(content) == "--resume"
 
 def test_repro_commands_sh_resume_guard_skipped_when_run_used_resume(tmp_path):
     """If the original run already used --resume the command always resumes, so the
