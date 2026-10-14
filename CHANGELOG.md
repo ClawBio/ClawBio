@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and bundle writing.
 
 ### Changed
+- **The three nf-core wrappers share `clawbio.common.nfcore`.** rnaseq, sarek and
+  scrnaseq now share Nextflow execution, failure reporting, run-control options,
+  params.yaml writing and the standalone bundle remapper instead of keeping three
+  copies; scientific policy (references, samplesheets, presets, resources,
+  checksum scope) stays in each skill. See `docs/nfcore-wrapper-architecture.md`.
 - `biostudies-fetch` and `arrayexpress-fetch` resolve file downloads from the
   BioStudies `/info` endpoint's `httpLink` rather than the hardcoded
   `/biostudies/files/{acc}/{path}` path. Marked `DIVERGES FROM UPSTREAM` in the
@@ -58,6 +63,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accession but is a firewall. Despite the hostnames, **no FTP port is used**:
   every `ftp://` URL is rewritten to `https://`, so this is host filtering on
   TCP/443, not a port to open.
+
+### Fixed
+- **nf-core wrappers.** The sarek 3.8.1 and scrnaseq 4.1.0 demos failed on
+  Nextflow 26.04+, whose strict syntax parser rejects both releases; they now run
+  with `NXF_SYNTAX_PARSER=v1`. Ctrl+C left Nextflow running (rnaseq, sarek), and
+  `clawbio run` killed the wrappers at 12h10m whatever `--timeout-hours` said;
+  both now stop Nextflow cleanly. Relocating a reproducibility bundle no longer
+  silently skips paths containing spaces with apostrophes, `$`, quotes or YAML
+  special characters. Per-skill details are in each wrapper's CHANGELOG.
 
 ### Notes
 - Upstream's `--out` defaults were relative to the working directory; every

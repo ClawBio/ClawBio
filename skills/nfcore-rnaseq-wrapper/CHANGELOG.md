@@ -8,6 +8,17 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ### Fixed
 
+- **Ctrl+C now stops Nextflow.** Nextflow runs in its own session, so the terminal's
+  SIGINT never reached it: the wrapper exited 130 while Nextflow kept running and held
+  the `.nextflow` lock against the next `--resume`. The wrapper now terminates its
+  process group, as scrnaseq already did.
+- **`--timeout-hours nan`/`inf` is a usage error** instead of an `UNEXPECTED_ERROR`
+  after preflight; through `clawbio run`, the runner's own cap now follows the flag.
+- **Relocated bundles.** `remap_paths.py --output-dir` found no `--output` when the
+  original path held an apostrophe and a space (as `shlex.quote` writes it) and exited
+  0 without changing anything; the replay resume guard broke on output paths with `$`,
+  a backtick or `"`. Both now round-trip any path.
+
 - **`remap_paths.py`: combining actions no longer discards one of them silently.**
   `main()` dispatched through a chain of early returns, so only the first matching flag
   ever ran. `--output-dir <new> --verify` therefore rewrote nothing and then reported the

@@ -8,6 +8,14 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ### Fixed
 
+- **Runs on Nextflow 26.04+.** Its default strict syntax parser rejects nf-core/scrnaseq
+  4.1.0's include of `conf/test_multiome.config`, which the tag does not ship; the
+  wrapper sets `NXF_SYNTAX_PARSER=v1` for the run, the recorded command and
+  `commands.sh`.
+- **`--timeout-hours nan`/`inf` is a usage error** instead of an `UNEXPECTED_ERROR`.
+- **`params.yaml` is written one value per line**, so the bundle remapper reads long
+  reference paths whole; `--resume` still accepts bundles fingerprinted before.
+
 - **A lane-split sample is now counted once, not once per row.** The samplesheet summary
   counted raw CSV rows (`sample_count = len(normalized_rows)`) and appended to
   `sample_names` with no duplicate guard. nf-core/scrnaseq documents re-sequencing a sample
