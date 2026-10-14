@@ -162,19 +162,27 @@ def test_ctrl_c_terminates_nextflow_instead_of_orphaning_it(tmp_path):
     Ctrl+C must therefore stop the child explicitly, or Nextflow keeps running (and
     holds the .nextflow lock) after the wrapper has exited 130."""
     pid_file = tmp_path / "child.pid"
+    main_thread = threading.main_thread().ident
 
     def interrupt_once_child_runs() -> None:
-        deadline = time.monotonic() + 10
+        deadline = time.monotonic() + 30
         while not pid_file.exists() and time.monotonic() < deadline:
             time.sleep(0.01)
         if pid_file.exists():
-            os.kill(os.getpid(), signal.SIGINT)
+            # What the terminal does on Ctrl+C, aimed at the thread blocked in
+            # waitpid so the kernel cannot pick this helper thread instead.
+            signal.pthread_kill(main_thread, signal.SIGINT)
 
-    threading.Thread(target=interrupt_once_child_runs, daemon=True).start()
-    with pytest.raises(KeyboardInterrupt):
-        execute_nextflow(
-            ["sh", "-c", f"echo $$ > {shlex.quote(str(pid_file))}; exec sleep 60"],
-            cwd=tmp_path, output_dir=tmp_path, timeout_seconds=None,
-        )
+    # Hermetic: other tests in a full run may leave a different SIGINT handler.
+    previous_handler = signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        threading.Thread(target=interrupt_once_child_runs, daemon=True).start()
+        with pytest.raises(KeyboardInterrupt):
+            execute_nextflow(
+                ["sh", "-c", f"echo $$ > {shlex.quote(str(pid_file))}; exec sleep 60"],
+                cwd=tmp_path, output_dir=tmp_path, timeout_seconds=None,
+            )
+    finally:
+        signal.signal(signal.SIGINT, previous_handler)
     with pytest.raises(ProcessLookupError):
         os.kill(int(pid_file.read_text()), 0)
