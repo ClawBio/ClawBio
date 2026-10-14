@@ -1,0 +1,12 @@
+{
+  "kind": "synthetic_visium_grid",
+  "n_row": 8,
+  "n_col": 8,
+  "n_genes": 40,
+  "seed": 7,
+  "left_domain": "epithelium",
+  "right_domain": "stroma",
+  "left_markers": ["EPCAM", "KRT8", "KRT18", "CDH1"],
+  "right_markers": ["COL1A1", "VIM", "DCN", "LUM"],
+  "note": "Offline demo recipe. --demo builds this grid in memory; no Visium dataset is downloaded."
+}

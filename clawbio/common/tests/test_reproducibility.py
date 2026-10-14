@@ -242,6 +242,37 @@ class TestWriteCommandsSh:
         assert mode & stat.S_IXUSR, "owner execute bit not set"
 
 
+class TestCommandsShMode:
+    """A bundle everyone can replay: commands.sh must be 0755 under the usual
+    umask, not mkstemp's 0600 with +x ORed on top (0711)."""
+
+    def test_write_commands_sh_is_0755_under_default_umask(self, tmp_path):
+        import os
+        old = os.umask(0o022)
+        try:
+            path = write_commands_sh(tmp_path, "python skill.py")
+        finally:
+            os.umask(old)
+        assert path.stat().st_mode & 0o777 == 0o755
+
+    def test_write_portable_commands_sh_is_0755_under_default_umask(self, tmp_path):
+        import os
+        command = ReproCommand(script_path=Path("skills/example/example.py"), args=["--demo"])
+        old = os.umask(0o022)
+        try:
+            path = write_portable_commands_sh(tmp_path, command, repo_root=tmp_path)
+        finally:
+            os.umask(old)
+        assert path.stat().st_mode & 0o777 == 0o755
+
+    def test_rewrite_keeps_the_mode_of_an_existing_script(self, tmp_path):
+        write_commands_sh(tmp_path, "python skill.py")
+        path = tmp_path / "reproducibility" / "commands.sh"
+        path.chmod(0o700)
+        write_commands_sh(tmp_path, "python skill.py --again")
+        assert path.stat().st_mode & 0o777 == 0o700
+
+
 class TestWritePortableCommandsSh:
     def test_portable_commands_validate_clawbio_root_directory(self, tmp_path):
         command = ReproCommand(
@@ -277,7 +308,7 @@ class TestWritePortableCommandsSh:
         assert 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' in text
         assert 'OUTPUT_DIR="$(dirname "$SCRIPT_DIR")"' in text
         assert f': "${{CLAWBIO_ROOT:={tmp_path.resolve()}}}"' in text
-        assert 'python "$CLAWBIO_ROOT/skills/example/example.py" --demo' in text
+        assert '"${PYTHON:-python3}" "$CLAWBIO_ROOT/skills/example/example.py" --demo' in text
         assert f'python "{(tmp_path.resolve() / "skills/example/example.py")}" --demo' not in text
 
 
@@ -478,3 +509,47 @@ class TestBuildPortableCommandsSh:
             args={"--output": "/tmp/my output dir"},
         )
         assert "'/tmp/my output dir'" in content
+
+
+def test_commands_sh_is_replaced_atomically(tmp_path):
+    """A replay writes --output back at $OUTPUT_DIR, regenerating the very script
+    bash is reading. A non-atomic rewrite makes bash resume at a byte offset in a
+    different file; os.replace keeps the running shell on the original inode."""
+    from clawbio.common.reproducibility import ReproCommand, write_portable_commands_sh
+
+    cmd = ReproCommand(script_path=Path("skills/x/x.py"), args=["--demo"])
+    path = write_portable_commands_sh(tmp_path, cmd, repo_root=tmp_path)
+    original_inode = path.stat().st_ino
+    write_portable_commands_sh(tmp_path, cmd, repo_root=tmp_path)
+    assert path.stat().st_ino != original_inode, "commands.sh was rewritten in place"
+
+
+def test_commands_sh_does_not_depend_on_bare_python_on_path(tmp_path):
+    """`python` is absent or points at Python 2 on plenty of machines; the skills
+    that previously recorded sys.executable must not regress to a bare `python`."""
+    from clawbio.common.reproducibility import ReproCommand, write_portable_commands_sh
+
+    text = write_portable_commands_sh(
+        tmp_path, ReproCommand(script_path=Path("skills/x/x.py"), args=["--demo"]),
+        repo_root=tmp_path).read_text()
+    assert "python3" in text
+    assert not any(line.startswith("python ") for line in text.splitlines())
+
+
+def test_default_python_version_matches_requires_python():
+    """A recipe that names a Python the package will not install into builds an
+    environment where the replay cannot run. The default has to track
+    pyproject.toml rather than being remembered."""
+    import inspect
+    import re
+    import tomllib
+
+    from clawbio.common.reproducibility import write_environment_yml
+
+    root = Path(__file__).resolve().parents[3]
+    requires = tomllib.loads((root / "pyproject.toml").read_text())["project"]["requires-python"]
+    floor = re.search(r"(\d+\.\d+)", requires).group(1)
+
+    default = inspect.signature(write_environment_yml).parameters["python_version"].default
+    assert tuple(map(int, default.split("."))) >= tuple(map(int, floor.split("."))), (
+        f"default python_version={default!r} is below requires-python {requires!r}")

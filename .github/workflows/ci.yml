@@ -43,7 +43,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: Check lockfile is up to date
         run: uv lock --check
@@ -68,7 +68,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -130,12 +130,24 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
-      - name: Export the lockfile
-        run: uv export --frozen --no-hashes --all-extras -o requirements-audit.txt
+      - name: Set up Python
+        run: uv python install 3.12
+
+      # Audit the environment uv actually builds, not a re-resolution of an
+      # exported requirements file. `pip-audit -r` shells out to pip, and pip
+      # does not honour the `[tool.uv] override-dependencies` entry that keeps
+      # liknorm out of the graph (see pyproject.toml for why it is there). pip
+      # therefore re-adds liknorm, whose `cffi<2.0` pin cannot coexist with the
+      # locked cffi 2.0.0, and the audit died on ResolutionImpossible instead
+      # of reporting. Auditing the synced venv has no resolution step and is
+      # the stricter question anyway: it covers what we ship, not what pip
+      # would have picked.
+      - name: Sync the locked environment
+        run: uv sync --locked --all-extras
 
       - name: Audit with pip-audit
         # `|| true` keeps findings from failing the build, so assert the tool
@@ -143,7 +155,7 @@ jobs:
         # vulnerabilities found" or "Found N known vulnerabilities". Neither
         # line means the step broke, which must fail loudly.
         run: |
-          uvx pip-audit -r requirements-audit.txt --no-deps > pip-audit.txt 2>&1 || true
+          uv run --with pip-audit pip-audit > pip-audit.txt 2>&1 || true
           if ! grep -qE 'No known vulnerabilities found|Found [0-9]+ known vulnerabilit' pip-audit.txt; then
             echo "::error::pip-audit produced no recognisable report - the audit step is broken, not clean"
             cat pip-audit.txt
@@ -177,7 +189,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: Install dependencies from lockfile
         run: uv sync --frozen --only-group dev
@@ -221,7 +233,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -286,6 +298,14 @@ jobs:
       # do not run is the #342 problem one level up. (See also #337.)
       - name: Run repo-level tests
         run: uv run pytest tests/ -v
+
+      # Named two files out of clawbio/tests/, and clawbio/common/tests/ ran
+      # nowhere at all, so the shared layer every skill imports was the least
+      # tested code in the repository. test_report.py had been red on main
+      # unnoticed, and ClawBio#451's helper tests would not have run after
+      # merge either. Both trees now run in full: 524 tests, about 20 seconds.
+      - name: Run library tests
+        run: uv run pytest clawbio/tests/ clawbio/common/tests/ -v
 
       # The steps above are a hardcoded allowlist, so a NEW skill's tests never
       # run: ClawBio#329 shipped a test that cannot pass and CI was still green,
@@ -469,7 +489,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -486,13 +506,19 @@ jobs:
 
   scientific-audit:
     runs-on: ubuntu-latest
+    env:
+      # The bench runs every case as a fresh subprocess with
+      # PYTHONDONTWRITEBYTECODE=1, and uv does not byte-compile on install, so
+      # each case recompiled pandas/scipy/sklearn/matplotlib from source: ~3.5s
+      # of a ~6s equity-scorer case. Compile once at install instead.
+      UV_COMPILE_BYTECODE: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -500,7 +526,13 @@ jobs:
         run: uv python install 3.12
 
       - name: Install ClawBio dependencies
-        run: uv sync --locked
+        # --all-extras: the bench drives skills whose engines live in
+        # [project.optional-dependencies]. skills/fine-mapping delegates SuSiE
+        # to sushie (the `fine-mapping` extra) and raises ImportError without
+        # it, which would turn every SuSiE bench case into a harness_error and
+        # trip the baseline gate below for reasons that have nothing to do with
+        # the skill's correctness.
+        run: uv sync --locked --all-extras
 
       - name: Install clawbio-bench
         run: uv pip install "clawbio-bench @ git+https://github.com/biostochastics/clawbio_bench.git@49a0f11a8393b87a90f0721261a9bec5d52b61db"
@@ -518,6 +550,12 @@ jobs:
           # only benchmark runs opt in. Drop this once clawbio_bench requests
           # --panel-id CLAWBIO-T2D-8 directly.
           CLAWBIO_ALLOW_LEGACY_PGS_ALIAS: "1"
+          # SuSiE paid the same per-case cost: sushie's JAX kernels were JIT-compiled per
+          # case. A persistent cache shared across the job's subprocesses reuses
+          # them (fine-mapping demo 10s -> 4s warm). Outside the checkout because
+          # the bench git-cleans the repo between runs.
+          JAX_COMPILATION_CACHE_DIR: ${{ runner.temp }}/jax-cache
+          JAX_PERSISTENT_CACHE_MIN_COMPILE_TIME_SECS: "0"
         run: |
           mkdir -p results
           uv run clawbio-bench --smoke --repo . || true

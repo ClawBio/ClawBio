@@ -1,0 +1,129 @@
+ DnaSP  Ver. 6.12.03                        15 - September - 2026  08:57:13
+ ==========================================================================
+
+
+ DNA Polymorphism
+ ----------------
+
+ Input Data File: C:\...\rp49_ing34_outGUA.fas
+ Population used: Ingroup
+    Number of sequences used: 34
+ Selected region: 1-1798   Number of sites: 1798
+ Total number of sites (excluding sites with gaps / missing data): 1470
+
+ Number of polymorphic (segregating) sites, S: 89
+ Total number of mutations, Eta: 92
+
+ Number of Haplotypes, h: 34
+ Haplotype (gene) diversity, Hd: 1.000
+    Variance of Haplotype diversity: 0.00005
+       Standard Deviation of Haplotype diversity: 0.007
+
+ Nucleotide diversity, Pi: 0.01098
+ Theta (per site) from Eta: 0.01531
+
+ Theta (per site) from S, Theta-W: 0.01481
+    Variance of theta (no recombination): 0.0000216
+       Standard deviation of theta (no recombination): 0.00464
+    Variance of theta (free recombination): 0.0000025
+       Standard deviation of theta (free recombination): 0.00157
+
+ Finite Sites Model 
+    Theta (per site) from Pi: 0.01114
+    Theta (per site) from S: 0.01535
+    Theta (per site) from Eta: 0.01558
+
+ Average number of nucleotide differences, k: 16.135
+    Stochastic variance of k (no recombination), Vst(k): 51.152
+    Sampling variance of k (no recombination), Vs(k): 3.222
+       Total variance of k (no recombination), V(k): 54.374
+    Stochastic variance of k (free recombination), Vst(k): 5.378
+    Sampling variance of k (free recombination), Vs(k): 0.326
+       Total variance of k (free recombination), V(k): 5.704
+
+ Theta (per sequence) from S, Theta-W: 21.767
+    Variance of theta (no recombination): 46.594
+    Variance of theta (free recombination): 5.324
+
+ Sliding Window Option
+ Sites with alignment gaps were counted in the window length (and slide)
+   Window length: 100     Step size: 25
+
+
+------------------------------------------------------------------------------------
+
+     Window  Midpoint  Pi     Theta      S
+ 
+      1-100     37  0.05406  0.04380    12
+     26-125     57  0.04765  0.03821    10
+     51-150    118  0.01228  0.01146     3
+     76-175    139  0.00766  0.00365     1
+    101-200    152  0.00746  0.00538     2
+    126-225    177  0.00171  0.00252     1
+    151-250    200  0.00176  0.00260     1
+    176-275    222  0.00964  0.01315     5
+    201-300    249  0.00794  0.01063     4
+    226-325    275  0.00850  0.01138     4
+    251-350    297  0.00870  0.01165     4
+    276-375    314  0.00000  0.00000     0
+    301-400    341  0.00000  0.00000     0
+    326-425    372  0.00000  0.00000     0
+    351-450    417  0.01049  0.01223     3
+    376-475    436  0.03216  0.02795     8
+    401-500    455  0.03183  0.03165    11
+    426-525    475  0.03586  0.03655    13
+    451-550    498  0.03684  0.04348    16
+    476-575    529  0.02655  0.03945    15
+    501-600    553  0.02881  0.03988    15
+    526-625    575  0.02375  0.03459    14
+    551-650    601  0.01541  0.01976     8
+    576-675    626  0.00758  0.00988     4
+    601-700    650  0.00173  0.00489     2
+    626-725    675  0.00225  0.00489     2
+    651-750    700  0.00339  0.00734     3
+    676-775    725  0.00629  0.01712     7
+    701-800    750  0.01200  0.03179    13
+    726-825    775  0.01278  0.03706    15
+    751-850    800  0.01721  0.04447    18
+    776-875    826  0.01487  0.03706    15
+    801-900    851  0.01302  0.02964    12
+    826-925    875  0.01175  0.02690    11
+    851-950    900  0.00622  0.01712     7
+    876-975    925  0.00563  0.01467     6
+   901-1000    950  0.00118  0.00489     2
+   926-1025    975  0.00499  0.00245     1
+   951-1050    994  0.00574  0.00281     1
+   976-1075   1008  0.00845  0.00741     2
+  1001-1100   1028  0.01014  0.00889     2
+  1026-1125   1095  0.00454  0.01439     3
+  1051-1150   1118  0.00362  0.01146     3
+  1076-1175   1133  0.00203  0.00575     2
+  1101-1200   1152  0.00180  0.00510     2
+  1126-1225   1175  0.00232  0.00734     3
+  1151-1250   1200  0.00232  0.00734     3
+  1176-1275   1225  0.00232  0.00734     3
+  1201-1300   1250  0.00232  0.00734     3
+  1226-1325   1275  0.00000  0.00000     0
+  1251-1350   1300  0.00000  0.00000     0
+  1276-1375   1325  0.00000  0.00000     0
+  1301-1400   1350  0.00000  0.00000     0
+  1326-1425   1375  0.00000  0.00000     0
+  1351-1450   1400  0.00000  0.00000     0
+  1376-1475   1423  0.00000  0.00000     0
+  1401-1500   1448  0.00000  0.00000     0
+  1426-1525   1477  0.00574  0.00515     2
+  1451-1550   1494  0.00682  0.00611     2
+  1476-1575   1505  0.00924  0.00829     2
+  1501-1600   1518  0.01604  0.01439     2
+  1526-1625   1530  0.00000  0.00000     0
+  1551-1650   1643  0.00000  0.00000     0
+  1576-1675   1650  0.00000  0.00000     0
+  1601-1700   1671  0.00960  0.00520     1
+  1626-1725   1686  0.00626  0.00340     1
+  1651-1750   1707  0.00637  0.00611     2
+  1676-1775   1717  0.02000  0.02345     7
+  1701-1798   1731  0.01834  0.02668     6
+
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+

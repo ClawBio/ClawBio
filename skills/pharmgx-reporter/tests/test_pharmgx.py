@@ -8,13 +8,17 @@ so that all assertions are deterministic and reproducible.
 """
 
 import re
+import json
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pharmgx_reporter import (
+    CPIC_TABLES_CHECKED,
     PGX_SNPS,
     GENE_DEFS,
     GUIDELINES,
@@ -116,11 +120,11 @@ def test_cyp2c19_intermediate():
     assert "Indeterminate" in p["CYP2C19"]["phenotype"]
 
 
-def test_cyp2d6_intermediate():
-    """CYP2D6 *2/*41: *2 normal-function + *41 decreased-function → Intermediate."""
+def test_cyp2d6_star2_star41_is_normal():
+    """CYP2D6 *2/*41: activity score 1 + 0.5 = 1.5 → Normal Metabolizer (CPIC)."""
     p = _profiles()
     assert "Indeterminate" in p["CYP2D6"]["phenotype"]
-    assert call_phenotype("CYP2D6", "*2/*41") == "Intermediate Metabolizer"
+    assert call_phenotype("CYP2D6", "*2/*41") == "Normal Metabolizer"
 
 
 def test_vkorc1_high_sensitivity():
@@ -206,13 +210,13 @@ def test_clopidogrel_indeterminate_for_phase_ambiguous():
     assert len(clop) == 1, "Clopidogrel should be in indeterminate list when CYP2C19 is phase-ambiguous"
 
 
-def test_codeine_caution_for_intermediate_cyp2d6():
-    """CYP2D6 *2/*41 → Intermediate Metabolizer → Codeine should be caution."""
+def test_codeine_standard_for_normal_cyp2d6():
+    """CYP2D6 *2/*41 → Normal Metabolizer → Codeine should be standard."""
     p = _profiles()
-    p["CYP2D6"] = {"diplotype": "*2/*41", "phenotype": "Intermediate Metabolizer"}
+    p["CYP2D6"] = {"diplotype": "*2/*41", "phenotype": "Normal Metabolizer"}
     results = lookup_drugs(p)
-    codeine = [d for d in results["caution"] if d["drug"] == "Codeine"]
-    assert len(codeine) == 1, "Codeine should be in caution list for CYP2D6 IM"
+    codeine = [d for d in results["standard"] if d["drug"] == "Codeine"]
+    assert len(codeine) == 1, "Codeine should be in standard list for CYP2D6 NM"
 
 
 def test_simvastatin_standard_for_normal_slco1b1():
@@ -467,6 +471,24 @@ def test_documented_outputs_are_produced(tmp_path):
         "SKILL.md Output Structure promises artifacts the skill did not produce: "
         f"{missing}"
     )
+
+
+def test_report_states_cpic_tables_checked():
+    _, _, pgx, _ = parse_file(str(DEMO))
+    p = _profiles()
+    report = generate_report(str(DEMO), "23andme", 31, pgx, p, lookup_drugs(p))
+    assert CPIC_TABLES_CHECKED in report
+
+
+def test_result_json_records_cpic_tables_checked(tmp_path):
+    skill_dir = Path(__file__).resolve().parent.parent
+    subprocess.run(
+        [sys.executable, str(skill_dir / "pharmgx_reporter.py"),
+         "--demo", "--output", str(tmp_path), "--no-enrich"],
+        capture_output=True, text=True, check=True,
+    )
+    data = json.loads((tmp_path / "result.json").read_text())["data"]
+    assert data["cpic_tables_checked"] == CPIC_TABLES_CHECKED
 
 
 # ── Data Integrity ─────────────────────────────────────────────────────────────
@@ -851,3 +873,140 @@ def test_unknown_build_still_forces_indeterminate_end_to_end(tmp_path):
     )
     combined = (result.stdout + result.stderr).lower()
     assert "unknown_build" in combined
+
+
+def test_confident_phenotype_accounts_for_every_detected_allele():
+    """Exhaustive check that no detected allele is silently dropped.
+
+    For every star-allele/DPYD gene and every fully genotyped input with at most
+    two alt copies in total, a non-Indeterminate phenotype must come from a
+    diplotype that names every detected allele. Regression: DPYD *2A + *13
+    compound hets were reported as Normal/*2A (Intermediate).
+    """
+    from itertools import product
+
+    from pharmgx_reporter import _MARKER_ALLELES
+    failures = []
+    for gene, gdef in GENE_DEFS.items():
+        if gdef.get("type") in ("genotype", "mthfr"):
+            continue
+        variants = list(gdef["variants"].items())
+        if any(rsid not in _MARKER_ALLELES for rsid, _ in variants):
+            continue  # These array markers are explicitly uncallable, not reference.
+        for copies in product((0, 1, 2), repeat=len(variants)):
+            if sum(copies) > 2:
+                continue
+            pgx = {rsid: {"genotype": vdef["alt"] * n
+                         + next(b for b in _MARKER_ALLELES[rsid] if b != vdef["alt"]) * (2 - n)}
+                   for (rsid, vdef), n in zip(variants, copies)}
+            diplotype = call_diplotype(gene, pgx)
+            phenotype = call_phenotype(gene, diplotype)
+            # Unmapped diplotypes are only asserted for DPYD in this test.
+            if gene == "DPYD" and phenotype.startswith("Unknown"):
+                failures.append((gene, copies, diplotype, phenotype))
+            if phenotype.startswith(("Indeterminate", "Unknown")):
+                continue
+            called = set(diplotype.split(" (")[0].split("/"))
+            detected = {vdef["allele"] for (_, vdef), n in zip(variants, copies) if n}
+            if not detected <= called:
+                failures.append((gene, copies, diplotype, phenotype))
+    assert not failures, failures
+
+
+# Phenotypes from the CPIC diplotype-phenotype tables (files.cpicpgx.org,
+# data/report/current/diplotype_phenotype/<GENE>_Diplotype_Phenotype_Table.xlsx).
+CPIC_PHENOTYPES = [
+    ("CYP2C19", "*3/*17", "Intermediate Metabolizer"),
+    ("CYP2C19", "*4/*17", "Intermediate Metabolizer"),
+    ("CYP2D6", "*1/*41", "Normal Metabolizer"),
+    ("CYP2D6", "*2/*41", "Normal Metabolizer"),
+    ("CYP2D6", "*4/*41", "Intermediate Metabolizer"),
+    ("CYP2D6", "*1/*6", "Intermediate Metabolizer"),
+    ("CYP2D6", "*2/*10", "Normal Metabolizer"),
+    ("CYP2D6", "*2/*4", "Intermediate Metabolizer"),
+    ("CYP2D6", "*2/*6", "Intermediate Metabolizer"),
+    ("CYP2D6", "*6/*10", "Intermediate Metabolizer"),
+    ("CYP2D6", "*6/*41", "Intermediate Metabolizer"),
+    ("CYP2B6", "*9/*18", "Poor Metabolizer"),
+    ("UGT1A1", "*6/*28", "Poor Metabolizer"),
+    ("CYP3A5", "*7/*7", "CYP3A5 Non-expressor"),
+    ("CYP3A5", "*6/*7", "CYP3A5 Non-expressor"),
+    ("DPYD", "D949V/D949V", "Intermediate Metabolizer"),
+    ("DPYD", "*2A/*13", "Poor Metabolizer"),
+    ("DPYD", "*2A/D949V", "Poor Metabolizer"),
+    ("DPYD", "*13/D949V", "Poor Metabolizer"),
+    # HapB3 (c.1129-5923C>G): CPIC DPYD_Diplotype_Phenotype_Table.xlsx, generated 2026-08-07
+    ("DPYD", "Normal/HapB3", "Intermediate Metabolizer"),  # AS 1.5
+    ("DPYD", "HapB3/HapB3", "Intermediate Metabolizer"),   # AS 1.0
+    ("DPYD", "D949V/HapB3", "Intermediate Metabolizer"),   # AS 1.0
+    ("DPYD", "*2A/HapB3", "Poor Metabolizer"),             # AS 0.5
+    ("DPYD", "*13/HapB3", "Poor Metabolizer"),             # AS 0.5
+]
+
+
+@pytest.mark.parametrize("gene,diplotype,expected", CPIC_PHENOTYPES)
+def test_phenotype_matches_cpic(gene, diplotype, expected):
+    assert call_phenotype(gene, diplotype) == expected
+
+
+@pytest.mark.parametrize("rsids", [
+    ("rs3918290", "rs55886062"),   # *2A + *13
+    ("rs3918290", "rs67376798"),   # *2A + D949V
+    ("rs55886062", "rs67376798"),  # *13 + D949V
+])
+def test_dpyd_compound_heterozygote_is_poor_metabolizer(rsids):
+    """CPIC presumes two different DPYD variants lie on different gene copies."""
+    variants = GENE_DEFS["DPYD"]["variants"]
+    pgx = {r: {"genotype": (v["alt"] + _DPYD_REF[r][0]) if r in rsids else _DPYD_REF[r]}
+           for r, v in variants.items()}
+    assert call_phenotype("DPYD", call_diplotype("DPYD", pgx)) == "Poor Metabolizer"
+
+
+def _dpyd(genotypes):
+    """call_phenotype(call_diplotype) for DPYD from {rsid: genotype}."""
+    d = call_diplotype("DPYD", {r: {"genotype": g} for r, g in genotypes.items()})
+    return d, call_phenotype("DPYD", d)
+
+
+@pytest.mark.parametrize("genotypes", [
+    {"rs3918290": "TT", "rs55886062": "AC", "rs67376798": "TT"},   # *2A/*2A + *13 het
+    {"rs3918290": "CT", "rs55886062": "CC", "rs67376798": "TT"},   # *13/*13 + *2A het
+    {"rs3918290": "TT", "rs55886062": "AA", "rs67376798": "TA"},   # *2A/*2A + D949V het
+    {"rs3918290": "CT", "rs55886062": "AA", "rs67376798": "AA"},   # D949V/D949V + *2A het
+])
+def test_dpyd_more_than_two_variant_alleles_stays_poor(genotypes):
+    """Two no/decreased-function alleles with a no-function one is Poor under any phase."""
+    assert _dpyd(genotypes)[1] == "Poor Metabolizer"
+
+
+def test_dpyd_homozygous_d949v_is_intermediate():
+    genotypes = {"rs3918290": "CC", "rs55886062": "AA", "rs67376798": "AA", "rs75017182": "GG"}
+    assert _dpyd(genotypes)[1] == "Intermediate Metabolizer"
+
+
+def test_dpyd_partial_panel_with_detected_variant_is_flagged():
+    """An untested DPYD SNP could turn a single-variant Intermediate into Poor."""
+    diplotype, phenotype = _dpyd({"rs3918290": "CT"})
+    assert "1/4 SNPs tested" in diplotype
+    assert phenotype.startswith("Indeterminate")
+
+
+def test_dpyd_partial_panel_poor_is_not_downgraded():
+    """Two no-function alleles are Poor whatever else is untested."""
+    assert _dpyd({"rs3918290": "TT"})[1] == "Poor Metabolizer"
+
+
+_DPYD_REF = {"rs3918290": "CC", "rs55886062": "AA", "rs67376798": "TT", "rs75017182": "GG"}
+
+
+def test_dpyd_hapb3_carrier_is_intermediate():
+    """HapB3 (rs75017182 G>C) is CPIC's most common decreased-function DPYD variant."""
+    diplotype, phenotype = _dpyd({**_DPYD_REF, "rs75017182": "GC"})
+    assert diplotype == "Normal/HapB3"
+    assert phenotype == "Intermediate Metabolizer"
+
+
+def test_dpyd_without_hapb3_is_not_called_normal():
+    """Testing only *2A/*13/D949V cannot rule out HapB3, so it must not read Normal."""
+    genotypes = {r: g for r, g in _DPYD_REF.items() if r != "rs75017182"}
+    assert _dpyd(genotypes)[1].startswith("Indeterminate")

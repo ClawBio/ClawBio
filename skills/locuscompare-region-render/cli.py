@@ -499,7 +499,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
     # ----- Manifest + report
     manifest = {
         "skill": "locuscompare",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "lead_variant_id": lead_variant_id,
         "lead_rs_id": lead_rs_id,
         "n_pairs": result.n_pairs,
@@ -513,7 +513,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
     lead_line = (
         f"- **Lead variant:** `{lead_variant_id}`"
         + (f" ({lead_rs_id}; " if lead_rs_id else " (")
-        + f"chr{chromosome}:{lead_position_bp}, ±{window_bp//1000} kb)"
+        + f"chr{chromosome}:{lead_position_bp}, ±{window_bp//2000} kb)"
     )
     report_lines = [
         "# locuscompare report",

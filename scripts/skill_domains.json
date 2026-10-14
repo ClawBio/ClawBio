@@ -2,20 +2,18 @@
   "$schema_notes": [
     "Domain taxonomy consumed by scripts/generate_skills_summary.py.",
     "",
-    "Why this file exists rather than a `domain:` key in each SKILL.md:",
-    "the frontmatter field is declared by only ~half the skills and uses 21",
-    "inconsistent values (23 of them are just 'genomics'), so it cannot",
-    "produce a balanced taxonomy. Keeping the mapping in one reviewable file",
-    "also makes reclassification a single-file diff.",
+    "SKILL.md domain metadata travels with each skill and is the default.",
+    "This file contains optional overrides where frontmatter is missing",
+    "or too coarse for the curated inventory. New skills do not need an",
+    "entry here to be reported.",
     "",
     "Membership keys are CLI aliases for registered skills and folder names",
     "for agent-readable ones. Those two namespaces do not currently overlap;",
     "the generator asserts that and fails if it ever changes.",
     "",
-    "Every skill must appear in exactly one domain. The generator exits",
-    "non-zero listing any skill that is unclassified or unknown, so adding a",
-    "skill without classifying it is a hard failure rather than a silent",
-    "omission from the report."
+    "Every live skill appears exactly once. Duplicate overrides fail.",
+    "Stale entries warn and are dropped. Skills without metadata or an",
+    "override warn and are rendered under Uncategorised."
   ],
   "domains": [
     {
@@ -130,7 +128,6 @@
       "title": "Synthetic genomics & simulation",
       "note": "Creative/simulation cluster, distinct from the analytical skills.",
       "members": [
-        "soul2dna",
         "recombinator",
         "genome-match"
       ]
@@ -148,7 +145,8 @@
         "illumina",
         "seq-wrangler",
         "multiqc-reporter",
-        "busco-assessor"
+        "busco-assessor",
+        "claw-amplicon-qc"
       ]
     },
     {

@@ -203,7 +203,7 @@ Outputs a structured Markdown report with:
 - Disclaimer section
 - Reproducibility block
 
-### 5. Reproducibility Bundle (`repro_bundle.py`)
+### 5. Reproducibility Bundle (`nutrigx_repro_bundle.py`)
 
 Delegates to the shared `clawbio.common.reproducibility` layer and exports to
 `<output_dir>/reproducibility/` (not committed to the repo):
@@ -246,7 +246,7 @@ skills/nutrigx/
 ├── extract_genotypes.py          ← SNP lookup engine
 ├── score_variants.py             ← risk scoring algorithm
 ├── generate_report.py            ← Markdown + figures
-├── repro_bundle.py               ← reproducibility export
+├── nutrigx_repro_bundle.py       ← reproducibility export
 ├── .gitignore
 ├── data/
 │   └── snp_panel.json            ← curated SNP definitions

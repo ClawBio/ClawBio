@@ -17,6 +17,18 @@ from pathlib import Path
 from collections import Counter
 from datetime import datetime
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
+
 from Bio import SeqIO
 from Bio.SeqUtils import gc_fraction, molecular_weight
 from Bio.SeqUtils.ProtParam import ProteinAnalysis
@@ -821,7 +833,22 @@ def format_markdown_report(report):
     return "\n".join(lines) + "\n"
 
 
-def write_clawbio_output(report, output_dir, input_file):
+def repro_command(input_file, output_dir, demo=False):
+    """Build the portable ReproCommand for an analyze-fasta run."""
+    input_path = Path(input_file).resolve()
+    args = ["--demo"] if demo else [
+        "--input",
+        ReproPath(input_path, "repo_root" if input_path.is_relative_to(_PROJECT_ROOT) else "auto"),
+    ]
+    args += ["--output", ReproPath(Path(output_dir), "output_dir")]
+    return ReproCommand(
+        script_path=Path("skills/analyze-fasta/analyze_fasta.py"),
+        args=args,
+        comment="Reproduce this analyze-fasta run",
+    )
+
+
+def write_clawbio_output(report, output_dir, input_file, demo=False):
     """Write ClawBio-convention output: report.md + result.json + reproducibility/."""
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -831,14 +858,14 @@ def write_clawbio_output(report, output_dir, input_file):
     (out / "report.md").write_text(format_markdown_report(report), encoding="utf-8")
 
     # Reproducibility bundle
-    repro = out / "reproducibility"
-    repro.mkdir(exist_ok=True)
-    (repro / "commands.sh").write_text(
-        f"#!/bin/bash\n"
-        f"# Reproduce this analyze-fasta run:\n"
-        f"python3 {Path(__file__).name} --input {input_file} --output {out}\n",
-        encoding="utf-8",
+    write_environment_yml(
+        out,
+        env_name="clawbio-analyze-fasta",
+        pip_deps=["biopython"],
+        python_version="3.11",
     )
+    write_portable_commands_sh(out, repro_command(input_file, out, demo), repo_root=_PROJECT_ROOT)
+    repro = out / "reproducibility"
     run_meta = {
         "skill": "analyze-fasta",
         "version": "0.1.0",
@@ -852,6 +879,12 @@ def write_clawbio_output(report, output_dir, input_file):
 
     # Optional HTML alongside the markdown for visual inspection
     (out / "report.html").write_text(generate_html_report(report, json_str), encoding="utf-8")
+
+    write_checksums(
+        [out / "report.md", out / "result.json", out / "report.html"],
+        out,
+        anchor=out,
+    )
 
 
 def main():
@@ -885,7 +918,7 @@ def main():
 
     # ClawBio convention: --output DIR writes report.md + result.json
     if args.output:
-        write_clawbio_output(report, args.output, input_file)
+        write_clawbio_output(report, args.output, input_file, demo=args.demo)
         print(f"Wrote {args.output}/report.md")
         print(f"Wrote {args.output}/result.json")
         return

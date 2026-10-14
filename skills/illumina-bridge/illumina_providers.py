@@ -147,12 +147,45 @@ class ICAMetadataProvider(BaseMetadataProvider):
         headers = {"X-API-Key": self.api_key} if self.api_key else {}
         response = self.session.get(f"{self.base_url}{endpoint}", timeout=30, headers=headers)
         response.raise_for_status()
-        return response.json()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ValueError("ICA metadata response must be a JSON object.")
+        return payload
+
+    @staticmethod
+    def _lookup_warning(resource: str, exc: Exception) -> str:
+        """Describe the failed lookup without copying raw response or URL text."""
+        if requests is not None and isinstance(exc, requests.HTTPError):
+            status = exc.response.status_code if exc.response is not None else None
+            code = f"HTTP {status}" if status is not None else "HTTP error"
+            if status == 401:
+                action = "Check ILLUMINA_ICA_API_KEY."
+            elif status == 403:
+                action = f"Check the API key's permissions for this {resource}."
+            elif status == 404:
+                flag = "--ica-project-id" if resource == "project" else "--ica-run-id"
+                action = f"Check {flag} and access to the selected project."
+            elif status == 429 or (status is not None and status >= 500):
+                action = "Retry later and check ICA service availability."
+            else:
+                action = "Check ICA access and the endpoint configuration."
+            detail = f"failed ({code}). {action}"
+        elif isinstance(exc, ValueError):
+            detail = "returned an invalid JSON response. Check ILLUMINA_ICA_BASE_URL and retry."
+        elif requests is not None and isinstance(exc, requests.Timeout):
+            detail = "timed out. Check network connectivity and retry."
+        elif requests is not None and isinstance(exc, requests.ConnectionError):
+            detail = "could not connect. Check the network and ILLUMINA_ICA_BASE_URL."
+        else:
+            detail = "request failed. Check ICA access and the endpoint configuration."
+        return f"ICA {resource} lookup {detail} Continuing without ICA metadata enrichment."
 
     def _normalize_project(self, payload: dict[str, Any], fallback_id: str | None) -> dict[str, Any]:
         return {
             "id": payload.get("id", fallback_id or ""),
             "name": payload.get("name", ""),
+            "active": payload.get("active"),
+            # Kept for output compatibility; Project in ICA v3 has no status field.
             "status": payload.get("status", ""),
         }
 
@@ -166,31 +199,10 @@ class ICAMetadataProvider(BaseMetadataProvider):
 
         return {
             "id": payload.get("id", fallback_id or ""),
-            "name": payload.get("name", ""),
+            "name": payload.get("userReference") or payload.get("reference", ""),
             "status": payload.get("status", ""),
             "pipeline": pipeline_name,
         }
-
-    def _normalize_samples(self, payload: Any) -> list[dict[str, Any]]:
-        if not isinstance(payload, list):
-            return []
-        normalized: list[dict[str, Any]] = []
-        for sample in payload:
-            if not isinstance(sample, dict):
-                continue
-            sample_id = sample.get("sample_id") or sample.get("sampleId") or sample.get("name") or ""
-            if not sample_id:
-                continue
-            normalized.append(
-                {
-                    "sample_id": str(sample_id),
-                    "ica_sample_id": str(sample.get("ica_sample_id") or sample.get("id") or ""),
-                    "analysis_status": str(sample.get("analysis_status") or sample.get("status") or ""),
-                    "cohort": str(sample.get("cohort") or ""),
-                    "notes": str(sample.get("notes") or ""),
-                }
-            )
-        return normalized
 
     def _load_mock_payload(self, bundle_dir: Path) -> dict[str, Any]:
         mock_path = bundle_dir / "mock_ica_metadata.json"
@@ -208,13 +220,24 @@ class ICAMetadataProvider(BaseMetadataProvider):
         run_id: str | None = None,
     ) -> MetadataEnrichmentResult:
         warnings = self._result_warnings(warnings)
+        run = self._normalize_run(payload.get("run", {}), run_id)
+        analysis_status = run["status"] or "unknown"
+        if analysis_status != "SUCCEEDED":
+            warnings.append(
+                f"ICA analysis status is {analysis_status}, not SUCCEEDED. "
+                "Metadata enrichment does not confirm a successful analysis."
+            )
+        warnings.append(
+            "ICA v3 analysis responses do not define sample-level metadata; "
+            "sample-level enrichment is unavailable and ICA sample fields remain empty."
+        )
         return MetadataEnrichmentResult(
             provider="ica",
             status=status,
             warnings=warnings,
             project=self._normalize_project(payload.get("project", {}), project_id),
-            run=self._normalize_run(payload.get("run", {}), run_id),
-            samples=self._normalize_samples(payload.get("samples")),
+            run=run,
+            samples=[],
         )
 
     def enrich(
@@ -230,7 +253,8 @@ class ICAMetadataProvider(BaseMetadataProvider):
                 provider="ica",
                 status="skipped",
                 warnings=self._result_warnings(
-                    ["ICA metadata provider requested without both project and run IDs."]
+                    ["ICA metadata requires both --ica-project-id and --ica-run-id (analysis ID); "
+                     "continuing without ICA metadata enrichment."]
                 ),
             )
 
@@ -264,20 +288,23 @@ class ICAMetadataProvider(BaseMetadataProvider):
                 ),
             )
 
-        try:
-            project_payload = self._fetch_json(f"/api/projects/{project_id}")
-            run_payload = self._fetch_json(f"/api/projects/{project_id}/analyses/{run_id}")
-        except Exception as exc:
-            return MetadataEnrichmentResult(
-                provider="ica",
-                status="warning",
-                warnings=self._result_warnings([f"ICA metadata request failed: {exc}"]),
-            )
+        payloads = {}
+        for resource, endpoint in (
+            ("project", f"/api/projects/{project_id}"),
+            ("analysis", f"/api/projects/{project_id}/analyses/{run_id}"),
+        ):
+            try:
+                payloads[resource] = self._fetch_json(endpoint)
+            except Exception as exc:
+                return MetadataEnrichmentResult(
+                    provider="ica",
+                    status="warning",
+                    warnings=self._result_warnings([self._lookup_warning(resource, exc)]),
+                )
 
         combined = {
-            "project": project_payload,
-            "run": run_payload,
-            "samples": run_payload.get("samples", []),
+            "project": payloads["project"],
+            "run": payloads["analysis"],
         }
         return self._result_from_payload(
             combined,

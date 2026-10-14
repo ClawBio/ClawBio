@@ -1,6 +1,6 @@
-"""The wrapper must be runnable directly, as CLAUDE.md documents.
+"""The wrapper must be runnable directly, as AGENTS.md documents.
 
-CLAUDE.md advertises ``python skills/nfcore-sarek-wrapper/nfcore_sarek_wrapper.py
+AGENTS.md advertises ``python skills/nfcore-sarek-wrapper/nfcore_sarek_wrapper.py
 --help`` for the full flag surface. Python only puts the *script's* directory on
 ``sys.path``, not the repo root, so ``from clawbio.common...`` at module top fails
 with ``ModuleNotFoundError: clawbio`` unless the wrapper bootstraps the repo root

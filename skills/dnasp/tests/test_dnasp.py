@@ -92,28 +92,28 @@ def demo_fasta_path(tmp_path):
 class TestFastaParser:
     def test_simple_fasta(self, tmp_path):
         fa = tmp_path / "test.fas"
-        fa.write_text(">seq1\nATCG\n>seq2\nATCG\n")
+        fa.write_text(">seq1\nATCG\n>seq2\nATCG\n", encoding="utf-8")
         aln = dn.parse_fasta(fa)
         assert aln.n == 2
         assert aln.seqs[0] == "ATCG"
 
     def test_dnasp_header_format(self, tmp_path):
         fa = tmp_path / "dnasp.fas"
-        fa.write_text(">'J1_Ost'   [by DnaSP Ver. 5, from file: x.nex]\nATCG\n>'J2_Ost'\nATCG\n")
+        fa.write_text(">'J1_Ost'   [by DnaSP Ver. 5, from file: x.nex]\nATCG\n>'J2_Ost'\nATCG\n", encoding="utf-8")
         aln = dn.parse_fasta(fa)
         assert aln.names[0] == "J1_Ost"
         assert aln.names[1] == "J2_Ost"
 
     def test_multiline_seq(self, tmp_path):
         fa = tmp_path / "ml.fas"
-        fa.write_text(">s1\nATC\nGAT\n>s2\nATCGAT\n")
+        fa.write_text(">s1\nATC\nGAT\n>s2\nATCGAT\n", encoding="utf-8")
         aln = dn.parse_fasta(fa)
         assert aln.seqs[0] == "ATCGAT"
         assert aln.L == 6
 
     def test_uppercase_conversion(self, tmp_path):
         fa = tmp_path / "lc.fas"
-        fa.write_text(">s1\natcg\n>s2\natcg\n")
+        fa.write_text(">s1\natcg\n>s2\natcg\n", encoding="utf-8")
         aln = dn.parse_fasta(fa)
         assert aln.seqs[0] == "ATCG"
 
@@ -124,7 +124,7 @@ class TestFastaParser:
 
     def test_empty_file_raises(self, tmp_path):
         fa = tmp_path / "empty.fas"
-        fa.write_text("")
+        fa.write_text("", encoding="utf-8")
         with pytest.raises(ValueError, match="No sequences"):
             dn.parse_fasta(fa)
 
@@ -135,7 +135,8 @@ class TestNexusParser:
         nex.write_text(
             "#NEXUS\nBEGIN CHARACTERS;\nDIMENSIONS NTAX=2 NCHAR=4;\n"
             "FORMAT DATATYPE=DNA GAP=- MISSING=?;\n"
-            "MATRIX\nseq1 ATCG\nseq2 ATCG\n;\nEND;\n"
+            "MATRIX\nseq1 ATCG\nseq2 ATCG\n;\nEND;\n",
+            encoding="utf-8",
         )
         aln = dn.parse_nexus(nex)
         assert aln.n == 2
@@ -146,7 +147,8 @@ class TestNexusParser:
         nex.write_text(
             "#NEXUS\nBEGIN CHARACTERS;\nDIMENSIONS NTAX=2 NCHAR=4;\n"
             "FORMAT DATATYPE=DNA MATCHCHAR=. GAP=-;\n"
-            "MATRIX\nref ATCG\nseq ...G\n;\nEND;\n"
+            "MATRIX\nref ATCG\nseq ...G\n;\nEND;\n",
+            encoding="utf-8",
         )
         aln = dn.parse_nexus(nex)
         # ref is ATCG, seq has match for pos 0-2 and G at pos 3
@@ -541,7 +543,7 @@ class TestEdgeCases:
 
     def test_mixed_case_normalized(self, tmp_path):
         fa = tmp_path / "lc.fas"
-        fa.write_text(">s1\natcg\n>s2\natcc\n>s3\natcg\n")
+        fa.write_text(">s1\natcg\n>s2\natcc\n>s3\natcg\n", encoding="utf-8")
         aln = dn.parse_fasta(fa)
         assert aln.seqs[0] == "ATCG"
         rs = dn.analyse_region(aln.seqs, aln.names, "1-4", L_total=4)
@@ -1034,33 +1036,33 @@ class TestComputeDivergence:
 class TestLoadPopFile:
     def test_basic_two_pops(self, tmp_path):
         p = tmp_path / "pops.txt"
-        p.write_text("seq1\tpop1\nseq2\tpop1\nseq3\tpop2\n")
+        p.write_text("seq1\tpop1\nseq2\tpop1\nseq3\tpop2\n", encoding="utf-8")
         result = dn.load_pop_file(p)
         assert result == {"seq1": "pop1", "seq2": "pop1", "seq3": "pop2"}
 
     def test_comment_lines_ignored(self, tmp_path):
         p = tmp_path / "pops.txt"
-        p.write_text("# comment\nseq1\tpop1\nseq2\tpop2\n")
+        p.write_text("# comment\nseq1\tpop1\nseq2\tpop2\n", encoding="utf-8")
         result = dn.load_pop_file(p)
         assert "# comment" not in result
         assert len(result) == 2
 
     def test_blank_lines_ignored(self, tmp_path):
         p = tmp_path / "pops.txt"
-        p.write_text("seq1\tpop1\n\nseq2\tpop2\n")
+        p.write_text("seq1\tpop1\n\nseq2\tpop2\n", encoding="utf-8")
         result = dn.load_pop_file(p)
         assert len(result) == 2
 
     def test_returns_empty_for_empty_file(self, tmp_path):
         p = tmp_path / "pops.txt"
-        p.write_text("")
+        p.write_text("", encoding="utf-8")
         result = dn.load_pop_file(p)
         assert result == {}
 
     def test_space_separated(self, tmp_path):
         # DnaSP's VCF .SG.txt files use a single space
         p = tmp_path / "pops.SG.txt"
-        p.write_text("Indiv1P1 Population1\nIndiv2P1 Population1\nIndiv5P2 Population2\n")
+        p.write_text("Indiv1P1 Population1\nIndiv2P1 Population1\nIndiv5P2 Population2\n", encoding="utf-8")
         result = dn.load_pop_file(p)
         assert result == {"Indiv1P1": "Population1", "Indiv2P1": "Population1",
                           "Indiv5P2": "Population2"}
@@ -1075,7 +1077,7 @@ _VCF_HEADER = (
 class TestParseVCF:
     def _write(self, tmp_path, body):
         p = tmp_path / "x.vcf"
-        p.write_text(_VCF_HEADER + body)
+        p.write_text(_VCF_HEADER + body, encoding="utf-8")
         return p
 
     def test_phased_biallelic_two_haplotypes_per_sample(self, tmp_path):
@@ -1144,7 +1146,7 @@ class TestParseVCF:
         err = capsys.readouterr().err
         assert "unphased heterozygous genotype" in err
         assert "SNP index" in err
-        report = (out / "report.md").read_text()
+        report = (out / "report.md").read_text(encoding="utf-8")
         assert "slide over retained variant sites (SNP index)" in report
 
     def test_missing_gt_excludes_sample_from_chrom(self, tmp_path):
@@ -1204,7 +1206,7 @@ class TestParseVCF:
             "chrA\t10\t.\tA\tG\t.\tPASS\t.\tGT\t.|.\t0|1\t1|1\n"
             "chrB\t10\t.\tC\tT\t.\tPASS\t.\tGT\t0|1\t0|0\t1|1\n")
         pops = tmp_path / "p.txt"
-        pops.write_text("S1 P1\nS2 P1\nS3 P2\n")
+        pops.write_text("S1 P1\nS2 P1\nS3 P2\n", encoding="utf-8")
         rc = dn.main(["--vcf", str(vcf), "--pop-file", str(pops),
                       "--analysis", "fst", "--output", str(tmp_path / "out")])
         assert rc == 0
@@ -1228,17 +1230,17 @@ class TestParseVCF:
             "chr1\t20\t.\tC\tT\t.\tPASS\t.\tGT\t0|0\t0|1\t0|1\n")
         out = tmp_path / "out"
         assert dn.main(["--vcf", str(vcf), "--output", str(out)]) == 0
-        report = (out / "report.md").read_text()
+        report = (out / "report.md").read_text(encoding="utf-8")
         assert "per variant site, not per base" in report
-        tsv = (out / "results.tsv").read_text()
+        tsv = (out / "results.tsv").read_text(encoding="utf-8")
         assert "per variant site, not per base" in tsv
 
     def test_fasta_report_has_no_per_variant_site_note(self, tmp_path):
         f = tmp_path / "a.fas"
-        f.write_text(">s1\nACGTACGT\n>s2\nACGAACGT\n>s3\nTCGTACGT\n")
+        f.write_text(">s1\nACGTACGT\n>s2\nACGAACGT\n>s3\nTCGTACGT\n", encoding="utf-8")
         out = tmp_path / "out"
         assert dn.main(["--input", str(f), "--output", str(out)]) == 0
-        assert "per variant site" not in (out / "report.md").read_text()
+        assert "per variant site" not in (out / "report.md").read_text(encoding="utf-8")
 
 
 class TestSplitAlignmentByPop:
@@ -1297,10 +1299,9 @@ class TestParseAnalyses:
         assert "recombination" in result
         assert "indel" in result
 
-    def test_unknown_analyses_ignored(self, capsys):
-        result = dn._parse_analyses("ld,foobar")
-        assert "foobar" not in result
-        assert "ld" in result
+    def test_unknown_analyses_rejected(self):
+        with pytest.raises(ValueError, match="Unknown"):
+            dn._parse_analyses("ld,foobar")
 
     def test_case_insensitive(self):
         result = dn._parse_analyses("LD,Recombination")
@@ -1354,8 +1355,8 @@ class TestRunAnalysisNewModules:
         # Write two population FASTAs
         pop1 = tmp_path / "pop1.fas"
         pop2 = tmp_path / "pop2.fas"
-        pop1.write_text(">s1\nAAAA\n>s2\nAAAA\n")
-        pop2.write_text(">s3\nTTTT\n>s4\nTTTT\n")
+        pop1.write_text(">s1\nAAAA\n>s2\nAAAA\n", encoding="utf-8")
+        pop2.write_text(">s3\nTTTT\n>s4\nTTTT\n", encoding="utf-8")
         aln1 = dn.parse_fasta(pop1)
         aln2 = dn.parse_fasta(pop2)
         results = dn.run_analysis(aln1, analyses={"divergence"}, aln2=aln2)
@@ -1688,7 +1689,8 @@ class TestLoadHKAFile:
         f.write_text(
             "# locus n S L_poly D L_div\n"
             "locus1 10 5 400 10 400\n"
-            "locus2 12 2 300 8 300\n"
+            "locus2 12 2 300 8 300\n",
+            encoding="utf-8",
         )
         loci = dn.load_hka_file(f)
         assert len(loci) == 2
@@ -1698,30 +1700,30 @@ class TestLoadHKAFile:
 
     def test_header_line_skipped(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("locus n S L_poly D L_div\nlocus1 10 5 400 10 400\n")
+        f.write_text("locus n S L_poly D L_div\nlocus1 10 5 400 10 400\n", encoding="utf-8")
         loci = dn.load_hka_file(f)
         assert len(loci) == 1
 
     def test_comment_lines_skipped(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("# comment\nlocus1 10 5 400 10 400\nlocus2 8 3 200 7 200\n")
+        f.write_text("# comment\nlocus1 10 5 400 10 400\nlocus2 8 3 200 7 200\n", encoding="utf-8")
         loci = dn.load_hka_file(f)
         assert len(loci) == 2
 
     def test_empty_file(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("")
+        f.write_text("", encoding="utf-8")
         assert dn.load_hka_file(f) == []
 
     def test_ldiv_defaults_to_lpoly(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("locus_A 20 7 500 15\n")
+        f.write_text("locus_A 20 7 500 15\n", encoding="utf-8")
         loc = dn.load_hka_file(f)[0]
         assert loc.L_poly == 500.0 and loc.L_div == 500.0
 
     def test_chromosome_factor(self, tmp_path):
         f = tmp_path / "hka.tsv"
-        f.write_text("A 20 7 500 15 500 X\nB 20 3 500 9 500 A\n")
+        f.write_text("A 20 7 500 15 500 X\nB 20 3 500 9 500 A\n", encoding="utf-8")
         loci = dn.load_hka_file(f)
         assert loci[0].sex == 0.75
         assert loci[1].sex == 1.0
@@ -1805,7 +1807,7 @@ class TestComputeHKA:
 
     def test_run_analysis_hka(self, tmp_path):
         f = tmp_path / "demo.fas"
-        f.write_text(">s1\nAAAA\n>s2\nTAAA\n")
+        f.write_text(">s1\nAAAA\n>s2\nTAAA\n", encoding="utf-8")
         aln = dn.parse_fasta(f)
         results = dn.run_analysis(
             aln, analyses={"hka"}, hka_loci=self._neutral_loci()
@@ -1818,7 +1820,8 @@ class TestComputeHKA:
         f.write_text(
             "# locus n S L_poly D L_div\n"
             "A 11 10 1000 20 1000\n"
-            "B 11 5 1000 10 1000\n"
+            "B 11 5 1000 10 1000\n",
+            encoding="utf-8",
         )
         r = dn.compute_hka(dn.load_hka_file(f))
         assert r.error is None
@@ -1849,7 +1852,7 @@ class TestComputeHKA:
                            "Var_S": 6.0, "Var_D": 9.0}],
             note="2 positive-θ solutions; reporting the first (θ₁=0.01).",
         )
-        report = dn.write_report(tmp_path, "t", aln, results, []).read_text()
+        report = dn.write_report(tmp_path, "t", aln, results, []).read_text(encoding="utf-8")
         assert "Note: 2 positive-θ solutions" in report
         assert "HKA not run" not in report
 
@@ -2143,7 +2146,7 @@ class TestComputeMK:
     def test_run_analysis_dispatch(self, tmp_path):
         f = tmp_path / "coding.fas"
         # 2 codons × 2 seqs; outgroup differs at codon 2 (nonsyn fixed diff)
-        f.write_text(">s1\nATGATG\n>s2\nATGATG\n>out\nATGCTG\n")
+        f.write_text(">s1\nATGATG\n>s2\nATGATG\n>out\nATGCTG\n", encoding="utf-8")
         aln = dn.parse_fasta(f)
         aln_no_out = dn.Alignment(
             names=['s1', 's2'], seqs=['ATGATG', 'ATGATG'], source=str(f)
@@ -2536,7 +2539,7 @@ class TestComputeKaKs:
 
     def test_run_analysis_dispatch(self, tmp_path):
         f = tmp_path / "coding.fas"
-        f.write_text(">s1\nATGATG\n>s2\nCTGCTG\n")
+        f.write_text(">s1\nATGATG\n>s2\nCTGCTG\n", encoding="utf-8")
         aln = dn.parse_fasta(f)
         results = dn.run_analysis(aln, analyses={'kaks'})
         assert 'kaks' in results
@@ -2902,7 +2905,7 @@ class TestComputeFuFs:
 
     def test_run_analysis_dispatch(self, tmp_path):
         f = tmp_path / "aln.fas"
-        f.write_text(">s1\nATCG\n>s2\nATCA\n>s3\nGCTA\n>s4\nGCTG\n")
+        f.write_text(">s1\nATCG\n>s2\nATCA\n>s3\nGCTA\n>s4\nGCTG\n", encoding="utf-8")
         aln = dn.parse_fasta(f)
         results = dn.run_analysis(aln, analyses={'fufs'})
         assert 'fufs' in results
@@ -2912,7 +2915,7 @@ class TestComputeFuFs:
     def test_run_analysis_fufs_uses_global_H_and_k(self, tmp_path):
         # fufs must be consistent with polymorphism stats
         f = tmp_path / "aln.fas"
-        f.write_text(">s1\nATCG\n>s2\nATCA\n>s3\nGCTA\n>s4\nGCTG\n")
+        f.write_text(">s1\nATCG\n>s2\nATCA\n>s3\nGCTA\n>s4\nGCTG\n", encoding="utf-8")
         aln = dn.parse_fasta(f)
         results = dn.run_analysis(aln, analyses={'fufs', 'polymorphism'})
         fufs_r = results['fufs']
@@ -3045,7 +3048,7 @@ class TestComputeSFS:
 
     def test_run_analysis_dispatch_no_outgroup(self, tmp_path):
         f = tmp_path / "aln.fas"
-        f.write_text(">s1\nATCG\n>s2\nATCA\n>s3\nGCTA\n>s4\nGCTG\n")
+        f.write_text(">s1\nATCG\n>s2\nATCA\n>s3\nGCTA\n>s4\nGCTG\n", encoding="utf-8")
         aln = dn.parse_fasta(f)
         results = dn.run_analysis(aln, analyses={'sfs'})
         assert 'sfs' in results
@@ -3055,7 +3058,7 @@ class TestComputeSFS:
 
     def test_run_analysis_dispatch_with_outgroup(self, tmp_path):
         f = tmp_path / "aln.fas"
-        f.write_text(">s1\nATCG\n>s2\nATCA\n>s3\nGCTA\n>og\nAAAA\n")
+        f.write_text(">s1\nATCG\n>s2\nATCA\n>s3\nGCTA\n>og\nAAAA\n", encoding="utf-8")
         aln = dn.parse_fasta(f)
         results = dn.run_analysis(aln, analyses={'sfs'}, outgroup='og')
         assert results['sfs'] is not None
@@ -3265,10 +3268,10 @@ class TestComputeCodonUsage:
         r = dn.compute_codon_usage(seqs)
         assert r.n == 3
 
-    def test_stop_codon_excluded_from_count(self):
-        """Stop codons (TAA, TAG, TGA) must not be counted."""
+    def test_stop_codon_included_in_count(self):
+        """MuestraRSCU counts amino-acid family 21, including selected stops."""
         r = dn.compute_codon_usage(['ATGTAA'])  # Met + Stop
-        assert r.n_codons == 1.0                 # only Met
+        assert r.n_codons == 2.0                 # Met and selected stop
 
     def test_gap_triplet_skipped(self):
         """Triplets with gaps are skipped per-sequence."""
@@ -3397,10 +3400,11 @@ class TestComputeCodonUsage:
         assert isinstance(results.get('codon'), dn.CodonUsageStats)
 
     def test_vertebrate_mitochondrial_code_counts_tga_as_trp(self):
-        # Standard code: TGA is a stop, dropped entirely, never in codon_counts.
+        # Standard code: TGA is counted in the stop family.
         seqs = ['TGATGG', 'TGGTGA']
         std = dn.compute_codon_usage(seqs)
-        assert std.codon_counts.get('TGA', 0.0) == 0.0
+        assert std.codon_counts['TGA'] == 1.0
+        assert std.rscu['TGA'] == 3.0
 
         # Vertebrate mitochondrial code: TGA = Trp, joins TGG in the Trp
         # family; equal TGA/TGG usage here gives equal (uniform) RSCU.
@@ -3415,12 +3419,13 @@ class TestComputeCodonUsage:
         mito = dn.run_analysis(
             aln, analyses={'codon'}, genetic_code=dn.VERTEBRATE_MITOCHONDRIAL_CODE
         )
-        assert std['codon'].codon_counts.get('TGA', 0.0) == 0.0
+        assert std['codon'].codon_counts['TGA'] == 0.5
+        assert std['codon'].rscu['TGA'] != mito['codon'].rscu['TGA']
         assert mito['codon'].codon_counts.get('TGA', 0.0) > 0.0
 
     def test_cli_genetic_code_flag(self, tmp_path):
         f = tmp_path / "mito.fas"
-        f.write_text(">a\nTGATGG\n>b\nTGGTGG\n")
+        f.write_text(">a\nTGATGG\n>b\nTGGTGG\n", encoding="utf-8")
         out_std = tmp_path / "out_std"
         out_mito = tmp_path / "out_mito"
         assert dn.main(["--input", str(f), "--analysis", "codon",
@@ -3428,13 +3433,13 @@ class TestComputeCodonUsage:
         assert dn.main(["--input", str(f), "--analysis", "codon",
                         "--genetic-code", "vertebrate-mitochondrial",
                         "--output", str(out_mito)]) == 0
-        std_tsv = (out_std / "results.tsv").read_text()
-        mito_report = (out_mito / "report.md").read_text()
+        assert (out_std / "results.tsv").is_file()
+        mito_report = (out_mito / "report.md").read_text(encoding="utf-8")
         assert "TGA" in mito_report
 
     def test_cli_genetic_code_rejects_unknown_choice(self, tmp_path):
         f = tmp_path / "x.fas"
-        f.write_text(">a\nATG\n>b\nATG\n")
+        f.write_text(">a\nATG\n>b\nATG\n", encoding="utf-8")
         with pytest.raises(SystemExit):
             dn.main(["--input", str(f), "--genetic-code", "bogus-code",
                      "--output", str(tmp_path / "out")])

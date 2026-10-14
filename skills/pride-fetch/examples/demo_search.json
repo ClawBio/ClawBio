@@ -1,0 +1,52 @@
+[
+ {
+  "accession": "PXD084218",
+  "title": "Genetic code expansion enables plant-directed control of bacterial activity",
+  "organisms": [
+   "Arabidopsis thaliana (mouse-ear cress)"
+  ],
+  "submissionDate": "2026-09-15",
+  "projectDescription": "Microbes have the potential to provide growth-promoting benefits to plants and crops, but effective plant\u2013microbe partnerships require mechanisms to control microbial activity in a programmable and host-specific manner. Using O-methyl-L-tyrosine (OMY), a non-canonical amino acid (ncAA), as a model compound, we established a plant-based approach for controlling the activity of associated microbes. Arabidopsis thaliana plants engineered to produce OMY (proUBQ10::sfGFP-MfnG) exhibited reduced primary root length, decreased lateral root density, and impaired gravitropism compared with wild-type Col-0 plants. To investigate the basis of OMY-associated growth inhibition, we tested whether OMY phytotoxicity results from its misincorporation into endogenous proteins, a mechanism reported for other ncAAs. Specifically, we examined whether OMY-producing Arabidopsis plants accumulate O-methylated L-tyrosine residues in native proteins. Proteomic analysis was performed using shoot and root tissues from OMY-producing proUBQ10::sfGFP-MfnG plants and wild-type controls. The resulting proteomic data were analyzed to identify peptides containing O-methylated L-tyrosine residues and to determine whether their abundance was increased in OMY-producing plants relative to wild-type controls."
+ },
+ {
+  "accession": "PXD083355",
+  "title": "The NPH3-domain protein NRL5 has extensive connections to intracellular trafficking and other NRLs",
+  "organisms": [
+   "Arabidopsis thaliana (mouse-ear cress)"
+  ],
+  "submissionDate": "2026-08-28",
+  "projectDescription": "The Non-Phototrophic Hypocotyl3 (NPH3)-Root Phototropism2 (RPT2-Like proteins (NRLs), are important for hormone and stress responses yet their cellular functions, particularly the roles of the plant-specific NPH3-domain, remain largely unknown.  Several new aspects of NRL function emerged from NRL5 proximity labeling and protein interaction assays.  One is that that NRL5 interacts with a number of trafficking-related proteins including SYP132 and SHOU4/SHOU4L, which are involved in exocytic trafficking.  These interactions were disrupted by the NRL5P335L mutation which renders the NPH3-domain non-functional.  The Q-Snare SYP132, together with its cognate R-SNARE VAMP721/722, which was previously found to interact with NRL5, control the trafficking of plasma membrane proteins such as AHA1/2 and PIP aquaporins, which were also identified in the NRL5 proximity labeling.  SYP132 and VAMP721/722 also control the secretion of PR1 and we found that nrl5-1 had ectopic secretion of PR1.  We also found extensive hetero-interactions between NRLs which were dependent upon the BTB domain.  This suggests a more complex web of NRL complex formation than previously suspected as well as association with PIN auxin transporters.  Overall, these data add credence to the proposal that NRL5, and likely other NPH3 domain proteins, are plant-specific component of the intracellular trafficking machinery.  NRL5 is part of a web of NRL interactions and has a prominent role in trafficking of stress related proteins including PR1."
+ },
+ {
+  "accession": "PXD083373",
+  "title": "Hierarchical regulation of oxygen-sensing through coupled transducers in Arabidopsis thaliana",
+  "organisms": [
+   "Arabidopsis thaliana (mouse-ear cress)"
+  ],
+  "submissionDate": "2026-08-28",
+  "projectDescription": "The sensing of molecular oxygen is an essential component of development and environmental response in both animals and plants. Few substrates of the plant oxygen-sensing PLANT CYSTEINE OXIDASE (PCO) N-degron pathway have been identified. Here we show that HYPOXIA TRANSDUCER1 (HYT1, previously named HYPOXIA-RESPONSIVE UNKNOWN PROTEIN, HUP40), an angiosperm-specific tail anchored-domain protein, is a substrate of this pathway through a Cys-2 dependent N-degron. HYT1 is stabilised in response to acute hypoxia in root tissues and is associated with the endoplasmic reticulum and nucleus. Genetic evidence shows that HYT1 is an important component in the transduction of oxygen-sensing, required for tolerance to acute hypoxia and other stress responses. Expression of HYT1 is directly activated by group VII ETHYLENE RESPONSE FACTOR transcription factors (ERFVIIs), that are also pathway substrates. The relationship between ERFVIIs and HYT1 has properties of a coherent feed-forward loop initiated and maintained by hypoxia, providing a mechanism to ensure robust response to reduced oxygen.   The sensing of molecular oxygen is an essential component of development and environmental response in both animals and plants. Few substrates of the plant oxygen-sensing PLANT CYSTEINE OXIDASE (PCO) N-degron pathway have been identified. Here we show that HYPOXIA TRANSDUCER1 (HYT1, previously named HYPOXIA-RESPONSIVE UNKNOWN PROTEIN, HUP40), an angiosperm-specific tail anchored-domain protein, is a substrate of this pathway through a Cys-2 dependent N-degron. HYT1 is stabilised in response to acute hypoxia in root tissues and is associated with the endoplasmic reticulum and nucleus. Genetic evidence shows that HYT1 is an important component in the transduction of oxygen-sensing, required for tolerance to acute hypoxia and other stress responses. Expression of HYT1 is directly activated by group VII ETHYLENE RESPONSE FACTOR transcription factors (ERFVIIs), that are also pathway substrates. The relationship between ERFVIIs and HYT1 has properties of a coherent feed-forward loop initiated and maintained by hypoxia, providing a mechanism to ensure robust response to reduced oxygen."
+ },
+ {
+  "accession": "PXD082028",
+  "title": "Amino acid conjugation detoxifies fusaric acid in Streptomyces sp. ATMOS43",
+  "organisms": [
+   "Nt=streptomyces sp.;ac=ncbitaxon:1931",
+   "Streptomyces sp.",
+   "Bacteria",
+   "Streptomyces sp. atmos43",
+   "Characteristics[organism]"
+  ],
+  "submissionDate": "2026-08-02",
+  "projectDescription": "Plant-associated streptomycetes are persistent in plant microbiomes, yet how they cope with pathogen-derived toxins remains poorly understood. Fusarium species produce fusaric acid (FA), a mycotoxin that contributes to virulence and perturbs plant-associated microbial communities. Here, we show that the Arabidopsis endophyte Streptomyces sp. ATMOS43 exhibits characteristic tolerance to FA. Metabolomics analysis revealed the formation of single amino acid and dipeptidyl conjugates of FA, including FA-Ser, a major conjugate that lacked detectable toxicity in bacterial and plant assays. Co-cultivation experiments showed that FA detoxification by ATMOS43 restores growth of sensitive streptomycetes in the presence of FA. This activity is enriched among plant-associated isolates, suggesting adaptation to toxin-rich environments. Proteomics and physiological analyses further indicate FA toxicity involves zinc chelation, which is abolished upon conjugation to FA-Ser, although additional cellular targets may also contribute. Together, our findings show that streptomycetes can protect plants not only by inhibiting pathogens themselves, but also by neutralizing pathogen-derived toxins."
+ },
+ {
+  "accession": "PXD080233",
+  "title": "Phage depolymerase modulates virulence and biofilm in hypervirulent Klebsiella pneumoniae by CPS-mediated suppression of type 3 fimbriae",
+  "organisms": [
+   "Homo sapiens (human)",
+   "Klebsiella pneumoniae"
+  ],
+  "submissionDate": "2026-06-26",
+  "projectDescription": "Phage-derived depolymerases represent a promising antibiotic alternative for treating Klebsiella pneumoniae infections. Depolymerases can increase the sensitivity of bacteria to the host immune system and complement-mediated killing by specifically degrading capsular polysaccharides (CPS). However, the impact of depolymerases on bacterial biofilm formation remains unclear. This study found that depolymerase treatment significantly enhances the biofilm formation capability of hypervirulent K. pneumoniae (hvKp) strains, which inherently exhibit relatively weak biofilm formation due to their thick capsular polysaccharide (CPS) layers. Further investigation revealed that depolymerase-mediated CPS degradation relieved its repression on the type 3 fimbriae gene cluster mrkABCDF, thereby promoting biofilm formation. In vivo experiments in mice also showed that CPS can inhibit virulence functions associated with type 3 fimbriae. Furthermore, we found that CPS-mediated biofilm inhibition appears to be a common phenomenon among hvKp strains. In summary, by elucidating the dual role of depolymerase in modulating both virulence and biofilm in hvKp, our work reveals a potential interaction between CPS and type 3 fimbriae, providing deeper insights into the pathogenicity of this clinically important bacterium."
+ }
+]

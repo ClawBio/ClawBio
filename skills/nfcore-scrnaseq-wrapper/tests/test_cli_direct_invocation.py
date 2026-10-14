@@ -1,4 +1,4 @@
-"""The wrapper must be runnable directly, as CLAUDE.md documents.
+"""The wrapper must be runnable directly, as AGENTS.md documents.
 
 Python only puts the *script's* directory on ``sys.path``, not the repo root, so
 ``from clawbio.common...`` at module top would fail with ``ModuleNotFoundError:

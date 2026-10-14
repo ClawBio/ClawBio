@@ -196,6 +196,17 @@ class EQTLCatalogueDatasetNotFound(EQTLCatalogueAPIError):
     """
 
 
+class EQTLCatalogueSchemaError(EQTLCatalogueAPIError):
+    """A row the fetcher cannot read under `FTP_COLUMNS`.
+
+    Raised for the whole fetch, never per row: a region with some rows dropped is a
+    partial association set, and one with every row dropped looks exactly like a
+    region with no associations, so neither may be returned as a result. Names the
+    file, the first offending row's number and field count, and how many rows of the
+    window were malformed.
+    """
+
+
 _INDEX_CACHE: dict[Path, dict[str, dict[str, str]]] = {}
 
 
@@ -405,20 +416,27 @@ class EQTLCatalogueClient:
 
         variants: list[RegionVariant] = []
         chrom_q = chromosome.lstrip("chr")
+        n_rows = 0
+        malformed: list[tuple[int, str]] = []
         try:
             try:
                 rows = tbx.fetch(chrom_q, max(0, start_bp - 1), end_bp)
             except ValueError:
                 rows = tbx.fetch(f"chr{chrom_q}", max(0, start_bp - 1), end_bp)
             for line in rows:
+                n_rows += 1
                 fields = line.split("\t")
+                # Every row of the window is checked, before the gene / trait filters,
+                # so a drifted file fails the same way whatever the caller filters on.
                 if len(fields) != len(FTP_COLUMNS):
-                    notes.append(
-                        f"row column count {len(fields)} != header {len(FTP_COLUMNS)}; "
-                        f"skipping (eQTL Catalogue schema may have drifted)"
-                    )
+                    malformed.append((n_rows, f"{len(fields)} fields, expected {len(FTP_COLUMNS)}"))
                     continue
                 row = dict(zip(FTP_COLUMNS, fields))
+                try:
+                    int(row["position"])
+                except ValueError:
+                    malformed.append((n_rows, f"position {row['position']!r} is not an integer"))
+                    continue
                 if gene_id and row.get("gene_id") != gene_id:
                     continue
                 if molecular_trait_id and row.get("molecular_trait_id") != molecular_trait_id:
@@ -427,6 +445,14 @@ class EQTLCatalogueClient:
         finally:
             tbx.close()
             self._last_tabix_at = time.monotonic()
+        if malformed:
+            first_row, first_problem = malformed[0]
+            raise EQTLCatalogueSchemaError(
+                f"{len(malformed)} of {n_rows} rows in chr{chrom_q}:{start_bp}-{end_bp} of {url} "
+                f"do not match the expected eQTL Catalogue columns (first: row {first_row}, "
+                f"{first_problem}). The file's schema may have changed; no result is returned, "
+                f"because a partial or empty set would read as the region's associations."
+            )
 
         release = EQTLCatalogueRelease(
             # Kept for manifest/cache compatibility; there is no metadata API any more.
@@ -559,9 +585,15 @@ def main(argv: list[str] | None = None) -> int:
     cache_dir = None if args.no_cache else DEFAULT_CACHE_DIR
 
     client = EQTLCatalogueClient()
-    result = _fetch_with_cache(
-        client=client, cfg=cfg, cache_dir=cache_dir,
-    )
+    try:
+        result = _fetch_with_cache(
+            client=client, cfg=cfg, cache_dir=cache_dir,
+        )
+    except EQTLCatalogueSchemaError as e:
+        # Nothing is written: no variants.tsv, manifest or report, so no downstream
+        # step can read an incomplete fetch as a finished one.
+        print(f"eqtl-catalogue-region-fetch: error: {e}", file=sys.stderr)
+        return 2
 
     # Write a flat sumstats TSV (one row per variant) for downstream consumers.
     tsv_path = args.output / "variants.tsv"
@@ -720,7 +752,11 @@ def _cache_key(cfg: dict, index_path: Path = DATASET_INDEX_PATH) -> str:
     wrong file for QTD000584) is never served again, and a new table release
     retires the cache the same way. A dataset the table does not carry, with no
     explicit file class, keys as `unresolved`; the fetch behind it raises before
-    anything is written under that name."""
+    anything is written under that name.
+
+    The `rows-checked` segment retires every entry written while malformed rows were
+    skipped with a note instead of failing the fetch: such an entry can hold a partial
+    window, and serving it would bypass `EQTLCatalogueSchemaError`."""
     chrom = str(cfg["chromosome"]).lstrip("chr")
     mt = cfg.get("molecular_trait_id") or "_all"
     fc = cfg.get("file_class")
@@ -728,7 +764,7 @@ def _cache_key(cfg: dict, index_path: Path = DATASET_INDEX_PATH) -> str:
         row = load_dataset_index(index_path).get(str(cfg["dataset_id"]))
         fc = (row or {}).get("file_class") or "unresolved"
     return (f"{cfg['dataset_id']}__{mt}__chr{chrom}_{int(cfg['start_bp'])}_{int(cfg['end_bp'])}"
-            f"__{str(fc).lower()}__index-{DATASET_INDEX_RELEASE}.json")
+            f"__{str(fc).lower()}__index-{DATASET_INDEX_RELEASE}__rows-checked.json")
 
 
 def _fetch_with_cache(*, client, cfg: dict, cache_dir: Path | None) -> "RegionResult":

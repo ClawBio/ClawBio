@@ -6,7 +6,6 @@ Search, browse, and retrieve scientific protocols from protocols.io
 via REST API with client token authentication.
 
 Usage:
-    python protocols_io.py --login
     python protocols_io.py --search "RNA extraction"
     python protocols_io.py --protocol 30756
     python protocols_io.py --protocol 30756 --output /tmp/protocols_io
@@ -18,11 +17,10 @@ from __future__ import annotations
 
 import argparse
 import collections
-import getpass
-import hashlib
 import itertools
 import json
 import os
+import shlex
 import sys
 import threading
 import time
@@ -69,9 +67,18 @@ class Spinner:
 
 SKILL_DIR = Path(__file__).resolve().parent
 DEMO_DIR = SKILL_DIR / "demo"
-CONFIG_DIR = Path.home() / ".clawbio"
-TOKEN_FILE = CONFIG_DIR / "protocols_io_tokens.json"
+_PROJECT_ROOT = SKILL_DIR.parent.parent
 
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
 API_V3 = "https://www.protocols.io/api/v3"
 API_V4 = "https://www.protocols.io/api/v4"
 RATE_LIMIT = 100  # requests per 60-second window (protocols.io API)
@@ -120,71 +127,9 @@ _rate_limiter = _RateLimiter()
 # ---------------------------------------------------------------------------
 
 
-def load_tokens() -> dict | None:
-    """Load saved access token from disk."""
-    if TOKEN_FILE.exists():
-        try:
-            data = json.loads(TOKEN_FILE.read_text(encoding="utf-8"))
-            if data.get("access_token"):
-                return data
-        except (json.JSONDecodeError, KeyError):
-            pass
-    return None
-
-
-def save_tokens(tokens: dict) -> None:
-    """Persist access token to disk."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    tokens["saved_at"] = datetime.now(timezone.utc).isoformat()
-    TOKEN_FILE.write_text(json.dumps(tokens, indent=2), encoding="utf-8")
-    TOKEN_FILE.chmod(0o600)
-    print(f"  Token saved to {TOKEN_FILE}")
-
-
 def get_access_token() -> str | None:
-    """Resolve access token from env var or saved file."""
-    env_token = os.environ.get("PROTOCOLS_IO_ACCESS_TOKEN")
-    if env_token:
-        return env_token
-    tokens = load_tokens()
-    if tokens and tokens.get("access_token"):
-        return tokens["access_token"]
-    return None
-
-
-def token_login() -> str | None:
-    """
-    Login by pasting a client access token from protocols.io/developers.
-    Verifies the token against the API and saves it locally.
-    """
-    print("\n  Paste your access token from https://www.protocols.io/developers")
-    print("  (Log in → Your Applications → copy the 'Access Token')\n")
-    token = getpass.getpass("  Access Token: ").strip()
-
-    if not token:
-        print("ERROR: No token provided.", file=sys.stderr)
-        return None
-
-    print("  Verifying token...")
-    try:
-        resp = requests.get(
-            f"{API_V3}/session/profile",
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-            timeout=30,
-        )
-        data = resp.json()
-    except Exception as e:
-        print(f"ERROR: Could not verify token: {e}", file=sys.stderr)
-        return None
-
-    if resp.status_code != 200 or data.get("status_code") != 0:
-        print(f"ERROR: Token rejected by protocols.io: {data.get('error_message', resp.text[:200])}", file=sys.stderr)
-        return None
-
-    save_tokens({"access_token": token, "token_type": "bearer"})
-    user = data.get("user", {})
-    print(f"  Logged in as: {user.get('name', 'unknown')} (@{user.get('username', '?')})")
-    return token
+    """Access token from the PROTOCOLS_IO_ACCESS_TOKEN env var."""
+    return os.environ.get("PROTOCOLS_IO_ACCESS_TOKEN")
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +180,7 @@ def _api_get(url: str, params: dict | None = None, token: str | None = None) -> 
             return None
 
         if data.get("status_code") == 1219:
-            print("ERROR: Token expired. Run --login again to paste a new token.", file=sys.stderr)
+            print("ERROR: Token expired. Set a new PROTOCOLS_IO_ACCESS_TOKEN.", file=sys.stderr)
             return None
 
         if resp.status_code != 200:
@@ -553,66 +498,46 @@ def run_demo() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _sha256(path: Path) -> str:
-    """Return hex SHA-256 digest of a file, reading in 8 KB chunks."""
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
 def _write_reproducibility(args: argparse.Namespace, output_dir: Path, output_files: list[Path]) -> None:
-    """Write commands.sh, checksums.sha256, and environment.yml to output_dir/reproducibility/.
-
-    Follows the AGENTS.md convention of placing reproducibility artefacts in a
-    dedicated subdirectory so they don't clutter the primary outputs.
-    """
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
-
+    """Write commands.sh, checksums.sha256, and environment.yml to output_dir/reproducibility/."""
     # Reconstruct canonical CLI from parsed args (non-default values only)
-    def _sq(val: str) -> str:
-        return "'" + str(val).replace("'", "'\\''") + "'"
-
-    parts = ["python skills/protocols-io/protocols_io.py"]
+    parts: list[str | ReproPath] = []
     if getattr(args, "demo", False):
         parts.append("--demo")
     elif getattr(args, "search", None):
-        parts.append(f"--search {_sq(args.search)}")
+        parts += ["--search", shlex.quote(args.search)]
         if getattr(args, "filter", "public") != "public":
-            parts.append(f"--filter {args.filter}")
+            parts += ["--filter", args.filter]
         if getattr(args, "peer_reviewed", None):
             parts.append("--peer-reviewed")
         if getattr(args, "published_on", None):
-            parts.append(f"--published-on {_sq(args.published_on)}")
+            parts += ["--published-on", shlex.quote(args.published_on)]
         if getattr(args, "page_size", 10) != 10:
-            parts.append(f"--page-size {args.page_size}")
+            parts += ["--page-size", str(args.page_size)]
         if getattr(args, "page", 1) != 1:
-            parts.append(f"--page {args.page}")
+            parts += ["--page", str(args.page)]
     elif getattr(args, "protocol", None):
-        parts.append(f"--protocol {_sq(args.protocol)}")
+        parts += ["--protocol", shlex.quote(str(args.protocol))]
     elif getattr(args, "steps", None):
-        parts.append(f"--steps {_sq(args.steps)}")
+        parts += ["--steps", shlex.quote(str(args.steps))]
     if getattr(args, "output", None):
-        parts.append(f"--output {_sq(args.output)}")
+        parts += ["--output", ReproPath(output_dir, "output_dir")]
 
-    (repro_dir / "commands.sh").write_text(" \\\n  ".join(parts) + "\n")
-
-    # SHA-256 checksums in standard sha256sum format
-    lines = [f"{_sha256(p)}  {p.name}" for p in output_files if p.exists()]
-    (repro_dir / "checksums.sha256").write_text("\n".join(lines) + "\n")
-
-    # Conda environment spec
-    (repro_dir / "environment.yml").write_text(
-        "name: clawbio-protocols-io\n"
-        "channels:\n"
-        "  - conda-forge\n"
-        "dependencies:\n"
-        "  - python>=3.11\n"
-        "  - pip\n"
-        "  - pip:\n"
-        "    - requests\n"
+    write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/protocols-io/protocols_io.py"),
+            args=parts,
+            comment="Reproduce this protocols-io run",
+        ),
+        repo_root=_PROJECT_ROOT,
+    )
+    write_checksums(output_files, output_dir, anchor=output_dir)
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-protocols-io",
+        pip_deps=["requests"],
+        python_version="3.11",
     )
 
 
@@ -661,22 +586,10 @@ def download_protocol_pdf(uri: str, output_path: Path | None = None) -> Path | N
     return output_path
 
 
-def _prompt_for_token() -> str | None:
-    """Inline token prompt for commands that need auth but have no saved token."""
-    print("  Get your token at: https://www.protocols.io/developers")
-    print("  (Log in → Your Applications → copy the 'Access Token')\n")
-    token = getpass.getpass("  Access Token (or press Enter to skip): ").strip()
-    if not token:
-        return None
-    save_tokens({"access_token": token, "token_type": "bearer"})
-    return token
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="protocols.io bridge -- search, browse, and retrieve scientific protocols"
     )
-    parser.add_argument("--login", action="store_true", help="Authenticate with access token")
     parser.add_argument("--search", type=str, help="Search protocols by keyword")
     parser.add_argument("--protocol", type=str, help="Retrieve full protocol by ID, URI, or DOI")
     parser.add_argument("--steps", type=str, help="Retrieve protocol steps by ID, URI, or DOI")
@@ -701,23 +614,15 @@ def main() -> None:
         run_demo()
         return
 
-    if args.login:
-        result = token_login()
-        if result:
-            print("\n  Authentication successful!")
-        else:
-            print("\n  Authentication failed.", file=sys.stderr)
-            sys.exit(1)
-        return
-
     if args.search:
         token = get_access_token()
         if not token:
-            print("  No access token found. Run --login first, or paste a token now.\n")
-            token = _prompt_for_token()
-            if not token:
-                print("ERROR: Cannot search without an access token.", file=sys.stderr)
-                sys.exit(1)
+            print(
+                "ERROR: No access token. Set PROTOCOLS_IO_ACCESS_TOKEN "
+                "(get one at https://www.protocols.io/developers).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
         # Parse --published-on: accept Unix timestamp int or YYYY-MM-DD string
         published_on: int | None = None

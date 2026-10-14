@@ -17,7 +17,7 @@ PROJECT_ROOT = SKILL_DIR.parents[1]
 sys.path.insert(0, str(SKILL_DIR))
 sys.path.insert(0, str(PROJECT_ROOT))
 
-import repro_bundle  # noqa: E402
+import gwas_prs_repro_bundle as repro_bundle  # noqa: E402
 
 from clawbio.common.checksums import sha256_file  # noqa: E402
 
@@ -199,23 +199,38 @@ def test_environment_declares_every_eager_runtime_dependency(tmp_path) -> None:
 
     for dependency in repro_bundle.REPLAY_PIP_DEPENDENCIES:
         assert dependency in environment
-    assert set(repro_bundle.REPLAY_PIP_DEPENDENCIES) == {
-        "requests>=2.31",
-        "opentelemetry-sdk>=1.20,<2",
-        "numpy>=1.24",
-        "pandas>=2.0",
-    }
+    assert set(repro_bundle.REPLAY_PIP_DEPENDENCIES) == {"requests>=2.31"}
 
 
-def test_numpy_and_pandas_really_are_eager_imports() -> None:
-    """The skill never calls numpy or pandas, but importing ``clawbio.common``
-    (for checksums and the reproducibility layer) loads its package
-    ``__init__``, which imports ``scrna_io`` and therefore both libraries.
-    If this ever stops being true, drop them from REPLAY_PIP_DEPENDENCIES."""
-    assert "clawbio.common" in sys.modules
-    assert "numpy" in sys.modules
-    assert "pandas" in sys.modules
-    assert "opentelemetry" in sys.modules
+def test_declared_dependencies_match_what_is_eagerly_imported() -> None:
+    """REPLAY_PIP_DEPENDENCIES must name what a replay actually needs at import.
+
+    Measured the way a replay does it -- a fresh interpreter importing
+    gwas_prs -- not from this process, which has only imported repro_bundle.
+
+    numpy and pandas used to be declared because clawbio/common/__init__
+    imported scrna_io eagerly and pulled both in for a skill that calls
+    neither. The package resolves its exports lazily now, so they are gone.
+    opentelemetry went the same way once audit imported the SDK lazily.
+    """
+    import json
+    import subprocess
+
+    skill_dir = Path(__file__).resolve().parents[1]
+    probe = """import sys, json
+sys.path.insert(0, %r)
+import gwas_prs
+print(json.dumps(sorted({m.split('.')[0] for m in sys.modules})))""" % str(skill_dir)
+    out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True,
+                         cwd=str(skill_dir.parents[1]), check=True)
+    eager = set(json.loads(out.stdout))
+
+    declared = {d.split(">")[0].split("<")[0].split("=")[0] for d in repro_bundle.REPLAY_PIP_DEPENDENCIES}
+
+    assert declared <= eager, f"declared but not imported by a replay: {sorted(declared - eager)}"
+    for heavy in ("numpy", "pandas", "opentelemetry"):
+        assert heavy not in eager, (
+            f"{heavy} is eager again; add it back to REPLAY_PIP_DEPENDENCIES")
 
 
 def test_commands_are_portable_and_require_input_file(tmp_path) -> None:
@@ -337,7 +352,7 @@ def test_selection_precedence_matches_the_order_in_main_source() -> None:
             key=lambda item: item[1],
         )
     ]
-    bundle_source = (SKILL_DIR / "repro_bundle.py").read_text(encoding="utf-8")
+    bundle_source = (SKILL_DIR / "gwas_prs_repro_bundle.py").read_text(encoding="utf-8")
     selection_body = bundle_source[bundle_source.index("def _selection("):]
     order_in_bundle = [
         name

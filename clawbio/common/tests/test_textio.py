@@ -1,8 +1,9 @@
 """Tests for clawbio.common.textio — cross-OS LF-only bundle writes."""
 
+import os
 from pathlib import Path
 
-from clawbio.common.textio import write_text_lf
+from clawbio.common.textio import write_text_lf, write_text_lf_atomic
 
 
 def test_writes_lf_for_plain_content(tmp_path):
@@ -76,3 +77,23 @@ def test_atomic_preserves_executable_bit(tmp_path):
     p.chmod(0o755)
     write_text_lf_atomic(p, "#!/bin/sh\necho hi\n")
     assert p.stat().st_mode & 0o111, "executable bit must survive the atomic replace"
+
+
+def test_atomic_new_file_honours_umask_not_mkstemp_0600(tmp_path):
+    """mkstemp creates 0600. A new file must land on the umask mode a plain
+    write would have given it, otherwise callers that OR in +x get 0711."""
+    old = os.umask(0o022)
+    try:
+        p = write_text_lf_atomic(tmp_path / "fresh.txt", "hello\n")
+        assert p.stat().st_mode & 0o777 == 0o644
+    finally:
+        os.umask(old)
+
+
+def test_atomic_new_file_respects_a_restrictive_umask(tmp_path):
+    old = os.umask(0o077)
+    try:
+        p = write_text_lf_atomic(tmp_path / "private.txt", "secret\n")
+        assert p.stat().st_mode & 0o777 == 0o600
+    finally:
+        os.umask(old)

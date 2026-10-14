@@ -214,4 +214,5 @@ def _normalise_trial(study: dict) -> dict:
         # CT.gov summaries can exceed 2000 chars; truncate for the report while
         # summary.json preserves the full text via the raw API response.
         "summary": summary[:300] + "..." if len(summary) > 300 else summary,
+        "source": "clinicaltrials.gov",
     }

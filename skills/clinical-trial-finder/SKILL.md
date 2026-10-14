@@ -55,11 +55,11 @@ metadata:
   - name: commands
     type: file
     format: sh
-    description: Exact CLI invocation to reproduce this run (commands.sh)
+    description: Exact CLI invocation to reproduce this run (reproducibility/commands.sh)
   - name: checksums
     type: file
     format: txt
-    description: SHA-256 digests of all generated outputs (checksums.sha256)
+    description: SHA-256 digests of all generated outputs (reproducibility/checksums.sha256)
   - name: html_report
     type: file
     format: html
@@ -127,7 +127,7 @@ metadata:
 - **Max diseases per gene**: 5 (`--ot-max-diseases`). Querying more diseases per gene produces diminishing returns on trial relevance and increases API load. The top-5 by association score covers the primary phenotypic spectrum of most disease genes without introducing noise from peripheral associations.
 
 - **Status filter** (`--status`): Optional post-fetch filter to a single recruitment status (e.g. `RECRUITING`). Applied client-side after the API call so the chart and summary always reflect unfiltered counts first — filtered output is a view, not a re-query.
-- **Reproducibility outputs**: Every run writes `commands.sh` (exact CLI to reproduce) and `checksums.sha256` (SHA-256 of all outputs). This ensures results are auditable and re-runnable without ambiguity.
+- **Reproducibility outputs**: Every run writes `reproducibility/` via `clawbio.common.reproducibility`: `commands.sh` (exact CLI to reproduce), `environment.yml`, and `checksums.sha256` (SHA-256 of all outputs; verify with `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256`). This ensures results are auditable and re-runnable without ambiguity.
 - **Eligibility criteria**: Not parsed. The API returns eligibility as unstructured free text. Automated parsing would require NLP and introduces a high error rate for clinical use — users must review the full trial record on ClinicalTrials.gov before making any enrollment decisions.
 
 - **Retry with exponential backoff**: Transient failures (HTTP 429, 5xx, network timeouts) are retried up to 3 times with exponential backoff (1s, 2s, 4s). Non-retryable errors (4xx except 429) raise immediately. This follows the retry pattern recommended by CT.gov API documentation for rate-limited endpoints.
@@ -138,13 +138,31 @@ metadata:
 
 - **EU Clinical Trials Register** (`--euctr`): Secondary European source queried as a best-effort complement. The EUCTR API returns XML with no versioning guarantees and may be unavailable. Results are normalised to the same schema as CT.gov trials and merged with deduplication. All EUCTR failures degrade gracefully to an empty list — the skill never fails due to EUCTR unavailability.
 
-- **Variant-to-trial pipeline** (`--rsid`): Queries the EBI GWAS Catalog REST API (`/singleNucleotidePolymorphisms/{rsid}/associations?projection=associationBySnp`) to resolve a dbSNP rsID to genome-wide significant disease traits (p < 5 x 10^-8), then searches CT.gov for each trait. Disease traits are ranked above biomarker measurements to maximise trial relevance. Gene symbols are extracted from `authorReportedGenes` in the association loci. Reference: Buniello et al., *Nucleic Acids Research* 2019; 47:D1005--D1012 (GWAS Catalog).
+- **Variant-to-trial pipeline** (`--rsid`): Queries the EBI GWAS Catalog REST API v2 (`/v2/associations?rs_id={rsid}`, reading every page) to resolve a dbSNP rsID to genome-wide significant disease traits (p < 5 x 10^-8), then searches CT.gov for each trait. Disease traits are ranked above biomarker measurements to maximise trial relevance. Gene symbols are taken from each association's Ensembl `mapped_genes` (v2); the v1 author-reported genes are no longer inline. Reference: Buniello et al., *Nucleic Acids Research* 2019; 47:D1005--D1012 (GWAS Catalog).
 
 - **HTML report**: Self-contained HTML with inline CSS and JavaScript, no external dependencies. Trial cards are colour-coded by recruitment status. Interactive client-side filters (status, phase, free-text search) with a live counter allow users to narrow results without re-querying. Opens correctly from any file manager or browser without a web server.
 
 - **CSV output**: Always generated at `tables/trials.csv`. List fields (conditions, interventions) are pipe-delimited to survive CSV parsing. Designed for direct import into Excel, R, or pandas.
 
 - **FHIR inline validation**: When `--fhir` is used, the generated Bundle is validated against basic structural rules: required fields, status/phase value set membership, entry count consistency. This catches authoring errors before an external validator (e.g., HAPI) is needed.
+
+## Output Structure
+
+```
+<output_dir>/
+├── report.md
+├── report.html
+├── summary.json
+├── fhir_bundle.json            # only with --fhir
+├── tables/
+│   └── trials.csv
+├── figures/
+│   └── phase_distribution.png  # only when matplotlib is installed
+└── reproducibility/
+    ├── commands.sh
+    ├── environment.yml
+    └── checksums.sha256
+```
 
 ## Safety Rules
 

@@ -1,6 +1,7 @@
 ---
 name: rare-disease-rnaseq
 description: Blood RNA-seq expression-outlier detection for rare-disease diagnostics. Cases scored against a control reference panel; outliers ranked and filtered by a haploinsufficient disease-gene panel.
+license: MIT
 metadata:
   openclaw:
     requires:

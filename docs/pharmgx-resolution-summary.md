@@ -117,6 +117,35 @@ uv run --locked --with ruff ruff check \
 - Private genome files, generated reports and the unrelated nested checkout remain
   outside version control for this change.
 
+## Follow-up integration and inventory review
+
+The branch was subsequently merged with current upstream main. This preserved
+upstream CPIC table corrections and added DPYD HapB3 support while retaining the
+consumer-array safeguards; the skill version is now 0.3.1. The original local
+patient report remains a historical 0.3.0 output and was not overwritten.
+
+The inventory generator now uses SKILL.md domains by default and JSON membership
+as an optional override. Unclassified skills render under Uncategorised with a
+warning; retired overrides warn and are dropped; duplicate assignments still fail.
+The `soul2dna` override was removed and `claw-amplicon-qc` assigned to sequence QC.
+Catalog counts no longer affect the output. Tests use a synthetic tree and a golden
+fixture; a live-repository freshness check is opt-in through
+`CLAWBIO_CHECK_SKILLS_SUMMARY=1`.
+
+Follow-up validation on the merged branch:
+
+- Inventory plus PharmGx: 177 passed, one opt-in check skipped.
+- Broader core/shared/root/PharmGx scope with the declared `otlp` and `fine-mapping`
+  extras: 1,273 passed, 2 skipped, 1 deselected and 2 expected failures.
+- `scripts/generate_skills_summary.py --check` passed on the regenerated inventory.
+- The earlier shared-report version-argument failure was fixed upstream and is
+  no longer excluded from this broader validation.
+- These are local results, not a claim that GitHub CI or a maintainer approved the PR.
+
+Use `uv run --locked --extra otlp --extra fine-mapping --with pytest --with hypothesis`
+for that broader validation. Missing those extras caused six dependency-related
+failures on the first attempt; no dependency or lockfile edits were needed.
+
 ## Reviewed evidence
 
 - [CPIC CYP2B6 and methadone guideline, 2024](https://files.cpicpgx.org/data/guideline/publication/methadone/2024/38863207.pdf)

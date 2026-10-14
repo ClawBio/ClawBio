@@ -70,6 +70,7 @@ This skill performs differential expression on bulk RNA-seq or pseudo-bulk count
 ```
 rnaseq_de_report/
 ├── report.md
+├── result.json
 ├── figures/
 │   ├── pca.png
 │   ├── volcano.png

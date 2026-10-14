@@ -38,7 +38,7 @@ metadata:
     - evolutionary tree
     - molecular phylogeny
   author: ClawBio
-  version: 0.2.0
+  version: 0.3.0
   demo_data:
   - path: demo_alignment.fasta
     description: "Synthetic 12-taxon primate alignment (500 bp, pre-aligned)"
@@ -78,6 +78,14 @@ metadata:
     format:
     - nwk
     description: Newick format tree with bootstrap support values
+  - name: alignment
+    type: file
+    format:
+    - fasta
+    description: Alignments produced by this run, alignment/aligned.fasta after the MSA
+      stage and alignment/trimmed.fasta after trimAl; omitted for a stage that did not
+      run, and for a destination the run is reading as its own input (reported in
+      contract_alerts)
 ---
 
 # 🌳 Phylogenetics Builder
@@ -135,7 +143,7 @@ Supported pipeline stages:
    - Outgroup: pass `--outgroup TAXON` to tree builder (`-o` in IQ-TREE, `--outgroup` in RAxML-NG)
    - Midpoint: use ETE3 `t.get_midpoint_outgroup(); t.set_outgroup(midpoint)` post-inference
 7. **Parse & render** — extract branch lengths and support values from Newick; draw proportional phylogram with Bio.Phylo + matplotlib.
-8. **Report** — write `report.md`, `result.json` (ClawBio contract), `phylo_tree.nwk`, `figures/phylogram.png`, `tables/branch_support.csv`, `reproducibility/`.
+8. **Report** — write `report.md`, `result.json` (ClawBio contract), `phylo_tree.nwk`, `alignment/aligned.fasta` and `alignment/trimmed.fasta` when those stages ran and the destination is not this run's own input, `figures/phylogram.png`, `tables/branch_support.csv`, `reproducibility/`.
 
 **Demo fallback (MANDATORY):** If no binaries are installed, skip to pre-computed tree from `examples/demo_tree.nwk`. Always show a result, never refuse.
 
@@ -278,6 +286,7 @@ output_directory/
 ├── report.md                    # Primary markdown report with pipeline summary
 ├── result.json                  # Machine-readable ClawBio output contract
 ├── phylo_tree.nwk               # Newick format tree with bootstrap support
+├── alignment/                  # aligned.fasta (MSA) and trimmed.fasta (trimAl), when produced
 ├── figures/
 │   └── phylogram.png            # Proportional phylogram (matplotlib)
 ├── tables/

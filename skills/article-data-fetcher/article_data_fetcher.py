@@ -21,7 +21,6 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import requests
-from tqdm import tqdm
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -790,7 +789,7 @@ def unzip_file(path: Path) -> Path:
 
 
 def download_file(url: str, dest: Path, expected_md5: Optional[str] = None, unzip: bool = True) -> bool:
-    """Stream-download a file with a progress bar. Returns True on success."""
+    """Stream-download a file. Returns True on success."""
     try:
         r = requests.get(url, stream=True, timeout=30)
         if r.status_code in (401, 403):
@@ -798,14 +797,10 @@ def download_file(url: str, dest: Path, expected_md5: Optional[str] = None, unzi
             print("     This file may be behind a paywall.")
             return False
         r.raise_for_status()
-        total = int(r.headers.get("content-length", 0))
         dest.parent.mkdir(parents=True, exist_ok=True)
-        with open(dest, "wb") as f, tqdm(
-            total=total, unit="B", unit_scale=True, desc=dest.name, leave=False
-        ) as bar:
+        with open(dest, "wb") as f:
             for chunk in r.iter_content(chunk_size=65536):
                 f.write(chunk)
-                bar.update(len(chunk))
         if expected_md5:
             actual = md5_file(dest)
             if actual != expected_md5:

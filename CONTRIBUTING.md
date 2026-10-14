@@ -21,9 +21,9 @@ Edit `SKILL.md` with:
 - **Top-level YAML fields**: `name`, `description`, and `license`
 - **`metadata` fields**: `version`, `author`, `domain`, `tags`, `inputs`, `outputs`, `dependencies`, `demo_data`, and `endpoints`
 - **`metadata.openclaw` fields**: runtime and routing metadata such as `requires`, `always`, `emoji`, `homepage`, `os`, `install`, and `trigger_keywords`
-- **Markdown body**: follow the template sections and keep them aligned with the PR audit expectations in [`CLAUDE.md`](CLAUDE.md)
+- **Markdown body**: follow the template sections and keep them aligned with the PR audit expectations in [`AGENTS.md`](AGENTS.md)
 
-If there is any discrepancy between documents, follow the template for structure and `CLAUDE.md` for audit requirements.
+If there is any discrepancy between documents, follow the template for structure and `AGENTS.md` for audit requirements.
 
 ### 3. Add supporting code (optional)
 
@@ -68,6 +68,15 @@ If the skill includes tests, run:
 ```bash
 python -m pytest skills/your-skill-name/tests/ -v
 ```
+
+Use pytest's built-in fixtures where needed: `tmp_path` for temporary files and
+`monkeypatch` for environment/cwd changes. See
+[Pytest conventions](AGENTS.md#pytest-conventions) for the full fixture guidance.
+
+If the skill computes scores, applies thresholds, parses files or converts
+coordinates, include at least one Hypothesis property test. See
+[Property-based tests for maths and parsing](AGENTS.md#property-based-tests-for-maths-and-parsing)
+in `AGENTS.md`.
 
 If you changed `SKILL.md` YAML frontmatter, regenerate the catalog:
 
@@ -161,7 +170,7 @@ The most restrictive of the three fields governs any given use; see `LICENSE`.
 
 ## Code Standards
 
-- Python 3.10+
+- Python 3.11+
 - Type hints encouraged
 - pathlib for all file paths
 - No hardcoded absolute paths
@@ -176,20 +185,22 @@ AI coding agents (Codex, Devin, Claude Code, Cursor, etc.) should follow the sam
 3. Use `python clawbio.py list` to verify skills still load after changes
 4. Run `python -m pytest skills/your-skill-name/tests/ -v` to confirm your skill's tests pass. Do not run a bare `pytest -v` across the whole repo — it fails at collection time on a `conftest.py` module-name collision between skills; see [docs/testing.md](docs/testing.md)
 5. Regenerate `skills/catalog.json` if you changed any SKILL.md YAML frontmatter: `python scripts/generate_catalog.py`
+6. Do not hand-type skill, demo or CLI counts anywhere (README, llms.txt, CITATION.cff, .zenodo.json, .claude-plugin/). The only count is `skill_count` in `skills/catalog.json`, and the README badge reads it live. `tests/test_public_claims.py` fails if a literal count appears in those files.
+7. If `skills/catalog.json` conflicts with `main`, take `main`'s version (`git checkout origin/main -- skills/catalog.json`), run `python scripts/generate_catalog.py` to add your skill back, and commit the result. Never resolve the conflict by hand.
 
 ### SKILL.md Quality Checklist
 
 Treat this as a contributor summary, not as a second source of truth.
 
 - [`templates/SKILL-TEMPLATE.md`](templates/SKILL-TEMPLATE.md) defines the canonical `SKILL.md` structure.
-- [`CLAUDE.md`](CLAUDE.md) defines the formal PR audit and conformance checklist.
+- [`AGENTS.md`](AGENTS.md) defines the formal PR audit and conformance checklist.
 - Every skill should cover `Trigger`, `Scope`, `Workflow`, `Example Output`, `Gotchas`, `Safety`, and `Agent Boundary`.
 - Include synthetic demo data and support `--demo` whenever the skill has executable automation.
 - Add tests for demo mode and the main expected path when the skill includes code.
 - Keep dependencies, installation steps, inputs, outputs, and safety boundaries accurate and specific.
 - Regenerate `skills/catalog.json` whenever you change YAML frontmatter.
 
-If you are unsure whether a `SKILL.md` is PR-ready, defer to the checklist in `CLAUDE.md`.
+If you are unsure whether a `SKILL.md` is PR-ready, defer to the checklist in `AGENTS.md`.
 
 ## 🦖 Skill Ideas We Need
 

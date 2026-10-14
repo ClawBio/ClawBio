@@ -1,0 +1,879 @@
+{
+    "_embedded": {
+        "associations": [
+            {
+                "association_id": 10071384,
+                "risk_frequency": "0.1297",
+                "pvalue_description": "",
+                "pvalue_mantissa": 8,
+                "pvalue_exponent": -93,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[NR]",
+                "or_per_copy_num": 4.32,
+                "or_value": "4.32",
+                "beta": "-",
+                "p_value": 8e-93,
+                "efo_traits": [
+                    {
+                        "efo_id": "MONDO_0005376",
+                        "efo_trait": "membranous glomerulonephritis"
+                    }
+                ],
+                "reported_trait": [
+                    "Idiopathic membranous nephropathy"
+                ],
+                "accession_id": "GCST000984",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "21323541",
+                "first_author": "Stanescu HC",
+                "snp_effect_allele": [
+                    "rs2187668-A"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "A"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/10071384"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/10071384/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 41025,
+                "risk_frequency": "0.15",
+                "pvalue_description": "",
+                "pvalue_mantissa": 2,
+                "pvalue_exponent": -78,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[2.60-3.40]",
+                "or_per_copy_num": 2.9,
+                "or_value": "2.9",
+                "beta": "-",
+                "p_value": 2e-78,
+                "efo_traits": [
+                    {
+                        "efo_id": "MONDO_0016264",
+                        "efo_trait": "autoimmune hepatitis"
+                    }
+                ],
+                "reported_trait": [
+                    "Autoimmune hepatitis type-1"
+                ],
+                "accession_id": "GCST002423",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "24768677",
+                "first_author": "de Boer YS",
+                "ci_lower": 2.6,
+                "ci_upper": 3.4,
+                "snp_effect_allele": [
+                    "rs2187668-?"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "?"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/41025"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/41025/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 188349641,
+                "risk_frequency": "0.14781654",
+                "pvalue_description": "",
+                "pvalue_mantissa": 4,
+                "pvalue_exponent": -77,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[0.11-0.14]",
+                "beta": "0.12451027 unit increase",
+                "p_value": 4e-77,
+                "efo_traits": [
+                    {
+                        "efo_id": "OBA_2051517",
+                        "efo_trait": "level of phospholipase A2 group XV in blood"
+                    }
+                ],
+                "reported_trait": [
+                    "PLA2G15 protein levels"
+                ],
+                "accession_id": "GCST90470245",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "39789286",
+                "first_author": "Loya H",
+                "ci_lower": 0.11,
+                "ci_upper": 0.14,
+                "snp_effect_allele": [
+                    "rs2187668-T"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "T"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/188349641"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/188349641/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 14789,
+                "risk_frequency": "0.26",
+                "pvalue_description": "",
+                "pvalue_mantissa": 1,
+                "pvalue_exponent": -50,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[5.95-6.52]",
+                "or_per_copy_num": 6.23,
+                "or_value": "6.23",
+                "beta": "-",
+                "p_value": 1e-50,
+                "efo_traits": [
+                    {
+                        "efo_id": "MONDO_0005130",
+                        "efo_trait": "celiac disease"
+                    }
+                ],
+                "reported_trait": [
+                    "Celiac disease"
+                ],
+                "accession_id": "GCST000612",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "20190752",
+                "first_author": "Dubois PC",
+                "ci_lower": 5.95,
+                "ci_upper": 6.52,
+                "snp_effect_allele": [
+                    "rs2187668-A"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "A"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/14789"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/14789/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 27578732,
+                "risk_frequency": "0.359",
+                "pvalue_description": "",
+                "pvalue_mantissa": 5,
+                "pvalue_exponent": -36,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[2.24-5.17]",
+                "or_per_copy_num": 3.4,
+                "or_value": "3.4",
+                "beta": "-",
+                "p_value": 4.9999999999999994e-36,
+                "efo_traits": [
+                    {
+                        "efo_id": "MONDO_0019338",
+                        "efo_trait": "sarcoidosis"
+                    }
+                ],
+                "reported_trait": [
+                    "Sarcoidosis (Lofgren's syndrome vs non-Lofgren's syndrome)"
+                ],
+                "accession_id": "GCST005541",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "26651848",
+                "first_author": "Rivera NV",
+                "ci_lower": 2.24,
+                "ci_upper": 5.17,
+                "snp_effect_allele": [
+                    "rs2187668-A"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "A"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/27578732"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/27578732/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 16048,
+                "risk_frequency": "0.13",
+                "pvalue_description": "",
+                "pvalue_mantissa": 2,
+                "pvalue_exponent": -33,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[2.17-2.95]",
+                "or_per_copy_num": 2.53,
+                "or_value": "2.53",
+                "beta": "-",
+                "p_value": 2e-33,
+                "efo_traits": [
+                    {
+                        "efo_id": "EFO_0004747",
+                        "efo_trait": "protein measurement"
+                    }
+                ],
+                "reported_trait": [
+                    "Immunoglobulin A"
+                ],
+                "accession_id": "GCST000763",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "20694011",
+                "first_author": "Ferreira RC",
+                "ci_lower": 2.17,
+                "ci_upper": 2.95,
+                "snp_effect_allele": [
+                    "rs2187668-A"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "A"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/16048"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/16048/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 17616,
+                "risk_frequency": "0.12",
+                "pvalue_description": "",
+                "pvalue_mantissa": 6,
+                "pvalue_exponent": -28,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[1.94-2.57]",
+                "or_per_copy_num": 2.23,
+                "or_value": "2.23",
+                "beta": "-",
+                "p_value": 6e-28,
+                "efo_traits": [
+                    {
+                        "efo_id": "MONDO_0007915",
+                        "efo_trait": "systemic lupus erythematosus"
+                    }
+                ],
+                "reported_trait": [
+                    "Systemic lupus erythematosus"
+                ],
+                "accession_id": "GCST000996",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "21408207",
+                "first_author": "Chung SA",
+                "ci_lower": 1.94,
+                "ci_upper": 2.57,
+                "snp_effect_allele": [
+                    "rs2187668-A"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "A"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/17616"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/17616/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 11694,
+                "risk_frequency": "0.11",
+                "pvalue_description": "",
+                "pvalue_mantissa": 3,
+                "pvalue_exponent": -21,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "-",
+                "beta": "-",
+                "p_value": 2.9999999999999995e-21,
+                "efo_traits": [
+                    {
+                        "efo_id": "MONDO_0007915",
+                        "efo_trait": "systemic lupus erythematosus"
+                    }
+                ],
+                "reported_trait": [
+                    "Systemic lupus erythematosus"
+                ],
+                "accession_id": "GCST000144",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "18204098",
+                "first_author": "Hom G",
+                "snp_effect_allele": [
+                    "rs2187668-A"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "A"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/11694"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/11694/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 11379,
+                "risk_frequency": "0.14",
+                "pvalue_description": "",
+                "pvalue_mantissa": 1,
+                "pvalue_exponent": -19,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[6.08-8.15]",
+                "or_per_copy_num": 7.04,
+                "or_value": "7.04",
+                "beta": "-",
+                "p_value": 1e-19,
+                "efo_traits": [
+                    {
+                        "efo_id": "MONDO_0005130",
+                        "efo_trait": "celiac disease"
+                    }
+                ],
+                "reported_trait": [
+                    "Celiac disease"
+                ],
+                "accession_id": "GCST000048",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "17558408",
+                "first_author": "van Heel DA",
+                "ci_lower": 6.08,
+                "ci_upper": 8.15,
+                "snp_effect_allele": [
+                    "rs2187668-A"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "A"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/11379"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/11379/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 15749703,
+                "risk_frequency": "0.126",
+                "pvalue_description": "",
+                "pvalue_mantissa": 2,
+                "pvalue_exponent": -11,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[1.67-2.55]",
+                "or_per_copy_num": 2.06,
+                "or_value": "2.06",
+                "beta": "-",
+                "p_value": 2e-11,
+                "efo_traits": [
+                    {
+                        "efo_id": "MONDO_0000703",
+                        "efo_trait": "collagenous colitis"
+                    }
+                ],
+                "reported_trait": [
+                    "Collagenous colitis"
+                ],
+                "accession_id": "GCST005879",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "26525574",
+                "first_author": "Westerlind H",
+                "ci_lower": 1.67,
+                "ci_upper": 2.55,
+                "snp_effect_allele": [
+                    "rs2187668-?"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "?"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/15749703"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/15749703/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 27199752,
+                "risk_frequency": "0.126",
+                "pvalue_description": "",
+                "pvalue_mantissa": 4,
+                "pvalue_exponent": -11,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[0.26-0.48]",
+                "beta": "0.372 mm Hg decrease",
+                "p_value": 4e-11,
+                "efo_traits": [
+                    {
+                        "efo_id": "EFO_0006336",
+                        "efo_trait": "diastolic blood pressure"
+                    }
+                ],
+                "reported_trait": [
+                    "Diastolic blood pressure"
+                ],
+                "accession_id": "GCST006258",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "27618452",
+                "first_author": "Ehret GB",
+                "ci_lower": 0.26,
+                "ci_upper": 0.48,
+                "snp_effect_allele": [
+                    "rs2187668-T"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "T"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/27199752"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/27199752/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 11583037,
+                "risk_frequency": "0.107",
+                "pvalue_description": "",
+                "pvalue_mantissa": 4,
+                "pvalue_exponent": -10,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[2.18-3.95]",
+                "or_per_copy_num": 2.93,
+                "or_value": "2.93",
+                "beta": "-",
+                "p_value": 4e-10,
+                "efo_traits": [
+                    {
+                        "efo_id": "MONDO_0005282",
+                        "efo_trait": "cutaneous lupus erythematosus"
+                    }
+                ],
+                "reported_trait": [
+                    "Cutaneous lupus erythematosus"
+                ],
+                "accession_id": "GCST002884",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "25827949",
+                "first_author": "Kunz M",
+                "ci_lower": 2.18,
+                "ci_upper": 3.95,
+                "snp_effect_allele": [
+                    "rs2187668-T"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "T"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/11583037"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/11583037/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 15015674,
+                "risk_frequency": "NR",
+                "pvalue_description": "",
+                "pvalue_mantissa": 1,
+                "pvalue_exponent": -9,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "-",
+                "beta": "-",
+                "p_value": 1e-09,
+                "efo_traits": [
+                    {
+                        "efo_id": "MONDO_0007915",
+                        "efo_trait": "systemic lupus erythematosus"
+                    }
+                ],
+                "reported_trait": [
+                    "Systemic lupus erythematosus"
+                ],
+                "accession_id": "GCST003103",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "26316170",
+                "first_author": "Demirci FY",
+                "snp_effect_allele": [
+                    "rs2187668-?"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "?"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/15015674"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/15015674/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 19308346,
+                "risk_frequency": "NR",
+                "pvalue_description": "",
+                "pvalue_mantissa": 2,
+                "pvalue_exponent": -7,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[1.52-2.56]",
+                "or_per_copy_num": 1.9647566,
+                "or_value": "1.9647566",
+                "beta": "-",
+                "p_value": 2e-07,
+                "efo_traits": [
+                    {
+                        "efo_id": "MONDO_0005265",
+                        "efo_trait": "inflammatory bowel disease"
+                    }
+                ],
+                "reported_trait": [
+                    "Inflammatory bowel disease"
+                ],
+                "accession_id": "GCST003958",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "28008999",
+                "first_author": "Ostrowski J",
+                "ci_lower": 1.52,
+                "ci_upper": 2.56,
+                "snp_effect_allele": [
+                    "rs2187668-?"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "?"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/19308346"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/19308346/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 19283651,
+                "risk_frequency": "NR",
+                "pvalue_description": "",
+                "pvalue_mantissa": 4,
+                "pvalue_exponent": -6,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "[1.54-3.12]",
+                "or_per_copy_num": 2.21266,
+                "or_value": "2.21266",
+                "beta": "-",
+                "p_value": 4e-06,
+                "efo_traits": [
+                    {
+                        "efo_id": "MONDO_0005101",
+                        "efo_trait": "ulcerative colitis"
+                    }
+                ],
+                "reported_trait": [
+                    "Ulcerative colitis"
+                ],
+                "accession_id": "GCST003960",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "28008999",
+                "first_author": "Ostrowski J",
+                "ci_lower": 1.54,
+                "ci_upper": 3.12,
+                "snp_effect_allele": [
+                    "rs2187668-?"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "?"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/19283651"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/19283651/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            },
+            {
+                "association_id": 98158948,
+                "risk_frequency": "0.1281",
+                "pvalue_description": "",
+                "pvalue_mantissa": 8,
+                "pvalue_exponent": -6,
+                "multi_snp_haplotype": false,
+                "snp_interaction": false,
+                "range": "-",
+                "beta": "0.0258 mmHg decrease",
+                "p_value": 8e-06,
+                "efo_traits": [
+                    {
+                        "efo_id": "EFO_0006336",
+                        "efo_trait": "diastolic blood pressure"
+                    }
+                ],
+                "reported_trait": [
+                    "Diastolic blood pressure"
+                ],
+                "accession_id": "GCST006020",
+                "locations": [
+                    "6:32638107"
+                ],
+                "mapped_genes": [
+                    "HLA-DQA1"
+                ],
+                "bg_efo_traits": [],
+                "pubmed_id": "27618447",
+                "first_author": "Surendran P",
+                "snp_effect_allele": [
+                    "rs2187668-T"
+                ],
+                "snp_allele": [
+                    {
+                        "rs_id": "rs2187668",
+                        "effect_allele": "T"
+                    }
+                ],
+                "_links": {
+                    "self": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/98158948"
+                    },
+                    "loci": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/98158948/loci"
+                    },
+                    "snp": {
+                        "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/single-nucleotide-polymorphisms/rs2187668"
+                    }
+                }
+            }
+        ]
+    },
+    "_links": {
+        "self": {
+            "href": "https://www.ebi.ac.uk/gwas/rest/api/v2/associations?rs_id=rs2187668&direction=asc&page=0&size=200&sort=p_value"
+        }
+    },
+    "page": {
+        "size": 200,
+        "totalElements": 16,
+        "totalPages": 1,
+        "number": 0
+    }
+}

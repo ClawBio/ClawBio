@@ -6,6 +6,7 @@ Run with: pytest skills/protocols-io/tests/test_protocols_io.py -v
 Uses pre-cached demo data and mocked API responses — no network required.
 """
 
+import os
 import json
 import sys
 from pathlib import Path
@@ -20,19 +21,17 @@ from protocols_io import (
     _load_demo_json,
     _parse_protocol_id,
     _RateLimiter,
-    _sha256,
     _strip_html,
     _write_reproducibility,
     download_protocol_pdf,
     format_search_results,
     format_protocol_detail,
     format_steps,
+    get_access_token,
     search_protocols,
     get_protocol,
     get_protocol_steps,
-    load_tokens,
     main,
-    save_tokens,
 )
 
 
@@ -222,27 +221,15 @@ def test_format_steps_empty():
 
 
 # ---------------------------------------------------------------------------
-# Token persistence
+# Token from environment
 # ---------------------------------------------------------------------------
 
 
-def test_save_and_load_tokens(tmp_path):
-    """Tokens round-trip through save/load."""
-    token_file = tmp_path / "tokens.json"
-    with patch("protocols_io.TOKEN_FILE", token_file), \
-         patch("protocols_io.CONFIG_DIR", tmp_path):
-        save_tokens({"access_token": "abc123", "token_type": "bearer"})
-        result = load_tokens()
-    assert result["access_token"] == "abc123"
-    assert result["token_type"] == "bearer"
-    assert "saved_at" in result
-
-
-def test_load_tokens_missing(tmp_path):
-    """Missing token file returns None."""
-    with patch("protocols_io.TOKEN_FILE", tmp_path / "nonexistent.json"):
-        result = load_tokens()
-    assert result is None
+def test_get_access_token_reads_env(monkeypatch):
+    monkeypatch.setenv("PROTOCOLS_IO_ACCESS_TOKEN", "abc123")
+    assert get_access_token() == "abc123"
+    monkeypatch.delenv("PROTOCOLS_IO_ACCESS_TOKEN")
+    assert get_access_token() is None
 
 
 # ---------------------------------------------------------------------------
@@ -572,7 +559,7 @@ def test_download_protocol_pdf_not_pdf_content(mock_get, tmp_path):
 
 
 @patch("protocols_io.requests.get")
-def test_download_protocol_pdf_default_path(mock_get, tmp_path):
+def test_download_protocol_pdf_default_path(mock_get, tmp_path, monkeypatch):
     """When output_path is None, a slugified filename is used in cwd."""
     fake_pdf = b"%PDF-1.4 data"
     resp = MagicMock()
@@ -581,17 +568,12 @@ def test_download_protocol_pdf_default_path(mock_get, tmp_path):
     resp.content = fake_pdf
     mock_get.return_value = resp
 
-    import os
-    original_cwd = os.getcwd()
-    os.chdir(tmp_path)
-    try:
-        with patch("protocols_io.get_access_token", return_value=None):
-            result = download_protocol_pdf("my-cool-protocol-xyz")
-        assert result is not None
-        assert result.suffix == ".pdf"
-        assert result.read_bytes() == fake_pdf
-    finally:
-        os.chdir(original_cwd)
+    monkeypatch.chdir(tmp_path)
+    with patch("protocols_io.get_access_token", return_value=None):
+        result = download_protocol_pdf("my-cool-protocol-xyz")
+    assert result is not None
+    assert result.suffix == ".pdf"
+    assert result.read_bytes() == fake_pdf
 
 
 @patch("protocols_io.requests.get")
@@ -621,21 +603,6 @@ def test_parse_dx_doi_prefix_with_version():
     """dx.doi.org/ DOI with version suffix is parsed correctly."""
     result = _parse_protocol_id("dx.doi.org/10.17504/protocols.io.e6nvwwq2zvmk/v1")
     assert result == "10.17504/protocols.io.e6nvwwq2zvmk/v1"
-
-
-# ---------------------------------------------------------------------------
-# _sha256
-# ---------------------------------------------------------------------------
-
-
-def test_sha256_matches_hashlib(tmp_path):
-    """_sha256 produces the same digest as hashlib.sha256 directly."""
-    import hashlib
-    content = b"test content for hashing"
-    f = tmp_path / "test.bin"
-    f.write_bytes(content)
-    expected = hashlib.sha256(content).hexdigest()
-    assert _sha256(f) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -679,7 +646,7 @@ def test_write_reproducibility_checksum_is_correct(tmp_path):
 
 
 def test_write_reproducibility_commands_contains_args(tmp_path):
-    """commands.sh includes the search query and output path."""
+    """commands.sh includes the search query and an anchored output path."""
     import argparse
     output_file = tmp_path / "search_results.md"
     output_file.write_text("# Results")
@@ -691,7 +658,8 @@ def test_write_reproducibility_commands_contains_args(tmp_path):
     _write_reproducibility(args, tmp_path, [output_file])
     cmd = (tmp_path / "reproducibility" / "commands.sh").read_text()
     assert "CRISPR knockout" in cmd
-    assert str(tmp_path) in cmd
+    assert "$OUTPUT_DIR" in cmd
+    assert str(tmp_path) not in cmd
 
 
 def test_write_reproducibility_skips_missing_files(tmp_path):
@@ -787,3 +755,28 @@ def test_main_protocol_output_saves_pdf_and_repro(mock_get, tmp_path):
     assert pdfs[0].read_bytes() == fake_pdf
     assert (tmp_path / "reproducibility" / "commands.sh").exists()
     assert (tmp_path / "reproducibility" / "checksums.sha256").exists()
+
+
+def test_write_reproducibility_bundle_is_portable(tmp_path):
+    """commands.sh is a runnable, machine-independent replay script."""
+    import argparse
+    output_file = tmp_path / "report.md"
+    output_file.write_text("# Report")
+    args = argparse.Namespace(
+        search=None, protocol="30756", steps=None, demo=False,
+        filter="public", peer_reviewed=None, published_on=None,
+        page_size=10, page=1, output=str(tmp_path),
+    )
+    _write_reproducibility(args, tmp_path, [output_file])
+    repro = tmp_path / "reproducibility"
+
+    cmd = (repro / "commands.sh").read_text()
+    assert cmd.startswith("#!/usr/bin/env bash")
+    assert "CLAWBIO_ROOT" in cmd
+    assert "skills/protocols-io/protocols_io.py" in cmd
+    assert "--protocol" in cmd
+    assert os.access(repro / "commands.sh", os.X_OK)
+
+    env = (repro / "environment.yml").read_text()
+    assert "name: clawbio-protocols-io" in env
+    assert "requests" in env

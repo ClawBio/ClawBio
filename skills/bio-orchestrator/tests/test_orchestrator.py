@@ -366,3 +366,61 @@ def test_acmg_classification_is_not_hijacked_by_prs():
         "classify the variants in my VCF with ACMG and report absolute risk"
     )
     assert skill != "just-prs-mcp"
+
+
+# ---------------------------------------------------------------------------
+# Population-genetics statistics route to dnasp before generic keywords
+# ---------------------------------------------------------------------------
+
+class TestDnaspRouting:
+    @pytest.mark.parametrize("query", [
+        "Compute Tajima's D on this alignment",
+        "nucleotide diversity per population",
+        "haplotype diversity of my aligned sequences",
+        "run a McDonald-Kreitman test with an outgroup",
+        "Ka/Ks for my coding alignment",
+        "unfolded site frequency spectrum with an outgroup",
+        "Fu and Li neutrality tests on variant sites",
+        "compare nucleotide diversity between populations",
+        "mismatch distribution to test population expansion",
+        "effective number of codons and codon usage bias",
+        "InDel polymorphism in my alignment",
+        "run DnaSP on this file",
+    ])
+    def test_population_genetics_queries_route_to_dnasp(self, query):
+        skill, hint = detect_skill_with_hint_from_query(query)
+        assert skill == "dnasp"
+        assert "--analysis" in hint
+
+    def test_generic_keywords_keep_their_routes(self):
+        assert detect_skill_from_query("compute diversity metrics") == "equity-scorer"
+        assert detect_skill_from_query("run read alignment and qc") == "seq-wrangler"
+        assert detect_skill_from_query("compute fst for my cohort") == "equity-scorer"
+
+    @pytest.mark.parametrize("name", ["COII_Apes.nex", "locus.NEXUS", "locus.nxs"])
+    def test_alignment_nexus_files_route_to_dnasp(self, tmp_path, name):
+        f = tmp_path / name
+        f.write_text("#NEXUS\nBEGIN DATA;\nDIMENSIONS NTAX=2 NCHAR=4;\nMATRIX\na ACGT\nb ACGA\n;\nEND;\n")
+        assert detect_skill_from_file(f) == "dnasp"
+
+    def test_tree_only_nexus_is_not_routed(self, tmp_path):
+        f = tmp_path / "trees.nex"
+        f.write_text("#NEXUS\nBEGIN TREES;\nTREE t1 = (a,b);\nEND;\n")
+        assert detect_skill_from_file(f) is None
+
+    def test_explicit_other_intent_is_not_hijacked(self):
+        assert detect_skill_from_query("find papers about Tajima's D") == "lit-synthesizer"
+        assert detect_skill_from_query("annotate variants then compute Tajima's D") == "vcf-annotator"
+
+    def test_population_genetics_phrases_do_not_trigger_other_skills(self):
+        assert detect_skill_from_query("nucleotide diversity and population structure") == "dnasp"
+        assert detect_skill_from_query("haplotype diversity and gene flow") == "dnasp"
+
+    def test_multiple_skills_keep_independent_intents(self):
+        assert detect_multiple_skills("Tajima's D on this alignment") == ["dnasp"]
+        assert detect_multiple_skills("compare nucleotide diversity between populations") == ["dnasp"]
+        both = detect_multiple_skills("annotate variants then compute Tajima's D")
+        assert both == ["vcf-annotator", "dnasp"]
+        fold = detect_multiple_skills("predict this protein fold and compute Tajima's D")
+        assert "struct-predictor" in fold and "dnasp" in fold
+

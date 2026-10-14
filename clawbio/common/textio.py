@@ -40,6 +40,17 @@ def write_text_lf(path: Path | str, text: str) -> Path:
     return p
 
 
+def _umask() -> int:
+    """Read the process umask. os has no query, so set-and-restore is the only way.
+
+    ponytail: momentarily racy for a threaded writer; use os.umask() directly at
+    startup if that ever matters.
+    """
+    current = os.umask(0o022)
+    os.umask(current)
+    return current
+
+
 def write_text_lf_atomic(path: Path | str, text: str) -> Path:
     """Like :func:`write_text_lf`, but replaces ``path`` atomically.
 
@@ -49,17 +60,17 @@ def write_text_lf_atomic(path: Path | str, text: str) -> Path:
     file. This matters for ``commands.sh``: an in-place ``--resume`` replay re-invokes
     the wrapper, which regenerates the very script bash is executing — a plain
     truncate-and-rewrite corrupts bash's read mid-run. The existing file's permission
-    bits are preserved. Returns the written path.
+    bits are preserved; a new file lands on the same umask-derived mode a plain write
+    would have given it, rather than on mkstemp's 0600. Returns the written path.
     """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    mode = p.stat().st_mode if p.exists() else None
+    mode = p.stat().st_mode if p.exists() else 0o666 & ~_umask()
     fd, tmp_name = tempfile.mkstemp(dir=str(p.parent), prefix=f".{p.name}.", suffix=".tmp")
     try:
         with os.fdopen(fd, "wb") as fh:
             fh.write(_to_lf_bytes(text))
-        if mode is not None:
-            os.chmod(tmp_name, mode)
+        os.chmod(tmp_name, mode)
         os.replace(tmp_name, p)
     except BaseException:
         try:

@@ -219,7 +219,7 @@ The skill returns harmonised summary statistics (β, SE, p-value, MAF, EAF) for 
 - **NOT make causal-effect claims directly from a single pQTL p-value.** Statistical association ≠ causation; instrumental-variable assumptions must be satisfied for MR.
 - **NOT cherry-pick variants by p-value alone.** Statistical inference requires the full credible set / window context.
 - **NOT compare effect sizes across ancestries without acknowledging cohort N.** EUR's 50x sample-size advantage means EUR effect estimates have much tighter SEs; "no effect" in a small-N ancestry stratum may reflect power, not biology.
-- **Surface protein identity, Olink reagent ID, and ancestry in the user-facing reply** alongside any β / p-value the agent quotes. Per the user-friendly enum-expansion rule (`CLAUDE.md`), expand all three fields: `protein = SORT1 (Q99523, OID20213); ancestry = European (discovery) (EUR); N = 46,673`.
+- **Surface protein identity, Olink reagent ID, and ancestry in the user-facing reply** alongside any β / p-value the agent quotes. Per the user-friendly enum-expansion rule (`AGENTS.md`), expand all three fields: `protein = SORT1 (Q99523, OID20213); ancestry = European (discovery) (EUR); N = 46,673`.
 - **NOT silently swap Olink reagents.** If the user asked for `SORT1` and the dataset is `SORT1-AOH2` (a different isoform reagent), the agent must say so explicitly.
 
 ## Citations

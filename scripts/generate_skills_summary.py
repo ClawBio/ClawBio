@@ -3,7 +3,7 @@
 generate_skills_summary.py — Build SKILLS_SUMMARY.md from the skill registry
 ============================================================================
 Renders a domain-categorised inventory of every ClawBio skill, combining the
-live CLI registry with the curated taxonomy in ``scripts/skill_domains.json``.
+live CLI registry with SKILL.md domain metadata and optional JSON overrides.
 
 Usage:
     python scripts/generate_skills_summary.py           # write SKILLS_SUMMARY.md
@@ -12,19 +12,19 @@ Usage:
 
 Exit codes:
     0  success (or, under --check, the file is up to date)
-    1  the domain taxonomy does not cover the registry exactly
+    1  duplicate domain assignment or a namespace collision
     2  under --check, SKILLS_SUMMARY.md is missing or stale
 
 Why the registry and not skills/catalog.json
 --------------------------------------------
 ``catalog.json`` is a per-folder index and deliberately drops entries via
-``generate_catalog.EXCLUDED_FOLDERS``, so it currently describes 97 folders
-while ``clawbio.py list`` reports 100 skills. It also keys on folder names,
+``generate_catalog.EXCLUDED_FOLDERS``. It also keys on folder names,
 whereas the runnable surface is keyed on CLI aliases (``drugphoto`` and
 ``drug-photo`` are one folder but two distinct list entries). Deriving the
 tiers from the same functions the CLI uses keeps this report consistent with
-what a user actually sees. The catalog is still read, but only to report drift
-between the two views.
+what a user actually sees. The generated report does not read catalog counts,
+so catalog regeneration alone cannot invalidate it. Missing classifications
+and stale overrides warn rather than breaking unrelated skill changes.
 """
 
 from __future__ import annotations
@@ -37,7 +37,6 @@ from pathlib import Path
 
 CLAWBIO_DIR = Path(__file__).resolve().parents[1]
 SKILLS_DIR = CLAWBIO_DIR / "skills"
-CATALOG_PATH = SKILLS_DIR / "catalog.json"
 DOMAINS_PATH = Path(__file__).resolve().parent / "skill_domains.json"
 OUTPUT_PATH = CLAWBIO_DIR / "SKILLS_SUMMARY.md"
 
@@ -78,6 +77,25 @@ def _frontmatter_description(skill_md: Path) -> str:
     return value.strip().strip("\"'").strip()
 
 
+def _frontmatter_domain(skill_md: Path) -> str:
+    """Read a scalar top-level or metadata domain without executing YAML."""
+    try:
+        text = skill_md.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    block = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
+    if not block:
+        return ""
+    match = re.search(r"^(?:domain|[ \t]{2}domain):[ \t]*([^\n#]+)",
+                      block.group(1), re.MULTILINE)
+    if not match:
+        return ""
+    value = match.group(1).strip().strip("\"'")
+    if value.startswith((">", "|", "{", "[")):
+        return ""
+    return value
+
+
 def _has_python_script(skill_dir: Path) -> bool:
     """Mirror the CLI's `[has script]` / `[spec only]` indicator."""
     for path in skill_dir.rglob("*.py"):
@@ -103,10 +121,12 @@ def collect_skills() -> dict[str, dict]:
 
     for alias, info in SKILLS.items():
         script: Path = info["script"]
+        skill_md = script.parent / "SKILL.md"
         skills[alias] = {
             "name": alias,
             "tier": TIER_REGISTERED,
-            "description": info.get("description", "").strip(),
+            "description": _frontmatter_description(skill_md) or info.get("description", "").strip(),
+            "domain": _frontmatter_domain(skill_md),
             "script_name": script.name,
             "script_exists": script.exists(),
             "folder": script.parent.name,
@@ -120,6 +140,7 @@ def collect_skills() -> dict[str, dict]:
             "name": skill_dir.name,
             "tier": TIER_AGENT,
             "description": _frontmatter_description(skill_dir / "SKILL.md"),
+            "domain": _frontmatter_domain(skill_dir / "SKILL.md"),
             "script_name": None,
             "script_exists": None,
             "folder": skill_dir.name,
@@ -130,7 +151,7 @@ def collect_skills() -> dict[str, dict]:
     return skills
 
 
-def assert_flat_namespace(skills: dict[str, dict]) -> None:
+def assert_flat_namespace(_skills: dict[str, dict]) -> None:
     """Fail if a CLI alias ever collides with an agent-readable folder name.
 
     The taxonomy file keys on a single flat namespace. If the two ever
@@ -157,57 +178,58 @@ def load_taxonomy() -> dict:
     return json.loads(DOMAINS_PATH.read_text(encoding="utf-8"))
 
 
-def validate_coverage(taxonomy: dict, skills: dict[str, dict]) -> None:
-    """Every skill in exactly one domain, and no phantom entries.
+def validate_coverage(taxonomy: dict, skills: dict[str, dict]) -> dict:
+    """Resolve overrides, metadata and fallback without dropping live skills.
 
-    Exits non-zero with an actionable diff. A new skill should break this
-    rather than quietly vanish from the report.
+    Duplicate explicit assignments remain fatal. Retired overrides warn and
+    are dropped; missing domains warn and render under Uncategorised.
+    The input taxonomy is not mutated.
     """
     assigned: list[str] = []
     for domain in taxonomy["domains"]:
         assigned.extend(domain["members"])
 
     duplicates = sorted({name for name in assigned if assigned.count(name) > 1})
-    unclassified = sorted(set(skills) - set(assigned))
     unknown = sorted(set(assigned) - set(skills))
-
-    problems: list[str] = []
-    if unclassified:
-        problems.append(
-            f"{len(unclassified)} skill(s) missing from {DOMAINS_PATH.name}: "
-            + ", ".join(unclassified)
-        )
-    if unknown:
-        problems.append(
-            f"{len(unknown)} entry/entries in {DOMAINS_PATH.name} match no skill: "
-            + ", ".join(unknown)
-        )
     if duplicates:
-        problems.append("assigned to more than one domain: " + ", ".join(duplicates))
-
-    if problems:
-        for problem in problems:
-            print(f"error: {problem}", file=sys.stderr)
+        print("error: assigned to more than one domain: " + ", ".join(duplicates),
+              file=sys.stderr)
         raise SystemExit(1)
-
-
-def catalog_drift(skills: dict[str, dict]) -> tuple[int, list[str]]:
-    """Compare folder coverage against skills/catalog.json.
-
-    Returns the catalog's skill count and the folders this report covers that
-    the catalog omits. Reported rather than reconciled: the exclusions are
-    intentional on the catalog side.
-    """
-    if not CATALOG_PATH.exists():
-        return 0, []
-    try:
-        catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return 0, []
-
-    catalogued = {entry.get("name") for entry in catalog.get("skills", [])}
-    folders = {skill["folder"] for skill in skills.values()}
-    return int(catalog.get("skill_count", len(catalogued))), sorted(folders - catalogued)
+    if unknown:
+        print("warning: dropping stale taxonomy entries: " + ", ".join(unknown),
+              file=sys.stderr)
+    domains = [
+        {**domain, "members": [n for n in domain["members"] if n in skills]}
+        for domain in taxonomy["domains"]
+    ]
+    by_id = {d["id"]: d for d in domains}
+    extra = {}
+    unclassified = []
+    for name in sorted(set(skills) - set(assigned)):
+        label = skills[name].get("domain", "").strip()
+        if label:
+            domain_id = re.sub(r"[\s_]+", "-", label.lower())
+            if domain_id not in by_id:
+                domain = extra.setdefault(domain_id, {
+                    "id": domain_id, "title": label, "members": [],
+                })
+            else:
+                domain = by_id[domain_id]
+            domain["members"].append(name)
+        else:
+            unclassified.append(name)
+    if unclassified:
+        print("warning: rendering unclassified skills under Uncategorised: "
+              + ", ".join(unclassified), file=sys.stderr)
+        domain = by_id.get("uncategorised") or extra.get("uncategorised")
+        if domain is None:
+            domain = {"id": "uncategorised", "title": "Uncategorised", "members": []}
+            extra["uncategorised"] = domain
+        domain["members"].extend(unclassified)
+    domains.extend(extra[key] for key in sorted(extra))
+    for domain in domains:
+        domain["members"] = sorted(domain["members"])
+    return {**taxonomy, "domains": [d for d in domains if d["members"]]}
 
 
 # --------------------------------------------------------------------------- #
@@ -226,6 +248,7 @@ def _format_member(skill: dict) -> str:
 
 
 def render(taxonomy: dict, skills: dict[str, dict]) -> str:
+    taxonomy = validate_coverage(taxonomy, skills)
     total = len(skills)
     registered = [s for s in skills.values() if s["tier"] == TIER_REGISTERED]
     agent = [s for s in skills.values() if s["tier"] == TIER_AGENT]
@@ -243,13 +266,13 @@ def render(taxonomy: dict, skills: dict[str, dict]) -> str:
     add("")
     add(
         "Generated by `scripts/generate_skills_summary.py` from the live skill "
-        "registry in `clawbio/cli.py` and the domain taxonomy in "
+        "registry in `clawbio/cli.py`, SKILL.md domain metadata and optional overrides in "
         "`scripts/skill_domains.json`. Do not edit by hand — rerun the script."
     )
     add("")
     add(
         "**Tier key:** **[R]** registered, runnable via `clawbio run <skill>` · "
-        "**[A]** agent-readable, SKILL.md methodology only"
+        "**[A]** agent-readable, may include unregistered scripts"
     )
     add("")
     add("---")
@@ -310,11 +333,11 @@ def render(taxonomy: dict, skills: dict[str, dict]) -> str:
     )
     add("")
     if total:
-        add(f"That is {len(with_script) / total:.0%} of the library's implemented functionality.")
+        add(f"That is {len(with_script) / total:.0%} of all listed skills.")
         add("")
     if spec_only:
         add(
-            f"Genuinely spec-only ({len(spec_only)}): "
+            f"Without a Python script ({len(spec_only)}): "
             + ", ".join(f"`{name}`" for name in spec_only)
             + "."
         )
@@ -364,25 +387,6 @@ def render(taxonomy: dict, skills: dict[str, dict]) -> str:
             add(f"- {note}")
         add("")
 
-    # Catalog drift.
-    catalog_count, missing_from_catalog = catalog_drift(skills)
-    if catalog_count:
-        add("## Drift against `skills/catalog.json`")
-        add("")
-        add(
-            f"The catalog indexes {catalog_count} skill folders; this report covers "
-            f"{total} list entries. The two counts differ by design — the catalog is "
-            "keyed on folders and applies `EXCLUDED_FOLDERS`, while the CLI is keyed "
-            "on aliases."
-        )
-        if missing_from_catalog:
-            add("")
-            add(
-                "Folders present here but absent from the catalog: "
-                + ", ".join(f"`{name}`" for name in missing_from_catalog)
-                + "."
-            )
-        add("")
 
     # Domain totals.
     add("---")
@@ -407,7 +411,8 @@ def render(taxonomy: dict, skills: dict[str, dict]) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
+    parser = argparse.ArgumentParser(
+        description="Build a domain inventory from the live skill registry and metadata.")
     parser.add_argument(
         "--check",
         action="store_true",
@@ -423,7 +428,7 @@ def main() -> None:
     skills = collect_skills()
     assert_flat_namespace(skills)
     taxonomy = load_taxonomy()
-    validate_coverage(taxonomy, skills)
+    taxonomy = validate_coverage(taxonomy, skills)
 
     content = render(taxonomy, skills)
 

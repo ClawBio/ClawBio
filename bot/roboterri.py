@@ -49,7 +49,16 @@ if str(_PROJECT_ROOT_FOR_IMPORT) not in sys.path:
 
 # Shared bot security helpers (strict per-user identity isolation).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from security import scoped_get
+from security import (
+    ALLOWED_GZ_STEMS,
+    ALLOWED_UPLOAD_EXTENSIONS,
+    UnsafePath,
+    is_allowed_extension,
+    safe_write_path,
+    sanitize_filename,
+    scoped_get,
+    upload_tmp_path,
+)
 
 from clawbio.skill_intents import (
     load_default_skill_registry,
@@ -920,82 +929,6 @@ async def execute_clawbio(args: dict) -> str:
 # --------------------------------------------------------------------------- #
 
 
-# Files the write_file and save_file tools must never overwrite.
-# Checked case-insensitively - all entries must be lowercase.
-_PROTECTED_NAMES = frozenset({
-    "soul.md", "claude.md", "agents.md", ".env",
-    "roboterri.py", "roboterri_discord.py", "roboterri_whatsapp.py",
-    "clawbio.py", "requirements.txt", "contributing.md",
-})
-
-_ALLOWED_UPLOAD_EXTENSIONS = {
-    ".txt", ".csv", ".vcf", ".fastq", ".fq",   # genetic data (uncompressed)
-    ".h5ad",                                     # single-cell AnnData
-    ".tif", ".tiff", ".png", ".jpg", ".jpeg", ".heic", ".heif",  # microscopy / photos
-    ".tsv",                                      # tab-separated counts
-    # .pdf, .html, .md excluded - active content risk / prompt injection
-}
-
-# Compound suffixes allowed for gzip-compressed files (e.g. "data.vcf.gz").
-# Bare ".gz" is intentionally excluded - it could wrap arbitrary content.
-_ALLOWED_GZ_STEMS = {
-    ".vcf.gz", ".fastq.gz", ".fq.gz", ".txt.gz", ".tsv.gz", ".csv.gz", ".bed.gz",
-}
-
-
-def _is_allowed_extension(filename: str) -> bool:
-    """Return True if the file's extension (or compound .*.gz suffix) is permitted."""
-    p = Path(filename)
-    suffixes = p.suffixes
-    if not suffixes:
-        return False
-    # Compound suffix check first (e.g. ".vcf.gz")
-    compound = "".join(suffixes[-2:]).lower()
-    if compound in _ALLOWED_GZ_STEMS:
-        return True
-    # Single-suffix check
-    return suffixes[-1].lower() in _ALLOWED_UPLOAD_EXTENSIONS
-
-
-def _sanitize_filename(filename: str) -> str:
-    """Strip path traversal components and dangerous characters from a filename."""
-    # Take only the basename (no directory components)
-    filename = Path(filename).name.strip()
-    # Remove null bytes and control characters
-    filename = re.sub(r"[\x00-\x1f]", "", filename)
-    # Collapse path traversal attempts
-    filename = filename.replace("..", "").replace("/", "").replace("\\", "")
-    if not filename:
-        filename = "unnamed_file"
-    return filename
-
-
-def _resolve_dest(folder: str | None) -> Path:
-    """Resolve a destination folder, restricted to CLAWBIO_DIR."""
-    dest = Path(folder) if folder else DATA_DIR
-    if not dest.is_absolute():
-        dest = CLAWBIO_DIR / dest
-    # Security: block path traversal outside CLAWBIO_DIR
-    try:
-        dest.resolve().relative_to(CLAWBIO_DIR.resolve())
-    except ValueError:
-        logger.warning(f"Path escape blocked: {dest}")
-        _audit("security", severity="HIGH", detail="path_escape_blocked",
-               attempted_path=str(dest), function="_resolve_dest")
-        dest = DATA_DIR
-    dest.mkdir(parents=True, exist_ok=True)
-    return dest
-
-
-def _validate_path(filepath: Path, allowed_root: Path) -> bool:
-    """Ensure filepath is under allowed_root (path traversal defense)."""
-    try:
-        filepath.resolve().relative_to(allowed_root.resolve())
-        return True
-    except ValueError:
-        return False
-
-
 # --------------------------------------------------------------------------- #
 # execute_save_file
 # --------------------------------------------------------------------------- #
@@ -1013,19 +946,17 @@ async def execute_save_file(args: dict) -> str:
     if not src_path.exists():
         return "The temporary file has expired. Please send it again."
 
-    dest_path = _resolve_dest(args.get("destination_folder"))
-    filename = _sanitize_filename(args.get("filename") or file_info["filename"])
-
-    if filename.lower() in _PROTECTED_NAMES:
-        logger.warning(f"Blocked save to protected file: {filename}")
-        _audit("security", severity="HIGH", detail="protected_file_save_blocked",
-               attempted_path=filename)
-        return f"Error: '{filename}' is a protected system file - I can't save there, I'm afraid."
-
-    final_path = dest_path / filename
-
-    if not _validate_path(final_path, dest_path):
-        return f"Error: filename '{filename}' would escape the destination directory."
+    requested = args.get("filename") or file_info["filename"]
+    try:
+        final_path = safe_write_path(
+            args.get("destination_folder"), requested,
+            root=DATA_DIR, require_allowed_extension=True,
+        )
+    except UnsafePath as exc:
+        logger.warning(f"Blocked save: {exc}")
+        _audit("security", severity="HIGH", detail="unsafe_save_blocked",
+               attempted_path=str(requested))
+        return f"Error: {exc}"
 
     shutil.copy2(str(src_path), str(final_path))
     logger.info(f"Saved file: {final_path}")
@@ -1052,22 +983,17 @@ async def execute_write_file(args: dict) -> str:
     if not filename:
         return "Error: 'filename' is required (e.g. 'report.md')."
 
-    # Reject protected system filenames before touching the filesystem.
-    # Hard error prevents the LLM from truthfully claiming it succeeded.
-    filename = _sanitize_filename(filename)
-    if filename.lower() in _PROTECTED_NAMES:
-        logger.warning(f"SEC-PI-001: blocked write to protected file: {filename}")
-        _audit("security", severity="HIGH", detail="protected_file_write_blocked",
-               attempted_path=filename)
-        return f"Error: '{filename}' is a protected system file - I can't modify that, I'm afraid."
-
-    # Clamp destination to DATA_DIR - structural allowlist prevents writes
-    # outside user data directory regardless of destination_folder argument.
-    dest = DATA_DIR
-    filepath = dest / filename
-
-    if not _validate_path(filepath, dest):
-        return f"Error: filename '{filename}' would escape the destination directory."
+    # SEC-PI-001: containment to DATA_DIR, protected names and traversal are all
+    # enforced by safe_write_path, so all three adapters give the same answer.
+    try:
+        filepath = safe_write_path(
+            args.get("destination_folder"), filename, root=DATA_DIR,
+        )
+    except UnsafePath as exc:
+        logger.warning(f"SEC-PI-001: blocked write: {exc}")
+        _audit("security", severity="HIGH", detail="unsafe_write_blocked",
+               attempted_path=str(filename))
+        return f"Error: {exc}"
 
     filepath.write_text(content, encoding="utf-8")
     logger.info(f"Wrote file: {filepath} ({len(content)} chars)")
@@ -1090,13 +1016,14 @@ async def execute_generate_audio(args: dict) -> str:
     if not filename.endswith(".mp3"):
         filename += ".mp3"
 
-    filename = _sanitize_filename(filename)
     voice = args.get("voice", "nova")
-    dest = _resolve_dest(args.get("destination_folder"))
-    filepath = dest / filename
-
-    if not _validate_path(filepath, dest):
-        return f"Error: filename '{filename}' would escape the destination directory."
+    try:
+        filepath = safe_write_path(
+            args.get("destination_folder"), filename, root=DATA_DIR,
+        )
+    except UnsafePath as exc:
+        return f"Error: {exc}"
+    dest = filepath.parent
 
     # OpenAI TTS has a 4096-char input limit - split if needed
     MAX_CHUNK = 4096
@@ -1858,15 +1785,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                media_type=media_type)
 
         # Sanitize filename (TG-002)
-        filename = _sanitize_filename(filename)
+        filename = sanitize_filename(filename)
 
         # Extension allowlist - photos must be image types (TG-005)
-        if not _is_allowed_extension(filename) or not media_type.startswith("image/"):
-            logger.warning(f"Rejected photo with ext={ext} mime={media_type}")
+        if not is_allowed_extension(filename) or not media_type.startswith("image/"):
+            logger.warning(f"Rejected photo {filename} mime={media_type}")
             return
 
         # Store for potential file-based skill use
-        tmp_path = Path(tempfile.gettempdir()) / f"roboterri_{update.effective_chat.id}_{filename}"
+        tmp_path = upload_tmp_path(update.effective_chat.id, filename)
         tmp_path.write_bytes(bytes(img_bytes))
         _received_files[update.effective_chat.id] = {
             "path": str(tmp_path), "filename": filename,
@@ -1935,13 +1862,13 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         file = await doc.get_file()
-        filename = _sanitize_filename(doc.file_name or "document")
+        filename = sanitize_filename(doc.file_name or "document")
         file_size = doc.file_size or 0
 
         # Extension allowlist check (TG-005)
-        if not _is_allowed_extension(filename):
+        if not is_allowed_extension(filename):
             ext = "".join(Path(filename).suffixes).lower() or "no extension"
-            allowed = ", ".join(sorted(_ALLOWED_UPLOAD_EXTENSIONS | _ALLOWED_GZ_STEMS))
+            allowed = ", ".join(sorted(ALLOWED_UPLOAD_EXTENSIONS | ALLOWED_GZ_STEMS))
             await update.message.reply_text(
                 f"Unsupported file type ({ext}). "
                 f"Accepted: {allowed}"
@@ -1956,7 +1883,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        tmp_path = Path(tempfile.gettempdir()) / f"roboterri_{update.effective_chat.id}_{filename}"
+        tmp_path = upload_tmp_path(update.effective_chat.id, filename)
         await file.download_to_drive(str(tmp_path))
         logger.info(f"Document received: {filename} ({file_size} bytes, {mime})")
         _audit("document", **_user_ctx(update), filename=filename,

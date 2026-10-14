@@ -1,0 +1,117 @@
+{
+    "accno": "S-BSST2074",
+    "attributes": [
+        {
+            "name": "Template",
+            "value": "Default.v2"
+        },
+        {
+            "name": "Title",
+            "value": "An mm10-based reference genome N-masked in positions of SNPs between Mus musculus and three other mouse species"
+        },
+        {
+            "name": "DOI",
+            "value": "10.6019/S-BSST2074"
+        },
+        {
+            "name": "ReleaseDate",
+            "value": "2026-08-14"
+        }
+    ],
+    "section": {
+        "type": "Study",
+        "attributes": [
+            {
+                "name": "Title",
+                "value": "An mm10-based reference genome N-masked in positions of SNPs between Mus musculus and three other mouse species"
+            },
+            {
+                "name": "ReleaseDate",
+                "value": "2026-08-14"
+            },
+            {
+                "name": "Description",
+                "value": "The aim was to analyze scRNAseq data from four distinct mouse species: Mus musculus strains C57BL/6J and Ly5.1, (BL6), Mus musculus castaneus, Mus spretus, and Mus caroli. We generated a 10X Genomics Cell Ranger (Zheng et al. 2017) reference to align all four species, based on the well-annotated mm10 genome (version M23, Ensembl release 98) as described here: https://github.com/fritjoflammers/snakemake-snpmasked-refgenome.git (https://doi.org/10.5281/zenodo.15516917). SNP positions between BL6 and the other species were obtained from Keane et al. (2011) and Stefflova et al. (2013), incorporated into a merged bed file, and SNP positions were masked with Ns in the mm10 fasta file. From this file, the 10X Genomics Cell Ranger mkref (v6.1.1) function (Zheng et al. 2017) was used to generate the shared reference for alignment. "
+            },
+            {
+                "name": "Organism",
+                "value": "Mus musculus (mouse)"
+            },
+            {
+                "name": "Organism",
+                "value": "Mus musculus castaneus"
+            },
+            {
+                "name": "Organism",
+                "value": "Mus spretus"
+            },
+            {
+                "name": "Organism",
+                "value": "Mus caroli"
+            },
+            {
+                "name": "License",
+                "value": "CC0",
+                "valqual": [
+                    {
+                        "name": "URL",
+                        "value": "https://creativecommons.org/publicdomain/zero/1.0/legalcode"
+                    }
+                ]
+            }
+        ],
+        "files": [
+            {
+                "path": "GRCm38_masked_allStrains.zip",
+                "size": 23996135081,
+                "attributes": [
+                    {
+                        "name": "Description",
+                        "value": "N-masked reference genome"
+                    }
+                ],
+                "type": "file"
+            }
+        ],
+        "links": [
+            {
+                "url": "https://www.ebi.ac.uk/biostudies/arrayexpress/studies/E-MTAB-15073"
+            }
+        ],
+        "subsections": [
+            {
+                "type": "author",
+                "attributes": [
+                    {
+                        "name": "Name",
+                        "value": "Lea C W\u00f6lbert"
+                    },
+                    {
+                        "name": "E-mail",
+                        "value": "l.woelbert@dkfz-heidelberg.de"
+                    },
+                    {
+                        "name": "ORCID",
+                        "value": "0009-0006-5432-0765"
+                    },
+                    {
+                        "name": "affiliation",
+                        "value": "o1",
+                        "reference": true
+                    }
+                ]
+            },
+            {
+                "accno": "o1",
+                "type": "organisation",
+                "attributes": [
+                    {
+                        "name": "Name",
+                        "value": "German Cancer Research Center"
+                    }
+                ]
+            }
+        ]
+    },
+    "type": "submission"
+}

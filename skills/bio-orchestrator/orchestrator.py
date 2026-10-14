@@ -16,6 +16,7 @@ from pathlib import Path
 import argparse
 import hashlib
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
@@ -231,6 +232,28 @@ PRS_COMPETING_TERMS = (
     "variant calling",
 )
 PRS_DTC_TERMS = ("23andme", "ancestrydna", "ancestry dna", "dtc", "genotype file")
+# Population-genetics statistics computed by `dnasp`. Without this check the
+# generic keyword map's shorter keys ("alignment", "diversity", "fold",
+# "variant", "compare") capture requests such as "Tajima's D on this alignment"
+# or "nucleotide diversity per population". `dnasp` wins only when no other
+# explicit intent (for example "papers", "annotate", "alphafold") is named.
+DNASP_TERMS = (
+    "dnasp", "dna polymorphism", "tajima", "nucleotide diversity",
+    "haplotype diversity", "watterson", "segregating sites", "neutrality test",
+    "fu and li", "fu & li", "fu's fs", "fay and wu", "mcdonald-kreitman",
+    "mcdonald kreitman", "ka/ks", "dn/ds", "hka test", "mismatch distribution",
+    "raggedness", "indel polymorphism", "effective number of codons",
+    "codon usage bias", "rscu", "four-gamete", "site frequency spectrum",
+)
+# Generic keywords that describe DnaSP's input or statistic rather than a
+# separate request when a DnaSP statistic is named in the same query.
+DNASP_INPUT_KEYWORDS = frozenset({"alignment", "diversity", "variant", "compare"})
+# Population-genetics phrases that contain another skill's keyword ("fold",
+# "structure", "flow"); removed before keyword matching when a DnaSP statistic
+# is named, so "predict this protein fold" still counts as its own intent.
+DNASP_CONTEXT_PHRASES = re.compile(r"\b(?:un)?folded\b|\bpopulation structure\b|\bgene flow\b")
+NEXUS_SUFFIXES = frozenset({".nex", ".nexus", ".nxs"})
+NEXUS_ALIGNMENT_BLOCK = re.compile(r"\bbegin\s+(?:data|characters)\s*;", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +276,30 @@ def _looks_like_illumina_bundle(filepath: Path) -> bool:
     return has_sample_sheet and has_vcf
 
 
+def _nexus_has_alignment(filepath: Path) -> bool:
+    """True when a NEXUS file holds a DATA or CHARACTERS block (an alignment)."""
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as handle:
+            head = handle.read(1_000_000)
+    except OSError:
+        return False
+    return bool(NEXUS_ALIGNMENT_BLOCK.search(head))
+
+
+def _dnasp_other_intents(query_lower: str) -> list[tuple[str, str]]:
+    """Keyword matches that remain when a DnaSP statistic is named.
+
+    Input-describing keywords and population-genetics phrases are ignored, so
+    only independently expressed intents are returned as (keyword, skill).
+    """
+    cleaned = DNASP_CONTEXT_PHRASES.sub(" ", query_lower)
+    return [
+        (keyword, skill)
+        for keyword, skill in KEYWORD_MAP.items()
+        if keyword not in DNASP_INPUT_KEYWORDS and keyword in cleaned
+    ]
+
+
 def detect_skill_from_file(filepath: Path) -> str | None:
     """Determine which skill handles a given file based on extension."""
     if filepath.is_dir():
@@ -262,6 +309,9 @@ def detect_skill_from_file(filepath: Path) -> str | None:
     if filepath.name.lower() in ILLUMINA_SAMPLE_SHEET_NAMES:
         return "illumina-bridge"
     suffixes = "".join(filepath.suffixes)  # handles .vcf.gz
+    if filepath.suffix.lower() in NEXUS_SUFFIXES:
+        # Alignment NEXUS files go to dnasp; tree-only NEXUS files are not routed.
+        return "dnasp" if _nexus_has_alignment(filepath) else None
     if filepath.suffix.lower() in {".csv", ".tsv"}:
         inferred = detect_skill_from_tabular_header(filepath)
         if inferred:
@@ -385,6 +435,19 @@ def detect_skill_with_hint_from_query(query: str) -> tuple[str | None, str]:
             "produce `integrated.h5ad` with a scVI/scANVI latent space before "
             "running downstream clustering or annotation.",
         )
+
+    if any(term in query_lower for term in DNASP_TERMS):
+        others = _dnasp_other_intents(query_lower)
+        if not others:
+            return (
+                "dnasp",
+                "Detected a population-genetics statistic computed by `dnasp`. It needs an "
+                "aligned FASTA or NEXUS file or a multi-sample VCF; `--analysis` selects "
+                "modules other than the default polymorphism summary. Align unaligned "
+                "sequences first.",
+            )
+        keyword, skill = max(others, key=lambda item: len(item[0]))
+        return skill, ""
 
     # Prefer longest keyword match to avoid ambiguity (e.g. "variant annotation"
     # should match vcf-annotator, not equity-scorer via "variant" substring)
@@ -567,6 +630,14 @@ def detect_multiple_skills(query: str) -> list[str]:
         return [skill]
 
     query_lower = query.lower()
+    if any(term in query_lower for term in DNASP_TERMS):
+        matched = []
+        for _, skill in _dnasp_other_intents(query_lower):
+            if skill not in matched:
+                matched.append(skill)
+        matched.append("dnasp")
+        return matched
+
     matched = []
     seen = set()
     for keyword, skill in KEYWORD_MAP.items():

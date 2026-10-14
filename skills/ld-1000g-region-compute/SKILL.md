@@ -253,7 +253,7 @@ partner_variant_id     r2
 The skill computes pairwise r² between a lead variant and partner variants in a chromosomal window, using a 1000 Genomes Phase 3 GRCh38 super-population reference panel. The agent should:
 
 - **Use r² output for visualisation** (LocusCompare, LocusZoom-style regional plots) and for instrument-set LD-pruning in Mendelian randomisation.
-- **Surface the chosen super-population in the user-facing reply.** Per the user-friendly enum-expansion rule (`CLAUDE.md`), expand the field: `LD = 1000G Phase 3 EUR (n=503 samples)`, never just `EUR`.
+- **Surface the chosen super-population in the user-facing reply.** Per the user-friendly enum-expansion rule (`AGENTS.md`), expand the field: `LD = 1000G Phase 3 EUR (n=503 samples)`, never just `EUR`.
 - **NOT claim "in LD" without an explicit r² threshold.** The standard publication thresholds are r² > 0.6 (high LD), r² > 0.2 (any LD); the agent must cite the threshold when making a claim.
 - **NOT use 1000G-derived LD for ancestry-mismatched studies without flagging the mismatch.** When the GWAS / eQTL ancestry does not match the chosen super-pop, the agent must surface this as a caveat in the user-facing reply.
 - **NOT compute LD on rare variants (MAF < 0.01).** The skill drops them; the agent must NOT manually re-include them by lowering the threshold.

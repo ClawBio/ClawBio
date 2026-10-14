@@ -6,11 +6,11 @@
 # This file only binds once branch protection on main requires code-owner
 # review; see GOVERNANCE.md, "Repository settings".
 
-/clawbio/           @manuelcorpas
-/.github/           @manuelcorpas
-/scripts/           @manuelcorpas
-/pyproject.toml     @manuelcorpas
-/uv.lock            @manuelcorpas
-/GOVERNANCE.md      @manuelcorpas
-/MAINTAINERS.md     @manuelcorpas
-/SECURITY.md        @manuelcorpas
+/clawbio/           @manuelcorpas @camlloyd
+/.github/           @manuelcorpas @camlloyd
+/scripts/           @manuelcorpas @camlloyd
+/pyproject.toml     @manuelcorpas @camlloyd
+/uv.lock            @manuelcorpas @camlloyd
+/GOVERNANCE.md      @manuelcorpas @camlloyd
+/MAINTAINERS.md     @manuelcorpas @camlloyd
+/SECURITY.md        @manuelcorpas @camlloyd

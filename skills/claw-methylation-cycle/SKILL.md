@@ -365,6 +365,20 @@ python skills/claw-methylation-cycle/methylation_cycle.py \
 
 ---
 
+## Output Structure
+
+```
+<output_dir>/
+├── report.md
+├── result.json
+└── reproducibility/
+    ├── commands.sh
+    ├── environment.yml
+    └── checksums.sha256
+```
+
+---
+
 ## References
 
 - Nazki FH et al. (2014). Folate: metabolism, genes, polymorphisms. *Gene*, 533(1), 11-20.

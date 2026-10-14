@@ -229,9 +229,32 @@ class TestDemoMode:
         assert data["qc_modules"]["per_base_sequence_quality"] == "PASS"
 
     def test_demo_creates_reproducibility(self, tmp_output):
-        """Demo mode creates reproducibility bundle."""
+        """Demo mode creates a complete, portable reproducibility bundle."""
         galaxy_bridge.run_demo(tmp_output)
-        assert (tmp_output / "reproducibility" / "commands.sh").exists()
+        repro = tmp_output / "reproducibility"
+
+        commands = (repro / "commands.sh").read_text()
+        assert commands.startswith("#!/usr/bin/env bash")
+        assert "CLAWBIO_ROOT" in commands
+        assert "skills/galaxy-bridge/galaxy_bridge.py" in commands
+        assert "--demo" in commands
+        assert str(tmp_output) not in commands
+
+        env = (repro / "environment.yml").read_text()
+        assert "name: clawbio-galaxy-bridge" in env
+        assert "bioblend" in env
+
+        checksums = [
+            line for line in (repro / "checksums.sha256").read_text().splitlines()
+            if line.strip()
+        ]
+        assert checksums
+        labels = set()
+        for line in checksums:
+            digest, label = line.split("  ", 1)
+            assert len(digest) == 64
+            labels.add(label)
+        assert {"fastqc_demo_output.html", "result.json"} <= labels
 
     def test_demo_creates_fastq(self, tmp_output):
         """Demo mode generates synthetic FASTQ."""

@@ -183,22 +183,6 @@
         }
       ]
     },
-    "open_targets": {
-      "source": "open_targets",
-      "status": "ok",
-      "variant_id": "6_160540105_T_C",
-      "rsid": "rs3798220",
-      "nearest_gene": "LPA",
-      "nearest_gene_distance": 0,
-      "consequence": "missense_variant",
-      "population_frequencies": {
-        "NFE": 0.013,
-        "AFR": 0.001,
-        "EAS": 0.0001,
-        "AMR": 0.04,
-        "FIN": 0.009
-      }
-    },
     "open_targets_credsets": {
       "source": "open_targets_credsets",
       "status": "ok",
@@ -386,36 +370,6 @@
           "pval": 0.0012,
           "nes": 0.31,
           "tissue_name": "Liver"
-        }
-      ]
-    },
-    "eqtl_catalogue": {
-      "source": "eqtl_catalogue",
-      "status": "ok",
-      "rsid": "rs3798220",
-      "total_associations": 2,
-      "associations": [
-        {
-          "gene_id": "ENSG00000198670",
-          "gene_name": "LPA",
-          "tissue": "liver",
-          "study": "Schmiedel_2018",
-          "pval": 5.6e-6,
-          "beta": -0.67,
-          "se": 0.15,
-          "maf": 0.013,
-          "dataset": "QTD000580"
-        },
-        {
-          "gene_id": "ENSG00000198670",
-          "gene_name": "LPA",
-          "tissue": "monocyte",
-          "study": "BLUEPRINT",
-          "pval": 0.0034,
-          "beta": -0.38,
-          "se": 0.13,
-          "maf": 0.011,
-          "dataset": "QTD000021"
         }
       ]
     }

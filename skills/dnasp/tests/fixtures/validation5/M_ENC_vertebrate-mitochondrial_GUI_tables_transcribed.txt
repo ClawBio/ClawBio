@@ -1,0 +1,61 @@
+TRANSCRIBED FROM GUI SCREENSHOTS AND PASTED TEXT -- NOT A DnaSP FILE EXPORT
+Source: DnaSP Ver. 6.12.03, 2026-09-15, Windows 11.
+Transcribed by Claude Code from the operator's pasted text results window and screenshots
+of the on-screen tables, from a run with NO output file active.
+
+Why transcribed: same export failure as L and M standard (see L_stop_family_GUI_tables_transcribed.txt):
+with an output file active, Codon Usage Bias writes the summary block then raises
+"Error in Codon Usage module." at the per-sequence table (every G+Cn = n/a; no noncoding region).
+
+Settings: inputs/COII_coding_1_681.fas (12 records); Outgroup set = Ppy1, Ingroup set = the other 11;
+coding 1-681, reading frame 1 (no noncoding region); Genetic code mtDNA Mammals;
+Data Set Ingroup (n = 11); Yates' correction off; G+C percentage 50; gaps excluded in its own sequence.
+DnaSP displays a single ENC figure only; no separate weighted/unweighted columns were offered.
+
+Summary block (pasted text results window)
+ Population used: Ingroup; Number of sequences used: 11
+ Selected region: 1-681; Number of sites: 681; sites excluding gaps/missing: 681
+ Number of variable sites, S: 78
+ Genetic Code: mtDNA Mammals
+ Protein coding region 1-681; noncoding regions: 0
+ Average number of analyzed codons: 227.000
+ No. Codons excluding those of amino acids coded by a single codon: 227.000
+ Scaled Chi-square, SChi2: 0.443 (without Yates' correction; G+C percentage 50.00 %)
+ Effective number of codons, ENC: 46.781
+ Codon Bias Index, CBI: 0.469
+ G+Cn: Not applicable (0.00 sites); G+C2: 0.370 (227.00 sites); G+C3s: 0.447 (227.00 sites);
+ G+Cc: 0.454 (681.00 sites); G+C (selected region): 0.454 (681.00 sites)
+
+Per-sequence grid ("Output: Table of: COII_coding_1_681.fas", Codon Usage)
+Sequence  ENC     CBI    SChi2  G+Cn  G+C2   G+C3s  G+Cc   G+C
+Hsa1      48.469  0.444  0.388  n/a   0.370  0.480  0.463  0.463
+Hsa2      48.744  0.436  0.376  n/a   0.370  0.485  0.464  0.464
+Hsa3      48.469  0.444  0.388  n/a   0.370  0.480  0.463  0.463
+Hsa4      48.469  0.444  0.388  n/a   0.370  0.480  0.463  0.463
+Hsa5      48.336  0.444  0.394  n/a   0.370  0.485  0.464  0.464
+Hsa6      48.279  0.445  0.390  n/a   0.370  0.467  0.458  0.458
+Ptr1      45.417  0.504  0.515  n/a   0.370  0.414  0.446  0.446
+Ptr2      45.091  0.493  0.497  n/a   0.370  0.401  0.442  0.442
+Ptr3      43.055  0.515  0.522  n/a   0.370  0.405  0.442  0.442
+Ptr4      44.968  0.497  0.503  n/a   0.370  0.405  0.442  0.442
+Ptr5      45.289  0.496  0.508  n/a   0.370  0.410  0.443  0.443
+
+RSCU and Codon Usage Table of: Hsa1 (Scaled Chi-squared: 0.388)
+Format: codon-aa count (RSCU), in the on-screen 4-column layout.
+UUU-F  3 (0.60)   UCU-S  1 (0.60)   UAU-Y  1 (0.22)   UGU-C  1 (0.67)
+UUC-F  7 (1.40)   UCC-S  4 (2.40)   UAC-Y  8 (1.78)   UGC-C  2 (1.33)
+UUA-L  4 (0.73)   UCA-S  4 (2.40)   UAA-*  0 (0.00)   UGA-W  3 (1.50)
+UUG-L  1 (0.18)   UCG-S  0 (0.00)   UAG-*  0 (0.00)   UGG-W  1 (0.50)
+CUU-L  7 (1.27)   CCU-P  1 (0.27)   CAU-H  2 (0.67)   CGU-R  2 (1.33)
+CUC-L  6 (1.09)   CCC-P  9 (2.40)   CAC-H  4 (1.33)   CGC-R  1 (0.67)
+CUA-L 12 (2.18)   CCA-P  3 (0.80)   CAA-Q  6 (1.71)   CGA-R  3 (2.00)
+CUG-L  3 (0.55)   CCG-P  2 (0.53)   CAG-Q  1 (0.29)   CGG-R  0 (0.00)
+AUU-I  7 (0.64)   ACU-T  5 (0.95)   AAU-N  2 (0.57)   AGU-S  1 (0.60)
+AUC-I 15 (1.36)   ACC-T  8 (1.52)   AAC-N  5 (1.43)   AGC-S  0 (0.00)
+AUA-M  8 (1.60)   ACA-T  8 (1.52)   AAA-K  4 (2.00)   AGA-*  0 (0.00)
+AUG-M  2 (0.40)   ACG-T  0 (0.00)   AAG-K  0 (0.00)   AGG-*  0 (0.00)
+GUU-V  1 (0.31)   GCU-A  4 (1.14)   GAU-D  3 (0.55)   GGU-G  2 (0.73)
+GUC-V  7 (2.15)   GCC-A  5 (1.43)   GAC-D  8 (1.45)   GGC-G  4 (1.45)
+GUA-V  5 (1.54)   GCA-A  4 (1.14)   GAA-E  8 (1.45)   GGA-G  3 (1.09)
+GUG-V  0 (0.00)   GCG-A  1 (0.29)   GAG-E  3 (0.55)   GGG-G  2 (0.73)
+Only Hsa1's codon table was opened.

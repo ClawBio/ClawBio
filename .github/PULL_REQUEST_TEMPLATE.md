@@ -9,7 +9,7 @@
 ## Checklist
 
 - [ ] SKILL.md is present and complete (YAML frontmatter + methodology)
-- [ ] Tests included and passing (`pytest -v`)
+- [ ] Tests included and passing (`pytest -v`), with a [property test](../AGENTS.md#property-based-tests-for-maths-and-parsing) for maths or parsing
 - [ ] Demo data included for reviewers to test
 - [ ] No patient/sensitive data committed
 - [ ] Follows [CONTRIBUTING.md](../CONTRIBUTING.md) conventions

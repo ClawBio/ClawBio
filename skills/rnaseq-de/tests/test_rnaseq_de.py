@@ -376,3 +376,77 @@ def test_pydeseq2_internal_failure_is_reported_clearly(monkeypatch, tmp_path):
             output_dir=tmp_path / "out",
             backend="pydeseq2",
         )
+
+
+def _repro_run(tmp_path):
+    out_dir = tmp_path / "rnaseq_repro"
+    run_analysis(
+        counts_path=DEMO_COUNTS,
+        metadata_path=DEMO_META,
+        formula="~ batch + condition",
+        contrast="condition,treated,control",
+        output_dir=out_dir,
+        backend="simple",
+    )
+    return out_dir / "reproducibility"
+
+
+def test_commands_sh_records_the_invocation(tmp_path):
+    """write_commands_sh gives commands.sh a shebang and the real CLI call."""
+    commands = _repro_run(tmp_path) / "commands.sh"
+    assert commands.exists()
+    text = commands.read_text()
+    assert text.startswith("#!/usr/bin/env bash\n")
+    assert "rnaseq_de.py" in text
+
+
+def test_environment_yml_declares_every_imported_dependency(tmp_path):
+    """scipy is imported at module scope; a hand-written env file omitted it."""
+    env = (_repro_run(tmp_path) / "environment.yml").read_text()
+    for package in ("pandas", "numpy", "matplotlib", "scikit-learn", "scipy"):
+        assert package in env, f"{package} missing from environment.yml"
+    assert "name: clawbio-rnaseq-de" in env
+
+
+def test_checksums_label_outputs_relative_to_output_dir(tmp_path):
+    """Output files stay anchored to the report dir; inputs outside it are not listed."""
+    checksums = (_repro_run(tmp_path) / "checksums.sha256").read_text()
+    assert "tables/de_results.csv" in checksums
+    assert "figures/volcano.png" in checksums
+    assert "demo_counts.csv" not in checksums
+    for line in checksums.strip().splitlines():
+        digest, _, label = line.partition("  ")
+        assert len(digest) == 64, line
+        assert label
+
+
+def test_demo_bundle_checksums_verify_from_output_dir(tmp_path):
+    """`cd <out> && sha256sum -c reproducibility/checksums.sha256` must pass."""
+    import hashlib
+    import subprocess
+
+    out_dir = tmp_path / "demo"
+    subprocess.run(
+        [sys.executable, str(HERE / "rnaseq_de.py"), "--demo", "--output", str(out_dir)],
+        check=True,
+        capture_output=True,
+    )
+    repro = out_dir / "reproducibility"
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (repro / name).is_file(), name
+
+    labels = []
+    for line in (repro / "checksums.sha256").read_text().strip().splitlines():
+        digest, _, label = line.partition("  ")
+        target = out_dir / label
+        assert target.is_file(), f"{label} does not resolve inside output_dir"
+        assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, label
+        labels.append(label)
+    for expected in (
+        "report.md",
+        "result.json",
+        "reproducibility/environment.yml",
+        "tables/de_results.csv",
+        "figures/volcano.png",
+    ):
+        assert expected in labels, f"{expected} missing from checksums"

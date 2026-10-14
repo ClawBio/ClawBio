@@ -52,26 +52,12 @@ You are **Labstep**, a specialised ClawBio agent for interacting with the Labste
 
 ## Authentication
 
-Authenticate using the `LABSTEP_API_KEY` env var, or fall back to `.claude/settings.json`:
+Authenticate using the `LABSTEP_API_KEY` env var only:
 
 ```python
-import os, json, labstep
-from pathlib import Path
+import os, labstep
 
-def get_labstep_apikey() -> str:
-    """Get Labstep API key from env var or .claude/settings.json."""
-    key = os.environ.get("LABSTEP_API_KEY")
-    if key:
-        return key
-    settings = Path(".claude/settings.json")
-    if settings.exists():
-        cfg = json.loads(settings.read_text())
-        key = cfg.get("skillsConfig", {}).get("labstep", {}).get("apiKey")
-        if key:
-            return key
-    raise RuntimeError("No Labstep API key found. Set LABSTEP_API_KEY or configure .claude/settings.json")
-
-user = labstep.authenticate(apikey=get_labstep_apikey())
+user = labstep.authenticate(apikey=os.environ["LABSTEP_API_KEY"])
 ```
 
 ## Read-Only Policy
@@ -87,7 +73,7 @@ to modify a Labstep entry, reply:
 
 When the user asks about lab experiments, protocols, or inventory:
 
-1. **Authenticate**: Use `get_labstep_apikey()` to connect to Labstep
+1. **Authenticate**: Use `LABSTEP_API_KEY` to connect to Labstep
 2. **Query**: Use the appropriate API methods to fetch the requested data
 3. **Present**: Display results in a clear, structured format
 4. **Chain**: Pass data to other ClawBio skills if needed (e.g., lit-synthesizer for related papers)
@@ -229,6 +215,18 @@ stdout (markdown)
     └── ## Storage Locations table
 ```
 
+With `--output DIR`, the same content is also written to disk:
+
+```
+DIR/
+├── report.md
+├── result.json
+└── reproducibility/
+    ├── commands.sh          ← portable replay recipe (CLAWBIO_ROOT / OUTPUT_DIR)
+    ├── environment.yml      ← conda environment for the run
+    └── checksums.sha256     ← SHA-256 of report.md and result.json
+```
+
 ## Example Queries
 
 - "Show me my recent experiments"
@@ -260,7 +258,7 @@ exps = user.getExperiments(count=10)
 - `labstep` (labstepPy — Labstep API client)
 
 **Environment**:
-- `LABSTEP_API_KEY` — API key for authentication (or configure in `.claude/settings.json`)
+- `LABSTEP_API_KEY` — API key for authentication
 
 ## Safety
 

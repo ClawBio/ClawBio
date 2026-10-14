@@ -613,8 +613,216 @@ class TestCLI:
         args = parser.parse_args(["--input", "prot.yaml", "--output", "/tmp/test"])
         assert args.input == "prot.yaml"
 
+    def test_backend_defaults_to_boltz(self):
+        args = struct_predictor._build_parser().parse_args(["--demo", "--output", "/tmp/t"])
+        assert args.backend == "boltz"
+
+    def test_backend_openfold3_accepted(self):
+        args = struct_predictor._build_parser().parse_args(
+            ["--demo", "--output", "/tmp/t", "--backend", "openfold3"])
+        assert args.backend == "openfold3"
+
+    def test_backend_unknown_rejected(self):
+        with pytest.raises(SystemExit):
+            struct_predictor._build_parser().parse_args(
+                ["--demo", "--output", "/tmp/t", "--backend", "alphafold"])
+
     def test_no_msa_flag_not_present(self):
         """--no-msa is removed; all runs are offline by default."""
         parser = struct_predictor._build_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(["--demo", "--output", "/tmp/test", "--no-msa"])
+
+
+# ---------------------------------------------------------------------------
+# OpenFold3 backend
+# ---------------------------------------------------------------------------
+
+from struct_predictor_core.io import write_openfold3_query
+from struct_predictor_core.predict import (
+    run_openfold3, _build_openfold3_cmd, _find_openfold3_output,
+)
+
+
+def _seqs(*entries):
+    return [dict(e) for e in entries]
+
+
+class TestWriteOpenFold3Query:
+    def test_protein_chain(self, tmp_path):
+        seqs = _seqs({"name": "A", "sequence": "ACDE", "entity_type": "protein", "chain_id": "A"})
+        p = write_openfold3_query(seqs, "Prot", tmp_path)
+        q = json.loads(p.read_text())["queries"]["Prot"]
+        assert q["chains"] == [
+            {"molecule_type": "protein", "chain_ids": ["A"], "sequence": "ACDE"}
+        ]
+
+    def test_msas_disabled_for_offline_run(self, tmp_path):
+        seqs = _seqs({"name": "A", "sequence": "ACDE", "entity_type": "protein", "chain_id": "A"})
+        q = json.loads(write_openfold3_query(seqs, "P", tmp_path).read_text())["queries"]["P"]
+        assert q["use_msas"] is False
+
+    def test_multichain_ids_in_order(self, tmp_path):
+        seqs = _seqs(
+            {"name": "A", "sequence": "ACDE", "entity_type": "protein", "chain_id": "A"},
+            {"name": "B", "sequence": "FGHI", "entity_type": "protein", "chain_id": "B"},
+        )
+        chains = json.loads(write_openfold3_query(seqs, "P", tmp_path).read_text())["queries"]["P"]["chains"]
+        assert [c["chain_ids"] for c in chains] == [["A"], ["B"]]
+
+    def test_nucleic_acid_types(self, tmp_path):
+        seqs = _seqs(
+            {"name": "A", "sequence": "ACGU", "entity_type": "rna", "chain_id": "A"},
+            {"name": "B", "sequence": "ACGT", "entity_type": "dna", "chain_id": "B"},
+        )
+        chains = json.loads(write_openfold3_query(seqs, "P", tmp_path).read_text())["queries"]["P"]["chains"]
+        assert [c["molecule_type"] for c in chains] == ["rna", "dna"]
+
+    def test_ligand_smiles_and_ccd(self, tmp_path):
+        seqs = _seqs(
+            {"name": "L", "sequence": "CCO", "entity_type": "ligand", "smiles": "CCO", "chain_id": "L"},
+            {"name": "M", "sequence": "ATP", "entity_type": "ligand", "ccd": "ATP", "chain_id": "M"},
+        )
+        chains = json.loads(write_openfold3_query(seqs, "P", tmp_path).read_text())["queries"]["P"]["chains"]
+        assert chains[0] == {"molecule_type": "ligand", "chain_ids": ["L"], "smiles": "CCO"}
+        assert chains[1] == {"molecule_type": "ligand", "chain_ids": ["M"], "ccd_codes": ["ATP"]}
+
+    def test_keeps_user_chain_ids(self, tmp_path):
+        """YAML ids H/L must reach OpenFold3 as H/L, as they do under Boltz."""
+        yaml_in = tmp_path / "ab.yaml"
+        yaml_in.write_text(
+            "sequences:\n"
+            "  - protein: {id: H, sequence: ACDEFGHIK}\n"
+            "  - protein: {id: L, sequence: LMNPQRSTV}\n")
+        prepared = validate_and_prepare(yaml_in, tmp_path / "work")
+        chains = json.loads(write_openfold3_query(prepared["sequences"], "ab", tmp_path).read_text())["queries"]["ab"]["chains"]
+        assert [c["chain_ids"] for c in chains] == [["H"], ["L"]]
+
+    @pytest.mark.parametrize("ids", [("", "B"), ("A", "A"), ("A", "A B"), (" ", "B")])
+    def test_rejects_duplicate_or_blank_chain_ids(self, tmp_path, ids):
+        """Found by Hypothesis: user ids now reach the CIF, so they must be unique and non-blank."""
+        yaml_in = tmp_path / "bad.yaml"
+        yaml_in.write_text(
+            "sequences:\n"
+            f"  - protein: {{id: '{ids[0]}', sequence: ACDEFGHIK}}\n"
+            f"  - protein: {{id: '{ids[1]}', sequence: LMNPQRSTV}}\n")
+        with pytest.raises(ValueError, match="[Cc]hain id"):
+            validate_and_prepare(yaml_in, tmp_path / "work")
+
+    def test_ligand_without_smiles_or_ccd_raises_clear_error(self, tmp_path):
+        seqs = _seqs({"name": "L", "sequence": "CCO", "entity_type": "ligand", "chain_id": "A"})
+        with pytest.raises(ValueError, match="Ligand 'L'.*smiles.*ccd"):
+            write_openfold3_query(seqs, "P", tmp_path)
+
+
+class TestBuildOpenFold3Cmd:
+    def test_basic_structure(self, tmp_path):
+        cmd = _build_openfold3_cmd(tmp_path / "q.json", tmp_path / "out")
+        assert cmd[:2] == ["run_openfold", "predict"]
+        assert f"--query-json={tmp_path / 'q.json'}" in cmd
+        assert f"--output-dir={tmp_path / 'out'}" in cmd
+
+    def test_offline_flags(self, tmp_path):
+        """No MSA server and no templates: nothing leaves the machine."""
+        cmd = _build_openfold3_cmd(tmp_path / "q.json", tmp_path / "out")
+        assert "--use-msa-server=false" in cmd
+        assert "--use-templates=false" in cmd
+        assert not any(c.endswith("=true") for c in cmd)
+
+
+def _fake_of3_output(out_dir: Path, name="Trpcage", scores=(0.1, 0.9, 0.5)) -> None:
+    seed = out_dir / name / "seed_42"
+    seed.mkdir(parents=True, exist_ok=True)
+    for i, score in enumerate(scores, start=1):
+        stem = f"{name}_seed_42_sample_{i}"
+        (seed / f"{stem}_model.cif").write_text("data_x\n")
+        (seed / f"{stem}_confidences.json").write_text(json.dumps({"pae": [[0.0]]}))
+        (seed / f"{stem}_confidences_aggregated.json").write_text(
+            json.dumps({"avg_plddt": 80.0, "sample_ranking_score": score}))
+
+
+class TestFindOpenFold3Output:
+    def test_picks_highest_ranking_sample(self, tmp_path):
+        _fake_of3_output(tmp_path)
+        r = _find_openfold3_output(tmp_path, "Trpcage")
+        assert r["cif_path"].name == "Trpcage_seed_42_sample_2_model.cif"
+        assert r["confidence_json_path"].name == "Trpcage_seed_42_sample_2_confidences.json"
+
+    def test_ignores_other_queries_in_reused_output_dir(self, tmp_path):
+        _fake_of3_output(tmp_path, name="Older", scores=(0.99,))
+        _fake_of3_output(tmp_path)
+        r = _find_openfold3_output(tmp_path, "Trpcage")
+        assert r["cif_path"].name == "Trpcage_seed_42_sample_2_model.cif"
+
+    def test_nan_score_never_beats_a_real_score(self, tmp_path):
+        """Found by Hypothesis: max() with a NaN key picks by file order."""
+        for order in ((0.0, float("nan")), (float("nan"), 0.0)):
+            out = tmp_path / str(order.index(0.0))
+            _fake_of3_output(out, scores=order)
+            r = _find_openfold3_output(out, "Trpcage")
+            assert r["cif_path"].name == f"Trpcage_seed_42_sample_{order.index(0.0) + 1}_model.cif"
+
+    def test_raises_if_not_found(self, tmp_path):
+        _fake_of3_output(tmp_path, name="Older")
+        with pytest.raises(FileNotFoundError, match="No CIF file found"):
+            _find_openfold3_output(tmp_path, "Trpcage")
+
+
+class TestRunOpenFold3:
+    def test_success(self, tmp_path):
+        _fake_of3_output(tmp_path / "out")
+        proc = MagicMock(returncode=0)
+        with patch("struct_predictor_core.predict.subprocess.run", return_value=proc):
+            r = run_openfold3(tmp_path / "q.json", tmp_path / "out", "Trpcage")
+        assert r["cif_path"].name.endswith("sample_2_model.cif")
+
+    def test_nonzero_exit_raises(self, tmp_path):
+        proc = MagicMock(returncode=1)
+        with patch("struct_predictor_core.predict.subprocess.run", return_value=proc):
+            with pytest.raises(RuntimeError, match="OpenFold3 exited with code 1"):
+                run_openfold3(tmp_path / "q.json", tmp_path / "out", "Trpcage")
+
+    def test_missing_binary_gives_install_hint(self, tmp_path):
+        with patch("struct_predictor_core.predict.subprocess.run", side_effect=FileNotFoundError):
+            with pytest.raises(RuntimeError, match="pip install openfold3"):
+                run_openfold3(tmp_path / "q.json", tmp_path / "out", "Trpcage")
+
+
+class TestOpenFold3Pipeline:
+    def _fake_run(self, cmd, **kwargs):
+        out = Path(next(c for c in cmd if c.startswith("--output-dir=")).split("=", 1)[1])
+        _fake_of3_output(out, scores=(0.9,))
+        # real CIF/JSON so confidence parsing is exercised
+        n = 20
+        seed = out / "Trpcage" / "seed_42"
+        cif = ["data_T", "loop_", "_atom_site.group_PDB", "_atom_site.id",
+               "_atom_site.label_atom_id", "_atom_site.label_asym_id",
+               "_atom_site.label_seq_id", "_atom_site.Cartn_x", "_atom_site.Cartn_y",
+               "_atom_site.Cartn_z", "_atom_site.B_iso_or_equiv"]
+        cif += [f"ATOM {i+1} CA A {i+1} {i:.1f} 0.0 0.0 {90.0+i*0.5:.1f}" for i in range(n)]
+        (seed / "Trpcage_seed_42_sample_1_model.cif").write_text("\n".join(cif))
+        (seed / "Trpcage_seed_42_sample_1_confidences.json").write_text(
+            json.dumps({"pae": [[0.0] * n for _ in range(n)]}))
+        return MagicMock(returncode=0)
+
+    def test_openfold3_backend_end_to_end(self, tmp_path):
+        with patch("struct_predictor_core.predict.subprocess.run", side_effect=self._fake_run) as run:
+            result = run_struct_prediction(
+                input_path=None, output_dir=tmp_path / "out", demo=True, backend="openfold3")
+        assert run.call_args.args[0][0] == "run_openfold"
+        assert result["n_residues"] == 20
+        assert (tmp_path / "out" / "report.md").exists()
+        assert "OpenFold3" in (tmp_path / "out" / "report.md").read_text()
+        assert result["engine"] == "OpenFold3"
+
+    def test_default_report_names_boltz(self, tmp_path):
+        out = tmp_path / "out"
+        plddt = np.full(5, 80.0, dtype=np.float32)
+        cif = tmp_path / "f.cif"; cif.write_text("data_T\n")
+        generate_report(
+            output_dir=out, sequences_info=[{"name": "A", "sequence": "AAAAA", "chain_id": "A"}],
+            plddt=plddt, pae=np.zeros((5, 5), dtype=np.float32),
+            chain_boundaries=[{"chain_id": "A", "start": 0, "end": 4}],
+            cif_path=cif, cmd="x", input_label="i", demo=False,
+        )
+        assert "Boltz-2" in (out / "report.md").read_text()

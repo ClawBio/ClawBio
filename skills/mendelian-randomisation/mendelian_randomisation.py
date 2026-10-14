@@ -252,8 +252,11 @@ def mr_egger(instruments: list[Instrument]) -> tuple[MREstimate, float, float, f
     # zero exposure effect, so on un-oriented inputs it depends on which allele
     # each GWAS happened to report, i.e. on the allele coding rather than on the
     # data. This is what TwoSampleMR's mr_egger_regression does before its fit
-    # (b_out <- b_out * sign(b_exp); b_exp <- abs(b_exp)); a zero effect keeps
-    # its sign as +1 there too.
+    # (R/mr.R lines 591-598 at commit c14776b8):
+    #     sign0 <- function(x) { x[x == 0] <- 1; return(sign(x)) }
+    #     b_out <- b_out * sign0(b_exp); b_exp <- abs(b_exp)
+    # sign0, not base sign, so an exposure effect of exactly zero counts as positive
+    # and that instrument keeps its outcome effect; the expression below is sign0.
     orient = np.where(bx < 0, -1.0, 1.0)
     bx = bx * orient
     by = by * orient
@@ -543,7 +546,11 @@ def steiger_test(instruments: list[Instrument]) -> tuple[bool, float | None, str
     `r2 = z^2 / (z^2 + n - 2)` is the conversion for a continuous trait (the F statistic
     of a one-predictor regression on n - 2 residual degrees of freedom; TwoSampleMR
     `get_r_from_bsen`), and z is invariant to the units of beta because the standard
-    error carries the same units.
+    error carries the same units. It is applied to BOTH sides, so this version assumes
+    the exposure and the outcome are continuous traits. A binary trait in log odds, on
+    either side, needs a different conversion, from the case and control counts and the
+    prevalence, which this input does not carry; it is not supported here, and the note
+    states the assumption whenever a p-value is reported.
 
     Sample sizes are OPTIONAL, and what is reported depends on what is available:
 
@@ -576,7 +583,7 @@ def steiger_test(instruments: list[Instrument]) -> tuple[bool, float | None, str
         return correct, None, (
             "no sample sizes supplied, so the direction is read from the z-statistics "
             "under the assumption that the exposure and outcome studies are of "
-            "comparable size; no p-value is computed")
+            "comparable size")
 
     r2_exp = float(np.sum(z_exp ** 2 / (z_exp ** 2 + np.array(n_exp, dtype=float) - 2.0)))
     r2_out = float(np.sum(z_out ** 2 / (z_out ** 2 + np.array(n_out, dtype=float) - 2.0)))
@@ -593,7 +600,10 @@ def steiger_test(instruments: list[Instrument]) -> tuple[bool, float | None, str
     se = math.sqrt(1.0 / (n1 - 3.0) + 1.0 / (n2 - 3.0))
     z_stat = (math.atanh(r_exp) - math.atanh(r_out)) / se
     p = float(2 * stats.norm.sf(abs(z_stat)))
-    return correct, p, ""
+    return correct, p, (
+        "variance explained on both sides is converted from the z-statistic with the "
+        "continuous-trait formula, which assumes the exposure and the outcome are "
+        "continuous; a binary trait in log odds is not supported")
 
 
 def compute_i_squared_gx(instruments: list[Instrument]) -> float:

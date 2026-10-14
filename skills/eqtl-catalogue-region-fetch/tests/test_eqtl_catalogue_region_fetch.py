@@ -297,18 +297,70 @@ def test_fetch_region_raises_on_unopenable_index(monkeypatch):
         )
 
 
-def test_fetch_region_skips_rows_with_wrong_column_count(client_with_metadata, patched_pysam):
-    rows = [
-        _row_str(),                                    # 19 cols, OK
-        "\t".join(["ENSG", "2", "109265000", "C", "T"]) # 5 cols, malformed
-    ]
+_MALFORMED_5_COLS = "\t".join(["ENSG", "2", "109265000", "C", "T"])
+
+
+@pytest.mark.parametrize("rows, n_bad, n_total", [
+    ([_MALFORMED_5_COLS, _MALFORMED_5_COLS], 2, 2),       # wholly malformed window
+    ([_row_str(), _MALFORMED_5_COLS, _row_str()], 1, 3),  # mixed good and bad rows
+], ids=["wholly_malformed", "mixed"])
+def test_fetch_region_raises_on_rows_that_do_not_match_the_schema(
+        client_with_metadata, patched_pysam, rows, n_bad, n_total):
+    """A schema mismatch is an error, never an empty or partial result: an all-bad
+    window would otherwise read as a region with no associations, and a mixed one as
+    the full set."""
+    from eqtl_catalogue_region_fetch import EQTLCatalogueSchemaError
     patched_pysam["tbx"] = _mock_tabix(rows)
-    result = client_with_metadata.fetch_region(
-        dataset_id="QTD000266", chromosome="1",
-        start_bp=108_774_968, end_bp=109_774_968,
-    )
-    assert result.n_variants == 1
-    assert any("schema may have drifted" in n for n in result.notes)
+    with pytest.raises(EQTLCatalogueSchemaError,
+                       match=rf"{n_bad} of {n_total} rows .*5 fields, expected {len(FTP_COLUMNS)}"):
+        client_with_metadata.fetch_region(
+            dataset_id="QTD000266", chromosome="1",
+            start_bp=108_774_968, end_bp=109_774_968,
+        )
+
+
+def test_fetch_region_raises_on_a_non_integer_position(client_with_metadata, patched_pysam):
+    """Right field count, wrong layout: a column swap that lands text in `position`."""
+    from eqtl_catalogue_region_fetch import EQTLCatalogueSchemaError
+    patched_pysam["tbx"] = _mock_tabix([_row_str(None, None, "C")])
+    with pytest.raises(EQTLCatalogueSchemaError, match="position 'C' is not an integer"):
+        client_with_metadata.fetch_region(
+            dataset_id="QTD000266", chromosome="1",
+            start_bp=108_774_968, end_bp=109_774_968,
+        )
+
+
+def test_fetch_region_schema_check_does_not_depend_on_the_gene_filter(client_with_metadata, patched_pysam):
+    """A malformed row fails the fetch even when the caller filters to a gene the row
+    is not about, so a drifted file cannot pass for one gene and fail for another."""
+    from eqtl_catalogue_region_fetch import EQTLCatalogueSchemaError
+    patched_pysam["tbx"] = _mock_tabix([_row_str(), _MALFORMED_5_COLS])
+    with pytest.raises(EQTLCatalogueSchemaError):
+        client_with_metadata.fetch_region(
+            dataset_id="QTD000266", chromosome="1",
+            start_bp=108_774_968, end_bp=109_774_968, gene_id="ENSG00000134243",
+        )
+
+
+@pytest.mark.parametrize("rows", [
+    [_MALFORMED_5_COLS],
+    [_row_str(), _MALFORMED_5_COLS],
+], ids=["wholly_malformed", "mixed"])
+def test_cli_exits_nonzero_and_writes_nothing_on_a_schema_mismatch(patched_pysam, tmp_path, capsys, rows):
+    """The CLI path the review exercised: before, a three-field row exited 0 with
+    `n_variants: 0`. Now it exits 2, says why on stderr, and leaves no variants.tsv,
+    manifest or report for a downstream step to mistake for a finished fetch."""
+    import json
+    from eqtl_catalogue_region_fetch import main
+    patched_pysam["tbx"] = _mock_tabix(rows)
+    cfg = tmp_path / "cfg.json"
+    cfg.write_text(json.dumps({"dataset_id": "QTD000266", "chromosome": "1",
+                               "start_bp": 108_774_968, "end_bp": 109_774_968}))
+    out = tmp_path / "out"
+    rc = main(["--input", str(cfg), "--output", str(out), "--no-cache"])
+    assert rc == 2
+    assert "do not match the expected eQTL Catalogue columns" in capsys.readouterr().err
+    assert sorted(p.name for p in out.iterdir()) == []
 
 
 def test_fetch_region_chr_prefix_retry(monkeypatch, client_with_metadata, patched_pysam):
@@ -475,7 +527,7 @@ def test_cache_key_carries_the_file_class_the_table_lists_and_the_table_release(
     from eqtl_catalogue_region_fetch import _cache_key, DATASET_INDEX_RELEASE
     cfg = {"dataset_id": "QTD000584", "chromosome": "1", "start_bp": 108_770_000, "end_bp": 109_770_000}
     key = _cache_key(cfg)
-    assert key.endswith(f"__all__index-{DATASET_INDEX_RELEASE}.json"), key
+    assert key.endswith(f"__all__index-{DATASET_INDEX_RELEASE}__rows-checked.json"), key
     assert _cache_key({**cfg, "file_class": "cc"}) != key
     unknown = _cache_key({**cfg, "dataset_id": "QTD999999"})
     assert "__unresolved__" in unknown
@@ -499,6 +551,24 @@ def test_a_window_cached_before_the_bundled_table_is_not_served(client_with_meta
     assert len(calls) == 1, "the stale entry was served instead of fetching"
     assert (tmp_path / _cache_key(cfg, client_with_metadata.dataset_index_path)).is_file()
     assert stale.read_text() == '{"stale": true}'
+
+
+def test_a_window_cached_while_malformed_rows_were_skipped_is_not_served(
+        client_with_metadata, patched_pysam, tmp_path):
+    """Before the schema check raised, a malformed row was skipped with a note and the
+    remaining rows were cached. Such an entry (the previous key, without
+    `rows-checked`) is ignored, so a cached partial window never bypasses the error."""
+    from eqtl_catalogue_region_fetch import (
+        _fetch_with_cache, _cache_key, DATASET_INDEX_RELEASE, EQTLCatalogueSchemaError)
+    cfg = {"dataset_id": "QTD000266", "chromosome": "1", "start_bp": 109_270_000, "end_bp": 109_280_000}
+    stale = tmp_path / (f"QTD000266___all__chr1_109270000_109280000__all"
+                        f"__index-{DATASET_INDEX_RELEASE}.json")
+    stale.write_text('{"stale": true}')
+    assert _cache_key(cfg, client_with_metadata.dataset_index_path) != stale.name
+    patched_pysam["tbx"] = _mock_tabix([_MALFORMED_5_COLS])
+    with pytest.raises(EQTLCatalogueSchemaError):
+        _fetch_with_cache(client=client_with_metadata, cfg=cfg, cache_dir=tmp_path)
+    assert sorted(p.name for p in tmp_path.iterdir()) == [stale.name]
 
 
 def test_cli_config_refuses_a_key_it_does_not_read(tmp_path):

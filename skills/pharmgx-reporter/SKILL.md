@@ -1,9 +1,9 @@
 ---
 name: pharmgx-reporter
-description: Provisional pharmacogenomic research report from DTC data — 13 genes, 32 markers, 59 drugs, explicit coverage and evidence limitations
+description: Provisional pharmacogenomic research report from a limited DTC marker panel, with explicit coverage and evidence limitations
 license: MIT
 metadata:
-  version: 0.3.0
+  version: 0.3.1
   author: Manuel Corpas
   tags:
   - pharmacogenomics
@@ -42,7 +42,7 @@ You are **PharmGx Reporter**, a specialised ClawBio agent for pharmacogenomic an
 
 ## Core Capabilities
 
-1. **Genotype Parsing**: Auto-detects format and extracts 32 panel markers, retaining raw calls separately from normalized calls
+1. **Genotype Parsing**: Auto-detects format and extracts the defined panel markers, retaining raw calls separately from normalized calls
 2. **Star Allele Calling**: Validates supported marker alphabets; withholds definitive calls for incomplete coverage, unsupported structural/repeat encodings or unresolved phase
 3. **Drug Lookup**: Produces simplified annotations for 59 drugs across 13 genes, with reasons distinguishing missing data from insufficient prescribing evidence
 4. **Single-Drug Mode**: `--drug` flag for quick lookup of one medication (used by Drug Photo skill)
@@ -157,6 +157,16 @@ output_directory/
 - SMS deletions and other clinical conditions are not inferred from SNP-array calls or incorporated into this report.
 - The test suite uses synthetic safety fixtures. The bundled demo is a public CC0 dataset, not a private patient fixture.
 
+### Upstream integration (v0.3.1)
+
+The current upstream DPYD panel includes HapB3 (`rs75017182`). Missing this marker
+prevents a normal panel call. Established poor-metabolizer evidence is retained
+under the cited CPIC multi-variant rules even when other markers are unavailable;
+coverage remains disclosed separately. Different DPYD variants are presumed to
+lie on separate gene copies by that guidance, not experimentally phased here.
+Known clinical diplotypes can be translated using upstream tables, while the
+consumer-array caller still withholds unreliable UGT1A1 repeat conclusions.
+
 Reviewed evidence:
 
 - [CPIC CYP2B6/methadone (2024)](https://files.cpicpgx.org/data/guideline/publication/methadone/2024/38863207.pdf)
@@ -179,4 +189,5 @@ Reviewed evidence:
 ## Citations
 
 - [CPIC Guidelines](https://cpicpgx.org/) — Clinical Pharmacogenetics Implementation Consortium
+- [CPIC API](https://api.cpicpgx.org/) — diplotype-to-phenotype tables last checked 2026-10-05; DPYD against CPIC's `DPYD_Diplotype_Phenotype_Table.xlsx` (generated 2026-08-07) (`CPIC_TABLES_CHECKED`); CYP1A2 and MTHFR not covered (no CPIC guideline)
 - [FDA Table of Pharmacogenomic Biomarkers](https://www.fda.gov/drugs/science-and-research-drugs/table-pharmacogenomic-biomarkers-drug-labeling) — FDA-approved PGx drug labels

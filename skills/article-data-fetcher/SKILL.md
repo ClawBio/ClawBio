@@ -66,7 +66,6 @@ metadata:
     packages:
       - requests>=2.31
       - biopython>=1.83
-      - tqdm>=4.66
       - pydantic>=2.0
   demo_data:
     - path: examples/demo_article.txt
@@ -91,9 +90,6 @@ metadata:
         bins:
       - kind: pip
         package: biopython
-        bins:
-      - kind: pip
-        package: tqdm
         bins:
       - kind: pip
         package: pydantic
@@ -205,7 +201,7 @@ When the user provides an article identifier:
    Ask: *"Which file types would you like to download? Please specify extensions (e.g. `h5ad,vcf,fasta`) or say `all`."*
    Wait for the user's answer before proceeding.
 
-6. **Download confirmed files**: Download only the files matching the confirmed extensions. Use streaming downloads with `tqdm` progress bars. Validate MD5/SHA256 checksums where repositories provide them.
+6. **Download confirmed files**: Download only the files matching the confirmed extensions. Use streaming downloads. Validate MD5/SHA256 checksums where repositories provide them.
 
 7. **Write manifest**: Save `manifest.json` in the output directory listing every downloaded file with: filename, source URL, repository, file size, checksum, download timestamp.
 
@@ -342,7 +338,6 @@ output_dir/
 
 **Required:**
 - `requests>=2.31` — HTTP downloads and API calls
-- `tqdm>=4.66` — Progress bars for large file downloads
 - `pydantic>=2.0` — Input validation and manifest schema
 - `biopython>=1.83` — FASTA/FASTQ parsing for integrity checks
 

@@ -38,7 +38,7 @@ for _import_path in (_PROJECT_ROOT, _SKILL_DIR):
     if str(_import_path) not in sys.path:
         sys.path.insert(0, str(_import_path))
 
-from repro_bundle import create_reproducibility_bundle  # noqa: E402
+from gwas_prs_repro_bundle import create_reproducibility_bundle  # noqa: E402
 
 from clawbio.common.checksums import sha256_hex  # noqa: E402
 from clawbio.common.parsers import genotypes_to_simple, parse_genetic_file  # noqa: E402

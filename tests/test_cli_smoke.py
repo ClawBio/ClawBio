@@ -131,3 +131,11 @@ def test_mcp_help_states_the_deprecation():
     result = _run("--help")
     assert result.returncode == 0, result.stderr
     assert "deprecated" in result.stdout.lower()
+
+
+def test_failed_run_shows_the_skill_error_printed_to_stdout(tmp_path):
+    """Skills often print errors to stdout; a failed run must still show them."""
+    result = _run("run", "prs", "--demo", "--panel-id", "CLAWBIO-T2D-8", "--output", str(tmp_path))
+
+    assert result.returncode == 1
+    assert "choose exactly one of --demo, --trait, --pgs-id, or --panel-id" in result.stdout

@@ -1,29 +1,16 @@
 {
   "project": {
-    "id": "ica-project-demo",
+    "id": "00000000-0000-4000-8000-000000000074",
     "name": "Demo ICA Project",
-    "status": "ACTIVE"
+    "active": true
   },
   "run": {
-    "id": "ica-run-demo",
-    "name": "DRAGEN Germline Demo",
+    "id": "00000000-0000-4000-8000-000000000075",
+    "reference": "synthetic-analysis-74",
+    "userReference": "DRAGEN Germline Demo",
     "status": "SUCCEEDED",
-    "pipeline": "DRAGEN Germline 4.3"
-  },
-  "samples": [
-    {
-      "sample_id": "DEMO_SAMPLE_01",
-      "ica_sample_id": "ica-sample-001",
-      "analysis_status": "SUCCEEDED",
-      "cohort": "validation",
-      "notes": "Imported from ICA demo payload"
-    },
-    {
-      "sample_id": "DEMO_SAMPLE_02",
-      "ica_sample_id": "ica-sample-002",
-      "analysis_status": "SUCCEEDED",
-      "cohort": "pilot",
-      "notes": "Imported from ICA demo payload"
+    "pipeline": {
+      "code": "DRAGEN Germline 4.3"
     }
-  ]
+  }
 }

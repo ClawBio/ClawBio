@@ -71,7 +71,9 @@ output_directory/
 ├── report.md                    # Full markdown report with matched fields
 ├── matched_fields.csv           # Structured table of matching fields
 └── reproducibility/
-    └── commands.sh              # CLI command to reproduce this search
+    ├── commands.sh              # Portable replay command ($CLAWBIO_ROOT / $OUTPUT_DIR)
+    ├── environment.yml          # Conda recipe (chromadb + voyageai)
+    └── checksums.sha256         # SHA-256 of report.md and matched_fields.csv
 ```
 
 ## Demo Mode

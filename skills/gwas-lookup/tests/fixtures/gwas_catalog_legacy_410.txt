@@ -1,0 +1,3 @@
+This legacy GWAS Catalog REST API is no longer available.
+For general programmatic access, see: https://www.ebi.ac.uk/gwas/docs/programmatic-access/
+For V2 migration, see: https://www.ebi.ac.uk/gwas/docs/news/rest-api-v2-migration-guide

@@ -51,6 +51,22 @@ def generate_markdown(
         "",
         "## Summary",
         "",
+    ]
+
+    # Gotcha 4: a non-converged fit still produces PIPs, and a reader who skips
+    # the parameter table would take them as final. Say so before the numbers.
+    if method == "SuSiE" and params.get("converged") is False:
+        lines += [
+            "> \u26a0\ufe0f **Provisional results.** SuSiE did not converge in "
+            f"{params.get('n_iter', '?')} iterations "
+            f"(max_iter={params.get('max_iter', '?')}). Every PIP and credible "
+            "set below is provisional and must not be reported as a "
+            "fine-mapping result. Re-run with a larger `--max-signals` budget, "
+            "a cleaner LD matrix, or more iterations.",
+            "",
+        ]
+
+    lines += [
         f"| Parameter | Value |",
         f"|-----------|-------|",
         f"| Method | {method} |",
@@ -441,7 +457,7 @@ def _plot_ld_heatmap(R, df, credible_sets, figures_dir, plt, mcolors):
 
     fig, ax = plt.subplots(figsize=(8, 7))
 
-    cmap = plt.cm.get_cmap("viridis")
+    cmap = plt.get_cmap("viridis")  # plt.cm.get_cmap was removed in matplotlib 3.9
     im = ax.imshow(r2_plot, cmap=cmap, vmin=0, vmax=1, aspect="auto", interpolation="nearest")
 
     # Overlay credible set boundaries as coloured rectangles on the diagonal
@@ -517,7 +533,7 @@ def _plot_ld_heatmap(R, df, credible_sets, figures_dir, plt, mcolors):
 def _r2_colors(r2: np.ndarray, mcolors) -> list:
     """Map r² values to viridis colour scale (colorblind-friendly)."""
     import matplotlib.pyplot as plt
-    cmap = plt.cm.get_cmap("viridis")
+    cmap = plt.get_cmap("viridis")  # plt.cm.get_cmap was removed in matplotlib 3.9
     norm = mcolors.Normalize(vmin=0, vmax=1)
     return [cmap(norm(v)) for v in r2]
 
@@ -525,7 +541,7 @@ def _r2_colors(r2: np.ndarray, mcolors) -> list:
 def _add_r2_colorbar(fig, ax, mcolors):
     import matplotlib.cm as cm
     import matplotlib.pyplot as plt
-    cmap = plt.cm.get_cmap("viridis")
+    cmap = plt.get_cmap("viridis")  # plt.cm.get_cmap was removed in matplotlib 3.9
     sm = cm.ScalarMappable(cmap=cmap, norm=mcolors.Normalize(vmin=0, vmax=1))
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax, shrink=0.6, pad=0.01)

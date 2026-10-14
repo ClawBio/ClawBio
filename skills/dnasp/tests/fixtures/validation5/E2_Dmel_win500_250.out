@@ -1,0 +1,88 @@
+ DnaSP  Ver. 6.12.03                        15 - September - 2026  10:21:19
+ ==========================================================================
+
+
+ DNA Polymorphism
+ ----------------
+
+ Input Data File: C:\...\DmelOSRegion.nex
+ Number of sequences: 17    Number of sequences used: 17
+ Selected region: 1-7107   Number of sites: 7107
+ Total number of sites (excluding sites with gaps / missing data): 4501
+
+ Number of polymorphic (segregating) sites, S: 258
+ Total number of mutations, Eta: 265
+
+ Number of Haplotypes, h: 13
+ Haplotype (gene) diversity, Hd: 0.971
+    Variance of Haplotype diversity: 0.00077
+       Standard Deviation of Haplotype diversity: 0.028
+
+ Nucleotide diversity, Pi: 0.01463
+ Theta (per site) from Eta: 0.01742
+
+ Theta (per site) from S, Theta-W: 0.01696
+    Variance of theta (no recombination): 0.0000360
+       Standard deviation of theta (no recombination): 0.00600
+    Variance of theta (free recombination): 0.0000011
+       Standard deviation of theta (free recombination): 0.00106
+
+ Finite Sites Model 
+    Theta (per site) from Pi: 0.01492
+    Theta (per site) from S: 0.01758
+    Theta (per site) from Eta: 0.01776
+
+ Average number of nucleotide differences, k: 65.831
+    Stochastic variance of k (no recombination), Vst(k): 786.492
+    Sampling variance of k (no recombination), Vs(k): 106.744
+       Total variance of k (no recombination), V(k): 893.236
+    Stochastic variance of k (free recombination), Vst(k): 21.944
+    Sampling variance of k (free recombination), Vs(k): 2.743
+       Total variance of k (free recombination), V(k): 24.687
+
+ Theta (per sequence) from S, Theta-W: 76.315
+    Variance of theta (no recombination): 728.862
+    Variance of theta (free recombination): 22.574
+
+ Sliding Window Option
+ Sites with alignment gaps were counted in the window length (and slide)
+   Window length: 500     Step size: 250
+
+
+------------------------------------------------------------------------------------
+
+     Window  Midpoint  Pi     Theta      S
+ 
+      1-500      1  0.00000  0.00000     0
+    251-750    251  0.00000  0.00000     0
+   501-1000    501  0.00000  0.00000     0
+   751-1250    751  0.00000  0.00000     0
+  1001-1500   1001  0.00000  0.00000     0
+  1251-1750   1251  0.00000  0.00000     0
+  1501-2000   1501  0.00000  0.00000     0
+  1751-2250   2204  0.00751  0.00643     2
+  2001-2500   2329  0.01385  0.01557    18
+  2251-2750   2500  0.01656  0.01838    31
+  2501-3000   2734  0.02005  0.02163    34
+  2751-3250   2980  0.02853  0.03413    48
+  3001-3500   3275  0.01992  0.02629    40
+  3251-3750   3493  0.01324  0.01769    29
+  3501-4000   3758  0.01225  0.01464    24
+  3751-4250   3999  0.00814  0.00833    14
+  4001-4500   4245  0.00722  0.00796    13
+  4251-4750   4470  0.01314  0.01651    23
+  4501-5000   4749  0.02680  0.02966    35
+  4751-5250   5038  0.01805  0.01893    27
+  5001-5500   5206  0.01564  0.01808    25
+  5251-5750   5549  0.01953  0.02502    34
+  5501-6000   5753  0.01140  0.01449    24
+  5751-6250   6001  0.00325  0.00297     5
+  6001-6500   6245  0.00753  0.00905    15
+  6251-6750   6466  0.02111  0.02355    34
+  6501-7000   6782  0.01437  0.01557    23
+  6751-7107   6926  0.00863  0.00927    11
+
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+
+ DnaSP Session Terminated on  15 - September - 2026  10:22:31

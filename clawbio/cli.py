@@ -283,6 +283,15 @@ def format_pharmgx_preview(report_text: str, report_path: str):
 # Skills registry
 # --------------------------------------------------------------------------- #
 
+# Skills registered as CLI actions whose folder cannot ship inside the MIT wheel
+# (see WHEEL_EXCLUDED_SKILLS in hatch_build.py). They work from a repository
+# checkout and are absent from a pip install, so the CLI explains that rather
+# than reporting a path that was never written. Kept in step with the wheel
+# policy by tests/test_licence_policy.py.
+UNBUNDLED_SKILLS = {
+    "fastreer": "GPL-3.0: copyleft cannot be redistributed inside an MIT wheel",
+}
+
 SKILLS = {
     "pharmgx": {
         "script": SKILLS_DIR / "pharmgx-reporter" / "pharmgx_reporter.py",
@@ -291,7 +300,8 @@ SKILLS = {
             str(SKILLS_DIR / "pharmgx-reporter" / "demo_patient.txt"),
         ],
         "description": "Pharmacogenomics reporter (limited DTC panel with explicit coverage and evidence limitations)",
-        "allowed_extra_flags": {"--weights", "--no-enrich"},
+        "allowed_extra_flags": {"--no-enrich"},
+        "allowed_extra_flags_without_values": {"--no-enrich"},
         "api_module": "skills.pharmgx-reporter.api",
         "accepts_genotypes": True,
     },
@@ -319,14 +329,15 @@ SKILLS = {
     },
     "dnasp": {
         "script": SKILLS_DIR / "dnasp" / "dnasp.py",
+        # DnaSP validates its alternative --vcf and --hka-file inputs itself.
+        "no_input_required": True,
+        "extra_path_flags": {"--vcf", "--input2", "--pop-file", "--hka-file"},
         "demo_args": ["--demo"],
         "description": "DnaSP 6 population genetics (Pi, Tajima's D, Fu & Li, Fay & Wu, MK, Ka/Ks, Fst, and more)",
         "allowed_extra_flags": {
-            "--fasta", "--outgroup", "--pop-map", "--window", "--step",
-            "--all", "--pi", "--theta", "--tajima", "--fuliD", "--fuliF",
-            "--hka", "--mk", "--kaks", "--r2", "--fufs", "--sfs",
-            "--tstv", "--codon", "--faywu", "--fst",
-            "--n-sim", "--sim-seed",
+            "--analysis", "--input2", "--outgroup", "--pop-file", "--hka-file",
+            "--genetic-code", "--window", "--step", "--vcf", "--region", "--vcf-merge",
+            "--n-sim", "--sim-given", "--sim-seed",
         },
         "accepts_genotypes": False,
     },
@@ -349,6 +360,28 @@ SKILLS = {
         "demo_args": ["--demo"],
         "description": "Build maximum-likelihood phylogenetic trees from aligned FASTA data using IQ-TREE 2",
         "allowed_extra_flags": set(),
+        "accepts_genotypes": False,
+    },
+    "spatial": {
+        "script": SKILLS_DIR / "spatial-transcriptomics" / "spatial_transcriptomics.py",
+        "demo_args": ["--demo"],
+        "description": "Visium spatial transcriptomics (Scanpy QC/clustering/markers plus Moran's I, neighbourhood enrichment, co-occurrence)",
+        "allowed_extra_flags": {
+            "--min-genes",
+            "--min-cells",
+            "--leiden-resolution",
+            "--n-top-hvg",
+            "--random-state",
+            "--n-pcs",
+            "--n-neighbors",
+            "--nhood-perms",
+            "--top-markers",
+            "--max-pct-mt",
+            "--counts-layer",
+            "--expected-input-sha256",
+            "--overwrite",
+        },
+        "allowed_extra_flags_without_values": {"--overwrite"},
         "accepts_genotypes": False,
     },
     "scrna": {
@@ -455,6 +488,27 @@ SKILLS = {
             "--limit",
             "--timeout-seconds",
         },
+        "accepts_genotypes": False,
+    },
+    "prs-gate": {
+        "script": SKILLS_DIR / "prs-applicability-gate" / "prs_applicability_gate.py",
+        "demo_args": ["--demo"],
+        "description": "PRS applicability gate: SUPPORTED / RAW_ONLY / ABSTAIN for one already-computed PGS result",
+        # Deliberately empty: the gate's --config (an alternative calibration) is
+        # not forwarded, so a run through this runner always uses the shipped
+        # config/calibration.yaml and an agent cannot swap its thresholds.
+        "allowed_extra_flags": set(),
+        "accepts_genotypes": False,
+    },
+    "pubmed-summariser": {
+        "script": SKILLS_DIR / "pubmed-summariser" / "pubmed_summariser.py",
+        "demo_args": ["--demo"],
+        "description": "PubMed briefing with complete abstracts and optional OpenAI/Ollama summaries",
+        "allowed_extra_flags": {
+            "--query", "--max-results", "--summary-method", "--provider", "--model",
+            "--base-url", "--llm-timeout", "--summary-max-tokens", "--model-params",
+        },
+        "no_input_required": True,
         "accepts_genotypes": False,
     },
     "clinpgx": {
@@ -1016,16 +1070,97 @@ SKILLS = {
         },
         "accepts_genotypes": False,
     },
+    "arrayexpress-fetch": {
+        "script": SKILLS_DIR / "arrayexpress-fetch" / "arrayexpress_fetch.py",
+        "demo_args": ["--demo"],
+        "description": "EMBL-EBI ArrayExpress — MAGE-TAB metadata, SDRF, and nf-core samplesheets",
+        # Positional subcommands are dropped by the extras filter, so the
+        # subcommand is reachable as --command. See the skill's CLI Reference.
+        "allowed_extra_flags": {
+            "--command", "--accession", "--query", "--limit", "--out", "--json",
+            "--match", "--assay", "--strandedness", "--local-dir", "--fastq-dir",
+            "--fastq-naming", "--read-map", "--magetab", "--processed", "--raw",
+        },
+        # Every flag here must also be in allowed_extra_flags: this set only
+        # marks which allowed flags take no value.
+        "allowed_extra_flags_without_values": {
+            "--json", "--magetab", "--processed", "--raw",
+        },
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
+    "biostudies-fetch": {
+        "script": SKILLS_DIR / "biostudies-fetch" / "biostudies_fetch.py",
+        "demo_args": ["--demo"],
+        "description": "EMBL-EBI BioStudies — study metadata, files, and a standardised metadata.tsv",
+        # Positional subcommands are dropped by the extras filter, so the
+        # subcommand is reachable as --command. See the skill's CLI Reference.
+        "allowed_extra_flags": {
+            "--command", "--accession", "--query", "--limit", "--out", "--json",
+            "--collection", "--match",
+        },
+        "allowed_extra_flags_without_values": {"--json"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
+    "ena-fetch": {
+        "script": SKILLS_DIR / "ena-fetch" / "ena_fetch.py",
+        "demo_args": ["--demo"],
+        "description": "European Nucleotide Archive — runs, FASTQ links, and a pipeline-ready nf-core samplesheet",
+        "allowed_extra_flags": {
+            "--command", "--accession", "--query", "--limit", "--out", "--json",
+            "--result", "--fields", "--format", "--assay", "--strandedness",
+            "--group-by", "--local-dir", "--fastq-dir", "--fastq-naming",
+            "--read-map", "--tool", "--partition", "--account", "--job-name",
+            "--cpus", "--mem", "--time", "--email", "--submitted", "--no-slurm",
+        },
+        "allowed_extra_flags_without_values": {"--json", "--submitted", "--no-slurm"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
+    "geo-fetch": {
+        "script": SKILLS_DIR / "geo-fetch" / "geo_fetch.py",
+        "demo_args": ["--demo"],
+        "description": "NCBI GEO — series and sample metadata, run tables, and a pipeline-ready nf-core samplesheet",
+        "allowed_extra_flags": {
+            "--command", "--accession", "--query", "--limit", "--out", "--json",
+            "--organism", "--type", "--assay", "--strandedness", "--group-by",
+            "--local-dir", "--from-runtable", "--fastq-dir", "--fastq-naming",
+            "--read-map", "--tool", "--partition", "--account", "--job-name",
+            "--cpus", "--mem", "--time", "--email", "--use-ncbi-credentials",
+            "--matrix", "--soft", "--miniml", "--suppl", "--no-slurm",
+        },
+        # NCBI credentials are opt-in and carry no value; the skill never sends
+        # NCBI_EMAIL / NCBI_API_KEY without this flag.
+        "allowed_extra_flags_without_values": {
+            "--json", "--use-ncbi-credentials", "--matrix", "--soft", "--miniml",
+            "--suppl", "--no-slurm",
+        },
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
+    "pride-fetch": {
+        "script": SKILLS_DIR / "pride-fetch" / "pride_fetch.py",
+        "demo_args": ["--demo"],
+        "description": "PRIDE Archive — proteomics project metadata, files, and a quantms-ready minimal SDRF",
+        "allowed_extra_flags": {
+            "--command", "--accession", "--query", "--limit", "--out", "--json",
+            "--ext", "--from", "--acquisition", "--local-dir", "--tool",
+            "--outdir", "--job-name", "--partition", "--account", "--cpus",
+            "--mem", "--time", "--email", "--unzip", "--no-slurm",
+        },
+        "allowed_extra_flags_without_values": {"--json", "--unzip", "--no-slurm"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
     "protocols-io": {
         "script": SKILLS_DIR / "protocols-io" / "protocols_io.py",
         "demo_args": ["--demo"],
         "description": "protocols.io bridge — search, browse, and retrieve scientific protocols via REST API",
         "allowed_extra_flags": {
-            "--login",
             "--search",
             "--protocol",
             "--steps",
-            "--dump",
             "--page-size",
             "--page",
             "--filter",
@@ -1081,7 +1216,7 @@ SKILLS = {
         "script": SKILLS_DIR / "ld-1000g-region-compute" / "ld_1000g_region_compute.py",
         "demo_args": ["--demo"],
         "description": "1000G LD region compute — plink 1.9 r² between a lead and partners in a region for one super-population",
-        "allowed_extra_flags": {"--list-demos", "--no-cache", "--super-pop", "--panel"},
+        "allowed_extra_flags": {"--list-demos", "--no-cache"},
         "no_input_required": True,
         "accepts_genotypes": False,
     },
@@ -1089,7 +1224,7 @@ SKILLS = {
         "script": SKILLS_DIR / "ukb-ppp-region-fetch" / "ukb_ppp_region_fetch.py",
         "demo_args": ["--demo"],
         "description": "UKB-PPP region fetch: per-variant plasma cis-pQTL summary stats per genomic window (Sun 2023, Synapse-backed)",
-        "allowed_extra_flags": {"--list-demos", "--no-cache"},
+        "allowed_extra_flags": {"--list-demos"},
         "no_input_required": True,
         "accepts_genotypes": False,
     },
@@ -1097,7 +1232,7 @@ SKILLS = {
         "script": SKILLS_DIR / "locuscompare-region-render" / "cli.py",
         "demo_args": ["--demo"],
         "description": "LocusCompare regional diagnostic — 4-panel coloc visualisation (Liu 2019) for one (eqtl × gwas) pair",
-        "allowed_extra_flags": {"--list-demos", "--no-cache", "--super-pop"},
+        "allowed_extra_flags": {"--list-demos"},
         "no_input_required": True,
         "accepts_genotypes": False,
     },
@@ -1466,6 +1601,14 @@ def run_skill(
 
     script_path = skill_info["script"]
     if not script_path.exists():
+        if skill_name in UNBUNDLED_SKILLS:
+            message = (
+                f"'{skill_name}' is not bundled in the installed clawbio package "
+                f"({UNBUNDLED_SKILLS[skill_name]}). Run it from a repository "
+                f"checkout: https://github.com/ClawBio/ClawBio"
+            )
+        else:
+            message = f"Script not found: {script_path}"
         return {
             "skill": skill_name,
             "success": False,
@@ -1473,7 +1616,7 @@ def run_skill(
             "output_dir": None,
             "files": [],
             "stdout": "",
-            "stderr": f"Script not found: {script_path}",
+            "stderr": message,
             "duration_seconds": 0,
         }
 
@@ -1547,6 +1690,7 @@ def run_skill(
     if extra_args:
         allowed = skill_info.get("allowed_extra_flags", set())
         flags_without_values = skill_info.get("allowed_extra_flags_without_values", set())
+        path_flags = skill_info.get("extra_path_flags", set())
         blocked = {"--input", "--output", "--demo"}
         # nf-core parameters are snake_case; the pipeline wrappers expose them as
         # hyphenated flags. For those skills, treat the two spellings as
@@ -1565,10 +1709,12 @@ def run_skill(
             token = extra_args[i]
             flag = _key(token)
             if flag in blocked:
-                i += 2 if "=" not in token and i + 1 < len(extra_args) else i + 1
+                i += 2 if flag != "--demo" and "=" not in token and i + 1 < len(extra_args) else 1
                 continue
             if flag in allowed:
                 _name, sep, value = token.partition("=")
+                if sep and flag in path_flags:
+                    value = str(Path(value).expanduser().resolve())
                 filtered.append(f"{flag}={value}" if sep else flag)
                 if (
                     not sep
@@ -1577,7 +1723,10 @@ def run_skill(
                     and _key(extra_args[i + 1]) not in allowed
                     and _key(extra_args[i + 1]) not in blocked
                 ):
-                    filtered.append(extra_args[i + 1])
+                    value = extra_args[i + 1]
+                    if flag in path_flags:
+                        value = str(Path(value).expanduser().resolve())
+                    filtered.append(value)
                     i += 1
             i += 1
         cmd.extend(filtered)
@@ -1800,6 +1949,12 @@ def _store_result_in_profile(profile_path: str, skill_name: str, out_dir: Path) 
 
 
 def main():
+    # Captured Windows terminals may use cp1252, which cannot display report
+    # symbols or many scientific names. Preserve the encoding used by callers
+    # while escaping unsupported characters instead of failing after a run.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     # Pipeline wrappers own large, schema-derived CLIs. Delegate their help so
     # `clawbio.py run <pipeline> --help` cannot drift from the wrapper parser.
     #
@@ -2885,7 +3040,7 @@ def main():
         if result["success"] and result["output_dir"]:
             report = Path(result["output_dir"]) / "report.md"
             if report.exists():
-                text = report.read_text()
+                text = report.read_text(encoding="utf-8")
                 if args.skill == "pharmgx":
                     format_pharmgx_preview(text, str(report))
                 else:
@@ -2898,8 +3053,10 @@ def main():
                     if remaining:
                         print(f"\n  {DIM}... ({remaining} more lines in {report}){RESET}")
                     print(f"{BOLD}{'━' * 60}{RESET}")
-        if not result["success"] and result["stderr"]:
-            print(f"\n  {RED}Error:{RESET}\n{result['stderr'][-800:]}")
+        # Many skills print their error to stdout, so fall back to it.
+        error = result["stderr"] or result["stdout"]
+        if not result["success"] and error:
+            print(f"\n  {RED}Error:{RESET}\n{error[-800:]}")
         sys.exit(0 if result["success"] else 1)
     else:
         parser.print_help()

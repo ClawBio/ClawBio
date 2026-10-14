@@ -73,13 +73,15 @@ def test_generate_report_header_includes_skill_version():
     assert "**Version**: 1.2.3" in result
 
 
-def test_generate_report_header_requires_skill_version():
-    import pytest
-    with pytest.raises(TypeError):
-        generate_report_header(
-            title="Test Report",
-            skill_name="pharmgx",
-        )
+def test_generate_report_header_allows_an_omitted_skill_version():
+    """`skill_version` is optional: 1a91430 gave it a default so existing
+    callers kept working. This test asserted a TypeError instead, and CI ran
+    no test under clawbio/common/tests/, so it was red on main unnoticed.
+    Omitting the version still renders the header, with the Version line
+    blank, so callers that can pass a version should."""
+    result = generate_report_header(title="Test Report", skill_name="pharmgx")
+    assert "# Test Report" in result
+    assert "**Version**: \n" in result
 
 
 def test_generate_report_header_includes_skill_name():

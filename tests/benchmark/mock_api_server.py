@@ -111,7 +111,7 @@ def _ensembl_vep(rsid: str) -> list:
 
 
 def _gwas_catalog_associations(rsid: str) -> dict:
-    """Deterministic GWAS Catalog /singleNucleotidePolymorphisms/{rsid}/associations."""
+    """Deterministic GWAS Catalog REST API v2 /v2/associations?rs_id={rsid}."""
     known = _LEAD_VARIANTS.get(rsid, {})
     pvalue = known.get("pvalue", 5e-8)
     gene = known.get("gene", "UNKNOWN")
@@ -128,22 +128,25 @@ def _gwas_catalog_associations(rsid: str) -> dict:
         "_embedded": {
             "associations": [
                 {
-                    "pvalue": pvalue,
-                    "pvalueMantissa": mantissa,
-                    "pvalueExponent": exp,
-                    "riskAlleles": [
-                        {"riskAlleleName": f"{rsid}-A", "riskFrequency": "0.15"}
-                    ],
-                    "orPerCopyNum": 1.25,
-                    "betaNum": None,
-                    "betaDirection": None,
-                    "betaUnit": None,
-                    "range": "1.15-1.36",
-                    "efoTraits": [{"trait": "Alzheimer's disease"}],
-                    "studyAccession": "GCST90027158",
+                    "association_id": 1,
+                    "p_value": pvalue,
+                    "pvalue_mantissa": mantissa,
+                    "pvalue_exponent": exp,
+                    "snp_effect_allele": [f"{rsid}-A"],
+                    "snp_allele": [{"rs_id": rsid, "effect_allele": "A"}],
+                    "risk_frequency": "0.15",
+                    "or_per_copy_num": 1.25,
+                    "or_value": "1.25",
+                    "beta": "-",
+                    "range": "[1.15-1.36]",
+                    "efo_traits": [{"efo_id": "MONDO_0004975", "efo_trait": "Alzheimer's disease"}],
+                    "reported_trait": ["Alzheimer's disease"],
+                    "accession_id": "GCST90027158",
+                    "mapped_genes": [gene],
                 },
             ]
-        }
+        },
+        "page": {"size": 20, "totalElements": 1, "totalPages": 1, "number": 0},
     }
 
 
@@ -201,13 +204,13 @@ def _route(path_parts: list[str], query: dict) -> tuple[int, dict | list]:
             rsid = path_parts[5] if len(path_parts) > 5 else "rs000000"
             return 200, _ensembl_vep(rsid)
 
-    # GWAS Catalog: /gwas/rest/api/singleNucleotidePolymorphisms/{rsid}/associations
+    # GWAS Catalog v2: /gwas/rest/api/v2/associations?rs_id={rsid}
     if len(path_parts) >= 3 and path_parts[1] == "gwas":
-        # Extract rsid from path
-        for i, part in enumerate(path_parts):
-            if part == "singleNucleotidePolymorphisms" and i + 1 < len(path_parts):
-                rsid = path_parts[i + 1]
-                return 200, _gwas_catalog_associations(rsid)
+        if "v2" in path_parts and path_parts[-1] == "associations":
+            rsid = (query.get("rs_id") or ["rs000000"])[0]
+            return 200, _gwas_catalog_associations(rsid)
+        # The legacy v1 API is retired upstream and answers 410.
+        return 410, {"error": "gone", "message": "This legacy GWAS Catalog REST API is no longer available."}
 
     # ClinPGx: /clinpgx/v1/gene/{gene} or /clinpgx/v1/drug/{drug}
     if len(path_parts) >= 4 and path_parts[1] == "clinpgx":
@@ -319,7 +322,7 @@ def main():
 
     print(f"Mock API server starting on http://{args.host}:{args.port}")
     print(f"  Ensembl:      http://{args.host}:{args.port}/ensembl/variation/human/rs6733839")
-    print(f"  GWAS Catalog:  http://{args.host}:{args.port}/gwas/rest/api/singleNucleotidePolymorphisms/rs6733839/associations")
+    print(f"  GWAS Catalog:  http://{args.host}:{args.port}/gwas/rest/api/v2/associations?rs_id=rs6733839")
     print(f"  ClinPGx:       http://{args.host}:{args.port}/clinpgx/v1/gene/CYP2D6")
     print(f"  Health:        http://{args.host}:{args.port}/health")
     print("Press Ctrl+C to stop.")

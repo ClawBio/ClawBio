@@ -147,3 +147,34 @@ class TestRunPairing:
         runs = [{"id": 2, "head_sha": "a"}, {"id": 1, "head_sha": "a"}]
         prs = [{"number": 7, "headRefOid": "a"}]
         assert MOD.pair_runs_to_prs(runs, prs) == [(1, 7), (2, 7)]
+
+
+class TestPrFilesReadsEveryPage:
+    """GitHub caps /pulls/N/files at 100 per page and 3000 in total. Reading one
+    page let file 101, anywhere outside skills/, ride through on the first 100."""
+
+    @staticmethod
+    def _fake_gh(pages, changed_files):
+        def fake(args):
+            path = args[-1]
+            if path.endswith("/files?per_page=100"):
+                assert "--paginate" in args and "--slurp" in args
+                return pages
+            assert path.endswith("/pulls/7"), path
+            return {"changed_files": changed_files}
+        return fake
+
+    def test_files_beyond_the_first_page_are_returned(self, monkeypatch):
+        page1 = [{"filename": f"skills/x/f{i}.py"} for i in range(100)]
+        page2 = [{"filename": ".github/workflows/ci.yml"}]
+        monkeypatch.setattr(MOD, "_gh_json", self._fake_gh([page1, page2], 101))
+        files = MOD.pr_files(7)
+        assert len(files) == 101
+        assert not MOD.is_skills_only(files)
+
+    def test_a_truncated_listing_fails_closed(self, monkeypatch):
+        # Past 3000 files the endpoint stops listing; the count still says more.
+        page = [{"filename": "skills/x/a.py"}]
+        monkeypatch.setattr(MOD, "_gh_json", self._fake_gh([page], 3001))
+        with pytest.raises(RuntimeError, match="1 of 3001"):
+            MOD.pr_files(7)

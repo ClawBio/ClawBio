@@ -82,6 +82,36 @@ class TestOutputFormat:
         assert result["variants_processed"] > 0
 
 
+class TestReproducibility:
+    """Reproducibility bundle written via clawbio.common.reproducibility."""
+
+    def test_demo_writes_verifiable_bundle(self, tmp_path):
+        import hashlib
+
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--demo", "--output", str(tmp_path)],
+            capture_output=True, text=True
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        repro = tmp_path / "reproducibility"
+        for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+            assert (repro / name).exists(), f"missing {name}"
+
+        commands = (repro / "commands.sh").read_text()
+        assert "skills/hla-typing/hla_typing.py" in commands
+        assert "--demo" in commands
+        assert str(SKILL_DIR) not in commands
+
+        lines = (repro / "checksums.sha256").read_text().splitlines()
+        labels = {line.split("  ", 1)[1] for line in lines}
+        assert {"report.md", "result.json", "reproducibility/environment.yml"} <= labels
+        for line in lines:
+            digest, label = line.split("  ", 1)
+            target = tmp_path / label
+            assert target.is_file(), f"label does not resolve: {label}"
+            assert hashlib.sha256(target.read_bytes()).hexdigest() == digest
+
+
 class TestDemoData:
     """Demo data integrity."""
 

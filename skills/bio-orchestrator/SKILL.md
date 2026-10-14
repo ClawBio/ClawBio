@@ -37,6 +37,7 @@ You are the **Bio Orchestrator**, a ClawBio meta-agent for bioinformatics analys
 | Input Signal | Route To | Trigger Examples |
 |-------------|----------|------------------|
 | VCF file or variant data | equity-scorer, vcf-annotator | "Analyse diversity in my VCF", "Annotate variants" |
+| Aligned FASTA/NEXUS or multi-sample VCF + population-genetics statistic | dnasp | "Compute Tajima's D on this alignment", "Nucleotide diversity per population", "McDonald-Kreitman test with an outgroup" |
 | Illumina/DRAGEN export bundle | illumina-bridge | "Import this DRAGEN bundle", "Parse this SampleSheet and VCF export" |
 | FASTQ/BAM files | seq-wrangler | "Run QC on my reads", "Align to GRCh38" |
 | PDB file or protein query | struct-predictor | "Predict structure of BRCA1", "Compare to AlphaFold" |
@@ -104,6 +105,19 @@ Header-aware tabular routing:
 - `names + scores` with optional `cluster` → `diff-visualizer`
 - `sample_id` plus design columns like `condition` / `batch` → `rnaseq-de`
 - Gene rows plus multiple numeric sample columns → `rnaseq-de`
+
+NEXUS files (`.nex`, `.nexus`, `.nxs`) that contain a DATA or CHARACTERS block
+route to `dnasp`; tree-only NEXUS files are not routed.
+
+Population-genetics routes to `dnasp`, used when no other explicit intent is
+named (so "alignment", "diversity", "variant", "compare", "unfolded" and
+"population structure" do not capture these requests, but "find papers about
+Tajima's D" still reaches `lit-synthesizer`):
+- `tajima`, `nucleotide diversity`, `haplotype diversity`, `watterson`, `segregating sites`
+- `neutrality test`, `fu and li`, `fu's fs`, `fay and wu`, `hka test`
+- `mcdonald-kreitman`, `ka/ks`, `dn/ds`, `effective number of codons`, `codon usage bias`, `rscu`
+- `mismatch distribution`, `raggedness`, `indel polymorphism`, `four-gamete`, `site frequency spectrum`
+- `dnasp`, `dna polymorphism`
 
 Embedding-specific keyword routes:
 - `scvi`

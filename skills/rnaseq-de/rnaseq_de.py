@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import math
+import shlex
 import sys
 import warnings
 from datetime import datetime, timezone
@@ -22,6 +22,11 @@ import pandas as pd
 from sklearn.decomposition import PCA
 
 from clawbio.common.report import write_result_json
+from clawbio.common.reproducibility import (
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 
 
 DISCLAIMER = (
@@ -482,14 +487,6 @@ def plot_ma(de_results: pd.DataFrame, outpath: Path) -> None:
     plt.close()
 
 
-def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
 def write_repro_files(
     output_dir: Path,
     counts_path: Path,
@@ -497,42 +494,46 @@ def write_repro_files(
     formula: str,
     contrast: str,
     backend: str,
+    min_count: int,
+    min_samples: int,
 ) -> None:
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
-
-    commands = (
-        "python rnaseq_de.py "
-        f"--counts {counts_path} "
-        f"--metadata {metadata_path} "
-        f"--formula \"{formula}\" "
-        f"--contrast \"{contrast}\" "
-        f"--backend {backend} "
-        f"--output {output_dir}\n"
+    write_commands_sh(
+        output_dir,
+        shlex.join(
+            [
+                "python", str(Path(__file__).resolve()),
+                "--counts", str(counts_path),
+                "--metadata", str(metadata_path),
+                "--formula", formula,
+                "--contrast", contrast,
+                "--backend", backend,
+                "--min-count", str(min_count),
+                "--min-samples", str(min_samples),
+                "--output", str(output_dir),
+            ]
+        ),
     )
-    (repro_dir / "commands.sh").write_text(commands)
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-rnaseq-de",
+        pip_deps=["pydeseq2"],
+        conda_deps=["pandas", "numpy", "scipy", "matplotlib", "scikit-learn"],
+    )
 
-    env = """name: clawbio-rnaseq-de
-channels:
-  - conda-forge
-dependencies:
-  - python>=3.10
-  - pandas
-  - numpy
-  - matplotlib
-  - scikit-learn
-  - pydeseq2
-"""
-    (repro_dir / "environment.yml").write_text(env)
 
-    checksums = []
-    for path in [counts_path, metadata_path]:
-        checksums.append(f"{_sha256(path)}  {path.name}")
-    for path in sorted((output_dir / "tables").glob("*.csv")):
-        checksums.append(f"{_sha256(path)}  tables/{path.name}")
-    for path in sorted((output_dir / "figures").glob("*.png")):
-        checksums.append(f"{_sha256(path)}  figures/{path.name}")
-    (repro_dir / "checksums.sha256").write_text("\n".join(checksums) + "\n")
+def write_output_checksums(output_dir: Path) -> None:
+    """Checksum only files inside output_dir; input labels could not resolve under sha256sum -c."""
+    write_checksums(
+        [
+            output_dir / "report.md",
+            output_dir / "result.json",
+            output_dir / "reproducibility" / "environment.yml",
+        ]
+        + sorted((output_dir / "tables").glob("*.csv"))
+        + sorted((output_dir / "figures").glob("*.png")),
+        output_dir,
+        anchor=output_dir,
+    )
 
 
 def write_report(
@@ -651,7 +652,9 @@ def run_analysis(
     plot_volcano(de_results, output_dir / "figures" / "volcano.png")
     plot_ma(de_results, output_dir / "figures" / "ma_plot.png")
 
-    write_repro_files(output_dir, counts_path, metadata_path, formula, contrast, backend)
+    write_repro_files(
+        output_dir, counts_path, metadata_path, formula, contrast, backend, min_count, min_samples
+    )
     write_report(
         output_dir,
         n_samples=counts.shape[1],
@@ -688,6 +691,7 @@ def run_analysis(
             "disclaimer": DISCLAIMER,
         },
     )
+    write_output_checksums(output_dir)
 
     return {
         "output_dir": str(output_dir),

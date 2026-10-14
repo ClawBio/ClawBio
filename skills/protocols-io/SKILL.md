@@ -49,7 +49,7 @@ You are **Protocols.io Bridge**, a specialised ClawBio agent for discovering and
 
 ## Core Capabilities
 
-1. **Client token authentication** — Paste your access token from protocols.io/developers; it is verified and saved locally for reuse
+1. **Client token authentication** — Set your access token from protocols.io/developers as `PROTOCOLS_IO_ACCESS_TOKEN`
 2. **Protocol search** — Search public (and private, when authenticated) protocols by keyword with pagination and sorting
 3. **Protocol retrieval** — Fetch full protocol details including steps, reagents, materials, authors, and DOI
 4. **Step extraction** — Retrieve protocol steps in markdown format for immediate use
@@ -67,7 +67,7 @@ You are **Protocols.io Bridge**, a specialised ClawBio agent for discovering and
 
 When the user asks about scientific protocols or protocols.io:
 
-1. **Authenticate** (if needed): Check for saved token; if absent or expired, prompt user to paste one
+1. **Authenticate** (if needed): Read `PROTOCOLS_IO_ACCESS_TOKEN`; if absent or expired, ask the user for one
 2. **Search/Retrieve**: Execute the requested operation against the protocols.io API
 3. **Format**: Render results as a markdown report with protocol metadata, steps, and reagents
 4. **Output**: Print to terminal as markdown
@@ -75,9 +75,7 @@ When the user asks about scientific protocols or protocols.io:
 ## CLI Reference
 
 ```bash
-# Authenticate (paste your access token, one-time setup)
-python skills/protocols-io/protocols_io.py --login
-
+# Authenticate: export PROTOCOLS_IO_ACCESS_TOKEN first (see Authentication)
 # Search protocols by keyword
 python skills/protocols-io/protocols_io.py --search "CRISPR gene editing"
 
@@ -108,12 +106,9 @@ python clawbio.py run protocols-io --search "RNA extraction"
 
 1. Go to [protocols.io/developers](https://www.protocols.io/developers)
 2. Log in, find **Your Applications**, and copy your **Access Token**
-3. Run `python skills/protocols-io/protocols_io.py --login` and paste the token
-4. Done — token is saved to `~/.clawbio/protocols_io_tokens.json`
+3. `export PROTOCOLS_IO_ACCESS_TOKEN=<token>` (nothing is saved to disk)
 
-If you skip `--login` and go straight to `--search`, you'll be prompted to paste a token inline.
-
-**Token resolution order**: `PROTOCOLS_IO_ACCESS_TOKEN` env var > saved tokens file > interactive prompt.
+Without the variable, `--search`, `--protocol` and `--steps` exit with an error naming it.
 
 ## Demo
 
@@ -125,7 +120,7 @@ Expected output: a search results report for "RNA extraction" with 5 pre-cached 
 
 ## Algorithm / Methodology
 
-1. **Token management**: Load token from `~/.clawbio/protocols_io_tokens.json`; if expired (status 1219), prompt user to run `--login` again
+1. **Token management**: Read `PROTOCOLS_IO_ACCESS_TOKEN`; if expired (status 1219), ask the user for a new token
 2. **Search**: `GET /api/v3/protocols?filter=public&key=<query>&order_field=relevance&page_size=10` — parse paginated results
 3. **Retrieve**: `GET /api/v4/protocols/<id>?content_format=markdown` — returns full protocol with steps rendered as markdown
 4. **Steps**: `GET /api/v4/protocols/<id>/steps?content_format=markdown` — returns ordered step list
@@ -146,7 +141,7 @@ Without `--output`: results are printed to the terminal as markdown. With `--out
 
 ## Dependencies
 
-**Required** (in `requirements.txt`):
+**Required** (core dependency in `pyproject.toml`):
 - `requests` >= 2.28 — HTTP client for API calls
 
 **Optional**:
@@ -154,7 +149,7 @@ Without `--output`: results are printed to the terminal as markdown. With `--out
 
 ## Safety
 
-- **Local-first**: Tokens stored locally at `~/.clawbio/protocols_io_tokens.json`; no data uploaded
+- **Local-first**: Token is read from the environment and never written to disk; no data uploaded
 - **Disclaimer**: Every report includes the ClawBio medical disclaimer
 - **No credential leakage**: Client secret and tokens never appear in reports or logs
 - **Read-only by default**: The skill only reads protocols; no create/edit/delete operations

@@ -10,7 +10,16 @@ the same pull request. The roles are defined in [GOVERNANCE.md](GOVERNANCE.md).
 
 | Person | GitHub | ORCID |
 |--------|--------|-------|
-| Manuel Corpas | [@manuelcorpas](https://github.com/manuelcorpas) | [0000-0002-5765-9827](https://orcid.org/0000-0002-5765-9827) |
+| Manuel Corpas | [@manuelcorpas](https://github.com/manuelcorpas) | [0000-0002-4417-1018](https://orcid.org/0000-0002-4417-1018) |
+
+## Second maintainer
+
+| Person | GitHub | ORCID | Since |
+|--------|--------|-------|-------|
+| Cameron Lloyd | [@camlloyd](https://github.com/camlloyd) | [0000-0003-1055-2282](https://orcid.org/0000-0003-1055-2282) | 2026-09-17 |
+
+Listed by name only at his request. Holds repository admin and is named in
+`.github/CODEOWNERS` beside the lead maintainer.
 
 ## Repository permissions (ClawBio/ClawBio)
 
@@ -18,7 +27,7 @@ the same pull request. The roles are defined in [GOVERNANCE.md](GOVERNANCE.md).
 |--------|------------|-------|
 | [@manuelcorpas](https://github.com/manuelcorpas) | admin | Lead maintainer |
 | [@jaymoore-research](https://github.com/jaymoore-research) | admin | Repository admin; backup for the thirty-day rule in GOVERNANCE.md |
-| [@camlloyd](https://github.com/camlloyd) | maintain (includes push) | Reviews and merges skill contributions within the limits in GOVERNANCE.md |
+| [@camlloyd](https://github.com/camlloyd) | admin | Second maintainer since 17 September 2026; code owner with the lead maintainer; backup for the thirty-day rule |
 | [@afonsoguerra](https://github.com/afonsoguerra) | read | Organisation member |
 
 ## Organisation (github.com/ClawBio)
@@ -35,14 +44,13 @@ and protected by a hardware key, is planned and not yet created.
 
 | Control | Held by |
 |---------|---------|
-| PyPI project `clawbio` | Manuel Corpas |
+| PyPI project `clawbio` | Manuel Corpas, Cameron Lloyd |
 | Domain `clawbio.ai` (DNS) and GitHub Pages | Manuel Corpas |
 | Release tags `v*` | Repository admins only, by ruleset |
 | The daily PR agent | Runs from Manuel Corpas's machine; see GOVERNANCE.md |
 
-## Second maintainer wanted
+## Becoming a maintainer
 
-ClawBio has one lead maintainer and is seeking a second maintainer who can
-share review of community skill contributions and act as backup for security
-response. The expectations and the path are in GOVERNANCE.md, "Becoming a
-maintainer". If that is you, open an issue.
+The expectations and the path are in GOVERNANCE.md, "Becoming a maintainer".
+The second-maintainer role was filled on 17 September 2026. Further
+maintainers are welcome on the same path; open an issue.

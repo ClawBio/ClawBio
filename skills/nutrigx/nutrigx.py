@@ -26,7 +26,7 @@ from extract_genotypes import extract_snp_genotypes
 from parse_input import clean_genotype_table
 from score_variants import compute_nutrient_risk_scores
 from generate_report import generate_report
-from repro_bundle import VERSION, create_reproducibility_bundle
+from nutrigx_repro_bundle import VERSION, create_reproducibility_bundle
 
 
 def main():

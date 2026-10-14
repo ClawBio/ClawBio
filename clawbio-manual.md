@@ -13,7 +13,7 @@ This manual provides a detailed, step-by-step developer guide on how to build, t
 6. [Step 5: Implementing Python CLI Logic (Green Phase)](#6-step-5-implementing-python-cli-logic-green-phase)
 7. [Step 6: Registering the Skill in ClawBio](#7-step-6-registering-the-skill-in-clawbio)
 8. [Step 7: Regenerating the Catalog and Linting](#8-step-7-regenerating-the-catalog-and-linting)
-9. [Step 8: Updating routing in CLAUDE.md](#9-step-8-updating-routing-in-claudemd)
+9. [Step 8: Updating routing in AGENTS.md](#9-step-8-updating-routing-in-agentsmd)
 10. [Step 9: Git Workflow and Pull Request Checklist](#10-step-9-git-workflow-and-pull-request-checklist)
 
 ---
@@ -168,13 +168,8 @@ metadata:
 
 ClawBio mandates **Red/Green Test-Driven Development (TDD)** for all skill changes.
 
-### 1. Register the Test Path
-Add the skill's test folder path to `testpaths` inside [pytest.ini](pytest.ini):
-```ini
-testpaths =
-    ...
-    skills/pathway-enrichment/tests
-```
+### 1. Test Path Registration
+Nothing to do: [pytest.ini](pytest.ini) collects every `skills/*/tests` folder by glob.
 
 ### 2. Write the Tests First
 The scaffolded tests inside `skills/<name>/tests/test_<name_underscore>.py` check:
@@ -300,13 +295,14 @@ agentskills validate skills/<your-skill-name>/
 
 ---
 
-## 9. Step 8: Updating routing in CLAUDE.md
+## 9. Step 8: Regenerating the skill catalog
 
-Add your skill to the routing table and CLI guides inside [CLAUDE.md](CLAUDE.md) (which is the source of truth for routing tables and demo commands):
-* Add a row to the **Skill Routing Table** under the appropriate categories.
-* Add your CLI execution example to the **CLI Reference** section.
-* Add your demo input under the **Demo Data** table.
-* Add the demo command under the **Demo Commands** list.
+`skills/catalog.json` is the single source of truth for routing, CLI aliases, and
+demo commands. Agents read it, so nothing needs adding to [AGENTS.md](AGENTS.md) by hand.
+* Make sure `trigger_keywords` in your SKILL.md frontmatter cover the phrases users
+  will type (minimum 3) — that is what agents match on.
+* Regenerate: `python scripts/generate_catalog.py`
+* Verify your entry: `python clawbio.py list`
 
 ---
 
@@ -322,7 +318,7 @@ Add your skill to the routing table and CLI guides inside [CLAUDE.md](CLAUDE.md)
    ```
 3. Commit and push your changes:
    ```bash
-   git add skills/pathway-enrichment/ clawbio.py pytest.ini scripts/generate_catalog.py CLAUDE.md
+   git add skills/pathway-enrichment/ clawbio.py scripts/generate_catalog.py AGENTS.md
    git commit -m "Add pathway-enrichment skill with TDD, CLI, and registry registration"
    git push -u origin feat/add-pathway-enrichment
    ```

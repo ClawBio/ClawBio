@@ -67,7 +67,7 @@ When the user asks to create a new skill:
 1. **Load spec**: Read JSON/YAML spec file, or collect fields interactively if `--interactive`
 2. **Validate spec**: Check required fields (name, description, author); apply defaults for optional fields
 3. **Generate files**: Create `SKILL.md`, `<name>.py`, `tests/test_<name>.py`, `examples/example_spec.json`
-4. **Update registry**: If repo root found, append entry to `catalog.json` and patch `SKILLS` dict in `clawbio.py`
+4. **Update registry**: If repo root found, append entry to `catalog.json` and patch the `SKILLS` dict in `clawbio/cli.py` (falls back to `clawbio.py` in older checkouts)
 5. **Report**: Print a summary of generated files and next steps
 
 ## CLI Reference

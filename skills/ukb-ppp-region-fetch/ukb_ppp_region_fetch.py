@@ -96,7 +96,7 @@ ANCESTRY_FOLDER_IDS: dict[str, str] = {
     "ALL": "syn51365308",   # Combined (multi-ancestry meta)
 }
 
-# Human-readable ancestry expansion per the CLAUDE.md output-friendly rule.
+# Human-readable ancestry expansion per the AGENTS.md output-friendly rule.
 ANCESTRY_LABELS: dict[str, str] = {
     "EUR": "European (discovery)",
     "AFR": "African",
@@ -151,7 +151,7 @@ class UKBPPPRelease:
 
     @property
     def protein_label(self) -> str:
-        """User-friendly protein name + UniProt + Olink ID (per CLAUDE.md
+        """User-friendly protein name + UniProt + Olink ID (per AGENTS.md
         output-friendly rule). Renderers should prefer this over the raw
         HGNC alone."""
         return f"{self.protein_hgnc} ({self.protein_uniprot}, {self.olink_reagent_id})"

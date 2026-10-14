@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Union
 
 from clawbio.common.checksums import sha256_file
-from clawbio.common.textio import write_text_lf
+from clawbio.common.textio import write_text_lf, write_text_lf_atomic
 
 
 @dataclass
@@ -50,6 +50,17 @@ class ReproCommand:
 
     def __post_init__(self) -> None:
         self.script_path = Path(self.script_path)
+
+
+def _make_executable(path: Path) -> None:
+    """Add an execute bit wherever the file is already readable.
+
+    A blanket ``| 0o111`` would hand group and other execute on a 0600 file
+    written under a restrictive umask; mirroring the read bits keeps 0644 -> 0755
+    and 0600 -> 0700.
+    """
+    mode = path.stat().st_mode
+    path.chmod(mode | ((mode & 0o444) >> 2))
 
 
 def write_portable_commands_sh(
@@ -95,7 +106,7 @@ def write_portable_commands_sh(
     rendered = [render_arg(a) for a in command.args]
     script_ref = f'"$CLAWBIO_ROOT/{command.script_path}"'
 
-    parts = [f"python {script_ref}"] + rendered
+    parts = [f'"${{PYTHON:-python3}}" {script_ref}'] + rendered
     if len(parts) <= 2:
         cmd_line = " ".join(parts)
     else:
@@ -122,8 +133,8 @@ def write_portable_commands_sh(
 
     content = "\n".join(lines) + "\n"
     path = repro_dir / "commands.sh"
-    write_text_lf(path, content)
-    path.chmod(path.stat().st_mode | 0o111)
+    write_text_lf_atomic(path, content)
+    _make_executable(path)
     return path
 
 
@@ -154,7 +165,7 @@ def write_checksums(
             continue
         if anchor_path is not None:
             try:
-                label = str(p.relative_to(anchor_path))
+                label = p.relative_to(anchor_path).as_posix()
             except ValueError:
                 label = p.name
         else:
@@ -171,7 +182,7 @@ def write_environment_yml(
     env_name: str,
     pip_deps: list[str],
     conda_deps: list[str] | None = None,
-    python_version: str = "3.10",
+    python_version: str = "3.11",
     channels: list[str] | None = None,
 ) -> Path:
     """Write reproducibility/environment.yml for a ClawBio skill.
@@ -182,7 +193,8 @@ def write_environment_yml(
         pip_deps:       Packages to install via pip (e.g. ['cellpose>=4.0']).
         conda_deps:     Extra conda packages beyond python (e.g. ['numpy', 'scipy']).
                         Do not include 'python=X.Y' here — use python_version instead.
-        python_version: Python version string (default '3.10').
+        python_version: Python version string (default '3.11', the floor in
+                        pyproject.toml's requires-python).
         channels:       Conda channels in priority order (default ['conda-forge']).
                         Pass e.g. ['conda-forge', 'bioconda'] when a conda_dep
                         (such as nextflow) only lives on bioconda, otherwise the
@@ -236,8 +248,8 @@ def write_commands_sh(output_dir: Path | str, command: str) -> Path:
 
     content = f"#!/usr/bin/env bash\n{command}\n"
     path = repro_dir / "commands.sh"
-    write_text_lf(path, content)
-    path.chmod(path.stat().st_mode | 0o111)
+    write_text_lf_atomic(path, content)
+    _make_executable(path)
     return path
 
 
