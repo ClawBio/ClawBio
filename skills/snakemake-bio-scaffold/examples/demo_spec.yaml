@@ -1,0 +1,36 @@
+# Demo spec for snakemake-bio-scaffold.
+# A three-stage GWAS summary-statistics QC pipeline over two synthetic cohorts.
+# All data generated from this spec is synthetic (no real cohorts or samples).
+
+project: demo_sumstats_qc
+description: >-
+  Format, MAF-filter and p-value-filter GWAS summary statistics for each cohort.
+
+items:
+  key: datasets          # top-level key in config/data.yaml
+  wildcard: dataset      # Snakemake wildcard name used in every rule
+  entries:
+    cohort_a:
+      path: input/cohort_a.tsv
+      label: Synthetic cohort A
+    cohort_b:
+      path: input/cohort_b.tsv
+      label: Synthetic cohort B
+      overrides:              # per-item override of an analysis.yaml setting
+        filter_maf:
+          maf: 0.05
+
+stages:
+  - name: format_sumstats
+    description: Map raw columns to canonical names and normalise allele case.
+  - name: filter_maf
+    description: Drop variants below the minor-allele-frequency threshold.
+    params:
+      maf: 0.01
+  - name: filter_pvalue
+    description: Keep variants at or below the p-value threshold.
+    params:
+      p_threshold: 5.0e-8
+
+software:
+  plink2: plink2
