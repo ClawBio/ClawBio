@@ -84,7 +84,9 @@ nf-schema or its runtime file checks.
   and remove it on exit; preserve the checksummed original.
 - Anchor Sarek replay to the bundle before reading resource files, and distinguish
   automatic resource configs from user configs with similar filenames.
-- Write Sarek's environment through the shared reproducibility writer.
+- Write Sarek's environment through the shared reproducibility writer and reuse
+  the parsed versions captured in preflight. Raw `nextflow -v` banners must not
+  become conda pins or contradict replay/manifest versions.
 
 The resource changes follow Nextflow's [local executor configuration](https://docs.seqera.io/nextflow/executor/local)
 and [config precedence](https://docs.seqera.io/nextflow/config). A resource ceiling
@@ -101,9 +103,9 @@ and three real Nextflow scheduler tests.
 
 | Python | Final focused result |
 | --- | --- |
-| 3.11.17 | 1,509 passed, 2 skipped |
-| 3.12.15 | 1,509 passed, 2 skipped |
-| 3.13.13 | 1,509 passed, 2 skipped |
+| 3.11.17 | 1,510 passed, 2 skipped |
+| 3.12.15 | 1,510 passed, 2 skipped |
+| 3.13.13 | 1,510 passed, 2 skipped |
 
 The two existing skips require optional sibling pipeline checkouts. Both comparisons
 (STAR arguments and the protocol matrix) also passed separately against the

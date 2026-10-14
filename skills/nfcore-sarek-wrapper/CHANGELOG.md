@@ -8,6 +8,7 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ### Fixed
 
+- Reuse parsed preflight Java/Nextflow versions in the success bundle, keeping manifest, replay and environment pins consistent instead of capturing raw tool banners.
 - Route launcher defaults outside the source tree and correct example output paths.
 - Validate native values against the pinned 3.8.1 scalar schema; reject duplicate/malformed parameter mappings and ambiguous CSV inputs.
 - Apply custom-reference and demo policy to parameter files, and validate local pipeline versions.

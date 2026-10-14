@@ -213,8 +213,6 @@ def _patch_heavy(monkeypatch, module, *, pipeline_source=None, preflight=None,
 
     monkeypatch.setattr(module, "write_provenance_bundle", _write_provenance_bundle)
 
-    monkeypatch.setattr(module, "_detect_java_version", lambda: "openjdk 21")
-    monkeypatch.setattr(module, "_detect_nextflow_version", lambda: "25.10.2")
     return call_log
 
 
@@ -1275,3 +1273,27 @@ def test_sarek_pipeline_allowlist_consistent_with_wrapper(module):
         "flags marked value-free but the wrapper expects a value: "
         f"{sorted(booleans - no_value)}"
     )
+
+
+def test_success_bundle_uses_versions_validated_before_execution(module, monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    preflight = _fake_preflight()
+    preflight.java_version = '21.0.7'
+    preflight.nextflow_version = '25.10.4'
+    calls = _patch_heavy(monkeypatch, module, preflight=preflight)
+    monkeypatch.setattr(module, '_write_macos_docker_config', lambda *a, **kw: None)
+    monkeypatch.setattr(module, '_write_resource_limits_config', lambda *a, **kw: None)
+    monkeypatch.setattr(
+        module.subprocess, 'run',
+        lambda cmd, **kw: SimpleNamespace(
+            returncode=0,
+            stdout='nextflow version 26.04.3.11173\n' if cmd[0] == 'nextflow' else '',
+            stderr='openjdk version "21.0.8" 2026-01-20 LTS\n' if cmd[0] == 'java' else '',
+        ),
+    )
+    assert module.main(['--demo', '--output', str(tmp_path / 'out'), '--no-banner']) == 0
+    provenance = calls['write_provenance_bundle']
+    assert provenance['nextflow_version'] == '25.10.4'
+    assert provenance['java_version'] == '21.0.7'
+    assert provenance['nextflow_version'] == calls['write_reports']['nextflow_version']

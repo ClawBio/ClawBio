@@ -858,8 +858,8 @@ def _run_wrapper_staged(args: argparse.Namespace, output_dir: Path, *, staging_d
         gpu=bool(args.gpu),
         wes=bool(params.get("wes", False)),
         profile=args.profile,
-        java_version=_detect_java_version(),
-        nextflow_version=_detect_nextflow_version(),
+        java_version=getattr(preflight_result, "java_version", None),
+        nextflow_version=getattr(preflight_result, "nextflow_version", None),
         work_dir=canonical_work_dir(args, output_dir),
     )
 
@@ -1555,28 +1555,6 @@ def _detect_repo_root() -> Path:
         if (parent / "clawbio.py").exists():
             return parent
     return _SKILL_DIR.parent.parent
-
-
-def _detect_java_version() -> str | None:
-    try:
-        out = subprocess.run(
-            ["java", "-version"], capture_output=True, text=True, timeout=10
-        )
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
-        return None
-    text = (out.stdout or "") + (out.stderr or "")
-    return text.strip().splitlines()[0] if text.strip() else None
-
-
-def _detect_nextflow_version() -> str | None:
-    try:
-        out = subprocess.run(
-            ["nextflow", "-v"], capture_output=True, text=True, timeout=10
-        )
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
-        return None
-    text = (out.stdout or out.stderr or "").strip()
-    return text or None
 
 
 # ---------------------------------------------------------------------------
