@@ -60,7 +60,9 @@ def test_old_manifest_resume_contract(tmp_path):
     wrapper = importlib.import_module(f"nfcore_{_PIPELINE}_wrapper")
     result = tmp_path / "result.json"
     result.write_text('{"status":"success","old":true}')
-    wrapper.write_error_result(tmp_path, {"error_code": "INVALID_RESUME_STATE", "message": "new"})
+    errors = importlib.import_module("errors")
+    refusal = errors.SkillError("preflight", "INVALID_RESUME_STATE", "new", "retry")
+    assert wrapper.report_skill_error(tmp_path, refusal, verbose=False) == 1
     assert result.read_text() == '{"status":"success","old":true}'
 
 

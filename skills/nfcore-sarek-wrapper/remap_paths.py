@@ -33,12 +33,10 @@ Before replaying on a different machine:
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import shlex
 import shutil
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 _BUNDLE_DIR = Path(__file__).resolve().parent
@@ -60,6 +58,8 @@ from clawbio.common.nfcore.bundle_runtime import (
     run_actions as _nfcore_run_actions,
     sha256_file as _nfcore_sha256_file,
     unquote_shell_word as _nfcore_unquote_shell_word,
+    write_environment_stub as _nfcore_write_environment_stub,
+    write_manifest_stub as _nfcore_write_manifest_stub,
     write_text_lf as _nfcore_write_text_lf,
 )
 # <<< SHARED NFCORE RUNTIME <<<
@@ -527,42 +527,8 @@ def _regenerate_checksums(bundle_dir: Path) -> None:
     _nfcore_write_text_lf(checksum_path, "\n".join(lines) + ("\n" if lines else ""))
 
 
-def _regenerate_manifest_stub(bundle_dir: Path, commands_sh: Path) -> None:
-    """Write a post-hoc manifest.json stub.
-
-    The original manifest requires runtime metadata (args, params checksum,
-    java/nextflow versions detected at run time) that cannot be reconstructed
-    from the bundle alone.  The stub is clearly marked so audit consumers can
-    distinguish it from an original.
-    """
-    manifest = {
-        "regenerated_post_hoc": True,
-        "note": (
-            "Original manifest was lost because the wrapper crashed during "
-            "post-processing. This stub was written by remap_paths.py --repair-bundle. "
-            "For a complete audit bundle with original metadata, re-run the wrapper."
-        ),
-        "commands_sh": str(commands_sh),
-        "regenerated_at": datetime.now(timezone.utc).isoformat(),
-    }
-    _nfcore_write_text_lf(bundle_dir / "manifest.json", json.dumps(manifest, indent=2))
-
-
 def _regenerate_environment_stub(bundle_dir: Path) -> None:
-    """Write a post-hoc environment.yml stub.
-
-    The original environment.yml captures exact Java/Nextflow versions detected
-    at run time.  Without the wrapper context those cannot be reconstructed, so
-    this stub records only a named placeholder that auditors can recognise.
-    """
-    _nfcore_write_text_lf(
-        bundle_dir / "environment.yml",
-        "# regenerated post-hoc by remap_paths.py --repair-bundle\n"
-        "# Original environment snapshot was lost because the wrapper crashed during\n"
-        "# post-processing. For the original snapshot, re-run the wrapper.\n"
-        "name: claw-sarek\n"
-        "regenerated_post_hoc: true\n",
-    )
+    _nfcore_write_environment_stub(bundle_dir, name="claw-sarek")
 
 
 def cmd_repair_bundle(bundle_dir: Path | None = None) -> int:
@@ -570,7 +536,7 @@ def cmd_repair_bundle(bundle_dir: Path | None = None) -> int:
         bundle_dir or _BUNDLE_DIR,
         required_files=_REQUIRED_BUNDLE_FILES,
         commands_finder=find_commands_sh,
-        regenerate_manifest=_regenerate_manifest_stub,
+        regenerate_manifest=_nfcore_write_manifest_stub,
         regenerate_environment=_regenerate_environment_stub,
         regenerate_checksums=_regenerate_checksums,
     )

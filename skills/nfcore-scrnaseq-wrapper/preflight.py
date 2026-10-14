@@ -74,20 +74,6 @@ def _parse_version_tuple(text: str) -> tuple[int, ...]:
     return _runtime.parse_version_tuple(text)
 
 
-def _detected_version_string(text: str) -> str:
-    """Return the version exactly as reported by the tool (e.g. '25.04.0').
-
-    The parsed tuple is for *comparison* only; reconstructing a string from it
-    drops zero-padding (25.04.0 → 25.4.0), which is not a real Nextflow release
-    and would break NXF_VER / conda pins on replay. Always store the raw token.
-    """
-    for pattern in (r"\b(\d+\.\d+\.\d+)\b", r"\b(\d+\.\d+)\b", r"\b(\d+)\b"):
-        m = re.search(pattern, text)
-        if m:
-            return m.group(1)
-    return ""
-
-
 def _check_executable(name: str) -> str:
     path = shutil.which(name)
     if not path:
@@ -121,9 +107,9 @@ def _check_java() -> dict[str, str]:
             error_code=ErrorCode.JAVA_VERSION_TOO_OLD,
             message="Java version is too old for this wrapper.",
             fix="Install Java 17 or newer.",
-            details={"detected_version": _detected_version_string(version_text)},
+            details={"detected_version": _runtime.reported_version(version_text)},
         )
-    return {"path": java_path, "version": _detected_version_string(version_text)}
+    return {"path": java_path, "version": _runtime.reported_version(version_text)}
 
 
 def _check_nextflow() -> dict[str, str]:
@@ -146,9 +132,9 @@ def _check_nextflow() -> dict[str, str]:
             error_code=ErrorCode.NEXTFLOW_VERSION_TOO_OLD,
             message="Nextflow version is too old for this wrapper.",
             fix=f"Upgrade Nextflow to {NEXTFLOW_MIN_VERSION_DISPLAY} or newer.",
-            details={"detected_version": _detected_version_string(version_text)},
+            details={"detected_version": _runtime.reported_version(version_text)},
         )
-    return {"path": nextflow_path, "version": _detected_version_string(version_text)}
+    return {"path": nextflow_path, "version": _runtime.reported_version(version_text)}
 
 
 def _check_profile(profile: str) -> dict[str, object]:
@@ -796,32 +782,8 @@ def _normalize_protocol_token(protocol: str) -> str:
 
 
 def _check_demo_network(args) -> None:
-    """--demo runs nf-core's upstream ``-profile test``, whose inputs (test FASTQs and
-    reference FASTA/GTF) are remote GitHub URLs by design. Under ``NXF_OFFLINE`` the
-    nf-schema plugin aborts during parameter validation with a confusing
-    ``does not exist`` before any work starts, so fail early with an actionable message
-    instead. Downloading nf-core's PUBLIC test data does not conflict with the
-    local-first guarantee, which governs USER genetic data (never uploaded)."""
-    if not getattr(args, "demo", False):
-        return
-    offline = str(os.environ.get("NXF_OFFLINE", "")).strip().lower()
-    if offline in {"true", "1", "yes", "on"}:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.DEMO_REQUIRES_NETWORK,
-            message=(
-                "--demo runs the upstream nf-core `-profile test`, which downloads its test "
-                "datasets and reference files from GitHub, but NXF_OFFLINE is set — Nextflow "
-                "would abort during parameter validation because the remote test inputs cannot "
-                "be reached."
-            ),
-            fix=(
-                "Unset NXF_OFFLINE to run the demo (it fetches only nf-core's public test data — "
-                "no user or genetic data is uploaded), or run a real analysis with your own local "
-                "--input samplesheet and references, which is fully offline."
-            ),
-            details={"NXF_OFFLINE": os.environ.get("NXF_OFFLINE")},
-        )
+    if getattr(args, "demo", False):
+        _runtime.require_network_for_demo()
 
 
 def run_preflight(

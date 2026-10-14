@@ -23,6 +23,8 @@ import pytest
         "artifacts",
         "bundle_runtime",
         "bundle_emit",
+        "cli",
+        "failures",
     ],
 )
 def test_nfcore_modules_do_not_import_bare_skill_dependencies(module, tmp_path):

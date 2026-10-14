@@ -368,20 +368,6 @@ def _pad_version(t: tuple[int, ...], length: int = 3) -> tuple[int, ...]:
     return _runtime.pad_version(t, length)
 
 
-def _detected_version_string(text: str) -> str:
-    """Return the version exactly as reported by the tool (e.g. '26.04.3').
-
-    The parsed tuple is for *comparison* only; reconstructing a string from it
-    drops zero-padding (26.04.3 → 26.4.3), which is not a real Nextflow release
-    and would break NXF_VER / conda pins on replay. Always store the raw token.
-    """
-    for pattern in (r"\b(\d+\.\d+\.\d+)\b", r"\b(\d+\.\d+)\b", r"\b(\d+)\b"):
-        m = re.search(pattern, text)
-        if m:
-            return m.group(1)
-    return ""
-
-
 def _check_java() -> str:
     """Java >=17 must be present on PATH. Returns the detected version string."""
     java_path = shutil.which("java")
@@ -403,7 +389,7 @@ def _check_java() -> str:
             fix="Install Java 17 or newer and ensure `java -version` works.",
             details={"java_path": java_path, "output": version_text},
         )
-    version_str = _detected_version_string(version_text)
+    version_str = _runtime.reported_version(version_text)
     if version[0] < JAVA_MIN_VERSION:
         raise SkillError(
             stage="preflight",
@@ -441,7 +427,7 @@ def _check_nextflow() -> str:
             fix=f"Install Nextflow >={minimum} and ensure `nextflow -version` works.",
             details={"nextflow_path": nextflow_path, "output": version_text},
         )
-    version_str = _detected_version_string(version_text)
+    version_str = _runtime.reported_version(version_text)
     if _pad_version(version) < _pad_version(NEXTFLOW_MIN_VERSION):
         raise SkillError(
             stage="preflight",
@@ -1554,32 +1540,9 @@ def _uses_upstream_test_profile(params: dict[str, Any]) -> bool:
 
 
 def _check_demo_network(params: dict[str, Any]) -> None:
-    """--demo composes nf-core's upstream ``-profile test``, whose inputs (test FASTQs
-    and reference FASTA/GTF) are remote GitHub URLs by design. Under ``NXF_OFFLINE`` the
-    nf-schema plugin aborts during parameter validation with a confusing
-    ``does not exist`` before any work starts, so fail early with an actionable message
-    instead. Downloading nf-core's PUBLIC test data does not conflict with the
-    local-first guarantee, which governs USER genetic data (never uploaded)."""
-    if not _uses_upstream_test_profile(params):
-        return
-    offline = str(os.environ.get("NXF_OFFLINE", "")).strip().lower()
-    if offline in {"true", "1", "yes", "on"}:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.DEMO_REQUIRES_NETWORK,
-            message=(
-                "--demo runs the upstream nf-core `-profile test`, which downloads its test "
-                "datasets and reference files from GitHub, but NXF_OFFLINE is set — Nextflow "
-                "would abort during parameter validation because the remote test inputs cannot "
-                "be reached."
-            ),
-            fix=(
-                "Unset NXF_OFFLINE to run the demo (it fetches only nf-core's public test data — "
-                "no user or genetic data is uploaded), or run a real analysis with your own local "
-                "--input samplesheet and references, which is fully offline."
-            ),
-            details={"NXF_OFFLINE": os.environ.get("NXF_OFFLINE")},
-        )
+    """--demo composes nf-core's upstream ``-profile test``, whose inputs are remote."""
+    if _uses_upstream_test_profile(params):
+        _runtime.require_network_for_demo()
 
 
 def _check_flag_compatibility(*, params: dict[str, Any], tools: list[str]) -> list[str]:

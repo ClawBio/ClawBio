@@ -2,11 +2,13 @@
 
 import csv
 import hashlib
+import json
 import re
 import shlex
 import shutil
 import sys
 from collections.abc import Callable, Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -343,6 +345,42 @@ def missing_csv_paths(samplesheet: Path, *, columns: Sequence[str]) -> list[str]
             if not Path(value).exists():
                 missing.append(value)
     return missing
+
+
+def write_manifest_stub(bundle_dir: Path, commands_sh: Path) -> None:
+    """Write a post-hoc manifest.json stub, marked so auditors can tell it apart.
+
+    The original manifest records runtime metadata (arguments, params checksum,
+    Java/Nextflow versions detected at run time) that the bundle alone cannot
+    reconstruct.
+    """
+    manifest = {
+        "regenerated_post_hoc": True,
+        "note": (
+            "Original manifest was lost because the wrapper crashed during "
+            "post-processing. This stub was written by remap_paths.py --repair-bundle. "
+            "For a complete audit bundle with original metadata, re-run the wrapper."
+        ),
+        "commands_sh": str(commands_sh),
+        "regenerated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    write_text_lf(bundle_dir / "manifest.json", json.dumps(manifest, indent=2))
+
+
+def write_environment_stub(bundle_dir: Path, *, name: str) -> None:
+    """Write a post-hoc environment.yml stub named like the wrapper's original.
+
+    The original records the exact Java/Nextflow versions detected at run time,
+    which the bundle alone cannot reconstruct.
+    """
+    write_text_lf(
+        bundle_dir / "environment.yml",
+        "# regenerated post-hoc by remap_paths.py --repair-bundle\n"
+        "# Original environment snapshot was lost because the wrapper crashed during\n"
+        "# post-processing. For the original snapshot, re-run the wrapper.\n"
+        f"name: {name}\n"
+        "regenerated_post_hoc: true\n",
+    )
 
 
 def repair_bundle(

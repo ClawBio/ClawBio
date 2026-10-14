@@ -371,3 +371,14 @@ def test_repair_leaves_an_allowlist_checksum_file_alone_when_only_stubs_are_writ
         == 0
     )
     assert (tmp_path / "checksums.sha256").read_text() == "original\n"
+
+
+def test_post_hoc_stubs_are_marked_and_name_the_environment(tmp_path):
+    api = importlib.import_module("clawbio.common.nfcore.bundle_runtime")
+    api.write_manifest_stub(tmp_path, tmp_path / "commands.sh")
+    api.write_environment_stub(tmp_path, name="claw-example")
+    manifest = __import__("json").loads((tmp_path / "manifest.json").read_text())
+    assert manifest["regenerated_post_hoc"] is True
+    assert manifest["commands_sh"] == str(tmp_path / "commands.sh")
+    env = yaml.safe_load((tmp_path / "environment.yml").read_text())
+    assert env == {"name": "claw-example", "regenerated_post_hoc": True}

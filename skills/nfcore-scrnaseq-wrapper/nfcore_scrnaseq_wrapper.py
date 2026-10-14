@@ -12,7 +12,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import traceback
 from pathlib import Path
 from typing import Any
 
@@ -44,8 +43,8 @@ purge_foreign_bare_modules(
 )
 
 from clawbio.common.nfcore import runtime as _runtime
-from clawbio.common.nfcore.artifacts import write_error_result
 from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
+from clawbio.common.nfcore.failures import report_skill_error, report_unexpected_error
 from clawbio.common.nfcore.parameters import LEGACY_LINE_WIDTH
 from clawbio.common.textio import write_text_lf
 from command_builder import build_nextflow_command
@@ -549,11 +548,6 @@ def _print(msg: str) -> None:
     print(msg, flush=True)
 
 
-def _indent(text: str, n: int) -> str:
-    pad = " " * n
-    return "\n".join(pad + line for line in text.splitlines())
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -566,12 +560,12 @@ def main(argv: list[str] | None = None) -> int:
         _check_pipeline_version_supported(args)
         return _run_wrapper(args, output_dir)
     except SkillError as exc:
-        return _handle_skill_error(output_dir, exc, verbose=getattr(args, "verbose", False))
+        return report_skill_error(output_dir, exc, verbose=getattr(args, "verbose", False))
     except KeyboardInterrupt:
         _print("[abort] Interrupted by user.")
         return 130
     except Exception as exc:
-        return _handle_unexpected_error(
+        return report_unexpected_error(
             output_dir, exc, verbose=getattr(args, "verbose", False)
         )
 
@@ -1290,58 +1284,6 @@ def _write_handoff_provenance(output_dir: Path, record: dict[str, object]) -> No
     provenance_dir = output_dir / "provenance"
     provenance_dir.mkdir(parents=True, exist_ok=True)
     write_text_lf(provenance_dir / "handoff.json", json.dumps(record, indent=2))
-
-
-def _handle_skill_error(
-    output_dir: Path, exc: SkillError, *, verbose: bool = False
-) -> int:
-    payload = exc.to_dict()
-    write_error_result(output_dir, payload)
-    # Human-readable box on stdout (sarek-style traceability).
-    _print("")
-    _print("================ SkillError ================")
-    _print(f"  stage:   {exc.stage}")
-    _print(f"  code:    {exc.error_code}")
-    _print(f"  message: {exc.message}")
-    _print(f"  fix:     {exc.fix}")
-    if exc.details and verbose:
-        _print("  details:")
-        _print(_indent(json.dumps(exc.details, indent=2, default=str), 4))
-    _print("============================================")
-    # Machine-readable error on stderr: always available even when result.json
-    # cannot be written (e.g. the output dir is a file or inside the repo).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    return 1
-
-
-def _handle_unexpected_error(
-    output_dir: Path, exc: Exception, *, verbose: bool = False
-) -> int:
-    payload = {
-        "status": "error",
-        "ok": False,
-        "stage": "internal",
-        "error_code": ErrorCode.UNEXPECTED_ERROR,
-        "message": str(exc),
-        "fix": "Report this as a bug. Include the full traceback and your command arguments.",
-        "details": {
-            "exception_type": type(exc).__name__,
-            "traceback": traceback.format_exc(),
-        },
-    }
-    write_error_result(output_dir, payload)
-    _print("")
-    _print("================ Internal error ================")
-    _print(f"  type:    {type(exc).__name__}")
-    _print(f"  message: {exc}")
-    if verbose:
-        _print(_indent(traceback.format_exc(), 4))
-    else:
-        _print("  Re-run with --verbose for the full traceback.")
-    _print("================================================")
-    # Machine-readable error on stderr (always available; see _handle_skill_error).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    return 1
 
 
 if __name__ == "__main__":

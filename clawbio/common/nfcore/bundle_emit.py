@@ -27,6 +27,8 @@ _EXPORTS = (
     "run_actions",
     "sha256_file",
     "unquote_shell_word",
+    "write_environment_stub",
+    "write_manifest_stub",
     "write_text_lf",
 )
 

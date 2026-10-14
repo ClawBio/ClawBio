@@ -17,7 +17,6 @@ import shlex
 import subprocess
 import sys
 import time
-import traceback
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlsplit
@@ -56,8 +55,8 @@ purge_foreign_bare_modules(
 )
 
 from clawbio.common.nfcore import runtime as _runtime
-from clawbio.common.nfcore.artifacts import write_error_result
 from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
+from clawbio.common.nfcore.failures import report_skill_error, report_unexpected_error
 from clawbio.common.textio import write_text_lf
 from command_builder import build_nextflow_command, compose_profile
 from errors import ErrorCode, SkillError
@@ -524,12 +523,12 @@ def main(argv: list[str] | None = None) -> int:
         _check_pipeline_version_supported(args)
         return _run_wrapper(args, output_dir)
     except SkillError as exc:
-        return _handle_skill_error(output_dir, exc, verbose=args.verbose)
+        return report_skill_error(output_dir, exc, verbose=args.verbose)
     except KeyboardInterrupt:
         _print("[abort] Interrupted by user.")
         return 130
     except Exception as exc:
-        return _handle_unexpected_error(output_dir, exc, verbose=args.verbose)
+        return report_unexpected_error(output_dir, exc, verbose=args.verbose)
 
 
 def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
@@ -1554,58 +1553,6 @@ def _emit_downstream_handoff(
 # ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------
-
-
-def _handle_skill_error(output_dir: Path, exc: SkillError, *, verbose: bool) -> int:
-    payload = exc.to_dict()
-    _print("")
-    _print("================ SkillError ================")
-    _print(f"  stage:   {exc.stage}")
-    _print(f"  code:    {exc.error_code}")
-    _print(f"  message: {exc.message}")
-    _print(f"  fix:     {exc.fix}")
-    if exc.details and verbose:
-        _print("  details:")
-        _print(_indent(json.dumps(exc.details, indent=2, default=str), 4))
-    _print("============================================")
-    write_error_result(output_dir, payload)
-    # Machine-readable error on stderr: always available even when result.json
-    # cannot be written (e.g. the output dir is a file or inside the repo).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    # Exit 1 for a SkillError (parity with nfcore-scrnaseq/rnaseq). Exit 2 is
-    # reserved for argparse CLI-usage errors, so reusing it for validation
-    # failures would make the two indistinguishable to machine consumers.
-    return 1
-
-
-def _handle_unexpected_error(output_dir: Path, exc: Exception, *, verbose: bool) -> int:
-    payload = {
-        "status": "error",
-        "ok": False,
-        "stage": "internal",
-        "error_code": ErrorCode.UNEXPECTED_ERROR,
-        "message": str(exc),
-        "fix": "Report this as a bug. Include the traceback and command arguments.",
-        "details": {"exception_type": type(exc).__name__},
-    }
-    _print("")
-    _print("================ Internal error ================")
-    _print(f"  type:    {type(exc).__name__}")
-    _print(f"  message: {exc}")
-    if verbose:
-        _print(_indent(traceback.format_exc(), 4))
-    else:
-        _print("  Re-run with --verbose for traceback.")
-    _print("================================================")
-    write_error_result(output_dir, payload)
-    # Machine-readable error on stderr (always available; see _handle_skill_error).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    return 1
-
-
-def _indent(text: str, n: int) -> str:
-    pad = " " * n
-    return "\n".join(pad + line for line in text.splitlines())
 
 
 if __name__ == "__main__":
