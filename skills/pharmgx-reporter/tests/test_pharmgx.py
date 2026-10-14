@@ -1058,3 +1058,39 @@ def test_issue_602_fluoropyrimidines_keep_dose_reduction_and_flag_poor():
         assert single["classification"] == "caution"
         assert single["note"] == entry["note"]
     assert not any(e["gene"] == "DPYD" for e in drugs["indeterminate"])
+
+
+# --- #603 review (camlloyd): CPIC fallback dosing applies at AS 0.5 only ---
+
+def _dpyd_note(genotypes):
+    from pharmgx_reporter import lookup_drugs
+    d, ph = _dpyd(genotypes)
+    drugs = lookup_drugs({"DPYD": {"diplotype": d, "phenotype": ph}})
+    return next(e for e in drugs["caution"] if e["drug"] == "Fluorouracil")["note"]
+
+
+def test_pr603_worst_case_as0_note_says_avoid_without_reduced_dose_fallback():
+    """*2A het (AS 1.0) with *13 untested: worst case *2A/*13 is AS 0, avoid only."""
+    g = {r: g for r, g in _DPYD_REF.items() if r != "rs55886062"}
+    note = _dpyd_note({**g, "rs3918290": "CT"})
+    assert "Possible Poor Metabolizer because *13 was not tested" in note
+    assert "CPIC recommends avoiding fluoropyrimidines" in note
+    assert "strongly reduced dose" not in note
+    assert "Genotype *13 before the first dose." in note
+
+
+def test_pr603_worst_case_as05_note_keeps_fallback_scoped_to_as05():
+    """*2A het with only HapB3 untested: worst case AS 0.5, fallback applies."""
+    note = _dpyd_note({**_NO_HAPB3, "rs3918290": "CT"})
+    assert ("Possible Poor Metabolizer because HapB3 was not tested: CPIC recommends avoiding "
+            "fluoropyrimidines (at activity score 0.5 only, a strongly reduced dose with early "
+            "TDM if no alternative exists). Genotype HapB3 before the first dose.") in note
+    assert "50%" in note
+
+
+def test_pr603_several_untested_markers_use_plural_british_list():
+    """Only *2A genotyped (het): '*13, D949V and HapB3 were not tested'."""
+    note = _dpyd_note({"rs3918290": "CT"})
+    assert "because *13, D949V and HapB3 were not tested" in note
+    assert "Genotype *13, D949V and HapB3 before the first dose." in note
+    assert "was not tested" not in note

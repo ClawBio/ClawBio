@@ -884,7 +884,7 @@ def lookup_single_drug(drug_name, profiles):
         "gene": gene, "diplotype": prof["diplotype"], "phenotype": prof["phenotype"],
         "classification": classification,
     }
-    note = _range_note(gene, prof["phenotype"])
+    note = _range_note(gene, prof["phenotype"], prof.get("diplotype"))
     if note:
         result["note"] = note
     return result
@@ -1393,16 +1393,49 @@ def get_warfarin_rec(profiles):
         return "caution", None
 
 
-def _range_note(gene, phenotype):
-    """Note for a bounded "Intermediate or Poor" call: keep the IM action, flag PM (#602)."""
+def _join_list(items):
+    """British list without the Oxford comma: "A", "A and B", "A, B and C"."""
+    items = list(items)
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _dpyd_worst_as(diplotype):
+    """Lowest reachable DPYD activity score for a partially genotyped call, or None."""
+    import re as _re
+    m = _re.search(r"\(\d+/\d+ SNPs tested; (.+) not tested\)", diplotype or "")
+    if not m:
+        return None
+    gdef = GENE_DEFS["DPYD"]
+    effect_by_allele = {v["allele"]: v["effect"] for v in gdef["variants"].values()}
+    alleles = diplotype.split("(")[0].strip().split("/")
+    act = sorted(_DPYD_ALLELE_ACTIVITY[effect_by_allele.get(a, "normal")] for a in alleles)
+    worst = min(_DPYD_ALLELE_ACTIVITY[effect_by_allele[a.strip()]] for a in m.group(1).split(","))
+    return act[0] + min(act[1], worst)
+
+
+def _range_note(gene, phenotype, diplotype=None):
+    """Note for a bounded "Intermediate or Poor" call: keep the IM action, flag PM (#602).
+
+    CPIC (fluorouracil/capecitabine): AS 0.5 avoid, or a strongly reduced dose with
+    early TDM if no alternative; AS 0.0 avoid only. The fallback is mentioned only
+    when the worst reachable activity score is 0.5 (#603 review).
+    """
     if gene != "DPYD" or not phenotype.startswith("Intermediate or Poor Metabolizer"):
         return None
-    untested = phenotype.split("(", 1)[1].split(" not tested")[0] if "(" in phenotype else "a DPYD marker"
+    if "(" in phenotype:
+        markers = [a.strip() for a in phenotype.split("(", 1)[1].split(" not tested")[0].split(",")]
+    else:
+        markers = ["a DPYD marker"]
+    untested = _join_list(markers)
+    verb = "were" if len(markers) > 1 else "was"
+    worst = _dpyd_worst_as(diplotype)
+    fallback = (" (at activity score 0.5 only, a strongly reduced dose with early TDM "
+                "if no alternative exists)") if worst != 0 else ""
     return ("At least Intermediate Metabolizer (activity score <= 1.0): CPIC recommends "
             "reducing the starting dose by 50%, then titrating on toxicity or TDM. "
-            f"Possible Poor Metabolizer (activity score 0.5 or lower) because {untested} was not tested: "
-            "CPIC then recommends avoiding fluoropyrimidines, or a strongly reduced dose with "
-            f"early TDM if no alternative exists. Genotype {untested} before the first dose.")
+            f"Possible Poor Metabolizer because {untested} {verb} not tested: "
+            f"CPIC recommends avoiding fluoropyrimidines{fallback}. "
+            f"Genotype {untested} before the first dose.")
 
 
 def lookup_drugs(profiles):
@@ -1448,7 +1481,7 @@ def lookup_drugs(profiles):
             "class": drug["class"], "gene": gene,
             "classification": classification,
         }
-        note = _range_note(gene, profiles[gene]["phenotype"])
+        note = _range_note(gene, profiles[gene]["phenotype"], profiles[gene].get("diplotype"))
         if note:
             entry["note"] = note
         results.setdefault(classification, []).append(entry)
