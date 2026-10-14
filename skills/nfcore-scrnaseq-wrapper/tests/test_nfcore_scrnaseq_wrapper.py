@@ -376,6 +376,28 @@ def test_output_path_existing_file_returns_structured_error(
     assert payload["error_code"] == "OUTPUT_DIR_NOT_WRITABLE"
 
 
+
+def test_resume_accepts_a_bundle_fingerprinted_before_params_stopped_wrapping(tmp_path):
+    """params.yaml used to be written with PyYAML's 80-column wrapping, and the
+    resume fingerprint is the hash of that text. A bundle made then must still
+    resume, while new fingerprints match the unwrapped params.yaml on disk."""
+    import argparse
+    import hashlib
+
+    import yaml
+
+    module = _load_skill_module()
+    params = {"fasta": "/data/" + "x" * 80 + " release/genome.fa", "outdir": "upstream/results"}
+    header = module.serialize_params_yaml({})[: -len("{}\n")]
+    legacy = hashlib.sha256((header + yaml.dump(params, allow_unicode=True, sort_keys=False)).encode()).hexdigest()
+    repro = tmp_path / "reproducibility"
+    repro.mkdir()
+    (repro / "manifest.json").write_text(json.dumps({"params_checksum": legacy}), encoding="utf-8")
+    module._check_resume_params_checksum(argparse.Namespace(resume=True), output_dir=tmp_path, params_payload=params)
+
+    written = module.write_params_yaml(params, output_dir=tmp_path)
+    assert module._params_payload_checksum(params) == hashlib.sha256(written.read_bytes()).hexdigest()
+
 def test_resume_params_checksum_mismatch_preserves_previous_run_artifacts(
     tmp_path, monkeypatch, capsys
 ):

@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import platform
 import shlex
@@ -45,6 +46,7 @@ purge_foreign_bare_modules(
 from clawbio.common.nfcore import runtime as _runtime
 from clawbio.common.nfcore.artifacts import write_error_result
 from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
+from clawbio.common.nfcore.parameters import LEGACY_LINE_WIDTH
 from clawbio.common.textio import write_text_lf
 from command_builder import build_nextflow_command
 from errors import ErrorCode, SkillError
@@ -934,8 +936,14 @@ def _check_resume_params_checksum(
     if not manifest_path.exists():
         return
     params_checksum = _params_payload_checksum(params_payload)
+    # Bundles written while params.yaml still wrapped long values at 80 columns
+    # fingerprinted that wrapped text; the parameters themselves are the same.
+    accepted = {
+        params_checksum,
+        _params_payload_checksum(params_payload, line_width=LEGACY_LINE_WIDTH),
+    }
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("params_checksum") == params_checksum:
+    if manifest.get("params_checksum") in accepted:
         return
     raise SkillError(
         stage="preflight",
@@ -949,9 +957,11 @@ def _check_resume_params_checksum(
     )
 
 
-def _params_payload_checksum(params_payload: dict[str, object]) -> str:
+def _params_payload_checksum(
+    params_payload: dict[str, object], *, line_width: float = math.inf
+) -> str:
     return hashlib.sha256(
-        serialize_params_yaml(params_payload).encode("utf-8")
+        serialize_params_yaml(params_payload, line_width=line_width).encode("utf-8")
     ).hexdigest()
 
 

@@ -5,6 +5,7 @@ import importlib
 import json
 from pathlib import Path
 
+import yaml
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
@@ -26,6 +27,17 @@ def test_parameter_header_and_key_order_are_stable(tmp_path):
     )
     assert path.read_bytes() == expected.encode()
 
+
+
+def test_long_reference_paths_stay_on_one_line():
+    """PyYAML wraps long scalars at 80 columns by default; a reference path with a
+    space past that column then spans two lines, which the line-based, stdlib-only
+    remap_paths.py cannot read whole. Every value must stay on its own line."""
+    api = importlib.import_module("clawbio.common.nfcore.parameters")
+    path = "/Users/dana/Library/Mobile_Documents/com~apple~CloudDocs/Project_Data/refs/GRCh38 release v2/genome.fa"
+    text = api.serialize_params_yaml({"fasta": path, "outdir": "upstream/results"}, pipeline_name="nf-core/x")
+    assert f"\nfasta: {path}\n" in text
+    assert yaml.safe_load(text)["fasta"] == path
 
 @settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(st.lists(st.text(alphabet='abc é,"', max_size=20), max_size=5))

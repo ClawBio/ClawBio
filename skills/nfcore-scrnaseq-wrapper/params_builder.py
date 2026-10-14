@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import sys
 from pathlib import Path
@@ -253,5 +254,5 @@ def write_params_yaml(params: dict[str, object], *, output_dir: Path) -> Path:
     return _write_params(params, output_dir=output_dir, pipeline_name="nf-core/scrnaseq")
 
 
-def serialize_params_yaml(params: dict[str, object]) -> str:
-    return _serialize_params(params, pipeline_name="nf-core/scrnaseq")
+def serialize_params_yaml(params: dict[str, object], *, line_width: float = math.inf) -> str:
+    return _serialize_params(params, pipeline_name="nf-core/scrnaseq", line_width=line_width)
