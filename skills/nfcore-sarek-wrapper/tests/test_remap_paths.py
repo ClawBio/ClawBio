@@ -340,13 +340,26 @@ def test_checksum_writers_select_the_same_files(tmp_path: Path):
         (output_dir / name).parent.mkdir(parents=True, exist_ok=True)
         (output_dir / name).write_text(name, encoding="utf-8")
 
-    fresh = {p.relative_to(output_dir).as_posix() for p in provenance._iter_checksum_paths(output_dir)}
+    # Nextflow stages a task's inputs as symlinks in its work dir; MultiQC's stage of
+    # the published software-versions file points back into results/.
+    staged = output_dir / "upstream/work/e8/895d18/nf_core_sarek_software_mqc_versions.yml"
+    staged.parent.mkdir(parents=True)
+    published = output_dir / "upstream/results/pipeline_info/nf_core_sarek_software_mqc_versions.yml"
+    published.parent.mkdir(parents=True)
+    published.write_text("versions", encoding="utf-8")
+    staged.symlink_to(published)
+
+    written = tmp_path / "written.sha256"
+    provenance._write_checksums_file(output_dir=output_dir, target=written, outputs_report_present=True)
+    fresh_lines = written.read_text(encoding="utf-8").splitlines()
+    fresh = [line.split("  ", 1)[1] for line in fresh_lines]
     remap_paths._regenerate_checksums(bundle)
-    repaired = {
-        line.split("  ", 1)[1]
-        for line in (bundle / "checksums.sha256").read_text(encoding="utf-8").splitlines()
-    }
-    assert fresh == repaired == {
+    repaired_lines = (bundle / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+    repaired = [line.split("  ", 1)[1] for line in repaired_lines]
+    assert sorted(fresh_lines) == sorted(repaired_lines)
+    assert len(fresh) == len(set(fresh))
+    assert set(fresh) == {
+        "upstream/results/pipeline_info/nf_core_sarek_software_mqc_versions.yml",
         "upstream/results/variant_calling/strelka/test/test.strelka.variants.vcf.gz",
         "upstream/results/multiqc/multiqc_report.html",
         "notes.txt",

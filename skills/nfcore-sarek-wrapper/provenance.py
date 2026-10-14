@@ -492,10 +492,9 @@ def _iter_checksum_paths(output_dir: Path) -> Iterable[Path]:
     for path in sorted(output_dir.rglob("*")):
         if not path.is_file():
             continue
-        try:
-            rel = path.resolve().relative_to(output_dir)
-        except ValueError:
-            continue
+        # Select by where a file sits, never by a symlink's target: Nextflow stages task
+        # inputs in work/ as symlinks into results/, which resolving would list twice.
+        rel = path.relative_to(output_dir)
         parts = rel.parts
         # Exclude a file when *any* of its ancestor directories is an excluded
         # tree, not only the top-level one: the Nextflow work dir defaults to
@@ -533,7 +532,7 @@ def _write_checksums_file(
         # Strip the "sha256:" prefix so the file conforms to the BSD/coreutils
         # ``sha256sum -c`` syntax: "<hex>  <relative_path>".
         hex_digest = digest_with_prefix.split(":", 1)[1]
-        rel = path.resolve().relative_to(output_dir.resolve()).as_posix()
+        rel = path.relative_to(output_dir.resolve()).as_posix()
         lines.append(f"{hex_digest}  {rel}")
     write_text_lf(target, "\n".join(lines) + ("\n" if lines else ""))
 
