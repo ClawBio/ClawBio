@@ -18,14 +18,9 @@ network, no logging beyond the returned ``warnings`` list.
 
 from __future__ import annotations
 
-from clawbio.common.nfcore.bundle_emit import write_standalone_remapper, render_standalone_remapper
-
-from clawbio.common.nfcore.artifacts import safe_config_basename, stage_config_files
-
 import dataclasses
 import gzip
 import json
-import re
 import shutil
 import stat
 import sys
@@ -45,6 +40,8 @@ from _isolated_imports import purge_foreign_bare_modules
 
 purge_foreign_bare_modules("schemas")
 
+from clawbio.common.nfcore.artifacts import safe_config_basename  # noqa: E402
+from clawbio.common.nfcore.bundle_emit import write_standalone_remapper  # noqa: E402
 from clawbio.common.report import DISCLAIMER as _DISCLAIMER  # noqa: E402
 from clawbio.common.textio import write_text_lf  # noqa: E402
 from schemas import DEFAULT_ALIGNER, DEFAULT_STEP, SKILL_NAME, SKILL_VERSION  # noqa: E402
@@ -196,11 +193,7 @@ def write_reports(
     remap_src = skill_dir / "remap_paths.py"
     remap_dst = repro_dir / "remap_paths.py"
     if remap_src.exists():
-        write_standalone_remapper(remap_dst, adapter_path=remap_src, substitutions={})
-        try:
-            shutil.copymode(remap_src, remap_dst)
-        except OSError:
-            pass
+        write_standalone_remapper(remap_dst, adapter_path=remap_src)
     else:
         warnings.append(f"remap_paths.py not found at {remap_src}; skipping copy.")
 
@@ -968,10 +961,6 @@ def _build_commands_sh(
     return "\n".join(lines), warnings
 
 
-def _safe_config_basename(name: str) -> str:
-    return safe_config_basename(name)
-
-
 def _within(path: Path, anchor: Path) -> bool:
     try:
         path.relative_to(anchor)
@@ -1015,9 +1004,9 @@ def _stage_external_nextflow_configs(
                 copied += 1
                 destination = (
                     config_dir
-                    / f"config_{copied:02d}_{_safe_config_basename(resolved.name)}"
+                    / f"config_{copied:02d}_{safe_config_basename(resolved.name)}"
                 )
-                stage_config_files([resolved], destination_dir=destination.parent, filenames=[destination.name])
+                shutil.copyfile(resolved, destination)
                 out.append("-c")
                 out.append(destination.as_posix())
                 skip_next = True

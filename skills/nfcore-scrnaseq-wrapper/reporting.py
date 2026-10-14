@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore.bundle_emit import write_standalone_remapper, render_standalone_remapper
-
-from clawbio.common.nfcore.artifacts import safe_config_basename, stage_config_files
-
 import json
 import re
 import shutil
@@ -12,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from clawbio.common.nfcore.artifacts import safe_config_basename
+from clawbio.common.nfcore.bundle_emit import render_standalone_remapper
 from clawbio.common.report import (
     generate_report_footer,
     generate_report_header,
@@ -229,9 +227,9 @@ def _copy_user_nextflow_configs(repro_dir: Path, config_paths: list[str]) -> lis
     for index, raw_path in enumerate(config_paths, start=1):
         source = Path(raw_path).expanduser().resolve()
         destination = (
-            config_dir / f"config_{index:02d}_{_safe_config_basename(source.name)}"
+            config_dir / f"config_{index:02d}_{safe_config_basename(source.name)}"
         )
-        stage_config_files([source], destination_dir=destination.parent, filenames=[destination.name])
+        shutil.copyfile(source, destination)
         copied.append(f"reproducibility/nextflow_configs/{destination.name}")
     return copied
 
@@ -244,10 +242,6 @@ def _replay_work_dir(args) -> str:
     if "://" in work_dir:
         return work_dir
     return Path(work_dir).expanduser().resolve().as_posix()
-
-
-def _safe_config_basename(name: str) -> str:
-    return safe_config_basename(name)
 
 
 _REMAP_AUTOGEN_START = "# >>> AUTO-GENERATED reference keys (do not edit by hand) >>>"
@@ -282,10 +276,7 @@ def _write_remap_script(repro_dir: Path) -> None:
         raise RuntimeError(
             f"Expected exactly one AUTO-GENERATED reference-keys block in {_REMAP_SCRIPT_SRC}, found {n}."
         )
-    from clawbio.common.nfcore import bundle_runtime
-    runtime_source = Path(bundle_runtime.__file__)
-    generated = render_standalone_remapper(adapter_source=regenerated, runtime_source=runtime_source.read_text(encoding="utf-8"), substitutions={})
-    write_text_lf(repro_dir / "remap_paths.py", generated)
+    write_text_lf(repro_dir / "remap_paths.py", render_standalone_remapper(regenerated))
 
 
 def write_result(

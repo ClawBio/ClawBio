@@ -83,25 +83,6 @@ def test_git_probe_and_required_files_are_explicit(tmp_path):
     assert api.git_stdout(tmp_path, ["status", "--porcelain"]) == "?? main.nf"
 
 
-def test_config_staging_preserves_duplicate_source_order(tmp_path):
-    api = importlib.import_module("clawbio.common.nfcore.artifacts")
-    source = tmp_path / "user.config"
-    source.write_bytes(b"process.cpus = 2\n")
-    dest = tmp_path / "bundle"
-    result = api.stage_config_files(
-        [source, source],
-        destination_dir=dest,
-        filenames=["01_user.config", "02_user.config"],
-    )
-    assert result == [dest / "01_user.config", dest / "02_user.config"]
-    assert [p.read_bytes() for p in result] == [
-        b"process.cpus = 2\n",
-        b"process.cpus = 2\n",
-    ]
-    with pytest.raises(ValueError):
-        api.stage_config_files([source], destination_dir=dest, filenames=[])
-
-
 def test_raw_host_probe_distinguishes_zero_from_unknown(monkeypatch):
     api = importlib.import_module("clawbio.common.nfcore.runtime")
     monkeypatch.setattr(api.os, "sysconf", lambda key: 0)

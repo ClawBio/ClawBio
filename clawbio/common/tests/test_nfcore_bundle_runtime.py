@@ -62,7 +62,7 @@ def test_emitted_remapper_runs_without_site_packages(pipeline, tmp_path):
     root = Path(__file__).resolve().parents[3]
     adapter = root / "skills" / f"nfcore-{pipeline}-wrapper/remap_paths.py"
     dest = tmp_path / "remap_paths.py"
-    api.write_standalone_remapper(dest, adapter_path=adapter, substitutions={})
+    api.write_standalone_remapper(dest, adapter_path=adapter)
     result = subprocess.run(
         [sys.executable, "-I", "-S", str(dest), "--help"],
         cwd=tmp_path,
@@ -95,17 +95,43 @@ def test_emitted_remapper_runs_without_site_packages(pipeline, tmp_path):
     assert path.read_text() == "sample,fastq_1\nA,/old/a.fq.gz\n"
 
 
+_BLOCK = "# >>> SHARED NFCORE RUNTIME >>>\npass\n# <<< SHARED NFCORE RUNTIME <<<\n"
+
+
 def test_emitter_rejects_missing_and_duplicate_markers():
     api = importlib.import_module("clawbio.common.nfcore.bundle_emit")
     with pytest.raises(ValueError):
-        api.render_standalone_remapper(
-            adapter_source="print(1)", runtime_source="", substitutions={}
-        )
-    block = "# >>> SHARED NFCORE RUNTIME >>>\npass\n# <<< SHARED NFCORE RUNTIME <<<\n"
+        api.render_standalone_remapper("print(1)")
     with pytest.raises(ValueError):
-        api.render_standalone_remapper(
-            adapter_source=block + block, runtime_source="", substitutions={}
-        )
+        api.render_standalone_remapper(_BLOCK + _BLOCK)
+
+
+@pytest.mark.parametrize(
+    "adapter",
+    [
+        # After the block: the runtime's remap_csv would call this, not its own helper.
+        _BLOCK + "def prefix_matches(path, prefix):\n    return False\n",
+        _BLOCK + "escape_double_quoted = str\n",
+        # Before the block: the pasted runtime would silently replace the adapter's.
+        "def repair_bundle():\n    return 0\n" + _BLOCK,
+    ],
+)
+def test_emitter_refuses_names_the_pasted_runtime_would_shadow(adapter):
+    """The runtime is pasted into the adapter's own namespace, unlike the in-repo
+    import. A colliding top-level name would make the shipped script behave
+    differently from the tested one, so it must fail at generation time."""
+    api = importlib.import_module("clawbio.common.nfcore.bundle_emit")
+    with pytest.raises(ValueError, match="shadow"):
+        api.render_standalone_remapper(adapter)
+
+
+def test_emitter_allows_identical_stdlib_imports_and_an_adapter_entry_point():
+    api = importlib.import_module("clawbio.common.nfcore.bundle_emit")
+    adapter = (
+        "import csv\nfrom pathlib import Path\n" + _BLOCK
+        + "import re\n\ndef remap_csv(path):\n    return _nfcore_remap_csv(path)\n"
+    )
+    assert "def remap_csv(path):" in api.render_standalone_remapper(adapter)
 
 
 @pytest.mark.parametrize("pipeline", ["rnaseq", "sarek", "scrnaseq"])
@@ -115,7 +141,7 @@ def test_standalone_remapper_mutates_verifies_and_repairs_bundle(pipeline, tmp_p
     adapter = root / "skills" / f"nfcore-{pipeline}-wrapper/remap_paths.py"
     bundle = tmp_path / "relocated é bundle" / "reproducibility"
     dest = bundle / "remap_paths.py"
-    api.write_standalone_remapper(dest, adapter_path=adapter, substitutions={})
+    api.write_standalone_remapper(dest, adapter_path=adapter)
     reads = tmp_path / "moved é reads"
     reads.mkdir()
     (reads / "a.fq.gz").write_bytes(b"public test read")

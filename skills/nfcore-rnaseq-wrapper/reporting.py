@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-from clawbio.common.nfcore.bundle_emit import write_standalone_remapper, render_standalone_remapper
-
-from clawbio.common.nfcore.artifacts import safe_config_basename, stage_config_files
-
 import json
-import re
 import shlex
 import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from clawbio.common.nfcore.artifacts import safe_config_basename
+from clawbio.common.nfcore.bundle_emit import write_standalone_remapper
 from clawbio.common.portable_commands import build_portable_commands_sh
 from clawbio.common.report import generate_report_footer, generate_report_header, write_result_json
 from clawbio.common.textio import write_text_lf, write_text_lf_atomic
@@ -440,10 +437,6 @@ def build_repro_command_args(output_dir: Path, *, args) -> dict[str, str | None]
     return command_args
 
 
-def _safe_config_basename(name: str) -> str:
-    return safe_config_basename(name)
-
-
 def _stage_user_nextflow_configs(output_dir: Path, config_paths: list[str]) -> list[str]:
     """Copy each user ``-c``/``--nextflow-config`` file into
     ``reproducibility/nextflow_configs/`` and return ``${SCRIPT_DIR}``-relative
@@ -475,8 +468,8 @@ def _stage_user_nextflow_configs(output_dir: Path, config_paths: list[str]) -> l
         if source.parent == config_dir.resolve():
             staged.append(f"${{SCRIPT_DIR}}/nextflow_configs/{source.name}")
             continue
-        destination = config_dir / f"config_{index:02d}_{_safe_config_basename(source.name)}"
-        stage_config_files([source], destination_dir=destination.parent, filenames=[destination.name])
+        destination = config_dir / f"config_{index:02d}_{safe_config_basename(source.name)}"
+        shutil.copyfile(source, destination)
         staged.append(f"${{SCRIPT_DIR}}/nextflow_configs/{destination.name}")
     return staged
 
@@ -626,7 +619,7 @@ def _apply_idempotent_resume(content: str, output_dir: Path) -> str:
 
 def _write_remap_script(repro_dir: Path) -> None:
     repro_dir.mkdir(parents=True, exist_ok=True)
-    write_standalone_remapper(repro_dir / "remap_paths.py", adapter_path=SKILL_DIR / "remap_paths.py", substitutions={})
+    write_standalone_remapper(repro_dir / "remap_paths.py", adapter_path=SKILL_DIR / "remap_paths.py")
 
 
 def _value_or(value: object, fallback: str) -> str:
