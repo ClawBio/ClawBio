@@ -37,7 +37,7 @@ metadata:
         - json
       description: Structured result payload with detected count matrices and provenance
   dependencies:
-    python: ">=3.10"
+    python: ">=3.11"
     packages:
   demo_data:
     - path: demo/README.md
@@ -295,24 +295,26 @@ output/
 ## Dependencies
 
 **Required**
-- Python >=3.10
+- Python >=3.11
 - Java >=17
 - Nextflow >=25.04.3
 - One execution backend: Docker, Singularity, Apptainer, Podman, Conda/Mamba, Shifter, or Charliecloud
 
 ## Gotchas
 
+- Emitted parameters are checked against the pinned upstream scalar contract (types, finite numbers, bounds, enums, and filename patterns). Malformed or ambiguous samplesheets fail before normalized snapshots are written. An atomic launch manifest supports resuming failed launches; resumed `--check` also validates params and samplesheet checksums.
+- Local Docker runs, including demos, cap both per-process requests and the local executor budget to detected host/Docker CPU and memory capacity. Site/cloud profiles and object-store work directories keep their own resource policy. Explicit `--nextflow-config` files have final precedence. Resource caps cannot make a dataset fit insufficient RAM.
 - `strandedness` is required per row and must be `auto`, `forward`, `reverse`, or `unstranded`.
 - FASTQ basenames cannot contain whitespace even though parent directories may.
 - FASTQ basenames must end in `.fq`, `.fastq`, `.fq.gz`, or `.fastq.gz` (all four are accepted by the nf-core/rnaseq schema). Only the basename must be whitespace-free; parent directory paths may contain spaces.
 - FASTQ and BAM samplesheet entries may be local paths or remote URIs such as `s3://...`/`https://...`. Local paths are normalized and existence-checked; remote URIs are preserved unchanged and left for Nextflow to stage.
 - `--genome` may be combined with additive annotation/transcriptome overrides (`--gtf` *or* `--gff`, `--gene-bed`, `--transcript-fasta`, `--additional-fasta`, `--splicesites`, `--salmon-index`, `--kallisto-index`) — this matches nf-core/rnaseq and supports common cases such as ERCC spike-ins (`--genome GRCh38 --additional-fasta ercc.fa`) or overriding the dated iGenomes annotation (`--genome GRCh38 --gtf custom.gtf`). It is rejected only with a second genome **sequence** source (`--fasta`) or a genome-level index (`--star-index`/`--rsem-index`/`--hisat2-index`/`--bowtie2-index`), which would be ambiguous. If both `--gtf` and `--gff` are supplied, `--gff` is dropped with a warning and `--gtf` is used (matching nf-core/rnaseq). Names not in the built-in iGenomes catalogue emit a preflight warning but do not block execution — this is expected when using a user-defined genome catalogue (pass it via `--nextflow-config my_genomes.config`). If you intended an iGenomes entry, check the exact spelling and case (e.g. `GRCh38`, `GRCm38`).
-- GENCODE autodetection (setting `gencode: true` from `gene_type`/`havana_gene` markers in the GTF) only inspects **local** `--gtf` files; for remote (`s3://`/`https://`) GTFs it is skipped silently — pass `--gencode` explicitly in that case. Autodetection scans only the **first 10 feature records** of the GTF (gzip is detected case-insensitively, e.g. `.gtf.gz` and `.gtf.GZ`); if your GENCODE markers appear later in the file, pass `--gencode` explicitly.
+- GENCODE autodetection (setting `gencode: true` from `gene_type`/`havana_gene` markers in the GTF) only inspects **local** `--gtf` files; for remote (`s3://`/`https://`) GTFs it is skipped silently — pass `--gencode` explicitly in that case. Autodetection scans only the **first 10 feature records** of the GTF (use upstream-compatible lowercase `.gtf` or `.gtf.gz` extensions); if your GENCODE markers appear later in the file, pass `--gencode` explicitly.
 - `--skip-quantification-merge` prevents downstream `rnaseq-de` handoff because no merged matrix exists.
 - `--aligner hisat2` is alignment-only for this handoff contract.
 - `--with-umi` requires a barcode pattern unless `--skip-umi-extract` is set. Conversely, UMI options (`--umitools-bc-pattern`, `--umi-dedup-tool`, etc.) set *without* `--with-umi` are inert — preflight warns so a run is not mistaken for UMI-deduplicated when it is not.
 - `--output` must be **outside** the ClawBio source tree. An output directory inside the repository is rejected at preflight with `OUTPUT_DIR_INSIDE_REPO`, so multi-gigabyte pipeline artifacts never pollute (or get committed to) the checkout — choose a path under your analysis workspace. This matches the nfcore-sarek and nfcore-scrnaseq wrappers.
-- On macOS Docker, use an output directory under the home directory rather than `/tmp`. The wrapper writes a macOS Docker compatibility config whose per-process memory ceiling is derived from host RAM (75% share, floored at 8 GB, capped at 15 GB) and then capped to 90% of the actual Docker VM memory (`docker info`, when available) so a container process is never OOM-killed by requesting more than the VM has. Its per-process `time` ceiling tracks `--timeout-hours` (default 12, floored at 1 h) so raising the wrapper timeout does not leave processes capped at 12 h.
+- On macOS Docker, use an output directory under the home directory rather than `/tmp`. The compatibility config applies VirtioFS and architecture workarounds, plus runtime-aware scheduler/process limits. Its per-process time ceiling tracks `--timeout-hours` (default 12, floored at 1 h; zero uses the default process ceiling).
 - The local Nextflow run is killed after `--timeout-hours` (default 12). Raise it for large cohorts (e.g. `--timeout-hours 48`) so a long but healthy run is not terminated, or pass `--timeout-hours 0` to disable the cap entirely for long HPC/cloud runs whose walltime is enforced by the scheduler (negative values are rejected). On a timeout the wrapper terminates Nextflow's process group, but containers started by the Docker/Singularity daemon are not in that group and may keep running — the timeout error reminds you to check for and remove leftover containers (e.g. `docker ps`).
 - Reference paths (`--fasta`/`--gtf`/`--gff`/`--transcript-fasta`/`--additional-fasta`/`--gene-bed`) must resolve to a path **without whitespace** — the nf-core schema pattern `^\S+` rejects spaces. Preflight catches a whitespace-containing resolved path early with a precise `REFERENCE_PATH_HAS_WHITESPACE` error (mirroring the samplesheet input guard) instead of letting Nextflow abort late. Move or symlink the reference into a space-free directory.
 - `--check` validates that Nextflow is present but defers the `>=25.04.3` version gate to the real run; it emits a warning so a passing check is not mistaken for confirmation of a compatible Nextflow version.

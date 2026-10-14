@@ -86,11 +86,18 @@ def _read_samplesheet(input_path: Path) -> tuple[list[str], list[dict[str, str]]
             details={"path": str(input_path)},
         )
 
-    with input_path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
-        fieldnames = reader.fieldnames or []
-        _validate_required_columns(fieldnames)
-        rows = list(reader)
+    try:
+        from clawbio.common.nfcore import read_delimited_samplesheet
+
+        fieldnames, rows = read_delimited_samplesheet(input_path)
+    except (OSError, ValueError, csv.Error) as exc:
+        raise SkillError(
+            stage="validation", error_code=ErrorCode.INVALID_SAMPLESHEET,
+            message="Samplesheet could not be parsed without data loss.",
+            fix="Use unique nonempty headers, correctly quoted UTF-8 records, and one value per column.",
+            details={"path": str(input_path), "error": str(exc)},
+        ) from exc
+    _validate_required_columns(fieldnames)
 
     if not rows:
         raise SkillError(

@@ -989,13 +989,13 @@ def test_extra_configs_emits_resource_limits_on_linux_real_run(tmp_path, monkeyp
     assert ".nextflow_macos_docker.config" not in names
 
 
-def test_extra_configs_skips_resource_limits_on_linux_demo(tmp_path, monkeypatch):
+def test_extra_configs_bounds_resource_limits_on_linux_demo(tmp_path, monkeypatch):
     module = _load_skill_module()
     monkeypatch.setattr(module.platform, "system", lambda: "Linux")
     args = _extra_config_args(module, demo=True)
     configs = module._build_extra_nextflow_configs(args, tmp_path)
-    # -profile test carries its own resourceLimits; do not override them.
-    assert ".nextflow_resource_limits.config" not in [p.name for p in configs]
+    # Test profiles also need to fit a small container runtime.
+    assert ".nextflow_resource_limits.config" in [p.name for p in configs]
 
 
 def test_extra_configs_macos_unchanged(tmp_path, monkeypatch):

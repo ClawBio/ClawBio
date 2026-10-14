@@ -8,6 +8,14 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ### Fixed
 
+- Validate native values against the pinned 3.8.1 scalar schema; reject duplicate/malformed parameter mappings and ambiguous CSV inputs.
+- Apply custom-reference and demo policy to parameter files, and validate local pipeline versions.
+- Stage samplesheets until preflight succeeds, require valid resume manifests, and track the work directory.
+- Record launch manifests before execution and validate output-directory failures before creating artifacts.
+- Bound Docker scheduler/process capacity on macOS/Linux, including demos; preserve user-config precedence and similarly named config snapshots.
+- Anchor replay before resource probes and cap to the smaller recorded/current Docker capacity without changing checksummed originals.
+- Use the shared environment writer; reject nonfinite timeouts, bound failure-log reads, and terminate interrupted process groups.
+
 - **`remap_paths.py`: combining actions no longer discards one of them silently.**
   `main()` dispatched through a chain of early returns, so only the first matching flag
   ever ran. `--output-dir <new> --verify` therefore rewrote nothing and then reported the

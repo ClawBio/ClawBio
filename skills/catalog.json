@@ -3127,7 +3127,7 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run rnaseq-pipeline --demo",
       "dependencies": [
-        "python>=3.10"
+        "python>=3.11"
       ],
       "tags": [
         "rnaseq",

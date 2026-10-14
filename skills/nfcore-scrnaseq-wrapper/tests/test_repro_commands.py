@@ -57,7 +57,7 @@ def test_resource_limits_guard_emitted_when_shipped():
     # replay must apply it on non-macOS hosts so a from-scratch reproduction on the
     # generating (memory-constrained) machine does not re-abort STAR_GENOMEGENERATE.
     script = _build(resource_limits_config=True)
-    assert 'if [[ "$(uname -s)" != "Darwin" ]]; then' in script
+    assert 'docker info --format' in script
     assert 'RESOURCE_CONFIG="-c reproducibility/resource_limits.config"' in script
     assert "$RESOURCE_CONFIG" in script
 

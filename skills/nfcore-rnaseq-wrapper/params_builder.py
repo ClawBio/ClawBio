@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -151,6 +152,21 @@ _BOOLEAN_FIELDS = (
 )
 
 
+def _validate_native_scalar_params(params: dict[str, object]) -> None:
+    from clawbio.common.nfcore import validate_parameter_scalars
+
+    contract = json.loads((_SKILL_DIR / "reproducibility/upstream_scalar_contract.json").read_text())
+    try:
+        validate_parameter_scalars(params, contract["parameters"])
+    except ValueError as exc:
+        raise SkillError(
+            stage="validation", error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
+            message=f"Invalid native rnaseq parameter: {exc}",
+            fix="Use the scalar types and numeric bounds in the pinned nf-core/rnaseq schema.",
+            details={"error": str(exc)},
+        ) from exc
+
+
 def build_params_file(
     args, *, normalized_samplesheet: Path, output_dir: Path, gencode_autodetected: bool = False
 ) -> tuple[Path, dict[str, object]]:
@@ -187,6 +203,7 @@ def build_effective_params(
     _add_umi_params(params, args)
     _add_flags(params, args)
     _add_tuning_params(params, args, gencode_autodetected=gencode_autodetected)
+    _validate_native_scalar_params(params)
     return params
 
 

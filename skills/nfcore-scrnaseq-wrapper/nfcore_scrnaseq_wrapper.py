@@ -42,6 +42,7 @@ purge_foreign_bare_modules(
     "schemas",
 )
 
+from clawbio.common.nfcore import uses_local_docker_capacity
 from clawbio.common.textio import write_text_lf
 from command_builder import build_nextflow_command
 from errors import ErrorCode, SkillError
@@ -77,6 +78,7 @@ from schemas import (
     DEFAULT_PROFILE,
     DEFAULT_TIMEOUT_SECONDS,
     SKILL_NAME,
+    SUPPORTED_PROFILES,
     PRESET_ALIGNERS,
     SUPPORTED_PRESETS,
     SYMBOLIC_REFERENCE_FIELDS,
@@ -126,10 +128,12 @@ _DEMO_IGNORED_FIELDS = (
 
 def _timeout_hours(value: str) -> float:
     try:
-        hours = float(value)
+        from clawbio.common.nfcore import finite_nonnegative_hours
+
+        hours = finite_nonnegative_hours(value)
     except (TypeError, ValueError):
         raise argparse.ArgumentTypeError(
-            f"--timeout-hours must be a number, got {value!r}"
+            f"--timeout-hours must be a finite number >= 0, got {value!r}"
         )
     if hours < 0:
         raise argparse.ArgumentTypeError(
@@ -709,6 +713,11 @@ def _run_wrapper_with_staging(
         f"(warnings: {len(preflight_result.get('warnings', []) or [])})"
     )
     if args.check:
+        params_payload = build_effective_params(
+            args, normalized_samplesheet=normalized_samplesheet, output_dir=output_dir,
+        )
+        _check_resume_params_checksum(args, output_dir=output_dir, params_payload=params_payload)
+        _check_resume_samplesheet_checksum(args, output_dir=output_dir, staged_samplesheet=staged_samplesheet)
         return _write_check_mode_result(
             output_dir,
             preflight_result=preflight_result,
@@ -884,6 +893,27 @@ def _build_parameter_support_summary() -> dict[str, object]:
     }
 
 
+def _write_launch_manifest(args, *, output_dir, pipeline_source, normalized_samplesheet, params_payload, preflight_result):
+    from datetime import datetime, timezone
+    from clawbio.common.checksums import sha256_file
+    from clawbio.common.nfcore import canonical_work_dir, write_manifest_checkpoint
+
+    manifest = {
+        "skill_name": SKILL_NAME, "pipeline_source": pipeline_source,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "profile": args.profile, "preset": getattr(args, "preset", None),
+        "aligner": getattr(args, "aligner", ""), "pseudo_aligner": getattr(args, "pseudo_aligner", None),
+        "prokaryotic": bool(getattr(args, "prokaryotic", False)),
+        "demo": bool(args.demo), "arm": bool(getattr(args, "arm", False)),
+        "work_dir": canonical_work_dir(args, output_dir),
+        "params_checksum": _params_payload_checksum(params_payload),
+        "samplesheet_checksum": sha256_file(normalized_samplesheet),
+        "java_version": preflight_result.get("java", {}).get("version", ""),
+        "nextflow_version": preflight_result.get("nextflow", {}).get("version", ""),
+    }
+    write_manifest_checkpoint(output_dir, manifest)
+
+
 def _run_execution_mode(
     args: argparse.Namespace,
     *,
@@ -902,10 +932,16 @@ def _run_execution_mode(
     _check_resume_params_checksum(
         args, output_dir=output_dir, params_payload=params_payload
     )
+    _check_resume_samplesheet_checksum(args, output_dir=output_dir, staged_samplesheet=staged_samplesheet)
     _commit_validated_samplesheet(staged_samplesheet, normalized_samplesheet)
     params_path = write_params_yaml(params_payload, output_dir=output_dir)
     command, command_str = _build_nextflow_invocation(
         args, output_dir, pipeline_source, params_path
+    )
+    _write_launch_manifest(
+        args, output_dir=output_dir, pipeline_source=pipeline_source,
+        normalized_samplesheet=normalized_samplesheet, params_payload=params_payload,
+        preflight_result=preflight_result,
     )
     nextflow_cwd = _nextflow_execution_cwd(output_dir)
     _print(
@@ -949,6 +985,23 @@ def _commit_validated_samplesheet(
         return
     normalized_samplesheet.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(staged_samplesheet, normalized_samplesheet)
+
+
+def _check_resume_samplesheet_checksum(args, *, output_dir: Path, staged_samplesheet: Path) -> None:
+    if not args.resume:
+        return
+    from clawbio.common.checksums import sha256_file
+
+    manifest = json.loads((output_dir / "reproducibility/manifest.json").read_text(encoding="utf-8"))
+    current = sha256_file(staged_samplesheet)
+    previous = manifest.get("samplesheet_checksum")
+    if previous != current:
+        raise SkillError(
+            stage="preflight", error_code=ErrorCode.INVALID_RESUME_STATE,
+            message="Resume state does not match the normalized samplesheet.",
+            fix="Use the original samplesheet, or choose a new output directory.",
+            details={"previous_samplesheet_checksum": previous, "requested_samplesheet_checksum": current},
+        )
 
 
 def _check_resume_params_checksum(
@@ -1013,33 +1066,33 @@ def _resolve_nextflow_work_dir(args: argparse.Namespace, output_dir: Path) -> Pa
 def _build_extra_nextflow_configs(
     args: argparse.Namespace, output_dir: Path
 ) -> list[Path]:
-    configs = [
+    user_configs = [
         Path(value).expanduser().resolve()
         for value in getattr(args, "extra_config", []) or []
     ]
+    configs = []
     # The VirtioFS EDEADLK fix is macOS-specific:
     #   Linux native: no VirtioFS; Docker bind-mounts are direct overlayfs.
     #   Windows/WSL2: Nextflow runs inside WSL2 (reports "Linux"); work dir is on ext4.
     #   Windows native: not officially supported by Nextflow; users should use WSL2.
-    if profile_includes(args.profile, "docker"):
+    if profile_includes(args.profile, "docker") and uses_local_docker_capacity(args, SUPPORTED_PROFILES):
         if platform.system() == "Darwin":
-            # demo gates the test-profile resource ceilings: real runs get only the
-            # always-safe VirtioFS / Apple-Silicon / STAR-FIFO workarounds (audit H-1).
+            # Keep platform workarounds separate from portable runtime capacity limits.
             configs.append(
                 write_macos_docker_config(
                     output_dir, demo=bool(getattr(args, "demo", False))
                 )
             )
-        elif not bool(getattr(args, "demo", False)):
+            configs.append(_write_resource_limits_config(output_dir, args=args))
+        else:
             # Non-macOS docker uses the local executor, which aborts a real run when a
             # process's production requirement exceeds this host's RAM (e.g. STARsolo
             # requesting 72 GB on a 63 GB machine). Cap requests to the host per
             # nf-core resourceLimits guidance. --demo relies on -profile test's own
             # (smaller) resourceLimits, so it is deliberately left untouched. Applied
-            # to the live run only — never baked into the portable commands.sh bundle,
-            # which is rebuilt from params.yaml (see repro_commands.py).
+            # to the live run and shipped for runtime-aware replay (see repro_commands.py).
             configs.append(_write_resource_limits_config(output_dir, args=args))
-    return configs
+    return [*configs, *user_configs]
 
 
 _RESOURCE_LIMITS_MEMORY_HEADROOM_GB = 4
@@ -1080,6 +1133,18 @@ def _docker_vm_memory_gb() -> int | None:
     return gb or None
 
 
+def _docker_vm_cpu_count() -> int | None:
+    from clawbio.common.nfcore import docker_cpu_count
+
+    return docker_cpu_count()
+
+
+def _runtime_cpu_count() -> int:
+    host = max(1, os.cpu_count() or 1)
+    runtime = _docker_vm_cpu_count()
+    return min(host, runtime) if runtime else host
+
+
 def _resource_limits_memory_gb() -> int:
     """Per-process memory ceiling (GB) for the non-macOS resourceLimits config.
 
@@ -1092,7 +1157,8 @@ def _resource_limits_memory_gb() -> int:
     """
     signals = [gb for gb in (_host_memory_gb(), _docker_vm_memory_gb()) if gb]
     budget = (min(signals) - _RESOURCE_LIMITS_MEMORY_HEADROOM_GB) if signals else 12
-    return max(_RESOURCE_LIMITS_MEMORY_FLOOR_GB, budget)
+    ceiling = min(signals) if signals else _RESOURCE_LIMITS_MEMORY_FLOOR_GB
+    return min(max(1, ceiling - 1), max(1, max(_RESOURCE_LIMITS_MEMORY_FLOOR_GB, budget)))
 
 
 def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace) -> Path:
@@ -1108,7 +1174,7 @@ def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace)
     """
     config_path = output_dir / "reproducibility" / "resource_limits.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    cpus = max(1, os.cpu_count() or 1)
+    cpus = _runtime_cpu_count()
     memory_gb = _resource_limits_memory_gb()
     timeout_hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
     time_hours = int(_DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
@@ -1118,6 +1184,8 @@ def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace)
         "// does not abort real runs whose production requirements exceed this machine.\n"
         "// Follows nf-core resourceLimits guidance (values match the machine maximum):\n"
         "// https://nf-co.re/docs/running/configuration/nextflow-for-your-system\n"
+        f"executor.cpus = {cpus}\n"
+        f"executor.memory = '{memory_gb}.GB'\n"
         "process {\n"
         "    resourceLimits = [\n"
         f"        cpus: {cpus},\n"

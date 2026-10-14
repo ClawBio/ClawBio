@@ -259,7 +259,7 @@ def test_commands_sh_applies_shipped_resource_limits(tmp_path: Path) -> None:
         pipeline_source_kind="remote",
     )
     commands = (output_dir / "reproducibility" / "commands.sh").read_text()
-    assert 'if [[ "$(uname -s)" != "Darwin" ]]; then' in commands
+    assert 'docker info --format' in commands
     assert 'RESOURCE_CONFIG="-c reproducibility/resource_limits.config"' in commands
     assert "$RESOURCE_CONFIG" in commands
     # The absolute live-run path must not survive inline in the portable bundle.

@@ -43,3 +43,13 @@ Use `--check` to run preflight without launching Nextflow.
 `clawbio.py run sarek-pipeline` promotes the common flags to first-class options; any other sarek parameter is passed through with `--extra-param key=value`.
 
 See `SKILL.md` in this directory for trigger phrases, samplesheet schema per step, the full CLI reference, gotchas (ASCAT-WES, Mutect2 PON, GATK Spark + UMI, iGenomes default, somatic status pairing, `--demo` reference clearing), profile composition rules, downstream chaining, and the §1–§6 output layout.
+
+## Validation and resume
+
+Emitted parameters are checked against the pinned upstream scalar contract (types, finite numbers, bounds, enums, and filename patterns). Malformed or ambiguous samplesheets fail before normalized snapshots are written. An atomic launch manifest supports resuming failed launches; resumed `--check` also validates params and samplesheet checksums.
+
+Local Docker runs, including demos, cap both per-process requests and the local executor budget to detected host/Docker CPU and memory capacity. Site/cloud profiles and object-store work directories keep their own resource policy. Explicit `--nextflow-config` files have final precedence. Resource caps cannot make a dataset fit insufficient RAM.
+
+Replay uses the smaller of recorded limits and current Docker capacity, on macOS and Linux, through a temporary config; the original checksummed config is preserved. User config snapshots retain final precedence.
+
+See the [compatibility audit](../../docs/nfcore-wrapper-audit.md) for upstream contracts, fixes, test results, and execution limits.

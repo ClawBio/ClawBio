@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore import canonical_work_dir, read_json_mapping
+
 import gzip
 import hashlib
-import json
 import os
 import re
 import shutil
@@ -145,8 +146,8 @@ def check_resume_params_checksum(params_payload: dict[str, object], output_dir: 
     manifest: dict[str, object] = {}
     if manifest_path.exists():
         try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
+            manifest = read_json_mapping(manifest_path)
+        except (ValueError, OSError) as exc:
             raise SkillError(
                 stage="preflight",
                 error_code=ErrorCode.INVALID_RESUME_STATE,
@@ -184,8 +185,8 @@ def check_resume_samplesheet_checksum(samplesheet_path: Path, output_dir: Path) 
             details={"manifest": str(manifest_path)},
         )
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+        manifest = read_json_mapping(manifest_path)
+    except (ValueError, OSError) as exc:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.INVALID_RESUME_STATE,
@@ -1547,8 +1548,8 @@ def _check_resume_compatibility(args, *, output_dir: Path, pipeline_source: dict
             details={"manifest": str(manifest_path)},
         )
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+        manifest = read_json_mapping(manifest_path)
+    except (ValueError, OSError) as exc:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.INVALID_RESUME_STATE,
@@ -1583,6 +1584,9 @@ def _check_resume_compatibility(args, *, output_dir: Path, pipeline_source: dict
     for key in ("source_kind", "resolved_version"):
         if previous_source.get(key) != pipeline_source.get(key):
             _raise_resume_mismatch(f"pipeline_source.{key}", pipeline_source.get(key), previous_source.get(key))
+
+    if "work_dir" in manifest and manifest["work_dir"] != canonical_work_dir(args, output_dir):
+        _raise_resume_mismatch("work_dir", canonical_work_dir(args, output_dir), manifest["work_dir"])
 
 
 def _raise_resume_mismatch(field: str, expected: object, observed: object) -> None:

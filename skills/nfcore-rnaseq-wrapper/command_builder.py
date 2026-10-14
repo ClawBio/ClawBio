@@ -14,10 +14,9 @@ def compose_profile(
     rapid_quant: bool = False,
     arm: bool = False,
 ) -> str:
-    # Nextflow applies profiles left-to-right; later profiles override earlier ones.
-    # Order: test (must come first — backend profile then overrides its container settings),
-    # then the user-chosen backend (docker/singularity/…), then scientific/arch modifiers last
-    # (prokaryotic, rapid_quant, arm64) so they take final precedence over base settings.
+    # Canonical ordering: test, backend, then modifiers. Strict config syntax
+    # applies profiles in CLI order; legacy syntax uses their declaration order
+    # in nextflow.config. Preserve upstream behavior under either parser.
     parts = [part.strip() for part in profile.split(",") if part.strip()]
     if demo:
         parts = [part for part in parts if part != "test"]

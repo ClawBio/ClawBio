@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import json
 import sys
 from pathlib import Path
 
@@ -153,6 +154,33 @@ _STRING_FIELDS = (
     "trace_report_suffix",
 )
 
+def _validate_native_scalar_params(params: dict[str, object], *, patterns: bool = True) -> None:
+    from clawbio.common.nfcore import validate_parameter_scalars
+
+    contract = json.loads((_SKILL_DIR / "reproducibility/upstream_scalar_contract.json").read_text())
+    try:
+        validate_parameter_scalars(params, contract["parameters"], patterns=patterns)
+    except ValueError as exc:
+        raise SkillError(
+            stage="validation", error_code=ErrorCode.INVALID_FLAG_COMBINATION,
+            message=f"Invalid native sarek parameter: {exc}",
+            fix="Use the scalar types and numeric bounds in the pinned nf-core/sarek schema.",
+            details={"error": str(exc)},
+        ) from exc
+
+
+def load_run_params(args) -> dict[str, object]:
+    params = _load_user_params_file(getattr(args, "params_file", None))
+    if getattr(args, "demo", False):
+        for name in (
+            *_REFERENCE_PATH_FIELDS, *_ANNOTATION_PATH_FIELDS,
+            "input", "input_restart", "genome", "igenomes_base", "igenomes_ignore",
+            "dbsnp_vqsr", "known_indels_vqsr", "known_snps_vqsr",
+        ):
+            params.pop(name, None)
+    return params
+
+
 def build_params_file(
     args, *, normalized_samplesheet: Path, output_dir: Path
 ) -> tuple[Path, dict[str, object]]:
@@ -168,7 +196,7 @@ def build_params_file(
 def build_effective_params(
     args, *, normalized_samplesheet: Path, output_dir: Path
 ) -> dict[str, object]:
-    params = _load_user_params_file(getattr(args, "params_file", None))
+    params = load_run_params(args)
     # Sarek 3.8.1 assigns params.input_restart = retrieveInput(...) at runtime,
     # so a user-provided input_restart value is overwritten before consumption.
     # A restart sheet validated by the wrapper is intentionally sent as input.
@@ -180,6 +208,7 @@ def build_effective_params(
     _add_flags(params, args)
     _add_tuning_params(params, args)
     _add_extra_params(params, args)
+    _validate_native_scalar_params(params)
     return params
 
 
@@ -188,7 +217,9 @@ def _load_user_params_file(params_file: str | None) -> dict[str, object]:
         return {}
     path = Path(params_file).expanduser()
     try:
-        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+        from clawbio.common.nfcore import load_unique_yaml
+
+        loaded = load_unique_yaml(path.read_text(encoding="utf-8"))
     except OSError as exc:
         raise SkillError(
             stage="validation",
@@ -197,6 +228,13 @@ def _load_user_params_file(params_file: str | None) -> dict[str, object]:
             fix="Provide a readable YAML params file or remove --params-file.",
             details={"params_file": str(path), "error": str(exc)},
         )
+    except (ValueError, yaml.YAMLError) as exc:
+        raise SkillError(
+            stage="validation", error_code=ErrorCode.INVALID_FLAG_COMBINATION,
+            message="--params-file is not valid, unambiguous UTF-8 YAML.",
+            fix="Correct YAML syntax and remove duplicate keys.",
+            details={"params_file": str(path), "error": str(exc)},
+        ) from exc
     if loaded is None:
         return {}
     if not isinstance(loaded, dict):
@@ -208,6 +246,7 @@ def _load_user_params_file(params_file: str | None) -> dict[str, object]:
             details={"params_file": str(path)},
         )
     params = dict(loaded)
+    _validate_native_scalar_params(params, patterns=False)
     # Nextflow is launched from output_dir, not from the user's invocation
     # directory. Preserve native relative-path meaning by resolving only fields
     # that Sarek consumes as file/directory resources before changing cwd.

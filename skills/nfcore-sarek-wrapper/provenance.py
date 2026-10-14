@@ -48,6 +48,7 @@ from _isolated_imports import purge_foreign_bare_modules
 
 purge_foreign_bare_modules("errors", "schemas", "preflight")
 
+from clawbio.common.reproducibility import write_environment_yml  # noqa: E402
 from clawbio.common.textio import write_text_lf  # noqa: E402
 from schemas import DEFAULT_ALIGNER, DEFAULT_STEP, SKILL_NAME, SKILL_VERSION  # noqa: E402
 
@@ -352,28 +353,6 @@ def _build_tool_versions_payload(output_dir: Path, *, warnings: list[str]) -> di
     return data
 
 
-def _build_environment_yml(
-    *,
-    nextflow_version: str | None,
-    warnings: list[str],
-) -> str:
-    nf_dep = f"nextflow={nextflow_version}" if nextflow_version else "nextflow"
-    if not nextflow_version:
-        warnings.append(
-            "nextflow_version not provided; environment.yml lists nextflow without pin."
-        )
-    lines = [
-        "name: claw-sarek",
-        "channels:",
-        "  - conda-forge",
-        "  - bioconda",
-        "dependencies:",
-        "  - python=3.11",
-        f"  - {nf_dep}",
-        "  - openjdk=17",
-        "",
-    ]
-    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -435,6 +414,7 @@ def _build_manifest(
     java_version: str | None,
     nextflow_version: str | None,
     generated_at: str,
+    work_dir: str = "upstream/work",
 ) -> dict[str, Any]:
     ps_payload = _build_pipeline_source_payload(pipeline_source)
     tools = sorted(set(_tool_tokens(params.get("tools"))))
@@ -455,6 +435,7 @@ def _build_manifest(
         "joint_mutect2": bool(params.get("joint_mutect2", False)),
         "wes": bool(wes or params.get("wes", False)),
         "intervals_hash": _intervals_hash(params),
+        "work_dir": work_dir,
         "profile": profile,
         "arm": bool(arm),
         "spark": bool(spark),
@@ -480,8 +461,10 @@ def load_manifest(bundle_dir: Path) -> dict | None:
     if not p.is_file():
         return None
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        from clawbio.common.nfcore import read_json_mapping
+
+        return read_json_mapping(p)
+    except (OSError, ValueError):
         return None
 
 
@@ -565,6 +548,7 @@ def write_provenance_bundle(
     profile: str = "docker",
     java_version: str | None = None,
     nextflow_version: str | None = None,
+    work_dir: str = "upstream/work",
 ) -> ProvenanceBundle:
     """Materialise the full reproducibility bundle under ``output_dir``."""
     warnings: list[str] = []
@@ -627,10 +611,12 @@ def write_provenance_bundle(
         warnings.append("outputs_report=None; outputs.json was not written.")
 
     # ---- 4. environment.yml ----------------------------------------------
-    env_path = bundle_dir / "environment.yml"
-    write_text_lf(
-        env_path,
-        _build_environment_yml(nextflow_version=nextflow_version, warnings=warnings),
+    if not nextflow_version:
+        warnings.append("nextflow_version not provided; environment.yml lists nextflow without pin.")
+    env_path = write_environment_yml(
+        output_dir, "claw-sarek", pip_deps=[], python_version="3.11",
+        conda_deps=[f"nextflow={nextflow_version}" if nextflow_version else "nextflow", "openjdk=17"],
+        channels=["conda-forge", "bioconda"],
     )
     written.append(env_path)
 
@@ -656,6 +642,7 @@ def write_provenance_bundle(
         java_version=java_version,
         nextflow_version=nextflow_version,
         generated_at=generated_at,
+        work_dir=work_dir,
     )
     manifest_path = bundle_dir / "manifest.json"
     _dump_json(manifest_path, manifest)

@@ -33,3 +33,11 @@ python clawbio.py run rnaseq-pipeline \
 ```
 
 Use `--check` to run preflight without launching Nextflow.
+
+## Validation and resume
+
+Emitted parameters are checked against the pinned upstream scalar contract (types, finite numbers, bounds, enums, and filename patterns). Malformed or ambiguous samplesheets fail before normalized snapshots are written. An atomic launch manifest supports resuming failed launches; resumed `--check` also validates params and samplesheet checksums.
+
+Local Docker runs, including demos, cap both per-process requests and the local executor budget to detected host/Docker CPU and memory capacity. Site/cloud profiles and object-store work directories keep their own resource policy. Explicit `--nextflow-config` files have final precedence. Resource caps cannot make a dataset fit insufficient RAM.
+
+See the [compatibility audit](../../docs/nfcore-wrapper-audit.md) for upstream contracts, fixes, test results, and execution limits.

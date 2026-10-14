@@ -11,6 +11,7 @@ from typing import Any
 
 from clawbio.common.checksums import sha256_file
 from clawbio.common.reproducibility import write_checksums, write_environment_yml
+from clawbio.common.nfcore import canonical_work_dir
 from clawbio.common.textio import write_text_lf
 
 _SKILL_DIR = Path(__file__).resolve().parent
@@ -141,7 +142,7 @@ def build_runtime_payload(
         "profile": getattr(args, "profile", ""),
         "resume_used": bool(getattr(args, "resume", False)),
         "cwd": str(Path.cwd()),
-        "work_dir": str(output_dir / "upstream" / "work"),
+        "work_dir": canonical_work_dir(args, output_dir),
         "command": command_str,
     }
 
@@ -309,6 +310,7 @@ def write_reproducibility_manifest(
         "nextflow_version": runtime["nextflow_version"],
         "python_version": runtime["python_version"],
         "environment_yml_mode": "exact_versions" if (runtime["java_version"] and runtime["nextflow_version"]) else "install_recipe",
+        "work_dir": runtime["work_dir"],
         "params_checksum": params_payload_checksum(params_payload),
         "params_file_sha256": inputs["params_checksum"],
         "samplesheet_checksum": inputs["samplesheet_checksum"],

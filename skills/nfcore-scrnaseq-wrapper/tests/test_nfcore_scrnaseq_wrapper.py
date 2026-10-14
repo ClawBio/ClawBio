@@ -429,6 +429,10 @@ def test_resume_params_checksum_mismatch_preserves_previous_run_artifacts(
         },
     )
 
+    fasta = tmp_path / "reference.fa"
+    gtf = tmp_path / "annotation.gtf"
+    fasta.write_text(">chr1\nACGT\n")
+    gtf.write_text("# synthetic annotation\n")
     monkeypatch.setattr(
         sys,
         "argv",
@@ -444,9 +448,9 @@ def test_resume_params_checksum_mismatch_preserves_previous_run_artifacts(
             "docker",
             "--resume",
             "--fasta",
-            str(r1),
+            str(fasta),
             "--gtf",
-            str(r2),
+            str(gtf),
         ],
     )
     rc = module.main()
@@ -553,7 +557,7 @@ def test_build_extra_nextflow_configs_writes_config_on_macos_docker(tmp_path):
     args = _argparse.Namespace(profile="docker")
     with patch("platform.system", return_value="Darwin"):
         result = module._build_extra_nextflow_configs(args, tmp_path)
-    assert len(result) == 1
+    assert len(result) == 2
     assert result[0].exists()
     assert "stageInMode" in result[0].read_text(encoding="utf-8")
 
@@ -577,14 +581,14 @@ def test_build_extra_configs_emits_resource_limits_on_linux_real_run(tmp_path):
     assert "stageInMode" not in text and "--platform" not in text
 
 
-def test_build_extra_configs_skips_resource_limits_on_linux_demo(tmp_path):
+def test_build_extra_configs_bounds_resource_limits_on_linux_demo(tmp_path):
     module = _load_skill_module()
     import argparse as _argparse
 
     args = _argparse.Namespace(profile="docker", demo=True)
     with patch("platform.system", return_value="Linux"):
         result = module._build_extra_nextflow_configs(args, tmp_path)
-    assert "resource_limits.config" not in [p.name for p in result]
+    assert "resource_limits.config" in [p.name for p in result]
 
 
 def test_resource_limits_memory_scales_with_host(monkeypatch):

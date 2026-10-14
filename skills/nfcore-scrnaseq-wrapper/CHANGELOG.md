@@ -8,6 +8,13 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ### Fixed
 
+- Validate emitted values against the pinned 4.1.0 scalar schema and reject ambiguous CSV inputs.
+- Canonicalize recognized protocol aliases and preserve remote MultiQC configuration URIs.
+- Record launch manifests before execution and verify samplesheet checksums on resumed runs/checks.
+- Bound local Docker scheduler/process capacity, including demos and macOS; preserve user-config precedence in live runs and replay.
+- Replay against the smaller recorded/current Docker capacity without modifying checksummed configs.
+- Reject nonfinite timeouts and bound failure-log reads.
+
 - **A lane-split sample is now counted once, not once per row.** The samplesheet summary
   counted raw CSV rows (`sample_count = len(normalized_rows)`) and appended to
   `sample_names` with no duplicate guard. nf-core/scrnaseq documents re-sequencing a sample

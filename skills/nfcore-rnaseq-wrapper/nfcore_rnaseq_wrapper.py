@@ -50,7 +50,7 @@ from executor import execute_nextflow
 from outputs_parser import parse_outputs
 from params_builder import build_effective_params, write_params_yaml
 from pipeline_source import resolve_pipeline_source
-from preflight import check_resume_params_checksum, check_resume_samplesheet_checksum, run_preflight
+from preflight import params_payload_checksum, check_resume_params_checksum, check_resume_samplesheet_checksum, run_preflight
 from provenance import write_provenance_bundle
 from reporting import write_check_result, write_report, write_repro_commands, write_result
 from samplesheet_builder import validate_and_normalize_samplesheet
@@ -60,6 +60,7 @@ from schemas import (
     DEFAULT_TIMEOUT_HOURS,
     DEFAULT_TRIMMER,
     SKILL_NAME,
+    SUPPORTED_PROFILES,
     SUPPORTED_ALIGNERS,
     SUPPORTED_BRACKEN_PRECISION,
     SUPPORTED_CONTAMINANT_SCREENING,
@@ -73,6 +74,7 @@ from schemas import (
     SUPPORTED_UMI_TOOLS,
 )
 
+from clawbio.common.nfcore import uses_local_docker_capacity
 from clawbio.common.textio import write_text_lf
 
 
@@ -892,6 +894,12 @@ def _run_wrapper_with_staging(args: argparse.Namespace, output_dir: Path, *, sta
         f"(warnings: {len(preflight_result.get('warnings', []) or [])})"
     )
     if args.check:
+        params_payload = build_effective_params(
+            args, normalized_samplesheet=normalized_samplesheet, output_dir=output_dir,
+            gencode_autodetected=bool(preflight_result.get("gencode_autodetected", False)),
+        )
+        _check_resume_params_checksum(args, output_dir=output_dir, params_payload=params_payload)
+        _check_resume_samplesheet_checksum(args, output_dir=output_dir, staged_samplesheet=staged_samplesheet)
         if staged_samplesheet != normalized_samplesheet:
             _commit_validated_samplesheet(staged_samplesheet, normalized_samplesheet)
         return _write_check_mode_result(output_dir, preflight_result=preflight_result, pipeline_source=pipeline_source)
@@ -1060,6 +1068,27 @@ def _write_check_mode_result(
     return 0
 
 
+def _write_launch_manifest(args, *, output_dir, pipeline_source, normalized_samplesheet, params_payload, preflight_result):
+    from datetime import datetime, timezone
+    from clawbio.common.checksums import sha256_file
+    from clawbio.common.nfcore import canonical_work_dir, write_manifest_checkpoint
+
+    manifest = {
+        "skill_name": SKILL_NAME, "pipeline_source": pipeline_source,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "profile": args.profile, "preset": getattr(args, "preset", None),
+        "aligner": getattr(args, "aligner", ""), "pseudo_aligner": getattr(args, "pseudo_aligner", None),
+        "prokaryotic": bool(getattr(args, "prokaryotic", False)),
+        "demo": bool(args.demo), "arm": bool(getattr(args, "arm", False)),
+        "work_dir": canonical_work_dir(args, output_dir),
+        "params_checksum": params_payload_checksum(params_payload),
+        "samplesheet_checksum": sha256_file(normalized_samplesheet),
+        "java_version": preflight_result.get("java", {}).get("version", ""),
+        "nextflow_version": preflight_result.get("nextflow", {}).get("version", ""),
+    }
+    write_manifest_checkpoint(output_dir, manifest)
+
+
 def _run_execution_mode(
     args: argparse.Namespace,
     *,
@@ -1081,6 +1110,11 @@ def _run_execution_mode(
     _commit_validated_samplesheet(staged_samplesheet, normalized_samplesheet)
     params_path = write_params_yaml(params_payload, output_dir=output_dir)
     command, command_str = _build_nextflow_invocation(args, output_dir, pipeline_source, params_path)
+    _write_launch_manifest(
+        args, output_dir=output_dir, pipeline_source=pipeline_source,
+        normalized_samplesheet=normalized_samplesheet, params_payload=params_payload,
+        preflight_result=preflight_result,
+    )
     nextflow_cwd = _nextflow_execution_cwd(output_dir)
     started = time.monotonic()
     _print(
@@ -1175,10 +1209,10 @@ def _build_extra_nextflow_configs(args: argparse.Namespace, output_dir: Path) ->
     configs: list[Path] = []
     profile_parts = {p.strip() for p in getattr(args, "profile", "").split(",") if p.strip()}
     arm = bool(getattr(args, "arm", False))
-    if "docker" in profile_parts:
+    if "docker" in profile_parts and uses_local_docker_capacity(args, SUPPORTED_PROFILES):
         if platform.system() == "Darwin":
             configs.append(_write_macos_docker_config(output_dir, arm=arm, timeout_hours=_resolve_timeout_hours(args)))
-        elif not bool(getattr(args, "demo", False)):
+        else:
             # Non-macOS docker runs use the local executor, which aborts a real run
             # when a process's production requirement exceeds this host's RAM (e.g.
             # PREPARE_GENOME requesting 72 GB on a 63 GB machine). Cap requests to the
@@ -1269,11 +1303,11 @@ def _write_macos_docker_config(output_dir: Path, *, arm: bool = False, timeout_h
     # ARM64-native containers (--arm / arm64 profile) so they run at native speed.
     platform_opts = "" if arm else "    containerOptions = '--platform linux/amd64'\n"
     docker_block = "" if arm else "docker {\n    runOptions = '--platform linux/amd64'\n}\n"
-    # Autodetect CPU ceiling so users on multi-core Macs aren't capped at 4. Floor of
-    # 4 preserves prior behaviour on tiny VMs. Memory/time stay conservative because
+    # Bound CPU requests to both the host and the Docker runtime.
+    # Memory/time stay conservative because
     # over-allocating memory can trigger OOM-kills (worse than throttling); users on
     # high-RAM hosts can override via --nextflow-config.
-    cpus = max(4, os.cpu_count() or 4)
+    cpus = _runtime_cpu_count()
     memory_gb = _macos_docker_memory_gb()
     # The per-process time ceiling tracks --timeout-hours (audit F-4) so a large-cohort
     # run raised above the 12h default is not capped back to 12h by this config. Floored
@@ -1284,6 +1318,8 @@ def _write_macos_docker_config(output_dir: Path, *, arm: bool = False, timeout_h
     write_text_lf(
         config_path,
         "// macOS Docker compatibility for nf-core/rnaseq.\n"
+        f"executor.cpus = {cpus}\n"
+        f"executor.memory = '{memory_gb}.GB'\n"
         "process {\n"
         "    stageInMode = 'copy'\n"
         "    resourceLimits = [\n"
@@ -1299,6 +1335,18 @@ def _write_macos_docker_config(output_dir: Path, *, arm: bool = False, timeout_h
 
 
 _RESOURCE_LIMITS_MEMORY_HEADROOM_GB = 4
+
+
+def _docker_vm_cpu_count() -> int | None:
+    from clawbio.common.nfcore import docker_cpu_count
+
+    return docker_cpu_count()
+
+
+def _runtime_cpu_count() -> int:
+    host = max(1, os.cpu_count() or 1)
+    runtime = _docker_vm_cpu_count()
+    return min(host, runtime) if runtime else host
 
 
 def _resource_limits_memory_gb() -> int:
@@ -1318,7 +1366,8 @@ def _resource_limits_memory_gb() -> int:
     if not signals:
         return _MACOS_DOCKER_MEMORY_CEILING_GB
     budget = min(signals) - _RESOURCE_LIMITS_MEMORY_HEADROOM_GB
-    return max(_MACOS_DOCKER_MEMORY_FLOOR_GB, budget)
+    ceiling = min(signals) if signals else _MACOS_DOCKER_MEMORY_FLOOR_GB
+    return min(max(1, ceiling - 1), max(1, max(_MACOS_DOCKER_MEMORY_FLOOR_GB, budget)))
 
 
 def _write_resource_limits_config(output_dir: Path, *, timeout_hours: float = DEFAULT_TIMEOUT_HOURS) -> Path:
@@ -1330,7 +1379,7 @@ def _write_resource_limits_config(output_dir: Path, *, timeout_hours: float = DE
     """
     config_path = output_dir / ".nextflow_resource_limits.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    cpus = max(1, os.cpu_count() or 1)
+    cpus = _runtime_cpu_count()
     memory_gb = _resource_limits_memory_gb()
     time_hours = int(DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
     write_text_lf(
@@ -1339,6 +1388,8 @@ def _write_resource_limits_config(output_dir: Path, *, timeout_hours: float = DE
         "// does not abort real runs whose production requirements exceed this machine.\n"
         "// Follows nf-core resourceLimits guidance (values match the machine maximum):\n"
         "// https://nf-co.re/docs/running/configuration/nextflow-for-your-system\n"
+        f"executor.cpus = {cpus}\n"
+        f"executor.memory = '{memory_gb}.GB'\n"
         "process {\n"
         "    resourceLimits = [\n"
         f"        cpus: {cpus},\n"
@@ -1352,10 +1403,12 @@ def _write_resource_limits_config(output_dir: Path, *, timeout_hours: float = DE
 
 def _timeout_hours(value: str) -> float:
     try:
-        hours = float(value)
+        from clawbio.common.nfcore import finite_nonnegative_hours
+
+        hours = finite_nonnegative_hours(value)
     except (TypeError, ValueError):
         raise argparse.ArgumentTypeError(
-            f"--timeout-hours must be a number, got {value!r}"
+            f"--timeout-hours must be a finite number >= 0, got {value!r}"
         )
     if hours < 0:
         raise argparse.ArgumentTypeError(

@@ -40,12 +40,9 @@ _CONFIG_PARSE_FAILURE_SIGNATURES = (
 
 
 def _read_log_tail(path: Path, limit: int = 65536) -> str:
-    """Best-effort tail read of a captured log; never raises."""
-    try:
-        with path.open("r", encoding="utf-8", errors="replace") as fh:
-            return fh.read()[-limit:]
-    except OSError:
-        return ""
+    from clawbio.common.nfcore import read_log_tail
+
+    return read_log_tail(path, limit)
 
 
 def _environment_failure_hints(

@@ -16,6 +16,8 @@ class SkillError(Exception):
         super().__init__(self.message)
 
     def to_dict(self) -> dict[str, Any]:
+        from clawbio.common.nfcore import json_safe_details
+
         return {
             "status": "error",
             "ok": False,
@@ -23,7 +25,7 @@ class SkillError(Exception):
             "error_code": self.error_code,
             "message": self.message,
             "fix": self.fix,
-            "details": self.details,
+            "details": json_safe_details(self.details),
         }
 
 

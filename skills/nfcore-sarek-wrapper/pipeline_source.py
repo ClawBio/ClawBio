@@ -24,7 +24,7 @@ _GIT_TIMEOUT = 10
 
 
 def _path_has_whitespace(path: Path) -> bool:
-    return any(" " in part for part in path.parts)
+    return any(char.isspace() for char in path.as_posix())
 
 
 def _git_stdout(path: Path, args: list[str]) -> str:
@@ -66,6 +66,8 @@ def resolve_pipeline_source(
                 details={"path": str(local_dir), "missing_files": missing},
             )
 
+        from clawbio.common.nfcore import read_manifest_version
+
         branch = _git_stdout(local_dir, ["branch", "--show-current"])
         commit = _git_stdout(local_dir, ["rev-parse", "HEAD"])
         status = _git_stdout(local_dir, ["status", "--porcelain"])
@@ -73,6 +75,7 @@ def resolve_pipeline_source(
             "source_kind": "local_checkout",
             "source_ref": str(local_dir),
             "resolved_version": commit or requested_version,
+            "manifest_version": read_manifest_version(local_dir / "nextflow.config"),
             "branch": branch,
             "dirty": bool(status),
         }

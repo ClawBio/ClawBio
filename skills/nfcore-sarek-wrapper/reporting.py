@@ -890,6 +890,8 @@ def _build_commands_sh(
         lines.append("# cannot drift on replay.")
         lines.append(f'export NXF_VER="{nextflow_version}"')
         lines.append("")
+    lines.append('cd "$SCRIPT_DIR/.."')
+    lines.append("")
     # The macOS-only docker config (Apple-Silicon --platform, VirtioFS
     # stageInMode, host-scaled resourceLimits) must apply based on the REPLAY
     # host, not the host that generated the bundle: a macOS-generated bundle
@@ -899,6 +901,17 @@ def _build_commands_sh(
     # Idempotent replay owns -resume via a guard below, so drop any bare -resume the
     # original run captured (avoids a duplicate and lets the guard decide).
     replay_argv = [a for a in replay_argv if a != "-resume"]
+    user_configs = []
+    core_argv = []
+    index = 0
+    while index < len(replay_argv):
+        if replay_argv[index] == "-c" and index + 1 < len(replay_argv):
+            user_configs.extend(replay_argv[index:index + 2])
+            index += 2
+        else:
+            core_argv.append(replay_argv[index])
+            index += 1
+    replay_argv = core_argv
     if has_macos_config:
         lines.append("# Apply the macOS-only Docker config ONLY when replaying on macOS, so")
         lines.append("# the same bundle runs identically on Linux. A plain string (not a")
@@ -910,15 +923,9 @@ def _build_commands_sh(
         lines.append("fi")
         lines.append("")
     if has_resource_config:
-        lines.append("# Re-apply the host-scaled resourceLimits cap the wrapper used for the")
-        lines.append("# original run, but ONLY on non-macOS (on macOS the Docker VM is the")
-        lines.append("# ceiling). Reproduces the cap so a from-scratch replay on the generating")
-        lines.append('# host does not abort with "Process requirement exceeds available memory".')
-        lines.append('RESOURCE_CONFIG=""')
-        lines.append('if [[ "$(uname -s)" != "Darwin" ]]; then')
-        lines.append('  RESOURCE_CONFIG="-c reproducibility/resource_limits.config"')
-        lines.append("fi")
-        lines.append("")
+        from clawbio.common.nfcore import build_runtime_resource_guard
+
+        lines.extend(build_runtime_resource_guard().splitlines())
     # Idempotent replay: reuse the previous run's cache when replaying against an
     # already-completed output dir, but start fresh on a first run. Nextflow keeps its
     # session history in the launch dir's .nextflow/, so its presence means a prior run
@@ -935,10 +942,12 @@ def _build_commands_sh(
     # Unquoted on purpose: word-splits to the flag or to nothing. Both are always
     # assigned above, so this is safe under `set -u`.
     replay_inner += " \\\n  $RESUME"
-    if has_resource_config:
-        replay_inner += " \\\n  $RESOURCE_CONFIG"
     if has_macos_config:
         replay_inner += " \\\n  $EXTRA_CONFIG"
+    if has_resource_config:
+        replay_inner += " \\\n  $RESOURCE_CONFIG"
+    if user_configs:
+        replay_inner += " \\\n  " + " \\\n  ".join(_replay_shell_arg(value) for value in user_configs)
     lines.append('(cd "$SCRIPT_DIR/.." && \\')
     lines.append("  " + replay_inner + ")")
     lines.append("")
@@ -1114,11 +1123,11 @@ def _split_macos_docker_config(argv: list[str]) -> tuple[list[str], bool, bool]:
         token = argv[i]
         nxt = argv[i + 1] if i + 1 < len(argv) else None
         if token == "-c" and isinstance(nxt, str):
-            if nxt.endswith("macos_docker.config"):
+            if nxt in {"$SCRIPT_DIR/macos_docker.config", "reproducibility/macos_docker.config"} or Path(nxt).parts[-2:] == ("reproducibility", "macos_docker.config"):
                 macos_found = True
                 i += 2
                 continue
-            if nxt.endswith("resource_limits.config"):
+            if nxt in {"$SCRIPT_DIR/resource_limits.config", "reproducibility/resource_limits.config"} or Path(nxt).parts[-2:] == ("reproducibility", "resource_limits.config"):
                 resource_found = True
                 i += 2
                 continue

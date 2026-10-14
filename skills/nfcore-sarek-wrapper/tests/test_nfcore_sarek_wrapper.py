@@ -123,7 +123,7 @@ def _patch_heavy(monkeypatch, module, *, pipeline_source=None, preflight=None,
     )
     monkeypatch.setattr(
         module, "load_manifest",
-        lambda *a, **kw: None,
+        lambda *a, **kw: {},
     )
     if samplesheet_report is None:
         samplesheet_report = {
@@ -145,10 +145,11 @@ def _patch_heavy(monkeypatch, module, *, pipeline_source=None, preflight=None,
             "pairings": [],
             "analysis_mode": "germline",
         }
-    monkeypatch.setattr(
-        module, "validate_and_normalize_samplesheet",
-        lambda *a, **kw: samplesheet_report,
-    )
+    def _validate_sheet(input_path, output_path, **kwargs):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("patient,sample,lane,fastq_1,fastq_2\n")
+        return {**samplesheet_report, "normalized_path": output_path}
+    monkeypatch.setattr(module, "validate_and_normalize_samplesheet", _validate_sheet)
 
     def _build_effective_params(args, *, normalized_samplesheet, output_dir):
         return {
@@ -815,6 +816,7 @@ def test_macos_docker_memory_scales_to_host(module, monkeypatch, tmp_path):
     # be hardcoded at 15.GB — on a 16GB Mac a 15GB cap starves the host.
     monkeypatch.setattr(module.sys, "platform", "darwin")
     monkeypatch.setattr(module, "_host_memory_gb", lambda: 16)
+    monkeypatch.setattr(module, "_docker_vm_memory_gb", lambda: None)
     args = module.build_parser().parse_args(["--output", str(tmp_path / "out"), "--demo", "--profile", "docker"])
     args.profile = "test,docker"
     cfg = module._write_macos_docker_config(tmp_path / "out", args=args)
@@ -874,16 +876,16 @@ def test_resource_limits_config_scales_with_host(module, monkeypatch, tmp_path):
     assert mem > 15 and mem <= 64  # no 15 GB macOS ceiling, never above physical RAM
 
 
-def test_resource_limits_config_none_on_demo(module, monkeypatch, tmp_path):
+def test_resource_limits_config_bounds_demo(module, monkeypatch, tmp_path):
     monkeypatch.setattr(module.sys, "platform", "linux")
     args = _resource_args(module, tmp_path, demo=True)
-    assert module._write_resource_limits_config(tmp_path / "out", args=args) is None
+    assert module._write_resource_limits_config(tmp_path / "out", args=args).is_file()
 
 
-def test_resource_limits_config_none_on_macos(module, monkeypatch, tmp_path):
+def test_resource_limits_config_separate_on_macos(module, monkeypatch, tmp_path):
     monkeypatch.setattr(module.sys, "platform", "darwin")
     args = _resource_args(module, tmp_path)
-    assert module._write_resource_limits_config(tmp_path / "out", args=args) is None
+    assert module._write_resource_limits_config(tmp_path / "out", args=args).is_file()
 
 
 def test_resource_limits_config_none_without_docker(module, monkeypatch, tmp_path):
@@ -1145,6 +1147,8 @@ def test_main_user_samplesheet_path_runs_validator(module, monkeypatch, tmp_path
     captured_csv: dict[str, Any] = {}
 
     def capture_sheet(input_path, output_path, *, step, tools):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("patient,sample,lane\n")
         captured_csv["input"] = input_path
         captured_csv["output"] = output_path
         captured_csv["step"] = step

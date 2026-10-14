@@ -25,7 +25,7 @@ _GIT_TIMEOUT = 10
 
 
 def _path_has_whitespace(path: Path) -> bool:
-    return any(" " in part for part in path.parts)
+    return any(char.isspace() for char in path.as_posix())
 
 
 def _git_stdout(path: Path, args: list[str]) -> str:

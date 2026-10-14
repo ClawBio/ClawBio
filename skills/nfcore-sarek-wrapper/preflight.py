@@ -638,6 +638,13 @@ def _check_output_dir(output_dir: Path, *, repo_root: Path, resume: bool) -> Non
         )
     if not output_dir.exists():
         return
+    if not output_dir.is_dir() or not os.access(output_dir, os.W_OK):
+        raise SkillError(
+            stage="preflight", error_code=ErrorCode.OUTPUT_DIR_NOT_WRITABLE,
+            message="Output path is not a writable directory.",
+            fix="Choose a writable directory path for --output.",
+            details={"output_dir": str(output_dir)},
+        )
     if resume:
         return
     try:
@@ -2288,6 +2295,7 @@ _RESUME_TRACKED_FIELDS = (
     "params_checksum",
     "reference_checksums",
     "samplesheet_checksum",
+    "work_dir",
 )
 
 
@@ -2319,6 +2327,7 @@ def _check_resume_drift(
     current["joint_mutect2"] = _truthy(params.get("joint_mutect2"))
     current["wes"] = _truthy(params.get("wes"))
     current["profile"] = params.get("profile")
+    current["work_dir"] = params.get("work_dir") or "upstream/work"
     current["params_checksum"] = params.get("params_checksum")
     current["reference_checksums"] = params.get("reference_checksums")
     _normalized = samplesheet.get("normalized_path")

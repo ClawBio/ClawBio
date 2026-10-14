@@ -4,7 +4,6 @@ import csv
 import re
 import sys
 from pathlib import Path
-from typing import cast
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -156,15 +155,18 @@ def _read_samplesheet(input_path: Path) -> tuple[list[str], list[dict[str, str]]
             details={"path": str(input_path)},
         )
 
-    with input_path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
-        fieldnames = list(reader.fieldnames or [])
-        # nf-core/scrnaseq validates the samplesheet by column NAME (assets/
-        # schema_input.json), not by position, so we only require presence here.
-        # Column order is normalized on write (_build_output_columns leads with
-        # sample,fastq_1,fastq_2), so any input order is accepted without loss.
-        _validate_required_columns(fieldnames)
-        rows = cast("list[dict[str, str]]", list(reader))
+    try:
+        from clawbio.common.nfcore import read_delimited_samplesheet
+
+        fieldnames, rows = read_delimited_samplesheet(input_path)
+    except (OSError, ValueError, csv.Error) as exc:
+        raise SkillError(
+            stage="validation", error_code=ErrorCode.INVALID_SAMPLESHEET,
+            message="Samplesheet could not be parsed without data loss.",
+            fix="Use unique nonempty headers, correctly quoted UTF-8 records, and one value per column.",
+            details={"path": str(input_path), "error": str(exc)},
+        ) from exc
+    _validate_required_columns(fieldnames)
 
     if not rows:
         raise SkillError(

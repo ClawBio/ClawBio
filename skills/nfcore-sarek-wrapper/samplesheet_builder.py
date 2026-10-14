@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import csv
-import json
 import os
 import re
 import sys
@@ -171,6 +170,12 @@ def _read_samplesheet(input_path: Path) -> tuple[list[str], list[dict[str, str]]
             fix="Provide a valid --input path to a samplesheet.csv file.",
             details={"path": str(input_path)},
         )
+    if not input_path.is_file():
+        raise SkillError(
+            stage="validation", error_code=ErrorCode.INVALID_SAMPLESHEET,
+            message="Samplesheet path is not a regular file.",
+            fix="Provide a samplesheet file instead of a directory.", details={"path": str(input_path)},
+        )
     if input_path.stat().st_size == 0:
         raise SkillError(
             stage="validation",
@@ -183,13 +188,31 @@ def _read_samplesheet(input_path: Path) -> tuple[list[str], list[dict[str, str]]
     suffix = input_path.suffix.lower()
     if suffix in {".csv", ".tsv"}:
         delimiter = "\t" if suffix == ".tsv" else ","
-        with input_path.open("r", encoding="utf-8-sig", newline="") as handle:
-            reader = csv.DictReader(handle, delimiter=delimiter)
-            fieldnames = reader.fieldnames or []
-            rows = list(reader)
+        try:
+            from clawbio.common.nfcore import read_delimited_samplesheet
+
+            fieldnames, rows = read_delimited_samplesheet(input_path, delimiter=delimiter)
+        except (OSError, ValueError, csv.Error) as exc:
+            raise SkillError(
+                stage="validation", error_code=ErrorCode.INVALID_SAMPLESHEET,
+                message="Samplesheet could not be parsed without data loss.",
+                fix="Use unique nonempty headers, correctly quoted UTF-8 records, and one value per column.",
+                details={"path": str(input_path), "error": str(exc)},
+            ) from exc
+
     elif suffix in {".json", ".yaml", ".yml"}:
-        text = input_path.read_text(encoding="utf-8-sig")
-        payload = json.loads(text) if suffix == ".json" else yaml.safe_load(text)
+        try:
+            from clawbio.common.nfcore import load_unique_json, load_unique_yaml
+
+            text = input_path.read_text(encoding="utf-8-sig")
+            payload = load_unique_json(text) if suffix == ".json" else load_unique_yaml(text)
+        except (OSError, ValueError, yaml.YAMLError) as exc:
+            raise SkillError(
+                stage="validation", error_code=ErrorCode.INVALID_SAMPLESHEET,
+                message="Structured samplesheet could not be parsed.",
+                fix="Use valid UTF-8 JSON/YAML with unique mapping keys.",
+                details={"path": str(input_path), "error": str(exc)},
+            ) from exc
         rows_obj = _extract_structured_rows(payload, input_path=input_path)
         rows = [{str(k): "" if v is None else str(v) for k, v in row.items()} for row in rows_obj]
         fieldnames = list(dict.fromkeys(key for row in rows for key in row))

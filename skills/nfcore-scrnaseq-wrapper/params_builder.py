@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import json
 import sys
 from pathlib import Path
 
@@ -64,6 +65,21 @@ def _posix_or_uri(value: str) -> str:
     return _posix(value)
 
 
+def _validate_native_scalar_params(params: dict[str, object]) -> None:
+    from clawbio.common.nfcore import validate_parameter_scalars
+
+    contract = json.loads((_SKILL_DIR / "reproducibility/upstream_scalar_contract.json").read_text())
+    try:
+        validate_parameter_scalars(params, contract["parameters"])
+    except ValueError as exc:
+        raise SkillError(
+            stage="validation", error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
+            message=f"Invalid native scrnaseq parameter: {exc}",
+            fix="Use the scalar types and numeric bounds in the pinned nf-core/scrnaseq schema.",
+            details={"error": str(exc)},
+        ) from exc
+
+
 def build_params_file(
     args, *, normalized_samplesheet: Path, output_dir: Path
 ) -> tuple[Path, dict[str, object]]:
@@ -96,7 +112,21 @@ def build_effective_params(
     _add_save_flags(params, args)
     _add_symbolic_reference_params(params, args)
     _add_reference_path_params(params, args)
+    _validate_native_scalar_params(params)
     return params
+
+
+def _canonical_protocol(value: str) -> str:
+    # Upstream protocols.json lookups are case-sensitive. Preflight accepts
+    # these aliases, so emit the corresponding key rather than a custom token.
+    if not isinstance(value, str):
+        return value  # scalar validation reports the type error
+    normalized = re.sub(r"[\s_-]+", "", value.lower())
+    if re.fullmatch(r"10xv[1-4]", normalized):
+        return normalized.upper()
+    if normalized in {"auto", "dropseq", "smartseq"}:
+        return normalized
+    return value
 
 
 def _build_base_params(
@@ -126,7 +156,7 @@ def _build_base_params(
     # protocol is supplied by the test profile in demo mode (see hermetic-demo
     # rationale in build_effective_params); never override it from the CLI.
     if args.protocol and not args.demo:
-        params["protocol"] = args.protocol
+        params["protocol"] = _canonical_protocol(args.protocol)
     return params
 
 
@@ -179,7 +209,7 @@ def _add_generic_nfcore_params(params: dict[str, object], args) -> None:
     for param_name in ("multiqc_config", "multiqc_logo", "multiqc_methods_description"):
         value = getattr(args, param_name, None)
         if value:
-            params[param_name] = _posix(value)
+            params[param_name] = _posix_or_uri(value)
     if getattr(args, "publish_dir_mode", None):
         params["publish_dir_mode"] = args.publish_dir_mode
     if getattr(args, "trace_report_suffix", None):

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import json
 import os
 import re
 import shutil
@@ -1473,7 +1472,17 @@ def _check_resume_compatibility(
             fix="Remove --resume or point --output to a compatible prior run directory.",
             details={"manifest": str(manifest_path)},
         )
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    from clawbio.common.nfcore import read_json_mapping
+
+    try:
+        manifest = read_json_mapping(manifest_path)
+    except (ValueError, OSError) as exc:
+        raise SkillError(
+            stage="preflight", error_code=ErrorCode.INVALID_RESUME_STATE,
+            message="Resume manifest is not a valid JSON object.",
+            fix="Use an intact manifest from a previous validated launch.",
+            details={"manifest": str(manifest_path), "error": str(exc)},
+        ) from exc
     _check_resume_preset_and_profile(args, manifest)
     _check_resume_pipeline_source(pipeline_source, manifest)
     _check_resume_work_dir(args, output_dir=output_dir, manifest=manifest)
