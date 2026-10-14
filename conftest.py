@@ -79,6 +79,12 @@ def _default_gi_key(root: Path) -> None:
         os.environ[GI_KEY_VAR] = key
 
 
+@pytest.fixture(autouse=True)
+def _isolated_audit_log(tmp_path_factory, monkeypatch) -> None:
+    """run_skill writes an audit record; keep tests out of ~/.clawbio/audit.jsonl."""
+    monkeypatch.setenv("CLAWBIO_AUDIT_LOG", str(tmp_path_factory.mktemp("audit") / "audit.jsonl"))
+
+
 def pytest_configure(config) -> None:
     if config.getoption(GI_LIVE_FLAG):
         _default_gi_key(Path(str(config.rootpath)))

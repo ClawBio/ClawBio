@@ -5,6 +5,7 @@ import stat
 from pathlib import Path
 
 import subprocess
+import sys
 import pytest
 
 from clawbio.common import audit
@@ -177,6 +178,17 @@ def test_otlp_exporter_is_opt_in(tmp_path, monkeypatch):
     assert endpoints == ["http://localhost:4318/v1/traces"]
 
 
+def test_missing_otlp_extra_warns_and_keeps_the_analysis_running(tmp_path, monkeypatch, capsys):
+    """Without clawbio[otlp], a set endpoint must cost the traces, not the run."""
+    monkeypatch.setitem(sys.modules, "opentelemetry.exporter.otlp.proto.http.trace_exporter", None)
+    monkeypatch.setenv("CLAWBIO_OTLP_ENDPOINT", "http://localhost:4318")
+    log = tmp_path / "audit.jsonl"
+    with skill_run("pharmgx", "0.2.0", log_path=log):
+        pass
+    assert "clawbio[otlp]" in capsys.readouterr().err
+    assert log.read_text().strip(), "local audit log should still be written"
+
+
 def test_skill_run_records_provenance_attributes(tmp_path):
     """input_checksum, input_file and output_dir reach the log, as documented."""
     log = tmp_path / "audit.jsonl"
@@ -216,7 +228,9 @@ def test_span_kinds_are_set_for_trace_viewers(tmp_path):
     records = [json.loads(line) for line in log.read_text().splitlines()]
     tool = next(r for r in records if r["event"] == "execute_tool bcftools_view")
     root = next(r for r in records if r["event"] == "skill_run")
-    assert root["openinference.span.kind"] == "AGENT"
+    # A skill run is a fixed pipeline, OpenInference's CHAIN; AGENT means a
+    # reasoning loop that chooses its own steps.
+    assert root["openinference.span.kind"] == "CHAIN"
     assert tool["openinference.span.kind"] == "TOOL"
     assert tool["tool.name"] == "bcftools_view"
 
