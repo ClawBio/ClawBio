@@ -44,12 +44,12 @@ dependencies = [
     "conda-lock>=4.0.2",
     "matplotlib>=3.11.2",
     "numpy>=2.4.6",
-    "openai>=3.17.0",
-    "opentelemetry-sdk>=1.44.0,<2",
+    "openai>=3.26.0",
+    "opentelemetry-sdk>=1.45.1,<2",
     "pandas>=3.0.6",
     "pyyaml>=6.0",
     "pydeseq2>=0.4",
-    "rocrate>=0.15.1",
+    "rocrate>=0.16.0",
     "scikit-learn>=1.9.1",
     "scipy>=1.10",
 ]
@@ -61,7 +61,7 @@ dependencies = [
 mcp = ["mcp>=1.9,<2"]
 just-prs = [
     "fastmcp>=3.4.4,<4",
-    "typer>=0.27.2,<1",
+    "typer>=0.27.3,<1",
 ]
 # SuShiE fine-mapping engine (jax-based) for skills/fine-mapping.
 # sushie pulls glimix-core itself; see the liknorm override under [tool.uv]
@@ -109,13 +109,13 @@ data-extractor = [
 # Python BigQuery client for skills/bigquery-public, which imports it lazily
 # and falls back to the `bq` CLI when it is absent.
 bigquery = [
-    "google-auth>=2.58.0,<3",
-    "google-cloud-bigquery>=3.45.2,<4",
+    "google-auth>=2.60.0,<3",
+    "google-cloud-bigquery>=3.46.1,<4",
 ]
 # The Robotary web UI (robotary/server.py).
 robotary = [
     "fastapi>=0.143.0",
-    "uvicorn>=0.51.0",
+    "uvicorn>=0.54.0",
 ]
 
 # PDF rendering in prs-abstain; the skill degrades to markdown-only without them.
@@ -154,7 +154,7 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 
 [dependency-groups]
 dev = [
-    "hypothesis>=6.168.4",
+    "hypothesis>=6.168.5",
     "pytest>=9.1.1",
     "skills-ref>=0.1.1,<1",
     # prs-abstain tests inspect the rendered PDFs.
@@ -165,7 +165,7 @@ bot = [
     "discord.py>=2.3.0",
     "flask>=3.0.0",
     "requests>=2.34.2",
-    "python-dotenv>=1.2.3",
+    "python-dotenv>=1.2.4",
 ]
 
 [tool.hatch.version]

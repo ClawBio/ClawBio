@@ -1,0 +1,2 @@
+sample,tumor,normal,snv_vcf,snv_list,sv_vcf,cnv,cnv_sample
+demo_tumor,skills/igv-validator/demo/demo_tumor.bam,skills/igv-validator/demo/demo_normal.bam,skills/igv-validator/demo/demo_calls.vcf,skills/igv-validator/demo/demo_variants.tsv,skills/igv-validator/demo/demo_calls.vcf,skills/igv-validator/demo/demo_cnv.tsv,

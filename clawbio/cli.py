@@ -1374,6 +1374,17 @@ SKILLS = {
         "no_input_required": False,
         "accepts_genotypes": False,
     },
+    "igv-validator": {
+        "script": SKILLS_DIR / "igv-validator" / "igv_validator.py",
+        "demo_args": ["--demo"],
+        "description": "IGV validation of somatic calls: tumor/normal read support, artifact flags, IGV screenshots",
+        "allowed_extra_flags": {
+            "--vcf", "--tumor", "--normal", "--reference", "--genes", "--variants", "--regions", "--cnv", "--cnv-sample", "--demo-cnv", "--summarize", "--overview", "--curated-calls", "--heatmap", "--annotation", "--interactive", "--bundle", "--no-bundle", "--project", "--index", "--samplesheet", "--reports-dir", "--skip-unknown-genes", "--pass-only",
+            "--max-variants", "--no-igv", "--igv-timeout", "--igv-path", "--tumor-only", "--caller-sample", "--tumor-name", "--normal-name",
+        },
+        "no_input_required": False,
+        "accepts_genotypes": False,
+    },
     "bioqc": {
         "script": SKILLS_DIR / "bioqc-mcp" / "bioqc_mcp.py",
         "demo_args": ["--demo"],
