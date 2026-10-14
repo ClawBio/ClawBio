@@ -119,6 +119,8 @@ def colorize_report_line(line: str) -> str:
         return f"{RED}{BOLD}{line}{RESET}"
     if "CAUTION" in upper:
         return f"{YELLOW}{line}{RESET}"
+    if "INDETERMINATE" in upper or "UNKNOWN" in upper or "NOT ASSESSED" in upper:
+        return f"{YELLOW}{line}{RESET}"
     if "STANDARD" in upper or "| OK" in upper or "NORMAL" in upper:
         return f"{GREEN}{line}{RESET}"
     if stripped.startswith("---") or stripped.startswith("===") or stripped.startswith("| ---"):
@@ -184,9 +186,10 @@ def format_pharmgx_preview(report_text: str, report_path: str):
         elif line.startswith("---") or (line.startswith("##") and "Actionable" not in line):
             section = None
         elif section and line.strip().startswith("- **"):
-            m = re.match(r'- \*\*(.+?)\*\* \((.+?)\) \[(.+?)]: (.+)', line.strip())
+            m = re.match(r'- \*\*(.+?)\*\* \((.+?)\) \[(.+?)\](?:: (.+))?$', line.strip())
             if m:
-                entry = {"drug": m[1], "brand": m[2], "genes": m[3], "rec": m[4]}
+                entry = {"drug": m[1], "brand": m[2], "genes": m[3],
+                         "rec": m[4] or "Provisional panel flag; clinical review and confirmation required."}
                 (avoid_drugs if section == "avoid" else caution_drugs).append(entry)
 
     # === RENDER ===
@@ -200,8 +203,7 @@ def format_pharmgx_preview(report_text: str, report_path: str):
     print(f"\n{CYAN}╭{'─' * W}╮{RESET}")
     print(f"{CYAN}│{RESET}  {BOLD}{CYAN}ClawBio PharmGx Report{RESET}"
           f"{' ' * (W - 24)}{CYAN}│{RESET}")
-    print(f"{CYAN}│{RESET}  {DIM}Corpasome (CC0) · doi:10.6084/m9.figshare.693052{RESET}"
-          f"{' ' * (W - 51)}{CYAN}│{RESET}")
+    print(f"{CYAN}│{RESET}  {DIM}Input: {meta.get('Input', 'not specified')}{RESET}")
     print(f"{CYAN}╰{'─' * W}╯{RESET}")
     print()
     print(f"  {BOLD}{n_genes}{RESET} genes  {DIM}·{RESET}  "
@@ -216,24 +218,7 @@ def format_pharmgx_preview(report_text: str, report_path: str):
         for d in avoid_drugs:
             print(f"    {RED}{BOLD}{d['drug']}{RESET} ({d['brand']})  "
                   f"{DIM}[{d['genes']}]{RESET}")
-            if d["drug"].lower() == "warfarin":
-                print()
-                print(f"    {YELLOW}{BOLD}VKORC1{RESET}{YELLOW} rs9923231 {BOLD}TT{RESET}"
-                      f"  {DIM}→{RESET}  Both copies carry the sensitivity allele.")
-                print(f"    {DIM}This patient produces less vitamin K epoxide reductase,{RESET}")
-                print(f"    {DIM}making them hyper-responsive to warfarin's mechanism.{RESET}")
-                print()
-                print(f"    {YELLOW}{BOLD}CYP2C9{RESET}{YELLOW} *1/*2 {DIM}(rs1799853 CT){RESET}"
-                      f"  {DIM}→{RESET}  Intermediate Metabolizer.")
-                print(f"    {DIM}Warfarin is cleared ~40% more slowly than in *1/*1 carriers,{RESET}")
-                print(f"    {DIM}causing the drug to accumulate at standard doses.{RESET}")
-                print()
-                print(f"    {RED}{BOLD}Combined effect:{RESET}  "
-                      f"Standard doses risk {RED}{BOLD}life-threatening bleeding{RESET}.")
-                print(f"    CPIC guidelines recommend {BOLD}50–80% dose reduction{RESET} or")
-                print(f"    switching to a DOAC (apixaban, rivaroxaban).")
-            else:
-                print(f"    {d['rec']}")
+            print(f"    {d['rec']}")
         print(f"  {RED}{'─' * W}{RESET}")
 
     # ── Gene profile ──
@@ -248,20 +233,22 @@ def format_pharmgx_preview(report_text: str, report_path: str):
         dip_core = dip_match[1] if dip_match else diplotype
         dip_note = f" {DIM}{dip_match[2]}{RESET}" if dip_match and dip_match[2] else ""
         # Choose color by phenotype category
-        if "Unknown" in phenotype or "unmapped" in phenotype:
+        if "Unknown" in phenotype or "unmapped" in phenotype or "Indeterminate" in phenotype:
             pc = YELLOW
-            phenotype_short = "Unknown"
+            phenotype_short = phenotype
             extra = f"  {DIM}(needs clinical testing){RESET}"
         elif "High" in phenotype:
             pc, phenotype_short, extra = RED, phenotype, ""
         elif "Poor" in phenotype:
             pc, phenotype_short, extra = RED, phenotype, ""
         elif "Intermediate" in phenotype:
-            pc, phenotype_short, extra = YELLOW, "Intermediate", ""
+            pc, phenotype_short, extra = YELLOW, phenotype, ""
         elif "Non-expressor" in phenotype:
-            pc, phenotype_short, extra = DIM, "Non-expressor", ""
+            pc, phenotype_short, extra = DIM, phenotype, ""
+        elif "Rapid" in phenotype or "rapid" in phenotype or "Expressor" in phenotype or "Reduced" in phenotype:
+            pc, phenotype_short, extra = YELLOW, phenotype, ""
         else:
-            pc, phenotype_short, extra = GREEN, "Normal", ""
+            pc, phenotype_short, extra = DIM, phenotype, ""
         wmark = f"  {RED}← warfarin{RESET}" if gene in ("CYP2C9", "VKORC1") else ""
         print(f"  {BOLD}{gene:<10}{RESET} {DIM}{dip_core:<12}{RESET}"
               f" {pc}{phenotype_short}{RESET}{extra}{dip_note}{wmark}")
@@ -303,8 +290,8 @@ SKILLS = {
             "--input",
             str(SKILLS_DIR / "pharmgx-reporter" / "demo_patient.txt"),
         ],
-        "description": "Pharmacogenomics reporter (12 genes, 31 SNPs, 51 drugs)",
-        "allowed_extra_flags": {"--weights"},
+        "description": "Pharmacogenomics reporter (limited DTC panel with explicit coverage and evidence limitations)",
+        "allowed_extra_flags": {"--weights", "--no-enrich"},
         "api_module": "skills.pharmgx-reporter.api",
         "accepts_genotypes": True,
     },

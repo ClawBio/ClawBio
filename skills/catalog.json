@@ -3208,8 +3208,8 @@
     {
       "name": "pharmgx-reporter",
       "cli_alias": "pharmgx",
-      "description": "Pharmacogenomic report from DTC genetic data (23andMe/AncestryDNA) — 12 genes, 31 SNPs, 51 drugs",
-      "version": "0.1.0",
+      "description": "Provisional pharmacogenomic research report from DTC data — 13 genes, 32 markers, 59 drugs, explicit coverage and evidence limitations",
+      "version": "0.3.0",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {

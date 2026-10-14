@@ -1,9 +1,9 @@
 ---
 name: pharmgx-reporter
-description: Pharmacogenomic report from DTC genetic data (23andMe/AncestryDNA) — 12 genes, 31 SNPs, 51 drugs
+description: Provisional pharmacogenomic research report from DTC data — 13 genes, 32 markers, 59 drugs, explicit coverage and evidence limitations
 license: MIT
 metadata:
-  version: 0.1.0
+  version: 0.3.0
   author: Manuel Corpas
   tags:
   - pharmacogenomics
@@ -37,14 +37,14 @@ You are **PharmGx Reporter**, a specialised ClawBio agent for pharmacogenomic an
 ## Why This Exists
 
 - **Without it**: Users must manually cross-reference their raw genotype files against CPIC guidelines — a multi-hour process requiring genetics expertise
-- **With it**: Upload a 23andMe or AncestryDNA file and get a structured report covering 12 genes and 51 drugs in seconds
-- **Why ClawBio**: Grounded in CPIC guidelines and FDA-approved PGx biomarkers, not LLM guesswork. Every recommendation traces to a published star-allele → phenotype → drug mapping.
+- **With it**: Process a local 23andMe or AncestryDNA file and get provisional panel annotations with exact coverage and interpretation limitations.
+- **Why ClawBio**: Deterministic research mappings, with cited rationales for reviewed exceptions. The lookup is not a complete audit of all current guidelines or a clinical dosing engine.
 
 ## Core Capabilities
 
-1. **Genotype Parsing**: Auto-detects 23andMe or AncestryDNA format, extracts 31 pharmacogenomic SNPs
-2. **Star Allele Calling**: Maps diplotypes to metaboliser phenotypes (Poor, Intermediate, Normal, Rapid, Ultra-rapid)
-3. **Drug Recommendation**: Looks up CPIC-level drug guidance for 51 medications across 12 genes
+1. **Genotype Parsing**: Auto-detects format and extracts 32 panel markers, retaining raw calls separately from normalized calls
+2. **Star Allele Calling**: Validates supported marker alphabets; withholds definitive calls for incomplete coverage, unsupported structural/repeat encodings or unresolved phase
+3. **Drug Lookup**: Produces simplified annotations for 59 drugs across 13 genes, with reasons distinguishing missing data from insufficient prescribing evidence
 4. **Single-Drug Mode**: `--drug` flag for quick lookup of one medication (used by Drug Photo skill)
 
 ## Input Formats
@@ -74,10 +74,10 @@ deliberately, so the shipped demo exercises the GRCh37 path.
 ## Workflow
 
 1. **Parse**: Read raw genetic data, auto-detect format (23andMe vs AncestryDNA)
-2. **Extract**: Pull 31 PGx SNPs across 12 genes from the genotype file
-3. **Call**: Determine star alleles and metaboliser phenotypes per gene
-4. **Lookup**: Match each gene's phenotype to CPIC drug recommendations (AVOID / CAUTION / STANDARD / INSUFFICIENT)
-5. **Report**: Generate `report.md` with gene profile table, drug summary, and clinical alerts
+2. **Extract**: Pull panel markers and record present, missing, supported and unsupported rsIDs per gene
+3. **Call**: Use the shared CLI/API caller for provisional diplotypes and phenotypes, explicitly withholding unsupported conclusions
+4. **Lookup**: Apply the shared full/single-drug lookup, including TPMT plus NUDT15 for thiopurines and reviewed evidence exceptions
+5. **Report**: Generate matching Markdown, HTML and JSON outputs with limitations, coverage, sources and a reproducibility bundle
 
 ## CLI Reference
 
@@ -86,7 +86,7 @@ deliberately, so the shipped demo exercises the GRCh37 path.
 python skills/pharmgx-reporter/pharmgx_reporter.py \
   --input <patient_file> --output <report_dir>
 
-# Demo mode (synthetic 31-SNP patient)
+# Bundled public demonstration dataset (incomplete array coverage)
 python skills/pharmgx-reporter/pharmgx_reporter.py \
   --input skills/pharmgx-reporter/demo_patient.txt --output /tmp/pharmgx_demo
 
@@ -97,6 +97,8 @@ python skills/pharmgx-reporter/pharmgx_reporter.py \
 # Via ClawBio runner
 python clawbio.py run pharmgx --demo
 python clawbio.py run pharmgx --input <file> --output <dir>
+# Fully offline report (skip public ClinPGx evidence enrichment)
+python clawbio.py run pharmgx --input <file> --output <new_dir> --no-enrich
 ```
 
 ## Demo
@@ -105,11 +107,11 @@ python clawbio.py run pharmgx --input <file> --output <dir>
 python clawbio.py run pharmgx --demo
 ```
 
-Expected output: A multi-section report covering 12 gene profiles with metaboliser phenotypes, a 51-drug recommendation table (bucketed into AVOID / CAUTION / STANDARD / INSUFFICIENT), and a warfarin special alert (multi-gene CYP2C9 + VKORC1 interaction).
+Expected output: A multi-section report with 13 panel gene profiles, coverage tables and 59 drug annotations. The bundled public dataset has incomplete coverage; indeterminate results are expected and must not be interpreted as normal.
 
 ## Genes Covered
 
-CYP2C19, CYP2D6, CYP2C9, VKORC1, SLCO1B1, DPYD, TPMT, UGT1A1, CYP3A5, CYP2B6, NUDT15, CYP1A2
+CYP2C19, CYP2D6, CYP2C9, VKORC1, SLCO1B1, DPYD, TPMT, UGT1A1, CYP3A5, CYP2B6, NUDT15, CYP1A2, MTHFR
 
 ## Drug Classes
 
@@ -120,22 +122,48 @@ Antiplatelet, opioids, statins, anticoagulants, PPIs, antidepressants (TCAs, SSR
 ```
 output_directory/
 ├── report.md              # Full pharmacogenomic report
+├── report.html            # Same findings and limitations in HTML
 ├── result.json            # Machine-readable gene profiles + drug recommendations
 └── reproducibility/
-    └── commands.sh        # Exact command to reproduce
+    ├── commands.sh        # Quoted local paths, flags and non-overwriting rerun
+    ├── environment.yml    # Python environment
+    └── checksums.sha256    # Output-file integrity checks
 ```
 
 ## Dependencies
 
 **Required**:
-- Python 3.10+ (standard library only — no external packages)
+- Python 3.11+; offline report logic uses the standard library. Use the project's uv environment for CLI execution and optional public evidence enrichment.
 
 ## Safety
 
 - **Local-first**: Genetic data never leaves the machine
 - **Disclaimer**: Every report includes the ClawBio medical disclaimer
-- **CPIC-grounded**: All gene–drug mappings trace to published CPIC guidelines
-- **No hallucinated associations**: Only the 31 validated SNPs are used
+- **Research scope**: Existing drug mappings are simplified and not all have been revalidated against current guidelines
+- **Coverage**: Present means a call was found, not that the variant is absent or the marker is clinically interpretable
+- **No dosing assurances**: STANDARD is a lookup category, not proof of efficacy or safety; INSUFFICIENT can mean missing data or insufficient prescribing evidence
+
+## Interpretation safeguards (v0.3.0)
+
+- Opposite-strand calls are normalized only when the supported nucleotide alphabet and its complement are disjoint. Unsupported alleles and I/D encodings never default to reference.
+- CYP2D6*6, CYP3A5*7 and UGT1A1*28 cannot be established by consumer-array encodings here. CYP2D6 copy-number/hybrid analysis and UGT1A1 repeat testing require clinical assays.
+- Partial panel coverage is disclosed even when a variant is detected. Raw calls, normalized calls and missing/unsupported markers remain available in JSON.
+- CYP1A2 genotype does not establish a validated clinical metabolizer phenotype. Clozapine is not assigned a genotype-based dose alert from CYP1A2.
+- MTHFR findings do not establish a methotrexate dose adjustment. The 1298AC label is distinct from 677CT.
+- Thiopurines require combined TPMT/NUDT15 review. An unresolved gene prevents normal reassurance; a resolved risk finding is retained even if the other gene is unresolved. No dose percentages are calculated.
+- rs147390019 defines NUDT15*4, not *2. Its phenotype is withheld pending verified current functional translation; no function is inferred from the old *2 label.
+- Methadone uses CPIC standard-prescribing guidance for supported CYP2B6 phenotypes, not automatic dose reduction.
+- Warfarin sensitivity prompts genotype-plus-clinical algorithm review and INR monitoring, not a blanket contraindication.
+- SMS deletions and other clinical conditions are not inferred from SNP-array calls or incorporated into this report.
+- The test suite uses synthetic safety fixtures. The bundled demo is a public CC0 dataset, not a private patient fixture.
+
+Reviewed evidence:
+
+- [CPIC CYP2B6/methadone (2024)](https://files.cpicpgx.org/data/guideline/publication/methadone/2024/38863207.pdf)
+- [CPIC TPMT/NUDT15 thiopurines, 2025 update](https://files.cpicpgx.org/data/guideline/publication/thiopurines/2026/41618934.pdf) and [allele-definition supplement](https://files.cpicpgx.org/data/guideline/publication/thiopurines/2026/41618934-supplement.pdf)
+- [NCBI clozapine/CYP interpretation](https://www.ncbi.nlm.nih.gov/books/NBK367795/)
+- [CPIC evidence prioritization, including MTHFR/methotrexate](https://www.clinpgx.org/cpic/prioritization/guidelines)
+- [CPIC warfarin dosing](https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/)
 
 ## Integration with Bio Orchestrator
 

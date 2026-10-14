@@ -69,11 +69,7 @@ def run(genotypes: dict[str, str], options: dict | None = None) -> dict:
             pgx_snps[rsid] = {"genotype": snps[rsid], **info}
 
     # Call diplotypes and phenotypes for every gene
-    profiles: dict[str, dict] = {}
-    for gene in GENE_DEFS:
-        diplotype = call_diplotype(gene, pgx_snps)
-        phenotype = call_phenotype(gene, diplotype)
-        profiles[gene] = {"diplotype": diplotype, "phenotype": phenotype}
+    profiles = _reporter.build_profiles(pgx_snps)
 
     # Look up drug recommendations
     drug_results = lookup_drugs(profiles)
@@ -86,6 +82,8 @@ def run(genotypes: dict[str, str], options: dict | None = None) -> dict:
     return {
         "pgx_snps": pgx_snps,
         "gene_profiles": profiles,
+        "marker_coverage": _reporter.marker_coverage(pgx_snps),
+        "panel_limitations": _reporter.PANEL_LIMITATIONS,
         "drug_recommendations": drug_results,
         "summary": {
             "pgx_snps_found": len(pgx_snps),
