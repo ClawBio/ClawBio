@@ -8,7 +8,6 @@ import hashlib
 import os
 import re
 import shutil
-import subprocess
 import sys
 import warnings
 from pathlib import Path
@@ -17,6 +16,7 @@ import yaml
 
 from clawbio.common.checksums import sha256_file
 from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.paths import is_under_tmp
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -38,7 +38,6 @@ from schemas import (
     JAVA_MIN_VERSION,
     NEXTFLOW_MIN_VERSION,
     PROJECT_ROOT,
-    is_under_tmp,
     SUPPORTED_ALIGNERS,
     SUPPORTED_IGENOMES_NAMES,
     SUPPORTED_PSEUDO_ALIGNERS,
@@ -354,12 +353,8 @@ def _check_daemon_profile(profile: str, binary: str, missing_code: str, not_runn
             fix=f"Install {binary} or choose another supported profile.",
             details={"profile": profile},
         )
-    try:
-        info = subprocess.run([binary, "info"], capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
-        ok = info.returncode == 0
-    except (subprocess.TimeoutExpired, OSError):
-        ok = False
-    if not ok:
+    info = _runtime.run_probe([binary, "info"], timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if info is None or info.returncode != 0:
         raise SkillError(
             stage="preflight",
             error_code=not_running_code,

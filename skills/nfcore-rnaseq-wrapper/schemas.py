@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from clawbio.common.nfcore.paths import is_under_tmp  # noqa: F401 - single predicate for preflight and execution
 
 
 SKILL_NAME = "nfcore-rnaseq-wrapper"

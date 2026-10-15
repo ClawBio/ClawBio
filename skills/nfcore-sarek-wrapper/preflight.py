@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.paths import is_under_tmp
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -45,7 +46,6 @@ from schemas import (
     DEFAULT_IGENOMES_BASE,
     JAVA_MIN_VERSION,
     NEXTFLOW_MIN_VERSION,
-    is_under_tmp,
     SUPPORTED_ALIGNERS,
     SUPPORTED_ASCAT_GENOME,
     SUPPORTED_GATK_PCR_INDEL_MODEL,
@@ -524,17 +524,8 @@ def _probe_daemon(profile: str, *, binary: str) -> None:
             fix=f"Install {binary} or remove the '{profile}' profile token.",
             details={"profile": profile, "binary": binary},
         )
-    try:
-        info = subprocess.run(
-            [binary, "info"],
-            capture_output=True,
-            text=True,
-            timeout=_SUBPROCESS_TIMEOUT,
-        )
-        ok = info.returncode == 0
-    except (subprocess.TimeoutExpired, OSError):
-        ok = False
-    if not ok:
+    info = _runtime.run_probe([binary, "info"], timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if info is None or info.returncode != 0:
         raise SkillError(
             stage="preflight",
             error_code=_DAEMON_DOWN_CODE.get(profile, ErrorCode.BACKEND_UNAVAILABLE),

@@ -124,10 +124,8 @@ def _runner_timeout_for(monkeypatch, tmp_path, *argv):
 
     monkeypatch.setattr(clawbio_runner, "run_skill", fake_run_skill)
     monkeypatch.setattr(sys, "argv", ["clawbio", "run", *argv, "--output", str(tmp_path)])
-    try:
+    with pytest.raises(SystemExit):
         clawbio_runner.main()
-    except SystemExit:
-        pass
     return seen["timeout"]
 
 

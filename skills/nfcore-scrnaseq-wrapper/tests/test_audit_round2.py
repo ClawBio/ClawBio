@@ -748,16 +748,18 @@ def test_declared_packages_cover_external_imports():
 
 
 def test_is_under_tmp_helper_behaviour():
-    assert schemas.is_under_tmp(Path("/tmp/clawbio_run")) is True
-    assert schemas.is_under_tmp(Path("/private/tmp/clawbio_run")) is True
+    from clawbio.common.nfcore.paths import is_under_tmp
+
+    assert is_under_tmp(Path("/tmp/clawbio_run")) is True
+    assert is_under_tmp(Path("/private/tmp/clawbio_run")) is True
     home_path = Path.home() / "clawbio_run"
-    assert schemas.is_under_tmp(home_path) is False
+    assert is_under_tmp(home_path) is False
 
 
 def test_preflight_and_executor_reuse_the_shared_helper():
     import preflight
-    from clawbio.common.nfcore import execution
+    from clawbio.common.nfcore import execution, paths
 
     # The pre-run WARNING and the post-failure hint must use one predicate.
-    assert preflight.is_under_tmp is schemas.is_under_tmp
-    assert execution.is_under_tmp is schemas.is_under_tmp
+    assert preflight.is_under_tmp is paths.is_under_tmp
+    assert execution.is_under_tmp is paths.is_under_tmp

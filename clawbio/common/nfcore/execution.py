@@ -259,6 +259,7 @@ def terminate_process_tree(
                 timeout=grace_seconds,
             )
         except (OSError, subprocess.SubprocessError):
+            # taskkill missing, failing or hung: proc.kill() below still stops the child.
             pass
         proc.kill()
         proc.wait()
