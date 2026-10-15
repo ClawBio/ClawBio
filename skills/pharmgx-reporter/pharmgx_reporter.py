@@ -318,8 +318,9 @@ GENE_DEFS = {
             # - 677CT/1298AC: "50-60% of control activity" and 1298CC "approximately 60%"
             #   (Weisberg 1998, PMID 9719624)
             # - 677TT: thermolabile enzyme with reduced activity; homozygotes have elevated plasma
-            #   homocysteine (Frosst 1995, PMID 7647779). Lowest activity in this set, so "Severely"
-            #   keeps the order mild < moderate < severe.
+            #   homocysteine (Frosst 1995, PMID 7647779). Lowest activity in this set (about 30% of
+            #   wild type), so "Strongly" keeps the order mild < moderate < strongly; this is also the
+            #   wording the scientific-audit bench case mthfr_677tt_methotrexate expects.
             # - 677TT/1298AC and 677CT/1298CC: not measured in the papers above. Their labels are
             #   extrapolated from the constituent genotypes (each at least as low as 677TT or as the
             #   compound heterozygote, respectively), not taken from a measured activity value.
@@ -330,8 +331,8 @@ GENE_DEFS = {
             "Moderately reduced MTHFR enzyme activity (677CT/1298AC compound heterozygous)": ["677CT/1298AC"],
             "Moderately reduced MTHFR enzyme activity (1298CC)": ["677CC/1298CC"],
             "Moderately reduced MTHFR enzyme activity (677CT/1298CC)": ["677CT/1298CC"],
-            "Severely reduced MTHFR enzyme activity (677TT)": ["677TT/1298AA"],
-            "Severely reduced MTHFR enzyme activity (677TT/1298AC)": ["677TT/1298AC"],
+            "Strongly reduced MTHFR enzyme activity (677TT)": ["677TT/1298AA"],
+            "Strongly reduced MTHFR enzyme activity (677TT/1298AC)": ["677TT/1298AC"],
         },
     },
 }
@@ -1323,8 +1324,8 @@ def phenotype_to_key(phenotype_desc):
         "Moderately reduced MTHFR enzyme activity (677CT/1298AC compound heterozygous)": "moderately_reduced_activity",
         "Moderately reduced MTHFR enzyme activity (1298CC)": "moderately_reduced_activity",
         "Moderately reduced MTHFR enzyme activity (677CT/1298CC)": "moderately_reduced_activity",
-        "Severely reduced MTHFR enzyme activity (677TT)": "severely_reduced_activity",
-        "Severely reduced MTHFR enzyme activity (677TT/1298AC)": "severely_reduced_activity",
+        "Strongly reduced MTHFR enzyme activity (677TT)": "strongly_reduced_activity",
+        "Strongly reduced MTHFR enzyme activity (677TT/1298AC)": "strongly_reduced_activity",
     }
     # Try exact match first, then strip qualifiers like "(inferred)"
     key = mapping.get(phenotype_desc)

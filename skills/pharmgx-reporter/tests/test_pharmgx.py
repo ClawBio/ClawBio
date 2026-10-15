@@ -166,7 +166,7 @@ def test_mthfr_forward_strand_conversion_corpas():
 
 def test_mthfr_level2_reduced():
     """MTHFR 677TT/1298AA: lowest activity (Frosst 1995); informational, no drug grade."""
-    assert call_phenotype("MTHFR", "677TT/1298AA") == "Severely reduced MTHFR enzyme activity (677TT)"
+    assert call_phenotype("MTHFR", "677TT/1298AA") == "Strongly reduced MTHFR enzyme activity (677TT)"
 
 
 def test_mthfr_level2_intermediate():
@@ -1016,26 +1016,24 @@ def test_mthfr_1298ac_alone_label():
 
 
 def test_mthfr_labels_map_to_activity_categories():
-    import pharmgx_reporter as m
-    cp, fn = m.call_phenotype, m.phenotype_to_key
+    cp, fn = call_phenotype, phenotype_to_key
     assert fn(cp("MTHFR", "677CT/1298AA")) == fn(cp("MTHFR", "677CC/1298AC")) == "mildly_reduced_activity"
     assert fn(cp("MTHFR", "677CT/1298AC")) == fn(cp("MTHFR", "677CC/1298CC")) == "moderately_reduced_activity"
     assert fn(cp("MTHFR", "677CT/1298CC")) == "moderately_reduced_activity"
-    assert fn(cp("MTHFR", "677TT/1298AA")) == fn(cp("MTHFR", "677TT/1298AC")) == "severely_reduced_activity"
+    assert fn(cp("MTHFR", "677TT/1298AA")) == fn(cp("MTHFR", "677TT/1298AC")) == "strongly_reduced_activity"
 
 
 def test_mthfr_double_variant_genotypes_are_mapped():
     """677TT/1298AC and 677CT/1298CC get a label (extrapolated, see GENE_DEFS comment)."""
-    assert call_phenotype("MTHFR", "677TT/1298AC") == "Severely reduced MTHFR enzyme activity (677TT/1298AC)"
+    assert call_phenotype("MTHFR", "677TT/1298AC") == "Strongly reduced MTHFR enzyme activity (677TT/1298AC)"
     assert call_phenotype("MTHFR", "677CT/1298CC") == "Moderately reduced MTHFR enzyme activity (677CT/1298CC)"
 
 
 def test_mthfr_label_order_follows_activity():
     """677TT (lowest measured activity) must not read milder than the compound heterozygote."""
-    import pharmgx_reporter as m
     rank = {"normal_activity": 0, "mildly_reduced_activity": 1,
-            "moderately_reduced_activity": 2, "severely_reduced_activity": 3}
-    r = lambda d: rank[m.phenotype_to_key(m.call_phenotype("MTHFR", d))]
+            "moderately_reduced_activity": 2, "strongly_reduced_activity": 3}
+    r = lambda d: rank[phenotype_to_key(call_phenotype("MTHFR", d))]
     assert r("677CC/1298AA") < r("677CT/1298AA") < r("677CT/1298AC") < r("677TT/1298AA")
     assert r("677CC/1298AC") < r("677CC/1298CC")
 
@@ -1045,29 +1043,26 @@ _MTHFR_GENOTYPES = ["677CC/1298AA", "677CT/1298AA", "677CC/1298AC", "677CT/1298A
 
 
 def _mthfr_profiles(diplotype):
-    import pharmgx_reporter as m
-    return {"MTHFR": {"diplotype": diplotype, "phenotype": m.call_phenotype("MTHFR", diplotype)}}
+    return {"MTHFR": {"diplotype": diplotype, "phenotype": call_phenotype("MTHFR", diplotype)}}
 
 
 def test_no_drug_action_is_driven_by_mthfr_alone():
-    import pharmgx_reporter as m
     for d in _MTHFR_GENOTYPES:
-        res = m.lookup_drugs(_mthfr_profiles(d))
+        res = lookup_drugs(_mthfr_profiles(d))
         for bucket in ("standard", "caution", "avoid"):
             graded = [x["drug"] for x in res.get(bucket, []) if x["gene"] == "MTHFR"]
             assert not graded, f"{d}: {graded} graded '{bucket}' on MTHFR alone"
 
 
 def test_methotrexate_is_informational_with_a_stated_reason():
-    import pharmgx_reporter as m
     for d in _MTHFR_GENOTYPES:
-        res = m.lookup_drugs(_mthfr_profiles(d))
+        res = lookup_drugs(_mthfr_profiles(d))
         mtx = [x for x in res["indeterminate"] if x["drug"] == "Methotrexate"]
         assert mtx and "No CPIC or DPWG guideline" in mtx[0]["note"], d
 
 
-def test_no_mthfr_label_says_strongly_reduced():
-    import pharmgx_reporter as m
-    for d in _MTHFR_GENOTYPES:
-        assert not m.call_phenotype("MTHFR", d).lower().startswith("strongly"), d
-    assert all(not k.lower().startswith("strongly") for k in m.GENE_DEFS["MTHFR"]["phenotypes"])
+def test_mthfr_677tt_labels_match_scientific_audit_wording():
+    """clawbio-bench case mthfr_677tt_methotrexate expects 677TT reported as "Strongly reduced"."""
+    for d in ("677TT/1298AA", "677TT/1298AC"):
+        assert call_phenotype("MTHFR", d).startswith("Strongly reduced MTHFR enzyme activity (677TT"), d
+    assert not any(k.lower().startswith("severely") for k in GENE_DEFS["MTHFR"]["phenotypes"])
