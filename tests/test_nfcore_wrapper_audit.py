@@ -177,7 +177,8 @@ def test_bad_csv_fails_without_output(wrapper, tmp_path, defect):
     assert not dest.exists()
 
 
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+# This property writes and validates a real file on potentially shared storage.
+@settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(st.integers(min_value=0, max_value=5))
 def test_duplicate_header_any_position(wrapper, tmp_path, position):
     name, _, companions = wrapper
