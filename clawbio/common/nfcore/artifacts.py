@@ -94,7 +94,6 @@ def read_delimited_samplesheet(
 
 def write_manifest_checkpoint(output_dir: Path, manifest: dict) -> Path:
     """Commit a launch record before execution so failures can safely resume."""
-    import json
     from clawbio.common.textio import write_text_lf_atomic
 
     path = output_dir / "reproducibility/manifest.json"
