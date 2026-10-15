@@ -29,7 +29,10 @@ so the list cannot silently fall behind the code.
   is outside their reach. The transport is plain OTLP/HTTP, so point the
   variable at a collector on this machine or at an `https://` URL. A local
   collector (Phoenix, say) keeps all of it on this machine; a remote one does
-  not.
+  not. Every exported span also carries the resource: `service.name` and
+  `openinference.project.name` default to `clawbio`, and whatever is set in
+  `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` is added or overrides
+  them, so an agent that runs ClawBio can file the spans under its own project.
   `CLAWBIO_AUDIT_LOG` moves the local JSONL file, which carries the same
   paths and identifiers, so point it somewhere you would keep them.
 - Most skills never touch the network. They read your files, compute, and write

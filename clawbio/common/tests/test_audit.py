@@ -399,3 +399,65 @@ def test_otlp_endpoint_may_be_given_with_or_without_the_signal_path(tmp_path, mo
         with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
             pass
     assert endpoints == ["http://localhost:4318/v1/traces"] * 2
+
+
+@pytest.fixture
+def exported(monkeypatch):
+    """Spans as the exporter saw them; the JSONL record leaves out the resource."""
+    spans = []
+
+    class _Recorder(audit._JsonlExporter):
+        def export(self, batch):
+            spans.extend(batch)
+            return super().export(batch)
+
+    monkeypatch.setattr(audit, "_JsonlExporter", _Recorder)
+    monkeypatch.delenv("OTEL_RESOURCE_ATTRIBUTES", raising=False)
+    monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+    return spans
+
+
+def test_resource_defaults_to_clawbio_when_nobody_names_it(tmp_path, exported):
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        pass
+    attrs = exported[0].resource.attributes
+    assert attrs["service.name"] == "clawbio"
+    assert attrs["openinference.project.name"] == "clawbio"
+
+
+def test_caller_names_the_project_and_service(tmp_path, exported, monkeypatch):
+    # An agent that runs clawbio files its spans under its own project; the
+    # standard OTel variables are how a parent process says so.
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "openinference.project.name=hermes-agent,deployment=mini")
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "hermes")
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        pass
+    attrs = exported[0].resource.attributes
+    assert attrs["openinference.project.name"] == "hermes-agent"
+    assert attrs["service.name"] == "hermes"
+    assert attrs["deployment"] == "mini"
+
+
+def test_spans_name_the_emitting_module_as_their_scope(tmp_path, exported):
+    # The scope says which library emitted a span, whoever owns the project.
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        with tool_call("fetch"):
+            pass
+    assert {s.instrumentation_scope.name for s in exported} == {"clawbio.common.audit"}
+
+
+
+@pytest.mark.parametrize("env, project, service", [
+    ({"OTEL_RESOURCE_ATTRIBUTES": "openinference.project.name=hermes-agent"}, "hermes-agent", "clawbio"),
+    ({"OTEL_SERVICE_NAME": "hermes"}, "clawbio", "hermes"),
+])
+def test_environment_overrides_only_what_it_sets(tmp_path, exported, monkeypatch, env, project, service):
+    # Setting one variable must leave the other field at clawbio's fallback,
+    # never "unknown_service".
+    for var, value in env.items():
+        monkeypatch.setenv(var, value)
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        pass
+    attrs = exported[0].resource.attributes
+    assert attrs["openinference.project.name"] == project
+    assert attrs["service.name"] == service

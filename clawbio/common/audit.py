@@ -141,16 +141,20 @@ def skill_run(
     scrubbing: a caller that puts an identifier in a skill name or an attrs
     key is outside their reach.
     """
-    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.resources import OTELResourceDetector, Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
     from opentelemetry.trace import StatusCode
 
+    # Fallbacks for a plain CLI run. A caller names its own project and service
+    # through OTEL_RESOURCE_ATTRIBUTES / OTEL_SERVICE_NAME. Resource.create() lets
+    # our values beat those, so the environment is merged back on top; only what
+    # it actually sets, or service.name would become "unknown_service".
     provider = TracerProvider(resource=Resource.create({
         "service.name": "clawbio",
         # Phoenix groups traces by this; without it everything lands in "default".
         "openinference.project.name": "clawbio",
-    }))
+    }).merge(OTELResourceDetector().detect()))
     provider.add_span_processor(SimpleSpanProcessor(_JsonlExporter(_resolve_log(log_path))))
     endpoint = os.environ.get("CLAWBIO_OTLP_ENDPOINT")
     if endpoint:
@@ -175,7 +179,7 @@ def skill_run(
                     OTLPSpanExporter(endpoint=_traces_url(endpoint), timeout=5)
                 )
             )
-    tracer = provider.get_tracer("clawbio")
+    tracer = provider.get_tracer(__name__)
 
     token = _TRACER.set(tracer)
     try:

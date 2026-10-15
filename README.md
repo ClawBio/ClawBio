@@ -490,15 +490,10 @@ python clawbio.py run methylation --geo-id GSE139307 --output results_methylatio
 ### Run tests
 
 ```bash
-uv run pytest <path>          # one test path at a time, e.g.:
-uv run pytest skills/pharmgx-reporter/tests/ -v
+uv sync --all-extras                            # install every optional extra
+uv run pytest                                   # whole repo
+uv run pytest skills/pharmgx-reporter/tests/ -v # one skill
 ```
-
-Running a single bare `uv run pytest` (no path) fails at collection time on
-a `conftest.py` module-name collision between skills. CI works around this
-by invoking pytest separately per test path; do the same locally. See
-[docs/testing.md](docs/testing.md) for the root cause, the full list of
-test paths, and a documented verification run.
 
 ### Dependencies
 
@@ -523,8 +518,6 @@ Some skills have additional requirements, declared in that skill's own `SKILL.md
 | Drug Repurposing Screen | pyarrow (parquet engine) | `pip install numpy pandas scipy pyyaml pyarrow` |
 | Proteomics Clock | seaborn | `pip install pandas numpy matplotlib seaborn requests` |
 | RoboTerri (`robotary/`) | fastapi | **Undocumented in its own SKILL.md as of this writing.** `uv add fastapi` |
-
-See [docs/testing.md](docs/testing.md) for how these were identified (a full per-skill test verification run) and which failures are unrelated to missing dependencies.
 
 No Docker or Singularity required for core functionality. Skills that need external bioinformatics tools document their setup in their own `SKILL.md`.
 
