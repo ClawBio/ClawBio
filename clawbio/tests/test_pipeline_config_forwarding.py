@@ -106,3 +106,14 @@ def test_work_directory_is_not_forwarded_to_unrelated_skills(monkeypatch, tmp_pa
         "--output", str(tmp_path / "out"),
     ])
     assert "--work-dir" not in extra
+
+
+@pytest.mark.parametrize("skill", ["sarek-pipeline", "scrnaseq-pipeline"])
+def test_trace_report_suffix_reaches_supported_pipelines(monkeypatch, tmp_path, skill):
+    suffix = "validation-run"
+    extra = _drive_main(monkeypatch, [
+        "clawbio", "run", skill, "--demo", "--trace-report-suffix", suffix,
+        "--output", str(tmp_path / "out"),
+    ])
+    assert extra.count("--trace-report-suffix") == 1, extra
+    assert extra[extra.index("--trace-report-suffix") + 1] == suffix

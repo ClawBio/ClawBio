@@ -385,10 +385,10 @@ def test_runner_forwards_explicit_no_save_align_intermeds_and_new_safety_flags(
     assert exc.value.code == 0
     assert captured["skill_name"] == "scrnaseq-pipeline"
     assert captured["extra_args"] == [
-        "--require-local-pipeline",
-        "--allow-conda-cellranger",
         "--work-dir",
         "s3://bucket/scrnaseq/work",
+        "--require-local-pipeline",
+        "--allow-conda-cellranger",
         "--no-save-align-intermeds",
     ]
 

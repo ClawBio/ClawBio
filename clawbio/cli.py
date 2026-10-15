@@ -2905,6 +2905,7 @@ def main():
             for value_flag in (
                 ("pipeline_local", "--pipeline-local"),
                 ("aligner", "--aligner"),
+                ("trace_report_suffix", "--trace-report-suffix"),
                 ("seq_platform", "--seq-platform"),
                 ("email_on_fail", "--email-on-fail"),
                 ("multiqc_config", "--multiqc-config"),
