@@ -123,7 +123,9 @@ The CLI also distinguishes an omitted runner timeout from an explicit
 `--timeout 300`. Previously 300 was both the default sentinel and a valid value,
 so that explicit cap was replaced by the pipeline's longer deadline. A `None`
 parser default now leaves every explicit integer authoritative; Hypothesis pins
-300 and checks the same precedence across all three aliases. The public
+300 and checks the same precedence across all three aliases. Deadline inference
+also canonicalizes `--timeout_hours` before reading its value, so both accepted
+spellings preserve long runs and zero/unlimited mode. The public
 `run_skill(timeout=...)` signature and its caller-specified timeout are unchanged.
 Command-routing tests stub both execution adapters and forbid actual process
 creation, keeping those unit checks separate from deliberate native runs.

@@ -1633,13 +1633,16 @@ _RUNNER_TIMEOUT_MARGIN_SECONDS = 10 * 60
 
 
 def _flag_value(args: list[str], flag: str) -> str | None:
-    """The last value given for ``flag`` as ``flag value`` or ``flag=value``."""
+    """Last separated/inline value, accepting the pipeline's canonical aliases."""
     value = None
     for i, arg in enumerate(args):
-        if arg == flag and i + 1 < len(args):
+        name, separator, inline = arg.partition("=")
+        if _canonical_extra_flag(name) != flag:
+            continue
+        if separator:
+            value = inline
+        elif i + 1 < len(args):
             value = args[i + 1]
-        elif arg.startswith(flag + "="):
-            value = arg.split("=", 1)[1]
     return value
 
 

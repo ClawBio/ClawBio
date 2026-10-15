@@ -169,6 +169,25 @@ def test_explicit_runner_timeout_always_wins(alias, monkeypatch, tmp_path, secon
     ) == seconds
 
 
+
+@pytest.mark.parametrize("alias", _NFCORE_ALIASES)
+@settings(deadline=None, max_examples=16,
+          suppress_health_check=[HealthCheck.function_scoped_fixture])
+@example(hours="0", flag="--timeout_hours", joined=False)
+@example(hours="48", flag="--timeout_hours", joined=True)
+@given(hours=st.sampled_from(("0", "0.5", "12", "48")),
+       flag=st.sampled_from(("--timeout-hours", "--timeout_hours")),
+       joined=st.booleans())
+def test_wrapper_timeout_spellings_share_runner_deadline(
+    alias, monkeypatch, tmp_path, hours, flag, joined,
+):
+    expected = {"0": None, "0.5": 2400, "12": 43800, "48": 173400}
+    arguments = [f"{flag}={hours}"] if joined else [flag, hours]
+    assert _runner_timeout_for(
+        monkeypatch, tmp_path, alias, "--demo", *arguments,
+    ) == expected[hours]
+
+
 def _run_main_with(monkeypatch, tmp_path, capsys, *, success, stderr):
     import sys
 
