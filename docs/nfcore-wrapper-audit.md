@@ -14,7 +14,7 @@ launcher success/failure audit logging and default-output routing checks.
 ## Alignment with PR #623
 
 The audit now incorporates [PR #623](https://github.com/ClawBio/ClawBio/pull/623)
-at `eb17be3604ec1cb5b4376d5ef9b9f9a3126232c2`. Its shared package is the
+at `53bce54a333e68145b79b63187f111ee7dfb04b7`. Its shared package is the
 foundation; the competing `clawbio/common/nfcore.py` file has been removed.
 The shared execution, command, path, failure-reporting, import-isolation, bundle
 runtime, and bundle emitter modules are unchanged from that revision. The new
@@ -38,6 +38,65 @@ wrapper's test setup no longer replaces the public package with a stub, so share
 wrapper, and public API tests can run together in either collection order. Tests
 that probe ignored demo flags use schema-valid sample values and retain their
 exhaustive warning assertions.
+
+## Security review and latest-main follow-up (2026-10-15)
+
+The branch now includes `main` at `1419c5084431a28ca910e09479da5bc71bc535b9`
+and PR #623 at `53bce54a333e68145b79b63187f111ee7dfb04b7`. The latter merge
+introduced no file changes because the same main updates were already present.
+The code-tested checkout `728f397` and the subsequent compatibility merge
+`7b1cb70` have identical Git trees. Active server checkouts remained frozen.
+
+All **13 github-advanced-security review threads** were inspected. Twelve were
+already resolved by retained shared-package changes: explanatory process-kill
+fallback comments, removal of unused test variables, explicit `SkillError`
+re-exports, direct imports of the shared temporary-path predicate, and consistent
+provenance imports. The remaining finding was a redundant function-local `json`
+import in `write_manifest_checkpoint`; it now uses the existing module import.
+The corresponding artifact/checkpoint tests passed both before and after the
+cleanup (**121 passed**). GitHub then marked all 13 threads resolved; CodeQL and
+all 13 executed checks passed on the production-code commits.
+
+Final server validation uses the locked dependencies with all extras:
+
+| Python | Focused nf-core/shared/launcher suite |
+| --- | --- |
+| 3.11.17 | 1,742 passed, 2 skipped |
+| 3.12.3 | 1,742 passed, 2 skipped |
+| 3.13.16 | 1,742 passed, 2 skipped |
+
+Both optional STAR-argument/protocol comparisons also passed against the pristine
+scrnaseq 4.1.0 source on each Python version (**2 passed** per version). The
+expanded `tests/`, all three wrapper suites, common utilities, and launcher suites
+passed on Python 3.12.3: **2,805 passed, 4 skipped, 2 expected failures**. The
+focused suite includes the three real Nextflow scheduler tests, now using
+Nextflow 26.04.3 on Linux.
+
+The repository-wide server run, excluding tests marked `integration`, `network`,
+or `slow`, finished with **8,122 passed, 63 skipped, 20 deselected, 2 expected
+failures, and 1 failure**. The sole failure is
+`skills/wgs-prs/tests/test_repro_bundle.py::test_demo_cli_writes_the_documented_output_contract`.
+It was reproduced in a separate, unmodified checkout of current main using the
+same environment: installed bcftools rejects the WGS demo VCF's missing contig
+and FORMAT declarations. WGS-PRS and the relevant shared VCF/reproducibility code
+are unchanged by this PR. This is a reproduced live baseline failure, outside the
+three nf-core wrappers; the earlier proteomics failure is fixed by the newly
+merged main changes.
+
+All three wrappers additionally passed real resumes and freshly emitted
+`commands.sh` replays against the existing public-test outputs. The **30 recorded
+stages** include preflight, checksum checks, refused work-directory drift with
+byte-preserved results/bundles, missing-checksum repair, repeat-repair idempotence,
+and standalone `python -I -S` path verification. Scientific outputs are identical
+before/after these cached resumes and replays: **22 RNA tables**, **4 Sarek
+VCF/coverage outputs**, and **4 single-cell count matrices**.
+
+Evidence categories: server Nextflow/Docker executions, GitHub review state, and
+the WGS baseline failure are **reproduced live**. Fixture/fault-injection and
+Hypothesis tests are **reproduced synthetic**. Commit ancestry and identical-tree
+checks establish source compatibility; they are not substituted for runtime tests.
+The earlier complete fresh/bundle-only/relocation runs and Salmon variability
+investigation below remain separately identified by their tested revisions.
 
 ## Upstream contracts
 
@@ -188,13 +247,14 @@ read, and a separate transfer also timed out. This is not recorded as a successf
 preview or biological workflow run. Release-environment override, timeout, SIGINT,
 SIGTERM and process-group cleanup are covered by the passing shared tests.
 
-The post-package repository regression suite uses the locked dependencies with
+The earlier post-package repository regression suite at `067991f` used the locked dependencies with
 all optional extras and excludes tests marked `integration`, `network`, or `slow`:
 **8,104 passed, 63 skipped, 20 deselected, 2 expected failures, and 1 failure**.
 Its only failure is
 `skills/proteomics-clock/tests/test_proteomics_clock.py::test_mortality_to_years`,
 which also failed on the original revision with the same dependency environment
-(expected 5–15, observed 3.81255). The affected file is unchanged. An earlier run
+(expected 5–15, observed 3.81255). The affected file was unchanged at that revision. Current main subsequently corrected
+that test; see the follow-up below. An earlier run
 hit DNS errors in unrelated live-API tests and one IGV timing failure; the final
 run completed all of those tests successfully. The IGV case also passed alone.
 The pre-package baseline at `ab0fd04` had 7,934 passed and the same proteomics
