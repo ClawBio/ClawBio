@@ -6,7 +6,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import warnings
 from pathlib import Path
@@ -352,12 +351,8 @@ def _check_daemon_profile(profile: str, binary: str, missing_code: str, not_runn
             fix=f"Install {binary} or choose another supported profile.",
             details={"profile": profile},
         )
-    try:
-        info = subprocess.run([binary, "info"], capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
-        ok = info.returncode == 0
-    except (subprocess.TimeoutExpired, OSError):
-        ok = False
-    if not ok:
+    info = _runtime.run_probe([binary, "info"], timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if info is None or info.returncode != 0:
         raise SkillError(
             stage="preflight",
             error_code=not_running_code,

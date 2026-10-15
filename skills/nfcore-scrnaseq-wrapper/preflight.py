@@ -242,17 +242,8 @@ def _check_docker_profile(profile: str) -> dict[str, object]:
             fix="Install Docker or choose another supported profile.",
             details={"profile": profile},
         )
-    try:
-        info = subprocess.run(
-            ["docker", "info"],
-            capture_output=True,
-            text=True,
-            timeout=_SUBPROCESS_TIMEOUT,
-        )
-        docker_ok = info.returncode == 0
-    except (subprocess.TimeoutExpired, OSError):
-        docker_ok = False
-    if not docker_ok:
+    info = _runtime.run_probe(["docker", "info"], timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if info is None or info.returncode != 0:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.DOCKER_NOT_RUNNING,
