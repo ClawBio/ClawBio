@@ -698,6 +698,7 @@ def test_commands_sh_contains_contrast_flags_when_enabled(tmp_path: Path):
 
 def test_demo_doublet_detection_outputs_summary_metadata(tmp_path: Path):
     _require_scanpy()
+    pytest.importorskip("scrublet")
     output_dir = tmp_path / "doublet_output"
     result = _run_cmd(
         [
@@ -724,6 +725,7 @@ def test_demo_doublet_detection_outputs_summary_metadata(tmp_path: Path):
 
 def test_doublet_and_dataset_contrasts_can_run_together(tmp_path: Path):
     _require_scanpy()
+    pytest.importorskip("scrublet")
     output_dir = tmp_path / "doublet_de_output"
     result = _run_cmd(
         [
@@ -872,6 +874,7 @@ def test_clawbio_run_scrna_accepts_whitelisted_tuning_flags(tmp_path: Path):
 
 def test_clawbio_run_scrna_accepts_whitelisted_feature_flags(tmp_path: Path):
     _require_scanpy()
+    pytest.importorskip("scrublet")
     output_dir = tmp_path / "clawbio_scrna_feature_output"
 
     result = _run_clawbio_scrna_cmd(
@@ -1071,6 +1074,7 @@ def test_celltypist_annotation_pipeline_writes_cluster_summary(
 
 def test_annotation_missing_local_model_fails_actionably(tmp_path: Path):
     _require_scanpy()
+    pytest.importorskip("celltypist")
     output_dir = tmp_path / "annotation_missing_model"
     result = _run_cmd(
         [
