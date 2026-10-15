@@ -6,6 +6,7 @@ testing, and end-to-end demo mode for both platforms.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -26,6 +27,8 @@ from affinity_proteomics import (
     parse_olink_npx,
     run_pipeline,
 )
+
+needs_statsmodels = pytest.mark.skipif(importlib.util.find_spec("statsmodels") is None, reason="needs statsmodels (uv sync --extra affinity-proteomics)")
 
 HAS_SOMADATA = True
 try:
@@ -110,6 +113,7 @@ class TestSomaLogicParser:
 # ---------------------------------------------------------------------------
 # Unit tests — differential abundance
 # ---------------------------------------------------------------------------
+@needs_statsmodels
 class TestDifferentialAbundance:
     @pytest.fixture
     def olink_data(self):
@@ -150,6 +154,7 @@ class TestDifferentialAbundance:
 # ---------------------------------------------------------------------------
 # Integration tests — Olink demo
 # ---------------------------------------------------------------------------
+@needs_statsmodels
 class TestOlinkDemo:
     def test_olink_demo_end_to_end(self, tmp_path):
         summary = run_pipeline(
@@ -307,3 +312,34 @@ class TestSomaLogicDemo:
         result = json.loads((tmp_path / "result.json").read_text())
         top_genes = [h["gene"] for h in result["top_10"]]
         assert "KLK3" in top_genes, f"Expected KLK3 (PSA) in top hits, got: {top_genes}"
+
+
+# ---------------------------------------------------------------------------
+# Reproducibility bundle
+# ---------------------------------------------------------------------------
+def test_demo_writes_verifiable_reproducibility_bundle(tmp_path, monkeypatch):
+    import hashlib
+
+    import affinity_proteomics
+
+    out = tmp_path / "out"
+    monkeypatch.setattr(sys, "argv", ["affinity_proteomics.py", "--demo", "--output", str(out)])
+    affinity_proteomics.main()
+
+    repro = out / "reproducibility"
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (repro / name).exists(), name
+
+    commands = (repro / "commands.sh").read_text()
+    assert "python skills/affinity-proteomics/affinity_proteomics.py" in commands
+    assert "--demo" in commands
+    assert str(affinity_proteomics.SCRIPT_DIR) not in commands
+
+    lines = (repro / "checksums.sha256").read_text().splitlines()
+    labels = [line.split("  ", 1)[1] for line in lines]
+    assert {"report.md", "result.json", "reproducibility/environment.yml"} <= set(labels)
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        target = out / label
+        assert target.is_file(), label
+        assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, label

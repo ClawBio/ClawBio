@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 105,
+  "skill_count": 108,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -2532,8 +2532,55 @@
       ],
       "chaining_partners": [
         "profile-report",
-        "gwas-lookup"
+        "gwas-lookup",
+        "prs-abstain"
       ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "gwas-sumstats-harmonize",
+      "cli_alias": "harmonize",
+      "description": "Harmonize GWAS summary statistics from any common format (GWAS-Catalog SSF, PLINK 1.9/2, REGENIE, METAL, BOLT, SAIGE) to one canonical table (SNP CHR BP EA NEA EAF BETA SE P N): column detection, BETA/SE/P derivation, QC with drop reasons, and allele alignment to a reference panel, run as a Snakemake workflow.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run harmonize --demo",
+      "dependencies": [
+        "python>=3.11",
+        "pyyaml>=6.0"
+      ],
+      "tags": [
+        "gwas",
+        "summary-statistics",
+        "harmonization",
+        "allele-alignment",
+        "meta-analysis",
+        "snakemake"
+      ],
+      "trigger_keywords": [
+        "harmonize summary statistics",
+        "harmonise GWAS sumstats",
+        "standardize GWAS columns",
+        "align alleles to reference",
+        "flip alleles strand palindromic",
+        "prepare sumstats for meta-analysis",
+        "format sumstats for LDSC MR coloc"
+      ],
+      "chaining_partners": [],
       "license": "MIT",
       "model_license": "",
       "data_license": ""
@@ -2571,6 +2618,56 @@
         "allele",
         "typing",
         "from"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "igv-validator",
+      "cli_alias": "igv-validator",
+      "description": "Read-level validation of variant calls from any VCF, tumor/normal or tumor-only: counts read support in the BAMs (SNVs, indels, SV breakpoints), compares it with the caller's reported counts, flags artifact patterns, takes one IGV screenshot per variant and writes a report.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run igv-validator --demo",
+      "dependencies": [
+        "python>=3.10",
+        "pysam>=0.22",
+        "Pillow>=10.1"
+      ],
+      "tags": [
+        "igv",
+        "variant-validation",
+        "somatic",
+        "tumor-normal",
+        "bam",
+        "structural-variants"
+      ],
+      "trigger_keywords": [
+        "validate in IGV",
+        "IGV validation",
+        "check variant calls in IGV",
+        "is this mutation real",
+        "read support for variant",
+        "tumor normal read counts",
+        "IGV screenshot of variant",
+        "validate somatic calls against BAM",
+        "do the caller calls agree with the reads",
+        "tumor-only IGV check"
       ],
       "chaining_partners": [],
       "license": "MIT",
@@ -3859,6 +3956,52 @@
       "license": "MIT",
       "model_license": "",
       "data_license": ""
+    },
+    {
+      "name": "prs-abstain",
+      "cli_alias": "prs-abstain",
+      "description": "Gates polygenic risk score percentiles on trait applicability, score integrity and ancestry transferability, withholding the percentile when it would be uninterpretable and attributing the error to individual SNPs.",
+      "version": "0.4.0",
+      "status": "planned",
+      "maturity_tier": "ci-validated",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": true,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run prs-abstain --demo",
+      "dependencies": [
+        "python>=3.10",
+        "matplotlib>=3.5"
+      ],
+      "tags": [
+        "polygenic-risk-score",
+        "ancestry",
+        "abstention",
+        "health-equity",
+        "transferability"
+      ],
+      "trigger_keywords": [
+        "should this polygenic score be reported",
+        "PRS ancestry transferability",
+        "refuse to report percentile",
+        "polygenic score abstention",
+        "is this PRS valid for this ancestry"
+      ],
+      "chaining_partners": [
+        "gwas-prs",
+        "just-prs-mcp"
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": "CC0-1.0"
     },
     {
       "name": "prs-applicability-gate",

@@ -2,6 +2,10 @@
 import sys
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("fastapi", reason="needs fastapi (uv sync --extra robotary)")
+
 # Add robotary to path
 ROBOTARY_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = ROBOTARY_DIR.parent

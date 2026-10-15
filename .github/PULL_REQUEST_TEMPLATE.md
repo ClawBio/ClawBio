@@ -8,11 +8,12 @@
 
 ## Checklist
 
-- [ ] SKILL.md is present and complete (YAML frontmatter + methodology)
-- [ ] Tests included and passing (`pytest -v`), with a [property test](../AGENTS.md#property-based-tests-for-maths-and-parsing) for maths or parsing
-- [ ] Demo data included for reviewers to test
-- [ ] No patient/sensitive data committed
-- [ ] Follows [CONTRIBUTING.md](../CONTRIBUTING.md) conventions
+- [ ] I have searched for [existing PRs](https://github.com/ClawBio/ClawBio/pulls)
+- [ ] I have included a complete SKILL.md (YAML frontmatter + methodology)
+- [ ] I have included tests and they pass (`pytest -v`), with a [property test](../AGENTS.md#property-based-tests-for-maths-and-parsing) for maths or parsing
+- [ ] I have included demo data for reviewers to test
+- [ ] I have not committed any patient/sensitive data
+- [ ] I have followed the [CONTRIBUTING.md](../CONTRIBUTING.md) conventions
 
 ## Test output
 

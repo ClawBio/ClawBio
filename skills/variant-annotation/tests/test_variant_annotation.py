@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -21,6 +22,8 @@ if str(_SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(_SKILL_DIR))
 
 import variant_annotation as va
+
+needs_pysam = pytest.mark.skipif(importlib.util.find_spec("pysam") is None, reason="needs pysam (uv sync --extra region-fetch)")
 
 
 DEMO_VCF = _SKILL_DIR / "example_data" / "synthetic_clinvar_panel.vcf"
@@ -127,6 +130,7 @@ class DummySession:
         return self.responses.pop(0)
 
 
+@needs_pysam
 def test_parse_vcf_reads_demo_variants(parsed_demo_records):
     assert len(parsed_demo_records) == 20
 
@@ -149,6 +153,7 @@ def test_parse_vcf_raises_without_pysam(monkeypatch):
         va.parse_vcf(DEMO_VCF)
 
 
+@needs_pysam
 def test_batch_variants_and_region_string(parsed_demo_records):
     batches = va.batch_variants(parsed_demo_records, batch_size=7)
     assert [len(batch) for batch in batches] == [7, 7, 6]
@@ -321,6 +326,7 @@ def test_write_reproducibility_bundle(tmp_path):
     assert "--cache-dir" in text
 
 
+@needs_pysam
 def test_run_pipeline_writes_expected_files(tmp_path, monkeypatch):
     flagged_ids = {"rs1801133", "rs6025", "rs334"}
 

@@ -12,6 +12,8 @@ from typing import Any
 import pytest
 import yaml
 
+pytest.importorskip("typer", reason="needs the just-prs extra (uv sync --extra just-prs)")
+
 SKILL_DIR = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = SKILL_DIR.parents[1]
 FIXTURES = Path(__file__).resolve().parent / "fixtures"

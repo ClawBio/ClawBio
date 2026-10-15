@@ -8,6 +8,7 @@ rows of that table.
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -30,6 +31,8 @@ from eqtl_catalogue_region_fetch import (  # noqa: E402
     ftp_url_for,
     load_dataset_index,
 )
+
+needs_pysam = pytest.mark.skipif(importlib.util.find_spec("pysam") is None, reason="needs pysam (uv sync --extra region-fetch)")
 
 
 # ----------------------- URL construction -----------------------
@@ -188,6 +191,7 @@ def client_with_metadata():
 # ----------------------- fetch_region happy path -----------------------
 
 
+@needs_pysam
 def test_fetch_region_returns_harmonised_variants(client_with_metadata, patched_pysam):
     rows = [
         _row_str(),                           # SORT1 row
@@ -219,6 +223,7 @@ def test_fetch_region_returns_harmonised_variants(client_with_metadata, patched_
     patched_pysam["tbx"].close.assert_called_once()
 
 
+@needs_pysam
 def test_fetch_region_records_release(client_with_metadata, patched_pysam):
     patched_pysam["tbx"] = _mock_tabix([_row_str()])
     result = client_with_metadata.fetch_region(
@@ -238,6 +243,7 @@ def test_fetch_region_records_release(client_with_metadata, patched_pysam):
     assert result.to_dict()["file_class"] == "all"
 
 
+@needs_pysam
 def test_fetch_region_no_molecular_trait_filter_returns_all(client_with_metadata, patched_pysam):
     rows = [_row_str(), _row_str("ENSG00000999999", "2", "109265000", "A", "G",
                                   "chr1_109265000_A_G")]
@@ -249,6 +255,7 @@ def test_fetch_region_no_molecular_trait_filter_returns_all(client_with_metadata
     assert result.n_variants == 2
 
 
+@needs_pysam
 def test_fetch_region_with_study_id_and_file_class_does_not_consult_the_index(
     tmp_path, patched_pysam,
 ):
@@ -283,6 +290,7 @@ def test_fetch_region_out_of_release_id_without_both_overrides_raises_not_found(
         )
 
 
+@needs_pysam
 def test_fetch_region_raises_on_unopenable_index(monkeypatch):
     client = EQTLCatalogueClient()
 
@@ -300,6 +308,7 @@ def test_fetch_region_raises_on_unopenable_index(monkeypatch):
 _MALFORMED_5_COLS = "\t".join(["ENSG", "2", "109265000", "C", "T"])
 
 
+@needs_pysam
 @pytest.mark.parametrize("rows, n_bad, n_total", [
     ([_MALFORMED_5_COLS, _MALFORMED_5_COLS], 2, 2),       # wholly malformed window
     ([_row_str(), _MALFORMED_5_COLS, _row_str()], 1, 3),  # mixed good and bad rows
@@ -319,6 +328,7 @@ def test_fetch_region_raises_on_rows_that_do_not_match_the_schema(
         )
 
 
+@needs_pysam
 def test_fetch_region_raises_on_a_non_integer_position(client_with_metadata, patched_pysam):
     """Right field count, wrong layout: a column swap that lands text in `position`."""
     from eqtl_catalogue_region_fetch import EQTLCatalogueSchemaError
@@ -330,6 +340,7 @@ def test_fetch_region_raises_on_a_non_integer_position(client_with_metadata, pat
         )
 
 
+@needs_pysam
 def test_fetch_region_schema_check_does_not_depend_on_the_gene_filter(client_with_metadata, patched_pysam):
     """A malformed row fails the fetch even when the caller filters to a gene the row
     is not about, so a drifted file cannot pass for one gene and fail for another."""
@@ -342,6 +353,7 @@ def test_fetch_region_schema_check_does_not_depend_on_the_gene_filter(client_wit
         )
 
 
+@needs_pysam
 @pytest.mark.parametrize("rows", [
     [_MALFORMED_5_COLS],
     [_row_str(), _MALFORMED_5_COLS],
@@ -363,6 +375,7 @@ def test_cli_exits_nonzero_and_writes_nothing_on_a_schema_mismatch(patched_pysam
     assert sorted(p.name for p in out.iterdir()) == []
 
 
+@needs_pysam
 def test_fetch_region_chr_prefix_retry(monkeypatch, client_with_metadata, patched_pysam):
     """Tabix indexes can use 'chr' prefix; client retries with the alt form."""
     patched_pysam["tbx"] = _mock_tabix([_row_str()], raise_on_unprefixed=True)
@@ -373,6 +386,7 @@ def test_fetch_region_chr_prefix_retry(monkeypatch, client_with_metadata, patche
     assert result.n_variants == 1
 
 
+@needs_pysam
 def test_resolve_study_id_falls_back_to_the_bundled_index(monkeypatch):
     """No study_id passed -> the study directory comes from the index, and the URL
     opened carries it. Captured at the tabix open, without the network."""
@@ -416,6 +430,7 @@ def _leafcutter_row(*, gene_id="ENSG00000134243", cluster="clu_56921",
     ])
 
 
+@needs_pysam
 def test_fetch_region_gene_id_filter_keeps_only_target_gene_rows_for_leafcutter(
     monkeypatch, patched_pysam,
 ):
@@ -439,6 +454,7 @@ def test_fetch_region_gene_id_filter_keeps_only_target_gene_rows_for_leafcutter(
     assert result.n_variants == 2
 
 
+@needs_pysam
 def test_fetch_region_uses_cc_suffix_for_leafcutter(monkeypatch):
     """QTD000270 (GTEx liver leafcutter) publishes `.cc.tsv.gz`, and the bundled
     index says so; the fetch must open that file. Captures the URL pysam opened to
@@ -462,6 +478,7 @@ def test_fetch_region_uses_cc_suffix_for_leafcutter(monkeypatch):
     assert captured["url"].endswith("QTD000270.cc.tsv.gz")
 
 
+@needs_pysam
 def test_fetch_region_opens_the_published_file_not_the_inferred_one(monkeypatch):
     """The catalogue's table lists `.all.tsv.gz` as the per-variant file for QTD000584
     (Sun 2018 plasma, aptamer); the retired quant-method rule would have opened
@@ -501,6 +518,7 @@ def test_ftp_columns_count_is_19():
 # CLI config contract: every key is read or refused, never ignored
 # ---------------------------------------------------------------------------
 
+@needs_pysam
 def test_cli_config_file_class_reaches_the_fetch_and_the_cache_key(client_with_metadata, patched_pysam, tmp_path):
     """A config carrying `file_class: cc` opens the .cc file (the CLI used to drop
     the key and open the listed .all with no message), and the cache key differs
@@ -533,6 +551,7 @@ def test_cache_key_carries_the_file_class_the_table_lists_and_the_table_release(
     assert "__unresolved__" in unknown
 
 
+@needs_pysam
 def test_a_window_cached_before_the_bundled_table_is_not_served(client_with_metadata, patched_pysam, tmp_path):
     """Before the table, the cache key was `<QTD>__<trait>__chr<c>_<s>_<e>.json` and the
     file class was inferred from quant_method, so a QTD000584 window cached then
@@ -553,6 +572,7 @@ def test_a_window_cached_before_the_bundled_table_is_not_served(client_with_meta
     assert stale.read_text() == '{"stale": true}'
 
 
+@needs_pysam
 def test_a_window_cached_while_malformed_rows_were_skipped_is_not_served(
         client_with_metadata, patched_pysam, tmp_path):
     """Before the schema check raised, a malformed row was skipped with a note and the
