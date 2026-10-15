@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from importlib import import_module
 import os
 from pathlib import Path
 
 import pytest
+from hypothesis import HealthCheck, example, given, settings, strategies as st
 
 # The runner engine lives in clawbio.cli; import it directly so monkeypatching
 # its subprocess attribute affects run_skill's behaviour.
@@ -59,10 +61,14 @@ def test_run_skill_passes_absolute_relative_input_to_subprocess(monkeypatch, tmp
     samplesheet = tmp_path / "samplesheet.csv"
     samplesheet.write_text("patient,sample,lane,fastq_1,fastq_2\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
-    from clawbio.common.nfcore import launcher
+    launcher = import_module("clawbio.common.nfcore.launcher")
 
     monkeypatch.setattr(clawbio_runner.subprocess, "run", fake_run)
     monkeypatch.setattr(launcher, "run_wrapper", fake_run)
+    monkeypatch.setattr(
+        clawbio_runner.subprocess, "Popen",
+        lambda *args, **kwargs: pytest.fail("A routing test must not start a real skill"),
+    )
 
     result = clawbio_runner.run_skill(
         skill_name="sarek-pipeline",
@@ -135,9 +141,11 @@ def _runner_timeout_for(monkeypatch, tmp_path, *argv):
 
 @pytest.mark.parametrize("alias", _NFCORE_ALIASES)
 def test_runner_outlasts_the_wrappers_own_timeout(alias, monkeypatch, tmp_path):
-    """The runner SIGKILLs a skill on timeout, which orphans Nextflow; the wrapper
-    stops Nextflow itself at --timeout-hours, so the runner must wait longer. With
-    the fixed 12h10m cap, --timeout-hours 48 or 0 (no cap) was killed at 12h10m."""
+    """Let the wrapper reach its own deadline before the fallback runner cap.
+
+    The historical fixed 12h10m cap stopped --timeout-hours 48 or 0 too early;
+    the runner deadline must still follow the requested wrapper deadline.
+    """
     default = clawbio_runner.SKILLS[alias]["default_timeout_seconds"]
     assert _runner_timeout_for(monkeypatch, tmp_path, alias, "--demo") == default
     assert _runner_timeout_for(monkeypatch, tmp_path, alias, "--demo", "--timeout-hours", "48") == 48 * 3600 + 600
@@ -146,6 +154,19 @@ def test_runner_outlasts_the_wrappers_own_timeout(alias, monkeypatch, tmp_path):
     # An explicit runner --timeout still wins; a bad value is the wrapper's usage error.
     assert _runner_timeout_for(monkeypatch, tmp_path, alias, "--demo", "--timeout-hours", "48", "--timeout", "999") == 999
     assert _runner_timeout_for(monkeypatch, tmp_path, alias, "--demo", "--timeout-hours", "nan") == default
+
+
+
+@pytest.mark.parametrize("alias", _NFCORE_ALIASES)
+@settings(deadline=None, max_examples=10,
+          suppress_health_check=[HealthCheck.function_scoped_fixture])
+@example(seconds=300)
+@given(seconds=st.integers(min_value=0, max_value=100000))
+def test_explicit_runner_timeout_always_wins(alias, monkeypatch, tmp_path, seconds):
+    assert _runner_timeout_for(
+        monkeypatch, tmp_path, alias, "--demo", "--timeout-hours", "48",
+        "--timeout", str(seconds),
+    ) == seconds
 
 
 def _run_main_with(monkeypatch, tmp_path, capsys, *, success, stderr):

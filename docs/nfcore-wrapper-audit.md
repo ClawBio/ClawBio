@@ -119,6 +119,15 @@ shared execution/command/path/bundle modules and the scientific policies are
 unchanged. Regression coverage includes deliberately slow child termination so
 premature SIGKILL is observable; those cases failed before the correction.
 
+The CLI also distinguishes an omitted runner timeout from an explicit
+`--timeout 300`. Previously 300 was both the default sentinel and a valid value,
+so that explicit cap was replaced by the pipeline's longer deadline. A `None`
+parser default now leaves every explicit integer authoritative; Hypothesis pins
+300 and checks the same precedence across all three aliases. The public
+`run_skill(timeout=...)` signature and its caller-specified timeout are unchanged.
+Command-routing tests stub both execution adapters and forbid actual process
+creation, keeping those unit checks separate from deliberate native runs.
+
 ## Upstream contracts
 
 | Wrapper | Pipeline release | Minimum Nextflow | Parameters in scalar contract |

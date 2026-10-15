@@ -1650,19 +1650,19 @@ def _warning_lines(stderr: str) -> list[str]:
 
 
 def _runner_timeout_seconds(
-    skill_info: dict, extra_args: list[str] | None, *, requested: int
+    skill_info: dict, extra_args: list[str] | None, *, requested: int | None
 ) -> int | None:
     """Seconds the runner waits for a skill; None waits indefinitely.
 
-    On timeout the runner kills the skill outright, which orphans anything the skill
-    started in its own session (the nf-core wrappers' Nextflow). A skill that enforces
-    its own deadline (``timeout_hours_flag``) must therefore reach it first, so the
-    runner's cap follows that flag plus a margin, and 0 disables both. An explicit
-    --timeout always wins; an unusable value is left for the skill to reject.
+    A self-managed skill (``timeout_hours_flag``) should reach its own deadline
+    first, stop its children, and write its result. The runner's fallback cap follows
+    that flag plus a margin; 0 disables both. For POSIX pipeline wrappers, reaching
+    the runner cap also allows bounded cleanup before returning a timeout failure.
+    An explicit --timeout always wins; an unusable value is left for the skill to reject.
     """
-    if requested != 300:
+    if requested is not None:
         return requested
-    default = skill_info.get("default_timeout_seconds", requested)
+    default = skill_info.get("default_timeout_seconds", 300)
     flag = skill_info.get("timeout_hours_flag")
     raw = _flag_value(extra_args or [], flag) if flag else None
     try:
@@ -2169,7 +2169,8 @@ def main():
     run_parser.add_argument("--output", dest="output_dir", help="Output directory")
     run_parser.add_argument("--profile", dest="profile_path", metavar="PROFILE", help="Execution backend profile or comma-separated nf-core profile list for pipeline skills, or path to patient profile JSON for genomics skills")
     run_parser.add_argument(
-        "--timeout", type=int, default=300, help="Timeout in seconds (default: 300)"
+        "--timeout", type=int, default=None,
+        help="Runner timeout in seconds (default: skill-specific, otherwise 300)",
     )
     run_parser.add_argument("--drug", default=None, help="Drug name for single-drug lookup (drugphoto skill)")
     run_parser.add_argument("--dose", default=None, help="Visible dose from packaging (e.g. '50mg')")
