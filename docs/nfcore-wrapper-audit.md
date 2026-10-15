@@ -79,8 +79,8 @@ failures, and 1 failure**. The sole failure is
 It was reproduced in a separate, unmodified checkout of current main using the
 same environment: installed bcftools rejects the WGS demo VCF's missing contig
 and FORMAT declarations. WGS-PRS and the relevant shared VCF/reproducibility code
-are unchanged by this PR. This is a reproduced live baseline failure, outside the
-three nf-core wrappers; the earlier proteomics failure is fixed by the newly
+are unchanged by this PR. This is a reproduced baseline failure with the shipped
+synthetic demo and real bcftools, outside the three nf-core wrappers; the earlier proteomics failure is fixed by the newly
 merged main changes.
 
 All three wrappers additionally passed real resumes and freshly emitted
@@ -91,9 +91,9 @@ and standalone `python -I -S` path verification. Scientific outputs are identica
 before/after these cached resumes and replays: **22 RNA tables**, **4 Sarek
 VCF/coverage outputs**, and **4 single-cell count matrices**.
 
-Evidence categories: server Nextflow/Docker executions, GitHub review state, and
-the WGS baseline failure are **reproduced live**. Fixture/fault-injection and
-Hypothesis tests are **reproduced synthetic**. Commit ancestry and identical-tree
+Evidence categories: server Nextflow/Docker executions and GitHub review state are
+**reproduced live**. Fixture/fault-injection and Hypothesis tests, including the
+shipped synthetic WGS demo tested with real bcftools, are **reproduced synthetic**. Commit ancestry and identical-tree
 checks establish source compatibility; they are not substituted for runtime tests.
 The earlier complete fresh/bundle-only/relocation runs and Salmon variability
 investigation below remain separately identified by their tested revisions.
