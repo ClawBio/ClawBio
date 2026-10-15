@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.paths import is_under_tmp
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -43,7 +44,6 @@ from schemas import (
     SUPPORTED_PRESETS,
     SUPPORTED_PROFILES,
     SYMBOLIC_REFERENCE_FIELDS,
-    is_under_tmp,
     profile_components,
     profile_includes,
 )

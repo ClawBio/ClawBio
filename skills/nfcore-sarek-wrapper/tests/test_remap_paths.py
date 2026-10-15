@@ -129,9 +129,9 @@ def test_verify_params_references_reports_missing(tmp_path: Path):
 def test_params_reference_keys_match_provenance():
     # The standalone key list must stay in sync with the authoritative set so a
     # newly-added reference param is not silently skipped during remap.
-    from provenance import REFERENCE_PATH_PARAMS
+    import provenance
 
-    assert set(remap_paths._PARAMS_REFERENCE_KEYS) == set(REFERENCE_PATH_PARAMS)
+    assert set(remap_paths._PARAMS_REFERENCE_KEYS) == set(provenance.REFERENCE_PATH_PARAMS)
 
 
 def test_cmd_remap_references_rewrites_params_yaml(tmp_path: Path):
@@ -355,7 +355,6 @@ def test_checksum_writers_select_the_same_files(tmp_path: Path):
     fresh = [line.split("  ", 1)[1] for line in fresh_lines]
     remap_paths._regenerate_checksums(bundle)
     repaired_lines = (bundle / "checksums.sha256").read_text(encoding="utf-8").splitlines()
-    repaired = [line.split("  ", 1)[1] for line in repaired_lines]
     assert sorted(fresh_lines) == sorted(repaired_lines)
     assert len(fresh) == len(set(fresh))
     assert set(fresh) == {

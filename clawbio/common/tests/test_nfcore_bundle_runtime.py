@@ -313,7 +313,6 @@ def test_yaml_reference_values_round_trip(path):
     assert api.yaml_scalar_value(quote, raw) == path
 
 
-_REF_KEYS = ("fasta", "fasta_fai")
 _PARAMS_REF = re.compile(
     r"^(?P<prefix>[ \t]*(?:fasta_fai|fasta)[ \t]*:[ \t]+)(?P<q>[\"']?)(?P<value>.*?)(?P=q)(?P<trail>[ \t]*)$",
     re.MULTILINE,

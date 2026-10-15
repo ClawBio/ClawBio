@@ -14,6 +14,7 @@ import yaml
 
 from clawbio.common.checksums import sha256_file
 from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.paths import is_under_tmp
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -35,7 +36,6 @@ from schemas import (
     JAVA_MIN_VERSION,
     NEXTFLOW_MIN_VERSION,
     PROJECT_ROOT,
-    is_under_tmp,
     SUPPORTED_ALIGNERS,
     SUPPORTED_IGENOMES_NAMES,
     SUPPORTED_PSEUDO_ALIGNERS,
