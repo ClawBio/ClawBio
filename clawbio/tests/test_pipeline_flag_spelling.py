@@ -38,7 +38,10 @@ def _forwarded_cmd(monkeypatch, tmp_path, skill, extra_args):
         captured["cmd"] = list(cmd)
         return types.SimpleNamespace(returncode=0, stdout="", stderr="")
 
+    from clawbio.common.nfcore import launcher
+
     monkeypatch.setattr(cli.subprocess, "run", fake_run)
+    monkeypatch.setattr(launcher, "run_wrapper", fake_run)
     cli.run_skill(
         skill,
         demo=True,

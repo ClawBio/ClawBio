@@ -51,7 +51,7 @@ def test_run_skill_passes_absolute_relative_input_to_subprocess(monkeypatch, tmp
         stdout = ""
         stderr = ""
 
-    def fake_run(cmd, capture_output, text, timeout, cwd):
+    def fake_run(cmd, capture_output=True, text=True, timeout=None, cwd=None):
         captured["cmd"] = cmd
         captured["cwd"] = cwd
         return Proc()
@@ -59,7 +59,10 @@ def test_run_skill_passes_absolute_relative_input_to_subprocess(monkeypatch, tmp
     samplesheet = tmp_path / "samplesheet.csv"
     samplesheet.write_text("patient,sample,lane,fastq_1,fastq_2\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
+    from clawbio.common.nfcore import launcher
+
     monkeypatch.setattr(clawbio_runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(launcher, "run_wrapper", fake_run)
 
     result = clawbio_runner.run_skill(
         skill_name="sarek-pipeline",

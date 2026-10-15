@@ -11,6 +11,7 @@ The three implemented nf-core skills use `clawbio.common.nfcore` for mechanical 
 | commands | Nextflow argv and the display form, including the environment the release needs |
 | parameters | params.yaml text: fixed header, key order, one value per line; strict mapping parsing and pinned scalar-contract validation |
 | execution | Logs, process-group lifecycle (timeout, Ctrl+C and SIGTERM all stop Nextflow), bounded log reads, ordered failure hints |
+| launcher | POSIX root-launcher signal forwarding and bounded graceful shutdown before a wrapper exits or its runner deadline expires |
 | failures | result.json, stdout box and stderr JSON for SkillError and unexpected errors |
 | runtime | Executable, version, memory and Docker CPU probes; the `--demo` offline refusal |
 | source | Bounded Git probes, required-file inspection and literal manifest-version parsing |
@@ -30,6 +31,19 @@ or render a replay guard. Combined tests also check that collecting wrapper test
 preserves the real public `clawbio` package instead of substituting a partial stub.
 
 Each skill's `executor.py` and `command_builder.py` are thin adapters that supply pipeline policy: timeout advice, scRNA's CellBender hint, profile composition, and `schemas.NEXTFLOW_ENV`. Pipeline pinning remains in each skill's schemas and compatibility JSON rather than a global registry.
+
+## Root launcher shutdown
+
+The root launcher uses `launcher.run_wrapper` for POSIX skills with a declared
+`timeout_hours_flag`. SIGINT and SIGTERM reach the wrapper before the launcher
+waits for cleanup; an explicit root timeout also sends SIGTERM before reporting
+its timeout result. The wrapper then stops its detached Nextflow session using
+the shared executor. A 30-second launcher grace period covers the executor's
+10-second termination interval and output draining. Repeated signals cannot
+interrupt cleanup. SIGINT remains a catchable `KeyboardInterrupt` for Python API
+callers, SIGTERM exits with 143, and prior handlers are restored. Worker-thread
+calls do not install signal handlers. Native Windows retains its existing path;
+Nextflow's supported Windows route is WSL2/Linux.
 
 ## Pinned releases and Nextflow
 

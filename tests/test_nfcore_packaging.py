@@ -18,6 +18,7 @@ import pytest
         "commands",
         "parameters",
         "execution",
+        "launcher",
         "runtime",
         "resources",
         "source",

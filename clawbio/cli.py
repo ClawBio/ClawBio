@@ -1889,13 +1889,20 @@ def _run_skill(
     # Run subprocess
     t0 = time.time()
     try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            cwd=str(script_path.parent),
-        )
+        if skill_info.get("timeout_hours_flag") and sys.platform != "win32":
+            # These wrappers own detached Nextflow sessions. Forward stops and
+            # let their cleanup finish before the launcher exits or times out.
+            from clawbio.common.nfcore.launcher import run_wrapper
+
+            proc = run_wrapper(cmd, timeout=timeout, cwd=str(script_path.parent))
+        else:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=str(script_path.parent),
+            )
         duration = round(time.time() - t0, 2)
     except subprocess.TimeoutExpired:
         duration = round(time.time() - t0, 2)

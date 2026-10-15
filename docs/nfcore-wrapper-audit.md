@@ -98,6 +98,27 @@ checks establish source compatibility; they are not substituted for runtime test
 The earlier complete fresh/bundle-only/relocation runs and Salmon variability
 investigation below remain separately identified by their tested revisions.
 
+## Root-launcher termination follow-up (2026-10-15)
+
+An additional live probe at `38bb3c6` launched a small real Nextflow workflow
+through `run_skill` and an instrumented wrapper using the shared executor.
+Sending SIGTERM only to the root process returned `-15` while both the wrapper
+and Nextflow remained alive. The probe retained their PIDs and stopped its own
+processes after recording the failure. Direct-wrapper termination had passed;
+the extra root-launcher hop was missing signal forwarding. An explicit short
+root timeout also killed the wrapper before its detached child could be stopped
+(reproduced synthetic with real OS processes).
+
+The POSIX root launcher now forwards SIGINT/SIGTERM to the wrapper and waits for
+its cleanup, including when an explicit runner timeout expires. The shared
+`launcher` module bounds this grace period, handles repeated interrupts, restores
+prior signal handlers, and supports invocation from worker threads. SIGINT still
+raises `KeyboardInterrupt` for callers of the public Python API. Normal output
+capture and exit status remain covered alongside all three aliases. The original
+shared execution/command/path/bundle modules and the scientific policies are
+unchanged. Regression coverage includes deliberately slow child termination so
+premature SIGKILL is observable; those cases failed before the correction.
+
 ## Upstream contracts
 
 | Wrapper | Pipeline release | Minimum Nextflow | Parameters in scalar contract |
