@@ -14,7 +14,7 @@ launcher success/failure audit logging and default-output routing checks.
 ## Alignment with PR #623
 
 The audit now incorporates [PR #623](https://github.com/ClawBio/ClawBio/pull/623)
-at `dc7951ef71fc8cd4dd64fb1ec3158f1180ce4914`. Its shared package is the
+at `eb17be3604ec1cb5b4376d5ef9b9f9a3126232c2`. Its shared package is the
 foundation; the competing `clawbio/common/nfcore.py` file has been removed.
 The shared execution, command, path, failure-reporting, import-isolation, bundle
 runtime, and bundle emitter modules are unchanged from that revision. The new
@@ -87,6 +87,9 @@ nf-schema or its runtime file checks.
   of a destination the wrappers reject inside the source tree. Preserve explicit
   destinations and other skills' output policy; correct the documented examples.
 - Align the bulk wrapper's Python requirement with the repository's Python 3.11 floor.
+- Forward `--work-dir` through the root launcher for all three pipelines, including
+  resumed checks. Preserve Sarek's `--trace-report-suffix` instead of silently
+  dropping it when the launcher parses the option.
 
 ### Resume and execution safety
 
@@ -138,9 +141,9 @@ and three real Nextflow scheduler tests.
 
 | Python | Final focused result |
 | --- | --- |
-| 3.11.17 | 1,730 passed, 2 skipped |
-| 3.12.15 | 1,730 passed, 2 skipped |
-| 3.13.13 | 1,730 passed, 2 skipped |
+| 3.11.17 | 1,742 passed, 2 skipped |
+| 3.12.15 | 1,742 passed, 2 skipped |
+| 3.13.13 | 1,742 passed, 2 skipped |
 
 The two existing skips require optional sibling pipeline checkouts. Both comparisons
 (STAR arguments and the protocol matrix) also passed separately against the
@@ -209,17 +212,105 @@ returned structured `DOCKER_NOT_RUNNING` errors.
 All three skill specifications passed `agentskills validate`. Contract-generation
 checks, targeted unused-name lint, Python compilation, and `git diff --check` passed.
 
-## End-to-end limits
+## Complete container validation (2026-10-15)
 
-The available Docker VM exposed **2 CPUs and approximately 1.91 GiB RAM**. A full
-rnaseq demo attempted during the audit reached upstream tasks but repeatedly
-returned exit 137 in BBMap/BBSplit, consistent with memory pressure, and was stopped.
-The scheduler fixes were subsequently validated with the real-engine tests above.
-A subsequent run used 4 CPUs, approximately 7.74 GiB Docker RAM, and Rosetta.
-Deliberate interruption preserved its launch manifest; resumed check mode passed,
-and the resumed run executed BBSplit successfully. It later failed with
-`No space left on device` on the host. Temporary work files were removed and the
-original Docker CPU/memory/emulation settings and stopped state were restored.
-No complete biological pipeline run is claimed for any of the three wrappers.
-Full container-based demos and scientific-output parity still require a host with
-adequate RAM, storage, network access, and the applicable execution backend.
+Full public-test workflows were subsequently executed on an isolated Linux x86-64
+validation checkout with Nextflow **26.04.3**, Java **17.0.20.1**, Python **3.12.3**,
+and Docker. The server exposes 28 CPUs and 62 GiB RAM. An explicit final-precedence
+config requests an 8-CPU/20-GiB local executor budget and per-task resource limits;
+at most two heavy validation workflows run at once. Other users' workloads,
+containers, images, and output directories were left untouched.
+
+| Pipeline | Original full workflow | Fresh bundle-only workflow |
+| --- | --- | --- |
+| rnaseq 3.26.0 | 234 tasks succeeded | 234 tasks succeeded, 25m 20s |
+| sarek 3.8.1 | 9 tasks cached + 14 succeeded on recovery | 23 tasks succeeded |
+| scrnaseq 4.1.0 | 19 tasks succeeded, 17m 25s | 19 tasks succeeded, 19m |
+
+The original launches used `d11bbe1`; the launcher fixes were exercised through
+`645df2f`, and the latest shared-package integration was validated at `d722647`.
+These source checkouts remained frozen while their runs were active. Official
+pipeline assets were used without editing their cached source. Only public nf-core
+test data were downloaded. The initial Sarek run encountered a Docker parent-snapshot
+error. Pulling its exact pinned GATK image again restored execution; the wrapper's
+prepared manifest allowed recovery with `--resume` and reuse of nine completed tasks.
+
+For every wrapper, validation included a real resumed workflow, a refused changed-work-directory
+resume/check with the completed result and bundle preserved byte for byte,
+in-place `commands.sh` execution from an unrelated working directory, a fresh
+output containing only a copied `reproducibility/` directory, and execution after
+renaming the complete original output so its former path no longer existed.
+No work directory or Nextflow task database was copied into the fresh bundle-only
+output. The official Nextflow asset/plugin and Docker image caches remained available.
+Bulk replay requires its documented ClawBio installation/checkout dependency.
+Standalone remappers were executed with `python -I -S`.
+
+All three moved runs subsequently passed real resumes through the final integrated
+checkout, with unchanged checked scientific outputs and valid current artifact
+paths in `result.json`. Changed work-directory requests were refused without
+changing stored snapshots. Sarek also refused a changed `--trace-report-suffix`,
+confirming that the corrected root launcher forwards it. Every final checksum
+and standalone path-verification check passed.
+
+Scientific checks compare feature/sample identities as well as values:
+
+- Sarek: both Strelka VCF record sets, including sample headers and eight reported
+  variants, plus both mosdepth coverage-summary tables matched after every successful replay.
+  Non-scientific VCF `##` execution metadata were excluded from comparison.
+- Single-cell: four raw/filtered MatrixMarket outputs matched after canonicalizing
+  gene and barcode identities. All six H5AD files were read with the upstream Scanpy
+  container and matched by cell identity, gene identity, and counts, including both
+  combined matrices. The combined filtered object contains 8,672 cells, 1,100 genes,
+  13,847 nonzero entries, and 15,919 counts.
+- Bulk RNA: 22 quantification/count/TPM tables were compared, including the preferred
+  length-scaled gene counts. Feature IDs, sample IDs, and nonnumeric annotations
+  matched. All four gene/transcript SummarizedExperiment RDS files loaded successfully
+  and contained finite, nonnegative counts for five samples and 125 features.
+  Fresh and relocated runs show native Salmon estimation variation; bitwise
+  scientific equality is therefore not claimed for recomputed RNA quantification.
+
+For bulk RNA, the fresh replay's preferred STAR/Salmon length-scaled counts differ
+by at most **0.062291 counts**, with maximum per-sample L1-relative difference
+**3.470e-6**. The relocated run differs by at most **0.045636 counts** and
+**1.934e-6**. Raw STAR/Salmon gene counts differ by at most **0.007** and **0.002**
+respectively. Pseudoalignment TPMs differ by at most **132.806438** in the fresh run.
+
+This variation was investigated with **eight direct native controls**: two repeats
+of each mapping/alignment Salmon task for `RAP1_IAA_30M_REP1` and `WT_REP2`, using
+unchanged upstream task scripts, identical staged inputs, Salmon **1.10.3**, and the
+same six threads. These controls also vary. The worst-case WT_REP2 mapping control
+reproduces a **137.955965 TPM** difference, exceeding the fresh replay's observed
+132.806438. Alignment controls also reproduce fractional-read variation. No arbitrary
+numeric tolerance was used to silently pass differing scientific outputs. Cached
+RNA resumes and in-place replay retain identical checked quantification tables.
+
+### Snapshot integrity and upstream path constraints
+
+`checksums.sha256` records a particular output snapshot. Direct Nextflow replay can
+regenerate MultiQC reports, plot metadata, and execution reports. `--verify` checks
+required files and input/reference paths; it is not a content-digest check. The
+validator recorded checksum differences before repair, preserved each previous
+manifest outside the bundle, deliberately made the checksum manifest missing, and
+then exercised `--repair-bundle`. A second repair was a no-op, and both the resulting
+`sha256sum -c` check and standalone path verification passed. Existing complete
+snapshots are deliberately never silently rehashed by `--repair-bundle`.
+
+Shell/YAML quoting tests do not guarantee that every upstream program accepts every
+filesystem name. Nextflow 26.04.3 expands an unescaped literal `$` in its generated
+work-directory task script; a deliberate stress test failed with `literal: unbound
+variable`. Real relocated RNA and single-cell runs succeeded with spaces and an
+apostrophe after removing the dollar sign. Sarek's GATK BaseRecalibrator repeatedly
+failed in that quoted work-directory spelling with `AnnotatedIntervalCodec` errors;
+ordinary-path relocation succeeded. A separate full run through the corrected
+root launcher also succeeded with a quoted output directory and a plain external
+`--work-dir`; its VCFs and coverage summaries matched the baseline, its manifest
+recorded the requested work directory, and its checksums passed. Use a plain scratch
+directory for Sarek, for example `--work-dir /analysis/sarek-work`, and retain the
+failure logs when diagnosing an upstream tool. No cached Nextflow or nf-core source was patched to bypass these
+constraints.
+
+The earlier macOS VM had insufficient memory/storage for complete workflows; those
+attempts remain resource-limit observations. The successful server runs above
+supersede the earlier absence of complete biological pipeline validation. Public
+test workflows validate these pinned releases and tested profiles, not every
+production reference, optional caller, site scheduler, or future upstream release.
