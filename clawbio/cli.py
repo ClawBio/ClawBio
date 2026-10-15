@@ -2277,7 +2277,7 @@ def main():
     run_parser.add_argument("--email-on-fail", default=None, help="Email address for failure notification only")
     run_parser.add_argument("--multiqc-title", default=None, help="Custom MultiQC title for pipeline skills")
     run_parser.add_argument("--expected-cells", type=int, default=None, help="expected_cells override for scrnaseq-pipeline")
-    run_parser.add_argument("--work-dir", default=None, help="Nextflow work directory for scrnaseq-pipeline")
+    run_parser.add_argument("--work-dir", default=None, help="Nextflow work directory for nf-core pipeline skills")
     run_parser.add_argument("--allow-conda-cellranger", action="store_true", help="Allow Cell Ranger presets with conda/mamba when a trusted site config supplies Cell Ranger")
     run_parser.add_argument("--resume", action="store_true", help="Enable resume policy for pipeline skills")
     run_parser.add_argument("--save-reference", action="store_true", help="Save built reference indexes for pipeline skills")
@@ -2642,6 +2642,8 @@ def main():
         if args.skill in {"scrnaseq-pipeline", "rnaseq-pipeline", "sarek-pipeline"}:
             for cfg in getattr(args, "nextflow_config", None) or []:
                 extra.extend(["--nextflow-config", cfg])
+            if getattr(args, "work_dir", None) is not None:
+                extra.extend(["--work-dir", args.work_dir])
         if skill_backend_profile:
             extra.extend(["--profile", skill_backend_profile])
         if getattr(args, "pipeline_version", None):
@@ -2671,7 +2673,6 @@ def main():
                 ("igenomes_base", "--igenomes-base"),
                 ("publish_dir_mode", "--publish-dir-mode"),
                 ("trace_report_suffix", "--trace-report-suffix"),
-                ("work_dir", "--work-dir"),
             ):
                 attr, flag = value_flag
                 value = getattr(args, attr, None)
