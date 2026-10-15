@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from hypothesis import example, given, strategies as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -45,15 +46,22 @@ def test_parse_organ_list_empty_raises():
 def test_mortality_to_years():
     from proteomics_clock import mortality_to_years
 
-    hazards = np.array([0.0, -4.801912])
-    years = mortality_to_years(hazards)
-    assert len(years) == 2
-    assert all(np.isfinite(years))
-    # A hazard of 0 should give a reasonable age (positive, < 200)
-    assert 0 < years[0] < 200
-    # The average hazard (-4.802) maps to ~9.95 per the Gompertz formula
-    # (this is the baseline offset, not the population mean age)
-    assert 5 < years[1] < 15
+    # Relative hazard 0 is the cohort average: the UK Biobank mean age per the organAging README.
+    assert mortality_to_years(np.array([0.0]))[0] == pytest.approx(57.29426, abs=1e-3)
+
+
+@given(age=st.floats(min_value=0, max_value=120))
+@example(age=0.0)
+def test_mortality_to_years_round_trips_gompertz_age(age):
+    from proteomics_clock import (
+        GOMPERTZ_AVG_HAZARD,
+        GOMPERTZ_INTERCEPT,
+        GOMPERTZ_SLOPE,
+        mortality_to_years,
+    )
+
+    relative = GOMPERTZ_INTERCEPT + GOMPERTZ_SLOPE * age - GOMPERTZ_AVG_HAZARD
+    assert mortality_to_years(np.array([relative]))[0] == pytest.approx(age, abs=1e-9)
 
 
 def test_predict_gen1_simple():
