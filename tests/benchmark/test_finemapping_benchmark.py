@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -19,6 +20,8 @@ from finemapping_benchmark import (
     CAUSAL_INDICES,
     METHODS,
 )
+
+needs_jax = pytest.mark.skipif(importlib.util.find_spec("jax") is None, reason="needs jax (uv sync --extra fine-mapping)")
 
 
 class TestBenchmarkLocus:
@@ -84,18 +87,21 @@ class TestMethodRunners:
         assert result["credible_set_size"] > 0
         assert result["coverage"] >= 0.95
 
+    @needs_jax
     def test_susie_returns_pips(self):
         result = run_method_susie(self.df, self.ld)
         assert result["method"] == "SuSiE"
         assert len(result["pips"]) == 200
         assert all(0 <= p <= 1 for p in result["pips"])
 
+    @needs_jax
     def test_susie_finds_credible_sets(self):
         result = run_method_susie(self.df, self.ld)
         assert "credible_sets" in result
         # SuSiE should find at least 1 credible set on this well-powered locus
         assert result["n_credible_sets"] >= 1
 
+    @needs_jax
     def test_both_methods_find_causal_signal(self):
         """Both methods should rank at least one causal variant highly."""
         for method_name, method_fn in METHODS.items():
@@ -157,6 +163,7 @@ class TestBenchmarkRunner:
         result = run_benchmark(methods=["abf"], seed=42, output_dir=tmp_path)
         assert (tmp_path / "finemapping_benchmark.json").exists()
 
+    @needs_jax
     def test_both_methods_produce_valid_scores(self):
         result = run_benchmark(methods=["abf", "susie"], seed=42)
         for m in result["methods"]:

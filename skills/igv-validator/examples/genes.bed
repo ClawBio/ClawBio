@@ -1,0 +1,9 @@
+# Synthetic demo genes for igv-validator. This is NOT real patient data.
+demo1	2900	3100	DEMO1
+demo1	11000	13000	DEMO5
+demo3	5499	7500	WRONGDEL
+demo3	9999	15000	NEUTRAL
+demo3	20999	24000	HOMDEL
+demo3	35999	44000	HEMI
+demo3	49999	52000	GAPGENE
+demo3	55499	57500	ALTGENE

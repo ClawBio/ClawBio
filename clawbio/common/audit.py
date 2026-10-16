@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -140,32 +141,45 @@ def skill_run(
     scrubbing: a caller that puts an identifier in a skill name or an attrs
     key is outside their reach.
     """
-    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.resources import OTELResourceDetector, Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
     from opentelemetry.trace import StatusCode
 
+    # Fallbacks for a plain CLI run. A caller names its own project and service
+    # through OTEL_RESOURCE_ATTRIBUTES / OTEL_SERVICE_NAME. Resource.create() lets
+    # our values beat those, so the environment is merged back on top; only what
+    # it actually sets, or service.name would become "unknown_service".
     provider = TracerProvider(resource=Resource.create({
         "service.name": "clawbio",
         # Phoenix groups traces by this; without it everything lands in "default".
         "openinference.project.name": "clawbio",
-    }))
+    }).merge(OTELResourceDetector().detect()))
     provider.add_span_processor(SimpleSpanProcessor(_JsonlExporter(_resolve_log(log_path))))
     endpoint = os.environ.get("CLAWBIO_OTLP_ENDPOINT")
     if endpoint:
         # Opt-in, and deliberately not OTEL_EXPORTER_OTLP_ENDPOINT: an org-wide
         # setting would otherwise point spans carrying output paths at whatever
         # collector the org runs, which may not be on this machine.
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-
-        provider.add_span_processor(
-            BatchSpanProcessor(
-                # Short timeout: a dead collector must not make shutdown() look
-                # like a hung analysis.
-                OTLPSpanExporter(endpoint=_traces_url(endpoint), timeout=5)
+        try:
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        except ImportError:
+            # Tracing is optional; the analysis it describes is not.
+            print(
+                "clawbio: CLAWBIO_OTLP_ENDPOINT is set but the exporter is not "
+                "installed (pip install 'clawbio[otlp]'); spans stay in the "
+                "local audit log only.",
+                file=sys.stderr,
             )
-        )
-    tracer = provider.get_tracer("clawbio")
+        else:
+            provider.add_span_processor(
+                BatchSpanProcessor(
+                    # Short timeout: a dead collector must not make shutdown() look
+                    # like a hung analysis.
+                    OTLPSpanExporter(endpoint=_traces_url(endpoint), timeout=5)
+                )
+            )
+    tracer = provider.get_tracer(__name__)
 
     token = _TRACER.set(tracer)
     try:
@@ -177,7 +191,7 @@ def skill_run(
             span.set_attribute("gen_ai.agent.id", skill)
             span.set_attribute("gen_ai.agent.version", version)
             # Phoenix classifies on this key alone; without it: "unknown".
-            span.set_attribute("openinference.span.kind", "AGENT")
+            span.set_attribute("openinference.span.kind", "CHAIN")
             # Each omitted when empty. The checksum keeps a clawbio.* namespace
             # because no convention has an equivalent; the file and the output
             # dir are the viewers' Input and Output, one key each, so the

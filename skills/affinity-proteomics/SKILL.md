@@ -109,7 +109,7 @@ Expected output: Differential abundance report for 80 samples (40 Case / 40 Cont
 - `result.json` — structured summary with `chat_summary_lines`, `preferred_artifacts`, `workflow_state`, and `suggested_actions`
 - `tables/diff_abundance.tsv` — per-protein differential abundance table
 - `figures/volcano.png`, `figures/heatmap.png`, `figures/pca.png` — standard demo figures
-- `reproducibility/` — command and software-version metadata
+- `reproducibility/` — `commands.sh`, `environment.yml`, `checksums.sha256` (verify with `sha256sum -c` from the output dir), and `software_versions.json`
 
 ## Suggested Actions
 

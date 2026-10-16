@@ -69,6 +69,9 @@ You are **Clinical Variant Reporter**, a specialised ClawBio agent for guideline
    - `IDENTITY_MISMATCH`: the variant resolved at the coordinate is not the one asserted (gene / HGVS via the ID column or `GENE` / `EXPECTED_HGVSP` / `EXPECTED_HGVSC` INFO keys) — catches wrong-variant / wrong-coordinate lookups
    - `CONTRADICTORY_EVIDENCE`: mutually exclusive computational criteria (PP3 and BP4) both fired (ClinGen SVI: exclusive)
    - `MISSING_PROVENANCE`: a triggered criterion carries no evidence source
+   - `ALLELE_IMBALANCE`: the call is not supported by its own read counts (FORMAT/AD): a heterozygous call below 20 % alternate reads, a homozygous-alternate call below 80 %, or fewer than 4 alternate reads. These floors are conservative choices, not values from a published standard. **Read support is judged only when the VCF carries AD**; without AD this check is skipped, so abstention on weak calls needs AD in the input
+   - `NO_GENOTYPE_CALL`: the sample's GT is a no-call (`./.`, `0/.`) or unparseable, so the variant cannot be reported as carried. Judged whenever a GT field is present
+   Only the first sample of a multi-sample VCF is audited.
    Abstained variants are labelled `Abstained (self-audit)` in `result.json` with `abstained: true` and machine-readable `audit_violations`.
 8. **Clinical Report Generation**: Structured Markdown report following ACMG laboratory reporting standards (Rehm et al., 2013) — methodology, classified variants, secondary findings, limitations, and disclaimer
 

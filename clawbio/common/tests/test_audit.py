@@ -5,6 +5,7 @@ import stat
 from pathlib import Path
 
 import subprocess
+import sys
 import pytest
 
 from clawbio.common import audit
@@ -144,7 +145,9 @@ def test_tool_call_captures_exit_code_on_failure(tmp_path):
 
 def test_otlp_exporter_is_opt_in(tmp_path, monkeypatch):
     """Off by default; CLAWBIO_OTLP_ENDPOINT constructs an OTLP exporter."""
-    from opentelemetry.exporter.otlp.proto.http import trace_exporter
+    trace_exporter = pytest.importorskip(
+        "opentelemetry.exporter.otlp.proto.http.trace_exporter", reason="needs the otlp extra (uv sync --extra otlp)"
+    )
     from opentelemetry.sdk.trace.export import SpanExportResult
 
     endpoints = []
@@ -173,6 +176,17 @@ def test_otlp_exporter_is_opt_in(tmp_path, monkeypatch):
     with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "b.jsonl"):
         pass
     assert endpoints == ["http://localhost:4318/v1/traces"]
+
+
+def test_missing_otlp_extra_warns_and_keeps_the_analysis_running(tmp_path, monkeypatch, capsys):
+    """Without clawbio[otlp], a set endpoint must cost the traces, not the run."""
+    monkeypatch.setitem(sys.modules, "opentelemetry.exporter.otlp.proto.http.trace_exporter", None)
+    monkeypatch.setenv("CLAWBIO_OTLP_ENDPOINT", "http://localhost:4318")
+    log = tmp_path / "audit.jsonl"
+    with skill_run("pharmgx", "0.2.0", log_path=log):
+        pass
+    assert "clawbio[otlp]" in capsys.readouterr().err
+    assert log.read_text().strip(), "local audit log should still be written"
 
 
 def test_skill_run_records_provenance_attributes(tmp_path):
@@ -214,7 +228,9 @@ def test_span_kinds_are_set_for_trace_viewers(tmp_path):
     records = [json.loads(line) for line in log.read_text().splitlines()]
     tool = next(r for r in records if r["event"] == "execute_tool bcftools_view")
     root = next(r for r in records if r["event"] == "skill_run")
-    assert root["openinference.span.kind"] == "AGENT"
+    # A skill run is a fixed pipeline, OpenInference's CHAIN; AGENT means a
+    # reasoning loop that chooses its own steps.
+    assert root["openinference.span.kind"] == "CHAIN"
     assert tool["openinference.span.kind"] == "TOOL"
     assert tool["tool.name"] == "bcftools_view"
 
@@ -357,7 +373,9 @@ def test_hide_inputs_redacts_attrs_passed_alongside_cmd(tmp_path, monkeypatch):
 
 def test_otlp_endpoint_may_be_given_with_or_without_the_signal_path(tmp_path, monkeypatch):
     """OTel habit is to set the full /v1/traces URL; appending it again 404s."""
-    from opentelemetry.exporter.otlp.proto.http import trace_exporter
+    trace_exporter = pytest.importorskip(
+        "opentelemetry.exporter.otlp.proto.http.trace_exporter", reason="needs the otlp extra (uv sync --extra otlp)"
+    )
     from opentelemetry.sdk.trace.export import SpanExportResult
 
     endpoints = []
@@ -381,3 +399,65 @@ def test_otlp_endpoint_may_be_given_with_or_without_the_signal_path(tmp_path, mo
         with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
             pass
     assert endpoints == ["http://localhost:4318/v1/traces"] * 2
+
+
+@pytest.fixture
+def exported(monkeypatch):
+    """Spans as the exporter saw them; the JSONL record leaves out the resource."""
+    spans = []
+
+    class _Recorder(audit._JsonlExporter):
+        def export(self, batch):
+            spans.extend(batch)
+            return super().export(batch)
+
+    monkeypatch.setattr(audit, "_JsonlExporter", _Recorder)
+    monkeypatch.delenv("OTEL_RESOURCE_ATTRIBUTES", raising=False)
+    monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+    return spans
+
+
+def test_resource_defaults_to_clawbio_when_nobody_names_it(tmp_path, exported):
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        pass
+    attrs = exported[0].resource.attributes
+    assert attrs["service.name"] == "clawbio"
+    assert attrs["openinference.project.name"] == "clawbio"
+
+
+def test_caller_names_the_project_and_service(tmp_path, exported, monkeypatch):
+    # An agent that runs clawbio files its spans under its own project; the
+    # standard OTel variables are how a parent process says so.
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "openinference.project.name=hermes-agent,deployment=mini")
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "hermes")
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        pass
+    attrs = exported[0].resource.attributes
+    assert attrs["openinference.project.name"] == "hermes-agent"
+    assert attrs["service.name"] == "hermes"
+    assert attrs["deployment"] == "mini"
+
+
+def test_spans_name_the_emitting_module_as_their_scope(tmp_path, exported):
+    # The scope says which library emitted a span, whoever owns the project.
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        with tool_call("fetch"):
+            pass
+    assert {s.instrumentation_scope.name for s in exported} == {"clawbio.common.audit"}
+
+
+
+@pytest.mark.parametrize("env, project, service", [
+    ({"OTEL_RESOURCE_ATTRIBUTES": "openinference.project.name=hermes-agent"}, "hermes-agent", "clawbio"),
+    ({"OTEL_SERVICE_NAME": "hermes"}, "clawbio", "hermes"),
+])
+def test_environment_overrides_only_what_it_sets(tmp_path, exported, monkeypatch, env, project, service):
+    # Setting one variable must leave the other field at clawbio's fallback,
+    # never "unknown_service".
+    for var, value in env.items():
+        monkeypatch.setenv(var, value)
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        pass
+    attrs = exported[0].resource.attributes
+    assert attrs["openinference.project.name"] == project
+    assert attrs["service.name"] == service
