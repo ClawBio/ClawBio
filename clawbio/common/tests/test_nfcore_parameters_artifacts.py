@@ -125,3 +125,16 @@ def test_any_value_of_an_ignored_parameter_passes_and_others_still_fail(value):
     validate_against_contract({"freebayes_filter": value}, _IGNORING_CONTRACT)
     with pytest.raises(ValueError):
         validate_against_contract({"freebayes_filter": value, "aligner": "star"}, _IGNORING_CONTRACT)
+
+
+@given(st.integers(1, 512), st.integers(1, 2048), st.one_of(st.none(), st.fixed_dictionaries(
+    {"cpus": st.integers(1, 64), "memory_gb": st.integers(1, 256)})))
+def test_profile_limits_only_ever_lower_capacity(cpus, memory_gb, limits):
+    from clawbio.common.nfcore.resources import cap_to_profile_limits
+
+    bounded = cap_to_profile_limits(cpus, memory_gb, limits)
+    assert bounded[0] <= cpus and bounded[1] <= memory_gb
+    if limits is None:
+        assert bounded == (cpus, memory_gb)
+    else:
+        assert bounded == (min(cpus, limits["cpus"]), min(memory_gb, limits["memory_gb"]))

@@ -42,7 +42,7 @@ purge_foreign_bare_modules(
     "schemas",
 )
 
-from clawbio.common.nfcore.resources import uses_local_docker_capacity
+from clawbio.common.nfcore.resources import cap_to_profile_limits, uses_local_docker_capacity
 from clawbio.common.nfcore import runtime as _runtime
 from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
 from clawbio.common.nfcore.failures import report_skill_error, report_unexpected_error
@@ -76,6 +76,7 @@ from reporting import (
 from repro_commands import write_macos_docker_config
 from samplesheet_builder import validate_and_normalize_samplesheet
 from schemas import (
+    DEMO_RESOURCE_LIMITS,
     ALL_REFERENCE_PATH_FIELDS,
     DEFAULT_PIPELINE_VERSION,
     DEFAULT_PRESET,
@@ -1056,9 +1057,9 @@ def _build_extra_nextflow_configs(
             # Non-macOS docker uses the local executor, which aborts a real run when a
             # process's production requirement exceeds this host's RAM (e.g. STARsolo
             # requesting 72 GB on a 63 GB machine). Cap requests to the host per
-            # nf-core resourceLimits guidance. --demo relies on -profile test's own
-            # (smaller) resourceLimits, so it is deliberately left untouched. Applied
-            # to the live run and shipped for runtime-aware replay (see repro_commands.py).
+            # nf-core resourceLimits guidance. --demo keeps -profile test's own limits,
+            # lowered only when this machine is smaller. Applied to the live run and
+            # shipped for runtime-aware replay (see repro_commands.py).
             configs.append(_write_resource_limits_config(output_dir, args=args))
     return [*configs, *user_configs]
 
@@ -1117,8 +1118,10 @@ def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace)
     """
     config_path = output_dir / "reproducibility" / "resource_limits.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    cpus = _runtime_cpu_count()
-    memory_gb = _resource_limits_memory_gb()
+    cpus, memory_gb = cap_to_profile_limits(
+        _runtime_cpu_count(), _resource_limits_memory_gb(),
+        DEMO_RESOURCE_LIMITS if getattr(args, "demo", False) else None,
+    )
     timeout_hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
     time_hours = int(_DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
     write_text_lf(

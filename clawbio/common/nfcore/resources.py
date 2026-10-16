@@ -1,5 +1,20 @@
 """Local Docker capacity selection and portable replay resource guards."""
 
+from collections.abc import Mapping
+
+
+def cap_to_profile_limits(cpus: int, memory_gb: int, limits: Mapping[str, int] | None) -> tuple[int, int]:
+    """Bound launcher capacity by a test profile's own resourceLimits.
+
+    --demo runs nf-core's ``test`` profile, whose resourceLimits define the
+    canonical test (4 CPUs and 15 GB in the pinned releases). The launcher may
+    lower them on a smaller machine, but never raises them. ``None`` leaves the
+    capacity unchanged (a real run).
+    """
+    if not limits:
+        return cpus, memory_gb
+    return min(cpus, limits["cpus"]), min(memory_gb, limits["memory_gb"])
+
 
 def uses_local_docker_capacity(args, supported_profiles: set[str]) -> bool:
     """Use launcher capacity only for recognized local Docker profiles.

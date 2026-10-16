@@ -105,3 +105,30 @@ def test_generator_reads_default_ignore_params_from_nextflow_config(tmp_path):
     assert contract["config_sha256"] == hashlib.sha256(config.encode()).hexdigest()
     assert contract["config_url"].endswith("/nf-core/sarek/3.8.1/nextflow.config")
     assert contract["parameters"] == {"freebayes_filter": {"type": "string"}}
+
+
+def test_demo_resource_limits_match_the_pinned_test_profiles_when_available():
+    """The demo cap must equal each pinned release's own -profile test resourceLimits."""
+    import importlib.util
+    import os
+    import re
+
+    import pytest
+
+    upstream = os.environ.get("CLAWBIO_NFCORE_UPSTREAM_DIR")
+    if not upstream:
+        pytest.skip("set CLAWBIO_NFCORE_UPSTREAM_DIR to downloaded pinned source trees")
+    for name in ("rnaseq", "sarek", "scrnaseq"):
+        skill = ROOT / "skills" / f"nfcore-{name}-wrapper"
+        spec = importlib.util.spec_from_file_location(f"_{name}_schemas", skill / "schemas.py")
+        schemas = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(schemas)
+        source = Path(upstream) / f"{name}-{schemas.DEFAULT_PIPELINE_VERSION}"
+        test_config = (source / "conf" / "test.config").read_text()
+        if "resourceLimits" not in test_config:
+            # rnaseq declares them in the `test` profile block of nextflow.config.
+            text = (source / "nextflow.config").read_text()
+            test_config = text[text.index("    test {"):]
+        found = re.search(r"resourceLimits\s*=\s*\[\s*cpus:\s*(\d+),\s*memory:\s*'(\d+)\.GB'", test_config)
+        assert found, name
+        assert schemas.DEMO_RESOURCE_LIMITS == {"cpus": int(found.group(1)), "memory_gb": int(found.group(2))}, name

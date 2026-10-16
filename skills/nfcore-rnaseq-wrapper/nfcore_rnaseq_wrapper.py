@@ -57,6 +57,7 @@ from schemas import (
     DEFAULT_PIPELINE_VERSION,
     DEFAULT_PROFILE,
     DEFAULT_TIMEOUT_HOURS,
+    DEMO_RESOURCE_LIMITS,
     DEFAULT_TRIMMER,
     SKILL_NAME,
     SUPPORTED_PROFILES,
@@ -73,7 +74,7 @@ from schemas import (
     SUPPORTED_UMI_TOOLS,
 )
 
-from clawbio.common.nfcore.resources import uses_local_docker_capacity
+from clawbio.common.nfcore.resources import cap_to_profile_limits, uses_local_docker_capacity
 from clawbio.common.nfcore import runtime as _runtime
 from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
 from clawbio.common.nfcore.failures import report_skill_error, report_unexpected_error
@@ -1218,14 +1219,18 @@ def _build_extra_nextflow_configs(args: argparse.Namespace, output_dir: Path) ->
     arm = bool(getattr(args, "arm", False))
     if "docker" in profile_parts and uses_local_docker_capacity(args, SUPPORTED_PROFILES):
         if platform.system() == "Darwin":
-            configs.append(_write_macos_docker_config(output_dir, arm=arm, timeout_hours=_resolve_timeout_hours(args)))
+            configs.append(_write_macos_docker_config(
+                output_dir, arm=arm, timeout_hours=_resolve_timeout_hours(args), demo=bool(getattr(args, "demo", False))
+            ))
         else:
             # Non-macOS docker runs use the local executor, which aborts a real run
             # when a process's production requirement exceeds this host's RAM (e.g.
             # PREPARE_GENOME requesting 72 GB on a 63 GB machine). Cap requests to the
-            # host per nf-core resourceLimits guidance. --demo relies on -profile test's
-            # own (smaller) resourceLimits, so it is deliberately left untouched.
-            configs.append(_write_resource_limits_config(output_dir, timeout_hours=_resolve_timeout_hours(args)))
+            # host per nf-core resourceLimits guidance. --demo keeps -profile test's own
+            # limits, lowered only when this machine is smaller.
+            configs.append(_write_resource_limits_config(
+                output_dir, timeout_hours=_resolve_timeout_hours(args), demo=bool(getattr(args, "demo", False))
+            ))
     for user_cfg in getattr(args, "nextflow_config", None) or []:
         # --nextflow-config accepts local paths only; Path.resolve() is intentional.
         # Nextflow's own -c flag also expects local file paths in typical use.
@@ -1270,7 +1275,9 @@ def _macos_docker_memory_gb() -> int:
     return budget
 
 
-def _write_macos_docker_config(output_dir: Path, *, arm: bool = False, timeout_hours: float = DEFAULT_TIMEOUT_HOURS) -> Path:
+def _write_macos_docker_config(
+    output_dir: Path, *, arm: bool = False, timeout_hours: float = DEFAULT_TIMEOUT_HOURS, demo: bool = False
+) -> Path:
     config_path = output_dir / ".nextflow_macos_docker.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     # --platform linux/amd64 forces qemu emulation on Apple Silicon; omit when using
@@ -1281,8 +1288,9 @@ def _write_macos_docker_config(output_dir: Path, *, arm: bool = False, timeout_h
     # Memory/time stay conservative because
     # over-allocating memory can trigger OOM-kills (worse than throttling); users on
     # high-RAM hosts can override via --nextflow-config.
-    cpus = _runtime_cpu_count()
-    memory_gb = _macos_docker_memory_gb()
+    cpus, memory_gb = cap_to_profile_limits(
+        _runtime_cpu_count(), _macos_docker_memory_gb(), DEMO_RESOURCE_LIMITS if demo else None
+    )
     # The per-process time ceiling tracks --timeout-hours (audit F-4) so a large-cohort
     # run raised above the 12h default is not capped back to 12h by this config. Floored
     # at 1h so a sub-hour --timeout-hours never emits an invalid '0.h' duration.
@@ -1344,7 +1352,9 @@ def _resource_limits_memory_gb() -> int:
     return min(max(1, ceiling - 1), max(1, max(_MACOS_DOCKER_MEMORY_FLOOR_GB, budget)))
 
 
-def _write_resource_limits_config(output_dir: Path, *, timeout_hours: float = DEFAULT_TIMEOUT_HOURS) -> Path:
+def _write_resource_limits_config(
+    output_dir: Path, *, timeout_hours: float = DEFAULT_TIMEOUT_HOURS, demo: bool = False
+) -> Path:
     """Write a host-scaled ``resourceLimits`` config for non-macOS docker runs.
 
     Carries only the portable resourceLimits block — none of the macOS-only
@@ -1353,8 +1363,9 @@ def _write_resource_limits_config(output_dir: Path, *, timeout_hours: float = DE
     """
     config_path = output_dir / ".nextflow_resource_limits.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    cpus = _runtime_cpu_count()
-    memory_gb = _resource_limits_memory_gb()
+    cpus, memory_gb = cap_to_profile_limits(
+        _runtime_cpu_count(), _resource_limits_memory_gb(), DEMO_RESOURCE_LIMITS if demo else None
+    )
     time_hours = int(DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
     write_text_lf(
         config_path,

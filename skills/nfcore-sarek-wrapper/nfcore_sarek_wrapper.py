@@ -56,7 +56,7 @@ purge_foreign_bare_modules(
     "schemas",
 )
 
-from clawbio.common.nfcore.resources import uses_local_docker_capacity
+from clawbio.common.nfcore.resources import cap_to_profile_limits, uses_local_docker_capacity
 from clawbio.common.nfcore import runtime as _runtime
 from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
 from clawbio.common.nfcore.failures import report_skill_error, report_unexpected_error
@@ -72,6 +72,7 @@ from provenance import _build_manifest, compute_samplesheet_checksum, compute_pa
 from reporting import write_reports
 from samplesheet_builder import validate_and_normalize_samplesheet
 from schemas import (
+    DEMO_RESOURCE_LIMITS,
     DEFAULT_ALIGNER,
     DEFAULT_PIPELINE_VERSION,
     DEFAULT_PROFILE,
@@ -1434,8 +1435,9 @@ def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace)
         return None
     config_path = output_dir / "reproducibility" / "resource_limits.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    cpus = _runtime_cpu_count()
-    memory_gb = _resource_limits_memory_gb()
+    cpus, memory_gb = cap_to_profile_limits(
+        _runtime_cpu_count(), _resource_limits_memory_gb(), DEMO_RESOURCE_LIMITS if args.demo else None
+    )
     timeout_hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
     time_hours = int(_DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
     write_text_lf(
@@ -1475,6 +1477,7 @@ def _write_macos_docker_config(output_dir: Path, *, args: argparse.Namespace) ->
     vm_gb = _docker_vm_memory_gb()
     if vm_gb:
         mem_gb = min(mem_gb, max(1, int(vm_gb * 0.9)))
+    cpus, mem_gb = cap_to_profile_limits(cpus, mem_gb, DEMO_RESOURCE_LIMITS if args.demo else None)
     timeout_hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
     time_hours = int(_DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
     docker_block = ""

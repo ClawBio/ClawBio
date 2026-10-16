@@ -1023,3 +1023,42 @@ def test_params_file_accepts_sarek_defaults_its_schema_ignores(wrapper, tmp_path
     source.write_text("aligner: 5\n")
     with pytest.raises(companions["errors"].SkillError):
         companions["params_builder"]._load_user_params_file(str(source))
+
+
+def _resource_config(name, module, tmp_path, argv):
+    args = module.build_parser().parse_args(["--output", str(tmp_path), *argv])
+    if name == "rnaseq":
+        return module._write_resource_limits_config(tmp_path, demo=bool(args.demo)).read_text()
+    return module._write_resource_limits_config(tmp_path, args=args).read_text()
+
+
+@pytest.mark.parametrize(("host", "demo_limits"), [((28, 58), (4, 15)), ((2, 8), (2, 8)), ((16, 12), (4, 12))])
+def test_demo_never_raises_the_test_profiles_own_limits(wrapper, tmp_path, monkeypatch, host, demo_limits):
+    """--demo runs nf-core's test profile, whose resourceLimits (4 CPUs, 15 GB in the
+    pinned releases) define the canonical test. The launcher may lower them on a
+    smaller machine but must not raise them on a larger one: on a 28-CPU host the
+    demo ran bwa with 24 threads instead of the test profile's 4."""
+    name, module, _ = wrapper
+    monkeypatch.setattr(module.sys, "platform", "linux")
+    monkeypatch.setattr(module, "_runtime_cpu_count", lambda: host[0])
+    monkeypatch.setattr(module, "_resource_limits_memory_gb", lambda: host[1])
+    demo = _resource_config(name, module, tmp_path, ["--demo"])
+    assert f"executor.cpus = {demo_limits[0]}\n" in demo and f"cpus: {demo_limits[0]}," in demo
+    assert f"executor.memory = '{demo_limits[1]}.GB'" in demo and f"memory: '{demo_limits[1]}.GB'" in demo
+    real = _resource_config(name, module, tmp_path, ["--input", str(tmp_path / "s.csv")] if name != "sarek" else [])
+    assert f"executor.cpus = {host[0]}\n" in real and f"executor.memory = '{host[1]}.GB'" in real
+
+
+@pytest.mark.parametrize("wrapper", ["rnaseq", "sarek"], indirect=True)
+def test_macos_demo_never_raises_the_test_profiles_own_limits(wrapper, tmp_path, monkeypatch):
+    name, module, _ = wrapper
+    monkeypatch.setattr(module.sys, "platform", "darwin")
+    monkeypatch.setattr(module, "_runtime_cpu_count", lambda: 10)
+    if name == "rnaseq":
+        text = module._write_macos_docker_config(tmp_path, demo=True).read_text()
+    else:
+        monkeypatch.setattr(module, "_host_memory_gb", lambda: 64)
+        monkeypatch.setattr(module, "_docker_vm_memory_gb", lambda: 32)
+        args = module.build_parser().parse_args(["--output", str(tmp_path), "--demo"])
+        text = module._write_macos_docker_config(tmp_path, args=args).read_text()
+    assert "executor.cpus = 4\n" in text and "cpus: 4," in text

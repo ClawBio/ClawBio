@@ -20,7 +20,7 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 - Validate emitted values against the pinned 4.1.0 scalar schema and reject ambiguous CSV inputs, skipping what the pinned `validation.defaultIgnoreParams` lists (`genomes`), as nf-schema does.
 - Canonicalize recognized protocol aliases and preserve remote MultiQC configuration URIs.
 - Record launch manifests before execution and verify samplesheet checksums on resumed runs/checks.
-- Bound local Docker scheduler/process capacity, including demos and macOS; preserve user-config precedence in live runs and replay.
+- Bound local Docker scheduler/process capacity, including demos and macOS; preserve user-config precedence in live runs and replay. A demo keeps `-profile test`'s own 4 CPUs / 15 GB and is only ever lowered, never raised to the host's capacity.
 - Replay against the smaller recorded/current Docker capacity without modifying checksummed configs.
 - Reject nonfinite timeouts and bound failure-log reads.
 - **Runs on Nextflow 26.04+.** Its default strict syntax parser rejects nf-core/scrnaseq

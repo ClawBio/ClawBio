@@ -4,6 +4,10 @@ from pathlib import Path
 
 
 
+# resourceLimits of the pinned release's own -profile test (conf/test.config). --demo keeps
+# them: the launcher may lower them on a smaller machine but never raises them.
+DEMO_RESOURCE_LIMITS = {"cpus": 4, "memory_gb": 15}
+
 SKILL_NAME = "nfcore-sarek-wrapper"
 SKILL_ALIAS = "sarek-pipeline"
 SKILL_VERSION = "0.1.0"

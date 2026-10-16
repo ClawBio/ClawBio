@@ -29,7 +29,7 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 - Apply custom-reference and demo policy to parameter files, and validate local pipeline versions.
 - Stage samplesheets until preflight succeeds, require valid resume manifests, and track the work directory.
 - Record launch manifests before execution and validate output-directory failures before creating artifacts.
-- Bound Docker scheduler/process capacity on macOS/Linux, including demos; preserve user-config precedence and similarly named config snapshots.
+- Bound Docker scheduler/process capacity on macOS/Linux, including demos; preserve user-config precedence and similarly named config snapshots. A demo keeps `-profile test`'s own 4 CPUs / 15 GB and is only ever lowered: bounding by the host had raised it to 28 CPUs, running bwa with 24 threads instead of the test profile's 4.
 - Anchor replay before resource probes and cap to the smaller recorded/current Docker capacity without changing checksummed originals.
 - Use the shared environment writer; reject nonfinite timeouts, bound failure-log reads, and terminate interrupted process groups.
 - **Runs on Nextflow 26.04+.** Its default strict syntax parser rejects nf-core/sarek
