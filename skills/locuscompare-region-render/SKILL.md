@@ -60,6 +60,7 @@ metadata:
     - https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/     # GWAS Catalog harmonised tabix-on-FTP
     - https://ftp.1000genomes.ebi.ac.uk/                                # 1000G phased VCFs (LD compute)
     - https://rest.ensembl.org/                                         # GENCODE gene-track REST
+    - https://api.platform.opentargets.org/api/v4/graphql               # Open Targets credible-set lookup (ot_credible_set.py)
   openclaw:
     requires:
       bins:
@@ -213,7 +214,7 @@ Bundled examples in `examples/` (each runnable via `--demo <NAME>` once any requ
 - `08_open_targets_credible_set/` - IL23R plasma protein × IBD, starting from an Open Targets credible-set page
 - `09_open_targets_credible_set_many_qtls/` - PCSK9 lung expression × hypercholesterolemia, from a page listing ten QTLs whose GWAS file is unreadable
 
-Starting from an Open Targets page, an rsID or your own files: `references/entry_points.md` maps each starting point to the config, and `references/from_open_targets.md` walks the Open Targets route, where `ot_credible_set.py` lists the choices, recommends a pair with its reasons and writes the config.
+Starting from an Open Targets page, an rsID or your own files: `references/entry_points.md` maps each starting point to the config, and `references/from_open_targets.md` walks the Open Targets route, where `ot_credible_set.py` lists the choices, recommends a pair with its reasons and writes the config. By default it also checks that each candidate GWAS file can be read; `--no-probe` skips that check.
 
 The `examples/chains/` and `examples/recipes/` subdirectories are documentation patterns, not numbered demos: `chains/finemapping_chain/` documents the `fine-mapping` skill -> locuscompare chain (requires `fine-mapping` to have run first; not in `--list-demos`); `recipes/` ships harmonisation scripts that convert FinnGen / Pan-UKBB / UKB-PPP / GTEx v10 native formats into the canonical INPUT_SCHEMA TSV for use via `sumstats_path:`.
 
@@ -319,7 +320,7 @@ Output directory layout:
 
 **Visual interpretation of LocusCompare patterns is informative but not definitive.** Coloc PP-H4 from a formal Bayesian colocalisation analysis (COLOC, COLOC+SuSiE, SharePro, eCAVIAR) and supporting checks (`n_colocalising_variants` ≥ 5, credible-set width < 200 kb, ancestry match between exposure and outcome) should always be cited alongside the visual.
 
-**Local-first; no data upload.** All computation runs locally. Input sumstats stay on the user's machine. Outbound network calls hit only public-domain databases (eQTL Cat FTP, GWAS Cat FTP, 1000G FTP, Ensembl REST for GENCODE). Cache stored at `~/.clawbio/locuscompare_cache/`; the on-demand GENCODE gene-track cache reads `LOCUSCOMPARE_CACHE_DIR` at call time, so CI / sandboxed environments can redirect with `LOCUSCOMPARE_CACHE_DIR=/path/to/cache` per invocation.
+**Local-first; no data upload.** All computation runs locally. Input sumstats stay on the user's machine. Outbound network calls hit only public-domain databases (eQTL Cat FTP, GWAS Cat FTP, 1000G FTP, Ensembl REST for GENCODE, and the Open Targets GraphQL API when starting from an Open Targets page). The Open Targets route sends only public identifiers: credible-set ids and GWAS Catalog accessions. Cache stored at `~/.clawbio/locuscompare_cache/`; the on-demand GENCODE gene-track cache reads `LOCUSCOMPARE_CACHE_DIR` at call time, so CI / sandboxed environments can redirect with `LOCUSCOMPARE_CACHE_DIR=/path/to/cache` per invocation.
 
 **Reproducibility.** Every run emits a SHA-256 checksum manifest covering inputs and outputs. Failed LD compute or missing gene track is surfaced in the manifest's caveats list, not silently degraded.
 
