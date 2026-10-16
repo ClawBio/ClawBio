@@ -570,7 +570,7 @@ def test_main_rejects_half_a_prefix_pair(tmp_path):
 def test_repaired_checksums_cover_the_container_record_like_a_fresh_bundle(tmp_path):
     """containers.json and containers.config pin the images a replay runs, so both
     are in the allowlist, and --repair-bundle must rebuild exactly the same list."""
-    from outputs_parser import find_h5ad_candidates, find_multiqc_report
+    from outputs_parser import find_h5ad_candidates
     from provenance import write_reproducibility_checksums
     from remap_paths import _regenerate_checksums
 
@@ -584,7 +584,9 @@ def test_repaired_checksums_cover_the_container_record_like_a_fresh_bundle(tmp_p
         normalized_samplesheet=bundle / "samplesheet.valid.csv",
         params_path=bundle / "params.yaml",
         preflight_result={},
-        parsed_outputs={"h5ad_candidates": find_h5ad_candidates(results), "multiqc_report": find_multiqc_report(results)},
+        # _make_realistic_bundle writes the MultiQC report here; repair finds it on its own.
+        parsed_outputs={"h5ad_candidates": find_h5ad_candidates(results),
+                        "multiqc_report": str(results / "multiqc" / "multiqc_report.html")},
         execution_result={
             "stdout_path": str(output_dir / "logs" / "stdout.txt"),
             "stderr_path": str(output_dir / "logs" / "stderr.txt"),

@@ -675,13 +675,14 @@ def _bundle_after_a_run(tmp_path: Path) -> ProvenanceBundle:
     output_dir = tmp_path / "out"
     (output_dir / ".nextflow").mkdir(parents=True)
     (output_dir / ".nextflow" / "history").write_text("run\n")
-    return write_provenance_bundle(
-        output_dir=output_dir, skill_dir=_SKILL_DIR, samplesheet_csv_src=samplesheet_csv,
-        params_yaml_src=params_yaml, commands_sh_src=commands_sh, params=_base_params(),
-        samplesheet_report=_FakeSamplesheetReport(), pipeline_source=_FakePipelineSource(),
-        outputs_report=_FakeOutputsReport(), nextflow_version="26.04.3", java_version="17.0.10",
-        profile="test,docker",
-    )
+    bundle_args: dict[str, Any] = {
+        "output_dir": output_dir, "skill_dir": _SKILL_DIR, "samplesheet_csv_src": samplesheet_csv,
+        "params_yaml_src": params_yaml, "commands_sh_src": commands_sh, "params": _base_params(),
+        "samplesheet_report": _FakeSamplesheetReport(), "pipeline_source": _FakePipelineSource(),
+        "outputs_report": _FakeOutputsReport(), "nextflow_version": "26.04.3", "java_version": "17.0.10",
+        "profile": "test,docker",
+    }
+    return write_provenance_bundle(**bundle_args)
 
 
 def test_bundle_records_and_pins_the_containers_the_run_used(tmp_path: Path, monkeypatch):

@@ -479,13 +479,16 @@ def test_bundle_records_pins_and_checksums_the_containers(tmp_path, monkeypatch)
     for path in (params, samplesheet, stdout, stderr):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("x", encoding="utf-8")
-    _, manifest_path = write_provenance_bundle(
-        tmp_path, args=_args(), pipeline_source={"source_kind": "remote_repo", "source_ref": "nf-core/rnaseq", "resolved_version": "3.26.0"},
-        preflight_result=_preflight(), params_path=params, params_payload={"aligner": "star_salmon"},
-        normalized_samplesheet=samplesheet, samplesheet_summary={"sample_count": 1, "fastq_paths": []},
-        parsed_outputs={"handoff_available": False}, execution_result={"stdout_path": str(stdout), "stderr_path": str(stderr)},
-        command_str="nextflow run nf-core/rnaseq",
-    )
+    bundle_args = {
+        "args": _args(),
+        "pipeline_source": {"source_kind": "remote_repo", "source_ref": "nf-core/rnaseq", "resolved_version": "3.26.0"},
+        "preflight_result": _preflight(), "params_path": params, "params_payload": {"aligner": "star_salmon"},
+        "normalized_samplesheet": samplesheet, "samplesheet_summary": {"sample_count": 1, "fastq_paths": []},
+        "parsed_outputs": {"handoff_available": False},
+        "execution_result": {"stdout_path": str(stdout), "stderr_path": str(stderr)},
+        "command_str": "nextflow run nf-core/rnaseq",
+    }
+    _, manifest_path = write_provenance_bundle(tmp_path, **bundle_args)
     bundle = tmp_path / "reproducibility"
     record = json.loads((bundle / "containers.json").read_text())
     assert record["images"][0]["pinned_reference"] == f"quay.io/biocontainers/fastqc@{_FASTQC_DIGEST}"
