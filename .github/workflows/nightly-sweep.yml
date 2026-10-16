@@ -1,7 +1,8 @@
 name: Nightly sweep
 
-# scripts/nightly_demo_sweep.py runs every skill's demo, but no workflow ever called
-# it, so a skill whose demo broke after merge went unnoticed. This runs it nightly.
+# Every skill's demo and every skill's tests, nightly. A PR runs only the tests of
+# the skills it can affect (ci.yml), so this is what catches the rest: drift in
+# live APIs and downloaded data, and two PRs that pass alone but break together.
 on:
   schedule:
     - cron: "30 2 * * *"
@@ -11,6 +12,32 @@ permissions:
   contents: read
 
 jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          # Keep only wheels built from source; pre-built ones re-download faster
+          # than a 400 MB cache restores (setup-uv v10 does not prune by default).
+          prune-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked --all-extras --python ${{ matrix.python-version }}
+
+      - name: Run every skill's tests
+        run: uv run pytest skills/ -n auto
+
   demos:
     runs-on: ubuntu-latest
     steps:
@@ -22,6 +49,7 @@ jobs:
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
+          prune-cache: true
 
       - name: Install dependencies
         run: uv sync --locked --all-extras --python 3.12
