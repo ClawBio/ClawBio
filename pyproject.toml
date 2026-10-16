@@ -40,6 +40,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
 dependencies = [
+    # anndata 0.13 is the first that writes pandas 3 string columns to .h5ad; it needs
+    # Python 3.12+. On 3.11 pydeseq2 still pulls an older anndata, and h5ad tests skip.
+    "anndata>=0.13 ; python_version >= '3.12'",
     "biopython>=1.88",
     "conda-lock>=4.0.2",
     "matplotlib>=3.11.2",

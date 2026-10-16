@@ -138,7 +138,7 @@ Step 2 without step 1 hides the tests everywhere. Run `uv sync --all-extras` to 
 - **Paths**: Always use `pathlib.Path`. Derive from `Path(__file__).resolve().parent`. Never hardcode absolute paths.
 - **Naming**: Skill folders use lowercase-hyphens (`gwas-lookup`). Python files use lowercase_underscores (`gwas_lookup.py`).
 - **Imports**: Sibling modules loaded via `importlib.util.spec_from_file_location` — no package structure. Bare-name imports (`import foo`) share `sys.modules` across skills, so give skill-level modules names unique across skills (`nutrigx_repro_bundle.py`, not `repro_bundle.py`).
-- **CLI**: Every skill script accepts `--input`, `--output`, and `--demo`. Use `argparse`.
+- **CLI**: Every skill script accepts `--input`, `--output`, and `--demo`. Use `argparse`. Write only under `--output`, never the current directory or the skill folder; the nightly sweep runs every demo with `--output` and fails if anything lands in the checkout.
 - **Output**: Skills write to `<output_dir>/report.md` (primary), plus `figures/` and `tables/` subdirectories as needed. Return a `result.json` with structured findings.
 - **Reproducibility**: Every skill with a Python implementation writes `<output_dir>/reproducibility/` (`commands.sh`, `environment.yml`, `checksums.sha256`) using `clawbio.common.reproducibility` — `write_commands_sh`, `write_environment_yml`, `write_checksums`. Do not hand-roll these writers. Label checksums relative to the output directory (`anchor=output_dir`) so `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256` resolves.
 - **Dependencies**: Add core deps with `uv add <package>` (updates `pyproject.toml`; commit `uv.lock`). Skill-specific heavy deps go in the skill's SKILL.md YAML `install` section.
@@ -315,7 +315,7 @@ python tests/benchmark/mock_api_server.py &
 
 ## Git Workflow
 
-- Branch from `main` — name branches `feat/<skill-name>` or `fix/<skill-name>`
+- Branch from `main` in a new git worktree, so agents can work in parallel — name branches `feat/<skill-name>` or `fix/<skill-name>`
 - **One skill per PR** — keep changes focused
 - Tests must pass on Python 3.11, 3.12, and 3.13
 - Include demo output in the PR description so reviewers can verify

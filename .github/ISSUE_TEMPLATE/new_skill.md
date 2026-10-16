@@ -23,6 +23,10 @@ assignees: ''
 - **Input**: <!-- e.g. VCF + phenotype file -->
 - **Output**: <!-- e.g. Manhattan plot + summary statistics + reproducibility bundle -->
 
+## Mermaid diagram
+
+<!-- A Mermaid flowchart of inputs → steps → outputs -->
+
 ## Why it matters
 
 <!-- Who needs this? What gap does it fill? -->

@@ -1,0 +1,50 @@
+name: Nightly sweep
+
+# scripts/nightly_demo_sweep.py runs every skill's demo, but no workflow ever called
+# it, so a skill whose demo broke after merge went unnoticed. This runs it nightly.
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  demos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked --all-extras --python 3.12
+
+      - name: Run every skill's demo
+        run: uv run python scripts/nightly_demo_sweep.py --output "$RUNNER_TEMP/sweep-demos"
+
+      # Every demo gets --output outside the checkout, so anything new here was
+      # written by a skill somewhere other than its output directory.
+      - name: Check no demo wrote into the checkout
+        if: always()
+        run: |
+          changes=$(git status --porcelain)
+          if [ -n "$changes" ]; then
+            echo "::error::Demos wrote into the checkout:"
+            echo "$changes"
+            exit 1
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sweep-demos
+          path: ${{ runner.temp }}/sweep-demos/sweep_*
+          retention-days: 14
