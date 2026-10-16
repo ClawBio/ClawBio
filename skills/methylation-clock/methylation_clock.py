@@ -121,9 +121,15 @@ def _ensure_female_column(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _aggregate_epicv2_probes(df: pd.DataFrame, verbose: bool) -> pd.DataFrame:
-    if hasattr(pya, "pp") and hasattr(pya.pp, "epicv2_probe_aggregation"):
+    if not (hasattr(pya, "pp") and hasattr(pya.pp, "epicv2_probe_aggregation")):
+        return df
+    # Newer PyAging (>=0.5) strips every column name at the first "_", which
+    # mangles metadata columns such as "tissue_type". Aggregate probe columns only.
+    is_probe = df.columns.str.match(r"^(cg|ch|rs|nv)[0-9A-Za-z.\-]*(_|$)")
+    if is_probe.all():
         return pya.pp.epicv2_probe_aggregation(df, verbose=verbose)
-    return df
+    probes = pya.pp.epicv2_probe_aggregation(df.loc[:, is_probe], verbose=verbose)
+    return pd.concat([df.loc[:, ~is_probe], probes], axis=1)
 
 
 def _df_to_adata(df: pd.DataFrame, metadata_cols: list[str], imputer_strategy: str, verbose: bool):
