@@ -154,11 +154,11 @@ _BOOLEAN_FIELDS = (
 
 
 def _validate_native_scalar_params(params: dict[str, object]) -> None:
-    from clawbio.common.nfcore.parameters import validate_parameter_scalars
+    from clawbio.common.nfcore.parameters import validate_against_contract
 
     contract = json.loads((_SKILL_DIR / "reproducibility/upstream_scalar_contract.json").read_text())
     try:
-        validate_parameter_scalars(params, contract["parameters"])
+        validate_against_contract(params, contract)
     except ValueError as exc:
         raise SkillError(
             stage="validation", error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,

@@ -158,11 +158,11 @@ _STRING_FIELDS = (
 )
 
 def _validate_native_scalar_params(params: dict[str, object], *, patterns: bool = True) -> None:
-    from clawbio.common.nfcore.parameters import validate_parameter_scalars
+    from clawbio.common.nfcore.parameters import validate_against_contract
 
     contract = json.loads((_SKILL_DIR / "reproducibility/upstream_scalar_contract.json").read_text())
     try:
-        validate_parameter_scalars(params, contract["parameters"], patterns=patterns)
+        validate_against_contract(params, contract, patterns=patterns)
     except ValueError as exc:
         raise SkillError(
             stage="validation", error_code=ErrorCode.INVALID_FLAG_COMBINATION,

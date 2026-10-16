@@ -9,7 +9,7 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 ### Fixed
 
 - Route launcher defaults outside the source tree and correct example output paths.
-- Validate emitted values against the pinned 4.1.0 scalar schema and reject ambiguous CSV inputs.
+- Validate emitted values against the pinned 4.1.0 scalar schema and reject ambiguous CSV inputs, skipping what the pinned `validation.defaultIgnoreParams` lists (`genomes`), as nf-schema does.
 - Canonicalize recognized protocol aliases and preserve remote MultiQC configuration URIs.
 - Record launch manifests before execution and verify samplesheet checksums on resumed runs/checks.
 - Bound local Docker scheduler/process capacity, including demos and macOS; preserve user-config precedence in live runs and replay.

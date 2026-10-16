@@ -11,6 +11,13 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 - Reuse parsed preflight Java/Nextflow versions in the success bundle, keeping manifest, replay and environment pins consistent instead of capturing raw tool banners.
 - Route launcher defaults outside the source tree and correct example output paths.
 - Validate native values against the pinned 3.8.1 scalar schema; reject duplicate/malformed parameter mappings and ambiguous CSV inputs.
+- **Parameters nf-core/sarek does not validate are accepted again.** Its schema types `freebayes_filter` and
+  `vep_cache_version` as strings while its own defaults are 30 and 113, so it lists both in
+  `validation.defaultIgnoreParams`. The scalar check rejected `freebayes_filter: 20` and `vep_cache_version: 113`
+  from a params file; it now skips the pinned `defaultIgnoreParams`, as nf-schema does.
+- **Replay reads the recorded resource limits exactly.** The replay guard took the first line mentioning cpus
+  or memory and stripped every non-digit, so a hand-edited `15.5.GB` became 155 GB. It now reads the
+  `executor.cpus` and `executor.memory` lines with their unit and decimal point.
 - Apply custom-reference and demo policy to parameter files, and validate local pipeline versions.
 - Stage samplesheets until preflight succeeds, require valid resume manifests, and track the work directory.
 - Record launch manifests before execution and validate output-directory failures before creating artifacts.
@@ -27,8 +34,8 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   analysed the refused request's samples. A resume now validates the samplesheet in a
   scratch directory and commits it only after preflight accepts the resume.
 - **Checksums survive later runs in place.** Nextflow's rotated `.nextflow.log.N` files
-  were hashed, so `sha256sum -c` failed after any `--resume`; `--repair-bundle` now
-  selects exactly the files a fresh run lists.
+  were hashed, so `sha256sum -c` failed on them after a later run in place; `--repair-bundle`
+  now selects exactly the files a fresh run lists.
 - **`--timeout-hours nan`/`inf` is a usage error**, and `params.yaml` references with
   YAML quoting or long paths are remapped and verified correctly.
 

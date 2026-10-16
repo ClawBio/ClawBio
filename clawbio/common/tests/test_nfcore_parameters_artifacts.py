@@ -5,6 +5,7 @@ import importlib
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -86,3 +87,41 @@ def test_sorted_json_writer_supports_legacy_path_conversion(tmp_path):
         default=str,
     )
     assert path.read_bytes() == b'{\n  "a": "file",\n  "z": 1\n}\n'
+
+
+_IGNORING_CONTRACT = {
+    "ignored_parameters": ["genomes", "freebayes_filter", "vep_cache_version"],
+    "parameters": {
+        "freebayes_filter": {"type": "string"},
+        "vep_cache_version": {"type": "string"},
+        "aligner": {"type": "string", "enum": ["bwa-mem", "dragmap"]},
+    },
+}
+
+
+def test_upstream_ignored_parameters_are_not_validated():
+    """nf-schema skips validation.defaultIgnoreParams. nf-core/sarek 3.8.1 lists
+    freebayes_filter and vep_cache_version there because its schema types them as
+    strings while its own defaults are integers (30 and 113)."""
+    from clawbio.common.nfcore.parameters import validate_against_contract
+
+    validate_against_contract({"freebayes_filter": 30, "vep_cache_version": 113}, _IGNORING_CONTRACT)
+    validate_against_contract({"freebayes_filter": 20}, _IGNORING_CONTRACT, patterns=False)
+    with pytest.raises(ValueError):
+        validate_against_contract({"aligner": "star"}, _IGNORING_CONTRACT)
+    with pytest.raises(ValueError):
+        validate_against_contract({"freebayes_filter": 30}, {**_IGNORING_CONTRACT, "ignored_parameters": []})
+
+
+@given(
+    st.one_of(
+        st.integers(), st.floats(allow_nan=True, allow_infinity=True), st.text(max_size=8),
+        st.booleans(), st.lists(st.integers(), max_size=3),
+    )
+)
+def test_any_value_of_an_ignored_parameter_passes_and_others_still_fail(value):
+    from clawbio.common.nfcore.parameters import validate_against_contract
+
+    validate_against_contract({"freebayes_filter": value}, _IGNORING_CONTRACT)
+    with pytest.raises(ValueError):
+        validate_against_contract({"freebayes_filter": value, "aligner": "star"}, _IGNORING_CONTRACT)

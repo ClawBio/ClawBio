@@ -1001,3 +1001,25 @@ def test_macos_real_single_cell_run_gets_runtime_cap(wrapper, tmp_path, monkeypa
     args = module.build_parser().parse_args(["--output", str(tmp_path)])
     configs = module._build_extra_nextflow_configs(args, tmp_path)
     assert "resource_limits.config" in [path.name for path in configs]
+
+
+@pytest.mark.parametrize("wrapper", ["sarek"], indirect=True)
+def test_params_file_accepts_sarek_defaults_its_schema_ignores(wrapper, tmp_path):
+    """nf-core/sarek 3.8.1 defaults freebayes_filter = 30 and vep_cache_version = 113
+    although its schema types both as strings; nf-schema skips them through
+    validation.defaultIgnoreParams, and so must the wrapper (main accepted them)."""
+    _, module, companions = wrapper
+    source = tmp_path / "params.yaml"
+    source.write_text("freebayes_filter: 30\nvep_cache_version: 113\n")
+    args = module.build_parser().parse_args(
+        ["--output", str(tmp_path), "--params-file", str(source), "--genome", "GATK.GRCh38"]
+    )
+    params = companions["params_builder"].build_effective_params(
+        args, normalized_samplesheet=tmp_path / "samples.csv", output_dir=tmp_path
+    )
+    assert params["freebayes_filter"] == 30 and params["vep_cache_version"] == 113
+    source.write_text("freebayes_filter: 20\n")
+    assert companions["params_builder"]._load_user_params_file(str(source))["freebayes_filter"] == 20
+    source.write_text("aligner: 5\n")
+    with pytest.raises(companions["errors"].SkillError):
+        companions["params_builder"]._load_user_params_file(str(source))

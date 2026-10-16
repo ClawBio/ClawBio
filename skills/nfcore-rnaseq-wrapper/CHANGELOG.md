@@ -9,7 +9,7 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 ### Fixed
 
 - Route launcher defaults outside the source tree and correct example output paths.
-- Reject ambiguous CSV inputs and validate emitted values against the pinned 3.26.0 scalar schema.
+- Reject ambiguous CSV inputs and validate emitted values against the pinned 3.26.0 scalar schema, skipping what the pinned `validation.defaultIgnoreParams` lists (`genomes` and `igenomes_base`), as nf-schema does.
 - Record launch manifests before execution; guard resumed checks and track the work directory.
 - Parse local versions safely, bound Docker scheduler/process capacity, reject nonfinite timeouts, and bound failure-log reads.
 - Terminate interrupted process groups and align Python metadata with the repository floor.

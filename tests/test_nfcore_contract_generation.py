@@ -52,3 +52,56 @@ def test_pinned_contracts_include_official_patterns_and_enums():
         )
         assert "pattern" in contract["parameters"]["fasta"]
         assert "enum" in contract["parameters"]["aligner"]
+
+
+# nf-schema skips each pipeline's validation.defaultIgnoreParams, read from the
+# pinned nextflow.config; the contracts must skip the same keys.
+_PINNED_IGNORED = {
+    "rnaseq": ["genomes", "igenomes_base"],
+    "sarek": ["genomes", "freebayes_filter", "vep_cache_version"],
+    "scrnaseq": ["genomes"],
+}
+
+
+def test_pinned_contracts_record_upstream_ignored_parameters():
+    import json
+
+    for name, ignored in _PINNED_IGNORED.items():
+        contract = json.loads(
+            (ROOT / "skills" / f"nfcore-{name}-wrapper" / "reproducibility/upstream_scalar_contract.json").read_text()
+        )
+        assert contract["ignored_parameters"] == ignored, name
+        assert len(contract["config_sha256"]) == 64, name
+
+
+def _generator():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "generate_nfcore_scalar_contracts", ROOT / "scripts/generate_nfcore_scalar_contracts.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_generator_reads_default_ignore_params_from_nextflow_config(tmp_path):
+    import hashlib
+    import json
+
+    source = tmp_path / "sarek-3.8.1"
+    source.mkdir()
+    (source / "nextflow_schema.json").write_text(json.dumps(
+        {"$defs": {"g": {"properties": {"freebayes_filter": {"type": "string", "default": "x"}}}}}
+    ))
+    config = (
+        "validation {\n"
+        "    defaultIgnoreParams = [\n        \"genomes\", 'freebayes_filter',\n        \"vep_cache_version\" ]\n"
+        "    monochromeLogs = params.monochrome_logs\n}\n"
+    )
+    (source / "nextflow.config").write_text(config)
+    contract = json.loads(_generator().generate_contract("sarek", "3.8.1", source))
+    assert contract["ignored_parameters"] == ["genomes", "freebayes_filter", "vep_cache_version"]
+    assert contract["config_sha256"] == hashlib.sha256(config.encode()).hexdigest()
+    assert contract["config_url"].endswith("/nf-core/sarek/3.8.1/nextflow.config")
+    assert contract["parameters"] == {"freebayes_filter": {"type": "string"}}

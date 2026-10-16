@@ -125,6 +125,18 @@ def validate_parameter_scalars(
                     f"{name} does not satisfy its numeric alternatives: {branches}."
                 )
 
+def validate_against_contract(params: dict, contract: dict, *, patterns: bool = True) -> None:
+    """Validate against a pinned contract, skipping what upstream skips.
+
+    nf-schema does not validate the pipeline's validation.defaultIgnoreParams:
+    nf-core/sarek 3.8.1 lists freebayes_filter and vep_cache_version there because
+    its schema types them as strings while its own defaults are integers.
+    """
+    ignored = set(contract.get("ignored_parameters", ()))
+    checked = {name: value for name, value in params.items() if name not in ignored}
+    validate_parameter_scalars(checked, contract["parameters"], patterns=patterns)
+
+
 def load_unique_json(text: str):
     """Reject repeated JSON keys instead of silently taking the final value."""
     import json

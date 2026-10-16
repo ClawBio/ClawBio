@@ -3,6 +3,12 @@
   "revision": "3.26.0",
   "schema_url": "https://raw.githubusercontent.com/nf-core/rnaseq/3.26.0/nextflow_schema.json",
   "schema_sha256": "8f2f84a25c0aec65a18234cf01acdd74f2385e8dfac8417e4bad23a70bfb4388",
+  "config_url": "https://raw.githubusercontent.com/nf-core/rnaseq/3.26.0/nextflow.config",
+  "config_sha256": "80c0abf26d9b9f963cec1abdca016082987beacffc75b8370d1e2c5804290972",
+  "ignored_parameters": [
+    "genomes",
+    "igenomes_base"
+  ],
   "parameters": {
     "additional_fasta": {"pattern": "^\\S+\\.fn?a(sta)?(\\.gz)?$", "type": "string"},
     "aligner": {"enum": ["star_salmon", "star_rsem", "hisat2", "bowtie2_salmon"], "type": "string"},

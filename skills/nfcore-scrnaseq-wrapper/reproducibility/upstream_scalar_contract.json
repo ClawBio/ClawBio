@@ -3,6 +3,11 @@
   "revision": "4.1.0",
   "schema_url": "https://raw.githubusercontent.com/nf-core/scrnaseq/4.1.0/nextflow_schema.json",
   "schema_sha256": "568afde5cdfc7056bc127146d80db2f81e8a23b92e7a63011e60630838c53536",
+  "config_url": "https://raw.githubusercontent.com/nf-core/scrnaseq/4.1.0/nextflow.config",
+  "config_sha256": "71348c5f81b561242c5fe88d46d606f022268aa5700f5d3e7a925ec225998eba",
+  "ignored_parameters": [
+    "genomes"
+  ],
   "parameters": {
     "aligner": {"enum": ["kallisto", "star", "simpleaf", "cellranger", "cellrangerarc", "cellrangermulti"], "type": "string"},
     "barcode_whitelist": {"type": "string"},

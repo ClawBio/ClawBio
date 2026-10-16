@@ -3,6 +3,13 @@
   "revision": "3.8.1",
   "schema_url": "https://raw.githubusercontent.com/nf-core/sarek/3.8.1/nextflow_schema.json",
   "schema_sha256": "19b1a5c42127a370d0d820a032f3c8600b0710b8057d08643797efe9f9af035c",
+  "config_url": "https://raw.githubusercontent.com/nf-core/sarek/3.8.1/nextflow.config",
+  "config_sha256": "d8bea47ed65dd8b326fe4d92950ae37c89f19410a5bd20f823abf3dff82b3391",
+  "ignored_parameters": [
+    "genomes",
+    "freebayes_filter",
+    "vep_cache_version"
+  ],
   "parameters": {
     "aligner": {"enum": ["bwa-mem", "bwa-mem2", "dragmap", "sentieon-bwamem", "parabricks"], "type": "string"},
     "ascat_alleles": {"pattern": "^\\S+\\.zip$", "type": "string"},

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Generate scalar type/bounds contracts from locally downloaded pinned schemas."""
+"""Generate scalar type/bounds contracts from locally downloaded pinned sources.
+
+Each contract also records the parameters the pinned nextflow.config lists in
+validation.defaultIgnoreParams: nf-schema does not validate them, so neither do
+the wrappers.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +12,7 @@ import argparse
 import ast
 import hashlib
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,8 +40,18 @@ def pinned_revision(skill_dir: Path) -> str:
     raise ValueError(f"No pinned revision in {skill_dir}")
 
 
-def generate_contract(name: str, revision: str, schema_path: Path) -> str:
-    raw = schema_path.read_bytes()
+_IGNORE_PARAMS = re.compile(r"defaultIgnoreParams\s*=\s*\[(?P<items>[^\]]*)\]")
+
+
+def ignored_parameters(config_text: str) -> list[str]:
+    """validation.defaultIgnoreParams from nextflow.config, in upstream order."""
+    found = _IGNORE_PARAMS.search(config_text)
+    return re.findall(r"[\"']([^\"']+)[\"']", found.group("items")) if found else []
+
+
+def generate_contract(name: str, revision: str, source_dir: Path) -> str:
+    raw = (source_dir / "nextflow_schema.json").read_bytes()
+    config = (source_dir / "nextflow.config").read_bytes()
     schema = json.loads(raw)
     parameters = {
         key: {field: value for field, value in spec.items() if field in FIELDS}
@@ -43,12 +59,15 @@ def generate_contract(name: str, revision: str, schema_path: Path) -> str:
         for key, spec in group.get("properties", {}).items()
     }
     if not parameters:
-        raise ValueError(f"No parameter definitions in {schema_path}")
+        raise ValueError(f"No parameter definitions in {source_dir}")
     metadata = {
         "pipeline": f"nf-core/{name}",
         "revision": revision,
         "schema_url": f"https://raw.githubusercontent.com/nf-core/{name}/{revision}/nextflow_schema.json",
         "schema_sha256": hashlib.sha256(raw).hexdigest(),
+        "config_url": f"https://raw.githubusercontent.com/nf-core/{name}/{revision}/nextflow.config",
+        "config_sha256": hashlib.sha256(config).hexdigest(),
+        "ignored_parameters": ignored_parameters(config.decode("utf-8")),
     }
     entries = [
         json.dumps(key) + ": " + json.dumps(value, sort_keys=True)
@@ -81,7 +100,7 @@ def main(argv=None) -> int:
         expected = generate_contract(
             name,
             revision,
-            args.upstream_dir / f"{name}-{revision}" / "nextflow_schema.json",
+            args.upstream_dir / f"{name}-{revision}",
         )
         target = directory / "reproducibility/upstream_scalar_contract.json"
         if args.check:
