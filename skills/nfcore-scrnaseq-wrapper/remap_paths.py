@@ -365,6 +365,8 @@ def _bundle_checksum_targets(output_dir: Path) -> list[Path]:
         repro / "samplesheet.valid.csv",
         repro / "samplesheet.demo.csv",
         repro / "params.yaml",
+        repro / "containers.json",
+        repro / "containers.config",
         logs / "stdout.txt",
         logs / "stderr.txt",
     ]

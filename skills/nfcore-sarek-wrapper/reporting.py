@@ -938,6 +938,10 @@ def _build_commands_sh(
     lines.append('  RESUME="-resume"')
     lines.append("fi")
     lines.append("")
+    from clawbio.common.nfcore.containers import replay_pin_guard
+
+    lines.extend(replay_pin_guard(resume_variable="RESUME").splitlines())
+    lines.append("")
     lines.append("# ── Replay the captured Nextflow invocation directly ──")
     replay_inner = " \\\n  ".join(_replay_shell_arg(a) for a in replay_argv)
     # Unquoted on purpose: word-splits to the flag or to nothing. Both are always
@@ -949,6 +953,8 @@ def _build_commands_sh(
         replay_inner += " \\\n  $RESOURCE_CONFIG"
     if user_configs:
         replay_inner += " \\\n  " + " \\\n  ".join(_replay_shell_arg(value) for value in user_configs)
+    # Last, so the digest pins win over any container a user config sets.
+    replay_inner += " \\\n  $CONTAINER_PIN"
     lines.append('(cd "$SCRIPT_DIR/.." && \\')
     lines.append("  " + replay_inner + ")")
     lines.append("")

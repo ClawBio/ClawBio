@@ -289,6 +289,8 @@ output/
     ├── remap_paths.py
     ├── manifest.json
     ├── environment.yml
+    ├── containers.json         # every image the run used: sha256 digest, platform, processes
+    ├── containers.config       # pins each process to that digest when replaying without a Nextflow cache
     └── checksums.sha256
 ```
 

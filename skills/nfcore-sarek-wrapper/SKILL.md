@@ -338,6 +338,8 @@ output/                                       # the --output directory
     ├── tool_versions.json
     ├── outputs.json                          # omitted if outputs parsing was skipped
     ├── manifest.json
+    ├── containers.json                       # every image the run used: sha256 digest, platform, processes
+    ├── containers.config                     # pins each process to that digest on a fresh replay
     ├── macos_docker.config                   # written only on macOS + docker backend
     └── sarek_downstream_handoff.{sh,json}    # written only when --run-downstream is set
 ```

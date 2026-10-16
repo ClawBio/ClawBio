@@ -834,3 +834,49 @@ def test_replay_line_is_shell_safe_for_apostrophe_path(tmp_path):
     assert f"bash '{commands_sh_path}'" not in content
     # The replay line must still reference commands.sh somehow.
     assert "commands.sh" in content
+
+
+def _replay_argv(tmp_path, *, session: bool, pinned: bool, manifest: bool = True) -> list[str]:
+    """Run the generated commands.sh with a fake interpreter; return the wrapper argv."""
+    import os
+    import shutil
+    import subprocess
+
+    output_dir = tmp_path / "out"
+    repro = output_dir / "reproducibility"
+    pin = repro / "containers.config"
+    if pinned:
+        pin.write_text("process {}\n", encoding="utf-8")
+    else:
+        pin.unlink(missing_ok=True)
+    (repro / "manifest.json").write_text("{}", encoding="utf-8") if manifest else (repro / "manifest.json").unlink(missing_ok=True)
+    if session:
+        (output_dir / ".nextflow").mkdir(exist_ok=True)
+    else:
+        shutil.rmtree(output_dir / ".nextflow", ignore_errors=True)
+    fake = tmp_path / "fake-python"
+    argv_file = tmp_path / "argv.txt"
+    fake.write_text('#!/bin/sh\nshift\nprintf "%s\\n" "$@" > "$ARGV_FILE"\n', encoding="utf-8")
+    fake.chmod(0o755)
+    subprocess.run(
+        ["/bin/bash", str(repro / "commands.sh")], check=True, capture_output=True, text=True,
+        env={**os.environ, "PYTHON": str(fake), "ARGV_FILE": str(argv_file)},
+    )
+    return argv_file.read_text(encoding="utf-8").splitlines()
+
+
+def test_repro_commands_sh_pins_container_digests_without_a_nextflow_cache(tmp_path):
+    """A replay into a directory without a Nextflow cache (bundle copied elsewhere, so
+    its manifest travels along) runs every process on the digest it ran originally,
+    after any user config so the pins win; an in-place replay keeps the cache."""
+    output_dir = tmp_path / "out"
+    user_config = tmp_path / "user.config"
+    user_config.write_text("process {}\n", encoding="utf-8")
+    write_repro_commands(output_dir, args=_args(output_dir, demo=True, nextflow_config=[str(user_config)]))
+    pin = str(output_dir / "reproducibility" / "containers.config")
+    fresh = _replay_argv(tmp_path, session=False, pinned=True)
+    assert fresh[-2:] == ["--nextflow-config", pin]
+    assert fresh.count("--nextflow-config") == 2
+    in_place = _replay_argv(tmp_path, session=True, pinned=True)
+    assert "--resume" in in_place and pin not in in_place
+    assert pin not in _replay_argv(tmp_path, session=False, pinned=False)

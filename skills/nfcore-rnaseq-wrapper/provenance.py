@@ -25,7 +25,8 @@ from _isolated_imports import purge_foreign_bare_modules
 purge_foreign_bare_modules("preflight", "schemas")
 
 from preflight import params_payload_checksum
-from schemas import DEFAULT_REMOTE_PIPELINE, JAVA_MIN_VERSION, NEXTFLOW_MIN_VERSION, PROJECT_ROOT, SKILL_ALIAS, SKILL_NAME, SKILL_VERSION
+from schemas import DEFAULT_REMOTE_PIPELINE, JAVA_MIN_VERSION, NEXTFLOW_ENV, NEXTFLOW_MIN_VERSION, PROJECT_ROOT, SKILL_ALIAS, SKILL_NAME, SKILL_VERSION
+from clawbio.common.nfcore.containers import manifest_summary, record_run_containers
 
 
 def write_provenance_bundle(
@@ -62,6 +63,10 @@ def write_provenance_bundle(
     )
     _write_provenance_payloads(provenance_dir, payloads)
     write_reproducibility_environment(output_dir, preflight_result=preflight_result)
+    # The images every process ran, resolved to digests while they are still local.
+    container_record = record_run_containers(output_dir, profile=getattr(args, "profile", ""), env=NEXTFLOW_ENV)
+    for warning in container_record["warnings"]:
+        print(f"WARNING: containers: {warning}", file=sys.stderr)
     checksum_file = output_dir / "reproducibility" / "checksums.sha256"
     manifest_path = write_reproducibility_manifest(
         output_dir,
@@ -71,6 +76,7 @@ def write_provenance_bundle(
         runtime=payloads["runtime.json"],
         params_payload=params_payload,
         checksum_file=checksum_file,
+        containers=manifest_summary(container_record),
     )
     checksum_file = write_reproducibility_checksums(output_dir, execution_result=execution_result)
     return provenance_dir, manifest_path
@@ -287,6 +293,7 @@ def write_reproducibility_manifest(
     runtime: dict[str, Any],
     params_payload: dict[str, Any],
     checksum_file: Path,
+    containers: dict[str, Any] | None = None,
 ) -> Path:
     manifest = {
         "skill_name": SKILL_NAME,
@@ -315,6 +322,8 @@ def write_reproducibility_manifest(
         "samplesheet_checksum": inputs["samplesheet_checksum"],
         "checksums_file": str(checksum_file),
     }
+    if containers is not None:
+        manifest["containers"] = containers
     manifest_path = output_dir / "reproducibility" / "manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     write_json_lf(manifest_path, manifest, trailing_newline=False)

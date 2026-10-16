@@ -356,6 +356,7 @@ output_directory/
 │   ├── environment.yml               # Conda environment spec (for reference)
 │   ├── checksums.sha256              # SHA-256 for in-bundle artifacts only; `sha256sum -c` passes from output dir
 │   ├── manifest.json                 # Run metadata: preset, profile, versions, checksums
+│   ├── containers.{json,config}      # Images per process with sha256 digests; the config pins them on a fresh replay
 │   ├── macos_docker.config           # macOS+Docker workarounds (VirtioFS, ARM64, STAR FIFOs)
 │   ├── remap_paths.py                # Helper for replaying on a different machine
 │   ├── compatibility_policy.json     # Copied policy snapshot (resume/update rules)

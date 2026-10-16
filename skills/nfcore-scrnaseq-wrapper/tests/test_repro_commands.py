@@ -116,3 +116,44 @@ def test_replay_exports_the_syntax_parser_scrnaseq_4_1_0_needs():
     script = _build(nextflow_version="26.04.3")
     assert 'export NXF_SYNTAX_PARSER="v1"' in script
     assert script.index('export NXF_SYNTAX_PARSER="v1"') < script.index("nextflow run")
+
+
+def _replay_argv(tmp_path, script, *, resume, pinned):
+    """Run the generated commands.sh with a fake nextflow; return the argv it got."""
+    import os
+    import shutil
+    import subprocess
+
+    repro = tmp_path / "out" / "reproducibility"
+    repro.mkdir(parents=True, exist_ok=True)
+    (repro / "commands.sh").write_text(script, encoding="utf-8")
+    (repro / "params.yaml").write_text("outdir: upstream/results\n", encoding="utf-8")
+    pin = repro / "containers.config"
+    if pinned:
+        pin.write_text("process {}\n", encoding="utf-8")
+    else:
+        pin.unlink(missing_ok=True)
+    session = tmp_path / "out" / ".nextflow"
+    if resume:
+        session.mkdir(exist_ok=True)
+    else:
+        shutil.rmtree(session, ignore_errors=True)
+    binaries = tmp_path / "bin"
+    binaries.mkdir(exist_ok=True)
+    argv_file = tmp_path / "argv.txt"
+    (binaries / "nextflow").write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$ARGV_FILE"\n', encoding="utf-8")
+    (binaries / "nextflow").chmod(0o755)
+    subprocess.run(
+        ["/bin/bash", str(repro / "commands.sh")], check=True, capture_output=True, text=True,
+        env={**os.environ, "PATH": f"{binaries}{os.pathsep}{os.environ['PATH']}", "ARGV_FILE": str(argv_file)},
+    )
+    return argv_file.read_text(encoding="utf-8").splitlines()
+
+
+def test_replay_pins_container_digests_only_on_a_fresh_replay(tmp_path):
+    script = _build(extra_configs=["reproducibility/nextflow_configs/user.config"])
+    fresh = _replay_argv(tmp_path, script, resume=False, pinned=True)
+    assert fresh[-2:] == ["-c", "reproducibility/containers.config"]
+    resumed = _replay_argv(tmp_path, script, resume=True, pinned=True)
+    assert "-resume" in resumed and "reproducibility/containers.config" not in resumed
+    assert "reproducibility/containers.config" not in _replay_argv(tmp_path, script, resume=False, pinned=False)

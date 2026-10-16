@@ -8,6 +8,7 @@ from typing import Any
 
 from clawbio.common.checksums import sha256_file
 from clawbio.common.nfcore.artifacts import write_json_lf, write_json_snapshots
+from clawbio.common.nfcore.containers import manifest_summary, record_run_containers
 from clawbio.common.reproducibility import write_checksums, write_environment_yml
 
 _SKILL_DIR = Path(__file__).resolve().parent
@@ -19,7 +20,13 @@ from _isolated_imports import purge_foreign_bare_modules
 
 purge_foreign_bare_modules("schemas")
 
-from schemas import DEFAULT_REMOTE_PIPELINE, SKILL_ALIAS, SKILL_NAME, SKILL_VERSION
+from schemas import (
+    DEFAULT_REMOTE_PIPELINE,
+    NEXTFLOW_ENV,
+    SKILL_ALIAS,
+    SKILL_NAME,
+    SKILL_VERSION,
+)
 
 
 def _relativise(path: Path | str, anchor: Path) -> str:
@@ -77,6 +84,10 @@ def write_provenance_bundle(
     _write_provenance_payloads(provenance_dir, payloads)
     _copy_policy_files(provenance_dir)
     write_reproducibility_environment(output_dir, preflight_result=preflight_result)
+    # The images every process ran, resolved to digests while they are still local.
+    container_record = record_run_containers(output_dir, profile=args.profile, env=NEXTFLOW_ENV)
+    for warning in container_record["warnings"]:
+        print(f"WARNING: containers: {warning}", file=sys.stderr)
     checksum_file = write_reproducibility_checksums(
         output_dir,
         normalized_samplesheet=normalized_samplesheet,
@@ -92,6 +103,7 @@ def write_provenance_bundle(
         inputs=payloads["inputs.json"],
         runtime=payloads["runtime.json"],
         checksum_file=checksum_file,
+        containers=manifest_summary(container_record),
     )
     return provenance_dir, manifest_path
 
@@ -321,9 +333,12 @@ def write_reproducibility_checksums(
     # from the output directory on any OS. Only in-bundle artifacts are listed;
     # external reference digests live in inputs.json (see _reference_file_checksums)
     # because bare-basename entries for out-of-tree files would break `-c`.
+    # containers.json/.config pin the images a replay runs; repair mirrors this list.
+    repro_dir = output_dir / "reproducibility"
     candidate_paths: list[Path] = [
         normalized_samplesheet,
         params_path,
+        *(path for path in (repro_dir / "containers.json", repro_dir / "containers.config") if path.is_file()),
         Path(execution_result["stdout_path"]),
         Path(execution_result["stderr_path"]),
     ]
@@ -365,6 +380,7 @@ def write_reproducibility_manifest(
     inputs: dict[str, Any],
     runtime: dict[str, Any],
     checksum_file: Path,
+    containers: dict[str, Any] | None = None,
 ) -> Path:
     manifest = {
         "skill_name": SKILL_NAME,
@@ -383,6 +399,8 @@ def write_reproducibility_manifest(
         "samplesheet_checksum": inputs["samplesheet_checksum"],
         "checksums_file": _relativise(checksum_file, output_dir),
     }
+    if containers is not None:
+        manifest["containers"] = containers
     manifest_path = output_dir / "reproducibility" / "manifest.json"
     write_json_lf(manifest_path, manifest, trailing_newline=False)
     return manifest_path

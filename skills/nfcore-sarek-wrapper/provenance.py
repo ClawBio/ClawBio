@@ -29,6 +29,7 @@ from __future__ import annotations
 from clawbio.common.checksums import sha256_file
 
 from clawbio.common.nfcore.artifacts import write_json_lf
+from clawbio.common.nfcore.containers import manifest_summary, record_run_containers
 
 import hashlib
 import glob
@@ -54,7 +55,7 @@ purge_foreign_bare_modules("errors", "schemas", "preflight")
 
 from clawbio.common.reproducibility import write_environment_yml  # noqa: E402
 from clawbio.common.textio import write_text_lf  # noqa: E402
-from schemas import DEFAULT_ALIGNER, DEFAULT_STEP, SKILL_NAME, SKILL_VERSION  # noqa: E402
+from schemas import DEFAULT_ALIGNER, DEFAULT_STEP, NEXTFLOW_ENV, SKILL_NAME, SKILL_VERSION  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -616,6 +617,14 @@ def write_provenance_bundle(
     )
     written.append(env_path)
 
+    # ---- 4b. containers.json / containers.config --------------------------
+    # The images every process ran, resolved to digests while they are still local.
+    container_record = record_run_containers(output_dir, profile=profile, env=NEXTFLOW_ENV)
+    written.extend(
+        path for path in (bundle_dir / "containers.json", bundle_dir / "containers.config") if path.is_file()
+    )
+    warnings.extend(f"containers: {warning}" for warning in container_record["warnings"])
+
     # ---- 5. manifest.json ------------------------------------------------
     params_checksum = compute_params_checksum(params)
     samplesheet_checksum = compute_samplesheet_checksum(Path(samplesheet_csv_src))
@@ -640,6 +649,7 @@ def write_provenance_bundle(
         generated_at=generated_at,
         work_dir=work_dir,
     )
+    manifest["containers"] = manifest_summary(container_record)
     manifest_path = bundle_dir / "manifest.json"
     _dump_json(manifest_path, manifest)
     written.append(manifest_path)

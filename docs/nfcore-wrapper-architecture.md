@@ -16,6 +16,7 @@ The three implemented nf-core skills use `clawbio.common.nfcore` for mechanical 
 | runtime | Executable, version, memory and Docker CPU probes; the `--demo` offline refusal |
 | source | Bounded Git probes, required-file inspection and literal manifest-version parsing |
 | artifacts | JSON/CSV reading and writing, config basenames, atomic prepared-manifest writing and the safe error result.json writer |
+| containers | The images a finished run used (`nextflow log`), resolved to digests locally or from the registry; containers.json and the digest-pinning containers.config |
 | resources | Local Docker eligibility and the standalone replay capacity guard, which reads the recorded `executor.cpus`/`executor.memory` lines; wrappers supply profiles and choose resource budgets |
 | bundle_runtime | Standard-library relocation: shell and YAML quoting, remap/verify, repair, stubs |
 | bundle_emit | Embed the relocation runtime in a single-file remap_paths.py |
@@ -51,6 +52,8 @@ Nextflow's supported Windows route is WSL2/Linux.
 Nextflow 26.04 parses with its strict v2 syntax by default. nf-core/sarek 3.8.1 and nf-core/scrnaseq 4.1.0 predate it and fail to parse there, so their `NEXTFLOW_ENV` sets `NXF_SYNTAX_PARSER=v1`; nf-core/rnaseq 3.26.0 needs nothing. The executor applies it over the caller's environment, the recorded command shows it, and the direct-replay `commands.sh` exports it. Never make a release run by editing Nextflow's cached clone: provenance would still name the release while different code ran.
 
 ## Portable bundles
+
+Every bundle records the container images its run used. After a run, `containers` asks `nextflow log` which image each task ran and resolves each image to its registry digest: first from the local image, and from the registry when the image is already gone, because another job may prune it. `containers.json` lists, for each image, the reference that ran, the digest and where the digest came from, the image ID, the platform and every process that used it, along with the engine and its version. When every image has a digest and no process ran two images, `containers.config` pins each process by its fully qualified name to `repository@digest`. A replay without a Nextflow cache next to the bundle (a fresh directory, or a relocated bundle) passes it last, so the pins win over other configs. An in-place replay keeps the cache, whose tasks already ran those images. A directory without a Nextflow history, as in unit tests, starts no process and records that its containers are unrecorded.
 
 `bundle_runtime.py` imports only Python's standard library. Source remappers import its functions inside one `SHARED NFCORE RUNTIME` marker block. Bundle generation replaces that block with the runtime source and binds `_nfcore_*` aliases for every name in `bundle_emit._EXPORTS`; adapters call the runtime only through those aliases. The generated script has no package dependency and remains executable with `python -I -S` on another machine.
 

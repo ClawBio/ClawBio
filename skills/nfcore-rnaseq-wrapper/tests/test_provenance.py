@@ -447,3 +447,49 @@ def test_dir_checksum_skips_large_directories(tmp_path, monkeypatch):
 
     assert result.startswith("<skipped:"), f"Expected skip sentinel, got: {result!r}"
     assert result.endswith("gb>"), f"Expected sentinel to end with 'gb>', got: {result!r}"
+
+
+_FASTQC = "quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0"
+_FASTQC_DIGEST = "sha256:" + "a" * 64
+
+
+def test_bundle_records_pins_and_checksums_the_containers(tmp_path, monkeypatch):
+    import subprocess
+
+    from clawbio.common.nfcore import containers
+
+    def run(command, *, cwd=None, env=None, timeout_seconds):
+        if command[:2] == ["nextflow", "log"]:
+            return subprocess.CompletedProcess(command, 0, f"NFCORE_RNASEQ:RNASEQ:FASTQC\t{_FASTQC}\tCOMPLETED\n", "")
+        if command[1:3] == ["image", "inspect"]:
+            payload = {"Id": "sha256:" + "f" * 64, "RepoDigests": [f"quay.io/biocontainers/fastqc@{_FASTQC_DIGEST}"],
+                       "Os": "linux", "Architecture": "amd64"}
+            return subprocess.CompletedProcess(command, 0, json.dumps(payload), "")
+        if command[1:2] == ["version"]:
+            return subprocess.CompletedProcess(command, 0, "29.1.3 linux/amd64\n", "")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(containers, "_run", run)
+    (tmp_path / ".nextflow").mkdir()
+    (tmp_path / ".nextflow" / "history").write_text("run\n", encoding="utf-8")
+    params = tmp_path / "reproducibility" / "params.yaml"
+    samplesheet = tmp_path / "reproducibility" / "samplesheet.valid.csv"
+    stdout = tmp_path / "logs" / "stdout.txt"
+    stderr = tmp_path / "logs" / "stderr.txt"
+    for path in (params, samplesheet, stdout, stderr):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x", encoding="utf-8")
+    _, manifest_path = write_provenance_bundle(
+        tmp_path, args=_args(), pipeline_source={"source_kind": "remote_repo", "source_ref": "nf-core/rnaseq", "resolved_version": "3.26.0"},
+        preflight_result=_preflight(), params_path=params, params_payload={"aligner": "star_salmon"},
+        normalized_samplesheet=samplesheet, samplesheet_summary={"sample_count": 1, "fastq_paths": []},
+        parsed_outputs={"handoff_available": False}, execution_result={"stdout_path": str(stdout), "stderr_path": str(stderr)},
+        command_str="nextflow run nf-core/rnaseq",
+    )
+    bundle = tmp_path / "reproducibility"
+    record = json.loads((bundle / "containers.json").read_text())
+    assert record["images"][0]["pinned_reference"] == f"quay.io/biocontainers/fastqc@{_FASTQC_DIGEST}"
+    assert "withName: 'NFCORE_RNASEQ:RNASEQ:FASTQC'" in (bundle / "containers.config").read_text()
+    assert json.loads(manifest_path.read_text())["containers"]["complete"] is True
+    labels = [line.split("  ", 1)[1] for line in (bundle / "checksums.sha256").read_text().splitlines()]
+    assert "reproducibility/containers.json" in labels and "reproducibility/containers.config" in labels

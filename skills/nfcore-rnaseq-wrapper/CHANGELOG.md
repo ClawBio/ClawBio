@@ -6,6 +6,14 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Added
+
+- **The bundle records every container image the run used.** `reproducibility/containers.json` lists
+  each image with its sha256 digest (from the local image, or from the registry if it was already
+  pruned), image ID, platform and the processes that ran it. `containers.config` pins each process to
+  that digest, and `commands.sh` applies it when replaying without a Nextflow cache, so a bundle replays
+  byte-identical images even if a tag is re-pushed.
+
 ### Fixed
 
 - Route launcher defaults outside the source tree and correct example output paths.

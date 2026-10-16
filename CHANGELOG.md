@@ -74,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   special characters. A refused sarek `--resume` no longer replaces the completed
   run's samplesheet, and the rnaseq demo report states the Salmon pseudo-alignment
   nf-core's test profile runs. Per-skill details are in each wrapper's CHANGELOG.
+- **nf-core bundles record their container images.** Each wrapper's `reproducibility/containers.json`
+  lists every image with its digest and the processes that ran it, and `containers.config` pins them
+  for replays without a Nextflow cache. Sarek parameters that nf-core itself does not validate
+  (`validation.defaultIgnoreParams`) are accepted again.
 - **`clawbio run` relays a successful skill's `WARNING:` lines.** stderr was shown
   only on failure, so e.g. `--demo --skip-qc` succeeded without saying the flag had
   no effect.

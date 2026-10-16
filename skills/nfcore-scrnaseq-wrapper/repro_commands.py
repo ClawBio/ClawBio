@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from clawbio.common.nfcore.containers import replay_pin_guard
 from clawbio.common.nfcore.resources import build_runtime_resource_guard
 from clawbio.common.textio import write_text_lf
 
@@ -253,6 +254,8 @@ def build_nextflow_commands_sh(
         tail.append("  $RESOURCE_CONFIG")
     for config_path in extra_configs or []:
         tail.append(f"  -c {shlex.quote(config_path)}")
+    # Last, so the digest pins win over any container a user config sets.
+    tail.append("  $CONTAINER_PIN")
     if tail:
         run_lines[-1] = run_lines[-1] + " \\"
         for i, line in enumerate(tail):
@@ -262,6 +265,7 @@ def build_nextflow_commands_sh(
         _HEADER.format(generated_at=generated_at),
         "\n# ── Replay command ────────────────────────────────────────────────────────────\n",
         _RESUME_GUARD,
+        replay_pin_guard(resume_variable="RESUME", bundle_dir="$BUNDLE_DIR") + "\n",
     ]
     if resource_limits_config:
         parts.append(_RESOURCE_GUARD)
