@@ -19,7 +19,7 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 - Route launcher defaults outside the source tree and correct example output paths.
 - Reject ambiguous CSV inputs and validate emitted values against the pinned 3.26.0 scalar schema, skipping what the pinned `validation.defaultIgnoreParams` lists (`genomes` and `igenomes_base`), as nf-schema does.
 - Record launch manifests before execution; guard resumed checks and track the work directory.
-- Parse local versions safely, bound Docker scheduler/process capacity, reject nonfinite timeouts, and bound failure-log reads. A demo keeps `-profile test`'s own 4 CPUs / 15 GB and is only ever lowered, never raised to the host's capacity.
+- Parse local versions safely, bound Docker scheduler/process capacity, reject nonfinite timeouts, and bound failure-log reads. A demo's per-process limits stay within `-profile test`'s own 4 CPUs / 15 GB (lowered on a smaller machine, never raised); the executor's aggregate budget is the host's, so tasks still run in parallel.
 - Terminate interrupted process groups and align Python metadata with the repository floor.
 - **Ctrl+C now stops Nextflow.** Nextflow runs in its own session, so the terminal's
   SIGINT never reached it: the wrapper exited 130 while Nextflow kept running and held

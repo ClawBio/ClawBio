@@ -51,39 +51,58 @@ REPLAY_RESOURCE_CONFIG="reproducibility/resource_limits.replay.config"
 RUNTIME_CAPACITY="$(docker info --format '{{.NCPU}} {{.MemTotal}}' 2>/dev/null || true)"
 RUNTIME_CPUS="$(printf '%s\n' "$RUNTIME_CAPACITY" | awk '{print $1}')"
 RUNTIME_BYTES="$(printf '%s\n' "$RUNTIME_CAPACITY" | awk '{print $2}')"
-# The recorded limits are the executor.cpus and executor.memory lines the wrapper
-# wrote; memory keeps its decimal point and unit (a hand-edited 15.5.GB is 15.5 GB).
-SOURCE_CPUS="$(awk '/^executor\.cpus[[:space:]]*=/ {sub(/^[^=]*=[[:space:]]*/, ""); sub(/[[:space:]]+$/, ""); print; exit}' "$SOURCE_RESOURCE_CONFIG")"
-SOURCE_MEMORY="$(awk '/^executor\.memory[[:space:]]*=/ {
-  value = $0; sub(/^[^=]*=[[:space:]]*/, "", value); gsub(/["'\''[:space:]]/, "", value)
-  if (!match(value, /[.]?[KMGT]B$/)) exit
-  number = substr(value, 1, RSTART - 1); unit = substr(value, RSTART); sub(/^[.]/, "", unit)
-  if (number !~ /^[0-9]+([.][0-9]+)?$/) exit
-  scale = (unit == "KB") ? 1 / 1048576 : (unit == "MB") ? 1 / 1024 : (unit == "TB") ? 1024 : 1
-  printf "%.6f\n", number * scale; exit
-}' "$SOURCE_RESOURCE_CONFIG")"
+# The value of the first line matching an awk pattern, after its = or :.
+_clawbio_config_value() {
+  awk -v pattern="$1" '$0 ~ pattern {sub(/^[^=:]*[=:][[:space:]]*/, ""); sub(/[,[:space:]]+$/, ""); print; exit}' "$SOURCE_RESOURCE_CONFIG"
+}
+# Gigabytes in a Nextflow memory value such as '15.5.GB' or '16384 MB', or nothing.
+_clawbio_gigabytes() {
+  printf '%s\n' "$1" | awk '{
+    value = $0; gsub(/["'\''[:space:]]/, "", value)
+    if (!match(value, /[.]?[KMGT]B$/)) exit
+    number = substr(value, 1, RSTART - 1); unit = substr(value, RSTART); sub(/^[.]/, "", unit)
+    if (number !~ /^[0-9]+([.][0-9]+)?$/) exit
+    scale = (unit == "KB") ? 1 / 1048576 : (unit == "MB") ? 1 / 1024 : (unit == "TB") ? 1024 : 1
+    printf "%.6f\n", number * scale
+  }'
+}
+_clawbio_bound_cpus() { awk -v recorded="$1" -v runtime="$RUNTIME_CPUS" 'BEGIN {print (recorded < runtime ? recorded : runtime)}'; }
+# Whole gigabytes keep the N.GB form; a fraction is written as exact megabytes.
+_clawbio_bound_memory() {
+  awk -v recorded="$1" -v bytes="$RUNTIME_BYTES" 'BEGIN {
+    limit = int(bytes / 1073741824 * 0.9); if (limit < 1) limit = 1
+    gb = (recorded + 0 < limit) ? recorded + 0 : limit
+    if (gb == int(gb)) printf "%d.GB\n", gb; else printf "%d.MB\n", int(gb * 1024 + 0.5)
+  }'
+}
+# The executor lines are the run's aggregate budget; resourceLimits are per process
+# (a demo keeps its test profile's smaller ones). Each is bounded on its own.
+SOURCE_CPUS="$(_clawbio_config_value '^executor[.]cpus[[:space:]]*=')"
+SOURCE_MEMORY="$(_clawbio_gigabytes "$(_clawbio_config_value '^executor[.]memory[[:space:]]*=')")"
+LIMIT_CPUS="$(_clawbio_config_value '^[[:space:]]*cpus[[:space:]]*:')"
+LIMIT_CPUS="${LIMIT_CPUS:-$SOURCE_CPUS}"
+LIMIT_MEMORY="$(_clawbio_gigabytes "$(_clawbio_config_value '^[[:space:]]*memory[[:space:]]*:')")"
+LIMIT_MEMORY="${LIMIT_MEMORY:-$SOURCE_MEMORY}"
 if [[ -z "$RUNTIME_CPUS" || -z "$RUNTIME_BYTES" || -z "$SOURCE_CPUS" || -z "$SOURCE_MEMORY" ]]; then
   echo "ERROR: Cannot determine Docker capacity or recorded resource limits. Start Docker and check resource_limits.config." >&2
   exit 1
 fi
-case "$RUNTIME_CPUS $RUNTIME_BYTES $SOURCE_CPUS" in
+case "$RUNTIME_CPUS $RUNTIME_BYTES $SOURCE_CPUS $LIMIT_CPUS" in
   *[!0-9\ ]*) echo "ERROR: Invalid Docker capacity or recorded resource limits." >&2; exit 1 ;;
 esac
-case "$SOURCE_MEMORY" in
-  *[!0-9.]*) echo "ERROR: Invalid recorded resource limits." >&2; exit 1 ;;
+case "$SOURCE_MEMORY $LIMIT_MEMORY" in
+  *[!0-9.\ ]*) echo "ERROR: Invalid recorded resource limits." >&2; exit 1 ;;
 esac
-BOUNDED_CPUS="$(awk -v original="$SOURCE_CPUS" -v runtime="$RUNTIME_CPUS" 'BEGIN {print (original < runtime ? original : runtime)}')"
-# Whole gigabytes keep the N.GB form; a fraction is written as exact megabytes.
-BOUNDED_MEMORY="$(awk -v original="$SOURCE_MEMORY" -v bytes="$RUNTIME_BYTES" 'BEGIN {
-  limit = int(bytes / 1073741824 * 0.9); if (limit < 1) limit = 1
-  gb = (original + 0 < limit) ? original + 0 : limit
-  if (gb == int(gb)) printf "%d.GB\n", gb; else printf "%d.MB\n", int(gb * 1024 + 0.5)
-}')"
-awk -v cpus="$BOUNDED_CPUS" -v memory="$BOUNDED_MEMORY" -v quote="'" '
-  /^executor\.cpus[[:space:]]*=/ {print "executor.cpus = " cpus; next}
-  /^executor\.memory[[:space:]]*=/ {print "executor.memory = " quote memory quote; next}
-  /^[[:space:]]*cpus[[:space:]]*:/ {print "        cpus: " cpus ","; next}
-  /^[[:space:]]*memory[[:space:]]*:/ {print "        memory: " quote memory quote ","; next}
+BOUNDED_CPUS="$(_clawbio_bound_cpus "$SOURCE_CPUS")"
+BOUNDED_MEMORY="$(_clawbio_bound_memory "$SOURCE_MEMORY")"
+BOUNDED_LIMIT_CPUS="$(_clawbio_bound_cpus "$LIMIT_CPUS")"
+BOUNDED_LIMIT_MEMORY="$(_clawbio_bound_memory "$LIMIT_MEMORY")"
+awk -v cpus="$BOUNDED_CPUS" -v memory="$BOUNDED_MEMORY" -v limit_cpus="$BOUNDED_LIMIT_CPUS" \
+    -v limit_memory="$BOUNDED_LIMIT_MEMORY" -v quote="'" '
+  /^executor[.]cpus[[:space:]]*=/ {print "executor.cpus = " cpus; next}
+  /^executor[.]memory[[:space:]]*=/ {print "executor.memory = " quote memory quote; next}
+  /^[[:space:]]*cpus[[:space:]]*:/ {print "        cpus: " limit_cpus ","; next}
+  /^[[:space:]]*memory[[:space:]]*:/ {print "        memory: " quote limit_memory quote ","; next}
   {print}
 ' "$SOURCE_RESOURCE_CONFIG" > "$REPLAY_RESOURCE_CONFIG"
 RESOURCE_CONFIG="-c $REPLAY_RESOURCE_CONFIG"

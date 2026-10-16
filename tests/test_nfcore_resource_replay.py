@@ -129,3 +129,48 @@ def test_replay_never_exceeds_recorded_or_runtime_limits(tmp_path, recorded_cpus
     assert cpus == min(recorded_cpus, runtime_cpus)
     limit = max(1, int(runtime_gb * 0.9))
     assert abs(gb - min(recorded_gb, limit)) <= 1 / 1024
+
+
+def test_replay_bounds_aggregate_and_per_process_limits_separately(tmp_path):
+    """A demo records the host's aggregate executor budget but the test profile's
+    smaller per-process limits; replay must bound each by the runtime, never copy the
+    aggregate into resourceLimits (which would lift a demo's 4 CPUs to the host's)."""
+    original = (
+        "executor.cpus = 28\nexecutor.memory = '58.GB'\n"
+        "process {\n    resourceLimits = [\n        cpus: 4,\n        memory: '15.GB',\n        time: '24.h'\n    ]\n}\n"
+    )
+    rc, err, replay = _replay_config(tmp_path, original, runtime_cpus=16, runtime_bytes=64 * _GB)
+    assert rc == 0, err
+    assert "executor.cpus = 16" in replay and "executor.memory = '57.GB'" in replay
+    assert "        cpus: 4," in replay and "        memory: '15.GB'," in replay
+    rc, err, replay = _replay_config(tmp_path, original, runtime_cpus=2, runtime_bytes=8 * _GB)
+    assert rc == 0, err
+    assert "executor.cpus = 2" in replay and "        cpus: 2," in replay
+    assert "executor.memory = '7.GB'" in replay and "        memory: '7.GB'," in replay
+
+
+@settings(deadline=None, max_examples=40, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(
+    aggregate=st.integers(1, 256), per_process=st.integers(1, 256), memory_tenths=st.integers(1, 4096),
+    limit_tenths=st.integers(1, 4096), runtime_cpus=st.integers(1, 256), runtime_gb=st.integers(1, 1024),
+)
+def test_replay_per_process_limits_never_exceed_recorded_or_runtime(
+    tmp_path, aggregate, per_process, memory_tenths, limit_tenths, runtime_cpus, runtime_gb
+):
+    original = (
+        f"executor.cpus = {aggregate}\nexecutor.memory = '{memory_tenths / 10:g}.GB'\n"
+        f"process {{\n    resourceLimits = [\n        cpus: {per_process},\n"
+        f"        memory: '{limit_tenths / 10:g}.GB',\n        time: '24.h'\n    ]\n}}\n"
+    )
+    rc, err, replay = _replay_config(tmp_path, original, runtime_cpus=runtime_cpus, runtime_bytes=runtime_gb * _GB)
+    assert rc == 0, err
+    limit = max(1, int(runtime_gb * 0.9))
+
+    def gb(text):
+        number, unit = text.rsplit(".", 1)
+        return float(number) / (1024 if unit == "MB" else 1)
+
+    cpus = int(replay.split("        cpus: ")[1].split(",")[0])
+    memory = gb(replay.split("        memory: '")[1].split("'")[0])
+    assert cpus == min(per_process, runtime_cpus)
+    assert abs(memory - min(limit_tenths / 10, limit)) <= 1 / 1024

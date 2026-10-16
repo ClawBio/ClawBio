@@ -1435,9 +1435,10 @@ def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace)
         return None
     config_path = output_dir / "reproducibility" / "resource_limits.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    cpus, memory_gb = cap_to_profile_limits(
-        _runtime_cpu_count(), _resource_limits_memory_gb(), DEMO_RESOURCE_LIMITS if args.demo else None
-    )
+    # The executor's aggregate budget is the host's; a demo's per-process limits stay
+    # within the test profile's own.
+    cpus, memory_gb = _runtime_cpu_count(), _resource_limits_memory_gb()
+    limit_cpus, limit_memory_gb = cap_to_profile_limits(cpus, memory_gb, DEMO_RESOURCE_LIMITS if args.demo else None)
     timeout_hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
     time_hours = int(_DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
     write_text_lf(
@@ -1450,8 +1451,8 @@ def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace)
         f"executor.memory = '{memory_gb}.GB'\n"
         "process {\n"
         "    resourceLimits = [\n"
-        f"        cpus: {cpus},\n"
-        f"        memory: '{memory_gb}.GB',\n"
+        f"        cpus: {limit_cpus},\n"
+        f"        memory: '{limit_memory_gb}.GB',\n"
         f"        time: '{time_hours}.h'\n"
         "    ]\n"
         "}\n",
@@ -1477,7 +1478,7 @@ def _write_macos_docker_config(output_dir: Path, *, args: argparse.Namespace) ->
     vm_gb = _docker_vm_memory_gb()
     if vm_gb:
         mem_gb = min(mem_gb, max(1, int(vm_gb * 0.9)))
-    cpus, mem_gb = cap_to_profile_limits(cpus, mem_gb, DEMO_RESOURCE_LIMITS if args.demo else None)
+    limit_cpus, limit_mem_gb = cap_to_profile_limits(cpus, mem_gb, DEMO_RESOURCE_LIMITS if args.demo else None)
     timeout_hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
     time_hours = int(_DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
     docker_block = ""
@@ -1501,8 +1502,8 @@ def _write_macos_docker_config(output_dir: Path, *, args: argparse.Namespace) ->
         "process {\n"
         "    stageInMode = 'copy'\n"
         "    resourceLimits = [\n"
-        f"        cpus: {cpus},\n"
-        f"        memory: '{mem_gb}.GB',\n"
+        f"        cpus: {limit_cpus},\n"
+        f"        memory: '{limit_mem_gb}.GB',\n"
         f"        time: '{time_hours}.h'\n"
         "    ]\n"
         + "}\n"

@@ -17,7 +17,7 @@ The three implemented nf-core skills use `clawbio.common.nfcore` for mechanical 
 | source | Bounded Git probes, required-file inspection and literal manifest-version parsing |
 | artifacts | JSON/CSV reading and writing, config basenames, atomic prepared-manifest writing and the safe error result.json writer |
 | containers | The images a finished run used (`nextflow log`), resolved to digests locally or from the registry; containers.json and the digest-pinning containers.config |
-| resources | Local Docker eligibility and the standalone replay capacity guard, which reads the recorded `executor.cpus`/`executor.memory` lines; wrappers supply profiles and choose resource budgets |
+| resources | Local Docker eligibility, the demo cap (`cap_to_profile_limits`) and the standalone replay capacity guard, which bounds the recorded aggregate (`executor.*`) and per-process (`resourceLimits`) limits separately; wrappers supply profiles and choose resource budgets |
 | bundle_runtime | Standard-library relocation: shell and YAML quoting, remap/verify, repair, stubs |
 | bundle_emit | Embed the relocation runtime in a single-file remap_paths.py |
 

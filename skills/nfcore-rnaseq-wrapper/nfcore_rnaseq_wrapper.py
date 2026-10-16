@@ -1288,9 +1288,10 @@ def _write_macos_docker_config(
     # Memory/time stay conservative because
     # over-allocating memory can trigger OOM-kills (worse than throttling); users on
     # high-RAM hosts can override via --nextflow-config.
-    cpus, memory_gb = cap_to_profile_limits(
-        _runtime_cpu_count(), _macos_docker_memory_gb(), DEMO_RESOURCE_LIMITS if demo else None
-    )
+    # The executor's aggregate budget is the runtime's; a demo's per-process limits
+    # stay within the test profile's own.
+    cpus, memory_gb = _runtime_cpu_count(), _macos_docker_memory_gb()
+    limit_cpus, limit_memory_gb = cap_to_profile_limits(cpus, memory_gb, DEMO_RESOURCE_LIMITS if demo else None)
     # The per-process time ceiling tracks --timeout-hours (audit F-4) so a large-cohort
     # run raised above the 12h default is not capped back to 12h by this config. Floored
     # at 1h so a sub-hour --timeout-hours never emits an invalid '0.h' duration.
@@ -1305,8 +1306,8 @@ def _write_macos_docker_config(
         "process {\n"
         "    stageInMode = 'copy'\n"
         "    resourceLimits = [\n"
-        f"        cpus: {cpus},\n"
-        f"        memory: '{memory_gb}.GB',\n"
+        f"        cpus: {limit_cpus},\n"
+        f"        memory: '{limit_memory_gb}.GB',\n"
         f"        time: '{time_hours}.h'\n"
         "    ]\n"
         + platform_opts
@@ -1363,9 +1364,10 @@ def _write_resource_limits_config(
     """
     config_path = output_dir / ".nextflow_resource_limits.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    cpus, memory_gb = cap_to_profile_limits(
-        _runtime_cpu_count(), _resource_limits_memory_gb(), DEMO_RESOURCE_LIMITS if demo else None
-    )
+    # The executor's aggregate budget is the host's; a demo's per-process limits stay
+    # within the test profile's own.
+    cpus, memory_gb = _runtime_cpu_count(), _resource_limits_memory_gb()
+    limit_cpus, limit_memory_gb = cap_to_profile_limits(cpus, memory_gb, DEMO_RESOURCE_LIMITS if demo else None)
     time_hours = int(DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
     write_text_lf(
         config_path,
@@ -1377,8 +1379,8 @@ def _write_resource_limits_config(
         f"executor.memory = '{memory_gb}.GB'\n"
         "process {\n"
         "    resourceLimits = [\n"
-        f"        cpus: {cpus},\n"
-        f"        memory: '{memory_gb}.GB',\n"
+        f"        cpus: {limit_cpus},\n"
+        f"        memory: '{limit_memory_gb}.GB',\n"
         f"        time: '{time_hours}.h'\n"
         "    ]\n"
         "}\n",
