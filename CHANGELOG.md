@@ -95,6 +95,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.7.1] - 2026-09-05
 
 ### Fixed
+- **The wgs-prs demo runs wherever bcftools is installed.** Its synthetic VCF declared no
+  contigs or FORMAT keys and listed records out of order, so `bcftools norm` and `index` rejected it
+  (`CONTIG id=0 not present in the header`); CI passed only because it has no bcftools. The demo VCF
+  now declares both and is coordinate-sorted.
 - **Tagged releases publish themselves again.** Every previous run of
   `publish.yml` failed with `invalid-publisher`, so 0.5.2, 0.6.1 and 0.7.0 were
   uploaded by hand. The workflow was correct: the OIDC claims GitHub sends match
