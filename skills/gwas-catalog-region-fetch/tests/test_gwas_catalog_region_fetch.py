@@ -271,3 +271,40 @@ def test_cache_entry_from_before_the_ci_fields_is_not_served(monkeypatch, tmp_pa
     cfg = {"accession": "GCST90475990", "chromosome": "1", "start_bp": 1, "end_bp": 1_000}
     result = _fetch_with_cache(client=GWASCatalogClient(), cfg=cfg, cache_dir=tmp_path)
     assert result.variants[0].ci_lower == pytest.approx(1.5)
+
+
+def test_canonical_tsv_carries_the_odds_ratio_and_ci(tmp_path):
+    """The TSV written for downstream tools keeps OR + CI, so an OR-only study is not
+    reduced to p-values when the file is the next tool's input. The odds ratio is written
+    at full precision (ln(OR) of an OR near 1 would drift under 6 significant digits), and
+    a CI is written only beside an odds ratio."""
+    from gwas_catalog_region_fetch import GWASCatalogRelease, RegionResult, _write_canonical_tsv
+
+    or_row = RegionVariant(
+        variant_id="1_100_C_T", chromosome="1", position=100, ref="C", alt="T",
+        beta=None, se=None, p_value=1e-6, odds_ratio=1.000123456789,
+        effect_allele_frequency=0.3, ci_lower=1.03, ci_upper=1.07,
+    )
+    beta_row = RegionVariant(
+        variant_id="1_200_A_G", chromosome="1", position=200, ref="A", alt="G",
+        beta=0.02, se=0.01, p_value=1e-3, odds_ratio=None, effect_allele_frequency=0.4,
+        ci_lower=0.01, ci_upper=0.03,
+    )
+    result = RegionResult(
+        accession="GCST0001", chromosome="1", region_start_bp=1, region_end_bp=300,
+        n_variants=2, variants=[or_row, beta_row],
+        release=GWASCatalogRelease(
+            accession="GCST0001", harmonised_url="x", fetched_at_utc="2026-01-01T00:00:00Z",
+        ),
+    )
+    out = tmp_path / "slice.tsv"
+    _write_canonical_tsv(result, out)
+
+    rows = [ln.split("\t") for ln in out.read_text().splitlines() if not ln.startswith("#")]
+    header, body = rows[0], {r[0]: dict(zip(rows[0], r)) for r in rows[1:]}
+    assert {"odds_ratio", "ci_lower", "ci_upper"} <= set(header)
+    assert body["1_100_C_T"]["beta"] == ""
+    assert (body["1_100_C_T"]["odds_ratio"], body["1_100_C_T"]["ci_lower"],
+            body["1_100_C_T"]["ci_upper"]) == ("1.000123456789", "1.03", "1.07")
+    assert (body["1_200_A_G"]["odds_ratio"], body["1_200_A_G"]["ci_lower"],
+            body["1_200_A_G"]["ci_upper"]) == ("", "", "")

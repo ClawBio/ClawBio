@@ -40,6 +40,11 @@ REQUIRED_COLUMNS = (
     "allele_a", "allele_b", "beta", "se", "p",
 )
 
+# Optional odds-ratio columns (INPUT_SCHEMA.md). Parsed to floats and carried on
+# `raw` so `gwas_variants_from_eqtl` can hand them to the outcome side, where the
+# harmoniser derives beta = ln(OR) for a row that has no reported beta.
+ODDS_RATIO_COLUMNS = ("odds_ratio", "ci_lower", "ci_upper")
+
 
 class PrefetchedSchemaError(ValueError):
     """Raised when a pre-fetched TSV does not satisfy INPUT_SCHEMA.md."""
@@ -111,11 +116,20 @@ def load_sumstats_tsv(path: Path) -> list[EQTLRegionVariant]:
             beta = _parse_float_or_none(cols[header_idx["beta"]])
             se = _parse_float_or_none(cols[header_idx["se"]])
             p = _parse_float_or_none(cols[header_idx["p"]])
+            odds = {
+                col: _parse_float_or_none(cols[header_idx[col]])
+                for col in ODDS_RATIO_COLUMNS
+                if col in header_idx
+            }
         except ValueError as e:
             raise PrefetchedSchemaError(f"{path}:{lineno}: parse error: {e}") from e
 
-        # Drop rows missing required beta/se/p per INPUT_SCHEMA.md §Missing data
-        if beta is None or se is None or p is None:
+        # A row with no p-value cannot be placed on any panel and is dropped (INPUT_SCHEMA.md
+        # §Missing data). A row with a p-value but no beta or SE is KEPT: it belongs on both
+        # p-value panels, an outcome row with an odds ratio converts to a beta, and otherwise
+        # the effect-size panel states which side lacks effect sizes. Dropping it made an
+        # OR-only or p-value-only slice load as zero variants.
+        if p is None:
             continue
 
         maf = (
@@ -138,7 +152,7 @@ def load_sumstats_tsv(path: Path) -> list[EQTLRegionVariant]:
             p_value=p,
             maf=maf,
             effect_allele_frequency=eaf,
-            raw={},
+            raw=odds,
         ))
     return variants
 
@@ -239,7 +253,10 @@ class PrefetchedEQTLClient:
     dataset_release: str = "prefetched"
     study_label: str | None = None
     tissue_label: str | None = None
-    quant_method: str = "ge"
+    # The eQTL Catalogue quantification code the file was produced with, when the
+    # config states it (`exposure.quant_method`). None means not stated: the
+    # figure then says "QTL" instead of assuming gene expression.
+    quant_method: str | None = None
     notes: list[str] = field(default_factory=list)
 
     def fetch_region(
@@ -348,9 +365,10 @@ def gwas_variants_from_eqtl(variants: list[EQTLRegionVariant]) -> list[GWASRegio
     """Re-shape EQTL-flavoured RegionVariant rows into GWAS-flavoured ones.
 
     The outcome side of the orchestrator expects GWAS Catalog's RegionVariant
-    (one extra optional `odds_ratio` field; otherwise identical). We load
-    both sides via the canonical INPUT_SCHEMA TSV loader (which yields eQTL-
-    flavoured rows) and reshape the outcome list here.
+    (extra optional `odds_ratio` / `ci_lower` / `ci_upper` fields; otherwise
+    identical). We load both sides via the canonical INPUT_SCHEMA TSV loader
+    (which yields eQTL-flavoured rows, the odds-ratio columns parked on `raw`)
+    and reshape the outcome list here.
     """
     out: list[GWASRegionVariant] = []
     for v in variants:
@@ -363,8 +381,10 @@ def gwas_variants_from_eqtl(variants: list[EQTLRegionVariant]) -> list[GWASRegio
             beta=v.beta,
             se=v.se,
             p_value=v.p_value,
-            odds_ratio=None,
+            odds_ratio=v.raw.get("odds_ratio"),
             effect_allele_frequency=v.effect_allele_frequency,
+            ci_lower=v.raw.get("ci_lower"),
+            ci_upper=v.raw.get("ci_upper"),
             raw={},
         ))
     return out
