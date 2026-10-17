@@ -36,7 +36,8 @@ Make the skill dependable for research use: inputs are checked before inference,
 ### Still to settle at the meeting
 
 - Review the code diff with contributors; keep this branch separate from the narrow metadata fix in draft PR #1 until they agree on how to split or stack the changes.
-- Run broader repository contract tests before opening a PR to upstream; this pass verified the touched skill and replay only.
+- Run the full repository `tests/` suite before opening a PR to upstream. This pass verified the touched skill, replay, and 62 relevant catalog/public-contract tests.
+- Update draft PR #1's description, which still says the end-to-end clock run is unverified. The connected GitHub integration denied the attempted edit with HTTP 403, and the local `gh` login is invalid. The verified wording is in the briefing below.
 
 ### Following the meeting
 

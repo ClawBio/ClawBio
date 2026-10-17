@@ -42,6 +42,8 @@ The source fixture lists chronological ages of 72 and 67. Do not interpret this 
 
 In the fresh 17 October run, input QC recorded 485,512 probe columns and three missing beta values. The checksum file verified all eight output artifacts, and a replay produced byte-identical predictions. All 18 skill tests passed with PyAging installed; 13 offline checks passed without it.
 
+**Draft PR #1 description update:** It currently says the end-to-end run is unverified. The connected GitHub integration could not edit it (HTTP 403), and the local `gh` login is invalid. Suggested replacement: “On 17 October 2026, the unfixed two-sample Horvath2013 demo failed with `['tissue']`; with the PR patch it completed with PyAging 0.5.7 and produced 26.0016 and 28.0660 years. This is a software smoke test, not biological validation for sperm samples.”
+
 ## Questions to invite
 
 - Which input representations and array platforms should the skill officially support?
