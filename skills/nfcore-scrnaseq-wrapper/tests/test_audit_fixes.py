@@ -254,13 +254,14 @@ def test_macos_config_real_run_has_no_resource_limits():
     assert "STAR_ALIGN" in content
 
 
-def test_build_extra_configs_real_run_uncapped_on_macos(tmp_path, monkeypatch):
+def test_build_extra_configs_real_run_has_separate_runtime_cap_on_macos(tmp_path, monkeypatch):
     module = _load_skill_module()
     monkeypatch.setattr(module.platform, "system", lambda: "Darwin")
     args = Namespace(profile="docker", demo=False)
     configs = module._build_extra_nextflow_configs(args, tmp_path)
-    assert len(configs) == 1
+    assert len(configs) == 2
     assert "resourceLimits" not in configs[0].read_text(encoding="utf-8")
+    assert "resourceLimits" in configs[1].read_text(encoding="utf-8")
 
 
 def test_build_extra_configs_demo_capped_on_macos(tmp_path, monkeypatch):
@@ -268,7 +269,7 @@ def test_build_extra_configs_demo_capped_on_macos(tmp_path, monkeypatch):
     monkeypatch.setattr(module.platform, "system", lambda: "Darwin")
     args = Namespace(profile="docker", demo=True)
     configs = module._build_extra_nextflow_configs(args, tmp_path)
-    assert len(configs) == 1
+    assert len(configs) == 2
     assert "resourceLimits" in configs[0].read_text(encoding="utf-8")
 
 

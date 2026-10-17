@@ -85,3 +85,35 @@ def test_repeated_and_mixed_config_spellings_all_forwarded(monkeypatch, tmp_path
 
     assert f"--nextflow-config {c1}" in joined, f"{skill}: first config dropped: {joined!r}"
     assert f"--nextflow-config {c2}" in joined, f"{skill}: second config dropped: {joined!r}"
+
+
+@pytest.mark.parametrize("skill", PIPELINES)
+@pytest.mark.parametrize("work_dir", ["", "work O'Brien $literal", "s3://analysis-bucket/work"])
+def test_work_directory_reaches_every_pipeline_launcher(monkeypatch, tmp_path, skill, work_dir):
+    extra = _drive_main(monkeypatch, [
+        "clawbio", "run", skill, "--demo", "--resume", "--check",
+        "--work-dir", work_dir, "--output", str(tmp_path / "out"),
+    ])
+
+    assert extra.count("--work-dir") == 1, extra
+    assert extra[extra.index("--work-dir") + 1] == work_dir
+    assert "--resume" in extra and "--check" in extra
+
+
+def test_work_directory_is_not_forwarded_to_unrelated_skills(monkeypatch, tmp_path):
+    extra = _drive_main(monkeypatch, [
+        "clawbio", "run", "pharmgx", "--demo", "--work-dir", "work",
+        "--output", str(tmp_path / "out"),
+    ])
+    assert "--work-dir" not in extra
+
+
+@pytest.mark.parametrize("skill", ["sarek-pipeline", "scrnaseq-pipeline"])
+def test_trace_report_suffix_reaches_supported_pipelines(monkeypatch, tmp_path, skill):
+    suffix = "validation-run"
+    extra = _drive_main(monkeypatch, [
+        "clawbio", "run", skill, "--demo", "--trace-report-suffix", suffix,
+        "--output", str(tmp_path / "out"),
+    ])
+    assert extra.count("--trace-report-suffix") == 1, extra
+    assert extra[extra.index("--trace-report-suffix") + 1] == suffix

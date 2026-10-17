@@ -20,6 +20,7 @@ Importable:
 
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -656,6 +657,7 @@ SKILLS = {
         # Keep the ClawBio runner timeout above the wrapper's internal Nextflow
         # timeout so the wrapper can terminate the process group cleanly first.
         "default_timeout_seconds": 60 * 60 * 12 + 10 * 60,
+        "timeout_hours_flag": "--timeout-hours",
         "max_output_files_listed": 50,
         "allowed_extra_flags": {
             "--check",
@@ -765,6 +767,7 @@ SKILLS = {
         "demo_args": ["--demo"],
         "description": "Wrapper de preprocessing bulk RNA-seq FASTQ-to-counts vía nf-core/rnaseq",
         "default_timeout_seconds": 60 * 60 * 12 + 10 * 60,
+        "timeout_hours_flag": "--timeout-hours",
         "max_output_files_listed": 50,
         "allowed_extra_flags": {
             "--check",
@@ -973,6 +976,7 @@ SKILLS = {
         "demo_args": ["--demo"],
         "description": "Wrapper de variant calling germinal y somático vía nf-core/sarek 3.8.1",
         "default_timeout_seconds": 60 * 60 * 12 + 10 * 60,
+        "timeout_hours_flag": "--timeout-hours",
         "max_output_files_listed": 50,
         # Keep this allowlist aligned with nfcore_sarek_wrapper.build_parser().
         "allowed_extra_flags": set("""
@@ -1623,6 +1627,58 @@ def _skill_version(skill_name: str) -> str:
     return match.group(1) if match else "unknown"
 
 
+# Margin between a skill's own deadline and the runner's, so the skill can stop its
+# children and write its result before the runner kills it.
+_RUNNER_TIMEOUT_MARGIN_SECONDS = 10 * 60
+
+
+def _flag_value(args: list[str], flag: str) -> str | None:
+    """Last separated/inline value, accepting the pipeline's canonical aliases."""
+    value = None
+    for i, arg in enumerate(args):
+        name, separator, inline = arg.partition("=")
+        if _canonical_extra_flag(name) != flag:
+            continue
+        if separator:
+            value = inline
+        elif i + 1 < len(args):
+            value = args[i + 1]
+    return value
+
+
+def _warning_lines(stderr: str) -> list[str]:
+    """The distinct ``WARNING:`` lines a skill wrote to stderr, in order."""
+    lines = (line.strip() for line in (stderr or "").splitlines())
+    return list(dict.fromkeys(line for line in lines if line.startswith("WARNING:")))
+
+
+def _runner_timeout_seconds(
+    skill_info: dict, extra_args: list[str] | None, *, requested: int | None
+) -> int | None:
+    """Seconds the runner waits for a skill; None waits indefinitely.
+
+    A self-managed skill (``timeout_hours_flag``) should reach its own deadline
+    first, stop its children, and write its result. The runner's fallback cap follows
+    that flag plus a margin; 0 disables both. For POSIX pipeline wrappers, reaching
+    the runner cap also allows bounded cleanup before returning a timeout failure.
+    An explicit --timeout always wins; an unusable value is left for the skill to reject.
+    """
+    if requested is not None:
+        return requested
+    default = skill_info.get("default_timeout_seconds", 300)
+    flag = skill_info.get("timeout_hours_flag")
+    raw = _flag_value(extra_args or [], flag) if flag else None
+    try:
+        hours = float(raw) if raw is not None else None
+    except ValueError:
+        hours = None
+    if hours is None or not math.isfinite(hours * 3600) or hours < 0:
+        return default
+    if hours == 0:
+        return None
+    return math.ceil(hours * 3600) + _RUNNER_TIMEOUT_MARGIN_SECONDS
+
+
 def run_skill(
     skill_name: str,
     input_path: str | None = None,
@@ -1745,7 +1801,13 @@ def _run_skill(
         out_dir = Path(output_dir).expanduser().resolve()
     else:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_dir = DEFAULT_OUTPUT_ROOT / f"{skill_name}_{ts}"
+        output_root = DEFAULT_OUTPUT_ROOT
+        if (
+            skill_name in _NFCORE_PIPELINE_SKILLS
+            and output_root.resolve().is_relative_to(CLAWBIO_DIR.resolve())
+        ):
+            output_root = Path.home() / "clawbio-runs"
+        out_dir = output_root / f"{skill_name}_{ts}"
     if out_dir:
         output_error = _ensure_output_directory(out_dir)
         if output_error:
@@ -1830,13 +1892,20 @@ def _run_skill(
     # Run subprocess
     t0 = time.time()
     try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            cwd=str(script_path.parent),
-        )
+        if skill_info.get("timeout_hours_flag") and sys.platform != "win32":
+            # These wrappers own detached Nextflow sessions. Forward stops and
+            # let their cleanup finish before the launcher exits or times out.
+            from clawbio.common.nfcore.launcher import run_wrapper
+
+            proc = run_wrapper(cmd, timeout=timeout, cwd=str(script_path.parent))
+        else:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=str(script_path.parent),
+            )
         duration = round(time.time() - t0, 2)
     except subprocess.TimeoutExpired:
         duration = round(time.time() - t0, 2)
@@ -2103,7 +2172,8 @@ def main():
     run_parser.add_argument("--output", dest="output_dir", help="Output directory")
     run_parser.add_argument("--profile", dest="profile_path", metavar="PROFILE", help="Execution backend profile or comma-separated nf-core profile list for pipeline skills, or path to patient profile JSON for genomics skills")
     run_parser.add_argument(
-        "--timeout", type=int, default=300, help="Timeout in seconds (default: 300)"
+        "--timeout", type=int, default=None,
+        help="Runner timeout in seconds (default: skill-specific, otherwise 300)",
     )
     run_parser.add_argument("--drug", default=None, help="Drug name for single-drug lookup (drugphoto skill)")
     run_parser.add_argument("--dose", default=None, help="Visible dose from packaging (e.g. '50mg')")
@@ -2218,7 +2288,7 @@ def main():
     run_parser.add_argument("--email-on-fail", default=None, help="Email address for failure notification only")
     run_parser.add_argument("--multiqc-title", default=None, help="Custom MultiQC title for pipeline skills")
     run_parser.add_argument("--expected-cells", type=int, default=None, help="expected_cells override for scrnaseq-pipeline")
-    run_parser.add_argument("--work-dir", default=None, help="Nextflow work directory for scrnaseq-pipeline")
+    run_parser.add_argument("--work-dir", default=None, help="Nextflow work directory for nf-core pipeline skills")
     run_parser.add_argument("--allow-conda-cellranger", action="store_true", help="Allow Cell Ranger presets with conda/mamba when a trusted site config supplies Cell Ranger")
     run_parser.add_argument("--resume", action="store_true", help="Enable resume policy for pipeline skills")
     run_parser.add_argument("--save-reference", action="store_true", help="Save built reference indexes for pipeline skills")
@@ -2583,6 +2653,8 @@ def main():
         if args.skill in {"scrnaseq-pipeline", "rnaseq-pipeline", "sarek-pipeline"}:
             for cfg in getattr(args, "nextflow_config", None) or []:
                 extra.extend(["--nextflow-config", cfg])
+            if getattr(args, "work_dir", None) is not None:
+                extra.extend(["--work-dir", args.work_dir])
         if skill_backend_profile:
             extra.extend(["--profile", skill_backend_profile])
         if getattr(args, "pipeline_version", None):
@@ -2612,7 +2684,6 @@ def main():
                 ("igenomes_base", "--igenomes-base"),
                 ("publish_dir_mode", "--publish-dir-mode"),
                 ("trace_report_suffix", "--trace-report-suffix"),
-                ("work_dir", "--work-dir"),
             ):
                 attr, flag = value_flag
                 value = getattr(args, attr, None)
@@ -2845,6 +2916,7 @@ def main():
             for value_flag in (
                 ("pipeline_local", "--pipeline-local"),
                 ("aligner", "--aligner"),
+                ("trace_report_suffix", "--trace-report-suffix"),
                 ("seq_platform", "--seq-platform"),
                 ("email_on_fail", "--email-on-fail"),
                 ("multiqc_config", "--multiqc-config"),
@@ -3103,9 +3175,9 @@ def main():
         if getattr(args, "json", False):
             extra.append("--json")
 
-        run_timeout = args.timeout
-        if args.timeout == 300:
-            run_timeout = SKILLS.get(args.skill, {}).get("default_timeout_seconds", args.timeout)
+        run_timeout = _runner_timeout_seconds(
+            SKILLS.get(args.skill, {}), extra, requested=args.timeout
+        )
 
         result = run_skill(
             skill_name=args.skill,
@@ -3132,6 +3204,11 @@ def main():
             print(f"  Output:   {result['output_dir']}")
         if result["files"]:
             print(f"  Files:    {', '.join(result['files'])}")
+        # stderr is shown only on failure, so relay a successful run's warnings: a
+        # flag the skill forced or ignored must not pass unnoticed.
+        if result["success"]:
+            for line in _warning_lines(result["stderr"]):
+                print(f"  {YELLOW}{line}{RESET}")
         # Show a preview of the report if one was generated
         if result["success"] and result["output_dir"]:
             report = Path(result["output_dir"]) / "report.md"

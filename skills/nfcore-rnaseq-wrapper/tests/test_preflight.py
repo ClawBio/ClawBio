@@ -891,7 +891,7 @@ _BACKEND_MISSING_ERROR_CODES = {
 
 def test_profile_backend_missing_binary_is_rejected(monkeypatch):
     monkeypatch.setattr(preflight.shutil, "which", lambda name: None)
-    monkeypatch.setattr(preflight.subprocess, "run", lambda *a, **k: Namespace(returncode=0, stdout="", stderr=""))
+    monkeypatch.setattr(preflight._runtime.subprocess, "run", lambda *a, **k: Namespace(returncode=0, stdout="", stderr=""))
     with pytest.raises(SkillError) as exc:
         preflight._check_profile("singularity")
     assert exc.value.error_code in _BACKEND_MISSING_ERROR_CODES["singularity"]

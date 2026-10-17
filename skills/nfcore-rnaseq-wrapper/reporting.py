@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
-import re
 import shlex
 import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from clawbio.common.nfcore.artifacts import safe_config_basename
+from clawbio.common.nfcore.bundle_emit import write_standalone_remapper
+from clawbio.common.nfcore.bundle_runtime import escape_double_quoted
 from clawbio.common.portable_commands import build_portable_commands_sh
 from clawbio.common.report import generate_report_footer, generate_report_header, write_result_json
 from clawbio.common.textio import write_text_lf, write_text_lf_atomic
@@ -250,6 +252,15 @@ def write_report(
     return report_path
 
 
+def _pseudo_aligner_summary(args, parsed_outputs: dict[str, object]) -> str:
+    """The pseudo-aligner that ran; a test profile's own choice is labelled as such."""
+    pseudo = parsed_outputs.get("pseudo_aligner_effective", getattr(args, "pseudo_aligner", None))
+    text = f"`{pseudo or 'none'}`"
+    if parsed_outputs.get("pseudo_aligner_from_pipeline"):
+        text += " (set by the test profile)"
+    return text
+
+
 def build_report_lines(
     output_dir: Path,
     *,
@@ -279,7 +290,7 @@ def build_report_lines(
         "## Summary",
         "",
         f"- Aligner: `{getattr(args, 'aligner', '')}`",
-        f"- Pseudo-aligner: `{getattr(args, 'pseudo_aligner', None) or 'none'}`",
+        f"- Pseudo-aligner: {_pseudo_aligner_summary(args, parsed_outputs)}",
         f"- Trimmer: `{getattr(args, 'trimmer', '')}`",
         f"- Samples: `{parsed_outputs.get('samples_detected', 0)}`",
         f"- Strandedness mode: `{_strandedness_summary(preflight_result)}`",
@@ -375,6 +386,7 @@ def write_repro_commands(output_dir: Path, *, args) -> None:
     )
     content = _apply_repo_fallback(content)
     content = _apply_idempotent_resume(content, output_dir)
+    content = _apply_container_pin(content)
     if not getattr(args, "demo", False):
         content += _PORTABILITY_NOTICE
     write_text_lf_atomic(repro_dir / "commands.sh", content)
@@ -436,11 +448,6 @@ def build_repro_command_args(output_dir: Path, *, args) -> dict[str, str | None]
     return command_args
 
 
-def _safe_config_basename(name: str) -> str:
-    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._")
-    return safe or "nextflow.config"
-
-
 def _stage_user_nextflow_configs(output_dir: Path, config_paths: list[str]) -> list[str]:
     """Copy each user ``-c``/``--nextflow-config`` file into
     ``reproducibility/nextflow_configs/`` and return ``${SCRIPT_DIR}``-relative
@@ -472,7 +479,7 @@ def _stage_user_nextflow_configs(output_dir: Path, config_paths: list[str]) -> l
         if source.parent == config_dir.resolve():
             staged.append(f"${{SCRIPT_DIR}}/nextflow_configs/{source.name}")
             continue
-        destination = config_dir / f"config_{index:02d}_{_safe_config_basename(source.name)}"
+        destination = config_dir / f"config_{index:02d}_{safe_config_basename(source.name)}"
         shutil.copyfile(source, destination)
         staged.append(f"${{SCRIPT_DIR}}/nextflow_configs/{destination.name}")
     return staged
@@ -534,6 +541,7 @@ def build_result_summary(
         "aligner": getattr(args, "aligner", ""),
         "aligner_effective": parsed_outputs.get("aligner_effective", ""),
         "pseudo_aligner": getattr(args, "pseudo_aligner", None),
+        "pseudo_aligner_effective": parsed_outputs.get("pseudo_aligner_effective", ""),
         "pipeline_source_kind": pipeline_source.get("source_kind", ""),
         "pipeline_version_or_commit": pipeline_source.get("resolved_version", ""),
         "profile": getattr(args, "profile", ""),
@@ -606,7 +614,8 @@ def _apply_idempotent_resume(content: str, output_dir: Path) -> str:
         return content
     if "\n    --resume" in content:
         return content
-    manifest = f"{output_dir.as_posix()}/reproducibility/manifest.json"
+    # Inside bash double quotes: escape $, `, " and \ so the path stays literal.
+    manifest = escape_double_quoted(f"{output_dir.as_posix()}/reproducibility/manifest.json")
     guard = (
         "# Idempotent replay: resume in place if this output directory already holds a\n"
         "# completed run of this bundle (reproducibility/manifest.json). A fresh or\n"
@@ -621,9 +630,36 @@ def _apply_idempotent_resume(content: str, output_dir: Path) -> str:
     return content.replace(_REPLAY_INVOCATION_LINE, guard, 1)
 
 
+_CONTAINER_PIN_GUARD = (
+    "# Run every process on the exact image (repository@digest) it ran originally, as\n"
+    "# recorded in containers.config, when no Nextflow cache sits next to this bundle\n"
+    "# (a fresh or relocated replay); an in-place replay keeps the cached tasks. The\n"
+    "# ${arr[@]+...} form keeps macOS's bash 3.2 happy under `set -u`.\n"
+    "CLAWBIO_PIN=()\n"
+    'if [[ ! -d "$SCRIPT_DIR/../.nextflow" && -f "$SCRIPT_DIR/containers.config" ]]; then\n'
+    '  CLAWBIO_PIN=(--nextflow-config "$SCRIPT_DIR/containers.config")\n'
+    "fi"
+)
+
+
+def _apply_container_pin(content: str) -> str:
+    """Pass containers.config as the last --nextflow-config, so the pins win."""
+    lines = content.split("\n")
+    starts = [i for i, line in enumerate(lines) if line.startswith('"${PYTHON:-python3}" "$SKILL_SCRIPT"')]
+    if len(starts) != 1:
+        return content
+    start = end = starts[0]
+    while lines[end].endswith("\\") and end + 1 < len(lines):
+        end += 1
+    lines[end] += " \\"
+    lines.insert(end + 1, '    ${CLAWBIO_PIN[@]+"${CLAWBIO_PIN[@]}"}')
+    lines[start:start] = _CONTAINER_PIN_GUARD.split("\n")
+    return "\n".join(lines)
+
+
 def _write_remap_script(repro_dir: Path) -> None:
     repro_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(SKILL_DIR / "remap_paths.py", repro_dir / "remap_paths.py")
+    write_standalone_remapper(repro_dir / "remap_paths.py", adapter_path=SKILL_DIR / "remap_paths.py")
 
 
 def _value_or(value: object, fallback: str) -> str:

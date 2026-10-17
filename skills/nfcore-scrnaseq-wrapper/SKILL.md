@@ -75,7 +75,6 @@ metadata:
 # nfcore-scrnaseq-wrapper
 
 You are **nfcore-scrnaseq-wrapper**, a specialised ClawBio agent for upstream single-cell RNA-seq preprocessing from FASTQ using the `nf-core/scrnaseq` Nextflow pipeline.
-
 ## Trigger
 
 **Fire when:**
@@ -91,19 +90,16 @@ You are **nfcore-scrnaseq-wrapper**, a specialised ClawBio agent for upstream si
 - User asks for scVI, scANVI, batch correction, or dimensionality reduction → route to `scrna-embedding`
 - User asks about bulk RNA-seq, differential expression, or pseudo-bulk analysis → route to `rnaseq-de`
 - Input is an already-processed count matrix, not raw FASTQs
-
 ## Scope
 
 One skill, one task: run upstream scRNA preprocessing from FASTQ using `nf-core/scrnaseq` and produce canonical outputs for downstream ClawBio skills.
 
 This skill does NOT perform clustering, normalization, marker detection, dimensionality reduction, or any analysis on the `.h5ad` it produces.
-
 ## Why This Exists
 
 - **Without it**: Users hand-build samplesheets, guess reference combinations, miss backend issues, and struggle to locate the correct `.h5ad` for downstream analysis.
 - **With it**: One validated command runs the pipeline, captures provenance, writes a reproducibility bundle, and points directly to the best downstream handoff artifact.
 - **Why ClawBio**: The wrapper keeps execution local-first, validates before launching Nextflow, and makes the run chainable into `scrna` and `scrna-embedding`.
-
 ## Core Capabilities
 
 1. **Strict Preflight**: Validate Java, Nextflow, backend, samplesheet, FASTQs, and references before execution.
@@ -111,7 +107,6 @@ This skill does NOT perform clustering, normalization, marker detection, dimensi
 3. **Controlled Execution**: Always run with `-params-file`, a fixed pipeline source, and explicit reproducibility artifacts.
 4. **Output Resolution**: Detect MultiQC, pipeline_info, `.h5ad`, `.rds`, and select a canonical `preferred_h5ad` when possible.
 5. **Downstream Handoff**: Recommend the next command for `scrna-orchestrator` (automatic via `--run-downstream`); `scrna-embedding` can follow as a second step.
-
 ## Input Formats
 
 | Format | Extension | Required columns (all presets) | Preset-conditional columns | Optional columns |
@@ -143,7 +138,7 @@ The wrapper executes a strictly ordered 7-step pipeline. A failure at any step r
 
 4. **Params construction** (`params_builder.py`): Translate the preset + CLI flags into a `params.yaml` consumed by Nextflow via `-params-file`. All file paths use `.as_posix()` for forward-slash consistency across platforms. `igenomes_ignore` is automatically set to `true` whenever an explicit **genome** reference (`fasta`, `gtf`, `transcript_fasta`, `txp2gene`, or any prebuilt index) is provided — auxiliary files (barcode whitelist, CMO/probe/feature sets, primers, multi-barcode samplesheets) never trigger it, so they remain compatible with `--genome` (suppresses nf-schema DNS validation of the default iGenomes S3 URL). Skip flags are only written when `true`, keeping `params.yaml` minimal. In `--demo` mode no reference/protocol params are written at all (the test profile owns them).
 
-5. **Command build + execution** (`command_builder.py`, `executor.py`): Construct the `nextflow run` command with `-params-file`, validated `-c/--config` files, and a work directory that defaults to `<output>/upstream/work` but may be overridden by `--work-dir` (including object-store URIs for cloud executors), then launch via `subprocess.Popen` with stdout and stderr piped to log files on disk — never buffered in RAM. On `TimeoutExpired`, the process is killed and `EXECUTION_FAILED` is raised. On `KeyboardInterrupt`, the child process tree is terminated before the interrupt is re-raised.
+5. **Command build + execution** (`command_builder.py`, `executor.py`): Construct the `nextflow run` command with `-params-file`, validated `-c/--config` files, and a work directory that defaults to `<output>/upstream/work` but may be overridden by `--work-dir` (including object-store URIs for cloud executors), then launch via `subprocess.Popen` with stdout and stderr piped to log files on disk — never buffered in RAM. On `TimeoutExpired`, the process is killed and `EXECUTION_FAILED` is raised. On `KeyboardInterrupt` or SIGTERM, the child process tree is terminated first; SIGTERM then exits 143.
 
 6. **Output parsing** (`outputs_parser.py`): Scan the upstream results tree for MultiQC HTML, `pipeline_info/`, aligner output directories, `.h5ad` (CellBender/filtered preferred over generic combined/raw), `.rds`, CellBender-derived files, and an `official_outputs` manifest for documented nf-core output families. Required outputs are validated before success artifacts are written; `handoff_available` is set to `true` only when a `preferred_h5ad` is confirmed on disk.
 
@@ -190,58 +185,58 @@ Readability is never pre-checked: Nextflow reads inputs in the true execution co
 ```bash
 # Standard real-data usage (explicit protocol and reference are required)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./scrnaseq_run \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/scrnaseq_run" \
   --preset star --protocol 10XV3 --genome GRCh38
 
 # Preflight check only (no Nextflow execution)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./scrnaseq_run --check \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/scrnaseq_run" --check \
   --preset star --protocol 10XV3 --genome GRCh38
 
 # Demo mode (runs the upstream nf-core test profile; forces star preset; uses the
 # selected backend — default --profile docker, which must be running)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --demo --output ./scrnaseq_demo
+  --demo --output "$HOME/clawbio-runs/scrnaseq_demo"
 
 # Via ClawBio runner
-python clawbio.py run scrnaseq-pipeline --input samplesheet.csv --output ./scrnaseq_run \
+python clawbio.py run scrnaseq-pipeline --input samplesheet.csv --output "$HOME/clawbio-runs/scrnaseq_run" \
   --preset star --protocol 10XV3 --genome GRCh38
-python clawbio.py run scrnaseq-pipeline --demo --output ./scrnaseq_demo
+python clawbio.py run scrnaseq-pipeline --demo --output "$HOME/clawbio-runs/scrnaseq_demo"
 
 # STARsolo with local FASTA+GTF (STAR index built by the pipeline)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset star --protocol 10XV3 \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset star --protocol 10XV3 \
   --fasta /refs/hg38.fa --gtf /refs/hg38.gtf
 
 # STARsolo with prebuilt STAR index
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset star --protocol 10XV3 \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset star --protocol 10XV3 \
   --star-index /refs/star_index
 
 # STARsolo RNA velocity (star requires an explicit --protocol like every star/standard/kallisto run)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset star --protocol 10XV3 \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset star --protocol 10XV3 \
   --star-feature "Gene Velocyto" --star-ignore-sjdbgtf \
   --fasta /refs/hg38.fa --gtf /refs/hg38.gtf
 
 # Simpleaf (standard) with UMI resolution override
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset standard --protocol 10XV3 \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset standard --protocol 10XV3 \
   --simpleaf-umi-resolution cr-like-em --genome GRCh38
 
 # Kallisto RNA velocity (NAC workflow)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset kallisto --protocol 10XV3 \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset kallisto --protocol 10XV3 \
   --kb-workflow nac --fasta /refs/hg38.fa --gtf /refs/hg38.gtf
 
 # Air-gapped cluster: local iGenomes mirror
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset star --protocol 10XV3 \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset star --protocol 10XV3 \
   --genome GRCh38 --igenomes-base /mnt/local_igenomes
 
 # CellRanger Multi (CMO multiplexing)
 python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
-  --input samplesheet.csv --output ./run --preset cellrangermulti \
+  --input samplesheet.csv --output "$HOME/clawbio-runs/run" --preset cellrangermulti \
   --cellranger-index /refs/refdata-gex-GRCh38 \
   --gex-cmo-set /refs/cmo_set.csv \
   --cellranger-multi-barcodes /refs/multi_barcodes.csv
@@ -361,6 +356,7 @@ output_directory/
 │   ├── environment.yml               # Conda environment spec (for reference)
 │   ├── checksums.sha256              # SHA-256 for in-bundle artifacts only; `sha256sum -c` passes from output dir
 │   ├── manifest.json                 # Run metadata: preset, profile, versions, checksums
+│   ├── containers.{json,config}      # Images per process with sha256 digests; the config pins them on a fresh replay
 │   ├── macos_docker.config           # macOS+Docker workarounds (VirtioFS, ARM64, STAR FIFOs)
 │   ├── remap_paths.py                # Helper for replaying on a different machine
 │   ├── compatibility_policy.json     # Copied policy snapshot (resume/update rules)
@@ -407,7 +403,10 @@ output_directory/
 
 ## Gotchas
 
-- **Preflight runs before any Nextflow call.** If Java, Nextflow, or the backend are missing or too old, the pipeline never starts and you get a structured JSON error with `error_code` and a `fix` hint. Nextflow ≥25.04.0 is required.
+- Emitted parameters are checked against the pinned upstream scalar contract (types, finite numbers, bounds, enums, and filename patterns). Malformed or ambiguous samplesheets fail before normalized snapshots are written. An atomic launch manifest supports resuming failed launches; resumed `--check` also validates params and samplesheet checksums.
+- Local Docker runs, including demos, cap both per-process requests and the local executor budget to detected host/Docker CPU and memory capacity. Site/cloud profiles and object-store work directories keep their own resource policy. Explicit `--nextflow-config` files have final precedence. Resource caps cannot make a dataset fit insufficient RAM.
+- Replay uses the smaller of recorded limits and current Docker capacity, on macOS and Linux, through a temporary config; the original checksummed config is preserved. User config snapshots retain final precedence.
+- **Preflight runs before any Nextflow call.** If Java, Nextflow, or the backend are missing or too old, the pipeline never starts and you get a structured JSON error with `error_code` and a `fix` hint. Nextflow ≥25.04.0 is required. Do not run nf-core/scrnaseq 4.1.0 under Nextflow's strict syntax parser (the default from Nextflow 26.04): it rejects the release's include of `conf/test_multiome.config`, which the tag does not ship. The wrapper sets `NXF_SYNTAX_PARSER=v1` for the run, shows it in the recorded command and exports it in `commands.sh`, overriding any value in your shell; do not patch the cached pipeline instead.
 - **Conda/Mamba profiles need network access at runtime.** Preflight only verifies the `conda`/`mamba` binary exists — it deliberately does not probe network connectivity (a flaky check that would also reject valid offline caches). With `-profile conda`, Nextflow resolves environments from bioconda/conda-forge at runtime, so an offline or proxied host can make a task fail mid-run with a confusing resolver error. Cell Ranger presets are rejected with conda/mamba by default because Cell Ranger is not distributed via bioconda; use `--allow-conda-cellranger` only when a trusted site config provides Cell Ranger. For fully offline/reproducible execution prefer `docker`/`singularity` (pinned containers), or pre-warm the conda package cache before running.
 - **`--genome` conflicts with any explicit genome-reference flag.** Providing `--genome` alongside `--fasta`, `--gtf`, `--transcript-fasta`, `--txp2gene`, or any prebuilt index raises `CONFLICTING_REFERENCES` in preflight. Use either `--genome <shortcut>` or explicit genome flags — never both. Auxiliary files (barcode whitelist, CMO/probe/feature sets, primers, multi-barcode samplesheets) are **not** genome references and are compatible with `--genome`.
 - **`igenomes_ignore` is set automatically.** Whenever an explicit **genome** reference (`fasta`, `gtf`, `transcript_fasta`, `txp2gene`, or any prebuilt index) is provided, the wrapper writes `igenomes_ignore: true` to suppress nf-schema DNS validation of the default iGenomes S3 URL. Auxiliary files never trigger it. You do not need to set this manually. Use `--igenomes-base` only for local iGenomes mirrors.
@@ -424,7 +423,7 @@ output_directory/
 - **The published results directory (`outdir`) is intentionally the local `<output>/upstream/results`.** This is a wrapper policy, not an nf-core limitation: the wrapper parses the results tree to detect the `preferred_h5ad`, MultiQC, and `pipeline_info/`, and to hand off downstream, so results must land on the local filesystem. This is still compatible with cloud-batch executors — the work directory may be remote (`--work-dir s3://...`) while Nextflow copies the published results back to the local `outdir`. There is no `--outdir` override to an object store, because the wrapper could not then parse outputs or chain downstream; for a remote-published run, invoke the upstream pipeline directly. The `--output` directory must also be **outside** the ClawBio source tree — an output inside the repository is rejected at preflight with `OUTPUT_DIR_INSIDE_REPO` (parity with nfcore-rnaseq/nfcore-sarek) so multi-gigabyte pipeline artifacts never pollute the checkout.
 - **`--pipeline-version` is pinned to the 4.1.0 contract.** The wrapper's parameter set, protocol matrix and output validation are written for nf-core/scrnaseq 4.1.0, so a different `--pipeline-version` is rejected unless you pass `--allow-pipeline-version-override` (a warned, provenance-recorded opt-in; validations stay 4.1.0).
 - **`-c/--config` files may not set `params.*`.** nf-core advises against setting parameters via `-c`. The wrapper blocks any config that assigns parameters outside the audited `params.yaml` — dotted (`params.aligner = …`), bracket (`params['aligner'] = …`), whole-map (`params = […]`), or a `params { … }` block (including the `{` on the next line). Pass `--trust-config-params` to allow it (detected overrides are recorded in provenance). Note the config is still trusted Groovy and is not sandboxed; this lint only guarantees `params.yaml` stays the single parameter source.
-- **`--resume` enforces strict compatibility.** The wrapper checks that the stored manifest matches the current preset, profile, pipeline source, effective `params.yaml` checksum, and Nextflow work directory. Mismatches raise `INVALID_RESUME_STATE`.
+- **`--resume` enforces strict compatibility.** The manifest must match the preset, profile, pipeline source, params checksum, normalized samplesheet checksum, and work directory. Mismatches raise `INVALID_RESUME_STATE`; rejected checks preserve the stored snapshots.
 - **RNA velocity requires coordinated flags and is validated in preflight.** For STARsolo: `--star-feature "Gene Velocyto"` requires `--star-ignore-sjdbgtf`. For Kallisto `--kb-workflow lamanno`/`nac`: when the index is built from `--fasta`/`--gtf`, `kb ref` generates the capture files, so `--kb-t1c`/`--kb-t2c` are **not** required (matching the documented fasta+gtf example); they are required only alongside a prebuilt `--kallisto-index`, and supplying exactly one of the two is always rejected. Invalid combinations raise `INVALID_PRESET_CONFIGURATION` before Nextflow starts.
 - **`cellrangerarc` config and reference are paired.** Providing `--cellrangerarc-config` without `--cellrangerarc-reference` (or vice versa) raises `INVALID_PRESET_CONFIGURATION`. `--motifs` is optional and independent.
 - **`cellrangermulti` validates documented preflight constraints.** `feature_type=ab` **or** `feature_type=crispr` requires `--fb-reference` (in nf-core/scrnaseq 4.1.0 both Antibody Capture and CRISPR Guide Capture share the single `fb_reference` feature reference — there is no separate CRISPR reference param, so a crispr run without it has no feature reference and fails inside Cell Ranger); `feature_type=vdj` with `--skip-cellrangermulti-vdjref` requires `--cellranger-vdj-index`; `--gex-frna-probe-set` (FFPE) requires `--cellranger-multi-barcodes`; `feature_type=cmo` (CMO multiplexing) also requires `--cellranger-multi-barcodes`. The three multiplexing modes nf-core documents as mutually exclusive are encoded **per multiplexed sample** in the `--cellranger-multi-barcodes` samplesheet via the `probe_barcode_ids` (**FFPE**), `cmo_ids` (**CMO**) and `ocm_ids` (**OCM**) columns. The wrapper parses that samplesheet and rejects any physical `sample` that populates more than one of those columns (`INVALID_PRESET_CONFIGURATION`, with `conflicting_modes`). It additionally rejects the run-level FFPE↔CMO flag combination (`--gex-frna-probe-set` with `feature_type=cmo`/`--gex-cmo-set`). Note `--gex-barcode-sample-assignment` is a cell/tag-calling override, **not** an OCM selector, so it is never treated as a mode. `cellrangermulti` FASTQ filenames are **not** validated by the wrapper (unlike `cellranger`/`cellrangerarc`): Cell Ranger Multi maps libraries through its own multi samplesheet and `[libraries]` config, so the per-file 10x naming is left to Cell Ranger to validate.
@@ -432,7 +431,7 @@ output_directory/
 - **Local checkout must be a sibling directory.** The wrapper looks for `../scrnaseq` relative to the ClawBio repo root. If the checkout path contains whitespace (common on macOS), the wrapper warns and falls back to the remote pipeline. Ensure `ClawBio/` and `scrnaseq/` share the same parent folder.
 - **Local checkout version is verified.** A sibling checkout is used only when its exact git tag matches `--pipeline-version` or its commit equals `--pipeline-version`. Git-less or unverifiable local directories fall back to the remote pinned pipeline.
 - **The `validation.*` / `validationSchemaIgnoreParams` warnings on a run or a bundle replay come from the pipeline, not from the wrapper. Do NOT try to silence them by adding params.** nf-core/scrnaseq 4.1.0's own `nextflow.config` declares `plugins { id 'nf-schema@2.5.1' }` and a matching `validation { defaultIgnoreParams = ["genomes"]; monochromeLogs = params.monochrome_logs }` scope, and it carries a `monochromeLogs = null` param that upstream itself annotates `// TODO temporary workaround a warning` (with a matching ignored lint check in its `.nf-core.yml`). nf-schema surfaces that as `WARN: The following invalid input values have been detected: * --validationSchemaIgnoreParams: genomes`. The wrapper writes **none** of these keys — its `params.yaml` carries only the audited CLI surface — and the bundle's `commands.sh` runs the pinned pipeline unmodified, so the same warning appears on a plain upstream `nextflow run nf-core/scrnaseq -r 4.1.0` too. It is harmless upstream noise: the plugin loads correctly (`Plugins declared=[nf-schema@2.5.1]`) and validation still runs. Writing `validation`/`monochromeLogs` into `params.yaml` to quiet it would override the pipeline's own config and is exactly the wrong fix — the wrapper's "omit = trust upstream default" rule applies. A regression test pins that these keys never enter `params.yaml`.
-- **macOS Docker workaround is applied automatically.** On macOS with Docker, `macos_docker.config` is written to the reproducibility bundle and passed to Nextflow. It sets `stageInMode = "copy"` (avoids VirtioFS EDEADLK), `--platform linux/amd64` (Rosetta emulation), and routes STAR `_STARtmp` to the container's `/tmp` (avoids VirtioFS FIFO limitation). These three workarounds apply to **every** macOS+Docker run. A `resourceLimits` block (`cpus 4, memory 15.GB`) is written **only for `--demo` runs**, with `time` raised to `4.h` (the upstream `conf/test.config` caps tasks at `1.h`, too short for STAR genome generation under Apple-Silicon emulation). These ceilings are test-machine sized and are never applied to real datasets (a human STAR index needs far more than 15 GB). One consequence: a `--demo` run is capped at `4.h` on macOS+Docker but at the upstream `1.h` on Linux. **On non-macOS docker, a real (non-demo) run instead writes a host-scaled `process.resourceLimits` config** (physical RAM minus headroom, bounded by the Docker `MemTotal` when known) so the local executor does not abort with `Process requirement exceeds available memory` when a process's production request — e.g. STARsolo's index build — exceeds this machine. This follows nf-core's resourceLimits guidance (limits should match the machine maximum) and carries no 15 GB ceiling. It is written to `reproducibility/resource_limits.config` and shipped in the bundle; `commands.sh` re-applies it on non-macOS replay hosts so a from-scratch reproduction on the generating machine does not re-abort on memory. Override with your own `-c process { resourceLimits = [...] }` if needed. Output directories under `/tmp` emit a WARNING — use a path under HOME.
+- **macOS Docker workarounds apply automatically.** The compatibility config uses `stageInMode = "copy"`, amd64 emulation, and container-local STAR temporary files. A separate portable resource config bounds scheduler/process requests to the current Docker capacity for real and demo runs. User configs have final precedence. Output directories under `/tmp` emit a warning; use a path under HOME.
 
 ## Safety
 

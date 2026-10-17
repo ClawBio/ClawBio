@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 import pytest
@@ -374,6 +375,33 @@ def test_repro_commands_sh_has_idempotent_resume_guard_for_demo(tmp_path):
     assert '"${PYTHON:-python3}" "$SKILL_SCRIPT" $CLAWBIO_RESUME' in content
     assert "\n    --demo" in content
 
+
+
+def _run_resume_guard(content: str) -> str:
+    start = content.index('CLAWBIO_RESUME=""')
+    end = content.index("\nfi\n", start) + len("\nfi\n")
+    result = subprocess.run(
+        ["bash", "-c", content[start:end] + 'printf %s "$CLAWBIO_RESUME"'],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the guard is bash")
+def test_resume_guard_tests_the_literal_output_dir(tmp_path):
+    """The guard tests the manifest path inside bash double quotes, so an output
+    directory containing $, a backtick or a double quote must stay literal: never
+    expanded, and never able to end the quoted string early."""
+    out = tmp_path / 'run $HOME `false` "q"'
+    out.mkdir()
+    write_repro_commands(out, args=_args(out, output=str(out)))
+    content = (out / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+    assert _run_resume_guard(content) == ""
+    (out / "reproducibility" / "manifest.json").write_text("{}", encoding="utf-8")
+    assert _run_resume_guard(content) == "--resume"
 
 def test_repro_commands_sh_resume_guard_skipped_when_run_used_resume(tmp_path):
     """If the original run already used --resume the command always resumes, so the
@@ -806,3 +834,49 @@ def test_replay_line_is_shell_safe_for_apostrophe_path(tmp_path):
     assert f"bash '{commands_sh_path}'" not in content
     # The replay line must still reference commands.sh somehow.
     assert "commands.sh" in content
+
+
+def _replay_argv(tmp_path, *, session: bool, pinned: bool, manifest: bool = True) -> list[str]:
+    """Run the generated commands.sh with a fake interpreter; return the wrapper argv."""
+    import os
+    import shutil
+    import subprocess
+
+    output_dir = tmp_path / "out"
+    repro = output_dir / "reproducibility"
+    pin = repro / "containers.config"
+    if pinned:
+        pin.write_text("process {}\n", encoding="utf-8")
+    else:
+        pin.unlink(missing_ok=True)
+    (repro / "manifest.json").write_text("{}", encoding="utf-8") if manifest else (repro / "manifest.json").unlink(missing_ok=True)
+    if session:
+        (output_dir / ".nextflow").mkdir(exist_ok=True)
+    else:
+        shutil.rmtree(output_dir / ".nextflow", ignore_errors=True)
+    fake = tmp_path / "fake-python"
+    argv_file = tmp_path / "argv.txt"
+    fake.write_text('#!/bin/sh\nshift\nprintf "%s\\n" "$@" > "$ARGV_FILE"\n', encoding="utf-8")
+    fake.chmod(0o755)
+    subprocess.run(
+        ["/bin/bash", str(repro / "commands.sh")], check=True, capture_output=True, text=True,
+        env={**os.environ, "PYTHON": str(fake), "ARGV_FILE": str(argv_file)},
+    )
+    return argv_file.read_text(encoding="utf-8").splitlines()
+
+
+def test_repro_commands_sh_pins_container_digests_without_a_nextflow_cache(tmp_path):
+    """A replay into a directory without a Nextflow cache (bundle copied elsewhere, so
+    its manifest travels along) runs every process on the digest it ran originally,
+    after any user config so the pins win; an in-place replay keeps the cache."""
+    output_dir = tmp_path / "out"
+    user_config = tmp_path / "user.config"
+    user_config.write_text("process {}\n", encoding="utf-8")
+    write_repro_commands(output_dir, args=_args(output_dir, demo=True, nextflow_config=[str(user_config)]))
+    pin = str(output_dir / "reproducibility" / "containers.config")
+    fresh = _replay_argv(tmp_path, session=False, pinned=True)
+    assert fresh[-2:] == ["--nextflow-config", pin]
+    assert fresh.count("--nextflow-config") == 2
+    in_place = _replay_argv(tmp_path, session=True, pinned=True)
+    assert "--resume" in in_place and pin not in in_place
+    assert pin not in _replay_argv(tmp_path, session=False, pinned=False)

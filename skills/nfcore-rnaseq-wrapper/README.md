@@ -19,7 +19,7 @@ ClawBio wrapper for running `nf-core/rnaseq` bulk RNA-seq preprocessing from FAS
 ## Quick Start
 
 ```bash
-python clawbio.py run rnaseq-pipeline --demo --output ./outputs/rnaseq_demo
+python clawbio.py run rnaseq-pipeline --demo --output "$HOME/clawbio-runs/rnaseq_demo"
 ```
 
 For real data:
@@ -27,9 +27,17 @@ For real data:
 ```bash
 python clawbio.py run rnaseq-pipeline \
   --input samplesheet.csv \
-  --output ./rnaseq_run \
+  --output "$HOME/clawbio-runs/rnaseq_run" \
   --aligner star_salmon \
   --genome GRCh38
 ```
 
-Use `--check` to run preflight without launching Nextflow.
+Use `--check` to run preflight without launching Nextflow. Checkout-mode runs without `--output` default to `~/clawbio-runs/`; explicit destinations must be outside the repository.
+
+## Validation and resume
+
+Emitted parameters are checked against the pinned upstream scalar contract (types, finite numbers, bounds, enums, and filename patterns). Malformed or ambiguous samplesheets fail before normalized snapshots are written. An atomic launch manifest supports resuming failed launches; resumed `--check` also validates params and samplesheet checksums.
+
+Local Docker runs, including demos, cap both per-process requests and the local executor budget to detected host/Docker CPU and memory capacity. Site/cloud profiles and object-store work directories keep their own resource policy. Explicit `--nextflow-config` files have final precedence. Resource caps cannot make a dataset fit insufficient RAM.
+
+See the [compatibility audit](../../docs/nfcore-wrapper-audit.md) for upstream contracts, fixes, test results, and execution limits.

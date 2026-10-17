@@ -15,6 +15,7 @@ spellings as equivalent and forwards the wrapper's canonical hyphen spelling
 """
 from __future__ import annotations
 
+from importlib import import_module
 import types
 
 import pytest
@@ -26,7 +27,7 @@ PIPELINES = ["scrnaseq-pipeline", "rnaseq-pipeline", "sarek-pipeline"]
 
 
 def _forwarded_cmd(monkeypatch, tmp_path, skill, extra_args):
-    """Return the argv ``run_skill`` would hand to ``subprocess.run``.
+    """Return the argv ``run_skill`` would hand to its skill-process adapter.
 
     ``run_skill`` wraps the subprocess in a broad ``except`` that folds any error
     into its result dict, so the stub captures the command and returns a benign
@@ -38,14 +39,21 @@ def _forwarded_cmd(monkeypatch, tmp_path, skill, extra_args):
         captured["cmd"] = list(cmd)
         return types.SimpleNamespace(returncode=0, stdout="", stderr="")
 
+    launcher = import_module("clawbio.common.nfcore.launcher")
+
     monkeypatch.setattr(cli.subprocess, "run", fake_run)
+    monkeypatch.setattr(launcher, "run_wrapper", fake_run)
+    monkeypatch.setattr(
+        cli.subprocess, "Popen",
+        lambda *args, **kwargs: pytest.fail("A routing test must not start a real skill"),
+    )
     cli.run_skill(
         skill,
         demo=True,
         output_dir=str(tmp_path / "out"),
         extra_args=list(extra_args),
     )
-    assert "cmd" in captured, "subprocess.run was never reached"
+    assert "cmd" in captured, "Skill-process adapter was never reached"
     return captured["cmd"]
 
 

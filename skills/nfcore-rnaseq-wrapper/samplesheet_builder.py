@@ -7,6 +7,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from clawbio.common.nfcore.artifacts import write_csv_lf
+
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
     sys.path.remove(str(_SKILL_DIR))
@@ -86,11 +88,18 @@ def _read_samplesheet(input_path: Path) -> tuple[list[str], list[dict[str, str]]
             details={"path": str(input_path)},
         )
 
-    with input_path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
-        fieldnames = reader.fieldnames or []
-        _validate_required_columns(fieldnames)
-        rows = list(reader)
+    try:
+        from clawbio.common.nfcore.artifacts import read_delimited_samplesheet
+
+        fieldnames, rows = read_delimited_samplesheet(input_path)
+    except (OSError, ValueError, csv.Error) as exc:
+        raise SkillError(
+            stage="validation", error_code=ErrorCode.INVALID_SAMPLESHEET,
+            message="Samplesheet could not be parsed without data loss.",
+            fix="Use unique nonempty headers, correctly quoted UTF-8 records, and one value per column.",
+            details={"path": str(input_path), "error": str(exc)},
+        ) from exc
+    _validate_required_columns(fieldnames)
 
     if not rows:
         raise SkillError(
@@ -472,9 +481,9 @@ def _reject_duplicate_fastq_row(
     seen_fastq_rows.add(key)
 
 
-def _write_normalized_samplesheet(output_path: Path, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
+def _write_normalized_samplesheet(
+    output_path: Path,
+    fieldnames: list[str],
+    rows: list[dict[str, str]],
+) -> None:
+    write_csv_lf(output_path, fieldnames, rows)

@@ -11,7 +11,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import traceback
 from pathlib import Path
 
 
@@ -48,9 +47,9 @@ from command_builder import build_nextflow_command
 from errors import ErrorCode, SkillError
 from executor import execute_nextflow
 from outputs_parser import parse_outputs
-from params_builder import build_effective_params, write_params_yaml
+from params_builder import build_effective_params, tuning_params, write_params_yaml
 from pipeline_source import resolve_pipeline_source
-from preflight import check_resume_params_checksum, check_resume_samplesheet_checksum, run_preflight
+from preflight import params_payload_checksum, check_resume_params_checksum, check_resume_samplesheet_checksum, run_preflight
 from provenance import write_provenance_bundle
 from reporting import write_check_result, write_report, write_repro_commands, write_result
 from samplesheet_builder import validate_and_normalize_samplesheet
@@ -58,8 +57,10 @@ from schemas import (
     DEFAULT_PIPELINE_VERSION,
     DEFAULT_PROFILE,
     DEFAULT_TIMEOUT_HOURS,
+    DEMO_RESOURCE_LIMITS,
     DEFAULT_TRIMMER,
     SKILL_NAME,
+    SUPPORTED_PROFILES,
     SUPPORTED_ALIGNERS,
     SUPPORTED_BRACKEN_PRECISION,
     SUPPORTED_CONTAMINANT_SCREENING,
@@ -73,6 +74,10 @@ from schemas import (
     SUPPORTED_UMI_TOOLS,
 )
 
+from clawbio.common.nfcore.resources import cap_to_profile_limits, uses_local_docker_capacity
+from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
+from clawbio.common.nfcore.failures import report_skill_error, report_unexpected_error
 from clawbio.common.textio import write_text_lf
 
 
@@ -168,7 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume", action="store_true", help="Attempt checksum-validated Nextflow resume")
     parser.add_argument(
         "--timeout-hours",
-        type=_timeout_hours,
+        type=timeout_hours,
         default=DEFAULT_TIMEOUT_HOURS,
         help=(
             f"Wall-clock ceiling for the local Nextflow run before it is terminated "
@@ -567,11 +572,6 @@ def _print(msg: str) -> None:
     print(msg, flush=True)
 
 
-def _indent(text: str, n: int) -> str:
-    pad = " " * n
-    return "\n".join(pad + line for line in text.splitlines())
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -582,12 +582,12 @@ def main(argv: list[str] | None = None) -> int:
         _check_pipeline_version_supported(args)
         return _run_wrapper(args, output_dir)
     except SkillError as exc:
-        return _handle_skill_error(output_dir, exc, verbose=getattr(args, "verbose", False))
+        return report_skill_error(output_dir, exc, verbose=getattr(args, "verbose", False))
     except KeyboardInterrupt:
         _print("[abort] Interrupted by user.")
         return 130
     except Exception as exc:
-        return _handle_unexpected_error(
+        return report_unexpected_error(
             output_dir, exc, verbose=getattr(args, "verbose", False)
         )
 
@@ -645,42 +645,51 @@ _DEMO_CLEARED_REFERENCE_FIELDS = (
 )
 
 
-# High-signal tuning flags a user is most likely to *believe* took effect under
-# --demo but that the hermetic upstream `test` profile silently owns and ignores
-# (a -params-file value would override the profile, so build_effective_params
-# deliberately writes none of them in demo mode). Warned — never errored — so a
-# demo run is not mistaken for e.g. a UMI-deduplicated or contaminant-screened one
-# (audit F-02). Reference/index flags are handled separately above.
-_DEMO_IGNORED_TUNING_FIELDS = (
-    "pseudo_aligner",
-    "contaminant_screening",
-    "remove_ribo_rna",
-    "ribo_removal_tool",
-    "with_umi",
-    "skip_umi_extract",
-    "gencode",
-    "bbsplit_fasta_list",
-    "bbsplit_index",
-)
+# Wrapper flags that compose a Nextflow profile (arm64, prokaryotic) instead of only
+# writing a pipeline parameter, so a hermetic test profile still honours them.
+_PROFILE_MODIFIER_FIELDS = frozenset({"arm", "prokaryotic"})
+
+
+def _hermetic_ignored_flags(args: argparse.Namespace) -> list[str]:
+    """CLI flags whose pipeline parameters a hermetic test profile owns.
+
+    Derived from the params builder: a flag is listed when, on its own, it changes
+    the tuning parameters a real run would write. A new pipeline flag therefore can
+    never be dropped silently under --demo or --profile test. Reference flags and
+    --aligner/--input have their own warnings.
+    """
+    parser = build_parser()
+    defaults = parser.parse_args(["--output", "."])
+    baseline = tuning_params(defaults)
+    flags: list[str] = []
+    for dest, default in vars(defaults).items():
+        value = getattr(args, dest, default)
+        if dest in _PROFILE_MODIFIER_FIELDS or value == default:
+            continue
+        probe = argparse.Namespace(**vars(defaults))
+        setattr(probe, dest, value)
+        if tuning_params(probe) != baseline:
+            flags.append(_option_for(parser, dest, value))
+    return flags
+
+
+def _option_for(parser: argparse.ArgumentParser, dest: str, value: object) -> str:
+    """The long option that sets ``dest`` to ``value`` (``--no-deseq2-vst`` for False)."""
+    actions = [a for a in parser._actions if a.dest == dest and a.option_strings]
+    chosen = next((a for a in actions if a.nargs == 0 and a.const == value), actions[0])
+    return next(o for o in chosen.option_strings if o.startswith("--"))
 
 
 def _warn_about_ignored_hermetic_tuning_flags(args: argparse.Namespace, *, mechanism: str = "--demo") -> None:
     """Warn that tuning flags are ignored under a hermetic test profile.
 
     Both ``--demo`` and a self-contained nf-core test profile (``--profile test``/
-    ``test_full``/…) run a profile that owns every pipeline parameter, so any tuning
-    flag the user set has no effect. ``mechanism`` names which one fired so the
-    message is accurate for either path (audit F1).
+    ``test_full``/…) run a profile that owns every pipeline parameter (a -params-file
+    value would override it, so build_effective_params writes none of them), and any
+    tuning flag the user set has no effect. Warned, never errored, so a demo run is
+    not mistaken for e.g. a UMI-deduplicated one. ``mechanism`` names which one fired.
     """
-    set_flags = [
-        "--" + field.replace("_", "-")
-        for field in _DEMO_IGNORED_TUNING_FIELDS
-        if getattr(args, field, None)
-    ]
-    # --trimmer defaults to a non-None sentinel (DEFAULT_TRIMMER); only a non-default
-    # choice is a meaningful, silently-ignored override.
-    if getattr(args, "trimmer", DEFAULT_TRIMMER) not in (None, DEFAULT_TRIMMER):
-        set_flags.append("--trimmer")
+    set_flags = _hermetic_ignored_flags(args)
     if set_flags:
         print(
             f"WARNING: {mechanism} ignores tuning flags ({', '.join(set_flags)}); the upstream "
@@ -892,6 +901,12 @@ def _run_wrapper_with_staging(args: argparse.Namespace, output_dir: Path, *, sta
         f"(warnings: {len(preflight_result.get('warnings', []) or [])})"
     )
     if args.check:
+        params_payload = build_effective_params(
+            args, normalized_samplesheet=normalized_samplesheet, output_dir=output_dir,
+            gencode_autodetected=bool(preflight_result.get("gencode_autodetected", False)),
+        )
+        _check_resume_params_checksum(args, output_dir=output_dir, params_payload=params_payload)
+        _check_resume_samplesheet_checksum(args, output_dir=output_dir, staged_samplesheet=staged_samplesheet)
         if staged_samplesheet != normalized_samplesheet:
             _commit_validated_samplesheet(staged_samplesheet, normalized_samplesheet)
         return _write_check_mode_result(output_dir, preflight_result=preflight_result, pipeline_source=pipeline_source)
@@ -1060,6 +1075,28 @@ def _write_check_mode_result(
     return 0
 
 
+def _write_launch_manifest(args, *, output_dir, pipeline_source, normalized_samplesheet, params_payload, preflight_result):
+    from datetime import datetime, timezone
+    from clawbio.common.checksums import sha256_file
+    from clawbio.common.nfcore.cli import canonical_work_dir
+    from clawbio.common.nfcore.artifacts import write_manifest_checkpoint
+
+    manifest = {
+        "skill_name": SKILL_NAME, "pipeline_source": pipeline_source,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "profile": args.profile, "preset": getattr(args, "preset", None),
+        "aligner": getattr(args, "aligner", ""), "pseudo_aligner": getattr(args, "pseudo_aligner", None),
+        "prokaryotic": bool(getattr(args, "prokaryotic", False)),
+        "demo": bool(args.demo), "arm": bool(getattr(args, "arm", False)),
+        "work_dir": canonical_work_dir(args, output_dir),
+        "params_checksum": params_payload_checksum(params_payload),
+        "samplesheet_checksum": sha256_file(normalized_samplesheet),
+        "java_version": preflight_result.get("java", {}).get("version", ""),
+        "nextflow_version": preflight_result.get("nextflow", {}).get("version", ""),
+    }
+    write_manifest_checkpoint(output_dir, manifest)
+
+
 def _run_execution_mode(
     args: argparse.Namespace,
     *,
@@ -1081,6 +1118,11 @@ def _run_execution_mode(
     _commit_validated_samplesheet(staged_samplesheet, normalized_samplesheet)
     params_path = write_params_yaml(params_payload, output_dir=output_dir)
     command, command_str = _build_nextflow_invocation(args, output_dir, pipeline_source, params_path)
+    _write_launch_manifest(
+        args, output_dir=output_dir, pipeline_source=pipeline_source,
+        normalized_samplesheet=normalized_samplesheet, params_payload=params_payload,
+        preflight_result=preflight_result,
+    )
     nextflow_cwd = _nextflow_execution_cwd(output_dir)
     started = time.monotonic()
     _print(
@@ -1175,16 +1217,20 @@ def _build_extra_nextflow_configs(args: argparse.Namespace, output_dir: Path) ->
     configs: list[Path] = []
     profile_parts = {p.strip() for p in getattr(args, "profile", "").split(",") if p.strip()}
     arm = bool(getattr(args, "arm", False))
-    if "docker" in profile_parts:
+    if "docker" in profile_parts and uses_local_docker_capacity(args, SUPPORTED_PROFILES):
         if platform.system() == "Darwin":
-            configs.append(_write_macos_docker_config(output_dir, arm=arm, timeout_hours=_resolve_timeout_hours(args)))
-        elif not bool(getattr(args, "demo", False)):
+            configs.append(_write_macos_docker_config(
+                output_dir, arm=arm, timeout_hours=_resolve_timeout_hours(args), demo=bool(getattr(args, "demo", False))
+            ))
+        else:
             # Non-macOS docker runs use the local executor, which aborts a real run
             # when a process's production requirement exceeds this host's RAM (e.g.
             # PREPARE_GENOME requesting 72 GB on a 63 GB machine). Cap requests to the
-            # host per nf-core resourceLimits guidance. --demo relies on -profile test's
-            # own (smaller) resourceLimits, so it is deliberately left untouched.
-            configs.append(_write_resource_limits_config(output_dir, timeout_hours=_resolve_timeout_hours(args)))
+            # host per nf-core resourceLimits guidance. --demo keeps -profile test's own
+            # limits, lowered only when this machine is smaller.
+            configs.append(_write_resource_limits_config(
+                output_dir, timeout_hours=_resolve_timeout_hours(args), demo=bool(getattr(args, "demo", False))
+            ))
     for user_cfg in getattr(args, "nextflow_config", None) or []:
         # --nextflow-config accepts local paths only; Path.resolve() is intentional.
         # Nextflow's own -c flag also expects local file paths in typical use.
@@ -1197,44 +1243,11 @@ _MACOS_DOCKER_MEMORY_FLOOR_GB = 8
 
 
 def _detect_host_memory_gb() -> int | None:
-    """Return total physical RAM in whole GB, or None when it cannot be determined."""
-    try:
-        page_size = os.sysconf("SC_PAGE_SIZE")
-        phys_pages = os.sysconf("SC_PHYS_PAGES")
-    except (ValueError, OSError, AttributeError):
-        return None
-    if page_size <= 0 or phys_pages <= 0:
-        return None
-    return int((page_size * phys_pages) / (1024 ** 3))
+    return _runtime.host_memory_gb()
 
 
 def _docker_vm_memory_gb() -> int | None:
-    """Return the Docker VM's total memory in whole GB, or None when unknown.
-
-    On macOS, Docker Desktop runs containers in a Linux VM whose RAM is usually
-    smaller than the host's. `docker info` reports that VM's MemTotal (bytes), which
-    is the true ceiling a container process can use before being OOM-killed
-    (audit F-8). Best-effort: any failure (docker absent, daemon down, unparseable
-    output) returns None so the caller falls back to the host-derived heuristic.
-    """
-    if not shutil.which("docker"):
-        return None
-    try:
-        proc = subprocess.run(
-            ["docker", "info", "--format", "{{.MemTotal}}"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if proc.returncode != 0:
-        return None
-    raw = proc.stdout.strip()
-    if not raw.isdigit():
-        return None
-    gb = int(int(raw) / (1024 ** 3))
-    return gb or None
+    return _runtime.docker_memory_gb()
 
 
 def _macos_docker_memory_gb() -> int:
@@ -1262,19 +1275,23 @@ def _macos_docker_memory_gb() -> int:
     return budget
 
 
-def _write_macos_docker_config(output_dir: Path, *, arm: bool = False, timeout_hours: float = DEFAULT_TIMEOUT_HOURS) -> Path:
+def _write_macos_docker_config(
+    output_dir: Path, *, arm: bool = False, timeout_hours: float = DEFAULT_TIMEOUT_HOURS, demo: bool = False
+) -> Path:
     config_path = output_dir / ".nextflow_macos_docker.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     # --platform linux/amd64 forces qemu emulation on Apple Silicon; omit when using
     # ARM64-native containers (--arm / arm64 profile) so they run at native speed.
     platform_opts = "" if arm else "    containerOptions = '--platform linux/amd64'\n"
     docker_block = "" if arm else "docker {\n    runOptions = '--platform linux/amd64'\n}\n"
-    # Autodetect CPU ceiling so users on multi-core Macs aren't capped at 4. Floor of
-    # 4 preserves prior behaviour on tiny VMs. Memory/time stay conservative because
+    # Bound CPU requests to both the host and the Docker runtime.
+    # Memory/time stay conservative because
     # over-allocating memory can trigger OOM-kills (worse than throttling); users on
     # high-RAM hosts can override via --nextflow-config.
-    cpus = max(4, os.cpu_count() or 4)
-    memory_gb = _macos_docker_memory_gb()
+    # The executor's aggregate budget is the runtime's; a demo's per-process limits
+    # stay within the test profile's own.
+    cpus, memory_gb = _runtime_cpu_count(), _macos_docker_memory_gb()
+    limit_cpus, limit_memory_gb = cap_to_profile_limits(cpus, memory_gb, DEMO_RESOURCE_LIMITS if demo else None)
     # The per-process time ceiling tracks --timeout-hours (audit F-4) so a large-cohort
     # run raised above the 12h default is not capped back to 12h by this config. Floored
     # at 1h so a sub-hour --timeout-hours never emits an invalid '0.h' duration.
@@ -1284,11 +1301,13 @@ def _write_macos_docker_config(output_dir: Path, *, arm: bool = False, timeout_h
     write_text_lf(
         config_path,
         "// macOS Docker compatibility for nf-core/rnaseq.\n"
+        f"executor.cpus = {cpus}\n"
+        f"executor.memory = '{memory_gb}.GB'\n"
         "process {\n"
         "    stageInMode = 'copy'\n"
         "    resourceLimits = [\n"
-        f"        cpus: {cpus},\n"
-        f"        memory: '{memory_gb}.GB',\n"
+        f"        cpus: {limit_cpus},\n"
+        f"        memory: '{limit_memory_gb}.GB',\n"
         f"        time: '{time_hours}.h'\n"
         "    ]\n"
         + platform_opts
@@ -1299,6 +1318,18 @@ def _write_macos_docker_config(output_dir: Path, *, arm: bool = False, timeout_h
 
 
 _RESOURCE_LIMITS_MEMORY_HEADROOM_GB = 4
+
+
+def _docker_vm_cpu_count() -> int | None:
+    from clawbio.common.nfcore.runtime import docker_cpu_count
+
+    return docker_cpu_count()
+
+
+def _runtime_cpu_count() -> int:
+    host = max(1, os.cpu_count() or 1)
+    runtime = _docker_vm_cpu_count()
+    return min(host, runtime) if runtime else host
 
 
 def _resource_limits_memory_gb() -> int:
@@ -1318,10 +1349,13 @@ def _resource_limits_memory_gb() -> int:
     if not signals:
         return _MACOS_DOCKER_MEMORY_CEILING_GB
     budget = min(signals) - _RESOURCE_LIMITS_MEMORY_HEADROOM_GB
-    return max(_MACOS_DOCKER_MEMORY_FLOOR_GB, budget)
+    ceiling = min(signals) if signals else _MACOS_DOCKER_MEMORY_FLOOR_GB
+    return min(max(1, ceiling - 1), max(1, max(_MACOS_DOCKER_MEMORY_FLOOR_GB, budget)))
 
 
-def _write_resource_limits_config(output_dir: Path, *, timeout_hours: float = DEFAULT_TIMEOUT_HOURS) -> Path:
+def _write_resource_limits_config(
+    output_dir: Path, *, timeout_hours: float = DEFAULT_TIMEOUT_HOURS, demo: bool = False
+) -> Path:
     """Write a host-scaled ``resourceLimits`` config for non-macOS docker runs.
 
     Carries only the portable resourceLimits block — none of the macOS-only
@@ -1330,8 +1364,10 @@ def _write_resource_limits_config(output_dir: Path, *, timeout_hours: float = DE
     """
     config_path = output_dir / ".nextflow_resource_limits.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    cpus = max(1, os.cpu_count() or 1)
-    memory_gb = _resource_limits_memory_gb()
+    # The executor's aggregate budget is the host's; a demo's per-process limits stay
+    # within the test profile's own.
+    cpus, memory_gb = _runtime_cpu_count(), _resource_limits_memory_gb()
+    limit_cpus, limit_memory_gb = cap_to_profile_limits(cpus, memory_gb, DEMO_RESOURCE_LIMITS if demo else None)
     time_hours = int(DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
     write_text_lf(
         config_path,
@@ -1339,29 +1375,17 @@ def _write_resource_limits_config(output_dir: Path, *, timeout_hours: float = DE
         "// does not abort real runs whose production requirements exceed this machine.\n"
         "// Follows nf-core resourceLimits guidance (values match the machine maximum):\n"
         "// https://nf-co.re/docs/running/configuration/nextflow-for-your-system\n"
+        f"executor.cpus = {cpus}\n"
+        f"executor.memory = '{memory_gb}.GB'\n"
         "process {\n"
         "    resourceLimits = [\n"
-        f"        cpus: {cpus},\n"
-        f"        memory: '{memory_gb}.GB',\n"
+        f"        cpus: {limit_cpus},\n"
+        f"        memory: '{limit_memory_gb}.GB',\n"
         f"        time: '{time_hours}.h'\n"
         "    ]\n"
         "}\n",
     )
     return config_path
-
-
-def _timeout_hours(value: str) -> float:
-    try:
-        hours = float(value)
-    except (TypeError, ValueError):
-        raise argparse.ArgumentTypeError(
-            f"--timeout-hours must be a number, got {value!r}"
-        )
-    if hours < 0:
-        raise argparse.ArgumentTypeError(
-            "--timeout-hours must be >= 0 (0 disables the timeout)"
-        )
-    return hours
 
 
 def _resolve_timeout_hours(args: argparse.Namespace) -> float:
@@ -1371,29 +1395,12 @@ def _resolve_timeout_hours(args: argparse.Namespace) -> float:
 
 
 def _resolve_nextflow_work_dir(args: argparse.Namespace, output_dir: Path) -> Path | str:
-    """Resolve the Nextflow work directory: default <output>/upstream/work, or the
-    user's --work-dir (a local path, or an object-store URI kept verbatim for cloud
-    executors). Parity with nfcore-scrnaseq/sarek."""
-    raw_work_dir = getattr(args, "work_dir", None)
-    if not raw_work_dir:
-        return output_dir / "upstream" / "work"
-    work_dir = str(raw_work_dir).strip()
-    if "://" in work_dir:
-        return work_dir
-    return Path(work_dir).expanduser().resolve()
+    return resolve_work_dir(getattr(args, "work_dir", None), output_dir=output_dir)
 
 
 def _resolve_timeout_seconds(args: argparse.Namespace) -> int | None:
-    """Translate --timeout-hours into seconds; 0 disables the cap (returns None).
-
-    Parity with nfcore-scrnaseq/sarek: the default keeps a wall-clock cap, but an
-    explicit ``--timeout-hours 0`` opts out (long HPC/cloud runs governed by the
-    scheduler's walltime).
-    """
-    hours = _resolve_timeout_hours(args)
-    if hours == 0:
-        return None
-    return int(hours * 60 * 60)
+    """Translate --timeout-hours into seconds; 0 disables the cap (returns None)."""
+    return timeout_seconds(getattr(args, "timeout_hours", None), default_hours=DEFAULT_TIMEOUT_HOURS)
 
 
 def _nextflow_execution_cwd(output_dir: Path) -> Path:
@@ -1404,15 +1411,39 @@ def _nextflow_replay_command(command_str: str, cwd: Path) -> str:
     return f"cd {shlex.quote(cwd.as_posix())} && {command_str}"
 
 
+def _recorded_pipeline_params(output_dir: Path) -> dict[str, object]:
+    """Parameters nf-core recorded for its latest launch (pipeline_info/params_*.json)."""
+    records = list((output_dir / "upstream" / "results" / "pipeline_info").glob("params_*.json"))
+    if not records:
+        return {}
+    latest = max(records, key=lambda path: (path.stat().st_mtime_ns, path.name))
+    try:
+        recorded = json.loads(latest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return recorded if isinstance(recorded, dict) else {}
+
+
 def _parse_outputs_with_effective_aligner(output_dir: Path, args: argparse.Namespace) -> dict[str, object]:
     aligner = getattr(args, "aligner", "star_salmon")
+    pseudo_aligner = getattr(args, "pseudo_aligner", None)
+    # A hermetic test profile owns pseudo_aligner (rnaseq 3.26.0's `test` runs Salmon
+    # pseudo-alignment) and ignores the flag, so report what nf-core recorded instead.
+    recorded = (
+        _recorded_pipeline_params(output_dir)
+        if getattr(args, "demo", False) or getattr(args, "_noinput", False)
+        else {}
+    )
+    if "pseudo_aligner" in recorded:
+        pseudo_aligner = recorded["pseudo_aligner"] or None
     parsed = parse_outputs(
         output_dir,
         aligner=aligner,
-        pseudo_aligner=getattr(args, "pseudo_aligner", None),
+        pseudo_aligner=pseudo_aligner,
         skip_alignment=bool(getattr(args, "skip_alignment", False)),
         skip_quantification_merge=bool(getattr(args, "skip_quantification_merge", False)),
     )
+    parsed["pseudo_aligner_from_pipeline"] = "pseudo_aligner" in recorded
     parsed["aligner_effective"] = aligner
     # parse_outputs already sets handoff_available (counts present AND not a skipped
     # merge); the only adjustment here is forcing it off for the HISAT2 alignment-only
@@ -1614,71 +1645,6 @@ def _record_downstream_handoff_result(
 
 def _downstream_flags_complete(args: argparse.Namespace) -> bool:
     return bool(getattr(args, "metadata", None) and getattr(args, "formula", None) and getattr(args, "contrast", None))
-
-
-def _write_error_result_if_safe(output_dir: Path, payload: dict[str, object]) -> None:
-    error_code = payload.get("error_code")
-    if error_code in {ErrorCode.OUTPUT_DIR_NOT_EMPTY, ErrorCode.OUTPUT_DIR_NOT_WRITABLE}:
-        return
-    if error_code == ErrorCode.INVALID_RESUME_STATE and (output_dir / "result.json").exists():
-        return
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        write_text_lf(output_dir / "result.json", json.dumps(payload, indent=2))
-    except OSError:
-        return
-
-
-def _handle_skill_error(
-    output_dir: Path, exc: SkillError, *, verbose: bool = False
-) -> int:
-    payload = exc.to_dict()
-    _write_error_result_if_safe(output_dir, payload)
-    # Human-readable box on stdout (sarek-style traceability).
-    _print("")
-    _print("================ SkillError ================")
-    _print(f"  stage:   {exc.stage}")
-    _print(f"  code:    {exc.error_code}")
-    _print(f"  message: {exc.message}")
-    _print(f"  fix:     {exc.fix}")
-    if exc.details and verbose:
-        _print("  details:")
-        _print(_indent(json.dumps(exc.details, indent=2, default=str), 4))
-    _print("============================================")
-    # Machine-readable error on stderr: always available even when result.json
-    # cannot be written (e.g. the output dir is a file or inside the repo).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    return 1
-
-
-def _handle_unexpected_error(
-    output_dir: Path, exc: Exception, *, verbose: bool = False
-) -> int:
-    payload = {
-        "status": "error",
-        "ok": False,
-        "stage": "internal",
-        "error_code": ErrorCode.UNEXPECTED_ERROR,
-        "message": str(exc),
-        "fix": "Report this as a bug. Include the traceback and command arguments.",
-        "details": {
-            "exception_type": type(exc).__name__,
-            "traceback": traceback.format_exc(),
-        },
-    }
-    _write_error_result_if_safe(output_dir, payload)
-    _print("")
-    _print("================ Internal error ================")
-    _print(f"  type:    {type(exc).__name__}")
-    _print(f"  message: {exc}")
-    if verbose:
-        _print(_indent(traceback.format_exc(), 4))
-    else:
-        _print("  Re-run with --verbose for the full traceback.")
-    _print("================================================")
-    # Machine-readable error on stderr (always available; see _handle_skill_error).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    return 1
 
 
 if __name__ == "__main__":
