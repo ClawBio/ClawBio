@@ -10,6 +10,8 @@ assignees: ''
 
 <!-- e.g. gwas-pipeline, pathway-enricher -->
 
+- [ ] I have checked that no similar skill already exists in [`skills/`](https://github.com/ClawBio/ClawBio/tree/main/skills)
+
 ## What it does
 
 <!-- 2-3 sentences describing the analysis this skill performs -->
