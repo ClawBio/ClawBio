@@ -373,7 +373,10 @@ def test_report_contains_disclaimer():
     p = _profiles()
     results = lookup_drugs(p)
     report = generate_report(str(DEMO), "23andme", 31, pgx, p, results)
-    assert "NOT a diagnostic device" in report
+    # The exact ClawBio wording (AGENTS.md); report.md is now sent on its own, with no PDF footer to add it.
+    from clawbio.common.report import DISCLAIMER
+
+    assert DISCLAIMER in report
 
 
 def test_report_renders_standard_classification_token():

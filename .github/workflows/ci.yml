@@ -48,6 +48,13 @@ jobs:
       - name: Check lockfile is up to date
         run: uv lock --check
 
+      # CI's test jobs install every extra, so a test that imports an extra's
+      # module unconditionally passes there and breaks a plain `uv sync`.
+      - name: Tests collect with core dependencies only
+        run: |
+          uv sync --locked
+          uv run pytest --collect-only -q
+
   dependency-audit:
     # Report-only, deliberately. Two reasons, both verified against uv 0.10.12:
     #
