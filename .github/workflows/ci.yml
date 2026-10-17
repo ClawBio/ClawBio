@@ -259,6 +259,9 @@ jobs:
       - name: Test ClawBio CLI
         run: uv run python clawbio.py list
 
+      - name: Run methylation-clock offline regression tests
+        run: uv run pytest skills/methylation-clock/tests/test_input_and_reporting.py -v
+
       - name: Run PharmGx Reporter tests
         run: uv run pytest skills/pharmgx-reporter/tests/test_pharmgx.py -v
 

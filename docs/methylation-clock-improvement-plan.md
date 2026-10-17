@@ -11,8 +11,8 @@ Make the skill dependable for research use: inputs are checked before inference,
 | Priority | Work | Acceptance evidence | Status |
 |---|---|---|---|
 | P0 | Keep metadata out of EPICv2 probe aggregation | The unfixed demo fails on `tissue`; the patched Horvath2013 demo completes with PyAging 0.5.7. | In draft fork PR #1; live run verified locally. |
-| P0 | Check input beta values, sample IDs, and categorical metadata | Invalid probes and duplicate IDs fail early; a CSV `sample_id` remains in predictions. | Implemented on `codex/methylation-clock-improvements`; offline tests. |
-| P0 | Give CI an offline regression check | A mocked aggregator sees only probe columns, including on a machine without PyAging. | Implemented; real PyAging preprocessing checks still run when installed. |
+| P0 | Check input beta values, sample IDs, and categorical metadata | Invalid beta values, blank or duplicate IDs, and probe columns misdeclared as metadata fail early; a CSV `sample_id` remains in predictions. | Implemented on `codex/methylation-clock-improvements`; offline tests. |
+| P0 | Give CI an offline regression check | A mocked aggregator sees only probe columns, including on a machine without PyAging. | Explicit CI matrix step is configured for Python 3.11, 3.12, and 3.13; real PyAging preprocessing checks still run when installed. |
 | P1 | Make outputs auditable | Report states clock units and input counts; `result.json`, QC table, and checksums include the report and result. | Implemented; live demo and checksum verification passed. |
 | P1 | Keep GEO downloads inside the chosen output directory | A mock download writes under `<output>/input/`; no data file is created in the checkout. | Implemented; live GEO download is not yet verified. |
 | P1 | Improve user instructions and meeting demo | `SKILL.md` documents beta input, sample IDs, trust boundary for pickle, and first-run weight download. | Implemented. |

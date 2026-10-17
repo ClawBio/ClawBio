@@ -73,6 +73,17 @@ def test_duplicate_sample_ids_are_rejected(tmp_path):
         clock._load_dataframe(source)
 
 
+@pytest.mark.parametrize("sample_id", ["", "   "])
+def test_blank_sample_ids_are_rejected(tmp_path, sample_id):
+    source = tmp_path / "samples.csv"
+    pd.DataFrame(
+        {"sample_id": ["person-A", sample_id], "cg00000029": [0.2, 0.8]}
+    ).to_csv(source, index=False)
+
+    with pytest.raises(ValueError, match="sample_id.*present"):
+        clock._load_dataframe(source)
+
+
 @given(st.floats(min_value=1.001, max_value=10, allow_nan=False, allow_infinity=False))
 def test_beta_values_above_one_are_rejected(value):
     frame = pd.DataFrame({"cg00000029": [0.2, value]}, index=["s1", "s2"])
@@ -90,6 +101,12 @@ def test_no_probe_columns_are_rejected():
     frame = pd.DataFrame({"gender": ["F", "M"]})
     with pytest.raises(ValueError, match="probe"):
         clock._validate_methylation_frame(frame, ["gender"])
+
+
+def test_probe_cannot_be_declared_as_metadata():
+    frame = pd.DataFrame({"cg00000029": [0.2, 0.8]}, index=["s1", "s2"])
+    with pytest.raises(ValueError, match="metadata.*probe"):
+        clock._validate_methylation_frame(frame, ["cg00000029"])
 
 
 def test_input_qc_counts_observed_and_missing_beta_values():

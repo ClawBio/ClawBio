@@ -86,11 +86,16 @@ def _load_dataframe(path: Path) -> pd.DataFrame:
         raise ValueError("Unsupported input format. Use .pkl, .pickle, .csv, .tsv, .csv.gz, or .tsv.gz")
 
     if "sample_id" in df.columns:
-        if df["sample_id"].isna().any() or not df["sample_id"].is_unique:
+        sample_ids = df["sample_id"]
+        if (sample_ids.isna().any()
+                or sample_ids.astype(str).str.strip().eq("").any()
+                or not sample_ids.is_unique):
             raise ValueError("sample_id values must be present and unique")
         df = df.set_index("sample_id")
-    if not df.index.is_unique:
-        raise ValueError("Sample identifiers must be unique")
+    if (df.index.hasnans
+            or (df.index.astype(str).str.strip() == "").any()
+            or not df.index.is_unique):
+        raise ValueError("Sample identifiers must be present and unique")
     return df
 
 
@@ -101,6 +106,11 @@ def _validate_methylation_frame(df: pd.DataFrame, metadata_cols: list[str]) -> d
         raise ValueError("No methylation probe columns found (expected cg/ch/rs/nv IDs)")
     probe_set = set(probe_cols)
     metadata_set = set(metadata_cols)
+    metadata_probes = probe_set & metadata_set
+    if metadata_probes:
+        raise ValueError(
+            f"--metadata-cols cannot include methylation probe columns: {sorted(metadata_probes)[:3]}"
+        )
     nonnumeric = [
         col for col, dtype in df.dtypes.items()
         if col in probe_set and not pd.api.types.is_numeric_dtype(dtype)

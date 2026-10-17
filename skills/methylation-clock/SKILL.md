@@ -63,7 +63,7 @@ This skill standardizes a PyAging-first pipeline from ingestion to report genera
   - GEO accession with `--geo-id` (example: `GSE139307`)
   - Local file with `--input` (`.pkl`, `.pickle`, `.csv`, `.tsv`, `.csv.gz`, `.tsv.gz`)
 - One row per sample and numeric methylation beta values in `[0, 1]` under `cg`, `ch`, `rs`, or `nv` probe IDs. Missing probe values are allowed and passed to PyAging's selected imputer.
-- An optional `sample_id` column in CSV/TSV files becomes the sample index and must be unique. Otherwise CSV/TSV rows receive numeric IDs. Pickle files retain their DataFrame index.
+- An optional `sample_id` column in CSV/TSV files becomes the sample index and must be present, nonblank, and unique. Otherwise CSV/TSV rows receive numeric IDs. Pickle files retain their DataFrame index, which must also have present, nonblank, unique identifiers.
 - Known metadata columns are `gender`, `sex`, `tissue_type`, and `dataset`. List any other nonnumeric columns with `--metadata-cols`; do not list a probe column as metadata.
 - Required output directory via `--output`
 - Optional clock list via `--clocks`
