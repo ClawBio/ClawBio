@@ -126,6 +126,10 @@ class TestDetectSkillFromQuery:
         ("Search pubmed for papers", "lit-synthesizer"),
         ("methylation clock analysis", "methylation-clock"),
         ("clinpgx gene drug lookup", "clinpgx"),
+        ("What MLST sequence type is this genome?", "isolate-amr-typing"),
+        ("Interpret my AMRFinderPlus output", "isolate-amr-typing"),
+        ("Which plasmid replicons does it carry?", "isolate-amr-typing"),
+        ("Type this bacterial isolate assembly", "isolate-amr-typing"),
     ])
     def test_keyword_hits(self, query, expected):
         assert detect_skill_from_query(query) == expected
@@ -240,6 +244,9 @@ class TestSkillRegistryMap:
         available = list_available_skills()
         for key in SKILL_REGISTRY_MAP:
             assert key in available, f"Registry key '{key}' is not a valid skill directory"
+
+    def test_isolate_amr_typing_maps_to_runner_alias(self):
+        assert SKILL_REGISTRY_MAP["isolate-amr-typing"] == "isolate-amr"
 
     def test_just_prs_maps_to_runner_alias(self):
         assert SKILL_REGISTRY_MAP["just-prs-mcp"] == "just-prs"

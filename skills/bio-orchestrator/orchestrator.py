@@ -188,6 +188,15 @@ KEYWORD_MAP: dict[str, str] = {
     "dunedinpace": "methylation-clock",
     "geo accession": "methylation-clock",
     "gse": "methylation-clock",
+    "mlst": "isolate-amr-typing",
+    "sequence type": "isolate-amr-typing",
+    "sequence typing": "isolate-amr-typing",
+    "amrfinder": "isolate-amr-typing",
+    "plasmidfinder": "isolate-amr-typing",
+    "plasmid replicon": "isolate-amr-typing",
+    "bacterial isolate": "isolate-amr-typing",
+    "isolate typing": "isolate-amr-typing",
+    "amr typing": "isolate-amr-typing",
 }
 
 SKILLS_DIR = Path(__file__).resolve().parent.parent
@@ -608,6 +617,7 @@ SKILL_REGISTRY_MAP: dict[str, str] = {
     "genome-compare": "compare",
     "gwas-prs": "prs",
     "just-prs-mcp": "just-prs",
+    "isolate-amr-typing": "isolate-amr",
     "clinpgx": "clinpgx",
     "gwas-lookup": "gwas",
     "profile-report": "profile",
