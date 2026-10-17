@@ -999,3 +999,49 @@ def test_dpyd_without_hapb3_is_not_called_normal():
     """Testing only *2A/*13/D949V cannot rule out HapB3, so it must not read Normal."""
     genotypes = {r: g for r, g in _DPYD_REF.items() if r != "rs75017182"}
     assert _dpyd(genotypes)[1].startswith("Indeterminate")
+
+
+# CPIC fluorouracil/capecitabine recommendation at DPYD activity score 1.0
+# (api.cpicpgx.org/v1/recommendation, RxNorm:4492 and RxNorm:194000).
+_CPIC_D949V_HOM = ("Patients with the c.2846A>T/c.2846A>T genotype may require "
+                   ">50% reduction in starting dose.")
+
+
+def _dpyd_profiles(genotypes):
+    diplotype, phenotype = _dpyd(genotypes)
+    return {"DPYD": {"diplotype": diplotype, "phenotype": phenotype}}
+
+
+def _batch_entry(profiles, drug):
+    return next(d for cat in lookup_drugs(profiles).values() for d in cat if d["drug"] == drug)
+
+
+@pytest.mark.parametrize("drug", ["Fluorouracil", "Capecitabine"])
+def test_dpyd_homozygous_d949v_carries_cpic_caveat(drug):
+    """CPIC: c.2846A>T homozygotes (AS 1.0) may need more than the standard 50% reduction."""
+    profiles = _dpyd_profiles({**_DPYD_REF, "rs67376798": "AA"})
+    assert profiles["DPYD"]["diplotype"] == "D949V/D949V"
+    batch = _batch_entry(profiles, drug)
+    single = lookup_single_drug(drug, profiles)
+    for entry in (batch, single):
+        assert entry["classification"] == "caution"
+        assert _CPIC_D949V_HOM in entry.get("note", "")
+
+
+@pytest.mark.parametrize("genotypes", [
+    {**_DPYD_REF, "rs67376798": "TA"},                         # Normal/D949V, AS 1.5
+    {**_DPYD_REF, "rs3918290": "CT"},                          # Normal/*2A, AS 1.0
+    {**_DPYD_REF, "rs75017182": "CC"},                         # HapB3/HapB3, AS 1.0
+    {**_DPYD_REF, "rs67376798": "TA", "rs75017182": "GC"},     # D949V/HapB3, AS 1.0
+])
+@pytest.mark.parametrize("drug", ["Fluorouracil", "Capecitabine"])
+def test_dpyd_caveat_only_for_homozygous_d949v(genotypes, drug):
+    profiles = _dpyd_profiles(genotypes)
+    for entry in (_batch_entry(profiles, drug), lookup_single_drug(drug, profiles)):
+        assert "2846" not in entry.get("note", "")
+
+
+def test_dpyd_d949v_caveat_reaches_dosage_card():
+    profiles = _dpyd_profiles({**_DPYD_REF, "rs67376798": "AA"})
+    card = format_dosage_card(lookup_single_drug("Capecitabine", profiles))
+    assert ">50% reduction in starting dose" in " ".join(card.split())
