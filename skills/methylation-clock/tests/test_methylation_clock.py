@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ from methylation_clock import DEFAULT_CLOCKS, parse_clock_list, run_analysis
 SKILL_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = SKILL_DIR.parents[1]
 FIXTURE = SKILL_DIR / "data" / "GSE139307_small.csv.gz"
+LIVE_CLOCKS = os.environ.get("CLAWBIO_TEST_METHYLATION_NETWORK") == "1"
 
 
 def test_parse_clock_list_defaults():
@@ -23,6 +25,8 @@ def test_parse_clock_list_defaults():
     assert clocks == DEFAULT_CLOCKS
 
 
+@pytest.mark.network
+@pytest.mark.skipif(not LIVE_CLOCKS, reason="set CLAWBIO_TEST_METHYLATION_NETWORK=1 to download clock weights")
 def test_run_analysis_with_fixture(tmp_path):
     out_dir = tmp_path / "methylation_report"
     result = run_analysis(
@@ -49,6 +53,8 @@ def test_run_analysis_with_fixture(tmp_path):
     assert "ClawBio is a research and educational tool" in report_text
 
 
+@pytest.mark.network
+@pytest.mark.skipif(not LIVE_CLOCKS, reason="set CLAWBIO_TEST_METHYLATION_NETWORK=1 to download clock weights")
 def test_cli_smoke_with_fixture(tmp_path):
     out_dir = tmp_path / "methylation_cli"
     script = SKILL_DIR / "methylation_clock.py"

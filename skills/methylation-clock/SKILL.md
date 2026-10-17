@@ -62,6 +62,9 @@ This skill standardizes a PyAging-first pipeline from ingestion to report genera
 - Exactly one input source:
   - GEO accession with `--geo-id` (example: `GSE139307`)
   - Local file with `--input` (`.pkl`, `.pickle`, `.csv`, `.tsv`, `.csv.gz`, `.tsv.gz`)
+- One row per sample and numeric methylation beta values in `[0, 1]` under `cg`, `ch`, `rs`, or `nv` probe IDs. Missing probe values are allowed and passed to PyAging's selected imputer.
+- An optional `sample_id` column in CSV/TSV files becomes the sample index and must be unique. Otherwise CSV/TSV rows receive numeric IDs. Pickle files retain their DataFrame index.
+- Known metadata columns are `gender`, `sex`, `tissue_type`, and `dataset`. List any other nonnumeric columns with `--metadata-cols`; do not list a probe column as metadata.
 - Required output directory via `--output`
 - Optional clock list via `--clocks`
 
@@ -69,16 +72,16 @@ This skill standardizes a PyAging-first pipeline from ingestion to report genera
 
 Demo fixture provenance and checksum are documented in `skills/methylation-clock/data/PROVENANCE.md`.
 
-Install optional methylation-clock dependency (not part of the global base requirements):
+Install the optional PyAging dependency in the Python environment used to run ClawBio. The demo below was verified with PyAging 0.5.7; first use of a clock downloads its public model weights. Local input data is not uploaded.
 
 ```bash
-pip install pyaging>=0.1
+python -m pip install "pyaging>=0.5.7,<0.6"
 ```
 
 ```bash
 # Demo
 python skills/methylation-clock/methylation_clock.py \
-  --input skills/methylation-clock/data/GSE139307_small.csv.gz \
+  --demo --clocks Horvath2013 \
   --output /tmp/methylation_clock_demo
 
 # GEO input
@@ -88,24 +91,30 @@ python skills/methylation-clock/methylation_clock.py \
 
 # Local methylation file
 python skills/methylation-clock/methylation_clock.py \
-  --input my_methylation.pkl \
-  --clocks Horvath2013,AltumAge,PCGrimAge,GrimAge2,DunedinPACE \
+  --input my_methylation.csv.gz \
+  --clocks Horvath2013,DunedinPACE \
   --output /tmp/methylation_clock_local
 ```
+
+Use pickle input only when you trust its source; deserializing an untrusted pickle can execute code. `--geo-id` downloads a public GEO example into the chosen output directory. The skill refuses a nonempty output directory.
+
+Horvath2013 estimates DNA methylation age in years. DunedinPACE estimates a pace of aging, so its values have a different meaning. The report reads each clock's unit from PyAging metadata. A difference between an estimate and chronological age is not, by itself, a validated health assessment or an age-acceleration analysis.
 
 ### Output Structure
 
 ```
 methylation_clock_report/
 ├── report.md
+├── result.json
 ├── figures/
 │   ├── clock_distributions.png
-│   └── clock_correlation.png
+│   └── clock_correlation.png  # only for two or more clocks
 ├── tables/
 │   ├── predictions.csv
 │   ├── prediction_summary.csv
 │   ├── missing_features.csv
-│   └── clock_metadata.json
+│   ├── clock_metadata.json
+│   └── input_qc.json
 └── reproducibility/
     ├── commands.sh
     ├── environment.yml
@@ -117,6 +126,7 @@ methylation_clock_report/
 1. ClawBio is local-first: user methylation data must remain on-device.
 2. The skill refuses non-empty output directories to avoid silent overwrite.
 3. Reports must include this disclaimer: "ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions."
+4. Check `tables/input_qc.json` and `tables/missing_features.csv` before interpreting a prediction. Missing-feature counts and successful execution do not establish validity for a tissue or cohort.
 
 ## Agent Boundary
 
