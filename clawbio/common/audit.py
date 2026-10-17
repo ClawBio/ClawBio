@@ -144,13 +144,16 @@ def skill_run(
     from opentelemetry.sdk.resources import OTELResourceDetector, Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
-    from opentelemetry.trace import StatusCode
+    from opentelemetry.sdk.trace.sampling import ALWAYS_ON
+    from opentelemetry.trace import StatusCode, get_current_span
 
     # Fallbacks for a plain CLI run. A caller names its own project and service
     # through OTEL_RESOURCE_ATTRIBUTES / OTEL_SERVICE_NAME. Resource.create() lets
     # our values beat those, so the environment is merged back on top; only what
     # it actually sets, or service.name would become "unknown_service".
-    provider = TracerProvider(resource=Resource.create({
+    # ALWAYS_ON: a caller's TRACEPARENT can say "not sampled", but the audit
+    # record is kept for every run regardless of what the caller exports.
+    provider = TracerProvider(sampler=ALWAYS_ON, resource=Resource.create({
         "service.name": "clawbio",
         # Phoenix groups traces by this; without it everything lands in "default".
         "openinference.project.name": "clawbio",
@@ -181,12 +184,24 @@ def skill_run(
             )
     tracer = provider.get_tracer(__name__)
 
+    # An agent that launched us as a subprocess can only hand over its span
+    # through the environment. An open span wins (full-profile nests skill_run in
+    # skill_run); the propagator drops a malformed value, leaving a root span.
+    parent = None
+    if not get_current_span().get_span_context().is_valid and os.environ.get("TRACEPARENT"):
+        from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+        parent = TraceContextTextMapPropagator().extract({
+            "traceparent": os.environ["TRACEPARENT"],
+            "tracestate": os.environ.get("TRACESTATE", ""),
+        })
+
     token = _TRACER.set(tracer)
     try:
         # The SDK would otherwise record an exception event and overwrite the
         # status description, both carrying the raw text past the hide flags.
         with tracer.start_as_current_span(
-            "skill_run", record_exception=False, set_status_on_exception=False
+            "skill_run", context=parent, record_exception=False, set_status_on_exception=False
         ) as span:
             span.set_attribute("gen_ai.agent.id", skill)
             span.set_attribute("gen_ai.agent.version", version)
