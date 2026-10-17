@@ -2,7 +2,7 @@ name: Publish to PyPI
 
 # Publish clawbio to PyPI whenever a version tag is pushed, e.g. `git tag v0.5.3 && git push --tags`.
 # Authentication uses PyPI Trusted Publishing (OIDC): no API token or secret is stored in the repo.
-# One-time PyPI setup is required (see packaging/README.md): pypi.org/project/clawbio -> Settings ->
+# One-time PyPI setup is required (see docs/releasing.md): pypi.org/project/clawbio -> Settings ->
 # Publishing -> add a GitHub trusted publisher with repo ClawBio/ClawBio, workflow `publish.yml`,
 # environment `pypi`.
 

@@ -109,37 +109,11 @@ uvx twine upload dist/*          # needs a PyPI token in ~/.pypirc
 git tag v0.5.3 && git push origin v0.5.3
 ```
 
-## Publish to bioconda (maintainer action: needs a bioconda-recipes fork)
+## Bioconda
 
-bioconda recipes live in the `bioconda/bioconda-recipes` repo, not here. The
-recipe in `packaging/bioconda/meta.yaml` is the source to copy in.
-
-1. **Pre-flight: every run dependency is available on conda channels** (verified
-   2026-06-05 via the anaconda.org API, which bioconda's channel stack covers):
-   - `pydeseq2` -> bioconda
-   - `rocrate` -> conda-forge
-   - `conda-lock` -> conda-forge (note: it is a *runtime* dependency here, which is
-     unusual; consider moving it to an optional group upstream)
-   - everything else (biopython, numpy, pandas, scikit-learn, matplotlib-base,
-     google-auth, google-cloud-bigquery, openai, opentelemetry-sdk, pyyaml) is on
-     conda-forge.
-
-   Re-verify before submitting:
-   ```bash
-   conda search -c conda-forge -c bioconda "pydeseq2"
-   conda search -c conda-forge -c bioconda "rocrate"
-   ```
-2. Fork `bioconda/bioconda-recipes`, create `recipes/clawbio/meta.yaml` from this
-   recipe.
-3. Update `sha256` to match the sdist actually on PyPI:
-   `shasum -a 256` the downloaded `clawbio-<v>.tar.gz` from PyPI.
-4. Lint and build locally with `bioconda-utils` (or rely on the PR CI):
-   ```bash
-   bioconda-utils lint recipes config.yml --packages clawbio
-   bioconda-utils build recipes config.yml --packages clawbio
-   ```
-5. Open a PR. The `@BiocondaBot please add label` flow and CI handle the rest;
-   merging publishes to the `bioconda` channel automatically.
+The recipe lives in bioconda-recipes, not here:
+[`recipes/clawbio/meta.yaml`](https://github.com/bioconda/bioconda-recipes/blob/master/recipes/clawbio/meta.yaml).
+Maintainer: @camlloyd.
 
 ## Notes / open items
 
