@@ -115,3 +115,16 @@ def test_preview_retains_incomplete_coverage_warning_and_diplotype_note():
     assert "Normal/Normal" in line
     assert "Indeterminate (incomplete coverage: 3/4 SNPs tested)" in line
     assert "(3/4 SNPs tested)" in line
+
+
+@pytest.mark.parametrize("suffix", [
+    "(3/4 SNPs tested; HapB3 not tested)",
+    "(1/4 SNPs tested; *13, D949V, HapB3 not tested)",
+    "(3/4 SNPs tested)",
+])
+def test_preview_dims_coverage_suffix_including_untested_markers(monkeypatch, suffix):
+    """#603 review: the untested-marker suffix is split off and dimmed, not inline."""
+    monkeypatch.setattr(cli, "DIM", "<DIM>")
+    line = _gene_line("Intermediate or Poor Metabolizer (HapB3 not tested)", f"Normal/*2A {suffix}")
+    assert f"<DIM>{suffix}" in line
+    assert "Normal/*2A" in _plain(line)
