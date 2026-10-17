@@ -1,0 +1,29 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "clawbio-research",
+  "version": "0.1.0",
+  "description": "Three reproducible ClawBio research demonstrations: pharmacogenomics, cached variant classification and population representation. Bundled data only; no private genomic uploads or clinical validation claims.",
+  "author": {"name": "Manuel Corpas", "email": "mc@manuelcorpas.com"},
+  "homepage": "https://clawbio.ai",
+  "repository": "https://github.com/ClawBio/ClawBio",
+  "license": "MIT",
+  "keywords": ["genomics", "bioinformatics", "research", "reproducibility"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "ClawBio Research",
+        "shortDescription": "Reproducible genomics research demos",
+        "longDescription": "Run three bundled research workflows and inspect their reports, missing-data handling and provenance. Requires Python execution and the listed dependencies. Demonstration data only. Research and educational use; not a medical device.",
+        "developerName": "Manuel Corpas",
+        "category": "Productivity",
+        "capabilities": ["Read", "Write"],
+        "websiteURL": "https://clawbio.ai",
+        "defaultPrompt": [
+          "Run the synthetic ClawBio pharmacogenomics demo and explain missing-data abstention.",
+          "Run the cached ClawBio variant-classification demo and inspect its evidence audit.",
+          "Run ClawBio's synthetic population-representation demo and explain what its metrics can establish."
+        ]
+      }
+    }
+  }
+}
