@@ -252,49 +252,10 @@ jobs:
       - name: Test ClawBio CLI
         run: uv run python clawbio.py list
 
-      - name: Run PharmGx Reporter tests
-        run: uv run pytest skills/pharmgx-reporter/tests/test_pharmgx.py -v
-
-      - name: Run Equity Scorer tests
-        run: uv run pytest skills/equity-scorer/tests/test_equity_scorer.py -v
-
-      - name: Run NutriGx tests
-        run: uv run pytest skills/nutrigx/tests/test_nutrigx.py -v
-
-      - name: Run Genome Comparator tests
-        run: uv run pytest skills/genome-compare/tests/test_genome_compare.py -v
-
-      - name: Run ClinPGx tests
-        run: uv run pytest skills/clinpgx/tests/test_clinpgx.py -v
-
-      - name: Run GWAS PRS tests
-        run: uv run pytest skills/gwas-prs/tests/ -v
-
-      - name: Run WGS PRS tests
-        run: uv run pytest skills/wgs-prs/tests/ -v
-
-      - name: Test prs-abstain skill
-        run: uv run pytest skills/prs-abstain/tests/test_prs_abstain.py -v
-
-      - name: Run GWAS Lookup tests
-        run: uv run pytest skills/gwas-lookup/tests/test_gwas_lookup.py -v
-
-      - name: Run RNA-seq DE tests
-        run: uv run pytest skills/rnaseq-de/tests/test_rnaseq_de.py -v
-
-      - name: Run nf-core Sarek Wrapper tests
-        run: uv run pytest skills/nfcore-sarek-wrapper/tests/ -v
-
-      - name: Run Skill Builder tests
-        run: uv run pytest skills/skill-builder/tests/test_skill_builder.py -v
-
-      - name: Run VCF Annotator tests
-        run: uv run pytest skills/vcf-annotator/tests/test_vcf_annotator.py -v
-
       - name: Run bot security tests
         run: uv run pytest bot/tests/test_security.py -v
 
-      # Repo-level tests were never run by this job. The steps above name skill
+      # Repo-level tests were never run by this job. It used to name skill
       # test files individually, so `tests/` was invisible to CI: both
       # test_generate_catalog.py and the bench-baseline gate's own tests could
       # have gone red on main without anything reporting it. A gate whose tests
@@ -310,12 +271,14 @@ jobs:
       - name: Run library tests
         run: uv run pytest clawbio/tests/ clawbio/common/tests/ -v
 
-      # The steps above are a hardcoded allowlist, so a NEW skill's tests never
-      # run: ClawBio#329 shipped a test that cannot pass and CI was still green,
-      # and ClawBio#324's just-prs suite never executed here at all. Any skill
-      # touched by a PR now has its own tests run, which is the minimum bar for
-      # a contribution to be considered verified.
-      - name: Run tests for skills changed in this PR
+      # This job used to run a hardcoded list of 13 skills, so a NEW skill's
+      # tests never ran: ClawBio#329 shipped a test that cannot pass and CI was
+      # still green, and ClawBio#324's just-prs suite never executed here at all.
+      # A PR now runs the tests of every skill it can affect: skills it touches,
+      # skills importing clawbio code it changes, and every skill when it changes
+      # uv.lock or pyproject.toml (scripts/select_skill_tests.py). Every skill's
+      # tests run on the scheduled sweep (nightly-sweep.yml).
+      - name: Run tests for skills this PR affects
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
@@ -329,53 +292,23 @@ jobs:
           head="${{ github.event.pull_request.head.sha }}"
           base=$(git merge-base "${{ github.event.pull_request.base.sha }}" "$head")
           echo "Diffing $base..$head"
-          changed=$(git diff --name-only "$base" "$head" -- 'skills/*' \
-                    | cut -d/ -f2 | sort -u)
+          changed=$(git diff --name-only "$base" "$head" \
+                    | uv run python scripts/select_skill_tests.py)
           if [ -z "$changed" ]; then
-            echo "No skills touched by this PR."
+            echo "No skills affected by this PR."
             exit 0
           fi
-          status=0
+          dirs=()
           for skill in $changed; do
-            # skills/ holds files as well as skill dirs (catalog.json), and a
-            # deleted skill still shows up in the diff.
-            if [ ! -d "skills/$skill" ]; then
-              continue
-            fi
-            if [ ! -d "skills/$skill/tests" ]; then
-              echo "WARNING: skills/$skill has no tests/ directory"
-              continue
-            fi
-            # Pick the runner from what tests/ actually contains. pytest exits
-            # 5 when it collects nothing, so running it unconditionally fails
-            # every skill whose tests are not Python. On #329 (an R skill with
-            # a run_test.sh harness) pytest collected 0 items, the job went
-            # red, and the harness that would really have tested it never ran
-            # — a maintainer-side red tick on a contributor's PR, which is the
-            # same class of misattribution the merge-base fix above addresses.
-            pycount=$(find "skills/$skill/tests" \
-                        \( -name 'test_*.py' -o -name '*_test.py' \) | wc -l)
-            if [ "$pycount" -gt 0 ]; then
-              echo "::group::pytest skills/$skill/tests"
-              uv run pytest "skills/$skill/tests" -v || status=1
-              echo "::endgroup::"
-              continue
-            fi
-            harness=$(find "skills/$skill/tests" -maxdepth 1 -name '*.sh' \
-                        | sort | head -1)
-            if [ -n "$harness" ]; then
-              # Handed to the skill-harness job below, which provisions the
-              # skill's own environment.yml and actually runs it. Skipped here
-              # rather than reported NOT VERIFIED, so the two jobs do not
-              # contradict each other in the same run.
-              msg="DEFERRED: skills/$skill ships $harness; the skill-harness job runs it."
-            else
-              msg="NOT VERIFIED: skills/$skill has a tests/ directory with neither Python tests nor a shell harness."
-            fi
-            echo "::warning::$msg"
-            echo "- $msg" >> "$GITHUB_STEP_SUMMARY"
+            if [ -d "skills/$skill/tests" ]; then dirs+=("skills/$skill/tests"); fi
           done
-          exit $status
+          if [ ${#dirs[@]} -eq 0 ]; then
+            echo "No affected skill has a tests/ directory."
+            exit 0
+          fi
+          # Exit 5 means nothing was collected: the affected skills' tests are all
+          # shell harnesses, which the skill-harness job runs (#329, #360).
+          uv run pytest "${dirs[@]}" -n auto || [ $? -eq 5 ]
 
   # Issue #360. A skill whose tests are a shell harness was never actually
   # verified by anything: the `test` job correctly declined to run pytest
