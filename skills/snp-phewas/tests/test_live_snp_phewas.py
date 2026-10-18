@@ -1,5 +1,5 @@
 """Live smoke (network): the response SHAPES the offline fixtures assume, the golden values
-on the live sources, and the two source behaviours this skill exists to handle.
+on the live sources, and the two source behaviors this skill exists to handle.
 
 Run with: RUN_LIVE_TESTS=1 python -m pytest skills/snp-phewas/tests/test_live_snp_phewas.py
 """
