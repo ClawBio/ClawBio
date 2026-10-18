@@ -112,7 +112,7 @@ python -m pytest skills/pharmgx-reporter/tests/ -v     # Single skill
 python -m pytest -k "test_demo" -v                     # By pattern
 ```
 
-Tests must pass on Python 3.12 and 3.13. CI runs both via GitHub Actions.
+Tests must pass on Python 3.12, 3.13 and 3.14. CI runs all three via GitHub Actions.
 
 ### Optional dependencies
 
@@ -317,7 +317,7 @@ python tests/benchmark/mock_api_server.py &
 
 - Branch from `main` in a new git worktree, so agents can work in parallel — name branches `feat/<skill-name>` or `fix/<skill-name>`
 - **One skill per PR** — keep changes focused
-- Tests must pass on Python 3.12 and 3.13
+- Tests must pass on Python 3.12, 3.13 and 3.14
 - Include demo output in the PR description so reviewers can verify
 - Update `skills/catalog.json` if you changed any SKILL.md YAML frontmatter
 - When opening a PR, use `.github/PULL_REQUEST_TEMPLATE.md` as the body — fill in every section, do not leave placeholders
