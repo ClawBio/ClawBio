@@ -67,11 +67,17 @@ log = logging.getLogger("snp_phewas")
 
 # --- argument handling ---------------------------------------------------------------
 
+INDEX_SIZE_NOTE = (
+    "Index files (downloaded once per release into the index cache; measured 2026-10-18 from\nthe sources' Content-Length): default scope 5.45 GB (589 Pan-UK Biobank + 2,469 FinnGen);\n--all-outcomes 17.9 GB (7,160 + 2,469); --quick none."
+)
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="snp-phewas",
         description="Variant PheWAS across Pan-UK Biobank and FinnGen R12: every outcome, "
-                    "nulls included, on one effect allele, with replication verdicts.")
+                    "nulls included, on one effect allele, with replication verdicts.",
+        epilog=INDEX_SIZE_NOTE, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--variant", help="rsID (rs12740374) or chr_pos_ref_alt (1_109274968_G_T)")
     ap.add_argument("--input", help="a text file whose first non-comment line is the variant")
     ap.add_argument("--output", help="output directory")
@@ -201,11 +207,12 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
         prov = result.provenance[dsid]
         line = (f"- **{get_dataset(dsid).label}**: tested in {tested:,} of "
                 f"{prov['n_queried']:,} outcomes read ({prov['n_catalog']:,} in the catalog)")
-        if tested:
-            alpha = 0.05 / tested
+        n_bonf = S.phenome_wide_n(result.dataset_rows(dsid))
+        if n_bonf:
+            alpha = 0.05 / n_bonf
             n_sig = sum(1 for r in result.dataset_rows(dsid)
                         if r.status == S.ST_OK and r.p_value is not None and r.p_value < alpha)
-            line += f"; {n_sig:,} below the phenome-wide threshold 0.05 / {tested:,}"
+            line += f"; {n_sig:,} below the phenome-wide threshold 0.05 / {n_bonf:,}"
         lines.append(line + ".")
     if table is not None and table.pairs:
         pair = table.pairs[0]
@@ -274,9 +281,6 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
                  f"{INDEX_STATS['cache_hits']:,} already cached.")
     lines.append(f"- Wall time: {wall_s:.1f} s.")
     lines += ["", "## Data sources", "", *[f"- {a}" for a in result.attributions()]]
-    others = not_served()
-    if others:
-        lines += ["", " ".join(others.values())]
     lines += ["", "## Files", "",
               "- `tables/snp_phewas_rows.tsv`: one row per catalog outcome per dataset, every status.",
               "- `tables/excluded.tsv`: the rows with no value, each with its reason.",
@@ -311,6 +315,12 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
     else:
         variant = args.variant or _variant_from_input(args.input)
         datasets = args.dataset
+        if not args.quick:
+            # Before any byte moves, so nobody is surprised by the first run's download.
+            size = "17.9 GB" if args.all_outcomes else "5.45 GB"
+            print(f"snp-phewas: a first run downloads up to {size} of index files into "
+                  f"{args.index_cache or 'the index cache'} (reused afterwards); "
+                  f"--quick downloads none.", file=sys.stderr)
     if args.quick:
         datasets = "finngen_r12"
     result = lookup_variant(variant, datasets=datasets, **kwargs)
@@ -322,7 +332,7 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
     S.write_rows_tsv(result.excluded, str(excl_tsv))
     produced += [rows_tsv, excl_tsv]
     if result.uncatalogued:
-        p = out / "tables" / "uncatalogued.tsv"
+        p = out / "tables" / "uncataloged.tsv"
         S.write_rows_tsv(result.uncatalogued, str(p))
         produced.append(p)
 
@@ -360,14 +370,16 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
         pair = table.pairs[0]
         summary["replication"] = {"pair": list(pair), "n_shared": table.n_shared[pair],
                                   "alpha": table.alpha[pair], "verdicts": table.counts(pair)}
+    # "ok" only when some outcome carries a value: an all-outage run is not a success.
+    any_value = any(r.status in S.TESTED_STATUSES for r in result.rows)
     data = {"query": v.query, "resolution_note": v.resolution_note, "notes": result.notes,
             "provenance": result.provenance,
             "index_cache": dict(INDEX_STATS),
-            "uncatalogued": [r.outcome_id for r in result.uncatalogued]}
+            "uncataloged": [r.outcome_id for r in result.uncatalogued]}
     produced.append(write_result_json(
         out, SKILL_NAME, VERSION, summary, data,
         datasets={d: get_dataset(d).release for d in result.dataset_ids},
-        status="ok", ok=True))
+        status="ok" if any_value else "error", ok=any_value))
 
     cmd = shlex.join(["python", SCRIPT_REL, *argv])
     produced.append(write_commands_sh(out, cmd))

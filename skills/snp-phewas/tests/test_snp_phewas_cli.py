@@ -78,7 +78,7 @@ def test_demo_report_states_scope_sources_and_disclaimer(demo_out):
     res = json.loads((demo_out / "result.json").read_text())
     assert res["skill"] == "snp-phewas" and res["summary"]["demo"] is True
     assert res["summary"]["replication"]["verdicts"]["replicates"] == 2
-    assert res["data"]["uncatalogued"] == ["K11_GINGIVITIS_PERIODONTAL"]
+    assert res["data"]["uncataloged"] == ["K11_GINGIVITIS_PERIODONTAL"]
 
 
 def test_reproducibility_bundle_verifies_from_the_output_dir(demo_out):
@@ -154,3 +154,16 @@ def test_demo_through_the_runner_writes_only_under_output(tmp_path):
     assert proc.returncode == 0, proc.stderr[-2000:]
     assert (out / "report.md").exists() and (out / "figures" / "manhattan.png").exists()
     assert snapshot() == before
+
+
+def test_a_live_run_warns_about_the_index_download_before_it_starts(monkeypatch, capsys, tmp_path):
+    """The first default run downloads 5.45 GB of index files; the user hears it first."""
+    import snp_phewas as cli
+
+    def stop(*a, **k):
+        raise SystemExit(0)
+
+    monkeypatch.setattr(cli, "lookup_variant", stop)
+    with pytest.raises(SystemExit):
+        cli.main(["--variant", "rs12740374", "--output", str(tmp_path)])
+    assert "5.45 GB" in capsys.readouterr().err

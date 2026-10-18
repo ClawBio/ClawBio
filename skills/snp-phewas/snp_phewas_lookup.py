@@ -167,7 +167,11 @@ def lookup_variant(
         want = set(outcomes[dsid]) if outcomes and dsid in outcomes else None
         if want is not None and want - cat_ids:
             raise ValueError(f"{dsid}: unknown outcome ids {sorted(want - cat_ids)[:5]}")
-        scoped = want is None and scope == "harmonized" and spec.family == "pan_ukbb"
+        # The matched-outcome cut exists for the replication view, so it applies only when a
+        # FinnGen dataset is in the lookup; Pan-UK Biobank alone reads its whole catalog.
+        with_finngen = any(get_dataset(d).family == "finngen" for d in ids)
+        scoped = (want is None and scope == "harmonized" and spec.family == "pan_ukbb"
+                  and with_finngen)
         if scoped:
             want = harmonized_pan_ukbb_outcomes() & cat_ids
         queried = [o for o in catalog if want is None or o.outcome_id in want]
@@ -260,11 +264,17 @@ def _dataset_notes(spec: DatasetSpec, rows: list[S.OutcomeRow], prov: dict, n_un
         out.append(f"{spec.label}: the source lists the alleles in the opposite order, so "
                    f"{flipped:,} effects were re-signed onto the {rows[0].effect_allele} allele.")
     if prov.get("api_outage_fallback"):
-        out.append(f"{spec.label}: the web API could not be reached ({prov.get('api_error')}), "
-                   f"so every endpoint was read from the files instead.")
+        if any(r.status not in S.TRANSIENT_STATUSES for r in rows
+               if r.status != S.ST_NOT_QUERIED):
+            out.append(f"{spec.label}: the web API could not be reached, so every endpoint "
+                       f"was read from the files instead.")
+        else:
+            out.append(f"{spec.label}: the web API could not be reached, and the files could "
+                       f"not be read either; no value is shown, and this is an outage, not "
+                       f"an absence.")
     if prov.get("route") in ("tabix", "api+tabix") and prov.get("elapsed_s") is not None:
         api = " plus one web-API request" if prov["route"] == "api+tabix" else ""
-        out.append(f"{spec.label}: read live from {prov['n_files_read']:,} files{api} in "
+        out.append(f"{spec.label}: read from {prov['n_files_read']:,} files{api} in "
                    f"{prov['elapsed_s']:.0f} s.")
     if prov.get("scope") == "harmonized" and prov["n_queried"] < prov["n_catalog"]:
         out.append(f"{spec.label}: read over the {prov['n_queried']:,} outcomes that have a "

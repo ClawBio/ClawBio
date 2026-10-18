@@ -13,9 +13,9 @@ manifest whose md5 differs from the pin in `datasets.yaml`.
 
 ## Acknowledgments
 
-- Pan-UK Biobank: Karczewski KJ, Gupta R, Kanai M, et al. medRxiv [Preprint]. 2024.
-  doi:10.1101/2024.03.13.24303864 (no PMID). This research has been conducted using the UK
-  Biobank Resource.
+- Pan-UK Biobank: Karczewski KJ, Gupta R, Kanai M, et al. Nat Genet. 2025;57(10):2408-2417.
+  doi:10.1038/s41588-025-02335-7. PMID: 40968291. This research has been conducted using the
+  UK Biobank Resource.
 - FinnGen: Kurki MI, Karjalainen J, Palta P, et al. Nature. 2023;613(7944):508-518.
   doi:10.1038/s41586-022-05473-8. PMID: 36653562. We want to acknowledge the participants
   and investigators of the FinnGen study.

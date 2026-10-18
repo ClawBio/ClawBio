@@ -349,7 +349,7 @@ def test_lookup_reads_both_datasets_and_accounts_for_every_catalog_outcome(offli
     assert e78.eaf is not None  # case/control file: controls' frequency
     assert [u.outcome_id for u in r.uncatalogued] == ["K11_GINGIVITIS_PERIODONTAL"]
     assert r.uncatalogued[0].status == S.ST_NOT_IN_CATALOG
-    assert any("read live" in n for n in r.notes)
+    assert any("files in" in n and "read from" in n for n in r.notes)
     assert any("only 3 of 7,160 outcomes were requested" in n for n in r.notes)
 
 
@@ -449,6 +449,22 @@ def test_hybrid_reads_the_files_when_the_api_is_down(offline_kwargs):
     assert any("web API could not be reached" in n for n in r.notes)
 
 
+def test_an_api_and_file_outage_says_so_and_never_claims_the_files_were_read(offline_kwargs, tmp_path):
+    from snp_phewas_catalog import get_dataset
+    from snp_phewas_sources import FinnGenReader
+
+    readers = demo_readers(api=DemoFinnGenApi(outage=True))
+    readers["finngen_r12"] = FinnGenReader(get_dataset("finngen_r12"), route="hybrid",
+                                           client=DemoFinnGenApi(outage=True),
+                                           data_base=str(tmp_path) + "/", workers=1)
+    offline_kwargs["readers"] = readers
+    r = lookup_variant("rs12740374", **offline_kwargs)
+    assert S.ST_ABSENT not in {x.status for x in r.dataset_rows("finngen_r12")
+                               if x.outcome_id in FG_OUTCOMES}
+    assert any("files could not be read either" in n for n in r.notes), r.notes
+    assert not any("read from the files instead" in n for n in r.notes)
+
+
 def test_build_mapping_failures_are_classified(offline_kwargs):
     def outage(*a, **k):
         raise SourceUnreachable("Ensembl assembly mapper: ReadTimeout")
@@ -471,24 +487,26 @@ class _CountingReader:
     """Stands in for a dataset reader: records which outcomes were asked for and answers
     'absent' for each, so the scope tests need no network."""
 
-    def __init__(self):
+    def __init__(self, finngen: bool = False):
         self.asked: list[str] = []
+        self.finngen = finngen  # the FinnGen reader also returns results outside the catalog
 
     def read(self, outcomes, tgt, catalog_ids=None):
         from snp_phewas_sources import RawRecord
 
         self.asked = [o.outcome_id for o in outcomes]
         recs = {o.outcome_id: RawRecord(S.ST_ABSENT, route="tabix") for o in outcomes}
-        return recs, {"route": "tabix"}
+        return (recs, {"route": "tabix"}, []) if self.finngen else (recs, {"route": "tabix"})
 
 
 def test_default_scope_reads_the_harmonized_pan_ukbb_outcomes_and_says_so(offline_kwargs):
     from snp_phewas_crosswalk import harmonized_pan_ukbb_outcomes
 
-    pan = _CountingReader()
-    offline_kwargs.update(readers={"pan_ukbb_eur": pan}, outcomes=None)
-    r = lookup_variant("rs12740374", datasets="pan_ukbb_eur", **offline_kwargs)
+    pan, fg = _CountingReader(), _CountingReader(finngen=True)
+    offline_kwargs.update(readers={"pan_ukbb_eur": pan, "finngen_r12": fg}, outcomes=None)
+    r = lookup_variant("rs12740374", datasets="pan_ukbb_eur,finngen_r12", **offline_kwargs)
     assert len(pan.asked) == 589 and set(pan.asked) == set(harmonized_pan_ukbb_outcomes())
+    assert len(fg.asked) == 2469  # FinnGen is always read in full
     assert r.status_counts("pan_ukbb_eur") == {"absent_in_dataset": 589, "not_queried": 7160 - 589}
     assert r.provenance["pan_ukbb_eur"]["scope"] == "harmonized"
     assert any("589 outcomes that have a FinnGen counterpart" in n and "--all-outcomes" in n
@@ -497,6 +515,16 @@ def test_default_scope_reads_the_harmonized_pan_ukbb_outcomes_and_says_so(offlin
     offline_kwargs.update(readers={"pan_ukbb_eur": every})
     r = lookup_variant("rs12740374", datasets="pan_ukbb_eur", scope="all", **offline_kwargs)
     assert len(every.asked) == 7160 and r.provenance["pan_ukbb_eur"]["scope"] == "all"
+
+
+def test_pan_ukbb_alone_is_read_in_full_because_there_is_no_replication_view(offline_kwargs):
+    """The matched-outcome cut exists for the cross-biobank comparison; with no FinnGen in the
+    lookup its stated reason would be false, so Pan-UK Biobank alone reads every outcome."""
+    pan = _CountingReader()
+    offline_kwargs.update(readers={"pan_ukbb_eur": pan}, outcomes=None)
+    r = lookup_variant("rs12740374", datasets="pan_ukbb_eur", **offline_kwargs)
+    assert len(pan.asked) == 7160 and r.provenance["pan_ukbb_eur"]["scope"] == "all"
+    assert not any("FinnGen counterpart" in n for n in r.notes)
     assert not any("FinnGen counterpart" in n for n in r.notes)
     with pytest.raises(ValueError, match="scope"):
         lookup_variant("rs12740374", scope="some", **offline_kwargs)
@@ -639,3 +667,38 @@ def test_every_outcome_label_is_unique_within_a_dataset():
     assert "rank-normalized" in pan["continuous-LDLC-both_sexes-medadj_irnt"]
     assert "raw units" in pan["continuous-LDLC-both_sexes-medadj_raw"]
     assert pan["biomarkers-30780-both_sexes-irnt"] == "LDL direct"
+
+
+def test_phenome_wide_denominator_counts_what_was_asked_not_only_what_has_a_value():
+    """An endpoint the API withholds above p = 0.05 was tested, and an outage was asked about:
+    counting only rows with a value let either loosen the threshold (the --quick report said
+    0.05 / 195 for a lookup over 2,469 endpoints)."""
+    def row(status):
+        return S.OutcomeRow(dataset_id="d", dataset_release="r", outcome_id=status,
+                            outcome_label="o", outcome_category_native="", outcome_kind="binary",
+                            n_cases=1, n_controls=1, n_total=2, variant_id_grch38="1_1_A_G",
+                            variant_id_native=None, rs_id=None, effect_allele="G",
+                            other_allele="A", status=status)
+
+    counted = [S.ST_OK, S.ST_LOW_CONFIDENCE, S.ST_API_CENSORED, S.ST_UNREACHABLE,
+               S.ST_FILE_MISSING, S.ST_RECORD_UNPARSABLE]
+    excluded = [S.ST_ABSENT, S.ST_NOT_TESTED, S.ST_ALLELE_MISMATCH, S.ST_BUILD_UNMAPPABLE,
+                S.ST_NOT_QUERIED, S.ST_NOT_IN_CATALOG]
+    assert S.phenome_wide_n([row(s) for s in counted + excluded]) == len(counted)
+
+
+def test_an_open_targets_reply_with_no_data_is_an_outage_not_no_variant(monkeypatch):
+    import snp_phewas_ot_resolver as R
+
+    class Resp:
+        status_code = 200
+
+        def json(self):
+            return {"data": None}
+
+    class Sess:
+        def post(self, *a, **k):
+            return Resp()
+
+    with pytest.raises(R.OpenTargetsError, match="no data"):
+        R.search_variant_ids("rs12740374", session=Sess())

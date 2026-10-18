@@ -67,6 +67,21 @@ TRANSIENT_STATUSES = frozenset({ST_UNREACHABLE, ST_NOT_QUERIED, ST_API_CENSORED,
 CATALOG_STATUSES = TESTED_STATUSES | PERMANENT_STATUSES | TRANSIENT_STATUSES
 ALL_STATUSES = CATALOG_STATUSES | {ST_NOT_IN_CATALOG}
 
+def phenome_wide_n(rows) -> int:
+    """The phenome-wide Bonferroni denominator for one dataset's rows: every outcome this
+    lookup asked about, minus those the source can never test for this variant (absent,
+    not tested in this ancestry, allele mismatch, no position on the build).
+
+    A value the FinnGen API withholds above p = 0.05 was still tested, and an outcome lost to
+    an outage was asked about: counting only rows that carry a value let either shrink the
+    denominator and loosen the threshold (the API-only route reported 0.05 / 195 where the
+    lookup covered 2,469 endpoints). Outcomes outside the lookup (`not_queried`) and source
+    results outside the catalog are not part of it.
+    """
+    return sum(1 for r in rows if r.status not in PERMANENT_STATUSES
+               and r.status not in (ST_NOT_QUERIED, ST_NOT_IN_CATALOG))
+
+
 # Statuses for which the source returned a record, so its native variant id must be set.
 SOURCE_RECORD_STATUSES = TESTED_STATUSES | {ST_NOT_TESTED, ST_ALLELE_MISMATCH, ST_API_CENSORED}
 

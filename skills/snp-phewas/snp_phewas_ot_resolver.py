@@ -65,6 +65,9 @@ def search_variant_ids(query: str, *, size: int = 10, endpoint: str = OT_GRAPHQL
             raise OpenTargetsError("non-JSON body") from e
         if payload.get("errors"):
             raise OpenTargetsError("GraphQL error: " + str(payload["errors"])[:200])
+        if payload.get("data") is None:
+            # A GraphQL failure can arrive as HTTP 200 with no data: an outage, not "no variant".
+            raise OpenTargetsError("the reply carried no data")
         hits = (((payload.get("data") or {}).get("search") or {}).get("hits")) or []
         return [h["id"] for h in hits if h.get("entity") == "variant" and h.get("id")]
     raise OpenTargetsError(type(last).__name__ if isinstance(last, requests.RequestException)

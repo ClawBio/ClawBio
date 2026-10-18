@@ -19,9 +19,9 @@ Why this is not `pysam.TabixFile.fetch`:
    rs12740374, and on every sampled position, present and absent: 250 + 62 (LDL, chr5),
    150 + 37 (`icd10-I62`, chr1), 150 + 37 (FinnGen `I9_CHD`, chr1).
 2. **htslib writes a downloaded remote index into the current directory.** An on-demand
-   lookup over the 7,160 Pan-UKBB EUR outcomes would leave ~15.8 GB of `.tbi` files
-   wherever the process was started (7,160 x the 2.2 MB index of the LDL file; an
-   estimate, not a measured total). Indexes here go to an explicit cache directory.
+   lookup over the 7,160 Pan-UKBB EUR outcomes would leave 13.54 GB of `.tbi` files
+   wherever the process was started (summed from the sources' Content-Length,
+   2026-10-18). Indexes here go to an explicit cache directory.
 
 The reader is format-agnostic: the header line is read from the file itself and columns are
 selected by name downstream.

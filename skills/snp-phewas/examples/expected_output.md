@@ -2,7 +2,7 @@
 
 # Variant PheWAS across biobanks: rs12740374
 
-**Date**: 2026-10-18 20:24 UTC
+**Date**: 2026-10-18 20:48 UTC
 **Skill**: snp-phewas
 **Version**: 0.1.0
 **Variant (GRCh38)**: 1_109274968_G_T
@@ -26,12 +26,12 @@
 - rs12740374 is 1_109274968_G_T (GRCh38), resolved through Open Targets.
 - Pan-UK Biobank, European ancestry: tested in 3 of 7,160 outcomes.
 - Pan-UK Biobank, European ancestry: 7,157 outcomes have no value: outcome was not part of this lookup.
-- Pan-UK Biobank, European ancestry: read live from 3 files in 0 s.
+- Pan-UK Biobank, European ancestry: read from 3 files in 0 s.
 - Pan-UK Biobank, European ancestry: only 3 of 7,160 outcomes were requested; the rest are listed as not part of this lookup.
 - Pan-UK Biobank, European ancestry uses GRCh37: GRCh38 1:109274968 is GRCh37 1:109817590.
 - FinnGen R12 (Finnish): tested in 3 of 2,469 outcomes.
 - FinnGen R12 (Finnish): 2,466 outcomes have no value: outcome was not part of this lookup.
-- FinnGen R12 (Finnish): read live from 0 files plus one web-API request in 0 s.
+- FinnGen R12 (Finnish): read from 0 files plus one web-API request in 0 s.
 - FinnGen R12 (Finnish): only 3 of 2,469 outcomes were requested; the rest are listed as not part of this lookup.
 - FinnGen R12 (Finnish): the source also returned 1 outcome(s) its published catalog does not list; they are kept separately, not in the counts above.
 - Million Veteran Program (dbGaP phs002453) is not included: its results are openly downloadable but carry no license text. BioBank Japan (NBDC hum0197) is not included: its terms limit use to research and development purposes.
@@ -79,14 +79,12 @@ Harmonization basis across all rows:
 - FinnGen R12 (Finnish): release `finngen_r12` (GRCh38); route api+tabix; 0 files read; 1 API request(s); 0 s.
   - Status of every catalog outcome: outcome was not part of this lookup: 2,466, tested: 3.
 - Tabix indexes: 0 downloaded (0.0 MB), 0 already cached.
-- Wall time: 2.0 s.
+- Wall time: 1.6 s.
 
 ## Data sources
 
-- Pan-UK Biobank (Karczewski KJ et al., medRxiv 2024, doi:10.1101/2024.03.13.24303864, a preprint with no PMID); this research has been conducted using the UK Biobank Resource.
+- Pan-UK Biobank (Karczewski KJ et al., Nat Genet 2025;57:2408-2417, doi:10.1038/s41588-025-02335-7, PMID 40968291); this research has been conducted using the UK Biobank Resource.
 - FinnGen R12 (Kurki MI et al., Nature 2023;613:508-518, doi:10.1038/s41586-022-05473-8, PMID 36653562). We want to acknowledge the participants and investigators of the FinnGen study.
-
-Million Veteran Program (dbGaP phs002453) is not included: its results are openly downloadable but carry no license text. BioBank Japan (NBDC hum0197) is not included: its terms limit use to research and development purposes.
 
 ## Files
 

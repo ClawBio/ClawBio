@@ -172,9 +172,10 @@ biobanks and nothing else. It does not fine-map, colocalize, run MR, or search l
 
 ```bash
 # Default: Pan-UKBB EUR over the 589 outcomes with a FinnGen counterpart + all FinnGen
+# (first run downloads 5.45 GB of index files into the cache; measured 229 s cold)
 python skills/snp-phewas/snp_phewas.py --variant rs12740374 --output /tmp/snp_phewas
 
-# Every Pan-UKBB outcome (7,160; an estimated 13 GB of Pan-UKBB indexes on a cold cache)
+# Every Pan-UKBB outcome (7,160; first run downloads 17.9 GB of index files)
 python skills/snp-phewas/snp_phewas.py --variant rs12740374 --all-outcomes --output /tmp/x
 
 # Quick look: FinnGen web API only (one request; values only where p < 0.05)
@@ -257,12 +258,14 @@ figures for reference and decides nothing.
 counterpart (the outcomes the replication view can compare); the other 6,571 are
 `not_queried` rows, and the report states this first. `--all-outcomes` reads all 7,160.
 
-**Cost and cache**: each outcome file needs its tabix index (about 1.8 MB each, measured as
-2,863 indexes = 5.1 GB for the default scope), downloaded once into `--index-cache`
-(default `~/.clawbio/snp_phewas/index`, or `SNP_PHEWAS_INDEX_CACHE`), keyed by release.
-The full `--all-outcomes` read adds about 12 GB more of Pan-UK Biobank indexes and takes an
-estimated 12 minutes cold (not measured: 43 s x 7,160 / 589 for Pan-UK Biobank,
-plus the 175 s FinnGen read).
+**Cost and cache**: each outcome file needs its tabix index, downloaded once into
+`--index-cache` (default `~/.clawbio/snp_phewas/index`, or `SNP_PHEWAS_INDEX_CACHE`), keyed
+by release. Index sizes, summed from the sources' Content-Length on 2026-10-18: 1.08 GB for
+the 589 default Pan-UK Biobank outcomes, 13.54 GB for all 7,160, 4.37 GB for the 2,469
+FinnGen endpoints. So a first default run downloads 5.45 GB and an `--all-outcomes` run
+17.9 GB; the CLI says so on stderr before it starts. The `--all-outcomes` wall time is an
+estimate, not measured: about 12 minutes cold (43 s x 7,160 / 589 for Pan-UK Biobank, plus
+the 175 s FinnGen read).
 
 ## Example Queries
 
@@ -295,7 +298,7 @@ From `--demo` (abridged; the full file is `examples/expected_output.md`):
 
 Live, default scope, rs12740374 (measured 2026-10-18 on a laptop, 16 workers, empty index
 cache): 229 s wall time; 589 Pan-UK Biobank files read in 43 s; 1 FinnGen API request plus
-2,274 FinnGen files read in 175 s; 2,863 indexes downloaded (5.1 GB). Every one of the 589 +
+2,274 FinnGen files read in 175 s; 2,863 indexes downloaded (5.1 GiB, i.e. 5.45 GB). Every one of the 589 +
 2,469 outcomes was tested. Replication over the 589 shared outcomes (threshold 0.05 / 589):
 4 replicate (E78 lipoprotein disorders, ischemic heart disease, angina pectoris, abdominal
 aortic aneurysm), 5 are same-direction significant in one only, 580 are null in both.
@@ -310,7 +313,7 @@ output_directory/
 │   ├── snp_phewas_rows.tsv        # One row per catalog outcome per dataset, every status
 │   ├── excluded.tsv               # Rows with no value, each with its reason
 │   ├── replication.tsv            # Harmonized outcomes, a verdict per dataset pair
-│   └── uncatalogued.tsv           # (optional) source outcomes outside the published catalog
+│   └── uncataloged.tsv            # (optional) source outcomes outside the published catalog
 ├── figures/
 │   ├── manhattan.png              # Outcome Manhattan, one panel per dataset
 │   ├── replication_matrix.png     # Signed z per harmonized outcome x dataset, verdict strip
@@ -353,6 +356,13 @@ catalog). No `pysam`, no `tabix` binary: the index walker is pure Python (`zlib`
   codes from controls. `icd10_broad_only` pairs are deliberately not compared.
 - **You will want to flip a palindromic (A/T, C/G) variant whose alleles are swapped.
   Do not.** The skill withholds its direction; report the p-value only.
+
+## Data access
+
+FinnGen asks users to fill its online form (https://www.finngen.fi/en/access_results)
+before downloading summary statistics; instructions arrive by e-mail. The R12 files this
+skill reads sit in a public bucket, so nothing enforces the form, but users should fill it.
+FinnGen R13 (DF13) was released on June 2, 2026; this skill reads R12.
 
 ## Safety
 
@@ -399,7 +409,7 @@ from such a table plugs into `lookup_variant(readers=...)`, and every downstream
 ## Maintenance
 
 - **Review cadence**: on each Pan-UK Biobank or FinnGen release.
-- **Staleness signals**: a new FinnGen release (R13); a changed manifest md5 (the catalog
+- **Staleness signals**: FinnGen R13 (released June 2, 2026; this skill reads R12); a changed manifest md5 (the catalog
   rebuild script `snp_phewas_build_catalogs.py` fails loudly on a mismatch); the FinnGen API
   changing its reporting threshold; Open Targets changing its variant id format.
 - **On a release bump**: rebuild the outcome catalogs, the crosswalk, the demo slices and
@@ -409,11 +419,10 @@ from such a table plugs into `lookup_variant(readers=...)`, and every downstream
 
 ## Citations
 
-- Karczewski KJ, Gupta R, Kanai M, Lu W, Tsuo K, Wang Y, et al. Pan-UK Biobank GWAS
-  improves discovery, analysis of genetic architecture, and resolution into
-  ancestry-enriched effects. medRxiv [Preprint]. 2024. doi:10.1101/2024.03.13.24303864.
-  (Preprint; no PMID. Europe PMC PPR822111.) This research has been conducted using the UK
-  Biobank Resource.
+- Karczewski KJ, Gupta R, Kanai M, Lu W, Tsuo K, Wang Y, et al. Pan-UK Biobank genome-wide
+  association analyses enhance discovery and resolution of ancestry-enriched effects. Nat
+  Genet. 2025;57(10):2408-2417. doi:10.1038/s41588-025-02335-7. PMID: 40968291. This research
+  has been conducted using the UK Biobank Resource.
 - Kurki MI, Karjalainen J, Palta P, Sipilä TP, Kristiansson K, Donner KM, et al. FinnGen
   provides genetic insights from a well-phenotyped isolated population. Nature.
   2023;613(7944):508-518. doi:10.1038/s41586-022-05473-8. PMID: 36653562. We want to

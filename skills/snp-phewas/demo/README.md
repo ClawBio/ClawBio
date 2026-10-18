@@ -23,10 +23,10 @@ palindromic tests use.
 
 - **Pan-UK Biobank** results are released under CC BY 4.0
   (https://pan.ukbb.broadinstitute.org/downloads/). Cite: Karczewski KJ, Gupta R, Kanai M,
-  et al. Pan-UK Biobank GWAS improves discovery, analysis of genetic architecture, and
-  resolution into ancestry-enriched effects. medRxiv [Preprint]. 2024.
-  doi:10.1101/2024.03.13.24303864 (no PMID). This research has been conducted using the UK
-  Biobank Resource.
+  et al. Pan-UK Biobank genome-wide association analyses enhance discovery and resolution
+  of ancestry-enriched effects. Nat Genet. 2025;57(10):2408-2417.
+  doi:10.1038/s41588-025-02335-7. PMID: 40968291. This research has been conducted using the
+  UK Biobank Resource.
 - **FinnGen** R12 public results are free to download and use with citation and
   acknowledgment (https://www.finngen.fi/en/access_results). Cite: Kurki MI, Karjalainen J,
   Palta P, et al. FinnGen provides genetic insights from a well-phenotyped isolated

@@ -30,7 +30,7 @@ families:
       The GWAS results data produced by the Pan-UKB are available free of restrictions
       under the Creative Commons Attribution 4.0 International (CC BY 4.0).
     attribution: >-
-      Pan-UK Biobank (Karczewski KJ et al., medRxiv 2024, doi:10.1101/2024.03.13.24303864, a preprint with no PMID);
+      Pan-UK Biobank (Karczewski KJ et al., Nat Genet 2025;57:2408-2417, doi:10.1038/s41588-025-02335-7, PMID 40968291);
       this research has been conducted using the UK Biobank Resource.
     build: GRCh37
     reference_anchored: true
@@ -52,7 +52,13 @@ families:
     license_url: https://www.finngen.fi/en/access_results
     license_quote: >-
       The results can be browsed with the web browser and summary statistics data can be
-      downloaded from Google cloud storage free of charge.
+      downloaded from Google cloud storage free of charge. [...] Fill this online form to
+      gain access to FinnGen summary statistics. Instructions on how to download summary
+      statistics are sent to you by e-mail.
+    access_note: >-
+      FinnGen asks users to fill its online form (https://www.finngen.fi/en/access_results)
+      before downloading summary statistics; the R12 files this skill reads are served from a
+      public bucket, so the form is not enforced by the bucket, and users should still fill it.
     attribution: >-
       FinnGen R12 (Kurki MI et al., Nature 2023;613:508-518, doi:10.1038/s41586-022-05473-8,
       PMID 36653562). We want to acknowledge the participants and investigators of the

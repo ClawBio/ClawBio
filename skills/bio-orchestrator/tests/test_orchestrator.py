@@ -424,3 +424,19 @@ class TestDnaspRouting:
         fold = detect_multiple_skills("predict this protein fold and compute Tajima's D")
         assert "struct-predictor" in fold and "dnasp" in fold
 
+
+
+@pytest.mark.parametrize("query", [
+    "PheWAS for rs12740374 across UK Biobank and FinnGen",
+    "Does rs12740374 replicate in FinnGen?",
+    "snp phewas rs12740374",
+    "Pan-UKBB phenome scan for 1_109274968_G_T",
+])
+def test_biobank_variant_phewas_routes_to_snp_phewas(query):
+    skill, _hint = detect_skill_with_hint_from_query(query)
+    assert skill == "snp-phewas", (query, skill)
+
+
+def test_plain_phewas_still_routes_to_gwas_lookup():
+    skill, _hint = detect_skill_with_hint_from_query("phewas for rs12740374")
+    assert skill == "gwas-lookup"

@@ -110,14 +110,15 @@ def manhattan(result: Any, out_png: str, *, n_labels: int = 10) -> str:
         ax.scatter([xpos[r.outcome_id] for r in low], [r.neglog10_p for r in low],
                    marker="o", s=14, color=MUTED, linewidths=0)
         n_tested = len(tested)
-        if n_tested:
-            bonf = -math.log10(0.05 / n_tested)
+        n_bonf = S.phenome_wide_n(rows)
+        if n_bonf:
+            bonf = -math.log10(0.05 / n_bonf)
             ax.axhline(bonf, color=INK_2, linewidth=1, linestyle="-")
-            ax.text(len(order), bonf, f" 0.05/{n_tested:,}", va="center", fontsize=7, color=INK_2)
+            ax.text(len(order), bonf, f" 0.05/{n_bonf:,}", va="center", fontsize=7, color=INK_2)
         ax.axhline(-math.log10(GENOME_WIDE), color=MUTED, linewidth=1, linestyle="--")
         ax.text(len(order), -math.log10(GENOME_WIDE), " 5e-8 (reference)", va="center",
                 fontsize=7, color=MUTED)
-        line = -math.log10(0.05 / n_tested) if n_tested else float("inf")
+        line = -math.log10(0.05 / n_bonf) if n_bonf else float("inf")
         top = sorted((r for r in tested if r.status == S.ST_OK and r.neglog10_p >= line),
                      key=lambda r: -r.neglog10_p)[:n_labels]
         ymax = max([r.neglog10_p for r in tested] + [1.0])
