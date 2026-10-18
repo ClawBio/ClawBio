@@ -1,0 +1,83 @@
+# snp-phewas curated dataset catalog.
+#
+# One entry per served dataset_id. Every field here is read by catalog.py; nothing is
+# decorative. A dataset that is not listed here cannot be queried (the lookup refuses an
+# unknown id), so this file IS the curation.
+#
+# license_verdict / license_verified: read from the source page on the stated date, not
+# from memory. attribution: the exact string every output that shows this dataset's
+# numbers must carry.
+#
+# release pins: a release bump changes these and must rebuild everything keyed on them
+# (the outcome catalogs via snp_phewas_build_catalogs.py, the crosswalk, the demo slices
+# and the golden test values).
+
+catalog_version: 1
+
+families:
+  pan_ukbb:
+    label: Pan-UK Biobank
+    release: pan_ukbb_2024_06_26
+    release_pin:
+      manifest_url: https://pan-ukb-us-east-1.s3.amazonaws.com/sumstats_release/phenotype_manifest.tsv.bgz
+      manifest_md5: 0735065d06ea8ffb098c119ef419c821
+      manifest_last_modified: "2024-06-26"
+    license: CC-BY-4.0
+    license_verdict: open; reuse with attribution
+    license_verified: "2026-10-17"
+    license_url: https://pan.ukbb.broadinstitute.org/downloads/
+    license_quote: >-
+      The GWAS results data produced by the Pan-UKB are available free of restrictions
+      under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+    attribution: >-
+      Pan-UK Biobank (Karczewski KJ et al., medRxiv 2024, doi:10.1101/2024.03.13.24303864, a preprint with no PMID);
+      this research has been conducted using the UK Biobank Resource.
+    build: GRCh37
+    reference_anchored: true
+    access: tabix
+    data_base_url: https://pan-ukb-us-east-1.s3.amazonaws.com/sumstats_flat_files/
+    index_base_url: https://pan-ukb-us-east-1.s3.amazonaws.com/sumstats_flat_files_tabix/
+    outcome_catalog: catalogs/pan_ukbb_outcomes.tsv.gz
+    coding: Pan-UKBB trait_type (phecode / icd10 / categorical / continuous / prescriptions / biomarkers)
+  finngen:
+    label: FinnGen
+    release: finngen_r12
+    release_pin:
+      manifest_url: https://storage.googleapis.com/finngen-public-data-r12/summary_stats/finngen_R12_manifest.tsv
+      manifest_md5: 3034fcfbf61bb1ba33a0efb3a36ac482
+      manifest_last_modified: "2024-11-07"
+    license: FinnGen public results terms (no license text; free download; acknowledgment + citation required)
+    license_verdict: free download and use; citation and acknowledgment required
+    license_verified: "2026-10-17"
+    license_url: https://www.finngen.fi/en/access_results
+    license_quote: >-
+      The results can be browsed with the web browser and summary statistics data can be
+      downloaded from Google cloud storage free of charge.
+    attribution: >-
+      FinnGen R12 (Kurki MI et al., Nature 2023;613:508-518, doi:10.1038/s41586-022-05473-8,
+      PMID 36653562). We want to acknowledge the participants and investigators of the
+      FinnGen study.
+    build: GRCh38
+    reference_anchored: true
+    access: pheweb_api+tabix
+    api_base_url: https://r12.finngen.fi/api/variant/
+    data_base_url: https://storage.googleapis.com/finngen-public-data-r12/summary_stats/release/
+    outcome_catalog: catalogs/finngen_r12_outcomes.tsv.gz
+    coding: FinnGen clinical endpoints (ICD-10 / ICD-9 / ATC register definitions)
+
+# dataset_id -> (family, ancestry stratum). The Pan-UKBB file carries every ancestry in
+# one row, so each stratum is its own dataset over the same files.
+datasets:
+  pan_ukbb_eur: {family: pan_ukbb, ancestry: EUR, label: "Pan-UK Biobank, European ancestry", default: true}
+  pan_ukbb_afr: {family: pan_ukbb, ancestry: AFR, label: "Pan-UK Biobank, African ancestry"}
+  pan_ukbb_amr: {family: pan_ukbb, ancestry: AMR, label: "Pan-UK Biobank, admixed American ancestry"}
+  pan_ukbb_csa: {family: pan_ukbb, ancestry: CSA, label: "Pan-UK Biobank, Central/South Asian ancestry"}
+  pan_ukbb_eas: {family: pan_ukbb, ancestry: EAS, label: "Pan-UK Biobank, East Asian ancestry"}
+  pan_ukbb_mid: {family: pan_ukbb, ancestry: MID, label: "Pan-UK Biobank, Middle Eastern ancestry"}
+  finngen_r12: {family: finngen, ancestry: FIN, label: "FinnGen R12 (Finnish)", default: true}
+
+# Considered and NOT served, with the reason. Listed so "why is X not here?" has an
+# answer in the catalog itself.
+not_served:
+  mvp_gwphewas: "Million Veteran Program (dbGaP phs002453) is not included: its results are openly downloadable but carry no license text."
+  biobank_japan: "BioBank Japan (NBDC hum0197) is not included: its terms limit use to research and development purposes."
