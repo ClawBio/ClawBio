@@ -1258,10 +1258,11 @@ def test_invalid_contrast_scope_is_rejected(tmp_path: Path):
     assert "invalid choice" in result.stderr
 
 
-def test_clawbio_run_scrna_rejects_removed_de_flags(tmp_path: Path):
+def test_scrna_rejects_removed_de_flags(tmp_path: Path):
+    # The script, not `clawbio run`: the runner drops flags outside allowed_extra_flags before the script sees them.
     _require_scanpy()
     output_dir = tmp_path / "removed_de_flags_output"
-    result = _run_clawbio_scrna_cmd(
+    result = _run_cmd(
         [
             "--demo",
             "--output",
