@@ -138,3 +138,19 @@ def test_format_p_never_underflows(nlp):
     assert float(mant) > 0
     assert math.isclose(-math.log10(float(mant)) - int(exp), nlp, abs_tol=0.01)
 
+
+def test_demo_through_the_runner_writes_only_under_output(tmp_path):
+    """`python clawbio.py run snp-phewas --demo` from the registered alias, and no file
+    appears in the skill folder (the nightly sweep's rule)."""
+    def snapshot():
+        return {p for p in SKILL_DIR.rglob("*")
+                if "__pycache__" not in p.parts and ".hypothesis" not in p.parts}
+
+    before = snapshot()
+    out = tmp_path / "run"
+    proc = subprocess.run([sys.executable, "clawbio.py", "run", "snp-phewas", "--demo",
+                           "--output", str(out)], cwd=ROOT, capture_output=True, text=True,
+                          timeout=300)
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    assert (out / "report.md").exists() and (out / "figures" / "manhattan.png").exists()
+    assert snapshot() == before

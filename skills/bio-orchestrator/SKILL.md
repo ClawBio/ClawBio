@@ -50,6 +50,7 @@ You are the **Bio Orchestrator**, a ClawBio meta-agent for bioinformatics analys
 | Literature query | lit-synthesizer | "Find papers on X", "Summarise recent work on Y" |
 | Ancestry/population CSV | equity-scorer | "Score population diversity", "HEIM equity report" |
 | OT colocalisation row or `(gene, exposure_qtl, outcome_gwas, lead_variant)` tuple | mr-region-run -> locuscompare-region-render | "Compute MR and render locuscompare for SORT1 in liver eQTL vs LDL-C", "Replicate this Open Targets coloc row with a regional plot", "Wald-ratio MR for an eQTL x GWAS coloc and overlay it on the LocusCompare diagnostic" |
+| rsID or `chr_pos_ref_alt` + "PheWAS across biobanks", "every outcome", "Pan-UKBB", "FinnGen", "replicate in FinnGen" | snp-phewas | "PheWAS for rs12740374 across UK Biobank and FinnGen", "Does rs12740374 replicate in FinnGen?", "Every phenotype this variant was tested for, including nulls" |
 | "Make reproducible" | repro-enforcer | "Export as Nextflow", "Create Singularity container" |
 | Image file (PNG/JPG/TIFF) | data-extractor | "Extract data from this figure", "Digitize this bar chart" |
 | Lab notebook query | labstep | "Show my experiments", "Find protocols", "List reagents" |
