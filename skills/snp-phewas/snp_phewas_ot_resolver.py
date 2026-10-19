@@ -17,6 +17,7 @@ different allele at a multi-allelic site and silently change every sign in the o
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -31,7 +32,7 @@ GWAS_STUDY_TYPE = "gwas"
 VARIANT_SEARCH_QUERY = """
 query VariantSearch($queryString: String!, $size: Int!) {
   search(queryString: $queryString, entityNames: ["variant"], page: {index: 0, size: $size}) {
-    hits { id entity }
+    hits { id entity object { ... on Variant { rsIds } } }
   }
 }
 """
@@ -98,7 +99,20 @@ def search_variant_ids(query: str, *, size: int = 10, endpoint: str = OT_GRAPHQL
                  {"queryString": (query or "").strip(), "size": size},
                  endpoint=endpoint, session=session, timeout_s=timeout_s)
     hits = ((data.get("search") or {}).get("hits")) or []
-    return [h["id"] for h in hits if h.get("entity") == "variant" and h.get("id")]
+    return _hit_ids(query, hits)
+
+
+def _hit_ids(query: str, hits: list[dict]) -> list[str]:
+    """The variant ids among search `hits`, in order. The search matches by prefix (rs7
+    returns rs73896906's variant first, and rs7903146 also returns rs79031469's), so for an
+    rsID query a hit counts only when the variant's own `rsIds` carry that rsID; none left
+    means Open Targets holds no variant under that rsID."""
+    ids = [h for h in hits if h.get("entity") == "variant" and h.get("id")]
+    q = (query or "").strip().lower()
+    if re.fullmatch(r"rs[0-9]+", q):
+        ids = [h for h in ids
+               if q in {r.lower() for r in ((h.get("object") or {}).get("rsIds") or [])}]
+    return [h["id"] for h in ids]
 
 
 def gwas_weight(variant_id: str, *, endpoint: str = OT_GRAPHQL,

@@ -891,7 +891,12 @@ class _StubOT:
         if self.fail == kind:
             raise R.OpenTargetsError("HTTP 503")
         if kind == "search":
-            return {"search": {"hits": [{"id": i, "entity": "variant"} for i in self.search]}}
+            # an entry is an id (carrying the queried rsID) or (id, the rsID it carries)
+            rs = variables["queryString"]
+            return {"search": {"hits": [
+                {"id": e, "entity": "variant", "object": {"rsIds": [rs]}} if isinstance(e, str)
+                else {"id": e[0], "entity": "variant", "object": {"rsIds": [e[1]]}}
+                for e in self.search]}}
         return self.weights.get(variables["variantId"], {"variant": None})
 
 
@@ -966,3 +971,20 @@ def test_lookup_passes_an_injected_allele_weight_through(offline_kwargs):
     assert r.variant.variant_id_grch38 == "1_109274968_G_T" and set(seen) == {
         "1_109274968_G_C", "1_109274968_G_T"}
     assert _row(r, "pan_ukbb_eur", LDL).status == S.ST_OK
+
+
+def test_an_rsid_never_resolves_to_a_prefix_match(monkeypatch):
+    """Open Targets' search matches by prefix: live, rs7903146 also returns rs79031469's
+    variant, and rs7 returns rs73896906's variant first and none carrying rs7. A prefix hit is
+    another variant, so it is never read, never ranked and never named as another allele."""
+    import snp_phewas_ot_resolver as R
+    from snp_phewas_variant import VariantResolutionError, resolve_variant
+
+    hits = ["10_112998590_C_T", ("15_55285370_G_C", "rs79031469")]
+    monkeypatch.setattr(R, "_post", _StubOT(search=hits))
+    v = resolve_variant("rs7903146")
+    assert v.grch38.variant_id == "10_112998590_C_T"
+    assert "15_55285370" not in v.resolution_note
+    monkeypatch.setattr(R, "_post", _StubOT(search=[("20_7114084_C_T", "rs73896906")]))
+    with pytest.raises(VariantResolutionError, match="no variant for rs7"):
+        resolve_variant("rs7")
