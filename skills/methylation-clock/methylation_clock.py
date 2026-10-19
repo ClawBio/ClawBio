@@ -128,7 +128,10 @@ def _validate_methylation_frame(df: pd.DataFrame, metadata_cols: list[str]) -> d
         )
     values = df.loc[:, probe_cols].to_numpy(dtype=float, copy=False)
     if np.isinf(values).any() or ((values < 0) | (values > 1)).any():
-        raise ValueError("Methylation beta values outside [0, 1] or infinite")
+        raise ValueError(
+            "Methylation beta values outside [0, 1] or infinite; "
+            "if your file contains percentages on [0, 100], divide by 100 before input"
+        )
     observed = values[~np.isnan(values)]
     if observed.size == 0:
         raise ValueError("All methylation probe beta values are missing")
@@ -140,6 +143,33 @@ def _validate_methylation_frame(df: pd.DataFrame, metadata_cols: list[str]) -> d
         "beta_min": float(observed.min()),
         "beta_max": float(observed.max()),
     }
+
+
+def _validate_clock_covariates(
+    df: pd.DataFrame, clocks: list[str], metadata_cols: list[str] | None = None
+) -> None:
+    """Require PyAging's additional model inputs for GrimAge-family defaults."""
+    if not {clock.lower() for clock in clocks} & {"pcgrimage", "grimage2"}:
+        return
+    hidden_covariates = {"age", "female"} & set(metadata_cols or [])
+    if hidden_covariates:
+        raise ValueError(
+            f"--metadata-cols cannot include required model input columns: {sorted(hidden_covariates)}"
+        )
+    if "age" not in df.columns:
+        raise ValueError("PCGrimAge and GrimAge2 require an age column in years")
+    if not pd.api.types.is_numeric_dtype(df["age"]):
+        raise ValueError("age must contain finite numeric years for PCGrimAge and GrimAge2")
+    age = df["age"].to_numpy(dtype=float)
+    if not np.isfinite(age).all() or (age < 0).any():
+        raise ValueError("age must contain finite nonnegative years for PCGrimAge and GrimAge2")
+    if "female" not in df.columns:
+        raise ValueError("PCGrimAge and GrimAge2 require female (1 or 0), or known gender/sex")
+    if not pd.api.types.is_numeric_dtype(df["female"]):
+        raise ValueError("female must contain 1 or 0 for PCGrimAge and GrimAge2")
+    female = df["female"].to_numpy(dtype=float)
+    if not np.isin(female, [0, 1]).all():
+        raise ValueError("female must contain 1 or 0 for every sample in PCGrimAge and GrimAge2")
 
 
 def _get_repo_root() -> Path:
@@ -382,6 +412,7 @@ def write_report(
     missing_df: pd.DataFrame,
     metadata_json: dict[str, dict],
     input_qc: dict | None = None,
+    synthetic_demo: bool = False,
 ) -> None:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -430,6 +461,12 @@ def write_report(
 
 """
 
+    demo_block = (
+        "## Synthetic demo\n\nThis input contains simulated beta values with no biological "
+        "age or sex signal. Predictions demonstrate software operation only.\n\n"
+        if synthetic_demo else ""
+    )
+
     report = f"""# ClawBio Methylation Clock Report
 
 **Date**: {now}
@@ -437,7 +474,7 @@ def write_report(
 **Samples**: {predictions.shape[0]}
 **Clocks requested**: {", ".join(clocks)}
 
-## Outputs
+{demo_block}## Outputs
 
 - Predictions table: `tables/predictions.csv`
 - Summary table: `tables/prediction_summary.csv`
@@ -480,6 +517,7 @@ def run_analysis(
     input_path: Path | None = None,
     geo_id: str | None = None,
     skip_epicv2_aggregation: bool = False,
+    demo: bool = False,
 ) -> dict:
     if pya is None:
         raise RuntimeError("PyAging is required for methylation-clock; install it with 'pip install pyaging'")
@@ -509,6 +547,7 @@ def run_analysis(
 
     df = _ensure_female_column(df)
     input_qc = _validate_methylation_frame(df, metadata_cols)
+    _validate_clock_covariates(df, clocks, metadata_cols)
     if not skip_epicv2_aggregation:
         df = _aggregate_epicv2_probes(df, verbose=verbose)
     input_qc["n_probe_columns_after_aggregation"] = sum(
@@ -554,6 +593,7 @@ def run_analysis(
         missing_df=missing_df,
         metadata_json=metadata_json,
         input_qc=input_qc,
+        synthetic_demo=demo,
     )
 
     result = {
@@ -562,6 +602,7 @@ def run_analysis(
         "n_samples": int(predictions.shape[0]),
         "clocks_found": clock_cols,
         "input_qc": input_qc,
+        "synthetic_demo": demo,
     }
     (output_dir / "result.json").write_text(json.dumps(result, indent=2))
     return result
@@ -585,7 +626,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Imputer strategy for pya.pp.df_to_adata",
     )
     parser.add_argument("--skip-epicv2-aggregation", action="store_true", help="Skip EPICv2 duplicate-probe aggregation")
-    parser.add_argument("--demo", action="store_true", help="Use bundled two-sample CSV demo")
+    parser.add_argument("--demo", action="store_true", help="Use bundled two-sample synthetic beta-value demo")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose PyAging logging")
     return parser
 
@@ -595,7 +636,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.demo:
-        demo_path = _get_skill_data_dir() / "GSE139307_small.csv.gz"
+        demo_path = _get_skill_data_dir() / "synthetic_beta_demo.csv.gz"
         input_path = demo_path
         geo_id = None
     else:
@@ -617,6 +658,7 @@ def main() -> None:
         input_path=input_path,
         geo_id=geo_id,
         skip_epicv2_aggregation=args.skip_epicv2_aggregation,
+        demo=args.demo,
     )
 
     write_reproducibility(

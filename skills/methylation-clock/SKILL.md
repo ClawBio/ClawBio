@@ -62,15 +62,15 @@ This skill standardizes a PyAging-first pipeline from ingestion to report genera
 - Exactly one input source:
   - GEO accession with `--geo-id` (example: `GSE139307`)
   - Local file with `--input` (`.pkl`, `.pickle`, `.csv`, `.tsv`, `.csv.gz`, `.tsv.gz`)
-- One row per sample and numeric methylation beta values in `[0, 1]` under `cg`, `ch`, `rs`, or `nv` probe IDs. Missing probe values are allowed and passed to PyAging's selected imputer.
+- One row per sample and numeric methylation beta values in `[0, 1]` under `cg`, `ch`, `rs`, or `nv` probe IDs. Missing probe values are allowed and passed to PyAging's selected imputer. Illumina defines beta values on `[0, 1]`; if your export reports methylation percentages on `[0, 100]`, divide the probe values by 100 before running this skill. Do not divide age or other metadata. The skill never guesses the input scale.
 - An optional `sample_id` column in CSV/TSV files becomes the sample index and must be present, nonblank, and unique. Otherwise CSV/TSV rows receive numeric IDs. Pickle files retain their DataFrame index, which must also have present, nonblank, unique identifiers.
-- Known metadata columns are `gender`, `sex`, `tissue_type`, and `dataset`. List any other nonnumeric columns with `--metadata-cols`; do not list a probe column as metadata.
+- Known metadata columns are `gender`, `sex`, `tissue_type`, and `dataset`. List any other nonnumeric columns with `--metadata-cols`; do not list a probe column as metadata. For PCGrimAge or GrimAge2, supply numeric `age` in years and known `gender`/`sex` (`F`/`M`, `Female`/`Male`) or a numeric `female` column (1/0). Do not list `age` or `female` in `--metadata-cols`: PyAging needs them as model features. The skill rejects missing inputs for those two clocks rather than imputing demographic covariates.
 - Required output directory via `--output`
 - Optional clock list via `--clocks`
 
 ### Demo And Usage
 
-Demo fixture provenance and checksum are documented in `skills/methylation-clock/data/PROVENANCE.md`.
+The bundled two-sample demo is synthetic. Its fixed-seed generator, public probe-identifier source, and checksums are documented in `skills/methylation-clock/data/PROVENANCE.md`. Its placeholder ages and sex labels have no relationship to the simulated beta values; use its clock predictions only to check that the workflow runs.
 
 Install the optional PyAging dependency in the Python environment used to run ClawBio. The demo below was verified with PyAging 0.5.7; first use of a clock downloads its public model weights. Local input data is not uploaded.
 
@@ -98,7 +98,17 @@ python skills/methylation-clock/methylation_clock.py \
 
 Use pickle input only when you trust its source; deserializing an untrusted pickle can execute code. `--geo-id` downloads a public GEO example into the chosen output directory. The skill refuses a nonempty output directory.
 
-Horvath2013 estimates DNA methylation age in years. DunedinPACE estimates a pace of aging, so its values have a different meaning. The report reads each clock's unit from PyAging metadata. A difference between an estimate and chronological age is not, by itself, a validated health assessment or an age-acceleration analysis.
+### What The Five Default Clocks Measure
+
+| Clock | PyAging target | Intended tissue | Additional model inputs | Output unit |
+|---|---|---|---|---|
+| Horvath2013 | Chronological age | Multiple tissues | None | Years |
+| AltumAge | Chronological age | Multiple tissues | None | Years |
+| PCGrimAge | Mortality-risk proxy reproducing GrimAge | Whole blood | Age and sex | Years |
+| GrimAge2 | Mortality risk | Whole blood | Age and sex | Years |
+| DunedinPACE | Pace of aging | Whole blood | None | Biological years per chronological year |
+
+The targets, tissues, and units come from the [PyAging clock catalogue](https://pyaging.readthedocs.io/en/latest/clock_glossary.html); its [DNA methylation tutorial](https://pyaging.readthedocs.io/en/latest/tutorials/tutorial_dnam.html) identifies age and sex as features for PCGrimAge and GrimAge2. `tissue_type` is descriptive metadata, not an automatic compatibility check. Compare predictions only within an appropriate tissue and target; a DunedinPACE value is not an age in years. The report reads clock units from PyAging metadata. A difference between an estimate and chronological age is not, by itself, a validated health assessment or an age-acceleration analysis.
 
 ### Output Structure
 

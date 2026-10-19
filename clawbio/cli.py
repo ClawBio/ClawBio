@@ -1063,10 +1063,7 @@ SKILLS = {
     },
     "methylation": {
         "script": SKILLS_DIR / "methylation-clock" / "methylation_clock.py",
-        "demo_args": [
-            "--input",
-            str(SKILLS_DIR / "methylation-clock" / "data" / "GSE139307_small.csv.gz"),
-        ],
+        "demo_args": ["--demo"],
         "description": "Epigenetic age from methylation clocks (PyAging)",
         "no_input_required": True,
         "allowed_extra_flags": {

@@ -1,6 +1,7 @@
 """Input and report contracts that run without downloading clock weights."""
 
 import sys
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,6 +12,31 @@ from hypothesis import given, strategies as st
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import methylation_clock as clock  # noqa: E402
+
+
+def test_demo_fixture_is_generated_synthetic_data(tmp_path):
+    data_dir = Path(__file__).parent.parent / "data"
+    bundled = data_dir / "synthetic_beta_demo.csv.gz"
+    regenerated = tmp_path / "regenerated.csv.gz"
+    subprocess.run(
+        [sys.executable, str(data_dir / "generate_synthetic_demo.py"), "--output", str(regenerated)],
+        check=True,
+    )
+
+    assert regenerated.read_bytes() == bundled.read_bytes()
+    frame = pd.read_csv(bundled)
+    assert frame["sample_id"].tolist() == ["synthetic_01", "synthetic_02"]
+    assert frame["tissue_type"].tolist() == ["blood", "blood"]
+    probe_cols = [column for column in frame.columns if clock.PROBE_NAME.match(column)]
+    assert len(probe_cols) > 100_000
+    assert frame[probe_cols].min().min() >= 0
+    assert frame[probe_cols].max().max() <= 1
+
+
+def test_registered_demo_uses_synthetic_fixture():
+    from clawbio.cli import SKILLS
+
+    assert SKILLS["methylation"]["demo_args"] == ["--demo"]
 
 
 def test_aggregation_sends_only_probe_columns_to_pyaging(monkeypatch):
@@ -91,6 +117,12 @@ def test_beta_values_above_one_are_rejected(value):
         clock._validate_methylation_frame(frame, [])
 
 
+def test_percent_scale_is_rejected_with_conversion_guidance():
+    frame = pd.DataFrame({"cg00000029": [25.0, 75.0]})
+    with pytest.raises(ValueError, match="divide by 100"):
+        clock._validate_methylation_frame(frame, [])
+
+
 def test_nonnumeric_probe_is_rejected_before_pyaging():
     frame = pd.DataFrame({"cg00000029": ["0.2", "unknown"]})
     with pytest.raises(ValueError, match="numeric"):
@@ -107,6 +139,29 @@ def test_probe_cannot_be_declared_as_metadata():
     frame = pd.DataFrame({"cg00000029": [0.2, 0.8]}, index=["s1", "s2"])
     with pytest.raises(ValueError, match="metadata.*probe"):
         clock._validate_methylation_frame(frame, ["cg00000029"])
+
+
+def test_mortality_clocks_require_age_and_known_sex():
+    frame = pd.DataFrame({"cg00000029": [0.2, 0.8], "female": [1.0, float("nan")]})
+    with pytest.raises(ValueError, match="age"):
+        clock._validate_clock_covariates(frame, ["PCGrimAge"])
+
+    frame["age"] = [35, 65]
+    with pytest.raises(ValueError, match="female"):
+        clock._validate_clock_covariates(frame, ["GrimAge2"])
+
+    frame["female"] = [1, 0]
+    clock._validate_clock_covariates(frame, ["PCGrimAge", "GrimAge2"])
+    clock._validate_clock_covariates(frame.drop(columns=["age", "female"]), ["Horvath2013"])
+
+
+@pytest.mark.parametrize("metadata_column", ["age", "female"])
+def test_required_covariates_cannot_be_removed_as_metadata(metadata_column):
+    frame = pd.DataFrame(
+        {"cg00000029": [0.2, 0.8], "age": [35, 65], "female": [1, 0]}
+    )
+    with pytest.raises(ValueError, match="metadata-cols.*model input"):
+        clock._validate_clock_covariates(frame, ["PCGrimAge"], [metadata_column])
 
 
 def test_input_qc_counts_observed_and_missing_beta_values():
@@ -183,13 +238,16 @@ def test_run_analysis_writes_structured_result_and_qc(tmp_path, monkeypatch):
         False,
         input_path=source,
         skip_epicv2_aggregation=True,
+        demo=True,
     )
 
     assert result["n_samples"] == 2
+    assert result["synthetic_demo"] is True
     assert (output / "result.json").exists()
     assert (output / "tables" / "input_qc.json").exists()
     assert pd.read_csv(output / "tables" / "predictions.csv")["sample_id"].tolist() == ["s1", "s2"]
     assert "Input QC" in (output / "report.md").read_text()
+    assert "Synthetic demo" in (output / "report.md").read_text()
 
 
 def test_reproducibility_checksums_cover_report_and_result(tmp_path):

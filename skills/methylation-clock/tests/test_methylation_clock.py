@@ -16,7 +16,7 @@ from methylation_clock import DEFAULT_CLOCKS, parse_clock_list, run_analysis
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = SKILL_DIR.parents[1]
-FIXTURE = SKILL_DIR / "data" / "GSE139307_small.csv.gz"
+FIXTURE = SKILL_DIR / "data" / "synthetic_beta_demo.csv.gz"
 LIVE_CLOCKS = os.environ.get("CLAWBIO_TEST_METHYLATION_NETWORK") == "1"
 
 
@@ -62,8 +62,7 @@ def test_cli_smoke_with_fixture(tmp_path):
     cmd = [
         sys.executable,
         str(script),
-        "--input",
-        str(FIXTURE),
+        "--demo",
         "--output",
         str(out_dir),
         "--clocks",
