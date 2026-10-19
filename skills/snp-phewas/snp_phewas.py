@@ -107,7 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--input", help="a text file whose first non-comment line is the variant")
     ap.add_argument("--output", help="output directory")
     ap.add_argument("--demo", action="store_true",
-                    help="run offline on the bundled rs12740374 slices (3 + 3 outcomes)")
+                    help="run offline on the bundled rs12740374 slices (3 + 3 + 2 outcomes)")
     ap.add_argument("--build", default="GRCh38", choices=("GRCh38", "GRCh37"),
                     help="genome build of a chr_pos_ref_alt variant (default GRCh38)")
     ap.add_argument("--dataset", default="default",
