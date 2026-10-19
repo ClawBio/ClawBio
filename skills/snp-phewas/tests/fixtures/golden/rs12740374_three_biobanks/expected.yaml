@@ -9,9 +9,13 @@ status_counts:
   pan_ukbb_eur: {ok: 3, not_queried: 7157}
   finngen_r12: {ok: 3, not_queried: 2466}
   mvp_eur: {ok: 2, source_file_not_readable: 849, not_queried: 1219}
+# 2026-10-19 pan_ukbb_eur|mvp_eur 723 -> 724: C-reactive protein (biomarkers-30710) has two MVP
+# studies, GCST90476645 (no readable file, 26,528 cases) and GCST90476641 (readable, 20,588);
+# neither is read here, and the case-count tie-break made the unreadable one the
+# representative, which the threshold never counts. A readable study now outranks it.
 n_shared:
   pan_ukbb_eur|finngen_r12: 589
-  pan_ukbb_eur|mvp_eur: 723
+  pan_ukbb_eur|mvp_eur: 724
   finngen_r12|mvp_eur: 157
 n_shared_3: 157
 # every verdict that is a comparison (not "not read" / "no counterpart")

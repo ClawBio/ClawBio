@@ -424,3 +424,53 @@ def test_a_tested_maximum_does_not_stand_in_for_an_unread_mean():
                                          uncatalogued=[]))
     assert maximum.harmonized_outcome_id == hid and maximum.harmonized_representative is False
     assert mean.harmonized_representative is True
+
+
+
+class _Fixed:
+    """A reader that answers every outcome with one status (ok carries a weak value)."""
+
+    def __init__(self, status):
+        self.status = status
+
+    def read(self, outcomes, tgt):
+        from snp_phewas_sources import RawRecord
+
+        rec = (RawRecord(S.ST_OK, src_ref=tgt.ref, src_alt=tgt.alt, beta=0.01, se=0.01,
+                         neglog10_p=0.5, eaf=0.2, variant_id_native=tgt.variant_id)
+               if self.status == S.ST_OK else RawRecord(S.ST_UNREACHABLE, detail="HTTP 503"))
+        return {o.outcome_id: rec for o in outcomes}, {"route": "tabix",
+                                                       "n_files_read": len(outcomes),
+                                                       "elapsed_s": 0.0}
+
+
+def test_an_outage_never_changes_the_representative_or_the_threshold():
+    """MVP AFR holds two studies for phecode 274.1: GCST90476378 (readable, 6,538 cases) and
+    GCST90475734 (no readable file, 14,437 cases). With the readable one unreachable, the
+    case-count tie-break picked the unreadable one, which the threshold never counts, so an
+    outage cut the shared count (213 -> 212 in this construction) and loosened 0.05 / n. A
+    study known unreadable from the catalog is never the representative over a readable one."""
+    from snp_phewas_replication import build_replication
+
+    pair = ("pan_ukbb_afr", "mvp_afr")
+    shared, reps = {}, {}
+    for status in (S.ST_OK, S.ST_UNREACHABLE):
+        res = lookup_variant("1_109274968_G_T", datasets=list(pair), map_fn=fake_map,
+                             readers={"pan_ukbb_afr": _Fixed(S.ST_OK), "mvp_afr": _Fixed(status)},
+                             scope="harmonized")
+        shared[status] = build_replication(res).n_shared[pair]
+        reps[status] = {r.outcome_id for r in res.rows if r.dataset_id == "mvp_afr"
+                        and r.harmonized_outcome_id == "PHECODE:274.1"
+                        and r.harmonized_representative}
+    assert reps[S.ST_OK] == reps[S.ST_UNREACHABLE] == {"GCST90476378"}
+    assert shared[S.ST_OK] == shared[S.ST_UNREACHABLE]
+
+
+def test_the_meta_fallback_sentence_names_the_group_without_nested_brackets():
+    from snp_phewas_catalog import datasets_for_ancestry
+
+    ids, said = datasets_for_ancestry("META")
+    assert "mvp_meta" in ids and "finngen_r12" in ids
+    finngen = [s for s in said if "FinnGen" in s]
+    assert finngen == ["This lookup serves no multi-population meta-analysis for FinnGen, so "
+                       "its default group is shown instead: FinnGen R12 (Finnish)."]

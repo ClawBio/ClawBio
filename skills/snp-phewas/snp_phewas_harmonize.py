@@ -54,8 +54,11 @@ def attach_harmonization(result: Any) -> None:
     for members in groups.values():
         # A member the source tested comes first, so an outage or absence in one endpoint
         # does not hide a sibling's comparable value. The rule looks at whether a value
-        # exists, never at how strong it is.
+        # exists, never at how strong it is. Next, a study known unreadable from the catalog
+        # never outranks a readable one: the threshold does not count it, so letting an
+        # outage hand it the place would cut n_shared and loosen 0.05 / n.
         members.sort(key=lambda r: (r.status not in _COMPARABLE,
+                                    r.status == S.ST_NOT_READABLE,
                                     BASIS_PRECEDENCE.get(r.harmonization_basis, 9),
                                     -(r.n_cases or 0), r.outcome_id))
         for i, r in enumerate(members):
