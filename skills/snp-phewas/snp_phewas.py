@@ -75,7 +75,7 @@ from snp_phewas_tabix import INDEX_STATS, SourceUnreachable, reset_index_stats  
 from snp_phewas_variant import VariantResolutionError  # noqa: E402
 
 SKILL_NAME = "snp-phewas"
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 SCRIPT_REL = "skills/snp-phewas/snp_phewas.py"
 PIP_DEPS = ["requests>=2.28", "matplotlib>=3.7", "numpy>=1.24", "pyyaml>=6.0"]
 TOP_N = 12

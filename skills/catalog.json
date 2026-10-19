@@ -4530,8 +4530,8 @@
     {
       "name": "snp-phewas",
       "cli_alias": "snp-phewas",
-      "description": "Variant PheWAS across two curated biobanks, Pan-UK Biobank and FinnGen R12: one variant in, beta / SE / p / allele frequency for every outcome each biobank tested (nulls included), on one effect allele, every untested outcome kept as a row with a reason, outcomes harmonized across the biobanks, and a replication verdict per shared outcome.",
-      "version": "0.1.0",
+      "description": "Variant PheWAS across three curated biobanks, Pan-UK Biobank, FinnGen R12 and the Million Veteran Program: one variant in, beta / SE / p / allele frequency for every outcome each biobank tested (nulls included), on one effect allele, every untested or unreadable outcome kept as a row with a reason, outcomes harmonized across the biobanks, and a replication verdict per shared outcome for every biobank pair and across all three.",
+      "version": "0.2.0",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
@@ -4551,12 +4551,14 @@
         "python>=3.11",
         "requests>=2.28",
         "matplotlib>=3.7",
+        "numpy>=1.24",
         "pyyaml>=6.0"
       ],
       "tags": [
         "phewas",
         "pan-ukbb",
         "finngen",
+        "million-veteran-program",
         "replication",
         "summary-statistics",
         "tabix"
@@ -4566,13 +4568,15 @@
         "variant phewas across biobanks",
         "pan-ukbb phewas",
         "finngen phewas",
+        "million veteran program phewas",
+        "mvp phewas",
         "phewas replication",
         "phenome-wide association for rs"
       ],
       "chaining_partners": [],
       "license": "MIT",
       "model_license": "",
-      "data_license": "CC-BY-4.0 (Pan-UK Biobank outcome manifest and demo slices); FinnGen R12 public results terms, free download with citation and acknowledgment required (FinnGen outcome catalog, outcome crosswalk, demo slices)"
+      "data_license": "CC-BY-4.0 (Pan-UK Biobank outcome manifest and demo slices); FinnGen R12 public results terms, free download with citation and acknowledgment required (FinnGen outcome catalog, outcome crosswalk, demo slices); Million Veteran Program summary statistics through the NHGRI-EBI GWAS Catalog, EMBL-EBI terms of use with no restrictions beyond the data owner's, citation given (MVP outcome catalog and its source snapshots, demo slices)"
     },
     {
       "name": "spatial-transcriptomics",
