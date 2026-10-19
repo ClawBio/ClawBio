@@ -28,16 +28,31 @@ from matplotlib.scale import FuncScale  # noqa: E402
 from matplotlib.transforms import Bbox  # noqa: E402
 
 import snp_phewas_schema as S  # noqa: E402
-from snp_phewas_catalog import get_dataset  # noqa: E402
+from snp_phewas_catalog import UnknownDatasetError, get_dataset  # noqa: E402
 from snp_phewas_replication import (  # noqa: E402
     NO_COMPARISON,
+    T_ALL_THREE,
+    T_DIRECTION_UNKNOWN,
+    T_DISCORDANT,
+    T_NULL,
+    T_ONE,
+    T_TWO,
+    THREE_WAY_LABELS,
+    THREE_WAY_ORDER,
+    V_CONCORDANT_ONE,
+    V_DIRECTION_UNKNOWN,
+    V_DISCORDANT,
     V_LOW_CONFIDENCE,
+    V_NO_COUNTERPART,
     V_NOT_READ,
     V_NOT_TESTED,
+    V_REPLICATES,
+    V_SINGLE,
     VERDICT_LABELS,
-    _missing_kind,
     VERDICT_ORDER,
     ReplicationTable,
+    _missing_kind,
+    cell_signal,
 )
 
 SERIES = ("#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948")
@@ -414,19 +429,125 @@ def manhattan(result: Any, out_png: str, *, stats: dict | None = None) -> str:
     return out_png
 
 
-def replication_matrix(table: ReplicationTable, out_png: str, *, max_rows: int = 40) -> str:
-    """Harmonized outcome x dataset, cell = signed z (clipped at |z| = 8), verdict strip."""
+THREE_WAY_COLORS = {
+    T_ALL_THREE: SERIES[0], T_TWO: "#7fb0ea", T_DISCORDANT: SERIES[7],
+    T_DIRECTION_UNKNOWN: SERIES[6], T_ONE: SERIES[1], T_NULL: NULL_POINT,
+    V_LOW_CONFIDENCE: UNTESTED_FILL, V_NOT_READ: UNTESTED_FILL, V_NOT_TESTED: UNTESTED_FILL,
+}
+
+
+def _fmt_p(nlp: float | None) -> str:
+    """p from -log10 p, readable at any size (10 ** -586 is 0.0 as a float)."""
+    if nlp is None:
+        return "n/a"
+    if nlp < 3:
+        return f"{10 ** -nlp:.2g}"
+    exp = math.ceil(nlp)
+    mant = 10 ** (exp - nlp)
+    if mant >= 9.95:
+        mant, exp = 1.0, exp - 1
+    return f"{mant:.2g}e-{exp}"
+
+
+def _short_name(dsid: str) -> str:
+    try:
+        return get_dataset(dsid).short_label
+    except UnknownDatasetError:  # a table built outside the catalog (tests, a caller's own)
+        return dsid
+
+
+def _family(dsid: str) -> str:
+    try:
+        return get_dataset(dsid).family
+    except UnknownDatasetError:
+        return dsid
+
+
+def _long_name(dsid: str) -> str:
+    try:
+        return get_dataset(dsid).label
+    except UnknownDatasetError:
+        return dsid
+
+
+def select_matrix_rows(table: ReplicationTable, max_rows: int = 40, hard_cap: int = 80
+                       ) -> tuple[list, int, int]:
+    """(rows to draw, n significant, n null-everywhere not drawn).
+
+    Every outcome significant in at least one dataset (at the threshold of a pair it is in)
+    comes first, strongest first, up to `hard_cap`; the cap is then filled with the
+    strongest of the rest. A figure of mostly tested-in-both-significant-in-neither rows is
+    noise: on rs12740374 (two biobanks, shared-outcome read) 31 of the 40 rows drawn by the
+    old top-40-by-p rule were null in both."""
+    sig = [r for r in table.rows if r.significant_anywhere(table.alpha)]
+    rest = [r for r in table.rows if not r.significant_anywhere(table.alpha)]
+    drawn = sig[:hard_cap]
+    drawn += rest[:max(0, max_rows - len(drawn))]
+    drawn_ids = {id(r) for r in drawn}
+
+    def null_everywhere(r) -> bool:
+        tested = [c for c in r.cells.values() if c is not None]
+        return all(cell_signal(c, 1.0).tested for c in tested)
+
+    n_null_hidden = sum(1 for r in rest if id(r) not in drawn_ids and null_everywhere(r))
+    return drawn, len(sig), n_null_hidden
+
+
+def pair_strips(table: ReplicationTable) -> list[tuple[str, Any]]:
+    """(label, key) per verdict strip of the matrix: one per pair, then "all three".
+
+    One line per pair, named by biobank ("Pan-UKBB × MVP"): a label split after the "×" left
+    "Pan-UKBB EUR ×" alone on a line, read as the title of the column under it. The ancestry
+    is in the dataset headings; it is kept only where two datasets share a biobank (the
+    catalog's `family`, the same test `replication_lines` uses)."""
     ids = table.dataset_ids
-    pair = table.pairs[0] if table.pairs else None
-    rows = table.rows[:max_rows]
-    h = max(2.5, 0.28 * len(rows) + 1.6)
-    fig, ax = plt.subplots(figsize=(3.0 + 1.6 * len(ids) + 3.2, h), facecolor=SURFACE)
+    fam = {d: _short_name(d).split(" ")[0] for d in ids}
+    if len({_family(d) for d in ids}) < len(ids):  # two datasets of one biobank
+        fam = {d: _short_name(d) for d in ids}
+    strips: list[tuple[str, Any]] = [(f"{fam[a]} × {fam[b]}", p) for p in table.pairs
+                                     for a, b in [p]]
+    if table.n_shared_3 is not None:
+        strips.append(("all three", "three_way"))
+    return strips
+
+
+MATRIX_DPI = 150
+
+
+def replication_matrix(table: ReplicationTable, out_png: str, *, max_rows: int = 40) -> str:
+    """Harmonized outcome x dataset, cell = signed z (clipped at |z| = 8) where the outcome
+    is significant in that dataset, plain light gray where it was tested and is not, hatched
+    where it was not tested or not read, outlined where its direction is withheld, blank
+    where the dataset has no such outcome. One narrow verdict strip per dataset pair, and a
+    three-way strip with three datasets; a legend spells the verdicts out once."""
+    ids = table.dataset_ids
+    pairs = table.pairs
+    rows, n_sig, n_null_hidden = select_matrix_rows(table, max_rows)
+    strips = pair_strips(table)
+    n_cols = len(ids)
+    strip_x0 = n_cols + 0.25
+    strip_w, strip_gap = 0.34, 0.12
+    strips_end = strip_x0 + len(strips) * (strip_w + strip_gap)
+    h = max(3.2, 0.26 * len(rows) + 2.6)
+    width = 3.3 + 1.25 * n_cols + 0.5 * len(strips) + 0.9
+    # created at the save resolution: `_pair_heading` measures text, and text does not scale
+    # exactly with dpi, so a measurement at 100 dpi let labels cross the bracket at 150
+    fig, ax = plt.subplots(figsize=(width, h), facecolor=SURFACE, dpi=MATRIX_DPI)
     ax.set_facecolor(SURFACE)
+    used_pair, used_three = set(), set()
+
+    def sig_in(ds: str, r) -> bool:
+        return any(ds in p and r.verdicts.get(p) != V_NO_COUNTERPART
+                   and cell_signal(r.cells.get(ds), table.alpha[p]).significant for p in pairs)
+
+    row_labels = _distinct_short([S.display_label(r.harmonized_label) for r in rows], 46)
     for i, r in enumerate(rows):
         y = len(rows) - 1 - i
         for j, ds in enumerate(ids):
             c = r.cells.get(ds)
-            if c is None or c.status not in (S.ST_OK, S.ST_API_CENSORED):
+            if c is None:  # the dataset has no such outcome: blank, never hatched
+                continue
+            if c.status not in (S.ST_OK, S.ST_API_CENSORED):
                 ax.add_patch(Rectangle((j, y), 0.96, 0.9, facecolor=UNTESTED_FILL,
                                        hatch="////", edgecolor="#ffffff", linewidth=0))
                 ax.text(j + 0.48, y + 0.45, _MISSING_CELL_TEXT[_missing_kind(c)], ha="center",
@@ -434,73 +555,168 @@ def replication_matrix(table: ReplicationTable, out_png: str, *, max_rows: int =
                 continue
             if c.status == S.ST_API_CENSORED:
                 ax.add_patch(Rectangle((j, y), 0.96, 0.9, facecolor=NULL_FILL, linewidth=0))
-                ax.text(j + 0.48, y + 0.45, "p>=0.05", ha="center", va="center", fontsize=6,
+                ax.text(j + 0.48, y + 0.45, "p≥0.05", ha="center", va="center", fontsize=6,
                         color=INK_2)
                 continue
-            if c.z is None:  # a value whose direction is withheld is not a tested null
-                ax.add_patch(Rectangle((j, y), 0.96, 0.9, facecolor=SURFACE, edgecolor=INK_2,
-                                       linewidth=0.8))
-                ax.text(j + 0.48, y + 0.45, f"p={c.p_value:.2g}, no direction", ha="center",
-                        va="center", fontsize=6, color=INK)
+            if c.z is None or c.direction_withheld_reason:  # withheld is not a tested null
+                ax.add_patch(Rectangle((j + 0.02, y + 0.02), 0.92, 0.86, facecolor=SURFACE,
+                                       edgecolor=INK_2, linewidth=0.8))
+                ax.text(j + 0.48, y + 0.45, f"p={_fmt_p(c.neglog10_p)}\nno direction", ha="center",
+                        va="center", fontsize=5.5, color=INK, linespacing=0.95)
+                continue
+            if not sig_in(ds, r):
+                ax.add_patch(Rectangle((j, y), 0.96, 0.9, facecolor=NULL_FILL, linewidth=0))
+                ax.text(j + 0.48, y + 0.45, f"p={_fmt_p(c.neglog10_p)}", ha="center",
+                        va="center", fontsize=6, color=INK_2)
                 continue
             z = max(-8.0, min(8.0, c.z))
             ax.add_patch(Rectangle((j, y), 0.96, 0.9, facecolor=DIVERGING((z + 8) / 16),
                                    linewidth=0))
-            ax.text(j + 0.48, y + 0.45, f"p={c.p_value:.2g}", ha="center", va="center",
-                    fontsize=6, color=INK if abs(z) < 5 else "#ffffff")
-        if pair:
-            v = r.verdicts[pair]
-            ax.add_patch(Rectangle((len(ids) + 0.1, y + 0.1), 0.25, 0.7,
-                                   facecolor=VERDICT_COLORS[v], linewidth=0,
-                                   hatch="////" if v in NO_COMPARISON else None))
-            ax.text(len(ids) + 0.45, y + 0.45, VERDICT_LABELS[v], va="center", fontsize=6,
-                    color=INK)
-        ax.text(-0.05, y + 0.45, r.harmonized_label[:48], ha="right", va="center",
+            ax.text(j + 0.48, y + 0.45, f"p={_fmt_p(c.neglog10_p)}", ha="center",
+                    va="center", fontsize=6, color=INK if abs(z) < 5 else "#ffffff")
+        for k, (_name, key) in enumerate(strips):
+            x = strip_x0 + k * (strip_w + strip_gap)
+            if key == "three_way":
+                v = r.three_way
+                if v is None:
+                    continue
+                used_three.add(v)
+                color, hatch = THREE_WAY_COLORS[v], "////" if v in NO_COMPARISON else None
+            else:
+                v = r.verdicts[key]
+                if v == V_NO_COUNTERPART:
+                    continue
+                used_pair.add(v)
+                color, hatch = VERDICT_COLORS[v], "////" if v in NO_COMPARISON else None
+            ax.add_patch(Rectangle((x, y + 0.08), strip_w, 0.74, facecolor=color, hatch=hatch,
+                                   edgecolor="#ffffff" if hatch else color, linewidth=0))
+        ax.text(-0.06, y + 0.45, row_labels[i], ha="right", va="center",
                 fontsize=6.5, color=INK)
-    ax.set_xlim(-0.05, len(ids) + 3.2)
-    ax.set_ylim(-0.2, len(rows))
-    ax.set_xticks([j + 0.48 for j in range(len(ids))])
-    ax.set_xticklabels([get_dataset(d).label.replace(", ", "\n") for d in ids], fontsize=7,
-                       color=INK_2)
-    ax.xaxis.tick_top()
+    ax.set_xlim(-0.06, strips_end + 0.9)
+    ax.set_ylim(-0.2, len(rows) + 5.0)  # room for the rotated strip headers and their heading
+    labels = [ax.text(strip_x0 + k * (strip_w + strip_gap) + strip_w / 2, len(rows) + 0.15,
+                      name, ha="center", va="bottom", fontsize=6, color=INK_2, rotation=90)
+              for k, (name, _key) in enumerate(strips)]
+    for j, d in enumerate(ids):
+        ax.text(j + 0.48, len(rows) + 0.15, _long_name(d).replace(", ", "\n"),
+                ha="center", va="bottom", fontsize=6.5, color=INK_2)
+    ax.set_xticks([])
     ax.set_yticks([])
     for s in ax.spines.values():
         s.set_visible(False)
-    title = f"Replication across biobanks: {len(rows)} of {len(table.rows)} shared outcomes shown"
-    if pair:
-        title += (f"; significance at 0.05/{table.n_shared[pair]:,} shared outcomes"
-                  if table.n_shared[pair] else "")
-    ax.set_title(title, fontsize=9, color=INK, loc="left", pad=28)
+    n_hidden = len(table.rows) - len(rows)
+    title = (f"Replication across biobanks: {len(rows)} of {len(table.rows):,} shared "
+             f"outcomes shown, the {min(n_sig, len(rows))} significant in at least one "
+             f"biobank first")
+    if n_hidden:
+        title += (f"\n{n_hidden:,} not drawn ({n_null_hidden:,} of them tested and significant "
+                  f"nowhere); all are in replication.tsv")
+    thr = "; ".join(f"{_short_name(a)} × {_short_name(b)} 0.05/{table.n_shared[(a, b)]:,}"
+                    for a, b in pairs if table.n_shared[(a, b)])
+    if table.n_shared_3:
+        # fewer outcomes are shared by all three than by any pair, so this threshold is the
+        # loosest: an "all three" verdict can stand where a pair strip does not
+        thr += (f"; all three 0.05/{table.n_shared_3:,} (fewer shared outcomes, so a looser "
+                f"line than the pairs')")
+    ax.set_title(title + ("\nsignificance per pair: " + thr if thr else ""), fontsize=8.5,
+                 color=INK, loc="left", pad=6)
+    # the colorbar sits beside the strips, inside the figure, not at the far right edge
+    cax = ax.inset_axes([strips_end + 0.25, max(0.0, len(rows) - 6.5), 0.18,
+                         min(6.0, max(1.5, len(rows) - 0.5))], transform=ax.transData)
     sm = plt.cm.ScalarMappable(cmap=DIVERGING, norm=plt.Normalize(-8, 8))
-    cb = fig.colorbar(sm, ax=ax, fraction=0.025, pad=0.01)
-    cb.set_label("signed z (beta / SE), clipped at 8", fontsize=7, color=INK_2)
-    cb.ax.tick_params(labelsize=6)
+    cb = fig.colorbar(sm, cax=cax)
+    cb.set_label("signed z, clipped at 8\n(significant cells only)", fontsize=6, color=INK_2)
+    cb.ax.tick_params(labelsize=5.5)
+    handles = [Rectangle((0, 0), 1, 1, facecolor=VERDICT_COLORS[v],
+                         hatch="////" if v in NO_COMPARISON else None, edgecolor="#ffffff",
+                         label=VERDICT_LABELS[v]) for v in VERDICT_ORDER if v in used_pair]
+    handles += [Rectangle((0, 0), 1, 1, facecolor=THREE_WAY_COLORS[v],
+                          hatch="////" if v in NO_COMPARISON else None, edgecolor="#ffffff",
+                          label=f"all three: {THREE_WAY_LABELS[v]}")
+                for v in THREE_WAY_ORDER if v in used_three]
+    if handles:
+        fig.legend(handles=handles, loc="upper left", bbox_to_anchor=(0.02, 0.0), ncol=2,
+                   fontsize=6, frameon=False, handlelength=1.2, columnspacing=1.2)
     fig.tight_layout()
-    fig.savefig(out_png, dpi=150, facecolor=SURFACE, bbox_inches="tight")
+    if labels:  # the strips are one group: a heading over a bracket says so
+        _pair_heading(fig, ax, labels, len(rows) + 0.15, strip_x0, strips_end - strip_gap)
+    fig.savefig(out_png, dpi=MATRIX_DPI, facecolor=SURFACE, bbox_inches="tight")
     plt.close(fig)
     return out_png
 
 
+def _pair_heading(fig, ax, labels: list, base: float, x0: float, x1: float) -> None:
+    """A bracket and "replication by pair" over the verdict-strip labels, placed AFTER the
+    final layout: the labels' height is fixed in points, so their height in data units depends
+    on the axes' final size, and a position measured before `tight_layout` put the heading on
+    the title. The y range is extended to hold label + gap + heading, then nothing
+    rescales before the save."""
+    renderer = FigureCanvasAgg(fig).get_renderer()
+    height_px = ax.get_window_extent(renderer).height
+    pt = fig.dpi / 72.0
+    label_px = max(t.get_window_extent(renderer).height for t in labels)
+    gap_px, head_px = 4 * pt, 6.5 * pt * 1.4
+    y_lo, y_hi = ax.get_ylim()
+    k = (label_px + gap_px + head_px + 2 * pt) / height_px
+    if k < 0.9:  # the data top that leaves exactly that many pixels above `base`, and room
+        # for the two-line dataset headings that sit at the same base
+        y_hi = max(base + 1.0, (base - y_lo * k) / (1 - k))
+        ax.set_ylim(y_lo, y_hi)
+    per_px = (y_hi - y_lo) / height_px
+    y_line = base + (label_px + gap_px) * per_px
+    ax.plot([x0, x1], [y_line, y_line], color=INK_2, lw=0.6, solid_capstyle="butt")
+    ax.text((x0 + x1) / 2, y_line + 2 * pt * per_px, "replication by pair", ha="center",
+            va="bottom", fontsize=6.5, color=INK_2)
+
+
+_SIGNIFICANT_VERDICTS = (V_REPLICATES, V_CONCORDANT_ONE, V_DISCORDANT, V_SINGLE,
+                         V_DIRECTION_UNKNOWN)
+
+
 def paired_effects(table: ReplicationTable, out_png: str) -> str:
-    """Beta in dataset A vs dataset B with 95% CIs, one panel for binary outcomes (log-OR)
-    and one for continuous outcomes in z units (effect scales differ across cohorts)."""
+    """Beta in one dataset against another with 95% CIs: one row of panels per dataset pair,
+    one panel per outcome kind present (binary in log-OR, continuous in z units, since effect
+    scales differ across cohorts). Each panel gives the effect correlation over every
+    outcome tested in both AND over the outcomes significant in either, each with its n:
+    over hundreds of shared outcomes the first is dominated by nulls. Two datasets give one
+    row, as before."""
     if not table.pairs:
         raise ValueError("a paired effect plot needs two datasets")
-    a, b = table.pairs[0]
-    both = [r for r in table.rows
-            if all(r.cells.get(d) is not None and r.cells[d].status == S.ST_OK
-                   and r.cells[d].beta is not None for d in (a, b))]
-    kinds = [k for k in ("binary", "continuous") if any(r.cells[a].outcome_kind == k for r in both)]
-    kinds = kinds or ["binary"]
-    fig, axes = plt.subplots(1, len(kinds), figsize=(5.8 * len(kinds), 5), facecolor=SURFACE,
+    pairs = [p for p in table.pairs if table.n_shared[p]] or table.pairs[:1]
+    pts_by: dict[tuple[str, str], list] = {}
+    for a, b in pairs:
+        pts_by[(a, b)] = [r for r in table.rows
+                          if r.verdicts.get((a, b)) != V_NO_COUNTERPART
+                          and all(r.cells.get(d) is not None and r.cells[d].status == S.ST_OK
+                                  and r.cells[d].beta is not None for d in (a, b))]
+    # One panel per (pair, kind) that has outcomes; an empty combination is not drawn (with
+    # three biobanks only one pair has continuous outcomes, and empty panels filled half the
+    # figure). Nothing at all still gives one panel that says so.
+    panels = [((a, b), k) for a, b in pairs for k in ("binary", "continuous")
+              if any(r.cells[a].outcome_kind == k for r in pts_by[(a, b)])]
+    panels = panels or [(pairs[0], "binary")]
+    ncol = 1 if len(panels) == 1 else 2
+    nrow = math.ceil(len(panels) / ncol)
+    fig, axes = plt.subplots(nrow, ncol, figsize=(5.8 * ncol, 5 * nrow), facecolor=SURFACE,
                              squeeze=False)
-    for ax, kind in zip(axes[0], kinds):
+    for ax in axes.flat[len(panels):]:
+        ax.set_visible(False)
+    for ax, ((a, b), kind) in zip(axes.flat, panels):
         _style(ax)
-        pts = [r for r in both if r.cells[a].outcome_kind == kind]
+        pts = [r for r in pts_by[(a, b)] if r.cells[a].outcome_kind == kind]
+        if not pts:  # say it rather than draw an empty grid
+            ax.set_title(_paired_title(pts, a, b, kind), fontsize=8.5, color=INK, loc="left")
+            ax.text(0.5, 0.5, "no outcome of this kind was tested in both", ha="center",
+                    va="center", fontsize=8, color=INK_2, transform=ax.transAxes)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.grid(False)
+            continue
 
         def xy(r):
             if kind == "binary":
-                return r.cells[a].beta, r.cells[b].beta, 1.96 * r.cells[a].se, 1.96 * r.cells[b].se
+                return (r.cells[a].beta, r.cells[b].beta, 1.96 * r.cells[a].se,
+                        1.96 * r.cells[b].se)
             return r.cells[a].z, r.cells[b].z, 1.96, 1.96
 
         for v in VERDICT_ORDER:
@@ -519,18 +735,38 @@ def paired_effects(table: ReplicationTable, out_png: str) -> str:
         ax.axhline(0, color=MUTED, linewidth=0.6)
         ax.axvline(0, color=MUTED, linewidth=0.6)
         unit = "log odds ratio" if kind == "binary" else "z (beta / SE)"
-        ax.set_xlabel(f"{get_dataset(a).label}: {unit}", fontsize=8, color=INK_2)
-        ax.set_ylabel(f"{get_dataset(b).label}: {unit}", fontsize=8, color=INK_2)
-        title = f"{'Case/control' if kind == 'binary' else 'Continuous'} outcomes tested in both: {len(pts)}"
-        if len(pts) >= 3:
-            title += f"\neffect correlation r = {_corr(pts, a, b, kind):.2f} (n = {len(pts)})"
-        ax.set_title(title, fontsize=9, color=INK, loc="left")
+        ax.set_xlabel(f"{_long_name(a)}: {unit}", fontsize=8, color=INK_2)
+        ax.set_ylabel(f"{_long_name(b)}: {unit}", fontsize=8, color=INK_2)
+        ax.set_title(_paired_title(pts, a, b, kind), fontsize=8.5, color=INK, loc="left")
         if pts:
             ax.legend(fontsize=6.5, frameon=False, loc="upper left")
     fig.tight_layout()
     fig.savefig(out_png, dpi=150, facecolor=SURFACE, bbox_inches="tight")
     plt.close(fig)
     return out_png
+
+
+def paired_correlations(pts, a: str, b: str, kind: str) -> dict[str, Any]:
+    """{n_all, r_all, n_sig, r_sig}: the effect correlation over every outcome tested in
+    both, and over the outcomes significant in either (r is None below three points)."""
+    sig = [r for r in pts if r.verdicts[(a, b)] in _SIGNIFICANT_VERDICTS]
+    return {"n_all": len(pts), "r_all": _corr(pts, a, b, kind) if len(pts) >= 3 else None,
+            "n_sig": len(sig), "r_sig": _corr(sig, a, b, kind) if len(sig) >= 3 else None}
+
+
+def _paired_title(pts, a, b, kind) -> str:
+    c = paired_correlations(pts, a, b, kind)
+    head = (f"{_short_name(a)} × {_short_name(b)}, "
+            f"{'case/control' if kind == 'binary' else 'continuous'} outcomes tested in both: "
+            f"{c['n_all']}")
+    parts = []
+    if c["r_all"] is not None:
+        parts.append(f"r = {c['r_all']:.2f} over all {c['n_all']}")
+    if c["r_sig"] is not None:
+        parts.append(f"r = {c['r_sig']:.2f} over the {c['n_sig']} significant in either")
+    elif c["n_all"]:
+        parts.append(f"{c['n_sig']} significant in either (too few for r)")
+    return head + ("\n" + "; ".join(parts) if parts else "")
 
 
 def _corr(pts, a, b, kind) -> float:

@@ -1,0 +1,11 @@
+# The three-biobank golden query: the rs12740374 query plus two Million Veteran Program
+# studies, read from the bundled GWAS Catalog harmonized slices (skills/snp-phewas/demo/mvp/):
+# GCST90475929 ischemic heart disease (phecode 411, odds ratios) and GCST90475416 LDL
+# cholesterol mean (beta; its p underflows to 0 in the source).
+variant: rs12740374
+variant_id_grch38: 1_109274968_G_T
+datasets: [pan_ukbb_eur, finngen_r12, mvp_eur]
+outcomes:
+  pan_ukbb_eur: [biomarkers-30780-both_sexes-irnt, icd10-E78-both_sexes, phecode-411-both_sexes]
+  finngen_r12: [I9_CHD, E4_LIPOPROT, I9_IHD]
+  mvp_eur: [GCST90475929, GCST90475416]

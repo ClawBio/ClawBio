@@ -181,3 +181,197 @@ def test_the_representative_is_a_tested_endpoint_before_basis_and_cases():
     big.status = S.ST_OK  # both tested: the most cases wins, as before
     attach_harmonization(res)
     assert big.harmonized_representative and not small.harmonized_representative
+
+
+# --- three datasets ---------------------------------------------------------------------
+
+from snp_phewas_replication import (  # noqa: E402
+    T_ALL_THREE,
+    T_DIRECTION_UNKNOWN,
+    T_DISCORDANT,
+    T_NULL,
+    T_ONE,
+    T_TWO,
+    V_NO_COUNTERPART,
+    three_way,
+)
+
+
+def _t(a, b, c):
+    return three_way(*(cell_signal(x, ALPHA) for x in (a, b, c)))
+
+
+def test_each_three_way_class():
+    sig_neg, sig_pos = _cell(1e-6, -0.1), _cell(1e-6, 0.1)
+    null = _cell(0.3, -0.01)
+    assert _t(sig_neg, sig_neg, sig_neg) == (T_ALL_THREE, None)
+    assert _t(sig_neg, null, sig_neg) == (T_TWO, (0, 2))  # the replicating pair is named
+    assert _t(sig_neg, sig_pos, null) == (T_DISCORDANT, None)
+    assert _t(sig_neg, sig_neg, sig_pos) == (T_DISCORDANT, None)  # any two opposite
+    assert _t(sig_neg, _cell(1e-6, None), null) == (T_DIRECTION_UNKNOWN, None)
+    assert _t(null, sig_pos, null) == (T_ONE, None)
+    assert _t(null, null, _cell(status=S.ST_API_CENSORED)) == (T_NULL, None)
+    # a missing cell decides, worst first: not read, then low confidence, then not tested
+    assert _t(sig_neg, _cell(status=S.ST_ABSENT), _cell(status=S.ST_NOT_READABLE))[0] == V_NOT_READ
+    assert _t(sig_neg, _cell(1e-6, -0.1, status=S.ST_LOW_CONFIDENCE),
+              _cell(status=S.ST_ABSENT))[0] == V_LOW_CONFIDENCE
+    assert _t(sig_neg, sig_neg, _cell(status=S.ST_ABSENT))[0] == V_NOT_TESTED
+
+
+def _table3(cells):
+    """cells: one tuple (a, b, c) per harmonized outcome; None = no such outcome there."""
+    class R:
+        dataset_ids = ["a", "b", "c"]
+        rows = []
+
+    for i, trio in enumerate(cells):
+        for ds, c in zip("abc", trio):
+            if c is None:
+                continue
+            R.rows.append(S.OutcomeRow(**{**c.__dict__, "dataset_id": ds, "outcome_id": f"o{i}",
+                                         "harmonized_outcome_id": f"H{i}",
+                                         "harmonized_label": f"h{i}",
+                                         "harmonized_representative": True}))
+    return build_replication(R)
+
+
+def test_three_way_threshold_no_counterpart_and_an_outage_cannot_loosen_it():
+    sig, null = _cell(1e-5, -0.1), _cell(0.5, 0.1)
+    t = _table3([(sig, sig, sig), (sig, sig, None), (null, None, null), (sig, sig, sig)])
+    assert t.n_shared == {("a", "b"): 3, ("a", "c"): 3, ("b", "c"): 2}
+    assert t.n_shared_3 == 2 and t.alpha_3 == pytest.approx(0.05 / 2)
+    by = {r.harmonized_outcome_id: r for r in t.rows}
+    # H1 has no outcome in c: its a/c and b/c verdicts say so, and it has no three-way class
+    assert by["H1"].verdicts[("a", "c")] == V_NO_COUNTERPART and by["H1"].three_way is None
+    assert by["H2"].verdicts[("a", "b")] == V_NO_COUNTERPART
+    # no_counterpart is not counted in a pair: a/c counts H0, H2, H3 only
+    assert sum(t.counts(("a", "c")).values()) == 3 and V_NO_COUNTERPART not in t.counts(("a", "c"))
+    assert by["H0"].three_way == T_ALL_THREE
+    recs = {r["harmonized_outcome_id"]: r for r in t.to_records()}
+    assert recs["H1"]["c__status"] == "no_counterpart" and recs["H1"]["three_way"] == V_NO_COUNTERPART
+    assert recs["H0"]["three_way_n_shared"] == 2
+    # every c cell unreachable: the three-way denominator stays the shared count
+    out = _table3([(sig, sig, _cell(status=S.ST_UNREACHABLE))] * 1 +
+                  [(null, null, _cell(status=S.ST_UNREACHABLE))] * 3)
+    assert out.n_shared_3 == 4 and out.alpha_3 == pytest.approx(0.05 / 4)
+    assert t.counts_three_way()[T_ALL_THREE] == 2
+    # with two datasets there is no three-way column
+    two = build_replication(_offline_result())
+    assert two.n_shared_3 is None and "three_way" not in two.to_records()[0]
+
+
+def test_matrix_pair_labels_are_one_line_and_name_both_biobanks():
+    """A pair label split after the "×" would leave "Pan-UKBB EUR ×" alone on a line, read as
+    the title of the MVP column under it."""
+    import snp_phewas_plots as plots
+
+    t = build_replication(_offline_result(datasets=["pan_ukbb_eur", "finngen_r12", "mvp_eur"]))
+    assert [name for name, _ in plots.pair_strips(t)] == [
+        "Pan-UKBB × FinnGen", "Pan-UKBB × MVP", "FinnGen × MVP", "all three"]
+    two = build_replication(_offline_result())
+    assert [name for name, _ in plots.pair_strips(two)] == ["Pan-UKBB × FinnGen"]
+
+
+def test_three_biobank_figures_render_and_the_matrix_draws_signals_first(tmp_path):
+    import snp_phewas_plots as plots
+
+    r = _offline_result(datasets=["pan_ukbb_eur", "finngen_r12", "mvp_eur"])
+    t = build_replication(r)
+    assert len(t.pairs) == 3 and t.n_shared_3
+    drawn, n_sig, n_null_hidden = plots.select_matrix_rows(t, max_rows=40)
+    sig_ids = [x.harmonized_outcome_id for x in drawn[:n_sig]]
+    assert {"PHECODE:411", "ICD10:E78", "PANUKBB:biomarkers-30780-both_sexes-irnt"} <= set(sig_ids)
+    assert all(x.significant_anywhere(t.alpha) for x in drawn[:n_sig])
+    assert len(drawn) == 40
+    for fn, name in ((plots.replication_matrix, "m3.png"), (plots.paired_effects, "p3.png")):
+        fn(t, str(tmp_path / name))
+        assert (tmp_path / name).stat().st_size > 10_000
+    # null rows: everything tested and significant nowhere is counted as not drawn
+    sig, null = _cell(1e-9, -0.1), _cell(0.5, 0.1)
+    many = _table3([(sig, sig, sig)] + [(null, null, null)] * 60)
+    drawn, n_sig, n_null_hidden = plots.select_matrix_rows(many, max_rows=40)
+    assert (len(drawn), n_sig, n_null_hidden) == (40, 1, 21)
+    plots.replication_matrix(many, str(tmp_path / "many.png"))
+
+
+def test_paired_correlation_over_all_and_over_the_significant():
+    from snp_phewas_plots import paired_correlations
+
+    sig = [(_cell(1e-9, b), _cell(1e-9, b * 1.1)) for b in (-0.3, -0.2, 0.25)]
+    nulls = [(_cell(0.5, b), _cell(0.5, -b)) for b in (0.01, -0.02, 0.03, -0.01, 0.02)]
+
+    class R:
+        dataset_ids = ["a", "b"]
+        rows = []
+
+    for i, (ca, cb) in enumerate(sig + nulls):
+        for ds, c in (("a", ca), ("b", cb)):
+            R.rows.append(S.OutcomeRow(**{**c.__dict__, "dataset_id": ds, "outcome_id": f"o{i}",
+                                         "harmonized_outcome_id": f"H{i}", "harmonized_label": "h",
+                                         "harmonized_representative": True}))
+    t = build_replication(R)
+    c = paired_correlations(t.rows, "a", "b", "binary")
+    assert (c["n_all"], c["n_sig"]) == (8, 3)
+    assert c["r_sig"] == pytest.approx(1.0) and c["r_all"] < c["r_sig"]
+
+
+def _table_for(ids, cells):
+    """`_table3` with real dataset ids, so labels and families come from the catalog."""
+    class R:
+        dataset_ids = list(ids)
+        rows = []
+
+    for i, cs in enumerate(cells):
+        for ds, c in zip(ids, cs):
+            R.rows.append(S.OutcomeRow(**{**c.__dict__, "dataset_id": ds, "outcome_id": f"o{i}",
+                                         "harmonized_outcome_id": f"H{i}",
+                                         "harmonized_label": f"h{i}",
+                                         "harmonized_representative": True}))
+    return build_replication(R)
+
+
+@pytest.mark.parametrize("ids,n_sig,n_null", [
+    (["pan_ukbb_eur", "finngen_r12", "mvp_eur"], 3, 0),
+    (["pan_ukbb_eur", "finngen_r12", "mvp_eur"], 40, 0),
+    (["pan_ukbb_eur", "pan_ukbb_afr"], 3, 0),  # one biobank twice: the longest labels
+    (["pan_ukbb_eur", "pan_ukbb_afr", "mvp_eur"], 3, 0),
+    # long labels, three pairs, and outcomes not drawn (a three-line title)
+    (["pan_ukbb_eur", "pan_ukbb_afr", "mvp_eur"], 3, 60),
+])
+def test_the_pair_heading_sits_above_every_pair_label_and_below_the_title(
+        tmp_path, monkeypatch, ids, n_sig, n_null):
+    """A heading placed from a measurement taken before the final layout printed on the
+    title (two datasets of one biobank, long labels, outcomes not drawn)."""
+    import snp_phewas_plots as plots
+
+    sig, null = _cell(1e-9, -0.1), _cell(0.5, 0.1)
+    t = _table_for(ids, [tuple(sig for _ in ids)] * n_sig + [tuple(null for _ in ids)] * n_null)
+    figs = []
+    monkeypatch.setattr(plots.plt, "close", figs.append)
+    plots.replication_matrix(t, str(tmp_path / "m.png"))
+    fig = figs[0]
+    ax = fig.axes[0]
+    r = plots.FigureCanvasAgg(fig).get_renderer()
+    texts = [x for x in ax.texts if x.get_text()]
+    heading = next(x for x in texts if x.get_text() == "replication by pair")
+    pair_labels = [x for x in texts if x.get_rotation() == 90]
+    assert pair_labels
+    # the title is left-aligned, so it is the axes' left title, not `ax.title` (empty)
+    title = next(x for x in (ax.title, ax._left_title, ax._right_title) if x.get_text())
+    assert fig.dpi == plots.MATRIX_DPI  # measured at the resolution the PNG is saved at
+    hb, tb = heading.get_window_extent(r), title.get_window_extent(r)
+    label_top = max(x.get_window_extent(r).y1 for x in pair_labels)
+    (line,) = [ln for ln in ax.lines if len(set(ln.get_ydata())) == 1]
+    line_y = ax.transData.transform((0, line.get_ydata()[0]))[1]
+    assert label_top < line_y < hb.y0  # the bracket clears the labels; the heading sits on it
+    assert hb.y1 < tb.y0
+    assert hb.y1 <= ax.get_window_extent(r).y1 + 1  # inside the axes, so the save keeps it
+    plots.plt.close(fig)
+
+
+def test_pair_labels_keep_the_ancestry_only_when_two_datasets_share_a_biobank():
+    import snp_phewas_plots as plots
+
+    sig = _cell(1e-9, -0.1)
+    two = _table_for(["pan_ukbb_eur", "pan_ukbb_afr"], [(sig, sig)])
+    assert [n for n, _ in plots.pair_strips(two)] == ["Pan-UKBB EUR × Pan-UKBB AFR"]

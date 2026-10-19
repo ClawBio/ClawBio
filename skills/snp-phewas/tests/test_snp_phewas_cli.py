@@ -71,18 +71,88 @@ def test_demo_report_states_scope_sources_and_disclaimer(demo_out):
     assert "We want to acknowledge the participants and investigators of the FinnGen study" in report
     assert "using the UK Biobank Resource" in report
     assert "not a medical device" in report
-    assert "replicates (significant in both, same direction): 2" in report
+    assert "Million Veteran Program (Verma A et al., Science 2024" in report
+    assert "not a medical device" in report
     assert "1.58e-465" in report  # LDL p from -log10 p 464.8, not an underflowed 0
-    # 3 outcomes looked up per biobank: the threshold is scoped, never called phenome-wide
+    assert "6.02e-587" in report  # MVP LDL: p = 0 in the file, derived from beta / SE
+    # outcomes looked up per biobank: the threshold is scoped, never called phenome-wide
     summary = report.split("## Summary", 1)[1].split("## Notes", 1)[0]
     assert summary.count("(over the 3 outcomes looked up)") == 2
+    assert summary.count("(over the 2 outcomes looked up)") == 1
     assert "phenome-wide" not in summary
+    # an MVP study with no readable file is never counted as read
+    assert ("tested in 2 of 2 outcomes read (2,070 in the catalog, 849 of them with no "
+            "readable file)") in summary
     import json
 
     res = json.loads((demo_out / "result.json").read_text())
     assert res["skill"] == "snp-phewas" and res["summary"]["demo"] is True
-    assert res["summary"]["replication"]["verdicts"]["replicates"] == 2
+    pairs = {tuple(p["pair"]): p for p in res["summary"]["replication"]["pairs"]}
+    assert {k: p["verdicts"]["replicates"] for k, p in pairs.items()} == {
+        ("pan_ukbb_eur", "finngen_r12"): 2, ("pan_ukbb_eur", "mvp_eur"): 2,
+        ("finngen_r12", "mvp_eur"): 1}
+    assert res["summary"]["replication"]["three_way"]["classes"]["replicates_in_all_three"] == 1
+    assert res["summary"]["datasets"]["mvp_eur"]["n_read"] == 2
     assert res["data"]["uncataloged"] == ["K11_GINGIVITIS_PERIODONTAL"]
+
+
+def test_demo_report_names_every_pair_and_all_three(demo_out, capsys):
+    """With three biobanks, a report of the first pair alone would hide two comparisons
+    the tables and the matrix carry."""
+    report = (demo_out / "report.md").read_text()
+    for a, b in (("Pan-UK Biobank (European ancestry)", "FinnGen R12 (Finnish)"),
+                 ("Pan-UK Biobank (European ancestry)",
+                  "Million Veteran Program (European genetic ancestry)"),
+                 ("FinnGen R12 (Finnish)",
+                  "Million Veteran Program (European genetic ancestry)")):
+        assert f"**{a} and {b}**" in report, (a, b)
+        assert f"**Replication, {a} and {b}**" in report, (a, b)
+    assert "**All three biobanks** (Pan-UKBB EUR, FinnGen and MVP EUR)" in report
+    assert "replicates in all three (significant in each, same direction): 1 (Ischemic Heart Disease)" in report
+    assert "harmonized across at least two of the datasets" in report
+    # the multi-dataset sentences use one list form: no label's own comma reads as a separator
+    assert ("**Datasets**: Pan-UK Biobank (European ancestry), FinnGen R12 (Finnish) and "
+            "Million Veteran Program (European genetic ancestry)") in report
+
+
+def test_the_replication_lines_reach_stdout(tmp_path, capsys):
+    assert snp_phewas.main(["--demo", "--output", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "**All three biobanks**" in out
+    assert "**FinnGen R12 (Finnish) and Million Veteran Program (European genetic ancestry)**" in out
+
+
+class _Absent:
+    """A reader that answers 'absent' for every outcome asked about (no network)."""
+
+    def read(self, outcomes, tgt, catalog_ids=None):
+        import snp_phewas_schema as S
+        from snp_phewas_sources import RawRecord
+
+        recs = {o.outcome_id: RawRecord(S.ST_ABSENT, route="tabix") for o in outcomes}
+        return (recs, {"route": "tabix"}, []) if catalog_ids is not None else (recs, {"route": "tabix"})
+
+
+def test_a_matched_read_says_so_first_with_its_counts(offline_kwargs, tmp_path):
+    """The narrowing is said where the answer is given, per biobank, counted from the rows."""
+    import argparse
+
+    from snp_phewas_lookup import lookup_variant
+
+    offline_kwargs["readers"] = {d: _Absent() for d in ("pan_ukbb_eur", "finngen_r12", "mvp_eur")}
+    offline_kwargs["outcomes"] = None
+    r = lookup_variant("rs12740374", **offline_kwargs)
+    args = argparse.Namespace(demo=False, quick=False)
+    report = snp_phewas.write_report(r, None, tmp_path, args, 0.0).read_text()
+    covers = report.split("## What this answer covers", 1)[1].split("## Summary", 1)[0]
+    assert ("**This was the quicker read: Pan-UK Biobank (European ancestry), FinnGen R12 "
+            "(Finnish) and Million Veteran Program (European genetic ancestry) were read only "
+            "over the outcomes matched across the biobanks, the same rule in each.**") in covers
+    assert ("Million Veteran Program (European genetic ancestry): read over the 727 outcomes "
+            "with a readable counterpart in FinnGen or Pan-UK Biobank") in covers
+    assert "494 were not looked up and 849 have no readable file" in covers
+    summary = report.split("## Summary", 1)[1].split("## Notes", 1)[0]
+    assert "tested in 0 of 727 outcomes read (2,070 in the catalog, 849 of them" in summary
 
 
 def test_reproducibility_bundle_verifies_from_the_output_dir(demo_out):
@@ -122,6 +192,7 @@ def test_list_datasets(capsys):
     out = capsys.readouterr().out
     assert "pan_ukbb_eur (default)" in out and "7,160 outcomes" in out
     assert "finngen_r12 (default)" in out and "2,469 outcomes" in out
+    assert "mvp_eur (default)" in out and "2,070 outcomes" in out and "mvp_meta" in out
     assert "is not included" in out
 
 
@@ -161,7 +232,8 @@ def test_demo_through_the_runner_writes_only_under_output(tmp_path):
 
 
 def test_a_live_run_warns_about_the_index_download_before_it_starts(monkeypatch, capsys, tmp_path):
-    """The first default run downloads 2.08 GB of index files; the user hears it first."""
+    """The first default run downloads 4.53 GB of index files (summed from Content-Length for
+    the matched files of the three biobanks); the user hears it, and what will be read, first."""
     import snp_phewas as cli
 
     def stop(*a, **k):
@@ -170,7 +242,13 @@ def test_a_live_run_warns_about_the_index_download_before_it_starts(monkeypatch,
     monkeypatch.setattr(cli, "lookup_variant", stop)
     with pytest.raises(SystemExit):
         cli.main(["--variant", "rs12740374", "--output", str(tmp_path)])
-    assert "2.08 GB" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "4.53 GB" in err and "(1,156, 622, 727 files in Pan-UK Biobank (European ancestry), " \
+        "FinnGen R12 (Finnish) and Million Veteran Program (European genetic ancestry))" in err
+    with pytest.raises(SystemExit):
+        cli.main(["--variant", "rs12740374", "--all-outcomes", "--output", str(tmp_path)])
+    err = capsys.readouterr().err
+    assert "20.0 GB" in err and "(7,160, 2,469, 1,221 files" in err
 
 
 def test_a_low_confidence_value_is_flagged_and_never_counted_as_a_pass(offline_kwargs, tmp_path):

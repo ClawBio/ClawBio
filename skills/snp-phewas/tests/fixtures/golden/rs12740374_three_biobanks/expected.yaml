@@ -1,0 +1,23 @@
+# Captured 2026-10-19. MVP values on the effect allele T: the harmonized files are
+# reference-anchored (other_allele = G, effect_allele = T at 1:109274968). IHD: beta = ln OR,
+# SE reproduces the file's p (1.391e-71). LDL: p underflowed to 0, -log10 p derived from
+# beta / SE. The Pan-UKBB and FinnGen rows are the two-biobank golden's, unchanged.
+mvp_tested:
+  GCST90475929: {beta: -0.09349034308733892, se: 0.0052256103375958865, neglog10_p: 70.85667287000796, eaf: 0.21850000000000003, variant_id_native: 1_109274968_G_T, harmonized_outcome_id: "PHECODE:411", status_detail: null}
+  GCST90475416: {beta: -0.1561, se: 0.003009, neglog10_p: 586.2206553959052, eaf: 0.21830000000000005, variant_id_native: 1_109274968_G_T, harmonized_outcome_id: "PANUKBB:biomarkers-30780-both_sexes-irnt", status_detail: "p underflowed to 0 in the source; -log10 p derived from beta/SE"}
+status_counts:
+  pan_ukbb_eur: {ok: 3, not_queried: 7157}
+  finngen_r12: {ok: 3, not_queried: 2466}
+  mvp_eur: {ok: 2, source_file_not_readable: 849, not_queried: 1219}
+n_shared:
+  pan_ukbb_eur|finngen_r12: 589
+  pan_ukbb_eur|mvp_eur: 723
+  finngen_r12|mvp_eur: 157
+n_shared_3: 157
+# every verdict that is a comparison (not "not read" / "no counterpart")
+replication:
+  "ICD10:E78": {pan_ukbb_eur|finngen_r12: replicates}
+  "PHECODE:411": {pan_ukbb_eur|finngen_r12: replicates, pan_ukbb_eur|mvp_eur: replicates, finngen_r12|mvp_eur: replicates}
+  "PANUKBB:biomarkers-30780-both_sexes-irnt": {pan_ukbb_eur|mvp_eur: replicates}
+three_way:
+  "PHECODE:411": replicates_in_all_three

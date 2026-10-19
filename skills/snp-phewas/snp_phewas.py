@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""snp-phewas: one variant looked up in every outcome of Pan-UK Biobank and FinnGen R12.
+"""snp-phewas: one variant looked up in every outcome of Pan-UK Biobank, FinnGen R12 and
+the Million Veteran Program.
 
     python skills/snp-phewas/snp_phewas.py --variant rs12740374 --output /tmp/snp_phewas
     python skills/snp-phewas/snp_phewas.py --demo --output /tmp/snp_phewas_demo
@@ -44,14 +45,28 @@ from clawbio.common.reproducibility import (  # noqa: E402
 import snp_phewas_schema as S  # noqa: E402
 from snp_phewas_catalog import (  # noqa: E402
     get_dataset,
+    label_in_list,
+    labels_listed,
     load_datasets,
     load_outcome_catalog,
     not_served,
     resolve_dataset_ids,
 )
 from snp_phewas_harmonize import basis_label  # noqa: E402
-from snp_phewas_lookup import SnpPhewasResult, lookup_variant  # noqa: E402
-from snp_phewas_replication import VERDICT_LABELS, ReplicationTable, build_replication  # noqa: E402
+from snp_phewas_lookup import (  # noqa: E402
+    SnpPhewasResult,
+    lookup_variant,
+    matched_outcome_ids,
+    matched_scope_sentence,
+)
+from snp_phewas_replication import (  # noqa: E402
+    THREE_WAY_LABELS,
+    V_NO_COUNTERPART,
+    VERDICT_LABELS,
+    ReplicationTable,
+    build_replication,
+    replication_lines,
+)
 from snp_phewas_sources import DEFAULT_WORKERS, FINNGEN_ROUTES  # noqa: E402
 from snp_phewas_tabix import INDEX_STATS, SourceUnreachable, reset_index_stats  # noqa: E402
 from snp_phewas_variant import VariantResolutionError  # noqa: E402
@@ -68,15 +83,22 @@ log = logging.getLogger("snp_phewas")
 # --- argument handling ---------------------------------------------------------------
 
 INDEX_SIZE_NOTE = (
-    "Index files (downloaded once per release into the index cache; measured 2026-10-18 from\nthe sources' Content-Length): default scope 2.08 GB (589 Pan-UK Biobank + 622 FinnGen);\n--all-outcomes 17.9 GB (7,160 + 2,469); --quick none."
+    "Index files (downloaded once per release into the index cache; summed from the sources'\n"
+    "Content-Length on 2026-10-19 for the default three biobanks): default matched scope\n"
+    "4.53 GB (1,156 Pan-UK Biobank + 622 FinnGen + 727 Million Veteran Program files);\n"
+    "--all-outcomes 20.0 GB (7,160 + 2,469 + the 1,221 readable MVP files); --quick none."
 )
+# The same numbers, for the message printed before a live run starts.
+INDEX_SIZE_DEFAULT = "4.53 GB"
+INDEX_SIZE_ALL = "20.0 GB"
 
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="snp-phewas",
-        description="Variant PheWAS across Pan-UK Biobank and FinnGen R12: every outcome, "
-                    "nulls included, on one effect allele, with replication verdicts.",
+        description="Variant PheWAS across Pan-UK Biobank, FinnGen R12 and the Million Veteran "
+                    "Program: every outcome, nulls included, on one effect allele, with "
+                    "replication verdicts.",
         epilog=INDEX_SIZE_NOTE, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--variant", help="rsID (rs12740374) or chr_pos_ref_alt (1_109274968_G_T)")
     ap.add_argument("--input", help="a text file whose first non-comment line is the variant")
@@ -86,11 +108,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--build", default="GRCh38", choices=("GRCh38", "GRCh37"),
                     help="genome build of a chr_pos_ref_alt variant (default GRCh38)")
     ap.add_argument("--dataset", default="default",
-                    help="comma-separated dataset ids, 'default' (pan_ukbb_eur,finngen_r12) "
-                         "or 'all'; see --list-datasets")
+                    help="comma-separated dataset ids, 'default' (pan_ukbb_eur,finngen_r12,"
+                         "mvp_eur) or 'all'; see --list-datasets")
     ap.add_argument("--all-outcomes", action="store_true",
-                    help="read every outcome in both biobanks, not only those matched across "
-                         "the two (the default)")
+                    help="read every outcome in every biobank, not only those matched across "
+                         "them (the default)")
     ap.add_argument("--quick", action="store_true",
                     help="FinnGen web API only: one request, values only where p < 0.05")
     ap.add_argument("--outcomes",
@@ -169,24 +191,65 @@ def _scope_sentences(result: SnpPhewasResult, args: argparse.Namespace) -> list[
     out = []
     if args.demo:
         out.append("**Demo data.** This run reads bundled slices of 3 Pan-UK Biobank outcome "
-                   "files and 3 FinnGen endpoint files around rs12740374, offline; the rsID and "
-                   "the GRCh37 position use answers recorded from Open Targets and Ensembl. "
-                   "Every other outcome is listed as not part of this lookup.")
+                   "files, 3 FinnGen endpoint files and 2 Million Veteran Program study files "
+                   "around rs12740374, offline; the rsID and the GRCh37 position use answers "
+                   "recorded from Open Targets and Ensembl. Every other outcome is listed as "
+                   "not part of this lookup.")
     if args.quick:
         out.append("**Quick mode: FinnGen web API only.** The API reports values only where "
-                   "p < 0.05; every other FinnGen endpoint is labelled 'above the API reporting "
-                   "threshold' (tested, value not shown). Pan-UK Biobank was not read and there "
+                   "p < 0.05; every other FinnGen endpoint is labeled 'above the API reporting "
+                   "threshold' (tested, value not shown). No other biobank was read and there "
                    "is no replication view. Run without --quick for full values.")
-    for dsid in result.dataset_ids:
-        prov = result.provenance[dsid]
-        if prov.get("scope") == "harmonized" and prov["n_queried"] < prov["n_catalog"]:
-            out.append(f"**{get_dataset(dsid).label}: {prov['n_queried']:,} of "
-                       f"{prov['n_catalog']:,} outcomes were read**, the ones matched to the other "
-                       f"biobank (the outcomes the replication view compares). The other "
-                       f"{prov['n_catalog'] - prov['n_queried']:,} are rows with status "
-                       f"'not part of this lookup', not nulls. Run with --all-outcomes to read "
-                       f"every outcome in both biobanks.")
+    narrowed = [d for d in result.dataset_ids
+                if result.provenance[d].get("scope") == "harmonized"]
+    if narrowed:
+        out.append(f"**This was the quicker read: {labels_listed(narrowed)} "
+                   f"{'was' if len(narrowed) == 1 else 'were'} read only over the outcomes "
+                   f"matched across the biobanks, the same rule in each.** Run with "
+                   f"--all-outcomes to read every outcome in every biobank.")
+        for dsid in narrowed:
+            out.append(matched_scope_sentence(label_in_list(dsid), result.dataset_rows(dsid),
+                                              result.provenance[dsid])
+                       .split(" Run with --all-outcomes")[0])
     return out
+
+
+def _read_counts(result: SnpPhewasResult, dsid: str) -> tuple[int, int, int]:
+    """(tested, read, unreadable) counted from the rows: a study the source holds with no
+    readable file is never "read", whatever the scope asked for."""
+    rows = result.dataset_rows(dsid)
+    tested = sum(1 for r in rows if r.status in S.TESTED_STATUSES)
+    unreadable = sum(1 for r in rows if r.status == S.ST_NOT_READABLE)
+    read = sum(1 for r in rows if r.status not in (S.ST_NOT_QUERIED, S.ST_NOT_READABLE))
+    return tested, read, unreadable
+
+
+def _short(dsid: str) -> str:
+    return get_dataset(dsid).short_label
+
+
+def _replication_rows_table(table: ReplicationTable) -> list[str]:
+    """The harmonized outcomes significant in at least one dataset: p per dataset and the
+    verdict of each pair (and of all three)."""
+    shown = [r for r in table.rows if r.significant_anywhere(table.alpha)][:TOP_N]
+    if not shown:
+        return []
+    ids = table.dataset_ids
+    head = ["Harmonized outcome", *[f"{_short(d)} p" for d in ids],
+            *[f"{_short(a)} × {_short(b)}" for a, b in table.pairs]]
+    if table.n_shared_3 is not None:
+        head.append("All three")
+    lines = ["", "| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
+    for r in shown:
+        cells = [S.display_label(r.harmonized_label)]
+        cells += [_fmt_p(c) if (c := r.cells.get(d)) is not None and c.neglog10_p is not None
+                  else ("" if c is None else c.status_label) for d in ids]
+        cells += ["" if r.verdicts[p] == V_NO_COUNTERPART else VERDICT_LABELS[r.verdicts[p]]
+                  for p in table.pairs]
+        if table.n_shared_3 is not None:
+            cells.append(THREE_WAY_LABELS[r.three_way] if r.three_way else "")
+        lines.append("| " + " | ".join(cells) + " |")
+    return lines
 
 
 def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: Path,
@@ -197,17 +260,20 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
         title, SKILL_NAME, VERSION,
         extra_metadata={"Variant (GRCh38)": v.variant_id_grch38,
                         "Effect allele": f"{v.grch38.alt} (other allele {v.grch38.ref})",
-                        "Datasets": ", ".join(get_dataset(d).label for d in result.dataset_ids)})]
+                        "Datasets": labels_listed(result.dataset_ids)})]
     scope = _scope_sentences(result, args)
     if scope:
         lines += ["## What this answer covers", "", *[f"- {s}" for s in scope], ""]
     lines += ["## Summary", ""]
     for dsid in result.dataset_ids:
         c = result.status_counts(dsid)
-        tested = sum(c[s] for s in S.TESTED_STATUSES)
+        tested, read, unreadable = _read_counts(result, dsid)
         prov = result.provenance[dsid]
+        cat = f"{prov['n_catalog']:,} in the catalog"
+        if unreadable:
+            cat += f", {unreadable:,} of them with no readable file"
         line = (f"- **{get_dataset(dsid).label}**: tested in {tested:,} of "
-                f"{prov['n_queried']:,} outcomes read ({prov['n_catalog']:,} in the catalog)")
+                f"{read:,} outcomes read ({cat})")
         rows = result.dataset_rows(dsid)
         n_bonf = S.phenome_wide_n(rows)
         if n_bonf:
@@ -225,14 +291,23 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
                          f" ({n_low:,} low-confidence values are not counted)")
         lines.append(line + ".")
     if table is not None and table.pairs:
-        pair = table.pairs[0]
-        c = table.counts(pair)
-        lines.append(f"- **Replication** ({get_dataset(pair[0]).label} vs "
-                     f"{get_dataset(pair[1]).label}, threshold 0.05 / {table.n_shared[pair]:,} "
-                     f"shared outcomes): {c['replicates']:,} replicate, "
-                     f"{c['concordant_one_significant']:,} same direction significant in one "
-                     f"only, {c['discordant']:,} opposite directions, {c['both_null']:,} null in "
-                     f"both.")
+        for pair in table.pairs:
+            n = table.n_shared[pair]
+            c = table.counts(pair)
+            if not n:
+                lines.append(f"- **Replication, {labels_listed(list(pair))}**: no shared "
+                             f"outcomes.")
+                continue
+            lines.append(f"- **Replication, {labels_listed(list(pair))}** (threshold 0.05 / "
+                         f"{n:,} shared outcomes): {c['replicates']:,} replicate, "
+                         f"{c['concordant_one_significant']:,} same direction significant in "
+                         f"one only, {c['discordant']:,} opposite directions, "
+                         f"{c['both_null']:,} null in both.")
+        if table.n_shared_3:
+            c3 = table.counts_three_way()
+            lines.append(f"- **Replication, all three** (threshold 0.05 / {table.n_shared_3:,} "
+                         f"outcomes all three share): {c3['replicates_in_all_three']:,} "
+                         f"replicate in all three, {c3['replicates_in_two']:,} in two.")
     lines += ["", "## Notes", "", *[f"- {n}" for n in result.notes], ""]
 
     for dsid in result.dataset_ids:
@@ -249,22 +324,9 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
         lines.append("")
 
     if table is not None and table.pairs:
-        pair = table.pairs[0]
-        lines += [f"## Replication across biobanks ({len(table.rows):,} harmonized outcomes)",
-                  "", f"Significance threshold: 0.05 / {table.n_shared[pair]:,} outcomes both "
-                  f"datasets share. Full table: `tables/replication.tsv`.", ""]
-        lines += [f"- {VERDICT_LABELS[k]}: {n:,}" for k, n in table.counts(pair).items() if n]
-        shown = [r for r in table.rows if r.verdicts[pair] in
-                 ("replicates", "concordant_one_significant", "discordant",
-                  "single_dataset_signal", "direction_unknown")][:TOP_N]
-        if shown:
-            a, b = pair
-            lines += ["", f"| Harmonized outcome | {get_dataset(a).label} p | "
-                      f"{get_dataset(b).label} p | Verdict |", "|---|---|---|---|"]
-            for r in shown:
-                ca, cb = r.cells.get(a), r.cells.get(b)
-                lines.append(f"| {r.harmonized_label} | {_fmt_p(ca) if ca else ''} | "
-                             f"{_fmt_p(cb) if cb else ''} | {VERDICT_LABELS[r.verdicts[pair]]} |")
+        lines += replication_lines(table, heading="##")
+        lines += _replication_rows_table(table)
+        lines += ["", "Full table: `tables/replication.tsv`."]
         basis = Counter(r.harmonization_basis for r in result.rows)
         lines += ["", "Harmonization basis across all rows:", ""]
         lines += [f"- {basis_label(k)}: {n:,}" for k, n in basis.most_common()]
@@ -278,6 +340,8 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
         bits = [f"release `{prov['release']}` ({prov['build']})", f"route {route}"]
         if files is not None:
             bits.append(f"{files:,} files read")
+        if prov.get("n_not_readable"):
+            bits.append(f"{prov['n_not_readable']:,} studies with no readable file (not read)")
         if prov.get("n_requests"):
             bits.append(f"{prov['n_requests']} API request(s)")
         if prov.get("elapsed_s") is not None:
@@ -296,11 +360,38 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
               "- `tables/excluded.tsv`: the rows with no value, each with its reason.",
               "- `figures/manhattan.png`: outcome Manhattan, one panel per dataset."]
     if table is not None:
-        lines += ["- `tables/replication.tsv`, `figures/replication_matrix.png`: the replication view."]
+        lines += ["- `tables/replication.tsv`, `figures/replication_matrix.png`: the replication "
+                  "view (every dataset pair, and all three when three datasets are read).",
+                  "- `figures/paired_effects.png`: effect against effect, one row per dataset "
+                  "pair with shared outcomes."]
     lines.append(generate_report_footer())
     path = out / "report.md"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
+
+
+def _start_message(datasets: str | list[str], all_outcomes: bool, index_cache: str | None) -> str:
+    """What a live run will read and download, said before any byte moves."""
+    ids = resolve_dataset_ids(datasets)
+    where = index_cache or "the index cache"
+    if all_outcomes or len({get_dataset(d).family for d in ids}) < 2:
+        n = [sum(1 for o in load_outcome_catalog(d) if o.access_status in (None, "harmonised"))
+             for d in ids]
+        size = (f"up to {INDEX_SIZE_ALL} for the default three biobanks"
+                if set(ids) == {"pan_ukbb_eur", "finngen_r12", "mvp_eur"} else "one index per file")
+        return (f"snp-phewas: reading every readable outcome ({', '.join(f'{k:,}' for k in n)} "
+                f"files in {labels_listed(ids)}). A first run downloads {size} of index files "
+                f"into {where} (reused afterwards). Not timed: Pan-UK Biobank and FinnGen "
+                f"alone are an estimated 15 to 20 minutes the first time. --quick downloads "
+                f"none.")
+    n = [len(matched_outcome_ids(d, ids)) for d in ids]
+    size = (f"{INDEX_SIZE_DEFAULT} of index files"
+            if set(ids) == {"pan_ukbb_eur", "finngen_r12", "mvp_eur"} else "index files")
+    return (f"snp-phewas: reading the outcomes matched across the biobanks "
+            f"({', '.join(f'{k:,}' for k in n)} files in {labels_listed(ids)}). A first run "
+            f"downloads {size} into {where} (reused afterwards). Measured for rs12740374 with "
+            f"the default three biobanks: 159 s with an empty index cache, 57 s warm. "
+            f"--all-outcomes reads everything; --quick downloads none.")
 
 
 def run(args: argparse.Namespace, argv: list[str]) -> int:
@@ -316,6 +407,7 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
                         outcomes=_parse_outcomes(args.outcomes))
     if args.quick:
         kwargs["finngen_route"] = "api"
+    datasets = args.dataset
     if args.demo:
         from snp_phewas_demo import DEMO_VARIANT, demo_kwargs, demo_readers
 
@@ -324,13 +416,10 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
         datasets = "default"
     else:
         variant = args.variant or _variant_from_input(args.input)
-        datasets = args.dataset
         if not args.quick:
             # Before any byte moves, so nobody is surprised by the first run's download.
-            size = "17.9 GB" if args.all_outcomes else "2.08 GB"
-            print(f"snp-phewas: a first run downloads up to {size} of index files into "
-                  f"{args.index_cache or 'the index cache'} (reused afterwards); "
-                  f"--quick downloads none.", file=sys.stderr)
+            print(_start_message(datasets, args.all_outcomes, args.index_cache),
+                  file=sys.stderr)
     if args.quick:
         datasets = "finngen_r12"
     result = lookup_variant(variant, datasets=datasets, **kwargs)
@@ -357,10 +446,7 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
         produced.append(rep)
         produced.append(Path(plots.replication_matrix(
             table, str(out / "figures" / "replication_matrix.png"))))
-        if table.pairs and any(r.verdicts[table.pairs[0]] not in ("not_tested_in_one",
-                                                                  "not_read_in_one",
-                                                                  "low_confidence_in_one")
-                               for r in table.rows):
+        if table.pairs and any(table.n_shared.values()):
             produced.append(Path(plots.paired_effects(
                 table, str(out / "figures" / "paired_effects.png"))))
 
@@ -373,13 +459,19 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
         "scope": result.scope, "quick": bool(args.quick), "demo": bool(args.demo),
         "wall_time_s": round(wall, 1),
         "datasets": {d: {"n_catalog": p["n_catalog"], "n_queried": p["n_queried"],
+                         "n_read": _read_counts(result, d)[1],
                          "status_counts": p.get("status_counts", {})}
                      for d, p in result.provenance.items()},
     }
     if table is not None and table.pairs:
-        pair = table.pairs[0]
-        summary["replication"] = {"pair": list(pair), "n_shared": table.n_shared[pair],
-                                  "alpha": table.alpha[pair], "verdicts": table.counts(pair)}
+        summary["replication"] = {
+            "pairs": [{"pair": list(pair), "n_shared": table.n_shared[pair],
+                       "alpha": table.alpha[pair], "verdicts": table.counts(pair)}
+                      for pair in table.pairs]}
+        if table.n_shared_3 is not None:
+            summary["replication"]["three_way"] = {
+                "n_shared": table.n_shared_3, "alpha": table.alpha_3,
+                "classes": table.counts_three_way()}
     # "ok" only when some outcome carries a value: an all-outage run is not a success.
     any_value = any(r.status in S.TESTED_STATUSES for r in result.rows)
     data = {"query": v.query, "resolution_note": v.resolution_note, "notes": result.notes,
