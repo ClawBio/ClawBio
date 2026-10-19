@@ -159,6 +159,11 @@ def read_outcome_file(data_path: str, index_path: str, cols: Columns, tgt: Place
     except (zlib.error, struct.error, IndexFormatError, UnicodeDecodeError, ValueError) as e:
         # One corrupt file is one unreadable outcome, not the end of a 7,160-file lookup.
         return RawRecord(S.ST_RECORD_UNPARSABLE, route=route, detail=f"{type(e).__name__}: {e}")
+    except OSError as e:
+        # A local failure (the index cache's disk is full, a permission error) is a read
+        # that did not happen: one unreadable outcome, never a crashed lookup.
+        return RawRecord(S.ST_UNREACHABLE, route=route,
+                         detail=f"local read failed ({type(e).__name__}: {e.strerror or e})")
     records = [dict(zip(header, f)) for f in hits if len(f) == len(header)]
     if hits and not records:
         return RawRecord(S.ST_RECORD_UNPARSABLE, route=route,

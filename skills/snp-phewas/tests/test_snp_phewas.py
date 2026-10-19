@@ -702,3 +702,16 @@ def test_an_open_targets_reply_with_no_data_is_an_outage_not_no_variant(monkeypa
 
     with pytest.raises(R.OpenTargetsError, match="no data"):
         R.search_variant_ids("rs12740374", session=Sess())
+
+
+def test_a_full_index_cache_disk_is_an_unreadable_outcome_not_a_crashed_lookup(tmp_path, monkeypatch):
+    import errno
+
+    import snp_phewas_sources as src
+
+    def full(*a, **k):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(src, "ensure_index", full)
+    rec = _read_fg(*_fg_file(tmp_path, b"1\t109274968\tG\tT\t-0.08\t0.0086\t19.7\t0.2\n"))
+    assert rec.status == S.ST_UNREACHABLE and "No space left" in rec.detail, rec
