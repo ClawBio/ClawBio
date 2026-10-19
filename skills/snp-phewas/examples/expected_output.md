@@ -2,7 +2,7 @@
 
 # Variant PheWAS across biobanks: rs12740374
 
-**Date**: 2026-10-18 20:48 UTC
+**Date**: 2026-10-19 07:22 UTC
 **Skill**: snp-phewas
 **Version**: 0.1.0
 **Variant (GRCh38)**: 1_109274968_G_T
@@ -17,8 +17,8 @@
 
 ## Summary
 
-- **Pan-UK Biobank, European ancestry**: tested in 3 of 3 outcomes read (7,160 in the catalog); 3 below the phenome-wide threshold 0.05 / 3.
-- **FinnGen R12 (Finnish)**: tested in 3 of 3 outcomes read (2,469 in the catalog); 3 below the phenome-wide threshold 0.05 / 3.
+- **Pan-UK Biobank, European ancestry**: tested in 3 of 3 outcomes read (7,160 in the catalog); 3 below the threshold 0.05 / 3 (over the 3 outcomes looked up).
+- **FinnGen R12 (Finnish)**: tested in 3 of 3 outcomes read (2,469 in the catalog); 3 below the threshold 0.05 / 3 (over the 3 outcomes looked up).
 - **Replication** (Pan-UK Biobank, European ancestry vs FinnGen R12 (Finnish), threshold 0.05 / 589 shared outcomes): 2 replicate, 0 same direction significant in one only, 0 opposite directions, 0 null in both.
 
 ## Notes
@@ -79,7 +79,7 @@ Harmonization basis across all rows:
 - FinnGen R12 (Finnish): release `finngen_r12` (GRCh38); route api+tabix; 0 files read; 1 API request(s); 0 s.
   - Status of every catalog outcome: outcome was not part of this lookup: 2,466, tested: 3.
 - Tabix indexes: 0 downloaded (0.0 MB), 0 already cached.
-- Wall time: 1.6 s.
+- Wall time: 1.1 s.
 
 ## Data sources
 

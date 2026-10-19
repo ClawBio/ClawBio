@@ -169,7 +169,13 @@ def read_outcome_file(data_path: str, index_path: str, cols: Columns, tgt: Place
         return RawRecord(S.ST_RECORD_UNPARSABLE, route=route,
                          detail=f"{len(hits)} record(s) at the position with a field count "
                                 f"other than the header's {len(header)}")
-    return record_from_fields(records, cols, tgt, route)
+    try:
+        return record_from_fields(records, cols, tgt, route)
+    except KeyError as e:
+        # A file whose header lacks a contract column is one unreadable outcome, not a
+        # crashed lookup.
+        return RawRecord(S.ST_RECORD_UNPARSABLE, route=route,
+                         detail=f"the file has no {e.args[0]!r} column")
 
 
 def run_pool(fn: Callable[[OutcomeSpec], RawRecord], outcomes: list[OutcomeSpec],

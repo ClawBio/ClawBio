@@ -153,3 +153,27 @@ def test_cross_dataset_figures_render(tmp_path):
     with pytest.raises(ValueError):
         plots.paired_effects(empty, str(tmp_path / "x.png"))
     assert isinstance(t.rows[0], ReplicationRow)
+
+
+def test_the_representative_is_a_tested_endpoint_before_basis_and_cases():
+    """An absent or unreachable representative must not hide a tested sibling's value."""
+    from types import SimpleNamespace
+
+    from snp_phewas_harmonize import attach_harmonization
+
+    def row(oid, status, n_cases):
+        return S.OutcomeRow(
+            dataset_id="finngen_r12", dataset_release="r", outcome_id=oid, outcome_label=oid,
+            outcome_category_native="", outcome_kind="binary", n_cases=n_cases,
+            n_controls=None, n_total=None, variant_id_grch38="1_1_A_G", variant_id_native=None,
+            rs_id=None, effect_allele="G", other_allele="A", status=status)
+
+    big = row("C3_BRAIN_EXALLC", S.ST_UNREACHABLE, 5000)
+    small = row("C3_ASTROCYTOMA_EXALLC", S.ST_OK, 100)
+    res = SimpleNamespace(dataset_ids=["finngen_r12"], rows=[big, small], uncatalogued=[])
+    attach_harmonization(res)
+    assert big.harmonized_outcome_id == small.harmonized_outcome_id == "ICD10:C71"
+    assert small.harmonized_representative and not big.harmonized_representative
+    big.status = S.ST_OK  # both tested: the most cases wins, as before
+    attach_harmonization(res)
+    assert big.harmonized_representative and not small.harmonized_representative

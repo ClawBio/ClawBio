@@ -144,6 +144,7 @@ def resolve_dataset_ids(spec: str | list[str] | None) -> list[str]:
     if spec == "all":
         return list(load_datasets())
     ids = [s.strip() for s in spec.split(",")] if isinstance(spec, str) else list(spec)
+    ids = list(dict.fromkeys(ids))  # a repeated id would repeat every row
     for i in ids:
         get_dataset(i)
     return ids

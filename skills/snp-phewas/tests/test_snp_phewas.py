@@ -55,6 +55,8 @@ def test_catalog_lists_the_curated_datasets_with_license_and_attribution():
     assert ds["pan_ukbb_eur"].license == "CC-BY-4.0" and ds["pan_ukbb_eur"].build == "GRCh37"
     assert "acknowledge the participants and investigators of the FinnGen study" in ds["finngen_r12"].attribution
     assert resolve_dataset_ids("all") == list(ds)
+    # a repeated id would repeat every row
+    assert resolve_dataset_ids("finngen_r12,finngen_r12") == ["finngen_r12"]
     with pytest.raises(UnknownDatasetError):
         resolve_dataset_ids("mvp_gwphewas")
 
@@ -720,3 +722,14 @@ def test_a_full_index_cache_disk_is_an_unreadable_outcome_not_a_crashed_lookup(t
     monkeypatch.setattr(src, "ensure_index", full)
     rec = _read_fg(*_fg_file(tmp_path, b"1\t109274968\tG\tT\t-0.08\t0.0086\t19.7\t0.2\n"))
     assert rec.status == S.ST_UNREACHABLE and "No space left" in rec.detail, rec
+
+
+def test_a_file_missing_a_contract_column_is_unparsable_not_a_crashed_lookup(tmp_path):
+    data = tmp_path / "fg.gz"
+    header = b"chrom\tpos\talt\tbeta\tsebeta\tmlogp\taf_alt\n"  # no ref column
+    rec = b"1\t109274968\tT\t-0.08\t0.0086\t19.7\t0.2\n"
+    data.write_bytes(_bgzf_block(header + rec) + _bgzf_block(b""))
+    idx = tmp_path / "fg.gz.tbi"
+    idx.write_bytes(_tbi(["1"], [len(header)]))
+    r = _read_fg(str(data), str(idx))
+    assert r.status == S.ST_RECORD_UNPARSABLE and "'ref'" in r.detail, r

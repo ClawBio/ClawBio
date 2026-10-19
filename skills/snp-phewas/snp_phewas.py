@@ -208,12 +208,21 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
         prov = result.provenance[dsid]
         line = (f"- **{get_dataset(dsid).label}**: tested in {tested:,} of "
                 f"{prov['n_queried']:,} outcomes read ({prov['n_catalog']:,} in the catalog)")
-        n_bonf = S.phenome_wide_n(result.dataset_rows(dsid))
+        rows = result.dataset_rows(dsid)
+        n_bonf = S.phenome_wide_n(rows)
         if n_bonf:
             alpha = 0.05 / n_bonf
-            n_sig = sum(1 for r in result.dataset_rows(dsid)
+            # Low-confidence values (too few carriers) are shown but never counted as a pass.
+            n_sig = sum(1 for r in rows
                         if r.status == S.ST_OK and r.p_value is not None and r.p_value < alpha)
-            line += f"; {n_sig:,} below the phenome-wide threshold 0.05 / {n_bonf:,}"
+            n_low = c[S.ST_LOW_CONFIDENCE]
+            # The threshold is phenome-wide only when no outcome was left out of the read.
+            where = ("phenome-wide" if not c[S.ST_NOT_QUERIED]
+                     else f"over the {n_bonf:,} outcomes looked up")
+            line += f"; {n_sig:,} below the threshold 0.05 / {n_bonf:,} ({where})"
+            if n_low:
+                line += (" (1 low-confidence value is not counted)" if n_low == 1 else
+                         f" ({n_low:,} low-confidence values are not counted)")
         lines.append(line + ".")
     if table is not None and table.pairs:
         pair = table.pairs[0]
@@ -235,7 +244,7 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
                   "|---|---|---|---|---|---|---|"]
         for r in top:
             beta = _fmt(r.beta) if r.beta is not None else "withheld"
-            lines.append(f"| {r.outcome_label} | `{r.outcome_id}` | {beta} | {_fmt(r.se)} | "
+            lines.append(f"| {S.display_label(r.outcome_label)} | `{r.outcome_id}` | {beta} | {_fmt(r.se)} | "
                          f"{_fmt_p(r)} | {_fmt(r.eaf, 3)} | {r.status_label} |")
         lines.append("")
 

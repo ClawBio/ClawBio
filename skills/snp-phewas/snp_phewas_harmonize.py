@@ -5,8 +5,8 @@ Each row gets `harmonized_outcome_id`, `harmonized_label`, `harmonization_basis`
 outcome with no counterpart keeps its row with basis `unmapped` (or `icd10_broad_only`)
 and stays out of the cross-dataset views. When several outcomes of ONE dataset share a
 harmonized id (several FinnGen endpoints FinnGen matched to one Pan-UKBB outcome), one is
-the representative the replication view compares (`harmonized_representative`): the
-strongest basis, then the most cases, then the id.
+the representative the replication view compares (`harmonized_representative`): one the
+source tested, then the strongest basis, then the most cases, then the id.
 """
 
 from __future__ import annotations
@@ -21,7 +21,10 @@ from snp_phewas_crosswalk import (
     load_crosswalk,
 )
 
+import snp_phewas_schema as S
 from snp_phewas_catalog import get_dataset
+
+_COMPARABLE = S.TESTED_STATUSES | {S.ST_API_CENSORED}
 
 
 def attach_harmonization(result: Any) -> None:
@@ -42,7 +45,11 @@ def attach_harmonization(result: Any) -> None:
         if x.harmonized_outcome_id and in_catalog:
             groups[(r.dataset_id, x.harmonized_outcome_id)].append(r)
     for members in groups.values():
-        members.sort(key=lambda r: (BASIS_PRECEDENCE.get(r.harmonization_basis, 9),
+        # A member the source tested comes first, so an outage or absence in one endpoint
+        # does not hide a sibling's comparable value. The rule looks at whether a value
+        # exists, never at how strong it is.
+        members.sort(key=lambda r: (r.status not in _COMPARABLE,
+                                    BASIS_PRECEDENCE.get(r.harmonization_basis, 9),
                                     -(r.n_cases or 0), r.outcome_id))
         for i, r in enumerate(members):
             r.harmonized_representative = i == 0

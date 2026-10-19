@@ -73,6 +73,10 @@ def test_demo_report_states_scope_sources_and_disclaimer(demo_out):
     assert "not a medical device" in report
     assert "replicates (significant in both, same direction): 2" in report
     assert "1.58e-465" in report  # LDL p from -log10 p 464.8, not an underflowed 0
+    # 3 outcomes looked up per biobank: the threshold is scoped, never called phenome-wide
+    summary = report.split("## Summary", 1)[1].split("## Notes", 1)[0]
+    assert summary.count("(over the 3 outcomes looked up)") == 2
+    assert "phenome-wide" not in summary
     import json
 
     res = json.loads((demo_out / "result.json").read_text())
@@ -167,3 +171,20 @@ def test_a_live_run_warns_about_the_index_download_before_it_starts(monkeypatch,
     with pytest.raises(SystemExit):
         cli.main(["--variant", "rs12740374", "--output", str(tmp_path)])
     assert "2.08 GB" in capsys.readouterr().err
+
+
+def test_a_low_confidence_value_is_flagged_and_never_counted_as_a_pass(offline_kwargs, tmp_path):
+    import argparse
+
+    import snp_phewas_schema as S
+    from snp_phewas_lookup import lookup_variant
+
+    r = lookup_variant("rs12740374", **offline_kwargs)
+    (ldl,) = [x for x in r.rows if x.outcome_id == "biomarkers-30780-both_sexes-irnt"]
+    ldl.status = S.ST_LOW_CONFIDENCE  # p = 1.6e-465, far past any threshold
+    args = argparse.Namespace(demo=False, quick=False)
+    report = snp_phewas.write_report(r, None, tmp_path, args, 0.0).read_text()
+    (line,) = [ln for ln in report.splitlines() if ln.startswith("- **Pan-UK Biobank")]
+    assert "2 below the threshold" in line, line
+    assert "(1 low-confidence value is not counted)" in line, line
+    assert "tested, flagged low confidence by the source" in report  # the table's Status
