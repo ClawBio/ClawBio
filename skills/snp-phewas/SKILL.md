@@ -50,6 +50,7 @@ metadata:
     packages:
       - requests>=2.28
       - matplotlib>=3.7
+      - numpy>=1.24
       - pyyaml>=6.0
   demo_data:
     - path: demo/
@@ -337,8 +338,8 @@ writes neither.
 
 ## Dependencies
 
-**Required**: `requests` (HTTP and range reads), `matplotlib` (figures), `pyyaml` (dataset
-catalog). No `pysam`, no `tabix` binary: the index walker is pure Python (`zlib`).
+**Required**: `requests` (HTTP and range reads), `matplotlib` and `numpy` (figures), `pyyaml`
+(dataset catalog). No `pysam`, no `tabix` binary: the index walker is pure Python (`zlib`).
 
 ## Gotchas
 
