@@ -5,6 +5,7 @@ the Million Veteran Program.
     python skills/snp-phewas/snp_phewas.py --variant rs12740374 --output /tmp/snp_phewas
     python skills/snp-phewas/snp_phewas.py --demo --output /tmp/snp_phewas_demo
     python skills/snp-phewas/snp_phewas.py --variant rs12740374 --all-outcomes --output DIR
+    python skills/snp-phewas/snp_phewas.py --variant rs12740374 --ancestry AFR --output DIR
     python skills/snp-phewas/snp_phewas.py --variant rs12740374 --quick --output DIR
     python skills/snp-phewas/snp_phewas.py --list-datasets
 
@@ -44,6 +45,8 @@ from clawbio.common.reproducibility import (  # noqa: E402
 
 import snp_phewas_schema as S  # noqa: E402
 from snp_phewas_catalog import (  # noqa: E402
+    ANCESTRY_WORDS,
+    datasets_for_ancestry,
     get_dataset,
     label_in_list,
     labels_listed,
@@ -110,6 +113,10 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--dataset", default="default",
                     help="comma-separated dataset ids, 'default' (pan_ukbb_eur,finngen_r12,"
                          "mvp_eur) or 'all'; see --list-datasets")
+    ap.add_argument("--ancestry", type=str.upper, choices=sorted(ANCESTRY_WORDS),
+                    help="one genetic-ancestry group in every biobank that has it (AFR, AMR, "
+                         "CSA, EAS, EUR, MID, or META for MVP's multi-population "
+                         "meta-analysis); a biobank without the group is named and left out")
     ap.add_argument("--all-outcomes", action="store_true",
                     help="read every outcome in every biobank, not only those matched across "
                          "them (the default)")
@@ -186,7 +193,8 @@ def _top_rows(result: SnpPhewasResult, dsid: str, n: int) -> list[S.OutcomeRow]:
     return sorted(rows, key=lambda r: -r.neglog10_p)[:n]
 
 
-def _scope_sentences(result: SnpPhewasResult, args: argparse.Namespace) -> list[str]:
+def _scope_sentences(result: SnpPhewasResult, args: argparse.Namespace,
+                     ancestry_notes: list[str] | None = None) -> list[str]:
     """The plain statement of what was read, when it is less than the user may assume."""
     out = []
     if args.demo:
@@ -200,6 +208,7 @@ def _scope_sentences(result: SnpPhewasResult, args: argparse.Namespace) -> list[
                    "p < 0.05; every other FinnGen endpoint is labeled 'above the API reporting "
                    "threshold' (tested, value not shown). No other biobank was read and there "
                    "is no replication view. Run without --quick for full values.")
+    out += [f"**{s}**" for s in (ancestry_notes or [])]
     narrowed = [d for d in result.dataset_ids
                 if result.provenance[d].get("scope") == "harmonized"]
     if narrowed:
@@ -212,6 +221,26 @@ def _scope_sentences(result: SnpPhewasResult, args: argparse.Namespace) -> list[
                                               result.provenance[dsid])
                        .split(" Run with --all-outcomes")[0])
     return out
+
+
+def _other_groups_sentence(result: SnpPhewasResult) -> str | None:
+    """On a default lookup, the ancestry groups that can be asked for instead, read from the
+    dataset catalog, so a user can find them without knowing they exist."""
+    ds = load_datasets()
+    if not all(ds[d].default for d in result.dataset_ids if d in ds):
+        return None
+    served = {s.ancestry for s in ds.values() if not s.default}
+    codes = [a for a in ANCESTRY_WORDS if a in served and a not in ("EUR", "META")]
+    if not codes:
+        return None
+    words = [f"{ANCESTRY_WORDS[a]} ({a})" for a in codes]
+    listed = words[0] if len(words) == 1 else f"{', '.join(words[:-1])} or {words[-1]}"
+    meta = (", or META for the Million Veteran Program's multi-population meta-analysis"
+            if "META" in served else "")
+    label = result.variant.rs_id or result.variant.variant_id_grch38
+    return (f"This lookup read the European-ancestry datasets. Other ancestry groups can be "
+            f"read with --ancestry: {listed}{meta}. For example: `python {SCRIPT_REL} "
+            f"--variant {label} --ancestry {codes[0]} --output DIR`.")
 
 
 def _read_counts(result: SnpPhewasResult, dsid: str) -> tuple[int, int, int]:
@@ -253,7 +282,8 @@ def _replication_rows_table(table: ReplicationTable) -> list[str]:
 
 
 def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: Path,
-                 args: argparse.Namespace, wall_s: float) -> Path:
+                 args: argparse.Namespace, wall_s: float,
+                 ancestry_notes: list[str] | None = None) -> Path:
     v = result.variant
     title = f"Variant PheWAS across biobanks: {v.rs_id or v.variant_id_grch38}"
     lines = [generate_report_header(
@@ -261,7 +291,7 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
         extra_metadata={"Variant (GRCh38)": v.variant_id_grch38,
                         "Effect allele": f"{v.grch38.alt} (other allele {v.grch38.ref})",
                         "Datasets": labels_listed(result.dataset_ids)})]
-    scope = _scope_sentences(result, args)
+    scope = _scope_sentences(result, args, ancestry_notes)
     if scope:
         lines += ["## What this answer covers", "", *[f"- {s}" for s in scope], ""]
     lines += ["## Summary", ""]
@@ -332,6 +362,10 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
         lines += [f"- {basis_label(k)}: {n:,}" for k, n in basis.most_common()]
         lines.append("")
 
+    other = _other_groups_sentence(result)
+    if other:
+        lines += ["## Other ancestry groups", "", other, ""]
+
     lines += ["## What was read", ""]
     for dsid in result.dataset_ids:
         prov = result.provenance[dsid]
@@ -368,6 +402,15 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
     path = out / "report.md"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
+
+
+def _resolve_datasets(args: argparse.Namespace) -> tuple[str | list[str], list[str]]:
+    """(the datasets to read, the sentences that say what an ancestry choice substituted)."""
+    if args.ancestry:
+        if args.dataset != "default":
+            raise SystemExit("snp-phewas: give --ancestry or --dataset, not both")
+        return datasets_for_ancestry(args.ancestry)
+    return args.dataset, []
 
 
 def _start_message(datasets: str | list[str], all_outcomes: bool, index_cache: str | None) -> str:
@@ -407,13 +450,13 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
                         outcomes=_parse_outcomes(args.outcomes))
     if args.quick:
         kwargs["finngen_route"] = "api"
-    datasets = args.dataset
+    datasets, ancestry_notes = _resolve_datasets(args)
     if args.demo:
         from snp_phewas_demo import DEMO_VARIANT, demo_kwargs, demo_readers
 
         variant = args.variant or DEMO_VARIANT
         kwargs.update(demo_kwargs(readers=demo_readers(finngen_route=kwargs["finngen_route"])))
-        datasets = "default"
+        datasets, ancestry_notes = "default", []
     else:
         variant = args.variant or _variant_from_input(args.input)
         if not args.quick:
@@ -451,12 +494,13 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
                 table, str(out / "figures" / "paired_effects.png"))))
 
     wall = time.time() - t0
-    produced.append(write_report(result, table, out, args, wall))
+    produced.append(write_report(result, table, out, args, wall, ancestry_notes))
     v = result.variant
     summary = {
         "variant_id_grch38": v.variant_id_grch38, "rs_id": v.rs_id,
         "effect_allele": v.grch38.alt, "other_allele": v.grch38.ref,
         "scope": result.scope, "quick": bool(args.quick), "demo": bool(args.demo),
+        "ancestry": args.ancestry or None,
         "wall_time_s": round(wall, 1),
         "datasets": {d: {"n_catalog": p["n_catalog"], "n_queried": p["n_queried"],
                          "n_read": _read_counts(result, d)[1],
@@ -475,6 +519,7 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
     # "ok" only when some outcome carries a value: an all-outage run is not a success.
     any_value = any(r.status in S.TESTED_STATUSES for r in result.rows)
     data = {"query": v.query, "resolution_note": v.resolution_note, "notes": result.notes,
+            "ancestry_notes": ancestry_notes,
             "provenance": result.provenance,
             "index_cache": dict(INDEX_STATS),
             "uncataloged": [r.outcome_id for r in result.uncatalogued]}
@@ -520,6 +565,10 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--quick reads FinnGen only; it cannot be combined with --all-outcomes")
     if args.quick and args.dataset not in ("default", "finngen_r12"):
         ap.error("--quick reads FinnGen only; drop --dataset or use --dataset finngen_r12")
+    if args.quick and args.ancestry:
+        ap.error("--quick reads FinnGen only (one population); drop --ancestry")
+    if args.ancestry and args.dataset != "default":
+        ap.error("give --ancestry or --dataset, not both")
     try:
         if not args.demo:
             resolve_dataset_ids(args.dataset)

@@ -122,6 +122,51 @@ def test_the_replication_lines_reach_stdout(tmp_path, capsys):
     assert "**FinnGen R12 (Finnish) and Million Veteran Program (European genetic ancestry)**" in out
 
 
+def test_a_default_lookup_names_the_other_ancestry_groups_with_an_example(demo_out):
+    report = (demo_out / "report.md").read_text()
+    section = report.split("## Other ancestry groups", 1)[1].split("##", 1)[0]
+    assert ("African (AFR), admixed American (AMR), East Asian (EAS), Central/South Asian "
+            "(CSA) or Middle Eastern (MID), or META for the Million Veteran Program's "
+            "multi-population meta-analysis") in section
+    assert "`python skills/snp-phewas/snp_phewas.py --variant rs12740374 --ancestry AFR --output DIR`" in section
+
+
+def test_ancestry_reads_each_biobanks_group_and_names_the_one_without_it(monkeypatch, tmp_path):
+    seen = {}
+
+    def stop(variant, datasets=None, **k):
+        seen["datasets"] = datasets
+        raise SystemExit(0)
+
+    monkeypatch.setattr(snp_phewas, "lookup_variant", stop)
+    with pytest.raises(SystemExit):
+        snp_phewas.main(["--variant", "rs12740374", "--ancestry", "afr", "--output", str(tmp_path)])
+    assert seen["datasets"] == ["pan_ukbb_afr", "mvp_afr"]
+    ids, said = snp_phewas._resolve_datasets(snp_phewas.build_parser().parse_args(
+        ["--variant", "x", "--ancestry", "AFR"]))
+    assert said == ["FinnGen has no African genetic-ancestry results, so it is not part of "
+                    "this lookup."]
+    ids, said = snp_phewas._resolve_datasets(snp_phewas.build_parser().parse_args(
+        ["--variant", "x", "--ancestry", "META"]))
+    assert ids == ["pan_ukbb_eur", "finngen_r12", "mvp_meta"] and len(said) == 2
+
+
+def test_an_ancestry_lookup_says_what_it_substituted_and_offers_no_other_groups(offline_kwargs, tmp_path):
+    import argparse
+
+    from snp_phewas_lookup import lookup_variant
+
+    offline_kwargs["readers"] = {"pan_ukbb_afr": _Absent(), "mvp_afr": _Absent()}
+    offline_kwargs["outcomes"] = None
+    r = lookup_variant("rs12740374", datasets=["pan_ukbb_afr", "mvp_afr"], **offline_kwargs)
+    note = "FinnGen has no African genetic-ancestry results, so it is not part of this lookup."
+    args = argparse.Namespace(demo=False, quick=False)
+    report = snp_phewas.write_report(r, None, tmp_path, args, 0.0, [note]).read_text()
+    covers = report.split("## What this answer covers", 1)[1].split("## Summary", 1)[0]
+    assert f"**{note}**" in covers
+    assert "## Other ancestry groups" not in report  # offered only on a default lookup
+
+
 class _Absent:
     """A reader that answers 'absent' for every outcome asked about (no network)."""
 
@@ -180,6 +225,9 @@ def test_bad_flag_combinations_are_refused(tmp_path):
     out = ["--output", str(tmp_path)]
     for argv in (["--quick", "--all-outcomes", "--variant", "rs1", *out],
                  ["--quick", "--dataset", "pan_ukbb_eur", "--variant", "rs1", *out],
+                 ["--quick", "--ancestry", "AFR", "--variant", "rs1", *out],
+                 ["--ancestry", "AFR", "--dataset", "pan_ukbb_afr", "--variant", "rs1", *out],
+                 ["--ancestry", "XYZ", "--variant", "rs1", *out],
                  ["--variant", "rs1"],
                  out):
         with pytest.raises(SystemExit):

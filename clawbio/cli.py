@@ -1264,10 +1264,10 @@ SKILLS = {
     "snp-phewas": {
         "script": SKILLS_DIR / "snp-phewas" / "snp_phewas.py",
         "demo_args": ["--demo"],
-        "description": "Variant PheWAS across Pan-UK Biobank and FinnGen R12: every outcome with nulls, one effect allele, replication verdicts",
+        "description": "Variant PheWAS across Pan-UK Biobank, FinnGen R12 and the Million Veteran Program: every outcome with nulls, one effect allele, replication verdicts",
         "default_timeout_seconds": 3600,
         "allowed_extra_flags": {
-            "--variant", "--build", "--dataset", "--all-outcomes", "--quick", "--outcomes",
+            "--variant", "--build", "--dataset", "--ancestry", "--all-outcomes", "--quick", "--outcomes",
             "--finngen-route", "--workers", "--index-cache", "--list-datasets",
         },
         "allowed_extra_flags_without_values": {"--all-outcomes", "--quick", "--list-datasets"},
