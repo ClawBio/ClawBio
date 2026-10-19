@@ -128,8 +128,9 @@ KEYWORD_MAP: dict[str, str] = {
     "look up rs": "gwas-lookup",
     "lookup rs": "gwas-lookup",
     "phewas": "gwas-lookup",
-    # A biobank-wide variant PheWAS (every outcome, nulls included, Pan-UKBB + FinnGen) is
-    # snp-phewas; the bare word "phewas" stays with gwas-lookup's reported-association view.
+    # A biobank-wide variant PheWAS (every outcome, nulls included, Pan-UKBB + FinnGen +
+    # Million Veteran Program) is snp-phewas; the bare word "phewas" stays with gwas-lookup's
+    # reported-association view.
     "snp phewas": "snp-phewas",
     "variant phewas": "snp-phewas",
     "phewas across biobanks": "snp-phewas",
@@ -138,6 +139,9 @@ KEYWORD_MAP: dict[str, str] = {
     "pan-uk biobank": "snp-phewas",
     "replicate in finngen": "snp-phewas",
     "finngen": "snp-phewas",
+    "million veteran": "snp-phewas",
+    "mvp phewas": "snp-phewas",
+    "replicate in mvp": "snp-phewas",
     "gwas": "gwas-lookup",
     "profile report": "profile-report",
     "personal profile": "profile-report",

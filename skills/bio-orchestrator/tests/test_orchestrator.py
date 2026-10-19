@@ -431,6 +431,9 @@ class TestDnaspRouting:
     "Does rs12740374 replicate in FinnGen?",
     "snp phewas rs12740374",
     "Pan-UKBB phenome scan for 1_109274968_G_T",
+    "PheWAS for rs7903146 in the Million Veteran Program",
+    "MVP PheWAS for rs12740374",
+    "Does rs12740374 replicate in MVP?",
 ])
 def test_biobank_variant_phewas_routes_to_snp_phewas(query):
     skill, _hint = detect_skill_with_hint_from_query(query)
