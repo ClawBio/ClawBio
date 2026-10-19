@@ -8,7 +8,7 @@ description = "Bioinformatics-native AI agent skill library. Local-first, reprod
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dynamic = ["version"]
 authors = [
     { name = "Manuel Corpas", email = "mc.admin@manuelcorpas.com" },
@@ -33,16 +33,15 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
 dependencies = [
-    # anndata 0.13 is the first that writes pandas 3 string columns to .h5ad; it needs
-    # Python 3.12+. On 3.11 pydeseq2 still pulls an older anndata, and h5ad tests skip.
-    "anndata>=0.13 ; python_version >= '3.12'",
+    # anndata 0.13 is the first that writes pandas 3 string columns to .h5ad.
+    "anndata>=0.13",
     "biopython>=1.88",
     "conda-lock>=4.0.2",
     "matplotlib>=3.11.2",
