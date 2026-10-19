@@ -154,7 +154,7 @@ def resolve_variant(query: str, *, build: str = "GRCh38",
         chrom, pos, ref, alt = parsed
         if build == "GRCh38":
             p = Placement("GRCh38", chrom, pos, ref, alt)
-            return ResolvedVariant(q, p, None, f"variant {p.variant_id} (GRCh38) as given")
+            return ResolvedVariant(q, p, None, f"variant {p.variant_id}, read as GRCh38 (the default; pass --build GRCh37 for a GRCh37 position)")
         if build != "GRCh37":
             raise VariantResolutionError(f"genome build {build!r} is not supported; use GRCh38 or GRCh37")
         p37 = Placement("GRCh37", chrom, pos, ref, alt)
