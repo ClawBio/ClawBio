@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 import re
+from functools import lru_cache
 from typing import Any
 
 import matplotlib
@@ -113,10 +114,57 @@ _FINNGEN_GROUP = (
 _ROMAN = re.compile(r"^(?:Chapter\s+)?([IVX]+)\s")
 
 
+@lru_cache(maxsize=1)
+def _pan_phecode_categories() -> tuple[tuple[float, str, str], ...]:
+    """(numeric code, normalized code, category) of every Pan-UKBB phecode outcome, sorted:
+    the body-system grouping an MVP phecode borrows (MVP's GWAS Catalog records carry no
+    category of their own; the two codings are the same phecode 1.2 family)."""
+    import csv
+    import gzip
+
+    from snp_phewas_crosswalk import normalize_phecode
+
+    spec = get_dataset("pan_ukbb_eur")
+    out: dict[str, str] = {}
+    with gzip.open(spec.outcome_catalog_path, "rt", encoding="utf-8", newline="") as fh:
+        for r in csv.DictReader(fh, delimiter="\t"):
+            if r["trait_type"] == "phecode":
+                out.setdefault(normalize_phecode(r["phenocode"]),
+                               _PHECODE.get((r["category"] or "").strip().lower(), "other"))
+    return tuple(sorted((float(c), c, cat) for c, cat in out.items()))
+
+
+def phecode_category(code: str) -> str:
+    """The category of a phecode by the SAME code's Pan-UKBB grouping. A code Pan-UKBB lacks
+    takes the category its numeric neighbors share (phecode chapters are contiguous code
+    ranges), else the category of a Pan-UKBB code with the same integer part, else other."""
+    from bisect import bisect_left
+
+    from snp_phewas_crosswalk import normalize_phecode
+
+    table = _pan_phecode_categories()
+    c = normalize_phecode(code)
+    x = float(c)
+    i = bisect_left(table, (x,))
+    if i < len(table) and table[i][1] == c:
+        return table[i][2]
+    lo = table[i - 1][2] if i > 0 else None
+    hi = table[i][2] if i < len(table) else None
+    if lo is not None and lo == hi:
+        return lo
+    whole = c.split(".", 1)[0]
+    same = [cat for _x, k, cat in table if k.split(".", 1)[0] == whole]
+    return same[0] if same else "other"
+
+
 def outcome_category(row: S.OutcomeRow) -> str:
     """The body-system category a row is drawn under, from the source's own grouping."""
     fam = get_dataset(row.dataset_id).family
     native = (row.outcome_category_native or "").strip()
+    if fam == "mvp":
+        if native.startswith("PheCode "):
+            return phecode_category(native.split(" ", 1)[1])
+        return "measurements" if row.outcome_kind == "continuous" else "other"
     if fam == "pan_ukbb":
         tt = row.outcome_id.split("-", 1)[0]
         if tt in ("biomarkers", "continuous"):
@@ -249,6 +297,9 @@ def _place_labels(fig, ax, cands, avoid_px, renderer, floor_px) -> tuple[int, in
             t = ax.annotate(
                 text, (x, y), xytext=(dx, dy), textcoords="offset points", ha=ha, va=va,
                 fontsize=7, color=INK, zorder=6,
+                # a patch, not only a halo: a halo covers the glyphs and leaves the gaps
+                # between words open, so a line under a label read as "I21.Acute.myocardial"
+                bbox=dict(boxstyle="square,pad=0.12", fc=SURFACE, ec="none", alpha=0.85),
                 path_effects=[pe.withStroke(linewidth=2.5, foreground=SURFACE)])
             bb = t.get_window_extent(renderer).padded(1.5)
             # inside the axes and clear of the null band under the line
@@ -392,16 +443,22 @@ def manhattan(result: Any, out_png: str, *, stats: dict | None = None) -> str:
         ax.set_title(spec.label, fontsize=10.5, color=INK, loc="left", fontweight="bold",
                      pad=16)
         n_not_looked = sum(1 for r in rows if r.status == S.ST_NOT_QUERIED)
+        n_unreadable = sum(1 for r in rows if r.status == S.ST_NOT_READABLE)
+        n_read = len(rows) - n_unreadable  # the outcomes this release can read at all
+        rd = "readable " if n_unreadable else ""
         if n_not_looked:  # a narrowed read says so first, and the line is not phenome-wide
-            why = (" (those matched to the other biobank)"
+            have = "" if tested == n_read - n_not_looked else f"  ·  {tested:,} have a value"
+            # why it was narrowed, only when that is the reason (a requested subset is not)
+            why = (" (matched to another biobank)"
                    if (getattr(result, "provenance", None) or {}).get(dsid, {}).get("scope")
                    == "harmonized" else "")
-            sub = (f"{len(rows) - n_not_looked:,} of {len(rows):,} outcomes looked up"
-                   f"{why}  ·  {tested:,} have a value  ·  "
-                   f"{len(sig)} above the line p < 0.05 / {n_bonf:,}")
+            sub = (f"{n_read - n_not_looked:,} of {n_read:,} {rd}outcomes looked up{why}"
+                   f"{have}  ·  {len(sig)} above the line p < 0.05 / {n_bonf:,}")
         else:
-            sub = (f"{tested:,} of {len(rows):,} outcomes have a value  ·  {len(sig)} above "
-                   f"the phenome-wide line p < 0.05 / {n_bonf:,}")
+            sub = (f"{tested:,} of {n_read:,} {rd}outcomes have a value  ·  {len(sig)} "
+                   f"above the phenome-wide line p < 0.05 / {n_bonf:,}")
+        if n_unreadable:
+            sub += f"  ·  {n_unreadable:,} with no readable file"
         if n_drop:
             sub += f"  ·  {n_drop} not labeled for space (see table)"
         if knee:

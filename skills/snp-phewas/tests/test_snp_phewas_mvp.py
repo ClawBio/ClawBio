@@ -307,6 +307,25 @@ def test_an_unreadable_study_is_answered_from_the_catalog_with_no_network(monkey
     assert _reader().read_outcome(none, TARGET).detail.startswith("no_summary_statistics:")
 
 
+def test_an_mvp_phecode_takes_the_pan_ukbb_category_of_the_same_code():
+    from snp_phewas_plots import outcome_category, phecode_category
+
+    def row(native, kind="binary"):
+        return S.OutcomeRow(
+            dataset_id="mvp_eur", dataset_release="r", outcome_id="GCST1", outcome_label="x",
+            outcome_category_native=native, outcome_kind=kind, n_cases=1, n_controls=1,
+            n_total=2, variant_id_grch38="1_1_A_G", variant_id_native=None, rs_id=None,
+            effect_allele="G", other_allele="A", status=S.ST_OK)
+
+    assert outcome_category(row("PheCode 411")) == "circulatory"  # Pan-UKBB: circulatory system
+    assert outcome_category(row("PheCode 8.5")) == "infectious"  # Pan-UKBB writes 008.5
+    assert outcome_category(row("PheCode 250.2")) == "endocrine & metabolic"
+    # a code Pan-UKBB lacks: its numeric neighbors' shared category (both circulatory here)
+    assert phecode_category("411.9") == "circulatory"
+    assert outcome_category(row(M.TRAIT_KIND_LABELS[M.KIND_QUANT], "continuous")) == "measurements"
+    assert outcome_category(row(M.TRAIT_KIND_LABELS[M.KIND_SURVEY])) == "other"
+
+
 # --- the crosswalk's MVP rows ---------------------------------------------------------------
 
 def test_the_crosswalk_carries_every_mvp_study_by_the_phecode_and_measurement_rules():

@@ -152,3 +152,81 @@ def test_every_catalog_panel_shortens_to_distinct_labels():
         labels = [S.display_label(o.outcome_label) for o in load_outcome_catalog(ds)]
         out = plots._distinct_short(labels)
         assert len(set(out)) == len(set(labels)) == len(labels), ds
+
+
+def _drawn(monkeypatch, result, tmp_path, **kw):
+    """Render a Manhattan and keep its figure open for inspection."""
+    figs = []
+    monkeypatch.setattr(plots.plt, "close", figs.append)
+    plots.manhattan(result, str(tmp_path / "m.png"), **kw)
+    return figs[0]
+
+
+def test_labels_sit_on_a_background_patch(tmp_path, monkeypatch):
+    """A halo covers the glyphs and leaves the gaps between words open, so a line under a
+    label showed through ("I21.Acute.myocardial"); the label carries a filled patch."""
+    cat = "IX Diseases of the circulatory system (I9_)"
+    rows = _nulls("finngen_r12", 100, cat) + [
+        _row("finngen_r12", "HIT", cat=cat, p=30, label="Acute myocardial infarction")]
+    fig = _drawn(monkeypatch, _result(rows), tmp_path)
+    (label,) = [t for t in fig.axes[0].texts if t.get_text() == "Acute myocardial infarction"]
+    patch = label.get_bbox_patch()
+    assert patch is not None, "the label has no background patch"
+    assert patch.get_boxstyle().pad == pytest.approx(0.12)
+    assert type(patch.get_boxstyle()).__name__ == "Square"
+    assert patch.get_alpha() == pytest.approx(0.85)
+    from matplotlib.colors import to_hex
+
+    assert to_hex(patch.get_facecolor(), keep_alpha=False) == plots.SURFACE.lower()
+    plots.plt.close(fig)
+
+
+def _subtitle(fig) -> tuple[str, float, float]:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+    r = FigureCanvasAgg(fig).get_renderer()
+    (t,) = [t for t in fig.axes[0].texts if "outcomes" in t.get_text() and "·" in t.get_text()]
+    return t.get_text(), t.get_window_extent(r).x1, fig.get_window_extent(r).x1
+
+
+def test_the_subtitle_names_the_matched_read_only_when_that_was_the_reason(tmp_path, monkeypatch):
+    """A read narrowed to the matched outcomes says so; a requested subset (the demo's) is
+    not "matched to another biobank"."""
+    cat = "IX Diseases of the circulatory system (I9_)"
+    rows = _nulls("finngen_r12", 50, cat) + [
+        _row("finngen_r12", f"Q{i}", cat=cat, status=S.ST_NOT_QUERIED) for i in range(30)]
+    res = _result(rows)
+    for scope, says in (("harmonized", True), ("requested", False)):
+        res.provenance = {"finngen_r12": {"scope": scope}}
+        fig = _drawn(monkeypatch, res, tmp_path)
+        text = _subtitle(fig)[0]
+        assert text.startswith("50 of 80 outcomes looked up")
+        assert ("matched to another biobank" in text) is says, text
+        plots.plt.close(fig)
+
+
+def test_the_mvp_subtitle_fits_inside_the_figure(tmp_path, monkeypatch):
+    """The MVP panel says how many outcomes were read, how many have no readable file, how
+    many are past the line and that the axis is compressed; it once ran past the edge."""
+    from snp_phewas_catalog import load_outcome_catalog
+    from snp_phewas_lookup import matched_outcome_ids
+
+    matched = matched_outcome_ids("mvp_eur", ["pan_ukbb_eur", "finngen_r12", "mvp_eur"])
+    rows = []
+    for i, o in enumerate(load_outcome_catalog("mvp_eur")):
+        if o.access_status != "harmonised":
+            status, p = S.ST_NOT_READABLE, None
+        elif o.outcome_id in matched:
+            status, p = S.ST_OK, (300.0 if i % 97 == 0 else 0.2 + (i % 5) / 10)
+        else:
+            status, p = S.ST_NOT_QUERIED, None
+        rows.append(_row("mvp_eur", o.outcome_id, cat=o.outcome_category_native,
+                         kind=o.outcome_kind, p=p, status=status, label=o.outcome_label))
+    res = _result(rows)
+    res.provenance = {"mvp_eur": {"scope": "harmonized"}}
+    fig = _drawn(monkeypatch, res, tmp_path)
+    text, right, edge = _subtitle(fig)
+    assert text.startswith("727 of 1,221 readable outcomes looked up (matched to another biobank)")
+    assert "849 with no readable file" in text and "compressed" in text
+    assert right <= edge, (text, right, edge)
+    plots.plt.close(fig)
