@@ -434,10 +434,18 @@ class TestDnaspRouting:
     "PheWAS for rs7903146 in the Million Veteran Program",
     "MVP PheWAS for rs12740374",
     "Does rs12740374 replicate in MVP?",
+    "PheWAS for rs7903146 in MVP",
+    "The same PheWAS for rs7903146 in African ancestry",
 ])
 def test_biobank_variant_phewas_routes_to_snp_phewas(query):
     skill, _hint = detect_skill_with_hint_from_query(query)
     assert skill == "snp-phewas", (query, skill)
+
+
+def test_a_biobank_gwas_question_without_phewas_is_not_snp_phewas():
+    skill, _hint = detect_skill_with_hint_from_query(
+        "Million Veteran Program GWAS summary statistics for type 2 diabetes")
+    assert skill != "snp-phewas"
 
 
 def test_plain_phewas_still_routes_to_gwas_lookup():

@@ -139,7 +139,6 @@ KEYWORD_MAP: dict[str, str] = {
     "pan-uk biobank": "snp-phewas",
     "replicate in finngen": "snp-phewas",
     "finngen": "snp-phewas",
-    "million veteran": "snp-phewas",
     "mvp phewas": "snp-phewas",
     "replicate in mvp": "snp-phewas",
     "gwas": "gwas-lookup",
@@ -251,6 +250,13 @@ PRS_DTC_TERMS = ("23andme", "ancestrydna", "ancestry dna", "dtc", "genotype file
 # "variant", "compare") capture requests such as "Tajima's D on this alignment"
 # or "nucleotide diversity per population". `dnasp` wins only when no other
 # explicit intent (for example "papers", "annotate", "alphafold") is named.
+# A PheWAS asked of a named biobank or ancestry group is the biobank-wide read (snp-phewas);
+# a bare "phewas" stays with gwas-lookup's reported-association view.
+SNP_PHEWAS_SCOPE_TERMS = (
+    "mvp", "million veteran", "finngen", "pan-ukbb", "pan-uk biobank", "uk biobank",
+    "biobank", "ancestry",
+)
+
 DNASP_TERMS = (
     "dnasp", "dna polymorphism", "tajima", "nucleotide diversity",
     "haplotype diversity", "watterson", "segregating sites", "neutrality test",
@@ -462,6 +468,9 @@ def detect_skill_with_hint_from_query(query: str) -> tuple[str | None, str]:
             )
         keyword, skill = max(others, key=lambda item: len(item[0]))
         return skill, ""
+
+    if "phewas" in query_lower and any(t in query_lower for t in SNP_PHEWAS_SCOPE_TERMS):
+        return "snp-phewas", ""
 
     # Prefer longest keyword match to avoid ambiguity (e.g. "variant annotation"
     # should match vcf-annotator, not equity-scorer via "variant" substring)
