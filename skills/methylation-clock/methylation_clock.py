@@ -285,33 +285,54 @@ def _collect_clock_metadata(adata, clocks: list[str]) -> dict[str, dict]:
     return out
 
 
-def plot_clock_distributions(predictions: pd.DataFrame, outpath: Path) -> None:
+def plot_clock_distributions(
+    predictions: pd.DataFrame,
+    outpath: Path,
+    clock_metadata: dict[str, dict] | None = None,
+) -> None:
     numeric = predictions.select_dtypes(include=["number"])
     if numeric.empty:
         return
-    plt.figure(figsize=(max(7, 1.5 * len(numeric.columns)), 5))
-    plt.boxplot([numeric[col].dropna().values for col in numeric.columns], tick_labels=numeric.columns)
-    plt.xticks(rotation=35, ha="right")
-    plt.ylabel("Predicted value")
-    plt.title("Methylation Clock Predictions")
-    plt.tight_layout()
-    plt.savefig(outpath, dpi=180)
-    plt.close()
+    metadata = {name.lower(): value for name, value in (clock_metadata or {}).items()}
+    ncols = min(2, len(numeric.columns))
+    nrows = (len(numeric.columns) + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 3.5 * nrows), squeeze=False)
+    for ax, clock in zip(axes.flat, numeric.columns):
+        values = numeric[clock].dropna().to_numpy()
+        if len(values) >= 5:
+            ax.boxplot(values, positions=[1], widths=0.35)
+        ax.scatter(np.ones(len(values)), values, alpha=0.65, s=28, zorder=3)
+        unit = metadata.get(clock.lower(), {}).get("unit", "predicted value")
+        if isinstance(unit, list):
+            unit = ", ".join(map(str, unit)) or "predicted value"
+        ax.set_title(clock)
+        ax.set_ylabel(str(unit))
+        ax.set_xlim(0.5, 1.5)
+        ax.set_xticks([])
+        ax.grid(axis="y", alpha=0.2)
+    for ax in list(axes.flat)[len(numeric.columns):]:
+        ax.set_visible(False)
+    fig.suptitle("Methylation clock predictions by clock")
+    fig.tight_layout()
+    fig.savefig(outpath, dpi=180)
+    plt.close(fig)
 
 
 def plot_clock_correlation(predictions: pd.DataFrame, outpath: Path) -> None:
     numeric = predictions.select_dtypes(include=["number"])
     if numeric.shape[1] < 2:
         return
-
-    corr = numeric.corr("pearson")
+    complete = numeric.dropna()
+    if len(complete) < 10:
+        return
+    corr = complete.corr("pearson")
     fig, ax = plt.subplots(figsize=(6, 5))
     im = ax.imshow(corr.values, vmin=-1, vmax=1)
     ax.set_xticks(range(len(corr.columns)))
     ax.set_xticklabels(corr.columns, rotation=35, ha="right")
     ax.set_yticks(range(len(corr.index)))
     ax.set_yticklabels(corr.index)
-    ax.set_title("Clock Correlation (Pearson)")
+    ax.set_title(f"Exploratory clock correlation (Pearson, n={len(complete)})")
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     plt.tight_layout()
     plt.savefig(outpath, dpi=180)
@@ -582,7 +603,9 @@ def run_analysis(
     (output_dir / "tables" / "clock_metadata.json").write_text(json.dumps(metadata_json, indent=2))
     (output_dir / "tables" / "input_qc.json").write_text(json.dumps(input_qc, indent=2))
 
-    plot_clock_distributions(predictions[clock_cols], output_dir / "figures" / "clock_distributions.png")
+    plot_clock_distributions(
+        predictions[clock_cols], output_dir / "figures" / "clock_distributions.png", metadata_json
+    )
     plot_clock_correlation(predictions[clock_cols], output_dir / "figures" / "clock_correlation.png")
 
     write_report(

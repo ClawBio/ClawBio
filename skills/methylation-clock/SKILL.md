@@ -118,7 +118,7 @@ methylation_clock_report/
 ├── result.json
 ├── figures/
 │   ├── clock_distributions.png
-│   └── clock_correlation.png  # only for two or more clocks
+│   └── clock_correlation.png  # at least two clocks and ten complete samples
 ├── tables/
 │   ├── predictions.csv
 │   ├── prediction_summary.csv
