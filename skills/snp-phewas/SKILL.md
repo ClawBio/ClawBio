@@ -111,8 +111,8 @@ put both on one effect allele and one outcome key, and say which associations re
   disease cannot be lined up, and an outage looks like "no association".
 - **With it**: every outcome of each biobank is a row (tested or not, with the reason), on
   the Open Targets alternative allele, with FinnGen endpoints and Pan-UK Biobank outcomes on
-  one join key and a verdict per shared outcome, in about four minutes on an empty index
-  cache (229 s measured for rs12740374; a warm-cache run was not measured).
+  one join key and a verdict per shared outcome, in about a minute and a half on an empty
+  index cache (87 s measured for rs12740374; a warm-cache run was not measured).
 - **Why ClawBio**: values are read from the biobanks' own files; nothing is estimated. The
   skill `gwas-lookup` calls the same FinnGen web endpoint for its FinnGen leg. This skill
   differs in four ways: it reads Pan-UK Biobank (not in `gwas-lookup`); it reads FinnGen's
@@ -171,11 +171,11 @@ biobanks and nothing else. It does not fine-map, colocalize, run MR, or search l
 ## CLI Reference
 
 ```bash
-# Default: Pan-UKBB EUR over the 589 outcomes with a FinnGen counterpart + all FinnGen
-# (first run downloads 5.45 GB of index files into the cache; measured 229 s cold)
+# Default: the outcomes matched across the two biobanks (589 Pan-UKBB + 622 FinnGen)
+# (first run downloads 2.08 GB of index files into the cache; measured 87 s cold)
 python skills/snp-phewas/snp_phewas.py --variant rs12740374 --output /tmp/snp_phewas
 
-# Every Pan-UKBB outcome (7,160; first run downloads 17.9 GB of index files)
+# Every outcome in both biobanks (7,160 + 2,469; first run downloads 17.9 GB of indexes)
 python skills/snp-phewas/snp_phewas.py --variant rs12740374 --all-outcomes --output /tmp/x
 
 # Quick look: FinnGen web API only (one request; values only where p < 0.05)
@@ -254,18 +254,20 @@ with a direction withheld; tested in both, significant in neither; and three no-
 verdicts (not tested in one, not read in one, low confidence in one). 5e-8 is drawn on the
 figures for reference and decides nothing.
 
-**Default scope**: Pan-UK Biobank is read over the 589 outcomes that have a FinnGen
-counterpart (the outcomes the replication view can compare); the other 6,571 are
-`not_queried` rows, and the report states this first. `--all-outcomes` reads all 7,160.
+**Two views**: by default both biobanks are read over the outcomes matched across them, the
+ones the replication view compares (589 Pan-UK Biobank outcomes and the 622 FinnGen endpoints
+that map onto them); the others are `not_queried` rows, and the report states this first.
+`--all-outcomes` reads every outcome in both (7,160 + 2,469). A lookup of one biobank alone
+reads its whole catalog.
 
 **Cost and cache**: each outcome file needs its tabix index, downloaded once into
 `--index-cache` (default `~/.clawbio/snp_phewas/index`, or `SNP_PHEWAS_INDEX_CACHE`), keyed
 by release. Index sizes, summed from the sources' Content-Length on 2026-10-18: 1.08 GB for
-the 589 default Pan-UK Biobank outcomes, 13.54 GB for all 7,160, 4.37 GB for the 2,469
-FinnGen endpoints. So a first default run downloads 5.45 GB and an `--all-outcomes` run
-17.9 GB; the CLI says so on stderr before it starts. The `--all-outcomes` wall time is an
-estimate, not measured: about 12 minutes cold (43 s x 7,160 / 589 for Pan-UK Biobank, plus
-the 175 s FinnGen read).
+the 589 default Pan-UK Biobank outcomes, 13.54 GB for all 7,160, 4.37 GB for all 2,469 FinnGen
+endpoints; the default run measured 2.08 GB (1.9 GiB) in its cache. An `--all-outcomes` run
+downloads 17.9 GB; the CLI says so on stderr before it starts. The `--all-outcomes` wall time
+is an estimate, not measured: 15 to 20 minutes cold (40 s x 7,160 / 589 for Pan-UK Biobank,
+plus FinnGen's full read, 175 s when measured on an earlier default).
 
 ## Example Queries
 
@@ -297,9 +299,9 @@ From `--demo` (abridged; the full file is `examples/expected_output.md`):
 ```
 
 Live, default scope, rs12740374 (measured 2026-10-18 on a laptop, 16 workers, empty index
-cache): 229 s wall time; 589 Pan-UK Biobank files read in 43 s; 1 FinnGen API request plus
-2,274 FinnGen files read in 175 s; 2,863 indexes downloaded (5.1 GiB, i.e. 5.45 GB). Every one of the 589 +
-2,469 outcomes was tested. Replication over the 589 shared outcomes (threshold 0.05 / 589):
+cache): 87 s wall time; 589 Pan-UK Biobank files read in 40 s; 1 FinnGen API request plus
+564 FinnGen files read in 42 s; 1.9 GiB (2.08 GB) of indexes downloaded. Every one of the
+589 + 622 outcomes was tested. Replication over the 589 shared outcomes (threshold 0.05 / 589):
 4 replicate (E78 lipoprotein disorders, ischemic heart disease, angina pectoris, abdominal
 aortic aneurysm), 5 are same-direction significant in one only, 580 are null in both.
 

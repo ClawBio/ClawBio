@@ -68,7 +68,7 @@ log = logging.getLogger("snp_phewas")
 # --- argument handling ---------------------------------------------------------------
 
 INDEX_SIZE_NOTE = (
-    "Index files (downloaded once per release into the index cache; measured 2026-10-18 from\nthe sources' Content-Length): default scope 5.45 GB (589 Pan-UK Biobank + 2,469 FinnGen);\n--all-outcomes 17.9 GB (7,160 + 2,469); --quick none."
+    "Index files (downloaded once per release into the index cache; measured 2026-10-18 from\nthe sources' Content-Length): default scope 2.08 GB (589 Pan-UK Biobank + 622 FinnGen);\n--all-outcomes 17.9 GB (7,160 + 2,469); --quick none."
 )
 
 
@@ -89,7 +89,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="comma-separated dataset ids, 'default' (pan_ukbb_eur,finngen_r12) "
                          "or 'all'; see --list-datasets")
     ap.add_argument("--all-outcomes", action="store_true",
-                    help="read every Pan-UKBB outcome, not only those with a FinnGen counterpart")
+                    help="read every outcome in both biobanks, not only those matched across "
+                         "the two (the default)")
     ap.add_argument("--quick", action="store_true",
                     help="FinnGen web API only: one request, values only where p < 0.05")
     ap.add_argument("--outcomes",
@@ -180,11 +181,11 @@ def _scope_sentences(result: SnpPhewasResult, args: argparse.Namespace) -> list[
         prov = result.provenance[dsid]
         if prov.get("scope") == "harmonized" and prov["n_queried"] < prov["n_catalog"]:
             out.append(f"**{get_dataset(dsid).label}: {prov['n_queried']:,} of "
-                       f"{prov['n_catalog']:,} outcomes were read**, the ones that have a FinnGen "
-                       f"counterpart (the outcomes the replication view can compare). The other "
+                       f"{prov['n_catalog']:,} outcomes were read**, the ones matched to the other "
+                       f"biobank (the outcomes the replication view compares). The other "
                        f"{prov['n_catalog'] - prov['n_queried']:,} are rows with status "
                        f"'not part of this lookup', not nulls. Run with --all-outcomes to read "
-                       f"every outcome.")
+                       f"every outcome in both biobanks.")
     return out
 
 
@@ -317,7 +318,7 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
         datasets = args.dataset
         if not args.quick:
             # Before any byte moves, so nobody is surprised by the first run's download.
-            size = "17.9 GB" if args.all_outcomes else "5.45 GB"
+            size = "17.9 GB" if args.all_outcomes else "2.08 GB"
             print(f"snp-phewas: a first run downloads up to {size} of index files into "
                   f"{args.index_cache or 'the index cache'} (reused afterwards); "
                   f"--quick downloads none.", file=sys.stderr)

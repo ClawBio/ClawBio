@@ -499,22 +499,28 @@ class _CountingReader:
         return (recs, {"route": "tabix"}, []) if self.finngen else (recs, {"route": "tabix"})
 
 
-def test_default_scope_reads_the_harmonized_pan_ukbb_outcomes_and_says_so(offline_kwargs):
-    from snp_phewas_crosswalk import harmonized_pan_ukbb_outcomes
+def test_default_scope_reads_the_matched_outcomes_on_both_sides_and_says_so(offline_kwargs):
+    """Two views only: the outcomes matched across the two biobanks (default) or every
+    outcome in both (--all-outcomes)."""
+    from snp_phewas_crosswalk import harmonized_finngen_endpoints, harmonized_pan_ukbb_outcomes
 
     pan, fg = _CountingReader(), _CountingReader(finngen=True)
     offline_kwargs.update(readers={"pan_ukbb_eur": pan, "finngen_r12": fg}, outcomes=None)
     r = lookup_variant("rs12740374", datasets="pan_ukbb_eur,finngen_r12", **offline_kwargs)
     assert len(pan.asked) == 589 and set(pan.asked) == set(harmonized_pan_ukbb_outcomes())
-    assert len(fg.asked) == 2469  # FinnGen is always read in full
+    assert len(fg.asked) == 622 and set(fg.asked) == set(harmonized_finngen_endpoints())
     assert r.status_counts("pan_ukbb_eur") == {"absent_in_dataset": 589, "not_queried": 7160 - 589}
     assert r.provenance["pan_ukbb_eur"]["scope"] == "harmonized"
-    assert any("589 outcomes that have a FinnGen counterpart" in n and "--all-outcomes" in n
+    assert r.provenance["finngen_r12"]["scope"] == "harmonized"
+    assert any("589 outcomes matched to the other biobank" in n and "--all-outcomes" in n
                for n in r.notes)
-    every = _CountingReader()
-    offline_kwargs.update(readers={"pan_ukbb_eur": every})
-    r = lookup_variant("rs12740374", datasets="pan_ukbb_eur", scope="all", **offline_kwargs)
-    assert len(every.asked) == 7160 and r.provenance["pan_ukbb_eur"]["scope"] == "all"
+    assert any("622 outcomes matched to the other biobank" in n for n in r.notes)
+    every, every_fg = _CountingReader(), _CountingReader(finngen=True)
+    offline_kwargs.update(readers={"pan_ukbb_eur": every, "finngen_r12": every_fg})
+    r = lookup_variant("rs12740374", datasets="pan_ukbb_eur,finngen_r12", scope="all",
+                       **offline_kwargs)
+    assert (len(every.asked), len(every_fg.asked)) == (7160, 2469)
+    assert r.provenance["pan_ukbb_eur"]["scope"] == "all"
 
 
 def test_pan_ukbb_alone_is_read_in_full_because_there_is_no_replication_view(offline_kwargs):
@@ -524,8 +530,7 @@ def test_pan_ukbb_alone_is_read_in_full_because_there_is_no_replication_view(off
     offline_kwargs.update(readers={"pan_ukbb_eur": pan}, outcomes=None)
     r = lookup_variant("rs12740374", datasets="pan_ukbb_eur", **offline_kwargs)
     assert len(pan.asked) == 7160 and r.provenance["pan_ukbb_eur"]["scope"] == "all"
-    assert not any("FinnGen counterpart" in n for n in r.notes)
-    assert not any("FinnGen counterpart" in n for n in r.notes)
+    assert not any("matched to the other biobank" in n for n in r.notes)
     with pytest.raises(ValueError, match="scope"):
         lookup_variant("rs12740374", scope="some", **offline_kwargs)
 

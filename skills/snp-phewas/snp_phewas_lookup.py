@@ -27,7 +27,7 @@ from snp_phewas_catalog import (
     not_served,
     resolve_dataset_ids,
 )
-from snp_phewas_crosswalk import harmonized_pan_ukbb_outcomes
+from snp_phewas_crosswalk import harmonized_finngen_endpoints, harmonized_pan_ukbb_outcomes
 from snp_phewas_tabix import SourceUnreachable
 from snp_phewas_sources import (
     DEFAULT_WORKERS,
@@ -167,13 +167,17 @@ def lookup_variant(
         want = set(outcomes[dsid]) if outcomes and dsid in outcomes else None
         if want is not None and want - cat_ids:
             raise ValueError(f"{dsid}: unknown outcome ids {sorted(want - cat_ids)[:5]}")
-        # The matched-outcome cut exists for the replication view, so it applies only when a
-        # FinnGen dataset is in the lookup; Pan-UK Biobank alone reads its whole catalog.
-        with_finngen = any(get_dataset(d).family == "finngen" for d in ids)
-        scoped = (want is None and scope == "harmonized" and spec.family == "pan_ukbb"
-                  and with_finngen)
+        # Two views: the outcomes matched across the two biobanks (the default; what the
+        # replication view compares, on both sides) or every outcome (--all-outcomes). The cut
+        # exists for the replication view, so a lookup of one biobank reads its whole catalog.
+        other = "finngen" if spec.family == "pan_ukbb" else "pan_ukbb"
+        scoped = (want is None and scope == "harmonized"
+                  and spec.family in ("pan_ukbb", "finngen")
+                  and any(get_dataset(d).family == other for d in ids))
         if scoped:
-            want = harmonized_pan_ukbb_outcomes() & cat_ids
+            matched = (harmonized_pan_ukbb_outcomes() if spec.family == "pan_ukbb"
+                       else harmonized_finngen_endpoints())
+            want = matched & cat_ids
         queried = [o for o in catalog if want is None or o.outcome_id in want]
         prov: dict[str, Any] = {"release": spec.release, "build": spec.build,
                                 "attribution": spec.attribution,
@@ -277,10 +281,10 @@ def _dataset_notes(spec: DatasetSpec, rows: list[S.OutcomeRow], prov: dict, n_un
         out.append(f"{spec.label}: read from {prov['n_files_read']:,} files{api} in "
                    f"{prov['elapsed_s']:.0f} s.")
     if prov.get("scope") == "harmonized" and prov["n_queried"] < prov["n_catalog"]:
-        out.append(f"{spec.label}: read over the {prov['n_queried']:,} outcomes that have a "
-                   f"FinnGen counterpart, not all {prov['n_catalog']:,} in the catalog; the other "
+        out.append(f"{spec.label}: read over the {prov['n_queried']:,} outcomes matched to the "
+                   f"other biobank, not all {prov['n_catalog']:,} in the catalog; the other "
                    f"{prov['n_catalog'] - prov['n_queried']:,} are listed as not part of this "
-                   f"lookup. Use --all-outcomes to read every outcome.")
+                   f"lookup. Use --all-outcomes to read every outcome in both biobanks.")
     elif prov.get("n_queried") is not None and prov["n_queried"] < prov["n_catalog"]:
         out.append(f"{spec.label}: only {prov['n_queried']:,} of {prov['n_catalog']:,} outcomes "
                    f"were requested; the rest are listed as not part of this lookup.")

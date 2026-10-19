@@ -137,6 +137,17 @@ def load_crosswalk(path: str = DEFAULT_CROSSWALK_PATH) -> dict[tuple[str, str], 
 
 
 @lru_cache(maxsize=4)
+def harmonized_finngen_endpoints(path: str = DEFAULT_CROSSWALK_PATH) -> frozenset[str]:
+    """FinnGen endpoints with a Pan-UKBB counterpart (622 on the shipped crosswalk): the
+    FinnGen side of the outcomes the replication view compares."""
+    cw = load_crosswalk(path)
+    pan = {r.harmonized_outcome_id for r in cw.values()
+           if r.dataset_family == FAMILY_PAN_UKBB and r.harmonized_outcome_id}
+    return frozenset(r.outcome_id for r in cw.values()
+                     if r.dataset_family == FAMILY_FINNGEN and r.harmonized_outcome_id in pan)
+
+
+@lru_cache(maxsize=4)
 def harmonized_pan_ukbb_outcomes(path: str = DEFAULT_CROSSWALK_PATH) -> frozenset[str]:
     """Pan-UKBB outcome ids whose harmonized id a FinnGen endpoint shares: the outcomes
     the cross-biobank replication view can compare (the default lookup scope)."""

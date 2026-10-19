@@ -157,7 +157,7 @@ def test_demo_through_the_runner_writes_only_under_output(tmp_path):
 
 
 def test_a_live_run_warns_about_the_index_download_before_it_starts(monkeypatch, capsys, tmp_path):
-    """The first default run downloads 5.45 GB of index files; the user hears it first."""
+    """The first default run downloads 2.08 GB of index files; the user hears it first."""
     import snp_phewas as cli
 
     def stop(*a, **k):
@@ -166,4 +166,4 @@ def test_a_live_run_warns_about_the_index_download_before_it_starts(monkeypatch,
     monkeypatch.setattr(cli, "lookup_variant", stop)
     with pytest.raises(SystemExit):
         cli.main(["--variant", "rs12740374", "--output", str(tmp_path)])
-    assert "5.45 GB" in capsys.readouterr().err
+    assert "2.08 GB" in capsys.readouterr().err
