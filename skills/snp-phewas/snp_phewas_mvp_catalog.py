@@ -383,7 +383,7 @@ def refresh_snapshot(out_dir: str, *, workers: int = 8, log=print) -> dict[str, 
                             "is_harmonised": str(m.get("is_harmonised", "")).lower(),
                             "file_type": str(m.get("file_type", ""))}
             except requests.RequestException:
-                pass
+                pass  # a transient error: retry, then raise below
         raise MvpCatalogError(f"{acc}: harmonized metadata could not be read from {url}")
 
     metas: list[dict[str, str]] = []

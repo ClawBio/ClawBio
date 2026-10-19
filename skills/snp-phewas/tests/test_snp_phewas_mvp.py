@@ -64,8 +64,9 @@ def test_the_committed_catalog_rebuilds_byte_for_byte_from_the_pinned_snapshots(
     assert M.write_catalog(rows, str(out)) == 7537
     committed = os.path.join(os.path.dirname(get_dataset("mvp_eur").outcome_catalog_path),
                              "mvp_outcomes.tsv.gz")
-    assert hashlib.md5(out.read_bytes()).hexdigest() == hashlib.md5(
-        open(committed, "rb").read()).hexdigest()
+    with open(committed, "rb") as fh:
+        committed_bytes = fh.read()
+    assert hashlib.md5(out.read_bytes()).hexdigest() == hashlib.md5(committed_bytes).hexdigest()
 
 
 def _snapshot():
@@ -74,7 +75,8 @@ def _snapshot():
     pin = _load_yaml()["families"]["mvp"]["release_pin"]
 
     def rd(k):
-        return open(os.path.join(_SKILL_DIR, pin[k]), "rb").read()
+        with open(os.path.join(_SKILL_DIR, pin[k]), "rb") as fh:
+            return fh.read()
 
     return (M.read_studies(rd("study_list_snapshot")),
             M.read_harmonised_paths(rd("harmonised_subset_snapshot")),
@@ -352,9 +354,11 @@ def test_the_crosswalk_carries_every_mvp_study_by_the_phecode_and_measurement_ru
     assert sum(1 for f, _ in cw if f == "finngen") == 2469
     for name in ("mvp_outcome_catalog", "mvp_measurement_matches"):
         path, md5 = SOURCES[name]
-        assert hashlib.md5(open(os.path.join(skill, path), "rb").read()).hexdigest() == md5, name
-    lines = [ln for ln in open(os.path.join(skill, "catalogs", "mvp_measurement_matches.tsv"),
-                               encoding="utf-8").read().splitlines() if ln and not ln.startswith("#")]
+        with open(os.path.join(skill, path), "rb") as fh:
+            got = hashlib.md5(fh.read()).hexdigest()
+        assert got == md5, name
+    with open(os.path.join(skill, "catalogs", "mvp_measurement_matches.tsv"), encoding="utf-8") as fh:
+        lines = [ln for ln in fh.read().splitlines() if ln and not ln.startswith("#")]
     table = {r["mvp_measurement"]: r for r in csv.DictReader(lines, delimiter="\t")}
     assert len(table) == 76
     pan_phecode = {normalize_phecode(o.split("-")[1]): o for (f, o) in cw

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import gzip
-import os
 from collections import Counter
 import struct
 import zlib
@@ -296,9 +295,11 @@ def test_a_record_with_the_wrong_field_count_is_unparsable_not_absent(tmp_path):
 
 def test_a_corrupt_file_is_one_unreadable_outcome_not_a_failed_lookup(tmp_path):
     data, idx = _fg_file(tmp_path, b"1\t109274968\tG\tT\t-0.08\t0.0086\t19.7\t0.2\n")
-    raw = bytearray(open(data, "rb").read())
+    with open(data, "rb") as fh:
+        raw = bytearray(fh.read())
     raw[20:50] = b"\xff" * 30  # damage the deflate stream of the first block
-    open(data, "wb").write(bytes(raw))
+    with open(data, "wb") as fh:
+        fh.write(bytes(raw))
     from snp_phewas_sources import _header
     _header.cache_clear()
     rec = _read_fg(data, idx)
