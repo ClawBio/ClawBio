@@ -101,11 +101,13 @@ def test_threshold_is_point05_over_outcomes_tested_in_both():
 
 def _offline_result(**kw):
     from snp_phewas_demo import (
-        FG_OUTCOMES, PAN_OUTCOMES, demo_map, demo_rsid, demo_readers)
+        FG_OUTCOMES, MVP_OUTCOMES, PAN_OUTCOMES, demo_map, demo_rsid, demo_readers)
 
+    kw.setdefault("datasets", ["pan_ukbb_eur", "finngen_r12"])
     return lookup_variant("rs12740374", readers=demo_readers(), rsid_resolver=demo_rsid,
                           map_fn=demo_map,
-                          outcomes={"pan_ukbb_eur": PAN_OUTCOMES, "finngen_r12": FG_OUTCOMES}, **kw)
+                          outcomes={"pan_ukbb_eur": PAN_OUTCOMES, "finngen_r12": FG_OUTCOMES,
+                                    "mvp_eur": MVP_OUTCOMES}, **kw)
 
 
 def test_harmonization_attaches_and_unmapped_stays_a_row():
@@ -114,11 +116,13 @@ def test_harmonization_attaches_and_unmapped_stays_a_row():
     e78p, e78f = by[("pan_ukbb_eur", "icd10-E78-both_sexes")], by[("finngen_r12", "E4_LIPOPROT")]
     assert e78p.harmonized_outcome_id == e78f.harmonized_outcome_id == "ICD10:E78"
     assert e78f.harmonization_basis == "finngen_published_match"
-    assert by[("finngen_r12", "I9_IHD")].harmonized_outcome_id == "PANUKBB:phecode-411-both_sexes"
+    assert by[("finngen_r12", "I9_IHD")].harmonized_outcome_id == "PHECODE:411"
     chd = by[("finngen_r12", "I9_CHD")]
     assert chd.harmonized_outcome_id is None and chd.harmonization_basis == "icd10_broad_only"
+    # LDL has an id (MVP's LDL mean matches it) but no partner in a Pan-UKBB + FinnGen lookup
     ldl = by[("pan_ukbb_eur", "biomarkers-30780-both_sexes-irnt")]
-    assert ldl.harmonization_basis == "unmapped" and ldl.status == "ok"
+    assert ldl.harmonization_basis == "curated_name_match" and ldl.status == "ok"
+    assert any(x.harmonization_basis == "unmapped" for x in r.rows)  # unmapped rows stay rows
     # every row carries a basis; none was dropped for lacking a counterpart
     assert all(x.harmonization_basis for x in r.rows)
     reps = [x for x in r.rows if x.harmonized_outcome_id == "ICD10:E78" and x.dataset_id == "finngen_r12"]
@@ -131,7 +135,7 @@ def test_replication_on_the_fixture_variant_and_not_tested_is_not_null():
     pair = ("pan_ukbb_eur", "finngen_r12")
     by = {row.harmonized_outcome_id: row for row in t.rows}
     assert by["ICD10:E78"].verdicts[pair] == V_REPLICATES
-    assert by["PANUKBB:phecode-411-both_sexes"].verdicts[pair] == V_REPLICATES
+    assert by["PHECODE:411"].verdicts[pair] == V_REPLICATES
     # a harmonized outcome the lookup did not read in Pan-UKBB is "not read", never null
     others = [row for row in t.rows if row.cells["pan_ukbb_eur"].status == S.ST_NOT_QUERIED]
     assert others and {row.verdicts[pair] for row in others} == {V_NOT_READ}

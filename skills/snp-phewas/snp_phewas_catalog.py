@@ -11,6 +11,8 @@ Outcome ids are the source's own unique keys (persisted, never re-minted):
             phenotype manifest (`snp_phewas_build_catalogs.pan_ukbb_outcome_id`)
             (e.g. `biomarkers-30780-both_sexes-irnt`).
   FinnGen   the endpoint phenocode (e.g. `I9_CHD`).
+  MVP       the GWAS Catalog study accession (e.g. `GCST90475929`); one study per (trait,
+            population), so each MVP dataset is one population's studies.
 """
 
 from __future__ import annotations
@@ -61,6 +63,7 @@ class DatasetSpec:
     license_verified: str
     attribution: str
     family_spec: dict[str, Any] = field(repr=False, default_factory=dict)
+    short_label: str = ""  # the column / strip header a figure uses ("MVP EUR")
 
     @property
     def outcome_catalog_path(self) -> str:
@@ -81,6 +84,11 @@ class OutcomeSpec:
     n_controls: int | None
     filename: str | None
     filename_tabix: str | None = None
+    # MVP (GWAS Catalog) only: whether the study has a position-indexed file
+    # (`snp_phewas_mvp_catalog.ACCESS_STATUSES`); None for sources whose every catalog file
+    # is readable.
+    access_status: str | None = None
+    md5_hex: str | None = None  # the source's published md5 of the file, where it has one
 
     @property
     def n_total(self) -> int | None:
@@ -115,8 +123,14 @@ def load_datasets() -> dict[str, DatasetSpec]:
             license_verified=str(fam["license_verified"]),
             attribution=" ".join(str(fam["attribution"]).split()),
             family_spec=fam,
+            short_label=str(d.get("short_label") or d["label"]),
         )
     return out
+
+
+def family_label(family: str) -> str:
+    """The plain-language name of a dataset family (`Pan-UK Biobank`, `FinnGen`, ...)."""
+    return str(_load_yaml()["families"][family]["label"])
 
 
 def not_served() -> dict[str, str]:
@@ -135,6 +149,65 @@ def get_dataset(dataset_id: str) -> DatasetSpec:
 
 def default_dataset_ids() -> list[str]:
     return [k for k, v in load_datasets().items() if v.default]
+
+
+ANCESTRY_WORDS: dict[str, str] = {
+    "EUR": "European", "AFR": "African", "AMR": "admixed American", "EAS": "East Asian",
+    "CSA": "Central/South Asian", "MID": "Middle Eastern",
+    "META": "multi-population meta-analysis",
+}
+
+
+def label_in_list(dataset_id: str) -> str:
+    """A dataset's label as it stands in a list: "Pan-UK Biobank, European ancestry" becomes
+    "Pan-UK Biobank (European ancestry)", so the label's own comma cannot read as a list
+    separator ("A, B and C" of three labels read as five sources)."""
+    label = get_dataset(dataset_id).label
+    head, sep, tail = label.partition(", ")
+    return f"{head} ({tail})" if sep else label
+
+
+def labels_listed(dataset_ids: list[str]) -> str:
+    """Several datasets named in a sentence: "A", "A and B", "A, B and C". The one join every
+    answer, heading and progress message uses."""
+    names = [label_in_list(d) for d in dataset_ids]
+    if len(names) <= 2:
+        return " and ".join(names)
+    return ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def datasets_for_ancestry(ancestry: str) -> tuple[list[str], list[str]]:
+    """(dataset ids, plain sentences) for one genetic-ancestry group: per biobank family,
+    the dataset of that group; a family with no such group is left out and a sentence says
+    so (the answer must say what it substituted). EUR is the default lookup. META is MVP's
+    multi-population meta-analysis, shown beside the other biobanks' default groups."""
+    anc = (ancestry or "EUR").upper()
+    if anc not in ANCESTRY_WORDS:
+        raise UnknownDatasetError(f"no dataset for the ancestry group {ancestry!r}")
+    if anc == "EUR":
+        return default_dataset_ids(), []
+    ds = load_datasets()
+    families = list(dict.fromkeys(s.family for s in ds.values()))
+    ids: list[str] = []
+    said: list[str] = []
+    for fam in families:
+        group = [d for d, s in ds.items() if s.family == fam and s.ancestry == anc]
+        if group:
+            ids.append(group[0])
+            continue
+        if anc == "META":
+            fallback = [d for d, s in ds.items() if s.family == fam and s.default]
+            ids += fallback[:1]
+            # true for FinnGen (one population) and not for Pan-UKBB, whose files carry a
+            # meta-analysis this lookup does not serve, so the sentence says what the
+            # LOOKUP serves
+            said.append(f"This lookup serves no multi-population meta-analysis for "
+                        f"{family_label(fam)}, so its default group is shown instead: "
+                        f"{ds[fallback[0]].label}.")
+            continue
+        said.append(f"{family_label(fam)} has no {ANCESTRY_WORDS[anc]} genetic-ancestry "
+                    f"results, so it is not part of this lookup.")
+    return ids, said
 
 
 def resolve_dataset_ids(spec: str | list[str] | None) -> list[str]:
@@ -207,6 +280,29 @@ def _load_outcome_catalog_cached(dataset_id: str) -> tuple[OutcomeSpec, ...]:
                 filename=r["filename"],
                 filename_tabix=r["filename"] + ".tbi",
             ))
+    elif ds.family == "mvp":
+        for r in rows:
+            if r["population"] != ds.ancestry:
+                continue
+            n_controls = _int_or_none(r["n_controls"])
+            binary = n_controls is not None
+            out.append(OutcomeSpec(
+                dataset_id=dataset_id,
+                outcome_id=r["outcome_id"],
+                outcome_label=r["outcome_label"],
+                outcome_category_native=r["category_native"],
+                outcome_kind="binary" if binary else "continuous",
+                trait_type=r["trait_kind"],
+                n_cases=_int_or_none(r["n_cases"] if binary else r["n"]),
+                n_controls=n_controls,
+                filename=r["filename"] or None,
+                filename_tabix=r["filename_tabix"] or None,
+                access_status=r["access_status"],
+                md5_hex=r["md5_hex"] or None,
+            ))
+        # Two studies of one population can share a trait text only when the Catalog lists
+        # the trait twice; the accession tells them apart.
+        out = _disambiguate(out, {r["outcome_id"]: f"study {r['outcome_id']}" for r in rows})
     else:  # pragma: no cover - the yaml lists only these families
         raise UnknownDatasetError(f"no outcome-catalog reader for family {ds.family!r}")
     ids = [o.outcome_id for o in out]

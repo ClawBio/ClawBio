@@ -2,14 +2,20 @@
 
     python skills/snp-phewas/snp_phewas_build_catalogs.py [--pan-ukbb-manifest PATH]
                                                           [--finngen-manifest PATH]
+                                                          [--families pan_ukbb,finngen,mvp]
 
-Maintenance only (network; not run by the skill or its tests). It rewrites the two
-outcome catalogs under `catalogs/`.
+Maintenance only. It rewrites the outcome catalogs under `catalogs/`.
 
-With no paths, the manifests are downloaded from the URLs pinned in `datasets.yaml`.
-Either way the file's md5 must equal the pin, so a source that changed under us fails
-loudly instead of silently producing a different universe (a release bump edits the pin
-and re-derives everything keyed on it).
+Pan-UK Biobank and FinnGen: with no paths, the manifests are downloaded from the URLs
+pinned in `datasets.yaml` (network). Either way the file's md5 must equal the pin, so a
+source that changed under us fails loudly instead of silently producing a different
+universe (a release bump edits the pin and re-derives everything keyed on it).
+
+Million Veteran Program: the GWAS Catalog publishes no single manifest, so its catalog is
+built OFFLINE from the three snapshots vendored in `catalogs/mvp_source/` (refreshed by hand
+with `snp_phewas_mvp_catalog.refresh_snapshot`, which needs the network), each checked
+against its md5 pin. `--families mvp` rebuilds only that one, with no network call, and the
+offline tests check the rebuild is byte-identical to the committed file.
 """
 
 from __future__ import annotations
@@ -108,12 +114,44 @@ def _write(rows: list[dict[str, str]], columns: tuple[str, ...], path: str) -> N
             gz.write(buf.getvalue().encode("utf-8"))
 
 
+def build_mvp() -> list[dict[str, str]]:
+    """The MVP catalog rows from the vendored, md5-pinned snapshots (offline)."""
+    import snp_phewas_mvp_catalog as M
+
+    pin = _load_yaml()["families"]["mvp"]["release_pin"]
+
+    def pinned(path_key: str, md5_key: str, what: str) -> bytes:
+        data = _read_bytes(os.path.join(_SKILL_DIR, pin[path_key]))
+        _check_pin(data, pin[md5_key], what)
+        return data
+
+    studies = M.read_studies(pinned("study_list_snapshot", "study_list_md5",
+                                    "MVP GWAS Catalog study list snapshot"))
+    harmonised = M.read_harmonised_paths(pinned("harmonised_subset_snapshot",
+                                                "harmonised_subset_md5",
+                                                "MVP harmonised_list.txt subset"))
+    meta = M.read_meta(pinned("harmonised_meta_snapshot", "harmonised_meta_md5",
+                              "MVP harmonized file metadata"))
+    return M.build_rows(studies, harmonised, meta)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--pan-ukbb-manifest")
     ap.add_argument("--finngen-manifest")
+    ap.add_argument("--families", default="pan_ukbb,finngen,mvp",
+                    help="which catalogs to rebuild (mvp needs no network)")
     args = ap.parse_args(argv)
     fams = _load_yaml()["families"]
+    want = set(args.families.split(","))
+    if "mvp" in want:
+        from snp_phewas_mvp_catalog import write_catalog
+
+        mvp = build_mvp()
+        n = write_catalog(mvp, os.path.join(_SKILL_DIR, fams["mvp"]["outcome_catalog"]))
+        print(f"wrote {n} MVP studies")
+    if not want & {"pan_ukbb", "finngen"}:
+        return 0
 
     pin = fams["pan_ukbb"]["release_pin"]
     data = _read_bytes(args.pan_ukbb_manifest or pin["manifest_url"])

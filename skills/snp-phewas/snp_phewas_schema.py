@@ -32,6 +32,7 @@ ST_NOT_QUERIED = "not_queried"
 ST_NOT_IN_CATALOG = "outcome_not_in_catalog"
 ST_API_CENSORED = "above_api_reporting_threshold"
 ST_RECORD_UNPARSABLE = "record_unparsable"
+ST_NOT_READABLE = "source_file_not_readable"
 
 STATUS_LABELS: dict[str, str] = {
     ST_OK: "tested",
@@ -46,6 +47,10 @@ STATUS_LABELS: dict[str, str] = {
         "of fields); this is a read failure, not an absence"
     ),
     ST_UNREACHABLE: "dataset could not be reached; this is an outage, not an absence",
+    ST_NOT_READABLE: (
+        "the GWAS Catalog holds this study without a position index (or without summary "
+        "statistics), so it cannot be read; not a null"
+    ),
     ST_NOT_QUERIED: "outcome was not part of this lookup",
     ST_NOT_IN_CATALOG: "the source returned an outcome its published catalog does not list",
     ST_API_CENSORED: (
@@ -62,10 +67,15 @@ TESTED_STATUSES = frozenset({ST_OK, ST_LOW_CONFIDENCE})
 # next release (or a re-upload) can serve it.
 PERMANENT_STATUSES = frozenset({ST_NOT_TESTED, ST_ABSENT, ST_ALLELE_MISMATCH,
                                 ST_BUILD_UNMAPPABLE})
+# `source_file_not_readable` (a GWAS Catalog study with no position-indexed file) is "not
+# read", like an outage: the Catalog can harmonize the study later. Which of its two reasons
+# applies (not yet harmonized / no summary statistics deposited) is in `status_detail`.
 TRANSIENT_STATUSES = frozenset({ST_UNREACHABLE, ST_NOT_QUERIED, ST_API_CENSORED,
-                                ST_FILE_MISSING, ST_RECORD_UNPARSABLE})
+                                ST_FILE_MISSING, ST_RECORD_UNPARSABLE, ST_NOT_READABLE})
 CATALOG_STATUSES = TESTED_STATUSES | PERMANENT_STATUSES | TRANSIENT_STATUSES
 ALL_STATUSES = CATALOG_STATUSES | {ST_NOT_IN_CATALOG}
+#: Rows outside the phenome-wide denominator besides the permanent statuses.
+PHENOME_WIDE_EXCLUDED = frozenset({ST_NOT_QUERIED, ST_NOT_IN_CATALOG, ST_NOT_READABLE})
 
 def display_label(label: str) -> str:
     """An outcome label as shown to a reader. A single all-caps word longer than four letters
@@ -85,11 +95,13 @@ def phenome_wide_n(rows) -> int:
     A value the FinnGen API withholds above p = 0.05 was still tested, and an outcome lost to
     an outage was asked about: counting only rows that carry a value let either shrink the
     denominator and loosen the threshold (the API-only route reported 0.05 / 195 where the
-    lookup covered 2,469 endpoints). Outcomes outside the lookup (`not_queried`) and source
-    results outside the catalog are not part of it.
+    lookup covered 2,469 endpoints). Outcomes outside the lookup (`not_queried`), source
+    results outside the catalog, and studies the source holds with no readable file
+    (`source_file_not_readable`: outside what this release can look up by construction, not
+    by an outage) are not part of it.
     """
     return sum(1 for r in rows if r.status not in PERMANENT_STATUSES
-               and r.status not in (ST_NOT_QUERIED, ST_NOT_IN_CATALOG))
+               and r.status not in PHENOME_WIDE_EXCLUDED)
 
 
 # Statuses for which the source returned a record, so its native variant id must be set.
@@ -97,12 +109,23 @@ SOURCE_RECORD_STATUSES = TESTED_STATUSES | {ST_NOT_TESTED, ST_ALLELE_MISMATCH, S
 
 # Direction-withheld reasons (the plain-language label rides alongside).
 WITHHELD_PALINDROMIC_ORDER = "palindromic_allele_order_mismatch"
+# The GWAS Catalog harmonizer could not orient the record to the forward strand (its
+# `hm_code` 9 or 14-18); the record keeps its p, never a guessed direction.
+WITHHELD_SOURCE_NOT_ORIENTATED = "source_not_orientated"
 DIRECTION_WITHHELD_LABELS: dict[str, str] = {
     WITHHELD_PALINDROMIC_ORDER: (
         "no direction shown: the variant is strand-ambiguous (A/T or C/G) and the source "
         "lists its alleles in the opposite order, so the effect allele cannot be confirmed"
     ),
+    WITHHELD_SOURCE_NOT_ORIENTATED: (
+        "no direction shown: the source could not orient this record to the forward strand"
+    ),
 }
+
+#: A dataset that released autosomal results only (`contigs: autosomes`, MVP) answers an X /
+#: Y / MT variant `absent_in_dataset` with this detail, without reading a file.
+AUTOSOMES = frozenset(str(i) for i in range(1, 23))
+AUTOSOMES_ONLY_DETAIL = "released autosomal results only"
 
 SOURCE_ID_COLUMNS: tuple[str, ...] = ("outcome_id", "variant_id_native")
 GRAIN_COLUMNS: tuple[str, ...] = ("dataset_id", "dataset_release", "outcome_id", "variant_id_grch38")

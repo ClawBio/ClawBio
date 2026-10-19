@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gzip
 import os
+from collections import Counter
 import struct
 import zlib
 
@@ -50,7 +51,11 @@ def _row(result, ds, oid):
 
 def test_catalog_lists_the_curated_datasets_with_license_and_attribution():
     ds = load_datasets()
-    assert set(default_dataset_ids()) == {"pan_ukbb_eur", "finngen_r12"}
+    assert set(default_dataset_ids()) == {"pan_ukbb_eur", "finngen_r12", "mvp_eur"}
+    assert {"mvp_afr", "mvp_amr", "mvp_eas", "mvp_meta"} <= set(ds)
+    assert ds["mvp_eur"].build == "GRCh38" and ds["mvp_eur"].family_spec["contigs"] == "autosomes"
+    assert "doi:10.1126/science.adj1182" in ds["mvp_eur"].attribution
+    assert "GWAS Catalog" in ds["mvp_eur"].attribution
     assert {"pan_ukbb_afr", "pan_ukbb_amr", "pan_ukbb_csa", "pan_ukbb_eas", "pan_ukbb_mid"} <= set(ds)
     assert ds["pan_ukbb_eur"].license == "CC-BY-4.0" and ds["pan_ukbb_eur"].build == "GRCh37"
     assert "acknowledge the participants and investigators of the FinnGen study" in ds["finngen_r12"].attribution
@@ -72,6 +77,20 @@ def test_outcome_catalog_sizes_are_the_published_manifests():
     assert ldl.outcome_kind == "continuous" and ldl.n_cases == 400223 and ldl.n_controls is None
     chd = {o.outcome_id: o for o in fg}["I9_CHD"]
     assert (chd.n_cases, chd.n_controls, chd.outcome_kind) == (56650, 443698, "binary")
+    # MVP, GWAS Catalog snapshot 2026-10-19: 7,537 studies, one per (trait, population)
+    sizes = {d: len(load_outcome_catalog(d)) for d in ("mvp_eur", "mvp_afr", "mvp_amr",
+                                                        "mvp_eas", "mvp_meta")}
+    assert sizes == {"mvp_eur": 2070, "mvp_afr": 1757, "mvp_amr": 1479, "mvp_eas": 500,
+                     "mvp_meta": 1731}
+    eur = {o.outcome_id: o for o in load_outcome_catalog("mvp_eur")}
+    assert Counter(o.access_status for o in eur.values()) == {
+        "harmonised": 1221, "raw_only_unindexed": 448, "no_summary_statistics": 401}
+    ihd, ldl_mvp = eur["GCST90475929"], eur["GCST90475416"]
+    assert (ihd.outcome_label, ihd.n_cases, ihd.n_controls, ihd.outcome_kind) == (
+        "Ischemic heart disease", 141465, 275809, "binary")
+    assert (ldl_mvp.n_cases, ldl_mvp.n_controls, ldl_mvp.outcome_kind) == (404741, None, "continuous")
+    assert ihd.filename == ("GCST90475001-GCST90476000/GCST90475929/harmonised/"
+                            "GCST90475929.h.tsv.gz")
 
 
 # --- tabix reader ----------------------------------------------------------------------
@@ -501,38 +520,68 @@ class _CountingReader:
         return (recs, {"route": "tabix"}, []) if self.finngen else (recs, {"route": "tabix"})
 
 
-def test_default_scope_reads_the_matched_outcomes_on_both_sides_and_says_so(offline_kwargs):
-    """Two views only: the outcomes matched across the two biobanks (default) or every
-    outcome in both (--all-outcomes)."""
-    from snp_phewas_crosswalk import harmonized_finngen_endpoints, harmonized_pan_ukbb_outcomes
+def _counting():
+    return {"pan_ukbb_eur": _CountingReader(), "finngen_r12": _CountingReader(finngen=True),
+            "mvp_eur": _CountingReader()}
 
-    pan, fg = _CountingReader(), _CountingReader(finngen=True)
-    offline_kwargs.update(readers={"pan_ukbb_eur": pan, "finngen_r12": fg}, outcomes=None)
-    r = lookup_variant("rs12740374", datasets="pan_ukbb_eur,finngen_r12", **offline_kwargs)
+
+def test_default_scope_reads_the_matched_set_in_every_biobank_and_says_so(offline_kwargs):
+    """One rule for every biobank: the outcomes with a readable counterpart in ANOTHER
+    biobank of the lookup, never more of one because its data is quicker to get."""
+    from snp_phewas_crosswalk import harmonized_finngen_endpoints, harmonized_pan_ukbb_outcomes
+    from snp_phewas_lookup import matched_outcome_ids
+
+    readers = _counting()
+    offline_kwargs.update(readers=readers, outcomes=None)
+    two = ["pan_ukbb_eur", "finngen_r12"]
+    r = lookup_variant("rs12740374", datasets=two, **offline_kwargs)
+    pan, fg = readers["pan_ukbb_eur"], readers["finngen_r12"]
     assert len(pan.asked) == 589 and set(pan.asked) == set(harmonized_pan_ukbb_outcomes())
     assert len(fg.asked) == 622 and set(fg.asked) == set(harmonized_finngen_endpoints())
     assert r.status_counts("pan_ukbb_eur") == {"absent_in_dataset": 589, "not_queried": 7160 - 589}
     assert r.provenance["pan_ukbb_eur"]["scope"] == "harmonized"
     assert r.provenance["finngen_r12"]["scope"] == "harmonized"
-    assert any("589 outcomes matched to the other biobank" in n and "--all-outcomes" in n
+    assert any("589 outcomes with a readable counterpart in FinnGen" in n and "--all-outcomes" in n
                for n in r.notes)
-    assert any("622 outcomes matched to the other biobank" in n for n in r.notes)
-    every, every_fg = _CountingReader(), _CountingReader(finngen=True)
-    offline_kwargs.update(readers={"pan_ukbb_eur": every, "finngen_r12": every_fg})
-    r = lookup_variant("rs12740374", datasets="pan_ukbb_eur,finngen_r12", scope="all",
-                       **offline_kwargs)
-    assert (len(every.asked), len(every_fg.asked)) == (7160, 2469)
+    assert any("622 outcomes with a readable counterpart in Pan-UK Biobank" in n for n in r.notes)
+    # three biobanks (the default): each reads what matches EITHER other biobank. A
+    # counterpart counts only if it is readable and in a dataset of THIS lookup (any MVP
+    # study of any ancestry would make it 1,538 / 622 / 1,187).
+    readers = _counting()
+    offline_kwargs.update(readers=readers)
+    r = lookup_variant("rs12740374", **offline_kwargs)
+    asked = {d: len(x.asked) for d, x in readers.items()}
+    assert asked == {"pan_ukbb_eur": 1156, "finngen_r12": 622, "mvp_eur": 727}
+    assert {d: r.provenance[d]["n_queried"] for d in r.dataset_ids} == asked
+    readable = {o.outcome_id for o in load_outcome_catalog("mvp_eur")
+                if o.access_status == "harmonised"}
+    assert matched_outcome_ids("mvp_eur", list(r.dataset_ids)) <= readable
+    assert any("1,156 outcomes with a readable counterpart in FinnGen or Million Veteran "
+               "Program" in n for n in r.notes)
+    assert any("727 outcomes with a readable counterpart in FinnGen or Pan-UK Biobank" in n
+               and "494 were not looked up and 849 have no readable file" in n
+               for n in r.notes)
+    # a study with no readable file is a row with its reason whatever the scope
+    unread = {o.outcome_id for o in load_outcome_catalog("mvp_eur") if o.access_status != "harmonised"}
+    assert {x.status for x in r.dataset_rows("mvp_eur") if x.outcome_id in unread} == {S.ST_NOT_READABLE}
+    readers = _counting()
+    offline_kwargs.update(readers=readers)
+    r = lookup_variant("rs12740374", scope="all", **offline_kwargs)
+    asked = {d: len(x.asked) for d, x in readers.items()}
+    # every readable outcome in every biobank; the unreadable studies never reach a reader
+    assert asked == {"pan_ukbb_eur": 7160, "finngen_r12": 2469, "mvp_eur": 1221}
     assert r.provenance["pan_ukbb_eur"]["scope"] == "all"
 
 
-def test_pan_ukbb_alone_is_read_in_full_because_there_is_no_replication_view(offline_kwargs):
-    """The matched-outcome cut exists for the cross-biobank comparison; with no FinnGen in the
-    lookup its stated reason would be false, so Pan-UK Biobank alone reads every outcome."""
-    pan = _CountingReader()
-    offline_kwargs.update(readers={"pan_ukbb_eur": pan}, outcomes=None)
-    r = lookup_variant("rs12740374", datasets="pan_ukbb_eur", **offline_kwargs)
-    assert len(pan.asked) == 7160 and r.provenance["pan_ukbb_eur"]["scope"] == "all"
-    assert not any("matched to the other biobank" in n for n in r.notes)
+def test_one_biobank_alone_is_read_in_full_because_there_is_no_replication_view(offline_kwargs):
+    """The matched-outcome cut exists for the cross-biobank comparison; with no other biobank
+    in the lookup its stated reason would be false, so one biobank alone reads everything."""
+    for ds, n in (("pan_ukbb_eur", 7160), ("finngen_r12", 2469), ("mvp_eur", 1221)):
+        readers = _counting()
+        offline_kwargs.update(readers=readers, outcomes=None)
+        r = lookup_variant("rs12740374", datasets=ds, **offline_kwargs)
+        assert len(readers[ds].asked) == n and r.provenance[ds]["scope"] == "all"
+        assert not any("readable counterpart" in x for x in r.notes)
     with pytest.raises(ValueError, match="scope"):
         lookup_variant("rs12740374", scope="some", **offline_kwargs)
 
@@ -541,6 +590,24 @@ def test_an_explicit_outcome_list_overrides_the_default_scope(offline_kwargs):
     r = lookup_variant("rs12740374", **offline_kwargs)
     assert r.provenance["pan_ukbb_eur"]["scope"] == "requested"
     assert r.provenance["pan_ukbb_eur"]["n_queried"] == 3
+
+
+def test_the_datasets_are_read_at_once(offline_kwargs):
+    """Three independent reads, one after another, cost their sum (308 s measured for the
+    three-biobank read of rs12740374 with an empty cache, 159 s at once)."""
+    import threading
+
+    gate = threading.Barrier(3, timeout=10)
+
+    class Waiting(_CountingReader):
+        def read(self, outcomes, tgt, catalog_ids=None):
+            gate.wait()  # times out (BrokenBarrierError) unless all three are in flight
+            return super().read(outcomes, tgt, catalog_ids)
+
+    offline_kwargs["readers"] = {"pan_ukbb_eur": Waiting(), "finngen_r12": Waiting(finngen=True),
+                                 "mvp_eur": Waiting()}
+    r = lookup_variant("rs12740374", **offline_kwargs)
+    assert r.dataset_ids == ["pan_ukbb_eur", "finngen_r12", "mvp_eur"]  # merged in order
 
 
 # --- partition + source-id invariants (each constructed to fail) ------------------------
@@ -733,3 +800,25 @@ def test_a_file_missing_a_contract_column_is_unparsable_not_a_crashed_lookup(tmp
     idx.write_bytes(_tbi(["1"], [len(header)]))
     r = _read_fg(str(data), str(idx))
     assert r.status == S.ST_RECORD_UNPARSABLE and "'ref'" in r.detail, r
+
+
+def test_crlf_line_ends_are_stripped_from_the_header_and_every_record(tmp_path):
+    """GWAS Catalog harmonized files end their lines in CRLF. Left in, the `\r` rides on the
+    last column of the header and of every record: here the alternative allele, which then
+    never matches the target."""
+    from snp_phewas_sources import Columns, read_outcome_file
+    from snp_phewas_variant import Placement
+
+    data = tmp_path / "crlf.gz"
+    header = b"chromosome\tbase_pair_location\tbeta\tse\tnlp\teaf\tref\talt\r\n"
+    rec = b"1\t109274968\t-0.08\t0.0086\t19.7\t0.2\tG\tT\r\n"
+    data.write_bytes(_bgzf_block(header + rec) + _bgzf_block(b""))
+    idx = tmp_path / "crlf.gz.tbi"
+    idx.write_bytes(_tbi(["1"], [len(header)]))
+    (row,) = fetch_position(str(data), str(idx), "1", 109274968)
+    assert row[-1] == "T"
+    assert read_header(str(data))[-1] == "alt"
+    cols = Columns("chromosome", "base_pair_location", "ref", "alt", "beta", "se", "nlp", "eaf")
+    r = read_outcome_file(str(data), str(idx), cols, Placement("GRCh38", "1", 109274968, "G", "T"),
+                          index_cache=None)
+    assert r.status == S.ST_OK and r.variant_id_native == "1_109274968_G_T", r

@@ -70,20 +70,62 @@ families:
     data_base_url: https://storage.googleapis.com/finngen-public-data-r12/summary_stats/release/
     outcome_catalog: catalogs/finngen_r12_outcomes.tsv.gz
     coding: FinnGen clinical endpoints (ICD-10 / ICD-9 / ATC register definitions)
+  mvp:
+    label: Million Veteran Program
+    release: mvp_gwphewas_gwascatalog_2026-10-19
+    release_pin:
+      # The GWAS Catalog publishes no single manifest for MVP: the catalog is built from
+      # three snapshots vendored in catalogs/mvp_source/ (snp_phewas_mvp_catalog.refresh_snapshot),
+      # each md5-pinned here. A re-pin rebuilds everything keyed on this release.
+      study_list_source: GWAS Catalog REST v2 studies?pubmed_id=39024449 (7,537 studies)
+      study_list_snapshot: catalogs/mvp_source/gwas_catalog_studies_pmid39024449.jsonl.gz
+      study_list_md5: fa97a3e835b9364f1b82322874e986d9
+      harmonised_list_url: https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/harmonised_list.txt
+      harmonised_list_last_modified: "2026-10-19 00:01:01 GMT"
+      harmonised_list_md5: 9bfab40b4f4182f73927b42c786905a9
+      harmonised_subset_snapshot: catalogs/mvp_source/harmonised_list_mvp.txt.gz
+      harmonised_subset_md5: 65e55fe26a3e33203771eef55a6d2f33
+      harmonised_meta_snapshot: catalogs/mvp_source/harmonised_meta_mvp.tsv.gz
+      harmonised_meta_md5: 4c86dce3c9a9c085829dd5dd92189b29
+    license: GWAS Catalog terms of use (EMBL-EBI places no additional restrictions; MVP deposited without a license text)
+    license_verdict: open; no restrictions beyond the data owner's; citation given
+    license_verified: "2026-10-19"
+    license_url: https://www.ebi.ac.uk/about/terms-of-use/
+    license_quote: >-
+      EMBL-EBI itself places no additional restrictions on the use or redistribution of
+      the data available via its Data Resources and Tools other than those provided by the
+      original data owners.
+    attribution: >-
+      Million Veteran Program (Verma A et al., Science 2024;385:eadj1182,
+      doi:10.1126/science.adj1182, PMID 39024449); summary statistics via the NHGRI-EBI
+      GWAS Catalog.
+    build: GRCh38
+    reference_anchored: true
+    contigs: autosomes
+    access: tabix
+    data_base_url: https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
+    outcome_catalog: catalogs/mvp_outcomes.tsv.gz
+    coding: phecodes (1.2 family), EHR lab and vital-sign summaries (mean / maximum / minimum, inverse-normal), MVP survey items
 
 # dataset_id -> (family, ancestry stratum). The Pan-UKBB file carries every ancestry in
-# one row, so each stratum is its own dataset over the same files.
+# one row, so each stratum is its own dataset over the same files. MVP is one GWAS Catalog
+# study per (trait, population); META is the Catalog's multi-population meta-analyses.
+# short_label is the column / strip header a figure uses.
 datasets:
-  pan_ukbb_eur: {family: pan_ukbb, ancestry: EUR, label: "Pan-UK Biobank, European ancestry", default: true}
-  pan_ukbb_afr: {family: pan_ukbb, ancestry: AFR, label: "Pan-UK Biobank, African ancestry"}
-  pan_ukbb_amr: {family: pan_ukbb, ancestry: AMR, label: "Pan-UK Biobank, admixed American ancestry"}
-  pan_ukbb_csa: {family: pan_ukbb, ancestry: CSA, label: "Pan-UK Biobank, Central/South Asian ancestry"}
-  pan_ukbb_eas: {family: pan_ukbb, ancestry: EAS, label: "Pan-UK Biobank, East Asian ancestry"}
-  pan_ukbb_mid: {family: pan_ukbb, ancestry: MID, label: "Pan-UK Biobank, Middle Eastern ancestry"}
-  finngen_r12: {family: finngen, ancestry: FIN, label: "FinnGen R12 (Finnish)", default: true}
+  pan_ukbb_eur: {family: pan_ukbb, ancestry: EUR, label: "Pan-UK Biobank, European ancestry", short_label: "Pan-UKBB EUR", default: true}
+  pan_ukbb_afr: {family: pan_ukbb, ancestry: AFR, label: "Pan-UK Biobank, African ancestry", short_label: "Pan-UKBB AFR"}
+  pan_ukbb_amr: {family: pan_ukbb, ancestry: AMR, label: "Pan-UK Biobank, admixed American ancestry", short_label: "Pan-UKBB AMR"}
+  pan_ukbb_csa: {family: pan_ukbb, ancestry: CSA, label: "Pan-UK Biobank, Central/South Asian ancestry", short_label: "Pan-UKBB CSA"}
+  pan_ukbb_eas: {family: pan_ukbb, ancestry: EAS, label: "Pan-UK Biobank, East Asian ancestry", short_label: "Pan-UKBB EAS"}
+  pan_ukbb_mid: {family: pan_ukbb, ancestry: MID, label: "Pan-UK Biobank, Middle Eastern ancestry", short_label: "Pan-UKBB MID"}
+  finngen_r12: {family: finngen, ancestry: FIN, label: "FinnGen R12 (Finnish)", short_label: "FinnGen", default: true}
+  mvp_eur: {family: mvp, ancestry: EUR, label: "Million Veteran Program, European genetic ancestry", short_label: "MVP EUR", default: true}
+  mvp_afr: {family: mvp, ancestry: AFR, label: "Million Veteran Program, African genetic ancestry", short_label: "MVP AFR"}
+  mvp_amr: {family: mvp, ancestry: AMR, label: "Million Veteran Program, admixed American genetic ancestry", short_label: "MVP AMR"}
+  mvp_eas: {family: mvp, ancestry: EAS, label: "Million Veteran Program, East Asian genetic ancestry", short_label: "MVP EAS"}
+  mvp_meta: {family: mvp, ancestry: META, label: "Million Veteran Program, multi-population meta-analysis", short_label: "MVP meta"}
 
 # Considered and NOT served, with the reason. Listed so "why is X not here?" has an
 # answer in the catalog itself.
 not_served:
-  mvp_gwphewas: "Million Veteran Program (dbGaP phs002453) is not included: its results are openly downloadable but carry no license text."
   biobank_japan: "BioBank Japan (NBDC hum0197) is not included: its terms limit use to research and development purposes."

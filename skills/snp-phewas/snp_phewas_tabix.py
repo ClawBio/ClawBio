@@ -239,7 +239,9 @@ def read_header(data_path: str, *, timeout_s: float = DEFAULT_TIMEOUT_S) -> list
     """The file's column names: its first line, with a leading `#` stripped."""
     raw = read_bytes(data_path, 0, _INITIAL_READ, timeout_s=timeout_s)
     payload, _ = _inflate_blocks(raw)
-    line = payload.split(b"\n", 1)[0].decode()
+    # GWAS Catalog harmonized files end their lines in CRLF: without the strip the last
+    # column is named `variant_id\r` and every value in it carries the `\r`.
+    line = payload.split(b"\n", 1)[0].rstrip(b"\r").decode()
     return line.lstrip("#").split("\t")
 
 
@@ -296,6 +298,7 @@ def fetch_position(data_path: str, index_local: str, chrom: str, pos: int, *,
         hits: list[list[str]] = []
         passed = False
         for ln in lines:
+            ln = ln.rstrip(b"\r")  # CRLF line ends (GWAS Catalog harmonized files)
             if not ln or ln[:1] == meta.meta_char.encode():
                 continue
             f = ln.decode().split("\t")

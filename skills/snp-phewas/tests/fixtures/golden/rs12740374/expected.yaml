@@ -1,18 +1,29 @@
+# Re-baselined 2026-10-19 when the Million Veteran Program joined the crosswalk: three
+# harmonized ids changed; every value, status and verdict is unchanged. Per diff:
+#   Pan-UKBB phecode-411-both_sexes  PANUKBB:phecode-411-both_sexes -> PHECODE:411
+#     (every both-sexes phecode is keyed on its own code, so MVP's phecode 411 joins it)
+#   FinnGen I9_IHD                   PANUKBB:phecode-411-both_sexes -> PHECODE:411
+#     (it takes its Pan-UKBB anchor's key; the anchor is unchanged)
+#   Pan-UKBB LDL direct              none -> PANUKBB:biomarkers-30780-both_sexes-irnt
+#     (MVP's LDL-cholesterol mean matches it by the reviewed measurement table; with no MVP
+#     in this query it has no partner and stays out of the replication rows)
+# Across the committed crosswalk every harmonized group of the previous file maps to exactly
+# one new id (1,186 groups, none split or merged), so the key change alone moves no verdict.
 # Values on the effect allele T (Open Targets alt). Pan-UKBB read from the GRCh37 file at
 # 1:109817590 (EUR columns); FinnGen from the R12 API and identical in the endpoint files.
 tested:
   pan_ukbb_eur:
-    biomarkers-30780-both_sexes-irnt: {beta: -0.1345, se: 0.002913, neglog10_p: 464.8, eaf: 0.2215, variant_id_native: 1_109817590_G_T, harmonized_outcome_id: null}
+    biomarkers-30780-both_sexes-irnt: {beta: -0.1345, se: 0.002913, neglog10_p: 464.8, eaf: 0.2215, variant_id_native: 1_109817590_G_T, harmonized_outcome_id: "PANUKBB:biomarkers-30780-both_sexes-irnt"}
     icd10-E78-both_sexes: {beta: -0.1545, se: 0.009285, neglog10_p: 61.48, eaf: 0.2241, variant_id_native: 1_109817590_G_T, harmonized_outcome_id: "ICD10:E78"}
-    phecode-411-both_sexes: {beta: -0.1106, se: 0.01001, neglog10_p: 27.67, eaf: 0.223, variant_id_native: 1_109817590_G_T, harmonized_outcome_id: "PANUKBB:phecode-411-both_sexes"}
+    phecode-411-both_sexes: {beta: -0.1106, se: 0.01001, neglog10_p: 27.67, eaf: 0.223, variant_id_native: 1_109817590_G_T, harmonized_outcome_id: "PHECODE:411"}
   finngen_r12:
     I9_CHD: {beta: -0.0801145, se: 0.00864016, neglog10_p: 19.7396, eaf: 0.214503, variant_id_native: 1_109274968_G_T, harmonized_outcome_id: null}
     E4_LIPOPROT: {beta: -0.128558, se: 0.00806409, neglog10_p: 56.4904, eaf: 0.214264, variant_id_native: 1_109274968_G_T, harmonized_outcome_id: "ICD10:E78"}
-    I9_IHD: {beta: -0.0761855, se: 0.00751356, neglog10_p: 23.434, eaf: 0.214503, variant_id_native: 1_109274968_G_T, harmonized_outcome_id: "PANUKBB:phecode-411-both_sexes"}
+    I9_IHD: {beta: -0.0761855, se: 0.00751356, neglog10_p: 23.434, eaf: 0.214503, variant_id_native: 1_109274968_G_T, harmonized_outcome_id: "PHECODE:411"}
 status_counts:
   pan_ukbb_eur: {ok: 3, not_queried: 7157}
   finngen_r12: {ok: 3, not_queried: 2466}
 uncatalogued: [K11_GINGIVITIS_PERIODONTAL]
 replication:
   "ICD10:E78": replicates
-  "PANUKBB:phecode-411-both_sexes": replicates
+  "PHECODE:411": replicates

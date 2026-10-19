@@ -104,3 +104,19 @@ def test_quick_mode_end_to_end_live(tmp_path):
     rows = (tmp_path / "tables" / "snp_phewas_rows.tsv").read_text().splitlines()
     assert len(rows) == 1 + 2469
     assert any("\tI9_CHD\t" in r and "\tok\t" in r for r in rows)
+
+
+def test_mvp_ldl_mean_reads_live_with_the_p_underflow_derived(cache):
+    """Million Veteran Program LDL cholesterol mean, European ancestry (GCST90475416), read
+    from the GWAS Catalog's harmonized file: CRLF lines, p = 0 in the file (measured
+    2026-10-19: beta -0.1561, SE 0.003009)."""
+    from snp_phewas_catalog import get_dataset, load_outcome_catalog
+    from snp_phewas_sources import P_UNDERFLOW_DETAIL, MvpReader
+    from snp_phewas_variant import Placement
+
+    o = {x.outcome_id: x for x in load_outcome_catalog("mvp_eur")}["GCST90475416"]
+    rec = MvpReader(get_dataset("mvp_eur"), index_cache=cache).read_outcome(
+        o, Placement("GRCh38", "1", 109274968, "G", "T"))
+    assert rec.status == "ok" and rec.variant_id_native == "1_109274968_G_T"
+    assert (rec.beta, rec.se) == (-0.1561, 0.003009)
+    assert rec.detail == P_UNDERFLOW_DETAIL and rec.neglog10_p > 500

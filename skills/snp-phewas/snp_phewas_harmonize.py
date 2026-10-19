@@ -6,7 +6,9 @@ outcome with no counterpart keeps its row with basis `unmapped` (or `icd10_broad
 and stays out of the cross-dataset views. When several outcomes of ONE dataset share a
 harmonized id (several FinnGen endpoints FinnGen matched to one Pan-UKBB outcome), one is
 the representative the replication view compares (`harmonized_representative`): one the
-source tested, then the strongest basis, then the most cases, then the id.
+source tested, then the strongest basis, then the most cases, then the id. A row whose
+basis is never compared (the maximum / minimum summary of an MVP measurement) keeps its id
+and is never the representative.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from snp_phewas_crosswalk import (
     BASIS_PRECEDENCE,
     BASIS_UNMAPPED,
     HARMONIZATION_BASIS_LABELS,
+    NON_REPRESENTATIVE_BASES,
     load_crosswalk,
 )
 
@@ -42,6 +45,10 @@ def attach_harmonization(result: Any) -> None:
         r.harmonized_outcome_id = x.harmonized_outcome_id
         r.harmonized_label = x.harmonized_label
         r.harmonization_basis = x.harmonization_basis
+        if x.harmonization_basis in NON_REPRESENTATIVE_BASES:
+            # the maximum / minimum of an MVP measurement whose mean is the one compared
+            r.harmonized_representative = False
+            continue
         if x.harmonized_outcome_id and in_catalog:
             groups[(r.dataset_id, x.harmonized_outcome_id)].append(r)
     for members in groups.values():

@@ -3,7 +3,8 @@
 A raw record is source-native (source alleles, source sign); orientation onto the Open
 Targets effect allele happens once, in `snp_phewas_lookup`, for every dataset alike.
 `record_from_fields` turns parsed file lines into a record given that file's header, and
-`PanUkbbReader.read_outcome` / `FinnGenReader.read_outcome_tabix` read one outcome file.
+`PanUkbbReader.read_outcome` / `FinnGenReader.read_outcome_tabix` / `MvpReader.read_outcome`
+read one outcome file.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ import zlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from functools import lru_cache
+from statistics import NormalDist
 from typing import Any, Callable
 
 import snp_phewas_schema as S
@@ -53,6 +55,9 @@ class RawRecord:
     route: str | None = None
     detail: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    # A direction the SOURCE could not establish (GWAS Catalog `hm_code` 9 / 14-18); the
+    # lookup's own orientation can still withhold one for its own reason.
+    direction_withheld: str | None = None
 
 
 def _f(v: Any) -> float | None:
@@ -69,16 +74,26 @@ def _f(v: Any) -> float | None:
 
 @dataclass(frozen=True)
 class Columns:
+    """Column names of one file layout. `beta` / `se` / `neglog10_p` may be None when the
+    layout carries them in another form: an odds ratio with its 95% interval instead of
+    beta / SE (`odds_ratio`, `ci_lower`, `ci_upper`), and a probability instead of -log10 p
+    (`p_value`). `hm_code` is the GWAS Catalog harmonizer's per-record code."""
+
     chrom: str
     pos: str
     ref: str
     alt: str
-    beta: str
-    se: str
-    neglog10_p: str
+    beta: str | None
+    se: str | None
+    neglog10_p: str | None
     eaf: str
     low_confidence: str | None = None
     eaf_fallback: str | None = None
+    p_value: str | None = None
+    odds_ratio: str | None = None
+    ci_lower: str | None = None
+    ci_upper: str | None = None
+    hm_code: str | None = None
 
 
 def pan_ukbb_columns(ancestry: str) -> Columns:
@@ -91,6 +106,53 @@ def pan_ukbb_columns(ancestry: str) -> Columns:
 
 
 FINNGEN_COLUMNS = Columns("chrom", "pos", "ref", "alt", "beta", "sebeta", "mlogp", "af_alt")
+
+# GWAS Catalog harmonized files (GWAS-SSF v1.0). The harmonizer orients `effect_allele` to the
+# Ensembl ALT where it can, and its `variant_id` is chrom_pos_other_effect, so the file is
+# reference-anchored with ref = `other_allele`, alt = `effect_allele`. Quantitative studies
+# carry beta / SE; case/control studies carry an odds ratio and its 95% interval with
+# `standard_error = NA`. `p_value` is a probability and underflows to 0 at strong hits.
+MVP_COLUMNS_QUANT = Columns("chromosome", "base_pair_location", "other_allele", "effect_allele",
+                            "beta", "standard_error", None, "effect_allele_frequency",
+                            p_value="p_value", hm_code="hm_code")
+MVP_COLUMNS_BINARY = Columns("chromosome", "base_pair_location", "other_allele",
+                             "effect_allele", None, None, None, "effect_allele_frequency",
+                             p_value="p_value", odds_ratio="odds_ratio", ci_lower="ci_lower",
+                             ci_upper="ci_upper", hm_code="hm_code")
+#: Harmonizer codes for records it could NOT orient to the forward strand (9: palindromic,
+#: dropped; 14-18: required fields unknown, no or several reference matches, palindromic
+#: with no usable allele frequency). Their direction is withheld, never guessed.
+HM_CODES_NOT_ORIENTATED = frozenset({"9", "14", "15", "16", "17", "18"})
+Z_95 = 1.959963984540054  # the two-sided 95% normal quantile an interval is built on
+P_UNDERFLOW_DETAIL = "p underflowed to 0 in the source; -log10 p derived from beta/SE"
+
+
+def mvp_columns_for(header: list[str] | tuple[str, ...]) -> Columns:
+    """The MVP layout of one file, chosen by which effect column its header carries."""
+    if "beta" in header:
+        return MVP_COLUMNS_QUANT
+    if "odds_ratio" in header:
+        return MVP_COLUMNS_BINARY
+    raise KeyError("beta")  # neither: one unreadable outcome (read_outcome_file catches it)
+
+
+def neglog10_p_from_z(z: float) -> float:
+    """-log10 of the two-sided normal p for `z`, in log space so it never underflows.
+
+    p = erfc(|z| / sqrt 2). Below x = |z| / sqrt 2 = 25 `math.erfc` does not underflow
+    (erfc(25) is about 8e-274); above it the asymptotic expansion
+    ln erfc(x) = -x^2 - ln(x sqrt(pi)) + ln(1 - 1/(2x^2) + 3/(4x^4) - 15/(8x^6))
+    is used. Against scipy's `norm.logsf` the absolute difference is below 2e-11 in
+    -log10 p over |z| from 0.1 to 300 (measured 2026-10-19; the unit test re-checks it
+    whenever scipy is installed).
+    """
+    x = abs(z) / math.sqrt(2.0)
+    if x < 25.0:
+        return -math.log10(math.erfc(x))
+    x2 = x * x
+    series = 1.0 - 1.0 / (2 * x2) + 3.0 / (4 * x2 * x2) - 15.0 / (8 * x2 ** 3)
+    ln_p = -x2 - math.log(x * math.sqrt(math.pi)) + math.log(series)
+    return -ln_p / math.log(10.0)
 
 
 def pick_allele_match(records: list[dict[str, str]], cols: Columns, tgt: Placement
@@ -116,20 +178,67 @@ def record_from_fields(records: list[dict[str, str]], cols: Columns, tgt: Placem
                          variant_id_native=f"{first[cols.chrom]}_{first[cols.pos]}_{first[cols.ref]}_{first[cols.alt]}",
                          route=route, detail=f"alleles at this position: {found}")
     vid = f"{r[cols.chrom]}_{r[cols.pos]}_{r[cols.ref]}_{r[cols.alt]}"
-    if cols.beta not in r:
+    effect_col = cols.beta or cols.odds_ratio
+    if effect_col not in r:
         return RawRecord(S.ST_NOT_TESTED, src_ref=r[cols.ref], src_alt=r[cols.alt],
                          variant_id_native=vid, route=route,
                          detail="the file has no result column for this ancestry group")
-    beta, se, nlp = _f(r.get(cols.beta)), _f(r.get(cols.se)), _f(r.get(cols.neglog10_p))
+    base = dict(src_ref=r[cols.ref], src_alt=r[cols.alt], variant_id_native=vid, route=route)
+    detail = None
+    if cols.beta:
+        beta, se = _f(r.get(cols.beta)), _f(r.get(cols.se))
+    else:  # an odds ratio: beta = ln OR; SE from the source's p, else from the 95% interval
+        orv, lo, hi = (_f(r.get(c)) for c in (cols.odds_ratio, cols.ci_lower, cols.ci_upper))
+        if orv is None:
+            return RawRecord(S.ST_NOT_TESTED, **base)
+        if orv <= 0:
+            return RawRecord(S.ST_RECORD_UNPARSABLE, **base,
+                             detail=f"odds ratio {orv} has no log")
+        beta = math.log(orv)
+        # the interval is the fallback only, so a record with an odds ratio and a p but no
+        # interval is still a value
+        se = ((math.log(hi) - math.log(lo)) / (2 * Z_95)
+              if lo is not None and hi is not None and 0 < lo < hi else None)
+        # The GWAS Catalog harmonized MVP files carry the odds ratio and interval rounded to
+        # about three significant digits (1.015228... is 1 / 0.985), so an interval-width SE
+        # disagrees with the file's own p on many records: measured on the vendored IHD slice,
+        # 85 of 150 records differ by more than 1e-3 in p or 0.05 in log10 p. Where the file's
+        # p is a usable probability the SE is the one that reproduces it (z from p, SE =
+        # |beta| / z); the interval is used only when p cannot give it (p = 0, 1 or a null
+        # effect).
+        p_src = _f(r.get(cols.p_value or ""))
+        if p_src is not None and 0.0 < p_src < 1.0 and beta != 0.0 and p_src / 2 > 0.0:
+            z = -NormalDist().inv_cdf(p_src / 2)
+            if z > 0:
+                se = abs(beta) / z
+    if cols.neglog10_p:
+        nlp = _f(r.get(cols.neglog10_p))
+    else:
+        p = _f(r.get(cols.p_value or ""))
+        nlp = None
+        if p is not None:
+            if 0.0 < p <= 1.0:
+                nlp = -math.log10(p)
+            elif p == 0.0:
+                if beta is None or not se or se <= 0 or not math.isfinite(beta / se):
+                    return RawRecord(S.ST_RECORD_UNPARSABLE, **base,
+                                     detail="p underflowed to 0 and no usable beta/SE")
+                nlp, detail = neglog10_p_from_z(beta / se), P_UNDERFLOW_DETAIL
+            else:
+                return RawRecord(S.ST_RECORD_UNPARSABLE, **base,
+                                 detail=f"p value {p} is outside [0, 1]")
     if beta is None or se is None or nlp is None:
-        return RawRecord(S.ST_NOT_TESTED, src_ref=r[cols.ref], src_alt=r[cols.alt],
-                         variant_id_native=vid, route=route)
+        return RawRecord(S.ST_NOT_TESTED, **base)
+    if not (math.isfinite(beta) and math.isfinite(se)):
+        return RawRecord(S.ST_RECORD_UNPARSABLE, **base, detail="beta or SE is not finite")
     low = bool(cols.low_confidence) and (r.get(cols.low_confidence) or "").lower() == "true"
-    return RawRecord(S.ST_LOW_CONFIDENCE if low else S.ST_OK,
-                     src_ref=r[cols.ref], src_alt=r[cols.alt], beta=beta, se=se,
+    withheld = (S.WITHHELD_SOURCE_NOT_ORIENTATED
+                if cols.hm_code and (r.get(cols.hm_code) or "").strip() in HM_CODES_NOT_ORIENTATED
+                else None)
+    return RawRecord(S.ST_LOW_CONFIDENCE if low else S.ST_OK, beta=beta, se=se,
                      neglog10_p=nlp, low_confidence=low,
                      eaf=_f(r.get(cols.eaf)) if cols.eaf in r else _f(r.get(cols.eaf_fallback or "")),
-                     variant_id_native=vid, route=route)
+                     detail=detail, direction_withheld=withheld, **base)
 
 
 @lru_cache(maxsize=8192)
@@ -145,9 +254,13 @@ def release_index_cache(spec: DatasetSpec, base: str | None) -> str:
     return os.path.join(base or default_index_cache(), tag)
 
 
-def read_outcome_file(data_path: str, index_path: str, cols: Columns, tgt: Placement, *,
-                      index_cache: str | None, route: str = "tabix") -> RawRecord:
-    """One outcome file -> one raw record. Transport failures become outage records."""
+def read_outcome_file(data_path: str, index_path: str, cols: Columns | Callable[..., Columns],
+                      tgt: Placement, *, index_cache: str | None, route: str = "tabix"
+                      ) -> RawRecord:
+    """One outcome file -> one raw record. Transport failures become outage records.
+
+    `cols` is a layout, or a function choosing the layout from the file's header (the GWAS
+    Catalog writes case/control and quantitative studies with different effect columns)."""
     try:
         idx = ensure_index(index_path, index_cache)
         header = _header(data_path)
@@ -170,6 +283,8 @@ def read_outcome_file(data_path: str, index_path: str, cols: Columns, tgt: Place
                          detail=f"{len(hits)} record(s) at the position with a field count "
                                 f"other than the header's {len(header)}")
     try:
+        if callable(cols):
+            cols = cols(header)
         return record_from_fields(records, cols, tgt, route)
     except KeyError as e:
         # A file whose header lacks a contract column is one unreadable outcome, not a
@@ -216,6 +331,53 @@ class PanUkbbReader:
         recs = run_pool(lambda o: self.read_outcome(o, tgt), outcomes, self.workers,
                         self.spec.dataset_id)
         return recs, {"route": "tabix", "n_files_read": len(outcomes),
+                      "elapsed_s": round(time.time() - t0, 2), "workers": self.workers}
+
+
+def not_readable_record(o: OutcomeSpec) -> RawRecord | None:
+    """`source_file_not_readable` for a catalog outcome the source holds with no
+    position-indexed file (an MVP study the GWAS Catalog has not harmonized), with the
+    reason first in `detail` (`raw_only_unindexed: ...`); None for a readable outcome. Known
+    from the catalog, so it costs no network call and holds whatever the lookup's scope."""
+    if o.access_status is None or (o.access_status == "harmonised" and o.filename):
+        return None
+    from snp_phewas_mvp_catalog import ACCESS_STATUS_LABELS
+
+    label = ACCESS_STATUS_LABELS.get(o.access_status, "no position-indexed file")
+    return RawRecord(S.ST_NOT_READABLE, route="catalog", detail=f"{o.access_status}: {label}")
+
+
+class MvpReader:
+    """Million Veteran Program studies through the GWAS Catalog's harmonized files.
+
+    A catalog row the Catalog has not harmonized (`access_status` raw_only_unindexed or
+    no_summary_statistics) has no position-indexed file: it is answered
+    `source_file_not_readable` with the reason, without a network call."""
+
+    def __init__(self, spec: DatasetSpec, *, index_cache: str | None = None,
+                 workers: int = DEFAULT_WORKERS, data_base: str | None = None) -> None:
+        self.spec = spec
+        self.index_cache = release_index_cache(spec, index_cache)
+        self.workers = workers
+        self.data_base = data_base or spec.family_spec["data_base_url"]
+
+    def paths(self, o: OutcomeSpec) -> tuple[str, str]:
+        return self.data_base + o.filename, self.data_base + (o.filename_tabix or o.filename + ".tbi")
+
+    def read_outcome(self, o: OutcomeSpec, tgt: Placement) -> RawRecord:
+        unreadable = not_readable_record(o)
+        if unreadable is not None:
+            return unreadable
+        data, idx = self.paths(o)
+        return read_outcome_file(data, idx, mvp_columns_for, tgt, index_cache=self.index_cache)
+
+    def read(self, outcomes: list[OutcomeSpec], tgt: Placement) -> tuple[dict[str, RawRecord], dict]:
+        t0 = time.time()
+        recs = run_pool(lambda o: self.read_outcome(o, tgt), outcomes, self.workers,
+                        self.spec.dataset_id)
+        n_files = sum(1 for o in outcomes if o.access_status == "harmonised" and o.filename)
+        return recs, {"route": "tabix", "n_files_read": n_files,
+                      "n_not_readable": len(outcomes) - n_files,
                       "elapsed_s": round(time.time() - t0, 2), "workers": self.workers}
 
 

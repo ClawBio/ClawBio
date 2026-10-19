@@ -1,9 +1,10 @@
 """Offline demo data: rs12740374 over vendored source slices, through `readers=`.
 
 The slices under `demo/` are +/-10 kb windows around rs12740374 cut from three Pan-UKBB
-outcome files (GRCh37 1:109,807,590-109,827,590) and three FinnGen R12 endpoint files
-(GRCh38 1:109,264,968-109,284,968), each keeping its file's own header line and re-indexed
-with htslib, plus a trimmed copy of the FinnGen PheWeb variant API answer for
+outcome files (GRCh37 1:109,807,590-109,827,590), three FinnGen R12 endpoint files and two
+Million Veteran Program GWAS Catalog harmonized files (GRCh38 1:109,264,968-109,284,968),
+each keeping its file's own header line (the MVP slices keep their CRLF line ends) and
+re-indexed with htslib, plus a trimmed copy of the FinnGen PheWeb variant API answer for
 `1:109274968-G-T`. They are REAL source rows, not synthetic values (see `demo/README.md`
 for provenance and the required acknowledgments). The window also holds the
 strand-ambiguous A/T variant rs41279716, which the palindromic tests use.
@@ -19,18 +20,23 @@ import json
 import os
 
 from snp_phewas_catalog import get_dataset
-from snp_phewas_sources import FinnGenReader, PanUkbbReader
+from snp_phewas_sources import FinnGenReader, MvpReader, PanUkbbReader
 from snp_phewas_tabix import SourceUnreachable
 
 DEMO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "demo")
 PAN_DIR = os.path.join(DEMO_DIR, "pan_ukbb") + os.sep
 FG_DIR = os.path.join(DEMO_DIR, "finngen") + os.sep
+MVP_DIR = os.path.join(DEMO_DIR, "mvp") + os.sep
 API_JSON = os.path.join(FG_DIR, "api_variant_1-109274968-G-T.json")
 
 DEMO_VARIANT = "rs12740374"
 PAN_OUTCOMES = ["biomarkers-30780-both_sexes-irnt", "icd10-E78-both_sexes", "phecode-411-both_sexes"]
 FG_OUTCOMES = ["I9_CHD", "E4_LIPOPROT", "I9_IHD"]
-DEMO_OUTCOMES = {"pan_ukbb_eur": PAN_OUTCOMES, "finngen_r12": FG_OUTCOMES}
+# GCST90475929 ischemic heart disease (phecode 411, an odds-ratio file) and GCST90475416 LDL
+# cholesterol mean (a beta file), both European ancestry, both harmonized by the Catalog.
+MVP_OUTCOMES = ["GCST90475929", "GCST90475416"]
+DEMO_OUTCOMES = {"pan_ukbb_eur": PAN_OUTCOMES, "finngen_r12": FG_OUTCOMES,
+                 "mvp_eur": MVP_OUTCOMES}
 
 # The demo window: GRCh37 = GRCh38 + 542,622 on chr1 near CELSR2 (Ensembl maps
 # rs12740374 1:109274968 -> 1:109817590, strand 1; checked live 2026-10-17).
@@ -81,6 +87,8 @@ def demo_readers(*, finngen_route: str = "hybrid", api: DemoFinnGenApi | None = 
                                       index_cache=index_cache),
         "finngen_r12": FinnGenReader(get_dataset("finngen_r12"), route=finngen_route,
                                      client=api or DemoFinnGenApi(), data_base=FG_DIR, workers=2),
+        "mvp_eur": MvpReader(get_dataset("mvp_eur"), data_base=MVP_DIR, workers=2,
+                             index_cache=index_cache),
     }
 
 
