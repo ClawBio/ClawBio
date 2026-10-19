@@ -67,6 +67,16 @@ TRANSIENT_STATUSES = frozenset({ST_UNREACHABLE, ST_NOT_QUERIED, ST_API_CENSORED,
 CATALOG_STATUSES = TESTED_STATUSES | PERMANENT_STATUSES | TRANSIENT_STATUSES
 ALL_STATUSES = CATALOG_STATUSES | {ST_NOT_IN_CATALOG}
 
+def display_label(label: str) -> str:
+    """An outcome label as shown to a reader. A single all-caps word longer than four letters
+    is the source shouting, not an acronym, and is shown in sentence case; the raw label
+    stays in every table. Measured over both catalogs (9,629 labels): 5 are all caps, and
+    this changes only FinnGen's STROKE (IGF-1, SHBG, GERD, COPD are acronyms and stay)."""
+    if label.isalpha() and label.isupper() and len(label) > 4:
+        return label.capitalize()
+    return label
+
+
 def phenome_wide_n(rows) -> int:
     """The phenome-wide Bonferroni denominator for one dataset's rows: every outcome this
     lookup asked about, minus those the source can never test for this variant (absent,

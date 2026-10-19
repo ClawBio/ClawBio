@@ -136,6 +136,11 @@ put both on one effect allele and one outcome key, and say which associations re
 5. **Replication verdicts**: per shared outcome, at p < 0.05 / (outcomes both biobanks
    share), with "not tested", "not read" and "low confidence" kept apart from a tested null.
 6. **Three figures**: outcome Manhattan per biobank, replication matrix, paired effects.
+   The Manhattan groups the outcomes read into 20 body-system categories taken from each
+   source's own grouping, colors only the outcomes past the significance line (red raises,
+   blue lowers, open circle for no direction), log-compresses the y axis above 20 when the
+   top hit is past 40, and labels every outcome past the line; one that fits nowhere is left
+   off and the panel says how many.
 
 ## Scope
 
@@ -244,7 +249,8 @@ endpoint takes its match's key. Bases: `finngen_published_match` (FinnGen's R12 
 files), `icd10_exact` (an ICD-10-only definition naming one block whole), `icd10_code`,
 `icd10_broad_only` (only a broader or narrower counterpart: NOT compared), `unmapped`.
 When several FinnGen endpoints share a key (25 of the 589 keys), one representative is
-compared (strongest basis, then most cases); the others keep their rows.
+compared (one the source tested first, then strongest basis, then most cases); the
+others keep their rows.
 
 **Replication**: `n_shared` = harmonized outcomes BOTH catalogs carry, whatever the lookup
 could read (an outage cannot loosen the threshold). Replicates = both p < 0.05 / n_shared,
