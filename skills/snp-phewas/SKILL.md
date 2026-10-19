@@ -120,8 +120,9 @@ put them on one effect allele and one outcome key, and say which associations re
 - **With it**: every outcome of each biobank is a row (tested or not, with the reason), on
   the Open Targets alternative allele, with FinnGen endpoints, Pan-UK Biobank outcomes and MVP
   studies on one join key and a verdict per shared outcome for every pair of biobanks and
-  across all three. The default three-biobank read of rs12740374 took 159 s with an empty
-  index cache and 57 s warm (measured 2026-10-19 on a Mac mini, 16 workers per biobank).
+  across all three. The default three-biobank read took 159 s and 613 s in two runs with an
+  empty index cache, and 57 s and 66 s with the indexes cached (measured 2026-10-19 on a Mac
+  mini, 16 workers per biobank; the cold spread is the GWAS Catalog's download speed).
 - **Why ClawBio**: values are read from the biobanks' own files; nothing is estimated. The
   skill `gwas-lookup` calls the same FinnGen web endpoint for its FinnGen leg. This skill
   differs in five ways: it reads Pan-UK Biobank and the Million Veteran Program (not in
@@ -360,9 +361,7 @@ by release. Index sizes, summed from the sources' Content-Length (2026-10-18 for
 Biobank and FinnGen in full, 2026-10-19 for the rest): 4.53 GB for the default matched
 files (2.15 GB Pan-UK Biobank, 1.10 GB FinnGen, 1.27 GB MVP), 20.0 GB for `--all-outcomes`
 (13.54 + 4.37 + 2.12 GB). The CLI says what it will read and download on stderr before it
-starts. The `--all-outcomes` wall time is not measured: for Pan-UK Biobank and FinnGen alone
-it is an estimated 15 to 20 minutes cold (40 s x 7,160 / 589 for Pan-UK Biobank, plus
-FinnGen's full read, 175 s when measured on an earlier default).
+starts. The `--all-outcomes` wall time is not measured.
 
 ## Example Queries
 
@@ -401,8 +400,11 @@ GiB (2.08 GB) of indexes downloaded. Every one of the 589 + 622 outcomes was tes
 Replication over the 589 shared outcomes (threshold 0.05 / 589): 4 replicate (E78
 lipoprotein disorders, ischemic heart disease, angina pectoris, abdominal aortic aneurysm),
 5 are same-direction significant in one only, 580 are null in both. Live, the default three
-biobanks (measured 2026-10-19 on a Mac mini, 16 workers each): 159 s with an empty index
-cache, 57 s warm; read one after another instead of at once, 308 s cold (104 + 47 + 153 s).
+biobanks (measured 2026-10-19 on a Mac mini, 16 workers each), rs12740374 with an empty
+index cache: 159 s in one run and 613 s in another, the second with the MVP leg at 605 s
+(Pan-UK Biobank 92 s, FinnGen 50 s), so the first-run time is mostly the GWAS Catalog's
+download speed; rs2228145 with the indexes cached: 66 s (57 s in an earlier warm run). Read
+one after another instead of at once, the first cold run's legs took 308 s (104 + 47 + 153 s).
 
 ## Output Structure
 

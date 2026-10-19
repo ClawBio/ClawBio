@@ -79,7 +79,7 @@ class SourceUnreachable(ConnectionError):
     """The source could not be READ (network, timeout, 5xx, throttling).
 
     Never means the variant is absent. A ConnectionError subclass so a transport-failure
-    `isinstance` check recognises it, and its own type so it cannot be coerced into an
+    `isinstance` check recognizes it, and its own type so it cannot be coerced into an
     empty result by a caller that only checks for emptiness.
     """
 

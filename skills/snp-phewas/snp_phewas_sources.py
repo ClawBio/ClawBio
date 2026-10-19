@@ -391,7 +391,7 @@ class FinnGenReader:
     censored (it reports values only below p = 0.05; see `snp_phewas_pheweb`), so every
     tested endpoint carries its real beta / SE / p. If the API cannot be reached, every
     endpoint is read from the files instead. `api`: the one request only, censored
-    endpoints labelled as such. `tabix`: a file read for every endpoint.
+    endpoints labeled as such. `tabix`: a file read for every endpoint.
     """
 
     def __init__(self, spec: DatasetSpec, *, route: str = "hybrid",

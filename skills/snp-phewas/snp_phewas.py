@@ -229,6 +229,8 @@ def _other_groups_sentence(result: SnpPhewasResult) -> str | None:
     ds = load_datasets()
     if not all(ds[d].default for d in result.dataset_ids if d in ds):
         return None
+    if not any(ds[d].ancestry == "EUR" for d in result.dataset_ids if d in ds):
+        return None  # a FinnGen-only read (--quick) read no European-ancestry group
     served = {s.ancestry for s in ds.values() if not s.default}
     codes = [a for a in ANCESTRY_WORDS if a in served and a not in ("EUR", "META")]
     if not codes:
@@ -420,20 +422,22 @@ def _start_message(datasets: str | list[str], all_outcomes: bool, index_cache: s
     if all_outcomes or len({get_dataset(d).family for d in ids}) < 2:
         n = [sum(1 for o in load_outcome_catalog(d) if o.access_status in (None, "harmonised"))
              for d in ids]
-        size = (f"up to {INDEX_SIZE_ALL} for the default three biobanks"
-                if set(ids) == {"pan_ukbb_eur", "finngen_r12", "mvp_eur"} else "one index per file")
+        size = (f"up to {INDEX_SIZE_ALL} of index files (the default three biobanks)"
+                if set(ids) == {"pan_ukbb_eur", "finngen_r12", "mvp_eur"}
+                else "one index file per outcome file")
         return (f"snp-phewas: reading every readable outcome ({', '.join(f'{k:,}' for k in n)} "
-                f"files in {labels_listed(ids)}). A first run downloads {size} of index files "
-                f"into {where} (reused afterwards). Not timed: Pan-UK Biobank and FinnGen "
-                f"alone are an estimated 15 to 20 minutes the first time. --quick downloads "
-                f"none.")
+                f"files in {labels_listed(ids)}). A first run downloads {size} into {where} "
+                f"(reused afterwards); the time of a full read is not measured. --quick "
+                f"downloads none.")
     n = [len(matched_outcome_ids(d, ids)) for d in ids]
-    size = (f"{INDEX_SIZE_DEFAULT} of index files"
-            if set(ids) == {"pan_ukbb_eur", "finngen_r12", "mvp_eur"} else "index files")
+    default3 = set(ids) == {"pan_ukbb_eur", "finngen_r12", "mvp_eur"}
+    size = f"{INDEX_SIZE_DEFAULT} of index files" if default3 else "their index files"
+    timing = (" Measured on a Mac mini for the default three biobanks: 159 s and 613 s with an "
+              "empty index cache (the spread is the GWAS Catalog's download speed), 57 s and "
+              "66 s once the indexes are cached." if default3 else "")
     return (f"snp-phewas: reading the outcomes matched across the biobanks "
             f"({', '.join(f'{k:,}' for k in n)} files in {labels_listed(ids)}). A first run "
-            f"downloads {size} into {where} (reused afterwards). Measured for rs12740374 with "
-            f"the default three biobanks: 159 s with an empty index cache, 57 s warm. "
+            f"downloads {size} into {where} (reused afterwards).{timing} "
             f"--all-outcomes reads everything; --quick downloads none.")
 
 
@@ -565,6 +569,9 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--quick reads FinnGen only; it cannot be combined with --all-outcomes")
     if args.quick and args.dataset not in ("default", "finngen_r12"):
         ap.error("--quick reads FinnGen only; drop --dataset or use --dataset finngen_r12")
+    if args.demo and (args.ancestry or args.dataset != "default"):
+        ap.error("--demo reads the bundled European-ancestry slices only; drop --ancestry "
+                 "and --dataset")
     if args.quick and args.ancestry:
         ap.error("--quick reads FinnGen only (one population); drop --ancestry")
     if args.ancestry and args.dataset != "default":

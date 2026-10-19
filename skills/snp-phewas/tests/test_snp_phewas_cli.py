@@ -314,3 +314,21 @@ def test_a_low_confidence_value_is_flagged_and_never_counted_as_a_pass(offline_k
     assert "2 below the threshold" in line, line
     assert "(1 low-confidence value is not counted)" in line, line
     assert "tested, flagged low confidence by the source" in report  # the table's Status
+
+
+
+@pytest.mark.parametrize("extra", [["--ancestry", "AFR"], ["--dataset", "pan_ukbb_csa"]])
+def test_demo_refuses_a_group_it_cannot_read(tmp_path, extra):
+    """The demo reads the bundled European-ancestry slices; writing that report under an
+    African-ancestry request would answer a question the user did not ask, unsaid."""
+    with pytest.raises(SystemExit):
+        snp_phewas.main(["--demo", *extra, "--output", str(tmp_path)])
+
+
+def test_a_finngen_only_read_offers_no_other_groups(offline_kwargs):
+    """--quick reads FinnGen alone; "this lookup read the European-ancestry datasets" would be
+    false there."""
+    from snp_phewas_lookup import lookup_variant
+
+    res = lookup_variant("rs12740374", datasets="finngen_r12", **offline_kwargs)
+    assert snp_phewas._other_groups_sentence(res) is None

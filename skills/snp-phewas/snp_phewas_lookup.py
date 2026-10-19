@@ -315,7 +315,7 @@ def lookup_variant(
 
     # The datasets are independent reads, so they run at once; results merge in dataset
     # order. Measured on rs12740374 (three-biobank matched read, empty index cache, 16
-    # workers each): 159 s read at once, 308 s one after another (104 + 47 + 153 s).
+    # workers each, one run): 159 s read at once, 308 s one after another (104 + 47 + 153 s).
     from concurrent.futures import ThreadPoolExecutor
 
     with ThreadPoolExecutor(max_workers=max(1, len(ids))) as ex:
