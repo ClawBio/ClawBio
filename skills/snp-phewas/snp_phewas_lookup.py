@@ -212,7 +212,8 @@ def lookup_variant(
     workers: int = DEFAULT_WORKERS,
     index_cache: str | None = None,
     readers: Mapping[str, Any] | None = None,
-    rsid_resolver: Callable[[str], str] | None = None,
+    rsid_resolver: Callable[[str], str | list[str]] | None = None,
+    allele_weight: Callable[[str], tuple[int, float]] | None = None,
     map_fn: MapFn | None = None,
     harmonize: bool = True,
 ) -> SnpPhewasResult:
@@ -234,7 +235,8 @@ def lookup_variant(
     if scope not in SCOPES:
         raise ValueError(f"scope must be one of {SCOPES}")
     ids = resolve_dataset_ids(datasets)
-    v = resolve_variant(variant, build=build, rsid_resolver=rsid_resolver, map_fn=map_fn)
+    v = resolve_variant(variant, build=build, rsid_resolver=rsid_resolver, map_fn=map_fn,
+                        allele_weight=allele_weight)
     notes = [v.resolution_note + "."]
     rows: list[S.OutcomeRow] = []
     uncat_rows: list[S.OutcomeRow] = []

@@ -120,3 +120,12 @@ def test_mvp_ldl_mean_reads_live_with_the_p_underflow_derived(cache):
     assert rec.status == "ok" and rec.variant_id_native == "1_109274968_G_T"
     assert (rec.beta, rec.se) == (-0.1561, 0.003009)
     assert rec.detail == P_UNDERFLOW_DETAIL and rec.neglog10_p > 500
+
+
+def test_rs7903146_resolves_to_the_common_allele_with_gwas_signals_live():
+    """Open Targets' search lists the rare C>G first; the lookup must read C>T."""
+    from snp_phewas_variant import resolve_variant
+
+    v = resolve_variant("rs7903146")
+    assert v.grch38.variant_id == "10_112998590_C_T"
+    assert "most GWAS credible sets" in v.resolution_note and "10_112998590_C_G" in v.resolution_note

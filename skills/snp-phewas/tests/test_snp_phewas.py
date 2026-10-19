@@ -822,3 +822,147 @@ def test_crlf_line_ends_are_stripped_from_the_header_and_every_record(tmp_path):
     r = read_outcome_file(str(data), str(idx), cols, Placement("GRCh38", "1", 109274968, "G", "T"),
                           index_cache=None)
     assert r.status == S.ST_OK and r.variant_id_native == "1_109274968_G_T", r
+
+
+# --- an rsID that names several alleles at one position -------------------------------
+
+def test_an_rsid_with_several_alleles_reads_the_one_with_gwas_signals():
+    """Open Targets' search ranks rs7903146's rare C>G (no credible set) above its common C>T
+    (888); reading the first made every outcome in every biobank an allele mismatch. The
+    reason the answer gives is the rule that actually decided."""
+    from snp_phewas_variant import rank_alleles
+
+    weights = {"10_112998590_C_G": (0, 0.0), "10_112998590_C_T": (888, 0.29),
+               "10_112998590_C_A": (0, 0.001), "10_112998590_C_AT": (0, 0.0)}
+    ids, why = rank_alleles(["10_112998590_C_G", "10_112998590_C_T"], weights.__getitem__)
+    assert ids == ["10_112998590_C_T", "10_112998590_C_G"]
+    assert why == "the allele with the most GWAS credible sets in Open Targets (888; the other has 0)"
+    ids, why = rank_alleles(["10_112998590_C_G", "10_112998590_C_A"], weights.__getitem__)
+    assert ids == ["10_112998590_C_A", "10_112998590_C_G"]
+    assert why == ("no allele here has a GWAS credible set; the one with the highest frequency "
+                   "in any gnomAD population")
+    ids, why = rank_alleles(["10_112998590_C_G", "10_112998590_C_AT"], weights.__getitem__)
+    assert ids == ["10_112998590_C_G", "10_112998590_C_AT"]
+    assert why.startswith("listed by Open Targets before 10_112998590_C_AT")
+    # one allele, or another position: nothing is weighed and no reason is claimed
+    calls = []
+    assert rank_alleles(["1_109274968_G_T"], calls.append) == (["1_109274968_G_T"], None)
+    assert rank_alleles(["1_1_A_G", "2_2_A_G"], calls.append) == (["1_1_A_G", "2_2_A_G"], None)
+    assert calls == []
+
+
+@pytest.mark.parametrize("w,chosen,says", [
+    # three alleles, a tie at the top: the reason is what beat the runner-up
+    ({"C": (0, 0.0), "G": (0, 0.01), "T": (0, 0.01)}, "G", "listed by Open Targets before 1_1_A_T"),
+    ({"C": (5, 0.3), "G": (5, 0.1), "T": (0, 0.9)}, "C", "highest frequency"),
+    ({"C": (0, 0.0), "G": (5, 0.1), "T": (5, 0.1)}, "G", "listed by Open Targets before 1_1_A_T"),
+    ({"C": (9, 0.0), "G": (5, 0.1), "T": (1, 0.9)}, "C", "(9; the next has 5)"),
+])
+def test_the_allele_reason_names_what_beat_the_runner_up(w, chosen, says):
+    from snp_phewas_variant import rank_alleles
+
+    ids, why = rank_alleles([f"1_1_A_{a}" for a in "CGT"], lambda v: w[v[-1]])
+    assert ids[0] == f"1_1_A_{chosen}" and says in why
+
+
+def test_resolve_variant_ranks_with_the_weight_and_says_why_only_when_it_ranked():
+    from snp_phewas_variant import resolve_variant
+
+    order = lambda q: ["10_112998590_C_G", "10_112998590_C_T"]  # noqa: E731
+    weight = {"10_112998590_C_G": (0, 0.0), "10_112998590_C_T": (888, 0.29)}.__getitem__
+    v = resolve_variant("rs7903146", rsid_resolver=order, allele_weight=weight)
+    assert v.grch38.variant_id == "10_112998590_C_T"
+    assert "most GWAS credible sets" in v.resolution_note and "10_112998590_C_G" in v.resolution_note
+    unranked = resolve_variant("rs7903146", rsid_resolver=order)
+    assert unranked.grch38.variant_id == "10_112998590_C_G"
+    assert "credible sets" not in unranked.resolution_note
+
+
+class _StubOT:
+    """`snp_phewas_ot_resolver._post` scripted by query."""
+
+    def __init__(self, search=None, weights=None, fail=None):
+        self.search, self.weights, self.fail = search or [], weights or {}, fail
+
+    def __call__(self, query, variables, **_kw):
+        import snp_phewas_ot_resolver as R
+
+        kind = "weight" if query is R.VARIANT_GWAS_WEIGHT_QUERY else "search"
+        if self.fail == kind:
+            raise R.OpenTargetsError("HTTP 503")
+        if kind == "search":
+            return {"search": {"hits": [{"id": i, "entity": "variant"} for i in self.search]}}
+        return self.weights.get(variables["variantId"], {"variant": None})
+
+
+def _weight_reply(n, freqs):
+    return {"variant": {"id": "x", "credibleSets": {"count": n},
+                        "alleleFrequencies": [{"populationName": p, "alleleFrequency": f}
+                                              for p, f in freqs.items()]}}
+
+
+def test_gwas_weight_reads_the_count_and_the_highest_frequency(monkeypatch):
+    import snp_phewas_ot_resolver as R
+
+    stub = _StubOT(weights={"a": _weight_reply(888, {"nfe_adj": 0.29, "afr_adj": 0.31, "x": None})})
+    monkeypatch.setattr(R, "_post", stub)
+    assert R.gwas_weight("a") == (888, 0.31)
+    assert R.gwas_weight("unknown") == (0, 0.0)  # Open Targets knows no such variant
+
+    class Resp:
+        status_code = 200
+
+        def json(self):
+            return {"data": None}
+
+    class Sess:
+        def post(self, *a, **k):
+            return Resp()
+
+    monkeypatch.undo()
+    with pytest.raises(R.OpenTargetsError, match="no data"):  # an outage, never "no signal"
+        R.gwas_weight("a", session=Sess())
+    sent = []
+
+    class Spy(Sess):
+        def post(self, url, json=None, **k):
+            sent.append(json)
+            return type("R", (), {"status_code": 200, "json": lambda self: {"data": {"variant": None}}})()
+
+    R.gwas_weight("10_112998590_C_T", session=Spy())
+    assert sent[0]["variables"] == {"variantId": "10_112998590_C_T", "studyTypes": ["gwas"]}
+    assert "credibleSets(studyTypes: $studyTypes" in sent[0]["query"]
+
+
+def test_the_open_targets_resolver_ranks_and_names_the_call_that_failed(monkeypatch):
+    import snp_phewas_ot_resolver as R
+    from snp_phewas_variant import resolve_variant
+
+    ids = ["10_112998590_C_G", "10_112998590_C_T"]
+    weights = {"10_112998590_C_T": _weight_reply(888, {"nfe_adj": 0.29})}
+    monkeypatch.setattr(R, "_post", _StubOT(search=ids, weights=weights))
+    v = resolve_variant("rs7903146")
+    assert v.grch38.variant_id == "10_112998590_C_T"
+    assert "10_112998590_C_G" in v.resolution_note and "(888; the other has 0)" in v.resolution_note
+    monkeypatch.setattr(R, "_post", _StubOT(search=ids, weights=weights, fail="search"))
+    with pytest.raises(SourceUnreachable, match="variant search"):
+        resolve_variant("rs7903146")
+    # the weights failing is not the variant failing: the search's first id, said as such
+    monkeypatch.setattr(R, "_post", _StubOT(search=ids, weights=weights, fail="weight"))
+    v = resolve_variant("rs7903146")
+    assert v.grch38.variant_id == "10_112998590_C_G"
+    assert "GWAS weights could not be read just now" in v.resolution_note
+
+
+def test_lookup_passes_an_injected_allele_weight_through(offline_kwargs):
+    seen = []
+
+    def weight(vid):
+        seen.append(vid)
+        return {"1_109274968_G_T": (5, 0.2)}.get(vid, (0, 0.0))
+
+    offline_kwargs["rsid_resolver"] = lambda q: ["1_109274968_G_C", "1_109274968_G_T"]
+    r = lookup_variant("rs12740374", allele_weight=weight, **offline_kwargs)
+    assert r.variant.variant_id_grch38 == "1_109274968_G_T" and set(seen) == {
+        "1_109274968_G_C", "1_109274968_G_T"}
+    assert _row(r, "pan_ukbb_eur", LDL).status == S.ST_OK
