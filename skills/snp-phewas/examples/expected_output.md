@@ -2,7 +2,7 @@
 
 # Variant PheWAS across biobanks: rs12740374
 
-**Date**: 2026-10-19 20:19 UTC
+**Date**: 2026-10-20 15:30 UTC
 **Skill**: snp-phewas
 **Version**: 0.2.0
 **Variant (GRCh38)**: 1_109274968_G_T
@@ -21,7 +21,7 @@
 - **FinnGen R12 (Finnish)**: tested in 3 of 3 outcomes read (2,469 in the catalog); 3 below the threshold 0.05 / 3 (over the 3 outcomes looked up).
 - **Million Veteran Program, European genetic ancestry**: tested in 2 of 2 outcomes read (2,070 in the catalog, 849 of them with no readable file); 2 below the threshold 0.05 / 2 (over the 2 outcomes looked up).
 - **Replication, Pan-UK Biobank (European ancestry) and FinnGen R12 (Finnish)** (threshold 0.05 / 589 shared outcomes): 2 replicate, 0 same direction significant in one only, 0 opposite directions, 0 null in both.
-- **Replication, Pan-UK Biobank (European ancestry) and Million Veteran Program (European genetic ancestry)** (threshold 0.05 / 723 shared outcomes): 2 replicate, 0 same direction significant in one only, 0 opposite directions, 0 null in both.
+- **Replication, Pan-UK Biobank (European ancestry) and Million Veteran Program (European genetic ancestry)** (threshold 0.05 / 724 shared outcomes): 2 replicate, 0 same direction significant in one only, 0 opposite directions, 0 null in both.
 - **Replication, FinnGen R12 (Finnish) and Million Veteran Program (European genetic ancestry)** (threshold 0.05 / 157 shared outcomes): 1 replicate, 0 same direction significant in one only, 0 opposite directions, 0 null in both.
 - **Replication, all three** (threshold 0.05 / 157 outcomes all three share): 1 replicate in all three, 0 in two.
 
@@ -78,7 +78,7 @@
 - replicates (significant in both, same direction): 2 (Ischemic Heart Disease, E78 Disorders of lipoprotein metabolism and other lipidaemias)
 587 harmonized outcomes could not be compared; they are listed apart from the nulls, never counted as nulls.
 
-**Pan-UK Biobank (European ancestry) and Million Veteran Program (European genetic ancestry)**: 723 shared outcomes, threshold 0.05 / 723.
+**Pan-UK Biobank (European ancestry) and Million Veteran Program (European genetic ancestry)**: 724 shared outcomes, threshold 0.05 / 724.
 - not read in one of the datasets (an outage, outside this lookup, or a study the source holds with no readable file; not a null): 1,179
 - replicates (significant in both, same direction): 2 (LDL direct, Ischemic Heart Disease)
 1,179 harmonized outcomes could not be compared; they are listed apart from the nulls, never counted as nulls.

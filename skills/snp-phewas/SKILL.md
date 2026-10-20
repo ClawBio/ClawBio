@@ -328,7 +328,7 @@ then most cases); the others keep their rows.
 **Replication**: per pair, `n_shared` = harmonized outcomes BOTH catalogs carry with a
 readable file, whatever the lookup could read (an outage cannot loosen the threshold; an
 unreadable MVP study is known from the catalog before any read). Default three biobanks:
-Pan-UK Biobank x FinnGen 589, Pan-UK Biobank x MVP 723, FinnGen x MVP 157. Replicates = both
+Pan-UK Biobank x FinnGen 589, Pan-UK Biobank x MVP 724, FinnGen x MVP 157. Replicates = both
 p < 0.05 / n_shared, same sign. Other verdicts: same direction significant in one only;
 opposite directions significant in both; significant in one only, direction not shared;
 significant in both with a direction withheld; tested in both, significant in neither; and
@@ -385,7 +385,7 @@ From `--demo` (abridged; the full file is `examples/expected_output.md`):
 
 ## Replication across biobanks
 **Pan-UK Biobank (European ancestry) and Million Veteran Program (European genetic ancestry)**:
-723 shared outcomes, threshold 0.05 / 723.
+724 shared outcomes, threshold 0.05 / 724.
 - replicates (significant in both, same direction): 2 (LDL direct, Ischemic Heart Disease)
 
 **All three biobanks** (Pan-UKBB EUR, FinnGen and MVP EUR): 157 outcomes with a readable

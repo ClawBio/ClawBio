@@ -417,6 +417,26 @@ def test_finngen_api_route_labels_censored_values_not_untested(offline_kwargs):
     assert _row(r, "finngen_r12", "I9_CHD").status == S.ST_OK
 
 
+def test_finngen_api_p_of_zero_is_an_underflow_not_a_censored_value():
+    # The API's p is read only when mlogp is missing. A p of 0 is an underflow: -log10 p comes
+    # from beta/SE, as on the file route, and is never labeled "p >= 0.05".
+    from snp_phewas_sources import FinnGenReader, P_UNDERFLOW_DETAIL, neglog10_p_from_z
+
+    def rec(**kw):
+        return FinnGenReader._api_record(dict(beta=0.5, sebeta=0.01, mlogp=None, **kw),
+                                         "G", "T", "1_109274968_G_T")
+
+    zero = rec(pval=0)
+    assert zero.status == S.ST_OK and zero.detail == P_UNDERFLOW_DETAIL
+    assert zero.neglog10_p == pytest.approx(neglog10_p_from_z(50.0))
+    small = rec(pval=1e-3)
+    assert small.status == S.ST_OK and small.neglog10_p == pytest.approx(3.0)
+    assert small.detail is None
+    assert rec(pval=None).status == S.ST_API_CENSORED
+    assert FinnGenReader._api_record(dict(beta=None, sebeta=None, mlogp=None, pval=0),
+                                     "G", "T", "1_109274968_G_T").status == S.ST_API_CENSORED
+
+
 def test_hybrid_route_fills_censored_endpoints_from_the_files(offline_kwargs):
     api = DemoFinnGenApi()
     api.payload["results"] = [dict(x, beta=None, sebeta=None, pval=None, mlogp=None)

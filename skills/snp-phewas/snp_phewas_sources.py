@@ -501,8 +501,16 @@ class FinnGenReader:
     def _api_record(res: dict, src_ref: str, src_alt: str, vid: str) -> RawRecord:
         beta, se = _f(res.get("beta")), _f(res.get("sebeta"))
         nlp = _f(res.get("mlogp"))
-        if nlp is None and _f(res.get("pval")):
-            nlp = -math.log10(float(res["pval"]))
+        detail = None
+        if nlp is None:
+            # The same p handling as the file route: a p of 0 is an underflow, not a censored
+            # value, so it is derived from beta/SE (a truthiness test read it as p >= 0.05).
+            p = _f(res.get("pval"))
+            if p is not None and 0.0 < p <= 1.0:
+                nlp = -math.log10(p)
+            elif (p == 0.0 and beta is not None and se is not None and se > 0
+                  and math.isfinite(beta / se)):
+                nlp, detail = neglog10_p_from_z(beta / se), P_UNDERFLOW_DETAIL
         if beta is None or se is None or nlp is None:
             return RawRecord(S.ST_API_CENSORED, src_ref=src_ref, src_alt=src_alt,
                              variant_id_native=vid, route="api")
@@ -511,5 +519,5 @@ class FinnGenReader:
         # allele (af_alt 0.751, API maf 0.751).
         return RawRecord(S.ST_OK, src_ref=src_ref, src_alt=src_alt, beta=beta, se=se,
                          neglog10_p=nlp, eaf=_f(res.get("maf")), variant_id_native=vid,
-                         route="api",
+                         route="api", detail=detail,
                          extra={"n_case": res.get("n_case"), "n_control": res.get("n_control")})
