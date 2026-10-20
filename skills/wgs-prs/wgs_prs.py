@@ -590,25 +590,34 @@ _DEMO_T2D_PANEL_VARIANTS = (
 def write_demo_vcf(path: Path, n_snps: int = 200) -> Path:
     """Write a synthetic VCF that covers the default offline demo panel."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [
-        "##fileformat=VCFv4.2",
-        "##FILTER=<ID=PASS,Description=\"All filters passed\">",
-        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE",
-    ]
+    records = []
     for i, (chromosome, position, variant_id, ref, alt) in enumerate(
         _DEMO_T2D_PANEL_VARIANTS
     ):
         gt = "0/1" if i % 3 else "1/1"
-        lines.append(
-            f"{chromosome}\t{position}\t{variant_id}\t{ref}\t{alt}\t50\tPASS\t.\tGT:DP\t{gt}:30"
-        )
+        records.append((chromosome, position, variant_id, ref, alt, gt))
 
     allele_pairs = [("A", "G"), ("C", "T"), ("G", "A"), ("T", "C")]
     for i in range(max(0, n_snps - len(_DEMO_T2D_PANEL_VARIANTS))):
         ref, alt = allele_pairs[i % 4]
         gt = "0/1" if i % 3 != 0 else "1/1"
+        records.append(("1", (i + 1) * 1000, f"rs_demo_{i}", ref, alt, gt))
+
+    # bcftools >= 1.23 cannot write records whose contig is not declared in
+    # the header, and indexing needs records sorted by contig and position.
+    records.sort(key=lambda record: (int(record[0]), record[1]))
+    contigs = dict.fromkeys(record[0] for record in records)
+    lines = [
+        "##fileformat=VCFv4.2",
+        "##FILTER=<ID=PASS,Description=\"All filters passed\">",
+        *(f"##contig=<ID={contig}>" for contig in contigs),
+        "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+        "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read depth\">",
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE",
+    ]
+    for chromosome, position, variant_id, ref, alt, gt in records:
         lines.append(
-            f"1\t{(i + 1) * 1000}\trs_demo_{i}\t{ref}\t{alt}\t50\tPASS\t.\tGT:DP\t{gt}:30"
+            f"{chromosome}\t{position}\t{variant_id}\t{ref}\t{alt}\t50\tPASS\t.\tGT:DP\t{gt}:30"
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path

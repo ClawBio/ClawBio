@@ -239,6 +239,43 @@ def test_demo_vcf_covers_the_default_panel(tmp_path) -> None:
     } <= variant_ids
 
 
+def test_demo_vcf_header_declares_every_contig_and_format_field(tmp_path) -> None:
+    """bcftools >= 1.23 refuses to write records whose contig is undeclared."""
+    lines = write_demo_vcf(tmp_path / "demo.vcf").read_text(encoding="utf-8").splitlines()
+    header = [line for line in lines if line.startswith("##")]
+    records = [line.split("\t") for line in lines if not line.startswith("#")]
+
+    declared_contigs = {
+        line.split("ID=", 1)[1].split(",")[0].rstrip(">")
+        for line in header
+        if line.startswith("##contig=<")
+    }
+    declared_formats = {
+        line.split("ID=", 1)[1].split(",")[0]
+        for line in header
+        if line.startswith("##FORMAT=<")
+    }
+
+    assert {record[0] for record in records} <= declared_contigs
+    assert {key for record in records for key in record[8].split(":")} <= declared_formats
+
+
+def test_demo_vcf_records_are_sorted_for_indexing(tmp_path) -> None:
+    """bcftools index fails when a contig's records are not contiguous."""
+    lines = write_demo_vcf(tmp_path / "demo.vcf").read_text(encoding="utf-8").splitlines()
+    contig_order = [
+        line.split("ID=", 1)[1].split(",")[0].rstrip(">")
+        for line in lines
+        if line.startswith("##contig=<")
+    ]
+    positions = [
+        (contig_order.index(fields[0]), int(fields[1]))
+        for fields in (line.split("\t") for line in lines if not line.startswith("#"))
+    ]
+
+    assert positions == sorted(positions)
+
+
 def test_pgs_id_is_shell_quoted_in_replay_command(tmp_path) -> None:
     _output_dir, _vcf, _r1, paths, _cfg = make_run(
         tmp_path, pgs_id="PGS000013; echo unsafe",
