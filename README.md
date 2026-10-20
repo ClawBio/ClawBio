@@ -490,15 +490,10 @@ python clawbio.py run methylation --geo-id GSE139307 --output results_methylatio
 ### Run tests
 
 ```bash
-uv run pytest <path>          # one test path at a time, e.g.:
-uv run pytest skills/pharmgx-reporter/tests/ -v
+uv sync --all-extras                            # install every optional extra
+uv run pytest                                   # whole repo
+uv run pytest skills/pharmgx-reporter/tests/ -v # one skill
 ```
-
-Running a single bare `uv run pytest` (no path) fails at collection time on
-a `conftest.py` module-name collision between skills. CI works around this
-by invoking pytest separately per test path; do the same locally. See
-[docs/testing.md](docs/testing.md) for the root cause, the full list of
-test paths, and a documented verification run.
 
 ### Dependencies
 
@@ -523,8 +518,6 @@ Some skills have additional requirements, declared in that skill's own `SKILL.md
 | Drug Repurposing Screen | pyarrow (parquet engine) | `pip install numpy pandas scipy pyyaml pyarrow` |
 | Proteomics Clock | seaborn | `pip install pandas numpy matplotlib seaborn requests` |
 | RoboTerri (`robotary/`) | fastapi | **Undocumented in its own SKILL.md as of this writing.** `uv add fastapi` |
-
-See [docs/testing.md](docs/testing.md) for how these were identified (a full per-skill test verification run) and which failures are unrelated to missing dependencies.
 
 No Docker or Singularity required for core functionality. Skills that need external bioinformatics tools document their setup in their own `SKILL.md`.
 
@@ -689,72 +682,6 @@ See [Contributing a Skill](#contributing-a-skill) above for the submission proce
 ## Versioning
 
 ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.7.1**. See [CHANGELOG.md](CHANGELOG.md) for a full history of additions and breaking changes.
-
----
-
-## FAQ
-
-### What is ClawBio?
-
-ClawBio is a **bioinformatics-native AI agent skill library**. Built on OpenClaw (180k+ GitHub stars), it provides agent skills, most with runnable demo data, for genomics analysis, pharmacogenomics, ancestry profiling, and more. Local-first, privacy-focused, and reproducible.
-
-### What are ClawBio skills?
-
-A **skill** is a self-contained directory comprising:
-- Declarative specification (`SKILL.md`)
-- Validated Python code
-- Demo data
-- Reproducibility support (`reproducibility/` bundle with `commands.sh`, `environment.yml`, SHA-256 checksums)
-
-Skills encode domain expert decisions into machine-readable contracts so AI agents orchestrate but do not improvise.
-
-### What can ClawBio do?
-
-| Category | Skills | Example Use Cases |
-|----------|--------|-------------------|
-| **Personal** | PharmGx, Drug Photo | Pharmacogenomic reports, medication dosage cards |
-| **Population** | GWAS Lookup, Ancestry PCA | Variant queries, ancestry analysis |
-| **Clinical** | Variant Annotation, Clinical Reporter | ACMG classification, VCF annotation |
-| **Research** | UKB Navigator, Galaxy Bridge | UK Biobank search, 8,000+ Galaxy tools |
-| **Single-cell** | scRNA Orchestrator | QC, clustering, marker detection |
-
-### How do I install ClawBio?
-
-```bash
-git clone https://github.com/ClawBio/ClawBio.git && cd ClawBio
-uv sync                            # Python 3.11+ (installs dependencies)
-uv run python clawbio.py run pharmgx --demo
-```
-
-Or use pip: `pip install -e . && python clawbio.py run pharmgx --demo`
-
-### What is RoboTerri?
-
-**RoboTerri** is ClawBio's messaging-facing agent (Telegram/Discord). It interprets free-text requests and routes them to ClawBio skills:
-- Send a 23andMe file → get pharmacogenomic report
-- Send a medication photo → get dosage card from your genotype
-- Query variants → get disease associations
-
-Try it: [t.me/RoboTerri_bot](https://t.me/RoboTerri_bot)
-
-### What is the Corpasome reference genome?
-
-ClawBio ships demo data from a **real, fully open human genome**: the Corpasome (Manuel Corpas, CC0):
-- 23andMe SNP chip (~600K variants)
-- 30x Illumina WGS (~4M SNPs, ~600K indels, structural variants)
-- Published on Zenodo: [doi:10.5281/zenodo.19297389](https://doi.org/10.5281/zenodo.19297389)
-
-### How does ClawBio ensure reproducibility?
-
-Many skills export a `reproducibility/` bundle:
-- `commands.sh` — replay command
-- `environment.yml` — Conda environment snapshot
-- `checksums.sha256` — SHA-256 checksums for outputs
-- `runtime-lock.json` — optional extra lock metadata
-
-### What license does ClawBio use?
-
-MIT License. Open-source, free, community-driven.
 
 ---
 

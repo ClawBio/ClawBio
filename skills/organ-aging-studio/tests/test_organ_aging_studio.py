@@ -84,6 +84,48 @@ def test_cli_demo_smoke(tmp_path):
     assert "Organ Aging Studio complete" in proc.stdout
 
 
+def test_demo_writes_verifiable_reproducibility_bundle(tmp_path):
+    import hashlib
+
+    out_dir = tmp_path / "repro_out"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(SKILL_DIR / "organ_aging_studio.py"),
+            "--demo",
+            "--output",
+            str(out_dir),
+            "--organs",
+            "Heart",
+            "--sample-id",
+            "DEMO_000",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert proc.returncode == 0, proc.stderr
+
+    repro = out_dir / "reproducibility"
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (repro / name).is_file(), name
+    assert not (out_dir / "commands.sh").exists()
+
+    commands = (repro / "commands.sh").read_text()
+    assert "python skills/organ-aging-studio/organ_aging_studio.py" in commands
+    assert "--demo" in commands
+    assert str(SKILL_DIR) not in commands
+
+    lines = (repro / "checksums.sha256").read_text().splitlines()
+    labels = {line.split("  ", 1)[1] for line in lines}
+    assert {"report.md", "result.json", "reproducibility/environment.yml"} <= labels
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        target = out_dir / label
+        assert target.resolve().is_relative_to(out_dir.resolve()), label
+        assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, label
+
+
 def test_cli_requires_input_or_demo(tmp_path):
     script = SKILL_DIR / "organ_aging_studio.py"
     proc = subprocess.run(

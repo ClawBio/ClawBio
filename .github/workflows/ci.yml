@@ -43,10 +43,17 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Check lockfile is up to date
         run: uv lock --check
+
+      # CI's test jobs install every extra, so a test that imports an extra's
+      # module unconditionally passes there and breaks a plain `uv sync`.
+      - name: Tests collect with core dependencies only
+        run: |
+          uv sync --locked
+          uv run pytest --collect-only -q
 
   dependency-audit:
     # Report-only, deliberately. Two reasons, both verified against uv 0.10.12:
@@ -68,7 +75,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
 
@@ -130,7 +137,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
 
@@ -189,7 +196,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Install dependencies from lockfile
         run: uv sync --frozen --only-group dev
@@ -233,7 +240,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
 
@@ -395,6 +402,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Find skills whose harness this PR should run
         id: detect
@@ -436,11 +444,14 @@ jobs:
 
       - name: Run each harness in its own declared environment
         if: steps.detect.outputs.skills != ''
+        env:
+          # Skill names are PR directory names; an env var keeps them out of the script text.
+          SKILLS: ${{ steps.detect.outputs.skills }}
         run: |
           set -euo pipefail
           export MAMBA_ROOT_PREFIX=/tmp/mamba
           status=0
-          for skill in ${{ steps.detect.outputs.skills }}; do
+          for skill in $SKILLS; do
             env_file="skills/$skill/environment.yml"
             harness=$(find "skills/$skill/tests" -maxdepth 1 -name '*.sh' | sort | head -1)
             if [ ! -f "$env_file" ]; then
@@ -492,7 +503,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
 
@@ -521,7 +532,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
 

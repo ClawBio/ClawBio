@@ -240,6 +240,7 @@ def test_scrna_output_dir_with_within_cluster_contrast_renders_cluster_panels(tm
     assert payload["summary"]["within_cluster_comparisons"] == 2
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="anndata>=0.13 writes pandas 3 strings to .h5ad; it needs Python 3.12+")
 def test_scrna_markers_with_adata_generate_enhanced_plots(tmp_path: Path):
     _require_anndata()
     import anndata as ad

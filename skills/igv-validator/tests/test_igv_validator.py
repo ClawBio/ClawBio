@@ -15,8 +15,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pysam
 import pytest
+
+pysam = pytest.importorskip("pysam", reason="needs pysam (uv sync --extra region-fetch)")
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 SCRIPT = SKILL_DIR / "igv_validator.py"

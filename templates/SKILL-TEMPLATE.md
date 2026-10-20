@@ -150,6 +150,14 @@ python clawbio.py run <alias> --demo
 
 Expected output: [Brief description of what the demo produces, e.g. "a 3-page report covering 12 genes and 51 drugs with a synthetic patient"]
 
+Demo records must be either clearly synthetic or real. Synthetic data says so
+in its name or header (`synthetic_patient.vcf`). A record presented as real
+(a paper, PMID, DOI, rsID, ClinVar ID or GEO/ENA accession) must resolve to
+exactly that thing: commit the source response it came from (for example the
+PubMed `efetch` XML) beside the demo, and add a test that checks each demo
+field against it with the skill's own parser. Never type a citation or an
+identifier by hand. See `skills/lit-synthesizer/tests/test_demo_provenance.py`.
+
 ## Algorithm / Methodology
 
 Describe the core methodology so an AI agent can apply it even without the Python script:

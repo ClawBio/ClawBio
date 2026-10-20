@@ -40,11 +40,14 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
 dependencies = [
+    # anndata 0.13 is the first that writes pandas 3 string columns to .h5ad; it needs
+    # Python 3.12+. On 3.11 pydeseq2 still pulls an older anndata, and h5ad tests skip.
+    "anndata>=0.13 ; python_version >= '3.12'",
     "biopython>=1.88",
-    "conda-lock>=4.0.2",
+    "conda-lock>=4.0.3",
     "matplotlib>=3.11.2",
     "numpy>=2.4.6",
-    "openai>=3.26.0",
+    "openai>=3.29.0",
     "opentelemetry-sdk>=1.45.1,<2",
     "pandas>=3.0.6",
     "pyyaml>=6.0",
@@ -92,7 +95,7 @@ cell-detection = [
 labstep = ["labstep>=3.0"]
 galaxy-bridge = ["bioblend>=1.2"]
 affinity-proteomics = ["statsmodels>=0.14", "seaborn>=0.12"]
-drug-repurposing-screen = ["pyarrow>=14.0"]
+drug-repurposing-screen = ["pyarrow>=26.0.0"]
 # Scanpy/Leiden for skills/spatial-transcriptomics. Squidpy is not on this
 # extra: 1.4–1.6 all pull spatialdata + dask + s3fs into `uv sync --all-extras`
 # for every CI job. Spatial statistics (Moran's I, neighbourhood enrichment,
@@ -109,7 +112,7 @@ data-extractor = [
 # Python BigQuery client for skills/bigquery-public, which imports it lazily
 # and falls back to the `bq` CLI when it is absent.
 bigquery = [
-    "google-auth>=2.60.0,<3",
+    "google-auth>=2.62.0,<3",
     "google-cloud-bigquery>=3.46.1,<4",
 ]
 # The Robotary web UI (robotary/server.py).
@@ -120,7 +123,7 @@ robotary = [
 
 # PDF rendering in prs-abstain; the skill degrades to markdown-only without them.
 prs-abstain = [
-    "reportlab>=4.0,<5",
+    "reportlab>=5.0.1,<6",
     "pillow>=10,<13",
 ]
 
@@ -154,7 +157,7 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 
 [dependency-groups]
 dev = [
-    "hypothesis>=6.168.5",
+    "hypothesis>=6.169.0",
     "pytest>=9.1.1",
     "skills-ref>=0.1.1,<1",
     # prs-abstain tests inspect the rendered PDFs.

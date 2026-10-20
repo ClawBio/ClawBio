@@ -36,7 +36,7 @@ def test_run_demo_runs_argv_with_current_interpreter(monkeypatch):
     result = sweep.run_demo(skill, timeout=30, output_dir=None)
 
     args, kwargs = calls[0]
-    assert args == [sys.executable, "clawbio.py", "run", "pharmgx", "--demo"]
+    assert args[:5] == [sys.executable, "clawbio.py", "run", "pharmgx", "--demo"]
     assert not kwargs.get("shell")
     assert result["passed"]
 
@@ -48,3 +48,77 @@ def test_run_demo_fails_closed_on_unparseable_command():
     result = sweep.run_demo(skill, timeout=30, output_dir=None)
 
     assert not result["passed"]
+
+
+# --- every demo gets an explicit --output -----------------------------------
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
+
+def _capture_runs(monkeypatch, sweep):
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append((list(args), kwargs))
+        return sweep.subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(sweep.subprocess, "run", fake_run)
+    return calls
+
+
+def test_run_demo_adds_output_when_the_command_has_none(monkeypatch, tmp_path):
+    sweep = _load_sweep_module()
+    calls = _capture_runs(monkeypatch, sweep)
+
+    sweep.run_demo({"name": "vcf-annotator", "demo_command": "python skills/vcf-annotator/vcf_annotator.py --demo"},
+                   timeout=30, output_dir=tmp_path)
+
+    args, kwargs = calls[0]
+    assert args[-2:] == ["--output", str(tmp_path / "vcf-annotator")]
+    assert kwargs["cwd"] == str(sweep.PROJECT_ROOT)  # stays in the repo, so stray writes show in git status
+
+
+def test_run_demo_replaces_an_existing_output(monkeypatch, tmp_path):
+    sweep = _load_sweep_module()
+    calls = _capture_runs(monkeypatch, sweep)
+
+    sweep.run_demo({"name": "x", "demo_command": "python x.py --demo --output /tmp/x_demo"},
+                   timeout=30, output_dir=tmp_path)
+
+    args, _ = calls[0]
+    assert args.count("--output") == 1
+    assert args[args.index("--output") + 1] == str(tmp_path / "x")
+
+
+def test_run_demo_without_output_dir_uses_a_temp_dir_and_removes_it(monkeypatch):
+    sweep = _load_sweep_module()
+    seen = []
+
+    def fake_run(args, **kwargs):
+        out = Path(args[args.index("--output") + 1])
+        assert out.is_dir()
+        seen.append(out)
+        return sweep.subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(sweep.subprocess, "run", fake_run)
+
+    sweep.run_demo({"name": "x", "demo_command": "python x.py --demo"}, timeout=30, output_dir=None)
+
+    assert not seen[0].exists()
+
+
+_token = st.sampled_from(["--demo", "--output", "/tmp/a", "x.py", "--input", "f.vcf", "--output=/tmp/b"])
+
+
+@settings(deadline=None)
+@given(st.lists(_token, max_size=8))
+def test_with_output_leaves_exactly_one_output_pointing_at_the_skill_dir(argv):
+    sweep = _load_sweep_module()
+    target = Path("/out/skill")
+
+    result = sweep.with_output(argv, target)
+
+    outputs = [a for a in result if a == "--output" or a.startswith("--output=")]
+    assert outputs == ["--output"]
+    assert result[result.index("--output") + 1] == str(target)

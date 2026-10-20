@@ -19,6 +19,7 @@ import json
 import shlex
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -53,12 +54,29 @@ def load_demo_skills() -> list[dict]:
     return demos
 
 
+def with_output(argv: list[str], output: Path) -> list[str]:
+    """Return argv with any --output removed and `--output <output>` appended."""
+    kept, skip_value = [], False
+    for i, arg in enumerate(argv):
+        if skip_value:
+            skip_value = False
+            continue
+        if arg == "--output":
+            skip_value = i + 1 < len(argv) and not argv[i + 1].startswith("--")
+            continue
+        if arg.startswith("--output="):
+            continue
+        kept.append(arg)
+    return kept + ["--output", str(output)]
+
+
 def run_demo(skill: dict, timeout: int, output_dir: Path | None) -> dict:
     """Run a single skill's demo command. Return result dict."""
     name = skill["name"]
     cmd = skill["demo_command"]
 
     t0 = time.time()
+    tmp = None
     try:
         # demo_command is built from skill filenames, which contributors
         # choose, so it is split into argv and never handed to a shell.
@@ -68,14 +86,15 @@ def run_demo(skill: dict, timeout: int, output_dir: Path | None) -> dict:
         if argv and argv[0] == "python":
             argv[0] = sys.executable
 
-        # Only redirect --output if the demo_command already uses it
-        # (some skills like recombinator don't accept it)
-        if output_dir and "--output" in argv[:-1]:
-            i = argv.index("--output") + 1
-            if argv[i].startswith("/tmp/"):
-                skill_out = output_dir / name
-                skill_out.mkdir(parents=True, exist_ok=True)
-                argv[i] = f"{skill_out}/{argv[i][len('/tmp/'):]}"
+        # Every skill must write only under --output (AGENTS.md), so every demo
+        # gets one. A skill that rejects it fails here, which is the point.
+        if output_dir:
+            skill_out = output_dir / name
+            skill_out.mkdir(parents=True, exist_ok=True)
+        else:
+            tmp = tempfile.TemporaryDirectory(prefix=f"clawbio-demo-{name}-")
+            skill_out = Path(tmp.name)
+        argv = with_output(argv, skill_out)
 
         cmd = shlex.join(argv)
         proc = subprocess.run(
@@ -114,6 +133,9 @@ def run_demo(skill: dict, timeout: int, output_dir: Path | None) -> dict:
             "stderr_tail": str(e),
             "passed": False,
         }
+    finally:
+        if tmp:
+            tmp.cleanup()
 
 
 def collect_output_genes(output_dir: Path) -> dict[str, list[str]]:

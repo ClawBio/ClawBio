@@ -110,7 +110,7 @@ Downloaded coefficients are cached locally with SHA-256 sidecar hashes so the sa
 1. **Multi-organ** — any organ supported by Goeminne et al. (2025); default demo set Heart, Brain, Liver, Immune, Organismal
 2. **Gen1 / Gen2** — chronological age models or mortality hazard → years (Gompertz)
 3. **Protein filters** — `--top-n`, `--min-abs-coef`, single `--sample-id`
-4. **Structured outputs** — Markdown report, JSON, contribution table, replay `commands.sh`
+4. **Structured outputs** — Markdown report, JSON, contribution table, `reproducibility/` bundle
 
 ## Scope
 
@@ -122,7 +122,7 @@ One skill, one task. This skill makes Goeminne organ-aging clocks inspectable fr
 2. **Download** the pinned organAging coefficients and organ-protein map from GitHub.
 3. **Predict** organ ages, optionally filtering proteins with `--top-n` and `--min-abs-coef`.
 4. **Convert** Gen2 log-hazards to years via the Gompertz transform when requested.
-5. **Write** `report.md`, `result.json`, `protein_contributions.csv`, and a replayable `commands.sh`.
+5. **Write** `report.md`, `result.json`, `protein_contributions.csv`, and the `reproducibility/` bundle (`commands.sh`, `environment.yml`, `checksums.sha256`).
 
 ## Input Formats
 
@@ -181,7 +181,7 @@ python skills/organ-aging-studio/organ_aging_studio.py \
 | `report.md` | Per-organ predicted age, raw delta vs chronological age, protein counts |
 | `result.json` | Full nested JSON for agents |
 | `tables/protein_contributions.csv` | Long-format NPX × coef × contribution |
-| `commands.sh` | Replay command |
+| `reproducibility/` | Replay command, environment, checksums |
 
 Example summary row (synthetic demo):
 
@@ -192,6 +192,20 @@ Example summary row (synthetic demo):
 
 > Demo NPX is **synthetic** — do not use it to validate correlation with age. For real Olink data, see `data/PROVENANCE.md`.
 > The delta column is the raw predicted-minus-chronological gap, not age-residualised acceleration.
+
+## Output Structure
+
+```
+output_dir/
+├── report.md
+├── result.json
+├── tables/
+│   └── protein_contributions.csv
+└── reproducibility/
+    ├── commands.sh
+    ├── environment.yml
+    └── checksums.sha256
+```
 
 ## Gotchas
 

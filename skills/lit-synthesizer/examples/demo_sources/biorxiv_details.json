@@ -1,0 +1,26 @@
+{
+ "messages": [
+  {
+   "status": "ok",
+   "category": "all"
+  }
+ ],
+ "collection": [
+  {
+   "title": "Saturated mutagenesis screen of M-MLV reverse transcriptase identifies variants enhancing prime editing efficiency",
+   "authors": "Li, H.; Wang, Y.; Zhang, C.; Tun, T. T.; Yu, S.; Hu, C.; Yu, H.",
+   "author_corresponding": "Haojie Yu",
+   "author_corresponding_institution": "National University of Singapore",
+   "doi": "10.64898/2026.07.06.736660",
+   "date": "2026-07-07",
+   "version": "1",
+   "type": "new results",
+   "license": "cc_by_nc",
+   "category": "molecular biology",
+   "jatsxml": "https://www.biorxiv.org/content/early/2026/07/07/2026.07.06.736660.source.xml",
+   "abstract": "Prime editing enables the precise modification of genomes, thereby holding great potential for the treatment of genetic diseases. Despite substantial advancements in prime editing technology and the initiation of the first clinical trial for treating chronic granulomatous disease, further enhancement of editing efficiency across edit types is still urgently needed. Here, we developed a compact prime editor, PE2{Delta}R, by deleting the RNase H domain of the MMLV reverse transcriptase (MMLV-RT). We then conducted a saturated mutagenesis screen targeting two DNA interacting regions within the PE2{Delta}R-RT Fingers domain. By integrating three highly effective mutations (I61R, V101R, S67W) into PEmax lacking RNase H domain (termed PEmax{Delta}RM3), we achieved up to a 90% increase in editing efficiency across editing types compared to PEmax. Structural modelling using AlphaFold 3 suggests that these mutations enhance primer-template stabilization and guide the RNA/DNA hybrid into a catalytically favourable trajectory, providing a mechanistic explanation for the enhanced activity. Taken together, our study demonstrates proof-of-concept for the application of unbiased mutagenesis screen to identify novel mutations that enhance prime editor performance. Furthermore, we discovered that RT variants (I61R, V101R, S67W) synergize with PEmax and epegRNA to improve prime editing efficiency across edit types, with the strongest improvement observed in introducing small deletions.",
+   "published": "NA",
+   "server": "bioRxiv"
+  }
+ ]
+}
