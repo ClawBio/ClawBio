@@ -138,7 +138,7 @@ Step 2 without step 1 hides the tests everywhere. Run `uv sync --all-extras` to 
 - **Paths**: Always use `pathlib.Path`. Derive from `Path(__file__).resolve().parent`. Never hardcode absolute paths.
 - **Naming**: Skill folders use lowercase-hyphens (`gwas-lookup`). Python files use lowercase_underscores (`gwas_lookup.py`).
 - **Imports**: Sibling modules loaded via `importlib.util.spec_from_file_location` — no package structure. Bare-name imports (`import foo`) share `sys.modules` across skills, so give skill-level modules names unique across skills (`nutrigx_repro_bundle.py`, not `repro_bundle.py`).
-- **CLI**: Every skill script accepts `--input`, `--output`, and `--demo`. Use `argparse`.
+- **CLI**: Every skill script accepts `--input`, `--output`, and `--demo`. Use `argparse`. Write only under `--output`, never the current directory or the skill folder; the nightly sweep runs every demo with `--output` and fails if anything lands in the checkout.
 - **Output**: Skills write to `<output_dir>/report.md` (primary), plus `figures/` and `tables/` subdirectories as needed. Return a `result.json` with structured findings.
 - **Reproducibility**: Every skill with a Python implementation writes `<output_dir>/reproducibility/` (`commands.sh`, `environment.yml`, `checksums.sha256`) using `clawbio.common.reproducibility` — `write_commands_sh`, `write_environment_yml`, `write_checksums`. Do not hand-roll these writers. Label checksums relative to the output directory (`anchor=output_dir`) so `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256` resolves.
 - **Dependencies**: Add core deps with `uv add <package>` (updates `pyproject.toml`; commit `uv.lock`). Skill-specific heavy deps go in the skill's SKILL.md YAML `install` section.
@@ -315,12 +315,29 @@ python tests/benchmark/mock_api_server.py &
 
 ## Git Workflow
 
-- Branch from `main` — name branches `feat/<skill-name>` or `fix/<skill-name>`
+- Branch from `main` in a new git worktree, so agents can work in parallel — name branches `feat/<skill-name>` or `fix/<skill-name>`
 - **One skill per PR** — keep changes focused
 - Tests must pass on Python 3.11, 3.12, and 3.13
 - Include demo output in the PR description so reviewers can verify
 - Update `skills/catalog.json` if you changed any SKILL.md YAML frontmatter
 - When opening a PR, use `.github/PULL_REQUEST_TEMPLATE.md` as the body — fill in every section, do not leave placeholders
+
+## Before Opening a PR
+
+- Run `uv run pytest tests/` plus the tests of every skill you touched; paste the pass/fail
+  counts into **Test output**.
+- Reproduce each claim in your PR description by running the code, not by reading it. For a bug
+  fix, run the command that fails before your change and passes after it. For a gate or CI change,
+  simulate the PR the gate will see next: e.g. add a throwaway skill, run
+  `python scripts/generate_catalog.py`, run the gate, then revert.
+- Say what each result rests on. **Reproduced live**: real data or the real service.
+  **Reproduced synthetic**: a mock, fixture or fault injection; it shows what the code does if
+  the condition happens, not that it happens. **Read-only**: from reading the code; say what
+  would confirm it.
+- Rate severity from that evidence. A failure shown only with synthetic input is a robustness
+  note, not a bug, until you show the condition occurs: live, or documented by the upstream
+  service. For code that calls an external API, run it against the real API before calling it
+  broken.
 
 ## Homepage (index.html) — STRICT
 
@@ -351,7 +368,7 @@ These are non-negotiable constraints:
 3. **No hallucinated science**: Gene-drug associations, thresholds, and parameters must trace back to SKILL.md methodology or cited databases (CPIC, PharmGKB, ClinVar, etc.). Never invent bioinformatics values.
 4. **Security filtering**: `clawbio.py` enforces per-skill `allowed_extra_flags` whitelists (INT-001). Do not bypass this.
 5. **Ask before destructive actions**: Check for existing output before writing to a directory. Ask before deleting data, force-pushing, or editing files outside this repository other than skill output directories.
-6. **Mark what you could not confirm**: In reports, PR descriptions and summaries, flag any claim you did not verify and say where you looked.
+6. **Mark what you could not confirm**: In reports, PR descriptions, reviews and summaries, flag any claim you did not verify and say where you looked.
 
 ## Slash Commands
 

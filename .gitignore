@@ -51,3 +51,6 @@ PR-AUDITS/
 
 # Local Corpas-Core session logs, never publish
 *-session.md
+
+# Local issue tracker (mattpocock-skills)
+.scratch/

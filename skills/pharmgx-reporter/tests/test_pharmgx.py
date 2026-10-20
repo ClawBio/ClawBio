@@ -373,7 +373,10 @@ def test_report_contains_disclaimer():
     p = _profiles()
     results = lookup_drugs(p)
     report = generate_report(str(DEMO), "23andme", 31, pgx, p, results)
-    assert "NOT a diagnostic device" in report
+    # The exact ClawBio wording (AGENTS.md); report.md is now sent on its own, with no PDF footer to add it.
+    from clawbio.common.report import DISCLAIMER
+
+    assert DISCLAIMER in report
 
 
 def test_report_renders_standard_classification_token():
@@ -1066,3 +1069,36 @@ def test_mthfr_677tt_labels_match_scientific_audit_wording():
     for d in ("677TT/1298AA", "677TT/1298AC"):
         assert call_phenotype("MTHFR", d).startswith("Strongly reduced MTHFR enzyme activity (677TT"), d
     assert not any(k.lower().startswith("severely") for k in GENE_DEFS["MTHFR"]["phenotypes"])
+
+
+# ── Demo runs offline ─────────────────────────────────────────────────────────
+
+
+def test_script_demo_looks_up_no_host(tmp_path, monkeypatch):
+    """A demo must run offline. HOME is empty so a warm ClinPGx cache cannot hide a call."""
+    import socket
+
+    import pharmgx_reporter
+
+    looked_up = []
+
+    def refuse(host, *args, **kwargs):
+        looked_up.append(host)
+        raise socket.gaierror("network disabled in this test")
+
+    monkeypatch.setattr(socket, "getaddrinfo", refuse)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(sys, "argv", ["pharmgx_reporter.py", "--demo", "--output", str(tmp_path / "out")])
+    pharmgx_reporter.main()
+    assert looked_up == []
+    assert (tmp_path / "out" / "report.md").exists()
+
+
+def test_clawbio_run_demo_skips_clinpgx(tmp_path, monkeypatch):
+    """`clawbio run pharmgx --demo` is the path users and agents take; it must reach the offline demo too."""
+    from clawbio.cli import run_skill
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    result = run_skill("pharmgx", demo=True, output_dir=str(tmp_path / "out"))
+    assert result["success"], result["stderr"][-2000:]
+    assert "Querying ClinPGx" not in result["stdout"]

@@ -158,8 +158,13 @@ python clawbio.py run lit-synthesizer --demo
 python clawbio.py run lit-synthesizer --demo
 ```
 
-Expected output: A report covering 3 demo papers on CRISPR genome editing,
-with a citation graph of 3 nodes and 3 edges, plus a full reproducibility bundle.
+Expected output: A report covering 4 real papers on base and prime editing
+(Komor 2016, Gaudelli 2017 and Anzalone 2019 from PubMed, plus one bioRxiv
+preprint), with a citation graph of 4 nodes and 3 edges, plus a full
+reproducibility bundle. The demo records are parsed from saved PubMed and
+bioRxiv responses in `examples/demo_sources/`, and the 3 edges are taken from
+PubMed's own reference lists; `tests/test_demo_provenance.py` checks every
+field against those sources.
 
 ## Algorithm / Methodology
 
@@ -188,35 +193,29 @@ with a citation graph of 3 nodes and 3 edges, plus a full reproducibility bundle
 ```
 # 🦖 ClawBio Lit Synthesizer Report
 
-**Query**: `CRISPR off-target effects`
-**Date**: 2026-04-12 10:30 UTC
-**Sources**: PubMed (3 results) · bioRxiv (1 result)
+**Query**: `CRISPR genome editing`
+**Sources**: PubMed (3 results) · bioRxiv (1 results)
 **Total papers**: 4
-
----
-
-## Summary
-Across 4 retrieved papers, recurring themes include: **crispr**, **off-target**,
-**base editing**, **cas9**, **guide rna**, **variant**.
-The literature spans 2024 to 2025.
 
 ---
 
 ## Papers
 
-### 1. CRISPR-Cas9 off-target effects: detection and mitigation strategies
+### 1. Programmable editing of a target base in genomic DNA without double-stranded DNA cleavage.
 
 | Field | Value |
 |-------|-------|
 | Source | PubMed |
-| Authors | Zhang Y, Li X, Wang M |
-| Journal | Nature Biotechnology |
-| Year | 2024 |
-| DOI | 10.1038/nbt.2024.001 |
+| Authors | Komor AC, Kim YB, Packer MS et al. |
+| Journal | Nature |
+| Year | 2016 |
+| DOI | 10.1038/nature17946 |
 
-**Abstract**: CRISPR-Cas9 genome editing tools have revolutionised molecular
-biology. However, off-target cleavage remains a major safety concern...
+**Abstract**: Current genome-editing technologies introduce double-stranded (ds)
+DNA breaks at a target locus as the first step to gene correction...
 ```
+
+Full demo report: `examples/demo_output/report.md`.
 
 ## Output Structure
 
@@ -262,12 +261,18 @@ output_directory/
   edges between papers that were *also retrieved* in the same search. It is not
   a global citation network.
 
+- **Live searches do not yet fill the citation graph**: PubMed and bioRxiv
+  results are returned with an empty `citations` list, so a live run reports
+  nodes and 0 edges. Only the demo carries edges, taken from PubMed's reference
+  lists for its three papers.
+
 ## Safety
 
 - **Local-first**: No user data is uploaded. Only the search query leaves the machine.
 - **Disclaimer**: Every report includes the ClawBio research disclaimer.
 - **Audit trail**: All operations logged to reproducibility bundle.
-- **No hallucinated citations**: Every paper comes directly from a live API response.
+- **No hallucinated citations**: Every paper comes from a PubMed or bioRxiv API response.
+  The demo papers are saved responses, checked field by field in `tests/test_demo_provenance.py`.
 
 ## Agent Boundary
 
