@@ -183,3 +183,18 @@ def test_relative_paths_through_clawbio_run_resolve_against_cwd(tmp_path):
     assert result["mlst"]["st"] == "131"
     assert result["amr"]["status"] != "not_run"
     assert result["plasmids"]["status"] != "not_run"
+
+
+def test_supplied_results_mode_runs_through_clawbio_run(tmp_path):
+    # Without an assembly the skill types from supplied tables alone; the runner must
+    # not demand --input for it, and must still refuse when nothing at all is given.
+    (tmp_path / "mlst.tsv").write_text((EXAMPLES / "demo_mlst.tsv").read_text())
+    clawbio = str(SKILL_DIR.parents[1] / "clawbio.py")
+    r = subprocess.run([sys.executable, clawbio, "run", "isolate-amr", "--mlst", "mlst.tsv",
+                        "--output", str(tmp_path / "out")], capture_output=True, text=True, cwd=tmp_path)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert json.loads((tmp_path / "out" / "result.json").read_text())["mode"] == "precomputed"
+    bare = subprocess.run([sys.executable, clawbio, "run", "isolate-amr", "--output", str(tmp_path / "bare")],
+                          capture_output=True, text=True, cwd=tmp_path)
+    assert bare.returncode != 0
+    assert not (tmp_path / "bare" / "result.json").exists()

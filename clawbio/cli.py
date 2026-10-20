@@ -1329,6 +1329,9 @@ SKILLS = {
             "--plasmidfinder-db",
         },
         "extra_path_flags": {"--mlst", "--amrfinder", "--plasmidfinder", "--plasmidfinder-db"},
+        # Supplied-results mode types from --mlst/--amrfinder/--plasmidfinder alone;
+        # the script itself refuses a run with no input of any kind.
+        "no_input_required": True,
         "accepts_genotypes": False,
     },
     "deepspot-m": {
