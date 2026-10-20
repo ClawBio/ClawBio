@@ -1201,8 +1201,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Existing PlasmidFinder results_tab.tsv (v2), -j JSON (v3) or abricate TSV; skips running it")
     parser.add_argument("--organism",
                         help="AMRFinderPlus --organism value (default: inferred from the MLST scheme). "
-                             "With a supplied --amrfinder table it asserts the table was made with this "
-                             "organism, so no point mutations in it are reported as screened, none found")
+                             "With a supplied --amrfinder table this asserts the table was made with "
+                             "--organism; a table with no point mutations is then reported as "
+                             "'screened, none detected'")
     parser.add_argument("--mlst-scheme",
                         help="Force this mlst scheme instead of auto-detection (resolves scheme ties)")
     parser.add_argument("--sample-name", help="Label for the report (default: assembly file name)")
