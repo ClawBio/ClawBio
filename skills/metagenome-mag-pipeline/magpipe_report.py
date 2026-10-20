@@ -280,7 +280,14 @@ def _section_bins(findings: dict, config: dict) -> str:
         # GTDB-Tk's own column name; the pipeline copies its summary unchanged.
         [[row.get("user_genome"), row.get("classification")] for row in bins["gtdb"]],
     )
-    classified = sum(1 for row in bins["gtdb"] if row.get("classification"))
+    # GTDB-Tk fills the cell with "Unclassified Bacteria", "Unclassified Archaea" or
+    # "Unclassified" for a genome it cannot place; that is not a classification.
+    classified = sum(
+        1
+        for row in bins["gtdb"]
+        if str(row.get("classification") or "").strip()
+        and not str(row.get("classification")).strip().startswith("Unclassified")
+    )
     text += (
         f"\n{classified} of {len(bins['gtdb'])} bin(s) received a classification. "
         "Passing the completeness and contamination gate is a filter, not a "

@@ -142,6 +142,25 @@ class TestReportMd:
         assert rows[1].startswith("| S1.bin.2 | not measured"), rows
         assert all(not row.startswith("| not measured") for row in rows), rows
 
+    def test_unclassified_bins_are_not_counted_as_classified(
+        self, tmp_path: Path, fake_results: Path
+    ) -> None:
+        # GTDB-Tk writes "Unclassified Bacteria" / "Unclassified Archaea" (or
+        # "Unclassified") for a genome it cannot place: a filled cell, not a call.
+        summary = fake_results / "final" / "binning" / "gtdb" / "gtdb_summary.tsv"
+        lines = summary.read_text().splitlines()
+        lines[2] = "S1.bin.2\tUnclassified Bacteria\t\t\t"
+        lines.append("S1.bin.3\tUnclassified\t\t\t")
+        summary.write_text("\n".join(lines) + "\n")
+        config = full_config(tmp_path)
+        findings = parse_outputs(fake_results, config)
+        text = write_report_md(
+            tmp_path, status="ok", mode="run", findings=findings, config=config,
+            pipeline_source=dict(SOURCE), warnings=[],
+        ).read_text()
+        assert "1 of 3 bin(s) received a classification" in text
+        assert "| S1.bin.2 | Unclassified Bacteria |" in text
+
     def test_no_zero_is_printed_for_an_unmeasured_cell(self, report) -> None:
         text, _, _ = report
         for line in text.splitlines():
