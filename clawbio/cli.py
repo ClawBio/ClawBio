@@ -307,10 +307,7 @@ UNBUNDLED_SKILLS = {
 SKILLS = {
     "pharmgx": {
         "script": SKILLS_DIR / "pharmgx-reporter" / "pharmgx_reporter.py",
-        "demo_args": [
-            "--input",
-            str(SKILLS_DIR / "pharmgx-reporter" / "demo_patient.txt"),
-        ],
+        "demo_args": ["--demo"],
         "description": "Pharmacogenomics reporter (12 genes, 31 SNPs, 51 drugs)",
         "allowed_extra_flags": set(),
         "api_module": "skills.pharmgx-reporter.api",

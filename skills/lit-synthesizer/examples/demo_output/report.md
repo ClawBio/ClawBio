@@ -1,99 +1,106 @@
 # 🦖 ClawBio Lit Synthesizer Report
 
 **Query**: `CRISPR genome editing`  
-**Date**: 2026-04-11 19:27 UTC  
-**Sources**: PubMed (2 results) · bioRxiv (1 results)  
-**Total papers**: 3
+**Date**: 2026-10-16 14:57 UTC  
+**Sources**: PubMed (3 results) · bioRxiv (1 results)  
+**Total papers**: 4
 
 ---
 
 ## Summary
 
-Across 3 retrieved papers, recurring themes include: **crispr**, **genome editing**, **off-target**, **prime editing**, **cas9**, **guide rna**. The literature spans 2024 to 2025.
+Across 4 retrieved papers, recurring themes include: **crispr**, **genome editing**, **off-target**, **base editing**, **prime editing**, **cas9**. The literature spans 2016 to 2026.
 
 ---
 
 ## Papers
 
-### 1. CRISPR-Cas9 off-target effects: detection and mitigation strategies
+### 1. Programmable editing of a target base in genomic DNA without double-stranded DNA cleavage.
 
 | Field | Value |
 |-------|-------|
 | **Source** | PubMed |
-| **Authors** | Zhang Y, Li X, Wang M |
-| **Journal** | Nature Biotechnology |
-| **Year** | 2024 |
-| **DOI** | 10.1038/nbt.2024.001 |
-| **URL** | [https://pubmed.ncbi.nlm.nih.gov/37001234](https://pubmed.ncbi.nlm.nih.gov/37001234) |
+| **Authors** | Komor AC, Kim YB, Packer MS et al. |
+| **Journal** | Nature |
+| **Year** | 2016 |
+| **DOI** | 10.1038/nature17946 |
+| **URL** | [https://pubmed.ncbi.nlm.nih.gov/27096365](https://pubmed.ncbi.nlm.nih.gov/27096365) |
 
-**Abstract**: CRISPR-Cas9 genome editing tools have revolutionised molecular biology. However, off-target cleavage remains a major safety concern for therapeutic applications. This review summarises current detection methods including GUIDE-seq, CIRCLE-seq, and DISCOVER-Seq, and discusses mitigation strategies such as high-fidelity Cas9 variants and truncated guide RNAs.
+**Abstract**: Current genome-editing technologies introduce double-stranded (ds) DNA breaks at a target locus as the first step to gene correction. Although most genetic diseases arise from point mutations, current approaches to point mutation correction are inefficient and typically induce an abundance of random insertions and deletions (indels) at the target locus resulting from the cellular response to dsDNA...
 
-### 2. Base editing: precision genome modification without double-strand breaks
+### 2. Programmable base editing of A•T to G•C in genomic DNA without DNA cleavage.
 
 | Field | Value |
 |-------|-------|
 | **Source** | PubMed |
-| **Authors** | Komor AC, Kim YB, Packer MS |
-| **Journal** | Cell |
-| **Year** | 2024 |
-| **DOI** | 10.1016/j.cell.2024.002 |
-| **URL** | [https://pubmed.ncbi.nlm.nih.gov/37005678](https://pubmed.ncbi.nlm.nih.gov/37005678) |
+| **Authors** | Gaudelli NM, Komor AC, Rees HA et al. |
+| **Journal** | Nature |
+| **Year** | 2017 |
+| **DOI** | 10.1038/nature24644 |
+| **URL** | [https://pubmed.ncbi.nlm.nih.gov/29160308](https://pubmed.ncbi.nlm.nih.gov/29160308) |
 
-**Abstract**: Base editors enable targeted single-nucleotide changes without requiring double-strand DNA breaks or donor DNA templates. We describe advances in cytosine and adenine base editors, their off-target RNA editing profiles, and emerging therapeutic applications in monogenic disease correction.
+**Abstract**: The spontaneous deamination of cytosine is a major source of transitions from C•G to T•A base pairs, which account for half of known pathogenic point mutations in humans. The ability to efficiently convert targeted A•T base pairs to G•C could therefore advance the study and treatment of genetic diseases. The deamination of adenine yields inosine, which is treated as guanine by polymerases, but no ...
 
-### 3. Prime editing efficiency across cell types: a systematic benchmarking study
+### 3. Search-and-replace genome editing without double-strand breaks or donor DNA.
+
+| Field | Value |
+|-------|-------|
+| **Source** | PubMed |
+| **Authors** | Anzalone AV, Randolph PB, Davis JR et al. |
+| **Journal** | Nature |
+| **Year** | 2019 |
+| **DOI** | 10.1038/s41586-019-1711-4 |
+| **URL** | [https://pubmed.ncbi.nlm.nih.gov/31634902](https://pubmed.ncbi.nlm.nih.gov/31634902) |
+
+**Abstract**: Most genetic variants that contribute to disease1 are challenging to correct efficiently and without excess byproducts2-5. Here we describe prime editing, a versatile and precise genome editing method that directly writes new genetic information into a specified DNA site using a catalytically impaired Cas9 endonuclease fused to an engineered reverse transcriptase, programmed with a prime editing g...
+
+### 4. Saturated mutagenesis screen of M-MLV reverse transcriptase identifies variants enhancing prime editing efficiency
 
 | Field | Value |
 |-------|-------|
 | **Source** | bioRxiv |
-| **Authors** | Anzalone AV, Randolph PB, Davis JR |
+| **Authors** | Li, H., Wang, Y., Zhang, C. et al. |
 | **Journal** | bioRxiv (preprint) |
-| **Year** | 2025 |
-| **DOI** | 10.1101/2025.01.15.633001 |
-| **URL** | [https://biorxiv.org/content/10.1101/2025.01.15.633001](https://biorxiv.org/content/10.1101/2025.01.15.633001) |
+| **Year** | 2026 |
+| **DOI** | 10.64898/2026.07.06.736660 |
+| **URL** | [https://biorxiv.org/content/10.64898/2026.07.06.736660](https://biorxiv.org/content/10.64898/2026.07.06.736660) |
 
-**Abstract**: Prime editing offers versatile genome editing via reverse transcriptase-based insertion of new sequences. We benchmark prime editing efficiency across 14 human cell lines, identify cell-type-specific barriers to editing, and provide a predictive model for guide RNA design optimisation.
+**Abstract**: Prime editing enables the precise modification of genomes, thereby holding great potential for the treatment of genetic diseases. Despite substantial advancements in prime editing technology and the initiation of the first clinical trial for treating chronic granulomatous disease, further enhancement of editing efficiency across edit types is still urgently needed. Here, we developed a compact pri...
 
 ---
 
 ## Citation Graph
 
-**Nodes**: 3  
-**Edges** (internal citations): 2
+**Nodes**: 4  
+**Edges** (internal citations): 3
 
 ```json
 {
   "nodes": [
     {
-      "id": "37001234",
-      "title": "CRISPR-Cas9 off-target effects: detection and mitigation strategies",
+      "id": "27096365",
+      "title": "Programmable editing of a target base in genomic DNA without double-stranded DNA cleavage.",
       "source": "PubMed",
-      "year": "2024"
+      "year": "2016"
     },
     {
-      "id": "37005678",
-      "title": "Base editing: precision genome modification without double-strand breaks",
+      "id": "29160308",
+      "title": "Programmable base editing of A\u2022T to G\u2022C in genomic DNA without DNA cleavage.",
       "source": "PubMed",
-      "year": "2024"
+      "year": "2017"
     },
     {
-      "id": "10.1101/2025.01.15.633001",
-      "title": "Prime editing efficiency across cell types: a systematic benchmarking study",
+      "id": "31634902",
+      "title": "Search-and-replace genome editing without double-strand breaks or donor DNA.",
+      "source": "PubMed",
+      "year": "2019"
+    },
+    {
+      "id": "10.64898/2026.07.06.736660",
+      "title": "Saturated mutagenesis screen of M-MLV reverse transcriptase identifies variants enhancing prime editing efficiency",
       "source": "bioRxiv",
-      "year": "2025"
-    }
-  ],
-  "edges": [
-    {
-      "from": "37005678",
-      "to": "37001234"
-    },
-    {
-      "from": "10.1101/2025.01.15.633001",
-      "to": "37005678"
-    }
-  ]
-}
+      "year": "2
+... (see citation_graph.json for full graph)
 ```
 
 ---

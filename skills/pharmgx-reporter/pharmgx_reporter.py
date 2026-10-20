@@ -1846,9 +1846,7 @@ def generate_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_result
     lines.append("")
     lines.append("## Disclaimer")
     lines.append("")
-    lines.append("This report is for **research and educational purposes only**. "
-                 "It is NOT a diagnostic device and should NOT be used to make medication decisions "
-                 "without consulting a qualified healthcare professional.")
+    lines.append(f"*{DISCLAIMER}*")
     lines.append("")
     lines.append("Pharmacogenomic recommendations are based on CPIC guidelines (cpicpgx.org). "
                  "DTC genetic tests have limitations: they may not detect all relevant variants, "
@@ -2153,6 +2151,7 @@ def main():
             print("Error: demo_patient.txt not found alongside script", file=sys.stderr)
             sys.exit(1)
         args.input = str(demo_file)
+        args.no_enrich = True  # demos run offline
         if args.output == "pharmgx_report":
             args.output = str(Path(__file__).resolve().parent / "demo_report")
         print("Running in demo mode with bundled patient data")

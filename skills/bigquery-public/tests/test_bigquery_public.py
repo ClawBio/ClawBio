@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -423,6 +424,25 @@ def test_demo_main_creates_expected_outputs(tmp_path: Path):
     assert "Execution mode" in report
     assert "demo-fixture" in report
     assert "bigquery-public-data.samples.shakespeare" in report
+
+
+def test_demo_writes_verifiable_reproducibility_bundle(tmp_path: Path):
+    assert skill.main(["--demo", "--output", str(tmp_path)]) == 0
+    repro = tmp_path / "reproducibility"
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (repro / name).exists(), name
+
+    commands = (repro / "commands.sh").read_text(encoding="utf-8")
+    assert "python skills/bigquery-public/bigquery_public.py --demo" in commands
+    assert str(Path(skill.__file__).resolve()) not in commands
+    assert "google-cloud-bigquery" in (repro / "environment.yml").read_text(encoding="utf-8")
+
+    lines = (repro / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+    labels = {line.split("  ", 1)[1] for line in lines}
+    assert {"report.md", "result.json", "tables/results.csv", "reproducibility/environment.yml"} <= labels
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        assert hashlib.sha256((tmp_path / label).read_bytes()).hexdigest() == digest, label
 
 
 def test_demo_main_respects_max_rows_and_dry_run(tmp_path: Path):

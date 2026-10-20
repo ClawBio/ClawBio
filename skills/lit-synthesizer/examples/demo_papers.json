@@ -1,0 +1,89 @@
+[
+  {
+    "source": "PubMed",
+    "pmid": "27096365",
+    "title": "Programmable editing of a target base in genomic DNA without double-stranded DNA cleavage.",
+    "authors": [
+      "Komor AC",
+      "Kim YB",
+      "Packer MS",
+      "Zuris JA",
+      "Liu DR"
+    ],
+    "journal": "Nature",
+    "year": "2016",
+    "abstract": "Current genome-editing technologies introduce double-stranded (ds) DNA breaks at a target locus as the first step to gene correction. Although most genetic diseases arise from point mutations, current approaches to point mutation correction are inefficient and typically induce an abundance of random insertions and deletions (indels) at the target locus resulting from the cellular response to dsDNA breaks. Here we report the development of 'base editing', a new approach to genome editing that enables the direct, irreversible conversion of one target DNA base into another in a programmable manner, without requiring dsDNA backbone cleavage or a donor template. We engineered fusions of CRISPR/Cas9 and a cytidine deaminase enzyme that retain the ability to be programmed with a guide RNA, do not induce dsDNA breaks, and mediate the direct conversion of cytidine to uridine, thereby effecting a C→T (or G→A) substitution. The resulting 'base editors' convert cytidines within a window of approximately five nucleotides, and can efficiently correct a variety of point mutations relevant to human disease. In four transformed human and murine cell lines, second- and third-generation base editors that fuse uracil glycosylase inhibitor, and that use a Cas9 nickase targeting the non-edited strand, manipulate the cellular DNA repair response to favour desired base-editing outcomes, resulting in permanent correction of ~15-75% of total cellular DNA with minimal (typically ≤1%) indel formation. Base editing expands the scope and efficiency of genome editing of point mutations.",
+    "doi": "10.1038/nature17946",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/27096365",
+    "citations": []
+  },
+  {
+    "source": "PubMed",
+    "pmid": "29160308",
+    "title": "Programmable base editing of A•T to G•C in genomic DNA without DNA cleavage.",
+    "authors": [
+      "Gaudelli NM",
+      "Komor AC",
+      "Rees HA",
+      "Packer MS",
+      "Badran AH",
+      "Bryson DI",
+      "Liu DR"
+    ],
+    "journal": "Nature",
+    "year": "2017",
+    "abstract": "The spontaneous deamination of cytosine is a major source of transitions from C•G to T•A base pairs, which account for half of known pathogenic point mutations in humans. The ability to efficiently convert targeted A•T base pairs to G•C could therefore advance the study and treatment of genetic diseases. The deamination of adenine yields inosine, which is treated as guanine by polymerases, but no enzymes are known to deaminate adenine in DNA. Here we describe adenine base editors (ABEs) that mediate the conversion of A•T to G•C in genomic DNA. We evolved a transfer RNA adenosine deaminase to operate on DNA when fused to a catalytically impaired CRISPR-Cas9 mutant. Extensive directed evolution and protein engineering resulted in seventh-generation ABEs that convert targeted A•T base pairs efficiently to G•C (approximately 50% efficiency in human cells) with high product purity (typically at least 99.9%) and low rates of indels (typically no more than 0.1%). ABEs introduce point mutations more efficiently and cleanly, and with less off-target genome modification, than a current Cas9 nuclease-based method, and can install disease-correcting or disease-suppressing mutations in human cells. Together with previous base editors, ABEs enable the direct, programmable introduction of all four transition mutations without double-stranded DNA cleavage.",
+    "doi": "10.1038/nature24644",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/29160308",
+    "citations": [
+      "27096365"
+    ]
+  },
+  {
+    "source": "PubMed",
+    "pmid": "31634902",
+    "title": "Search-and-replace genome editing without double-strand breaks or donor DNA.",
+    "authors": [
+      "Anzalone AV",
+      "Randolph PB",
+      "Davis JR",
+      "Sousa AA",
+      "Koblan LW",
+      "Levy JM",
+      "Chen PJ",
+      "Wilson C",
+      "Newby GA",
+      "Raguram A",
+      "Liu DR"
+    ],
+    "journal": "Nature",
+    "year": "2019",
+    "abstract": "Most genetic variants that contribute to disease1 are challenging to correct efficiently and without excess byproducts2-5. Here we describe prime editing, a versatile and precise genome editing method that directly writes new genetic information into a specified DNA site using a catalytically impaired Cas9 endonuclease fused to an engineered reverse transcriptase, programmed with a prime editing guide RNA (pegRNA) that both specifies the target site and encodes the desired edit. We performed more than 175 edits in human cells, including targeted insertions, deletions, and all 12 types of point mutation, without requiring double-strand breaks or donor DNA templates. We used prime editing in human cells to correct, efficiently and with few byproducts, the primary genetic causes of sickle cell disease (requiring a transversion in HBB) and Tay-Sachs disease (requiring a deletion in HEXA); to install a protective transversion in PRNP; and to insert various tags and epitopes precisely into target loci. Four human cell lines and primary post-mitotic mouse cortical neurons support prime editing with varying efficiencies. Prime editing shows higher or similar efficiency and fewer byproducts than homology-directed repair, has complementary strengths and weaknesses compared to base editing, and induces much lower off-target editing than Cas9 nuclease at known Cas9 off-target sites. Prime editing substantially expands the scope and capabilities of genome editing, and in principle could correct up to 89% of known genetic variants associated with human diseases.",
+    "doi": "10.1038/s41586-019-1711-4",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/31634902",
+    "citations": [
+      "27096365",
+      "29160308"
+    ]
+  },
+  {
+    "source": "bioRxiv",
+    "pmid": null,
+    "title": "Saturated mutagenesis screen of M-MLV reverse transcriptase identifies variants enhancing prime editing efficiency",
+    "authors": [
+      "Li, H.",
+      "Wang, Y.",
+      "Zhang, C.",
+      "Tun, T. T.",
+      "Yu, S.",
+      "Hu, C.",
+      "Yu, H."
+    ],
+    "journal": "bioRxiv (preprint)",
+    "year": "2026",
+    "abstract": "Prime editing enables the precise modification of genomes, thereby holding great potential for the treatment of genetic diseases. Despite substantial advancements in prime editing technology and the initiation of the first clinical trial for treating chronic granulomatous disease, further enhancement of editing efficiency across edit types is still urgently needed. Here, we developed a compact prime editor, PE2{Delta}R, by deleting the RNase H domain of the MMLV reverse transcriptase (MMLV-RT). We then conducted a saturated mutagenesis screen targeting two DNA interacting regions within the PE2{Delta}R-RT Fingers domain. By integrating three highly effective mutations (I61R, V101R, S67W) into PEmax lacking RNase H domain (termed PEmax{Delta}RM3), we achieved up to a 90% increase in editing efficiency across editing types compared to PEmax. Structural modelling using AlphaFold 3 suggests that these mutations enhance primer-template stabilization and guide the RNA/DNA hybrid into a catalytically favourable trajectory, providing a mechanistic explanation for the enhanced activity. Taken together, our study demonstrates proof-of-concept for the application of unbiased mutagenesis screen to identify novel mutations that enhance prime editor performance. Furthermore, we discovered that RT variants (I61R, V101R, S67W) synergize with PEmax and epegRNA to improve prime editing efficiency across edit types, with the strongest improvement observed in introducing small deletions.",
+    "doi": "10.64898/2026.07.06.736660",
+    "url": "https://biorxiv.org/content/10.64898/2026.07.06.736660",
+    "citations": []
+  }
+]

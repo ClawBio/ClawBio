@@ -291,11 +291,9 @@ def predict_organ_ages(
 
 
 def mortality_to_years(hazard_values: np.ndarray) -> np.ndarray:
-    """Convert relative log(mortality hazard) to age in years via Gompertz.
+    """Invert the Gompertz fit so a relative log hazard of 0 maps to the cohort mean age (57.29 y).
 
-    The gen2 model outputs a log hazard ratio (centred at 0 ≈ cohort mean).
-    Absolute log hazard: GOMPERTZ_AVG_HAZARD + hazard_values.
-    Inverting log h(t) = INTERCEPT + SLOPE·t  →  t = (log_h − INTERCEPT) / SLOPE.
+    Not the organAging README formula, (-avg + x)/slope - intercept: that is not the inverse and adds 6.13 y.
     """
     return (GOMPERTZ_AVG_HAZARD + hazard_values - GOMPERTZ_INTERCEPT) / GOMPERTZ_SLOPE
 

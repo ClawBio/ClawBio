@@ -37,60 +37,16 @@ DISCLAIMER = (
 )
 
 # ── Demo data (no network needed) ─────────────────────────────────────────────
-DEMO_PAPERS = [
-    {
-        "source": "PubMed",
-        "pmid": "37001234",
-        "title": "CRISPR-Cas9 off-target effects: detection and mitigation strategies",
-        "authors": ["Zhang Y", "Li X", "Wang M"],
-        "journal": "Nature Biotechnology",
-        "year": "2024",
-        "abstract": (
-            "CRISPR-Cas9 genome editing tools have revolutionised molecular biology. "
-            "However, off-target cleavage remains a major safety concern for therapeutic "
-            "applications. This review summarises current detection methods including "
-            "GUIDE-seq, CIRCLE-seq, and DISCOVER-Seq, and discusses mitigation strategies "
-            "such as high-fidelity Cas9 variants and truncated guide RNAs."
-        ),
-        "doi": "10.1038/nbt.2024.001",
-        "url": "https://pubmed.ncbi.nlm.nih.gov/37001234",
-        "citations": ["37001111", "36998765"],
-    },
-    {
-        "source": "PubMed",
-        "pmid": "37005678",
-        "title": "Base editing: precision genome modification without double-strand breaks",
-        "authors": ["Komor AC", "Kim YB", "Packer MS"],
-        "journal": "Cell",
-        "year": "2024",
-        "abstract": (
-            "Base editors enable targeted single-nucleotide changes without requiring "
-            "double-strand DNA breaks or donor DNA templates. We describe advances in "
-            "cytosine and adenine base editors, their off-target RNA editing profiles, "
-            "and emerging therapeutic applications in monogenic disease correction."
-        ),
-        "doi": "10.1016/j.cell.2024.002",
-        "url": "https://pubmed.ncbi.nlm.nih.gov/37005678",
-        "citations": ["37001234", "36990001"],
-    },
-    {
-        "source": "bioRxiv",
-        "pmid": None,
-        "title": "Prime editing efficiency across cell types: a systematic benchmarking study",
-        "authors": ["Anzalone AV", "Randolph PB", "Davis JR"],
-        "journal": "bioRxiv (preprint)",
-        "year": "2025",
-        "abstract": (
-            "Prime editing offers versatile genome editing via reverse transcriptase-based "
-            "insertion of new sequences. We benchmark prime editing efficiency across 14 "
-            "human cell lines, identify cell-type-specific barriers to editing, and provide "
-            "a predictive model for guide RNA design optimisation."
-        ),
-        "doi": "10.1101/2025.01.15.633001",
-        "url": "https://biorxiv.org/content/10.1101/2025.01.15.633001",
-        "citations": ["37005678"],
-    },
-]
+# Real PubMed and bioRxiv records, parsed by this module from the saved
+# responses in examples/demo_sources/ (tests/test_demo_provenance.py checks
+# every field against them). Refresh with
+# examples/demo_sources/fetch_demo_sources.py.
+DEMO_PAPERS_PATH = Path(__file__).resolve().parent / "examples" / "demo_papers.json"
+
+
+def load_demo_papers() -> list[dict]:
+    """Return the demo papers: real records, no network."""
+    return json.loads(DEMO_PAPERS_PATH.read_text(encoding="utf-8"))
 
 
 # ── PubMed helpers ─────────────────────────────────────────────────────────────
@@ -128,43 +84,77 @@ def fetch_pubmed_details(pmids: list[str]) -> list[dict]:
         "email": TOOL_EMAIL,
     })
     url = f"{PUBMED_FETCH_URL}?{params}"
-    papers = []
     try:
         with urllib.request.urlopen(url, timeout=15) as resp:
             xml_data = resp.read()
-        root = ET.fromstring(xml_data)
-        for article in root.findall(".//PubmedArticle"):
-            pmid_el   = article.find(".//PMID")
-            title_el  = article.find(".//ArticleTitle")
-            abstract_el = article.find(".//AbstractText")
-            journal_el  = article.find(".//Journal/Title")
-            year_el     = article.find(".//PubDate/Year")
-            doi_el      = article.find(".//ArticleId[@IdType='doi']")
-            authors = [
-                f"{a.findtext('LastName', '')} {a.findtext('Initials', '')}".strip()
-                for a in article.findall(".//Author")
-                if a.findtext("LastName")
-            ]
-            pmid = pmid_el.text if pmid_el is not None else "unknown"
-            papers.append({
-                "source":   "PubMed",
-                "pmid":     pmid,
-                "title":    title_el.text if title_el is not None else "No title",
-                "authors":  authors,
-                "journal":  journal_el.text if journal_el is not None else "Unknown",
-                "year":     year_el.text if year_el is not None else "Unknown",
-                "abstract": abstract_el.text if abstract_el is not None else "No abstract available.",
-                "doi":      doi_el.text if doi_el is not None else "",
-                "url":      f"https://pubmed.ncbi.nlm.nih.gov/{pmid}",
-                "citations": [],
-            })
+        papers = parse_pubmed_xml(xml_data)
         time.sleep(0.34)   # NCBI rate limit: 3 req/s
     except Exception as exc:
         print(f"  [warn] PubMed fetch failed: {exc}", file=sys.stderr)
+        papers = []
+    return papers
+
+
+def _all_text(el: Optional[ET.Element]) -> Optional[str]:
+    """Element text including inline children such as <sup> and <i>.
+
+    `.text` stops at the first child, which cut abstracts with reference
+    superscripts to their first clause.
+    """
+    if el is None:
+        return None
+    return " ".join("".join(el.itertext()).split())
+
+
+def parse_pubmed_xml(xml_data: bytes) -> list[dict]:
+    """Parse an efetch PubMed XML response into paper records."""
+    papers = []
+    root = ET.fromstring(xml_data)
+    for article in root.findall(".//PubmedArticle"):
+        pmid_el   = article.find(".//PMID")
+        title_el  = article.find(".//ArticleTitle")
+        abstract_parts = [_all_text(el) for el in article.findall(".//Abstract/AbstractText")]
+        journal_el  = article.find(".//Journal/Title")
+        year_el     = article.find(".//PubDate/Year")
+        doi_el      = article.find(".//ArticleId[@IdType='doi']")
+        authors = [
+            f"{a.findtext('LastName', '')} {a.findtext('Initials', '')}".strip()
+            for a in article.findall(".//Author")
+            if a.findtext("LastName")
+        ]
+        pmid = pmid_el.text if pmid_el is not None else "unknown"
+        papers.append({
+            "source":   "PubMed",
+            "pmid":     pmid,
+            "title":    _all_text(title_el) or "No title",
+            "authors":  authors,
+            "journal":  journal_el.text if journal_el is not None else "Unknown",
+            "year":     year_el.text if year_el is not None else "Unknown",
+            "abstract": " ".join(p for p in abstract_parts if p) or "No abstract available.",
+            "doi":      doi_el.text if doi_el is not None else "",
+            "url":      f"https://pubmed.ncbi.nlm.nih.gov/{pmid}",
+            "citations": [],
+        })
     return papers
 
 
 # ── bioRxiv helpers ────────────────────────────────────────────────────────────
+
+def biorxiv_item_to_paper(item: dict) -> dict:
+    """Map one bioRxiv API `collection` item to a paper record."""
+    return {
+        "source":   "bioRxiv",
+        "pmid":     None,
+        "title":    item.get("title", "No title"),
+        "authors":  item.get("authors", "").split("; "),
+        "journal":  "bioRxiv (preprint)",
+        "year":     item.get("date", "")[:4],
+        "abstract": item.get("abstract", "No abstract available."),
+        "doi":      item.get("doi", ""),
+        "url":      f"https://biorxiv.org/content/{item.get('doi', '')}",
+        "citations": [],
+    }
+
 
 def search_biorxiv(query: str, max_results: int = 5) -> list[dict]:
     """Search bioRxiv via their public API."""
@@ -184,18 +174,7 @@ def search_biorxiv(query: str, max_results: int = 5) -> list[dict]:
         for item in collection:
             text = (item.get("title", "") + " " + item.get("abstract", "")).lower()
             if all(kw in text for kw in keywords):
-                papers.append({
-                    "source":   "bioRxiv",
-                    "pmid":     None,
-                    "title":    item.get("title", "No title"),
-                    "authors":  item.get("authors", "").split("; "),
-                    "journal":  "bioRxiv (preprint)",
-                    "year":     item.get("date", "")[:4],
-                    "abstract": item.get("abstract", "No abstract available."),
-                    "doi":      item.get("doi", ""),
-                    "url":      f"https://biorxiv.org/content/{item.get('doi', '')}",
-                    "citations": [],
-                })
+                papers.append(biorxiv_item_to_paper(item))
             if len(papers) >= max_results:
                 break
     except Exception as exc:
@@ -412,7 +391,7 @@ def main() -> None:
         print("🦖 ClawBio Lit Synthesizer — DEMO MODE")
         print("   Using built-in demo data (no network calls)")
         query  = "CRISPR genome editing"
-        papers = DEMO_PAPERS
+        papers = load_demo_papers()
     else:
         query = args.query
         print(f"🦖 ClawBio Lit Synthesizer")
