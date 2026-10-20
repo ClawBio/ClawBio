@@ -292,8 +292,17 @@ class TestPlasmidParser:
                 "a.fa\tc7\t100\t360\t+\tIncFII_1\t1-261/261\t===============\t0/0\t100.00\t99.62\t"
                 "plasmidfinder\tAY458016\tIncFII\t\n")
         rep = mod.parse_plasmidfinder(_write(tmp_path / "a.tsv", text))[0]
-        assert rep == {"replicon": "IncFII_1", "contig": "c7", "start": 100, "stop": 360,
-                       "identity": 99.62, "coverage": 100.0, "accession": "AY458016"}
+        assert rep == {"replicon": "IncFII", "reported_name": "IncFII_1", "contig": "c7", "start": 100,
+                       "stop": 360, "identity": 99.62, "coverage": 100.0, "accession": "AY458016"}
+
+    @pytest.mark.parametrize("gene, replicon", [
+        ("IncFII_1", "IncFII"), ("Col(MG828)_1", "Col(MG828)"), ("IncFIB(K)_1_Kpn3", "IncFIB(K)"),
+        ("IncX4_2", "IncX4"), ("IncFII(pRSB107)_1_pRSB107", "IncFII(pRSB107)"),
+        ("IncHI2A", "IncHI2A"),
+    ])
+    def test_abricate_variant_suffix_is_dropped(self, mod, gene, replicon):
+        # abricate reports the database record (name_variant[_note]); PlasmidFinder reports the name.
+        assert mod.replicon_name(gene) == replicon
 
     def test_header_only_means_zero_replicons(self, mod, tmp_path):
         text = ("Database\tPlasmid\tIdentity\tQuery / Template length\tContig\tPosition in contig\t"
@@ -908,7 +917,7 @@ class TestRealToolOutputs:
         v2 = mod.parse_plasmidfinder(FIXTURES / "jj1886_plasmidfinder_v2.tsv")
         v3 = mod.parse_plasmidfinder(FIXTURES / "jj1886_plasmidfinder_v3.json")
         assert v2 == v3
-        assert v3[0] == {"replicon": "IncFIA", "contig": "NC_022651.1", "start": 6717, "stop": 7104,
+        assert v3[0] == {"replicon": "IncFIA", "reported_name": "IncFIA", "contig": "NC_022651.1", "start": 6717, "stop": 7104,
                          "identity": 99.74, "coverage": 100.0, "accession": "AP001918"}
         assert [r["replicon"] for r in v3] == ["IncFIA", "IncFII"]
 
@@ -923,7 +932,14 @@ class TestRealToolOutputs:
     def test_abricate(self, mod):
         reps = mod.parse_plasmidfinder(FIXTURES / "jj1886_abricate_plasmidfinder.tsv")
         assert len(reps) == 5
-        assert reps[1]["replicon"] == "IncFIA_1" and reps[1]["contig"] == "NC_022651.1"
+        assert reps[1]["replicon"] == "IncFIA" and reps[1]["contig"] == "NC_022651.1"
+        assert reps[1]["reported_name"] == "IncFIA_1"
+
+    def test_abricate_and_plasmidfinder_name_shared_replicons_alike(self, mod):
+        abricate = {r["replicon"] for r in mod.parse_plasmidfinder(FIXTURES / "jj1886_abricate_plasmidfinder.tsv")}
+        for other in ("jj1886_plasmidfinder_v2.tsv", "jj1886_plasmidfinder_v3.json"):
+            names = {r["replicon"] for r in mod.parse_plasmidfinder(FIXTURES / other)}
+            assert names <= abricate, other
 
     def test_summary_of_real_isolate(self, mod):
         res = mod.summarise(

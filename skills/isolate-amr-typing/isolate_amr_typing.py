@@ -395,6 +395,17 @@ def parse_organism_listing(text: str) -> set[str]:
 # ── PlasmidFinder ──────────────────────────────────────────────────────────────
 
 
+def replicon_name(record: str) -> str:
+    """PlasmidFinder replicon name from a database record name.
+
+    Records are `name_variant[_note]__accession` (PlasmidFinder 3 shows them as ref_id, e.g.
+    IncFIA_1__AP001918); abricate reports `name_variant[_note]`. PlasmidFinder itself reports
+    only the name, so cut at the first `_<digits>` that ends the name or precedes a note.
+    """
+    match = re.match(r"(.+?)_\d+(?:_.*)?$", record)
+    return match.group(1) if match else record
+
+
 def parse_plasmidfinder(path: Path) -> list[dict]:
     """Parse PlasmidFinder 2 `results_tab.tsv`, PlasmidFinder 3 `-j` JSON, or abricate output."""
     text = path.read_text(encoding="utf-8")
@@ -410,6 +421,7 @@ def parse_plasmidfinder(path: Path) -> list[dict]:
             contig = str(region.get("query_id") or "").split()
             replicons.append({
                 "replicon": region.get("name"),
+                "reported_name": region.get("name"),
                 "contig": contig[0] if contig else None,
                 "start": _to_int(region.get("query_start_pos")),
                 "stop": _to_int(region.get("query_end_pos")),
@@ -439,6 +451,7 @@ def parse_plasmidfinder(path: Path) -> list[dict]:
             contig = get(row, "Contig").split()
             replicons.append({
                 "replicon": get(row, "Plasmid"),
+                "reported_name": get(row, "Plasmid"),
                 "contig": contig[0] if contig else None,
                 "start": _to_int(position[0]) if len(position) == 2 else None,
                 "stop": _to_int(position[1]) if len(position) == 2 else None,
@@ -449,7 +462,8 @@ def parse_plasmidfinder(path: Path) -> list[dict]:
     elif {"SEQUENCE", "GENE", "%IDENTITY", "%COVERAGE"} <= col.keys():
         for row in rows[1:]:
             replicons.append({
-                "replicon": get(row, "GENE"),
+                "replicon": replicon_name(get(row, "GENE")),
+                "reported_name": get(row, "GENE"),
                 "contig": get(row, "SEQUENCE") or None,
                 "start": _to_int(get(row, "START")),
                 "stop": _to_int(get(row, "END")),
@@ -910,7 +924,7 @@ def _write_tables(result: dict, tables: Path) -> list[Path]:
     _write_csv(tables / "mlst.csv", ["sample", "scheme", "st", "call", "locus", "allele", "flag"],
                [[result["sample"], mlst.get("scheme"), mlst.get("st"), mlst.get("call"),
                  a["locus"], a["allele"], a["flag"]] for a in mlst.get("alleles", [])])
-    rep_fields = ["replicon", "contig", "start", "stop", "identity", "coverage", "accession"]
+    rep_fields = ["replicon", "reported_name", "contig", "start", "stop", "identity", "coverage", "accession"]
     _write_csv(tables / "plasmid_replicons.csv", rep_fields,
                [[r[f] for f in rep_fields] for r in result["plasmids"].get("replicons", [])])
     return [tables / n for n in ("amr_determinants.csv", "drug_class_summary.csv",
@@ -1117,6 +1131,13 @@ def build_report(result: dict) -> str:
     return "\n".join(out)
 
 
+def _repro_path(path: Path) -> ReproPath | str:
+    """A path for commands.sh. ReproPath renders inside double quotes, where $, `, " and \\
+    stay live, so a path holding any of them is single-quoted instead. Such a path loses
+    only the $CLAWBIO_ROOT rewrite, which matters for files inside the checkout."""
+    return shlex.quote(str(path)) if any(c in str(path) for c in '$`"\\') else ReproPath(path)
+
+
 def write_outputs(result: dict, output_dir: Path, raw: dict[str, Path], repro_args: list,
                   preflight: list[str]) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1179,7 +1200,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--plasmidfinder", type=Path,
                         help="Existing PlasmidFinder results_tab.tsv (v2), -j JSON (v3) or abricate TSV; skips running it")
     parser.add_argument("--organism",
-                        help="AMRFinderPlus --organism value (default: inferred from the MLST scheme)")
+                        help="AMRFinderPlus --organism value (default: inferred from the MLST scheme). "
+                             "With a supplied --amrfinder table it asserts the table was made with this "
+                             "organism, so no point mutations in it are reported as screened, none found")
     parser.add_argument("--mlst-scheme",
                         help="Force this mlst scheme instead of auto-detection (resolves scheme ties)")
     parser.add_argument("--sample-name", help="Label for the report (default: assembly file name)")
@@ -1264,11 +1287,11 @@ def main(argv: list[str] | None = None) -> int:
         for flag, path in (("--input", args.input), ("--mlst", args.mlst), ("--amrfinder", args.amrfinder),
                            ("--plasmidfinder", args.plasmidfinder), ("--plasmidfinder-db", args.plasmidfinder_db)):
             if path is not None:
-                repro_args += [flag, ReproPath(path.resolve())]
+                repro_args += [flag, _repro_path(path.resolve())]
         if args.organism:
-            repro_args += ["--organism", args.organism]
+            repro_args += ["--organism", shlex.quote(args.organism)]
         if run["mlst_scheme_forced"]:
-            repro_args += ["--mlst-scheme", run["mlst_scheme_forced"]]
+            repro_args += ["--mlst-scheme", shlex.quote(run["mlst_scheme_forced"])]
         if args.sample_name:
             repro_args += ["--sample-name", shlex.quote(args.sample_name)]
         if need:
@@ -1286,7 +1309,7 @@ def main(argv: list[str] | None = None) -> int:
     if options and args.input:
         def kept(tool: str) -> str:
             suffix = ".json" if raw[tool].suffix == ".json" else ".tsv"
-            return f" --{tool} {output_dir / 'tool_outputs' / (tool + suffix)}"
+            return f" --{tool} {shlex.quote(str(output_dir / 'tool_outputs' / (tool + suffix)))}"
 
         print(f"WARNING: mlst could not choose between schemes for {result['sample']}. Rerun with one of:",
               file=sys.stderr)
@@ -1295,8 +1318,9 @@ def main(argv: list[str] | None = None) -> int:
             # when the scheme has one to apply.
             reuse = (kept("plasmidfinder") if "plasmidfinder" in raw else "") + (
                 kept("amrfinder") if "amrfinder" in raw and not opt["organism"] else "")
-            print(f"  python {Path(__file__).resolve()} --input {args.input} {opt['flags']}{reuse} "
-                  f"--output {output_dir}_{opt['scheme']}", file=sys.stderr)
+            rerun_out = f"{output_dir}_{opt['scheme']}"
+            print(f"  python {shlex.quote(str(Path(__file__).resolve()))} --input {shlex.quote(str(args.input))} "
+                  f"{opt['flags']}{reuse} --output {shlex.quote(rerun_out)}", file=sys.stderr)
     print(f"Isolate AMR Typing wrote {output_dir / 'report.md'}")
     return 0
 

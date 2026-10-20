@@ -1331,6 +1331,7 @@ SKILLS = {
             "--threads",
             "--plasmidfinder-db",
         },
+        "extra_path_flags": {"--mlst", "--amrfinder", "--plasmidfinder", "--plasmidfinder-db"},
         "accepts_genotypes": False,
     },
     "deepspot-m": {
