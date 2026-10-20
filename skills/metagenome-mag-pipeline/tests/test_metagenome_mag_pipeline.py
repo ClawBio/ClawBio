@@ -436,7 +436,10 @@ class TestFailures:
         assert payload["error_code"] == "MISSING_SNAKEMAKE"
         assert "snakemake=9.11.2" in payload["fix"]
 
-    def test_conda_missing(self, fake_pipeline: Path, tmp_path: Path) -> None:
+    # --check too: its dry run is checked against the same tools a real run needs,
+    # and demo/README.md says so.
+    @pytest.mark.parametrize("extra", [[], ["--check"]], ids=["run", "check"])
+    def test_conda_missing(self, fake_pipeline: Path, tmp_path: Path, extra: list[str]) -> None:
         bindir = tmp_path / "only_snakemake"
         bindir.mkdir()
         stub = bindir / "snakemake"
@@ -451,7 +454,7 @@ class TestFailures:
         (bindir / "python3").chmod(0o755)
         out = tmp_path / "out"
         result = run_cli(
-            demo_args(out, fake_pipeline, tmp_path),
+            demo_args(out, fake_pipeline, tmp_path) + extra,
             fake_pipeline=fake_pipeline,
             tmp_path=tmp_path,
             stubs=False,

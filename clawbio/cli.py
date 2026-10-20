@@ -1069,6 +1069,12 @@ SKILLS = {
             --check --coassemble --skip-host-removal --allow-host-download
             --allow-fetch --allow-remote-inputs --force
         """.split()),
+        # The runner starts the script in the skill folder; resolve these against
+        # the caller's directory first.
+        "extra_path_flags": set("""
+            --host-fasta --checkm2-db --gtdbtk-db --taxonomy-db --taxdump
+            --kegg-db --cog-db --pfam-db --pipeline-dir --conda-prefix
+        """.split()),
         # The wrapper decides for itself whether --demo or --input is required.
         "no_input_required": True,
         "accepts_genotypes": False,

@@ -132,6 +132,16 @@ class TestReportMd:
         assert "not measured" in text
         assert "S2 | single | 2500 | 750000 | not measured" in text
 
+    def test_gtdb_rows_name_their_bin(self, report) -> None:
+        # GTDB-Tk calls the bin column user_genome (gtdbtk.bac120.summary.tsv, copied
+        # unchanged by the pipeline's run_mag_stage.py gtdb); reading "genome" blanked it.
+        text, _, _ = report
+        section = text.split("### Taxonomy (GTDB-Tk)", 1)[1].split("\n### ", 1)[0]
+        rows = [line for line in section.splitlines() if line.startswith("| S")]
+        assert rows[0].startswith("| S1.bin.1 | d__Bacteria;"), rows
+        assert rows[1].startswith("| S1.bin.2 | not measured"), rows
+        assert all(not row.startswith("| not measured") for row in rows), rows
+
     def test_no_zero_is_printed_for_an_unmeasured_cell(self, report) -> None:
         text, _, _ = report
         for line in text.splitlines():

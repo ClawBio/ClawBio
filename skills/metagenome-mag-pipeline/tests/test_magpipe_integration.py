@@ -59,6 +59,9 @@ def test_real_demo_runs_the_pinned_workflow(tmp_path: Path) -> None:
             sys.executable,
             str(SCRIPT),
             "--demo",
+            # Consent to clone the pinned workflow: without it a host with no cached
+            # checkout fails here instead of running the test.
+            "--allow-fetch",
             "--output",
             str(output),
             "--timeout-hours",

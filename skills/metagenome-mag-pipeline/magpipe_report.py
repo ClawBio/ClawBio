@@ -277,7 +277,8 @@ def _section_bins(findings: dict, config: dict) -> str:
     text += "\n### Taxonomy (GTDB-Tk)\n\n"
     text += _table(
         ["genome", "classification"],
-        [[row.get("genome"), row.get("classification")] for row in bins["gtdb"]],
+        # GTDB-Tk's own column name; the pipeline copies its summary unchanged.
+        [[row.get("user_genome"), row.get("classification")] for row in bins["gtdb"]],
     )
     classified = sum(1 for row in bins["gtdb"] if row.get("classification"))
     text += (

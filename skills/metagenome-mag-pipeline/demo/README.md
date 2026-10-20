@@ -23,8 +23,10 @@ them needs a reference the test does not ship.
 - network access to conda-forge/bioconda to build those environments
 - `git` and network access to clone the workflow, unless `--pipeline-dir` is given
 
-Add `--check` to validate the plan and write a planned report without executing
-anything, which is the useful first step on a machine that has no conda yet.
+Add `--check` to validate the plan, dry-run the workflow and write a planned
+report without running any job or building any tool environment. It still
+needs `snakemake` and `conda` (or `mamba`) on PATH, and the workflow checkout,
+because it checks the same tools a real run does.
 
 ## What it proves
 

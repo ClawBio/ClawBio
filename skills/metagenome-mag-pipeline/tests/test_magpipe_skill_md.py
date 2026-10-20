@@ -236,6 +236,13 @@ class TestDemoAndExamples:
     def test_demo_readme_exists(self) -> None:
         assert (SKILL_DIR / "demo" / "README.md").is_file()
 
+    def test_demo_readme_does_not_promise_check_without_conda(self) -> None:
+        # run() checks for snakemake and conda before the --check dry run.
+        text = (SKILL_DIR / "demo" / "README.md").read_text()
+        paragraph = next(p for p in text.split("\n\n") if "`--check`" in p)
+        assert "no conda" not in paragraph
+        assert "conda" in paragraph and "snakemake" in paragraph
+
     def test_example_samplesheet_is_upstreams(self) -> None:
         path = SKILL_DIR / "examples" / "samplesheet.example.tsv"
         header = path.read_text().splitlines()[0]

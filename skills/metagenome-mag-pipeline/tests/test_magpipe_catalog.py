@@ -81,3 +81,46 @@ def test_catalog_counts_include_this_skill() -> None:
     catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
     assert catalog["skill_count"] == len(catalog["skills"])
     assert any(entry["name"] == FOLDER for entry in catalog["skills"])
+
+
+# Flags whose value is a filesystem path. clawbio.py runs the script from the skill
+# folder, so any of these missing from extra_path_flags turns `--host-fasta ref.fa`
+# into skills/metagenome-mag-pipeline/ref.fa. (--input is resolved by the runner.)
+PATH_FLAGS = {
+    "--host-fasta", "--checkm2-db", "--gtdbtk-db", "--taxonomy-db", "--taxdump",
+    "--kegg-db", "--cog-db", "--pfam-db", "--pipeline-dir", "--conda-prefix",
+}
+
+
+def test_every_path_flag_is_resolved_by_the_runner() -> None:
+    sys.path.insert(0, str(SKILL_DIR))
+    try:
+        import importlib
+
+        parser = importlib.import_module("metagenome_mag_pipeline").build_parser()
+    finally:
+        sys.path.remove(str(SKILL_DIR))
+    flags = {opt for action in parser._actions for opt in action.option_strings if opt.startswith("--")}
+    looks_like_a_path = {f for f in flags if f.endswith(("-db", "-dir", "-fasta", "-prefix")) or f == "--taxdump"}
+    assert looks_like_a_path == PATH_FLAGS
+    assert SKILLS[ALIAS].get("extra_path_flags") == PATH_FLAGS
+    assert PATH_FLAGS <= SKILLS[ALIAS]["allowed_extra_flags"]
+
+
+def test_relative_path_flag_through_clawbio_run_resolves_against_cwd(tmp_path: Path) -> None:
+    import subprocess
+
+    (tmp_path / "ref.fa").write_text(">h\nACGT\n")
+    probe = tmp_path / "probe.py"
+    # Stand-in skill script that reports the --host-fasta value it was given.
+    probe.write_text("import sys\nargs = sys.argv\nprint('HOST=' + args[args.index('--host-fasta') + 1])\n")
+    code = (
+        "import sys; from pathlib import Path; import clawbio.cli as cli\n"
+        f"cli.SKILLS['{ALIAS}'] = dict(cli.SKILLS['{ALIAS}'], script=Path({str(probe)!r}))\n"
+        f"r = cli.run_skill('{ALIAS}', demo=True, extra_args=['--host-fasta', 'ref.fa'], "
+        f"output_dir={str(tmp_path / 'out')!r})\n"
+        "print(r.get('stdout', ''))\n"
+    )
+    result = subprocess.run([sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True,
+                            env={"PYTHONPATH": str(REPO_ROOT), "PATH": "/usr/bin:/bin"})
+    assert f"HOST={tmp_path / 'ref.fa'}" in result.stdout, result.stdout + result.stderr
