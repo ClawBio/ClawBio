@@ -1,0 +1,50 @@
+{
+  "clinical-variant-prioritizer": [
+    "repro_files"
+  ],
+  "drug-photo": [
+    "repro_files"
+  ],
+  "drug-repurposing-screen": [
+    "repro_files"
+  ],
+  "eqtl-catalogue-region-fetch": [
+    "repro_files"
+  ],
+  "fine-mapping": [
+    "repro_files"
+  ],
+  "just-prs-mcp": [
+    "repro_files"
+  ],
+  "locuscompare-region-render": [
+    "repro_files"
+  ],
+  "mendelian-randomisation": [
+    "repro_files"
+  ],
+  "omics-target-evidence-mapper": [
+    "repro_files"
+  ],
+  "pharmgx-reporter": [
+    "repro_files"
+  ],
+  "prs-abstain": [
+    "repro_files"
+  ],
+  "target-validation-scorer": [
+    "repro_files"
+  ],
+  "ukb-ppp-region-fetch": [
+    "repro_files"
+  ],
+  "variant-annotation": [
+    "repro_files"
+  ],
+  "wes-clinical-report-en": [
+    "repro_files"
+  ],
+  "xena-tcga-gene-query": [
+    "repro_files"
+  ]
+}
