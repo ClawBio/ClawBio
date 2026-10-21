@@ -44,26 +44,28 @@ SKIP_IN_CI = {
 
 REPRO_BUNDLE_FILES = ("commands.sh", "environment.yml", "checksums.sha256")
 
-# Skills whose demo does not yet write the full reproducibility bundle (AGENTS.md).
-# This list only shrinks: a skill not on it must write the bundle, and a skill on it
-# that now does fails the sweep until it is removed. Measured 2026-10-21.
-REPRO_BUNDLE_KNOWN_MISSING = {
-    "clinical-variant-prioritizer",
-    "drug-photo",
-    "drug-repurposing-screen",
-    "eqtl-catalogue-region-fetch",
-    "fine-mapping",
-    "just-prs-mcp",
-    "locuscompare-region-render",
-    "mendelian-randomisation",
-    "omics-target-evidence-mapper",
-    "pharmgx-reporter",
-    "prs-abstain",
-    "target-validation-scorer",
-    "ukb-ppp-region-fetch",
-    "variant-annotation",
-    "wes-clinical-report-en",
-    "xena-tcga-gene-query",
+# The skill run contract (AGENTS.md), checked on every demo that passes. Each skill maps
+# to the checks it fails today. The table only shrinks: a skill failing a check not
+# listed for it fails the sweep, and a listed check it now passes fails the sweep
+# until it is removed. Checks: "repro_files" (reproducibility/ holds REPRO_BUNDLE_FILES).
+# Measured 2026-10-21.
+CONTRACT_KNOWN_GAPS = {
+    "clinical-variant-prioritizer": {"repro_files"},
+    "drug-photo": {"repro_files"},
+    "drug-repurposing-screen": {"repro_files"},
+    "eqtl-catalogue-region-fetch": {"repro_files"},
+    "fine-mapping": {"repro_files"},
+    "just-prs-mcp": {"repro_files"},
+    "locuscompare-region-render": {"repro_files"},
+    "mendelian-randomisation": {"repro_files"},
+    "omics-target-evidence-mapper": {"repro_files"},
+    "pharmgx-reporter": {"repro_files"},
+    "prs-abstain": {"repro_files"},
+    "target-validation-scorer": {"repro_files"},
+    "ukb-ppp-region-fetch": {"repro_files"},
+    "variant-annotation": {"repro_files"},
+    "wes-clinical-report-en": {"repro_files"},
+    "xena-tcga-gene-query": {"repro_files"},
 }
 
 def load_demo_skills() -> list[dict]:
@@ -137,8 +139,7 @@ def run_demo(skill: dict, timeout: int, output_dir: Path | None) -> dict:
             "stderr_tail": proc.stderr[-500:] if proc.stderr else "",
             "passed": proc.returncode == 0,
             # Checked here, before a temp output dir is removed in `finally`.
-            "repro_missing": [f for f in REPRO_BUNDLE_FILES
-                              if not (skill_out / "reproducibility" / f).is_file()],
+            "contract_gaps": contract_gaps(skill_out),
         }
     except subprocess.TimeoutExpired:
         elapsed = time.time() - t0
@@ -242,8 +243,17 @@ def run_benchmark_scoring(output_dir: Path | None) -> dict | None:
     return result
 
 
-def repro_bundle_regressions(results: list[dict], known: set[str] = REPRO_BUNDLE_KNOWN_MISSING) -> list[str]:
-    """Problems that move the reproducibility bundle away from REPRO_BUNDLE_KNOWN_MISSING.
+def contract_gaps(skill_out: Path) -> dict[str, str]:
+    """The run-contract checks this demo output fails, each with what is wrong."""
+    gaps = {}
+    missing = [f for f in REPRO_BUNDLE_FILES if not (skill_out / "reproducibility" / f).is_file()]
+    if missing:
+        gaps["repro_files"] = "reproducibility/ is missing " + ", ".join(missing)
+    return gaps
+
+
+def contract_regressions(results: list[dict], known: dict[str, set[str]] = CONTRACT_KNOWN_GAPS) -> list[str]:
+    """Problems that move a skill's run-contract gaps away from CONTRACT_KNOWN_GAPS.
 
     Only demos that passed are judged: a crashed demo already fails the sweep.
     """
@@ -251,13 +261,14 @@ def repro_bundle_regressions(results: list[dict], known: set[str] = REPRO_BUNDLE
     for r in results:
         if not r["passed"]:
             continue
-        missing = r.get("repro_missing", [])
-        if missing and r["name"] not in known:
-            problems.append(f"{r['name']}: reproducibility/ is missing {', '.join(missing)}")
-        elif not missing and r["name"] in known:
-            problems.append(f"{r['name']}: now writes the reproducibility bundle; "
-                            "remove it from REPRO_BUNDLE_KNOWN_MISSING")
+        found = r.get("contract_gaps", {})
+        listed = known.get(r["name"], set())
+        for gap in sorted(found.keys() - listed):
+            problems.append(f"{r['name']}: {found[gap]}")
+        for gap in sorted(listed - found.keys()):
+            problems.append(f"{r['name']}: now passes {gap}; remove it from CONTRACT_KNOWN_GAPS")
     return problems
+
 
 def generate_summary(results: list[dict], benchmark: dict | None = None) -> str:
     """Generate markdown summary of sweep results."""
@@ -386,9 +397,9 @@ def main():
 
     print()
     summary = generate_summary(results, benchmark=benchmark)
-    repro_problems = repro_bundle_regressions(results)
-    if repro_problems:
-        summary += "\n## Reproducibility bundle\n\n" + "".join(f"- {p}\n" for p in repro_problems)
+    contract_problems = contract_regressions(results)
+    if contract_problems:
+        summary += "\n## Run contract\n\n" + "".join(f"- {p}\n" for p in contract_problems)
     print(summary)
 
     # Write summary to file if output dir specified
@@ -410,9 +421,9 @@ def main():
             f.write(summary)
 
     failed = [r for r in results if not r["passed"]]
-    if failed or repro_problems:
-        print(f"\n{len(failed)} skill(s) failed, {len(repro_problems)} reproducibility "
-              "bundle problem(s). Exiting with code 1.")
+    if failed or contract_problems:
+        print(f"\n{len(failed)} skill(s) failed, {len(contract_problems)} run contract "
+              "problem(s). Exiting with code 1.")
         sys.exit(1)
     else:
         print(f"\nAll {len(results)} demos passed.")
