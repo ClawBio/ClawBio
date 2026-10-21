@@ -42,6 +42,30 @@ SKIP_IN_CI = {
 }
 
 
+REPRO_BUNDLE_FILES = ("commands.sh", "environment.yml", "checksums.sha256")
+
+# Skills whose demo does not yet write the full reproducibility bundle (AGENTS.md).
+# This list only shrinks: a skill not on it must write the bundle, and a skill on it
+# that now does fails the sweep until it is removed. Measured 2026-10-21.
+REPRO_BUNDLE_KNOWN_MISSING = {
+    "clinical-variant-prioritizer",
+    "drug-photo",
+    "drug-repurposing-screen",
+    "eqtl-catalogue-region-fetch",
+    "fine-mapping",
+    "just-prs-mcp",
+    "locuscompare-region-render",
+    "mendelian-randomisation",
+    "omics-target-evidence-mapper",
+    "pharmgx-reporter",
+    "prs-abstain",
+    "target-validation-scorer",
+    "ukb-ppp-region-fetch",
+    "variant-annotation",
+    "wes-clinical-report-en",
+    "xena-tcga-gene-query",
+}
+
 def load_demo_skills() -> list[dict]:
     """Return skills from catalog that have demo mode."""
     with open(CATALOG) as f:
@@ -112,6 +136,9 @@ def run_demo(skill: dict, timeout: int, output_dir: Path | None) -> dict:
             "elapsed": round(elapsed, 1),
             "stderr_tail": proc.stderr[-500:] if proc.stderr else "",
             "passed": proc.returncode == 0,
+            # Checked here, before a temp output dir is removed in `finally`.
+            "repro_missing": [f for f in REPRO_BUNDLE_FILES
+                              if not (skill_out / "reproducibility" / f).is_file()],
         }
     except subprocess.TimeoutExpired:
         elapsed = time.time() - t0
@@ -214,6 +241,23 @@ def run_benchmark_scoring(output_dir: Path | None) -> dict | None:
     result["skills_contributing"] = {k: len(v) for k, v in skill_genes.items()}
     return result
 
+
+def repro_bundle_regressions(results: list[dict], known: set[str] = REPRO_BUNDLE_KNOWN_MISSING) -> list[str]:
+    """Problems that move the reproducibility bundle away from REPRO_BUNDLE_KNOWN_MISSING.
+
+    Only demos that passed are judged: a crashed demo already fails the sweep.
+    """
+    problems = []
+    for r in results:
+        if not r["passed"]:
+            continue
+        missing = r.get("repro_missing", [])
+        if missing and r["name"] not in known:
+            problems.append(f"{r['name']}: reproducibility/ is missing {', '.join(missing)}")
+        elif not missing and r["name"] in known:
+            problems.append(f"{r['name']}: now writes the reproducibility bundle; "
+                            "remove it from REPRO_BUNDLE_KNOWN_MISSING")
+    return problems
 
 def generate_summary(results: list[dict], benchmark: dict | None = None) -> str:
     """Generate markdown summary of sweep results."""
@@ -342,6 +386,9 @@ def main():
 
     print()
     summary = generate_summary(results, benchmark=benchmark)
+    repro_problems = repro_bundle_regressions(results)
+    if repro_problems:
+        summary += "\n## Reproducibility bundle\n\n" + "".join(f"- {p}\n" for p in repro_problems)
     print(summary)
 
     # Write summary to file if output dir specified
@@ -363,8 +410,9 @@ def main():
             f.write(summary)
 
     failed = [r for r in results if not r["passed"]]
-    if failed:
-        print(f"\n{len(failed)} skill(s) failed. Exiting with code 1.")
+    if failed or repro_problems:
+        print(f"\n{len(failed)} skill(s) failed, {len(repro_problems)} reproducibility "
+              "bundle problem(s). Exiting with code 1.")
         sys.exit(1)
     else:
         print(f"\nAll {len(results)} demos passed.")

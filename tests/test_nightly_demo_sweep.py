@@ -122,3 +122,64 @@ def test_with_output_leaves_exactly_one_output_pointing_at_the_skill_dir(argv):
     outputs = [a for a in result if a == "--output" or a.startswith("--output=")]
     assert outputs == ["--output"]
     assert result[result.index("--output") + 1] == str(target)
+
+
+def _write_bundle(out: Path, files=("commands.sh", "environment.yml", "checksums.sha256")):
+    (out / "reproducibility").mkdir(parents=True)
+    for name in files:
+        (out / "reproducibility" / name).write_text("x\n")
+
+
+def test_run_demo_records_which_reproducibility_files_the_demo_left_out(monkeypatch, tmp_path):
+    sweep = _load_sweep_module()
+
+    def fake_run(args, **kwargs):
+        _write_bundle(Path(args[args.index("--output") + 1]), files=("commands.sh",))
+        return sweep.subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(sweep.subprocess, "run", fake_run)
+
+    result = sweep.run_demo({"name": "x", "demo_command": "python x.py --demo"}, timeout=30, output_dir=tmp_path)
+
+    assert result["repro_missing"] == ["environment.yml", "checksums.sha256"]
+
+
+def test_run_demo_checks_the_bundle_before_removing_a_temp_output_dir(monkeypatch):
+    sweep = _load_sweep_module()
+
+    def fake_run(args, **kwargs):
+        _write_bundle(Path(args[args.index("--output") + 1]))
+        return sweep.subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(sweep.subprocess, "run", fake_run)
+
+    result = sweep.run_demo({"name": "x", "demo_command": "python x.py --demo"}, timeout=30, output_dir=None)
+
+    assert result["repro_missing"] == []
+
+
+def _result(name, missing, passed=True):
+    return {"name": name, "passed": passed, "repro_missing": missing}
+
+
+def test_a_skill_not_on_the_known_list_must_write_the_bundle():
+    sweep = _load_sweep_module()
+
+    problems = sweep.repro_bundle_regressions([_result("new-skill", ["checksums.sha256"])], known=set())
+
+    assert problems == ["new-skill: reproducibility/ is missing checksums.sha256"]
+
+
+def test_a_known_skill_that_now_writes_the_bundle_must_leave_the_list():
+    sweep = _load_sweep_module()
+
+    problems = sweep.repro_bundle_regressions([_result("fixed-skill", [])], known={"fixed-skill"})
+
+    assert len(problems) == 1 and "remove it from REPRO_BUNDLE_KNOWN_MISSING" in problems[0]
+
+
+def test_known_gaps_and_failed_demos_are_not_reported():
+    sweep = _load_sweep_module()
+    results = [_result("known-gap", ["commands.sh"]), _result("crashed", [], passed=False), _result("good", [])]
+
+    assert sweep.repro_bundle_regressions(results, known={"known-gap"}) == []
