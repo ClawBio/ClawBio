@@ -126,6 +126,7 @@ def test_with_output_leaves_exactly_one_output_pointing_at_the_skill_dir(argv):
     assert result[result.index("--output") + 1] == str(target)
 
 
+
 def _write_bundle(out: Path, files=("commands.sh", "environment.yml", "checksums.sha256")):
     (out / "reproducibility").mkdir(parents=True)
     for name in files:
@@ -143,10 +144,11 @@ def test_run_demo_records_which_reproducibility_files_the_demo_left_out(monkeypa
 
     result = sweep.run_demo({"name": "x", "demo_command": "python x.py --demo"}, timeout=30, output_dir=tmp_path)
 
-    assert result["repro_missing"] == ["environment.yml", "checksums.sha256"]
+    assert result["contract_gaps"] == {
+        "repro_files": "reproducibility/ is missing environment.yml, checksums.sha256"}
 
 
-def test_run_demo_checks_the_bundle_before_removing_a_temp_output_dir(monkeypatch):
+def test_run_demo_checks_the_contract_before_removing_a_temp_output_dir(monkeypatch):
     sweep = _load_sweep_module()
 
     def fake_run(args, **kwargs):
@@ -157,42 +159,44 @@ def test_run_demo_checks_the_bundle_before_removing_a_temp_output_dir(monkeypatc
 
     result = sweep.run_demo({"name": "x", "demo_command": "python x.py --demo"}, timeout=30, output_dir=None)
 
-    assert result["repro_missing"] == []
+    assert result["contract_gaps"] == {}
 
 
-def _result(name, missing, passed=True):
-    return {"name": name, "passed": passed, "repro_missing": missing}
+def _result(name, gaps, passed=True):
+    return {"name": name, "passed": passed, "contract_gaps": gaps}
 
 
-def test_a_skill_not_on_the_known_list_must_write_the_bundle():
+def test_a_gap_not_listed_for_the_skill_fails():
     sweep = _load_sweep_module()
 
-    problems = sweep.repro_bundle_regressions([_result("new-skill", ["checksums.sha256"])], known=set())
+    problems = sweep.contract_regressions(
+        [_result("new-skill", {"repro_files": "reproducibility/ is missing checksums.sha256"})], known={})
 
     assert problems == ["new-skill: reproducibility/ is missing checksums.sha256"]
 
 
-def test_a_known_skill_that_now_writes_the_bundle_must_leave_the_list():
+def test_a_listed_gap_the_skill_now_passes_must_leave_the_table():
     sweep = _load_sweep_module()
 
-    problems = sweep.repro_bundle_regressions([_result("fixed-skill", [])], known={"fixed-skill"})
+    problems = sweep.contract_regressions([_result("fixed-skill", {})], known={"fixed-skill": {"repro_files"}})
 
-    assert len(problems) == 1 and "remove it from REPRO_BUNDLE_KNOWN_MISSING" in problems[0]
+    assert problems == ["fixed-skill: now passes repro_files; remove it from CONTRACT_KNOWN_GAPS"]
 
 
-def test_known_gaps_and_failed_demos_are_not_reported():
+def test_listed_gaps_and_failed_demos_are_not_reported():
     sweep = _load_sweep_module()
-    results = [_result("known-gap", ["commands.sh"]), _result("crashed", [], passed=False), _result("good", [])]
+    results = [_result("known-gap", {"repro_files": "missing"}), _result("crashed", {}, passed=False),
+               _result("good", {})]
 
-    assert sweep.repro_bundle_regressions(results, known={"known-gap"}) == []
+    assert sweep.contract_regressions(results, known={"known-gap": {"repro_files"}}) == []
 
 
-def test_the_sweep_exits_nonzero_on_a_bundle_problem_even_when_every_demo_passed(monkeypatch, tmp_path):
+def test_the_sweep_exits_nonzero_on_a_contract_gap_even_when_every_demo_passed(monkeypatch, tmp_path):
     sweep = _load_sweep_module()
     monkeypatch.setattr(sweep, "load_demo_skills", lambda: [{"name": "new-skill", "demo_command": "python x.py --demo"}])
     monkeypatch.setattr(sweep, "run_demo", lambda skill, timeout, output_dir: {
-        "name": "new-skill", "command": "", "exit_code": 0, "elapsed": 0.0,
-        "stderr_tail": "", "passed": True, "repro_missing": ["commands.sh"]})
+        "name": "new-skill", "command": "", "exit_code": 0, "elapsed": 0.0, "stderr_tail": "", "passed": True,
+        "contract_gaps": {"repro_files": "reproducibility/ is missing commands.sh"}})
     monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     monkeypatch.setattr(sys, "argv", ["nightly_demo_sweep.py", "--output", str(tmp_path)])
 
