@@ -2,6 +2,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def _load_sweep_module():
     module_path = Path(__file__).resolve().parents[1] / "scripts" / "nightly_demo_sweep.py"
@@ -183,3 +185,19 @@ def test_known_gaps_and_failed_demos_are_not_reported():
     results = [_result("known-gap", ["commands.sh"]), _result("crashed", [], passed=False), _result("good", [])]
 
     assert sweep.repro_bundle_regressions(results, known={"known-gap"}) == []
+
+
+def test_the_sweep_exits_nonzero_on_a_bundle_problem_even_when_every_demo_passed(monkeypatch, tmp_path):
+    sweep = _load_sweep_module()
+    monkeypatch.setattr(sweep, "load_demo_skills", lambda: [{"name": "new-skill", "demo_command": "python x.py --demo"}])
+    monkeypatch.setattr(sweep, "run_demo", lambda skill, timeout, output_dir: {
+        "name": "new-skill", "command": "", "exit_code": 0, "elapsed": 0.0,
+        "stderr_tail": "", "passed": True, "repro_missing": ["commands.sh"]})
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    monkeypatch.setattr(sys, "argv", ["nightly_demo_sweep.py", "--output", str(tmp_path)])
+
+    with pytest.raises(SystemExit) as exit_info:
+        sweep.main()
+
+    assert exit_info.value.code == 1
+    assert "new-skill: reproducibility/ is missing commands.sh" in (tmp_path / "sweep_summary.md").read_text()
