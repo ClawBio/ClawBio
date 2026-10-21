@@ -233,14 +233,15 @@ class TestErrorCodes:
 
 
 class TestDemoAndExamples:
-    def test_demo_readme_exists(self) -> None:
-        assert (SKILL_DIR / "demo" / "README.md").is_file()
+    def test_demo_data_paths_exist(self, frontmatter: dict) -> None:
+        for entry in frontmatter["metadata"]["demo_data"]:
+            assert (SKILL_DIR / entry["path"]).is_file(), entry["path"]
 
-    def test_demo_readme_does_not_promise_check_without_conda(self) -> None:
+    def test_demo_does_not_promise_check_without_conda(self, text: str) -> None:
         # run() checks for snakemake and conda before the --check dry run.
-        text = (SKILL_DIR / "demo" / "README.md").read_text()
-        paragraph = next(p for p in text.split("\n\n") if "`--check`" in p)
-        assert "no conda" not in paragraph
+        body = text.split("## Demo", 1)[1].split("\n## ", 1)[0]
+        paragraph = next(p for p in body.split("\n\n") if "`--check`" in p)
+        assert "only the checkout" not in paragraph
         assert "conda" in paragraph and "snakemake" in paragraph
 
     def test_example_samplesheet_is_upstreams(self) -> None:

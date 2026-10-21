@@ -45,8 +45,8 @@ metadata:
     packages:
       - pyyaml>=6.0
   demo_data:
-    - path: demo/README.md
-      description: How the synthetic-read demo is generated at run time
+    - path: examples/samplesheet.example.tsv
+      description: Upstream-format samplesheet; --demo generates its synthetic reads at run time
   endpoints:
     cli: python skills/metagenome-mag-pipeline/metagenome_mag_pipeline.py --input {input_path} --output {output_dir}
   openclaw:
@@ -221,9 +221,9 @@ Expected output: the demo generates synthetic reads with the pinned checkout's
 `test/make_test_dataset.py`, then runs QC → assembly → QUAST → MultiQC →
 provenance, producing a report with per-sample retained reads, QUAST assembly
 metrics and the read-loss diagnostic. It needs snakemake ≥ 9, conda and network
-access to build tool environments; with `--check` it needs only the checkout.
-
-The `clawbio.py run` demo command itself includes `--allow-fetch`; a direct run needs the flag too.
+access to build tool environments. `--check` builds no environment and runs no
+job, but still needs `snakemake`, `conda` (or `mamba`) and the checkout. The
+`clawbio.py run` demo command includes `--allow-fetch`; a direct run needs it too.
 
 The synthetic reads have no biological truth. The demo proves execution, and the
 report says so.

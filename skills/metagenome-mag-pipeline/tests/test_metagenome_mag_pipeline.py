@@ -437,7 +437,7 @@ class TestFailures:
         assert "snakemake=9.11.2" in payload["fix"]
 
     # --check too: its dry run is checked against the same tools a real run needs,
-    # and demo/README.md says so.
+    # and SKILL.md's ## Demo says so.
     @pytest.mark.parametrize("extra", [[], ["--check"]], ids=["run", "check"])
     def test_conda_missing(self, fake_pipeline: Path, tmp_path: Path, extra: list[str]) -> None:
         bindir = tmp_path / "only_snakemake"
