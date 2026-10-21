@@ -44,28 +44,14 @@ SKIP_IN_CI = {
 
 REPRO_BUNDLE_FILES = ("commands.sh", "environment.yml", "checksums.sha256")
 
-# The skill run contract (AGENTS.md), checked on every demo that passes. Each skill maps
-# to the checks it fails today. The table only shrinks: a skill failing a check not
-# listed for it fails the sweep, and a listed check it now passes fails the sweep
-# until it is removed. Checks: "repro_files" (reproducibility/ holds REPRO_BUNDLE_FILES).
-# Measured 2026-10-21.
+# The skill run contract (AGENTS.md). skills/contract_known_gaps.json maps each skill to
+# the checks it fails today, and is shared with the tests that check SKILL.md and parsers.
+# It only shrinks: a skill failing a check not listed for it fails, and a listed check it
+# now passes fails until it is removed.
+SWEEP_CHECKS = {"repro_files"}  # reproducibility/ holds REPRO_BUNDLE_FILES
+CONTRACT_KNOWN_GAPS_FILE = PROJECT_ROOT / "skills" / "contract_known_gaps.json"
 CONTRACT_KNOWN_GAPS = {
-    "clinical-variant-prioritizer": {"repro_files"},
-    "drug-photo": {"repro_files"},
-    "drug-repurposing-screen": {"repro_files"},
-    "eqtl-catalogue-region-fetch": {"repro_files"},
-    "fine-mapping": {"repro_files"},
-    "just-prs-mcp": {"repro_files"},
-    "locuscompare-region-render": {"repro_files"},
-    "mendelian-randomisation": {"repro_files"},
-    "omics-target-evidence-mapper": {"repro_files"},
-    "pharmgx-reporter": {"repro_files"},
-    "prs-abstain": {"repro_files"},
-    "target-validation-scorer": {"repro_files"},
-    "ukb-ppp-region-fetch": {"repro_files"},
-    "variant-annotation": {"repro_files"},
-    "wes-clinical-report-en": {"repro_files"},
-    "xena-tcga-gene-query": {"repro_files"},
+    skill: set(checks) for skill, checks in json.loads(CONTRACT_KNOWN_GAPS_FILE.read_text()).items()
 }
 
 def load_demo_skills() -> list[dict]:
@@ -262,7 +248,7 @@ def contract_regressions(results: list[dict], known: dict[str, set[str]] = CONTR
         if not r["passed"]:
             continue
         found = r.get("contract_gaps", {})
-        listed = known.get(r["name"], set())
+        listed = known.get(r["name"], set()) & SWEEP_CHECKS  # other checks have their own tests
         for gap in sorted(found.keys() - listed):
             problems.append(f"{r['name']}: {found[gap]}")
         for gap in sorted(listed - found.keys()):

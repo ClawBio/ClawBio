@@ -191,6 +191,14 @@ def test_listed_gaps_and_failed_demos_are_not_reported():
     assert sweep.contract_regressions(results, known={"known-gap": {"repro_files"}}) == []
 
 
+
+def test_gaps_for_checks_the_sweep_does_not_run_are_left_to_their_own_tests():
+    sweep = _load_sweep_module()
+
+    problems = sweep.contract_regressions([_result("skill", {})], known={"skill": {"demo_flag"}})
+
+    assert problems == []
+
 def test_the_sweep_exits_nonzero_on_a_contract_gap_even_when_every_demo_passed(monkeypatch, tmp_path):
     sweep = _load_sweep_module()
     monkeypatch.setattr(sweep, "load_demo_skills", lambda: [{"name": "new-skill", "demo_command": "python x.py --demo"}])
