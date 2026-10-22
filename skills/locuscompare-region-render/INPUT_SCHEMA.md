@@ -52,7 +52,7 @@ Present if the source emits them; ignored if absent. Skills SHOULD produce these
 | `maf` | float | Minor-allele frequency in the study cohort. Range [0, 0.5]. |
 | `eaf` | float | Effect-allele frequency (frequency of `allele_b`). Range [0, 1]. |
 | `n` | integer | Effective sample size for the variant. For binary traits this is typically the case-equivalent N or the harmonic-mean N per study convention. |
-| `rsid` | string | dbSNP rs identifier if known. May be present multiple times per `variant_id` for multi-allelic loci; canonical join is on `variant_id`, not `rsid`. |
+| `rsid` | string | dbSNP rs identifier if known. The join is on `variant_id`, not `rsid`: the two alleles of a multi-allelic site can share one rsID. A variant with several rsIDs may appear once per rsID (the eQTL Catalogue writes its files this way); on the exposure side those rows must have identical statistics and are collapsed to one, keeping every rsID, and rows of one `variant_id` that disagree stop the render. |
 | `info` | float | Imputation INFO score, [0, 1]. |
 | `molecular_trait_id` | string | For QTL data: the ENSG / ENST / molecular feature id the variant is tested against. Required by eQTL Cat–style datasets where one TSV bundles multiple traits. |
 | `study_id` | string | Source-native study identifier (e.g. eQTL Cat `dataset_id`, GWAS Cat `accession`, FinnGen phenotype code). For self-documentation; not used for join. |
