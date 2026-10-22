@@ -54,6 +54,25 @@ def test_pinned_contracts_include_official_patterns_and_enums():
         assert "enum" in contract["parameters"]["aligner"]
 
 
+def test_contracts_are_generated_from_the_revision_each_wrapper_runs():
+    """CI cannot re-download the schemas, but each contract comes from an
+    immutable release tag, so it drifts only if a wrapper's pin moves without it."""
+    import importlib.util
+    import json
+
+    for name in ("rnaseq", "scrnaseq", "sarek"):
+        skill = ROOT / "skills" / f"nfcore-{name}-wrapper"
+        spec = importlib.util.spec_from_file_location(f"_contract_pin_{name}_schemas", skill / "schemas.py")
+        schemas = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(schemas)
+        pinned = schemas.DEFAULT_PIPELINE_VERSION
+        contract = json.loads((skill / "reproducibility/upstream_scalar_contract.json").read_text())
+        assert contract["pipeline"] == f"nf-core/{name}"
+        assert contract["revision"] == pinned
+        for key in ("schema_url", "config_url"):
+            assert contract[key].startswith(f"https://raw.githubusercontent.com/nf-core/{name}/{pinned}/")
+
+
 # nf-schema skips each pipeline's validation.defaultIgnoreParams, read from the
 # pinned nextflow.config; the contracts must skip the same keys.
 _PINNED_IGNORED = {

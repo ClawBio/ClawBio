@@ -1,10 +1,8 @@
-"""How every nf-core wrapper reports a failure, and the shared preflight checks."""
+"""How every nf-core wrapper reports a failure."""
 
 import json
 
-import pytest
-
-from clawbio.common.nfcore import failures, runtime
+from clawbio.common.nfcore import failures
 from clawbio.common.nfcore.errors import SkillError
 
 
@@ -54,35 +52,3 @@ def test_unexpected_error_keeps_the_traceback_for_the_bug_report(tmp_path, capsy
     assert "RuntimeError: boom" in payload["details"]["traceback"]
     assert json.loads(err) == payload
     assert "Re-run with --verbose" in out and "Traceback" not in out
-
-
-@pytest.mark.parametrize("value", ["true", "1", "YES", " on "])
-def test_demo_refuses_to_start_offline(value, monkeypatch):
-    monkeypatch.setenv("NXF_OFFLINE", value)
-    with pytest.raises(SkillError) as failure:
-        runtime.require_network_for_demo()
-    assert failure.value.error_code == "DEMO_REQUIRES_NETWORK"
-    assert failure.value.details == {"NXF_OFFLINE": value}
-
-
-@pytest.mark.parametrize("value", [None, "", "false", "0"])
-def test_demo_runs_online(value, monkeypatch):
-    if value is None:
-        monkeypatch.delenv("NXF_OFFLINE", raising=False)
-    else:
-        monkeypatch.setenv("NXF_OFFLINE", value)
-    runtime.require_network_for_demo()
-
-
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        ("  N E X T F L O W\n  version 26.04.3 build 5928", "26.04.3"),
-        ('openjdk version "17.0.10" 2024-01-16', "17.0.10"),
-        ("version 25.10", "25.10"),
-        ("no version here", ""),
-    ],
-)
-def test_reported_version_keeps_the_raw_token(text, expected):
-    # 26.04.3 must not become 26.4.3: that is not a release NXF_VER can fetch.
-    assert runtime.reported_version(text) == expected

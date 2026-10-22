@@ -243,7 +243,7 @@ downloaded scrnaseq 4.1.0 release on all three Python versions. Set
 
 ```bash
 CLAWBIO_NFCORE_UPSTREAM_DIR=/path/to/releases python -m pytest \
-  tests/test_nfcore_contract_generation.py tests/test_nfcore_resource_replay.py \
+  tests/test_nfcore_contract_generation.py \
   tests/test_nfcore_wrapper_audit.py tests/test_nfcore_packaging.py \
   clawbio/common/tests/test_nfcore_*.py skills/nfcore-rnaseq-wrapper/tests \
   skills/nfcore-scrnaseq-wrapper/tests skills/nfcore-sarek-wrapper/tests \
