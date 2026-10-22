@@ -710,7 +710,7 @@ def test_collapse_keeps_rows_whose_key_differs(client_with_metadata, patched_pys
 
 
 def test_collapse_is_keyed_on_the_chr_stripped_variant_id():
-    """The key is the normalised `variant_id`, never the raw `variant` column. A copy
+    """The key is the normalized `variant_id`, never the raw `variant` column. A copy
     read from the FTP (`chr1_...`) and a prefetched-style copy (`1_...`) are one key;
     they also differ in a raw column (the spelling of `variant`), so the collapse must
     refuse them naming that column. Keyed on `raw["variant"]` they would be two
@@ -877,3 +877,18 @@ def test_collapse_partitions_the_input_and_loses_no_rsid(rows):
     for v in out.kept:
         got = set(filter(None, v.raw["rsids"].split(";")))
         assert got == read_rsids.get((v.raw["molecular_trait_id"], v.variant_id), set())
+
+
+@pytest.mark.parametrize("column", ["an", "r2", "ma_samples"])
+def test_copies_that_differ_only_in_a_raw_column_are_refused(column):
+    """The equality rule covers the raw columns, not only the parsed fields: two
+    copies identical in every RegionVariant field but one raw-only column (allele
+    number, imputation r2, minor-allele sample count) are not the same row."""
+    a = _rv("1_100_T_TA", rsid="rs1")
+    b = _rv("1_100_T_TA", rsid="rs2")
+    a.raw[column] = "1000"
+    b.raw[column] = "999"
+    with pytest.raises(EQTLCatalogueDuplicateRowConflict, match=column):
+        collapse_duplicate_rsid_rows([a, b])
+    b.raw[column] = "1000"
+    assert len(collapse_duplicate_rsid_rows([a, b]).kept) == 1
