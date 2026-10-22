@@ -587,6 +587,13 @@ _DEMO_T2D_PANEL_VARIANTS = (
 )
 
 
+def _contig_order(contig: str) -> tuple[int, int, str]:
+    """Autosomes numerically, then X, Y, MT and any other name."""
+    if contig.isdecimal():
+        return (0, int(contig), "")
+    return (1, 0, contig)
+
+
 def write_demo_vcf(path: Path, n_snps: int = 200) -> Path:
     """Write a synthetic VCF that covers the default offline demo panel."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -608,8 +615,8 @@ def write_demo_vcf(path: Path, n_snps: int = 200) -> Path:
         )
     # bcftools rejects records whose contig or FORMAT key the header does not declare,
     # and can only index records sorted by contig, then position.
-    records.sort(key=lambda record: (int(record.split("\t", 2)[0]), int(record.split("\t", 2)[1])))
-    contigs = sorted({record.split("\t", 1)[0] for record in records}, key=int)
+    records.sort(key=lambda record: (_contig_order(record.split("\t", 1)[0]), int(record.split("\t", 2)[1])))
+    contigs = sorted({record.split("\t", 1)[0] for record in records}, key=_contig_order)
     lines = [
         "##fileformat=VCFv4.2",
         "##FILTER=<ID=PASS,Description=\"All filters passed\">",

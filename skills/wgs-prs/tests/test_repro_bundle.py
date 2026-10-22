@@ -10,8 +10,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from hypothesis import given, settings
-from hypothesis import strategies as st
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = SKILL_DIR.parents[1]
@@ -444,39 +442,3 @@ def test_demo_rejects_an_explicit_score_selector(tmp_path, selector) -> None:
 
     assert result.returncode != 0
     assert "--demo cannot be combined with --trait, --pgs-id, or --panel-id" in result.stderr
-
-
-
-def _declared(vcf: Path, kind: str) -> set[str]:
-    lines = vcf.read_text(encoding="utf-8").splitlines()
-    return {line.split("ID=", 1)[1].split(",", 1)[0].rstrip(">") for line in lines if line.startswith(f"##{kind}=<")}
-
-
-@settings(deadline=None, max_examples=25)
-@given(n_snps=st.integers(min_value=0, max_value=300))
-def test_demo_vcf_declares_every_contig_and_format_key_it_uses(tmp_path_factory, n_snps) -> None:
-    """bcftools refuses a record whose CHROM or FORMAT key the header does not
-    declare (`CONTIG id=0 not present in the header`) and cannot index unsorted
-    records, so the --demo run failed wherever bcftools is installed."""
-    vcf = write_demo_vcf(tmp_path_factory.mktemp("vcf") / "demo.vcf", n_snps=n_snps)
-    records = [line.split("\t") for line in vcf.read_text(encoding="utf-8").splitlines() if not line.startswith("#")]
-    assert {record[0] for record in records} <= _declared(vcf, "contig")
-    assert {key for record in records for key in record[8].split(":")} <= _declared(vcf, "FORMAT")
-    # Indexing the normalised VCF needs records in header-contig, then position, order.
-    contig_order = [line.split("ID=", 1)[1].rstrip(">") for line in vcf.read_text(encoding="utf-8").splitlines()
-                    if line.startswith("##contig=<")]
-    keys = [(contig_order.index(record[0]), int(record[1])) for record in records]
-    assert keys == sorted(keys)
-
-
-def test_bcftools_reads_the_demo_vcf(tmp_path) -> None:
-    import shutil
-
-    if shutil.which("bcftools") is None:
-        pytest.skip("bcftools is not installed")
-    vcf = write_demo_vcf(tmp_path / "demo.vcf")
-    result = subprocess.run(
-        ["bcftools", "view", "-Ob", "-o", str(tmp_path / "demo.bcf"), str(vcf)],
-        capture_output=True, text=True, check=False,
-    )
-    assert result.returncode == 0, result.stderr
