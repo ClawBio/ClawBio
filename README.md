@@ -46,8 +46,7 @@ Using **Cursor, VS Code, Codex, Zed or another editor that reads [Agent Skills](
 Every skill is a plain Agent Skills folder. Copy or symlink the folders you need from `skills/` into
 `~/.agents/skills/`, which all four read, or into your project's `.agents/skills/`. No server involved.
 
-The MCP server (`uvx --from 'clawbio[mcp]' clawbio mcp`) is **deprecated as of 0.7.0 and will be
-removed in 0.8.0**. Existing configurations keep working until then and print a notice on start.
+The MCP server (`clawbio mcp`), deprecated in 0.7.0, is **removed in 0.8.0**.
 Why, and how to migrate: [docs.clawbio.ai/reference/mcp](https://docs.clawbio.ai/reference/mcp/).
 
 **Developing ClawBio or want all skills with full demo data?** Work from a

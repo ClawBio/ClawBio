@@ -104,7 +104,7 @@ are not tied to one skill:
 
 ## Testing
 
-Tests live in `skills/<name>/tests/`. `pytest.ini` collects them with the `skills/*/tests` glob, so a new skill's tests need no registration.
+Tests live in `skills/<name>/tests/`. `pytest.ini` collects them with the `skills/*/tests` glob, so a new skill's tests need no registration. Put each test in the file named for the code it tests.
 
 ```bash
 python -m pytest -v                                    # All tests

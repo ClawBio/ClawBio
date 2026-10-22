@@ -461,3 +461,48 @@ def test_environment_overrides_only_what_it_sets(tmp_path, exported, monkeypatch
     attrs = exported[0].resource.attributes
     assert attrs["openinference.project.name"] == project
     assert attrs["service.name"] == service
+
+
+_PARENT_TRACE = "4bf92f3577b34da6a3ce929d0e0e4736"
+_PARENT_SPAN = "00f067aa0ba902b7"
+
+
+def test_a_nested_skill_run_stays_under_its_outer_run_despite_traceparent(tmp_path, monkeypatch):
+    # full-profile calls run_skill once per skill inside its own skill_run.
+    monkeypatch.setenv("TRACEPARENT", f"00-{_PARENT_TRACE}-{_PARENT_SPAN}-01")
+    log = tmp_path / "audit.jsonl"
+    with skill_run("full-profile", "0.1.0", log_path=log) as outer:
+        with skill_run("pharmgx", "0.2.0", log_path=log):
+            pass
+    inner, profile = (json.loads(line) for line in log.read_text().splitlines())
+    assert inner["parent_span_id"] == outer
+    assert profile["parent_span_id"] == _PARENT_SPAN
+
+
+_UNSAMPLED = "00-00000000000000000000000000000001-0000000000000001-00"
+
+
+@pytest.mark.parametrize("value, parent", [
+    # An agent that runs clawbio as a subprocess can only pass its span this way.
+    (f"00-{_PARENT_TRACE}-{_PARENT_SPAN}-01", (_PARENT_TRACE, _PARENT_SPAN)),
+    ("", None),
+    ("not-a-traceparent", None),
+    (f"00-{'0' * 32}-{_PARENT_SPAN}-01", None),  # all-zero trace id is invalid
+    (f"00-{_PARENT_TRACE}-{_PARENT_SPAN}", None),  # flags missing
+    (f"ff-{_PARENT_TRACE}-{_PARENT_SPAN}-01", None),  # version ff is forbidden
+    # Unsampled still nests, and ALWAYS_ON keeps the audit record.
+    (_UNSAMPLED, ("00000000000000000000000000000001", "0000000000000001")),
+])
+def test_a_traceparent_gives_a_root_or_the_named_parent(tmp_path, monkeypatch, value, parent):
+    # The value is set by whatever launched us; a bad one must not break the
+    # run, and must not produce a parent that the header did not name.
+    monkeypatch.setenv("TRACEPARENT", value)
+    log = tmp_path / "audit.jsonl"
+    with skill_run("pharmgx", "0.2.0", log_path=log):
+        pass
+    record = json.loads(log.read_text().strip())
+    assert record["status"] == "OK"
+    if parent:
+        assert (record["trace_id"], record["parent_span_id"]) == parent
+    else:
+        assert "parent_span_id" not in record

@@ -280,6 +280,37 @@ class TestDemoPipeline:
         assert (tmp_path / "figures" / "funnel.png").exists()
         assert (tmp_path / "figures" / "leave_one_out.png").exists()
 
+    def test_demo_writes_verifiable_repro_bundle(self, tmp_path, monkeypatch):
+        """--demo writes commands.sh, environment.yml and checksums that verify."""
+        import hashlib
+
+        import mendelian_randomisation as mr
+
+        outdir = tmp_path / "demo_repro"
+        monkeypatch.setattr(sys, "argv", ["mendelian_randomisation.py", "--demo", "--output", str(outdir)])
+        mr.main()
+        repro = outdir / "reproducibility"
+        for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+            assert (repro / name).exists(), name
+
+        commands = (repro / "commands.sh").read_text()
+        assert "python skills/mendelian-randomisation/mendelian_randomisation.py" in commands
+        assert "--demo" in commands
+        assert str(SKILL_DIR) not in commands
+        env = (repro / "environment.yml").read_text()
+        for dep in ("numpy", "scipy", "matplotlib"):
+            assert dep in env, dep
+
+        lines = (repro / "checksums.sha256").read_text().splitlines()
+        labels = {line.split("  ", 1)[1] for line in lines}
+        assert {"report.md", "result.json", "tables/mr_results.tsv",
+                "figures/scatter.png", "reproducibility/environment.yml"} <= labels
+        for line in lines:
+            digest, label = line.split("  ", 1)
+            target = outdir / label
+            assert target.resolve().is_relative_to(outdir.resolve()), label
+            assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, label
+
     def test_demo_report_content(self, tmp_path):
         instruments, exposure, outcome = load_demo_instruments()
         run_pipeline(instruments, exposure, outcome, tmp_path, demo=True)
