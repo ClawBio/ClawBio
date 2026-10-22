@@ -789,9 +789,6 @@ just-prs = [
 labstep = [
     { name = "labstep" },
 ]
-mcp = [
-    { name = "mcp" },
-]
 otlp = [
     { name = "opentelemetry-exporter-otlp-proto-http" },
 ]
@@ -840,7 +837,6 @@ requires-dist = [
     { name = "labstep", marker = "extra == 'labstep'", specifier = ">=3.0" },
     { name = "leidenalg", marker = "extra == 'spatial'", specifier = ">=0.10" },
     { name = "matplotlib", specifier = ">=3.11.2" },
-    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.9,<2" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "openai", specifier = ">=3.29.0" },
     { name = "opencv-python-headless", marker = "extra == 'data-extractor'", specifier = ">=5.0.0.93" },
@@ -865,7 +861,7 @@ requires-dist = [
     { name = "typer", marker = "extra == 'just-prs'", specifier = ">=0.27.3,<1" },
     { name = "uvicorn", marker = "extra == 'robotary'", specifier = ">=0.54.0" },
 ]
-provides-extras = ["affinity-proteomics", "bigquery", "cell-detection", "data-extractor", "drug-repurposing-screen", "fine-mapping", "galaxy-bridge", "just-prs", "labstep", "mcp", "otlp", "prs-abstain", "region-fetch", "robotary", "spatial"]
+provides-extras = ["affinity-proteomics", "bigquery", "cell-detection", "data-extractor", "drug-repurposing-screen", "fine-mapping", "galaxy-bridge", "just-prs", "labstep", "otlp", "prs-abstain", "region-fetch", "robotary", "spatial"]
 
 [package.metadata.requires-dev]
 bot = [
