@@ -373,7 +373,10 @@ def test_report_contains_disclaimer():
     p = _profiles()
     results = lookup_drugs(p)
     report = generate_report(str(DEMO), "23andme", 31, pgx, p, results)
-    assert "NOT a diagnostic device" in report
+    # The exact ClawBio wording (AGENTS.md); report.md is now sent on its own, with no PDF footer to add it.
+    from clawbio.common.report import DISCLAIMER
+
+    assert DISCLAIMER in report
 
 
 def test_report_renders_standard_classification_token():
@@ -999,3 +1002,107 @@ def test_dpyd_without_hapb3_is_not_called_normal():
     """Testing only *2A/*13/D949V cannot rule out HapB3, so it must not read Normal."""
     genotypes = {r: g for r, g in _DPYD_REF.items() if r != "rs75017182"}
     assert _dpyd(genotypes)[1].startswith("Indeterminate")
+
+
+# CPIC fluorouracil/capecitabine recommendation at DPYD activity score 1.0
+# (api.cpicpgx.org/v1/recommendation, RxNorm:4492 and RxNorm:194000).
+_CPIC_D949V_HOM = ("Patients with the c.2846A>T/c.2846A>T genotype may require "
+                   ">50% reduction in starting dose.")
+
+
+def _dpyd_profiles(genotypes):
+    diplotype, phenotype = _dpyd(genotypes)
+    return {"DPYD": {"diplotype": diplotype, "phenotype": phenotype}}
+
+
+def _batch_entry(profiles, drug):
+    return next(d for cat in lookup_drugs(profiles).values() for d in cat if d["drug"] == drug)
+
+
+@pytest.mark.parametrize("drug", ["Fluorouracil", "Capecitabine"])
+def test_dpyd_homozygous_d949v_carries_cpic_caveat(drug):
+    """CPIC: c.2846A>T homozygotes (AS 1.0) may need more than the standard 50% reduction."""
+    profiles = _dpyd_profiles({**_DPYD_REF, "rs67376798": "AA"})
+    assert profiles["DPYD"]["diplotype"] == "D949V/D949V"
+    batch = _batch_entry(profiles, drug)
+    single = lookup_single_drug(drug, profiles)
+    for entry in (batch, single):
+        assert entry["classification"] == "caution"
+        assert _CPIC_D949V_HOM in entry.get("note", "")
+
+
+@pytest.mark.parametrize("genotypes", [
+    {**_DPYD_REF, "rs67376798": "TA"},                         # Normal/D949V, AS 1.5
+    {**_DPYD_REF, "rs3918290": "CT"},                          # Normal/*2A, AS 1.0
+    {**_DPYD_REF, "rs75017182": "CC"},                         # HapB3/HapB3, AS 1.0
+    {**_DPYD_REF, "rs67376798": "TA", "rs75017182": "GC"},     # D949V/HapB3, AS 1.0
+])
+@pytest.mark.parametrize("drug", ["Fluorouracil", "Capecitabine"])
+def test_dpyd_caveat_only_for_homozygous_d949v(genotypes, drug):
+    profiles = _dpyd_profiles(genotypes)
+    for entry in (_batch_entry(profiles, drug), lookup_single_drug(drug, profiles)):
+        assert not entry.get("note")
+
+
+def test_dpyd_d949v_caveat_reaches_dosage_card():
+    profiles = _dpyd_profiles({**_DPYD_REF, "rs67376798": "AA"})
+    card = format_dosage_card(lookup_single_drug("Capecitabine", profiles))
+    assert ">50% reduction in starting dose" in " ".join(card.split())
+
+
+def test_dpyd_d949v_caveat_survives_dose_aware_card():
+    """A visible dose rewrites the recommendation line; the CPIC caveat must stay on the card."""
+    profiles = _dpyd_profiles({**_DPYD_REF, "rs67376798": "AA"})
+    card = " ".join(format_dosage_card(lookup_single_drug("Capecitabine", profiles), visible_dose="500 mg").split())
+    assert "500 mg may need adjustment." in card
+    assert ">50% reduction in starting dose" in card
+
+
+@pytest.mark.parametrize("phenotype", [
+    "Intermediate Metabolizer",
+    "Intermediate Metabolizer (HapB3 not tested)",
+])
+def test_dpyd_d949v_caveat_survives_phenotype_qualifier(phenotype):
+    """#603: a partly genotyped D949V/D949V can carry a qualifier on the phenotype."""
+    from pharmgx_reporter import _dpyd_note, _DPYD_D949V_HOM_NOTE
+    profile = {"phenotype": phenotype, "diplotype": "D949V/D949V"}
+    assert _dpyd_note("DPYD", profile) == _DPYD_D949V_HOM_NOTE
+
+
+def test_dpyd_d949v_caveat_not_for_other_phenotypes():
+    from pharmgx_reporter import _dpyd_note
+    for phenotype in ("Poor Metabolizer", "Normal Metabolizer", "Indeterminate"):
+        assert _dpyd_note("DPYD", {"phenotype": phenotype, "diplotype": "D949V/D949V"}) is None
+
+
+# ── Demo runs offline ─────────────────────────────────────────────────────────
+
+
+def test_script_demo_looks_up_no_host(tmp_path, monkeypatch):
+    """A demo must run offline. HOME is empty so a warm ClinPGx cache cannot hide a call."""
+    import socket
+
+    import pharmgx_reporter
+
+    looked_up = []
+
+    def refuse(host, *args, **kwargs):
+        looked_up.append(host)
+        raise socket.gaierror("network disabled in this test")
+
+    monkeypatch.setattr(socket, "getaddrinfo", refuse)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(sys, "argv", ["pharmgx_reporter.py", "--demo", "--output", str(tmp_path / "out")])
+    pharmgx_reporter.main()
+    assert looked_up == []
+    assert (tmp_path / "out" / "report.md").exists()
+
+
+def test_clawbio_run_demo_skips_clinpgx(tmp_path, monkeypatch):
+    """`clawbio run pharmgx --demo` is the path users and agents take; it must reach the offline demo too."""
+    from clawbio.cli import run_skill
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    result = run_skill("pharmgx", demo=True, output_dir=str(tmp_path / "out"))
+    assert result["success"], result["stderr"][-2000:]
+    assert "Querying ClinPGx" not in result["stdout"]

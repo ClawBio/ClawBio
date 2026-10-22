@@ -20,6 +20,11 @@ from clawbio.common.report import (  # noqa: E402
     generate_report_footer,
     generate_report_header,
 )
+from clawbio.common.reproducibility import (  # noqa: E402
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 
 from bigquery_models import (
     DEFAULT_MAX_BYTES_BILLED,
@@ -391,18 +396,13 @@ def write_reproducibility_bundle(
     output_dir: Path,
     plan: RunPlan,
     result: QueryExecutionResult,
+    cli_args: list[str],
 ) -> None:
+    """Write reproducibility/ last, so checksums cover every file already in output_dir."""
     repro_dir = output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
 
-    command_text = (
-        "#!/usr/bin/env bash\n"
-        f"# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n"
-        f"# Skill: {SKILL_NAME}\n\n"
-        + " ".join(shlex.quote(arg) for arg in sys.argv)
-        + "\n"
-    )
-    (repro_dir / "commands.sh").write_text(command_text, encoding="utf-8")
+    write_commands_sh(output_dir, shlex.join(["python", f"skills/{SKILL_NAME}/bigquery_public.py", *cli_args]))
     (repro_dir / "query.sql").write_text(_default_query_sql(plan), encoding="utf-8")
     (repro_dir / "job_metadata.json").write_text(
         json.dumps(result.raw_metadata, indent=2, default=str),
@@ -412,25 +412,13 @@ def write_reproducibility_bundle(
         json.dumps(_build_provenance_payload(plan, result), indent=2, default=str),
         encoding="utf-8",
     )
-    (repro_dir / "environment.yml").write_text(
-        "\n".join(
-            [
-                "name: clawbio-bigquery-public",
-                "channels:",
-                "  - conda-forge",
-                "  - defaults",
-                "dependencies:",
-                "  - python>=3.10",
-                "  - pip",
-                "  - pip:",
-                f"    - {GOOGLE_AUTH_REQUIREMENT}",
-                f"    - {GOOGLE_BIGQUERY_REQUIREMENT}",
-                f"# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
+    write_environment_yml(
+        output_dir,
+        f"clawbio-{SKILL_NAME}",
+        [GOOGLE_AUTH_REQUIREMENT, GOOGLE_BIGQUERY_REQUIREMENT],
     )
+    outputs = sorted(p for p in output_dir.rglob("*") if p.is_file() and p.name != "checksums.sha256")
+    write_checksums(outputs, output_dir, anchor=output_dir)
 
 
 def _render_markdown_table(rows: list[dict[str, Any]], columns: list[str], limit: int = 10) -> str:

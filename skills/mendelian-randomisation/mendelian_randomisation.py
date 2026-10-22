@@ -21,6 +21,7 @@ import argparse
 import csv
 import json
 import math
+import shlex
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -30,6 +31,15 @@ import numpy as np
 from scipy import stats
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = SCRIPT_DIR.parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 
 DISCLAIMER = (
     "ClawBio is a research and educational tool. It is not a medical device "
@@ -991,7 +1001,6 @@ def _write_result_json(estimates, sens, egger_int, egger_p, exposure, outcome, o
 def _write_repro(output_dir, ts, demo):
     d = output_dir / "reproducibility"
     d.mkdir(exist_ok=True)
-    (d / "commands.sh").write_text(f"#!/usr/bin/env bash\n# Generated: {ts}\npython mendelian_randomisation.py {'--demo' if demo else ''} --output {output_dir}\n", encoding="utf-8")
     (d / "software_versions.json").write_text(json.dumps({"python": sys.version, "numpy": np.__version__, "scipy": stats.scipy.__version__ if hasattr(stats, 'scipy') else "unknown", "generated": ts}, indent=2), encoding="utf-8")
 
 
@@ -1120,6 +1129,28 @@ def main() -> None:
         # skill, so it exits the way argparse exits on any other bad argument rather
         # than on a traceback the user has to interpret.
         parser.error(str(exc))
+    write_reproducibility(output_dir, args)
+
+
+def write_reproducibility(output_dir: Path, args: argparse.Namespace) -> None:
+    """Write reproducibility/ (commands.sh, environment.yml, checksums.sha256)."""
+    cmd = ["python", "skills/mendelian-randomisation/mendelian_randomisation.py"]
+    cmd += ["--demo"] if args.demo else ["--instruments", args.instruments]
+    cmd += ["--output", str(output_dir)]
+    write_commands_sh(output_dir, shlex.join(cmd))
+    env_path = write_environment_yml(
+        output_dir, "clawbio-mendelian-randomisation", [],
+        conda_deps=["numpy>=1.24", "scipy>=1.10", "matplotlib>=3.7"],
+    )
+    outputs = [
+        output_dir / "report.md",
+        output_dir / "result.json",
+        *sorted((output_dir / "tables").glob("*.tsv")),
+        *sorted((output_dir / "figures").glob("*.png")),
+        output_dir / "reproducibility" / "software_versions.json",
+        env_path,
+    ]
+    write_checksums(outputs, output_dir, anchor=output_dir)
 
 
 if __name__ == "__main__":
