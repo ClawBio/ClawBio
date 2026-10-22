@@ -1173,3 +1173,23 @@ def test_clawbio_run_demo_skips_clinpgx(tmp_path, monkeypatch):
     result = run_skill("pharmgx", demo=True, output_dir=str(tmp_path / "out"))
     assert result["success"], result["stderr"][-2000:]
     assert "Querying ClinPGx" not in result["stdout"]
+
+
+@pytest.mark.parametrize("diplotype, tested, untested", [
+    ("677CC/1298NOT_TESTED", "677CC", "1298"),
+    ("677NOT_TESTED/1298AA", "1298AA", "677"),
+])
+def test_mthfr_partial_genotype_label_names_only_what_was_tested(diplotype, tested, untested):
+    """A label must not name a position that was not genotyped (review on #599)."""
+    label = call_phenotype("MTHFR", diplotype)
+    assert tested in label and f"{untested} not tested" in label, label
+    assert phenotype_to_key(label) == "normal_activity"
+
+
+@pytest.mark.parametrize("profiles", [
+    {},                                                                        # MTHFR absent
+    {"MTHFR": {"diplotype": "NOT_TESTED", "phenotype": "Indeterminate (not genotyped)"}},
+])
+def test_methotrexate_reason_shown_when_mthfr_not_genotyped(profiles):
+    entry = next(d for d in lookup_drugs(profiles)["indeterminate"] if d["drug"] == "Methotrexate")
+    assert entry.get("note"), entry

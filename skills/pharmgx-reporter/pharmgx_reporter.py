@@ -324,8 +324,10 @@ GENE_DEFS = {
             # - 677TT/1298AC and 677CT/1298CC: not measured in the papers above. Their labels are
             #   extrapolated from the constituent genotypes (each at least as low as 677TT or as the
             #   compound heterozygote, respectively), not taken from a measured activity value.
-            "Normal MTHFR enzyme activity (677CC)":          ["677CC/1298AA", "677CC/1298NOT_TESTED",
-                                                              "677NOT_TESTED/1298AA"],
+            "Normal MTHFR enzyme activity (677CC)":          ["677CC/1298AA"],
+            # partial genotypes name only the position that was tested (review on #599)
+            "Normal MTHFR enzyme activity (677CC; 1298 not tested)": ["677CC/1298NOT_TESTED"],
+            "Normal MTHFR enzyme activity (1298AA; 677 not tested)": ["677NOT_TESTED/1298AA"],
             "Mildly reduced MTHFR enzyme activity (677CT)":  ["677CT/1298AA"],
             "Mildly reduced MTHFR enzyme activity (1298AC)": ["677CC/1298AC"],
             "Moderately reduced MTHFR enzyme activity (677CT/1298AC compound heterozygous)": ["677CT/1298AC"],
@@ -1342,6 +1344,8 @@ def phenotype_to_key(phenotype_desc):
         "CYP3A5 Non-expressor": "poor_metabolizer",
         # MTHFR activity labels (informational; no drug in GUIDELINES is graded on them)
         "Normal MTHFR enzyme activity (677CC)": "normal_activity",
+        "Normal MTHFR enzyme activity (677CC; 1298 not tested)": "normal_activity",
+        "Normal MTHFR enzyme activity (1298AA; 677 not tested)": "normal_activity",
         "Mildly reduced MTHFR enzyme activity (677CT)": "mildly_reduced_activity",
         "Mildly reduced MTHFR enzyme activity (1298AC)": "mildly_reduced_activity",
         "Moderately reduced MTHFR enzyme activity (677CT/1298AC compound heterozygous)": "moderately_reduced_activity",
@@ -1407,6 +1411,16 @@ def lookup_drugs(profiles):
             continue
 
         gene = drug["gene"]
+        if drug.get("informational_only"):
+            # no guideline uses this gene for this drug: never graded (issue #594),
+            # and the reason is shown whether or not the gene was genotyped
+            results["indeterminate"].append({
+                "drug": drug_name, "brand": drug["brand"],
+                "class": drug["class"], "gene": gene,
+                "classification": "indeterminate", "note": drug.get("note", ""),
+            })
+            continue
+
         if gene not in profiles:
             results["indeterminate"].append({
                 "drug": drug_name, "brand": drug["brand"],
@@ -1426,14 +1440,6 @@ def lookup_drugs(profiles):
             continue
 
         recs = drug.get("recs", {})
-        if drug.get("informational_only"):
-            # no guideline uses this gene for this drug: never graded (issue #594)
-            results["indeterminate"].append({
-                "drug": drug_name, "brand": drug["brand"],
-                "class": drug["class"], "gene": gene,
-                "classification": "indeterminate", "note": drug.get("note", ""),
-            })
-            continue
         classification = recs.get(pheno_key, "indeterminate")
 
         entry = {
