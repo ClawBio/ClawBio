@@ -32,7 +32,9 @@ eqtl_render:
     plink_version: ""
     window_bp: 1000000
     lead_variant_id: "1_109274968_G_T"
-    n_pairs: 2547
+    # 2547 -> 2487 (#692): the eQTL fetch now collapses the catalogue's one-row-per-rsID
+    # copies (53 indels had contributed 60 extra pairs); the cassette bytes did not change.
+    n_pairs: 2487
     n_palindromic_excluded: 333
     scatter_downsampled: false
     scatter_downsample_target: 5000
