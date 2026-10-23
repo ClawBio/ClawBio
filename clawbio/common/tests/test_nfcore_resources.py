@@ -109,6 +109,21 @@ def test_replay_refuses_unreadable_recorded_memory(tmp_path):
 
 
 
+def test_replay_refuses_a_config_with_more_than_one_limits_block(tmp_path):
+    """The guard reads the first cpus:/memory: line but rewrote every one, so a
+    second resourceLimits block (say a hand-added withLabel) silently got the
+    first block's limits. It cannot bound such a config faithfully: refuse it."""
+    original = (
+        "executor.cpus = 8\nexecutor.memory = '16.GB'\nprocess {\n"
+        "    resourceLimits = [\n        cpus: 4,\n        memory: '8.GB',\n    ]\n"
+        "    withLabel: process_high {\n        resourceLimits = [\n            cpus: 8,\n"
+        "            memory: '16.GB',\n        ]\n    }\n}\n"
+    )
+    code, stderr, captured = _replay_config(tmp_path, original, runtime_cpus=64, runtime_bytes=256 * _GB)
+    assert code != 0 and captured is None
+    assert "resourceLimits" in stderr
+
+
 @settings(deadline=None, max_examples=40, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(
     recorded_cpus=st.integers(1, 256),

@@ -93,6 +93,13 @@ esac
 case "$SOURCE_MEMORY $LIMIT_MEMORY" in
   *[!0-9.\ ]*) echo "ERROR: Invalid recorded resource limits." >&2; exit 1 ;;
 esac
+# One resourceLimits block is what the wrapper writes; a second one (a hand-added
+# withLabel, say) would be rewritten with the first block's limits, so refuse it.
+_clawbio_count() { awk -v pattern="$1" '$0 ~ pattern {n++} END {print n + 0}' "$SOURCE_RESOURCE_CONFIG"; }
+if [[ "$(_clawbio_count '^[[:space:]]*cpus[[:space:]]*:')" -gt 1 || "$(_clawbio_count '^[[:space:]]*memory[[:space:]]*:')" -gt 1 ]]; then
+  echo "ERROR: resource_limits.config has more than one resourceLimits block; this replay can bound only one. Keep a single block." >&2
+  exit 1
+fi
 BOUNDED_CPUS="$(_clawbio_bound_cpus "$SOURCE_CPUS")"
 BOUNDED_MEMORY="$(_clawbio_bound_memory "$SOURCE_MEMORY")"
 BOUNDED_LIMIT_CPUS="$(_clawbio_bound_cpus "$LIMIT_CPUS")"
