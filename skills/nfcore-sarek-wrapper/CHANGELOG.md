@@ -18,11 +18,7 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 - Reuse parsed preflight Java/Nextflow versions in the success bundle, keeping manifest, replay and environment pins consistent instead of capturing raw tool banners.
 - Route launcher defaults outside the source tree and correct example output paths.
-- Validate native values against the pinned 3.8.1 scalar schema; reject duplicate/malformed parameter mappings and ambiguous CSV inputs.
-- **Parameters nf-core/sarek does not validate are accepted again.** Its schema types `freebayes_filter` and
-  `vep_cache_version` as strings while its own defaults are 30 and 113, so it lists both in
-  `validation.defaultIgnoreParams`. The scalar check rejected `freebayes_filter: 20` and `vep_cache_version: 113`
-  from a params file; it now skips the pinned `defaultIgnoreParams`, as nf-schema does.
+- Reject duplicate/malformed parameter mappings, ambiguous CSV inputs and NaN or infinite parameter values; nf-schema checks every other parameter rule against the pinned 3.8.1 schema when Nextflow starts, and its refusals are named in `result.json`.
 - **Replay reads the recorded resource limits exactly.** The replay guard took the first line mentioning cpus
   or memory and stripped every non-digit, so a hand-edited `15.5.GB` became 155 GB. It now reads the
   `executor.cpus` and `executor.memory` lines with their unit and decimal point.

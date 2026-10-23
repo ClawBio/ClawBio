@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 
 def _run(api, command, output, **overrides):
@@ -185,3 +187,46 @@ def test_sigterm_stops_nextflow_before_the_wrapper_exits(tmp_path):
     assert wrapper.wait(timeout=30) == 128 + signal.SIGTERM
     with pytest.raises(ProcessLookupError):
         os.kill(int(pid_file.read_text()), 0)
+
+
+# nf-schema's refusal, as Nextflow 26.04.3 printed it for nf-core/sarek 3.8.1.
+_NF_SCHEMA_REFUSAL = """ERROR ~ Validation of pipeline parameters failed!
+
+ -- Check '.nextflow.log' file for details
+The following invalid input values have been detected:
+
+* --clip_r1 (-1): -1 is less than 0
+* --wes (false): Value is [string] but should be [boolean]
+
+ -- Check script 'subworkflows/nf-core/utils_nfschema_plugin/main.nf' at line: 68
+"""
+
+
+def test_nf_schema_refusal_names_every_invalid_value(tmp_path):
+    """nf-schema is the only parameter validator, so its refusal must reach the
+    user as clearly as the wrapper's own errors do."""
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    errors = importlib.import_module("clawbio.common.nfcore.errors")
+    (tmp_path / ".nextflow.log").write_text(_NF_SCHEMA_REFUSAL)
+    with pytest.raises(errors.SkillError) as failure:
+        _run(api, [sys.executable, "-c", "raise SystemExit(1)"], tmp_path)
+    assert "nf-schema" in failure.value.fix
+    assert "--clip_r1 (-1): -1 is less than 0" in failure.value.fix
+    assert "--wes (false): Value is [string] but should be [boolean]" in failure.value.fix
+
+
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=25)
+@given(st.lists(
+    st.tuples(st.from_regex(r"[a-z][a-z_]{0,12}", fullmatch=True), st.text(alphabet="abc019 -.[]", min_size=1, max_size=20)),
+    min_size=1, max_size=4, unique_by=lambda item: item[0],
+))
+def test_each_refused_value_is_listed_once_across_logs(tmp_path, refused):
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    listed = [f"--{name} ({value}): {value} is invalid" for name, value in refused]
+    text = "The following invalid input values have been detected:\n\n" + "".join(f"* {line}\n" for line in listed)
+    logs = [tmp_path / "stdout.txt", tmp_path / "stderr.txt", tmp_path / ".nextflow.log"]
+    for log in logs:  # Nextflow repeats the refusal in its console output and its log
+        log.write_text(text + "\nunrelated line\n* --not_a_refusal (x): listed elsewhere\n")
+    hint = api.environment_failure_hints(*logs)
+    assert [hint.count(line) for line in listed] == [1] * len(listed)
+    assert "not_a_refusal" not in hint

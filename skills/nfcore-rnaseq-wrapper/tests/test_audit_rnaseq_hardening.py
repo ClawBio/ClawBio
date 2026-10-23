@@ -541,7 +541,7 @@ def _real_params(parser, extra):
 
 
 def _sample_argv(parser, action):
-    """A value accepted by both the parser and the pinned scalar contract."""
+    """A value accepted by both the parser and the params builder."""
     flag = next(option for option in action.option_strings if option.startswith("--"))
     if action.nargs == 0:
         return [flag]

@@ -32,6 +32,8 @@ _CONFIG_PARSE_FAILURE_SIGNATURES = (
     "unable to parse config file",
     "configparseexception",
 )
+# nf-schema's header above the list of refused parameters, one "* --name (value): reason" each.
+_NF_SCHEMA_REFUSAL_HEADER = "the following invalid input values have been detected"
 
 
 def read_log_tail(path: Path, limit: int = 65536) -> str:
@@ -66,6 +68,25 @@ def macos_tmp_failure_hint(output_dir: Path) -> str:
     )
 
 
+def nf_schema_refusals(text: str) -> list[str]:
+    """Each "--name (value): reason" nf-schema listed under its refusal header, once."""
+    refused: list[str] = []
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if _NF_SCHEMA_REFUSAL_HEADER not in line.lower():
+            continue
+        listing = False
+        for entry in lines[index + 1:]:
+            entry = entry.strip()
+            if entry.startswith("* --"):
+                listing = True
+                if entry[2:] not in refused:
+                    refused.append(entry[2:])
+            elif entry or listing:
+                break
+    return refused
+
+
 def environment_failure_hints(
     stdout_path: Path, stderr_path: Path, nextflow_log_path: Path | None = None
 ) -> str:
@@ -85,6 +106,13 @@ def environment_failure_hints(
         parts.append(read_log_tail(nextflow_log_path))
     blob = "\n".join(parts).lower()
     hints: list[str] = []
+    refused = nf_schema_refusals("\n".join(parts))
+    if refused:
+        hints.append(
+            " nf-schema refused these parameters against the pinned pipeline's "
+            "nextflow_schema.json: " + "; ".join(refused) + ". Correct them in your flags "
+            "or --params-file and re-run."
+        )
     if any(sig in blob for sig in _MEMORY_FAILURE_SIGNATURES):
         hints.append(
             " A process requested more memory or CPUs than this machine provides "

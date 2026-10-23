@@ -1,7 +1,6 @@
 """Byte-stable nf-core params YAML; no scientific defaults."""
 
 import math
-import re
 from pathlib import Path
 
 import yaml
@@ -66,75 +65,27 @@ def load_unique_yaml(text: str):
 
     return yaml.load(text, Loader=UniqueLoader)
 
-def validate_parameter_scalars(
-    params: dict, contract: dict, *, patterns: bool = True
-) -> None:
-    """Check pinned scalar constraints; leave relationships to preflight.
+def reject_non_finite_numbers(params: dict) -> None:
+    """Refuse NaN and infinity anywhere in the parameters.
 
-    nf-schema ignores null/false unset values, including reference sentinels.
-    Quoted booleans stay strings so they cannot silently become truthy flags.
+    Every other rule belongs to nf-schema, which checks the pinned
+    nextflow_schema.json when Nextflow starts. It cannot judge these: it serialises
+    the parameters to JSON first, which has no NaN or infinity, so it fails with a
+    serialisation error that names no parameter.
     """
+
+    def non_finite(value) -> bool:
+        if isinstance(value, float):
+            return not math.isfinite(value)
+        if isinstance(value, dict):
+            return any(non_finite(item) for item in value.values())
+        if isinstance(value, (list, tuple)):
+            return any(non_finite(item) for item in value)
+        return False
+
     for name, value in params.items():
-        spec = contract.get(name)
-        if not spec or value is None or value is False or value == "":
-            continue
-        kind = spec.get("type")
-        allowed = [kind] if isinstance(kind, str) else (kind or [])
-        numeric = isinstance(value, (int, float)) and not isinstance(value, bool)
-        matches = {
-            "string": isinstance(value, str),
-            "boolean": isinstance(value, bool),
-            "integer": numeric
-            and (not isinstance(value, float) or math.isfinite(value))
-            and int(value) == value,
-            "number": numeric
-            and (not isinstance(value, float) or math.isfinite(value)),
-            "object": isinstance(value, dict),
-            "array": isinstance(value, list),
-        }
-        if allowed and not any(matches.get(option, False) for option in allowed):
-            raise ValueError(
-                f"{name} must have type {kind}; got {type(value).__name__}. Numeric values must be finite."
-            )
-        if patterns:
-            if "enum" in spec and value not in spec["enum"]:
-                raise ValueError(f"{name} must be one of {spec['enum']}.")
-            if isinstance(value, str):
-                if "pattern" in spec and not re.search(spec["pattern"], value):
-                    raise ValueError(
-                        f"{name} does not match the upstream pattern {spec['pattern']!r}."
-                    )
-                if "minLength" in spec and len(value) < spec["minLength"]:
-                    raise ValueError(
-                        f"{name} is shorter than its upstream minimum length."
-                    )
-                if "maxLength" in spec and len(value) > spec["maxLength"]:
-                    raise ValueError(f"{name} exceeds its upstream maximum length.")
-        if numeric:
-            if "minimum" in spec and value < spec["minimum"]:
-                raise ValueError(f"{name} must be >= {spec['minimum']}.")
-            if "maximum" in spec and value > spec["maximum"]:
-                raise ValueError(f"{name} must be <= {spec['maximum']}.")
-            branches = spec.get("oneOf", [])
-            if branches and not any(
-                ("const" in branch and value == branch["const"])
-                or ("minimum" in branch and value >= branch["minimum"])
-                for branch in branches
-            ):
-                raise ValueError(
-                    f"{name} does not satisfy its numeric alternatives: {branches}."
-                )
-
-def validate_against_contract(params: dict, contract: dict, *, patterns: bool = True) -> None:
-    """Validate against a pinned contract, skipping what upstream skips.
-
-    nf-schema does not validate the pipeline's validation.defaultIgnoreParams:
-    nf-core/sarek 3.8.1 lists freebayes_filter and vep_cache_version there because
-    its schema types them as strings while its own defaults are integers.
-    """
-    ignored = set(contract.get("ignored_parameters", ()))
-    checked = {name: value for name, value in params.items() if name not in ignored}
-    validate_parameter_scalars(checked, contract["parameters"], patterns=patterns)
+        if non_finite(value):
+            raise ValueError(f"{name!r} holds NaN or infinity; use a finite number.")
 
 
 def load_unique_json(text: str):

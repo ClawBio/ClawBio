@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 import re
-import json
 import sys
 from pathlib import Path
 
@@ -56,17 +55,17 @@ def _posix_or_uri(value: str) -> str:
     return resolved if isinstance(resolved, str) else resolved.as_posix()
 
 
-def _validate_native_scalar_params(params: dict[str, object]) -> None:
-    from clawbio.common.nfcore.parameters import validate_against_contract
+def _reject_non_finite_params(params: dict[str, object]) -> None:
+    """Schema rules are nf-schema's; it checks the pinned schema when Nextflow starts."""
+    from clawbio.common.nfcore.parameters import reject_non_finite_numbers
 
-    contract = json.loads((_SKILL_DIR / "reproducibility/upstream_scalar_contract.json").read_text())
     try:
-        validate_against_contract(params, contract)
+        reject_non_finite_numbers(params)
     except ValueError as exc:
         raise SkillError(
             stage="validation", error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
             message=f"Invalid native scrnaseq parameter: {exc}",
-            fix="Use the scalar types and numeric bounds in the pinned nf-core/scrnaseq schema.",
+            fix="nf-schema cannot represent NaN or infinity; pass a finite number.",
             details={"error": str(exc)},
         ) from exc
 
@@ -103,7 +102,7 @@ def build_effective_params(
     _add_save_flags(params, args)
     _add_symbolic_reference_params(params, args)
     _add_reference_path_params(params, args)
-    _validate_native_scalar_params(params)
+    _reject_non_finite_params(params)
     return params
 
 

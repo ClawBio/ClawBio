@@ -304,7 +304,7 @@ output/
 
 ## Gotchas
 
-- Emitted parameters are checked against the pinned upstream scalar contract (types, finite numbers, bounds, enums, and filename patterns). Malformed or ambiguous samplesheets fail before normalized snapshots are written. An atomic launch manifest supports resuming failed launches; resumed `--check` also validates params and samplesheet checksums.
+- nf-schema checks every parameter against the pinned `nextflow_schema.json` when Nextflow starts; the wrapper refuses only NaN and infinity, which nf-schema cannot represent, and a failed run names each value nf-schema refused. Malformed or ambiguous samplesheets fail before normalized snapshots are written. An atomic launch manifest supports resuming failed launches; resumed `--check` also validates params and samplesheet checksums.
 - Local Docker runs, including demos, cap both per-process requests and the local executor budget to detected host/Docker CPU and memory capacity. Site/cloud profiles and object-store work directories keep their own resource policy. Explicit `--nextflow-config` files have final precedence. Resource caps cannot make a dataset fit insufficient RAM.
 - `strandedness` is required per row and must be `auto`, `forward`, `reverse`, or `unstranded`.
 - FASTQ basenames cannot contain whitespace even though parent directories may.

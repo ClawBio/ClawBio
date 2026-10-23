@@ -3,6 +3,7 @@
 import csv
 import importlib
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -88,39 +89,31 @@ def test_sorted_json_writer_supports_legacy_path_conversion(tmp_path):
     assert path.read_bytes() == b'{\n  "a": "file",\n  "z": 1\n}\n'
 
 
-_IGNORING_CONTRACT = {
-    "ignored_parameters": ["genomes", "freebayes_filter", "vep_cache_version"],
-    "parameters": {
-        "freebayes_filter": {"type": "string"},
-        "vep_cache_version": {"type": "string"},
-        "aligner": {"type": "string", "enum": ["bwa-mem", "dragmap"]},
-    },
-}
+_FINITE = st.one_of(
+    st.none(), st.booleans(), st.integers(), st.floats(allow_nan=False, allow_infinity=False),
+    st.text(max_size=8),
+)
+_NAMES = st.text(min_size=1, max_size=8)
 
 
-def test_upstream_ignored_parameters_are_not_validated():
-    """nf-schema skips validation.defaultIgnoreParams. nf-core/sarek 3.8.1 lists
-    freebayes_filter and vep_cache_version there because its schema types them as
-    strings while its own defaults are integers (30 and 113)."""
-    from clawbio.common.nfcore.parameters import validate_against_contract
+@given(st.dictionaries(_NAMES, _FINITE | st.lists(_FINITE, max_size=3) | st.dictionaries(_NAMES, _FINITE, max_size=2), max_size=6))
+def test_finite_parameters_pass(params):
+    from clawbio.common.nfcore.parameters import reject_non_finite_numbers
 
-    validate_against_contract({"freebayes_filter": 30, "vep_cache_version": 113}, _IGNORING_CONTRACT)
-    validate_against_contract({"freebayes_filter": 20}, _IGNORING_CONTRACT, patterns=False)
-    with pytest.raises(ValueError):
-        validate_against_contract({"aligner": "star"}, _IGNORING_CONTRACT)
-    with pytest.raises(ValueError):
-        validate_against_contract({"freebayes_filter": 30}, {**_IGNORING_CONTRACT, "ignored_parameters": []})
+    reject_non_finite_numbers(params)
 
 
 @given(
-    st.one_of(
-        st.integers(), st.floats(allow_nan=True, allow_infinity=True), st.text(max_size=8),
-        st.booleans(), st.lists(st.integers(), max_size=3),
-    )
+    st.dictionaries(_NAMES, _FINITE, max_size=6),
+    _NAMES,
+    st.sampled_from([float("nan"), float("inf"), float("-inf")]),
+    st.sampled_from(["scalar", "list", "mapping"]),
 )
-def test_any_value_of_an_ignored_parameter_passes_and_others_still_fail(value):
-    from clawbio.common.nfcore.parameters import validate_against_contract
+def test_a_non_finite_number_is_refused_and_named(params, name, value, shape):
+    """nf-schema cannot serialise NaN or infinity to JSON, so such a value can never
+    reach the pipeline: refuse it before Nextflow starts, wherever it sits."""
+    from clawbio.common.nfcore.parameters import reject_non_finite_numbers
 
-    validate_against_contract({"freebayes_filter": value}, _IGNORING_CONTRACT)
-    with pytest.raises(ValueError):
-        validate_against_contract({"freebayes_filter": value, "aligner": "star"}, _IGNORING_CONTRACT)
+    nested = {"scalar": value, "list": [1, value], "mapping": {"inner": value}}[shape]
+    with pytest.raises(ValueError, match=re.escape(repr(name))):
+        reject_non_finite_numbers({**params, name: nested})

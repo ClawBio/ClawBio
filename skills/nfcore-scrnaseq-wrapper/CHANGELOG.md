@@ -17,7 +17,7 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 ### Fixed
 
 - Route launcher defaults outside the source tree and correct example output paths.
-- Validate emitted values against the pinned 4.1.0 scalar schema and reject ambiguous CSV inputs, skipping what the pinned `validation.defaultIgnoreParams` lists (`genomes`), as nf-schema does.
+- Reject ambiguous CSV inputs and NaN or infinite parameter values; nf-schema checks every other parameter rule against the pinned 4.1.0 schema when Nextflow starts, and its refusals are named in `result.json`.
 - Canonicalize recognized protocol aliases and preserve remote MultiQC configuration URIs.
 - Record launch manifests before execution and verify samplesheet checksums on resumed runs/checks.
 - Bound local Docker scheduler/process capacity, including demos and macOS; preserve user-config precedence in live runs and replay. A demo's per-process limits stay within `-profile test`'s own 4 CPUs / 15 GB (lowered on a smaller machine, never raised); the executor's aggregate budget is the host's, so tasks still run in parallel.

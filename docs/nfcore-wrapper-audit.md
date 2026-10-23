@@ -22,7 +22,7 @@ runner timeout, parser-environment, portable-remapping, checksum, demo-reporting
 and warning-relay fixes are retained.
 
 Complementary audit helpers live in the relevant package modules: `parameters`
-for strict mappings and scalar contracts, `source` for literal manifest versions,
+for strict mappings and non-finite numbers, `source` for literal manifest versions,
 `runtime` for Docker CPU probes, `cli` for manifest work-directory spelling,
 `errors` for JSON-safe details, and `artifacts` for strict CSV input and atomic
 prepared manifests. `resources` contains local Docker eligibility and the portable
@@ -130,29 +130,25 @@ spellings preserve long runs and zero/unlimited mode. The public
 Command-routing tests stub both execution adapters and forbid actual process
 creation, keeping those unit checks separate from deliberate native runs.
 
-## Upstream contracts
+## Upstream releases and parameter validation
 
-| Wrapper | Pipeline release | Minimum Nextflow | Parameters in scalar contract |
-| --- | --- | --- | --- |
-| Bulk RNA-seq | [rnaseq 3.26.0](https://github.com/nf-core/rnaseq/tree/3.26.0) | 25.04.3 | 133 |
-| Single-cell RNA-seq | [scrnaseq 4.1.0](https://github.com/nf-core/scrnaseq/tree/4.1.0) | 25.04.0 | 66 |
-| Variant calling | [sarek 3.8.1](https://github.com/nf-core/sarek/tree/3.8.1) | 25.10.2 | 172 |
+| Wrapper | Pipeline release | Minimum Nextflow |
+| --- | --- | --- |
+| Bulk RNA-seq | [rnaseq 3.26.0](https://github.com/nf-core/rnaseq/tree/3.26.0) | 25.04.3 |
+| Single-cell RNA-seq | [scrnaseq 4.1.0](https://github.com/nf-core/scrnaseq/tree/4.1.0) | 25.04.0 |
+| Variant calling | [sarek 3.8.1](https://github.com/nf-core/sarek/tree/3.8.1) | 25.10.2 |
 
-Each wrapper now includes `reproducibility/upstream_scalar_contract.json`, recording
-the official schema URL, release, SHA-256, and scalar constraints. The generator
-reads locally downloaded release sources and can check drift without network access:
+All three releases load nf-schema with `validate_params = true`, so Nextflow checks
+every parameter against the pinned `nextflow_schema.json` before any task runs and
+skips the release's own `validation.defaultIgnoreParams`. Checked on nf-core/sarek
+3.8.1 with Nextflow 26.04.3: it refuses `clip_r1: -1` ("-1 is less than 0") and
+`wes: "false"` ("Value is [string] but should be [boolean]"), fails on `.nan` and
+`.inf` because JSON cannot represent them, and accepts `freebayes_filter: 20`.
+The wrappers therefore keep no copy of those rules. They refuse only NaN and
+infinity, before Nextflow starts and naming the parameter, and when nf-schema refuses
+a run the failure's fix lists each refused value.
 
-```bash
-python scripts/generate_nfcore_scalar_contracts.py --upstream-dir /path/to/releases --check
-```
-
-The release directory must contain `rnaseq-3.26.0`, `scrnaseq-4.1.0`, and `sarek-3.8.1`.
-All three generated contracts matched the downloaded official schemas byte for byte.
-The contracts validate emitted native types, finite numbers, numeric bounds,
-enumerations, patterns, string lengths, and the numeric alternatives used by Sarek's
-`split_fastq`. Existing pipeline-specific relationship and reference checks remain
-in preflight. This is a projection of the parameter schemas, not a replacement for
-nf-schema or its runtime file checks.
+Pipeline-specific relationship and reference checks remain in preflight.
 
 ## Corrected behavior
 
@@ -162,9 +158,10 @@ nf-schema or its runtime file checks.
   invalid encodings before creating normalized samplesheet snapshots. Accept a
   UTF-8 BOM without treating it as part of the first column name.
 - Reject duplicate YAML/JSON mapping keys and malformed Sarek parameter files with
-  structured errors. Quoted booleans cannot silently enable scientific flags.
-- Validate all emitted parameters against the pinned scalar constraints, including
-  reference filename patterns and unsupported enum values.
+  structured errors. A quoted boolean never silently enables a scientific flag:
+  nf-schema refuses it at launch.
+- Refuse NaN and infinity in any emitted parameter; leave every other schema rule
+  to nf-schema.
 - Preserve remote single-cell MultiQC configuration URIs instead of resolving them
   as local filesystem paths.
 - Convert recognized single-cell protocol aliases to upstream's case-sensitive
@@ -243,7 +240,7 @@ downloaded scrnaseq 4.1.0 release on all three Python versions. Set
 
 ```bash
 CLAWBIO_NFCORE_UPSTREAM_DIR=/path/to/releases python -m pytest \
-  tests/test_nfcore_contract_generation.py \
+  tests/test_nfcore_pinned_sources.py \
   tests/test_nfcore_wrapper_audit.py tests/test_nfcore_packaging.py \
   clawbio/common/tests/test_nfcore_*.py skills/nfcore-rnaseq-wrapper/tests \
   skills/nfcore-scrnaseq-wrapper/tests skills/nfcore-sarek-wrapper/tests \
@@ -293,7 +290,7 @@ The pre-package baseline at `ab0fd04` had 7,934 passed and the same proteomics
 failure. No new repository failures were found after the package integration.
 
 The integration wheel was built from the source distribution. It contains the
-shared package and all three scalar contracts, with no competing monolithic module.
+shared package, with no competing monolithic module.
 All shared module bytes match the tested checkout. All three installed package
 remappers run with `python -I -S`, without site packages or `PYTHONPATH`.
 Installed outside the checkout with the locked dependency environment available,

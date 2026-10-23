@@ -17,7 +17,7 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 ### Fixed
 
 - Route launcher defaults outside the source tree and correct example output paths.
-- Reject ambiguous CSV inputs and validate emitted values against the pinned 3.26.0 scalar schema, skipping what the pinned `validation.defaultIgnoreParams` lists (`genomes` and `igenomes_base`), as nf-schema does.
+- Reject ambiguous CSV inputs and NaN or infinite parameter values; nf-schema checks every other parameter rule against the pinned 3.26.0 schema when Nextflow starts, and its refusals are named in `result.json`.
 - Record launch manifests before execution; guard resumed checks and track the work directory.
 - Parse local versions safely, bound Docker scheduler/process capacity, reject nonfinite timeouts, and bound failure-log reads. A demo's per-process limits stay within `-profile test`'s own 4 CPUs / 15 GB (lowered on a smaller machine, never raised); the executor's aggregate budget is the host's, so tasks still run in parallel.
 - Terminate interrupted process groups and align Python metadata with the repository floor.

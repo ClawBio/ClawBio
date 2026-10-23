@@ -243,9 +243,9 @@ def test_local_source_version_checked(wrapper, tmp_path, monkeypatch):
     [
         "tools: [unterminated",
         "wes: true\nwes: false\n",
-        'wes: "false"\n',
         "clip_r1: .nan\n",
-        "clip_r1: -1\n",
+        "clip_r1: -.inf\n",
+        "ascat_ploidy: [1, .inf]\n",
     ],
 )
 def test_invalid_params_file(wrapper, tmp_path, content):
@@ -255,6 +255,24 @@ def test_invalid_params_file(wrapper, tmp_path, content):
     with pytest.raises(companions["errors"].SkillError) as exc:
         companions["params_builder"]._load_user_params_file(str(source))
     assert exc.value.error_code == "INVALID_FLAG_COMBINATION"
+
+
+@pytest.mark.parametrize("wrapper", ["sarek"], indirect=True)
+@pytest.mark.parametrize(
+    "content",
+    ['wes: "false"\n', "clip_r1: -1\n", "aligner: 5\n", "freebayes_filter: 20\n"],
+)
+def test_params_file_schema_rules_are_left_to_nf_schema(wrapper, tmp_path, content):
+    """nf-schema checks every parameter against the pinned schema when Nextflow
+    starts (verified against sarek 3.8.1: it refuses `clip_r1: -1` and `wes: "false"`
+    and skips `freebayes_filter`), so the wrapper keeps no second copy of those
+    rules to drift from upstream."""
+    import yaml
+
+    _, _, companions = wrapper
+    source = tmp_path / "params.yaml"
+    source.write_text(content)
+    assert companions["params_builder"]._load_user_params_file(str(source)) == yaml.safe_load(content)
 
 
 @pytest.mark.parametrize("available", [1, 2, 4, 7])
@@ -943,7 +961,7 @@ def test_restart_bam_path_matches_upstream_full_path_pattern(wrapper, tmp_path):
 
 
 @pytest.mark.parametrize("wrapper", ["sarek"], indirect=True)
-def test_sarek_check_validates_emitted_schema_before_committing_sheet(
+def test_sarek_check_refuses_a_non_finite_param_before_committing_sheet(
     wrapper, tmp_path, monkeypatch
 ):
     from types import SimpleNamespace
@@ -957,7 +975,7 @@ def test_sarek_check_validates_emitted_schema_before_committing_sheet(
             "--output",
             str(output),
             "--extra-param",
-            "publish_dir_mode=invalid",
+            "ascat_ploidy=nan",
         ]
     )
     monkeypatch.setattr(
@@ -976,7 +994,7 @@ def test_sarek_check_validates_emitted_schema_before_committing_sheet(
     with pytest.raises(companions["errors"].SkillError) as exc:
         module._run_wrapper(args, output)
     assert exc.value.error_code == "INVALID_FLAG_COMBINATION"
-    assert "publish_dir_mode" in exc.value.message
+    assert "ascat_ploidy" in exc.value.message
     assert not (output / "reproducibility/samplesheet.demo.csv").exists()
 
 
@@ -1020,9 +1038,6 @@ def test_params_file_accepts_sarek_defaults_its_schema_ignores(wrapper, tmp_path
     assert params["freebayes_filter"] == 30 and params["vep_cache_version"] == 113
     source.write_text("freebayes_filter: 20\n")
     assert companions["params_builder"]._load_user_params_file(str(source))["freebayes_filter"] == 20
-    source.write_text("aligner: 5\n")
-    with pytest.raises(companions["errors"].SkillError):
-        companions["params_builder"]._load_user_params_file(str(source))
 
 
 def _resource_config(name, module, tmp_path, argv):

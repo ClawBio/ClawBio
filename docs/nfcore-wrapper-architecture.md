@@ -9,7 +9,7 @@ The three implemented nf-core skills use `clawbio.common.nfcore` for mechanical 
 | paths | URI preservation, path containment and the single /tmp predicate |
 | cli | `--timeout-hours` parsing (finite, non-negative), timeout seconds, `--work-dir` resolution and stable manifest spelling |
 | commands | Nextflow argv and the display form, including the environment the release needs |
-| parameters | params.yaml text: fixed header, key order, one value per line; strict mapping parsing and pinned scalar-contract validation that skips the pipeline's `defaultIgnoreParams`, as nf-schema does |
+| parameters | params.yaml text: fixed header, key order, one value per line; strict mapping parsing; refuses NaN and infinity, which nf-schema cannot represent. Every other parameter rule is nf-schema's, checked against the pinned schema when Nextflow starts |
 | execution | Logs, process-group lifecycle (timeout, Ctrl+C and SIGTERM all stop Nextflow), bounded log reads, ordered failure hints |
 | launcher | POSIX root-launcher signal forwarding and bounded graceful shutdown before a wrapper exits or its runner deadline expires |
 | failures | result.json, stdout box and stderr JSON for SkillError and unexpected errors |
@@ -25,9 +25,9 @@ Shared modules never import a skill's bare `schemas`, `errors`, or orchestrator.
 
 The compatibility audit builds on the shared package from PR #623. There is no
 competing `clawbio/common/nfcore.py` module or second execution/relocation runtime.
-Scalar contracts stay beside each pinned skill and record the SHA-256 of the pinned
-`nextflow_schema.json` and `nextflow.config` and that config's `defaultIgnoreParams`;
-the shared parameter validator receives the selected contract explicitly. Prepared-manifest payloads and resource
+Parameter validation is nf-schema's: the wrappers keep no copy of upstream schema
+rules that could drift from the pinned release, and `execution` names each value
+nf-schema refused in the failure's fix. Prepared-manifest payloads and resource
 ceilings remain pipeline policy; shared helpers only write the supplied checkpoint
 or render a replay guard. Combined tests also check that collecting wrapper tests
 preserves the real public `clawbio` package instead of substituting a partial stub.

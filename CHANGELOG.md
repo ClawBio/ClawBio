@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   params.yaml writing and the standalone bundle remapper instead of keeping three
   copies; scientific policy (references, samplesheets, presets, resources,
   checksum scope) stays in each skill. See `docs/nfcore-wrapper-architecture.md`.
+  Parameter validation stays with nf-schema, which checks the pinned
+  `nextflow_schema.json` when Nextflow starts; the wrappers keep no copy of those
+  rules. They refuse only NaN and infinity, which nf-schema cannot represent, and
+  a run nf-schema refuses names each refused value in `result.json`.
 - `biostudies-fetch` and `arrayexpress-fetch` resolve file downloads from the
   BioStudies `/info` endpoint's `httpLink` rather than the hardcoded
   `/biostudies/files/{acc}/{path}` path. Marked `DIVERGES FROM UPSTREAM` in the
@@ -76,8 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nf-core's test profile runs. Per-skill details are in each wrapper's CHANGELOG.
 - **nf-core bundles record their container images.** Each wrapper's `reproducibility/containers.json`
   lists every image with its digest and the processes that ran it, and `containers.config` pins them
-  for replays without a Nextflow cache. Sarek parameters that nf-core itself does not validate
-  (`validation.defaultIgnoreParams`) are accepted again.
+  for replays without a Nextflow cache.
 - **`clawbio run` relays a successful skill's `WARNING:` lines.** stderr was shown
   only on failure, so e.g. `--demo --skip-qc` succeeded without saying the flag had
   no effect.

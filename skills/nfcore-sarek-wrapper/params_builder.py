@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-import json
 import sys
 from pathlib import Path
 
@@ -157,17 +156,17 @@ _STRING_FIELDS = (
     "trace_report_suffix",
 )
 
-def _validate_native_scalar_params(params: dict[str, object], *, patterns: bool = True) -> None:
-    from clawbio.common.nfcore.parameters import validate_against_contract
+def _reject_non_finite_params(params: dict[str, object]) -> None:
+    """Schema rules are nf-schema's; it checks the pinned schema when Nextflow starts."""
+    from clawbio.common.nfcore.parameters import reject_non_finite_numbers
 
-    contract = json.loads((_SKILL_DIR / "reproducibility/upstream_scalar_contract.json").read_text())
     try:
-        validate_against_contract(params, contract, patterns=patterns)
+        reject_non_finite_numbers(params)
     except ValueError as exc:
         raise SkillError(
             stage="validation", error_code=ErrorCode.INVALID_FLAG_COMBINATION,
             message=f"Invalid native sarek parameter: {exc}",
-            fix="Use the scalar types and numeric bounds in the pinned nf-core/sarek schema.",
+            fix="nf-schema cannot represent NaN or infinity; pass a finite number.",
             details={"error": str(exc)},
         ) from exc
 
@@ -211,7 +210,7 @@ def build_effective_params(
     _add_flags(params, args)
     _add_tuning_params(params, args)
     _add_extra_params(params, args)
-    _validate_native_scalar_params(params)
+    _reject_non_finite_params(params)
     return params
 
 
@@ -249,7 +248,7 @@ def _load_user_params_file(params_file: str | None) -> dict[str, object]:
             details={"params_file": str(path)},
         )
     params = dict(loaded)
-    _validate_native_scalar_params(params, patterns=False)
+    _reject_non_finite_params(params)
     # Nextflow is launched from output_dir, not from the user's invocation
     # directory. Preserve native relative-path meaning by resolving only fields
     # that Sarek consumes as file/directory resources before changing cwd.
