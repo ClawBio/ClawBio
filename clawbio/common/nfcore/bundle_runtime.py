@@ -42,6 +42,22 @@ def prefix_matches(path: str, prefix: str) -> bool:
     return path.startswith(prefix + sep)
 
 
+def remap_prefix(path: str, old_prefix: str, new_prefix: str) -> str | None:
+    """``path`` moved from under ``old_prefix`` to ``new_prefix``, or None if it is
+    not under it. A trailing slash on either prefix makes no difference."""
+    if not prefix_matches(path, old_prefix):
+        return None
+    old, new = old_prefix.rstrip("/"), new_prefix.rstrip("/")
+    return (new + path[len(old):]) or "/"
+
+
+def backup_once(path: Path, backup: Path) -> None:
+    """Keep the file as the bundle produced it: a later relocation must not
+    overwrite the first backup with already-relocated paths."""
+    if not backup.exists():
+        shutil.copy2(path, backup)
+
+
 def remap_csv(
     samplesheet: Path,
     old_prefix: str,
@@ -60,8 +76,8 @@ def remap_csv(
 
     for row in rows:
         for col in columns:
-            if col in row and row[col] and prefix_matches(row[col], old_prefix):
-                new_val = new_prefix + row[col][len(old_prefix) :]
+            new_val = remap_prefix(row[col], old_prefix, new_prefix) if row.get(col) else None
+            if new_val is not None:
                 changes.append((col, row[col], new_val))
                 if not dry_run:
                     row[col] = new_val
@@ -72,7 +88,7 @@ def remap_csv(
             if backup_path is not None
             else samplesheet.with_name(samplesheet.name + ".bak")
         )
-        shutil.copy2(samplesheet, backup)
+        backup_once(samplesheet, backup)
         with samplesheet.open("w", newline="", encoding="utf-8") as fh:
             # lineterminator="\n" matches how the wrapper first wrote the samplesheet
             # (samplesheet_builder._write_normalized_samplesheet); the csv default of
@@ -244,16 +260,16 @@ def remap_yaml_references(
 
     def replace(m: re.Match[str]) -> str:
         value = yaml_scalar_value(m.group("q"), m.group("value"))
-        if (not remap_uris and "://" in value) or not prefix_matches(value, old_prefix):
+        new_value = None if not remap_uris and "://" in value else remap_prefix(value, old_prefix, new_prefix)
+        if new_value is None:
             return m.group(0)
-        new_value = new_prefix + value[len(old_prefix) :]
         key = m.group("prefix").strip().rstrip(":").strip()
         changes.append((key, value, new_value))
         return f"{m.group('prefix')}{format_yaml_scalar(new_value)}{m.group('trail')}"
 
     updated = pattern.sub(replace, content)
     if not dry_run and changes:
-        shutil.copy2(params_yaml, params_yaml.with_suffix(".yaml.bak"))
+        backup_once(params_yaml, params_yaml.with_suffix(".yaml.bak"))
         write_text_lf(params_yaml, updated)
     return changes
 
@@ -299,15 +315,15 @@ def remap_flag_references(
     def replace(m: re.Match[str]) -> str:
         raw = m.group("value")
         value = unquote_shell_word(raw)
-        if not prefix_matches(value, old_prefix):
+        new_value = remap_prefix(value, old_prefix, new_prefix)
+        if new_value is None:
             return m.group(0)
-        new_value = new_prefix + value[len(old_prefix) :]
         changes.append((m.group(1).strip(), value, new_value))
         return f"{m.group(1)}{format_output_value(new_value, old_value=raw)}{m.group(3)}"
 
     updated = pattern.sub(replace, content)
     if not dry_run and changes:
-        shutil.copy2(commands_sh, commands_sh.with_suffix(".sh.bak"))
+        backup_once(commands_sh, commands_sh.with_suffix(".sh.bak"))
         write_text_lf(commands_sh, updated)
     return changes
 

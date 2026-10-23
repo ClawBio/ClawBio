@@ -245,3 +245,52 @@ def test_post_hoc_stubs_are_marked_and_name_the_environment(tmp_path):
     assert manifest["commands_sh"] == str(tmp_path / "commands.sh")
     env = yaml.safe_load((tmp_path / "environment.yml").read_text())
     assert env == {"name": "claw-example", "regenerated_post_hoc": True}
+
+
+_DIRS = st.lists(st.text(alphabet="abc_-", min_size=1, max_size=6), min_size=0, max_size=3)
+
+
+@settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(old=_DIRS, new=_DIRS, tail=_DIRS.filter(bool), old_slash=st.booleans(), new_slash=st.booleans())
+@example(old=["data"], new=["mnt", "data"], tail=["reads", "a.fq"], old_slash=True, new_slash=False)
+@example(old=["data"], new=["mnt", "data"], tail=["reads", "a.fq"], old_slash=False, new_slash=True)
+def test_a_trailing_slash_on_either_prefix_never_changes_the_remapped_path(
+    tmp_path, old, new, tail, old_slash, new_slash
+):
+    """`--old /data/ --new /mnt/data` wrote /mnt/datareads/a.fq; the other way
+    round wrote /mnt/data//reads/a.fq."""
+    api = importlib.import_module("clawbio.common.nfcore.bundle_runtime")
+    old_dir, new_dir = "/" + "/".join(old), "/" + "/".join(new)
+    old_arg = old_dir.rstrip("/") + "/" if old_slash else old_dir
+    new_arg = new_dir.rstrip("/") + "/" if new_slash else new_dir
+    value = old_dir.rstrip("/") + "/" + "/".join(tail)
+    expected = new_dir.rstrip("/") + "/" + "/".join(tail)
+    sheet = tmp_path / "samplesheet.csv"
+    sheet.write_text(f"sample,fastq_1\nA,{value}\n")
+    changes = api.remap_csv(sheet, old_arg, new_arg, columns=("fastq_1",), dry_run=True)
+    assert changes == [("fastq_1", value, expected)]
+
+
+def test_a_second_relocation_keeps_the_original_backups(tmp_path):
+    """Each remap copied the current file over the same .bak, so moving a bundle
+    twice left no copy of the paths it was produced with."""
+    api = importlib.import_module("clawbio.common.nfcore.bundle_runtime")
+    sheet = tmp_path / "samplesheet.csv"
+    original = "sample,fastq_1\nA,/a/x.fq\n"
+    sheet.write_text(original)
+    params = tmp_path / "params.yaml"
+    params_original = "fasta: /a/genome.fa\n"
+    params.write_text(params_original)
+    commands = tmp_path / "commands.sh"
+    commands_original = "nextflow run x \\\n  --fasta /a/genome.fa\n"
+    commands.write_text(commands_original)
+    yaml_pattern = re.compile(r"^(?P<prefix>fasta:\s*)(?P<q>['\"]?)(?P<value>[^'\"\n]*)(?P=q)(?P<trail>[ \t]*)$", re.M)
+    flag_pattern = re.compile(r"(--fasta )(?P<value>\S+)(\s*$)", re.M)
+    for old, new in (("/a", "/b"), ("/b", "/c")):
+        api.remap_csv(sheet, old, new, columns=("fastq_1",), dry_run=False)
+        api.remap_yaml_references(params, old, new, dry_run=False, pattern=yaml_pattern)
+        api.remap_flag_references(commands, old, new, dry_run=False, pattern=flag_pattern)
+    assert "/c/x.fq" in sheet.read_text()
+    assert (tmp_path / "samplesheet.csv.bak").read_text() == original
+    assert (tmp_path / "params.yaml.bak").read_text() == params_original
+    assert (tmp_path / "commands.sh.bak").read_text() == commands_original
