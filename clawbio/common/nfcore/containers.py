@@ -17,6 +17,7 @@ from pathlib import Path
 from clawbio.common.textio import write_text_lf
 
 from .artifacts import write_json_lf
+from .runtime import nxf_offline
 
 SCHEMA_VERSION = 1
 RECORD_NAME = "containers.json"
@@ -101,9 +102,15 @@ def _local_image(engine, image, runner) -> dict | None:
     return {"digest": digest, "digest_source": "local", "image_id": data.get("Id"), "platform": platform or None}
 
 
+class _RegistryUnreachable(Exception):
+    """The registry query timed out or could not start; later images would too."""
+
+
 def _registry_image(image, platform, runner) -> dict | None:
     proc = runner(["docker", "manifest", "inspect", "-v", image], timeout_seconds=120)
-    if proc is None or proc.returncode != 0:
+    if proc is None:
+        raise _RegistryUnreachable(image)
+    if proc.returncode != 0:
         return None
     try:
         data = json.loads(proc.stdout)
@@ -143,6 +150,12 @@ def collect_container_record(
         }
     images, tasks, warnings = _task_images(output_dir, env, runner)
     version, platform = _engine_platform(engine, runner) if engine else (None, None)
+    # Only an image with no local digest is looked up in its registry. Offline, or
+    # once one query times out, the others are skipped instead of waiting in turn.
+    registry = engine == "docker"
+    if registry and nxf_offline({**os.environ, **(env or {})}):
+        registry = False
+        warnings.append("NXF_OFFLINE is set, so images without a local digest were not looked up in their registry.")
     entries = []
     for image in sorted(images):
         entry = {"image": image, "digest": None, "pinned_reference": None, "digest_source": None,
@@ -150,9 +163,15 @@ def collect_container_record(
         if "@sha256:" in image:
             entry.update(digest=image.split("@", 1)[1], pinned_reference=image, digest_source="reference")
         elif engine in _DIGEST_ENGINES:
-            resolved = _local_image(engine, image, runner) or (
-                _registry_image(image, platform, runner) if engine == "docker" else None
-            )
+            resolved = _local_image(engine, image, runner)
+            if resolved is None and registry:
+                try:
+                    resolved = _registry_image(image, platform, runner)
+                except _RegistryUnreachable:
+                    registry = False
+                    warnings.append(
+                        f"The registry was unreachable for {image}, so no further images were looked up there."
+                    )
             if resolved:
                 entry.update(resolved, pinned_reference=f"{_repository(image)}@{resolved['digest']}")
         if entry["digest"] is None and engine is not None:

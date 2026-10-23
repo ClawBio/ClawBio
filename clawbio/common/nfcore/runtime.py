@@ -6,7 +6,7 @@ import os
 import re
 import shutil
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from .errors import SkillError
 
@@ -108,6 +108,12 @@ def host_memory_bytes() -> int | None:
         return None
 
 
+def nxf_offline(environ: Mapping[str, str] | None = None) -> bool:
+    """Whether NXF_OFFLINE asks for no network access (true, 1, yes or on)."""
+    value = (os.environ if environ is None else environ).get("NXF_OFFLINE")
+    return str(value or "").strip().lower() in {"true", "1", "yes", "on"}
+
+
 def require_network_for_demo() -> None:
     """Refuse a --demo run under NXF_OFFLINE before Nextflow starts.
 
@@ -116,8 +122,7 @@ def require_network_for_demo() -> None:
     confusing "does not exist". Downloading nf-core's public test data does not
     conflict with local-first, which governs the user's genetic data.
     """
-    offline = os.environ.get("NXF_OFFLINE")
-    if str(offline or "").strip().lower() in {"true", "1", "yes", "on"}:
+    if nxf_offline():
         raise SkillError(
             stage="preflight",
             error_code="DEMO_REQUIRES_NETWORK",
@@ -132,7 +137,7 @@ def require_network_for_demo() -> None:
                 "no user or genetic data is uploaded), or run a real analysis with your own local "
                 "--input samplesheet and references, which is fully offline."
             ),
-            details={"NXF_OFFLINE": offline},
+            details={"NXF_OFFLINE": os.environ.get("NXF_OFFLINE")},
         )
 
 

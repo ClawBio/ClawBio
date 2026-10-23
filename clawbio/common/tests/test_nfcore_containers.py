@@ -48,9 +48,12 @@ class FakeEngine:
     """Answers the commands the recorder runs; ``local`` maps image -> digest."""
 
     def __init__(self, *, log: str = LOG, local: dict[str, str] | None = None, registry: dict[str, object] | None = None,
-                 log_returncode: int = 0):
-        self.log, self.local, self.registry = log, local or {}, registry or {}
+                 log_returncode: int = 0, unreachable: bool = False):
+        self.log, self.local = log, local or {}
+        self.registry = {} if registry is None else registry
         self.log_returncode = log_returncode
+        if unreachable:
+            self.registry = None
         self.calls: list[list[str]] = []
 
     def __call__(self, command, *, cwd=None, env=None, timeout_seconds):
@@ -61,6 +64,8 @@ class FakeEngine:
             image = command[-1]
             return _proc(_inspect(image, self.local[image])) if image in self.local else _proc("", 1)
         if command[1:3] == ["manifest", "inspect"]:
+            if self.registry is None:  # unreachable: the runner timed out
+                return None
             image = command[-1]
             return _proc(json.dumps(self.registry[image])) if image in self.registry else _proc("", 1)
         if command[1:2] == ["version"]:
@@ -239,3 +244,28 @@ def test_a_directory_without_a_nextflow_run_starts_no_process(tmp_path):
     record = containers.collect_container_record(tmp_path, profile="docker", runner=engine)
     assert engine.calls == [] and record["images"] == [] and record["complete"] is False
     assert "history" in record["warnings"][0]
+
+
+def _manifest_calls(engine):
+    return [call for call in engine.calls if call[1:3] == ["manifest", "inspect"]]
+
+
+@pytest.mark.parametrize("value", ["true", "1", "YES"])
+def test_offline_hosts_never_query_a_registry(tmp_path, monkeypatch, value):
+    """Under NXF_OFFLINE every image without a local digest waited out a 120 s
+    registry query, one after another, after the run had finished."""
+    monkeypatch.setenv("NXF_OFFLINE", value)
+    engine = FakeEngine(local={}, registry={FASTQC: {"Descriptor": {"digest": FASTQC_DIGEST}}})
+    record = containers.collect_container_record(_run_dir(tmp_path), profile="docker", runner=engine)
+    assert _manifest_calls(engine) == []
+    assert record["complete"] is False
+    assert any("NXF_OFFLINE" in warning for warning in record["warnings"])
+
+
+def test_an_unreachable_registry_is_queried_once(tmp_path, monkeypatch):
+    monkeypatch.delenv("NXF_OFFLINE", raising=False)
+    engine = FakeEngine(local={}, unreachable=True)
+    record = containers.collect_container_record(_run_dir(tmp_path), profile="docker", runner=engine)
+    assert len(_manifest_calls(engine)) == 1
+    assert record["complete"] is False
+    assert sum("registry" in warning and "unreachable" in warning for warning in record["warnings"]) == 1
