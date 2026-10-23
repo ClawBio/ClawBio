@@ -356,6 +356,16 @@ SKILLS = {
         "allowed_extra_flags": set(),
         "accepts_genotypes": False,
     },
+    "multiomics-locus": {
+        "script": SKILLS_DIR / "multiomics-locus-integrator" / "multiomics_locus_integrator.py",
+        "demo_args": ["--demo"],
+        "description": "Integrate ATAC/histone/loop evidence at a locus into one scored regulatory-evidence table",
+        "allowed_extra_flags": {
+            "--loci", "--accessibility-track", "--histone-track",
+            "--contact-evidence", "--gene-targets",
+        },
+        "accepts_genotypes": False,
+    },
     "analyze-fasta": {
         "script": SKILLS_DIR / "analyze-fasta" / "analyze_fasta.py",
         "demo_args": ["--demo"],
