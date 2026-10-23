@@ -128,12 +128,12 @@ def test_execute_nextflow_starts_new_session_on_posix(tmp_path, monkeypatch):
 
 def test_execute_nextflow_terminates_process_group_on_posix_timeout(tmp_path, monkeypatch):
     proc = _MockProc(returncode=0, timeout_on_first_wait=True)
-    pgid = 5678
+    # Nextflow starts its own session, so its pid is the process-group id.
+    pgid = proc.pid
     signals_sent: list[tuple[int, int]] = []
 
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
-    monkeypatch.setattr(os, "getpgid", lambda pid: pgid)
     monkeypatch.setattr(os, "killpg", lambda sent_pgid, sig: signals_sent.append((sent_pgid, sig)))
 
     with pytest.raises(SkillError):
@@ -235,10 +235,8 @@ def test_terminate_process_tree_falls_back_to_sigkill_when_sigterm_times_out(mon
             self.killed = True
 
     proc = _SlowProc()
-    pgid = 9999
 
     monkeypatch.setattr(sys, "platform", "linux")
-    monkeypatch.setattr(os, "getpgid", lambda pid: pgid)
     monkeypatch.setattr(
         os,
         "killpg",

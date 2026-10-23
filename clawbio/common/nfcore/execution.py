@@ -292,14 +292,16 @@ def terminate_process_tree(
         proc.kill()
         proc.wait()
         return
+    # Nextflow starts its own session, so its pid is the group id. getpgid would
+    # fail once Nextflow has exited, while the tasks it left in the group run on.
     try:
-        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        os.killpg(proc.pid, signal.SIGTERM)
         proc.wait(timeout=grace_seconds)
         return
     except (OSError, subprocess.TimeoutExpired):
         pass
     try:
-        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
         return
     except OSError:

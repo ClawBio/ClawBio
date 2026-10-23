@@ -230,3 +230,37 @@ def test_each_refused_value_is_listed_once_across_logs(tmp_path, refused):
     hint = api.environment_failure_hints(*logs)
     assert [hint.count(line) for line in listed] == [1] * len(listed)
     assert "not_a_refusal" not in hint
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals and process groups")
+def test_tasks_are_stopped_even_after_nextflow_itself_has_exited(tmp_path):
+    """The group was looked up with getpgid(Nextflow's pid), which fails once
+    Nextflow has exited and been reaped, so the tasks it left in its session kept
+    running. The session leader's pid is the group id."""
+    import os
+    import subprocess
+    import time
+
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    pid_file = tmp_path / "task.pid"
+    leader = subprocess.Popen(
+        ["sh", "-c", f"sleep 60 & echo $! > {pid_file}; exit 0"], start_new_session=True
+    )
+    leader.wait()
+    task = int(pid_file.read_text())
+    try:
+        api.terminate_process_tree(leader, grace_seconds=2)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            try:
+                os.kill(task, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.1)
+        else:
+            pytest.fail("the task process outlived terminate_process_tree")
+    finally:
+        try:
+            os.kill(task, 9)
+        except ProcessLookupError:
+            pass
