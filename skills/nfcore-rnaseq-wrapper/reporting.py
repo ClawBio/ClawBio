@@ -647,7 +647,11 @@ def _apply_container_pin(content: str) -> str:
     lines = content.split("\n")
     starts = [i for i, line in enumerate(lines) if line.startswith('"${PYTHON:-python3}" "$SKILL_SCRIPT"')]
     if len(starts) != 1:
-        return content
+        # A bundle that silently replays re-pushed tags is worse than none.
+        raise RuntimeError(
+            f"commands.sh has {len(starts)} wrapper launch lines, not one, so the "
+            "containers.config pin cannot be anchored."
+        )
     start = end = starts[0]
     while lines[end].endswith("\\") and end + 1 < len(lines):
         end += 1

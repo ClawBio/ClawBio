@@ -880,3 +880,23 @@ def test_repro_commands_sh_pins_container_digests_without_a_nextflow_cache(tmp_p
     in_place = _replay_argv(tmp_path, session=True, pinned=True)
     assert "--resume" in in_place and pin not in in_place
     assert pin not in _replay_argv(tmp_path, session=False, pinned=False)
+
+
+def test_container_pin_refuses_a_script_it_cannot_anchor():
+    """commands.sh gains its digest pin by locating the wrapper launch line. If that
+    line ever changes, the pin must fail loudly rather than ship a bundle that
+    replays re-pushed tags without saying so."""
+    import reporting
+
+    with pytest.raises(RuntimeError, match="containers.config"):
+        reporting._apply_container_pin('#!/bin/bash\nexec something-else --output x\n')
+
+
+def test_written_commands_pass_the_container_pin_last(tmp_path):
+    import reporting
+
+    write_repro_commands(tmp_path, args=argparse.Namespace(demo=True, profile="test,docker", pipeline_version="3.26.0"))
+    script = (tmp_path / "reproducibility" / "commands.sh").read_text()
+    launch = script[script.index('"${PYTHON:-python3}" "$SKILL_SCRIPT"'):]
+    assert launch.split("\n\n", 1)[0].rstrip().endswith('${CLAWBIO_PIN[@]+"${CLAWBIO_PIN[@]}"}')
+    assert reporting._CONTAINER_PIN_GUARD.split("\n")[-2] in script
