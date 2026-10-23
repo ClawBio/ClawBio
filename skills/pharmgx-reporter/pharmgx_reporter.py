@@ -328,6 +328,10 @@ GENE_DEFS = {
             # partial genotypes name only the position that was tested (review on #599)
             "Normal MTHFR enzyme activity (677CC; 1298 not tested)": ["677CC/1298NOT_TESTED"],
             "Normal MTHFR enzyme activity (1298AA; 677 not tested)": ["677NOT_TESTED/1298AA"],
+            "Mildly reduced MTHFR enzyme activity (677CT; 1298 not tested)": ["677CT/1298NOT_TESTED"],
+            "Strongly reduced MTHFR enzyme activity (677TT; 1298 not tested)": ["677TT/1298NOT_TESTED"],
+            "Mildly reduced MTHFR enzyme activity (1298AC; 677 not tested)": ["677NOT_TESTED/1298AC"],
+            "Moderately reduced MTHFR enzyme activity (1298CC; 677 not tested)": ["677NOT_TESTED/1298CC"],
             "Mildly reduced MTHFR enzyme activity (677CT)":  ["677CT/1298AA"],
             "Mildly reduced MTHFR enzyme activity (1298AC)": ["677CC/1298AC"],
             "Moderately reduced MTHFR enzyme activity (677CT/1298AC compound heterozygous)": ["677CT/1298AC"],
@@ -908,11 +912,14 @@ def lookup_single_drug(drug_name, profiles):
 
     gene = info["gene"]
     if gene not in profiles:
-        return {
+        result = {
             "drug": drug_name, "brand": info["brand"], "class": info["class"],
             "gene": gene, "diplotype": "NOT_TESTED", "phenotype": "Indeterminate",
             "classification": "indeterminate",
         }
+        if info.get("informational_only") and info.get("note"):
+            result["note"] = info["note"]
+        return result
 
     prof = profiles[gene]
     pheno_key = phenotype_to_key(prof["phenotype"])
@@ -1346,6 +1353,10 @@ def phenotype_to_key(phenotype_desc):
         "Normal MTHFR enzyme activity (677CC)": "normal_activity",
         "Normal MTHFR enzyme activity (677CC; 1298 not tested)": "normal_activity",
         "Normal MTHFR enzyme activity (1298AA; 677 not tested)": "normal_activity",
+        "Mildly reduced MTHFR enzyme activity (677CT; 1298 not tested)": "mildly_reduced_activity",
+        "Strongly reduced MTHFR enzyme activity (677TT; 1298 not tested)": "strongly_reduced_activity",
+        "Mildly reduced MTHFR enzyme activity (1298AC; 677 not tested)": "mildly_reduced_activity",
+        "Moderately reduced MTHFR enzyme activity (1298CC; 677 not tested)": "moderately_reduced_activity",
         "Mildly reduced MTHFR enzyme activity (677CT)": "mildly_reduced_activity",
         "Mildly reduced MTHFR enzyme activity (1298AC)": "mildly_reduced_activity",
         "Moderately reduced MTHFR enzyme activity (677CT/1298AC compound heterozygous)": "moderately_reduced_activity",

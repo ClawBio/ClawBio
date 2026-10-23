@@ -1193,3 +1193,22 @@ def test_mthfr_partial_genotype_label_names_only_what_was_tested(diplotype, test
 def test_methotrexate_reason_shown_when_mthfr_not_genotyped(profiles):
     entry = next(d for d in lookup_drugs(profiles)["indeterminate"] if d["drug"] == "Methotrexate")
     assert entry.get("note"), entry
+
+
+def test_single_drug_methotrexate_reason_shown_when_mthfr_absent():
+    """The single-drug path must carry the reason too, not only lookup_drugs (review on #599)."""
+    result = lookup_single_drug("Methotrexate", {})
+    assert result["classification"] == "indeterminate"
+    assert result.get("note"), result
+
+
+@pytest.mark.parametrize("diplotype, label", [
+    ("677CT/1298NOT_TESTED", "Mildly reduced MTHFR enzyme activity (677CT; 1298 not tested)"),
+    ("677TT/1298NOT_TESTED", "Strongly reduced MTHFR enzyme activity (677TT; 1298 not tested)"),
+    ("677NOT_TESTED/1298AC", "Mildly reduced MTHFR enzyme activity (1298AC; 677 not tested)"),
+    ("677NOT_TESTED/1298CC", "Moderately reduced MTHFR enzyme activity (1298CC; 677 not tested)"),
+])
+def test_mthfr_partial_variant_genotypes_get_named_labels(diplotype, label):
+    """Partial genotypes with a variant at the tested position are named, not Unknown."""
+    assert call_phenotype("MTHFR", diplotype) == label
+    assert phenotype_to_key(label) != "indeterminate"
