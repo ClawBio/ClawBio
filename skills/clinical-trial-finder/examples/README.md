@@ -32,6 +32,7 @@ demo_output/
     phase_distribution.png
   reproducibility/
     commands.sh          # exact command to reproduce this run
+    environment.yml      # conda environment snapshot
     checksums.sha256     # SHA-256 of all outputs (verify with sha256sum -c)
 ```
 
