@@ -75,12 +75,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `clawbio run` killed the wrappers at 12h10m whatever `--timeout-hours` said;
   both now stop Nextflow cleanly, as does a SIGTERM to the wrapper (exit 143). Relocating a reproducibility bundle no longer
   silently skips paths containing spaces with apostrophes, `$`, quotes or YAML
-  special characters. A refused sarek `--resume` no longer replaces the completed
+  special characters, drops or doubles a separator when either prefix ends in `/`,
+  or overwrites the original `.bak` on a second move. A refused sarek `--resume` no longer replaces the completed
   run's samplesheet, and the rnaseq demo report states the Salmon pseudo-alignment
   nf-core's test profile runs. Per-skill details are in each wrapper's CHANGELOG.
 - **nf-core bundles record their container images.** Each wrapper's `reproducibility/containers.json`
   lists every image with its digest and the processes that ran it, and `containers.config` pins them
-  for replays without a Nextflow cache.
+  for replays without a Nextflow cache. Offline (`NXF_OFFLINE`) the registry is never queried, and
+  one unreachable registry query skips the rest instead of each waiting in turn.
 - **`clawbio run` relays a successful skill's `WARNING:` lines.** stderr was shown
   only on failure, so e.g. `--demo --skip-qc` succeeded without saying the flag had
   no effect.
