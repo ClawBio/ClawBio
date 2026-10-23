@@ -927,8 +927,9 @@ def _build_short_labels_from_spec(
         if pqtl_release.olink_panel:
             bits.append(f"Olink {pqtl_release.olink_panel}")
         if pqtl_release.ancestry_label:
+            # The per-variant N, as a range when the slice's rows disagree.
             n_label = (
-                f"; N = {pqtl_release.n_samples:,}"
+                f"; N = {pqtl_release.n_samples_label}"
                 if pqtl_release.n_samples else ""
             )
             bits.append(f"{pqtl_release.ancestry_label}{n_label}")
