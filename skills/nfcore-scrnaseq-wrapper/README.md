@@ -75,6 +75,6 @@ Emitted parameters are checked against the pinned upstream scalar contract (type
 
 Local Docker runs, including demos, cap both per-process requests and the local executor budget to detected host/Docker CPU and memory capacity. Site/cloud profiles and object-store work directories keep their own resource policy. Explicit `--nextflow-config` files have final precedence. Resource caps cannot make a dataset fit insufficient RAM.
 
-Replay uses the smaller of recorded limits and current Docker capacity, on macOS and Linux, through a temporary config; the original checksummed config is preserved. User config snapshots retain final precedence.
+Replay uses the smaller of recorded limits and current Docker capacity, on macOS and Linux, through a temporary config; the original checksummed config is preserved. User config snapshots retain final precedence, except for container images: a replay without a Nextflow cache applies `containers.config` last, so every process runs the digest it originally ran.
 
 See the [compatibility audit](../../docs/nfcore-wrapper-audit.md) for upstream contracts, fixes, test results, and execution limits.
