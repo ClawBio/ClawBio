@@ -126,16 +126,16 @@ def test_pipeline_help_is_delegated_to_the_wrapper_parser(skill):
     assert "ClawBio — Bioinformatics Skills Runner" not in result.stdout
 
 
-def test_mcp_help_states_the_deprecation():
-    """The `mcp` subcommand stays through 0.7.x but must say so in its own help."""
-    result = _run("--help")
-    assert result.returncode == 0, result.stderr
-    assert "deprecated" in result.stdout.lower()
-
-
 def test_failed_run_shows_the_skill_error_printed_to_stdout(tmp_path):
     """Skills often print errors to stdout; a failed run must still show them."""
     result = _run("run", "prs", "--demo", "--panel-id", "CLAWBIO-T2D-8", "--output", str(tmp_path))
 
     assert result.returncode == 1
     assert "choose exactly one of --demo, --trait, --pgs-id, or --panel-id" in result.stdout
+
+
+def test_mcp_subcommand_is_removed():
+    """The MCP server was deprecated in 0.7.0 and removed in 0.8.0."""
+    result = _run("mcp")
+    assert result.returncode == 2
+    assert "invalid choice: 'mcp'" in result.stderr
