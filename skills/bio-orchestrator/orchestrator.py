@@ -130,15 +130,14 @@ KEYWORD_MAP: dict[str, str] = {
     "phewas": "gwas-lookup",
     # A biobank-wide variant PheWAS (every outcome, nulls included, Pan-UKBB + FinnGen +
     # Million Veteran Program) is snp-phewas; the bare word "phewas" stays with gwas-lookup's
-    # reported-association view.
+    # reported-association view. A bare biobank name is not a trigger (a FinnGen or Pan-UKBB
+    # GWAS question is not a one-variant PheWAS), and neither is "across biobanks" on its
+    # own: a PheWAS or phenome scan of one variant naming a biobank or ancestry group routes
+    # here through `_is_snp_phewas_query` below.
     "snp phewas": "snp-phewas",
     "variant phewas": "snp-phewas",
     "phewas across biobanks": "snp-phewas",
-    "across biobanks": "snp-phewas",
-    "pan-ukbb": "snp-phewas",
-    "pan-uk biobank": "snp-phewas",
     "replicate in finngen": "snp-phewas",
-    "finngen": "snp-phewas",
     "mvp phewas": "snp-phewas",
     "replicate in mvp": "snp-phewas",
     "gwas": "gwas-lookup",
@@ -250,12 +249,26 @@ PRS_DTC_TERMS = ("23andme", "ancestrydna", "ancestry dna", "dtc", "genotype file
 # "variant", "compare") capture requests such as "Tajima's D on this alignment"
 # or "nucleotide diversity per population". `dnasp` wins only when no other
 # explicit intent (for example "papers", "annotate", "alphafold") is named.
-# A PheWAS asked of a named biobank or ancestry group is the biobank-wide read (snp-phewas);
-# a bare "phewas" stays with gwas-lookup's reported-association view.
+# A PheWAS (or phenome scan) of ONE VARIANT asked of a named biobank or ancestry group is
+# the biobank-wide read (snp-phewas); a bare "phewas" stays with gwas-lookup's
+# reported-association view. The variant is required because snp-phewas reads one variant:
+# a phenome-wide scan of a polygenic score or a gene burden names a biobank too.
+PHEWAS_TERMS = ("phewas", "phenome-wide", "phenome scan")
 SNP_PHEWAS_SCOPE_TERMS = (
     "mvp", "million veteran", "finngen", "pan-ukbb", "pan-uk biobank", "uk biobank",
     "biobank", "ancestry",
 )
+# An rsID, or a chr_pos_ref_alt id with `_`, `:` or `-` separators (chr prefix optional).
+SNP_PHEWAS_VARIANT_RE = re.compile(
+    r"\brs\d+\b|\b(?:chr)?(?:[1-9]|1\d|2[0-2]|x|y)[_:-]\d+[_:-][acgt]+[_:-][acgt]+\b"
+)
+
+
+def _is_snp_phewas_query(query_lower: str) -> bool:
+    """A PheWAS of one named variant, scoped to a biobank or ancestry group."""
+    return (any(t in query_lower for t in PHEWAS_TERMS)
+            and any(t in query_lower for t in SNP_PHEWAS_SCOPE_TERMS)
+            and SNP_PHEWAS_VARIANT_RE.search(query_lower) is not None)
 
 DNASP_TERMS = (
     "dnasp", "dna polymorphism", "tajima", "nucleotide diversity",
@@ -469,7 +482,7 @@ def detect_skill_with_hint_from_query(query: str) -> tuple[str | None, str]:
         keyword, skill = max(others, key=lambda item: len(item[0]))
         return skill, ""
 
-    if "phewas" in query_lower and any(t in query_lower for t in SNP_PHEWAS_SCOPE_TERMS):
+    if _is_snp_phewas_query(query_lower):
         return "snp-phewas", ""
 
     # Prefer longest keyword match to avoid ambiguity (e.g. "variant annotation"
@@ -663,6 +676,9 @@ def detect_multiple_skills(query: str) -> list[str]:
 
     matched = []
     seen = set()
+    if _is_snp_phewas_query(query_lower):
+        matched.append("snp-phewas")
+        seen.add("snp-phewas")
     for keyword, skill in KEYWORD_MAP.items():
         if keyword in query_lower and skill not in seen:
             matched.append(skill)
