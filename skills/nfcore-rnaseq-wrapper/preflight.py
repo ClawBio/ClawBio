@@ -34,7 +34,6 @@ from schemas import (
     DEFAULT_PIPELINE_VERSION,
     DEFAULT_REMOTE_PIPELINE,
     DEFAULT_TRIMMER,
-    FASTQ_BASENAME_RE as _FASTQ_BASENAME_RE,
     JAVA_MIN_VERSION,
     NEXTFLOW_MIN_VERSION,
     PROJECT_ROOT,
@@ -45,7 +44,6 @@ from schemas import (
     SUPPORTED_RIBO_TOOLS,
     SUPPORTED_RSEQC_MODULES,
     SUPPORTED_SALMON_LIB_TYPES,
-    SUPPORTED_STRANDEDNESS,
     SUPPORTED_TRIMMERS,
     SUPPORTED_UMI_EXTRACT_METHODS,
     SUPPORTED_UMI_GROUPING_METHODS,
@@ -65,8 +63,6 @@ _GTF_EXT_RE = re.compile(r"^\S+\.gtf(\.gz)?$")
 _GFF_EXT_RE = re.compile(r"^\S+\.gff3?(\.gz)?$")
 _BED_EXT_RE = re.compile(r"^\S+\.bed(\.gz)?$")
 _HISAT2_MEM_RE = re.compile(r"^\d+(\.\d+)?\.?\s*(K|M|G|T)?B$")
-# _FASTQ_BASENAME_RE is the shared regex imported from schemas (single source of
-# truth, also used by samplesheet_builder); it must NOT be redefined locally.
 _REFERENCE_GROUPS = (("genome",), ("fasta", "gtf"), ("fasta", "gff"))
 _ANNOTATION_REFERENCE_FIELDS = (
     "fasta",
@@ -1432,34 +1428,8 @@ def _check_skip_alignment_requirements(args, *, bam_paths: list) -> None:
 
 
 def _check_samplesheet_summary(args, *, samplesheet_summary: dict[str, object]) -> None:
-    for strandedness in samplesheet_summary.get("strandedness_counts", {}):
-        if strandedness not in SUPPORTED_STRANDEDNESS:
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.INVALID_STRANDEDNESS,
-                message="Samplesheet summary contains invalid strandedness.",
-                fix="Use auto, forward, reverse, or unstranded in every samplesheet row.",
-                details={"strandedness": strandedness},
-            )
-    for fastq_path in samplesheet_summary.get("fastq_paths", []):
-        raw_path = str(fastq_path)
-        path = Path(raw_path)
-        if not _FASTQ_BASENAME_RE.match(path.name):
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.INVALID_FASTQ,
-                message="FASTQ basename is not compatible with nf-core/rnaseq.",
-                fix="Use .fq, .fastq, .fq.gz, or .fastq.gz and remove whitespace from the basename.",
-                details={"filename": path.name},
-            )
-        if "://" not in raw_path and not path.exists():
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.MISSING_FASTQ,
-                message="FASTQ path from samplesheet summary was not found.",
-                fix="Correct the FASTQ path and rerun samplesheet validation.",
-                details={"path": str(path)},
-            )
+    """ClawBio's own samplesheet policy. Strandedness values, FASTQ/BAM names and
+    their existence are nf-schema's (assets/schema_input.json) when Nextflow starts."""
     raw_bam_paths = [str(path) for path in samplesheet_summary.get("bam_paths", [])]
     if raw_bam_paths and not getattr(args, "skip_alignment", False):
         raise SkillError(
@@ -1469,18 +1439,6 @@ def _check_samplesheet_summary(args, *, samplesheet_summary: dict[str, object]) 
             fix="Add --skip-alignment, or remove BAM columns from the samplesheet.",
             details={"bam_count": len(raw_bam_paths)},
         )
-    for raw_bam_path in raw_bam_paths:
-        if "://" in raw_bam_path:
-            continue
-        bam_path = Path(raw_bam_path)
-        if not bam_path.exists():
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.REFERENCE_PATH_NOT_FOUND,
-                message="BAM path from samplesheet summary was not found.",
-                fix="Correct the BAM path in the samplesheet.",
-                details={"field": "bam", "path": str(bam_path)},
-            )
 
 
 def _check_resume_compatibility(args, *, output_dir: Path, pipeline_source: dict[str, object]) -> None:

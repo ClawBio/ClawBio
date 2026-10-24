@@ -68,19 +68,6 @@ def _valid_row(tmp_path: Path, **overrides: str) -> dict[str, str]:
     return row
 
 
-@pytest.mark.parametrize("missing", ["sample", "fastq_1", "strandedness"])
-def test_rejects_missing_required_columns(tmp_path, missing):
-    row = _valid_row(tmp_path)
-    fieldnames = [name for name in ("sample", "fastq_1", "strandedness") if name != missing]
-    _write_sheet(tmp_path / "samplesheet.csv", [row], fieldnames=fieldnames)
-
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(tmp_path / "samplesheet.csv", tmp_path / "normalized.csv")
-
-    assert exc.value.error_code == ErrorCode.INVALID_SAMPLESHEET
-    assert missing in exc.value.details["missing_columns"]
-
-
 def test_accepts_single_end_fastq_and_writes_optional_fastq_2_blank(tmp_path):
     src = _write_sheet(tmp_path / "samplesheet.csv", [_valid_row(tmp_path)])
     out = tmp_path / "normalized.csv"
@@ -93,29 +80,6 @@ def test_accepts_single_end_fastq_and_writes_optional_fastq_2_blank(tmp_path):
     assert Path(row["fastq_1"]).is_absolute()
 
 
-@pytest.mark.parametrize("filename", ["sample_R1.txt"])
-def test_rejects_non_upstream_fastq_suffixes(tmp_path, filename):
-    r1 = _touch(tmp_path / filename)
-    src = _write_sheet(tmp_path / "samplesheet.csv", [{"sample": "sampleA", "fastq_1": str(r1), "strandedness": "auto"}])
-
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv")
-
-    assert exc.value.error_code == ErrorCode.INVALID_FASTQ
-
-
-def test_rejects_fastq_basename_with_space_but_allows_parent_space(tmp_path):
-    reads_dir = tmp_path / "reads with spaces"
-    bad = _touch(reads_dir / "sample R1.fastq.gz")
-    src = _write_sheet(tmp_path / "samplesheet.csv", [{"sample": "sampleA", "fastq_1": str(bad), "strandedness": "auto"}])
-
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv")
-
-    assert exc.value.error_code == ErrorCode.INVALID_FASTQ
-    assert exc.value.details["filename"] == "sample R1.fastq.gz"
-
-
 def test_resolves_relative_fastq_against_samplesheet_directory(tmp_path):
     sheet_dir = tmp_path / "inputs"
     r1 = _touch(sheet_dir / "reads" / "sample_R1.fastq.gz")
@@ -126,18 +90,6 @@ def test_resolves_relative_fastq_against_samplesheet_directory(tmp_path):
 
     row = next(csv.DictReader(out.open(encoding="utf-8")))
     assert row["fastq_1"] == r1.resolve().as_posix()
-
-
-def test_rejects_missing_fastq_path(tmp_path):
-    src = _write_sheet(
-        tmp_path / "samplesheet.csv",
-        [{"sample": "sampleA", "fastq_1": "missing.fastq.gz", "strandedness": "auto"}],
-    )
-
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv")
-
-    assert exc.value.error_code == ErrorCode.MISSING_FASTQ
 
 
 def test_preserves_remote_fastq_uri_without_local_existence_check(tmp_path):
@@ -153,16 +105,6 @@ def test_preserves_remote_fastq_uri_without_local_existence_check(tmp_path):
     row = next(csv.DictReader(out.open(encoding="utf-8")))
     assert row["fastq_1"] == uri
     assert result["fastq_paths"] == [uri]
-
-
-@pytest.mark.parametrize("strandedness", ["", "AUTO"])
-def test_rejects_invalid_strandedness_values(tmp_path, strandedness):
-    src = _write_sheet(tmp_path / "samplesheet.csv", [_valid_row(tmp_path, strandedness=strandedness)])
-
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv")
-
-    assert exc.value.error_code == ErrorCode.INVALID_STRANDEDNESS
 
 
 def test_normalizes_sample_whitespace_to_underscores(tmp_path):
@@ -190,23 +132,6 @@ def test_rejects_sample_collision_after_whitespace_normalization(tmp_path):
     assert exc.value.error_code == ErrorCode.INVALID_SAMPLESHEET
 
 
-def test_rejects_inconsistent_repeated_sample_strandedness(tmp_path):
-    r1a = _touch(tmp_path / "sample_L001_R1.fastq.gz")
-    r1b = _touch(tmp_path / "sample_L002_R1.fastq.gz")
-    src = _write_sheet(
-        tmp_path / "samplesheet.csv",
-        [
-            {"sample": "sampleA", "fastq_1": str(r1a), "strandedness": "forward"},
-            {"sample": "sampleA", "fastq_1": str(r1b), "strandedness": "reverse"},
-        ],
-    )
-
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv")
-
-    assert exc.value.error_code == ErrorCode.INVALID_STRANDEDNESS
-
-
 def test_rejects_duplicate_fastq_rows(tmp_path):
     r1 = _touch(tmp_path / "sample_R1.fastq.gz")
     src = _write_sheet(
@@ -223,21 +148,6 @@ def test_rejects_duplicate_fastq_rows(tmp_path):
     assert exc.value.error_code == ErrorCode.INVALID_SAMPLESHEET
 
 
-def test_bam_reprocessing_rows_must_preserve_fastq_1(tmp_path):
-    gbam = _touch(tmp_path / "sample.genome.bam")
-    tbam = _touch(tmp_path / "sample.transcriptome.bam")
-    src = _write_sheet(
-        tmp_path / "samplesheet.csv",
-        [_valid_row(tmp_path, fastq_1="", genome_bam=str(gbam), transcriptome_bam=str(tbam))],
-    )
-
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv")
-
-    assert exc.value.error_code == ErrorCode.INVALID_SAMPLESHEET
-    assert "fastq_1" in exc.value.message
-
-
 def test_rejects_row_mixing_fastq_and_bam_columns(tmp_path):
     gbam = _touch(tmp_path / "sample.genome.bam")
     src = _write_sheet(
@@ -250,18 +160,6 @@ def test_rejects_row_mixing_fastq_and_bam_columns(tmp_path):
 
     assert exc.value.error_code == ErrorCode.INVALID_SAMPLESHEET
     assert "FASTQ and BAM" in exc.value.message
-
-
-def test_rejects_missing_bam_path(tmp_path):
-    src = _write_sheet(
-        tmp_path / "samplesheet.csv",
-        [_valid_row(tmp_path, genome_bam="missing.bam")],
-    )
-
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv", skip_alignment=True)
-
-    assert exc.value.error_code == ErrorCode.MISSING_INPUT
 
 
 def test_reports_unknown_columns_and_preserves_them(tmp_path):
@@ -331,18 +229,6 @@ def test_accepts_mixed_paired_and_single_end_rows_in_same_sheet(tmp_path):
     assert rows_out[1]["fastq_2"] == ""
 
 
-def test_rejects_whitespace_only_fastq_1(tmp_path):
-    src = _write_sheet(
-        tmp_path / "samplesheet.csv",
-        [_valid_row(tmp_path, fastq_1="   ")],
-    )
-
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv")
-
-    assert exc.value.error_code == ErrorCode.INVALID_SAMPLESHEET
-
-
 def test_bam_reprocessing_preserves_official_samplesheet_fastq_columns(tmp_path):
     gbam = _touch(tmp_path / "sample.genome.bam")
     r1 = _touch(tmp_path / "reads" / "sample_R1.fastq.gz")
@@ -383,3 +269,64 @@ def test_non_csv_extension_rejected(tmp_path):
     with pytest.raises(SkillError) as exc:
         validate_and_normalize_samplesheet(tsv, out)
     assert exc.value.error_code == ErrorCode.INVALID_SAMPLESHEET
+
+
+# Rules nf-core/rnaseq 3.26.0 enforces itself when Nextflow starts: nf-schema checks
+# assets/schema_input.json (required columns, patterns, the strandedness enum, file
+# existence, percent_mapped bounds) and checkSamplesAfterGrouping refuses runs of one
+# sample with different strandedness. Checked live: nf-schema refused
+# `strandedness: sideways`, `seq_center: My Center`, a missing FASTQ and
+# `percent_mapped: 150`, naming each entry.
+_NF_SCHEMA_CASES = {
+    "missing strandedness column": dict(drop_column="strandedness"),
+    "strandedness outside the enum": dict(row={"strandedness": "sideways"}),
+    "whitespace in seq_center": dict(row={"seq_center": "My Center"}),
+    "FASTQ with a .txt suffix": dict(fastq="sample_R1.txt"),
+    "FASTQ basename with a space": dict(fastq="sample R1.fastq.gz"),
+    "FASTQ that does not exist": dict(fastq="missing.fastq.gz", create=False),
+    "runs of one sample with different strandedness": dict(second_run={"strandedness": "reverse"}),
+    "BAM that does not exist": dict(row={"genome_bam": "missing.bam"}, skip_alignment=True),
+    "percent_mapped above 100": dict(row={"genome_bam": "a.bam", "percent_mapped": "150"}, skip_alignment=True, bam=True),
+    "empty strandedness": dict(row={"strandedness": ""}),
+    "strandedness in the wrong case": dict(row={"strandedness": "AUTO"}),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_NF_SCHEMA_CASES))
+def test_rules_nf_schema_enforces_reach_it_unchanged(tmp_path, case):
+    """The wrapper keeps no copy of upstream's samplesheet rules: such a row is
+    normalized (paths resolved) and left for nf-schema, which names the entry."""
+    spec = _NF_SCHEMA_CASES[case]
+    fastq = tmp_path / spec.get("fastq", "sample_R1.fastq.gz")
+    if spec.get("create", True):
+        _touch(fastq)
+    if spec.get("bam"):
+        _touch(tmp_path / "a.bam")
+    row = {"sample": "sampleA", "fastq_1": fastq.name, "strandedness": "forward", **spec.get("row", {})}
+    rows = [row]
+    if "second_run" in spec:
+        other = _touch(tmp_path / "sample_L002_R1.fastq.gz")
+        rows.append({**row, "fastq_1": other.name, **spec["second_run"]})
+    fieldnames = [name for name in dict.fromkeys(key for r in rows for key in r) if name != spec.get("drop_column")]
+    src = _write_sheet(tmp_path / "samplesheet.csv", [{k: r[k] for k in fieldnames} for r in rows], fieldnames=fieldnames)
+    result = validate_and_normalize_samplesheet(
+        src, tmp_path / "normalized.csv", skip_alignment=spec.get("skip_alignment", False)
+    )
+    written = list(csv.DictReader((tmp_path / "normalized.csv").read_text().splitlines()))
+    assert result["sample_count"] == 1 and len(written) == len(rows)
+    assert written[0]["fastq_1"] == (tmp_path / fastq.name).resolve().as_posix()
+    for key, value in spec.get("row", {}).items():
+        expected = (tmp_path / value).resolve().as_posix() if key == "genome_bam" else value
+        assert written[0][key] == expected
+
+
+@pytest.mark.parametrize("fastq_1", ["", "   "])
+def test_a_row_without_fastq_1_is_left_for_nf_schema(tmp_path, fastq_1):
+    """fastq_1 is required by schema_input.json, BAM reprocessing rows included;
+    nf-schema names the entry that lacks it."""
+    bam = _touch(tmp_path / "a.bam")
+    src = _write_sheet(tmp_path / "samplesheet.csv",
+                       [{"sample": "sampleA", "fastq_1": fastq_1, "strandedness": "auto", "genome_bam": bam.name}])
+    validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv", skip_alignment=True)
+    written = list(csv.DictReader((tmp_path / "normalized.csv").read_text().splitlines()))
+    assert written[0]["fastq_1"] == "" and written[0]["genome_bam"] == bam.resolve().as_posix()

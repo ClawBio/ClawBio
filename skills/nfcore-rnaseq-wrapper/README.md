@@ -6,7 +6,7 @@ ClawBio wrapper for running `nf-core/rnaseq` bulk RNA-seq preprocessing from FAS
 
 - Upstream bulk RNA-seq preprocessing via Nextflow.
 - Supported aligners: `star_salmon`, `star_rsem`, `hisat2`, `bowtie2_salmon`.
-- Validated samplesheet input with normalized local FASTQ/BAM paths (local-first by default; remote URIs require `--allow-remote-inputs`).
+- Samplesheet input with normalized local FASTQ/BAM paths (local-first by default; remote URIs require `--allow-remote-inputs`); nf-schema validates its columns, values and files when Nextflow starts.
 - Reproducibility bundle, provenance bundle, `report.md`, and `result.json`.
 - Canonical merged count matrix detection for downstream `rnaseq`.
 

@@ -460,14 +460,6 @@ def test_hisat2_downstream_emits_warning_and_disables_handoff(tmp_path, monkeypa
     assert any("hisat2" in warning.lower() for warning in result["warnings"])
 
 
-def test_samplesheet_fastq_paths_are_revalidated(tmp_path, monkeypatch):
-    bad = _touch(tmp_path / "reads" / "sample R1.fastq.gz")
-    _mock_env(monkeypatch)
-    with pytest.raises(SkillError) as exc:
-        _run(_args(tmp_path), _samplesheet(tmp_path, fastq_paths=[bad]))
-    assert exc.value.error_code == ErrorCode.INVALID_FASTQ
-
-
 def test_samplesheet_remote_fastq_uri_not_existence_checked(tmp_path, monkeypatch):
     """With --allow-remote-inputs, a remote FASTQ URI passes preflight (existence is
     deferred to Nextflow). Without the flag it is rejected (see the gate tests)."""
@@ -511,16 +503,6 @@ def test_remote_bam_uri_skip_alignment_not_existence_checked(tmp_path, monkeypat
         _samplesheet(tmp_path, bam_paths=["s3://bucket.example.org/bams/sample.genome.bam"]),
     )
     assert result["samplesheet"]["bam_count"] == 1
-
-
-def test_bam_paths_must_exist(tmp_path, monkeypatch):
-    _mock_env(monkeypatch)
-    with pytest.raises(SkillError) as exc:
-        _run(
-            _args(tmp_path, skip_alignment=True, pseudo_aligner="salmon"),
-            _samplesheet(tmp_path, bam_paths=[tmp_path / "missing.bam"]),
-        )
-    assert exc.value.error_code == ErrorCode.REFERENCE_PATH_NOT_FOUND
 
 
 def test_resume_requires_manifest(tmp_path, monkeypatch):
@@ -895,7 +877,6 @@ def test_profile_backend_missing_binary_is_rejected(monkeypatch):
     with pytest.raises(SkillError) as exc:
         preflight._check_profile("singularity")
     assert exc.value.error_code in _BACKEND_MISSING_ERROR_CODES["singularity"]
-
 
 
 # ── _collect_reference_values ────────────────────────────────────────────────
@@ -1648,14 +1629,6 @@ def test_nextflow_config_include_cycle_is_safe(tmp_path, monkeypatch):
 # ── Audit L1: preflight shares the single-source FASTQ regex (no local shadow) ─
 
 
-def test_preflight_does_not_shadow_shared_fastq_regex():
-    src = (_SKILL_DIR / "preflight.py").read_text(encoding="utf-8")
-    assert "_FASTQ_BASENAME_RE = re.compile" not in src, (
-        "preflight must use the shared schemas.FASTQ_BASENAME_RE, not a local redefinition"
-    )
-    assert "FASTQ_BASENAME_RE as _FASTQ_BASENAME_RE" in src
-
-
 # ── Audit L2: macOS Docker + STAR index build warns about the memory ceiling ──
 
 
@@ -1801,3 +1774,15 @@ def test_remote_inputs_allowed_with_flag_warns(capsys):
 def test_local_inputs_pass_the_remote_gate():
     from argparse import Namespace as _NS
     preflight._check_remote_inputs(_NS(allow_remote_inputs=False), {"fastq_paths": ["/d/n_R1.fastq.gz"]})
+
+
+def test_preflight_leaves_samplesheet_rules_to_nf_schema(tmp_path, monkeypatch):
+    """A FASTQ basename nf-core refuses, or a missing BAM, is nf-schema's to name
+    at launch (schema_input.json); preflight keeps only ClawBio's own checks."""
+    _mock_env(monkeypatch)
+    bad = _touch(tmp_path / "reads" / "sample R1.fastq.gz")
+    _run(_args(tmp_path), _samplesheet(tmp_path, fastq_paths=[bad]))
+    _run(
+        _args(tmp_path, skip_alignment=True, pseudo_aligner="salmon"),
+        _samplesheet(tmp_path, bam_paths=[tmp_path / "missing.bam"]),
+    )

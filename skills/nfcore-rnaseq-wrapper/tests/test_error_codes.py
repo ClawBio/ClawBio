@@ -68,7 +68,6 @@ def test_rnaseq_specific_error_codes_are_present():
         "INVALID_TRIMMER",
         "INVALID_RIBO_TOOL",
         "INVALID_UMI_TOOL",
-        "INVALID_STRANDEDNESS",
         "INCOMPATIBLE_ALIGNER_ARGS",
         "CONFLICTING_FASTA_ARGS",
         "BAM_REPROCESSING_INCOMPLETE",

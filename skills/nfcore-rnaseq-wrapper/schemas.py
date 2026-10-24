@@ -82,7 +82,6 @@ SUPPORTED_RSEQC_MODULES = {
     "tin",
 }
 SUPPORTED_UMI_TOOLS = {"umitools", "umicollapse"}
-SUPPORTED_STRANDEDNESS = {"forward", "reverse", "unstranded", "auto"}
 # nf-core/rnaseq 3.26.0 nextflow_schema.json enum values
 SUPPORTED_UMI_EXTRACT_METHODS = {"string", "regex"}
 SUPPORTED_UMI_GROUPING_METHODS = {"unique", "percentile", "cluster", "adjacency", "directional"}
@@ -96,11 +95,8 @@ SUPPORTED_PUBLISH_DIR_MODES = {"symlink", "rellink", "link", "copy", "copyNoFoll
 # so --help preserves the meaningful taxonomic order.
 SUPPORTED_BRACKEN_PRECISION = ("D", "P", "C", "O", "F", "G", "S")
 
-# Shared regexes — defined once here so every module enforces the identical rule.
-# FASTQ_BASENAME_RE: basename ends in .fq/.fastq(.gz) and contains no whitespace or
-# path separator (nf-core schema fastq pattern). WHITESPACE_RE: any whitespace char,
-# used to reject paths the nf-core ^\S+ schema would later refuse.
-FASTQ_BASENAME_RE = re.compile(r"^[^\s/]+\.f(?:ast)?q(?:\.gz)?$")
+# WHITESPACE_RE: any whitespace char, used to reject paths the nf-core ^\S+ schema
+# would later refuse.
 WHITESPACE_RE = re.compile(r"\s")
 SUPPORTED_SAMPLE_COLUMNS = {
     "sample",
@@ -113,7 +109,6 @@ SUPPORTED_SAMPLE_COLUMNS = {
     "seq_center",
     "percent_mapped",
 }
-REQUIRED_SAMPLE_COLUMNS = ("sample", "fastq_1", "strandedness")
 
 # Top-level genome keys verified from nf-core/rnaseq 3.26.0
 # conf/igenomes.config.
