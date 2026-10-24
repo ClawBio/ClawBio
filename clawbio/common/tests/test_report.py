@@ -4,7 +4,16 @@ import json
 import tempfile
 from pathlib import Path
 
-from clawbio.common.report import generate_report_header, write_audit_log, write_result_json
+import pytest
+from hypothesis import given, strategies as st
+
+from clawbio.common.report import (
+    generate_report_header,
+    skill_version,
+    version_from_skill_md,
+    write_audit_log,
+    write_result_json,
+)
 
 
 def test_write_audit_log_appends_jsonl_record(tmp_path):
@@ -92,3 +101,37 @@ def test_generate_report_header_includes_skill_name():
     )
     assert "**Skill**: pharmgx" in result
     assert "**Version**: 0.1.0" in result
+
+
+SEMVER = st.tuples(*[st.integers(0, 999)] * 3).map(lambda t: ".".join(map(str, t)))
+
+
+def _skill_md(version_line: str, body: str = "") -> str:
+    return f"---\nname: demo-skill\nmetadata:\n  author: x\n{version_line}\n---\n\n# Demo\n{body}"
+
+
+@given(version=SEMVER, decoy=SEMVER)
+def test_version_from_skill_md_reads_frontmatter_never_the_body(version, decoy):
+    text = _skill_md(f"  version: {version}", body=f"\nmetadata:\n  version: {decoy}\n")
+    assert version_from_skill_md(text) == version
+
+
+def test_version_from_skill_md_without_a_version_raises():
+    with pytest.raises(ValueError, match="metadata.version"):
+        version_from_skill_md(_skill_md("  tags: [a]"))
+
+
+def test_skill_version_reads_the_skill_md_next_to_the_script(tmp_path):
+    (tmp_path / "SKILL.md").write_text(_skill_md("  version: 1.4.2"))
+    assert skill_version(tmp_path / "my_skill.py") == "1.4.2"
+
+
+def test_skill_version_walks_up_from_a_subfolder_module(tmp_path):
+    (tmp_path / "SKILL.md").write_text(_skill_md("  version: 0.3.0"))
+    (tmp_path / "core").mkdir()
+    assert skill_version(tmp_path / "core" / "report.py") == "0.3.0"
+
+
+def test_skill_version_without_a_skill_md_raises(tmp_path):
+    with pytest.raises(FileNotFoundError, match="SKILL.md"):
+        skill_version(tmp_path / "orphan.py")

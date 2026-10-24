@@ -170,3 +170,100 @@ def test_prefetched_ld_client_handles_empty_partner_list():
     assert result.n_partners_requested == 0
     assert result.n_partners_returned == 0
     assert result.pairs == []
+
+
+# ---------- One-row-per-rsID copies in a pre-fetched slice ----------
+
+_TSV_HEADER = "variant_id\tchromosome\tposition_bp\tallele_a\tallele_b\tbeta\tse\tp\trsid\n"
+
+
+def _client_from_tsv(tmp_path: Path, rows: list[str]) -> PrefetchedEQTLClient:
+    from _prefetched import load_sumstats_tsv
+
+    tsv = tmp_path / "exposure.tsv"
+    tsv.write_text(_TSV_HEADER + "".join(r + "\n" for r in rows))
+    return PrefetchedEQTLClient(variants=load_sumstats_tsv(tsv), dataset_id="QTD000276")
+
+
+def _fetch(client: PrefetchedEQTLClient):
+    return client.fetch_region(dataset_id="x", chromosome="1", start_bp=1, end_bp=10_000)
+
+
+def test_prefetched_eqtl_client_collapses_duplicate_rsid_rows(tmp_path: Path):
+    """A slice cut from the eQTL Catalogue repeats a variant once per rsID with
+    identical statistics: the render gets one row, keeping both rsIDs, and the
+    dropped copy is recorded with its reason."""
+    result = _fetch(_client_from_tsv(tmp_path, [
+        "1_100_T_TA\t1\t100\tT\tTA\t0.2\t0.01\t1e-6\trs1",
+        "1_100_T_TA\t1\t100\tT\tTA\t0.2\t0.01\t1e-6\trs2",
+        "1_200_C_T\t1\t200\tC\tT\t0.1\t0.01\t1e-3\trs3",
+    ]))
+    assert [v.variant_id for v in result.variants] == ["1_100_T_TA", "1_200_C_T"]
+    assert result.n_variants == 2
+    assert result.n_rows_read == 3
+    assert result.variants[0].raw["rsids"] == "rs1;rs2"
+    assert [(c.variant_id, c.rsid, c.kept_rsid, c.reason) for c in result.collapsed] == [
+        ("1_100_T_TA", "rs2", "rs1", "duplicate_rsid_row"),
+    ]
+    assert any("1 repeated row(s)" in n for n in result.notes)
+
+
+def test_prefetched_eqtl_client_refuses_copies_that_disagree(tmp_path: Path):
+    """Rows of one variant that disagree cannot be merged, and picking one would
+    be a guess: the render stops. The error is the pre-fetched file's own, so
+    the render does not report a local file as an eQTL Catalogue failure."""
+    from _prefetched import PrefetchedSchemaError
+    from eqtl_catalogue_region_fetch import EQTLCatalogueAPIError
+
+    client = _client_from_tsv(tmp_path, [
+        "1_100_A_G\t1\t100\tA\tG\t0.2\t0.01\t1e-6\trs1",
+        "1_100_A_G\t1\t100\tA\tG\t-0.3\t0.02\t1e-4\trs1",
+    ])
+    with pytest.raises(PrefetchedSchemaError, match=r"disagree on beta \(0.2 vs -0.3\).*1_100_A_G") as exc:
+        _fetch(client)
+    assert not isinstance(exc.value, EQTLCatalogueAPIError)
+    assert "catalogue" not in str(exc.value).lower()
+
+
+def test_prefetched_eqtl_client_refuses_a_file_with_several_traits(tmp_path: Path):
+    """The plot draws one molecular trait; a file mixing several would pair a
+    variant once per trait, so it stops and names them."""
+    from _prefetched import PrefetchedSchemaError, load_sumstats_tsv
+
+    tsv = tmp_path / "exposure.tsv"
+    tsv.write_text(
+        "variant_id\tchromosome\tposition_bp\tallele_a\tallele_b\tbeta\tse\tp\tmolecular_trait_id\n"
+        "1_100_A_G\t1\t100\tA\tG\t0.2\t0.01\t1e-6\tENST1\n"
+        "1_100_A_G\t1\t100\tA\tG\t-0.3\t0.02\t1e-4\tENST2\n"
+    )
+    client = PrefetchedEQTLClient(variants=load_sumstats_tsv(tsv), dataset_id="QTD000276")
+    with pytest.raises(PrefetchedSchemaError, match="2 molecular traits.*ENST1, ENST2"):
+        _fetch(client)
+
+
+def test_prefetched_eqtl_client_collapses_copies_with_nan_and_na(tmp_path: Path):
+    """`NaN` reads as missing like `NA`, so identical copies carrying it still
+    collapse; an `NA` rsID is not stored as an rsID."""
+    from _prefetched import load_sumstats_tsv
+
+    tsv = tmp_path / "exposure.tsv"
+    tsv.write_text(
+        "variant_id\tchromosome\tposition_bp\tallele_a\tallele_b\tbeta\tse\tp\tmaf\trsid\n"
+        "1_100_T_TA\t1\t100\tT\tTA\t0.2\t0.01\t1e-6\tnan\tNA\n"
+        "1_100_T_TA\t1\t100\tT\tTA\t0.2\t0.01\t1e-6\tNaN\trs2\n"
+    )
+    result = _fetch(PrefetchedEQTLClient(variants=load_sumstats_tsv(tsv), dataset_id="QTD000276"))
+    assert result.n_variants == 1
+    assert "rsid" not in result.variants[0].raw
+    assert result.variants[0].raw["rsids"] == "rs2"
+
+
+def test_prefetched_eqtl_client_without_repeats_is_unchanged(tmp_path: Path):
+    result = _fetch(_client_from_tsv(tmp_path, [
+        "1_100_A_G\t1\t100\tA\tG\t0.2\t0.01\t1e-6\trs1",
+        "1_200_C_T\t1\t200\tC\tT\t0.1\t0.01\t1e-3\t",
+    ]))
+    assert result.n_variants == 2
+    assert result.collapsed == []
+    assert result.variants[1].raw.get("rsid") is None
+    assert result.notes == ["sumstats loaded from pre-fetched TSV (no live fetch)"]
