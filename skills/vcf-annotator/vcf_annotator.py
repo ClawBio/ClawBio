@@ -157,29 +157,88 @@ DEMO_ANNOTATIONS = [
 # ── VCF parser ─────────────────────────────────────────────────────────────────
 
 def parse_vcf(vcf_path: Path) -> list[dict]:
-    """Parse a VCF file. Uses cyvcf2 if available, falls back to stdlib."""
-    if HAS_CYVCF2:
-        variants = []
-        for v in cyvcf2.VCF(str(vcf_path)):
-            variants.append({
-                "chrom": str(v.CHROM).replace("chr", ""),
-                "pos":   str(v.POS),
-                "id":    v.ID or "",
-                "ref":   v.REF,
-                "alt":   v.ALT[0] if v.ALT else ".",
-            })
-        return variants
+    """Parse a VCF file. Uses cyvcf2 if available, falls back to stdlib.
 
-    # Stdlib fallback
+    Exits non-zero when:
+    - The file is empty or has no #CHROM header (not a valid VCF)
+    - No valid variant records are found after a valid header
+    - A line has fewer than 5 tab-separated fields (warns and skips)
+    """
+    if HAS_CYVCF2:
+        try:
+            vcf = cyvcf2.VCF(str(vcf_path))
+            variants = []
+            for v in vcf:
+                variants.append({
+                    "chrom": str(v.CHROM).replace("chr", ""),
+                    "pos":   str(v.POS),
+                    "id":    v.ID or "",
+                    "ref":   v.REF,
+                    "alt":   v.ALT[0] if v.ALT else ".",
+                })
+            if not variants:
+                print(
+                    f"ERROR: {vcf_path} is a valid VCF but contains no variant records. "
+                    "No report written.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            return variants
+        except Exception as exc:
+            print(
+                f"ERROR: cyvcf2 could not parse {vcf_path}: "
+                f"{type(exc).__name__}: {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+    # ── Stdlib fallback ────────────────────────────────────────────────────────
     variants = []
-    with open(vcf_path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
+    found_chrom_header = False
+    skipped_lines = 0
+
+    with open(vcf_path, encoding="utf-8", errors="replace") as f:
+        for lineno, line in enumerate(f, 1):
+            line = line.rstrip("\n\r")
+
+            # Skip meta-information lines
+            if line.startswith("##"):
                 continue
+
+            # Check for mandatory #CHROM header
+            if line.startswith("#CHROM"):
+                found_chrom_header = True
+                continue
+
+            # Skip any other comment/header lines
+            if line.startswith("#"):
+                continue
+
+            # If we hit data lines before #CHROM header, it is not a VCF
+            if not found_chrom_header:
+                print(
+                    f"ERROR: {vcf_path} has no #CHROM header — "
+                    f"this does not look like a VCF file "
+                    f"(first data at line {lineno}).",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+            # Skip blank lines
+            if not line.strip():
+                continue
+
             parts = line.split("\t")
             if len(parts) < 5:
+                skipped_lines += 1
+                print(
+                    f"  [warn] Line {lineno}: skipping malformed record "
+                    f"(expected >=5 tab-separated fields, got {len(parts)}). "
+                    f"Check that the file uses tabs, not spaces.",
+                    file=sys.stderr,
+                )
                 continue
+
             variants.append({
                 "chrom": parts[0].replace("chr", ""),
                 "pos":   parts[1],
@@ -187,6 +246,31 @@ def parse_vcf(vcf_path: Path) -> list[dict]:
                 "ref":   parts[3],
                 "alt":   parts[4],
             })
+
+    # ── Post-parse validation ──────────────────────────────────────────────────
+    if not found_chrom_header:
+        print(
+            f"ERROR: {vcf_path} has no #CHROM header — "
+            "this does not look like a VCF file (empty file or wrong format). "
+            "No report written.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if skipped_lines > 0:
+        print(
+            f"  [warn] {skipped_lines} malformed line(s) skipped.",
+            file=sys.stderr,
+        )
+
+    if not variants:
+        print(
+            f"ERROR: {vcf_path} is a valid VCF but contains no variant records. "
+            "No report written.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     return variants
 
 
@@ -199,10 +283,8 @@ def annotate_vep(variant: dict) -> dict:
     ref   = variant["ref"]
     alt   = variant["alt"]
 
-    # Build HGVS notation for SNVs
     hgvs = f"{chrom}:g.{pos}{ref}>{alt}"
     url  = f"https://rest.ensembl.org/vep/human/hgvs/{urllib.parse.quote(hgvs)}"
-    headers_str = "application/json"
 
     result = {
         "gene": "Unknown",
@@ -230,7 +312,7 @@ def annotate_vep(variant: dict) -> dict:
             result["hgvs"]        = hit.get("id", hgvs)
             result["sift"]        = tc.get("sift_prediction", "N/A")
             result["polyphen"]    = tc.get("polyphen_prediction", "N/A")
-        time.sleep(0.1)  # Ensembl rate limit
+        time.sleep(0.1)
     except Exception as exc:
         print(f"  [warn] VEP failed for {hgvs}: {type(exc).__name__}: {exc}", file=sys.stderr)
 
@@ -320,7 +402,7 @@ def annotate_variants(variants: list[dict]) -> list[dict]:
               f"{v['chrom']}:{v['pos']} {v['ref']}>{v['alt']}")
 
         ann = {**v}
-        vep    = annotate_vep(v)
+        vep     = annotate_vep(v)
         clinvar = lookup_clinvar(v.get("id", ""))
         gnomad  = lookup_gnomad(v["chrom"], v["pos"], v["ref"], v["alt"])
 
@@ -329,7 +411,6 @@ def annotate_variants(variants: list[dict]) -> list[dict]:
         ann.update(gnomad)
         annotated.append(ann)
 
-    # Sort by impact rank
     annotated.sort(key=lambda x: IMPACT_RANK.get(x.get("impact", "UNKNOWN"), 5))
     return annotated
 
@@ -346,11 +427,11 @@ def generate_report(
     (output_dir / "tables").mkdir(exist_ok=True)
     (output_dir / "reproducibility").mkdir(exist_ok=True)
 
-    now   = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    total = len(variants)
-    high  = sum(1 for v in variants if v.get("impact") == "HIGH")
-    mod   = sum(1 for v in variants if v.get("impact") == "MODERATE")
-    low   = sum(1 for v in variants if v.get("impact") == "LOW")
+    now        = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    total      = len(variants)
+    high       = sum(1 for v in variants if v.get("impact") == "HIGH")
+    mod        = sum(1 for v in variants if v.get("impact") == "MODERATE")
+    low        = sum(1 for v in variants if v.get("impact") == "LOW")
     path_count = sum(
         1 for v in variants
         if "pathogenic" in v.get("clinvar_significance", "").lower()
@@ -363,7 +444,7 @@ def generate_report(
         f"**Input**: {input_label}  ",
         f"**Date**: {now}  ",
         f"**Total variants**: {total}  ",
-        f"**HIGH impact**: {high} | **MODERATE**: {mod} | **LOW**: {low}<br>",
+        f"**HIGH impact**: {high} | **MODERATE**: {mod} | **LOW**: {low}  ",
         f"**ClinVar Pathogenic/Likely Pathogenic**: {path_count}",
         "",
         "---",
@@ -384,9 +465,9 @@ def generate_report(
     ]
 
     for i, v in enumerate(variants, 1):
-        af = v.get("gnomad_af")
+        af     = v.get("gnomad_af")
         af_str = f"{af:.6f}" if af is not None else "N/A"
-        sig = v.get("clinvar_significance", "Not found")
+        sig    = v.get("clinvar_significance", "Not found")
         lines.append(
             f"| {i} | {v.get('gene','?')} | "
             f"{v['chrom']}:{v['pos']} {v['ref']}>{v['alt']} | "
@@ -406,8 +487,8 @@ def generate_report(
             f"### {i}. {v.get('gene','Unknown')} — "
             f"{v['chrom']}:{v['pos']} {v['ref']}>{v['alt']}",
             "",
-            f"| Field | Value |",
-            f"|-------|-------|",
+            "| Field | Value |",
+            "|-------|-------|",
             f"| **rsID** | {v.get('id') or 'N/A'} |",
             f"| **HGVS** | {v.get('hgvs','N/A')} |",
             f"| **Consequence** | {v.get('consequence','N/A')} |",
@@ -416,12 +497,9 @@ def generate_report(
             f"| **PolyPhen** | {v.get('polyphen','N/A')} |",
             f"| **ClinVar** | {v.get('clinvar_significance','Not found')} |",
             f"| **ClinVar Condition** | {v.get('clinvar_condition','N/A')} |",
-            f"| **gnomAD AF (global)** | "
-            f"{'%.6f' % af if af is not None else 'N/A'} |",
-            f"| **gnomAD AF (AFR)** | "
-            f"{'%.6f' % af_afr if af_afr is not None else 'N/A'} |",
-            f"| **gnomAD AF (EUR)** | "
-            f"{'%.6f' % af_eur if af_eur is not None else 'N/A'} |",
+            f"| **gnomAD AF (global)** | {'%.6f' % af if af is not None else 'N/A'} |",
+            f"| **gnomAD AF (AFR)** | {'%.6f' % af_afr if af_afr is not None else 'N/A'} |",
+            f"| **gnomAD AF (EUR)** | {'%.6f' % af_eur if af_eur is not None else 'N/A'} |",
             "",
         ]
 
@@ -443,7 +521,6 @@ def generate_report(
     csv_path = output_dir / "tables" / "variants.csv"
     if HAS_PANDAS:
         df = pd.DataFrame(variants)
-        # Keep only known columns that exist
         existing = [c for c in csv_fields if c in df.columns]
         df[existing].to_csv(csv_path, index=False)
     else:
