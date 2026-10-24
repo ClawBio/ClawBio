@@ -302,6 +302,8 @@ _PIPELINE_REFUSAL_LOG = """Oct-24 12:26:35.982 [Actor Thread 7] ERROR nextflow.e
 nextflow.exception.WorkflowScriptErrorException: Execution halted due to duplicate patient-sample-status-lane combination.
 Oct-24 12:26:36.061 [Actor Thread 7] DEBUG nextflow.Session - Session aborted -- Cause: Execution halted due to duplicate patient-sample-status-lane combination.
 Oct-24 12:26:36.887 [Actor Thread 7] ERROR nextflow.Nextflow - Pipeline failed. Please refer to troubleshooting docs: https://nf-co.re/docs/usage/troubleshooting
+Oct-24 13:54:52.101 [main] DEBUG nextflow.trace.ReportObserver - Failed to render execution report
+nextflow.exception.AbortOperationException: Report file already exists: upstream/results/pipeline_info/execution_report_2026-10-24_13-54-05.html -- enable the 'report.overwrite' option in your config file to overwrite existing files
 """
 _PIPELINE_REFUSAL_STDOUT = """-[nf-core/sarek] Pipeline completed with errors-
 WARN: FASTQ file(/data/test_1.fastq.gz): Cannot extract flowcell ID from @normal#21#998579#1/1
@@ -334,6 +336,8 @@ def test_a_pipeline_refusal_names_its_reason_and_the_entry(tmp_path):
     assert hint.count("Patient 'P1', Sample 'S1', Status '0', Lane 'L1' appears 2 times") == 1
     assert "troubleshooting docs" not in hint
     assert "is available" not in hint and "flowcell" not in hint
+    # After the abort Nextflow fails to render its reports; that is not why it stopped.
+    assert "Report file already exists" not in hint
 
 
 def test_nextflow_and_its_launcher_name_their_own_refusals(tmp_path):
@@ -391,3 +395,18 @@ def test_each_stop_reason_is_listed_once_whatever_the_log_repeats(tmp_path, text
     assert all(hint.count(reason.rstrip(".")) == 1 for reason in reasons)
     clean = api.environment_failure_hints(*_write_logs(tmp_path, "", "".join(f"{n}\n" for n in noise), ""))
     assert clean == ""
+
+
+def test_a_plugin_refusing_the_engine_is_named(tmp_path):
+    """nf-core/scrnaseq 4.1.0 under NXF_VER=24.10.6, as captured live: nf-schema's own
+    plugin requirement aborts before any session starts, so the reason is only an
+    AbortOperationException in .nextflow.log and a plain stderr line."""
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    refusal = "Failed requirement - Plugin nf-schema@2.5.1 requires Nextflow version >=25.04.0 (current 24.10.6)"
+    log = ("Oct-24 13:49:23.767 [main] DEBUG nextflow.cli.Launcher - Operation aborted\n"
+           f"nextflow.exception.AbortOperationException: {refusal}\n"
+           "\tat nextflow.plugin.PluginUpdater.installPlugin(PluginUpdater.groovy:123)\n")
+    stderr = f"Nextflow 26.10.3 is available - Please consider updating your version to it\n{refusal}\n"
+    hint = api.environment_failure_hints(*_write_logs(tmp_path, " N E X T F L O W   ~  version 24.10.6\n", stderr, log))
+    assert hint.count(refusal) == 1
+    assert "is available" not in hint

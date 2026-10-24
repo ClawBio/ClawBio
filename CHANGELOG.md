@@ -42,8 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a run nf-schema refuses names each refused value in `result.json`.
 - **A run the pinned pipeline or Nextflow stops says why in `result.json`.** When
   the release's own input checks (`error(...)`, e.g. nf-core/sarek's samplesheet
-  rules), `manifest.nextflowVersion` or the Nextflow launcher's Java check stop a
-  run, the failure's fix names the reason and the entry the pipeline printed, not
+  rules), `manifest.nextflowVersion`, a plugin requiring a newer Nextflow or the
+  Nextflow launcher's Java check stop a run, the failure's fix names the reason and the entry the pipeline printed, not
   only nf-core's generic "Pipeline failed" line.
 - **The nf-core wrappers leave each pinned release's own input checks to it.**
   Samplesheet rules are checked by nf-schema and the pipeline when Nextflow

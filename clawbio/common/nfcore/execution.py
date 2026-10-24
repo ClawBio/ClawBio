@@ -39,6 +39,11 @@ _NF_SCHEMA_REFUSAL_HEADER = "the following invalid input values have been detect
 # the pipeline's own input checks as the session's abort cause; Nextflow and its launcher
 # print their refusals (manifest.nextflowVersion, the Java check) as ERROR lines.
 _SESSION_ABORT_CAUSE = "Session aborted -- Cause:"
+# An abort before any session exists (e.g. a plugin requiring a newer Nextflow) is logged
+# only as the exception Nextflow uses for refusals it explains to the user. After a
+# session abort the same exception also reports that the run's HTML reports could not be
+# written, which is not why it stopped, so it is read only when no session abort is.
+_ABORT_EXCEPTION = "nextflow.exception.AbortOperationException:"
 _ERROR_LINE_PREFIXES = ("ERROR ~ ", "ERROR: ")
 # Lines that say a run failed without saying why, or that nf_schema_refusals reports already.
 _UNINFORMATIVE_STOP_REASONS = (
@@ -127,9 +132,14 @@ def nextflow_stop_reasons(stdout: str, stderr: str, nextflow_log: str = "") -> l
         if reason and reason not in reasons and not reason.lower().startswith(_UNINFORMATIVE_STOP_REASONS):
             reasons.append(reason)
 
-    for line in nextflow_log.splitlines():
+    log_lines = nextflow_log.splitlines()
+    for line in log_lines:
         if _SESSION_ABORT_CAUSE in line:
             add(line.split(_SESSION_ABORT_CAUSE, 1)[1])
+    if not reasons:
+        for line in log_lines:
+            if _ABORT_EXCEPTION in line:
+                add(line.split(_ABORT_EXCEPTION, 1)[1])
     for line in (stdout + "\n" + stderr).splitlines():
         line = _ANSI_ESCAPE.sub("", line).strip()
         for prefix in _ERROR_LINE_PREFIXES:
