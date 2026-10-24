@@ -14,6 +14,18 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   that digest, and `commands.sh` applies it when replaying without a Nextflow cache, so a bundle replays
   byte-identical images even if a tag is re-pushed.
 
+### Changed
+
+- **Samplesheet rules are nf-core/rnaseq's.** nf-schema (`assets/schema_input.json`) checks
+  the samplesheet when Nextflow starts, before any task runs (required columns, patterns,
+  the `strandedness` enum, FASTQ/BAM names and existence, `percent_mapped` bounds), and
+  `checkSamplesAfterGrouping` refuses runs of one sample with different strandedness;
+  `result.json` names each refused entry. The builder and preflight no longer repeat
+  them. They still parse the CSV strictly, normalize sample names and refuse name
+  collisions, duplicate sample/FASTQ rows, FASTQ+BAM rows without `--skip-alignment` and
+  remote URIs without `--allow-remote-inputs`. `MISSING_FASTQ`, `INVALID_FASTQ`,
+  `INVALID_STRANDEDNESS` and `INVALID_BAM` are no longer raised and are removed.
+
 ### Fixed
 
 - Route launcher defaults outside the source tree and correct example output paths.

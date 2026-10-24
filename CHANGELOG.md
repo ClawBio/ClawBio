@@ -47,7 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only nf-core's generic "Pipeline failed" line.
 - **The nf-core wrappers leave each pinned release's own input checks to it.**
   Samplesheet rules are checked by nf-schema and the pipeline when Nextflow
-  starts, before any task runs (nf-core/sarek: columns per `--step`, values, files,
+  starts, before any task runs (nf-core/rnaseq: columns, values, files, one
+  strandedness per sample; nf-core/sarek: columns per `--step`, values, files,
   duplicate and pairing rules, the tumour/normal, sex and contamination needs of
   `--tools`; nf-core/scrnaseq: columns, FASTQs, type enums, integer
   `expected_cells`, the Cell Ranger ARC columns); the wrappers keep only what the
