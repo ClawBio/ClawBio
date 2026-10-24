@@ -50,7 +50,7 @@ Unsupported parameters are either hidden/institutional metadata, interactive hel
 
 ## Input & Reference Path Policy
 
-**Local-first by default.** Samplesheet FASTQs and reference/index inputs must be local paths; remote URIs (`s3://`, `gs://`, `https://`, `ftp://`, …) are rejected at preflight (`REMOTE_INPUT_NOT_ALLOWED`) so genetic data and references stay on the local machine. Pass `--allow-remote-inputs` to opt in — remote URIs are then passed through verbatim (Nextflow stages them and nf-schema checks their names) and a runtime warning lists every path fetched over the network. The same flag is shared by all three nf-core wrappers. nf-schema checks that local FASTQs exist when Nextflow starts.
+**Local-first by default.** Samplesheet FASTQs and reference/index inputs must be local paths; remote URIs (`s3://`, `gs://`, `https://`, `ftp://`, …) are rejected at preflight (`REMOTE_INPUT_NOT_ALLOWED`) so genetic data and references stay on the local machine. Pass `--allow-remote-inputs` to opt in — remote URIs are then passed through verbatim (Nextflow stages them and nf-schema checks their names) and a runtime warning lists every path fetched over the network. The same flag is shared by all three nf-core wrappers. nf-schema checks that local FASTQs and references exist when Nextflow starts.
 
 ## Protocol Policy
 

@@ -56,7 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Reference paths the pinned `nextflow_schema.json` declares `exists: true` (or
   gives a name pattern) are nf-schema's too (nf-core/rnaseq: every reference,
   index, rRNA manifest and BBSplit input; nf-core/sarek: 37 reference params and
-  the SnpSift databases CSV); the wrappers keep remote-URI gating,
+  the SnpSift databases CSV; nf-core/scrnaseq: every reference but `motifs` and
+  `cellrangerarc_config`); the wrappers keep remote-URI gating,
   reference combinations and existence checks for paths the schema does not
   check.
 - `biostudies-fetch` and `arrayexpress-fetch` resolve file downloads from the

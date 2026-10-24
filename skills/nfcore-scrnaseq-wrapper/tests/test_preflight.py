@@ -91,13 +91,6 @@ def test_reference_paths_accept_remote_uris():
     )
 
 
-def test_reference_paths_still_reject_missing_local(tmp_path):
-    """A *local* reference that does not exist still fails fast (MISSING_REFERENCE)."""
-    with pytest.raises(SkillError) as exc:
-        preflight._check_reference_paths_exist({"fasta": str(tmp_path / "nope.fa")})
-    assert exc.value.error_code == "MISSING_REFERENCE"
-
-
 # --- --allow-remote-inputs gate (local-first by default) ---------------------
 
 def test_remote_fastq_rejected_by_default():
@@ -271,19 +264,7 @@ def test_preflight_rejects_missing_nextflow_config(tmp_path, monkeypatch):
     assert exc.value.details["field"] == "extra_config"
 
 
-def test_preflight_rejects_missing_reference(tmp_path, monkeypatch):
-    args = _args(tmp_path)
-    _mock_env(monkeypatch)
-    with pytest.raises(SkillError) as exc:
-        preflight.run_preflight(
-            args,
-            pipeline_source=_PIPELINE_SOURCE,
-            samplesheet_summary={"sample_count": 1, "unknown_columns": []},
-        )
-    assert exc.value.error_code == "MISSING_REFERENCE"
-
-
-def test_fasta_path_with_whitespace_fails_before_nextflow_schema(tmp_path, monkeypatch):
+def test_fasta_path_with_whitespace_is_left_to_nf_schema(tmp_path, monkeypatch):
     args = _args(tmp_path)
     fasta_dir = tmp_path / "refs with spaces"
     fasta_dir.mkdir()
@@ -295,15 +276,13 @@ def test_fasta_path_with_whitespace_fails_before_nextflow_schema(tmp_path, monke
     args.gtf = str(gtf)
     _mock_env(monkeypatch)
 
-    with pytest.raises(SkillError) as exc:
-        preflight.run_preflight(
-            args,
-            pipeline_source=_PIPELINE_SOURCE,
-            samplesheet_summary={"sample_count": 1, "unknown_columns": []},
-        )
-
-    assert exc.value.error_code == "INVALID_PRESET_CONFIGURATION"
-    assert exc.value.details["field"] == "fasta"
+    # The fasta pattern ^\S+\.fn?a(sta)?(\.gz)?$ covers the whole path, so nf-schema
+    # refuses it when Nextflow starts.
+    preflight.run_preflight(
+        args,
+        pipeline_source=_PIPELINE_SOURCE,
+        samplesheet_summary={"sample_count": 1, "unknown_columns": []},
+    )
 
 
 def test_preflight_rejects_email_not_matching_nfcore_schema(tmp_path, monkeypatch):
@@ -838,21 +817,39 @@ def test_seq_center_with_star_preset_does_not_warn(tmp_path, monkeypatch, capsys
     assert "seq_center" not in capsys.readouterr().err
 
 
-def test_nfcore_schema_errors_identify_nfcore_policy(tmp_path, monkeypatch):
+# nf-core/scrnaseq 4.1.0's nextflow_schema.json declares every reference and auxiliary
+# path the wrapper exposes `exists: true` except motifs and cellrangerarc_config, and
+# gives fasta the ^\S+\.fn?a(sta)?(\.gz)?$ pattern: nf-schema refuses a missing path or
+# a wrong FASTA name when Nextflow starts, before any task runs.
+_SCHEMA_CHECKED_PATHS = (
+    "fasta", "gtf", "transcript_fasta", "txp2gene", "simpleaf_index", "kallisto_index",
+    "star_index", "cellranger_index", "barcode_whitelist", "kb_t1c", "kb_t2c",
+    "cellranger_vdj_index", "gex_frna_probe_set", "gex_target_panel", "gex_cmo_set",
+    "fb_reference", "vdj_inner_enrichment_primers", "gex_barcode_sample_assignment",
+    "cellranger_multi_barcodes",
+)
+
+
+@pytest.mark.parametrize("field", _SCHEMA_CHECKED_PATHS)
+def test_paths_the_schema_checks_are_left_to_nf_schema(tmp_path, field):
+    preflight._check_reference_paths_exist({field: str(tmp_path / "missing" / field)})
+
+
+def test_a_fasta_name_the_schema_refuses_is_left_to_nf_schema(tmp_path, monkeypatch):
     args = _args(tmp_path)
-    fasta = tmp_path / "genome.txt"
-    gtf = tmp_path / "genes.gtf"
-    fasta.write_text(">chr1\nACGT\n", encoding="utf-8")
-    gtf.write_text('chr1\tsrc\tgene\t1\t4\t.\t+\t.\tgene_id "g1";\n', encoding="utf-8")
-    args.fasta = str(fasta)
-    args.gtf = str(gtf)
+    for name in ("genome.txt", "genes.gtf"):
+        (tmp_path / name).write_text("x", encoding="utf-8")
+    args.fasta = str(tmp_path / "genome.txt")
     _mock_env(monkeypatch)
+    preflight.run_preflight(args, pipeline_source=_PIPELINE_SOURCE,
+                            samplesheet_summary={"sample_count": 1, "unknown_columns": []})
 
+
+@pytest.mark.parametrize("field", ["motifs", "cellrangerarc_config"])
+def test_paths_the_schema_does_not_check_must_exist(tmp_path, field):
+    """No `exists` for these in 4.1.0: workflows/scrnaseq.nf reads motifs with a plain
+    file(), so a missing local file would fail only inside the ARC task."""
     with pytest.raises(SkillError) as exc:
-        preflight.run_preflight(
-            args,
-            pipeline_source=_PIPELINE_SOURCE,
-            samplesheet_summary={"sample_count": 1, "unknown_columns": []},
-        )
-
-    assert exc.value.details.get("policy_source") == POLICY_SOURCE_NFCORE_DOCS
+        preflight._check_reference_paths_exist({field: str(tmp_path / f"missing_{field}")})
+    assert exc.value.error_code == "MISSING_REFERENCE"
+    assert exc.value.details["field"] == field

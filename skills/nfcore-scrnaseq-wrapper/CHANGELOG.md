@@ -26,6 +26,11 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   `cellrangermulti` rows without `feature_type` (the pipeline drops them silently), an
   `expected_cells` below 1 and FASTQ names Cell Ranger cannot pair. `MISSING_FASTQ` is no
   longer raised and is removed.
+- **Reference paths are nf-schema's.** nf-core/scrnaseq 4.1.0's `nextflow_schema.json`
+  declares every reference and auxiliary path the wrapper exposes `exists: true` except
+  `motifs` and `cellrangerarc_config`, and gives `fasta` a name pattern; preflight no
+  longer repeats the existence checks or the FASTA pattern, and still existence-checks
+  those two, a local `--igenomes-base` mirror and the `-c` configs.
 
 ### Fixed
 

@@ -49,7 +49,6 @@ from schemas import (
 
 
 _SUBPROCESS_TIMEOUT = 60
-_FASTA_SCHEMA_RE = re.compile(r"^\S+\.fn?a(sta)?(\.gz)?$")
 _EMAIL_SCHEMA_RE = re.compile(
     r"^([a-zA-Z0-9_\-.]+)@([a-zA-Z0-9_\-.]+)\.([a-zA-Z]{2,5})$"
 )
@@ -433,6 +432,10 @@ _SYMBOLIC_REFERENCE_FIELDS = frozenset(SYMBOLIC_REFERENCE_FIELDS)
 # files). Categories are centralised in schemas.py so preflight and
 # params_builder cannot diverge (audit H-3).
 _EXPLICIT_REFERENCE_FIELDS = ALL_REFERENCE_PATH_FIELDS
+# The paths nf-core/scrnaseq 4.1.0's nextflow_schema.json gives no `exists`; it declares
+# every other one `exists: true` (fasta also a name pattern), so nf-schema refuses a
+# missing local path when Nextflow starts.
+_PATHS_THE_SCHEMA_DOES_NOT_CHECK = frozenset({"motifs", "cellrangerarc_config"})
 
 
 def _check_remote_inputs(args, samplesheet_summary: dict[str, Any]) -> None:
@@ -566,15 +569,9 @@ def _check_cellrangerarc_config_pairing(resolved: dict[str, str]) -> None:
 
 def _check_reference_paths_exist(resolved: dict[str, str]) -> None:
     for key, value in resolved.items():
-        if key in _SYMBOLIC_REFERENCE_FIELDS:
-            continue  # symbolic identifiers, not local paths
-        if value and "://" in value:
-            # Remote URI (s3://, gs://, https://, …): Nextflow resolves it at runtime,
-            # so existence is not pre-checked here. Matches nfcore-rnaseq/sarek and the
-            # nf-core schema, which types references as strings Nextflow may fetch.
-            continue
-        _check_upstream_path_schema_compatibility(key, value)
-        if value and not Path(value).expanduser().exists():
+        if key not in _PATHS_THE_SCHEMA_DOES_NOT_CHECK or not value or "://" in value:
+            continue  # nf-schema's, or a remote URI Nextflow stages at runtime
+        if not Path(value).expanduser().exists():
             raise SkillError(
                 stage="preflight",
                 error_code=ErrorCode.MISSING_REFERENCE,
@@ -582,29 +579,6 @@ def _check_reference_paths_exist(resolved: dict[str, str]) -> None:
                 fix="Correct the missing reference path and try again.",
                 details={"field": key, "path": value},
             )
-
-
-def _check_upstream_path_schema_compatibility(key: str, value: str) -> None:
-    if key != "fasta" or not value:
-        return
-    fasta_path = Path(value).expanduser().as_posix()
-    if _FASTA_SCHEMA_RE.match(fasta_path):
-        return
-    raise SkillError(
-        stage="preflight",
-        error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
-        message="FASTA paths must match the nf-core/scrnaseq 4.1.0 schema.",
-        fix=(
-            "Use a whitespace-free FASTA path ending in .fa, .fna, .fasta, .fa.gz, "
-            ".fna.gz, or .fasta.gz, then pass it via --fasta."
-        ),
-        details={
-            "field": key,
-            "path": value,
-            "schema_pattern": r"^\S+\.fn?a(sta)?(\.gz)?$",
-            "policy_source": POLICY_SOURCE_NFCORE_DOCS,
-        },
-    )
 
 
 def _check_parameter_schema_compatibility(args) -> None:
