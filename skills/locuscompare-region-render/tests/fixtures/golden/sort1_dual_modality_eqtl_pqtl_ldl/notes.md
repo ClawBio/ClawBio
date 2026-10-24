@@ -49,3 +49,14 @@ A failing assertion on this fixture is by default a code regression,
 not a fixture-staleness signal. Refresh requires an explicit commit
 with rationale; the fixture is the source of truth for cross-backend
 dispatch.
+
+## Four keys added (0.2.2)
+
+`exposure_modality`, `exposure_modality_label`, `exposure_quant_method` and
+`exposure_quant_method_label` are now locked on both blocks (eQTL: `eqtl` /
+`ge`; pQTL: `pqtl` / null). New keys, no existing value moved.
+
+
+## Caveat wording (0.2.2)
+
+The no-LD caveat on both blocks changed from "points show as grey" to "points drawn hollow (no LD value)". The renderer now draws a variant with no r² to the lead as a hollow point under its own legend entry, so "grey" became false: filled grey now means a measured r² of 0.0-0.2. Wording only; no number moved.

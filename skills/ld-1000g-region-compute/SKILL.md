@@ -9,7 +9,7 @@ description: |
 license: MIT
 metadata:
   skill-author: Aviv Madar
-  version: 0.1.0
+  version: 0.1.1
   domain: bioinformatics
   tags:
     - ld
@@ -127,7 +127,7 @@ When an agent asks for r² between a lead and partners in a region:
 1. **Resolve `lead` + `partners` + `chromosome` + `window_bp` + `super_pop`**: lead in `chr_pos_ref_alt` GRCh38 form; partners as a list (or `null` to compute against all variants in the window); super-population from `{EUR, AFR, AMR, EAS, SAS}` (default EUR; choose to match the upstream cohort's ancestry; see Gotcha #1).
 2. **Region VCF fetch**: the skill performs a tabix-on-FTP byte-range request against `https://ftp.1000genomes.ebi.ac.uk/` for the requested chromosome × window. Cache hit at `~/.clawbio/locuscompare_cache/1000g/<chr>_<start>_<end>.vcf.gz` skips the fetch.
 3. **Super-pop filter**: subset the VCF to the chosen super-population's samples via the canonical Phase 3 panel TSV (`integrated_call_samples_v3.20130502.ALL.panel`); `plink --keep` writes `<sample>\t<sample>` rows because plink 1.9 + `--vcf` assigns `FID = IID = sample-id` (NOT FID=0 like plink2; see Gotcha #4).
-4. **r² compute**: `plink --r2 --ld-snp <lead>` against the lead variant. Variant ids are rewritten to `chr:pos:ref:alt` form via `plink --set-missing-var-ids '@:#:$1:$2'` (Gotcha #3).
+4. **r² compute**: `plink --r2 --ld-snp <lead>` against the lead variant. Variant ids are rewritten to `chr:pos:allele1:allele2` form, alleles in alphabetical order, via `plink --set-missing-var-ids '@:#:$1:$2'`; the client converts `chr_pos_ref_alt` ids to that form and back (Gotcha #3).
 5. **Write outputs** to `--output <dir>/`: a flat `ld_pairs.tsv` (partner_variant_id, r2, optional dprime), a `manifest.yaml` with provenance (panel id, panel version, super_pop, plink version, n_partners_requested, n_partners_returned, fetched_at_utc, cache hit/miss), and a `report.md` human-readable summary.
 
 ## CLI Reference
@@ -182,7 +182,7 @@ ld-1000g-region-compute: 5 partners -> /tmp/sort1_ld_demo/ld_pairs.tsv
 
 ```yaml
 skill: ld-1000g-region-compute
-version: 0.1.0
+version: 0.1.1
 lead: 1_109274968_G_T
 chromosome: '1'
 window_bp: 1000000
@@ -230,9 +230,9 @@ partner_variant_id     r2
 
 1. **r² requires ancestry-matched reference panel.** Using EUR LD against an East-Asian GWAS produces wrong LD blocks and misleading visualisations. The skill takes `super_pop` as a required input (or defaults to EUR with a manifest caveat) and emits the choice in every manifest. Match `super_pop` to the upstream cohort's ancestry. For Finnish-EUR (FinnGen) on a 1000G EUR panel, expect ~0.05 r² average divergence on common variants per Locke 2019; surface as a caveat in the rendered output. See `references/ancestry_matching.md`.
 
-2. **Lead variant absent from 1000G.** Rare or array-only variants may not be in the 1000G panel; in that case every partner returns r²=0 because the lead has no neighbours in the reference. The skill notes `LD r² unavailable for lead` in the manifest. Workaround: pick a different (more common) lead in the locus that IS in 1000G via `--lead <variant_id>`, or accept grey points in the regional plot.
+2. **Lead variant absent from 1000G.** Rare or array-only variants may not be in the 1000G panel; in that case the client returns no pairs, with the note `lead variant ... (or every partner) not in 1000G <POP> panel; returning empty pairs`, and locuscompare draws every point hollow (no LD value) with a caveat saying why. Workaround: pick a different (more common) lead in the locus that IS in 1000G via `--lead <variant_id>`, or accept hollow (no LD value) points in the regional plot.
 
-3. **Variant-id format collision in 1000G VCFs.** The 1000G GRCh38 VCFs use `.` (missing) in the ID column rather than `chr:pos:ref:alt`. The on-demand client passes `plink --set-missing-var-ids '@:#:$1:$2'` to rewrite IDs into the canonical form before LD compute (`@` = chromosome, `#` = bp, `$1` / `$2` = ref / alt). Tri-allelic loci that have been split into multiple lines may still produce duplicate IDs; deduplicate the source VCF or `bcftools norm -m -any` upstream if you hit that case.
+3. **Variant-id format collision in 1000G VCFs.** The 1000G GRCh38 VCFs use `.` (missing) in the ID column rather than `chr:pos:ref:alt`. The on-demand client passes `plink --set-missing-var-ids '@:#:$1:$2'` to rewrite IDs before LD compute (`@` = chromosome, `#` = bp). In plink 1.9, `$1` / `$2` are the two alleles in alphabetical order, not REF / ALT: the 1000G row `1 67240275 . G A` (rs11209026) becomes `1:67240275:A:G`. The client therefore sorts the alleles of every id it passes to `--ld-snp` / `--extract` and maps the results back to the caller's `chr_pos_ref_alt` ids; a lead passed as a plain `_` -> `:` swap is not found whenever its ALT sorts before its REF. A lead that is not in the panel at all returns no pairs, with a note, instead of an error. Tri-allelic loci that have been split into multiple lines may still produce duplicate IDs; deduplicate the source VCF or `bcftools norm -m -any` upstream if you hit that case.
 
 4. **plink 1.9 `--keep` FID convention.** plink 1.9 + `--vcf` assigns `FID = IID = sample-id` (per [the plink 1.9 input docs](https://www.cog-genomics.org/plink/1.9/data#vcf)); the on-demand client's `--keep` file therefore writes `<sample>\t<sample>` rows (NOT `0\t<sample>`; that variant errors out with "No people remaining after --keep" because no loaded sample has FID=0). plink2 flips this default to FID=0, so do not copy a plink2-era keep file verbatim if you swap binaries.
 

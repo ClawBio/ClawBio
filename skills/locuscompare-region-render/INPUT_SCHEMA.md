@@ -55,6 +55,8 @@ Present if the source emits them; ignored if absent. Skills SHOULD produce these
 | `rsid` | string | dbSNP rs identifier if known. The join is on `variant_id`, not `rsid`: the two alleles of a multi-allelic site can share one rsID. A variant with several rsIDs may appear once per rsID (the eQTL Catalogue writes its files this way); in an exposure file those rows must have identical statistics and are collapsed to one, keeping every rsID, and rows of one `variant_id` that disagree stop the render. Outcome files are not checked for repeats; give one row per `variant_id`. |
 | `info` | float | Imputation INFO score, [0, 1]. |
 | `molecular_trait_id` | string | For QTL data: the ENSG / ENST / molecular feature id the variant is tested against. Required by eQTL Cat–style datasets where one TSV bundles multiple traits. |
+| `odds_ratio` | float | Odds ratio per copy of `allele_b`, for binary-trait studies that report one. Read on the outcome side only, and only for a row whose `beta` is missing. |
+| `ci_lower` / `ci_upper` | float | Bounds of the 95% confidence interval of `odds_ratio`. Used for the SE of the derived `beta`; without a usable CI the SE comes from `p`. |
 | `study_id` | string | Source-native study identifier (e.g. eQTL Cat `dataset_id`, GWAS Cat `accession`, FinnGen phenotype code). For self-documentation; not used for join. |
 | `chromosome_grch37` | string | Optional GRCh37 chromosome (for cross-build provenance). Same value as `chromosome` if the source is already GRCh38. |
 | `position_bp_grch37` | integer | Optional GRCh37 position. Same as `position_bp` if the source is already GRCh38. |
@@ -83,7 +85,8 @@ The `variant_id` `chrom_pos_ref_alt` convention naturally splits multi-allelic l
 Use the VCF normalisation convention: `allele_a` is the longest common prefix-removed reference, `allele_b` is the longest common prefix-removed alt. `position_bp` is the 1-based position of the leftmost base. This matches `bcftools norm` output. Sources that emit pre-normalised TSVs (eQTL Cat, GWAS Cat harmonised) already follow this; producers should `bcftools norm` first if working from raw VCF.
 
 ### Missing data
-- Missing `beta`/`se`/`p` for a single variant: row is dropped before harmonisation.
+- Missing `p` for a single variant: row is dropped before harmonisation (it cannot be placed on any panel).
+- Missing `beta` and/or `se` with a `p` present: row is kept. It draws on both p-value panels; when no joined variant has an effect size on both sides, the effect-size panel states which side lacks them. The columns themselves stay required in the header. On the outcome side, a row with no `beta` but an `odds_ratio` gets `beta = ln(odds_ratio)`, with its SE from `ci_lower`/`ci_upper` when present.
 - Missing optional columns: tolerated, downstream features that depend on them gracefully degrade (e.g. MAF-weighted plots fall back to unweighted; `n`-aware diagnostics fall back to N-agnostic).
 - `p = 0` is replaced with the underflow floor (`5e-324`) before plotting on a `-log10` axis. Producers MAY emit `p = 0` for variants where the reported p is below floating-point precision; consumers handle the substitution.
 
@@ -117,6 +120,31 @@ Producers SHOULD ship a `<file>.provenance.json` next to the TSV with at least:
 ```
 
 `locuscompare` reads this sidecar when present and folds it into the rendered plot's manifest block. Absence is non-fatal but reduces reproducibility.
+
+## Declaring what a pre-fetched exposure measures
+
+A TSV does not say what kind of QTL its rows are, so the run config may: set
+the optional `exposure.quant_method` next to `exposure.sumstats_path`, using
+the eQTL Catalogue quantification vocabulary (`ge`, `microarray`, `exon`,
+`tx`, `txrev`, `leafcutter`, `aptamer`).
+
+```yaml
+exposure:
+  trait_label: "SORT1 plasma protein"
+  sumstats_path: "path/to/exposure_slice.tsv"
+  quant_method: "aptamer"   # optional; figure says pQTL
+```
+
+The panel title, both scatter x-axes and the manifest
+(`exposure_modality`, `exposure_quant_method` and their labels) follow it:
+`ge` / `microarray` -> eQTL, `exon` -> exon eQTL, `tx` -> transcript eQTL,
+`txrev` -> tuQTL, `leafcutter` -> sQTL, `aptamer` -> pQTL. Codes are matched
+without regard to case. Absent, the figure says "QTL" and assumes nothing; a
+code that is not in the vocabulary stops the run (exit 2) instead of being
+quietly relabelled "QTL". A pre-fetched side is recorded as
+`exposure_source: prefetched` / `outcome_source: prefetched`, and its caption
+reads "pre-fetched file" rather than naming a source the file may not have
+come from.
 
 ## Validation
 
