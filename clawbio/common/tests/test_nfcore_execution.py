@@ -237,6 +237,7 @@ def test_tasks_are_stopped_even_after_nextflow_itself_has_exited(tmp_path):
     """The group was looked up with getpgid(Nextflow's pid), which fails once
     Nextflow has exited and been reaped, so the tasks it left in its session kept
     running. The session leader's pid is the group id."""
+    import contextlib
     import os
     import subprocess
     import time
@@ -260,7 +261,6 @@ def test_tasks_are_stopped_even_after_nextflow_itself_has_exited(tmp_path):
         else:
             pytest.fail("the task process outlived terminate_process_tree")
     finally:
-        try:
+        # Never leave the stand-in task behind, even when the assertion failed.
+        with contextlib.suppress(ProcessLookupError):
             os.kill(task, 9)
-        except ProcessLookupError:
-            pass

@@ -32,7 +32,16 @@ def _purge_local_modules(*names: str) -> None:
 
 _purge_foreign_bare_modules("reporting", "schemas")
 
-from reporting import _REPO_ROOT, _REPRO_PATH_FLAGS, build_repro_command_args, write_report, write_repro_commands, write_result
+from reporting import (
+    _CONTAINER_PIN_GUARD,
+    _REPO_ROOT,
+    _REPRO_PATH_FLAGS,
+    _apply_container_pin,
+    build_repro_command_args,
+    write_report,
+    write_repro_commands,
+    write_result,
+)
 from schemas import DEFAULT_TIMEOUT_HOURS
 
 _purge_local_modules("reporting", "schemas")
@@ -886,17 +895,13 @@ def test_container_pin_refuses_a_script_it_cannot_anchor():
     """commands.sh gains its digest pin by locating the wrapper launch line. If that
     line ever changes, the pin must fail loudly rather than ship a bundle that
     replays re-pushed tags without saying so."""
-    import reporting
-
     with pytest.raises(RuntimeError, match="containers.config"):
-        reporting._apply_container_pin('#!/bin/bash\nexec something-else --output x\n')
+        _apply_container_pin('#!/bin/bash\nexec something-else --output x\n')
 
 
 def test_written_commands_pass_the_container_pin_last(tmp_path):
-    import reporting
-
     write_repro_commands(tmp_path, args=argparse.Namespace(demo=True, profile="test,docker", pipeline_version="3.26.0"))
     script = (tmp_path / "reproducibility" / "commands.sh").read_text()
     launch = script[script.index('"${PYTHON:-python3}" "$SKILL_SCRIPT"'):]
     assert launch.split("\n\n", 1)[0].rstrip().endswith('${CLAWBIO_PIN[@]+"${CLAWBIO_PIN[@]}"}')
-    assert reporting._CONTAINER_PIN_GUARD.split("\n")[-2] in script
+    assert _CONTAINER_PIN_GUARD.split("\n")[-2] in script
