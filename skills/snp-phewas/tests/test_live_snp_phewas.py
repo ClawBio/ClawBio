@@ -111,15 +111,22 @@ def test_mvp_ldl_mean_reads_live_with_the_p_underflow_derived(cache):
     from the GWAS Catalog's harmonized file: CRLF lines, p = 0 in the file (measured
     2026-10-19: beta -0.1561, SE 0.003009)."""
     from snp_phewas_catalog import get_dataset, load_outcome_catalog
-    from snp_phewas_sources import P_UNDERFLOW_DETAIL, MvpReader
+    from snp_phewas_sources import HM_CODES, P_UNDERFLOW_DETAIL, MvpReader
+    from snp_phewas_tabix import ensure_index, fetch_position, read_header
     from snp_phewas_variant import Placement
 
     o = {x.outcome_id: x for x in load_outcome_catalog("mvp_eur")}["GCST90475416"]
-    rec = MvpReader(get_dataset("mvp_eur"), index_cache=cache).read_outcome(
-        o, Placement("GRCh38", "1", 109274968, "G", "T"))
+    reader = MvpReader(get_dataset("mvp_eur"), index_cache=cache)
+    rec = reader.read_outcome(o, Placement("GRCh38", "1", 109274968, "G", "T"))
     assert rec.status == "ok" and rec.variant_id_native == "1_109274968_G_T"
     assert (rec.beta, rec.se) == (-0.1561, 0.003009)
     assert rec.detail == P_UNDERFLOW_DETAIL and rec.neglog10_p > 500
+    # the live record's harmonization code is one the code table has a rule for
+    data, idx = reader.paths(o)
+    header = read_header(data)
+    hits = fetch_position(data, ensure_index(idx, reader.index_cache), "1", 109274968)
+    codes = {dict(zip(header, f))["hm_code"].strip() for f in hits}
+    assert codes and codes <= set(HM_CODES)
 
 
 def test_rs7903146_resolves_to_the_common_allele_with_gwas_signals_live():

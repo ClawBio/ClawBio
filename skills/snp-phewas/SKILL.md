@@ -308,7 +308,15 @@ disease slice, an interval-width SE missed the file's p on 85 of 150 records by 
 1, a null effect). `p_value` underflows to 0 at strong hits: -log10 p is then derived from
 beta / SE in log space (within 2e-11 of scipy over |z| 0.1 to 300) and `status_detail`
 says so. A record the Catalog's harmonizer could not orient (`hm_code` 9 or 14-18) keeps
-its p and SE; beta and EAF are withheld (`source_not_orientated`).
+its p and SE; beta and EAF are withheld (`source_not_orientated`). In the two MVP files the
+demo slices come from (GCST90475416 and GCST90475929, both harmonized with palindromic mode
+`forward`), every record carries code 5, 6 or 10 to 13 (all 19,681,119 and 19,669,670
+records read, 2026-10-24); the 38,609 and 38,598 sites their own logs, bundled beside the
+demo slices, count as failed (codes 15 and 16) are not in the files. The withhold rule
+covers the codes these files do not exercise, such as 9 (palindromic mode `drop`); a code
+outside the Catalog's code table
+(https://www.ebi.ac.uk/gwas/docs/methods/summary-statistics), or a harmonized file with no
+`hm_code` column, is a `record_unparsable` row.
 
 **Harmonization** (`catalogs/biobank_outcome_crosswalk.tsv.gz`, one row per outcome of each
 biobank, mapped or not; 2,469 + 7,223 + 7,537 rows): join key `ICD10:<block>` for a Pan-UK

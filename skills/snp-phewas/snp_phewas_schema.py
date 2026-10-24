@@ -43,8 +43,8 @@ STATUS_LABELS: dict[str, str] = {
     ST_BUILD_UNMAPPABLE: "variant has no unique position on this dataset's genome build",
     ST_FILE_MISSING: "the source did not serve the file its catalog lists for this outcome",
     ST_RECORD_UNPARSABLE: (
-        "the source returned a record at this position that could not be read (wrong number "
-        "of fields); this is a read failure, not an absence"
+        "the source returned a record at this position that could not be read (the row's "
+        "detail says why); this is a read failure, not an absence"
     ),
     ST_UNREACHABLE: "dataset could not be reached; this is an outage, not an absence",
     ST_NOT_READABLE: (

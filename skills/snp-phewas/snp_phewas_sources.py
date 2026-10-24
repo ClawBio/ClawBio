@@ -119,10 +119,37 @@ MVP_COLUMNS_BINARY = Columns("chromosome", "base_pair_location", "other_allele",
                              "effect_allele", None, None, None, "effect_allele_frequency",
                              p_value="p_value", odds_ratio="odds_ratio", ci_lower="ci_lower",
                              ci_upper="ci_upper", hm_code="hm_code")
-#: Harmonizer codes for records it could NOT orient to the forward strand (9: palindromic,
-#: dropped; 14-18: required fields unknown, no or several reference matches, palindromic
-#: with no usable allele frequency). Their direction is withheld, never guessed.
-HM_CODES_NOT_ORIENTATED = frozenset({"9", "14", "15", "16", "17", "18"})
+#: Every code the GWAS Catalog harmonizer writes to `hm_code`, as code -> (meaning,
+#: direction withheld), copied from the Catalog's harmonization code table
+#: (https://www.ebi.ac.uk/gwas/docs/methods/summary-statistics, read 2026-10-24). 1-8 and
+#: 10-13 are oriented records and keep their direction; 9 and 14-18 are records the
+#: harmonizer could NOT orient to the forward strand, so their direction is withheld, never
+#: guessed. The two MVP files read here carry only 5, 6 and 10-13 (see SKILL.md); the rule
+#: covers the codes they do not exercise, such as 9 (palindromic mode `drop`). A code
+#: outside this table, empty included, makes the record unparsable rather than silently kept.
+HM_CODES: dict[str, tuple[str, bool]] = {
+    "1": ("Palindromic; Infer strand; Forward strand; Alleles correct", False),
+    "2": ("Palindromic; Infer strand; Forward strand; Flipped alleles", False),
+    "3": ("Palindromic; Infer strand; Reverse strand; Alleles correct", False),
+    "4": ("Palindromic; Infer strand; Reverse strand; Flipped alleles", False),
+    "5": ("Palindromic; Assume forward strand; Alleles correct", False),
+    "6": ("Palindromic; Assume forward strand; Flipped alleles", False),
+    "7": ("Palindromic; Assume reverse strand; Alleles correct", False),
+    "8": ("Palindromic; Assume reverse strand; Flipped alleles", False),
+    "9": ("Palindromic; Drop palindromic; Not orientated", True),
+    "10": ("Forward strand; Alleles correct", False),
+    "11": ("Forward strand; Flipped alleles", False),
+    "12": ("Reverse strand; Alleles correct", False),
+    "13": ("Reverse strand; Flipped alleles", False),
+    "14": ("Required fields are not known; Not orientated", True),
+    "15": ("No matching variants in reference VCF; Not orientated", True),
+    "16": ("Multiple matching variants in reference VCF; Not orientated", True),
+    "17": ("Palindromic; Infer strand; EAF or reference VCF AF not known; Not orientated", True),
+    "18": ("Palindromic; Infer strand; EAF < specified minor allele frequency threshold; "
+           "Not orientated", True),
+}
+#: The codes whose direction is withheld (9 and 14-18), derived from the table.
+HM_CODES_NOT_ORIENTATED = frozenset(c for c, (_, withheld) in HM_CODES.items() if withheld)
 Z_95 = 1.959963984540054  # the two-sided 95% normal quantile an interval is built on
 P_UNDERFLOW_DETAIL = "p underflowed to 0 in the source; -log10 p derived from beta/SE"
 
@@ -184,6 +211,16 @@ def record_from_fields(records: list[dict[str, str]], cols: Columns, tgt: Placem
                          variant_id_native=vid, route=route,
                          detail="the file has no result column for this ancestry group")
     base = dict(src_ref=r[cols.ref], src_alt=r[cols.alt], variant_id_native=vid, route=route)
+    hm_code = None
+    if cols.hm_code:  # a harmonized file: every record carries a code from the Catalog's table
+        if cols.hm_code not in r:
+            return RawRecord(S.ST_RECORD_UNPARSABLE, **base,
+                             detail="the harmonized file has no hm_code column")
+        hm_code = (r.get(cols.hm_code) or "").strip()
+        if hm_code not in HM_CODES:
+            return RawRecord(S.ST_RECORD_UNPARSABLE, **base,
+                             detail=f"hm_code {hm_code!r} is not in the GWAS Catalog "
+                                    f"harmonizer's code table")
     detail = None
     if cols.beta:
         beta, se = _f(r.get(cols.beta)), _f(r.get(cols.se))
@@ -232,9 +269,7 @@ def record_from_fields(records: list[dict[str, str]], cols: Columns, tgt: Placem
     if not (math.isfinite(beta) and math.isfinite(se)):
         return RawRecord(S.ST_RECORD_UNPARSABLE, **base, detail="beta or SE is not finite")
     low = bool(cols.low_confidence) and (r.get(cols.low_confidence) or "").lower() == "true"
-    withheld = (S.WITHHELD_SOURCE_NOT_ORIENTATED
-                if cols.hm_code and (r.get(cols.hm_code) or "").strip() in HM_CODES_NOT_ORIENTATED
-                else None)
+    withheld = S.WITHHELD_SOURCE_NOT_ORIENTATED if hm_code in HM_CODES_NOT_ORIENTATED else None
     return RawRecord(S.ST_LOW_CONFIDENCE if low else S.ST_OK, beta=beta, se=se,
                      neglog10_p=nlp, low_confidence=low,
                      eaf=_f(r.get(cols.eaf)) if cols.eaf in r else _f(r.get(cols.eaf_fallback or "")),

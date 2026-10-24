@@ -22,6 +22,8 @@ from snp_phewas_catalog import OutcomeSpec, get_dataset, load_outcome_catalog
 from snp_phewas_tabix import read_header
 from snp_phewas_lookup import lookup_variant
 from snp_phewas_sources import (
+    HM_CODES,
+    HM_CODES_NOT_ORIENTATED,
     MVP_COLUMNS_BINARY,
     MVP_COLUMNS_QUANT,
     P_UNDERFLOW_DETAIL,
@@ -234,6 +236,93 @@ def test_a_record_the_harmonizer_could_not_orient_keeps_its_p_and_withholds_its_
     raw = record_from_fields([r], MVP_COLUMNS_QUANT, Placement("GRCh38", "1", 5, "A", "G"), "tabix")
     assert raw.status == S.ST_OK and raw.neglog10_p == pytest.approx(20)
     assert raw.direction_withheld == (S.WITHHELD_SOURCE_NOT_ORIENTATED if withheld else None)
+
+
+def _harmonized_slices():
+    return (IHD_FILE, LDL_FILE)
+
+
+def _running_log(data_file):
+    """The Catalog's own harmonization log vendored beside a slice, parsed: per code its count
+    in the 'Successfully harmonised' and 'Failed harmonisation' tables, and each table's
+    'N of TOTAL' line."""
+    with open(data_file.replace(".h.tsv.gz", ".running.log"), encoding="utf-8") as fh:
+        text = fh.read()
+    out = {}
+    for key, title in (("ok", "Successfully harmonised variants"),
+                       ("failed", "Failed harmonisation")):
+        section = text.split(title, 1)[1].split("####", 1)[0]
+        n_of = section.split("(", 1)[1].split(")", 1)[0].split()
+        codes = {}
+        for line in section.splitlines():
+            f = line.split("\t")
+            if len(f) == 4 and f[0].isdigit():
+                codes[f[0]] = int(f[1])
+        out[key] = {"n": int(n_of[0]), "total": int(n_of[2]), "codes": codes}
+    return out
+
+
+def test_every_hm_code_in_the_vendored_harmonized_slices_has_an_explicit_rule():
+    codes = set()
+    for path in _harmonized_slices():
+        header, rows = _records(path)
+        codes |= {r["hm_code"] for r in rows}
+    assert codes == {"6", "11"}
+    for c in codes:
+        assert c in HM_CODES and HM_CODES[c][1] is False
+
+
+def test_the_catalogs_own_harmonization_log_agrees_with_the_code_table():
+    for path in _harmonized_slices():
+        log = _running_log(path)
+        ok, failed = log["ok"], log["failed"]
+        assert ok["codes"] and failed["codes"]
+        for code in ok["codes"]:
+            assert code in HM_CODES and HM_CODES[code][1] is False, code
+        for code in failed["codes"]:
+            assert code in HM_CODES and HM_CODES[code][1] is True, code
+        assert set(failed["codes"]) <= HM_CODES_NOT_ORIENTATED
+        # each table's per-code counts add up to its own 'N of TOTAL' line, and the two
+        # tables partition the sites the harmonizer was given
+        assert sum(ok["codes"].values()) == ok["n"]
+        assert sum(failed["codes"].values()) == failed["n"]
+        assert ok["total"] == failed["total"] == ok["n"] + failed["n"]
+    totals = {os.path.basename(p)[:12]: _running_log(p) for p in _harmonized_slices()}
+    assert (totals["GCST90475416"]["ok"]["n"], totals["GCST90475416"]["failed"]["n"],
+            totals["GCST90475416"]["ok"]["total"]) == (19_681_119, 38_609, 19_719_728)
+    assert (totals["GCST90475929"]["ok"]["n"], totals["GCST90475929"]["failed"]["n"],
+            totals["GCST90475929"]["ok"]["total"]) == (19_669_670, 38_598, 19_708_268)
+
+
+def test_the_code_table_has_every_catalog_code_and_withholds_exactly_the_not_orientated_ones():
+    # The Catalog's table numbers its codes 1 to 18, and every code whose meaning ends in
+    # "Not orientated" is one the harmonizer could not orient. Tying the disposition to that
+    # wording constrains the codes no vendored file exercises (1-4, 7, 8, 17, 18).
+    assert set(HM_CODES) == {str(i) for i in range(1, 19)}
+    for code, (meaning, withheld) in HM_CODES.items():
+        assert withheld == meaning.endswith("Not orientated"), (code, meaning, withheld)
+    assert HM_CODES_NOT_ORIENTATED == {"9", "14", "15", "16", "17", "18"}
+
+
+@pytest.mark.parametrize("code", ["19", ""])
+def test_an_unknown_hm_code_is_an_unparsable_row_not_a_kept_value(code):
+    r = {"chromosome": "1", "base_pair_location": "5", "other_allele": "A", "effect_allele": "G",
+         "beta": "0.2", "standard_error": "0.01", "p_value": "1e-20",
+         "effect_allele_frequency": "0.3", "hm_code": code}
+    raw = record_from_fields([r], MVP_COLUMNS_QUANT, Placement("GRCh38", "1", 5, "A", "G"), "tabix")
+    assert raw.status == S.ST_RECORD_UNPARSABLE
+    assert raw.beta is None and raw.neglog10_p is None
+    assert raw.detail == f"hm_code {code!r} is not in the GWAS Catalog harmonizer's code table"
+
+
+def test_a_harmonized_record_with_no_hm_code_column_is_unparsable_not_kept():
+    r = {"chromosome": "1", "base_pair_location": "5", "other_allele": "A", "effect_allele": "G",
+         "beta": "0.2", "standard_error": "0.01", "p_value": "1e-20",
+         "effect_allele_frequency": "0.3"}
+    raw = record_from_fields([r], MVP_COLUMNS_QUANT, Placement("GRCh38", "1", 5, "A", "G"), "tabix")
+    assert raw.status == S.ST_RECORD_UNPARSABLE
+    assert raw.beta is None and raw.neglog10_p is None
+    assert raw.detail == "the harmonized file has no hm_code column"
 
 
 def test_lookup_on_the_slices_orients_withholds_and_accounts_for_every_mvp_study(monkeypatch):
