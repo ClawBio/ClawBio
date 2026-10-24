@@ -14,6 +14,20 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   that digest, and `commands.sh` applies it when replaying without a Nextflow cache, so a bundle replays
   byte-identical images even if a tag is re-pushed.
 
+### Changed
+
+- **Samplesheet rules are nf-core/sarek's.** nf-schema (`assets/schema_input.json`) and
+  `samplesheet_to_channel` check the samplesheet when Nextflow starts, before any task runs,
+  and `result.json` names the refused entry; the builder and preflight no longer repeat
+  them (required columns per step, whitespace, `sex`/`status` values, file names and
+  existence, duplicate rows, a sample under two patients, two normals with one tumour,
+  tumour/normal samples for mutect2/controlfreec/haplotypecaller/deepvariant, sex for
+  ascat/controlfreec/varlociraptor, varlociraptor's contamination). The wrapper still
+  refuses rows mixing input modes, BAM/CRAM rows without an index after `mapping`,
+  `recalibrate` rows without a table and contamination outside [0, 1]. The error codes
+  `INVALID_FASTQ`, `MISSING_FASTQ`, `INVALID_BAM`, `INVALID_SEX`, `INVALID_STATUS` and
+  `VARLOCIRAPTOR_MISSING_CONTAMINATION` are no longer raised and are removed.
+
 ### Fixed
 
 - Reuse parsed preflight Java/Nextflow versions in the success bundle, keeping manifest, replay and environment pins consistent instead of capturing raw tool banners.

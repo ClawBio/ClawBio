@@ -943,7 +943,7 @@ def test_error_payloads_are_valid_json_with_nonfinite_details(wrapper):
 
 
 @pytest.mark.parametrize("wrapper", ["sarek"], indirect=True)
-def test_restart_bam_path_matches_upstream_full_path_pattern(wrapper, tmp_path):
+def test_restart_bam_path_with_spaces_is_left_to_nf_schema(wrapper, tmp_path):
     _, _, companions = wrapper
     directory = tmp_path / "reference with spaces"
     directory.mkdir()
@@ -953,11 +953,12 @@ def test_restart_bam_path_matches_upstream_full_path_pattern(wrapper, tmp_path):
     bai.touch()
     source = tmp_path / "samples.csv"
     source.write_text(f"patient,sample,bam,bai\nP1,S1,{bam},{bai}\n")
-    with pytest.raises(companions["errors"].SkillError) as exc:
-        companions["samplesheet_builder"].validate_and_normalize_samplesheet(
-            source, tmp_path / "out.csv", step="variant_calling"
-        )
-    assert exc.value.error_code in {"INVALID_SAMPLESHEET", "INVALID_BAM"}
+    # schema_input.json's bam pattern ^\\S+\\.bam$ covers the whole path, so nf-schema
+    # refuses it when Nextflow starts; the builder passes it on unchanged.
+    companions["samplesheet_builder"].validate_and_normalize_samplesheet(
+        source, tmp_path / "out.csv", step="variant_calling"
+    )
+    assert bam.as_posix() in (tmp_path / "out.csv").read_text()
 
 
 @pytest.mark.parametrize("wrapper", ["sarek"], indirect=True)

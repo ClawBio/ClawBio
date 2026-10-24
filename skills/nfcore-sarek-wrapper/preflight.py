@@ -311,13 +311,11 @@ def run_preflight(
     present_modes = {str(p.get("mode")) for p in pairings if p.get("mode")}
     if not present_modes:
         present_modes = {analysis_mode}
-    rows_by_patient = _extract_rows_by_patient(samplesheet)
     tools = _normalize_tools(params.get("tools"))
     tool_warnings = _check_tools_against_pairing(
         params=params,
         tools=tools,
         present_modes=present_modes,
-        rows_by_patient=rows_by_patient,
     )
     warnings_acc.extend(tool_warnings)
 
@@ -1021,20 +1019,6 @@ def _explicit_resource_supplied(params: dict[str, Any], name: str) -> bool:
     return params.get(name) not in (None, "") and not _explicitly_disabled(params, name)
 
 
-def _extract_rows_by_patient(samplesheet: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
-    """Reconstruct rows-by-patient from samplesheet summary if possible.
-
-    The samplesheet_builder returns inferred pairings but does not surface
-    the per-row contamination directly.  We rely on ``pairings``
-    for tumor/normal sample names and the cached samplesheet rows when
-    provided.
-    """
-    rows = samplesheet.get("rows_by_patient")
-    if isinstance(rows, dict):
-        return rows
-    return {}
-
-
 def _check_tools_known(tools: list[str]) -> None:
     """Reject --tools tokens absent from the 3.8.1 allowlist.
 
@@ -1058,7 +1042,6 @@ def _check_tools_against_pairing(
     params: dict[str, Any],
     tools: list[str],
     present_modes: set[str],
-    rows_by_patient: dict[str, list[dict[str, Any]]],
 ) -> list[str]:
     warnings_acc: list[str] = []
     step = str(params.get("step") or "mapping").strip()
@@ -1177,25 +1160,6 @@ def _check_tools_against_pairing(
             },
         )
 
-    def _require_sex(tool: str) -> None:
-        """Mirror Sarek's global per-input-sample sex validation."""
-        if build_only_index:
-            return
-        missing = []
-        for patient, entries in rows_by_patient.items():
-            for entry in entries:
-                sex = str(entry.get("sex") or "NA")
-                if sex == "NA":
-                    missing.append({"patient": patient, "sample": entry.get("sample"), "line": entry.get("line")})
-        if missing:
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.INVALID_SEX,
-                message=f"Tool '{tool}' requires sex to be set for every sample.",
-                fix="Set the samplesheet `sex` column to XX or XY for each row.",
-                details={"tool": tool, "missing": missing},
-            )
-
     def _require_snpeff_db(tool: str) -> None:
         if _resource_available(params, "snpeff_db", "snpeff"):
             if not params.get("snpeff_db"):
@@ -1268,7 +1232,7 @@ def _check_tools_against_pairing(
             # executable behaviour: germline and paired, never tumor-only.
             _require_germline_or_paired(tool)
         elif tool == "mutect2":
-            _require_tumor_modes(tool)
+            # "Needs a tumour sample" is Sarek's own check (samplesheet_to_channel).
             if not annotation_only and "somatic_paired" in present_modes and _truthy(params.get("no_intervals")):
                 raise SkillError(
                     stage="preflight",
@@ -1311,13 +1275,17 @@ def _check_tools_against_pairing(
             _reject_if_paired_normal_is_only_input(tool, allow_tumor_only=True)
             continue
         elif tool in {"deepvariant", "haplotypecaller", "sentieon_haplotyper", "sentieon_dnascope"}:
-            _require_normal_sample(tool)
+            # Sarek itself refuses deepvariant/haplotypecaller without a normal sample
+            # (samplesheet_to_channel), but not the Sentieon callers.
+            if tool.startswith("sentieon_"):
+                _require_normal_sample(tool)
             _reject_if_paired_normal_is_only_input(tool)
         elif tool in {"manta", "tiddit"}:
             # Any mode OK.
             continue
         elif tool == "ascat":
-            _require_sex(tool)
+            # Sex for every sample is Sarek's own check; a tumour/normal pair within one
+            # patient (stricter than Sarek's "some tumour, some normal") is ClawBio's.
             _require_paired(tool)
             if params.get("ascat_purity") is not None and params.get("ascat_ploidy") is None:
                 raise SkillError(
@@ -1364,8 +1332,7 @@ def _check_tools_against_pairing(
                     details={"tool": tool, "wes": True},
                 )
         elif tool == "controlfreec":
-            _require_sex(tool)
-            _require_tumor_modes(tool)
+            # Sex for every sample and "needs a tumour" are Sarek's own checks.
             if annotation_only:
                 continue
             fields = ("mappability", "chr_dir")
@@ -1419,9 +1386,8 @@ def _check_tools_against_pairing(
                     f"{_effective_genome(params)} iGenomes bundle."
                 )
         elif tool == "varlociraptor":
-            _require_sex(tool)
-            if present_modes & {"tumor_only", "somatic_paired"}:
-                _enforce_varlociraptor_contamination(rows_by_patient, tools=tools)
+            # Sex for every sample and contamination for every tumour are Sarek's own
+            # checks (samplesheet_to_channel).
             if not annotation_only and not build_only_index and not (
                 set(tools) & _VARLOCIRAPTOR_CANDIDATE_CALLERS
             ):
@@ -1477,41 +1443,6 @@ def _annotation_step_active(params: dict[str, Any]) -> bool:
     """Annotation can run from any Sarek start step when annotator tools are set."""
     step = str(params.get("step") or "").strip()
     return step in SUPPORTED_STEPS
-
-
-def _enforce_varlociraptor_contamination(
-    rows_by_patient: dict[str, list[dict[str, Any]]],
-    *,
-    tools: list[str],
-) -> None:
-    if not rows_by_patient:
-        # The samplesheet builder already enforces this when given tools;
-        # but if rows aren't surfaced here we cannot re-check.
-        return
-    missing: list[dict[str, Any]] = []
-    for patient, entries in rows_by_patient.items():
-        for entry in entries:
-            try:
-                status = int(entry.get("status", 0))
-            except (TypeError, ValueError):
-                status = 0
-            if status != 1:
-                continue
-            contamination = entry.get("contamination")
-            if contamination in (None, "", "NA"):
-                missing.append({
-                    "patient": patient,
-                    "sample": entry.get("sample"),
-                    "line": entry.get("line"),
-                })
-    if missing:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.VARLOCIRAPTOR_MISSING_CONTAMINATION,
-            message="Varlociraptor requires `contamination` for every tumor row.",
-            fix="Add a `contamination` value (float in [0, 1]) to each tumor row in the samplesheet.",
-            details={"missing": missing, "tools": tools},
-        )
 
 
 # --- §5.4: Flag compatibility --------------------------------------------

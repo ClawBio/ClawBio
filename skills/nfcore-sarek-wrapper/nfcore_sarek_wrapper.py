@@ -1316,7 +1316,6 @@ def _prepare_samplesheet(
         input_path,
         normalized_csv,
         step=getattr(args, "step", None) or "mapping",
-        tools=_tool_list(getattr(args, "tools", None)),
     )
     return report, normalized_csv
 

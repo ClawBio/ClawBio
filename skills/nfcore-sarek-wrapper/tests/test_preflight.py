@@ -296,7 +296,6 @@ def test_sentieon_tool_requires_license_secret(monkeypatch):
             params={"step": "mapping", "tools": ["sentieon_haplotyper"]},
             tools=["sentieon_haplotyper"],
             present_modes={"germline"},
-            rows_by_patient={"P1": [{"sample": "S1", "status": 0, "sex": "NA", "line": 2}]},
         )
 
     assert exc.value.error_code == ErrorCode.MISSING_SENTIEON_LICENSE
@@ -483,7 +482,6 @@ def _tools_check(
     analysis_mode: str | None = "germline",
     present_modes: set[str] | None = None,
     params: dict | None = None,
-    rows_by_patient: dict | None = None,
 ):
     # Tests may pass a single analysis_mode (legacy) or an explicit set of
     # per-patient present_modes (for mixed-samplesheet scenarios).
@@ -493,7 +491,6 @@ def _tools_check(
         params=params or {},
         tools=tools,
         present_modes=present_modes,
-        rows_by_patient=rows_by_patient or {},
     )
 
 
@@ -549,12 +546,6 @@ def test_indexcov_tumor_only_rejected():
     assert exc.value.error_code == ErrorCode.INVALID_PAIRING
 
 
-def test_mutect2_germline_rejected():
-    with pytest.raises(SkillError) as exc:
-        _tools_check(tools=["mutect2"], analysis_mode="germline")
-    assert exc.value.error_code == ErrorCode.INVALID_PAIRING
-
-
 def test_mutect2_tumor_only_no_pon_warns():
     warnings = _tools_check(
         tools=["mutect2"],
@@ -564,13 +555,6 @@ def test_mutect2_tumor_only_no_pon_warns():
     assert any("Panel-of-Normals" in w for w in warnings)
 
 
-
-
-def test_germline_caller_rejected_when_no_germline_patient():
-    # A germline-only caller on a pure tumor-only samplesheet is still rejected.
-    with pytest.raises(SkillError) as exc:
-        _tools_check(tools=["haplotypecaller"], present_modes={"tumor_only"})
-    assert exc.value.error_code == ErrorCode.INVALID_PAIRING
 
 
 def test_mutect2_default_pon_warns():
@@ -599,13 +583,6 @@ def test_ascat_wes_missing_resources():
         )
     assert exc.value.error_code == ErrorCode.INVALID_ASCAT_RESOURCES
 
-
-
-
-def test_controlfreec_germline_rejected():
-    with pytest.raises(SkillError) as exc:
-        _tools_check(tools=["controlfreec"], analysis_mode="germline")
-    assert exc.value.error_code == ErrorCode.INVALID_PAIRING
 
 
 
@@ -640,22 +617,6 @@ def test_msisensorpro_paired_missing_scan():
 
 
 
-def test_varlociraptor_tumor_missing_contamination():
-    rows = {
-        "P1": [
-            {"sample": "T1", "status": 1, "sex": "XY", "contamination": None, "line": 2},
-        ]
-    }
-    with pytest.raises(SkillError) as exc:
-        _tools_check(
-            tools=["varlociraptor"],
-            analysis_mode="tumor_only",
-            rows_by_patient=rows,
-        )
-    assert exc.value.error_code == ErrorCode.VARLOCIRAPTOR_MISSING_CONTAMINATION
-
-
-
 def test_snpeff_without_db_or_cache_raises_when_no_igenomes():
     # Without --snpeff_db AND without an iGenomes genome that supplies SnpEff
     # config, Sarek will fail → the wrapper raises a hard error.
@@ -682,25 +643,61 @@ def test_snpeff_with_cache_still_requires_db():
     assert exc.value.error_code == ErrorCode.MISSING_SNPEFF_DB
 
 
-def test_tools_requiring_sex_reject_na_rows():
-    rows = {"P1": [
-        {"sample": "N1", "status": 0, "sex": "NA", "contamination": None, "line": 2},
-        {"sample": "T1", "status": 1, "sex": "XY", "contamination": 0.05, "line": 3},
-    ]}
-    for tool in ("ascat", "controlfreec", "varlociraptor"):
-        with pytest.raises(SkillError) as exc:
-            _tools_check(
-                tools=[tool],
-                analysis_mode="somatic_paired",
-                rows_by_patient=rows,
-                params={
-                    "ascat_alleles": "/a",
-                    "ascat_loci": "/b",
-                    "mappability": "/m",
-                    "chr_dir": "/c",
-                },
-            )
-        assert exc.value.error_code == ErrorCode.INVALID_SEX
+# nf-core/sarek 3.8.1 refuses these itself in subworkflows/local/samplesheet_to_channel
+# when the run starts: --tools ascat/controlfreec/mutect2/msisensorpro with no tumour
+# sample, ascat/deepvariant/haplotypecaller/msisensorpro with no normal sample, ascat/
+# controlfreec/varlociraptor with a sample of sex NA, and varlociraptor with a tumour
+# lacking contamination. Preflight keeps no copy of these rules.
+_SAREK_OWN_TOOL_RULES = {
+    "mutect2 without a tumour": dict(tools=["mutect2"], present_modes={"germline"}),
+    "controlfreec without a tumour": dict(
+        tools=["controlfreec"], present_modes={"germline"}, params={"mappability": "/m", "chr_dir": "/c"}),
+    "haplotypecaller without a normal": dict(tools=["haplotypecaller"], present_modes={"tumor_only"}),
+    "deepvariant without a normal": dict(tools=["deepvariant"], present_modes={"tumor_only"}),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_SAREK_OWN_TOOL_RULES))
+def test_tool_rules_sarek_enforces_reach_it(case):
+    _tools_check(**_SAREK_OWN_TOOL_RULES[case])
+
+
+@pytest.mark.parametrize("tools,mode,rows", [
+    (["controlfreec"], "somatic_paired", [{"sample": "N1", "status": 0, "sex": "NA", "contamination": None, "line": 2},
+                                          {"sample": "T1", "status": 1, "sex": "NA", "contamination": None, "line": 3}]),
+    (["ascat"], "somatic_paired", [{"sample": "N1", "status": 0, "sex": "NA", "contamination": None, "line": 2},
+                                   {"sample": "T1", "status": 1, "sex": "XX", "contamination": 0.1, "line": 3}]),
+    (["mutect2", "varlociraptor"], "tumor_only", [{"sample": "T1", "status": 1, "sex": "NA", "contamination": None, "line": 2}]),
+])
+def test_sex_and_contamination_rules_are_left_to_sarek(tmp_path, stub_binaries, tools, mode, rows):
+    """samplesheet_to_channel refuses sex NA for ascat/controlfreec/varlociraptor and a
+    varlociraptor tumour without contamination; the full preflight passes them on."""
+    (tmp_path / "repo").mkdir()
+    pairings = [{"patient": "P1", "normal": "N1", "tumor": "T1", "mode": mode}]
+    run_preflight(
+        params=make_params(tools=tools),
+        samplesheet=make_samplesheet(analysis_mode=mode, rows_by_patient={"P1": rows}, pairings=pairings),
+        pipeline_source=make_pipeline_source(),
+        output_dir=tmp_path / "results",
+        repo_root=tmp_path / "repo",
+    )
+
+
+@pytest.mark.parametrize("tool,present_modes", [
+    ("sentieon_haplotyper", {"tumor_only"}),
+    ("sentieon_dnascope", {"tumor_only"}),
+    ("muse", {"tumor_only"}),
+    ("lofreq", {"somatic_paired"}),
+    ("strelka", {"tumor_only"}),
+])
+def test_tool_rules_sarek_does_not_check_are_still_refused(tool, present_modes, monkeypatch):
+    """Sarek's own tool checks cover only the tools named above; for these it would
+    run and produce nothing for the samples given, so preflight still refuses."""
+    import preflight as p
+    monkeypatch.setattr(p, "_require_sentieon_license", lambda context: None)
+    with pytest.raises(SkillError) as exc:
+        _tools_check(tools=[tool], present_modes=present_modes)
+    assert exc.value.error_code == ErrorCode.INVALID_PAIRING
 
 
 def test_bcfann_requires_annotations_tbi_and_header_lines():

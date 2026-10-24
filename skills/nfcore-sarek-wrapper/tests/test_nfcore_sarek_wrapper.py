@@ -1271,13 +1271,12 @@ def test_main_unexpected_error_returns_1(module, monkeypatch, tmp_path):
 def test_main_user_samplesheet_path_runs_validator(module, monkeypatch, tmp_path):
     captured_csv: dict[str, Any] = {}
 
-    def capture_sheet(input_path, output_path, *, step, tools):
+    def capture_sheet(input_path, output_path, *, step):
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text("patient,sample,lane\n")
         captured_csv["input"] = input_path
         captured_csv["output"] = output_path
         captured_csv["step"] = step
-        captured_csv["tools"] = tools
         return {
             "normalized_path": output_path,
             "step": step,
@@ -1311,7 +1310,9 @@ def test_main_user_samplesheet_path_runs_validator(module, monkeypatch, tmp_path
     ])
     assert rc == 0
     assert captured_csv["input"] == sheet.resolve()
-    assert captured_csv["tools"] == ["haplotypecaller", "mutect2"]
+    # The tool rules that depend on the samplesheet are Sarek's own
+    # (samplesheet_to_channel); the builder only needs the step.
+    assert captured_csv["step"] == "mapping"
 
 
 

@@ -45,6 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rules), `manifest.nextflowVersion` or the Nextflow launcher's Java check stop a
   run, the failure's fix names the reason and the entry the pipeline printed, not
   only nf-core's generic "Pipeline failed" line.
+- **The nf-core wrappers leave each pinned release's own input checks to it.**
+  Samplesheet rules are checked by nf-schema and the pipeline when Nextflow
+  starts, before any task runs (nf-core/sarek: columns per `--step`, values, files,
+  duplicate and pairing rules, the tumour/normal, sex and contamination needs of
+  `--tools`); the wrappers keep only what the release accepts without a word or
+  does not check.
 - `biostudies-fetch` and `arrayexpress-fetch` resolve file downloads from the
   BioStudies `/info` endpoint's `httpLink` rather than the hardcoded
   `/biostudies/files/{acc}/{path}` path. Marked `DIVERGES FROM UPSTREAM` in the

@@ -8,7 +8,7 @@ ClawBio wrapper around `nf-core/sarek` 3.8.1 covering mapping through annotation
 - Germline, tumor-only, and somatic tumor-normal paired analyses.
 - Supported callers: HaplotypeCaller, Mutect2, Strelka, ASCAT, ControlFREEC, Manta, TIDDIT, MSIsensor-pro, FreeBayes, DeepVariant, and Sentieon (TNscope/Haplotyper/DNAscope).
 - Annotation with VEP and/or SnpEff.
-- Validated samplesheet input (CSV/TSV/YAML/JSON) with normalized local paths (local-first by default; remote URLs require `--allow-remote-inputs`).
+- Samplesheet input (CSV/TSV/YAML/JSON) with normalized local paths (local-first by default; remote URLs require `--allow-remote-inputs`); nf-schema and Sarek check its columns, values and files when Nextflow starts.
 - Reproducibility bundle, provenance bundle, `report.md`, and `result.json`.
 
 ## Out Of Scope

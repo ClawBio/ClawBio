@@ -538,8 +538,6 @@ def test_pinned_versions_parity_with_schemas():
     assert set(pinned["supported_steps"]) == set(schemas.SUPPORTED_STEPS)
     assert set(pinned["supported_tools"]) == set(schemas.SUPPORTED_TOOLS)
     assert set(pinned["supported_skip_tools"]) == set(schemas.SUPPORTED_SKIP_TOOLS)
-    assert set(pinned["supported_sex"]) == set(schemas.SUPPORTED_SEX)
-    assert set(pinned["supported_status"]) == set(schemas.SUPPORTED_STATUS)
     assert set(pinned["igenomes_catalogue"]) == set(schemas.SUPPORTED_IGENOMES_NAMES)
 
     official_profiles = {

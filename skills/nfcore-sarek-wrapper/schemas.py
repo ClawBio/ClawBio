@@ -105,9 +105,6 @@ SUPPORTED_SKIP_TOOLS = {
     "mosdepth", "multiqc", "samtools", "vcftools", "versions",
 }
 
-SUPPORTED_SEX = {"XX", "XY", "NA"}
-SUPPORTED_STATUS = {0, 1}
-
 # fgbio GroupReadsByUmi strategies (schema enum: Identity, Edit, Adjacency, Paired).
 SUPPORTED_GROUP_BY_UMI = {"Identity", "Edit", "Adjacency", "Paired"}
 SUPPORTED_UMI_LOCATIONS = {"read1", "read2", "per_read", "index1", "index2", "per_index"}
@@ -194,4 +191,3 @@ SUPPORTED_SAMPLE_COLUMNS = {
     "vcf", "variantcaller",
     "contamination",   # required by varlociraptor for tumor-only/somatic
 }
-REQUIRED_SAMPLE_COLUMNS_ANY_STEP = ("patient", "sample")
