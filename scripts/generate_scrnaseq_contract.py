@@ -224,17 +224,8 @@ PROTOCOLS_JSON_{version_sanitized} = {{
 KNOWN_PROTOCOL_TOKENS = frozenset(
     token for tokens in PROTOCOLS_JSON_{version_sanitized}.values() for token in tokens
 )
-PRESETS_SUPPORTING_AUTO_PROTOCOL = frozenset(
-    preset for preset, tokens in PROTOCOLS_JSON_{version_sanitized}.items() if "auto" in tokens
-)
 PRESETS_SUPPORTING_SMARTSEQ_PROTOCOL = frozenset(
     preset for preset, tokens in PROTOCOLS_JSON_{version_sanitized}.items() if "smartseq" in tokens
-)
-# Map-routed presets with no `auto` fallback must be given an explicit protocol.
-# (cellranger/cellrangerarc default to auto; cellrangermulti is samplesheet-driven
-# and therefore absent from the matrix, so it is never forced.)
-PRESETS_REQUIRING_EXPLICIT_PROTOCOL = (
-    frozenset(PROTOCOLS_JSON_{version_sanitized}) - PRESETS_SUPPORTING_AUTO_PROTOCOL
 )
 # Presets that may forward an unknown/custom protocol string (non-Cell-Ranger).
 PRESETS_SUPPORTING_CUSTOM_PROTOCOL = (

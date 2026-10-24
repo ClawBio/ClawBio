@@ -301,31 +301,6 @@ def test_preflight_rejects_email_not_matching_nfcore_schema(tmp_path, monkeypatc
     assert exc.value.details["field"] == "email"
 
 
-@pytest.mark.parametrize("preset", ["standard", "star", "kallisto"])
-def test_missing_protocol_is_rejected_for_non_cellranger_presets(
-    tmp_path, monkeypatch, preset
-):
-    args = _args(tmp_path)
-    args.preset = preset
-    args.protocol = None
-    Path(args.fasta).write_text(">chr1\nACGT\n", encoding="utf-8")
-    Path(args.gtf).write_text(
-        'chr1\tsrc\tgene\t1\t4\t.\t+\t.\tgene_id "g1";\n', encoding="utf-8"
-    )
-    _mock_env(monkeypatch)
-
-    with pytest.raises(SkillError) as exc:
-        preflight.run_preflight(
-            args,
-            pipeline_source=_PIPELINE_SOURCE,
-            samplesheet_summary={"sample_count": 1, "unknown_columns": []},
-        )
-
-    assert exc.value.error_code == "INVALID_PRESET_CONFIGURATION"
-    assert exc.value.details["missing_field"] == "protocol"
-    assert exc.value.details["policy_source"] == POLICY_SOURCE_NFCORE_DOCS
-
-
 @pytest.mark.parametrize("preset", ["cellranger", "cellrangerarc", "cellrangermulti"])
 def test_missing_protocol_preserves_cellranger_auto_detection(
     tmp_path, monkeypatch, preset
@@ -401,27 +376,6 @@ def test_scrnaseq_rejects_smartseq_protocol_for_unsupported_presets(
 
     assert exc.value.error_code == "INVALID_PRESET_CONFIGURATION"
     assert "Smart-seq" in exc.value.message
-    assert exc.value.details["policy_source"] == POLICY_SOURCE_NFCORE_DOCS
-
-
-@pytest.mark.parametrize("preset", ["standard", "star", "kallisto"])
-def test_non_cellranger_presets_reject_auto_protocol_case_insensitively(
-    tmp_path, monkeypatch, preset
-):
-    args = _args(tmp_path)
-    args.preset = preset
-    args.protocol = "AUTO"
-    _mock_env(monkeypatch)
-
-    with pytest.raises(SkillError) as exc:
-        preflight.run_preflight(
-            args,
-            pipeline_source=_PIPELINE_SOURCE,
-            samplesheet_summary={"sample_count": 1, "unknown_columns": []},
-        )
-
-    assert exc.value.error_code == "INVALID_PRESET_CONFIGURATION"
-    assert exc.value.details["protocol"] == "AUTO"
     assert exc.value.details["policy_source"] == POLICY_SOURCE_NFCORE_DOCS
 
 
@@ -869,3 +823,27 @@ def test_old_java_and_nextflow_are_left_to_nextflow(monkeypatch, java_text, next
     monkeypatch.setattr(p, "_command_output", lambda args: java_text if args[0] == "java" else nextflow_text)
     assert p._check_java()["version"] == java_text.split('"')[1]
     assert p._check_nextflow()["version"] == nextflow_text.split()[2]
+
+
+# nf-core/scrnaseq 4.1.0 refuses protocol `auto` for every aligner but the Cell Ranger
+# family itself, at the start of workflows/scrnaseq.nf ("Only cellranger supports
+# `protocol = 'auto'`"), and `auto` is its default, so a run without --protocol lands
+# there too. The wrapper keeps no copy of that rule; params_builder writes an `auto`
+# alias in the exact form the pipeline compares.
+@pytest.mark.parametrize("preset", ["standard", "star", "kallisto"])
+@pytest.mark.parametrize("protocol", [None, "auto", "AUTO", "Auto"])
+def test_auto_and_missing_protocol_are_left_to_the_pipeline(tmp_path, monkeypatch, preset, protocol):
+    import params_builder
+
+    args = _args(tmp_path)
+    args.preset = preset
+    args.protocol = protocol
+    _mock_env(monkeypatch)
+    result = preflight.run_preflight(
+        args,
+        pipeline_source=_PIPELINE_SOURCE,
+        samplesheet_summary={"sample_count": 1, "unknown_columns": []},
+    )
+    assert result["ok"] is True
+    if protocol is not None:
+        assert params_builder._canonical_protocol(protocol) == "auto"

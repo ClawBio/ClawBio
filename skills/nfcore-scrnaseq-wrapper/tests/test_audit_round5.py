@@ -39,7 +39,6 @@ import samplesheet_builder
 from errors import SkillError
 from nfcore_4_1_0_contract import (
     FASTQC_GATED_ALIGNERS,
-    PRESETS_REQUIRING_EXPLICIT_PROTOCOL,
 )
 from outputs_parser import validate_expected_outputs
 from params_builder import build_effective_params
@@ -401,13 +400,13 @@ def test_skill_md_cli_examples_pass_protocol_for_protocol_required_presets():
         if not match:
             continue
         if (
-            match.group(1) in PRESETS_REQUIRING_EXPLICIT_PROTOCOL
+            match.group(1) in {"standard", "star", "kallisto"}
             and "--protocol" not in command
         ):
             offenders.append(command)
     assert offenders == [], (
         "SKILL.md CLI examples for standard/star/kallisto must include --protocol "
-        f"(preflight rejects them otherwise): {offenders}"
+        f"(nf-core/scrnaseq 4.1.0 refuses its default `auto` for them): {offenders}"
     )
 
 

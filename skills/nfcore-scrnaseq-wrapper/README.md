@@ -54,7 +54,7 @@ Unsupported parameters are either hidden/institutional metadata, interactive hel
 
 ## Protocol Policy
 
-For `standard`, `star`, and `kallisto`, `--protocol` is required because nf-core/scrnaseq 4.1.0 documents `auto` as CellRanger-only. Explicit `auto` is rejected for those presets. `smartseq` is accepted for `star` and `kallisto` only. `cellranger` accepts only `auto` and `10XV1`-`10XV4`; `cellrangerarc` accepts only `auto`; `cellrangermulti` is samplesheet-driven. Unknown custom protocol strings are passed through only for `standard`, `star`, and `kallisto`, where nf-core documents custom values.
+For `standard`, `star`, and `kallisto`, `--protocol` is required: nf-core/scrnaseq 4.1.0 defaults to `auto` and refuses it outside the Cell Ranger family itself when the run starts. `smartseq` is accepted for `star` and `kallisto` only. `cellranger` accepts only `auto` and `10XV1`-`10XV4`; `cellrangerarc` accepts only `auto`; `cellrangermulti` is samplesheet-driven. Unknown custom protocol strings are passed through only for `standard`, `star`, and `kallisto`, where nf-core documents custom values.
 
 ## Output Policy
 

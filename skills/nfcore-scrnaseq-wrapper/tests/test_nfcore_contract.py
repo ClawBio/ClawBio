@@ -11,10 +11,8 @@ from nfcore_4_1_0_contract import (
     DEPRECATED_PARAMS,
     WRAPPER_DEPRECATED_ALIAS_PARAMS,
     PROTOCOLS_JSON_4_1_0,
-    PRESETS_SUPPORTING_AUTO_PROTOCOL,
     PRESETS_SUPPORTING_CUSTOM_PROTOCOL,
     PRESETS_SUPPORTING_SMARTSEQ_PROTOCOL,
-    PRESETS_REQUIRING_EXPLICIT_PROTOCOL,
     KNOWN_PROTOCOL_TOKENS,
 )
 
@@ -90,11 +88,6 @@ def test_protocol_matrix_mirrors_upstream_protocols_json():
     }
 
 
-def test_only_cellranger_family_defines_auto_protocol():
-    # protocols.json defines an `auto` key only under cellranger and cellrangerarc.
-    assert PRESETS_SUPPORTING_AUTO_PROTOCOL == {"cellranger", "cellrangerarc"}
-
-
 def test_only_star_and_kallisto_define_smartseq_protocol():
     assert PRESETS_SUPPORTING_SMARTSEQ_PROTOCOL == {"star", "kallisto"}
 
@@ -109,10 +102,6 @@ def test_known_protocol_tokens_are_union_of_matrix():
         "dropseq",
         "smartseq",
     }
-
-
-def test_presets_requiring_explicit_protocol_are_the_non_auto_map_presets():
-    assert PRESETS_REQUIRING_EXPLICIT_PROTOCOL == {"standard", "star", "kallisto"}
 
 
 def test_presets_supporting_custom_protocol_are_the_non_cellranger_map_presets():

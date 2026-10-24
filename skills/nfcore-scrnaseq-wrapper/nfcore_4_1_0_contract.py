@@ -274,11 +274,13 @@ INTENTIONALLY_UNSUPPORTED_REASONS = {
 # tokens that aligner's block defines, NORMALISED to match
 # preflight._normalize_protocol_token (lowercase, separators stripped).
 #
-# This is the single source of truth for protocol rules the wrapper enforces
-# ahead of upstream: which presets accept `auto`, which accept `smartseq`, and
-# which presets may pass unknown/custom protocol strings through. cellrangermulti
-# is intentionally ABSENT: that path is configured by the multi samplesheet, not
-# the --protocol value.
+# The pipeline itself refuses only `auto` (its default) outside the Cell Ranger
+# family, in workflows/scrnaseq.nf; it maps the tokens below and passes any other
+# string to the aligner verbatim. The wrapper uses this copy only for what the
+# pipeline does not check: the usage docs' support table (which presets accept
+# `smartseq`, and that the Cell Ranger family takes no custom strings).
+# cellrangermulti is intentionally ABSENT: that path is configured by the multi
+# samplesheet, not the --protocol value.
 PROTOCOLS_JSON_4_1_0 = {
     "standard": ("10xv1", "10xv2", "10xv3", "10xv4", "dropseq"),  # simpleaf/alevin
     "star": ("10xv1", "10xv2", "10xv3", "10xv4", "dropseq", "smartseq"),
@@ -289,24 +291,14 @@ PROTOCOLS_JSON_4_1_0 = {
 KNOWN_PROTOCOL_TOKENS = frozenset(
     token for tokens in PROTOCOLS_JSON_4_1_0.values() for token in tokens
 )
-PRESETS_SUPPORTING_AUTO_PROTOCOL = frozenset(
-    preset for preset, tokens in PROTOCOLS_JSON_4_1_0.items() if "auto" in tokens
-)
 PRESETS_SUPPORTING_SMARTSEQ_PROTOCOL = frozenset(
     preset for preset, tokens in PROTOCOLS_JSON_4_1_0.items() if "smartseq" in tokens
-)
-# Map-routed presets with no `auto` fallback must be given an explicit protocol.
-# (cellranger/cellrangerarc default to auto; cellrangermulti is samplesheet-driven
-# and therefore absent from the matrix, so it is never forced.)
-PRESETS_REQUIRING_EXPLICIT_PROTOCOL = (
-    frozenset(PROTOCOLS_JSON_4_1_0) - PRESETS_SUPPORTING_AUTO_PROTOCOL
 )
 # Presets that may forward an unknown/custom protocol string straight to the
 # aligner. The 4.1.0 usage docs document custom values only for the non-Cell
 # Ranger aligners (simpleaf/star/kallisto). Derived from the routing matrix minus
 # the Cell Ranger family so this can never drift from CELLRANGER_FAMILY_PRESETS
-# (audit F-8). Conceptually distinct from PRESETS_REQUIRING_EXPLICIT_PROTOCOL even
-# though both resolve to {standard, star, kallisto} in 4.1.0.
+# (audit F-8).
 PRESETS_SUPPORTING_CUSTOM_PROTOCOL = (
     frozenset(PROTOCOLS_JSON_4_1_0) - CELLRANGER_FAMILY_PRESETS
 )

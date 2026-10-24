@@ -36,6 +36,14 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   run starts, and the Nextflow launcher refuses a Java outside 17-26. Preflight no longer
   repeats those minimums (`JAVA_MIN_VERSION`/`NEXTFLOW_MIN_VERSION*` go); it still requires
   `java` and `nextflow` on PATH and a readable version, which it records for `NXF_VER`.
+- **A missing or `auto` protocol is nf-core/scrnaseq's to refuse.** 4.1.0 defaults
+  `protocol` to `auto` and refuses it for every aligner but the Cell Ranger family at
+  the start of `workflows/scrnaseq.nf`, before any task runs; preflight and the
+  contract no longer repeat that (`PRESETS_SUPPORTING_AUTO_PROTOCOL` and
+  `PRESETS_REQUIRING_EXPLICIT_PROTOCOL` go, from `scripts/generate_scrnaseq_contract.py`
+  too). The pipeline passes every other unknown string to the aligner verbatim, so the
+  wrapper keeps the usage docs' support table: `smartseq2` refused, `smartseq` only for
+  `star`/`kallisto`, and no custom strings for the Cell Ranger family.
 
 ### Fixed
 

@@ -64,6 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   engine, and its launcher refuses a Java outside 17-26; the wrappers still
   require `java` and `nextflow` on PATH and record their versions. A pinned-source
   test checks each skill's recorded minimum against the release manifest.
+  nf-core/scrnaseq's own refusal of a missing or `auto` protocol outside the Cell
+  Ranger family is no longer repeated in its wrapper's contract.
 - `biostudies-fetch` and `arrayexpress-fetch` resolve file downloads from the
   BioStudies `/info` endpoint's `httpLink` rather than the hardcoded
   `/biostudies/files/{acc}/{path}` path. Marked `DIVERGES FROM UPSTREAM` in the

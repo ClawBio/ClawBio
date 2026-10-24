@@ -27,7 +27,6 @@ from nfcore_4_1_0_contract import (
     KNOWN_PROTOCOL_TOKENS,
     POLICY_SOURCE_CLAWBIO,
     POLICY_SOURCE_NFCORE_DOCS,
-    PRESETS_REQUIRING_EXPLICIT_PROTOCOL,
     PRESETS_SUPPORTING_CUSTOM_PROTOCOL,
     PRESETS_SUPPORTING_SMARTSEQ_PROTOCOL,
     PROTOCOLS_JSON_4_1_0,
@@ -1007,41 +1006,24 @@ def _check_cellrangermulti_multiplexing_policy(args, feature_types: set[str]) ->
 
 
 def _check_protocol_compatibility(args) -> None:
+    """The protocol rules nf-core/scrnaseq 4.1.0 does not check itself.
+
+    The pipeline defaults protocol to `auto` and refuses it for every aligner but the
+    Cell Ranger family at the start of workflows/scrnaseq.nf, so a missing or `auto`
+    protocol is its to refuse (params_builder writes the alias in the exact form it
+    compares). Any other unknown string it passes to the aligner verbatim; the usage
+    docs' support table below catches the ones that cannot work.
+    """
     if getattr(args, "demo", False):
         return
     raw_protocol = getattr(args, "protocol", None)
-    preset = getattr(args, "preset", "")
     if raw_protocol is None or not str(raw_protocol).strip():
-        if preset in PRESETS_REQUIRING_EXPLICIT_PROTOCOL:
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
-                message="The selected preset requires an explicit protocol in nf-core/scrnaseq 4.1.0.",
-                fix="Provide --protocol with a value supported by the selected aligner, such as 10XV2, 10XV3, 10XV4, dropseq, or smartseq where documented. nf-core/scrnaseq takes the protocol from this flag (a global pipeline parameter); a `protocol` column in the samplesheet is not read for it, so pass the value explicitly here even if your samplesheet has one.",
-                details={
-                    "preset": preset,
-                    "missing_field": "protocol",
-                    "policy_source": POLICY_SOURCE_NFCORE_DOCS,
-                },
-            )
         return
+    preset = getattr(args, "preset", "")
     protocol = str(raw_protocol).strip()
     normalized_protocol = _normalize_protocol_token(protocol)
-    # `auto` chemistry detection is defined by protocols.json only for the
-    # cellranger family; cellrangermulti is samplesheet-driven (not in the matrix)
-    # so its protocol is deferred to upstream rather than rejected here.
-    if normalized_protocol == "auto" and preset in PRESETS_REQUIRING_EXPLICIT_PROTOCOL:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
-            message="The selected preset does not support protocol=auto in nf-core/scrnaseq 4.1.0.",
-            fix="Use an explicit protocol such as 10XV2, 10XV3, dropseq, smartseq, or a custom string supported by the selected aligner.",
-            details={
-                "preset": preset,
-                "protocol": protocol,
-                "policy_source": POLICY_SOURCE_NFCORE_DOCS,
-            },
-        )
+    if normalized_protocol == "auto":
+        return
     if normalized_protocol == "smartseq2":
         # nf-core/scrnaseq 4.1.0 docs: 'smartseq' denotes Smart-seq3; Smart-seq2 is
         # explicitly unsupported and routed to nf-core/rnaseq (usage.md). Reject it
