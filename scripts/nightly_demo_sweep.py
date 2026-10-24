@@ -42,6 +42,18 @@ SKIP_IN_CI = {
 }
 
 
+REPRO_BUNDLE_FILES = ("commands.sh", "environment.yml", "checksums.sha256")
+
+# The skill run contract (AGENTS.md). skills/contract_known_gaps.json maps each skill to
+# the checks it fails today, and is shared with the tests that check SKILL.md and parsers.
+# It only shrinks: a skill failing a check not listed for it fails, and a listed check it
+# now passes fails until it is removed.
+SWEEP_CHECKS = {"repro_files"}  # reproducibility/ holds REPRO_BUNDLE_FILES
+CONTRACT_KNOWN_GAPS_FILE = PROJECT_ROOT / "skills" / "contract_known_gaps.json"
+CONTRACT_KNOWN_GAPS = {
+    skill: set(checks) for skill, checks in json.loads(CONTRACT_KNOWN_GAPS_FILE.read_text()).items()
+}
+
 def load_demo_skills() -> list[dict]:
     """Return skills from catalog that have demo mode."""
     with open(CATALOG) as f:
@@ -112,6 +124,8 @@ def run_demo(skill: dict, timeout: int, output_dir: Path | None) -> dict:
             "elapsed": round(elapsed, 1),
             "stderr_tail": proc.stderr[-500:] if proc.stderr else "",
             "passed": proc.returncode == 0,
+            # Checked here, before a temp output dir is removed in `finally`.
+            "contract_gaps": contract_gaps(skill_out),
         }
     except subprocess.TimeoutExpired:
         elapsed = time.time() - t0
@@ -213,6 +227,33 @@ def run_benchmark_scoring(output_dir: Path | None) -> dict | None:
     result = scorer.score(list(all_genes))
     result["skills_contributing"] = {k: len(v) for k, v in skill_genes.items()}
     return result
+
+
+def contract_gaps(skill_out: Path) -> dict[str, str]:
+    """The run-contract checks this demo output fails, each with what is wrong."""
+    gaps = {}
+    missing = [f for f in REPRO_BUNDLE_FILES if not (skill_out / "reproducibility" / f).is_file()]
+    if missing:
+        gaps["repro_files"] = "reproducibility/ is missing " + ", ".join(missing)
+    return gaps
+
+
+def contract_regressions(results: list[dict], known: dict[str, set[str]] = CONTRACT_KNOWN_GAPS) -> list[str]:
+    """Problems that move a skill's run-contract gaps away from CONTRACT_KNOWN_GAPS.
+
+    Only demos that passed are judged: a crashed demo already fails the sweep.
+    """
+    problems = []
+    for r in results:
+        if not r["passed"]:
+            continue
+        found = r.get("contract_gaps", {})
+        listed = known.get(r["name"], set()) & SWEEP_CHECKS  # other checks have their own tests
+        for gap in sorted(found.keys() - listed):
+            problems.append(f"{r['name']}: {found[gap]}")
+        for gap in sorted(listed - found.keys()):
+            problems.append(f"{r['name']}: now passes {gap}; remove it from CONTRACT_KNOWN_GAPS")
+    return problems
 
 
 def generate_summary(results: list[dict], benchmark: dict | None = None) -> str:
@@ -342,6 +383,9 @@ def main():
 
     print()
     summary = generate_summary(results, benchmark=benchmark)
+    contract_problems = contract_regressions(results)
+    if contract_problems:
+        summary += "\n## Run contract\n\n" + "".join(f"- {p}\n" for p in contract_problems)
     print(summary)
 
     # Write summary to file if output dir specified
@@ -363,8 +407,9 @@ def main():
             f.write(summary)
 
     failed = [r for r in results if not r["passed"]]
-    if failed:
-        print(f"\n{len(failed)} skill(s) failed. Exiting with code 1.")
+    if failed or contract_problems:
+        print(f"\n{len(failed)} skill(s) failed, {len(contract_problems)} run contract "
+              "problem(s). Exiting with code 1.")
         sys.exit(1)
     else:
         print(f"\nAll {len(results)} demos passed.")
