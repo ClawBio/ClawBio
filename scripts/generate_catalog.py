@@ -25,7 +25,6 @@ from pathlib import Path
 CLAWBIO_DIR = Path(__file__).resolve().parents[1]
 SKILLS_DIR = CLAWBIO_DIR / "skills"
 CATALOG_PATH = SKILLS_DIR / "catalog.json"
-CI_WORKFLOW_PATH = CLAWBIO_DIR / ".github" / "workflows" / "ci.yml"
 
 sys.path.insert(0, str(CLAWBIO_DIR))
 
@@ -178,21 +177,12 @@ def load_folder_to_alias() -> dict[str, str]:
     return folder_to_alias
 
 
-def load_ci_tested_skill_folders() -> set[str]:
-    """Return skill folders with explicit pytest coverage in the CI workflow."""
-    if not CI_WORKFLOW_PATH.exists():
-        return set()
-    source = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
-    return set(re.findall(r"pytest\s+skills/([^/\s]+)/tests(?:/|\s)", source))
-
-
 def compute_maturity(
     *,
     has_script: bool,
     has_tests: bool,
     has_demo: bool,
     cli_registered: bool,
-    ci_tested: bool,
     benchmark_validated: bool = False,
 ) -> tuple[str, dict[str, bool]]:
     """Compute an objective maturity tier from observable repository evidence."""
@@ -202,14 +192,11 @@ def compute_maturity(
         "has_tests": has_tests,
         "has_demo": has_demo,
         "cli_registered": cli_registered,
-        "ci_tested": ci_tested,
         "benchmark_validated": benchmark_validated,
     }
 
     if benchmark_validated:
         tier = "bench-validated"
-    elif ci_tested:
-        tier = "ci-validated"
     elif cli_registered:
         tier = "cli-registered"
     elif has_tests:
@@ -451,7 +438,6 @@ def build_catalog() -> list[dict]:
     """Build a list of skill entries for the catalog."""
     registered_aliases = load_skills_registry()
     folder_to_alias = load_folder_to_alias()
-    ci_tested_folders = load_ci_tested_skill_folders()
     entries: list[dict] = []
 
     for skill_dir in sorted(SKILLS_DIR.iterdir()):
@@ -487,7 +473,6 @@ def build_catalog() -> list[dict]:
             demo_command = f"{demo_command} {shlex.join(extra_demo_args)}"
         has_demo = demo_command is not None
         cli_registered = bool(cli_alias and cli_alias in registered_aliases)
-        ci_tested = folder_name in ci_tested_folders
 
         # Status
         status = "mvp" if folder_name in MVP_FOLDERS else "planned"
@@ -496,7 +481,6 @@ def build_catalog() -> list[dict]:
             has_tests=has_tests,
             has_demo=has_demo,
             cli_registered=cli_registered,
-            ci_tested=ci_tested,
         )
 
         tags = [str(tag) for tag in skill_meta.get("tags", [])]
