@@ -31,7 +31,7 @@ nf-schema refused in the failure's fix. When the pipeline's own checks (an
 `error(...)` such as sarek's samplesheet rules), Nextflow's `manifest.nextflowVersion`
 gate or the launcher's Java check stop a run, `execution` also names that reason,
 read from the session's abort cause (or Nextflow's `AbortOperationException`) in
-`.nextflow.log` and Nextflow's `ERROR` lines,
+the start and end of `.nextflow.log` and Nextflow's `ERROR` lines,
 with the stderr lines the pipeline printed just before. Prepared-manifest payloads and resource
 ceilings remain pipeline policy; shared helpers only write the supplied checkpoint
 or render a replay guard. Combined tests also check that collecting wrapper tests

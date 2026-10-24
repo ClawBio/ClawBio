@@ -55,6 +55,20 @@ _UNINFORMATIVE_STOP_REASONS = (
 _STDERR_NOISE = re.compile(r"^(?:WARN|NOTE|Picked up|Nextflow \S+ is available)", re.IGNORECASE)
 _ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 _STDERR_DETAIL_LINES = 3
+# Nextflow's observers fail to write their HTML reports after an abort; never the reason.
+_REPORT_NOT_WRITTEN = re.compile(r"file already exists: .* -- enable the '\w+\.overwrite' option", re.IGNORECASE)
+# An input refusal is logged early, so the start of .nextflow.log is read as well as its
+# tail (a long DEBUG log can push the abort cause out of the tail).
+_LOG_HEAD_BYTES = 1 << 20
+
+
+def read_log_head(path: Path, limit: int = _LOG_HEAD_BYTES) -> str:
+    """The first ``limit`` bytes of a captured log, decoded; never raises."""
+    try:
+        with path.open("rb") as fh:
+            return fh.read(limit).decode("utf-8", errors="replace")
+    except OSError:
+        return ""
 
 
 def read_log_tail(path: Path, limit: int = 65536) -> str:
@@ -129,6 +143,8 @@ def nextflow_stop_reasons(stdout: str, stderr: str, nextflow_log: str = "") -> l
 
     def add(reason: str) -> None:
         reason = _ANSI_ESCAPE.sub("", reason).strip()
+        if _REPORT_NOT_WRITTEN.search(reason):
+            return
         if reason and reason not in reasons and not reason.lower().startswith(_UNINFORMATIVE_STOP_REASONS):
             reasons.append(reason)
 
@@ -172,7 +188,7 @@ def environment_failure_hints(
     """
     parts = [read_log_tail(stdout_path), read_log_tail(stderr_path)]
     if nextflow_log_path is not None:
-        parts.append(read_log_tail(nextflow_log_path))
+        parts.append(read_log_head(nextflow_log_path) + "\n" + read_log_tail(nextflow_log_path))
     blob = "\n".join(parts).lower()
     hints: list[str] = []
     refused = nf_schema_refusals("\n".join(parts))

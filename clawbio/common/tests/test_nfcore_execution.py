@@ -410,3 +410,30 @@ def test_a_plugin_refusing_the_engine_is_named(tmp_path):
     hint = api.environment_failure_hints(*_write_logs(tmp_path, " N E X T F L O W   ~  version 24.10.6\n", stderr, log))
     assert hint.count(refusal) == 1
     assert "is available" not in hint
+
+
+def test_an_early_refusal_is_found_even_when_the_log_runs_on(tmp_path):
+    """Live sarek 3.8.1 (varlociraptor with sex NA): the session's abort cause sat about
+    100 KB into a 184 KB .nextflow.log, before the report-rendering exceptions that end
+    it. Reading only the log's tail named "Report file already exists" as the reason."""
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    reason = ("Please specify sex information for each sample in your samplesheet when using "
+              "'--tools' with 'ascat' or 'controlfreec' or 'varlociraptor'.")
+    log = ("DEBUG nextflow.Session - startup\n" * 2000
+           + f"DEBUG nextflow.Session - Session aborted -- Cause: {reason}\n"
+           + "DEBUG nextflow.trace.TraceObserver - workflow completed\n" * 3000
+           + "nextflow.exception.AbortOperationException: Report file already exists: "
+             "upstream/results/pipeline_info/execution_report_x.html -- enable the 'report.overwrite' "
+             "option in your config file to overwrite existing files\n")
+    assert len(log) > 3 * 65536
+    hint = api.environment_failure_hints(*_write_logs(tmp_path, "", "", log))
+    assert reason.rstrip(".") in hint
+    assert "Report file already exists" not in hint
+
+
+def test_reports_nextflow_could_not_write_are_never_a_stop_reason(tmp_path):
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    log = ("nextflow.exception.AbortOperationException: Timeline file already exists: "
+           "out/pipeline_info/execution_timeline_x.html -- enable the 'timeline.overwrite' option "
+           "in your config file to overwrite existing files\n")
+    assert api.nextflow_stop_reasons("", "", log) == []
