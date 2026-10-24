@@ -151,5 +151,5 @@ output_directory/
 ## Citations
 
 - [CPIC Guidelines](https://cpicpgx.org/) — Clinical Pharmacogenetics Implementation Consortium
-- [CPIC API](https://api.cpicpgx.org/) — diplotype-to-phenotype tables last checked 2026-10-05; DPYD against CPIC's `DPYD_Diplotype_Phenotype_Table.xlsx` (generated 2026-08-07) (`CPIC_TABLES_CHECKED`); CYP1A2 and MTHFR not covered (no CPIC guideline)
+- [CPIC API](https://api.cpicpgx.org/) — diplotype-to-phenotype tables last checked 2026-10-05; DPYD against CPIC's `DPYD_Diplotype_Phenotype_Table.xlsx` (generated 2026-08-07) (`CPIC_TABLES_CHECKED`); CYP1A2 and MTHFR not covered (no CPIC guideline). MTHFR genotype is reported for information only: no CPIC or DPWG guideline uses it, so methotrexate is never graded on it and appears as insufficient data with that reason (issue #594). Activity labels follow measured activity (Weisberg 1998, PMID 9719624; van der Put 1998, PMID 9545395; Frosst 1995, PMID 7647779)
 - [FDA Table of Pharmacogenomic Biomarkers](https://www.fda.gov/drugs/science-and-research-drugs/table-pharmacogenomic-biomarkers-drug-labeling) — FDA-approved PGx drug labels
