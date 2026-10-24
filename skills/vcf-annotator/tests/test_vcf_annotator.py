@@ -79,10 +79,11 @@ class TestParseVCF:
             assert not v["chrom"].startswith("#")
 
     def test_empty_vcf_returns_empty_list(self, tmp_path):
-        empty = tmp_path / "empty.vcf"
-        empty.write_text("##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\n")
-        variants = parse_vcf(empty)
-        assert variants == []
+    empty = tmp_path / "empty.vcf"
+    empty.write_text("##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\n")
+    with pytest.raises(SystemExit) as exc:
+        parse_vcf(empty)
+    assert exc.value.code != 0
 
 
 # ── Impact ranking tests ───────────────────────────────────────────────────────
