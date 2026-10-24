@@ -16,6 +16,8 @@ silently regress:
 
 from __future__ import annotations
 
+import subprocess
+
 from argparse import Namespace
 from pathlib import Path
 import importlib.util
@@ -443,6 +445,13 @@ def _patch_versions(monkeypatch, *, nextflow_text=None, java_text=None):
         return ""
 
     monkeypatch.setattr(preflight, "_command_output", fake_output)
+    monkeypatch.setattr(
+        preflight._runtime,
+        "run_probe",
+        lambda command, timeout_seconds: subprocess.CompletedProcess(
+            command, 0, fake_output(list(command)), ""
+        ),
+    )
 
 
 def test_nextflow_version_preserves_zero_padded_month(monkeypatch):
@@ -473,8 +482,7 @@ def test_unparseable_version_is_version_failure_not_missing(monkeypatch):
     import preflight
     from errors import ErrorCode, SkillError
 
-    monkeypatch.setattr(preflight.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(preflight, "_command_output", lambda args: "no version here")
+    _patch_versions(monkeypatch, nextflow_text="no version here", java_text="no version here")
 
     with pytest.raises(SkillError) as exc:
         preflight._check_java()

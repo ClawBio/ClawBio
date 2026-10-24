@@ -39,6 +39,10 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   repeats those minimums; it still requires `java` and `nextflow` on PATH and a readable
   version, which it records for `environment.yml` and `NXF_VER`. `JAVA_VERSION_TOO_OLD`
   and `NEXTFLOW_VERSION_TOO_OLD` are no longer raised and are removed.
+- **A failed `nextflow -version` says why.** With a Java the Nextflow launcher refuses,
+  `nextflow -version` itself fails; preflight's error now quotes the launcher's reason
+  instead of only saying the version could not be determined, and never reads a version
+  out of a failed run's output.
 
 ### Fixed
 

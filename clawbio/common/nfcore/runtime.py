@@ -27,6 +27,30 @@ def run_probe(
         return None
 
 
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+_PROBE_REASON_LINES = 3
+
+
+def tool_version(command: Sequence[str], *, timeout_seconds: float) -> tuple[str, str]:
+    """The version ``command`` printed (``("26.04.3", "")``), or ``("", why not)``.
+
+    A failed run's own first lines are the reason: the Nextflow launcher refuses a Java
+    outside 17-26 this way, and the "17" in that message is never read as a version.
+    """
+    shown = " ".join(command)
+    proc = run_probe(command, timeout_seconds=timeout_seconds)
+    if proc is None:
+        return "", f"`{shown}` did not finish within {timeout_seconds:g} s"
+    output = _ANSI_ESCAPE.sub("", f"{proc.stdout or ''}\n{proc.stderr or ''}")
+    if proc.returncode != 0:
+        lines = [line.strip() for line in output.splitlines() if line.strip()]
+        reason = " ".join(lines[:_PROBE_REASON_LINES])
+        return "", reason or f"`{shown}` exited with status {proc.returncode}"
+    if not parse_version_tuple(output):
+        return "", f"`{shown}` printed no version"
+    return reported_version(output), ""
+
+
 def reported_version(text: str) -> str:
     """The version exactly as a tool prints it (e.g. '26.04.3').
 

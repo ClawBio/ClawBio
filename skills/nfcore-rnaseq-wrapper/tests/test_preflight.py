@@ -181,7 +181,7 @@ def test_nextflow_version_preserves_zero_padded_month(monkeypatch):
     """A detected version like '26.04.3' must be reported verbatim, never
     reconstructed from the comparison tuple as '26.4.3' (not a real release)."""
     monkeypatch.setattr(preflight.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(preflight, "_command_output", lambda args: "Nextflow version 26.04.3 build 5928")
+    monkeypatch.setattr(preflight._runtime, "run_probe", lambda command, timeout_seconds: __import__("subprocess").CompletedProcess(command, 0, "Nextflow version 26.04.3 build 5928", ""))
     assert preflight._check_nextflow()["version"] == "26.04.3"
 
 
@@ -1712,6 +1712,22 @@ def test_contaminant_databases_the_schema_does_not_check_are_still_refused(tmp_p
 def test_old_java_and_nextflow_are_left_to_nextflow(monkeypatch, java_text, nextflow_text):
     import preflight as p
     monkeypatch.setattr(p.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(p, "_command_output", lambda args: java_text if args[0] == "java" else nextflow_text)
+    monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: __import__("subprocess").CompletedProcess(
+        command, 0, nextflow_text if command[0] == "nextflow" else "", java_text if command[0] == "java" else ""))
     assert p._check_java()["version"] == java_text.split('"')[1]
     assert p._check_nextflow()["version"] == nextflow_text.split()[2]
+
+
+def test_a_launcher_refusal_is_named_when_nextflow_cannot_report_its_version(monkeypatch):
+    """With an unsupported Java the launcher fails `nextflow -version` itself; the
+    error must carry its reason instead of only saying the version is unknown."""
+    import subprocess as sp
+    import preflight as p
+    from errors import SkillError as _SkillError
+    refusal = ("ERROR: Cannot find Java or it's a wrong version -- please make sure that "
+               "Java 17 or later (up to 26) is installed")
+    monkeypatch.setattr(p.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: sp.CompletedProcess(command, 1, "", refusal + "\n"))
+    with pytest.raises(_SkillError) as exc:
+        p._check_nextflow()
+    assert refusal.removeprefix("ERROR: ") in exc.value.message

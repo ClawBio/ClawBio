@@ -62,7 +62,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   check. Minimum Nextflow and Java versions are Nextflow's: each release's
   `manifest.nextflowVersion` starts with `!`, so Nextflow refuses an older
   engine, and its launcher refuses a Java outside 17-26; the wrappers still
-  require `java` and `nextflow` on PATH and record their versions. A pinned-source
+  require `java` and `nextflow` on PATH and record their versions, and quote the
+  launcher's reason when `nextflow -version` fails. A pinned-source
   test checks each skill's recorded minimum against the release manifest.
   nf-core/scrnaseq's own refusal of a missing or `auto` protocol outside the Cell
   Ranger family is no longer repeated in its wrapper's contract.

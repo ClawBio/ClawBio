@@ -129,3 +129,47 @@ def test_demo_runs_online(value, monkeypatch):
 def test_reported_version_keeps_the_raw_token(text, expected):
     # 26.04.3 must not become 26.4.3: that is not a release NXF_VER can fetch.
     assert runtime.reported_version(text) == expected
+
+
+# The Nextflow launcher refuses a Java outside 17-26 itself, with `nextflow -version`
+# exiting 1 and this on stderr (Nextflow 26.04.3 launcher, Java 11 on PATH).
+_LAUNCHER_JAVA_REFUSAL = (
+    "\x1b[0;31mERROR: Cannot find Java or it's a wrong version -- please make sure that "
+    "Java 17 or later (up to 26) is installed\x1b[0m\n"
+    "\x1b[0;33mNOTE: Nextflow is trying to use the Java VM defined by the following "
+    "environment variables:\n JAVA_CMD: /opt/java11/bin/java\n JAVA_HOME:\n\x1b[0m\n"
+)
+
+
+def _completed(returncode, stdout="", stderr=""):
+    return subprocess.CompletedProcess(["nextflow", "-version"], returncode, stdout, stderr)
+
+
+def test_a_failed_version_probe_reports_the_tools_own_reason(monkeypatch):
+    """The wrappers leave the Java minimum to the launcher, so its refusal must be the
+    reason a probe gives, and its '17' must never be read as a Nextflow version."""
+    monkeypatch.setattr(runtime, "run_probe", lambda command, timeout_seconds: _completed(1, stderr=_LAUNCHER_JAVA_REFUSAL))
+    version, reason = runtime.tool_version(["nextflow", "-version"], timeout_seconds=30)
+    assert version == ""
+    assert "Cannot find Java or it's a wrong version -- please make sure that Java 17 or later (up to 26) is installed" in reason
+    assert "\x1b" not in reason
+
+
+def test_a_version_probe_reports_the_printed_version_or_a_timeout(monkeypatch):
+    monkeypatch.setattr(runtime, "run_probe", lambda command, timeout_seconds: _completed(
+        0, stdout="\n      N E X T F L O W\n      version 26.04.3 build 12259\n"))
+    assert runtime.tool_version(["nextflow", "-version"], timeout_seconds=30) == ("26.04.3", "")
+    monkeypatch.setattr(runtime, "run_probe", lambda command, timeout_seconds: None)
+    version, reason = runtime.tool_version(["nextflow", "-version"], timeout_seconds=30)
+    assert version == "" and "did not finish within 30 s" in reason
+
+
+@given(st.integers(1, 255), st.text(alphabet="0123456789. abcJavaERROR:-\n", max_size=60))
+def test_a_failed_probe_never_yields_a_version(returncode, output):
+    original = runtime.run_probe
+    try:
+        runtime.run_probe = lambda command, timeout_seconds: _completed(returncode, stdout=output)
+        version, reason = runtime.tool_version(["nextflow", "-version"], timeout_seconds=30)
+    finally:
+        runtime.run_probe = original
+    assert version == "" and reason

@@ -101,19 +101,22 @@ def _check_nextflow() -> dict[str, str]:
     minimum is nf-core/scrnaseq 4.1.0's manifest.nextflowVersion ('!>=25.04.0'),
     which Nextflow enforces itself when the run starts."""
     nextflow_path = _check_executable("nextflow")
-    version_text = _command_output(["nextflow", "-version"])
-    version_tuple = _parse_version_tuple(version_text)
-    if not version_tuple:
+    version, reason = _nextflow_version()
+    if not version:
         # nextflow IS present but its version can't be confirmed — version-gate
         # failure, not an absent binary (MISSING_NEXTFLOW).
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.NEXTFLOW_VERSION_TOO_OLD,
-            message="Nextflow is installed but its version could not be determined.",
-            fix="Reinstall Nextflow so that `nextflow -version` works.",
-            details={"nextflow_path": nextflow_path},
+            message=f"Nextflow is installed but did not report its version: {reason}",
+            fix="Correct what that names (the Nextflow launcher accepts Java 17-26) so that `nextflow -version` works.",
+            details={"nextflow_path": nextflow_path, "output": reason},
         )
-    return {"path": nextflow_path, "version": _runtime.reported_version(version_text)}
+    return {"path": nextflow_path, "version": version}
+
+
+def _nextflow_version() -> tuple[str, str]:
+    return _runtime.tool_version(["nextflow", "-version"], timeout_seconds=_SUBPROCESS_TIMEOUT)
 
 
 def _check_profile(profile: str) -> dict[str, object]:

@@ -41,6 +41,10 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   run starts, and the Nextflow launcher refuses a Java outside 17-26. Preflight no longer
   repeats those minimums (`JAVA_MIN_VERSION`/`NEXTFLOW_MIN_VERSION` go); it still requires
   `java` and `nextflow` on PATH and a readable version, which it records for `NXF_VER`.
+- **A failed `nextflow -version` says why.** With a Java the Nextflow launcher refuses,
+  `nextflow -version` itself fails; preflight's error now quotes the launcher's reason
+  instead of only saying the version could not be determined, and never reads a version
+  out of a failed run's output.
 
 ### Fixed
 

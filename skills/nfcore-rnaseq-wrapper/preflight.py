@@ -249,17 +249,20 @@ def _check_nextflow() -> dict[str, str]:
             fix="Install Nextflow and ensure it is available on PATH.",
             details={"executable": "nextflow"},
         )
-    version_text = _command_output(["nextflow", "-version"])
-    version_tuple = _parse_version_tuple(version_text)
-    if not version_tuple:
+    version, reason = _nextflow_version()
+    if not version:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.MISSING_NEXTFLOW,
-            message="Nextflow is installed but its version could not be determined.",
-            fix="Install Nextflow 25.04.3 or newer and ensure `nextflow -version` works.",
-            details={"nextflow_path": nextflow_path},
+            message=f"Nextflow is installed but did not report its version: {reason}",
+            fix="Correct what that names (the Nextflow launcher accepts Java 17-26) so that `nextflow -version` works.",
+            details={"nextflow_path": nextflow_path, "output": reason},
         )
-    return {"path": nextflow_path, "version": _runtime.reported_version(version_text)}
+    return {"path": nextflow_path, "version": version}
+
+
+def _nextflow_version() -> tuple[str, str]:
+    return _runtime.tool_version(["nextflow", "-version"], timeout_seconds=_SUBPROCESS_TIMEOUT)
 
 
 def _check_nextflow_presence() -> dict[str, str | bool]:

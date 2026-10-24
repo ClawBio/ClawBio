@@ -192,7 +192,7 @@ def test_nextflow_version_unparseable_is_version_failure(monkeypatch):
     import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda n: "/usr/bin/nextflow")
-    monkeypatch.setattr(p, "_command_output", lambda args: "no version here")
+    monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: __import__("subprocess").CompletedProcess(command, 0, "no version here", ""))
     with pytest.raises(SkillError) as exc:
         p._check_nextflow()
     # nextflow IS present but its version can't be confirmed → version failure,
@@ -207,9 +207,7 @@ def test_nextflow_version_preserves_zero_padded_month(monkeypatch):
     import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda n: f"/usr/bin/{n}")
-    monkeypatch.setattr(
-        p, "_command_output", lambda args: "  N E X T F L O W\n  version 26.04.3 build 5928"
-    )
+    monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: __import__("subprocess").CompletedProcess(command, 0, "  N E X T F L O W\n  version 26.04.3 build 5928", ""))
     assert p._check_nextflow() == "26.04.3"
 
 
@@ -1367,6 +1365,22 @@ def test_snpsift_databases_csv_rules_are_sareks(tmp_path):
 def test_old_java_and_nextflow_are_left_to_nextflow(monkeypatch, java_text, nextflow_text):
     import preflight as p
     monkeypatch.setattr(p.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(p, "_command_output", lambda args: java_text if args[0] == "java" else nextflow_text)
+    monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: __import__("subprocess").CompletedProcess(
+        command, 0, nextflow_text if command[0] == "nextflow" else "", java_text if command[0] == "java" else ""))
     assert p._check_java() == java_text.split('"')[1]
     assert p._check_nextflow() == nextflow_text.split()[2]
+
+
+def test_a_launcher_refusal_is_named_when_nextflow_cannot_report_its_version(monkeypatch):
+    """With an unsupported Java the launcher fails `nextflow -version` itself; the
+    error must carry its reason instead of only saying the version is unknown."""
+    import subprocess as sp
+    import preflight as p
+    from errors import SkillError as _SkillError
+    refusal = ("ERROR: Cannot find Java or it's a wrong version -- please make sure that "
+               "Java 17 or later (up to 26) is installed")
+    monkeypatch.setattr(p.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: sp.CompletedProcess(command, 1, "", refusal + "\n"))
+    with pytest.raises(_SkillError) as exc:
+        p._check_nextflow()
+    assert refusal.removeprefix("ERROR: ") in exc.value.message
