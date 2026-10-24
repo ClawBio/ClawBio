@@ -82,7 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **nf-core bundles record their container images.** Each wrapper's `reproducibility/containers.json`
   lists every image with its digest and the processes that ran it, and `containers.config` pins them
   for replays without a Nextflow cache. Offline (`NXF_OFFLINE`) the registry is never queried, and
-  one unreachable registry query skips the rest instead of each waiting in turn.
+  one unreachable registry query skips the rest instead of each waiting in turn; a query the
+  registry refuses once (quay.io intermittently answers `unsupported manifest format`) is asked again.
 - **`clawbio run` relays a successful skill's `WARNING:` lines.** stderr was shown
   only on failure, so e.g. `--demo --skip-qc` succeeded without saying the flag had
   no effect.

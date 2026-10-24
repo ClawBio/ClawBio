@@ -269,3 +269,37 @@ def test_an_unreachable_registry_is_queried_once(tmp_path, monkeypatch):
     assert len(_manifest_calls(engine)) == 1
     assert record["complete"] is False
     assert sum("registry" in warning and "unreachable" in warning for warning in record["warnings"]) == 1
+
+
+class FlakyRegistry(FakeEngine):
+    """quay.io sometimes answers `unsupported manifest format` once, then serves it."""
+
+    def __init__(self, *, failures: int, **kwargs):
+        super().__init__(**kwargs)
+        self.failures = failures
+
+    def __call__(self, command, *, cwd=None, env=None, timeout_seconds):
+        if command[1:3] == ["manifest", "inspect"] and self.failures:
+            self.failures -= 1
+            self.calls.append(list(command))
+            return _proc("unsupported manifest format", 1)
+        return super().__call__(command, cwd=cwd, env=env, timeout_seconds=timeout_seconds)
+
+
+def test_one_transient_registry_error_is_retried(tmp_path, monkeypatch):
+    monkeypatch.delenv("NXF_OFFLINE", raising=False)
+    engine = FlakyRegistry(failures=1, local={BCFTOOLS: BCFTOOLS_DIGEST},
+                           registry={FASTQC: {"Descriptor": {"digest": FASTQC_DIGEST}}})
+    record = containers.collect_container_record(_run_dir(tmp_path), profile="docker", runner=engine)
+    fastqc = next(image for image in record["images"] if image["image"] == FASTQC)
+    assert fastqc["digest"] == FASTQC_DIGEST and fastqc["digest_source"] == "registry"
+    assert record["complete"] is True
+
+
+def test_a_digest_the_registry_keeps_refusing_stays_unrecorded(tmp_path, monkeypatch):
+    monkeypatch.delenv("NXF_OFFLINE", raising=False)
+    engine = FlakyRegistry(failures=10, local={BCFTOOLS: BCFTOOLS_DIGEST},
+                           registry={FASTQC: {"Descriptor": {"digest": FASTQC_DIGEST}}})
+    record = containers.collect_container_record(_run_dir(tmp_path), profile="docker", runner=engine)
+    assert len(_manifest_calls(engine)) == 2
+    assert record["complete"] is False

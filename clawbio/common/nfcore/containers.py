@@ -107,10 +107,15 @@ class _RegistryUnreachable(Exception):
 
 
 def _registry_image(image, platform, runner) -> dict | None:
-    proc = runner(["docker", "manifest", "inspect", "-v", image], timeout_seconds=120)
-    if proc is None:
-        raise _RegistryUnreachable(image)
-    if proc.returncode != 0:
+    # quay.io intermittently answers a valid manifest with an error (seen as
+    # `unsupported manifest format`), so a refused query is asked once more.
+    for _attempt in range(2):
+        proc = runner(["docker", "manifest", "inspect", "-v", image], timeout_seconds=120)
+        if proc is None:
+            raise _RegistryUnreachable(image)
+        if proc.returncode == 0:
+            break
+    else:
         return None
     try:
         data = json.loads(proc.stdout)
