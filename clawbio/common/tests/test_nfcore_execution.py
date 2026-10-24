@@ -264,3 +264,32 @@ def test_tasks_are_stopped_even_after_nextflow_itself_has_exited(tmp_path):
         # Never leave the stand-in task behind, even when the assertion failed.
         with contextlib.suppress(ProcessLookupError):
             os.kill(task, 9)
+
+
+# nf-schema's samplesheet refusal, as Nextflow 26.04.3 printed it for nf-core/rnaseq 3.26.0.
+_NF_SCHEMA_SAMPLESHEET_REFUSAL = """The following invalid input values have been detected:
+
+* --input (/runs/bad.csv): Validation of file failed:
+\t-> Entry 1: Error for field 'seq_center' (My Center): "My Center" does not match regular expression [^\\S+$] (Sequencing center must not contain spaces.)
+\t-> Entry 1: Error for field 'strandedness' (sideways): Expected any of [[forward, reverse, unstranded, auto]] (Strandedness must be provided)
+\t-> Entry 2: Error for field 'fastq_1' (/nonexistent/x.fastq.gz): the file or directory '/nonexistent/x.fastq.gz' does not exist
+
+ -- Check script 'subworkflows/nf-core/utils_nfschema_plugin/main.nf' at line: 68
+"""
+
+
+def test_a_samplesheet_refusal_keeps_the_entries_that_say_what_is_wrong(tmp_path):
+    """For a samplesheet nf-schema writes the detail on `-> Entry N` lines under
+    `* --input`; keeping only the `* --` line left result.json saying just
+    'Validation of file failed:'."""
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    logs = [tmp_path / "stdout.txt", tmp_path / "stderr.txt", tmp_path / ".nextflow.log"]
+    for log in logs:
+        log.write_text(_NF_SCHEMA_SAMPLESHEET_REFUSAL)
+    hint = api.environment_failure_hints(*logs)
+    assert hint.count("--input (/runs/bad.csv): Validation of file failed:") == 1
+    for detail in ("Entry 1: Error for field 'seq_center' (My Center)",
+                   "Entry 1: Error for field 'strandedness' (sideways)",
+                   "Entry 2: Error for field 'fastq_1' (/nonexistent/x.fastq.gz)"):
+        assert hint.count(detail) == 1, detail
+    assert "Check script" not in hint

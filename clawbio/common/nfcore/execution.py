@@ -69,21 +69,32 @@ def macos_tmp_failure_hint(output_dir: Path) -> str:
 
 
 def nf_schema_refusals(text: str) -> list[str]:
-    """Each "--name (value): reason" nf-schema listed under its refusal header, once."""
+    """Each "--name (value): reason" nf-schema listed under its refusal header, once.
+
+    A refused samplesheet's detail is on the "-> Entry N: ..." lines nf-schema
+    writes under its "* --input" item; they are kept with that item.
+    """
     refused: list[str] = []
     lines = text.splitlines()
     for index, line in enumerate(lines):
         if _NF_SCHEMA_REFUSAL_HEADER not in line.lower():
             continue
-        listing = False
+        item: list[str] | None = None
+        items: list[str] = []
         for entry in lines[index + 1:]:
             entry = entry.strip()
             if entry.startswith("* --"):
-                listing = True
-                if entry[2:] not in refused:
-                    refused.append(entry[2:])
-            elif entry or listing:
+                item = [entry[2:]]
+                items.append(item)
+            elif entry.startswith("->") and item is not None:
+                item.append(entry[2:].strip())
+            elif entry or item is not None:
                 break
+        for parts in items:
+            joined = " ".join(parts[:1]) + "".join(f" {part};" for part in parts[1:])
+            joined = joined.rstrip(";")
+            if joined not in refused:
+                refused.append(joined)
     return refused
 
 
@@ -109,9 +120,10 @@ def environment_failure_hints(
     refused = nf_schema_refusals("\n".join(parts))
     if refused:
         hints.append(
-            " nf-schema refused these parameters against the pinned pipeline's "
-            "nextflow_schema.json: " + "; ".join(refused) + ". Correct them in your flags "
-            "or --params-file and re-run."
+            " nf-schema refused these against the pinned pipeline's schemas "
+            "(nextflow_schema.json, and assets/schema_input.json for the samplesheet): "
+            + "; ".join(refused) + ". Correct them in your flags, --params-file or "
+            "samplesheet and re-run."
         )
     if any(sig in blob for sig in _MEMORY_FAILURE_SIGNATURES):
         hints.append(
