@@ -38,7 +38,7 @@ python clawbio.py run sarek-pipeline \
   --tools haplotypecaller,vep
 ```
 
-Use `--check` to run preflight without launching Nextflow. Checkout-mode runs without `--output` default to `~/clawbio-runs/`; explicit destinations must be outside the repository.
+Use `--check` to run preflight without launching Nextflow. It covers ClawBio's own checks only: nf-schema's parameter, samplesheet and reference-path checks and the release's Nextflow version gate run when Nextflow starts. Checkout-mode runs without `--output` default to `~/clawbio-runs/`; explicit destinations must be outside the repository.
 
 `clawbio.py run sarek-pipeline` promotes the common flags to first-class options; any other sarek parameter is passed through with `--extra-param key=value`.
 

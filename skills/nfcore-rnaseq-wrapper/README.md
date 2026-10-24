@@ -32,7 +32,7 @@ python clawbio.py run rnaseq-pipeline \
   --genome GRCh38
 ```
 
-Use `--check` to run preflight without launching Nextflow. Checkout-mode runs without `--output` default to `~/clawbio-runs/`; explicit destinations must be outside the repository.
+Use `--check` to run preflight without launching Nextflow. It covers ClawBio's own checks only: nf-schema's parameter, samplesheet and reference-path checks and the release's Nextflow version gate run when Nextflow starts. Checkout-mode runs without `--output` default to `~/clawbio-runs/`; explicit destinations must be outside the repository.
 
 ## Validation and resume
 

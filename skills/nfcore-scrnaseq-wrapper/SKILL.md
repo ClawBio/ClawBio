@@ -249,7 +249,7 @@ python skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py \
 | `--input` | path | — | Samplesheet CSV (`sample,fastq_1,fastq_2`). Required unless `--demo` |
 | `--output` | path | — | Output directory for results and the reproducibility bundle (required) |
 | `--demo` | flag | — | Run the upstream nf-core `test` profile; forces `--preset star` and `skip_cellbender` |
-| `--check` | flag | — | Run preflight only and exit (no Nextflow execution) |
+| `--check` | flag | — | Run ClawBio's preflight only and exit (no Nextflow execution, so none of nf-schema's checks) |
 | `--preset` | string | `standard` | Aligner preset |
 | `--aligner` | string | — | nf-core/scrnaseq aligner alias for `--preset`: `simpleaf` maps to `standard`; the other values map to same-named presets |
 | `--profile` | string | `docker` | Execution backend or comma-separated nf-core profile list: `docker`, `conda`, `mamba`, `singularity`, `apptainer`, `podman`, `shifter`, `charliecloud`, `wave`, `gpu`, `debug`, `arm64`, `emulate_amd64`, `test`, `test_full`, `test_cellrangermulti`, `test_multiome` |
