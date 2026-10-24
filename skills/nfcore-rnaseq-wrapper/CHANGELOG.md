@@ -25,6 +25,14 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   collisions, duplicate sample/FASTQ rows, FASTQ+BAM rows without `--skip-alignment` and
   remote URIs without `--allow-remote-inputs`. `MISSING_FASTQ`, `INVALID_FASTQ`,
   `INVALID_STRANDEDNESS` and `INVALID_BAM` are no longer raised and are removed.
+- **Reference paths are nf-schema's.** The pinned `nextflow_schema.json` declares every
+  reference, index, rRNA manifest and BBSplit path `exists: true` (and a `^\S+` name
+  pattern for FASTA/GTF/GFF/BED), so nf-schema refuses a missing path, a wrong name, a
+  whitespace path or a directory where a file is expected when Nextflow starts, and
+  `result.json` names it. Preflight no longer repeats those checks; it still checks
+  reference combinations, gates remote URIs and existence-checks the contaminant
+  databases the schema does not (`--kraken-db`, `--sylph-db`, `--sylph-taxonomy`).
+  `REFERENCE_PATH_HAS_WHITESPACE` is no longer raised and is removed.
 
 ### Fixed
 

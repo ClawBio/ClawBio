@@ -395,16 +395,6 @@ def test_reference_rejects_genome_combined_with_index_shortcuts(tmp_path, monkey
     assert field in exc.value.details.get("explicit_set", [])
 
 
-def test_reference_path_not_found_uses_specific_error_code(tmp_path, monkeypatch):
-    field = "fasta"
-    _mock_env(monkeypatch)
-    args = _args(tmp_path, **{field: str(tmp_path / "missing.fa")})
-    with pytest.raises(SkillError) as exc:
-        _run(args, _samplesheet(tmp_path))
-    assert exc.value.error_code == ErrorCode.REFERENCE_PATH_NOT_FOUND
-    assert exc.value.details["field"] == field
-
-
 def test_transcript_and_additional_fasta_are_mutually_exclusive(tmp_path, monkeypatch):
     tf = _touch(tmp_path / "refs" / "tx.fa")
     af = _touch(tmp_path / "refs" / "additional.fa")
@@ -437,14 +427,6 @@ def test_with_umi_requires_pattern_unless_extract_is_skipped(tmp_path, monkeypat
     assert exc.value.error_code == ErrorCode.INVALID_PRESET_CONFIGURATION
 
     assert _run(_args(tmp_path / "ok", with_umi=True, skip_umi_extract=True), _samplesheet(tmp_path / "ok"))["ok"] is True
-
-
-def test_ribo_database_manifest_must_exist_when_set(tmp_path, monkeypatch):
-    _mock_env(monkeypatch)
-    with pytest.raises(SkillError) as exc:
-        _run(_args(tmp_path, ribo_database_manifest=str(tmp_path / "missing_manifest.txt")), _samplesheet(tmp_path))
-    assert exc.value.error_code == ErrorCode.REFERENCE_PATH_NOT_FOUND
-    assert exc.value.details["field"] == "ribo_database_manifest"
 
 
 def test_rsem_extra_args_emits_no_effect_warning(tmp_path, monkeypatch):
@@ -848,18 +830,6 @@ def test_remote_fasta_url_passes_preflight(tmp_path, monkeypatch):
     assert result["ok"] is True, f"Remote s3:// refs should pass preflight with --allow-remote-inputs; got: {result}"
 
 
-def test_local_ref_path_not_found_still_raises(tmp_path, monkeypatch):
-    """A local path that does not exist must still raise REFERENCE_PATH_NOT_FOUND."""
-    _mock_env(monkeypatch)
-    monkeypatch.setattr(preflight, "check_output_dir_available", lambda *a, **kw: None)
-    with pytest.raises(preflight.SkillError) as exc_info:
-        _run(
-            _args(tmp_path, fasta="/nonexistent/genome.fa", gtf="/nonexistent/genes.gtf"),
-            _samplesheet(tmp_path),
-        )
-    assert exc_info.value.error_code == preflight.ErrorCode.REFERENCE_PATH_NOT_FOUND
-
-
 _BACKEND_MISSING_ERROR_CODES = {
     "conda": {ErrorCode.MISSING_CONDA},
     "mamba": {ErrorCode.MISSING_CONDA},
@@ -925,18 +895,6 @@ def test_genome_identifier_with_spaces_rejected(tmp_path, monkeypatch):
     assert "genome" in str(exc.value.details).lower()
 
 
-def test_fasta_wrong_extension_rejected(tmp_path, monkeypatch):
-    """genome.txt must be rejected — schema forbids non-FASTA extensions."""
-    _mock_env(monkeypatch)
-    txt = tmp_path / "refs" / "genome.txt"
-    txt.parent.mkdir(parents=True, exist_ok=True)
-    txt.write_text(">chr1\nACGT\n", encoding="utf-8")
-    with pytest.raises(SkillError) as exc:
-        _run(_args(tmp_path, fasta=str(txt)), _samplesheet(tmp_path))
-    assert exc.value.error_code == ErrorCode.INVALID_PRESET_CONFIGURATION
-    assert "fasta" in exc.value.details.get("field", "")
-
-
 def test_hisat2_build_memory_bad_format_rejected(tmp_path, monkeypatch):
     """'nonsense' must be rejected per nf-core hisat2_build_memory schema pattern."""
     _mock_env(monkeypatch)
@@ -965,40 +923,6 @@ def test_umitools_umi_separator_multichar_rejected(tmp_path, monkeypatch):
 
 
 # ── GTF/GFF/BED extension validation ─────────────────────────────────────────
-
-def test_gtf_wrong_extension_rejected(tmp_path, monkeypatch):
-    """genes.txt for --gtf must be rejected — schema requires .gtf or .gtf.gz extension."""
-    _mock_env(monkeypatch)
-    f = _touch(tmp_path / "refs" / "genes.txt")
-    fasta = _touch(tmp_path / "refs" / "genome.fa")
-    with pytest.raises(SkillError) as exc:
-        _run(_args(tmp_path, fasta=str(fasta), gtf=str(f)), _samplesheet(tmp_path))
-    assert exc.value.error_code == ErrorCode.INVALID_PRESET_CONFIGURATION
-    assert "gtf" in exc.value.details.get("field", "")
-
-
-def test_gff_wrong_extension_rejected(tmp_path, monkeypatch):
-    """genes.txt for --gff must be rejected — schema: ^\\S+\\.gff3?(\\.gz)?$"""
-    _mock_env(monkeypatch)
-    f = _touch(tmp_path / "refs" / "genes.txt")
-    fasta = _touch(tmp_path / "refs" / "genome.fa")
-    with pytest.raises(SkillError) as exc:
-        _run(_args(tmp_path, fasta=str(fasta), gtf=None, gff=str(f)), _samplesheet(tmp_path))
-    assert exc.value.error_code == ErrorCode.INVALID_PRESET_CONFIGURATION
-    assert "gff" in exc.value.details.get("field", "")
-
-
-def test_gene_bed_wrong_extension_rejected(tmp_path, monkeypatch):
-    """genes.txt for --gene-bed must be rejected — schema requires .bed or .bed.gz extension."""
-    _mock_env(monkeypatch)
-    f = _touch(tmp_path / "refs" / "genes.txt")
-    fasta = _touch(tmp_path / "refs" / "genome.fa")
-    gtf = _touch(tmp_path / "refs" / "genes.gtf")
-    with pytest.raises(SkillError) as exc:
-        _run(_args(tmp_path, fasta=str(fasta), gtf=str(gtf), gene_bed=str(f)), _samplesheet(tmp_path))
-    assert exc.value.error_code == ErrorCode.INVALID_PRESET_CONFIGURATION
-    assert "gene_bed" in exc.value.details.get("field", "")
-
 
 # ---------------------------------------------------------------------------
 # Enum validation — umitools_extract_method, umitools_grouping_method,
@@ -1036,23 +960,6 @@ def test_publish_dir_mode_invalid_rejected(tmp_path, monkeypatch):
     with pytest.raises(SkillError) as exc:
         _run(_args(tmp_path, publish_dir_mode="invalid_mode"), _samplesheet(tmp_path))
     assert exc.value.error_code == ErrorCode.INVALID_PRESET_CONFIGURATION
-
-
-def test_sortmerna_index_nonexistent_path_rejected(tmp_path, monkeypatch):
-    """sortmerna_index must be existence-checked in preflight like all other index paths.
-
-    nf-core/rnaseq 3.26.0 schema: sortmerna_index is a string path parameter.
-    A non-existent path must raise REFERENCE_PATH_NOT_FOUND so the user gets
-    a clear error before Nextflow launches.
-    """
-    _mock_env(monkeypatch)
-    bad_path = str(tmp_path / "nonexistent_sortmerna_idx")
-    args = _args(tmp_path, remove_ribo_rna=True, ribo_removal_tool="sortmerna",
-                 sortmerna_index=bad_path)
-    with pytest.raises(SkillError) as exc:
-        _run(args, _samplesheet(tmp_path))
-    assert exc.value.error_code == ErrorCode.REFERENCE_PATH_NOT_FOUND
-    assert exc.value.details.get("field") == "sortmerna_index"
 
 
 def test_sortmerna_index_compatible_with_genome(tmp_path, monkeypatch):
@@ -1436,47 +1343,10 @@ def test_prebuilt_index_without_annotation_rejected(tmp_path, monkeypatch):
 # ── Audit follow-up F-06: FASTA extension regex matches real extensions only ──
 
 
-def test_fasta_regex_accepts_canonical_extensions():
-    for name in ("genome.fa", "genome.fasta", "genome.fna", "g.fa.gz", "g.fasta.gz", "g.fna.gz"):
-        assert preflight._FASTA_EXT_RE.match(name), name
-
-
-def test_fasta_regex_rejects_bogus_extensions():
-    for name in ("genome.fnasta", "genome.fnasta.gz", "genome.txt", "genome.faa"):
-        assert not preflight._FASTA_EXT_RE.match(name), name
-
-
 # ── Audit follow-up F-1: reference paths that resolve into a directory with ──
 # whitespace fail the nf-core ^\S+ schema pattern at runtime. Catch them at
 # preflight with a precise, dedicated error (mirrors the samplesheet input guard)
 # instead of letting Nextflow abort late with a misleading message.
-
-
-def test_reference_path_with_whitespace_in_directory_rejected(tmp_path):
-    spaced_dir = tmp_path / "my refs"
-    fasta = _touch(spaced_dir / "genome.fa", ">chr1\nACGT\n")
-    gtf = _touch(spaced_dir / "genes.gtf", "chr1\tsrc\tgene\t1\t4\t.\t+\t.\tg\n")
-    with pytest.raises(SkillError) as exc:
-        preflight._check_reference_paths_exist({"fasta": str(fasta), "gtf": str(gtf)})
-    assert exc.value.error_code == ErrorCode.REFERENCE_PATH_HAS_WHITESPACE
-    assert exc.value.details["field"] == "fasta"
-
-
-def test_reference_path_whitespace_check_precedes_extension_check(tmp_path):
-    # An absolute path containing whitespace must report the whitespace problem,
-    # not a misleading "FASTA extension" error (the ^\S+ extension regex also fails
-    # on whitespace, so ordering matters).
-    spaced = _touch(tmp_path / "ref dir" / "genome.fa", ">c\nA\n")
-    with pytest.raises(SkillError) as exc:
-        preflight._check_reference_paths_exist({"fasta": str(spaced)})
-    assert exc.value.error_code == ErrorCode.REFERENCE_PATH_HAS_WHITESPACE
-
-
-def test_whitespace_free_reference_path_still_accepted(tmp_path):
-    fasta = _touch(tmp_path / "refs" / "genome.fa", ">c\nA\n")
-    gtf = _touch(tmp_path / "refs" / "genes.gtf", "chr1\tsrc\tgene\t1\t4\t.\t+\t.\tg\n")
-    # Must not raise.
-    preflight._check_reference_paths_exist({"fasta": str(fasta), "gtf": str(gtf)})
 
 
 # ── Audit follow-up F-5: --check mode intentionally skips the Nextflow version ──
@@ -1786,3 +1656,62 @@ def test_preflight_leaves_samplesheet_rules_to_nf_schema(tmp_path, monkeypatch):
         _args(tmp_path, skip_alignment=True, pseudo_aligner="salmon"),
         _samplesheet(tmp_path, bam_paths=[tmp_path / "missing.bam"]),
     )
+
+
+# nf-core/rnaseq 3.26.0's nextflow_schema.json declares each of these path params
+# `exists: true` (fasta, transcript_fasta, additional_fasta, gtf, gff and gene_bed also
+# a ^\S+ name pattern, and the file-path ones refuse a directory): nf-schema refuses a
+# missing path, a wrong name or a whitespace path when Nextflow starts, before any task
+# runs, and result.json names it. Preflight keeps no copy of those rules.
+def _ref_cases(tmp_path: Path) -> dict[str, dict]:
+    spaced = _touch(tmp_path / "my refs" / "genome.fa", ">c\nA\n")
+    directory = tmp_path / "a_directory"
+    directory.mkdir(exist_ok=True)
+    txt = _touch(tmp_path / "refs" / "genes.txt")
+    missing = str(tmp_path / "missing")
+    return {
+        "missing --fasta": dict(fasta=missing + ".fa"),
+        "missing --gtf": dict(gtf=missing + ".gtf"),
+        "--fasta with a .txt name": dict(fasta=str(txt)),
+        "--fasta with a non-FASTA .fnasta name": dict(fasta=str(_touch(tmp_path / "refs" / "genome.fnasta"))),
+        "--gtf with a .txt name": dict(gtf=str(txt)),
+        "--gff with a .txt name": dict(gtf=None, gff=str(txt)),
+        "--gene-bed with a .txt name": dict(gene_bed=str(txt)),
+        "--fasta under a directory with spaces": dict(fasta=str(spaced)),
+        "missing --transcript-fasta": dict(transcript_fasta=missing + ".fa"),
+        "missing --additional-fasta": dict(additional_fasta=missing + ".fa"),
+        "missing --splicesites": dict(splicesites=missing + ".txt"),
+        "missing --star-index": dict(star_index=missing),
+        "missing --salmon-index": dict(salmon_index=missing),
+        "missing --sortmerna-index": dict(remove_ribo_rna=True, ribo_removal_tool="sortmerna", sortmerna_index=missing),
+        "missing --ribo-database-manifest": dict(ribo_database_manifest=missing + ".txt"),
+        "--ribo-database-manifest that is a directory": dict(ribo_database_manifest=str(directory)),
+        "missing --bbsplit-index": dict(bbsplit_index=missing),
+        "--bbsplit-fasta-list that is a directory": dict(bbsplit_fasta_list=str(directory)),
+    }
+
+
+@pytest.mark.parametrize("case", [
+    "missing --fasta", "missing --gtf", "--fasta with a .txt name", "--fasta with a non-FASTA .fnasta name",
+    "--gtf with a .txt name", "--gff with a .txt name", "--gene-bed with a .txt name",
+    "--fasta under a directory with spaces", "missing --transcript-fasta", "missing --additional-fasta",
+    "missing --splicesites", "missing --star-index", "missing --salmon-index", "missing --sortmerna-index",
+    "missing --ribo-database-manifest", "--ribo-database-manifest that is a directory",
+    "missing --bbsplit-index", "--bbsplit-fasta-list that is a directory",
+])
+def test_reference_path_rules_nf_schema_enforces_reach_it(tmp_path, monkeypatch, case):
+    _mock_env(monkeypatch)
+    result = _run(_args(tmp_path, **_ref_cases(tmp_path)[case]), _samplesheet(tmp_path))
+    assert result["ok"] is True
+
+
+@pytest.mark.parametrize("field,value", [("kraken_db", "missing_kraken_db"), ("sylph_db", "missing.syldb")])
+def test_contaminant_databases_the_schema_does_not_check_are_still_refused(tmp_path, monkeypatch, field, value):
+    """kraken_db (format path) and sylph_db (file-path) carry no `exists` in the
+    3.26.0 schema, so a missing local database would fail inside its task."""
+    _mock_env(monkeypatch)
+    tool = "kraken2" if field == "kraken_db" else "sylph"
+    with pytest.raises(SkillError) as exc:
+        _run(_args(tmp_path, contaminant_screening=tool, **{field: str(tmp_path / value)}), _samplesheet(tmp_path))
+    assert exc.value.error_code == ErrorCode.REFERENCE_PATH_NOT_FOUND
+    assert exc.value.details["field"] == field

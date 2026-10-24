@@ -53,6 +53,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--tools`; nf-core/scrnaseq: columns, FASTQs, type enums, integer
   `expected_cells`, the Cell Ranger ARC columns); the wrappers keep only what the
   release accepts without a word or does not check.
+  Reference paths the pinned `nextflow_schema.json` declares `exists: true` (or
+  gives a name pattern) are nf-schema's too (nf-core/rnaseq: every reference,
+  index, rRNA manifest and BBSplit input); the wrappers keep remote-URI gating,
+  reference combinations and existence checks for paths the schema does not
+  check.
 - `biostudies-fetch` and `arrayexpress-fetch` resolve file downloads from the
   BioStudies `/info` endpoint's `httpLink` rather than the hardcoded
   `/biostudies/files/{acc}/{path}` path. Marked `DIVERGES FROM UPSTREAM` in the

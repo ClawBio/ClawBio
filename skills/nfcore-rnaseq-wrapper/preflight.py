@@ -48,20 +48,12 @@ from schemas import (
     SUPPORTED_UMI_EXTRACT_METHODS,
     SUPPORTED_UMI_GROUPING_METHODS,
     SUPPORTED_UMI_TOOLS,
-    WHITESPACE_RE as _WHITESPACE_RE,
 )
 
 
 _SUBPROCESS_TIMEOUT = 30
-# _WHITESPACE_RE is imported from schemas (single source shared with params_builder).
 _EMAIL_RE = re.compile(r"^([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$")
 _GENOME_ID_RE = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
-# nf-core/rnaseq accepts .fa, .fasta, .fna (optionally .gz). The earlier pattern
-# also matched non-extensions like ".fnasta"; tightened to the canonical set (audit F-06).
-_FASTA_EXT_RE = re.compile(r"^\S+\.(fa|fasta|fna)(\.gz)?$")
-_GTF_EXT_RE = re.compile(r"^\S+\.gtf(\.gz)?$")
-_GFF_EXT_RE = re.compile(r"^\S+\.gff3?(\.gz)?$")
-_BED_EXT_RE = re.compile(r"^\S+\.bed(\.gz)?$")
 _HISAT2_MEM_RE = re.compile(r"^\d+(\.\d+)?\.?\s*(K|M|G|T)?B$")
 _REFERENCE_GROUPS = (("genome",), ("fasta", "gtf"), ("fasta", "gff"))
 _ANNOTATION_REFERENCE_FIELDS = (
@@ -96,9 +88,11 @@ _GENOME_CONFLICTING_REFERENCE_FIELDS = (
     "hisat2_index",
     "bowtie2_index",
 )
-# sortmerna_index is an rRNA filter database, not a genome index — it is compatible with
-# --genome and must not participate in the genome-vs-explicit-reference conflict check.
-_CONTAMINANT_PATH_FIELDS = ("kraken_db", "sylph_db", "sylph_taxonomy", "bbsplit_fasta_list", "bbsplit_index", "sortmerna_index")
+# Contaminant databases whose existence nf-core/rnaseq 3.26.0's schema does not check
+# (kraken_db is `format: path`, sylph_db/sylph_taxonomy `file-path`, none `exists`).
+# Every other reference path is `exists: true` there (with a name pattern for the
+# FASTA/GTF/GFF/BED params), so nf-schema refuses it when Nextflow starts.
+_CONTAMINANT_PATH_FIELDS = ("kraken_db", "sylph_db", "sylph_taxonomy")
 _COMMA_SEPARATED_CONTAMINANT_FIELDS = frozenset({"sylph_db", "sylph_taxonomy"})
 # Catch every Groovy form that assigns into `params`: block (`params {`),
 # property (`params.x` / `params.put(...)`), assignment (`params = ...`),
@@ -544,7 +538,6 @@ def run_preflight(args, *, pipeline_source: dict[str, object], samplesheet_summa
     output_dir = Path(args.output).expanduser().resolve()
     check_output_dir_available(output_dir, resume=getattr(args, "resume", False))
     _check_contaminant_paths(args)
-    _check_ribo_paths(args)
     _check_nextflow_configs(args, warnings)
     _check_acceleration_compatibility(args)
     _check_contaminant_screening(args, warnings)
@@ -903,7 +896,6 @@ def _check_references(args, *, bam_reprocessing: bool = False, warnings: list[st
                 ),
                 details={"accepted_combinations": [list(group) for group in _REFERENCE_GROUPS]},
             )
-    _check_reference_paths_exist(values)
     return values
 
 
@@ -975,91 +967,6 @@ def _collect_reference_values(args) -> dict[str, str]:
     return values
 
 
-def _check_reference_paths_exist(values: dict[str, str]) -> None:
-    _EXTENSION_CHECKS: dict[str, tuple[re.Pattern[str], str, str]] = {
-        "fasta": (
-            _FASTA_EXT_RE,
-            "does not have a recognised FASTA extension "
-            "(nf-core schema: .fa, .fasta, .fna, .fa.gz, .fasta.gz, .fna.gz).",
-            "Rename the file to use a standard FASTA extension, e.g. genome.fa or genome.fasta.gz.",
-        ),
-        "transcript_fasta": (
-            _FASTA_EXT_RE,
-            "does not have a recognised FASTA extension "
-            "(nf-core schema: .fa, .fasta, .fna, .fa.gz, .fasta.gz, .fna.gz).",
-            "Rename the file to use a standard FASTA extension, e.g. transcriptome.fa or transcriptome.fasta.gz.",
-        ),
-        "additional_fasta": (
-            _FASTA_EXT_RE,
-            "does not have a recognised FASTA extension "
-            "(nf-core schema: .fa, .fasta, .fna, .fa.gz, .fasta.gz, .fna.gz).",
-            "Rename the file to use a standard FASTA extension, e.g. spike_in.fa or spike_in.fa.gz.",
-        ),
-        "gtf": (
-            _GTF_EXT_RE,
-            "does not have a recognised GTF extension (nf-core schema: .gtf or .gtf.gz).",
-            "Rename the file to use a standard GTF extension, e.g. genes.gtf or genes.gtf.gz.",
-        ),
-        "gff": (
-            _GFF_EXT_RE,
-            "does not have a recognised GFF extension (nf-core schema: .gff or .gff3, optionally .gz).",
-            "Rename the file to use a standard GFF extension, e.g. genes.gff3 or genes.gff.gz.",
-        ),
-        "gene_bed": (
-            _BED_EXT_RE,
-            "does not have a recognised BED extension (nf-core schema: .bed or .bed.gz).",
-            "Rename the file to use a standard BED extension, e.g. genes.bed or genes.bed.gz.",
-        ),
-    }
-    for field, value in values.items():
-        if field == "genome" or not value:
-            continue
-        if "://" in value:
-            # URI scheme (https://, s3://, gs://, ftp://) — existence check not applicable;
-            # Nextflow resolves remote refs directly at runtime.
-            continue
-        if field in _EXTENSION_CHECKS:
-            # The wrapper resolves reference paths to absolute POSIX before writing
-            # params.yaml, so a path that resolves into a directory containing
-            # whitespace would fail the nf-core ^\S+ schema pattern at runtime
-            # (audit F-1). Catch it here — on the *resolved* path — with a precise,
-            # dedicated error, mirroring the samplesheet input guard. This check
-            # precedes the extension check because the ^\S+ extension regex also
-            # fails on whitespace and would otherwise report a misleading message.
-            resolved = Path(value).expanduser().resolve()
-            if _WHITESPACE_RE.search(resolved.as_posix()):
-                raise SkillError(
-                    stage="preflight",
-                    error_code=ErrorCode.REFERENCE_PATH_HAS_WHITESPACE,
-                    message=(
-                        f"--{field.replace('_', '-')} resolves to a path containing whitespace, "
-                        "which the nf-core/rnaseq schema rejects (pattern ^\\S+)."
-                    ),
-                    fix=(
-                        "Move the reference into a directory whose full path has no spaces, "
-                        "or symlink it to a whitespace-free location, then point the flag there."
-                    ),
-                    details={"field": field, "value": value, "resolved": resolved.as_posix()},
-                )
-            pat, msg, fix = _EXTENSION_CHECKS[field]
-            if not pat.match(value):
-                raise SkillError(
-                    stage="preflight",
-                    error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
-                    message=f"--{field.replace('_', '-')} {msg}",
-                    fix=fix,
-                    details={"field": field, "value": value},
-                )
-        if not Path(value).expanduser().exists():
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.REFERENCE_PATH_NOT_FOUND,
-                message="A reference path was not found.",
-                fix="Correct the missing reference path and try again.",
-                details={"field": field, "path": value},
-            )
-
-
 def _collect_gencode_autodetect_warning(args, warnings: list[str]) -> bool:
     if getattr(args, "demo", False) or getattr(args, "gencode", False):
         return False
@@ -1117,48 +1024,6 @@ def _check_existing_contaminant_path(field: str, value: str) -> None:
             message="A contaminant screening reference path was not found.",
             fix="Correct the missing contaminant screening path and try again.",
             details={"field": field, "path": value},
-        )
-    if field == "bbsplit_fasta_list" and not path.is_file():
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
-            message="--bbsplit-fasta-list must be a TSV file path, not a directory.",
-            fix=(
-                "Provide the path to a tab-separated file listing FASTA genomes for BBSplit "
-                "(one genome per line: <name>\t<path>). See the nf-core/rnaseq docs for format."
-            ),
-            details={"field": field, "path": value, "expected": "file", "got": "directory"},
-        )
-
-
-def _check_ribo_paths(args) -> None:
-    manifest = getattr(args, "ribo_database_manifest", None)
-    if not manifest:
-        return
-    _check_existing_ribo_manifest(manifest)
-
-
-def _check_existing_ribo_manifest(value: str) -> None:
-    if "://" in value:
-        # Remote URIs are resolved by Nextflow at runtime; local existence checks
-        # are only meaningful for filesystem paths.
-        return
-    path = Path(value).expanduser()
-    if not path.exists():
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.REFERENCE_PATH_NOT_FOUND,
-            message="The rRNA database manifest path was not found.",
-            fix="Correct --ribo-database-manifest or remove it.",
-            details={"field": "ribo_database_manifest", "path": value},
-        )
-    if not path.is_file():
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
-            message="--ribo-database-manifest must point to a manifest file, not a directory.",
-            fix="Provide the manifest file path expected by the selected rRNA removal tool.",
-            details={"field": "ribo_database_manifest", "path": value, "expected": "file", "got": "directory"},
         )
 
 
