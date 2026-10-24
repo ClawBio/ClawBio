@@ -33,6 +33,12 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   reference combinations, gates remote URIs and existence-checks the contaminant
   databases the schema does not (`--kraken-db`, `--sylph-db`, `--sylph-taxonomy`).
   `REFERENCE_PATH_HAS_WHITESPACE` is no longer raised and is removed.
+- **Minimum versions are Nextflow's.** nf-core/rnaseq 3.26.0 declares
+  `manifest.nextflowVersion = '!>=25.04.3'`, so Nextflow refuses an older engine when the
+  run starts, and the Nextflow launcher refuses a Java outside 17-26. Preflight no longer
+  repeats those minimums; it still requires `java` and `nextflow` on PATH and a readable
+  version, which it records for `environment.yml` and `NXF_VER`. `JAVA_VERSION_TOO_OLD`
+  and `NEXTFLOW_VERSION_TOO_OLD` are no longer raised and are removed.
 
 ### Fixed
 

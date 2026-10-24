@@ -43,8 +43,6 @@ from schemas import (
     DEFAULT_GENOME,
     DEFAULT_STEP,
     DEFAULT_IGENOMES_BASE,
-    JAVA_MIN_VERSION,
-    NEXTFLOW_MIN_VERSION,
     SUPPORTED_ALIGNERS,
     SUPPORTED_ASCAT_GENOME,
     SUPPORTED_GATK_PCR_INDEL_MODEL,
@@ -375,12 +373,9 @@ def _parse_version_tuple(text: str) -> tuple[int, ...]:
     return _runtime.parse_version_tuple(text)
 
 
-def _pad_version(t: tuple[int, ...], length: int = 3) -> tuple[int, ...]:
-    return _runtime.pad_version(t, length)
-
-
 def _check_java() -> str:
-    """Java >=17 must be present on PATH. Returns the detected version string."""
+    """`java` must run and report a version (recorded in the bundle). Its minimum is
+    the Nextflow launcher's own check (Java 17-26), made before any pipeline code runs."""
     java_path = shutil.which("java")
     if not java_path:
         raise SkillError(
@@ -400,30 +395,22 @@ def _check_java() -> str:
             fix="Install Java 17 or newer and ensure `java -version` works.",
             details={"java_path": java_path, "output": version_text},
         )
-    version_str = _runtime.reported_version(version_text)
-    if version[0] < JAVA_MIN_VERSION:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.JAVA_VERSION_TOO_OLD,
-            message=f"Java {version_str} is older than the required {JAVA_MIN_VERSION}.",
-            fix=f"Install Java {JAVA_MIN_VERSION} or newer.",
-            details={"detected_version": version_str, "min": JAVA_MIN_VERSION},
-        )
-    return version_str
+    return _runtime.reported_version(version_text)
 
 
 # --- §5.1: Nextflow -------------------------------------------------------
 
 def _check_nextflow() -> str:
-    """Nextflow >= minimum must be present. Returns the detected version string."""
-    minimum = ".".join(map(str, NEXTFLOW_MIN_VERSION))
+    """`nextflow` must run and report the version commands.sh pins with NXF_VER. The
+    minimum is nf-core/sarek 3.8.1's manifest.nextflowVersion ('!>=25.10.2'), which
+    Nextflow enforces itself when the run starts."""
     nextflow_path = shutil.which("nextflow")
     if not nextflow_path:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.MISSING_NEXTFLOW,
             message="Required executable `nextflow` was not found.",
-            fix=f"Install Nextflow >={minimum} and ensure it is on PATH.",
+            fix="Install Nextflow and ensure it is on PATH.",
             details={"executable": "nextflow"},
         )
     version_text = _command_output(["nextflow", "-version"])
@@ -435,26 +422,10 @@ def _check_nextflow() -> str:
             stage="preflight",
             error_code=ErrorCode.NEXTFLOW_VERSION_TOO_OLD,
             message="Nextflow is installed but its version could not be parsed.",
-            fix=f"Install Nextflow >={minimum} and ensure `nextflow -version` works.",
+            fix="Reinstall Nextflow so that `nextflow -version` works.",
             details={"nextflow_path": nextflow_path, "output": version_text},
         )
-    version_str = _runtime.reported_version(version_text)
-    if _pad_version(version) < _pad_version(NEXTFLOW_MIN_VERSION):
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.NEXTFLOW_VERSION_TOO_OLD,
-            message=(
-                "Nextflow "
-                f"{version_str} is older than the required "
-                f"{minimum}."
-            ),
-            fix=f"Upgrade Nextflow to {minimum} or newer.",
-            details={
-                "detected_version": version_str,
-                "min_version": minimum,
-            },
-        )
-    return version_str
+    return _runtime.reported_version(version_text)
 
 
 # --- §5.1: Profile & backends --------------------------------------------

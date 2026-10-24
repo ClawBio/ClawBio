@@ -126,7 +126,7 @@ This skill does not perform ACMG classification, does not interpret variants cli
 
 ## Core Capabilities
 
-1. **Strict Preflight**: Parse the samplesheet (paths resolved, one input mode per row; nf-schema and Sarek check its columns, values and files when Nextflow starts), aligner, tools/skip_tools, references, Java >=17, Nextflow >=25.10.2, backend, UMI options, and resume-state drift.
+1. **Strict Preflight**: Parse the samplesheet (paths resolved, one input mode per row; nf-schema and Sarek check its columns, values and files when Nextflow starts), aligner, tools/skip_tools, references, `java`/`nextflow` on PATH (Nextflow enforces the release's `manifest.nextflowVersion` >=25.10.2 and its launcher Java 17+), backend, UMI options, and resume-state drift.
 2. **Profile Composition**: Compose docker/singularity/etc. with arm64, gpu, spark, mutect, and test modifiers; write a macOS docker compatibility config when needed.
 3. **Audited Execution**: Run `nf-core/sarek` 3.8.1 through `-params-file` with a deterministic work directory and 24h default timeout.
 4. **Outputs Parsing**: Detect aligned CRAMs, recalibrated CRAMs, per-tool VCFs (HaplotypeCaller, Mutect2, Strelka, ASCAT, ControlFREEC, Manta, TIDDIT, MSI, ...), annotated VCFs (SnpEff, VEP, merge, bcftools, SnpSift), and MultiQC.

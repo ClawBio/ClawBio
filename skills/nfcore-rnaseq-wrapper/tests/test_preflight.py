@@ -177,22 +177,6 @@ def test_parse_version_tuple_java(monkeypatch=None):
     assert preflight._parse_version_tuple('openjdk version "17.0.8"') == (17, 0, 8)
 
 
-def test_java_version_too_old(monkeypatch):
-    monkeypatch.setattr(preflight.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(preflight, "_command_output", lambda args: 'openjdk version "11.0.1"')
-    with pytest.raises(SkillError) as exc:
-        preflight._check_java()
-    assert exc.value.error_code == ErrorCode.JAVA_VERSION_TOO_OLD
-
-
-def test_nextflow_version_too_old(monkeypatch):
-    monkeypatch.setattr(preflight.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(preflight, "_command_output", lambda args: "Nextflow version 24.10.0")
-    with pytest.raises(SkillError) as exc:
-        preflight._check_nextflow()
-    assert exc.value.error_code == ErrorCode.NEXTFLOW_VERSION_TOO_OLD
-
-
 def test_nextflow_version_preserves_zero_padded_month(monkeypatch):
     """A detected version like '26.04.3' must be reported verbatim, never
     reconstructed from the comparison tuple as '26.4.3' (not a real release)."""
@@ -1715,3 +1699,19 @@ def test_contaminant_databases_the_schema_does_not_check_are_still_refused(tmp_p
         _run(_args(tmp_path, contaminant_screening=tool, **{field: str(tmp_path / value)}), _samplesheet(tmp_path))
     assert exc.value.error_code == ErrorCode.REFERENCE_PATH_NOT_FOUND
     assert exc.value.details["field"] == field
+
+
+# The minimum versions are Nextflow's to enforce: each pinned release declares
+# manifest.nextflowVersion with `!`, so Nextflow refuses an older engine when the run
+# starts, and the Nextflow launcher refuses a Java outside 17-26 before that. The wrapper
+# checks only that `java` and `nextflow` run and records their versions for the bundle.
+@pytest.mark.parametrize("java_text,nextflow_text", [
+    ('openjdk version "11.0.1"', "Nextflow version 24.10.0 build 5928"),
+    ('openjdk version "16.0.2"', "Nextflow version 25.04.2 build 5947"),
+])
+def test_old_java_and_nextflow_are_left_to_nextflow(monkeypatch, java_text, nextflow_text):
+    import preflight as p
+    monkeypatch.setattr(p.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(p, "_command_output", lambda args: java_text if args[0] == "java" else nextflow_text)
+    assert p._check_java()["version"] == java_text.split('"')[1]
+    assert p._check_nextflow()["version"] == nextflow_text.split()[2]

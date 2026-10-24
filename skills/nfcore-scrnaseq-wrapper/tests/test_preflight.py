@@ -853,3 +853,19 @@ def test_paths_the_schema_does_not_check_must_exist(tmp_path, field):
         preflight._check_reference_paths_exist({field: str(tmp_path / f"missing_{field}")})
     assert exc.value.error_code == "MISSING_REFERENCE"
     assert exc.value.details["field"] == field
+
+
+# The minimum versions are Nextflow's to enforce: each pinned release declares
+# manifest.nextflowVersion with `!`, so Nextflow refuses an older engine when the run
+# starts, and the Nextflow launcher refuses a Java outside 17-26 before that. The wrapper
+# checks only that `java` and `nextflow` run and records their versions for the bundle.
+@pytest.mark.parametrize("java_text,nextflow_text", [
+    ('openjdk version "11.0.1"', "Nextflow version 24.10.0 build 5928"),
+    ('openjdk version "16.0.2"', "Nextflow version 25.04.2 build 5947"),
+])
+def test_old_java_and_nextflow_are_left_to_nextflow(monkeypatch, java_text, nextflow_text):
+    import preflight as p
+    monkeypatch.setattr(p.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(p, "_command_output", lambda args: java_text if args[0] == "java" else nextflow_text)
+    assert p._check_java()["version"] == java_text.split('"')[1]
+    assert p._check_nextflow()["version"] == nextflow_text.split()[2]

@@ -36,6 +36,11 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   refuses whitespace where the schema pattern is unanchored (germline resource and its
   index, intervals) or in a SnpSift `vardb`, and requires a BED for `--wes` (Sarek's
   own check is unreachable in 3.8.1).
+- **Minimum versions are Nextflow's.** nf-core/sarek 3.8.1 declares
+  `manifest.nextflowVersion = '!>=25.10.2'`, so Nextflow refuses an older engine when the
+  run starts, and the Nextflow launcher refuses a Java outside 17-26. Preflight no longer
+  repeats those minimums (`JAVA_MIN_VERSION`/`NEXTFLOW_MIN_VERSION` go); it still requires
+  `java` and `nextflow` on PATH and a readable version, which it records for `NXF_VER`.
 
 ### Fixed
 

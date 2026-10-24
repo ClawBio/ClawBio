@@ -50,13 +50,6 @@ SUPPORTED_PROFILES = {
     "test_cellrangermulti",
     "test_multiome",
 }
-JAVA_MIN_VERSION = 17
-# Comparison tuple (numeric) and the canonical human-readable string. Nextflow
-# releases use a zero-padded YY.MM.patch format ("25.04.0"), which is the ONLY
-# correct way to show the version to users — the tuple renders to "25.4.0",
-# which is not a real Nextflow version. Keep both in sync (guarded by a test).
-NEXTFLOW_MIN_VERSION = (25, 4, 0)
-NEXTFLOW_MIN_VERSION_DISPLAY = "25.04.0"
 
 # Environment Nextflow needs for the pinned release, applied to the run, shown in
 # the recorded command and exported by commands.sh. nf-core/scrnaseq 4.1.0 predates

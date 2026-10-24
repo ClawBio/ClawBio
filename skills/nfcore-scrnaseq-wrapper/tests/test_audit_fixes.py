@@ -466,47 +466,6 @@ def test_java_version_preserves_exact_string(monkeypatch):
 # ── H-14: single source for the minimum Nextflow version ───────────────────────
 
 
-def test_nextflow_min_display_matches_comparison_tuple():
-    import preflight
-
-    parsed = preflight._parse_version_tuple(schemas.NEXTFLOW_MIN_VERSION_DISPLAY)
-    assert parsed == schemas.NEXTFLOW_MIN_VERSION, (
-        "the human-readable Nextflow min version must parse to the comparison tuple"
-    )
-
-
-def test_preflight_messages_use_canonical_nextflow_version(monkeypatch):
-    """User-facing fix messages must show the canonical '25.04.0', never the
-    tuple rendering '25.4.0'."""
-    import preflight
-    from errors import SkillError
-
-    assert (
-        ".".join(map(str, schemas.NEXTFLOW_MIN_VERSION)) == "25.4.0"
-    )  # the anti-pattern
-
-    monkeypatch.setattr(preflight.shutil, "which", lambda name: f"/usr/bin/{name}")
-    # unparseable version -> MISSING_NEXTFLOW fix message
-    monkeypatch.setattr(preflight, "_command_output", lambda args: "no version here")
-    try:
-        preflight._check_nextflow()
-        assert False, "expected SkillError"
-    except SkillError as exc:
-        assert schemas.NEXTFLOW_MIN_VERSION_DISPLAY in exc.fix
-        assert "25.4.0" not in exc.fix
-
-    # too-old version -> NEXTFLOW_VERSION_TOO_OLD fix message
-    monkeypatch.setattr(
-        preflight, "_command_output", lambda args: "version 24.10.0 build 1"
-    )
-    try:
-        preflight._check_nextflow()
-        assert False, "expected SkillError"
-    except SkillError as exc:
-        assert schemas.NEXTFLOW_MIN_VERSION_DISPLAY in exc.fix
-        assert "25.4.0" not in exc.fix
-
-
 def test_unparseable_version_is_version_failure_not_missing(monkeypatch):
     """A present binary whose version can't be parsed is a version-gate failure,
     not a MISSING_* binary (the code must not contradict the 'is installed'

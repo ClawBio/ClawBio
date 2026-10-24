@@ -46,3 +46,32 @@ def test_demo_resource_limits_match_the_pinned_test_profiles_when_available():
         found = re.search(r"resourceLimits\s*=\s*\[\s*cpus:\s*(\d+),\s*memory:\s*'(\d+)\.GB'", test_config)
         assert found, name
         assert schemas.DEMO_RESOURCE_LIMITS == {"cpus": int(found.group(1)), "memory_gb": int(found.group(2))}, name
+
+
+def test_recorded_minimum_nextflow_matches_each_release_manifest_when_available():
+    """The wrappers leave the minimum Nextflow to the release's own
+    manifest.nextflowVersion (`!` makes Nextflow refuse an older engine); the
+    minimum each skill records in pinned_versions.json must be that same one."""
+    import importlib.util
+    import json
+    import os
+    import re
+
+    import pytest
+
+    upstream = os.environ.get("CLAWBIO_NFCORE_UPSTREAM_DIR")
+    if not upstream:
+        pytest.skip("set CLAWBIO_NFCORE_UPSTREAM_DIR to downloaded pinned source trees")
+    for name in ("rnaseq", "sarek", "scrnaseq"):
+        skill = ROOT / "skills" / f"nfcore-{name}-wrapper"
+        spec = importlib.util.spec_from_file_location(f"_{name}_schemas_nf", skill / "schemas.py")
+        schemas = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(schemas)
+        config = (Path(upstream) / f"{name}-{schemas.DEFAULT_PIPELINE_VERSION}" / "nextflow.config").read_text()
+        gate = re.search(r"nextflowVersion\s*=\s*'!>=([\d.]+)'", config)
+        assert gate, f"{name}: manifest.nextflowVersion is not a strict '!>=' gate"
+        manifest = tuple(int(part) for part in gate.group(1).split("."))
+        pin = json.loads((skill / "reproducibility/pinned_versions.json").read_text())
+        recorded = pin.get("minimum_versions", {}).get("nextflow") or pin["runtime"]["nextflow_min_version"]
+        recorded = tuple(int(part) for part in (recorded.split(".") if isinstance(recorded, str) else recorded))
+        assert recorded == manifest, name

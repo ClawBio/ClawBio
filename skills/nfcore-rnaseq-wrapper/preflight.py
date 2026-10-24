@@ -34,8 +34,6 @@ from schemas import (
     DEFAULT_PIPELINE_VERSION,
     DEFAULT_REMOTE_PIPELINE,
     DEFAULT_TRIMMER,
-    JAVA_MIN_VERSION,
-    NEXTFLOW_MIN_VERSION,
     PROJECT_ROOT,
     SUPPORTED_ALIGNERS,
     SUPPORTED_IGENOMES_NAMES,
@@ -209,15 +207,13 @@ def _command_output(args: list[str]) -> str:
     return (proc.stdout or proc.stderr).strip()
 
 
-def _pad_version(t: tuple[int, ...], length: int = 3) -> tuple[int, ...]:
-    return _runtime.pad_version(t, length)
-
-
 def _parse_version_tuple(text: str) -> tuple[int, ...]:
     return _runtime.parse_version_tuple(text)
 
 
 def _check_java() -> dict[str, str]:
+    """`java` runs and reports a version (recorded in the bundle). Its minimum is the
+    Nextflow launcher's own check (Java 17-26), made before any pipeline code runs."""
     java_path = shutil.which("java")
     if not java_path:
         raise SkillError(
@@ -237,19 +233,13 @@ def _check_java() -> dict[str, str]:
             fix="Install Java 17 or newer and ensure `java -version` works.",
             details={"java_path": java_path},
         )
-    version_str = _runtime.reported_version(version_text)
-    if version_tuple[0] < JAVA_MIN_VERSION:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.JAVA_VERSION_TOO_OLD,
-            message="Java version is too old for nf-core/rnaseq.",
-            fix="Install Java 17 or newer.",
-            details={"detected_version": version_str},
-        )
-    return {"path": java_path, "version": version_str}
+    return {"path": java_path, "version": _runtime.reported_version(version_text)}
 
 
 def _check_nextflow() -> dict[str, str]:
+    """`nextflow` runs and reports the version commands.sh pins with NXF_VER. The
+    minimum is nf-core/rnaseq 3.26.0's manifest.nextflowVersion ('!>=25.04.3'),
+    which Nextflow enforces itself when the run starts."""
     nextflow_path = shutil.which("nextflow")
     if not nextflow_path:
         raise SkillError(
@@ -269,16 +259,7 @@ def _check_nextflow() -> dict[str, str]:
             fix="Install Nextflow 25.04.3 or newer and ensure `nextflow -version` works.",
             details={"nextflow_path": nextflow_path},
         )
-    version_str = _runtime.reported_version(version_text)
-    if _pad_version(version_tuple) < _pad_version(NEXTFLOW_MIN_VERSION):
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.NEXTFLOW_VERSION_TOO_OLD,
-            message="Nextflow version is too old for nf-core/rnaseq 3.26.0.",
-            fix="Upgrade Nextflow to 25.04.3 or newer.",
-            details={"detected_version": version_str},
-        )
-    return {"path": nextflow_path, "version": version_str}
+    return {"path": nextflow_path, "version": _runtime.reported_version(version_text)}
 
 
 def _check_nextflow_presence() -> dict[str, str | bool]:
@@ -527,12 +508,11 @@ def run_preflight(args, *, pipeline_source: dict[str, object], samplesheet_summa
     java_info = _check_java()
     nextflow_info = _check_nextflow_presence() if getattr(args, "check", False) else _check_nextflow()
     if nextflow_info.get("version_checked") is False:
-        # --check verifies Nextflow is present but intentionally defers the
-        # >=25.04.3 version gate to the real run (audit F-5). Surface that so a
-        # check is not silently assumed to confirm a compatible Nextflow.
+        # --check verifies Nextflow is present but does not run it (audit F-5); the
+        # release's manifest.nextflowVersion is checked by Nextflow on the actual run.
         warnings.append(
-            "Nextflow version was not verified in --check mode; the >=25.04.3 "
-            "requirement is enforced on the actual run."
+            "Nextflow version was not read in --check mode; nf-core/rnaseq 3.26.0 needs "
+            ">=25.04.3, which Nextflow checks when the actual run starts."
         )
     profile_info = _check_profile(args.profile)
     output_dir = Path(args.output).expanduser().resolve()

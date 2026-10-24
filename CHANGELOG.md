@@ -59,7 +59,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the SnpSift databases CSV; nf-core/scrnaseq: every reference but `motifs` and
   `cellrangerarc_config`); the wrappers keep remote-URI gating,
   reference combinations and existence checks for paths the schema does not
-  check.
+  check. Minimum Nextflow and Java versions are Nextflow's: each release's
+  `manifest.nextflowVersion` starts with `!`, so Nextflow refuses an older
+  engine, and its launcher refuses a Java outside 17-26; the wrappers still
+  require `java` and `nextflow` on PATH and record their versions. A pinned-source
+  test checks each skill's recorded minimum against the release manifest.
 - `biostudies-fetch` and `arrayexpress-fetch` resolve file downloads from the
   BioStudies `/info` endpoint's `httpLink` rather than the hardcoded
   `/biostudies/files/{acc}/{path}` path. Marked `DIVERGES FROM UPSTREAM` in the

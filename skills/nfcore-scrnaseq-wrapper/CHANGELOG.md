@@ -31,6 +31,11 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   `motifs` and `cellrangerarc_config`, and gives `fasta` a name pattern; preflight no
   longer repeats the existence checks or the FASTA pattern, and still existence-checks
   those two, a local `--igenomes-base` mirror and the `-c` configs.
+- **Minimum versions are Nextflow's.** nf-core/scrnaseq 4.1.0 declares
+  `manifest.nextflowVersion = '!>=25.04.0'`, so Nextflow refuses an older engine when the
+  run starts, and the Nextflow launcher refuses a Java outside 17-26. Preflight no longer
+  repeats those minimums (`JAVA_MIN_VERSION`/`NEXTFLOW_MIN_VERSION*` go); it still requires
+  `java` and `nextflow` on PATH and a readable version, which it records for `NXF_VER`.
 
 ### Fixed
 

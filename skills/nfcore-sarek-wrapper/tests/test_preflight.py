@@ -168,14 +168,6 @@ def test_java_missing(stub_no_java):
     assert exc.value.error_code == ErrorCode.MISSING_JAVA
 
 
-def test_java_too_old(stub_old_java):
-    from preflight import _check_java
-
-    with pytest.raises(SkillError) as exc:
-        _check_java()
-    assert exc.value.error_code == ErrorCode.JAVA_VERSION_TOO_OLD
-
-
 def test_java_version_unparseable_is_version_failure(monkeypatch):
     import preflight as p
 
@@ -194,14 +186,6 @@ def test_nextflow_missing(monkeypatch):
     with pytest.raises(SkillError) as exc:
         p._check_nextflow()
     assert exc.value.error_code == ErrorCode.MISSING_NEXTFLOW
-
-
-def test_nextflow_too_old(stub_old_nextflow):
-    from preflight import _check_nextflow
-
-    with pytest.raises(SkillError) as exc:
-        _check_nextflow()
-    assert exc.value.error_code == ErrorCode.NEXTFLOW_VERSION_TOO_OLD
 
 
 def test_nextflow_version_unparseable_is_version_failure(monkeypatch):
@@ -1370,3 +1354,19 @@ def test_snpsift_databases_csv_rules_are_sareks(tmp_path):
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params=make_params(tools=["snpsift"], snpsift_databases=str(dbs)), tools=["snpsift"])
     assert exc.value.error_code == ErrorCode.MISSING_SNPSIFT_DATABASES
+
+
+# The minimum versions are Nextflow's to enforce: each pinned release declares
+# manifest.nextflowVersion with `!`, so Nextflow refuses an older engine when the run
+# starts, and the Nextflow launcher refuses a Java outside 17-26 before that. The wrapper
+# checks only that `java` and `nextflow` run and records their versions for the bundle.
+@pytest.mark.parametrize("java_text,nextflow_text", [
+    ('openjdk version "11.0.1"', "Nextflow version 24.10.0 build 5928"),
+    ('openjdk version "16.0.2"', "Nextflow version 25.04.2 build 5947"),
+])
+def test_old_java_and_nextflow_are_left_to_nextflow(monkeypatch, java_text, nextflow_text):
+    import preflight as p
+    monkeypatch.setattr(p.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(p, "_command_output", lambda args: java_text if args[0] == "java" else nextflow_text)
+    assert p._check_java() == java_text.split('"')[1]
+    assert p._check_nextflow() == nextflow_text.split()[2]
