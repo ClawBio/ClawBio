@@ -27,7 +27,11 @@ The compatibility audit builds on the shared package from PR #623. There is no
 competing `clawbio/common/nfcore.py` module or second execution/relocation runtime.
 Parameter validation is nf-schema's: the wrappers keep no copy of upstream schema
 rules that could drift from the pinned release, and `execution` names each value
-nf-schema refused in the failure's fix. Prepared-manifest payloads and resource
+nf-schema refused in the failure's fix. When the pipeline's own checks (an
+`error(...)` such as sarek's samplesheet rules), Nextflow's `manifest.nextflowVersion`
+gate or the launcher's Java check stop a run, `execution` also names that reason,
+read from the session's abort cause in `.nextflow.log` and Nextflow's `ERROR` lines,
+with the stderr lines the pipeline printed just before. Prepared-manifest payloads and resource
 ceilings remain pipeline policy; shared helpers only write the supplied checkpoint
 or render a replay guard. Combined tests also check that collecting wrapper tests
 preserves the real public `clawbio` package instead of substituting a partial stub.

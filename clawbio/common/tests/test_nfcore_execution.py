@@ -293,3 +293,101 @@ def test_a_samplesheet_refusal_keeps_the_entries_that_say_what_is_wrong(tmp_path
                    "Entry 2: Error for field 'fastq_1' (/nonexistent/x.fastq.gz)"):
         assert hint.count(detail) == 1, detail
     assert "Check script" not in hint
+
+
+# nf-core/sarek 3.8.1 refusing a samplesheet itself (subworkflows/local/samplesheet_to_channel),
+# as Nextflow 26.04.3 wrote it: the reason in .nextflow.log and on the console, the entry on
+# stderr, and nf-core's generic onError line after it.
+_PIPELINE_REFUSAL_LOG = """Oct-24 12:26:35.982 [Actor Thread 7] ERROR nextflow.extension.OperatorImpl - @unknown
+nextflow.exception.WorkflowScriptErrorException: Execution halted due to duplicate patient-sample-status-lane combination.
+Oct-24 12:26:36.061 [Actor Thread 7] DEBUG nextflow.Session - Session aborted -- Cause: Execution halted due to duplicate patient-sample-status-lane combination.
+Oct-24 12:26:36.887 [Actor Thread 7] ERROR nextflow.Nextflow - Pipeline failed. Please refer to troubleshooting docs: https://nf-co.re/docs/usage/troubleshooting
+"""
+_PIPELINE_REFUSAL_STDOUT = """-[nf-core/sarek] Pipeline completed with errors-
+WARN: FASTQ file(/data/test_1.fastq.gz): Cannot extract flowcell ID from @normal#21#998579#1/1
+Execution halted due to duplicate patient-sample-status-lane combination.
+ERROR ~ Pipeline failed. Please refer to troubleshooting docs: https://nf-co.re/docs/usage/troubleshooting
+
+ -- Check '.nextflow.log' file for details
+"""
+_PIPELINE_REFUSAL_STDERR = """Nextflow 26.10.3 is available - Please consider updating your version to it
+Duplicate patient-sample-status-lane combination found: Patient 'P1', Sample 'S1', Status '0', Lane 'L1' appears 2 times. Please ensure each combination is unique.
+"""
+
+
+def _write_logs(tmp_path, stdout="", stderr="", log=""):
+    paths = [tmp_path / "stdout.txt", tmp_path / "stderr.txt", tmp_path / ".nextflow.log"]
+    for path, text in zip(paths, (stdout, stderr, log)):
+        path.write_text(text)
+    return paths
+
+
+def test_a_pipeline_refusal_names_its_reason_and_the_entry(tmp_path):
+    """The wrapper leaves samplesheet rules to the pinned release, so when the
+    pipeline's own error(...) stops the run, result.json must say why and which
+    entry, not only nf-core's generic 'Pipeline failed' line."""
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    hint = api.environment_failure_hints(*_write_logs(
+        tmp_path, _PIPELINE_REFUSAL_STDOUT, _PIPELINE_REFUSAL_STDERR, _PIPELINE_REFUSAL_LOG))
+    assert hint.count("Execution halted due to duplicate patient-sample-status-lane combination") == 1
+    assert ".;" not in hint and ".." not in hint
+    assert hint.count("Patient 'P1', Sample 'S1', Status '0', Lane 'L1' appears 2 times") == 1
+    assert "troubleshooting docs" not in hint
+    assert "is available" not in hint and "flowcell" not in hint
+
+
+def test_nextflow_and_its_launcher_name_their_own_refusals(tmp_path):
+    """The release's manifest.nextflowVersion gate and the launcher's Java check
+    are Nextflow's, not the wrapper's; their message must still reach result.json
+    (the launcher colours its stderr, which must not leak into the hint)."""
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    # nf-core/rnaseq 3.26.0 under NXF_VER=25.04.2, as captured live: the reason is a plain
+    # stderr line and the session's abort cause.
+    refusal = "Nextflow version 25.04.2 does not match workflow required version: >=25.04.3"
+    log = f"DEBUG nextflow.Session - Session aborted -- Cause: {refusal}\n"
+    hint = api.environment_failure_hints(*_write_logs(tmp_path, "", f"N E X T F L O W\n{refusal}\n", log))
+    assert hint.count(refusal) == 1
+    # The launcher's Java refusal (live, sarek 3.8.1 with Java 11 first on PATH) is coloured.
+    stderr = ("\x1b[0;31mERROR: Cannot find Java or it's a wrong version -- please make sure that "
+              "Java 17 or later (up to 26) is installed\x1b[0m\n")
+    hint = api.environment_failure_hints(*_write_logs(tmp_path, "", stderr))
+    assert "Cannot find Java or it's a wrong version -- please make sure that Java 17 or later (up to 26) is installed" in hint
+    assert "\x1b" not in hint
+
+
+def test_an_nf_schema_refusal_is_not_repeated_as_a_stop_reason(tmp_path):
+    """Live sarek 3.8.1: nf-schema's colour-coded header is the session's abort cause
+    and its entries are also on stderr; the nf-schema hint already names them."""
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    log = ("DEBUG nextflow.Session - Session aborted -- Cause: \x1b[0;31mThe following invalid input values have been detected:\n"
+           + _NF_SCHEMA_SAMPLESHEET_REFUSAL)
+    stderr = "\t-> Entry 1: Error for field 'strandedness' (sideways): Expected any of [[forward, reverse, unstranded, auto]]\n"
+    hint = api.environment_failure_hints(*_write_logs(tmp_path, _NF_SCHEMA_SAMPLESHEET_REFUSAL, stderr, log))
+    assert hint.count("Entry 1: Error for field 'strandedness' (sideways)") == 1
+    assert "Nextflow stopped the run" not in hint
+
+
+def test_a_clean_log_adds_no_stop_reason(tmp_path):
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    stderr = "Nextflow 26.10.3 is available - Please consider updating your version to it\nnot a refusal\n"
+    assert api.environment_failure_hints(*_write_logs(tmp_path, "all good\n", stderr, "DEBUG fine\n")) == ""
+
+
+_REASON = st.text(alphabet="abcdefghij ABC019'.,:-[]", min_size=3, max_size=40).map(str.strip).filter(
+    lambda text: len(text) >= 3 and not text.lower().startswith(("warn", "note"))
+)
+
+
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=40)
+@given(st.lists(_REASON, min_size=1, max_size=3, unique=True), st.lists(_REASON, max_size=3))
+def test_each_stop_reason_is_listed_once_whatever_the_log_repeats(tmp_path, texts, noise):
+    """Nextflow repeats the abort cause in its console output and its log; each
+    reason must appear once, and stderr is quoted only when the run was stopped."""
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    reasons = [f"stop{index}: {text}" for index, text in enumerate(texts)]
+    log = "".join(f"DEBUG nextflow.Session - Session aborted -- Cause: {reason}\n" for reason in reasons * 2)
+    stdout = "".join(f"ERROR ~ {reason}\n" for reason in reasons)
+    hint = api.environment_failure_hints(*_write_logs(tmp_path, stdout, "", log))
+    assert all(hint.count(reason.rstrip(".")) == 1 for reason in reasons)
+    clean = api.environment_failure_hints(*_write_logs(tmp_path, "", "".join(f"{n}\n" for n in noise), ""))
+    assert clean == ""

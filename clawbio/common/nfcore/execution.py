@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -34,6 +35,21 @@ _CONFIG_PARSE_FAILURE_SIGNATURES = (
 )
 # nf-schema's header above the list of refused parameters, one "* --name (value): reason" each.
 _NF_SCHEMA_REFUSAL_HEADER = "the following invalid input values have been detected"
+# Why Nextflow stopped a run that never got going: .nextflow.log records an error(...) from
+# the pipeline's own input checks as the session's abort cause; Nextflow and its launcher
+# print their refusals (manifest.nextflowVersion, the Java check) as ERROR lines.
+_SESSION_ABORT_CAUSE = "Session aborted -- Cause:"
+_ERROR_LINE_PREFIXES = ("ERROR ~ ", "ERROR: ")
+# Lines that say a run failed without saying why, or that nf_schema_refusals reports already.
+_UNINFORMATIVE_STOP_REASONS = (
+    "pipeline failed. please refer to troubleshooting docs",
+    "validation of pipeline parameters failed",
+    "validation of samplesheet failed",
+)
+# stderr lines that are never the pipeline's account of what it refused.
+_STDERR_NOISE = re.compile(r"^(?:WARN|NOTE|Picked up|Nextflow \S+ is available)", re.IGNORECASE)
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+_STDERR_DETAIL_LINES = 3
 
 
 def read_log_tail(path: Path, limit: int = 65536) -> str:
@@ -98,6 +114,38 @@ def nf_schema_refusals(text: str) -> list[str]:
     return refused
 
 
+def nextflow_stop_reasons(stdout: str, stderr: str, nextflow_log: str = "") -> list[str]:
+    """Why Nextflow stopped the run, once each, followed by what the pipeline printed to
+    stderr just before (e.g. sarek names the offending samplesheet entry there).
+
+    Empty when nothing says why: stderr alone is never quoted.
+    """
+    reasons: list[str] = []
+
+    def add(reason: str) -> None:
+        reason = _ANSI_ESCAPE.sub("", reason).strip()
+        if reason and reason not in reasons and not reason.lower().startswith(_UNINFORMATIVE_STOP_REASONS):
+            reasons.append(reason)
+
+    for line in nextflow_log.splitlines():
+        if _SESSION_ABORT_CAUSE in line:
+            add(line.split(_SESSION_ABORT_CAUSE, 1)[1])
+    for line in (stdout + "\n" + stderr).splitlines():
+        line = _ANSI_ESCAPE.sub("", line).strip()
+        for prefix in _ERROR_LINE_PREFIXES:
+            if line.startswith(prefix):
+                add(line[len(prefix):])
+    if not reasons:
+        return []
+    detail = [
+        line for line in (_ANSI_ESCAPE.sub("", raw).strip() for raw in stderr.splitlines())
+        if line and not _STDERR_NOISE.match(line) and not line.startswith(_ERROR_LINE_PREFIXES)
+    ]
+    for line in detail[-_STDERR_DETAIL_LINES:]:
+        add(line)
+    return reasons
+
+
 def environment_failure_hints(
     stdout_path: Path, stderr_path: Path, nextflow_log_path: Path | None = None
 ) -> str:
@@ -124,6 +172,13 @@ def environment_failure_hints(
             "(nextflow_schema.json, and assets/schema_input.json for the samplesheet): "
             + "; ".join(refused) + ". Correct them in your flags, --params-file or "
             "samplesheet and re-run."
+        )
+    # nf-schema's refusal is the reason Nextflow stopped; its entries need no second listing.
+    stopped = [] if refused else nextflow_stop_reasons(parts[0], parts[1], parts[2] if len(parts) > 2 else "")
+    if stopped:
+        hints.append(
+            " Nextflow stopped the run: " + "; ".join(reason.rstrip(".") for reason in stopped)
+            + ". Correct what it names and re-run."
         )
     if any(sig in blob for sig in _MEMORY_FAILURE_SIGNATURES):
         hints.append(
