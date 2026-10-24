@@ -16,7 +16,6 @@ import hashlib
 import os
 import re
 import csv
-import glob
 import shutil
 import subprocess
 import sys
@@ -151,7 +150,7 @@ _BACKEND_PROFILES = frozenset({
     "shifter", "charliecloud", "conda", "mamba",
 })
 
-# Reference path params that must exist on disk if set (and not a URI). §5.5.
+# Reference path params: gated when remote (local-first) and fingerprinted on resume.
 REFERENCE_PATH_PARAMS: tuple[str, ...] = (
     "fasta", "fasta_fai", "dict",
     "bwa", "bwamem2", "dragmap",
@@ -181,7 +180,21 @@ REFERENCE_PATH_PARAMS: tuple[str, ...] = (
     "multiqc_config", "multiqc_logo", "multiqc_methods_description",
     "igenomes_base",
 )
-_REFERENCE_PATH_PATTERN_PARAMS = frozenset({"known_indels", "known_indels_tbi"})
+# The reference params whose existence nf-core/sarek 3.8.1's nextflow_schema.json does
+# not check (no `exists`): a missing local path would fail only inside a task. Every
+# other REFERENCE_PATH_PARAMS entry is `exists: true` there, so nf-schema refuses it
+# when Nextflow starts.
+_PATHS_THE_SCHEMA_DOES_NOT_CHECK: tuple[str, ...] = (
+    "germline_resource", "germline_resource_tbi", "mappability", "ngscheckmate_bed",
+    "phenotypes_file", "sentieon_dnascope_model", "snpeff_cache", "vep_cache",
+    "cnvkit_reference", "bcftools_header_lines", "bcftools_columns",
+    "varlociraptor_scenario_tumor_only", "varlociraptor_scenario_somatic",
+    "varlociraptor_scenario_germline", "multiqc_config", "multiqc_logo",
+    "multiqc_methods_description", "igenomes_base",
+)
+# Patterns in the schema that do not start with ^\S+ (germline_resource is
+# "\S+\.vcf\.gz$"), so a path under a directory with spaces still matches them.
+_UNANCHORED_PATTERN_PATHS: tuple[str, ...] = ("germline_resource", "germline_resource_tbi", "intervals")
 
 
 # --- Public API ------------------------------------------------------------
@@ -323,9 +336,9 @@ def run_preflight(
     flag_warnings = _check_flag_compatibility(params=params, tools=tools)
     warnings_acc.extend(flag_warnings)
 
-    # §5.5 — reference path existence + documented-suffix sanity ----------
+    # §5.5 — reference paths the schema does not check ---------------------
     _check_reference_paths(params)
-    warnings_acc.extend(_check_reference_path_suffixes(params))
+    _check_reference_path_whitespace(params)
 
     # §5.6 — annotation cache ---------------------------------------------
     ann_warnings = _check_annotation_cache(params=params, output_dir=output_dir)
@@ -1863,15 +1876,10 @@ def _check_flag_compatibility(*, params: dict[str, Any], tools: list[str]) -> li
             "results may include off-target regions."
         )
 
+    # The .bed/.interval_list extension is nf-schema's (pattern) and samplesheet_to_channel's.
+    # Its WES-needs-BED branch never runs in 3.8.1 (`!step == 'annotate'` is always
+    # false), so the wrapper keeps that rule.
     intervals = str(params.get("intervals") or "").strip() if _explicit_resource_supplied(params, "intervals") else ""
-    if intervals and not intervals.lower().endswith((".bed", ".interval_list")):
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.INVALID_INTERVALS,
-            message="--intervals must end with .bed or .interval_list.",
-            fix="Provide an intervals file accepted by the nf-core/sarek 3.8.1 parameter schema: .bed or .interval_list.",
-            details={"intervals": intervals},
-        )
     if _truthy(params.get("wes")) and intervals and not intervals.lower().endswith(".bed"):
         raise SkillError(
             stage="preflight",
@@ -1927,45 +1935,25 @@ def _is_valid_bcftools_criteria(criteria: str) -> bool:
 
 
 def _validate_snpsift_databases(path_text: str) -> None:
-    """Validate the SnpSift database CSV shape from Sarek's auxiliary schema."""
+    """Refuse a vardb path with whitespace, the one rule Sarek does not check: main.nf
+    reads the CSV through assets/schema_snpsift_databases.json (vcf/tbi names, vcf
+    required), requires fields without a vardb and checks every file exists."""
     if _is_uri(path_text):
         return
-    path = Path(os.path.expanduser(path_text))
-    if not path.exists():
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.MISSING_SNPSIFT_DATABASES,
-            message="--snpsift_databases file does not exist.",
-            fix="Provide a readable CSV with vcf,tbi,fields,prefix,vardb columns.",
-            details={"path": path_text},
-        )
     try:
-        with path.open(newline="", encoding="utf-8-sig") as handle:
-            reader = csv.DictReader(handle)
-            fieldnames = reader.fieldnames or []
-            if "vcf" not in fieldnames:
-                raise ValueError("missing required column 'vcf'")
-            for line_number, row in enumerate(reader, start=2):
-                vcf = (row.get("vcf") or "").strip()
-                tbi = (row.get("tbi") or "").strip()
-                fields = (row.get("fields") or "").strip()
-                vardb = (row.get("vardb") or "").strip()
-                if not re.match(r"^\S+\.vcf(\.gz)?$", vcf):
-                    raise ValueError(f"line {line_number}: vcf must end with .vcf or .vcf.gz and contain no whitespace")
-                if tbi and not re.match(r"^\S+\.tbi$", tbi):
-                    raise ValueError(f"line {line_number}: tbi must end with .tbi and contain no whitespace")
-                if not fields and not vardb:
-                    raise ValueError(f"line {line_number}: fields is required when vardb is not provided")
-                if vardb and any(ch.isspace() for ch in vardb):
-                    raise ValueError(f"line {line_number}: vardb must not contain whitespace")
-    except (OSError, csv.Error, ValueError) as exc:
+        with Path(os.path.expanduser(path_text)).open(newline="", encoding="utf-8-sig") as handle:
+            vardbs = [(row.get("vardb") or "").strip() for row in csv.DictReader(handle)]
+    except (OSError, csv.Error, UnicodeError):
+        return  # unreadable or malformed: nf-schema names it when Nextflow starts
+    spaced = [vardb for vardb in vardbs if any(ch.isspace() for ch in vardb)]
+    if spaced:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.MISSING_SNPSIFT_DATABASES,
-            message="--snpsift_databases is not compatible with Sarek's CSV schema.",
-            fix="Use columns vcf,tbi,fields,prefix,vardb; vcf is required and fields is required when vardb is empty.",
-            details={"path": path_text, "error": str(exc)},
-        ) from exc
+            message="--snpsift_databases lists a vardb path containing whitespace.",
+            fix="Move the .snpsift.vardb directory to a path without spaces.",
+            details={"path": path_text, "vardb": spaced},
+        )
 
 
 # --- §5.5: Reference path existence --------------------------------------
@@ -1974,112 +1962,33 @@ def _is_uri(value: str) -> bool:
     return any(value.startswith(prefix) for prefix in _URI_PREFIXES)
 
 
-def _glob_reference_pattern(pattern: str) -> list[str]:
-    """Resolve basic Nextflow-style glob patterns, including `{a,b}` groups."""
-    expanded = [pattern]
-    brace_re = re.compile(r"\{([^{}]+)\}")
-    while any(brace_re.search(item) for item in expanded):
-        next_expanded: list[str] = []
-        for item in expanded:
-            match = brace_re.search(item)
-            if match is None:
-                next_expanded.append(item)
-                continue
-            for alternative in match.group(1).split(","):
-                next_expanded.append(item[:match.start()] + alternative + item[match.end():])
-        expanded = next_expanded
-    return sorted({match for item in expanded for match in glob.glob(item)})
-
-
-# Documented filename patterns (nextflow_schema.json) for reference paths that
-# declare one. Mismatches are WARNINGS, not errors: a valid file with a
-# non-standard name should not block the run, but a likely mistake is surfaced.
-_REFERENCE_PATH_PATTERNS = {
-    "pon": re.compile(r"\.vcf\.gz$"),
-    "pon_tbi": re.compile(r"\.vcf\.gz\.tbi$"),
-    "dbsnp": re.compile(r"\.vcf\.gz$"),
-    "dbsnp_tbi": re.compile(r"\.vcf\.gz\.tbi$"),
-    "germline_resource": re.compile(r"\.vcf\.gz$"),
-    "germline_resource_tbi": re.compile(r"\.vcf\.gz\.tbi$"),
-    "known_snps": re.compile(r"\.vcf\.gz$"),
-    "known_snps_tbi": re.compile(r"\.vcf\.gz\.tbi$"),
-    "ascat_alleles": re.compile(r"\.zip$"),
-    "ascat_loci": re.compile(r"\.zip$"),
-    "ascat_loci_gc": re.compile(r"\.zip$"),
-    "ascat_loci_rt": re.compile(r"\.zip$"),
-    "cf_chrom_len": re.compile(r"\.(fai|len)$"),
-    "cnvkit_reference": re.compile(r"\.cnn$"),
-    "dbnsfp": re.compile(r"\.gz$"),
-    "dbnsfp_tbi": re.compile(r"\.gz\.(csi|tbi)$"),
-    "mappability": re.compile(r"\.gem$"),
-    "mastermind_file": re.compile(r"\.vcf\.gz$"),
-    "ngscheckmate_bed": re.compile(r"\.bed$"),
-    "phenotypes_file": re.compile(r"\.(gff|gvf)(\.gz)?$"),
-    "phenotypes_file_tbi": re.compile(r"\.(gff|gvf)\.gz\.(csi|tbi)$"),
-    "sentieon_dnascope_model": re.compile(r"\.model$"),
-    "spliceai_snv": re.compile(r"\.vcf\.gz$"),
-    "spliceai_snv_tbi": re.compile(r"\.vcf\.gz\.(csi|tbi)$"),
-    "spliceai_indel": re.compile(r"\.vcf\.gz$"),
-    "spliceai_indel_tbi": re.compile(r"\.vcf\.gz\.(csi|tbi)$"),
-    "bcftools_annotations": re.compile(r"\.vcf\.gz$"),
-    "bcftools_annotations_tbi": re.compile(r"\.vcf\.gz\.tbi$"),
-    "snpsift_databases": re.compile(r"\.csv$"),
-    "intervals": re.compile(r"\.(bed|interval_list)$"),
-    "dict": re.compile(r"\.dict$"),
-    "fasta": re.compile(r"\.fn?a(sta)?(\.gz)?$"),
-}
-
-
-def _check_reference_path_suffixes(params: dict[str, Any]) -> list[str]:
-    """Warn when a reference path's filename does not match its documented suffix."""
-    warnings_acc: list[str] = []
-    for name, pattern in _REFERENCE_PATH_PATTERNS.items():
+def _check_reference_path_whitespace(params: dict[str, Any]) -> None:
+    """Refuse whitespace where the schema's own pattern would let it through."""
+    for name in _UNANCHORED_PATTERN_PATHS:
         raw = params.get(name)
         if raw is None or _explicitly_disabled(params, name):
             continue
         text = str(raw).strip()
-        if not text:
-            continue
         if any(ch.isspace() for ch in text):
             raise SkillError(
                 stage="preflight",
                 error_code=ErrorCode.MISSING_REFERENCE,
-                message=f"--{name} value contains whitespace, which does not match the nf-core/sarek schema.",
+                message=f"--{name} value contains whitespace.",
                 fix=f"Move or rename the --{name} path so the complete value contains no spaces.",
                 details={"param": name, "path": text},
             )
-        basename = text.rsplit("/", 1)[-1]
-        if not pattern.search(basename):
-            warnings_acc.append(
-                f"--{name} value '{basename}' does not match the expected pattern "
-                f"'{pattern.pattern}'; verify it is the correct file type."
-            )
-    return warnings_acc
 
 
 def _check_reference_paths(params: dict[str, Any]) -> None:
-    """Every set, non-URI reference path must exist on disk."""
-    for name in REFERENCE_PATH_PARAMS:
+    """Every set, local reference path the schema does not check must exist on disk."""
+    for name in _PATHS_THE_SCHEMA_DOES_NOT_CHECK:
         raw = params.get(name)
         if raw is None or _explicitly_disabled(params, name):
             continue
         text = str(raw).strip()
-        if not text:
+        if not text or _is_uri(text):
             continue
-        if _is_uri(text):
-            continue
-        if name in _REFERENCE_PATH_PATTERN_PARAMS and (glob.has_magic(text) or ("{" in text and "}" in text)):
-            if _glob_reference_pattern(text):
-                continue
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.MISSING_REFERENCE,
-                message=f"Reference pattern for --{name} did not match any files.",
-                fix=f"Correct --{name} or remove it.",
-                details={"param": name, "path_pattern": text},
-            )
-        path = Path(os.path.expanduser(text))
-        if not path.exists():
+        if not Path(os.path.expanduser(text)).exists():
             raise SkillError(
                 stage="preflight",
                 error_code=ErrorCode.MISSING_REFERENCE,

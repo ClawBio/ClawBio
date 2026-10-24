@@ -27,6 +27,15 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   `recalibrate` rows without a table and contamination outside [0, 1]. The error codes
   `INVALID_FASTQ`, `MISSING_FASTQ`, `INVALID_BAM`, `INVALID_SEX`, `INVALID_STATUS` and
   `VARLOCIRAPTOR_MISSING_CONTAMINATION` are no longer raised and are removed.
+- **Reference paths are nf-schema's where the schema checks them.** nf-core/sarek 3.8.1's
+  `nextflow_schema.json` declares 37 of the wrapper's reference params `exists: true` (with
+  a name pattern for most, a file-path-pattern for known_indels), and Sarek validates the
+  SnpSift databases CSV itself; preflight no longer repeats those existence, name and
+  CSV checks, nor the suffix warnings and the intervals extension check. It still
+  existence-checks the 18 local paths the schema does not check, gates remote URIs,
+  refuses whitespace where the schema pattern is unanchored (germline resource and its
+  index, intervals) or in a SnpSift `vardb`, and requires a BED for `--wes` (Sarek's
+  own check is unreachable in 3.8.1).
 
 ### Fixed
 

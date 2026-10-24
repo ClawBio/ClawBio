@@ -153,11 +153,6 @@ def stub_docker_not_running(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-
-
-
-
-
 # ---------------------------------------------------------------------------
 # §5.1 Java / Nextflow / profile / backend / output dir / email / pipeline
 # ---------------------------------------------------------------------------
@@ -254,7 +249,6 @@ def test_profile_custom_token_is_allowed_for_institutional_configs():
     _check_profile_string("docker,my_institutional_hpc")
 
 
-
 def test_backend_docker_missing(stub_no_docker, monkeypatch):
     import preflight as p
 
@@ -322,9 +316,6 @@ def test_backend_docker_not_running(stub_docker_not_running):
     assert exc.value.error_code == ErrorCode.DOCKER_NOT_RUNNING
 
 
-
-
-
 def test_output_dir_inside_repo(tmp_path):
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
@@ -376,15 +367,10 @@ def test_output_dir_check_then_run_same_dir(tmp_path):
     _check_output_dir(out, repo_root=repo, resume=False)
 
 
-
-
-
 def test_email_invalid():
     with pytest.raises(SkillError) as exc:
         _check_email("not_an_email")
     assert exc.value.error_code == ErrorCode.INVALID_EMAIL
-
-
 
 
 def test_pipeline_source_remote_no_version():
@@ -402,8 +388,6 @@ def test_step_unknown():
     with pytest.raises(SkillError) as exc:
         _check_step({"step": "no_such_step"})
     assert exc.value.error_code == ErrorCode.INVALID_STEP
-
-
 
 
 def test_variant_calling_requires_tools_in_preflight(tmp_path, stub_binaries):
@@ -517,10 +501,6 @@ def test_merge_requires_snpeff_db_when_cache_set():
     assert exc.value.error_code == ErrorCode.MISSING_SNPEFF_DB
 
 
-
-
-
-
 def test_vep_missing_cache_errors_without_igenomes():
     with pytest.raises(SkillError) as exc:
         _tools_check(tools=["vep"], params={"step": "annotate", "igenomes_ignore": True})
@@ -532,8 +512,6 @@ def test_strelka_tumor_only_rejected():
     with pytest.raises(SkillError) as exc:
         _tools_check(tools=["strelka"], analysis_mode="tumor_only")
     assert exc.value.error_code == ErrorCode.INVALID_PAIRING
-
-
 
 
 def test_mpileup_somatic_paired_runs_on_normal_member():
@@ -555,8 +533,6 @@ def test_mutect2_tumor_only_no_pon_warns():
     assert any("Panel-of-Normals" in w for w in warnings)
 
 
-
-
 def test_mutect2_default_pon_warns():
     warnings = _tools_check(
         tools=["mutect2"],
@@ -565,7 +541,6 @@ def test_mutect2_default_pon_warns():
                 "germline_resource": "/g.vcf.gz"},
     )
     assert any("default GATK Panel-of-Normals" in w for w in warnings)
-
 
 
 def test_ascat_requires_paired():
@@ -584,8 +559,6 @@ def test_ascat_wes_missing_resources():
     assert exc.value.error_code == ErrorCode.INVALID_ASCAT_RESOURCES
 
 
-
-
 def test_msisensor2_paired_rejected():
     with pytest.raises(SkillError) as exc:
         _tools_check(tools=["msisensor2"], analysis_mode="somatic_paired")
@@ -602,7 +575,6 @@ def test_msisensor2_tumor_only_missing_models():
     assert exc.value.error_code == ErrorCode.MISSING_REFERENCE
 
 
-
 def test_msisensorpro_tumor_only_rejected():
     with pytest.raises(SkillError) as exc:
         _tools_check(tools=["msisensorpro"], analysis_mode="tumor_only")
@@ -616,7 +588,6 @@ def test_msisensorpro_paired_missing_scan():
     assert any("msisensorpro_scan" in w for w in warnings)
 
 
-
 def test_snpeff_without_db_or_cache_raises_when_no_igenomes():
     # Without --snpeff_db AND without an iGenomes genome that supplies SnpEff
     # config, Sarek will fail → the wrapper raises a hard error.
@@ -627,7 +598,6 @@ def test_snpeff_without_db_or_cache_raises_when_no_igenomes():
             params={"step": "annotate", "genome": "null", "igenomes_ignore": True},
         )
     assert exc.value.error_code == ErrorCode.MISSING_SNPEFF_DB
-
 
 
 def test_snpeff_with_cache_still_requires_db():
@@ -706,7 +676,6 @@ def test_bcfann_requires_annotations_tbi_and_header_lines():
     assert exc.value.error_code == ErrorCode.MISSING_REFERENCE
 
 
-
 def test_vep_missing_cache_params():
     with pytest.raises(SkillError) as exc:
         _tools_check(
@@ -715,7 +684,6 @@ def test_vep_missing_cache_params():
             params={"genome": "null", "igenomes_ignore": True},
         )
     assert exc.value.error_code == ErrorCode.MISSING_VEP_CACHE
-
 
 
 def test_sentieon_tnscope_germline_rejected(monkeypatch):
@@ -744,7 +712,6 @@ def test_spark_with_save_output_as_bam():
     assert exc.value.error_code == ErrorCode.SPARK_OUTPUT_INCOMPATIBLE
 
 
-
 def test_markduplicates_spark_with_header_umi_rejected():
     # Sarek's exact rule: MarkDuplicatesSpark can't do UMI-based dedup with
     # umi_in_read_header or umi_location.
@@ -755,13 +722,11 @@ def test_markduplicates_spark_with_header_umi_rejected():
         assert exc.value.error_code == ErrorCode.UMI_SPARK_INCOMPATIBLE
 
 
-
 def test_joint_germline_without_caller():
     params = make_params(joint_germline=True, tools=["manta"])
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params=params, tools=["manta"])
     assert exc.value.error_code == ErrorCode.JOINT_GERMLINE_REQUIREMENT
-
 
 
 def test_joint_mutect2_without_mutect2():
@@ -771,15 +736,11 @@ def test_joint_mutect2_without_mutect2():
     assert exc.value.error_code == ErrorCode.JOINT_MUTECT2_REQUIREMENT
 
 
-
 def test_genome_missing_without_igenomes_ignore():
     params = make_params(genome="", igenomes_ignore=False)
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params=params, tools=[])
     assert exc.value.error_code == ErrorCode.GENOME_REQUIRED
-
-
-
 
 
 def test_genome_and_fasta_without_igenomes_ignore_allows_documented_override():
@@ -789,8 +750,6 @@ def test_genome_and_fasta_without_igenomes_ignore_allows_documented_override():
     _check_flag_compatibility(params=params, tools=[])
 
 
-
-
 def test_build_only_index_with_input_real():
     params = make_params(build_only_index=True, input="samplesheet.csv")
     with pytest.raises(SkillError) as exc:
@@ -798,13 +757,11 @@ def test_build_only_index_with_input_real():
     assert exc.value.error_code == ErrorCode.BUILD_ONLY_INDEX_CONFLICT
 
 
-
 def test_parabricks_with_conda_profile():
     params = make_params(aligner="parabricks", profile="conda")
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params=params, tools=[])
     assert exc.value.error_code == ErrorCode.PARABRICKS_CONDA_CONFLICT
-
 
 
 def test_vep_dbnsfp_without_dbnsfp():
@@ -826,8 +783,6 @@ def test_vep_plugins_require_documented_paths(flag, paths):
     assert exc.value.error_code == ErrorCode.MISSING_REFERENCE
     for path_param in paths:
         assert path_param in exc.value.details["missing"]
-
-
 
 
 def test_filter_vcfs_rejects_blank_expression():
@@ -855,19 +810,8 @@ def test_snv_consensus_min_count_too_high():
     assert exc.value.error_code == ErrorCode.INVALID_CONSENSUS_CALLING
 
 
-
 def test_snpsift_missing_databases():
     params = make_params(tools=["snpsift"])
-    with pytest.raises(SkillError) as exc:
-        _check_flag_compatibility(params=params, tools=["snpsift"])
-    assert exc.value.error_code == ErrorCode.MISSING_SNPSIFT_DATABASES
-
-
-
-def test_snpsift_databases_validates_auxiliary_schema(tmp_path):
-    dbs = tmp_path / "snpsift_databases.csv"
-    dbs.write_text("vcf,tbi,fields,prefix,vardb\n/db/dbsnp.txt,,,,\n", encoding="utf-8")
-    params = make_params(tools=["snpsift"], snpsift_databases=str(dbs))
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params=params, tools=["snpsift"])
     assert exc.value.error_code == ErrorCode.MISSING_SNPSIFT_DATABASES
@@ -880,16 +824,8 @@ def test_no_intervals_with_intervals():
     assert exc.value.error_code == ErrorCode.INVALID_INTERVALS
 
 
-
 def test_wes_intervals_must_be_bed():
     params = make_params(wes=True, intervals="/refs/targets.interval_list", genome="null", igenomes_ignore=True, fasta="/refs/genome.fa")
-    with pytest.raises(SkillError) as exc:
-        _check_flag_compatibility(params=params, tools=[])
-    assert exc.value.error_code == ErrorCode.INVALID_INTERVALS
-
-
-def test_wgs_intervals_must_use_official_extensions():
-    params = make_params(intervals="/refs/targets.txt", genome="null", igenomes_ignore=True, fasta="/refs/genome.fa")
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params=params, tools=[])
     assert exc.value.error_code == ErrorCode.INVALID_INTERVALS
@@ -966,16 +902,6 @@ def test_reference_path_uri_skipped(tmp_path):
     _check_reference_paths({"fasta": "s3://bucket/ref.fa"})
 
 
-
-def test_reference_path_missing_local(tmp_path):
-    missing = tmp_path / "no_such_file.fa"
-    with pytest.raises(SkillError) as exc:
-        _check_reference_paths({"fasta": str(missing)})
-    assert exc.value.error_code == ErrorCode.MISSING_REFERENCE
-
-
-
-
 def test_reference_param_list_contains_expected():
     for key in ("fasta", "intervals", "vep_cache", "snpeff_cache", "pon", "ascat_alleles"):
         assert key in REFERENCE_PATH_PARAMS
@@ -1003,7 +929,6 @@ def test_download_cache_unwritable(tmp_path, monkeypatch):
     assert exc.value.error_code == ErrorCode.MISSING_ANNOTATION_CACHE
 
 
-
 def test_snpeff_cache_layout_warns(tmp_path):
     cache_root = tmp_path / "snpeff"
     cache_root.mkdir()
@@ -1012,7 +937,6 @@ def test_snpeff_cache_layout_warns(tmp_path):
         output_dir=tmp_path / "out",
     )
     assert any("snpeff_db" in w.lower() or "snpeff" in w.lower() for w in warnings)
-
 
 
 def test_vep_cache_layout_warns(tmp_path):
@@ -1030,13 +954,10 @@ def test_vep_cache_layout_warns(tmp_path):
     assert any("vep" in w.lower() for w in warnings)
 
 
-
 def test_umi_read_structure_invalid_rejected():
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params={"umi_read_structure": "8X nonsense"}, tools=[])
     assert exc.value.error_code == ErrorCode.INVALID_FLAG_COMBINATION
-
-
 
 
 def test_dragmap_without_skip_baserecalibrator_warns():
@@ -1044,7 +965,6 @@ def test_dragmap_without_skip_baserecalibrator_warns():
         params=make_params(aligner="dragmap", step="mapping"), tools=[]
     )
     assert any("DragMap" in w for w in warnings)
-
 
 
 def test_invalid_enum_values_rejected():
@@ -1257,11 +1177,6 @@ def test_resume_drift_per_field(field, new_value):
     assert field in exc.value.details["diffs"]
 
 
-
-
-
-
-
 # ---------------------------------------------------------------------------
 # Happy path: full run_preflight
 # ---------------------------------------------------------------------------
@@ -1379,3 +1294,79 @@ def test_remote_inputs_allowed_with_flag_warns(capsys):
 def test_local_inputs_pass_the_remote_gate():
     import preflight as _pf
     _pf._check_remote_inputs({"fasta": "/refs/genome.fa"}, {"fastq_paths": ["/d/n_R1.fastq.gz"]}, allow_remote_inputs=False)
+
+
+# nf-core/sarek 3.8.1's nextflow_schema.json declares these reference params
+# `exists: true` (known_indels as a file-path-pattern that must match a file), most with
+# a ^\S+ name pattern, and Sarek reads snpsift_databases through its own
+# assets/schema_snpsift_databases.json and checkIfExists: nf-schema and the pipeline
+# refuse a missing path, a wrong name or an intervals file that is neither .bed nor
+# .interval_list when Nextflow starts, before any task runs.
+_SCHEMA_CHECKED_PATHS = (
+    "fasta", "fasta_fai", "dict", "bwa", "bwamem2", "dragmap", "dbsnp", "dbsnp_tbi",
+    "known_indels", "known_indels_tbi", "known_snps", "known_snps_tbi", "pon", "pon_tbi",
+    "intervals", "ascat_alleles", "ascat_loci", "ascat_loci_gc", "ascat_loci_rt", "chr_dir",
+    "msisensor2_models", "msisensorpro_scan", "dbnsfp", "dbnsfp_tbi", "mastermind_file",
+    "phenotypes_file_tbi", "spliceai_snv", "spliceai_snv_tbi", "spliceai_indel",
+    "spliceai_indel_tbi", "bcftools_annotations", "bcftools_annotations_tbi", "condel_config",
+    "cf_chrom_len", "bbsplit_fasta_list", "bbsplit_index", "snpsift_databases",
+)
+
+
+@pytest.mark.parametrize("name", _SCHEMA_CHECKED_PATHS)
+def test_paths_the_schema_checks_are_left_to_nf_schema(tmp_path, name):
+    _check_reference_paths({name: str(tmp_path / "missing" / f"{name}.x")})
+
+
+def test_known_indels_pattern_matching_nothing_is_left_to_nf_schema(tmp_path):
+    _check_reference_paths({"known_indels": str(tmp_path / "{a,b}.vcf.gz")})
+
+
+@pytest.mark.parametrize("name", [
+    "germline_resource", "germline_resource_tbi", "mappability", "ngscheckmate_bed",
+    "phenotypes_file", "sentieon_dnascope_model", "snpeff_cache", "vep_cache", "cnvkit_reference",
+    "bcftools_header_lines", "bcftools_columns", "varlociraptor_scenario_somatic", "multiqc_config",
+])
+def test_paths_the_schema_does_not_check_must_exist(tmp_path, name):
+    """No `exists` in the 3.8.1 schema: a missing local path would fail inside a task."""
+    assert name not in _SCHEMA_CHECKED_PATHS
+    with pytest.raises(SkillError) as exc:
+        _check_reference_paths({name: str(tmp_path / "missing" / name)})
+    assert exc.value.error_code == ErrorCode.MISSING_REFERENCE
+
+
+@pytest.mark.parametrize("name,refused", [
+    ("germline_resource", True), ("germline_resource_tbi", True), ("intervals", True),
+    ("fasta", False), ("dbsnp", False), ("pon", False),
+])
+def test_whitespace_is_refused_only_where_the_schema_pattern_allows_it(name, refused):
+    """germline_resource(_tbi) and intervals have unanchored patterns (\\S+\\.vcf\\.gz$),
+    which a path under a directory with spaces matches; the other patterns start ^\\S+."""
+    import preflight as p
+    value = {"germline_resource": "/my refs/g.vcf.gz", "germline_resource_tbi": "/my refs/g.vcf.gz.tbi",
+             "intervals": "/my refs/t.bed", "fasta": "/my refs/g.fa", "dbsnp": "/my refs/d.vcf.gz",
+             "pon": "/my refs/p.vcf.gz"}[name]
+    if refused:
+        with pytest.raises(SkillError) as exc:
+            p._check_reference_path_whitespace({name: value})
+        assert exc.value.error_code == ErrorCode.MISSING_REFERENCE
+    else:
+        p._check_reference_path_whitespace({name: value})
+
+
+def test_wrong_intervals_extension_is_left_to_sarek():
+    params = make_params(intervals="/refs/targets.txt", genome="null", igenomes_ignore=True,
+                         fasta="/refs/genome.fa", skip_tools=["baserecalibrator"])
+    _check_flag_compatibility(params=params, tools=[])
+
+
+def test_snpsift_databases_csv_rules_are_sareks(tmp_path):
+    """assets/schema_snpsift_databases.json, the fields-or-vardb error and checkIfExists
+    in main.nf are Sarek's; the wrapper refuses only a vardb path with whitespace."""
+    dbs = tmp_path / "snpsift_databases.csv"
+    dbs.write_text("vcf,tbi,fields,prefix,vardb\n/db/dbsnp.txt,,,,\n", encoding="utf-8")
+    _check_flag_compatibility(params=make_params(tools=["snpsift"], snpsift_databases=str(dbs)), tools=["snpsift"])
+    dbs.write_text("vcf,tbi,fields,prefix,vardb\n/db/dbsnp.vcf.gz,,,,/my dbs/x.snpsift.vardb\n", encoding="utf-8")
+    with pytest.raises(SkillError) as exc:
+        _check_flag_compatibility(params=make_params(tools=["snpsift"], snpsift_databases=str(dbs)), tools=["snpsift"])
+    assert exc.value.error_code == ErrorCode.MISSING_SNPSIFT_DATABASES
