@@ -18,7 +18,7 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 if str(SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(SKILL_DIR))
 
-from wgs_prs import BridgeConfig, BridgeReport, WgsToPrsBridge
+from wgs_prs import BridgeConfig, BridgeReport, WgsToPrsBridge, write_demo_vcf
 from clawbio.common.sarek import SarekConfig
 from clawbio.common.vcf_qc import QcConfig
 
@@ -247,3 +247,44 @@ class TestCorpasIntegration:
         assert report.qc_metrics is not None
         # Stage 3 may fail if gwas-prs dependencies are missing; that is acceptable here
         assert report.report_json is not None and report.report_json.exists()
+
+
+# ---------------------------------------------------------------------------
+# Demo VCF must be valid input for bcftools
+# ---------------------------------------------------------------------------
+
+class TestDemoVcf:
+    def test_demo_vcf_header_declares_every_contig_and_format_field(self, tmp_path) -> None:
+        """bcftools >= 1.23 refuses to write records whose contig is undeclared."""
+        lines = write_demo_vcf(tmp_path / "demo.vcf").read_text(encoding="utf-8").splitlines()
+        header = [line for line in lines if line.startswith("##")]
+        records = [line.split("\t") for line in lines if not line.startswith("#")]
+
+        declared_contigs = {
+            line.split("ID=", 1)[1].split(",")[0].rstrip(">")
+            for line in header
+            if line.startswith("##contig=<")
+        }
+        declared_formats = {
+            line.split("ID=", 1)[1].split(",")[0]
+            for line in header
+            if line.startswith("##FORMAT=<")
+        }
+
+        assert {record[0] for record in records} <= declared_contigs
+        assert {key for record in records for key in record[8].split(":")} <= declared_formats
+
+    def test_demo_vcf_records_are_sorted_for_indexing(self, tmp_path) -> None:
+        """bcftools index fails when a contig's records are not contiguous."""
+        lines = write_demo_vcf(tmp_path / "demo.vcf").read_text(encoding="utf-8").splitlines()
+        contig_order = [
+            line.split("ID=", 1)[1].split(",")[0].rstrip(">")
+            for line in lines
+            if line.startswith("##contig=<")
+        ]
+        positions = [
+            (contig_order.index(fields[0]), int(fields[1]))
+            for fields in (line.split("\t") for line in lines if not line.startswith("#"))
+        ]
+
+        assert positions == sorted(positions)
