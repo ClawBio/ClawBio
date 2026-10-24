@@ -13,12 +13,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import sys
+from hypothesis import example, given, settings
+from hypothesis import strategies as st
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 if str(SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(SKILL_DIR))
 
-from wgs_prs import BridgeConfig, BridgeReport, WgsToPrsBridge
+import wgs_prs
+from wgs_prs import BridgeConfig, BridgeReport, WgsToPrsBridge, write_demo_vcf
 from clawbio.common.sarek import SarekConfig
 from clawbio.common.vcf_qc import QcConfig
 
@@ -247,3 +250,63 @@ class TestCorpasIntegration:
         assert report.qc_metrics is not None
         # Stage 3 may fail if gwas-prs dependencies are missing; that is acceptable here
         assert report.report_json is not None and report.report_json.exists()
+
+
+# ---------------------------------------------------------------------------
+# Demo VCF
+# ---------------------------------------------------------------------------
+
+def _declared(vcf: Path, kind: str) -> list[str]:
+    lines = vcf.read_text(encoding="utf-8").splitlines()
+    return [line.split("ID=", 1)[1].split(",", 1)[0].rstrip(">") for line in lines if line.startswith(f"##{kind}=<")]
+
+
+def _assert_bcftools_can_index(vcf: Path) -> None:
+    records = [line.split("\t") for line in vcf.read_text(encoding="utf-8").splitlines() if not line.startswith("#")]
+    contigs = _declared(vcf, "contig")
+    assert {record[0] for record in records} <= set(contigs)
+    assert {key for record in records for key in record[8].split(":")} <= set(_declared(vcf, "FORMAT"))
+    # Indexing the normalised VCF needs records in header-contig, then position, order.
+    keys = [(contigs.index(record[0]), int(record[1])) for record in records]
+    assert keys == sorted(keys)
+
+
+@settings(deadline=None, max_examples=25)
+@given(n_snps=st.integers(min_value=0, max_value=300))
+def test_demo_vcf_declares_every_contig_and_format_key_it_uses(tmp_path_factory, n_snps) -> None:
+    """bcftools refuses a record whose CHROM or FORMAT key the header does not
+    declare (`CONTIG id=0 not present in the header`) and cannot index unsorted
+    records, so the --demo run failed wherever bcftools is installed."""
+    _assert_bcftools_can_index(write_demo_vcf(tmp_path_factory.mktemp("vcf") / "demo.vcf", n_snps=n_snps))
+
+
+_CONTIGS = [str(n) for n in range(1, 23)] + ["X", "Y", "MT"]
+
+
+@settings(deadline=None, max_examples=50)
+@given(panel=st.lists(
+    st.tuples(st.sampled_from(_CONTIGS), st.integers(min_value=1, max_value=250_000_000)),
+    min_size=1, max_size=20,
+))
+@example(panel=[("X", 100), ("2", 50)])
+def test_demo_vcf_orders_sex_and_mitochondrial_contigs(tmp_path_factory, panel) -> None:
+    """Sorting contigs with int() raised ValueError as soon as the demo panel
+    held an X, Y or MT variant."""
+    variants = tuple((contig, position, f"rs{i}", "A", "G") for i, (contig, position) in enumerate(panel))
+    with patch.object(wgs_prs, "_DEMO_T2D_PANEL_VARIANTS", variants):
+        vcf = write_demo_vcf(tmp_path_factory.mktemp("vcf") / "demo.vcf", n_snps=0)
+    _assert_bcftools_can_index(vcf)
+
+
+def test_bcftools_reads_the_demo_vcf(tmp_path) -> None:
+    import shutil
+    import subprocess
+
+    if shutil.which("bcftools") is None:
+        pytest.skip("bcftools is not installed")
+    vcf = write_demo_vcf(tmp_path / "demo.vcf")
+    result = subprocess.run(
+        ["bcftools", "view", "-Ob", "-o", str(tmp_path / "demo.bcf"), str(vcf)],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr

@@ -24,6 +24,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
+from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.paths import is_under_tmp
+
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
     sys.path.remove(str(_SKILL_DIR))
@@ -43,7 +46,6 @@ from schemas import (
     DEFAULT_IGENOMES_BASE,
     JAVA_MIN_VERSION,
     NEXTFLOW_MIN_VERSION,
-    is_under_tmp,
     SUPPORTED_ALIGNERS,
     SUPPORTED_ASCAT_GENOME,
     SUPPORTED_GATK_PCR_INDEL_MODEL,
@@ -352,49 +354,18 @@ def run_preflight(
 # --- §5.1: Java -----------------------------------------------------------
 
 def _command_output(args: list[str]) -> str:
-    """Return combined stdout/stderr of ``args`` (empty string on error)."""
-    try:
-        proc = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            errors="replace",
-            timeout=_SUBPROCESS_TIMEOUT,
-        )
-    except (subprocess.TimeoutExpired, OSError):
+    proc = _runtime.run_probe(args, timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if proc is None:
         return ""
     return ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
 
 
 def _parse_version_tuple(text: str) -> tuple[int, ...]:
-    m = re.search(r"\b(\d+)\.(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
-    m = re.search(r"\b(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)))
-    m = re.search(r"\b(\d+)\b", text)
-    if m:
-        return (int(m.group(1)),)
-    return ()
+    return _runtime.parse_version_tuple(text)
 
 
 def _pad_version(t: tuple[int, ...], length: int = 3) -> tuple[int, ...]:
-    return t + (0,) * max(0, length - len(t))
-
-
-def _detected_version_string(text: str) -> str:
-    """Return the version exactly as reported by the tool (e.g. '26.04.3').
-
-    The parsed tuple is for *comparison* only; reconstructing a string from it
-    drops zero-padding (26.04.3 → 26.4.3), which is not a real Nextflow release
-    and would break NXF_VER / conda pins on replay. Always store the raw token.
-    """
-    for pattern in (r"\b(\d+\.\d+\.\d+)\b", r"\b(\d+\.\d+)\b", r"\b(\d+)\b"):
-        m = re.search(pattern, text)
-        if m:
-            return m.group(1)
-    return ""
+    return _runtime.pad_version(t, length)
 
 
 def _check_java() -> str:
@@ -418,7 +389,7 @@ def _check_java() -> str:
             fix="Install Java 17 or newer and ensure `java -version` works.",
             details={"java_path": java_path, "output": version_text},
         )
-    version_str = _detected_version_string(version_text)
+    version_str = _runtime.reported_version(version_text)
     if version[0] < JAVA_MIN_VERSION:
         raise SkillError(
             stage="preflight",
@@ -456,7 +427,7 @@ def _check_nextflow() -> str:
             fix=f"Install Nextflow >={minimum} and ensure `nextflow -version` works.",
             details={"nextflow_path": nextflow_path, "output": version_text},
         )
-    version_str = _detected_version_string(version_text)
+    version_str = _runtime.reported_version(version_text)
     if _pad_version(version) < _pad_version(NEXTFLOW_MIN_VERSION):
         raise SkillError(
             stage="preflight",
@@ -553,17 +524,8 @@ def _probe_daemon(profile: str, *, binary: str) -> None:
             fix=f"Install {binary} or remove the '{profile}' profile token.",
             details={"profile": profile, "binary": binary},
         )
-    try:
-        info = subprocess.run(
-            [binary, "info"],
-            capture_output=True,
-            text=True,
-            timeout=_SUBPROCESS_TIMEOUT,
-        )
-        ok = info.returncode == 0
-    except (subprocess.TimeoutExpired, OSError):
-        ok = False
-    if not ok:
+    info = _runtime.run_probe([binary, "info"], timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if info is None or info.returncode != 0:
         raise SkillError(
             stage="preflight",
             error_code=_DAEMON_DOWN_CODE.get(profile, ErrorCode.BACKEND_UNAVAILABLE),
@@ -638,6 +600,13 @@ def _check_output_dir(output_dir: Path, *, repo_root: Path, resume: bool) -> Non
         )
     if not output_dir.exists():
         return
+    if not output_dir.is_dir() or not os.access(output_dir, os.W_OK):
+        raise SkillError(
+            stage="preflight", error_code=ErrorCode.OUTPUT_DIR_NOT_WRITABLE,
+            message="Output path is not a writable directory.",
+            fix="Choose a writable directory path for --output.",
+            details={"output_dir": str(output_dir)},
+        )
     if resume:
         return
     try:
@@ -1569,32 +1538,9 @@ def _uses_upstream_test_profile(params: dict[str, Any]) -> bool:
 
 
 def _check_demo_network(params: dict[str, Any]) -> None:
-    """--demo composes nf-core's upstream ``-profile test``, whose inputs (test FASTQs
-    and reference FASTA/GTF) are remote GitHub URLs by design. Under ``NXF_OFFLINE`` the
-    nf-schema plugin aborts during parameter validation with a confusing
-    ``does not exist`` before any work starts, so fail early with an actionable message
-    instead. Downloading nf-core's PUBLIC test data does not conflict with the
-    local-first guarantee, which governs USER genetic data (never uploaded)."""
-    if not _uses_upstream_test_profile(params):
-        return
-    offline = str(os.environ.get("NXF_OFFLINE", "")).strip().lower()
-    if offline in {"true", "1", "yes", "on"}:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.DEMO_REQUIRES_NETWORK,
-            message=(
-                "--demo runs the upstream nf-core `-profile test`, which downloads its test "
-                "datasets and reference files from GitHub, but NXF_OFFLINE is set — Nextflow "
-                "would abort during parameter validation because the remote test inputs cannot "
-                "be reached."
-            ),
-            fix=(
-                "Unset NXF_OFFLINE to run the demo (it fetches only nf-core's public test data — "
-                "no user or genetic data is uploaded), or run a real analysis with your own local "
-                "--input samplesheet and references, which is fully offline."
-            ),
-            details={"NXF_OFFLINE": os.environ.get("NXF_OFFLINE")},
-        )
+    """--demo composes nf-core's upstream ``-profile test``, whose inputs are remote."""
+    if _uses_upstream_test_profile(params):
+        _runtime.require_network_for_demo()
 
 
 def _check_flag_compatibility(*, params: dict[str, Any], tools: list[str]) -> list[str]:
@@ -2288,6 +2234,7 @@ _RESUME_TRACKED_FIELDS = (
     "params_checksum",
     "reference_checksums",
     "samplesheet_checksum",
+    "work_dir",
 )
 
 
@@ -2319,6 +2266,7 @@ def _check_resume_drift(
     current["joint_mutect2"] = _truthy(params.get("joint_mutect2"))
     current["wes"] = _truthy(params.get("wes"))
     current["profile"] = params.get("profile")
+    current["work_dir"] = params.get("work_dir") or "upstream/work"
     current["params_checksum"] = params.get("params_checksum")
     current["reference_checksums"] = params.get("reference_checksums")
     _normalized = samplesheet.get("normalized_path")

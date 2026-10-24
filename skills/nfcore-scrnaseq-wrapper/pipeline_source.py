@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
+
+from clawbio.common.nfcore import source as _source
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -25,27 +26,11 @@ _GIT_TIMEOUT = 10
 
 
 def _path_has_whitespace(path: Path) -> bool:
-    return any(" " in part for part in path.parts)
+    return any(char.isspace() for char in path.as_posix())
 
 
 def _git_stdout(path: Path, args: list[str]) -> str:
-    try:
-        proc = subprocess.run(
-            ["git", *args],
-            cwd=str(path),
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=_GIT_TIMEOUT,
-        )
-    except (
-        subprocess.CalledProcessError,
-        FileNotFoundError,
-        OSError,
-        subprocess.TimeoutExpired,
-    ):
-        return ""
-    return proc.stdout.strip()
+    return _source.git_stdout(path, args, timeout_seconds=_GIT_TIMEOUT)
 
 
 def _remote_pipeline_source(requested_version: str) -> dict[str, object]:
@@ -113,9 +98,7 @@ def resolve_pipeline_source(
             file=sys.stderr,
         )
     elif local_dir.exists():
-        missing = [
-            name for name in PIPELINE_REQUIRED_FILES if not (local_dir / name).exists()
-        ]
+        missing = _source.missing_pipeline_files(local_dir, PIPELINE_REQUIRED_FILES)
         if missing:
             raise SkillError(
                 stage="preflight",

@@ -266,7 +266,8 @@ def test_genome_shortcut_is_symbolic(tmp_path):
 def test_reference_paths_are_absolute_posix(tmp_path):
     """Spot-check three representative reference flags (sequence, annotation, index)."""
     for flag in ("fasta", "gtf", "salmon_index"):
-        ref = tmp_path / flag / "ref.txt"
+        filename = {"fasta": "ref.fa", "gtf": "ref.gtf", "salmon_index": "index"}[flag]
+        ref = tmp_path / flag / filename
         ref.parent.mkdir(exist_ok=True)
         ref.write_text("x", encoding="utf-8")
         params = _load_params(tmp_path / flag, _args(**{flag: str(ref)}))
@@ -482,7 +483,8 @@ def test_remote_ref_uri_passed_through_unchanged(tmp_path, scheme, field):
     absolute POSIX path like '/https:/example.org/genome.fa', breaking the Nextflow run.
     Reference fields must use _posix_or_uri() which passes URIs unchanged.
     """
-    uri = f"{scheme}://bucket.example.org/refs/file.fa"
+    suffix = "gtf" if field == "gtf" else "fa"
+    uri = f"{scheme}://bucket.example.org/refs/file.{suffix}"
     params = _load_params(tmp_path, _args(**{field: uri}))
     assert params.get(field) == uri, (
         f"params['{field}'] = {params.get(field)!r}; expected URI {uri!r} to be passed through unchanged"

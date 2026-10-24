@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import platform
 import shlex
@@ -11,7 +12,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import traceback
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +42,11 @@ purge_foreign_bare_modules(
     "schemas",
 )
 
+from clawbio.common.nfcore.resources import cap_to_profile_limits, uses_local_docker_capacity
+from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
+from clawbio.common.nfcore.failures import report_skill_error, report_unexpected_error
+from clawbio.common.nfcore.parameters import LEGACY_LINE_WIDTH
 from clawbio.common.textio import write_text_lf
 from command_builder import build_nextflow_command
 from errors import ErrorCode, SkillError
@@ -71,12 +76,14 @@ from reporting import (
 from repro_commands import write_macos_docker_config
 from samplesheet_builder import validate_and_normalize_samplesheet
 from schemas import (
+    DEMO_RESOURCE_LIMITS,
     ALL_REFERENCE_PATH_FIELDS,
     DEFAULT_PIPELINE_VERSION,
     DEFAULT_PRESET,
     DEFAULT_PROFILE,
     DEFAULT_TIMEOUT_SECONDS,
     SKILL_NAME,
+    SUPPORTED_PROFILES,
     PRESET_ALIGNERS,
     SUPPORTED_PRESETS,
     SYMBOLIC_REFERENCE_FIELDS,
@@ -124,26 +131,9 @@ _DEMO_IGNORED_FIELDS = (
 )
 
 
-def _timeout_hours(value: str) -> float:
-    try:
-        hours = float(value)
-    except (TypeError, ValueError):
-        raise argparse.ArgumentTypeError(
-            f"--timeout-hours must be a number, got {value!r}"
-        )
-    if hours < 0:
-        raise argparse.ArgumentTypeError(
-            "--timeout-hours must be >= 0 (0 disables the timeout)"
-        )
-    return hours
-
-
 def _resolve_timeout_seconds(args: argparse.Namespace) -> int | None:
     """Translate --timeout-hours into seconds; 0 disables the cap (returns None)."""
-    hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
-    if hours is None or hours == 0:
-        return None
-    return int(round(hours * 3600))
+    return timeout_seconds(getattr(args, "timeout_hours", None), default_hours=_DEFAULT_TIMEOUT_HOURS)
 
 
 class _PresetAction(argparse.Action):
@@ -299,7 +289,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--timeout-hours",
-        type=_timeout_hours,
+        type=timeout_hours,
         default=_DEFAULT_TIMEOUT_HOURS,
         help="Wall-clock cap for the Nextflow run in hours (default 12). Use 0 to disable the cap for long HPC/cloud runs whose walltime is enforced by the scheduler.",
     )
@@ -548,21 +538,6 @@ def _write_demo_samplesheet(samplesheet_path: Path) -> None:
     )
 
 
-def _write_error_result_if_safe(output_dir: Path, payload: dict[str, object]) -> None:
-    """Persist structured errors unless doing so would overwrite a rejected output dir."""
-    error_code = payload.get("error_code")
-    if error_code in {"OUTPUT_DIR_NOT_EMPTY", "OUTPUT_DIR_NOT_WRITABLE"}:
-        return
-    if error_code == "INVALID_RESUME_STATE" and (output_dir / "result.json").exists():
-        return
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        write_text_lf(output_dir / "result.json", json.dumps(payload, indent=2))
-    except OSError:
-        # stderr still receives the structured payload; avoid masking the root error.
-        return
-
-
 _BANNER = (
     "==============================================\n"
     f"  ClawBio :: {SKILL_NAME}\n"
@@ -574,11 +549,6 @@ _BANNER = (
 def _print(msg: str) -> None:
     """Log a human-readable status line to stdout (progress/traceability)."""
     print(msg, flush=True)
-
-
-def _indent(text: str, n: int) -> str:
-    pad = " " * n
-    return "\n".join(pad + line for line in text.splitlines())
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -593,12 +563,12 @@ def main(argv: list[str] | None = None) -> int:
         _check_pipeline_version_supported(args)
         return _run_wrapper(args, output_dir)
     except SkillError as exc:
-        return _handle_skill_error(output_dir, exc, verbose=getattr(args, "verbose", False))
+        return report_skill_error(output_dir, exc, verbose=getattr(args, "verbose", False))
     except KeyboardInterrupt:
         _print("[abort] Interrupted by user.")
         return 130
     except Exception as exc:
-        return _handle_unexpected_error(
+        return report_unexpected_error(
             output_dir, exc, verbose=getattr(args, "verbose", False)
         )
 
@@ -709,6 +679,11 @@ def _run_wrapper_with_staging(
         f"(warnings: {len(preflight_result.get('warnings', []) or [])})"
     )
     if args.check:
+        params_payload = build_effective_params(
+            args, normalized_samplesheet=normalized_samplesheet, output_dir=output_dir,
+        )
+        _check_resume_params_checksum(args, output_dir=output_dir, params_payload=params_payload)
+        _check_resume_samplesheet_checksum(args, output_dir=output_dir, staged_samplesheet=staged_samplesheet)
         return _write_check_mode_result(
             output_dir,
             preflight_result=preflight_result,
@@ -884,6 +859,28 @@ def _build_parameter_support_summary() -> dict[str, object]:
     }
 
 
+def _write_launch_manifest(args, *, output_dir, pipeline_source, normalized_samplesheet, params_payload, preflight_result):
+    from datetime import datetime, timezone
+    from clawbio.common.checksums import sha256_file
+    from clawbio.common.nfcore.cli import canonical_work_dir
+    from clawbio.common.nfcore.artifacts import write_manifest_checkpoint
+
+    manifest = {
+        "skill_name": SKILL_NAME, "pipeline_source": pipeline_source,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "profile": args.profile, "preset": getattr(args, "preset", None),
+        "aligner": getattr(args, "aligner", ""), "pseudo_aligner": getattr(args, "pseudo_aligner", None),
+        "prokaryotic": bool(getattr(args, "prokaryotic", False)),
+        "demo": bool(args.demo), "arm": bool(getattr(args, "arm", False)),
+        "work_dir": canonical_work_dir(args, output_dir),
+        "params_checksum": _params_payload_checksum(params_payload),
+        "samplesheet_checksum": sha256_file(normalized_samplesheet),
+        "java_version": preflight_result.get("java", {}).get("version", ""),
+        "nextflow_version": preflight_result.get("nextflow", {}).get("version", ""),
+    }
+    write_manifest_checkpoint(output_dir, manifest)
+
+
 def _run_execution_mode(
     args: argparse.Namespace,
     *,
@@ -902,10 +899,16 @@ def _run_execution_mode(
     _check_resume_params_checksum(
         args, output_dir=output_dir, params_payload=params_payload
     )
+    _check_resume_samplesheet_checksum(args, output_dir=output_dir, staged_samplesheet=staged_samplesheet)
     _commit_validated_samplesheet(staged_samplesheet, normalized_samplesheet)
     params_path = write_params_yaml(params_payload, output_dir=output_dir)
     command, command_str = _build_nextflow_invocation(
         args, output_dir, pipeline_source, params_path
+    )
+    _write_launch_manifest(
+        args, output_dir=output_dir, pipeline_source=pipeline_source,
+        normalized_samplesheet=normalized_samplesheet, params_payload=params_payload,
+        preflight_result=preflight_result,
     )
     nextflow_cwd = _nextflow_execution_cwd(output_dir)
     _print(
@@ -951,6 +954,23 @@ def _commit_validated_samplesheet(
     shutil.copy2(staged_samplesheet, normalized_samplesheet)
 
 
+def _check_resume_samplesheet_checksum(args, *, output_dir: Path, staged_samplesheet: Path) -> None:
+    if not args.resume:
+        return
+    from clawbio.common.checksums import sha256_file
+
+    manifest = json.loads((output_dir / "reproducibility/manifest.json").read_text(encoding="utf-8"))
+    current = sha256_file(staged_samplesheet)
+    previous = manifest.get("samplesheet_checksum")
+    if previous != current:
+        raise SkillError(
+            stage="preflight", error_code=ErrorCode.INVALID_RESUME_STATE,
+            message="Resume state does not match the normalized samplesheet.",
+            fix="Use the original samplesheet, or choose a new output directory.",
+            details={"previous_samplesheet_checksum": previous, "requested_samplesheet_checksum": current},
+        )
+
+
 def _check_resume_params_checksum(
     args: argparse.Namespace,
     *,
@@ -963,8 +983,14 @@ def _check_resume_params_checksum(
     if not manifest_path.exists():
         return
     params_checksum = _params_payload_checksum(params_payload)
+    # Bundles written while params.yaml still wrapped long values at 80 columns
+    # fingerprinted that wrapped text; the parameters themselves are the same.
+    accepted = {
+        params_checksum,
+        _params_payload_checksum(params_payload, line_width=LEGACY_LINE_WIDTH),
+    }
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("params_checksum") == params_checksum:
+    if manifest.get("params_checksum") in accepted:
         return
     raise SkillError(
         stage="preflight",
@@ -978,9 +1004,11 @@ def _check_resume_params_checksum(
     )
 
 
-def _params_payload_checksum(params_payload: dict[str, object]) -> str:
+def _params_payload_checksum(
+    params_payload: dict[str, object], *, line_width: float = math.inf
+) -> str:
     return hashlib.sha256(
-        serialize_params_yaml(params_payload).encode("utf-8")
+        serialize_params_yaml(params_payload, line_width=line_width).encode("utf-8")
     ).hexdigest()
 
 
@@ -1001,45 +1029,39 @@ def _build_nextflow_invocation(
 
 
 def _resolve_nextflow_work_dir(args: argparse.Namespace, output_dir: Path) -> Path | str:
-    raw_work_dir = getattr(args, "work_dir", None)
-    if not raw_work_dir:
-        return output_dir / "upstream" / "work"
-    work_dir = str(raw_work_dir).strip()
-    if "://" in work_dir:
-        return work_dir
-    return Path(work_dir).expanduser().resolve()
+    return resolve_work_dir(getattr(args, "work_dir", None), output_dir=output_dir)
 
 
 def _build_extra_nextflow_configs(
     args: argparse.Namespace, output_dir: Path
 ) -> list[Path]:
-    configs = [
+    user_configs = [
         Path(value).expanduser().resolve()
         for value in getattr(args, "extra_config", []) or []
     ]
+    configs = []
     # The VirtioFS EDEADLK fix is macOS-specific:
     #   Linux native: no VirtioFS; Docker bind-mounts are direct overlayfs.
     #   Windows/WSL2: Nextflow runs inside WSL2 (reports "Linux"); work dir is on ext4.
     #   Windows native: not officially supported by Nextflow; users should use WSL2.
-    if profile_includes(args.profile, "docker"):
+    if profile_includes(args.profile, "docker") and uses_local_docker_capacity(args, SUPPORTED_PROFILES):
         if platform.system() == "Darwin":
-            # demo gates the test-profile resource ceilings: real runs get only the
-            # always-safe VirtioFS / Apple-Silicon / STAR-FIFO workarounds (audit H-1).
+            # Keep platform workarounds separate from portable runtime capacity limits.
             configs.append(
                 write_macos_docker_config(
                     output_dir, demo=bool(getattr(args, "demo", False))
                 )
             )
-        elif not bool(getattr(args, "demo", False)):
+            configs.append(_write_resource_limits_config(output_dir, args=args))
+        else:
             # Non-macOS docker uses the local executor, which aborts a real run when a
             # process's production requirement exceeds this host's RAM (e.g. STARsolo
             # requesting 72 GB on a 63 GB machine). Cap requests to the host per
-            # nf-core resourceLimits guidance. --demo relies on -profile test's own
-            # (smaller) resourceLimits, so it is deliberately left untouched. Applied
-            # to the live run only — never baked into the portable commands.sh bundle,
-            # which is rebuilt from params.yaml (see repro_commands.py).
+            # nf-core resourceLimits guidance. --demo keeps -profile test's own limits,
+            # lowered only when this machine is smaller. Applied to the live run and
+            # shipped for runtime-aware replay (see repro_commands.py).
             configs.append(_write_resource_limits_config(output_dir, args=args))
-    return configs
+    return [*configs, *user_configs]
 
 
 _RESOURCE_LIMITS_MEMORY_HEADROOM_GB = 4
@@ -1047,37 +1069,24 @@ _RESOURCE_LIMITS_MEMORY_FLOOR_GB = 8
 
 
 def _host_memory_gb() -> int:
-    """Best-effort total physical RAM in whole GB (portable; falls back to 16)."""
-    try:
-        return max(1, int(os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") / (1024 ** 3)))
-    except (ValueError, OSError, AttributeError):
-        return 16
+    value = _runtime.host_memory_bytes()
+    return max(1, int(value / (1024 ** 3))) if value is not None else 16
 
 
 def _docker_vm_memory_gb() -> int | None:
-    """Docker runtime's total memory in whole GB, or None when unknown.
+    return _runtime.docker_memory_gb()
 
-    On native Linux this reports the host's cgroup memory (≈ physical RAM). Best-effort:
-    any failure (docker absent, daemon down, unparseable output) returns None.
-    """
-    if not shutil.which("docker"):
-        return None
-    try:
-        proc = subprocess.run(
-            ["docker", "info", "--format", "{{.MemTotal}}"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if proc.returncode != 0:
-        return None
-    raw = proc.stdout.strip()
-    if not raw.isdigit():
-        return None
-    gb = int(int(raw) / (1024 ** 3))
-    return gb or None
+
+def _docker_vm_cpu_count() -> int | None:
+    from clawbio.common.nfcore.runtime import docker_cpu_count
+
+    return docker_cpu_count()
+
+
+def _runtime_cpu_count() -> int:
+    host = max(1, os.cpu_count() or 1)
+    runtime = _docker_vm_cpu_count()
+    return min(host, runtime) if runtime else host
 
 
 def _resource_limits_memory_gb() -> int:
@@ -1092,7 +1101,8 @@ def _resource_limits_memory_gb() -> int:
     """
     signals = [gb for gb in (_host_memory_gb(), _docker_vm_memory_gb()) if gb]
     budget = (min(signals) - _RESOURCE_LIMITS_MEMORY_HEADROOM_GB) if signals else 12
-    return max(_RESOURCE_LIMITS_MEMORY_FLOOR_GB, budget)
+    ceiling = min(signals) if signals else _RESOURCE_LIMITS_MEMORY_FLOOR_GB
+    return min(max(1, ceiling - 1), max(1, max(_RESOURCE_LIMITS_MEMORY_FLOOR_GB, budget)))
 
 
 def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace) -> Path:
@@ -1108,8 +1118,12 @@ def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace)
     """
     config_path = output_dir / "reproducibility" / "resource_limits.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    cpus = max(1, os.cpu_count() or 1)
-    memory_gb = _resource_limits_memory_gb()
+    # The executor's aggregate budget is the host's; a demo's per-process limits stay
+    # within the test profile's own.
+    cpus, memory_gb = _runtime_cpu_count(), _resource_limits_memory_gb()
+    limit_cpus, limit_memory_gb = cap_to_profile_limits(
+        cpus, memory_gb, DEMO_RESOURCE_LIMITS if getattr(args, "demo", False) else None
+    )
     timeout_hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
     time_hours = int(_DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
     write_text_lf(
@@ -1118,10 +1132,12 @@ def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace)
         "// does not abort real runs whose production requirements exceed this machine.\n"
         "// Follows nf-core resourceLimits guidance (values match the machine maximum):\n"
         "// https://nf-co.re/docs/running/configuration/nextflow-for-your-system\n"
+        f"executor.cpus = {cpus}\n"
+        f"executor.memory = '{memory_gb}.GB'\n"
         "process {\n"
         "    resourceLimits = [\n"
-        f"        cpus: {cpus},\n"
-        f"        memory: '{memory_gb}.GB',\n"
+        f"        cpus: {limit_cpus},\n"
+        f"        memory: '{limit_memory_gb}.GB',\n"
         f"        time: '{time_hours}.h'\n"
         "    ]\n"
         "}\n",
@@ -1340,58 +1356,6 @@ def _write_handoff_provenance(output_dir: Path, record: dict[str, object]) -> No
     provenance_dir = output_dir / "provenance"
     provenance_dir.mkdir(parents=True, exist_ok=True)
     write_text_lf(provenance_dir / "handoff.json", json.dumps(record, indent=2))
-
-
-def _handle_skill_error(
-    output_dir: Path, exc: SkillError, *, verbose: bool = False
-) -> int:
-    payload = exc.to_dict()
-    _write_error_result_if_safe(output_dir, payload)
-    # Human-readable box on stdout (sarek-style traceability).
-    _print("")
-    _print("================ SkillError ================")
-    _print(f"  stage:   {exc.stage}")
-    _print(f"  code:    {exc.error_code}")
-    _print(f"  message: {exc.message}")
-    _print(f"  fix:     {exc.fix}")
-    if exc.details and verbose:
-        _print("  details:")
-        _print(_indent(json.dumps(exc.details, indent=2, default=str), 4))
-    _print("============================================")
-    # Machine-readable error on stderr: always available even when result.json
-    # cannot be written (e.g. the output dir is a file or inside the repo).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    return 1
-
-
-def _handle_unexpected_error(
-    output_dir: Path, exc: Exception, *, verbose: bool = False
-) -> int:
-    payload = {
-        "status": "error",
-        "ok": False,
-        "stage": "internal",
-        "error_code": ErrorCode.UNEXPECTED_ERROR,
-        "message": str(exc),
-        "fix": "Report this as a bug. Include the full traceback and your command arguments.",
-        "details": {
-            "exception_type": type(exc).__name__,
-            "traceback": traceback.format_exc(),
-        },
-    }
-    _write_error_result_if_safe(output_dir, payload)
-    _print("")
-    _print("================ Internal error ================")
-    _print(f"  type:    {type(exc).__name__}")
-    _print(f"  message: {exc}")
-    if verbose:
-        _print(_indent(traceback.format_exc(), 4))
-    else:
-        _print("  Re-run with --verbose for the full traceback.")
-    _print("================================================")
-    # Machine-readable error on stderr (always available; see _handle_skill_error).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    return 1
 
 
 if __name__ == "__main__":

@@ -4,6 +4,11 @@ import re
 from pathlib import Path
 
 
+
+# resourceLimits of the pinned release's own -profile test (the `test` profile in nextflow.config). --demo keeps
+# them: the launcher may lower them on a smaller machine but never raises them.
+DEMO_RESOURCE_LIMITS = {"cpus": 4, "memory_gb": 15}
+
 SKILL_NAME = "nfcore-rnaseq-wrapper"
 SKILL_ALIAS = "rnaseq-pipeline"
 SKILL_VERSION = "0.1.0"
@@ -49,29 +54,9 @@ SUPPORTED_PROFILES = {
 JAVA_MIN_VERSION = 17
 NEXTFLOW_MIN_VERSION = (25, 4, 3)
 
-
-def is_under_tmp(path: Path) -> bool:
-    """Return True when ``path`` resolves to (or inside) /tmp or /private/tmp.
-
-    Single source of truth for the macOS+Docker /tmp guard, shared by preflight
-    (pre-run WARNING) and executor (post-failure hint) so the two cannot diverge.
-    On macOS, Colima/Docker does not share /tmp into its VM, so a work-dir under
-    /tmp surfaces as a confusing '.command.run: No such file or directory'.
-    Resolve-based (not a string prefix) so symlinks and the canonical
-    /tmp -> /private/tmp mapping are handled. Mirrors the nfcore-scrnaseq helper.
-    """
-    try:
-        resolved = path.resolve()
-    except OSError:
-        return False
-    tmp = Path("/tmp").resolve()
-    private_tmp = Path("/private/tmp").resolve()
-    return (
-        resolved == tmp
-        or resolved == private_tmp
-        or tmp in resolved.parents
-        or private_tmp in resolved.parents
-    )
+# Environment Nextflow needs for the pinned release. nf-core/rnaseq 3.26.0 parses
+# under both the v1 and the strict v2 syntax parser, so it needs nothing.
+NEXTFLOW_ENV: dict[str, str] = {}
 PIPELINE_REQUIRED_FILES = ("main.nf", "nextflow.config", "assets/schema_input.json")
 
 SUPPORTED_ALIGNERS = {"star_salmon", "star_rsem", "hisat2", "bowtie2_salmon"}

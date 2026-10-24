@@ -6,7 +6,39 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Added
+
+- **The bundle records every container image the run used.** `reproducibility/containers.json` lists
+  each image with its sha256 digest (from the local image, or from the registry if it was already
+  pruned), image ID, platform and the processes that ran it. `containers.config` pins each process to
+  that digest, and `commands.sh` applies it when replaying without a Nextflow cache, so a bundle replays
+  byte-identical images even if a tag is re-pushed.
+
 ### Fixed
+
+- Route launcher defaults outside the source tree and correct example output paths.
+- Reject ambiguous CSV inputs and NaN or infinite parameter values; nf-schema checks every other parameter rule against the pinned 3.26.0 schema when Nextflow starts, and its refusals are named in `result.json`.
+- Record launch manifests before execution; guard resumed checks and track the work directory.
+- Parse local versions safely, bound Docker scheduler/process capacity, reject nonfinite timeouts, and bound failure-log reads. A demo's per-process limits stay within `-profile test`'s own 4 CPUs / 15 GB (lowered on a smaller machine, never raised); the executor's aggregate budget is the host's, so tasks still run in parallel.
+- Terminate interrupted process groups and align Python metadata with the repository floor.
+- **Ctrl+C now stops Nextflow.** Nextflow runs in its own session, so the terminal's
+  SIGINT never reached it: the wrapper exited 130 while Nextflow kept running and held
+  the `.nextflow` lock against the next `--resume`. The wrapper now terminates its
+  process group, as scrnaseq already did.
+- **`--timeout-hours nan`/`inf` is a usage error** instead of an `UNEXPECTED_ERROR`
+  after preflight; through `clawbio run`, the runner's own cap now follows the flag.
+- **Relocated bundles.** `remap_paths.py --output-dir` found no `--output` when the
+  original path held an apostrophe and a space (as `shlex.quote` writes it) and exited
+  0 without changing anything; the replay resume guard broke on output paths with `$`,
+  a backtick or `"`. Both now round-trip any path.
+- **`--demo` reports what ran.** nf-core/rnaseq 3.26.0's test profile also runs Salmon
+  pseudo-alignment, but the report said `Pseudo-aligner: none` and omitted its counts.
+  Under a test profile the wrapper now reads the pseudo-aligner from nf-core's own
+  `pipeline_info/params_*.json` and labels it; `result.json` adds
+  `pseudo_aligner_effective`.
+- **Every flag a test profile ignores is named.** The warning covered nine hand-picked
+  flags, so e.g. `--skip-qc` or `--pseudo-aligner-kmer-size` vanished under `--demo`
+  without a word. The list is now derived from the params builder.
 
 - **`remap_paths.py`: combining actions no longer discards one of them silently.**
   `main()` dispatched through a chain of early returns, so only the first matching flag

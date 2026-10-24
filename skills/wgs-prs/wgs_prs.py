@@ -587,19 +587,22 @@ _DEMO_T2D_PANEL_VARIANTS = (
 )
 
 
+def _contig_order(contig: str) -> tuple[int, int, str]:
+    """Autosomes numerically, then X, Y, MT and any other name."""
+    if contig.isdecimal():
+        return (0, int(contig), "")
+    return (1, 0, contig)
+
+
 def write_demo_vcf(path: Path, n_snps: int = 200) -> Path:
     """Write a synthetic VCF that covers the default offline demo panel."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [
-        "##fileformat=VCFv4.2",
-        "##FILTER=<ID=PASS,Description=\"All filters passed\">",
-        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE",
-    ]
+    records = []
     for i, (chromosome, position, variant_id, ref, alt) in enumerate(
         _DEMO_T2D_PANEL_VARIANTS
     ):
         gt = "0/1" if i % 3 else "1/1"
-        lines.append(
+        records.append(
             f"{chromosome}\t{position}\t{variant_id}\t{ref}\t{alt}\t50\tPASS\t.\tGT:DP\t{gt}:30"
         )
 
@@ -607,9 +610,22 @@ def write_demo_vcf(path: Path, n_snps: int = 200) -> Path:
     for i in range(max(0, n_snps - len(_DEMO_T2D_PANEL_VARIANTS))):
         ref, alt = allele_pairs[i % 4]
         gt = "0/1" if i % 3 != 0 else "1/1"
-        lines.append(
+        records.append(
             f"1\t{(i + 1) * 1000}\trs_demo_{i}\t{ref}\t{alt}\t50\tPASS\t.\tGT:DP\t{gt}:30"
         )
+    # bcftools rejects records whose contig or FORMAT key the header does not declare,
+    # and can only index records sorted by contig, then position.
+    records.sort(key=lambda record: (_contig_order(record.split("\t", 1)[0]), int(record.split("\t", 2)[1])))
+    contigs = sorted({record.split("\t", 1)[0] for record in records}, key=_contig_order)
+    lines = [
+        "##fileformat=VCFv4.2",
+        "##FILTER=<ID=PASS,Description=\"All filters passed\">",
+        *(f"##contig=<ID={contig}>" for contig in contigs),
+        '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
+        '##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">',
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE",
+        *records,
+    ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
 
