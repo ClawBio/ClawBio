@@ -221,3 +221,19 @@ def test_successful_run_relays_the_skills_warnings(monkeypatch, tmp_path, capsys
 def test_successful_run_without_warnings_prints_none(monkeypatch, tmp_path, capsys):
     out = _run_main_with(monkeypatch, tmp_path, capsys, success=True, stderr="progress line\n")
     assert "WARNING" not in out
+
+
+def test_timeout_help_says_timeout_hours_zero_waits_without_a_cap():
+    """`--timeout-hours 0` makes the runner wait indefinitely; the help must say so,
+    so a stuck pipeline is not read as progress."""
+    import subprocess as _subprocess
+    import sys as _sys
+
+    root = Path(__file__).resolve().parents[2]
+    result = _subprocess.run(
+        [_sys.executable, str(root / "clawbio.py"), "run", "--help"],
+        capture_output=True, text=True, check=False, cwd=root,
+    )
+    assert result.returncode == 0, result.stderr
+    text = " ".join(result.stdout.split())
+    assert "--timeout-hours 0" in text and "no cap" in text

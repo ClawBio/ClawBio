@@ -294,3 +294,15 @@ def test_a_second_relocation_keeps_the_original_backups(tmp_path):
     assert (tmp_path / "samplesheet.csv.bak").read_text() == original
     assert (tmp_path / "params.yaml.bak").read_text() == params_original
     assert (tmp_path / "commands.sh.bak").read_text() == commands_original
+
+
+def test_remap_names_the_path_columns_the_samplesheet_does_not_have(tmp_path, capsys):
+    """A column the samplesheet lacks was skipped without a word; say which."""
+    api = importlib.import_module("clawbio.common.nfcore.bundle_runtime")
+    sheet = tmp_path / "samplesheet.csv"
+    sheet.write_text("sample,fastq_1\nA,/old/a.fq\n")
+    api.remap_csv(sheet, "/old", "/new", columns=("fastq_1", "fastq_2", "bam"), dry_run=True)
+    out = capsys.readouterr().out
+    assert "fastq_2" in out and "bam" in out and "samplesheet.csv" in out
+    api.remap_csv(sheet, "/old", "/new", columns=("fastq_1",), dry_run=True)
+    assert capsys.readouterr().out == ""

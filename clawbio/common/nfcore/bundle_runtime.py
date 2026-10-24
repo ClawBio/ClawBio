@@ -73,6 +73,9 @@ def remap_csv(
         rows = list(reader)
         fieldnames = list(reader.fieldnames or [])
     changes: list[tuple[str, str, str]] = []
+    absent = [col for col in columns if col not in fieldnames]
+    if absent:
+        print(f"Columns not in {samplesheet.name}, skipped: {', '.join(absent)}")
 
     for row in rows:
         for col in columns:

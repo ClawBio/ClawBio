@@ -2161,7 +2161,11 @@ def main():
     run_parser.add_argument("--profile", dest="profile_path", metavar="PROFILE", help="Execution backend profile or comma-separated nf-core profile list for pipeline skills, or path to patient profile JSON for genomics skills")
     run_parser.add_argument(
         "--timeout", type=int, default=None,
-        help="Runner timeout in seconds (default: skill-specific, otherwise 300)",
+        help=(
+            "Runner timeout in seconds (default: skill-specific, otherwise 300). For nf-core "
+            "pipeline skills it follows --timeout-hours plus 10 minutes; --timeout-hours 0 "
+            "makes the runner wait with no cap, so a stuck pipeline keeps it waiting."
+        ),
     )
     run_parser.add_argument("--drug", default=None, help="Drug name for single-drug lookup (drugphoto skill)")
     run_parser.add_argument("--dose", default=None, help="Visible dose from packaging (e.g. '50mg')")
