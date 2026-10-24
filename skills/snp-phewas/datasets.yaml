@@ -1,0 +1,131 @@
+# snp-phewas curated dataset catalog.
+#
+# One entry per served dataset_id. Every field here is read by catalog.py; nothing is
+# decorative. A dataset that is not listed here cannot be queried (the lookup refuses an
+# unknown id), so this file IS the curation.
+#
+# license_verdict / license_verified: read from the source page on the stated date, not
+# from memory. attribution: the exact string every output that shows this dataset's
+# numbers must carry.
+#
+# release pins: a release bump changes these and must rebuild everything keyed on them
+# (the outcome catalogs via snp_phewas_build_catalogs.py, the crosswalk, the demo slices
+# and the golden test values).
+
+catalog_version: 1
+
+families:
+  pan_ukbb:
+    label: Pan-UK Biobank
+    release: pan_ukbb_2024_06_26
+    release_pin:
+      manifest_url: https://pan-ukb-us-east-1.s3.amazonaws.com/sumstats_release/phenotype_manifest.tsv.bgz
+      manifest_md5: 0735065d06ea8ffb098c119ef419c821
+      manifest_last_modified: "2024-06-26"
+    license: CC-BY-4.0
+    license_verdict: open; reuse with attribution
+    license_verified: "2026-10-17"
+    license_url: https://pan.ukbb.broadinstitute.org/downloads/
+    license_quote: >-
+      The GWAS results data produced by the Pan-UKB are available free of restrictions
+      under the Creative Commons Attribution 4.0 International (CC BY 4.0).
+    attribution: >-
+      Pan-UK Biobank (Karczewski KJ et al., Nat Genet 2025;57:2408-2417, doi:10.1038/s41588-025-02335-7, PMID 40968291);
+      this research has been conducted using the UK Biobank Resource.
+    build: GRCh37
+    reference_anchored: true
+    access: tabix
+    data_base_url: https://pan-ukb-us-east-1.s3.amazonaws.com/sumstats_flat_files/
+    index_base_url: https://pan-ukb-us-east-1.s3.amazonaws.com/sumstats_flat_files_tabix/
+    outcome_catalog: catalogs/pan_ukbb_outcomes.tsv.gz
+    coding: Pan-UKBB trait_type (phecode / icd10 / categorical / continuous / prescriptions / biomarkers)
+  finngen:
+    label: FinnGen
+    release: finngen_r12
+    release_pin:
+      manifest_url: https://storage.googleapis.com/finngen-public-data-r12/summary_stats/finngen_R12_manifest.tsv
+      manifest_md5: 3034fcfbf61bb1ba33a0efb3a36ac482
+      manifest_last_modified: "2024-11-07"
+    license: FinnGen public results terms (no license text; free download; acknowledgment + citation required)
+    license_verdict: free download and use; citation and acknowledgment required
+    license_verified: "2026-10-17"
+    license_url: https://www.finngen.fi/en/access_results
+    license_quote: >-
+      The results can be browsed with the web browser and summary statistics data can be
+      downloaded from Google cloud storage free of charge. [...] Fill this online form to
+      gain access to FinnGen summary statistics. Instructions on how to download summary
+      statistics are sent to you by e-mail.
+    access_note: >-
+      FinnGen asks users to fill its online form (https://www.finngen.fi/en/access_results)
+      before downloading summary statistics; the R12 files this skill reads are served from a
+      public bucket, so the form is not enforced by the bucket, and users should still fill it.
+    attribution: >-
+      FinnGen R12 (Kurki MI et al., Nature 2023;613:508-518, doi:10.1038/s41586-022-05473-8,
+      PMID 36653562). We want to acknowledge the participants and investigators of the
+      FinnGen study.
+    build: GRCh38
+    reference_anchored: true
+    access: pheweb_api+tabix
+    api_base_url: https://r12.finngen.fi/api/variant/
+    data_base_url: https://storage.googleapis.com/finngen-public-data-r12/summary_stats/release/
+    outcome_catalog: catalogs/finngen_r12_outcomes.tsv.gz
+    coding: FinnGen clinical endpoints (ICD-10 / ICD-9 / ATC register definitions)
+  mvp:
+    label: Million Veteran Program
+    release: mvp_gwphewas_gwascatalog_2026-10-19
+    release_pin:
+      # The GWAS Catalog publishes no single manifest for MVP: the catalog is built from
+      # three snapshots vendored in catalogs/mvp_source/ (snp_phewas_mvp_catalog.refresh_snapshot),
+      # each md5-pinned here. A re-pin rebuilds everything keyed on this release.
+      study_list_source: GWAS Catalog REST v2 studies?pubmed_id=39024449 (7,537 studies)
+      study_list_snapshot: catalogs/mvp_source/gwas_catalog_studies_pmid39024449.jsonl.gz
+      study_list_md5: fa97a3e835b9364f1b82322874e986d9
+      harmonised_list_url: https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/harmonised_list.txt
+      harmonised_list_last_modified: "2026-10-19 00:01:01 GMT"
+      harmonised_list_md5: 9bfab40b4f4182f73927b42c786905a9
+      harmonised_subset_snapshot: catalogs/mvp_source/harmonised_list_mvp.txt.gz
+      harmonised_subset_md5: 65e55fe26a3e33203771eef55a6d2f33
+      harmonised_meta_snapshot: catalogs/mvp_source/harmonised_meta_mvp.tsv.gz
+      harmonised_meta_md5: 4c86dce3c9a9c085829dd5dd92189b29
+    license: GWAS Catalog terms of use (EMBL-EBI places no additional restrictions; MVP deposited without a license text)
+    license_verdict: open; no restrictions beyond the data owner's; citation given
+    license_verified: "2026-10-19"
+    license_url: https://www.ebi.ac.uk/about/terms-of-use/
+    license_quote: >-
+      EMBL-EBI itself places no additional restrictions on the use or redistribution of
+      the data available via its Data Resources and Tools other than those provided by the
+      original data owners.
+    attribution: >-
+      Million Veteran Program (Verma A et al., Science 2024;385:eadj1182,
+      doi:10.1126/science.adj1182, PMID 39024449); summary statistics via the NHGRI-EBI
+      GWAS Catalog.
+    build: GRCh38
+    reference_anchored: true
+    contigs: autosomes
+    access: tabix
+    data_base_url: https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
+    outcome_catalog: catalogs/mvp_outcomes.tsv.gz
+    coding: phecodes (1.2 family), EHR lab and vital-sign summaries (mean / maximum / minimum, inverse-normal), MVP survey items
+
+# dataset_id -> (family, ancestry stratum). The Pan-UKBB file carries every ancestry in
+# one row, so each stratum is its own dataset over the same files. MVP is one GWAS Catalog
+# study per (trait, population); META is the Catalog's multi-population meta-analyses.
+# short_label is the column / strip header a figure uses.
+datasets:
+  pan_ukbb_eur: {family: pan_ukbb, ancestry: EUR, label: "Pan-UK Biobank, European ancestry", short_label: "Pan-UKBB EUR", default: true}
+  pan_ukbb_afr: {family: pan_ukbb, ancestry: AFR, label: "Pan-UK Biobank, African ancestry", short_label: "Pan-UKBB AFR"}
+  pan_ukbb_amr: {family: pan_ukbb, ancestry: AMR, label: "Pan-UK Biobank, admixed American ancestry", short_label: "Pan-UKBB AMR"}
+  pan_ukbb_csa: {family: pan_ukbb, ancestry: CSA, label: "Pan-UK Biobank, Central/South Asian ancestry", short_label: "Pan-UKBB CSA"}
+  pan_ukbb_eas: {family: pan_ukbb, ancestry: EAS, label: "Pan-UK Biobank, East Asian ancestry", short_label: "Pan-UKBB EAS"}
+  pan_ukbb_mid: {family: pan_ukbb, ancestry: MID, label: "Pan-UK Biobank, Middle Eastern ancestry", short_label: "Pan-UKBB MID"}
+  finngen_r12: {family: finngen, ancestry: FIN, label: "FinnGen R12 (Finnish)", short_label: "FinnGen", default: true}
+  mvp_eur: {family: mvp, ancestry: EUR, label: "Million Veteran Program, European genetic ancestry", short_label: "MVP EUR", default: true}
+  mvp_afr: {family: mvp, ancestry: AFR, label: "Million Veteran Program, African genetic ancestry", short_label: "MVP AFR"}
+  mvp_amr: {family: mvp, ancestry: AMR, label: "Million Veteran Program, admixed American genetic ancestry", short_label: "MVP AMR"}
+  mvp_eas: {family: mvp, ancestry: EAS, label: "Million Veteran Program, East Asian genetic ancestry", short_label: "MVP EAS"}
+  mvp_meta: {family: mvp, ancestry: META, label: "Million Veteran Program, multi-population meta-analysis", short_label: "MVP meta"}
+
+# Considered and NOT served, with the reason. Listed so "why is X not here?" has an
+# answer in the catalog itself.
+not_served:
+  biobank_japan: "BioBank Japan (NBDC hum0197) is not included: its terms limit use to research and development purposes."
