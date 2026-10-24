@@ -411,66 +411,21 @@ def test_skill_md_cli_examples_pass_protocol_for_protocol_required_presets():
     )
 
 
-# ── H-08: sample_type / feature_type enum validated regardless of preset ───────
-# assets/schema_input.json declares both as property-level enums, so nf-schema
-# rejects an invalid value whatever the aligner. The wrapper must fail fast in
-# preflight (strict-preflight promise), only the *presence* requirement is preset-
-# specific (sample_type for cellrangerarc, feature_type for cellrangermulti).
+# ── H-08 superseded: sample_type / feature_type values are nf-schema's ─────────
+# assets/schema_input.json declares both enums, so nf-schema names an invalid value
+# when Nextflow starts; the builder only lower-cases the value. A cellrangermulti
+# row still needs a feature_type (align_cellrangermulti drops rows without one).
 
 
-@pytest.mark.parametrize(
-    "preset", ["standard", "star", "kallisto", "cellranger", "cellrangermulti"]
-)
-def test_invalid_sample_type_is_rejected_regardless_of_preset(preset):
+@pytest.mark.parametrize("preset", ["star", "cellrangerarc", "cellrangermulti", None])
+def test_sample_and_feature_type_values_are_left_to_nf_schema(preset):
+    assert samplesheet_builder._sample_type({"sample_type": "BEAM"}) == "beam"
+    assert samplesheet_builder._feature_type({"feature_type": "Beam"}, 2, preset=preset) == "beam"
+
+
+def test_empty_types_pass_except_feature_type_under_cellrangermulti():
+    assert samplesheet_builder._sample_type({"sample_type": ""}) == ""
+    assert samplesheet_builder._feature_type({"feature_type": ""}, 2, preset="star") == ""
     with pytest.raises(SkillError) as exc:
-        samplesheet_builder._validate_sample_type(
-            {"sample_type": "beam"}, 2, preset=preset
-        )
-    assert exc.value.error_code == "INVALID_SAMPLESHEET"
-    assert exc.value.details["sample_type"] == "beam"
-
-
-def test_valid_sample_type_accepted_on_non_arc_preset():
-    assert (
-        samplesheet_builder._validate_sample_type(
-            {"sample_type": "gex"}, 2, preset="star"
-        )
-        == "gex"
-    )
-
-
-def test_empty_sample_type_allowed_on_non_arc_preset():
-    assert (
-        samplesheet_builder._validate_sample_type({"sample_type": ""}, 2, preset="star")
-        == ""
-    )
-
-
-@pytest.mark.parametrize(
-    "preset", ["standard", "star", "kallisto", "cellranger", "cellrangerarc"]
-)
-def test_invalid_feature_type_is_rejected_regardless_of_preset(preset):
-    with pytest.raises(SkillError) as exc:
-        samplesheet_builder._validate_feature_type(
-            {"feature_type": "beam"}, 2, preset=preset
-        )
-    assert exc.value.error_code == "INVALID_SAMPLESHEET"
-    assert exc.value.details["feature_type"] == "beam"
-
-
-def test_valid_feature_type_accepted_on_non_multi_preset():
-    assert (
-        samplesheet_builder._validate_feature_type(
-            {"feature_type": "vdj"}, 2, preset="star"
-        )
-        == "vdj"
-    )
-
-
-def test_empty_feature_type_allowed_on_non_multi_preset():
-    assert (
-        samplesheet_builder._validate_feature_type(
-            {"feature_type": ""}, 2, preset="star"
-        )
-        == ""
-    )
+        samplesheet_builder._feature_type({"feature_type": ""}, 2, preset="cellrangermulti")
+    assert exc.value.details["column"] == "feature_type"

@@ -8,15 +8,14 @@ __all__ = ["ErrorCode", "SkillError"]
 
 class ErrorCode:
     MISSING_INPUT = "MISSING_INPUT"
-    MISSING_FASTQ = "MISSING_FASTQ"
     INVALID_FASTQ = "INVALID_FASTQ"
     # NOTE: input readability is intentionally NOT pre-checked. The wrapper does not
     # read the FASTQ data — Nextflow does, and under the default Docker profile the
     # container often runs as root and can read files the launching user cannot, so an
     # os.access(R_OK) pre-check by the launcher would false-block valid runs. Output
     # *writability* IS checked (OUTPUT_DIR_NOT_WRITABLE) because the wrapper itself writes
-    # there. Existence of inputs is validated (MISSING_FASTQ); readability is deferred to
-    # Nextflow's staging, which reads in the true execution context.
+    # there. Existence of inputs is nf-schema's (assets/schema_input.json); readability is
+    # deferred to Nextflow's staging, which reads in the true execution context.
     INVALID_SAMPLESHEET = "INVALID_SAMPLESHEET"
     # Remote input/reference URIs (s3://, gs://, https://, ftp://, …) are rejected by
     # default (local-first); they are only allowed with --allow-remote-inputs, which

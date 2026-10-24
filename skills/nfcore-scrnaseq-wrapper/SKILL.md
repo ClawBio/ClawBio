@@ -102,7 +102,7 @@ This skill does NOT perform clustering, normalization, marker detection, dimensi
 - **Why ClawBio**: The wrapper keeps execution local-first, validates before launching Nextflow, and makes the run chainable into `scrna` and `scrna-embedding`.
 ## Core Capabilities
 
-1. **Strict Preflight**: Validate Java, Nextflow, backend, samplesheet, FASTQs, and references before execution.
+1. **Strict Preflight**: Check Java, Nextflow, backend, references and ClawBio's samplesheet rules before execution; nf-schema and the pipeline check the samplesheet's columns, values and FASTQs when Nextflow starts.
 2. **Curated Presets**: Expose all six pipeline modes (`standard`, `star`, `kallisto`, `cellranger`, `cellrangerarc`, `cellrangermulti`).
 3. **Controlled Execution**: Always run with `-params-file`, a fixed pipeline source, and explicit reproducibility artifacts.
 4. **Output Resolution**: Detect MultiQC, pipeline_info, `.h5ad`, `.rds`, and select a canonical `preferred_h5ad` when possible.
@@ -114,11 +114,11 @@ This skill does NOT perform clustering, normalization, marker detection, dimensi
 | Samplesheet | `.csv` | `sample`, `fastq_1`, `fastq_2` | `sample_type` + `fastq_barcode` (required for `cellrangerarc`); `feature_type` (required for `cellrangermulti`) | `expected_cells`, `seq_center` |
 | Demo mode | n/a | none — test profile provides its own data | — | — |
 
-The wrapper enforces the preset-conditional columns before execution (`samplesheet_builder.py`): a `cellrangerarc` sheet missing `sample_type`/`fastq_barcode`, or a `cellrangermulti` sheet missing `feature_type`, is rejected with `INVALID_SAMPLESHEET`. Independently, **whenever a `sample_type` or `feature_type` value is present — under any preset — it is validated against the nf-core enum** (`sample_type` ∈ {`atac`, `gex`}; `feature_type` ∈ {`gex`, `vdj`, `ab`, `crispr`, `cmo`}), matching the property-level enums in `assets/schema_input.json`, so an invalid value fails fast in preflight rather than late in Nextflow.
+nf-core/scrnaseq 4.1.0 checks the samplesheet when Nextflow starts, before any task runs, and `result.json` names the refused entry: nf-schema validates `assets/schema_input.json` (required columns, FASTQ names and existence, the `sample_type` ∈ {`atac`, `gex`} and `feature_type` ∈ {`gex`, `vdj`, `ab`, `crispr`, `cmo`} enums, integer `expected_cells`), and the pipeline refuses a `cellrangerarc` row without a valid `sample_type` or an ATAC row without `fastq_barcode`. The wrapper (`samplesheet_builder.py`) refuses a `cellrangermulti` row without `feature_type` (the pipeline would drop it silently) with `INVALID_SAMPLESHEET`.
 
 ## Workflow
 
-1. **Validate**: Check the selected preset, samplesheet structure, FASTQ accessibility, references, Java, Nextflow, and backend.
+1. **Validate**: Check the selected preset, ClawBio's samplesheet rules, references, Java, Nextflow, and backend.
 2. **Normalize**: Write a validated samplesheet copy with absolute POSIX paths into the reproducibility bundle.
 3. **Configure**: Build one effective `params.yaml` and a fixed Nextflow command.
 4. **Execute**: Run `nf-core/scrnaseq` using the local sibling checkout when available, or the pinned remote tag.
@@ -132,7 +132,7 @@ The wrapper executes a strictly ordered 7-step pipeline. A failure at any step r
 
 1. **Pipeline source resolution** (`pipeline_source.py`): Prefer a local sibling `scrnaseq/` checkout (pinned commit, audit-safe). Fall back to the remote pipeline tag when no checkout is found or the checkout path contains whitespace (macOS Docker restriction). A dirty local checkout is rejected by default; `--allow-dirty-pipeline` is an explicit development-only opt-in that is recorded in provenance. Use `--require-local-pipeline` when fallback to the remote pipeline would be unacceptable.
 
-2. **Samplesheet validation** (`samplesheet_builder.py`): Parse the CSV, resolve FASTQ paths relative to the CSV parent directory, normalize sample-name whitespace to underscores, verify readability and FASTQ extensions, reject FASTQ basenames with whitespace, enforce consistent `expected_cells` (≥1) and `seq_center` for repeated sample rows, reject exact duplicate FASTQ rows, and write a normalized copy to `reproducibility/samplesheet.valid.csv` with local FASTQ paths resolved to absolute POSIX (remote URIs, accepted only with `--allow-remote-inputs`, are passed through unchanged). The normalized replay sheet contains only headers accepted by the pinned 4.1.0 `assets/schema_input.json`; unsupported metadata columns are reported and omitted. In particular, `protocol` is supplied through the global `--protocol` parameter and is never forwarded as a samplesheet column.
+2. **Samplesheet validation** (`samplesheet_builder.py`): Parse the CSV, resolve FASTQ paths relative to the CSV parent directory, normalize sample-name whitespace to underscores (FASTQ names and existence are nf-schema's), enforce consistent `expected_cells` (≥1) and `seq_center` for repeated sample rows, reject exact duplicate FASTQ rows, and write a normalized copy to `reproducibility/samplesheet.valid.csv` with local FASTQ paths resolved to absolute POSIX (remote URIs, accepted only with `--allow-remote-inputs`, are passed through unchanged). The normalized replay sheet contains only headers accepted by the pinned 4.1.0 `assets/schema_input.json`; unsupported metadata columns are reported and omitted. In particular, `protocol` is supplied through the global `--protocol` parameter and is never forwarded as a samplesheet column.
 
 3. **Preflight** (`preflight.py`): Verify Java (≥17) and Nextflow (≥25.04.0). Compare version tuples after zero-padding to 3 elements (avoids false negatives such as `(24, 4) < (24, 4, 0)`). For `docker`, run `docker info` and gate on exit code. For `conda`/`mamba`, locate the binary. Cell Ranger presets are rejected with conda/mamba unless `--allow-conda-cellranger` is supplied with a trusted site config. For `singularity`/`apptainer`, accept either binary interchangeably. For `wave` and `gpu`, no binary check is needed (Nextflow-native features). Safe institutional profile components are accepted for HPC/site profiles, every `-c/--config` file must exist before execution, and configs are treated as trusted Groovy code. All preflight subprocess calls have a 60-second timeout (`_SUBPROCESS_TIMEOUT` in `preflight.py`); the git probes in `pipeline_source.py` use a 10-second timeout.
 
@@ -176,7 +176,7 @@ Unsupported parameters are either hidden/institutional metadata, interactive hel
 
 **Local** paths are still validated eagerly at preflight so they fail fast with a clear error instead of a late Nextflow error:
 - A supplied local reference/index path (`--fasta`, `--gtf`, `--star-index`, …) that does not exist raises `MISSING_REFERENCE` (`preflight.py`).
-- A local FASTQ that does not exist (or is not a regular file) raises `MISSING_FASTQ` (`samplesheet_builder.py`).
+- A local FASTQ that does not exist, is a directory or is misnamed is refused by nf-schema when Nextflow starts (`assets/schema_input.json`); `result.json` names the entry.
 
 Readability is never pre-checked: Nextflow reads inputs in the true execution context (often a root container under the default Docker profile), so a launcher-side `os.access(R_OK)` probe would false-block valid runs (`errors.py`).
 

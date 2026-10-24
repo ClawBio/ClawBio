@@ -75,8 +75,6 @@ SUPPORTED_SAMPLE_COLUMNS = {
     "fastq_barcode",
     "feature_type",
 }
-REQUIRED_SAMPLE_COLUMNS = ("sample", "fastq_1", "fastq_2")
-SUPPORTED_SAMPLE_TYPE_VALUES = {"atac", "gex"}
 SUPPORTED_FEATURE_TYPE_VALUES = {"gex", "vdj", "ab", "crispr", "cmo"}
 
 PRESET_ALIGNERS = {

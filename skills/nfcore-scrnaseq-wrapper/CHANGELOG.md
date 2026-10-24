@@ -14,6 +14,19 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   that digest, and `commands.sh` applies it when replaying without a Nextflow cache, so a bundle replays
   byte-identical images even if a tag is re-pushed.
 
+### Changed
+
+- **Samplesheet rules are nf-core/scrnaseq's.** nf-schema (`assets/schema_input.json`) and
+  the pipeline's initialisation check the samplesheet when Nextflow starts, before any task
+  runs, and `result.json` names the refused entry; the builder no longer repeats them
+  (required columns, FASTQ names and existence, a FASTQ that is a directory, the
+  `sample_type`/`feature_type` enums, integer `expected_cells`, `sample_type` and
+  `fastq_barcode` for `cellrangerarc`). It still normalizes names and paths and refuses
+  name collisions, duplicate FASTQ rows, repeated samples with different metadata,
+  `cellrangermulti` rows without `feature_type` (the pipeline drops them silently), an
+  `expected_cells` below 1 and FASTQ names Cell Ranger cannot pair. `MISSING_FASTQ` is no
+  longer raised and is removed.
+
 ### Fixed
 
 - Route launcher defaults outside the source tree and correct example output paths.

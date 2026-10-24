@@ -8,6 +8,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from hypothesis import HealthCheck, example, given, settings
+from hypothesis import strategies as st
+
 from errors import ErrorCode, SkillError
 from samplesheet_builder import validate_and_normalize_samplesheet
 
@@ -32,17 +35,6 @@ def test_validate_and_normalize_samplesheet(tmp_path):
     assert out.exists()
 
 
-def test_validate_and_normalize_samplesheet_rejects_missing_fastq(tmp_path):
-    src = tmp_path / "samplesheet.csv"
-    src.write_text(
-        "sample,fastq_1,fastq_2\nsampleA,missing_R1.fastq.gz,missing_R2.fastq.gz\n",
-        encoding="utf-8",
-    )
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv")
-    assert exc.value.error_code == "MISSING_FASTQ"
-
-
 def test_validate_accepts_remote_fastq_urls_verbatim(tmp_path):
     """Remote FASTQ URIs are passed through verbatim (parity with nf-core +
     nfcore-sarek/rnaseq): existence is deferred to Nextflow staging, only the
@@ -63,54 +55,6 @@ def test_validate_accepts_remote_fastq_urls_verbatim(tmp_path):
     written = out.read_text(encoding="utf-8")
     assert "https://example.org/S1_R1.fastq.gz" in written
     assert "s3://bucket/S1_R2.fastq.gz" in written
-
-
-def test_validate_rejects_remote_fastq_url_with_bad_basename(tmp_path):
-    """A remote URI that is not a FASTQ basename is still rejected (INVALID_FASTQ)."""
-    src = tmp_path / "samplesheet.csv"
-    src.write_text(
-        "sample,fastq_1,fastq_2\n"
-        "sampleA,https://example.org/S1_R1.fastq.gz,https://example.org/notes.txt\n",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv")
-
-    assert exc.value.error_code == ErrorCode.INVALID_FASTQ
-
-
-def test_validate_rejects_fastq_basename_with_space(tmp_path):
-    r1 = tmp_path / "sample A_R1.fastq.gz"
-    r2 = tmp_path / "sampleA_R2.fastq.gz"
-    r1.write_text("x", encoding="utf-8")
-    r2.write_text("x", encoding="utf-8")
-    src = tmp_path / "samplesheet.csv"
-    src.write_text(
-        f"sample,fastq_1,fastq_2\nsampleA,{r1},{r2}\n",
-        encoding="utf-8",
-    )
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(src, tmp_path / "normalized.csv")
-    assert exc.value.error_code == "INVALID_FASTQ"
-    assert exc.value.details["column"] == "fastq_1"
-
-
-def test_validate_rejects_fastq_extension_case_not_matching_nfcore_schema(tmp_path):
-    r1 = tmp_path / "sample_R1.FASTQ.GZ"
-    r2 = tmp_path / "sample_R2.fastq.gz"
-    _touch_fastq(r1)
-    _touch_fastq(r2)
-    src = tmp_path / "samplesheet.csv"
-    src.write_text(f"sample,fastq_1,fastq_2\nsampleA,{r1},{r2}\n", encoding="utf-8")
-
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(
-            src, tmp_path / "normalized.csv", preset="star"
-        )
-
-    assert exc.value.error_code == ErrorCode.INVALID_FASTQ
-    assert exc.value.details["filename"] == "sample_R1.FASTQ.GZ"
 
 
 def test_validate_accepts_required_columns_in_any_order_and_normalizes(tmp_path):
@@ -251,36 +195,6 @@ def test_expected_cells_override_rejected_for_multiple_samples(tmp_path):
     assert exc.value.error_code == "INVALID_SAMPLESHEET"
     assert exc.value.details["field"] == "expected_cells_override"
     assert exc.value.details["sample_count"] == 2
-
-
-def test_cellrangerarc_requires_sample_type_and_fastq_barcode_columns(tmp_path):
-    r1 = tmp_path / "r1.fastq.gz"
-    r2 = tmp_path / "r2.fastq.gz"
-    r1.write_text("x", encoding="utf-8")
-    r2.write_text("x", encoding="utf-8")
-    src = tmp_path / "samplesheet.csv"
-    src.write_text(f"sample,fastq_1,fastq_2\nsampleA,{r1},{r2}\n", encoding="utf-8")
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(
-            src, tmp_path / "norm.csv", preset="cellrangerarc"
-        )
-    assert exc.value.error_code == "INVALID_SAMPLESHEET"
-    assert exc.value.details["missing_columns"] == ["sample_type", "fastq_barcode"]
-
-
-def test_cellrangermulti_requires_feature_type_column(tmp_path):
-    r1 = tmp_path / "r1.fastq.gz"
-    r2 = tmp_path / "r2.fastq.gz"
-    r1.write_text("x", encoding="utf-8")
-    r2.write_text("x", encoding="utf-8")
-    src = tmp_path / "samplesheet.csv"
-    src.write_text(f"sample,fastq_1,fastq_2\nsampleA,{r1},{r2}\n", encoding="utf-8")
-    with pytest.raises(SkillError) as exc:
-        validate_and_normalize_samplesheet(
-            src, tmp_path / "norm.csv", preset="cellrangermulti"
-        )
-    assert exc.value.error_code == "INVALID_SAMPLESHEET"
-    assert exc.value.details["missing_columns"] == ["feature_type"]
 
 
 def test_cellrangerarc_rejects_fastqs_not_following_10x_arc_naming(tmp_path):
@@ -445,3 +359,95 @@ def test_multi_lane_sample_counted_once(tmp_path):
     assert len(rows) == 3, "every lane row must be preserved for the pipeline to concatenate"
     # And every FASTQ is still staged.
     assert len(result["fastq_paths"]) == 6
+
+
+
+# Rules nf-core/scrnaseq 4.1.0 enforces itself when Nextflow starts, before any task
+# runs: nf-schema checks assets/schema_input.json (required sample, fastq_1 and fastq_2,
+# the FASTQ pattern and existence, file-path refusing a directory, the integer type of
+# expected_cells, the sample_type and feature_type enums), and PIPELINE_INITIALISATION
+# refuses a cellrangerarc row whose sample_type is not gex/atac or an ATAC row without
+# fastq_barcode. The wrapper keeps no copy: the row is written through (paths resolved,
+# sample names normalized) for the pipeline to name.
+_NF_CORE_CASES = {
+    "missing fastq_2 column": dict(drop="fastq_2"),
+    "empty sample": dict(row={"sample": ""}),
+    "FASTQ that does not exist": dict(row={"fastq_1": "missing_R1.fastq.gz"}),
+    "FASTQ that is a directory": dict(row={"fastq_1": "reads_R1.fastq.gz"}, directory="reads_R1.fastq.gz"),
+    "FASTQ basename with a space": dict(row={"fastq_1": "sample A_R1.fastq.gz"}, files=("sample A_R1.fastq.gz",)),
+    "FASTQ extension in upper case": dict(row={"fastq_1": "s_R1.FASTQ.GZ"}, files=("s_R1.FASTQ.GZ",)),
+    "remote FASTQ that is not a FASTQ": dict(row={"fastq_2": "https://example.org/notes.txt"}),
+    "expected_cells that is not an integer": dict(row={"expected_cells": "many"}),
+    "sample_type outside the enum": dict(row={"sample_type": "beam"}),
+    "feature_type outside the enum": dict(row={"feature_type": "beam"}),
+    "cellrangerarc row without sample_type": dict(preset="cellrangerarc", arc=True),
+    "cellrangerarc ATAC row without fastq_barcode": dict(preset="cellrangerarc", arc=True, row={"sample_type": "atac"}),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_NF_CORE_CASES))
+def test_rules_nf_core_enforces_reach_it_unchanged(tmp_path, case):
+    spec = _NF_CORE_CASES[case]
+    names = ("S1_S1_L001_R1_001.fastq.gz", "S1_S1_L001_R2_001.fastq.gz") if spec.get("arc") else ("s_R1.fastq.gz", "s_R2.fastq.gz")
+    for name in (*names, *spec.get("files", ())):
+        _touch_fastq(tmp_path / name)
+    if "directory" in spec:
+        (tmp_path / spec["directory"]).mkdir()
+    row = {"sample": "sampleA", "fastq_1": names[0], "fastq_2": names[1], **spec.get("row", {})}
+    row = {k: v for k, v in row.items() if k != spec.get("drop")}
+    src = tmp_path / "samplesheet.csv"
+    src.write_text(",".join(row) + "\n" + ",".join(row.values()) + "\n", encoding="utf-8")
+    out = tmp_path / "normalized.csv"
+
+    validate_and_normalize_samplesheet(src, out, preset=spec.get("preset"))
+
+    written = list(csv.DictReader(out.read_text(encoding="utf-8").splitlines()))
+    assert len(written) == 1
+    for column, value in row.items():
+        if column.startswith("fastq") and value and "://" not in value:
+            assert written[0][column] == (tmp_path / value).resolve().as_posix()
+        elif column in written[0]:
+            assert written[0][column] == value, column
+
+
+def test_cellrangermulti_rows_still_need_a_feature_type(tmp_path):
+    """align_cellrangermulti routes rows by feature_type with no default branch, so
+    nf-core/scrnaseq 4.1.0 silently drops a row without one; the wrapper refuses it."""
+    for name in ("r1.fastq.gz", "r2.fastq.gz"):
+        _touch_fastq(tmp_path / name)
+    src = tmp_path / "samplesheet.csv"
+    src.write_text("sample,fastq_1,fastq_2\nsampleA,r1.fastq.gz,r2.fastq.gz\n", encoding="utf-8")
+    with pytest.raises(SkillError) as exc:
+        validate_and_normalize_samplesheet(src, tmp_path / "norm.csv", preset="cellrangermulti")
+    assert exc.value.error_code == ErrorCode.INVALID_SAMPLESHEET
+    assert exc.value.details["column"] == "feature_type"
+
+
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=60, deadline=None)
+@given(st.one_of(st.integers(-5, 5), st.text(alphabet="0123456789.-e x", max_size=6)))
+@example("0")
+@example("1.5")
+@example(" 7 ")
+def test_expected_cells_is_refused_only_as_an_integer_below_one(tmp_path, value):
+    """The schema checks only that expected_cells is an integer; the wrapper refuses an
+    integer below 1 (an aligner cannot expect no cells) and passes anything else on."""
+    text = str(value)
+    if "," in text:
+        return
+    for name in ("r1.fastq.gz", "r2.fastq.gz"):
+        _touch_fastq(tmp_path / name)
+    src = tmp_path / "samplesheet.csv"
+    src.write_text(f"sample,fastq_1,fastq_2,expected_cells\nsampleA,r1.fastq.gz,r2.fastq.gz,{text}\n", encoding="utf-8")
+    out = tmp_path / "norm.csv"
+    try:
+        number = int(text.strip())
+    except ValueError:
+        number = None
+    if number is not None and number < 1:
+        with pytest.raises(SkillError) as exc:
+            validate_and_normalize_samplesheet(src, out)
+        assert exc.value.error_code == ErrorCode.INVALID_SAMPLESHEET
+    else:
+        validate_and_normalize_samplesheet(src, out)
+        written = next(csv.DictReader(out.read_text(encoding="utf-8").splitlines()))
+        assert written["expected_cells"] == text.strip()

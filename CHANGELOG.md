@@ -49,8 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Samplesheet rules are checked by nf-schema and the pipeline when Nextflow
   starts, before any task runs (nf-core/sarek: columns per `--step`, values, files,
   duplicate and pairing rules, the tumour/normal, sex and contamination needs of
-  `--tools`); the wrappers keep only what the release accepts without a word or
-  does not check.
+  `--tools`; nf-core/scrnaseq: columns, FASTQs, type enums, integer
+  `expected_cells`, the Cell Ranger ARC columns); the wrappers keep only what the
+  release accepts without a word or does not check.
 - `biostudies-fetch` and `arrayexpress-fetch` resolve file downloads from the
   BioStudies `/info` endpoint's `httpLink` rather than the hardcoded
   `/biostudies/files/{acc}/{path}` path. Marked `DIVERGES FROM UPSTREAM` in the
