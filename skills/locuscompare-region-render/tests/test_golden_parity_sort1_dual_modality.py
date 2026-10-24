@@ -72,6 +72,7 @@ try:
     from eqtl_catalogue_region_fetch import (  # noqa: E402
         RegionResult as EQTLRegionResult,
         RegionVariant as EQTLRegionVariant,
+        collapse_duplicate_rsid_rows,
     )
     from gwas_catalog_region_fetch import (  # noqa: E402
         GWASCatalogClient,
@@ -124,14 +125,21 @@ def _load_eqtl_cassette() -> EQTLRegionResult:
         EQTLRegionVariant(**{k: v for k, v in row.items() if k != "raw"} | {"raw": row.get("raw", {})})
         for row in data["variants"]
     ]
+    # The cassette records the parsed rows taken BEFORE the fetch collapsed the
+    # catalogue's one-row-per-rsID copies. Replay applies the fetch's own collapse,
+    # so this golden reproduces the fixed fetch end to end and goes red if the
+    # collapse is reverted. The fixture bytes are unchanged.
+    collapse = collapse_duplicate_rsid_rows(variants, dataset_id=data["dataset_id"])
     release = EQTLCatalogueRelease(**data["release"])
     return EQTLRegionResult(
         dataset_id=data["dataset_id"],
         chromosome=data["chromosome"],
         region_start_bp=data["region_start_bp"],
         region_end_bp=data["region_end_bp"],
-        n_variants=data["n_variants"],
-        variants=variants,
+        n_variants=len(collapse.kept),
+        variants=collapse.kept,
+        n_rows_read=len(variants),
+        collapsed=collapse.collapsed,
         release=release,
         notes=list(data.get("notes", [])),
     )
@@ -561,3 +569,31 @@ def test_data_source_warnings_does_not_pollute_ancestry_caveats(tmp_path):
     assert not any(
         c.startswith(("eqtl_catalogue:", "gwas_catalog:", "ukb_ppp:")) for c in caveats
     ), f"fetcher notes leaked into ancestry_caveats: {caveats}"
+
+
+def test_golden_cassette_rows_are_collapsed_at_replay():
+    """Pins the fixture's own shape. The raw cassette holds the eQTL Catalogue's
+    one-row-per-rsID copies (2,833 rows, 82 repeated keys); after the loader it holds
+    one row per key. A re-record that silently dropped the copies, or a loader that
+    stopped collapsing, moves one of these numbers."""
+    from collections import Counter
+
+    with gzip.open(
+        INPUTS_DIR / "eqtl_exposure_QTD000276_chr1_109_274_968_window.json.gz",
+        mode="rt",
+    ) as f:
+        data = json.load(f)
+    raw_keys = Counter(
+        ((r.get("raw") or {}).get("molecular_trait_id"), r["variant_id"])
+        for r in data["variants"]
+    )
+    assert len(data["variants"]) == 2833
+    assert sum(1 for n in raw_keys.values() if n > 1) == 82
+
+    cassette = _load_eqtl_cassette()
+    keys = Counter((v.raw.get("molecular_trait_id"), v.variant_id) for v in cassette.variants)
+    assert len(cassette.variants) == cassette.n_variants == 2740
+    assert sum(1 for n in keys.values() if n > 1) == 0
+    assert cassette.n_rows_read == 2833
+    assert len(cassette.collapsed) == 93
+

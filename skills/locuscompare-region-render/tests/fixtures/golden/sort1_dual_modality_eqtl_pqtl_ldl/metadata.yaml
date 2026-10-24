@@ -28,3 +28,15 @@ eqtl_catalogue_release: v7+
 git_sha_at_capture: b8e138520cc9d9cac633ab5c90db662bd8b6af9e
 captured_at_utc: "2026-05-15T18:07:03Z"
 captured_by: build-session
+
+# 2026-10-22 eqtl_render.manifest_block.n_pairs 2547 -> 2487 (issue #692).
+# The INPUTS DID NOT CHANGE. The eQTL cassette is a recording of the parsed rows taken
+# before eqtl-catalogue-region-fetch 0.2.0 collapsed the catalogue's one-row-per-rsID
+# copies: 2,833 rows, 2,740 distinct (molecular_trait_id, variant_id) keys, 82 keys
+# repeated (73 x2, 7 x3, 2 x4), every one an indel, 0 groups differing in any column but
+# rsid. The test loader now applies the fetch's collapse_duplicate_rsid_rows at replay.
+# Through the join: 2,547 pairs for 2,487 unique ids before (53 ids repeated, 60 extra
+# pairs), 2,487 for 2,487 after; n_palindromic_excluded 333 both ways; the pQTL render is
+# unchanged (4,606 pairs for 4,606 ids). Red before this yaml move ("n_pairs: got 2487,
+# expected 2547"), green after.
+

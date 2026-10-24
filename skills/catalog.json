@@ -1641,7 +1641,7 @@
       "name": "eqtl-catalogue-region-fetch",
       "cli_alias": "eqtl-region",
       "description": "Fetch a region of cis-eQTL summary statistics from EBI eQTL Catalogue v7+\nvia tabix-on-FTP. Use when an agent needs eQTL beta / SE / p-value for\nevery variant in a window around a gene's TSS for one specific dataset\n(study × tissue × quantification method). Input: dataset_id, chromosome,\nstart, end, optional molecular_trait_id. Output: harmonised TSV slice.\n",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
