@@ -1,0 +1,4 @@
+sample	fastq_1	fastq_2	group	sra_run	layout
+SAMPLE_01	data/reads/SAMPLE_01/lane1_R1.fastq.gz;data/reads/SAMPLE_01/lane2_R1.fastq.gz	data/reads/SAMPLE_01/lane1_R2.fastq.gz;data/reads/SAMPLE_01/lane2_R2.fastq.gz	GROUP_A		
+SAMPLE_02	data/reads/SAMPLE_02/lane1_R1.fastq.gz	data/reads/SAMPLE_02/lane1_R2.fastq.gz	GROUP_A		
+SRR1761673			SRR1761673	SRR1761673	paired
