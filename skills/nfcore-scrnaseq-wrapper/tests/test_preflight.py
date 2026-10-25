@@ -8,7 +8,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import preflight
+from clawbio.common.tests.nfcore_test_imports import load_tested_module
+
+preflight = load_tested_module(Path(__file__).resolve().parent.parent, "preflight")
 from errors import SkillError
 from nfcore_4_1_0_contract import POLICY_SOURCE_NFCORE_DOCS
 

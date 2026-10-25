@@ -12,7 +12,10 @@ from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from errors import ErrorCode, SkillError
-from samplesheet_builder import validate_and_normalize_samplesheet
+from clawbio.common.tests.nfcore_test_imports import load_tested_module
+
+_samplesheet_builder = load_tested_module(Path(__file__).resolve().parent.parent, "samplesheet_builder")
+validate_and_normalize_samplesheet = _samplesheet_builder.validate_and_normalize_samplesheet
 
 
 def _touch(path: Path, content: str = "x") -> Path:

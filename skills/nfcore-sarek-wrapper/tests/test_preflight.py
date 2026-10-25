@@ -2,27 +2,29 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from errors import ErrorCode, SkillError
-from preflight import (
-    PreflightResult,
-    REFERENCE_PATH_PARAMS,
-    _check_annotation_cache,
-    _check_email,
-    _check_enums,
-    _check_flag_compatibility,
-    _check_genome_known,
-    _check_output_dir,
-    _check_pipeline_source,
-    _check_profile_string,
-    _check_reference_paths,
-    _check_resume_drift,
-    _check_step,
-    _check_tools_against_pairing,
-    run_preflight,
-)
+from clawbio.common.tests.nfcore_test_imports import load_tested_module
+
+p = load_tested_module(Path(__file__).resolve().parent.parent, "preflight")
+PreflightResult = p.PreflightResult
+REFERENCE_PATH_PARAMS = p.REFERENCE_PATH_PARAMS
+_check_annotation_cache = p._check_annotation_cache
+_check_email = p._check_email
+_check_enums = p._check_enums
+_check_flag_compatibility = p._check_flag_compatibility
+_check_genome_known = p._check_genome_known
+_check_output_dir = p._check_output_dir
+_check_pipeline_source = p._check_pipeline_source
+_check_profile_string = p._check_profile_string
+_check_reference_paths = p._check_reference_paths
+_check_resume_drift = p._check_resume_drift
+_check_step = p._check_step
+_check_tools_against_pairing = p._check_tools_against_pairing
+run_preflight = p.run_preflight
 
 from preflight_fixtures import make_params, make_pipeline_source, make_samplesheet
 
@@ -35,7 +37,6 @@ from preflight_fixtures import make_params, make_pipeline_source, make_sampleshe
 @pytest.fixture
 def stub_binaries(monkeypatch):
     """Stub shutil.which + subprocess.run so external binaries appear present."""
-    import preflight as p
 
     def fake_which(name: str):
         return f"/usr/bin/{name}"
@@ -65,14 +66,12 @@ def stub_binaries(monkeypatch):
 
 @pytest.fixture
 def stub_no_java(monkeypatch):
-    import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda name: None if name == "java" else f"/usr/bin/{name}")
 
 
 @pytest.fixture
 def stub_old_java(monkeypatch):
-    import preflight as p
 
     def fake_which(name):
         return f"/usr/bin/{name}"
@@ -91,7 +90,6 @@ def stub_old_java(monkeypatch):
 
 @pytest.fixture
 def stub_old_nextflow(monkeypatch):
-    import preflight as p
 
     def fake_which(name):
         return f"/usr/bin/{name}"
@@ -110,7 +108,6 @@ def stub_old_nextflow(monkeypatch):
 
 @pytest.fixture
 def stub_no_docker(monkeypatch):
-    import preflight as p
 
     def fake_which(name):
         return None if name == "docker" else f"/usr/bin/{name}"
@@ -129,7 +126,6 @@ def stub_no_docker(monkeypatch):
 
 @pytest.fixture
 def stub_docker_not_running(monkeypatch):
-    import preflight as p
 
     def fake_which(name):
         return f"/usr/bin/{name}"
@@ -169,7 +165,6 @@ def test_java_missing(stub_no_java):
 
 
 def test_java_version_unparseable_is_version_failure(monkeypatch):
-    import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda n: "/usr/bin/java")
     monkeypatch.setattr(p, "_command_output", lambda args: "no version here")
@@ -180,7 +175,6 @@ def test_java_version_unparseable_is_version_failure(monkeypatch):
 
 
 def test_nextflow_missing(monkeypatch):
-    import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda n: None if n == "nextflow" else "/usr/bin/x")
     with pytest.raises(SkillError) as exc:
@@ -189,7 +183,6 @@ def test_nextflow_missing(monkeypatch):
 
 
 def test_nextflow_version_unparseable_is_version_failure(monkeypatch):
-    import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda n: "/usr/bin/nextflow")
     monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: __import__("subprocess").CompletedProcess(command, 0, "no version here", ""))
@@ -204,7 +197,6 @@ def test_nextflow_version_preserves_zero_padded_month(monkeypatch):
     """A detected version like '26.04.3' must be reported verbatim, never
     reconstructed from the comparison tuple as '26.4.3' (which is not a real
     Nextflow release and would break NXF_VER / conda pins on replay)."""
-    import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda n: f"/usr/bin/{n}")
     monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: __import__("subprocess").CompletedProcess(command, 0, "  N E X T F L O W\n  version 26.04.3 build 5928", ""))
@@ -212,7 +204,6 @@ def test_nextflow_version_preserves_zero_padded_month(monkeypatch):
 
 
 def test_java_version_preserves_exact_string(monkeypatch):
-    import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda n: f"/usr/bin/{n}")
     monkeypatch.setattr(
@@ -232,7 +223,6 @@ def test_profile_custom_token_is_allowed_for_institutional_configs():
 
 
 def test_backend_docker_missing(stub_no_docker, monkeypatch):
-    import preflight as p
 
     with pytest.raises(SkillError) as exc:
         p._check_backends_for_profile("docker")
@@ -241,7 +231,6 @@ def test_backend_docker_missing(stub_no_docker, monkeypatch):
 
 
 def test_backend_specific_codes_per_runtime(monkeypatch):
-    import preflight as p
 
     # Binary absent → MISSING_<runtime>; daemon present but down → <runtime>_NOT_RUNNING.
     monkeypatch.setattr(p.shutil, "which", lambda name: None)
@@ -261,7 +250,6 @@ def test_backend_specific_codes_per_runtime(monkeypatch):
 
 
 def test_sentieon_tool_requires_license_secret(monkeypatch):
-    import preflight as p
 
     monkeypatch.delenv("SENTIEON_LICENSE_BASE64", raising=False)
     monkeypatch.delenv("SENTIEON_LICENSE", raising=False)
@@ -278,7 +266,6 @@ def test_sentieon_tool_requires_license_secret(monkeypatch):
 
 
 def test_sentieon_aligner_requires_license_secret(monkeypatch):
-    import preflight as p
 
     monkeypatch.delenv("SENTIEON_LICENSE_BASE64", raising=False)
     monkeypatch.delenv("SENTIEON_LICENSE", raising=False)
@@ -291,7 +278,6 @@ def test_sentieon_aligner_requires_license_secret(monkeypatch):
 
 
 def test_backend_docker_not_running(stub_docker_not_running):
-    import preflight as p
 
     with pytest.raises(SkillError) as exc:
         p._check_backends_for_profile("docker")
@@ -645,7 +631,6 @@ def test_sex_and_contamination_rules_are_left_to_sarek(tmp_path, stub_binaries, 
 def test_tool_rules_sarek_does_not_check_are_still_refused(tool, present_modes, monkeypatch):
     """Sarek's own tool checks cover only the tools named above; for these it would
     run and produce nothing for the samples given, so preflight still refuses."""
-    import preflight as p
     monkeypatch.setattr(p, "_require_sentieon_license", lambda context: None)
     with pytest.raises(SkillError) as exc:
         _tools_check(tools=[tool], present_modes=present_modes)
@@ -673,7 +658,6 @@ def test_sentieon_tnscope_germline_rejected(monkeypatch):
     # invalid pairing BEFORE a Sentieon license is required. Force the no-license
     # condition (as on CI) so this is deterministic regardless of the host
     # environment: the pairing error must win over MISSING_SENTIEON_LICENSE.
-    import preflight as p
     monkeypatch.delenv("SENTIEON_LICENSE_BASE64", raising=False)
     monkeypatch.delenv("SENTIEON_LICENSE", raising=False)
     monkeypatch.setattr(p, "_nextflow_secret_exists", lambda name: False)
@@ -900,7 +884,6 @@ def test_download_cache_unwritable(tmp_path, monkeypatch):
     out.mkdir()
     # Force os.access to return False
     monkeypatch.setattr(real_os, "access", lambda p, m: False)
-    import preflight as p
 
     monkeypatch.setattr(p.os, "access", lambda path, mode: False)
     with pytest.raises(SkillError) as exc:
@@ -1050,7 +1033,6 @@ def test_testdata_genome_accepted_with_test_datasets_igenomes_base():
 def test_macos_docker_tmp_warns(monkeypatch):
     """On macOS + Docker, an output dir under /tmp warns (Colima does not share
     /tmp into its VM). Mirrors nfcore-scrnaseq-wrapper's guard."""
-    import preflight as p
     from pathlib import Path as _P
     monkeypatch.setattr(p.sys, "platform", "darwin")
     warns = p._check_macos_docker_tmp("docker", _P("/tmp/run_out"))
@@ -1060,7 +1042,6 @@ def test_macos_docker_tmp_warns(monkeypatch):
 
 
 def test_macos_docker_tmp_skipped_off_darwin(monkeypatch):
-    import preflight as p
     from pathlib import Path as _P
     monkeypatch.setattr(p.sys, "platform", "linux")
     assert p._check_macos_docker_tmp("docker", _P("/tmp/run_out")) == []
@@ -1195,7 +1176,7 @@ def test_check_demo_network_offline_test_profile_raises(monkeypatch):
     """--demo composes the upstream `-profile test`, whose inputs/references are
     remote GitHub URLs; under NXF_OFFLINE it must fail fast with a clear
     DEMO_REQUIRES_NETWORK error instead of a cryptic Nextflow abort."""
-    import preflight as _pf
+    _pf = p
 
     monkeypatch.setenv("NXF_OFFLINE", "true")
     with pytest.raises(SkillError) as exc:
@@ -1205,7 +1186,7 @@ def test_check_demo_network_offline_test_profile_raises(monkeypatch):
 
 def test_check_demo_network_offline_real_run_not_blocked(monkeypatch):
     """A real (non-test-profile) run is fully local; NXF_OFFLINE must not block it."""
-    import preflight as _pf
+    _pf = p
 
     monkeypatch.setenv("NXF_OFFLINE", "true")
     _pf._check_demo_network({"profile": "docker"})
@@ -1213,7 +1194,7 @@ def test_check_demo_network_offline_real_run_not_blocked(monkeypatch):
 
 def test_check_demo_network_test_profile_online_not_blocked(monkeypatch):
     """A test-profile run with network available must not trip the guard."""
-    import preflight as _pf
+    _pf = p
 
     monkeypatch.delenv("NXF_OFFLINE", raising=False)
     _pf._check_demo_network({"profile": "docker,test"})
@@ -1238,7 +1219,7 @@ def test_run_preflight_demo_offline_raises(tmp_path, stub_binaries, monkeypatch)
 # --- --allow-remote-inputs gate (local-first by default) ---------------------
 
 def test_remote_samplesheet_input_rejected_by_default():
-    import preflight as _pf
+    _pf = p
     with pytest.raises(SkillError) as exc:
         _pf._check_remote_inputs(
             {}, {"fastq_paths": ["s3://bucket/n_R1.fastq.gz"], "bam_paths": [], "cram_paths": []},
@@ -1248,7 +1229,7 @@ def test_remote_samplesheet_input_rejected_by_default():
 
 
 def test_remote_reference_param_rejected_by_default():
-    import preflight as _pf
+    _pf = p
     with pytest.raises(SkillError) as exc:
         _pf._check_remote_inputs(
             {"fasta": "https://example.org/genome.fa"}, {}, allow_remote_inputs=False
@@ -1259,14 +1240,14 @@ def test_remote_reference_param_rejected_by_default():
 def test_igenomes_base_remote_default_is_not_gated():
     """The public iGenomes mirror base (s3://ngi-igenomes/) is remote by design and
     must NOT trip the local-first gate."""
-    import preflight as _pf
+    _pf = p
     _pf._check_remote_inputs(
         {"igenomes_base": "s3://ngi-igenomes/igenomes/"}, {}, allow_remote_inputs=False
     )
 
 
 def test_remote_inputs_allowed_with_flag_warns(capsys):
-    import preflight as _pf
+    _pf = p
     _pf._check_remote_inputs(
         {}, {"fastq_paths": ["gs://bucket/n_R1.fastq.gz"]}, allow_remote_inputs=True
     )
@@ -1274,7 +1255,7 @@ def test_remote_inputs_allowed_with_flag_warns(capsys):
 
 
 def test_local_inputs_pass_the_remote_gate():
-    import preflight as _pf
+    _pf = p
     _pf._check_remote_inputs({"fasta": "/refs/genome.fa"}, {"fastq_paths": ["/d/n_R1.fastq.gz"]}, allow_remote_inputs=False)
 
 
@@ -1324,7 +1305,6 @@ def test_paths_the_schema_does_not_check_must_exist(tmp_path, name):
 def test_whitespace_is_refused_only_where_the_schema_pattern_allows_it(name, refused):
     """germline_resource(_tbi) and intervals have unanchored patterns (\\S+\\.vcf\\.gz$),
     which a path under a directory with spaces matches; the other patterns start ^\\S+."""
-    import preflight as p
     value = {"germline_resource": "/my refs/g.vcf.gz", "germline_resource_tbi": "/my refs/g.vcf.gz.tbi",
              "intervals": "/my refs/t.bed", "fasta": "/my refs/g.fa", "dbsnp": "/my refs/d.vcf.gz",
              "pon": "/my refs/p.vcf.gz"}[name]
@@ -1363,7 +1343,6 @@ def test_snpsift_databases_csv_rules_are_sareks(tmp_path):
     ('openjdk version "16.0.2"', "Nextflow version 25.04.2 build 5947"),
 ])
 def test_old_java_and_nextflow_are_left_to_nextflow(monkeypatch, java_text, nextflow_text):
-    import preflight as p
     monkeypatch.setattr(p.shutil, "which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: __import__("subprocess").CompletedProcess(
         command, 0, nextflow_text if command[0] == "nextflow" else "", java_text if command[0] == "java" else ""))
@@ -1375,7 +1354,6 @@ def test_a_launcher_refusal_is_named_when_nextflow_cannot_report_its_version(mon
     """With an unsupported Java the launcher fails `nextflow -version` itself; the
     error must carry its reason instead of only saying the version is unknown."""
     import subprocess as sp
-    import preflight as p
     from errors import SkillError as _SkillError
     refusal = ("ERROR: Cannot find Java or it's a wrong version -- please make sure that "
                "Java 17 or later (up to 26) is installed")
