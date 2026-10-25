@@ -14,6 +14,7 @@ _RUNTIME_PATH = Path(__file__).with_name("bundle_runtime.py")
 # The runtime functions adapters call, bound under private aliases in both modes.
 _EXPORTS = (
     "SHELL_WORD",
+    "backup_once",
     "escape_double_quoted",
     "format_output_value",
     "missing_csv_paths",

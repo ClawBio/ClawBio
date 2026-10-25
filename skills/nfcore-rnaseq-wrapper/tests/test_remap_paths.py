@@ -753,3 +753,15 @@ def test_output_dir_relocates_an_output_quoted_by_shlex(tmp_path):
         assert update_commands_output(commands, target)
         line = next(l for l in commands.read_text(encoding="utf-8").splitlines() if "--output" in l)
         assert shlex.split(line.strip().rstrip("\\")) == ["--output", target]
+
+
+def test_a_second_output_dir_move_keeps_the_original_commands_backup(tmp_path):
+    """Each --output-dir rewrite copied commands.sh over the same .bak, so moving a
+    bundle twice lost the command it was produced with."""
+    commands = tmp_path / "commands.sh"
+    original = '"${PYTHON:-python3}" "$SKILL_SCRIPT" \\\n    --output /old/out \\\n    --profile docker\n'
+    commands.write_text(original, encoding="utf-8")
+    assert update_commands_output(commands, "/first/move")
+    assert update_commands_output(commands, "/second/move")
+    assert "/second/move" in commands.read_text(encoding="utf-8")
+    assert (tmp_path / "commands.sh.bak").read_text(encoding="utf-8") == original

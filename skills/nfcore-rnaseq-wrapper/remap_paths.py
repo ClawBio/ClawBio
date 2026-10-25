@@ -36,7 +36,6 @@ from __future__ import annotations
 import argparse
 import re
 import shlex
-import shutil
 import sys
 from pathlib import Path
 
@@ -48,6 +47,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 from clawbio.common.nfcore.bundle_runtime import (
     SHELL_WORD as _nfcore_SHELL_WORD,
+    backup_once as _nfcore_backup_once,
     escape_double_quoted as _nfcore_escape_double_quoted,
     format_output_value as _nfcore_format_output_value,
     missing_csv_paths as _nfcore_missing_csv_paths,
@@ -199,8 +199,7 @@ def update_commands_output(commands_sh: Path, new_output_dir: str) -> bool:
     )
     if updated == original:
         return False
-    backup = commands_sh.with_suffix(".sh.bak")
-    shutil.copy2(commands_sh, backup)
+    _nfcore_backup_once(commands_sh, commands_sh.with_suffix(".sh.bak"))
     _nfcore_write_text_lf(commands_sh, updated)
     return True
 
