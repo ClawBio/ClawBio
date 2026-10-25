@@ -120,6 +120,18 @@ clinical significance beyond what ClinVar reports.
 |--------|-----------|-----------------|---------|
 | VCF v4.x | `.vcf` | CHROM, POS, REF, ALT | `demo_variants.vcf` |
 
+The column header must contain the eight fixed columns in order:
+`#CHROM`, `POS`, `ID`, `REF`, `ALT`, `QUAL`, `FILTER`, `INFO`.
+Optional FORMAT/sample columns must match the record widths. Metadata is optional;
+SNVs, indels, and CRLF line endings are supported. Fields must be nonempty (use
+`.` for missing values), and POS must be an integer.
+
+Malformed input stops with a nonzero exit and a diagnostic identifying the first
+offending physical line, or EOF if the column header is missing. A valid header
+without records stops with `no variant records in input`. Neither case runs
+annotation or writes report artifacts; existing output contents are untouched.
+These checks validate structure, not full INFO or genotype semantics.
+
 **Supported genome builds**: GRCh38 (primary), GRCh37 (legacy)
 
 ## Workflow
@@ -159,7 +171,8 @@ CFTR, APOE, MTHFR) with ClinVar classifications and gnomAD frequencies.
 
 ## Algorithm / Methodology
 
-1. **VCF parsing**: Line-by-line reader, skips `#` headers, splits on tabs
+1. **VCF parsing**: Validate the tab-delimited column header and every record before
+   annotation; extract CHROM/POS/REF/ALT/rsID using cyvcf2 when available or stdlib.
 2. **VEP**: `GET https://rest.ensembl.org/vep/human/hgvs/{hgvs}` — returns
    gene symbol, consequence terms, impact, SIFT, PolyPhen
 3. **ClinVar**: `esearch` on `clinvar` database with rsID term
