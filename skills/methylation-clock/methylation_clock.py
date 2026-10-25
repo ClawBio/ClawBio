@@ -47,7 +47,7 @@ DEFAULT_CLOCKS = [
     "GrimAge2",
     "DunedinPACE",
 ]
-PROBE_NAME = re.compile(r"^(?:cg|ch|rs|nv)[0-9A-Za-z.\-]*(?:_|$)")
+PROBE_NAME = re.compile(r"^(?:cg|ch|rs|nv)(?=[0-9.])[0-9A-Za-z.\-]*(?:_|$)", re.IGNORECASE)
 
 
 def parse_clock_list(clocks: str | None) -> list[str]:
@@ -183,10 +183,24 @@ def _get_skill_data_dir() -> Path:
 def _resolve_geo_pickle(geo_id: str, verbose: bool, output_dir: Path) -> Path:
     input_dir = output_dir / "input"
     input_dir.mkdir(parents=True, exist_ok=True)
-    downloaded = Path(pya.data.download_example_data(geo_id, dir=str(input_dir), verbose=verbose))
-    if not downloaded.is_file():
-        raise FileNotFoundError(f"PyAging did not create the GEO input file: {downloaded}")
-    return downloaded
+    downloaded = pya.data.download_example_data(geo_id, dir=str(input_dir), verbose=verbose)
+    if downloaded is not None:
+        try:
+            downloaded_path = Path(downloaded)
+        except TypeError:
+            downloaded_path = None
+        if downloaded_path is not None and downloaded_path.is_file():
+            return downloaded_path
+
+    # PyAging 0.5.7's documented helper may only write the file and return None.
+    # Search only this run's input directory so a stale file elsewhere cannot be
+    # mistaken for the requested GEO download.
+    candidates = sorted(input_dir.rglob(f"{geo_id}.pkl"))
+    if candidates:
+        return candidates[0]
+    raise FileNotFoundError(
+        f"PyAging did not create {geo_id}.pkl under the output input directory: {input_dir}"
+    )
 
 
 def _ensure_female_column(df: pd.DataFrame) -> pd.DataFrame:
@@ -196,16 +210,22 @@ def _ensure_female_column(df: pd.DataFrame) -> pd.DataFrame:
         return out
 
     if "gender" in cols_lower:
-        gender_col = cols_lower["gender"]
-        values = out[gender_col].astype(str).str.upper().str.strip()
+        source_col = cols_lower["gender"]
+        values = out[source_col].astype(str).str.upper().str.strip()
     elif "sex" in cols_lower:
-        sex_col = cols_lower["sex"]
-        values = out[sex_col].astype(str).str.upper().str.strip()
+        source_col = cols_lower["sex"]
+        values = out[source_col].astype(str).str.upper().str.strip()
     else:
         return out
 
-    female_mask = values.isin({"F", "FEMALE", "XX", "1"})
-    male_mask = values.isin({"M", "MALE", "XY", "0"})
+    if values.isin({"0", "1", "0.0", "1.0"}).any():
+        raise ValueError(
+            f"Numeric codes in {source_col!r} are ambiguous; "
+            "use F/M or Female/Male, or provide an explicit female column coded 1/0"
+        )
+
+    female_mask = values.isin({"F", "FEMALE", "XX"})
+    male_mask = values.isin({"M", "MALE", "XY"})
     out["female"] = np.where(female_mask, 1.0, np.where(male_mask, 0.0, np.nan))
 
     return out
