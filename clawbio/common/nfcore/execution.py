@@ -322,12 +322,14 @@ def terminate_process_tree(
                 break
             time.sleep(min(0.05, remaining))
     except (OSError, subprocess.TimeoutExpired):
+        # A failed graceful stop still requires the forceful group cleanup below.
         pass
     try:
         os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
         return
     except OSError:
+        # The group may be gone; fall back to stopping and reaping its leader.
         pass
     proc.kill()
     proc.wait()
