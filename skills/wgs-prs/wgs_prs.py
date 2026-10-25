@@ -587,11 +587,16 @@ _DEMO_T2D_PANEL_VARIANTS = (
 )
 
 
+_SEX_AND_MITOCHONDRIAL = {"X": 0, "Y": 1, "M": 2, "MT": 2}
+
+
 def _contig_order(contig: str) -> tuple[int, int, str]:
-    """Autosomes numerically, then X, Y, MT and any other name."""
+    """Autosomes numerically, then X, Y, MT, then any other name alphabetically."""
     if contig.isdecimal():
         return (0, int(contig), "")
-    return (1, 0, contig)
+    if contig in _SEX_AND_MITOCHONDRIAL:
+        return (1, _SEX_AND_MITOCHONDRIAL[contig], "")
+    return (2, 0, contig)
 
 
 def write_demo_vcf(path: Path, n_snps: int = 200) -> Path:
