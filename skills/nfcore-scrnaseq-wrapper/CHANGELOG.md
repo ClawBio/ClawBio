@@ -8,11 +8,11 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ### Added
 
-- **The bundle records every container image the run used.** `reproducibility/containers.json` lists
-  each image with its sha256 digest (from the local image, or from the registry if it was already
-  pruned), image ID, platform and the processes that ran it. `containers.config` pins each process to
-  that digest, and `commands.sh` applies it when replaying without a Nextflow cache, so a bundle replays
-  byte-identical images even if a tag is re-pushed.
+- **The bundle records the container images named by the run.** `reproducibility/containers.json`
+  lists local or explicit digests, image IDs, platforms and processes. A complete Docker/Podman record
+  produces `containers.config`, applied on replay without a Nextflow cache. Registry-only lookups
+  describe the tag currently served, cannot confirm the original task image/platform, and therefore
+  mark the record incomplete and withhold replay pins.
 
 ### Changed
 
@@ -50,6 +50,9 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   `star`/`kallisto`, and no custom strings for the Cell Ranger family.
 
 ### Fixed
+
+- Stop tasks that ignore SIGTERM even when the Nextflow group leader exits first.
+- Match Docker Hub aliases to local digests, keep offline local-image pins, and withhold unverified registry-only replay pins.
 
 - Route launcher defaults outside the source tree and correct example output paths.
 - Reject ambiguous CSV inputs and NaN or infinite parameter values; nf-schema checks every other parameter rule against the pinned 4.1.0 schema when Nextflow starts, and its refusals are named in `result.json`.

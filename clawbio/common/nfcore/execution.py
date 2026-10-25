@@ -8,6 +8,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Callable, Mapping
 from contextlib import contextmanager
 from pathlib import Path
@@ -365,7 +366,7 @@ def execute_nextflow(
 
 
 def terminate_process_tree(
-    proc: subprocess.Popen, *, grace_seconds: int = _TERMINATION_GRACE_SECONDS
+    proc: subprocess.Popen, *, grace_seconds: float = _TERMINATION_GRACE_SECONDS
 ) -> None:
     """Stop Nextflow and the task processes it spawned, never only the parent."""
     if sys.platform == "win32":
@@ -389,15 +390,27 @@ def terminate_process_tree(
     # fail once Nextflow has exited, while the tasks it left in the group run on.
     try:
         os.killpg(proc.pid, signal.SIGTERM)
-        proc.wait(timeout=grace_seconds)
-        return
+        deadline = time.monotonic() + grace_seconds
+        while True:
+            proc.poll()  # Reap the leader, but keep waiting for its task group.
+            try:
+                os.killpg(proc.pid, 0)
+            except ProcessLookupError:
+                proc.wait()
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.05, remaining))
     except (OSError, subprocess.TimeoutExpired):
+        # A failed graceful stop still requires the forceful group cleanup below.
         pass
     try:
         os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
         return
     except OSError:
+        # The group may be gone; fall back to stopping and reaping its leader.
         pass
     proc.kill()
     proc.wait()

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 
@@ -383,7 +383,9 @@ _REASON = st.text(alphabet="abcdefghij ABC019'.,:-[]", min_size=3, max_size=40).
 )
 
 
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=40)
+# This property reads and writes log files; scheduler latency is not parser behavior.
+@settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=40)
+@example(texts=["i,Bc1:g]-bjg[1[bc"], noise=[": Ci[", ": Ci[", ": Ci["])
 @given(st.lists(_REASON, min_size=1, max_size=3, unique=True), st.lists(_REASON, max_size=3))
 def test_each_stop_reason_is_listed_once_whatever_the_log_repeats(tmp_path, texts, noise):
     """Nextflow repeats the abort cause in its console output and its log; each
@@ -438,3 +440,33 @@ def test_reports_nextflow_could_not_write_are_never_a_stop_reason(tmp_path):
            "out/pipeline_info/execution_timeline_x.html -- enable the 'timeline.overwrite' option "
            "in your config file to overwrite existing files\n")
     assert api.nextflow_stop_reasons("", "", log) == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals and process groups")
+def test_a_task_ignoring_term_is_killed_after_its_leader_exits(tmp_path):
+    """Waiting only for Nextflow returned early and left a TERM-ignoring task alive."""
+    import contextlib
+    import os
+    import select
+    import signal
+    import subprocess
+
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    task_code = "import os,signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); print(os.getpid(),flush=True); time.sleep(60)"
+    leader_code = f"import subprocess,sys,time; subprocess.Popen([sys.executable,'-c',{task_code!r}]); time.sleep(60)"
+    leader = subprocess.Popen([sys.executable, "-c", leader_code], start_new_session=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    try:
+        assert select.select([leader.stdout], [], [], 10)[0], "the task did not become ready"
+        assert int(leader.stdout.readline()) > 0
+        api.terminate_process_tree(leader, grace_seconds=0.1)
+        try:
+            leader.communicate(timeout=1)
+        except subprocess.TimeoutExpired:
+            pytest.fail("a task still holds stdout open after its Nextflow leader exited")
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(leader.pid, signal.SIGKILL)
+        leader.wait(timeout=5)
+        if leader.stdout is not None:
+            leader.stdout.close()

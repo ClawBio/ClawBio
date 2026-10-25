@@ -118,6 +118,13 @@ _RESUME_GUARD_RE = re.compile(
     re.MULTILINE,
 )
 
+# Keep digest selection tied to the actual replay output, including bundles
+# generated before this guard used an explicit output path.
+_CACHE_GUARD_RE = re.compile(
+    r'''^(if \[\[ ! -d ")(?P<value>(?:[^"\\\n]|\\.)*)(/\.nextflow" && -f .*)$''',
+    re.MULTILINE,
+)
+
 # Matches any of the reference flags in commands.sh, same quoting rules.
 _REFERENCE_FLAG_RE = re.compile(
     r"^([ \t]+--(?:"
@@ -194,6 +201,10 @@ def update_commands_output(commands_sh: Path, new_output_dir: str) -> bool:
     # Keep the idempotent-replay guard's manifest path in sync with the --output flag.
     # The guard tests it inside bash double quotes, so escape it for that context.
     updated = _RESUME_GUARD_RE.sub(
+        lambda m: f"{m.group(1)}{_nfcore_escape_double_quoted(new_output_dir)}{m.group(3)}",
+        updated,
+    )
+    updated = _CACHE_GUARD_RE.sub(
         lambda m: f"{m.group(1)}{_nfcore_escape_double_quoted(new_output_dir)}{m.group(3)}",
         updated,
     )

@@ -3,7 +3,8 @@
 A tag can be re-pushed; a digest cannot. The record lists, per image, the exact
 reference Nextflow ran, its digest and where the digest came from, and every
 process that used it. When every image is pinned, a Nextflow config pins each
-process to ``repository@digest`` so a replay runs byte-identical images.
+process to ``repository@digest``. Registry-only observations of mutable tags do
+not establish which image ran and never produce replay pins.
 """
 
 from __future__ import annotations
@@ -83,6 +84,15 @@ def _engine_platform(engine, runner) -> tuple[str | None, str | None]:
     return fields[0], fields[1] if len(fields) > 1 else None
 
 
+def _normalized_repository(repository: str) -> str:
+    """Match Docker Hub's explicit registry/default-library aliases locally."""
+    for prefix in ("docker.io/", "index.docker.io/"):
+        if repository.startswith(prefix):
+            repository = repository[len(prefix):]
+            break
+    return repository if "/" in repository else f"library/{repository}"
+
+
 def _local_image(engine, image, runner) -> dict | None:
     proc = runner([engine, "image", "inspect", "--format", "{{json .}}", image], timeout_seconds=60)
     if proc is None or proc.returncode != 0:
@@ -91,9 +101,9 @@ def _local_image(engine, image, runner) -> dict | None:
         data = json.loads(proc.stdout)
     except json.JSONDecodeError:
         return None
-    repository = _repository(image)
+    repository = _normalized_repository(_repository(image))
     digest = next(
-        (entry.split("@", 1)[1] for entry in data.get("RepoDigests") or [] if entry.split("@", 1)[0] == repository),
+        (entry.split("@", 1)[1] for entry in data.get("RepoDigests") or [] if _normalized_repository(entry.split("@", 1)[0]) == repository),
         None,
     )
     if digest is None:
@@ -143,6 +153,8 @@ def collect_container_record(
 
     Call it right after the run: digests are read from the local image first,
     then from the registry (another job may have removed the image meanwhile).
+    Registry-only observations cannot establish historical task identity and do
+    not qualify the record for immutable replay pins.
     """
     runner = runner or _run
     engine = container_engine(profile)
@@ -157,10 +169,8 @@ def collect_container_record(
     version, platform = _engine_platform(engine, runner) if engine else (None, None)
     # Only an image with no local digest is looked up in its registry. Offline, or
     # once one query times out, the others are skipped instead of waiting in turn.
-    registry = engine == "docker"
-    if registry and nxf_offline({**os.environ, **(env or {})}):
-        registry = False
-        warnings.append("NXF_OFFLINE is set, so images without a local digest were not looked up in their registry.")
+    offline = nxf_offline({**os.environ, **(env or {})})
+    registry = engine == "docker" and not offline
     entries = []
     for image in sorted(images):
         entry = {"image": image, "digest": None, "pinned_reference": None, "digest_source": None,
@@ -169,6 +179,8 @@ def collect_container_record(
             entry.update(digest=image.split("@", 1)[1], pinned_reference=image, digest_source="reference")
         elif engine in _DIGEST_ENGINES:
             resolved = _local_image(engine, image, runner)
+            if resolved is None and offline:
+                warnings.append(f"NXF_OFFLINE is set; no registry lookup was made for {image} without a local digest.")
             if resolved is None and registry:
                 try:
                     resolved = _registry_image(image, platform, runner)
@@ -178,7 +190,14 @@ def collect_container_record(
                         f"The registry was unreachable for {image}, so no further images were looked up there."
                     )
             if resolved:
-                entry.update(resolved, pinned_reference=f"{_repository(image)}@{resolved['digest']}")
+                entry.update(resolved)
+                if resolved["digest_source"] == "registry":
+                    warnings.append(
+                        f"The registry lookup for {image} observes the current tag only; the original "
+                        "task image and platform cannot be confirmed, so replay pins are withheld."
+                    )
+                else:
+                    entry["pinned_reference"] = f"{_repository(image)}@{resolved['digest']}"
         if entry["digest"] is None and engine is not None:
             warnings.append(f"No digest recorded for {image}; a replay may run a re-pushed tag.")
         entries.append(entry)
