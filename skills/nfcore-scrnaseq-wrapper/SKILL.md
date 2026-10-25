@@ -435,7 +435,7 @@ output_directory/
 
 ## Safety
 
-- **Local-first by default**: user FASTQs/references and outputs stay on the local filesystem. Remote input/reference URIs are rejected (`REMOTE_INPUT_NOT_ALLOWED`) unless `--allow-remote-inputs` is explicitly passed, which also logs a runtime warning naming every path fetched over the network. `--allow-remote-inputs` relaxes only the wrapper's own preflight check: remote FASTQ/reference URIs are then written into the normalized samplesheet/`params.yaml` **verbatim** and staged natively by Nextflow at run time. The wrapper does not download them itself, so remote inputs require outbound network access and are incompatible with `NXF_OFFLINE` — under offline mode Nextflow's own file-existence validation (nf-schema) still runs and will fail on the remote paths. Container provenance reads image digests from the local image store; only a Docker image with no local digest is looked up with `docker manifest inspect`, which sends the image name (never your data) to that image's registry, and never under `NXF_OFFLINE`.
+- **Local-first by default**: user FASTQs/references and outputs stay on the local filesystem. Remote input/reference URIs are rejected (`REMOTE_INPUT_NOT_ALLOWED`) unless `--allow-remote-inputs` is explicitly passed, which also logs a runtime warning naming every path fetched over the network. `--allow-remote-inputs` relaxes only the wrapper's own preflight check: remote FASTQ/reference URIs are then written into the normalized samplesheet/`params.yaml` **verbatim** and staged natively by Nextflow at run time. The wrapper does not download them itself, so remote inputs require outbound network access and are incompatible with `NXF_OFFLINE` — under offline mode Nextflow's own file-existence validation (nf-schema) still runs and will fail on the remote paths. Container provenance reads image digests from the local image store; only a Docker image with no local digest is looked up with `docker manifest inspect`, which sends the image name (never your data) to that image's registry, and never under `NXF_OFFLINE`. Registry-only observations cannot confirm the original task image or platform: the record is marked incomplete and no replay pin config is generated.
 - **Strict preflight**: Nextflow is never invoked if validation fails.
 - **No hallucinated outputs**: Only artifacts confirmed on disk are reported.
 - **Disclaimer**: Every report includes the ClawBio medical disclaimer.
@@ -448,15 +448,15 @@ The bundle guarantees **configuration- and provenance-level** reproducibility, n
 - Pipeline pinned by `-r <version>` (or a git-verified local checkout commit).
 - Nextflow engine pinned via `export NXF_VER=<version>` in `commands.sh`.
 - Effective `params.yaml` + SHA-256; `--resume` rejects a mismatched params checksum.
-- `checksums.sha256` (relative labels — `sha256sum -c` passes after the bundle is copied to any folder), reference-file digests in `inputs.json`, and a portable self-anchoring `commands.sh` + `remap_paths.py`. Because `commands.sh` self-anchors and `params.yaml` stores output-relative paths, **relocating the output directory needs no rewrite** — unlike the rnaseq/sarek bundles you do not pass `remap_paths.py --output-dir`; it is accepted for CLI parity and simply confirms this. Use `remap_paths.py --old/--new` and `--refs-old/--refs-new` only when the FASTQ/reference paths themselves move.
+- `checksums.sha256` (relative labels — `sha256sum -c` passes after the bundle is copied to any folder), reference-file digests in `inputs.json`, and a portable self-anchoring `commands.sh` + `remap_paths.py`. Because `commands.sh` self-anchors and `params.yaml` stores output-relative paths, **relocating the output directory needs no rewrite**; `remap_paths.py --output-dir` is accepted for CLI parity and simply confirms this. Use `remap_paths.py --old/--new` and `--refs-old/--refs-new` only when the FASTQ/reference paths themselves move.
 
 **NOT guaranteed (outside the wrapper's control):**
 - **Bit-for-bit identical outputs.** Aligner thread-count can reorder records, and **CellBender is stochastic** (random-seed driven), so the same inputs+versions may not yield byte-identical `.h5ad`.
-- **Container immutability.** Images are pinned by the tag nf-core ships, not by an immutable digest; a re-published tag could change the binaries.
+- **Container immutability is conditional.** Complete Docker/Podman records generate `containers.config`; fresh replays apply its digests last, while in-place replays retain their cache. Registry-only lookups cannot confirm the original task image/platform and withhold pins. Other backends do not receive digest pins.
 - **`conda`/`mamba` is not offline-reproducible** — environments resolve from channels at run time (prefer `docker`/`singularity`).
 - **External reference bytes are not bundled** — `--genome` pulls from iGenomes S3; local refs are checksummed for provenance but not copied into the bundle.
 
-To approach bit-level reproduction: use `docker`/`singularity` (not conda), pin container digests, fix tool seeds where the pipeline allows, and archive the exact reference files alongside the bundle.
+To approach bit-level reproduction: use Docker/Podman with a complete container record and retain `containers.config`, fix tool seeds where the pipeline allows, and archive the exact reference files alongside the bundle.
 
 ## Agent Boundary
 

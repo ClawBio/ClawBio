@@ -7,7 +7,7 @@ import re
 import subprocess
 
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from clawbio.common.nfcore import containers
@@ -108,7 +108,10 @@ def test_a_pruned_image_is_resolved_from_the_registry(tmp_path):
     record = containers.collect_container_record(_run_dir(tmp_path), profile="docker", runner=engine)
     bcftools = next(image for image in record["images"] if image["image"] == BCFTOOLS)
     assert bcftools["digest"] == BCFTOOLS_DIGEST and bcftools["digest_source"] == "registry"
-    assert bcftools["image_id"] is None and record["complete"] is True
+    assert bcftools["image_id"] is None and record["complete"] is False
+    assert bcftools["pinned_reference"] is None
+    assert containers.pin_config(record) is None
+    assert any(BCFTOOLS in warning for warning in record["warnings"])
 
 
 def test_a_multi_platform_registry_answer_picks_the_engine_platform(tmp_path):
@@ -293,7 +296,8 @@ def test_one_transient_registry_error_is_retried(tmp_path, monkeypatch):
     record = containers.collect_container_record(_run_dir(tmp_path), profile="docker", runner=engine)
     fastqc = next(image for image in record["images"] if image["image"] == FASTQC)
     assert fastqc["digest"] == FASTQC_DIGEST and fastqc["digest_source"] == "registry"
-    assert record["complete"] is True
+    assert record["complete"] is False
+    assert containers.pin_config(record) is None
 
 
 def test_a_digest_the_registry_keeps_refusing_stays_unrecorded(tmp_path, monkeypatch):
@@ -303,3 +307,72 @@ def test_a_digest_the_registry_keeps_refusing_stays_unrecorded(tmp_path, monkeyp
     record = containers.collect_container_record(_run_dir(tmp_path), profile="docker", runner=engine)
     assert len(_manifest_calls(engine)) == 2
     assert record["complete"] is False
+
+
+@settings(deadline=None, max_examples=12, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@example(alias="docker.io/", digests=("nfcore/anndatar@" + FASTQC_DIGEST, "other.io/nfcore/anndatar@" + BCFTOOLS_DIGEST))
+@given(
+    alias=st.sampled_from(["", "docker.io/", "index.docker.io/"]),
+    digests=st.permutations(("nfcore/anndatar@" + FASTQC_DIGEST, "other.io/nfcore/anndatar@" + BCFTOOLS_DIGEST)),
+)
+def test_docker_hub_aliases_use_the_local_digest_without_borrowing_another_registry(tmp_path, alias, digests):
+    """Docker returns nfcore/anndatar even when Nextflow records docker.io/nfcore/anndatar."""
+    image = alias + "nfcore/anndatar:20241129"
+    engine = FakeEngine(log=f"P:ANNDATA\t{image}\tCOMPLETED\n")
+
+    def inspect_alias(command, **kwargs):
+        if command[1:3] == ["image", "inspect"]:
+            return _proc(json.dumps({"Id": "sha256:" + "f" * 64, "RepoDigests": digests,
+                                     "Os": "linux", "Architecture": "amd64"}))
+        return engine(command, **kwargs)
+
+    record = containers.collect_container_record(_run_dir(tmp_path), profile="docker", runner=inspect_alias)
+    (found,) = record["images"]
+    assert found["digest"] == FASTQC_DIGEST
+    assert found["digest_source"] == "local"
+    assert found["pinned_reference"] == alias + "nfcore/anndatar@" + FASTQC_DIGEST
+    assert record["complete"] is True
+    assert containers.pin_config(record) is not None
+
+
+def test_an_arm_daemon_cannot_supply_an_immutable_pin_for_a_pruned_amd64_task(tmp_path):
+    """The wrapper can run --platform linux/amd64 on ARM; daemon architecture is not task identity."""
+    arm = {"Descriptor": {"digest": "sha256:" + "c" * 64, "platform": {"os": "linux", "architecture": "arm64"}}}
+    amd = {"Descriptor": {"digest": FASTQC_DIGEST, "platform": {"os": "linux", "architecture": "amd64"}}}
+    engine = FakeEngine(log=f"P:FASTQC\t{FASTQC}\tCOMPLETED\n", registry={FASTQC: [arm, amd]})
+
+    def arm_daemon(command, **kwargs):
+        if command[1:2] == ["version"]:
+            return _proc("29.1.3 linux/arm64\n")
+        return engine(command, **kwargs)
+
+    record = containers.collect_container_record(_run_dir(tmp_path), profile="docker", runner=arm_daemon)
+    assert record["complete"] is False
+    assert record["images"][0]["pinned_reference"] is None
+    assert containers.pin_config(record) is None
+    assert any(FASTQC in warning for warning in record["warnings"])
+
+
+@pytest.mark.parametrize(("image", "stored_repository"), [
+    ("ubuntu:24.04", "docker.io/library/ubuntu"),
+    ("docker.io/library/ubuntu:24.04", "ubuntu"),
+    ("index.docker.io/library/ubuntu:24.04", "library/ubuntu"),
+    ("docker.io/ubuntu:24.04", "library/ubuntu"),
+])
+def test_default_library_images_keep_the_local_digest_across_hub_aliases(image, stored_repository):
+    payload = json.dumps({"Id": "sha256:" + "f" * 64,
+                          "RepoDigests": [stored_repository + "@" + FASTQC_DIGEST],
+                          "Os": "linux", "Architecture": "amd64"})
+    found = containers._local_image("docker", image, lambda *args, **kwargs: _proc(payload))
+    assert found is not None
+    assert found["digest"] == FASTQC_DIGEST and found["digest_source"] == "local"
+
+
+
+def test_offline_local_images_still_produce_a_complete_pinned_bundle(tmp_path, monkeypatch):
+    monkeypatch.setenv("NXF_OFFLINE", "true")
+    engine = FakeEngine(local={FASTQC: FASTQC_DIGEST, BCFTOOLS: BCFTOOLS_DIGEST})
+    record = containers.collect_container_record(_run_dir(tmp_path), profile="docker", runner=engine)
+    assert record["complete"] is True
+    assert containers.pin_config(record) is not None
+    assert _manifest_calls(engine) == []

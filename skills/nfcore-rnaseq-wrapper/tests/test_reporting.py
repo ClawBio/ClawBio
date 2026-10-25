@@ -7,6 +7,8 @@ import subprocess
 import sys
 
 import pytest
+from hypothesis import HealthCheck, example, given, settings
+from hypothesis import strategies as st
 
 _SKILL_DIR = Path(__file__).resolve().parent.parent
 if str(_SKILL_DIR) in sys.path:
@@ -891,12 +893,12 @@ def test_repro_commands_sh_pins_container_digests_without_a_nextflow_cache(tmp_p
     assert pin not in _replay_argv(tmp_path, session=False, pinned=False)
 
 
-def test_container_pin_refuses_a_script_it_cannot_anchor():
+def test_container_pin_refuses_a_script_it_cannot_anchor(tmp_path):
     """commands.sh gains its digest pin by locating the wrapper launch line. If that
     line ever changes, the pin must fail loudly rather than ship a bundle that
     replays re-pushed tags without saying so."""
     with pytest.raises(RuntimeError, match="containers.config"):
-        _apply_container_pin('#!/bin/bash\nexec something-else --output x\n')
+        _apply_container_pin('#!/bin/bash\nexec something-else --output x\n', output_dir=tmp_path)
 
 
 def test_written_commands_pass_the_container_pin_last(tmp_path):
@@ -905,3 +907,32 @@ def test_written_commands_pass_the_container_pin_last(tmp_path):
     launch = script[script.index('"${PYTHON:-python3}" "$SKILL_SCRIPT"'):]
     assert launch.split("\n\n", 1)[0].rstrip().endswith('${CLAWBIO_PIN[@]+"${CLAWBIO_PIN[@]}"}')
     assert _CONTAINER_PIN_GUARD.split("\n")[-2] in script
+
+
+@settings(deadline=None, max_examples=15, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@example(component="fresh $a's `b`", target_cached=False)
+@given(component=st.text(alphabet="abc $'\"`\\", min_size=1, max_size=10), target_cached=st.booleans())
+def test_remapped_output_uses_its_own_cache_to_choose_container_pins(tmp_path, component, target_cached):
+    """A retained original cache must not disable pins for a fresh replay target."""
+    import importlib.util
+    import shutil
+
+    original = tmp_path / "out"
+    target = tmp_path / ("target-" + component)
+    target.mkdir(exist_ok=True)
+    if target_cached:
+        (target / ".nextflow").mkdir(exist_ok=True)
+    else:
+        shutil.rmtree(target / ".nextflow", ignore_errors=True)
+    write_repro_commands(original, args=_args(tmp_path, demo=True))
+    spec = importlib.util.spec_from_file_location("_rnaseq_remap_pin_target", _SKILL_DIR / "remap_paths.py")
+    remap = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(remap)
+    assert remap.update_commands_output(original / "reproducibility/commands.sh", str(target))
+    argv = _replay_argv(tmp_path, session=True, pinned=True)
+    assert argv[argv.index("--output") + 1] == str(target)
+    pin = str(original / "reproducibility/containers.config")
+    if target_cached:
+        assert pin not in argv
+    else:
+        assert argv[-2:] == ["--nextflow-config", pin]

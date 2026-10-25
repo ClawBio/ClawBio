@@ -126,22 +126,35 @@ def test_execute_nextflow_starts_new_session_on_posix(tmp_path, monkeypatch):
     assert popen_kwargs["start_new_session"] is True
 
 
-def test_execute_nextflow_terminates_process_group_on_posix_timeout(tmp_path, monkeypatch):
-    proc = _MockProc(returncode=0, timeout_on_first_wait=True)
-    # Nextflow starts its own session, so its pid is the process-group id.
-    pgid = proc.pid
-    signals_sent: list[tuple[int, int]] = []
-
-    monkeypatch.setattr(sys, "platform", "linux")
-    monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
-    monkeypatch.setattr(os, "killpg", lambda sent_pgid, sig: signals_sent.append((sent_pgid, sig)))
-
-    with pytest.raises(SkillError):
-        execute_nextflow(["nextflow", "run", "test"], cwd=tmp_path, output_dir=tmp_path, timeout_seconds=1)
-
-    assert signals_sent
-    assert all(sent_pgid == pgid for sent_pgid, _ in signals_sent)
-    assert proc.killed is False
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups")
+def test_execute_nextflow_terminates_process_group_on_posix_timeout(tmp_path):
+    """The wrapper must stop a real child task, not just the Nextflow leader."""
+    pid_file = tmp_path / "task.pid"
+    command = ["sh", "-c", f"sleep 60 & echo $! > {shlex.quote(str(pid_file))}; wait"]
+    task = None
+    try:
+        with pytest.raises(SkillError) as failure:
+            execute_nextflow(command, cwd=tmp_path, output_dir=tmp_path, timeout_seconds=1)
+        assert failure.value.error_code == "EXECUTION_FAILED"
+        assert failure.value.details == {"timeout_seconds": 1}
+        task = int(pid_file.read_text())
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                os.kill(task, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the wrapper timed out but its task kept running")
+    finally:
+        if task is None and pid_file.exists():
+            task = int(pid_file.read_text())
+        if task is not None:
+            try:
+                os.kill(task, signal.SIGKILL)
+            except ProcessLookupError:
+                pass  # Successful cleanup already stopped the synthetic task.
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups and SIGINT")
@@ -211,47 +224,6 @@ def test_timeout_error_fix_mentions_leftover_containers(tmp_path, monkeypatch):
     assert "container" in exc.value.fix.lower()
 
 
-def test_terminate_process_tree_falls_back_to_sigkill_when_sigterm_times_out(monkeypatch):
-    """terminate_process_tree must send SIGKILL when SIGTERM's wait() times out."""
-    import signal as signal_module
-
-    signals_sent: list[int] = []
-    wait_calls = [0]
-
-    class _SlowProc:
-        def __init__(self):
-            self.pid = 9999
-            self.killed = False
-
-        def wait(self, timeout=None):
-            wait_calls[0] += 1
-            # First wait (grace period after SIGTERM) times out.
-            # Second wait (after SIGKILL) completes immediately.
-            if wait_calls[0] == 1:
-                raise subprocess.TimeoutExpired(cmd=["nextflow"], timeout=timeout or 1)
-            return -signal_module.SIGKILL
-
-        def kill(self):
-            self.killed = True
-
-    proc = _SlowProc()
-
-    monkeypatch.setattr(sys, "platform", "linux")
-    monkeypatch.setattr(
-        os,
-        "killpg",
-        lambda sent_pgid, sig: signals_sent.append(sig),
-    )
-
-    shared_execution.terminate_process_tree(proc)
-
-    # SIGTERM must be sent first, then SIGKILL as the fallback — order matters.
-    assert signals_sent == [signal_module.SIGTERM, signal_module.SIGKILL], (
-        f"Expected [SIGTERM, SIGKILL], got {signals_sent}"
-    )
-    # proc.kill() (last-resort fallback) must NOT have been called —
-    # killpg(SIGKILL) should have succeeded.
-    assert proc.killed is False
 
 
 def test_memory_limit_failure_hint(tmp_path):

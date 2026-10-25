@@ -386,7 +386,7 @@ def write_repro_commands(output_dir: Path, *, args) -> None:
     )
     content = _apply_repo_fallback(content)
     content = _apply_idempotent_resume(content, output_dir)
-    content = _apply_container_pin(content)
+    content = _apply_container_pin(content, output_dir=output_dir)
     if not getattr(args, "demo", False):
         content += _PORTABILITY_NOTICE
     write_text_lf_atomic(repro_dir / "commands.sh", content)
@@ -632,7 +632,7 @@ def _apply_idempotent_resume(content: str, output_dir: Path) -> str:
 
 _CONTAINER_PIN_GUARD = (
     "# Run every process on the exact image (repository@digest) it ran originally, as\n"
-    "# recorded in containers.config, when no Nextflow cache sits next to this bundle\n"
+    "# recorded in containers.config, when the replay output has no Nextflow cache\n"
     "# (a fresh or relocated replay); an in-place replay keeps the cached tasks. The\n"
     "# ${arr[@]+...} form keeps macOS's bash 3.2 happy under `set -u`.\n"
     "CLAWBIO_PIN=()\n"
@@ -642,7 +642,7 @@ _CONTAINER_PIN_GUARD = (
 )
 
 
-def _apply_container_pin(content: str) -> str:
+def _apply_container_pin(content: str, *, output_dir: Path) -> str:
     """Pass containers.config as the last --nextflow-config, so the pins win."""
     lines = content.split("\n")
     starts = [i for i, line in enumerate(lines) if line.startswith('"${PYTHON:-python3}" "$SKILL_SCRIPT"')]
@@ -657,7 +657,10 @@ def _apply_container_pin(content: str) -> str:
         end += 1
     lines[end] += " \\"
     lines.insert(end + 1, '    ${CLAWBIO_PIN[@]+"${CLAWBIO_PIN[@]}"}')
-    lines[start:start] = _CONTAINER_PIN_GUARD.split("\n")
+    # Cache selection follows --output, which can differ from the bundle's parent.
+    cache = escape_double_quoted(f"{output_dir.as_posix()}/.nextflow")
+    guard = _CONTAINER_PIN_GUARD.replace("$SCRIPT_DIR/../.nextflow", cache)
+    lines[start:start] = guard.split("\n")
     return "\n".join(lines)
 
 

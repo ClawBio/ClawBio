@@ -215,7 +215,8 @@ def test_nf_schema_refusal_names_every_invalid_value(tmp_path):
     assert "--wes (false): Value is [string] but should be [boolean]" in failure.value.fix
 
 
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=25)
+# Disk scheduling is not parser behavior; do not time the file-I/O property.
+@settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=25)
 @given(st.lists(
     st.tuples(st.from_regex(r"[a-z][a-z_]{0,12}", fullmatch=True), st.text(alphabet="abc019 -.[]", min_size=1, max_size=20)),
     min_size=1, max_size=4, unique_by=lambda item: item[0],
@@ -293,3 +294,33 @@ def test_a_samplesheet_refusal_keeps_the_entries_that_say_what_is_wrong(tmp_path
                    "Entry 2: Error for field 'fastq_1' (/nonexistent/x.fastq.gz)"):
         assert hint.count(detail) == 1, detail
     assert "Check script" not in hint
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals and process groups")
+def test_a_task_ignoring_term_is_killed_after_its_leader_exits(tmp_path):
+    """Waiting only for Nextflow returned early and left a TERM-ignoring task alive."""
+    import contextlib
+    import os
+    import select
+    import signal
+    import subprocess
+
+    api = importlib.import_module("clawbio.common.nfcore.execution")
+    task_code = "import os,signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); print(os.getpid(),flush=True); time.sleep(60)"
+    leader_code = f"import subprocess,sys,time; subprocess.Popen([sys.executable,'-c',{task_code!r}]); time.sleep(60)"
+    leader = subprocess.Popen([sys.executable, "-c", leader_code], start_new_session=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    try:
+        assert select.select([leader.stdout], [], [], 10)[0], "the task did not become ready"
+        assert int(leader.stdout.readline()) > 0
+        api.terminate_process_tree(leader, grace_seconds=0.1)
+        try:
+            leader.communicate(timeout=1)
+        except subprocess.TimeoutExpired:
+            pytest.fail("a task still holds stdout open after its Nextflow leader exited")
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(leader.pid, signal.SIGKILL)
+        leader.wait(timeout=5)
+        if leader.stdout is not None:
+            leader.stdout.close()
