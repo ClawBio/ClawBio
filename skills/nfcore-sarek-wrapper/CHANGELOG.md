@@ -1,5 +1,6 @@
 # nfcore-sarek-wrapper — Changelog
 
+
 All notable changes to the `nfcore-sarek-wrapper` ClawBio skill are documented
 here. The format roughly follows [Keep a Changelog](https://keepachangelog.com)
 and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
@@ -15,6 +16,8 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   byte-identical images even if a tag is re-pushed.
 
 ### Changed
+
+- Stop duplicating sample sex metadata in wrapper summaries and JSON provenance. The normalized input sheet still forwards the required sex values unchanged to Sarek; pairing and variant calling are unchanged. A property test covers both data minimization and exact input forwarding.
 
 - **Samplesheet rules are nf-core/sarek's.** nf-schema (`assets/schema_input.json`) and
   `samplesheet_to_channel` check the samplesheet when Nextflow starts, before any task runs,

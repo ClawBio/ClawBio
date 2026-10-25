@@ -99,7 +99,7 @@ def test_samplesheet_report_surfaces_rows_by_patient_for_preflight(tmp_path):
     report = validate_and_normalize_samplesheet(input_path, tmp_path / "out.csv", step="mapping")
 
     assert report["rows_by_patient"]["P1"][0]["sample"] == "S1"
-    assert report["rows_by_patient"]["P1"][0]["sex"] == "NA"
+    assert "sex" not in report["rows_by_patient"]["P1"][0]
 
 
 def test_samplesheet_allows_single_spring_archive(tmp_path):
@@ -269,3 +269,23 @@ def test_contamination_is_accepted_only_as_a_fraction(tmp_path, value):
         with pytest.raises(SkillError) as exc:
             validate_and_normalize_samplesheet(sheet, tmp_path / "out.csv", step="mapping")
         assert exc.value.error_code == ErrorCode.INVALID_SAMPLESHEET
+
+
+@settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@example(sexes=["XX"])
+@given(sexes=st.lists(st.sampled_from(["XX", "XY", "NA", "male"]), min_size=1, max_size=4))
+def test_sex_metadata_is_forwarded_without_copying_it_into_summary(tmp_path, sexes):
+    """Sex belongs in Sarek's required input, not a redundant JSON summary.
+
+    Even an invalid token reaches nf-schema unchanged; the wrapper does not
+    reintroduce the sex-enum validation delegated to the pinned pipeline.
+    """
+    rows = [_row(tmp_path, patient=f"P{i}", sample=f"S{i}", sex=sex)
+            for i, sex in enumerate(sexes)]
+    source = _write_delimited(tmp_path / "samples.csv", rows, ",")
+    normalized = tmp_path / "normalized.csv"
+    report = validate_and_normalize_samplesheet(source, normalized)
+    assert "sex_counts" not in report
+    assert all("sex" not in entry for entries in report["rows_by_patient"].values() for entry in entries)
+    with normalized.open(newline="", encoding="utf-8") as handle:
+        assert [row["sex"] for row in csv.DictReader(handle)] == sexes

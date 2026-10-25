@@ -1263,7 +1263,6 @@ def _prepare_samplesheet(
             "spring_paths": [],
             "tables": [],
             "unknown_columns": [],
-            "sex_counts": {},
             "status_counts": {},
             "pairings": [],
             "analysis_mode": "germline",
@@ -1283,7 +1282,7 @@ def _prepare_samplesheet(
             "sample_names": [], "patient_names": [],
             "fastq_paths": [], "bam_paths": [], "cram_paths": [],
             "vcf_paths": [], "spring_paths": [], "tables": [],
-            "unknown_columns": [], "sex_counts": {}, "status_counts": {},
+            "unknown_columns": [], "status_counts": {},
             "pairings": [], "analysis_mode": "germline",
             "rows_by_patient": {},
         }, normalized_csv

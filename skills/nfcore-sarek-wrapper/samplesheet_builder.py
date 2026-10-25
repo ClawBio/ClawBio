@@ -86,7 +86,6 @@ def validate_and_normalize_samplesheet(
     paths: dict[str, list[Path | str]] = defaultdict(list)
     sample_names: list[str] = []
     patient_names: list[str] = []
-    sex_counts: Counter = Counter()
     status_counts: Counter = Counter()
     rows_by_patient: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for line_number, row in enumerate(rows, start=2):
@@ -100,7 +99,6 @@ def validate_and_normalize_samplesheet(
             sample_names.append(entry["sample"])
         if entry["patient"] not in patient_names:
             patient_names.append(entry["patient"])
-        sex_counts[entry["sex"]] += 1
         status_counts[entry["status"]] += 1
         rows_by_patient[entry.pop("patient")].append(entry)
 
@@ -115,7 +113,6 @@ def validate_and_normalize_samplesheet(
         "patient_names": patient_names,
         **{key: paths[key] for key in _SUMMARY_PATHS},
         "unknown_columns": _unknown_columns(fieldnames),
-        "sex_counts": dict(sex_counts),
         "status_counts": dict(status_counts),
         "pairings": pairings,
         "analysis_mode": _derive_global_analysis_mode(pairings),
@@ -278,7 +275,6 @@ def _normalize_row(
         "patient": normalized["patient"],
         "sample": sample,
         "status": status,
-        "sex": normalized["sex"],
         "contamination": contamination,
         "line": line_number,
     }
