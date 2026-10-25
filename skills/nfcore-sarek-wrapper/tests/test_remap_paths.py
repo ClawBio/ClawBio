@@ -363,3 +363,15 @@ def test_checksum_writers_select_the_same_files(tmp_path: Path):
         "upstream/results/multiqc/multiqc_report.html",
         "notes.txt",
     }
+
+
+def test_a_second_output_dir_move_keeps_the_original_commands_backup(tmp_path):
+    """Each --output-dir rewrite copied commands.sh over the same .bak, so moving a
+    bundle twice lost the command it was produced with."""
+    commands = tmp_path / "commands.sh"
+    original = '"${PYTHON:-python3}" "$SKILL_SCRIPT" \\\n    --output /old/out \\\n    --profile docker\n'
+    commands.write_text(original, encoding="utf-8")
+    assert remap_paths.update_commands_output(commands, "/first/move")
+    assert remap_paths.update_commands_output(commands, "/second/move")
+    assert "/second/move" in commands.read_text(encoding="utf-8")
+    assert (tmp_path / "commands.sh.bak").read_text(encoding="utf-8") == original

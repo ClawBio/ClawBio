@@ -310,3 +310,12 @@ def test_bcftools_reads_the_demo_vcf(tmp_path) -> None:
         capture_output=True, text=True, check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_demo_vcf_orders_sex_chromosomes_before_the_mitochondrion(tmp_path) -> None:
+    """The order the docstring promises: autosomes numerically, then X, Y, MT. Sorting
+    non-numeric names alphabetically put MT before X and Y."""
+    variants = tuple((contig, 100, f"rs{i}", "A", "G") for i, contig in enumerate(["MT", "Y", "2", "X", "10", "1"]))
+    with patch.object(wgs_prs, "_DEMO_T2D_PANEL_VARIANTS", variants):
+        vcf = write_demo_vcf(tmp_path / "demo.vcf", n_snps=0)
+    assert _declared(vcf, "contig") == ["1", "2", "10", "X", "Y", "MT"]
