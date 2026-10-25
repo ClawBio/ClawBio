@@ -215,7 +215,8 @@ def test_nf_schema_refusal_names_every_invalid_value(tmp_path):
     assert "--wes (false): Value is [string] but should be [boolean]" in failure.value.fix
 
 
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=25)
+# This property writes and reads real log files; disk scheduling is not parser behavior.
+@settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=25)
 @given(st.lists(
     st.tuples(st.from_regex(r"[a-z][a-z_]{0,12}", fullmatch=True), st.text(alphabet="abc019 -.[]", min_size=1, max_size=20)),
     min_size=1, max_size=4, unique_by=lambda item: item[0],
