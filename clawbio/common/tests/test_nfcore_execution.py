@@ -297,7 +297,7 @@ def test_a_samplesheet_refusal_keeps_the_entries_that_say_what_is_wrong(tmp_path
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals and process groups")
-def test_a_task_ignoring_term_is_killed_after_its_leader_exits(tmp_path):
+def test_a_task_ignoring_term_is_killed_after_its_leader_exits():
     """Waiting only for Nextflow returned early and left a TERM-ignoring task alive."""
     import contextlib
     import os

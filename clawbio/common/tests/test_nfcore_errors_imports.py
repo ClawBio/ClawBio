@@ -46,7 +46,7 @@ def test_purge_respects_explicit_owner(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     "order", list(itertools.permutations(["rnaseq", "sarek", "scrnaseq"]))
 )
-def test_wrapper_exception_identity_survives_loading_order(order, tmp_path):
+def test_wrapper_exception_identity_survives_loading_order(order):
     root = Path(__file__).resolve().parents[3]
     code = """
 import importlib.util, pathlib, sys

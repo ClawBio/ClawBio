@@ -40,16 +40,6 @@ _SKIP_FLAGS = (
 _REFERENCE_PATH_FIELDS = ALL_REFERENCE_PATH_FIELDS
 
 
-def _posix(value: str) -> str:
-    """Resolve a user-supplied path to absolute and convert to forward-slash notation.
-
-    Nextflow (Java) accepts forward slashes on all platforms, including Windows.
-    Using as_posix() avoids YAML escape-sequence ambiguity with backslashes and
-    ensures relative paths are anchored before Nextflow changes its working directory.
-    """
-    return Path(value).expanduser().resolve().as_posix()
-
-
 def _posix_or_uri(value: str) -> str:
     resolved = resolve_path_or_uri(str(value), base_dir=Path.cwd())
     return resolved if isinstance(resolved, str) else resolved.as_posix()
