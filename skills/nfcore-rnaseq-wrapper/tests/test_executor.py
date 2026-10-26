@@ -48,17 +48,17 @@ _remove_skill_dir_from_sys_path()
 
 
 class _MockProc:
-    def __init__(self, returncode: int = 0, timeout_on_first_wait: bool = False):
+    def __init__(self, returncode: int = 0, runs_until_killed: bool = False):
         self._rc = returncode
-        self._timeout_on_first = timeout_on_first_wait
-        self._wait_calls = 0
+        self._runs_until_killed = runs_until_killed
         self.killed = False
         self.pid = 1234
+        self.args = ["nextflow", "run", "test"]
 
     def wait(self, timeout=None):
-        self._wait_calls += 1
-        if self._timeout_on_first and self._wait_calls == 1:
-            raise subprocess.TimeoutExpired(cmd=["nextflow"], timeout=timeout or 1)
+        if self._runs_until_killed and not self.killed:
+            time.sleep(timeout)  # A real wait blocks this long before giving up.
+            raise subprocess.TimeoutExpired(cmd=["nextflow"], timeout=timeout)
         return self._rc
 
     def kill(self):
@@ -202,20 +202,20 @@ def test_execute_nextflow_cleans_up_empty_logs_on_popen_failure(tmp_path, monkey
 
 
 def test_execute_nextflow_timeout_error_reports_timeout_seconds(tmp_path, monkeypatch):
-    proc = _MockProc(returncode=0, timeout_on_first_wait=True)
+    proc = _MockProc(returncode=0, runs_until_killed=True)
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
     monkeypatch.setattr(subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess(a[0], 0))
     with pytest.raises(SkillError) as exc:
-        execute_nextflow(["nextflow", "run", "test"], cwd=tmp_path, output_dir=tmp_path, timeout_seconds=7)
-    assert exc.value.details["timeout_seconds"] == 7
+        execute_nextflow(["nextflow", "run", "test"], cwd=tmp_path, output_dir=tmp_path, timeout_seconds=1)
+    assert exc.value.details["timeout_seconds"] == 1
 
 
 def test_timeout_error_fix_mentions_leftover_containers(tmp_path, monkeypatch):
     """Killing Nextflow does not stop containers spawned by the Docker daemon (they
     are not in Nextflow's process group). The timeout error must tell the user to
     check for and clean up any leftover containers (audit F7)."""
-    proc = _MockProc(returncode=0, timeout_on_first_wait=True)
+    proc = _MockProc(returncode=0, runs_until_killed=True)
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
     monkeypatch.setattr(subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess(a[0], 0))

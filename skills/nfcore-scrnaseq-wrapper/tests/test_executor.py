@@ -3,6 +3,7 @@ from __future__ import annotations
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -20,20 +21,22 @@ class _MockProc:
     def __init__(
         self,
         returncode: int = 0,
-        timeout_on_first_wait: bool = False,
+        runs_until_killed: bool = False,
         keyboard_interrupt_on_first_wait: bool = False,
     ):
         self._rc = returncode
-        self._timeout_on_first = timeout_on_first_wait
+        self._runs_until_killed = runs_until_killed
         self._keyboard_interrupt_on_first = keyboard_interrupt_on_first_wait
         self._wait_calls = 0
         self.killed = False
         self.pid = 1234
+        self.args = ["nextflow", "run", "test"]
 
     def wait(self, timeout=None):
         self._wait_calls += 1
-        if self._timeout_on_first and self._wait_calls == 1:
-            raise subprocess.TimeoutExpired(cmd=["nextflow"], timeout=timeout or 1)
+        if self._runs_until_killed and not self.killed:
+            time.sleep(timeout)  # A real wait blocks this long before giving up.
+            raise subprocess.TimeoutExpired(cmd=["nextflow"], timeout=timeout)
         if self._keyboard_interrupt_on_first and self._wait_calls == 1:
             raise KeyboardInterrupt
         return self._rc
@@ -84,7 +87,7 @@ def _record_taskkill(monkeypatch) -> list[list[str]]:
 
 
 def test_execute_nextflow_kills_process_on_timeout(tmp_path, monkeypatch):
-    proc = _MockProc(returncode=0, timeout_on_first_wait=True)
+    proc = _MockProc(returncode=0, runs_until_killed=True)
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
     monkeypatch.setattr(sys, "platform", "win32")
     taskkill_calls = _record_taskkill(monkeypatch)

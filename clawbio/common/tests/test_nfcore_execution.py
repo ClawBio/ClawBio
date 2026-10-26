@@ -371,6 +371,8 @@ def test_a_stop_while_popen_holds_its_wait_lock_still_cleans_up(stop, tmp_path):
         import os, signal, sys, threading
         from pathlib import Path
         from clawbio.common.nfcore.execution import execute_nextflow
+        # As in a terminal: a test run started in the background inherits SIGINT ignored.
+        signal.signal(signal.SIGINT, signal.default_int_handler)
         threading.Timer(1.0, os.kill, (os.getpid(), signal.{stop})).start()
         try:
             execute_nextflow(
