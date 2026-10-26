@@ -176,12 +176,8 @@ def _normalize_row(
                 "bam_columns": [c for c in _BAM_COLUMNS if str(row.get(c, "")).strip()],
             },
         )
-    if bam_provided:
-        resolved_fastqs = _resolve_fastq_columns(row, input_path=input_path, line_number=line_number)
-        resolved_bams = _resolve_bam_columns(row, input_path=input_path, line_number=line_number)
-    else:
-        resolved_fastqs = _resolve_fastq_columns(row, input_path=input_path, line_number=line_number)
-        resolved_bams = {}
+    resolved_fastqs = _resolve_columns(row, _FASTQ_COLUMNS, base_dir=input_path.parent)
+    resolved_bams = _resolve_columns(row, _BAM_COLUMNS, base_dir=input_path.parent)
     normalized = {column: str(row.get(column, "")).strip() for column in output_columns}
     normalized.update(
         {
@@ -212,23 +208,13 @@ def _normalize_sample_name(raw_sample: str) -> str:
     return _SAMPLE_WHITESPACE_RE.sub("_", raw_sample.strip())
 
 
-def _resolve_fastq_columns(row: dict[str, str], *, input_path: Path, line_number: int) -> dict[str, _ResolvedPath]:
+def _resolve_columns(row: dict[str, str], columns: tuple[str, ...], *, base_dir: Path) -> dict[str, _ResolvedPath]:
     resolved: dict[str, _ResolvedPath] = {}
-    for column in _FASTQ_COLUMNS:
+    for column in columns:
         raw_value = str(row.get(column, "")).strip()
         if not raw_value:
             continue
-        resolved[column] = _resolve_path(raw_value, base_dir=input_path.parent)
-    return resolved
-
-
-def _resolve_bam_columns(row: dict[str, str], *, input_path: Path, line_number: int) -> dict[str, _ResolvedPath]:
-    resolved: dict[str, _ResolvedPath] = {}
-    for column in _BAM_COLUMNS:
-        raw_value = str(row.get(column, "")).strip()
-        if not raw_value:
-            continue
-        resolved[column] = _resolve_path(raw_value, base_dir=input_path.parent)
+        resolved[column] = _resolve_path(raw_value, base_dir=base_dir)
     return resolved
 
 
@@ -243,10 +229,6 @@ def _resolve_path(value: str, *, base_dir: Path) -> _ResolvedPath:
 
 def _is_remote_uri(value: _ResolvedPath) -> bool:
     return "://" in str(value)
-
-
-def _resolved_path_name(value: _ResolvedPath) -> str:
-    return Path(str(value)).name
 
 
 def _serialize_resolved_path(value: _ResolvedPath) -> str:

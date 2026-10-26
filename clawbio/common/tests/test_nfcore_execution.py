@@ -434,7 +434,7 @@ def test_an_early_refusal_is_found_even_when_the_log_runs_on(tmp_path):
     assert "Report file already exists" not in hint
 
 
-def test_reports_nextflow_could_not_write_are_never_a_stop_reason(tmp_path):
+def test_reports_nextflow_could_not_write_are_never_a_stop_reason():
     api = importlib.import_module("clawbio.common.nfcore.execution")
     log = ("nextflow.exception.AbortOperationException: Timeline file already exists: "
            "out/pipeline_info/execution_timeline_x.html -- enable the 'timeline.overwrite' option "
