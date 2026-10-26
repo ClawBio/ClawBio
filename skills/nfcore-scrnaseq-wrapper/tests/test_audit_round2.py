@@ -216,25 +216,30 @@ def test_timeout_hours_rejects_negative():
         parser.parse_args(["--output", "/tmp/out", "--demo", "--timeout-hours", "-3"])
 
 
-def test_executor_passes_none_timeout_through_to_wait(tmp_path, monkeypatch):
-    """timeout_seconds=None must reach proc.wait(timeout=None) (no wall-clock cap)
-    and complete normally instead of raising EXECUTION_FAILED."""
+def test_executor_without_a_timeout_never_times_out(tmp_path, monkeypatch):
+    """timeout_seconds=None sets no wall-clock cap: the run completes normally
+    instead of raising EXECUTION_FAILED, however long Nextflow keeps running."""
     import subprocess
     import executor
-
-    seen = {}
 
     class _Proc:
         pid = 4321
 
+        def __init__(self):
+            self.checks = 0
+
         def wait(self, timeout=None):
-            seen["timeout"] = timeout
+            # Still running for the first checks; without a cap none may end the run.
+            self.checks += 1
+            if self.checks < 5:
+                raise subprocess.TimeoutExpired(["nextflow"], timeout)
             return 0
 
         def kill(self):  # pragma: no cover - not expected
             pass
 
-    monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: _Proc())
+    proc = _Proc()
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
     result = executor.execute_nextflow(
         ["nextflow", "run", "test"],
         cwd=tmp_path,
@@ -242,7 +247,7 @@ def test_executor_passes_none_timeout_through_to_wait(tmp_path, monkeypatch):
         timeout_seconds=None,
     )
     assert result["exit_code"] == 0
-    assert seen["timeout"] is None
+    assert proc.checks == 5
 
 
 # ── R2-3: --expected-cells documents single-sample restriction ─────────────────

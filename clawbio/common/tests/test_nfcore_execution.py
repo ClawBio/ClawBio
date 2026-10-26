@@ -443,7 +443,7 @@ def test_reports_nextflow_could_not_write_are_never_a_stop_reason():
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals and process groups")
-def test_a_task_ignoring_term_is_killed_after_its_leader_exits(tmp_path):
+def test_a_task_ignoring_term_is_killed_after_its_leader_exits():
     """Waiting only for Nextflow returned early and left a TERM-ignoring task alive."""
     import contextlib
     import os
@@ -470,3 +470,69 @@ def test_a_task_ignoring_term_is_killed_after_its_leader_exits(tmp_path):
         leader.wait(timeout=5)
         if leader.stdout is not None:
             leader.stdout.close()
+
+
+# Popen's wait lock, pausing just after it is taken. A real stop signal lands in that
+# window only rarely; the pause makes it land there every time.
+_PAUSING_WAIT_LOCK = """
+import subprocess, time
+
+class PausingLock:
+    def __init__(self, lock):
+        self._lock = lock
+    def acquire(self, blocking=True, timeout=-1):
+        taken = self._lock.acquire(blocking, timeout)
+        if taken:
+            time.sleep(0.2)
+        return taken
+    def release(self):
+        self._lock.release()
+    def __enter__(self):
+        self.acquire()
+        return self
+    def __exit__(self, *exc):
+        self.release()
+
+class Popen(subprocess.Popen):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._waitpid_lock = PausingLock(self._waitpid_lock)
+
+subprocess.Popen = Popen
+"""
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals and process groups")
+@pytest.mark.parametrize("stop", ["SIGTERM", "SIGINT"])
+def test_a_stop_while_popen_holds_its_wait_lock_still_cleans_up(stop, tmp_path):
+    """A handler raising inside Popen.wait() could leave its wait lock held; the
+    cleanup's own wait() then blocked forever and the wrapper never exited."""
+    import os
+    import signal
+    import subprocess
+    import textwrap
+
+    driver = _PAUSING_WAIT_LOCK + textwrap.dedent(
+        f"""
+        import os, signal, sys, threading
+        from pathlib import Path
+        from clawbio.common.nfcore.execution import execute_nextflow
+        # As in a terminal: a test run started in the background inherits SIGINT ignored.
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        threading.Timer(1.0, os.kill, (os.getpid(), signal.{stop})).start()
+        try:
+            execute_nextflow(
+                [sys.executable, "-c", "import time; time.sleep(60)"],
+                cwd=Path({str(tmp_path)!r}), output_dir=Path({str(tmp_path)!r}),
+                timeout_seconds=60, timeout_fix="",
+            )
+        except KeyboardInterrupt:
+            sys.exit(128 + signal.SIGINT)
+        """
+    )
+    root = Path(__file__).resolve().parents[3]
+    result = subprocess.run(
+        [sys.executable, "-c", driver], env={**os.environ, "PYTHONPATH": str(root)},
+        capture_output=True, text=True, timeout=20,
+    )
+    assert result.returncode == 128 + getattr(signal, stop), result.stderr

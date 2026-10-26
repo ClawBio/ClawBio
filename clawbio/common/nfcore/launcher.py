@@ -4,11 +4,14 @@ from __future__ import annotations
 import signal
 import subprocess
 import threading
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 
 # The wrapper gives Nextflow ten seconds before escalating to SIGKILL. Leave
 # enough time for that cleanup and for its captured output to drain.
 _WRAPPER_SHUTDOWN_GRACE_SECONDS = 30
+# How often the capture checks for a recorded SIGINT/SIGTERM.
+_STOP_POLL_SECONDS = 0.2
 
 
 class _ShutdownRequested(BaseException):
@@ -28,6 +31,26 @@ def _stop_wrapper(process: subprocess.Popen, signum: int) -> None:
         process.communicate()
 
 
+def _communicate_unless_stopped(
+    process: subprocess.Popen, timeout: int | None, stop_requested: Callable[[], bool]
+) -> tuple[str | None, str | None]:
+    """The wrapper's captured output, or (None, None) once a stop is requested.
+
+    Communicates in short slices; a retried communicate() loses no output.
+    """
+    deadline = None if timeout is None else time.monotonic() + timeout
+    while not stop_requested():
+        remaining = None if deadline is None else deadline - time.monotonic()
+        if remaining is not None and remaining <= 0:
+            raise subprocess.TimeoutExpired(process.args, timeout)
+        slice_seconds = _STOP_POLL_SECONDS if remaining is None else min(_STOP_POLL_SECONDS, remaining)
+        try:
+            return process.communicate(timeout=slice_seconds)
+        except subprocess.TimeoutExpired:
+            continue
+    return None, None
+
+
 def run_wrapper(
     command: Sequence[str], *, cwd: str, timeout: int | None
 ) -> subprocess.CompletedProcess:
@@ -41,18 +64,16 @@ def run_wrapper(
     """
     process = None
     pending_signum = None
-    stopping = False
     previous_handlers = {}
     main_thread = threading.current_thread() is threading.main_thread()
 
     def request_shutdown(signum, frame):
-        nonlocal pending_signum, stopping
-        pending_signum = signum
-        if process is not None and not stopping:
-            stopping = True
-            raise _ShutdownRequested(signum)
-        # A signal during spawn is handled as soon as Popen returns. Further
-        # signals during cleanup must not interrupt the wrapper's grace period.
+        # Only record the first stop. Raising here could leave Popen's wait lock held
+        # (see clawbio.common.nfcore.execution._stops_recorded), and later signals
+        # must not interrupt the wrapper's cleanup grace period.
+        nonlocal pending_signum
+        if pending_signum is None:
+            pending_signum = signum
 
     try:
         if main_thread:
@@ -64,12 +85,11 @@ def run_wrapper(
             command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, start_new_session=main_thread,
         )
+        stdout, stderr = _communicate_unless_stopped(process, timeout, lambda: pending_signum is not None)
         if pending_signum is not None:
             raise _ShutdownRequested(pending_signum)
-        stdout, stderr = process.communicate(timeout=timeout)
         return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
     except (_ShutdownRequested, KeyboardInterrupt) as stop:
-        stopping = True
         signum = stop.signum if isinstance(stop, _ShutdownRequested) else signal.SIGINT
         if process is not None:
             _stop_wrapper(process, signum)
@@ -78,7 +98,6 @@ def run_wrapper(
             raise KeyboardInterrupt from None
         raise SystemExit(128 + signum) from None
     except BaseException:
-        stopping = True
         if process is not None:
             _stop_wrapper(process, signal.SIGTERM)
         raise

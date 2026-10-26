@@ -7,7 +7,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 
-def test_command_preserves_order_and_remote_work_dir(tmp_path):
+def test_command_preserves_order_and_remote_work_dir():
     api = importlib.import_module("clawbio.common.nfcore.commands")
     argv, display = api.build_nextflow_command(
         pipeline_source={

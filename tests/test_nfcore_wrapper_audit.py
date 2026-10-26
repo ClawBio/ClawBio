@@ -76,7 +76,7 @@ def test_interrupt_terminates_nextflow(wrapper, tmp_path, monkeypatch):
     assert terminated == [process]
 
 
-def test_log_tail_has_bounded_reads(wrapper, tmp_path, monkeypatch):
+def test_log_tail_has_bounded_reads(tmp_path, monkeypatch):
     from clawbio.common.nfcore.execution import read_log_tail
     path = tmp_path / "large.log"
     path.write_bytes(b"x" * 100000 + b"final error\n")
