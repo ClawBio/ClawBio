@@ -16,6 +16,8 @@ from .errors import SkillError
 from .paths import is_under_tmp
 
 _TERMINATION_GRACE_SECONDS = 10
+# How often a wait checks for a recorded SIGINT/SIGTERM.
+_STOP_POLL_SECONDS = 0.2
 
 _MEMORY_FAILURE_SIGNATURES = (
     "process requirement exceeds available memory",
@@ -154,35 +156,51 @@ def environment_failure_hints(
     return "".join(hints)
 
 
-class _Terminated(BaseException):
-    """SIGTERM arrived while Nextflow ran (BaseException: no broad handler eats it)."""
-
-    def __init__(self, signum: int) -> None:
-        super().__init__(signum)
-        self.signum = signum
-
-
-def _raise_terminated(signum, frame) -> None:
-    raise _Terminated(signum)
-
-
 @contextmanager
-def _sigterm_raises():
-    """While Nextflow runs, make SIGTERM raise _Terminated instead of ending Python.
+def _stops_recorded():
+    """While Nextflow runs, record SIGTERM and SIGINT instead of raising on them.
 
-    SIGTERM (a plain `kill`, an agent or a scheduler stopping the wrapper) would
-    otherwise leave Nextflow running in its own session. The handler only raises:
-    stopping Nextflow must happen after the stack unwinds out of proc.wait(), which
-    holds Popen's non-reentrant wait lock. Only the main thread can install it.
+    Either would otherwise end Python and leave Nextflow running in its own session.
+    The handlers must not raise: an exception raised between Popen.wait() taking and
+    releasing its non-reentrant wait lock leaves the lock held, and every later wait
+    on Nextflow, including the cleanup's, then blocks forever. SIGINT is recorded only
+    while Python's default handler is installed. Only the main thread can install
+    handlers; elsewhere the list stays empty.
     """
+    received: list[int] = []
     if threading.current_thread() is not threading.main_thread():
-        yield
+        yield received
         return
-    previous = signal.signal(signal.SIGTERM, _raise_terminated)
+
+    def record(signum, frame) -> None:
+        received.append(signum)
+
+    stops = [signal.SIGTERM]
+    if signal.getsignal(signal.SIGINT) is signal.default_int_handler:
+        stops.append(signal.SIGINT)
+    previous = {signum: signal.signal(signum, record) for signum in stops}
     try:
-        yield
+        yield received
     finally:
-        signal.signal(signal.SIGTERM, previous)
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
+def _wait_unless_stopped(
+    proc: subprocess.Popen, timeout_seconds: int | None, received: list[int]
+) -> int | None:
+    """Nextflow's exit code, or None once a stop is recorded; waits in short slices."""
+    deadline = None if timeout_seconds is None else time.monotonic() + timeout_seconds
+    while not received:
+        remaining = None if deadline is None else deadline - time.monotonic()
+        if remaining is not None and remaining <= 0:
+            raise subprocess.TimeoutExpired(proc.args, timeout_seconds)
+        slice_seconds = _STOP_POLL_SECONDS if remaining is None else min(_STOP_POLL_SECONDS, remaining)
+        try:
+            return proc.wait(timeout=slice_seconds)
+        except subprocess.TimeoutExpired:
+            continue
+    return None
 
 
 def execute_nextflow(
@@ -239,14 +257,12 @@ def execute_nextflow(
             ) from exc
 
         try:
-            with _sigterm_raises():
-                exit_code = proc.wait(timeout=timeout_seconds)
+            with _stops_recorded() as received:
+                exit_code = _wait_unless_stopped(proc, timeout_seconds, received)
         except KeyboardInterrupt:
+            # SIGINT under a caller's own handler, which was left in place.
             terminate_process_tree(proc)
             raise
-        except _Terminated as stop:
-            terminate_process_tree(proc)
-            raise SystemExit(128 + stop.signum) from None
         except subprocess.TimeoutExpired:
             terminate_process_tree(proc)
             raise SkillError(
@@ -256,6 +272,11 @@ def execute_nextflow(
                 fix=timeout_fix,
                 details={"timeout_seconds": timeout_seconds},
             )
+        if received:
+            terminate_process_tree(proc)
+            if received[0] == signal.SIGINT:
+                raise KeyboardInterrupt
+            raise SystemExit(128 + received[0])
 
     if exit_code != 0:
         fix = (

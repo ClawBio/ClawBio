@@ -174,3 +174,49 @@ def test_managed_launcher_can_run_from_a_worker_thread(tmp_path):
         ).result(timeout=10)
     assert result.returncode == 0 and result.stdout == "thread\n"
     assert {s: signal.getsignal(s) for s in previous} == previous
+
+
+@pytest.mark.parametrize("stop", ("SIGTERM", "SIGINT"))
+def test_a_stop_while_popen_holds_its_wait_lock_still_stops_the_wrapper(stop, tmp_path):
+    """A handler raising inside communicate() could leave Popen's wait lock held, so
+    stopping the wrapper blocked forever. The pause after taking the lock makes a
+    rare real race happen every time."""
+    driver = textwrap.dedent(f"""
+        import os, signal, subprocess, sys, threading, time
+
+        class PausingLock:
+            def __init__(self, lock):
+                self._lock = lock
+            def acquire(self, blocking=True, timeout=-1):
+                taken = self._lock.acquire(blocking, timeout)
+                if taken:
+                    time.sleep(0.2)
+                return taken
+            def release(self):
+                self._lock.release()
+            def __enter__(self):
+                self.acquire()
+                return self
+            def __exit__(self, *exc):
+                self.release()
+
+        class Popen(subprocess.Popen):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._waitpid_lock = PausingLock(self._waitpid_lock)
+
+        subprocess.Popen = Popen
+        from clawbio.common.nfcore.launcher import run_wrapper
+        # Closing its output sends the launcher into Popen.wait() while the wrapper lingers.
+        wrapper = [sys.executable, "-c", "import os, time; os.close(1); os.close(2); time.sleep(5)"]
+        threading.Timer(1.0, os.kill, (os.getpid(), signal.{stop})).start()
+        try:
+            run_wrapper(wrapper, cwd={str(tmp_path)!r}, timeout=30)
+        except KeyboardInterrupt:
+            sys.exit(128 + signal.SIGINT)
+    """)
+    result = subprocess.run(
+        [sys.executable, "-c", driver], env={**os.environ, "PYTHONPATH": str(ROOT)},
+        capture_output=True, text=True, timeout=20,
+    )
+    assert result.returncode == 128 + getattr(signal, stop), result.stderr

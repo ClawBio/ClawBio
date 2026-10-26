@@ -17,6 +17,8 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 ### Fixed
 
 - Stop tasks that ignore SIGTERM even when the Nextflow group leader exits first.
+- A Ctrl+C or SIGTERM that landed while the wrapper was checking on Nextflow could leave it
+  waiting forever instead of stopping the run; the stop is now recorded and acted on once the wait returns.
 - Match Docker Hub aliases to local digests, keep offline local-image pins, and withhold unverified registry-only replay pins.
 
 - Reuse parsed preflight Java/Nextflow versions in the success bundle, keeping manifest, replay and environment pins consistent instead of capturing raw tool banners.
