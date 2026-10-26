@@ -108,7 +108,7 @@ Use pickle input only when you trust its source; deserializing an untrusted pick
 | GrimAge2 | Mortality risk | Whole blood | Age and sex | Years |
 | DunedinPACE | Pace of aging | Whole blood | None | Biological years per chronological year |
 
-The targets, tissues, and units come from the [PyAging clock catalogue](https://pyaging.readthedocs.io/en/latest/clock_glossary.html); its [DNA methylation tutorial](https://pyaging.readthedocs.io/en/latest/tutorials/tutorial_dnam.html) identifies age and sex as features for PCGrimAge and GrimAge2. `tissue_type` is descriptive metadata, not an automatic compatibility check. Compare predictions only within an appropriate tissue and target; a DunedinPACE value is not an age in years. The report reads clock units from PyAging metadata. A difference between an estimate and chronological age is not, by itself, a validated health assessment or an age-acceleration analysis.
+The targets, tissues, and units come from the [PyAging clock catalogue](https://pyaging.readthedocs.io/en/latest/clock_glossary.html); its [DNA methylation tutorial](https://pyaging.readthedocs.io/en/latest/tutorials/tutorial_dnam.html) identifies age and sex as features for PCGrimAge and GrimAge2. The report uses a unit from PyAging metadata when available, with documented units for the five default clocks as fallbacks. `tissue_type` is descriptive metadata, not an automatic compatibility check. Compare predictions only within an appropriate tissue and target; a DunedinPACE value is not an age in years. A difference between an estimate and chronological age is not, by itself, a validated health assessment or an age-acceleration analysis.
 
 ### Output Structure
 

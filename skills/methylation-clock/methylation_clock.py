@@ -47,6 +47,13 @@ DEFAULT_CLOCKS = [
     "GrimAge2",
     "DunedinPACE",
 ]
+FALLBACK_CLOCK_UNITS = {
+    "horvath2013": "years",
+    "altumage": "years",
+    "pcgrimage": "years",
+    "grimage2": "years",
+    "dunedinpace": "biological years per chronological year",
+}
 PROBE_NAME = re.compile(r"^(?:cg|ch|rs|nv)(?=[0-9.])[0-9A-Za-z.\-]*(?:_|$)", re.IGNORECASE)
 
 
@@ -305,6 +312,16 @@ def _collect_clock_metadata(adata, clocks: list[str]) -> dict[str, dict]:
     return out
 
 
+def _clock_unit(clock: str, metadata: dict[str, dict]) -> str:
+    """Use PyAging's unit when present, else a documented default-clock unit."""
+    unit = metadata.get(clock.lower(), {}).get("unit")
+    if isinstance(unit, (list, tuple)):
+        unit = ", ".join(str(item) for item in unit if item)
+    if unit:
+        return str(unit)
+    return FALLBACK_CLOCK_UNITS.get(clock.lower(), "unspecified")
+
+
 def plot_clock_distributions(
     predictions: pd.DataFrame,
     outpath: Path,
@@ -322,9 +339,9 @@ def plot_clock_distributions(
         if len(values) >= 5:
             ax.boxplot(values, positions=[1], widths=0.35)
         ax.scatter(np.ones(len(values)), values, alpha=0.65, s=28, zorder=3)
-        unit = metadata.get(clock.lower(), {}).get("unit", "predicted value")
-        if isinstance(unit, list):
-            unit = ", ".join(map(str, unit)) or "predicted value"
+        unit = _clock_unit(clock, metadata)
+        if unit == "unspecified":
+            unit = "predicted value (unit unspecified)"
         ax.set_title(clock)
         ax.set_ylabel(str(unit))
         ax.set_xlim(0.5, 1.5)
@@ -462,9 +479,7 @@ def write_report(
     metadata_by_lower = {name.lower(): value for name, value in metadata_json.items()}
     for clock in clock_cols:
         series = pd.to_numeric(predictions[clock], errors="coerce")
-        unit = metadata_by_lower.get(clock.lower(), {}).get("unit", "unspecified")
-        if isinstance(unit, list):
-            unit = ", ".join(str(item) for item in unit) or "unspecified"
+        unit = _clock_unit(clock, metadata_by_lower)
         summary_rows.append(
             f"| {clock} | {unit} | {series.notna().sum()} | {series.mean():.3f} | {series.std(ddof=1):.3f} |"
         )
