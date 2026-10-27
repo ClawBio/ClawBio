@@ -47,7 +47,7 @@ dependencies = [
     "conda-lock>=4.0.3",
     "matplotlib>=3.11.2",
     "numpy>=2.4.6",
-    "openai>=3.29.0",
+    "openai>=3.35.1",
     "opentelemetry-sdk>=1.45.1,<2",
     "pandas>=3.0.6",
     "pyyaml>=6.0",
@@ -109,11 +109,11 @@ data-extractor = [
 # and falls back to the `bq` CLI when it is absent.
 bigquery = [
     "google-auth>=2.62.0,<3",
-    "google-cloud-bigquery>=3.46.1,<4",
+    "google-cloud-bigquery>=3.46.2,<4",
 ]
 # The Robotary web UI (robotary/server.py).
 robotary = [
-    "fastapi>=0.143.0",
+    "fastapi>=0.149.0",
     "uvicorn>=0.54.0",
 ]
 
@@ -153,11 +153,11 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 
 [dependency-groups]
 dev = [
-    "hypothesis>=6.169.0",
+    "hypothesis>=6.170.2",
     "pytest>=9.1.1",
     "skills-ref>=0.1.1,<1",
     # prs-abstain tests inspect the rendered PDFs.
-    "pypdf>=4,<7",
+    "pypdf>=6.21.1,<7",
 ]
 bot = [
     "python-telegram-bot[job-queue]>=22.8",
