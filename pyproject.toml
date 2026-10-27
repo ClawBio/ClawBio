@@ -59,7 +59,7 @@ dependencies = [
 
 [project.optional-dependencies]
 just-prs = [
-    "fastmcp>=3.4.4,<4",
+    "fastmcp>=4.1.1,<5",
     "typer>=0.27.3,<1",
 ]
 # SuShiE fine-mapping engine (jax-based) for skills/fine-mapping.
