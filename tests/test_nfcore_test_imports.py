@@ -11,9 +11,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.parametrize("owner,filename,dependency,function", [
     ("rnaseq", "test_samplesheet_builder.py", "samplesheet_builder", "validate_and_normalize_samplesheet"),
+    ("rnaseq", "test_provenance.py", "provenance", "write_provenance_bundle"),
     ("sarek", "test_samplesheet_builder.py", "samplesheet_builder", "validate_and_normalize_samplesheet"),
     ("sarek", "test_preflight.py", "preflight", "run_preflight"),
+    ("sarek", "test_provenance.py", "provenance", "write_provenance_bundle"),
     ("scrnaseq", "test_preflight.py", "preflight", "run_preflight"),
+    ("scrnaseq", "test_remap_paths.py", "outputs_parser", "find_multiqc_report"),
 ])
 @pytest.mark.parametrize("foreign", ["rnaseq", "sarek", "scrnaseq"])
 def test_reviewed_tests_keep_their_own_implementation(owner, filename, dependency, function, foreign):

@@ -31,14 +31,14 @@ def _purge_foreign(*names: str) -> None:
 
 _purge_foreign("provenance", "schemas", "preflight")
 
-import provenance  # noqa: E402
-from provenance import (  # noqa: E402
-    ProvenanceBundle,
-    compute_params_checksum,
-    compute_reference_checksums,
-    load_manifest,
-    write_provenance_bundle,
-)
+from clawbio.common.tests.nfcore_test_imports import load_tested_module  # noqa: E402
+
+provenance = load_tested_module(_SKILL_DIR, "provenance")
+ProvenanceBundle = provenance.ProvenanceBundle
+compute_params_checksum = provenance.compute_params_checksum
+compute_reference_checksums = provenance.compute_reference_checksums
+load_manifest = provenance.load_manifest
+write_provenance_bundle = provenance.write_provenance_bundle
 
 
 # ---------------------------------------------------------------------------
