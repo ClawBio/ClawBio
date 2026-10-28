@@ -30,14 +30,14 @@ def _purge_local_modules(*names: str) -> None:
 _purge_foreign_bare_modules("preflight", "provenance", "schemas")
 
 from preflight import check_resume_params_checksum
-import provenance as provenance_module
-from provenance import (
-    _reference_checksums,
-    build_inputs_payload,
-    build_runtime_payload,
-    build_upstream_payload,
-    write_provenance_bundle,
-)
+from clawbio.common.tests.nfcore_test_imports import load_tested_module
+
+provenance_module = load_tested_module(_SKILL_DIR, "provenance")
+_reference_checksums = provenance_module._reference_checksums
+build_inputs_payload = provenance_module.build_inputs_payload
+build_runtime_payload = provenance_module.build_runtime_payload
+build_upstream_payload = provenance_module.build_upstream_payload
+write_provenance_bundle = provenance_module.write_provenance_bundle
 
 _purge_local_modules("preflight", "provenance", "schemas")
 if str(_SKILL_DIR) in sys.path:

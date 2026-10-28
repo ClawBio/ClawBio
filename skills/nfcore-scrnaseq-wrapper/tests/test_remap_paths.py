@@ -10,6 +10,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 
 from remap_paths import cmd_output_dir_hint, cmd_remap, main, remap_csv, verify_paths
+from clawbio.common.tests.nfcore_test_imports import load_tested_module
+
+_outputs_parser = load_tested_module(Path(__file__).resolve().parent.parent, "outputs_parser")
+find_h5ad_candidates = _outputs_parser.find_h5ad_candidates
+find_multiqc_report = _outputs_parser.find_multiqc_report
 
 
 def test_cmd_output_dir_hint_is_accepted_noop(capsys):
@@ -459,7 +464,6 @@ def test_repaired_checksums_match_freshly_generated_manifest(tmp_path):
     be byte-identical to the one the wrapper itself would write, i.e. cover exactly the
     original allowlist and not the reproducibility/*.json tree, environment.yml/
     manifest.json, other upstream outputs, or extra logs."""
-    from outputs_parser import find_h5ad_candidates, find_multiqc_report
     from provenance import write_reproducibility_checksums
     from remap_paths import _regenerate_checksums
 
@@ -570,7 +574,6 @@ def test_main_rejects_half_a_prefix_pair(tmp_path):
 def test_repaired_checksums_cover_the_container_record_like_a_fresh_bundle(tmp_path):
     """containers.json and containers.config pin the images a replay runs, so both
     are in the allowlist, and --repair-bundle must rebuild exactly the same list."""
-    from outputs_parser import find_h5ad_candidates
     from provenance import write_reproducibility_checksums
     from remap_paths import _regenerate_checksums
 
