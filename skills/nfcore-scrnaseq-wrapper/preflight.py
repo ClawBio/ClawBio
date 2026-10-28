@@ -38,7 +38,6 @@ from schemas import (
     PROJECT_ROOT,
     SUPPORTED_PRESETS,
     SUPPORTED_PROFILES,
-    SYMBOLIC_REFERENCE_FIELDS,
     profile_components,
     profile_includes,
 )
@@ -408,9 +407,6 @@ def check_output_dir_available(output_dir: Path, *, resume: bool) -> None:
     """Validate output-dir reuse policy before writing wrapper artifacts."""
     _check_output_dir(output_dir, resume=resume)
 
-
-# Fields that are string identifiers, not local paths — never existence-checked.
-_SYMBOLIC_REFERENCE_FIELDS = frozenset(SYMBOLIC_REFERENCE_FIELDS)
 
 # Every local path collected and existence-checked (genome refs + auxiliary
 # files). Categories are centralised in schemas.py so preflight and
