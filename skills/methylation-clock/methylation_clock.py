@@ -243,7 +243,7 @@ def _aggregate_epicv2_probes(df: pd.DataFrame, verbose: bool) -> pd.DataFrame:
         return df
     # Newer PyAging (>=0.5) strips every column name at the first "_", which
     # mangles metadata columns such as "tissue_type". Aggregate probe columns only.
-    is_probe = df.columns.str.match(r"^(cg|ch|rs|nv)[0-9A-Za-z.\-]*(_|$)")
+    is_probe = df.columns.map(lambda col: bool(PROBE_NAME.match(str(col))))
     if is_probe.all():
         return pya.pp.epicv2_probe_aggregation(df, verbose=verbose)
     probes = pya.pp.epicv2_probe_aggregation(df.loc[:, is_probe], verbose=verbose)

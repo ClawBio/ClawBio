@@ -1,7 +1,9 @@
 """Input and report contracts that run without downloading clock weights."""
 
-import sys
+import hashlib
+import re
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -33,6 +35,19 @@ def test_demo_fixture_is_generated_synthetic_data(tmp_path):
     assert frame[probe_cols].max().max() <= 1
 
 
+def test_demo_data_hashes_match_provenance():
+    data_dir = Path(__file__).parent.parent / "data"
+    provenance = (data_dir / "PROVENANCE.md").read_text()
+    expected = dict(re.findall(
+        r"SHA-256 of `([^`]+)`:\s*\n`([0-9a-f]{64})`", provenance
+    ))
+
+    assert set(expected) == {"synthetic_beta_demo.csv.gz", "probe_ids.txt.gz"}
+    for filename, published_hash in expected.items():
+        actual_hash = hashlib.sha256((data_dir / filename).read_bytes()).hexdigest()
+        assert actual_hash == published_hash, f"{filename} hash differs from PROVENANCE.md"
+
+
 def test_registered_demo_uses_synthetic_fixture():
     from clawbio.cli import SKILLS
 
@@ -51,12 +66,17 @@ def test_aggregation_sends_only_probe_columns_to_pyaging(monkeypatch):
         "pya",
         SimpleNamespace(pp=SimpleNamespace(epicv2_probe_aggregation=fake_aggregation)),
     )
-    frame = pd.DataFrame({"tissue_type": ["blood"], "cg00000108_BC21": [0.4]})
+    frame = pd.DataFrame({
+        "tissue_type": ["blood"],
+        "chip_id": ["array-1"],
+        "cg00000108_BC21": [0.4],
+    })
 
     result = clock._aggregate_epicv2_probes(frame, verbose=False)
 
     assert seen == ["cg00000108_BC21"]
     assert result["tissue_type"].tolist() == ["blood"]
+    assert result["chip_id"].tolist() == ["array-1"]
 
 
 def test_geo_download_stays_under_output_directory(tmp_path, monkeypatch):
