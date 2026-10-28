@@ -95,7 +95,6 @@ REFERENCE_PATH_PARAMS: tuple[str, ...] = (
 )
 _REFERENCE_PATH_PATTERN_PARAMS = frozenset({"known_indels", "known_indels_tbi"})
 
-_CHECKSUM_BUF_SIZE = 64 * 1024  # 64 KB stream chunk
 _LARGE_FILE_THRESHOLD = 500 * 1024 * 1024  # 500 MB — still hash, but stream
 
 # Directories under <output_dir> we never include in checksums.sha256.
