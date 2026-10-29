@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 
+import pytest
+
 # The runner engine lives in clawbio.cli; import it directly so monkeypatching
 # its subprocess attribute affects run_skill's behaviour.
 from clawbio import cli as clawbio_runner
@@ -72,12 +74,12 @@ def test_run_skill_passes_absolute_relative_input_to_subprocess(monkeypatch, tmp
     assert captured["cwd"] == str(PROJECT_ROOT / "skills" / "nfcore-sarek-wrapper")
 
 
-def _run_gwas(monkeypatch, tmp_path, returncode):
+def _run_gwas(monkeypatch, tmp_path, returncode, stderr="boom"):
     class Proc:
         stdout = ""
-        stderr = "boom"
 
     Proc.returncode = returncode
+    Proc.stderr = stderr
     monkeypatch.setattr(clawbio_runner.subprocess, "run", lambda *a, **k: Proc())
     clawbio_runner.run_skill(skill_name="gwas", output_dir=str(tmp_path / "out"), extra_args=["--rsid", "rs861539"])
     log = Path(os.environ["CLAWBIO_AUDIT_LOG"])
@@ -96,6 +98,51 @@ def test_run_skill_audit_record_marks_a_failed_run(monkeypatch, tmp_path):
     (record,) = _run_gwas(monkeypatch, tmp_path, 2)
     assert record["status"] == "ERROR"
     assert "2" in record["error"]
+
+
+def _traceback(last_line):
+    return (
+        "Traceback (most recent call last):\n"
+        '  File "gwas_lookup.py", line 1, in <module>\n'
+        f"{last_line}\n"
+        "\n"
+    )
+
+
+def test_run_skill_audit_record_says_why_a_run_failed(monkeypatch, tmp_path):
+    # A traceback ends on the exception line; that line is what error analysis needs.
+    stderr = _traceback("ValueError: rsID rs861539 not found in any source")
+    (record,) = _run_gwas(monkeypatch, tmp_path, 1, stderr=stderr)
+    assert record["error"] == "exit code 1: ValueError: rsID rs861539 not found in any source"
+
+
+def test_run_skill_audit_record_keeps_a_non_python_error_line(monkeypatch, tmp_path):
+    (record,) = _run_gwas(monkeypatch, tmp_path, 1, stderr="[ERROR] No panel SNPs found in input file.\n")
+    assert record["error"] == "exit code 1: [ERROR] No panel SNPs found in input file."
+
+
+def test_hide_inputs_keeps_stderr_out_of_the_audit_record(monkeypatch, tmp_path):
+    # The last stderr line can quote the input file, so the hide flag must cover it.
+    monkeypatch.setenv("OPENINFERENCE_HIDE_INPUTS", "true")
+    (record,) = _run_gwas(monkeypatch, tmp_path, 1, stderr=_traceback("KeyError: 'rs861539 AG'"))
+    assert record["error"] == "__REDACTED__"
+
+
+@pytest.mark.parametrize(
+    ("code", "stderr", "expected"),
+    [
+        (1, "ValueError: bad input", "exit code 1: ValueError: bad input"),
+        # Traceback frames and paths above the last line never reach the message.
+        (1, _traceback("KeyError: 'rs1'"), "exit code 1: KeyError: 'rs1'"),
+        # Trailing blank lines and Windows line endings are skipped.
+        (2, "first\r\nlast line  \r\n\r\n   \n", "exit code 2: last line"),
+        (1, "", "exit code 1"),
+        (1, " \n\t\n", "exit code 1"),
+        (-9, "Killed", "exit code -9: Killed"),
+    ],
+)
+def test_failure_message_keeps_only_the_last_non_blank_stderr_line(code, stderr, expected):
+    assert clawbio_runner._failure_message(code, stderr) == expected
 
 
 def test_run_skill_audit_record_carries_the_skill_md_version(monkeypatch, tmp_path):
