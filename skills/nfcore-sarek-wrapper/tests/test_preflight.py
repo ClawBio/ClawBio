@@ -10,7 +10,6 @@ from preflight import (
     PreflightResult,
     REFERENCE_PATH_PARAMS,
     _check_annotation_cache,
-    _check_remote_inputs,
     _check_email,
     _check_enums,
     _check_flag_compatibility,
@@ -1392,7 +1391,12 @@ def test_local_inputs_pass_the_remote_gate():
 ])
 def test_remote_spring_vcf_and_table_inputs_are_rejected_by_default(group, uri):
     """Every path group the samplesheet builder reports is gated, not just FASTQ/BAM/CRAM."""
+    from pathlib import Path
+
+    from clawbio.common.tests.nfcore_test_imports import load_tested_module
+
+    preflight = load_tested_module(Path(__file__).resolve().parent.parent, "preflight")
     with pytest.raises(SkillError) as exc:
-        _check_remote_inputs({}, {group: [uri]}, allow_remote_inputs=False)
+        preflight._check_remote_inputs({}, {group: [uri]}, allow_remote_inputs=False)
     assert exc.value.error_code == ErrorCode.REMOTE_INPUT_NOT_ALLOWED
     assert exc.value.details["remote_paths"] == [uri]
