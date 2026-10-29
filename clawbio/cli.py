@@ -1613,6 +1613,15 @@ class _SkillFailed(Exception):
     """Marks the audit span ERROR: run_skill reports failure as a dict, not a raise."""
 
 
+def _failure_message(exit_code: int, stderr: str) -> str:
+    """The exit code plus the last non-blank stderr line: a traceback ends on the exception.
+
+    skill_run passes this through the OPENINFERENCE_HIDE_* flags, since the line can quote the input.
+    """
+    last = next((line.strip() for line in reversed(stderr.splitlines()) if line.strip()), "")
+    return f"exit code {exit_code}: {last}" if last else f"exit code {exit_code}"
+
+
 def _skill_version(skill_name: str) -> str:
     """The SKILL.md frontmatter version, so an audit record says which methodology ran."""
     script = SKILLS.get(skill_name, {}).get("script")
@@ -1712,7 +1721,7 @@ def run_skill(
             skill_name, input_path, output_dir, demo, extra_args, timeout, profile_path
         )
         if not result["success"]:
-            raise _SkillFailed(f"exit code {result['exit_code']}")
+            raise _SkillFailed(_failure_message(result["exit_code"], result.get("stderr") or ""))
     return result
 
 
