@@ -30,13 +30,13 @@ needs_pyarrow = pytest.mark.skipif(importlib.util.find_spec("pyarrow") is None, 
 
 @pytest.fixture(scope="module")
 def demo_bundle(tmp_path_factory):
-    out = tmp_path_factory.mktemp("demo_regen")
+    out = tmp_path_factory.mktemp("demo_regen") / "demo"
     import subprocess
     subprocess.run(
-        [sys.executable, str(SKILL_DIR / "generate_demo_bundle.py")],
+        [sys.executable, str(SKILL_DIR / "generate_demo_bundle.py"), "--output-dir", str(out)],
         check=True, cwd=str(SKILL_DIR),
     )
-    return SKILL_DIR / "demo"
+    return out
 
 
 class TestSafeSampleQuery:
