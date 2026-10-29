@@ -65,7 +65,9 @@ from command_builder import build_nextflow_command, compose_profile
 from errors import ErrorCode, SkillError
 from executor import execute_nextflow
 from outputs_parser import parse_outputs
-from params_builder import load_run_params, _load_user_params_file, build_effective_params, write_params_yaml
+from params_builder import (
+    DEMO_DROPPED_PARAMS_FILE_KEYS, load_run_params, _load_user_params_file, build_effective_params, write_params_yaml,
+)
 from pipeline_source import resolve_pipeline_source
 from preflight import _check_output_dir, REFERENCE_PATH_PARAMS, run_preflight
 from provenance import _build_manifest, compute_samplesheet_checksum, compute_params_checksum, compute_reference_checksums, load_manifest, write_provenance_bundle
@@ -980,6 +982,14 @@ def _apply_demo_overrides(args: argparse.Namespace) -> None:
         print(
             f"WARNING: --demo ignores reference flags ({flags}); "
             "the upstream test profile provides its own bundled references.",
+            file=sys.stderr,
+        )
+    params_file_values = _load_user_params_file(getattr(args, "params_file", None))
+    dropped = [key for key in params_file_values if key in DEMO_DROPPED_PARAMS_FILE_KEYS]
+    if dropped:
+        print(
+            f"WARNING: --demo ignores --params-file keys ({', '.join(dropped)}); "
+            "the upstream test profile provides its own samplesheet and references.",
             file=sys.stderr,
         )
     if args.input:

@@ -13,6 +13,7 @@ p = load_tested_module(Path(__file__).resolve().parent.parent, "preflight")
 PreflightResult = p.PreflightResult
 REFERENCE_PATH_PARAMS = p.REFERENCE_PATH_PARAMS
 _check_annotation_cache = p._check_annotation_cache
+_check_remote_inputs = p._check_remote_inputs
 _check_email = p._check_email
 _check_enums = p._check_enums
 _check_flag_compatibility = p._check_flag_compatibility
@@ -1362,3 +1363,16 @@ def test_a_launcher_refusal_is_named_when_nextflow_cannot_report_its_version(mon
     with pytest.raises(_SkillError) as exc:
         p._check_nextflow()
     assert refusal.removeprefix("ERROR: ") in exc.value.message
+
+
+@pytest.mark.parametrize("group,uri", [
+    ("spring_paths", "s3://bucket/n_R1.fastq.gz.spring"),
+    ("vcf_paths", "https://example.org/n.vcf.gz"),
+    ("tables", "gs://bucket/n.recal.table"),
+])
+def test_remote_spring_vcf_and_table_inputs_are_rejected_by_default(group, uri):
+    """Every path group the samplesheet builder reports is gated, not just FASTQ/BAM/CRAM."""
+    with pytest.raises(SkillError) as exc:
+        _check_remote_inputs({}, {group: [uri]}, allow_remote_inputs=False)
+    assert exc.value.error_code == ErrorCode.REMOTE_INPUT_NOT_ALLOWED
+    assert exc.value.details["remote_paths"] == [uri]

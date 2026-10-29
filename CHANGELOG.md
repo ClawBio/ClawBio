@@ -114,10 +114,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`clawbio run` relays a successful skill's `WARNING:` lines.** stderr was shown
   only on failure, so e.g. `--demo --skip-qc` succeeded without saying the flag had
   no effect.
-- **The wgs-prs demo runs wherever bcftools is installed.** Its synthetic VCF declared no
-  contigs or FORMAT keys and listed records out of order, so `bcftools norm` and `index` rejected it
-  (`CONTIG id=0 not present in the header`); CI passed only because it has no bcftools. The demo VCF
-  now declares both and is coordinate-sorted, with autosomes in numeric order before X, Y and MT.
 - **The test suite no longer rewrites drug-repurposing-screen's demo data.** A fixture regenerated
   the bundle into the checked-in `demo/`, so every run modified three CSVs (pandas 3 writes some floats
   one digit shorter). `generate_demo_bundle.py` takes `--output-dir`, and the fixture uses a temporary one.

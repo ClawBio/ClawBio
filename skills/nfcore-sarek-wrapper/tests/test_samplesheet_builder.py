@@ -289,3 +289,15 @@ def test_sex_metadata_is_forwarded_without_copying_it_into_summary(tmp_path, sex
     assert all("sex" not in entry for entries in report["rows_by_patient"].values() for entry in entries)
     with normalized.open(newline="", encoding="utf-8") as handle:
         assert [row["sex"] for row in csv.DictReader(handle)] == sexes
+
+
+def test_every_reported_path_group_is_remote_gated(tmp_path):
+    """The remote-input gate reads the builder's path groups from one list; a new
+    group the builder reports must be added there or remote URIs in it go ungated."""
+    from preflight import SAMPLESHEET_PATH_GROUPS
+
+    report = validate_and_normalize_samplesheet(
+        _write_delimited(tmp_path / "samples.csv", [_row(tmp_path)], ","), tmp_path / "out.csv"
+    )
+    reported = {key for key in report if key.endswith("_paths") or key == "tables"}
+    assert reported == set(SAMPLESHEET_PATH_GROUPS)
