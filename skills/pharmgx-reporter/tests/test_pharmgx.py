@@ -1062,7 +1062,7 @@ def test_issue_602_fluoropyrimidines_keep_dose_reduction_and_flag_poor():
 
 # --- #603 review (camlloyd): CPIC fallback dosing applies at AS 0.5 only ---
 
-def _dpyd_note(genotypes):
+def _fluorouracil_note(genotypes):
     from pharmgx_reporter import lookup_drugs
     d, ph = _dpyd(genotypes)
     drugs = lookup_drugs({"DPYD": {"diplotype": d, "phenotype": ph}})
@@ -1072,7 +1072,7 @@ def _dpyd_note(genotypes):
 def test_pr603_worst_case_as0_note_says_avoid_without_reduced_dose_fallback():
     """*2A het (AS 1.0) with *13 untested: worst case *2A/*13 is AS 0, avoid only."""
     g = {r: g for r, g in _DPYD_REF.items() if r != "rs55886062"}
-    note = _dpyd_note({**g, "rs3918290": "CT"})
+    note = _fluorouracil_note({**g, "rs3918290": "CT"})
     assert "Possible Poor Metabolizer because *13 was not tested" in note
     assert "CPIC recommends avoiding fluoropyrimidines" in note
     assert "strongly reduced dose" not in note
@@ -1081,7 +1081,7 @@ def test_pr603_worst_case_as0_note_says_avoid_without_reduced_dose_fallback():
 
 def test_pr603_worst_case_as05_note_keeps_fallback_scoped_to_as05():
     """*2A het with only HapB3 untested: worst case AS 0.5, fallback applies."""
-    note = _dpyd_note({**_NO_HAPB3, "rs3918290": "CT"})
+    note = _fluorouracil_note({**_NO_HAPB3, "rs3918290": "CT"})
     assert ("Possible Poor Metabolizer because HapB3 was not tested: CPIC recommends avoiding "
             "fluoropyrimidines (at activity score 0.5 only, a strongly reduced dose with early "
             "TDM if no alternative exists). Genotype HapB3 before the first dose.") in note
@@ -1090,7 +1090,26 @@ def test_pr603_worst_case_as05_note_keeps_fallback_scoped_to_as05():
 
 def test_pr603_several_untested_markers_use_plural_british_list():
     """Only *2A genotyped (het): '*13, D949V and HapB3 were not tested'."""
-    note = _dpyd_note({"rs3918290": "CT"})
+    note = _fluorouracil_note({"rs3918290": "CT"})
     assert "because *13, D949V and HapB3 were not tested" in note
     assert "Genotype *13, D949V and HapB3 before the first dose." in note
     assert "was not tested" not in note
+
+
+# --- #603 review: the note states the reachable activity-score range ---
+
+def test_pr603_d949v_het_with_2a_untested_note_says_as_1_5_or_lower():
+    """D949V het (AS 1.5) with *2A untested reaches AS 0.5: the upper bound is 1.5, not 1.0."""
+    g = {r: g for r, g in _DPYD_REF.items() if r != "rs3918290"}
+    d, ph = _dpyd({**g, "rs67376798": "AT"})
+    assert ph == "Intermediate or Poor Metabolizer (*2A not tested)"
+    note = _fluorouracil_note({**g, "rs67376798": "AT"})
+    assert "At least Intermediate Metabolizer (activity score 1.5 or lower)" in note
+    assert "<= 1.0" not in note
+    assert "50%" in note
+
+
+def test_pr603_2a_het_note_says_as_1_0_or_lower():
+    """*2A het caps AS at 1.0 whatever HapB3 is."""
+    note = _fluorouracil_note({**_NO_HAPB3, "rs3918290": "CT"})
+    assert "At least Intermediate Metabolizer (activity score 1.0 or lower)" in note

@@ -1267,19 +1267,12 @@ def _dpyd_bounded_phenotype(gdef, diplotype):
     cis with the higher-activity copy. Returns None when nothing was detected
     (that stays Indeterminate: an untested marker could still make it IM).
     """
-    import re as _re
-    m = _re.search(r"\(\d+/\d+ SNPs tested; (.+) not tested\)", diplotype)
-    if not m:
+    reach = _dpyd_as_range(diplotype, gdef)
+    if reach is None or reach[0] == 2.0:
         return None
-    effect_by_allele = {v["allele"]: v["effect"] for v in gdef["variants"].values()}
-    alleles = diplotype.split("(")[0].strip().split("/")
-    act = sorted(_DPYD_ALLELE_ACTIVITY[effect_by_allele.get(a, "normal")] for a in alleles)
-    if act == [1.0, 1.0]:
-        return None
-    untested = [a.strip() for a in m.group(1).split(",")]
-    worst = min(_DPYD_ALLELE_ACTIVITY[effect_by_allele[a]] for a in untested)
-    best_band = _dpyd_as_band(sum(act))
-    worst_band = _dpyd_as_band(act[0] + min(act[1], worst))
+    best, worst, untested = reach
+    best_band = _dpyd_as_band(best)
+    worst_band = _dpyd_as_band(worst)
     label = ", ".join(untested)
     if best_band == worst_band:
         return f"{best_band} ({label} not tested)"
@@ -1399,18 +1392,24 @@ def _join_list(items):
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
-def _dpyd_worst_as(diplotype):
-    """Lowest reachable DPYD activity score for a partially genotyped call, or None."""
+def _dpyd_as_range(diplotype, gdef=None):
+    """Reachable DPYD activity scores for a partially genotyped call.
+
+    Returns (best, worst, untested markers), or None when the call is not
+    partial. Best is the score of the detected alleles; worst assumes the
+    lowest-activity untested allele replaces the higher-activity copy.
+    """
     import re as _re
     m = _re.search(r"\(\d+/\d+ SNPs tested; (.+) not tested\)", diplotype or "")
     if not m:
         return None
-    gdef = GENE_DEFS["DPYD"]
+    gdef = gdef or GENE_DEFS["DPYD"]
     effect_by_allele = {v["allele"]: v["effect"] for v in gdef["variants"].values()}
     alleles = diplotype.split("(")[0].strip().split("/")
     act = sorted(_DPYD_ALLELE_ACTIVITY[effect_by_allele.get(a, "normal")] for a in alleles)
-    worst = min(_DPYD_ALLELE_ACTIVITY[effect_by_allele[a.strip()]] for a in m.group(1).split(","))
-    return act[0] + min(act[1], worst)
+    untested = [a.strip() for a in m.group(1).split(",")]
+    worst = min(_DPYD_ALLELE_ACTIVITY[effect_by_allele[a]] for a in untested)
+    return sum(act), act[0] + min(act[1], worst), untested
 
 
 def _range_note(gene, phenotype, diplotype=None):
@@ -1428,10 +1427,11 @@ def _range_note(gene, phenotype, diplotype=None):
         markers = ["a DPYD marker"]
     untested = _join_list(markers)
     verb = "were" if len(markers) > 1 else "was"
-    worst = _dpyd_worst_as(diplotype)
+    reach = _dpyd_as_range(diplotype)
+    best, worst = (reach[0], reach[1]) if reach else (1.0, None)
     fallback = (" (at activity score 0.5 only, a strongly reduced dose with early TDM "
                 "if no alternative exists)") if worst != 0 else ""
-    return ("At least Intermediate Metabolizer (activity score <= 1.0): CPIC recommends "
+    return (f"At least Intermediate Metabolizer (activity score {best:.1f} or lower): CPIC recommends "
             "reducing the starting dose by 50%, then titrating on toxicity or TDM. "
             f"Possible Poor Metabolizer because {untested} {verb} not tested: "
             f"CPIC recommends avoiding fluoropyrimidines{fallback}. "
