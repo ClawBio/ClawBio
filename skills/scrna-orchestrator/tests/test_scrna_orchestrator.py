@@ -698,7 +698,6 @@ def test_commands_sh_contains_contrast_flags_when_enabled(tmp_path: Path):
 
 def test_demo_doublet_detection_outputs_summary_metadata(tmp_path: Path):
     _require_scanpy()
-    pytest.importorskip("scrublet")
     output_dir = tmp_path / "doublet_output"
     result = _run_cmd(
         [
@@ -725,7 +724,6 @@ def test_demo_doublet_detection_outputs_summary_metadata(tmp_path: Path):
 
 def test_doublet_and_dataset_contrasts_can_run_together(tmp_path: Path):
     _require_scanpy()
-    pytest.importorskip("scrublet")
     output_dir = tmp_path / "doublet_de_output"
     result = _run_cmd(
         [
@@ -874,7 +872,6 @@ def test_clawbio_run_scrna_accepts_whitelisted_tuning_flags(tmp_path: Path):
 
 def test_clawbio_run_scrna_accepts_whitelisted_feature_flags(tmp_path: Path):
     _require_scanpy()
-    pytest.importorskip("scrublet")
     output_dir = tmp_path / "clawbio_scrna_feature_output"
 
     result = _run_clawbio_scrna_cmd(
@@ -923,26 +920,6 @@ def test_clawbio_run_scrna_accepts_whitelisted_contrast_flags(tmp_path: Path):
     assert result.returncode == 0, result.stderr
     assert (output_dir / "tables" / "contrastive_markers_full.csv").exists()
     assert (output_dir / "tables" / "contrastive_markers_top.csv").exists()
-
-
-def test_doublet_missing_dependency_message(monkeypatch: pytest.MonkeyPatch):
-    from anndata import AnnData  # type: ignore
-
-    module = _load_scrna_module()
-    adata = AnnData(
-        X=np.array([[1, 0, 3], [2, 1, 0], [1, 1, 2]], dtype=np.int32),
-        obs=pd.DataFrame(index=pd.Index(["cell0", "cell1", "cell2"], dtype="object")),
-        var=pd.DataFrame(index=pd.Index(["GeneA", "GeneB", "GeneC"], dtype="object")),
-    )
-
-    def _raise_missing():
-        raise RuntimeError(
-            "scrublet is required for --doublet-method scrublet. Install it with: pip install scrublet"
-        )
-
-    monkeypatch.setattr(module, "_import_scrublet", _raise_missing)
-    with pytest.raises(RuntimeError, match="pip install scrublet"):
-        module.run_doublet_detection(adata, method="scrublet", random_state=0)
 
 
 def test_parse_args_annotation_defaults_and_override(monkeypatch: pytest.MonkeyPatch):

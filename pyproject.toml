@@ -101,9 +101,9 @@ spatial = [
     "scanpy>=1.10",
     "leidenalg>=0.10",
 ]
-# scrublet and celltypist for skills/scrna-orchestrator's optional --doublet-method
-# scrublet and --annotate celltypist.
-scrna = ["scrublet>=0.2.3", "celltypist>=1.7"]
+# celltypist for skills/scrna-orchestrator's optional --annotate celltypist.
+# --doublet-method scrublet uses scanpy's own sc.pp.scrublet, not the scrublet package.
+scrna = ["celltypist>=1.7"]
 # cv2 for skills/data-extractor's axis calibration (data_extractor_core/cv_calibration.py).
 data-extractor = [
     "opencv-python-headless>=5.0.0.93",
