@@ -97,6 +97,27 @@ def test_geo_download_stays_under_output_directory(tmp_path, monkeypatch):
     assert downloaded.read_bytes() == b"fixture"
 
 
+def test_geo_download_cache_file_is_copied_under_output_directory(tmp_path, monkeypatch):
+    cache_file = tmp_path / "pyaging-cache" / "GSE139307.pkl"
+    cache_file.parent.mkdir()
+    cache_file.write_bytes(b"cached fixture")
+
+    def fake_download(geo_id, *, dir, verbose):
+        return str(cache_file)  # PyAging 0.5.7 returns its cache path; dir is ignored.
+
+    monkeypatch.setattr(
+        clock,
+        "pya",
+        SimpleNamespace(data=SimpleNamespace(download_example_data=fake_download)),
+    )
+
+    output_dir = tmp_path / "report"
+    downloaded = clock._resolve_geo_pickle("GSE139307", verbose=False, output_dir=output_dir)
+
+    assert downloaded == output_dir / "input" / "GSE139307.pkl"
+    assert downloaded.read_bytes() == b"cached fixture"
+
+
 def test_csv_sample_ids_become_index(tmp_path):
     source = tmp_path / "samples.csv"
     pd.DataFrame(

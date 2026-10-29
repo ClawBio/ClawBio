@@ -11,7 +11,7 @@ pytest.importorskip("pyaging")
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from methylation_clock import DEFAULT_CLOCKS, parse_clock_list, run_analysis
+from methylation_clock import DEFAULT_CLOCKS, _resolve_geo_pickle, parse_clock_list, run_analysis
 
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
@@ -51,6 +51,22 @@ def test_run_analysis_with_fixture(tmp_path):
 
     report_text = (out_dir / "report.md").read_text()
     assert "ClawBio is a research and educational tool" in report_text
+
+    clock_metadata = json.loads((out_dir / "tables" / "clock_metadata.json").read_text())
+    horvath_metadata = clock_metadata["Horvath2013"]
+    assert "unit" in horvath_metadata
+    assert horvath_metadata["unit"] in (["years"], "years")
+    assert "| horvath2013 | years |" in (out_dir / "report.md").read_text().lower()
+
+
+@pytest.mark.network
+@pytest.mark.skipif(not LIVE_CLOCKS, reason="set CLAWBIO_TEST_METHYLATION_NETWORK=1 to download PyAging data")
+def test_geo_download_uses_output_input_directory(tmp_path):
+    output_dir = tmp_path / "geo_run"
+    downloaded = _resolve_geo_pickle("GSE139307", verbose=False, output_dir=output_dir)
+
+    assert downloaded.is_file()
+    assert downloaded.is_relative_to(output_dir / "input")
 
 
 @pytest.mark.network

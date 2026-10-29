@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import sys
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as package_version
@@ -197,7 +198,12 @@ def _resolve_geo_pickle(geo_id: str, verbose: bool, output_dir: Path) -> Path:
         except TypeError:
             downloaded_path = None
         if downloaded_path is not None and downloaded_path.is_file():
-            return downloaded_path
+            input_root = input_dir.resolve()
+            if downloaded_path.resolve().is_relative_to(input_root):
+                return downloaded_path
+            local_copy = input_dir / f"{geo_id}.pkl"
+            shutil.copy2(downloaded_path, local_copy)
+            return local_copy
 
     # PyAging 0.5.7's documented helper may only write the file and return None.
     # Search only this run's input directory so a stale file elsewhere cannot be
