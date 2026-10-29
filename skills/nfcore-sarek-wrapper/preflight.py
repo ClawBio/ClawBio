@@ -200,6 +200,10 @@ class PreflightResult:
     nextflow_version: str = ""
 
 
+# Every path group samplesheet_builder reports; a remote URI in any of them is gated.
+SAMPLESHEET_PATH_GROUPS = ("fastq_paths", "spring_paths", "bam_paths", "cram_paths", "vcf_paths", "tables")
+
+
 def _check_remote_inputs(
     params: dict[str, Any],
     samplesheet: dict[str, Any],
@@ -212,7 +216,7 @@ def _check_remote_inputs(
     object-store ``--work-dir`` and the public iGenomes mirror base (``igenomes_base``,
     default ``s3://ngi-igenomes/``) are intentionally remote and are not gated."""
     remote: list[str] = []
-    for key in ("fastq_paths", "bam_paths", "cram_paths"):
+    for key in SAMPLESHEET_PATH_GROUPS:
         for path in samplesheet.get(key, []) or []:
             if "://" in str(path):
                 remote.append(str(path))

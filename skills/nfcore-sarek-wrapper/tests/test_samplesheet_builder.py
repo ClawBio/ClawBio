@@ -191,3 +191,15 @@ def test_samplesheet_rejects_multiple_normals_with_exactly_one_tumor(tmp_path):
         validate_and_normalize_samplesheet(input_path, tmp_path / "out.csv", step="mapping")
 
     assert exc.value.error_code == ErrorCode.INVALID_PAIRING
+
+
+def test_every_reported_path_group_is_remote_gated(tmp_path):
+    """The remote-input gate reads the builder's path groups from one list; a new
+    group the builder reports must be added there or remote URIs in it go ungated."""
+    from preflight import SAMPLESHEET_PATH_GROUPS
+
+    report = validate_and_normalize_samplesheet(
+        _write_delimited(tmp_path / "samples.csv", [_row(tmp_path)], ","), tmp_path / "out.csv"
+    )
+    reported = {key for key in report if key.endswith("_paths") or key == "tables"}
+    assert reported == set(SAMPLESHEET_PATH_GROUPS)
