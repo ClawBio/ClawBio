@@ -40,28 +40,27 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
 dependencies = [
+    # anndata 0.13 is the first that writes pandas 3 string columns to .h5ad; it needs
+    # Python 3.12+. On 3.11 pydeseq2 still pulls an older anndata, and h5ad tests skip.
+    "anndata>=0.13 ; python_version >= '3.12'",
     "biopython>=1.88",
-    "conda-lock>=4.0.2",
+    "conda-lock>=4.0.3",
     "matplotlib>=3.11.2",
     "numpy>=2.4.6",
-    "openai>=3.17.0",
-    "opentelemetry-sdk>=1.44.0,<2",
+    "openai>=3.35.1",
+    "opentelemetry-sdk>=1.45.1,<2",
     "pandas>=3.0.6",
     "pyyaml>=6.0",
     "pydeseq2>=0.4",
-    "rocrate>=0.15.1",
+    "rocrate>=0.16.0",
     "scikit-learn>=1.9.1",
     "scipy>=1.10",
 ]
 
 [project.optional-dependencies]
-# DEPRECATED since 0.7.0, removed in 0.8.0 (see CHANGELOG). Kept so existing
-# `uvx --from 'clawbio[mcp]' clawbio mcp` configurations keep working until then.
-# Pinned below 2.0: mcp 2.0.0 removed mcp.server.fastmcp (now mcp.server.mcpserver).
-mcp = ["mcp>=1.9,<2"]
 just-prs = [
-    "fastmcp>=3.4.4,<4",
-    "typer>=0.27.2,<1",
+    "fastmcp>=4.1.1,<5",
+    "typer>=0.27.3,<1",
 ]
 # SuShiE fine-mapping engine (jax-based) for skills/fine-mapping.
 # sushie pulls glimix-core itself; see the liknorm override under [tool.uv]
@@ -92,7 +91,7 @@ cell-detection = [
 labstep = ["labstep>=3.0"]
 galaxy-bridge = ["bioblend>=1.2"]
 affinity-proteomics = ["statsmodels>=0.14", "seaborn>=0.12"]
-drug-repurposing-screen = ["pyarrow>=14.0"]
+drug-repurposing-screen = ["pyarrow>=26.0.0"]
 # Scanpy/Leiden for skills/spatial-transcriptomics. Squidpy is not on this
 # extra: 1.4–1.6 all pull spatialdata + dask + s3fs into `uv sync --all-extras`
 # for every CI job. Spatial statistics (Moran's I, neighbourhood enrichment,
@@ -102,16 +101,26 @@ spatial = [
     "scanpy>=1.10",
     "leidenalg>=0.10",
 ]
+# cv2 for skills/data-extractor's axis calibration (data_extractor_core/cv_calibration.py).
+data-extractor = [
+    "opencv-python-headless>=5.0.0.93",
+]
 # Python BigQuery client for skills/bigquery-public, which imports it lazily
 # and falls back to the `bq` CLI when it is absent.
 bigquery = [
-    "google-auth>=2.58.0,<3",
-    "google-cloud-bigquery>=3.45.2,<4",
+    "google-auth>=2.62.0,<3",
+    "google-cloud-bigquery>=3.46.2,<4",
 ]
 # The Robotary web UI (robotary/server.py).
 robotary = [
-    "fastapi>=0.143.0",
-    "uvicorn>=0.51.0",
+    "fastapi>=0.149.0",
+    "uvicorn>=0.54.0",
+]
+
+# PDF rendering in prs-abstain; the skill degrades to markdown-only without them.
+prs-abstain = [
+    "reportlab>=5.0.1,<6",
+    "pillow>=13.0.0,<14",
 ]
 
 [tool.uv]
@@ -144,16 +153,18 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 
 [dependency-groups]
 dev = [
-    "hypothesis>=6.168.4",
+    "hypothesis>=6.170.2",
     "pytest>=9.1.1",
     "skills-ref>=0.1.1,<1",
+    # prs-abstain tests inspect the rendered PDFs.
+    "pypdf>=6.21.1,<7",
 ]
 bot = [
     "python-telegram-bot[job-queue]>=22.8",
     "discord.py>=2.3.0",
     "flask>=3.0.0",
     "requests>=2.34.2",
-    "python-dotenv>=1.2.3",
+    "python-dotenv>=1.2.4",
 ]
 
 [tool.hatch.version]

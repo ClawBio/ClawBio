@@ -49,7 +49,7 @@
     },
     {
       "name": "Medical disclaimer",
-      "description": "report.md contains text stating this is for research/educational purposes only and is NOT a diagnostic device",
+      "description": "report.md contains the ClawBio disclaimer: a research and educational tool, not a medical device",
       "max_score": 10
     },
     {

@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -124,7 +125,8 @@ def skill_run(
     output_dir: str = "",
     log_path: Path | str | None = None,
 ):
-    """Root trace for a skill invocation. Yields the span_id (16-char hex).
+    """Span for a skill invocation: a root, or a child of the caller's span
+    from TRACEPARENT. Yields the span_id (16-char hex).
 
     PII warning: ``input_file``, ``output_dir``, and any future kwargs are written
     to ``~/.clawbio/audit.jsonl``, and, when ``CLAWBIO_OTLP_ENDPOINT`` is set, are
@@ -140,44 +142,72 @@ def skill_run(
     scrubbing: a caller that puts an identifier in a skill name or an attrs
     key is outside their reach.
     """
-    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.resources import OTELResourceDetector, Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
-    from opentelemetry.trace import StatusCode
+    from opentelemetry.sdk.trace.sampling import ALWAYS_ON
+    from opentelemetry.trace import StatusCode, get_current_span
 
-    provider = TracerProvider(resource=Resource.create({
+    # Fallbacks for a plain CLI run. A caller names its own project and service
+    # through OTEL_RESOURCE_ATTRIBUTES / OTEL_SERVICE_NAME. Resource.create() lets
+    # our values beat those, so the environment is merged back on top; only what
+    # it actually sets, or service.name would become "unknown_service".
+    # ALWAYS_ON: a caller's TRACEPARENT can say "not sampled", but the audit
+    # record is kept for every run regardless of what the caller exports.
+    provider = TracerProvider(sampler=ALWAYS_ON, resource=Resource.create({
         "service.name": "clawbio",
         # Phoenix groups traces by this; without it everything lands in "default".
         "openinference.project.name": "clawbio",
-    }))
+    }).merge(OTELResourceDetector().detect()))
     provider.add_span_processor(SimpleSpanProcessor(_JsonlExporter(_resolve_log(log_path))))
     endpoint = os.environ.get("CLAWBIO_OTLP_ENDPOINT")
     if endpoint:
         # Opt-in, and deliberately not OTEL_EXPORTER_OTLP_ENDPOINT: an org-wide
         # setting would otherwise point spans carrying output paths at whatever
         # collector the org runs, which may not be on this machine.
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-
-        provider.add_span_processor(
-            BatchSpanProcessor(
-                # Short timeout: a dead collector must not make shutdown() look
-                # like a hung analysis.
-                OTLPSpanExporter(endpoint=_traces_url(endpoint), timeout=5)
+        try:
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        except ImportError:
+            # Tracing is optional; the analysis it describes is not.
+            print(
+                "clawbio: CLAWBIO_OTLP_ENDPOINT is set but the exporter is not "
+                "installed (pip install 'clawbio[otlp]'); spans stay in the "
+                "local audit log only.",
+                file=sys.stderr,
             )
-        )
-    tracer = provider.get_tracer("clawbio")
+        else:
+            provider.add_span_processor(
+                BatchSpanProcessor(
+                    # Short timeout: a dead collector must not make shutdown() look
+                    # like a hung analysis.
+                    OTLPSpanExporter(endpoint=_traces_url(endpoint), timeout=5)
+                )
+            )
+    tracer = provider.get_tracer(__name__)
+
+    # An agent that launched us as a subprocess can only hand over its span
+    # through the environment. An open span wins (full-profile nests skill_run in
+    # skill_run); the propagator drops a malformed value, leaving a root span.
+    parent = None
+    if not get_current_span().get_span_context().is_valid and os.environ.get("TRACEPARENT"):
+        from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+        parent = TraceContextTextMapPropagator().extract({
+            "traceparent": os.environ["TRACEPARENT"],
+            "tracestate": os.environ.get("TRACESTATE", ""),
+        })
 
     token = _TRACER.set(tracer)
     try:
         # The SDK would otherwise record an exception event and overwrite the
         # status description, both carrying the raw text past the hide flags.
         with tracer.start_as_current_span(
-            "skill_run", record_exception=False, set_status_on_exception=False
+            "skill_run", context=parent, record_exception=False, set_status_on_exception=False
         ) as span:
             span.set_attribute("gen_ai.agent.id", skill)
             span.set_attribute("gen_ai.agent.version", version)
             # Phoenix classifies on this key alone; without it: "unknown".
-            span.set_attribute("openinference.span.kind", "AGENT")
+            span.set_attribute("openinference.span.kind", "CHAIN")
             # Each omitted when empty. The checksum keeps a clawbio.* namespace
             # because no convention has an equivalent; the file and the output
             # dir are the viewers' Input and Output, one key each, so the

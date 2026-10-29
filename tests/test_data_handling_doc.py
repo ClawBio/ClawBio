@@ -123,3 +123,8 @@ def test_core_egress_paths_are_documented():
         "clawbio/common/audit.py can export audit spans over the network, but "
         "docs/data-handling.md does not name CLAWBIO_OTLP_ENDPOINT"
     )
+
+
+def test_audit_log_override_is_documented():
+    """CLAWBIO_AUDIT_LOG redirects a file that can carry sample paths."""
+    assert "CLAWBIO_AUDIT_LOG" in DOC.read_text()

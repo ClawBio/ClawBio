@@ -1,0 +1,11 @@
+sample	contig	start	end	num_cr	log2	call	maf	cn_call	loh	log2_capped
+demo_tumor	demo3	1	4999	49	0.02	0	NaN	neutral	0	0.02
+demo_tumor	demo3	5000	8000	30	-1.5	-	NaN	del	0	-1.5
+demo_tumor	demo3	8001	19999	119	0.01	0	NaN	neutral	0	0.01
+demo_tumor	demo3	20000	25000	50	-8.0	-	NaN	del	0	-8.0
+demo_tumor	demo3	25001	34999	99	-0.02	0	NaN	neutral	0	-0.02
+demo_tumor	demo3	35000	45000	100	-1.0	-	NaN	del	0	-1.0
+demo_tumor	demo3	45001	49000	40	0.03	0	NaN	neutral	0	0.03
+demo_tumor	demo3	53001	55000	20	0.0	0	NaN	neutral	0	0.0
+demo_tumor	demo3	55001	58000	30	-7.0	-	NaN	del	0	-7.0
+demo_tumor	demo3	58001	60000	20	0.0	0	NaN	neutral	0	0.0

@@ -307,10 +307,7 @@ UNBUNDLED_SKILLS = {
 SKILLS = {
     "pharmgx": {
         "script": SKILLS_DIR / "pharmgx-reporter" / "pharmgx_reporter.py",
-        "demo_args": [
-            "--input",
-            str(SKILLS_DIR / "pharmgx-reporter" / "demo_patient.txt"),
-        ],
+        "demo_args": ["--demo"],
         "description": "Pharmacogenomics reporter (12 genes, 31 SNPs, 51 drugs)",
         "allowed_extra_flags": set(),
         "api_module": "skills.pharmgx-reporter.api",
@@ -481,6 +478,20 @@ SKILLS = {
         "allowed_extra_flags": {
             "--trait", "--pgs-id", "--panel-id", "--min-overlap",
             "--max-variants", "--build",
+        },
+        "accepts_genotypes": True,
+    },
+    "prs-abstain": {
+        "script": SKILLS_DIR / "prs-abstain" / "prs_abstain.py",
+        "demo_args": ["--demo"],
+        "no_input_required": True,
+        "description": "Gate PRS percentiles on ancestry transferability; refuse when uninterpretable",
+        "allowed_extra_flags": {
+            "--reference-panel", "--individuals", "--prs-results", "--ref-pop", "--k-sd",
+            "--min-markers", "--pcs", "--no-figures", "--scores", "--genotype",
+            "--genotype-sample-id", "--population-af", "--af-population",
+            "--min-weight-coverage", "--min-effective-n", "--ld-window-kb", "--no-pdf",
+            "--allow-threshold-overreach", "--genotype-build",
         },
         "accepts_genotypes": True,
     },
@@ -1344,6 +1355,17 @@ SKILLS = {
         "no_input_required": False,
         "accepts_genotypes": False,
     },
+    "igv-validator": {
+        "script": SKILLS_DIR / "igv-validator" / "igv_validator.py",
+        "demo_args": ["--demo"],
+        "description": "IGV validation of somatic calls: tumor/normal read support, artifact flags, IGV screenshots",
+        "allowed_extra_flags": {
+            "--vcf", "--tumor", "--normal", "--reference", "--genes", "--variants", "--regions", "--cnv", "--cnv-sample", "--demo-cnv", "--summarize", "--overview", "--curated-calls", "--heatmap", "--annotation", "--interactive", "--bundle", "--no-bundle", "--project", "--index", "--samplesheet", "--reports-dir", "--skip-unknown-genes", "--pass-only",
+            "--max-variants", "--no-igv", "--igv-timeout", "--igv-path", "--tumor-only", "--caller-sample", "--tumor-name", "--normal-name",
+        },
+        "no_input_required": False,
+        "accepts_genotypes": False,
+    },
     "bioqc": {
         "script": SKILLS_DIR / "bioqc-mcp" / "bioqc_mcp.py",
         "demo_args": ["--demo"],
@@ -1370,6 +1392,17 @@ SKILLS = {
         "description": "Drug repurposing screen — pooled viability QC, hits, selectivity, biomarkers, priority table",
         "allowed_extra_flags": {"--bundle", "--schema", "--objective", "--resume"},
         "no_input_required": True,
+        "accepts_genotypes": False,
+    },
+    "harmonize": {
+        "script": SKILLS_DIR / "gwas-sumstats-harmonize" / "gwas_sumstats_harmonize.py",
+        "demo_args": ["--demo"],
+        "description": "GWAS Sumstats Harmonizer — canonical columns, BETA/SE/P derivation, QC, reference allele alignment",
+        "allowed_extra_flags": {
+            "--reference", "--columns", "--palindromic", "--min-maf", "--drop-indels",
+            "--keep-unmatched", "--build", "--engine", "--cores",
+        },
+        "extra_path_flags": {"--reference", "--columns"},
         "accepts_genotypes": False,
     },
 }
@@ -1572,6 +1605,30 @@ def _canonical_extra_flag(flag: str) -> str:
     return flag
 
 
+class _SkillFailed(Exception):
+    """Marks the audit span ERROR: run_skill reports failure as a dict, not a raise."""
+
+
+def _failure_message(exit_code: int, stderr: str) -> str:
+    """The exit code plus the last non-blank stderr line: a traceback ends on the exception.
+
+    skill_run passes this through the OPENINFERENCE_HIDE_* flags, since the line can quote the input.
+    """
+    last = next((line.strip() for line in reversed(stderr.splitlines()) if line.strip()), "")
+    return f"exit code {exit_code}: {last}" if last else f"exit code {exit_code}"
+
+
+def _skill_version(skill_name: str) -> str:
+    """The SKILL.md frontmatter version, so an audit record says which methodology ran."""
+    script = SKILLS.get(skill_name, {}).get("script")
+    try:
+        frontmatter = (script.parent / "SKILL.md").read_text(encoding="utf-8").split("---")[1]
+    except (AttributeError, OSError, IndexError):
+        return "unknown"
+    match = re.search(r"^\s*version:\s*['\"]?([^'\"\s]+)", frontmatter, re.M)
+    return match.group(1) if match else "unknown"
+
+
 def run_skill(
     skill_name: str,
     input_path: str | None = None,
@@ -1586,7 +1643,41 @@ def run_skill(
 
     Returns a structured dict with success status, output paths, and logs.
     Importable by any agent (RoboTerri, RoboIsaac, Claude Code).
+
+    Every run is recorded as a skill_run span in the audit log, so a new skill
+    is covered as soon as it is registered.
     """
+    # Deferred: `import clawbio` reaches this module, and a stdlib-only skill's
+    # reproducibility recipe must not need opentelemetry (test_import_weight).
+    from contextlib import suppress
+
+    from clawbio.common.audit import skill_run
+
+    # skill_run sees _SkillFailed first and marks the span ERROR; suppress then
+    # drops it, so the caller still gets the result dict.
+    with suppress(_SkillFailed), skill_run(
+        skill_name,
+        _skill_version(skill_name),
+        input_file=input_path or "",
+        output_dir=output_dir or "",
+    ):
+        result = _run_skill(
+            skill_name, input_path, output_dir, demo, extra_args, timeout, profile_path
+        )
+        if not result["success"]:
+            raise _SkillFailed(_failure_message(result["exit_code"], result.get("stderr") or ""))
+    return result
+
+
+def _run_skill(
+    skill_name: str,
+    input_path: str | None,
+    output_dir: str | None,
+    demo: bool,
+    extra_args: list[str] | None,
+    timeout: int,
+    profile_path: str | None,
+) -> dict:
     # Handle full-profile virtual skill
     if skill_name == "full-profile":
         return _run_full_profile(
@@ -1994,15 +2085,6 @@ def main():
 
     # list
     sub.add_parser("list", help="List available skills")
-
-    # mcp
-    sub.add_parser(
-        "mcp",
-        help=(
-            "Run ClawBio as an MCP server over stdio. DEPRECATED since 0.7.0, removed in "
-            "0.8.0: use the Claude Code plugin or load skills/ as Agent Skills instead"
-        ),
-    )
 
     # upload
     upload_parser = sub.add_parser("upload", help="Upload genetic data and create a patient profile")
@@ -2457,11 +2539,6 @@ def main():
 
     if args.command == "list":
         list_skills()
-
-    elif args.command == "mcp":
-        from clawbio.mcp_server import serve
-
-        serve()
 
     elif args.command == "upload":
         result = upload_profile(

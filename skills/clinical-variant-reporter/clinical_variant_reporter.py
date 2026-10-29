@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import shlex
 import sys
 import time
 from dataclasses import asdict, dataclass
@@ -23,8 +24,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parents[1]
 
 sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(PROJECT_ROOT))
+from clawbio.common.reproducibility import write_checksums, write_commands_sh, write_environment_yml
 from acmg_engine import (
     ACMG_SF_V32_GENES,
     ClassifiedVariant,
@@ -74,6 +78,8 @@ class VcfRecord:
     filt: str
     info: dict[str, str]
     genotype: str | None = None
+    sample: dict[str, str] | None = None  # FORMAT key -> value for the first sample (GT, AD, DP, ...)
+    alt_index: int = 1  # 1-based index of this ALT among the record's ALT alleles
 
 
 def parse_vcf(path: Path) -> list[VcfRecord]:
@@ -103,10 +109,12 @@ def parse_vcf(path: Path) -> list[VcfRecord]:
                     info[item] = "true"
 
             genotype = None
+            sample = None
             if len(fields) >= 10:
                 genotype = fields[9].split(":")[0]
+                sample = dict(zip(fields[8].split(":"), fields[9].split(":")))
 
-            for alt_allele in fields[4].split(","):
+            for alt_idx, alt_allele in enumerate(fields[4].split(","), start=1):
                 records.append(VcfRecord(
                     chrom=fields[0],
                     pos=int(fields[1]),
@@ -117,6 +125,8 @@ def parse_vcf(path: Path) -> list[VcfRecord]:
                     filt=fields[6],
                     info=info,
                     genotype=genotype,
+                    sample=sample,
+                    alt_index=alt_idx,
                 ))
 
     return records
@@ -461,7 +471,7 @@ def run_classification(
     for ev in evidence_list:
         cv = classify_variant(ev)
         rec = record_by_key.get(f"{ev.chrom}:{ev.pos}:{ev.ref}:{ev.alt}")
-        audit = audit_classified(cv, expected_from_record(rec))
+        audit = audit_classified(cv, expected_from_record(rec), record=rec)
         cv.audit_violations = audit.violations
         if not audit.passed:
             cv.classification = ABSTAIN_LABEL
@@ -563,6 +573,7 @@ def generate_report(
     assembly: str = "GRCh38",
     input_path: str = "demo",
     source_versions: dict[str, str] | None = None,
+    genes: str | None = None,
 ) -> None:
     """Generate all output files: report.md, result.json, tables/, figures/, reproducibility/.
 
@@ -592,7 +603,7 @@ def generate_report(
     _write_secondary_findings_table(sf_variants, output_dir)
     _write_result_json(classified, counts, sf_variants, output_dir, timestamp, demo, assembly, structured_versions)
     _write_classification_figure(counts, output_dir)
-    _write_reproducibility(output_dir, demo, assembly, input_path, timestamp, structured_versions)
+    _write_reproducibility(output_dir, demo, assembly, input_path, timestamp, structured_versions, genes)
 
 
 def _write_markdown_report(
@@ -859,16 +870,16 @@ def _write_reproducibility(
     input_path: str,
     timestamp: str,
     data_source_versions: dict[str, str | None],
+    genes: str | None = None,
 ) -> None:
-    cmd = f"python {Path(__file__).name}"
-    if demo:
-        cmd += " --demo"
-    else:
-        cmd += f" --input {input_path}"
-    cmd += f" --output {output_dir} --assembly {assembly}"
-    (output_dir / "reproducibility" / "commands.sh").write_text(
-        f"#!/usr/bin/env bash\n# Reproducibility command — generated {timestamp}\n{cmd}\n",
-        encoding="utf-8",
+    cmd = ["python", "skills/clinical-variant-reporter/clinical_variant_reporter.py"]
+    cmd += ["--demo"] if demo else ["--input", input_path]
+    cmd += ["--output", str(output_dir), "--assembly", assembly]
+    if genes:
+        cmd += ["--genes", genes]
+    write_commands_sh(output_dir, shlex.join(cmd))
+    write_environment_yml(
+        output_dir, "clawbio-clinical-variant-reporter", ["requests>=2.31", "matplotlib>=3.7"],
     )
 
     db_versions = {
@@ -882,6 +893,14 @@ def _write_reproducibility(
     (output_dir / "reproducibility" / "database_versions.json").write_text(
         json.dumps(db_versions, indent=2), encoding="utf-8",
     )
+    # Explicit list, not a glob: a reused output dir may hold stale files. Missing ones (no matplotlib) are skipped.
+    outputs = [
+        "report.md", "result.json",
+        "tables/acmg_classifications.tsv", "tables/secondary_findings.tsv",
+        "figures/classification_summary.png",
+        "reproducibility/environment.yml", "reproducibility/database_versions.json",
+    ]
+    write_checksums([output_dir / f for f in outputs], output_dir, anchor=output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -936,7 +955,7 @@ def main() -> None:
     print(f"[CVR] Generating report in: {output_dir}")
     generate_report(
         classified, output_dir, demo=args.demo, assembly=args.assembly,
-        input_path=input_label, source_versions=source_versions,
+        input_path=input_label, source_versions=source_versions, genes=args.genes,
     )
 
     counts = {}

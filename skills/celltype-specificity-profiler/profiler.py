@@ -16,13 +16,24 @@ so it is importable and testable without I/O.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
+import shlex
 import sys
+from pathlib import Path
 from typing import Sequence
 
 import numpy as np
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 
 SKILL_NAME = "celltype-specificity-profiler"
 
@@ -243,38 +254,16 @@ def profile_gene(adata, gene: str, atlas_name: str, cell_type_key: str = "cell_t
 # --------------------------------------------------------------------------- #
 # Reproducibility bundle
 # --------------------------------------------------------------------------- #
-def _write_reproducibility(repro_dir: str, argv: Sequence[str], output_files):
-    os.makedirs(repro_dir, exist_ok=True)
-
-    with open(os.path.join(repro_dir, "commands.sh"), "w") as fh:
-        fh.write("#!/usr/bin/env bash\n")
-        fh.write("# Command used to produce this profile\n")
-        fh.write("python profiler.py " + " ".join(argv) + "\n")
-
-    import platform
-
-    deps = []
-    for mod in ("scanpy", "anndata", "numpy", "scipy", "pandas"):
-        try:
-            m = __import__(mod)
-            deps.append(f"      - {mod}=={getattr(m, '__version__', 'unknown')}")
-        except Exception:
-            deps.append(f"      - {mod}")
-    with open(os.path.join(repro_dir, "environment.yml"), "w") as fh:
-        fh.write("name: celltype-specificity-profiler\n")
-        fh.write("channels:\n  - conda-forge\n  - bioconda\n")
-        fh.write(f"dependencies:\n  - python={platform.python_version()}\n  - pip\n")
-        fh.write("  - pip:\n")
-        fh.write("\n".join(deps) + "\n")
-
-    lines = []
-    for path in output_files:
-        if os.path.exists(path):
-            with open(path, "rb") as fh:
-                digest = hashlib.sha256(fh.read()).hexdigest()
-            lines.append(f"{digest}  {os.path.basename(path)}")
-    with open(os.path.join(repro_dir, "checksums.sha256"), "w") as fh:
-        fh.write("\n".join(lines) + "\n")
+def _write_reproducibility(out_dir: str, argv: Sequence[str], output_files):
+    write_commands_sh(
+        out_dir, shlex.join(["python", f"skills/{SKILL_NAME}/profiler.py", *argv])
+    )
+    env_path = write_environment_yml(
+        out_dir,
+        f"clawbio-{SKILL_NAME}",
+        pip_deps=["scanpy", "anndata", "numpy>=1.23", "scipy>=1.9", "pandas>=2.0"],
+    )
+    write_checksums([*output_files, env_path], out_dir, anchor=out_dir)
 
 
 def _write_csv(path: str, stats):
@@ -381,7 +370,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.dump(profile, fh, indent=2)
     _write_csv(csv_path, profile["per_celltype_stats"])
     _write_reproducibility(
-        os.path.join(out_dir, "reproducibility"),
+        out_dir,
         argv,
         [profile_path, csv_path],
     )

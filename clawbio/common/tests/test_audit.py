@@ -5,6 +5,7 @@ import stat
 from pathlib import Path
 
 import subprocess
+import sys
 import pytest
 
 from clawbio.common import audit
@@ -177,6 +178,17 @@ def test_otlp_exporter_is_opt_in(tmp_path, monkeypatch):
     assert endpoints == ["http://localhost:4318/v1/traces"]
 
 
+def test_missing_otlp_extra_warns_and_keeps_the_analysis_running(tmp_path, monkeypatch, capsys):
+    """Without clawbio[otlp], a set endpoint must cost the traces, not the run."""
+    monkeypatch.setitem(sys.modules, "opentelemetry.exporter.otlp.proto.http.trace_exporter", None)
+    monkeypatch.setenv("CLAWBIO_OTLP_ENDPOINT", "http://localhost:4318")
+    log = tmp_path / "audit.jsonl"
+    with skill_run("pharmgx", "0.2.0", log_path=log):
+        pass
+    assert "clawbio[otlp]" in capsys.readouterr().err
+    assert log.read_text().strip(), "local audit log should still be written"
+
+
 def test_skill_run_records_provenance_attributes(tmp_path):
     """input_checksum, input_file and output_dir reach the log, as documented."""
     log = tmp_path / "audit.jsonl"
@@ -216,7 +228,9 @@ def test_span_kinds_are_set_for_trace_viewers(tmp_path):
     records = [json.loads(line) for line in log.read_text().splitlines()]
     tool = next(r for r in records if r["event"] == "execute_tool bcftools_view")
     root = next(r for r in records if r["event"] == "skill_run")
-    assert root["openinference.span.kind"] == "AGENT"
+    # A skill run is a fixed pipeline, OpenInference's CHAIN; AGENT means a
+    # reasoning loop that chooses its own steps.
+    assert root["openinference.span.kind"] == "CHAIN"
     assert tool["openinference.span.kind"] == "TOOL"
     assert tool["tool.name"] == "bcftools_view"
 
@@ -385,3 +399,110 @@ def test_otlp_endpoint_may_be_given_with_or_without_the_signal_path(tmp_path, mo
         with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
             pass
     assert endpoints == ["http://localhost:4318/v1/traces"] * 2
+
+
+@pytest.fixture
+def exported(monkeypatch):
+    """Spans as the exporter saw them; the JSONL record leaves out the resource."""
+    spans = []
+
+    class _Recorder(audit._JsonlExporter):
+        def export(self, batch):
+            spans.extend(batch)
+            return super().export(batch)
+
+    monkeypatch.setattr(audit, "_JsonlExporter", _Recorder)
+    monkeypatch.delenv("OTEL_RESOURCE_ATTRIBUTES", raising=False)
+    monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+    return spans
+
+
+def test_resource_defaults_to_clawbio_when_nobody_names_it(tmp_path, exported):
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        pass
+    attrs = exported[0].resource.attributes
+    assert attrs["service.name"] == "clawbio"
+    assert attrs["openinference.project.name"] == "clawbio"
+
+
+def test_caller_names_the_project_and_service(tmp_path, exported, monkeypatch):
+    # An agent that runs clawbio files its spans under its own project; the
+    # standard OTel variables are how a parent process says so.
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "openinference.project.name=hermes-agent,deployment=mini")
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "hermes")
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        pass
+    attrs = exported[0].resource.attributes
+    assert attrs["openinference.project.name"] == "hermes-agent"
+    assert attrs["service.name"] == "hermes"
+    assert attrs["deployment"] == "mini"
+
+
+def test_spans_name_the_emitting_module_as_their_scope(tmp_path, exported):
+    # The scope says which library emitted a span, whoever owns the project.
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        with tool_call("fetch"):
+            pass
+    assert {s.instrumentation_scope.name for s in exported} == {"clawbio.common.audit"}
+
+
+
+@pytest.mark.parametrize("env, project, service", [
+    ({"OTEL_RESOURCE_ATTRIBUTES": "openinference.project.name=hermes-agent"}, "hermes-agent", "clawbio"),
+    ({"OTEL_SERVICE_NAME": "hermes"}, "clawbio", "hermes"),
+])
+def test_environment_overrides_only_what_it_sets(tmp_path, exported, monkeypatch, env, project, service):
+    # Setting one variable must leave the other field at clawbio's fallback,
+    # never "unknown_service".
+    for var, value in env.items():
+        monkeypatch.setenv(var, value)
+    with skill_run("pharmgx", "0.2.0", log_path=tmp_path / "a.jsonl"):
+        pass
+    attrs = exported[0].resource.attributes
+    assert attrs["openinference.project.name"] == project
+    assert attrs["service.name"] == service
+
+
+_PARENT_TRACE = "4bf92f3577b34da6a3ce929d0e0e4736"
+_PARENT_SPAN = "00f067aa0ba902b7"
+
+
+def test_a_nested_skill_run_stays_under_its_outer_run_despite_traceparent(tmp_path, monkeypatch):
+    # full-profile calls run_skill once per skill inside its own skill_run.
+    monkeypatch.setenv("TRACEPARENT", f"00-{_PARENT_TRACE}-{_PARENT_SPAN}-01")
+    log = tmp_path / "audit.jsonl"
+    with skill_run("full-profile", "0.1.0", log_path=log) as outer:
+        with skill_run("pharmgx", "0.2.0", log_path=log):
+            pass
+    inner, profile = (json.loads(line) for line in log.read_text().splitlines())
+    assert inner["parent_span_id"] == outer
+    assert profile["parent_span_id"] == _PARENT_SPAN
+
+
+_UNSAMPLED = "00-00000000000000000000000000000001-0000000000000001-00"
+
+
+@pytest.mark.parametrize("value, parent", [
+    # An agent that runs clawbio as a subprocess can only pass its span this way.
+    (f"00-{_PARENT_TRACE}-{_PARENT_SPAN}-01", (_PARENT_TRACE, _PARENT_SPAN)),
+    ("", None),
+    ("not-a-traceparent", None),
+    (f"00-{'0' * 32}-{_PARENT_SPAN}-01", None),  # all-zero trace id is invalid
+    (f"00-{_PARENT_TRACE}-{_PARENT_SPAN}", None),  # flags missing
+    (f"ff-{_PARENT_TRACE}-{_PARENT_SPAN}-01", None),  # version ff is forbidden
+    # Unsampled still nests, and ALWAYS_ON keeps the audit record.
+    (_UNSAMPLED, ("00000000000000000000000000000001", "0000000000000001")),
+])
+def test_a_traceparent_gives_a_root_or_the_named_parent(tmp_path, monkeypatch, value, parent):
+    # The value is set by whatever launched us; a bad one must not break the
+    # run, and must not produce a parent that the header did not name.
+    monkeypatch.setenv("TRACEPARENT", value)
+    log = tmp_path / "audit.jsonl"
+    with skill_run("pharmgx", "0.2.0", log_path=log):
+        pass
+    record = json.loads(log.read_text().strip())
+    assert record["status"] == "OK"
+    if parent:
+        assert (record["trace_id"], record["parent_span_id"]) == parent
+    else:
+        assert "parent_span_id" not in record

@@ -10,6 +10,8 @@ assignees: ''
 
 <!-- e.g. gwas-pipeline, pathway-enricher -->
 
+- [ ] I have checked that no similar skill already exists in [`skills/`](https://github.com/ClawBio/ClawBio/tree/main/skills)
+
 ## What it does
 
 <!-- 2-3 sentences describing the analysis this skill performs -->
@@ -22,6 +24,10 @@ assignees: ''
 
 - **Input**: <!-- e.g. VCF + phenotype file -->
 - **Output**: <!-- e.g. Manhattan plot + summary statistics + reproducibility bundle -->
+
+## Mermaid diagram
+
+<!-- A Mermaid flowchart of inputs → steps → outputs -->
 
 ## Why it matters
 
