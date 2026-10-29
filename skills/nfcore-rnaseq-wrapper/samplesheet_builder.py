@@ -154,7 +154,8 @@ def _normalize_row(
 ) -> tuple[dict[str, str], str, list[_ResolvedPath], list[_ResolvedPath]]:
     # Values nf-core itself validates (assets/schema_input.json: required columns,
     # patterns, the strandedness enum, file existence; checkSamplesAfterGrouping:
-    # one strandedness per sample) pass through for nf-schema to name. The wrapper
+    # one strandedness per sample; tests/test_pinned_release_claims.py checks these)
+    # pass through for nf-schema to name. The wrapper
     # only normalizes them and resolves paths, since Nextflow runs from --output.
     sample = _normalize_sample_name(str(row.get("sample", "")))
     strandedness = str(row.get("strandedness", "")).strip()

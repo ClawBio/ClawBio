@@ -6,7 +6,8 @@ and fastq_2, the FASTQ pattern and existence, ``expected_cells``' integer type, 
 ``sample_type`` and ``feature_type`` enums), and PIPELINE_INITIALISATION refuses a
 cellrangerarc row whose ``sample_type`` is not gex/atac, an ATAC row without
 ``fastq_barcode`` and runs of one sample with different endedness. None of that is
-repeated here.
+repeated here; tests/test_pinned_release_claims.py checks each rule against the
+pinned release.
 
 This module resolves paths (Nextflow runs from ``--output``), normalizes sample names
 and type values, and refuses what the pipeline accepts without a word or does not

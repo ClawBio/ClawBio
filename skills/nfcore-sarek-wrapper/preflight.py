@@ -1378,7 +1378,7 @@ def _check_tools_against_pairing(
                 )
         elif tool == "varlociraptor":
             # Sex for every sample and contamination for every tumour are Sarek's own
-            # checks (samplesheet_to_channel).
+            # checks (samplesheet_to_channel; see tests/test_pinned_release_claims.py).
             if not annotation_only and not build_only_index and not (
                 set(tools) & _VARLOCIRAPTOR_CANDIDATE_CALLERS
             ):

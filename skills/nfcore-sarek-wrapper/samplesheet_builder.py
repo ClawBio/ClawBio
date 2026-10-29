@@ -9,7 +9,8 @@ type, every file's pattern and existence, ``dependentRequired`` and
 inputs do not fit ``--step``, duplicate patient-sample-status-lane rows, a sample
 under two patients, two normals with exactly one tumour, and the ``--tools`` rules
 on tumour/normal samples, sex and varlociraptor's contamination. None of that is
-repeated here.
+repeated here; tests/test_pinned_release_claims.py checks each rule against the
+pinned release.
 
 This module resolves paths (Nextflow runs from ``--output``), refuses what Sarek
 accepts silently or does not check (rows mixing input modes, BAM/CRAM rows without
