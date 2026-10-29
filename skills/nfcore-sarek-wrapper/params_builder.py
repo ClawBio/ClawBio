@@ -171,14 +171,18 @@ def _reject_non_finite_params(params: dict[str, object]) -> None:
         ) from exc
 
 
+# --params-file keys --demo drops: the upstream test profile owns the input and references.
+DEMO_DROPPED_PARAMS_FILE_KEYS = (
+    *_REFERENCE_PATH_FIELDS, *_ANNOTATION_PATH_FIELDS,
+    "input", "input_restart", "genome", "igenomes_base", "igenomes_ignore",
+    "dbsnp_vqsr", "known_indels_vqsr", "known_snps_vqsr",
+)
+
+
 def load_run_params(args) -> dict[str, object]:
     params = _load_user_params_file(getattr(args, "params_file", None))
     if getattr(args, "demo", False):
-        for name in (
-            *_REFERENCE_PATH_FIELDS, *_ANNOTATION_PATH_FIELDS,
-            "input", "input_restart", "genome", "igenomes_base", "igenomes_ignore",
-            "dbsnp_vqsr", "known_indels_vqsr", "known_snps_vqsr",
-        ):
+        for name in DEMO_DROPPED_PARAMS_FILE_KEYS:
             params.pop(name, None)
     return params
 

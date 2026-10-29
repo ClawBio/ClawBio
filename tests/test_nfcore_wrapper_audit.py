@@ -567,6 +567,20 @@ def test_demo_clears_params_file_inputs_and_references(wrapper, tmp_path):
         assert field not in params and field not in preflight
 
 
+@pytest.mark.parametrize("wrapper", ["sarek"], indirect=True)
+def test_demo_names_the_params_file_keys_it_drops(wrapper, tmp_path, capsys):
+    """Like the reference flags, dropped --params-file keys are named in a WARNING."""
+    _, module, _ = wrapper
+    source = tmp_path / "params.yaml"
+    source.write_text("input: /private/user_samples.csv\nfasta: /private/custom.fa\ngenome: GATK.GRCh38\nwes: true\n")
+    args = module.build_parser().parse_args(
+        ["--demo", "--output", str(tmp_path), "--params-file", str(source)]
+    )
+    module._apply_demo_overrides(args)
+    err = capsys.readouterr().err
+    assert "WARNING: --demo ignores --params-file keys (input, fasta, genome)" in err
+
+
 @pytest.mark.parametrize("wrapper", ["rnaseq"], indirect=True)
 def test_bulk_resume_rejects_work_dir_change(wrapper, tmp_path):
     import json

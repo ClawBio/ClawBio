@@ -19,6 +19,8 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 - The local-first gate now reads every samplesheet path group. A remote `spring_1`, `spring_2`,
   `vcf` or `table` path reached Nextflow without `--allow-remote-inputs`; only FASTQ, BAM and CRAM
   paths were checked (`main` has the same gap).
+- `--demo` now names the `--params-file` keys it drops (input, genome, references) in a WARNING,
+  as it already did for reference flags.
 - Stop tasks that ignore SIGTERM even when the Nextflow group leader exits first.
 - A Ctrl+C or SIGTERM that landed while the wrapper was checking on Nextflow could leave it
   waiting forever instead of stopping the run; the stop is now recorded and acted on once the wait returns.
