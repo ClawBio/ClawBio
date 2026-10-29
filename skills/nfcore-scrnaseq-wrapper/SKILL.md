@@ -69,7 +69,7 @@ metadata:
     format:
     - json
     description: Structured result payload with detected outputs and provenance
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # nfcore-scrnaseq-wrapper
@@ -379,7 +379,7 @@ output_directory/
 ```json
 {
   "skill": "scrnaseq-pipeline",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "summary": {
     "preset": "star",
     "aligner_effective": "star",

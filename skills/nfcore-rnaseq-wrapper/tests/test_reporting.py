@@ -211,7 +211,7 @@ def test_write_report_creates_rnaseq_report(tmp_path):
 
 def test_report_header_includes_skill_version(tmp_path):
     """report.md must show the skill version, consistent with result.json/manifest.json/
-    catalog.json (all 0.1.0). An empty Version field is an inconsistency."""
+    catalog.json (all SKILL.md's version). An empty Version field is an inconsistency."""
     from schemas import SKILL_VERSION
     write_report(tmp_path, args=_args(tmp_path), pipeline_source=_source(), preflight_result=_preflight(), parsed_outputs=_parsed(), command_str="cmd")
     content = (tmp_path / "report.md").read_text(encoding="utf-8")

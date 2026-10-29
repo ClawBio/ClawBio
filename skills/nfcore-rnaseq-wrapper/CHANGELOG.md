@@ -4,7 +4,7 @@ All notable changes to the `nfcore-rnaseq-wrapper` ClawBio skill are documented
 here. The format roughly follows [Keep a Changelog](https://keepachangelog.com)
 and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
-## [Unreleased] — 0.1.0
+## [Unreleased] — 0.2.0
 
 ### Added
 
@@ -43,6 +43,15 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   `nextflow -version` itself fails; preflight's error now quotes the launcher's reason
   instead of only saying the version could not be determined, and never reads a version
   out of a failed run's output.
+
+### Removed
+
+- **Error codes for checks nf-core now makes, hence 0.2.0.** The `INVALID_BAM`, `INVALID_FASTQ`,
+  `INVALID_STRANDEDNESS`, `MISSING_FASTQ`, `REFERENCE_PATH_HAS_WHITESPACE`,
+  `NEXTFLOW_VERSION_TOO_OLD` and `JAVA_VERSION_TOO_OLD` codes are gone. nf-schema, the pipeline or
+  Nextflow refuses those inputs when the run starts, and the wrapper reports `EXECUTION_FAILED` with
+  nf-core's reason in `result.json`. An agent that branched on the old codes should match
+  `EXECUTION_FAILED` and read the message.
 
 ### Fixed
 

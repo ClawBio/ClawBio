@@ -4,7 +4,7 @@ All notable changes to the `nfcore-scrnaseq-wrapper` ClawBio skill are documente
 here. The format roughly follows [Keep a Changelog](https://keepachangelog.com)
 and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
-## [Unreleased] — 0.1.0
+## [Unreleased] — 0.2.0
 
 ### Added
 
@@ -48,6 +48,13 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
   too). The pipeline passes every other unknown string to the aligner verbatim, so the
   wrapper keeps the usage docs' support table: `smartseq2` refused, `smartseq` only for
   `star`/`kallisto`, and no custom strings for the Cell Ranger family.
+
+### Removed
+
+- **Error codes for checks nf-core now makes, hence 0.2.0.** The `MISSING_FASTQ` code is gone.
+  nf-schema, the pipeline or Nextflow refuses those inputs when the run starts, and the wrapper
+  reports `EXECUTION_FAILED` with nf-core's reason in `result.json`. An agent that branched on the
+  old codes should match `EXECUTION_FAILED` and read the message.
 
 ### Fixed
 

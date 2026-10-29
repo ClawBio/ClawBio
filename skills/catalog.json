@@ -3207,7 +3207,7 @@
       "name": "nfcore-rnaseq-wrapper",
       "cli_alias": "rnaseq-pipeline",
       "description": "Wrapper skill for running nf-core/rnaseq bulk RNA-seq preprocessing from FASTQ or BAM inputs with strict preflight, reproducibility outputs, and downstream handoff to ClawBio bulk RNA-seq DE skills.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -3310,7 +3310,7 @@
       "name": "nfcore-sarek-wrapper",
       "cli_alias": "sarek-pipeline",
       "description": "ClawBio wrapper around nf-core/sarek 3.8.1 covering mapping through annotation for germline, tumor-only, and somatic paired analyses.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {
@@ -3370,7 +3370,7 @@
       "name": "nfcore-scrnaseq-wrapper",
       "cli_alias": "scrnaseq-pipeline",
       "description": "Wrapper skill for running nf-core/scrnaseq 4.1.0 upstream single-cell RNA-seq preprocessing from FASTQ with strict preflight, reproducibility outputs, and downstream handoff to ClawBio scRNA skills.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "status": "mvp",
       "maturity_tier": "ci-validated",
       "maturity_evidence": {

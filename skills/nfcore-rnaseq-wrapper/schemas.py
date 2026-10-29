@@ -11,7 +11,7 @@ DEMO_RESOURCE_LIMITS = {"cpus": 4, "memory_gb": 15}
 
 SKILL_NAME = "nfcore-rnaseq-wrapper"
 SKILL_ALIAS = "rnaseq-pipeline"
-SKILL_VERSION = "0.1.0"
+SKILL_VERSION = "0.2.0"
 SKILL_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SKILL_DIR.parent.parent
 REPO_PARENT = PROJECT_ROOT.parent

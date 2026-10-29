@@ -3,7 +3,7 @@ name: nfcore-rnaseq-wrapper
 description: Wrapper skill for running nf-core/rnaseq bulk RNA-seq preprocessing from FASTQ or BAM inputs with strict preflight, reproducibility outputs, and downstream handoff to ClawBio bulk RNA-seq DE skills.
 license: MIT
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   author: ClawBio
   domain: transcriptomics
   tags:

@@ -3,7 +3,7 @@ name: nfcore-sarek-wrapper
 description: ClawBio wrapper around nf-core/sarek 3.8.1 covering mapping through annotation for germline, tumor-only, and somatic paired analyses.
 license: MIT
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   author: ClawBio
   domain: genomics
   tags:
