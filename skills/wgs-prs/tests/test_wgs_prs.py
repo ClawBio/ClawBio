@@ -20,7 +20,7 @@ if str(SKILL_DIR) not in sys.path:
 
 from wgs_prs import BridgeConfig, BridgeReport, WgsToPrsBridge, write_demo_vcf
 from clawbio.common.sarek import SarekConfig
-from clawbio.common.vcf_qc import QcConfig
+from clawbio.common.vcf_qc import QcConfig, VcfQC
 
 # ---------------------------------------------------------------------------
 # Synthetic VCF fixture (enough SNPs to pass QC thresholds)
@@ -288,3 +288,10 @@ class TestDemoVcf:
         ]
 
         assert positions == sorted(positions)
+
+    def test_demo_vcf_titv_is_within_qc_range(self, tmp_path) -> None:
+        """An all-transition filler gave Ti/Tv ~65, so every demo raised a QC warning."""
+        cfg = QcConfig()
+        stats = VcfQC(cfg)._python_stats(write_demo_vcf(tmp_path / "demo.vcf"))
+
+        assert cfg.min_titv_ratio <= stats["titv_ratio"] <= cfg.max_titv_ratio

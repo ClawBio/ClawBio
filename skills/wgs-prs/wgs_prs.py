@@ -597,9 +597,10 @@ def write_demo_vcf(path: Path, n_snps: int = 200) -> Path:
         gt = "0/1" if i % 3 else "1/1"
         records.append((chromosome, position, variant_id, ref, alt, gt))
 
-    allele_pairs = [("A", "G"), ("C", "T"), ("G", "A"), ("T", "C")]
+    # Two transitions per transversion, so Ti/Tv sits near the WGS value of ~2.
+    allele_pairs = [("A", "G"), ("C", "T"), ("A", "C")]
     for i in range(max(0, n_snps - len(_DEMO_T2D_PANEL_VARIANTS))):
-        ref, alt = allele_pairs[i % 4]
+        ref, alt = allele_pairs[i % len(allele_pairs)]
         gt = "0/1" if i % 3 != 0 else "1/1"
         records.append(("1", (i + 1) * 1000, f"rs_demo_{i}", ref, alt, gt))
 
