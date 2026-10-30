@@ -598,10 +598,13 @@ def write_demo_vcf(path: Path, n_snps: int = 200) -> Path:
         records.append((chromosome, position, variant_id, ref, alt, gt))
 
     # Two transitions per transversion, so Ti/Tv sits near the WGS value of ~2.
+    # The genotype cycle length (5) shares no factor with the allele cycle (3),
+    # so every allele pair appears as both het and hom.
     allele_pairs = [("A", "G"), ("C", "T"), ("A", "C")]
+    genotypes = ["0/1", "0/1", "1/1", "0/1", "1/1"]
     for i in range(max(0, n_snps - len(_DEMO_T2D_PANEL_VARIANTS))):
         ref, alt = allele_pairs[i % len(allele_pairs)]
-        gt = "0/1" if i % 3 != 0 else "1/1"
+        gt = genotypes[i % len(genotypes)]
         records.append(("1", (i + 1) * 1000, f"rs_demo_{i}", ref, alt, gt))
 
     # bcftools >= 1.23 cannot write records whose contig is not declared in
