@@ -360,7 +360,15 @@ SKILLS = {
         "script": SKILLS_DIR / "multiomics-locus-integrator" / "multiomics_locus_integrator.py",
         "demo_args": ["--demo"],
         "description": "Integrate ATAC/histone/loop evidence at a locus into one scored regulatory-evidence table",
+        # No --input flag on this skill (its primary input is --loci, not
+        # a single file); without this the runner rejects any non-demo
+        # call before extra_args are even read (PR #678 review round 2).
+        "no_input_required": True,
         "allowed_extra_flags": {
+            "--loci", "--accessibility-track", "--histone-track",
+            "--contact-evidence", "--gene-targets",
+        },
+        "extra_path_flags": {
             "--loci", "--accessibility-track", "--histone-track",
             "--contact-evidence", "--gene-targets",
         },

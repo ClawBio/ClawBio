@@ -129,3 +129,21 @@ def test_high_tier_requires_two_distinct_supported_layers() -> None:
     # because only one distinct layer type is supported.
     assert row["score"] == 1.0
     assert row["tier"] == "partial"
+
+
+def test_all_contacted_genes_reported_not_just_the_first() -> None:
+    # PR #678 review round 2 (manuelcorpas): gene_contact = contacts[0][0]
+    # silently dropped every contacted gene past the first, so
+    # nearest_vs_contact_disagreement could read False even when a loop
+    # genuinely contacts a different gene than the nearest one.
+    loci = [('chr1', 100, 110, 'L1')]
+    genes = [('chr1', 50, 100, 'GENE_NEAR'), ('chr1', 2000, 2050, 'GENE_FAR')]
+    loops = [
+        ('chr1', 90, 120, 'chr1', 50, 100, 'LOOP_TO_NEAR'),
+        ('chr1', 90, 120, 'chr1', 2000, 2050, 'LOOP_TO_FAR'),
+    ]
+    result = mli.analyze(loci, [], [], loops, genes)
+    row = result['loci'][0]
+    assert 'GENE_NEAR' in row['target_gene_contact']
+    assert 'GENE_FAR' in row['target_gene_contact']
+    assert row['nearest_vs_contact_disagreement'] is True

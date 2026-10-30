@@ -239,9 +239,17 @@ def score_locus(
 
     gene_nearest, dist_nearest = nearest_gene(chrom, start, end, genes)
     contacts = contact_genes(chrom, start, end, loops, genes) if "contact" in checked else []
-    gene_contact = contacts[0][0] if contacts else None
-    loop_name = contacts[0][1] if contacts else None
-    disagreement = bool(gene_contact and gene_nearest and gene_contact != gene_nearest)
+    # Report every contacted gene, not just the first (PR #678 round 2): a
+    # locus can have more than one loop, or a loop can reach more than one
+    # gene at its far anchor, and dropping any of them could silently hide
+    # a real nearest-vs-contact disagreement.
+    contact_gene_names = sorted({name for name, _loop in contacts})
+    contact_loop_ids = sorted({loop for _name, loop in contacts})
+    gene_contact = ",".join(contact_gene_names) if contact_gene_names else None
+    loop_name = ",".join(contact_loop_ids) if contact_loop_ids else None
+    disagreement = bool(
+        gene_nearest and any(name != gene_nearest for name in contact_gene_names)
+    )
 
     return {
         "locus_id": name,

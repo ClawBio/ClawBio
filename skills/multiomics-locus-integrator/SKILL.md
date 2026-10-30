@@ -247,6 +247,7 @@ The agent (LLM) explains tiers and disagreements to the user. The skill (Python)
 ## Maintenance
 
 - **v0.2 candidates**: variant/genotype evidence as a fifth layer; user-overridable `--weights`; bigWig signal-value support (currently BED/BEDPE presence-only) via optional `pyBigWig`.
+- **Known, deliberately deferred (PR #678 review round 2, optional)**: `target_gene_nearest_distance_bp` measures from the locus midpoint to the nearer edge of the gene's TSS window, not to the TSS point itself, so any locus inside the window reads `0` regardless of how far it sits from the true TSS. Fixing this properly means carrying the TSS point separately from the window through `genes`, which is a 4-field `(chrom, start, end, name)` tuple shared by every evidence-layer type in this skill, including in every existing test that constructs gene fixtures by hand — a type change with a large blast radius for a precision nicety the review itself flagged optional with no proof-of-fix test attached. Left for a v0.2 pass that touches the gene data model deliberately, not as a drive-by fix.
 - **Staleness signals**: none — this skill has no external database dependency.
 
 ## Citations
