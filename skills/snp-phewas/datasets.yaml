@@ -111,19 +111,55 @@ families:
 # one row, so each stratum is its own dataset over the same files. MVP is one GWAS Catalog
 # study per (trait, population); META is the Catalog's multi-population meta-analyses.
 # short_label is the column / strip header a figure uses.
+#
+# samples: the participant groups (listed under sample_groups) whose data the dataset's
+# results are computed from. Two datasets share participants when their groups intersect
+# (snp_phewas_catalog.sample_overlap), and such a pair is never counted as replication.
+# Declared, never derived from ids or ancestry strings: a meta-analysis lists every group it
+# pools (mvp_meta: the four MVP groups; in catalogs/mvp_outcomes.tsv.gz, of the 1,707 traits
+# with exactly one META study and one study per pooled group, META n equals the sum of the
+# pooled groups' n for 1,706; platelet count (mean) is larger, 583,459 against 468,963; 12
+# trait names with several studies were not compared; measured 2026-10-30), and a
+# cross-biobank meta-analysis would list groups of both biobanks. Pan-UKBB assigns each
+# person to one continental group (pan.ukbb.broadinstitute.org/docs/qc), so its groups are
+# separate.
+#
+# ancestry_group (default: ancestry) decides whether effect sizes are compared
+# (snp_phewas_catalog.cross_ancestry): FinnGen's Finnish participants are of European
+# genetic ancestry.
 datasets:
-  pan_ukbb_eur: {family: pan_ukbb, ancestry: EUR, label: "Pan-UK Biobank, European ancestry", short_label: "Pan-UKBB EUR", default: true}
-  pan_ukbb_afr: {family: pan_ukbb, ancestry: AFR, label: "Pan-UK Biobank, African ancestry", short_label: "Pan-UKBB AFR"}
-  pan_ukbb_amr: {family: pan_ukbb, ancestry: AMR, label: "Pan-UK Biobank, admixed American ancestry", short_label: "Pan-UKBB AMR"}
-  pan_ukbb_csa: {family: pan_ukbb, ancestry: CSA, label: "Pan-UK Biobank, Central/South Asian ancestry", short_label: "Pan-UKBB CSA"}
-  pan_ukbb_eas: {family: pan_ukbb, ancestry: EAS, label: "Pan-UK Biobank, East Asian ancestry", short_label: "Pan-UKBB EAS"}
-  pan_ukbb_mid: {family: pan_ukbb, ancestry: MID, label: "Pan-UK Biobank, Middle Eastern ancestry", short_label: "Pan-UKBB MID"}
-  finngen_r12: {family: finngen, ancestry: FIN, label: "FinnGen R12 (Finnish)", short_label: "FinnGen", default: true}
-  mvp_eur: {family: mvp, ancestry: EUR, label: "Million Veteran Program, European genetic ancestry", short_label: "MVP EUR", default: true}
-  mvp_afr: {family: mvp, ancestry: AFR, label: "Million Veteran Program, African genetic ancestry", short_label: "MVP AFR"}
-  mvp_amr: {family: mvp, ancestry: AMR, label: "Million Veteran Program, admixed American genetic ancestry", short_label: "MVP AMR"}
-  mvp_eas: {family: mvp, ancestry: EAS, label: "Million Veteran Program, East Asian genetic ancestry", short_label: "MVP EAS"}
-  mvp_meta: {family: mvp, ancestry: META, label: "Million Veteran Program, multi-population meta-analysis", short_label: "MVP meta"}
+  pan_ukbb_eur: {family: pan_ukbb, ancestry: EUR, label: "Pan-UK Biobank, European ancestry", short_label: "Pan-UKBB EUR", default: true, samples: ["UKB:EUR"]}
+  pan_ukbb_afr: {family: pan_ukbb, ancestry: AFR, label: "Pan-UK Biobank, African ancestry", short_label: "Pan-UKBB AFR", samples: ["UKB:AFR"]}
+  pan_ukbb_amr: {family: pan_ukbb, ancestry: AMR, label: "Pan-UK Biobank, admixed American ancestry", short_label: "Pan-UKBB AMR", samples: ["UKB:AMR"]}
+  pan_ukbb_csa: {family: pan_ukbb, ancestry: CSA, label: "Pan-UK Biobank, Central/South Asian ancestry", short_label: "Pan-UKBB CSA", samples: ["UKB:CSA"]}
+  pan_ukbb_eas: {family: pan_ukbb, ancestry: EAS, label: "Pan-UK Biobank, East Asian ancestry", short_label: "Pan-UKBB EAS", samples: ["UKB:EAS"]}
+  pan_ukbb_mid: {family: pan_ukbb, ancestry: MID, label: "Pan-UK Biobank, Middle Eastern ancestry", short_label: "Pan-UKBB MID", samples: ["UKB:MID"]}
+  finngen_r12: {family: finngen, ancestry: FIN, ancestry_group: EUR, label: "FinnGen R12 (Finnish)", short_label: "FinnGen", default: true, samples: ["FINNGEN:FIN"]}
+  mvp_eur: {family: mvp, ancestry: EUR, label: "Million Veteran Program, European genetic ancestry", short_label: "MVP EUR", default: true, samples: ["MVP:EUR"]}
+  mvp_afr: {family: mvp, ancestry: AFR, label: "Million Veteran Program, African genetic ancestry", short_label: "MVP AFR", samples: ["MVP:AFR"]}
+  mvp_amr: {family: mvp, ancestry: AMR, label: "Million Veteran Program, admixed American genetic ancestry", short_label: "MVP AMR", samples: ["MVP:AMR"]}
+  mvp_eas: {family: mvp, ancestry: EAS, label: "Million Veteran Program, East Asian genetic ancestry", short_label: "MVP EAS", samples: ["MVP:EAS"]}
+  mvp_meta: {family: mvp, ancestry: META, label: "Million Veteran Program, multi-population meta-analysis", short_label: "MVP meta", samples: ["MVP:EUR", "MVP:AFR", "MVP:AMR", "MVP:EAS"]}
+
+# The participant groups a dataset's `samples` may name, each with the plain-language name a
+# report uses when it says why two datasets are not compared.
+sample_groups:
+  "UKB:EUR": UK Biobank participants of European ancestry
+  "UKB:AFR": UK Biobank participants of African ancestry
+  "UKB:AMR": UK Biobank participants of admixed American ancestry
+  "UKB:CSA": UK Biobank participants of Central/South Asian ancestry
+  "UKB:EAS": UK Biobank participants of East Asian ancestry
+  "UKB:MID": UK Biobank participants of Middle Eastern ancestry
+  "FINNGEN:FIN": FinnGen participants
+  "MVP:EUR": Million Veteran Program participants of European genetic ancestry
+  "MVP:AFR": Million Veteran Program participants of African genetic ancestry
+  "MVP:AMR": Million Veteran Program participants of admixed American genetic ancestry
+  "MVP:EAS": Million Veteran Program participants of East Asian genetic ancestry
+
+# UK Biobank, FinnGen and the Million Veteran Program are taken to share no participants:
+# they recruit in different countries (UK, Finland, US veterans). That rests on study design
+# and was not measured, so no report states it as a fact.
+cross_biobank_independence: assumed_by_design (unverified)
 
 # Considered and NOT served, with the reason. Listed so "why is X not here?" has an
 # answer in the catalog itself.

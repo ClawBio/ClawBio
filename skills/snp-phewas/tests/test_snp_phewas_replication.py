@@ -28,6 +28,9 @@ from snp_phewas_replication import (
 )
 
 ALPHA = 0.001
+#: Synthetic dataset ids ("a", "b", "c") are not in the catalog: these tables treat them as
+#: independent groups of one ancestry, so the catalog's sample and ancestry rules stay out.
+SYNTHETIC = {"overlap": lambda a, b: None, "ancestry_differs": lambda a, b: False}
 
 
 def _cell(p=None, beta=None, status=S.ST_OK):
@@ -81,7 +84,7 @@ def test_threshold_is_point05_over_outcomes_tested_in_both():
                                     "harmonized_outcome_id": f"H{i}", "harmonized_label": f"h{i}",
                                     "harmonized_representative": True})
                 R.rows.append(c)
-        return build_replication(R)
+        return build_replication(R, **SYNTHETIC)
 
     # 4 harmonized outcomes shared by both catalogs: alpha = 0.05 / 4, whatever was read.
     t = table([_cell(0.01, -0.1), _cell(0.5, 0.1), _cell(0.5, 0.1), _cell(0.01, -0.1)],
@@ -232,7 +235,7 @@ def _table3(cells):
                                          "harmonized_outcome_id": f"H{i}",
                                          "harmonized_label": f"h{i}",
                                          "harmonized_representative": True}))
-    return build_replication(R)
+    return build_replication(R, **SYNTHETIC)
 
 
 def test_three_way_threshold_no_counterpart_and_an_outage_cannot_loosen_it():
@@ -309,7 +312,7 @@ def test_paired_correlation_over_all_and_over_the_significant():
             R.rows.append(S.OutcomeRow(**{**c.__dict__, "dataset_id": ds, "outcome_id": f"o{i}",
                                          "harmonized_outcome_id": f"H{i}", "harmonized_label": "h",
                                          "harmonized_representative": True}))
-    t = build_replication(R)
+    t = build_replication(R, **SYNTHETIC)
     c = paired_correlations(t.rows, "a", "b", "binary")
     assert (c["n_all"], c["n_sig"]) == (8, 3)
     assert c["r_sig"] == pytest.approx(1.0) and c["r_all"] < c["r_sig"]
@@ -375,3 +378,152 @@ def test_pair_labels_keep_the_ancestry_only_when_two_datasets_share_a_biobank():
     sig = _cell(1e-9, -0.1)
     two = _table_for(["pan_ukbb_eur", "pan_ukbb_afr"], [(sig, sig)])
     assert [n for n, _ in plots.pair_strips(two)] == ["Pan-UKBB EUR × Pan-UKBB AFR"]
+
+
+# --- sample overlap and ancestry -----------------------------------------------------
+
+def _sig_everywhere(ids, n=4):
+    """n harmonized outcomes, each significant with the same sign in every dataset: on the
+    old head every pair (and the three-way summary) called each one replicated."""
+    return _table_for(ids, [[_cell(1e-9, -0.1) for _ in ids] for _ in range(n)])
+
+
+def test_a_meta_analysis_and_a_group_it_pools_are_never_compared(tmp_path):
+    """MVP's multi-population meta-analysis contains the MVP European participants, so
+    "significant in both with the same sign" is not replication: the pair is excluded from
+    the pairs, the thresholds, every verdict and count, the strips and the panels; the
+    three-way summary is withheld; the text names the pair and why."""
+    import snp_phewas_plots as plots
+    from snp_phewas_replication import EXCLUDED_NOT_INDEPENDENT, replication_lines
+
+    ids = ["mvp_eur", "mvp_meta", "finngen_r12"]
+    t = _sig_everywhere(ids)
+    overlap = ("mvp_eur", "mvp_meta")
+    assert t.pairs == [("mvp_eur", "finngen_r12"), ("mvp_meta", "finngen_r12")]
+    assert t.excluded_pairs == {overlap: EXCLUDED_NOT_INDEPENDENT}
+    assert overlap not in t.n_shared and overlap not in t.alpha
+    assert all(overlap not in r.verdicts for r in t.rows)
+    with pytest.raises(KeyError):
+        t.counts(overlap)
+    # the compared pairs keep their own denominators; nothing is three-way
+    assert t.n_shared == {p: 4 for p in t.pairs}
+    assert t.n_shared_3 is None and t.alpha_3 is None and t.three_way_withheld
+    assert all(r.three_way is None for r in t.rows) and not any(t.counts_three_way().values())
+    recs = t.to_records()
+    assert "verdict__mvp_eur__vs__mvp_meta" not in recs[0] and "three_way" not in recs[0]
+    assert [r["reason"] for r in t.excluded_pair_records()] == [EXCLUDED_NOT_INDEPENDENT]
+    # two strips, two panels
+    assert [name for name, _ in plots.pair_strips(t)] == ["MVP EUR × FinnGen", "MVP meta × FinnGen"]
+    _pts, panels = plots.paired_panels(t)
+    assert [p for p, _kind in panels] == t.pairs
+    plots.replication_matrix(t, str(tmp_path / "m.png"))
+    plots.paired_effects(t, str(tmp_path / "p.png"))
+    text = "\n".join(replication_lines(t))
+    assert ("Million Veteran Program (multi-population meta-analysis) includes the Million "
+            "Veteran Program participants of European genetic ancestry") in text
+    assert "**Million Veteran Program (European genetic ancestry) and Million Veteran Program " \
+           "(multi-population meta-analysis)**: not compared" in text
+    assert "no three-way verdict" in text and "All three datasets**:" in text
+
+
+def test_two_overlapping_datasets_alone_give_no_pair_and_no_figure_crash(tmp_path):
+    import snp_phewas_plots as plots
+    from snp_phewas_replication import replication_lines
+
+    t = _sig_everywhere(["mvp_eur", "mvp_meta"])
+    assert t.pairs == [] and t.n_shared == {} and list(t.excluded_pairs) == [("mvp_eur", "mvp_meta")]
+    assert "not compared" in "\n".join(replication_lines(t))
+    plots.replication_matrix(t, str(tmp_path / "m.png"))
+    with pytest.raises(ValueError):
+        plots.paired_effects(t, str(tmp_path / "p.png"))
+
+
+def test_overlap_is_declared_and_every_catalog_pair_is_classified():
+    """Over every pair of the 12 served datasets, exactly mvp_meta against each MVP group
+    shares participants (the declared `samples` intersect)."""
+    from itertools import combinations
+
+    from snp_phewas_catalog import load_datasets, sample_overlap
+
+    ds = list(load_datasets())
+    overlapping = {p for p in combinations(ds, 2) if sample_overlap(*p)}
+    assert overlapping == {(g, "mvp_meta") for g in ("mvp_eur", "mvp_afr", "mvp_amr", "mvp_eas")}
+
+
+def test_a_meta_lists_exactly_the_groups_of_its_biobank_it_pools():
+    from snp_phewas_catalog import META, load_datasets
+
+    ds = load_datasets()
+    metas = [s for s in ds.values() if s.ancestry == META]
+    assert metas
+    for m in metas:
+        strata = set().union(*(set(s.samples) for s in ds.values()
+                               if s.family == m.family and s.ancestry != META))
+        assert set(m.samples) == strata, m.dataset_id
+
+
+def test_a_cross_biobank_meta_is_caught_against_either_biobank():
+    """FinnGen publishes FinnGen + UK Biobank meta-analyses: declared atoms catch one against
+    Pan-UKBB EUR, which no rule on family or ancestry strings would."""
+    from dataclasses import replace
+
+    from snp_phewas_catalog import get_dataset, overlap_between
+
+    fg_ukb = replace(get_dataset("finngen_r12"), dataset_id="finngen_ukbb_meta",
+                     label="FinnGen and UK Biobank, meta-analysis",
+                     samples=("FINNGEN:FIN", "UKB:EUR"))
+    why = overlap_between(fg_ukb, get_dataset("pan_ukbb_eur"))
+    assert why and "UK Biobank participants of European ancestry" in why
+    assert overlap_between(fg_ukb, get_dataset("finngen_r12"))
+    assert overlap_between(fg_ukb, get_dataset("pan_ukbb_afr")) is None
+    assert overlap_between(fg_ukb, get_dataset("mvp_eur")) is None
+
+
+def test_a_dataset_with_no_declared_samples_fails_loud(monkeypatch):
+    import snp_phewas_catalog as C
+
+    raw = C._load_yaml()
+    broken = {**raw, "datasets": {**raw["datasets"],
+                                  "mvp_meta": {**raw["datasets"]["mvp_meta"], "samples": []}}}
+    monkeypatch.setattr(C, "_load_yaml", lambda: broken)
+    with pytest.raises(ValueError, match="mvp_meta must list its `samples`"):
+        C.load_datasets()
+
+
+def test_a_cross_ancestry_pair_carries_the_note_and_keeps_its_verdicts(tmp_path):
+    import snp_phewas_plots as plots
+    from snp_phewas_replication import CROSS_ANCESTRY_NOTE, replication_lines
+
+    ids = ["pan_ukbb_afr", "mvp_eur"]
+    cells = [[_cell(1e-9, -0.1), _cell(1e-9, -0.12)], [_cell(1e-9, 0.1), _cell(0.4, 0.02)],
+             [_cell(1e-9, 0.2), _cell(1e-9, 0.25)], [_cell(0.5, 0.1), _cell(0.5, -0.1)]]
+    t = _table_for(ids, cells)
+    assert t.cross_ancestry_pairs == [tuple(ids)]
+    assert CROSS_ANCESTRY_NOTE in "\n".join(replication_lines(t))
+    # the note never changes a verdict
+    class R:
+        dataset_ids = ids
+        rows = [c for r in t.rows for c in r.cells.values()]
+
+    plain = build_replication(R, ancestry_differs=lambda a, b: False)
+    assert [r.verdicts for r in plain.rows] == [r.verdicts for r in t.rows]
+    assert not plain.cross_ancestry_pairs
+    # the paired-effects panel gives no correlation for it
+    title = plots._paired_title(t.rows, *ids, "binary", cross=True)
+    assert "r =" not in title and "effect sizes not compared" in title
+    plots.paired_effects(t, str(tmp_path / "p.png"))
+    # the default lookup (European ancestry, FinnGen's Finnish counted as European) has none
+    assert not _sig_everywhere(["pan_ukbb_eur", "finngen_r12", "mvp_eur"]).cross_ancestry_pairs
+    # MVP's meta pools groups, so it is never compared on effect size with one group
+    assert _sig_everywhere(["pan_ukbb_eur", "mvp_meta"]).cross_ancestry_pairs
+
+
+def test_same_biobank_pairs_are_headed_so_with_all_datasets():
+    from snp_phewas_replication import replication_lines
+
+    t = _sig_everywhere(["pan_ukbb_eur", "pan_ukbb_afr", "mvp_eur"])
+    text = "\n".join(replication_lines(t))
+    assert ("**Pan-UK Biobank (European ancestry) and Pan-UK Biobank (African ancestry)** "
+            "(same biobank, different ancestry group)") in text
+    assert "**Pan-UK Biobank (European ancestry) and Million Veteran Program (European genetic " \
+           "ancestry)**:" in text

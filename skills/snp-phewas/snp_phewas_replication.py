@@ -20,21 +20,36 @@ A fourth kind is not a missing value at all: `no_counterpart` (with three or mor
 one of a pair has no outcome with this harmonized id in its catalog). It is excluded from
 that pair's counts and drawn blank, never hatched (hatched means "not tested").
 
+A pair whose datasets share participants (their declared `samples` intersect,
+`snp_phewas_catalog.sample_overlap`: a biobank's multi-population meta-analysis against one of
+the groups it pools, say) is never compared. Agreement between a meta-analysis and a group it
+contains is not replication. The pair is kept out of `pairs`, `n_shared`, `alpha`, every
+verdict, count, strip and panel, and is recorded in `excluded_pairs` with a reason enum
+(`not_independent`); kept + excluded pairs partition every pair of the lookup, asserted. No
+dataset's rows are dropped and the lookup is never refused.
+
 Three-way (exactly three datasets): for an outcome all three catalogs share, `three_way`
 summarizes the three cells at `alpha_3 = 0.05 / n_shared_3`, n_shared_3 = the harmonized
 outcomes all three catalogs carry, readable files only (same reasoning as the pair
 threshold: an outage cannot loosen it). Fewer outcomes are shared by all three than by any
 pair, so alpha_3 is looser than a pair's alpha: a row can replicate in all three while a
 pair strip, judged at that pair's stricter alpha, does not. The figure's legend says so.
+When any of the three pairs shares participants there is no three-way summary
+(`three_way_withheld` carries the reason enum).
+
+An independent pair of different genetic-ancestry groups (`snp_phewas_catalog.cross_ancestry`)
+carries `CROSS_ANCESTRY_NOTE`; the note never changes a verdict, which reads sign and
+significance only.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from itertools import combinations
-from typing import Any
+from typing import Any, Callable
 
 import snp_phewas_schema as S
+from snp_phewas_catalog import cross_ancestry, sample_overlap
 
 ALPHA = 0.05
 
@@ -66,6 +81,16 @@ VERDICT_LABELS = {
     V_LOW_CONFIDENCE: "flagged low confidence in one of the datasets",
     V_NO_COUNTERPART: "one of the datasets has no matching outcome",
 }
+
+# Why a dataset pair is not compared (`ReplicationTable.excluded_pairs`), with its label.
+EXCLUDED_NOT_INDEPENDENT = "not_independent"
+PAIR_EXCLUSION_LABELS = {
+    EXCLUDED_NOT_INDEPENDENT: ("not compared: the two datasets share participants, so agreement "
+                               "between them is not independent replication"),
+}
+CROSS_ANCESTRY_NOTE = ("Effect sizes are not compared across ancestry groups (allele frequency "
+                       "and linkage with the causal variant differ); the verdict uses sign and "
+                       "significance only.")
 
 # Three-way summary classes (one column, `three_way`; the pair that replicates when two of
 # three do is in `three_way_pair`). The no-comparison classes reuse the pair verdict names.
@@ -196,14 +221,34 @@ class ReplicationTable:
     alpha: dict[tuple[str, str], float]
     n_shared_3: int | None = None  # outcomes all three datasets share (three datasets only)
     alpha_3: float | None = None
+    #: Pairs never compared -> reason enum (`PAIR_EXCLUSION_LABELS`); not in `n_shared`,
+    #: `alpha` or any row's verdicts.
+    excluded_pairs: dict[tuple[str, str], str] = field(default_factory=dict)
+    #: The same pairs -> the plain-language sentence naming the shared participants.
+    excluded_pair_sentences: dict[tuple[str, str], str] = field(default_factory=dict)
+    #: With three datasets, the reason enum when the three-way summary is withheld.
+    three_way_withheld: str | None = None
+    #: Compared pairs of different genetic-ancestry groups (`CROSS_ANCESTRY_NOTE` applies).
+    cross_ancestry_pairs: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def pairs(self) -> list[tuple[str, str]]:
+        """The pairs compared (never one in `excluded_pairs`)."""
         return list(self.n_shared)
+
+    def excluded_pair_records(self) -> list[dict[str, str]]:
+        """One record per pair not compared: the excluded pair is a row, with its reason."""
+        return [{"dataset_a": a, "dataset_b": b, "reason": why,
+                 "reason_label": PAIR_EXCLUSION_LABELS[why],
+                 "detail": self.excluded_pair_sentences.get((a, b), "")}
+                for (a, b), why in self.excluded_pairs.items()]
 
     def counts(self, pair: tuple[str, str]) -> dict[str, int]:
         """Verdict counts over the outcomes BOTH datasets of the pair carry (an outcome with
-        no counterpart in one of them is not part of the pair)."""
+        no counterpart in one of them is not part of the pair). A pair not compared has no
+        counts: asking is an error, never a row of zeros."""
+        if pair in self.excluded_pairs:
+            raise KeyError(f"{pair} is not compared ({self.excluded_pairs[pair]})")
         out = {v: 0 for v in VERDICT_ORDER}
         for r in self.rows:
             if r.verdicts[pair] != V_NO_COUNTERPART:
@@ -238,8 +283,40 @@ class ReplicationTable:
         return recs
 
 
-def build_replication(result: Any, dataset_ids: list[str] | None = None) -> ReplicationTable:
-    """Harmonized outcomes present in at least two of the datasets, with a verdict per pair."""
+@dataclass(frozen=True)
+class PairClasses:
+    """Every dataset pair of a lookup, classified once: compared, or excluded with a reason."""
+
+    compared: list[tuple[str, str]]
+    excluded: dict[tuple[str, str], str]  # pair -> reason enum (`PAIR_EXCLUSION_LABELS`)
+    sentences: dict[tuple[str, str], str]  # pair -> who the two datasets share
+    cross_ancestry: list[tuple[str, str]]  # compared pairs `CROSS_ANCESTRY_NOTE` applies to
+
+
+def classify_pairs(ids: list[str], *,
+                   overlap: Callable[[str, str], str | None] = sample_overlap,
+                   ancestry_differs: Callable[[str, str], bool] = cross_ancestry) -> PairClasses:
+    """The one place a pair is judged comparable. Kept + excluded partition every pair,
+    asserted."""
+    every_pair = list(combinations(ids, 2))
+    sentences = {p: why for p in every_pair if (why := overlap(*p))}
+    excluded = {p: EXCLUDED_NOT_INDEPENDENT for p in sentences}
+    compared = [p for p in every_pair if p not in excluded]
+    if len(compared) + len(excluded) != len(every_pair) or set(compared) & set(excluded):
+        raise AssertionError("compared and excluded pairs must partition every dataset pair")
+    return PairClasses(compared, excluded, sentences,
+                       [p for p in compared if ancestry_differs(*p)])
+
+
+def build_replication(result: Any, dataset_ids: list[str] | None = None, *,
+                      overlap: Callable[[str, str], str | None] = sample_overlap,
+                      ancestry_differs: Callable[[str, str], bool] = cross_ancestry,
+                      ) -> ReplicationTable:
+    """Harmonized outcomes present in at least two of the datasets, with a verdict per pair.
+
+    `overlap` and `ancestry_differs` are the catalog's rules (`sample_overlap`,
+    `cross_ancestry`); only a test over synthetic dataset ids passes its own.
+    """
     ids = dataset_ids or list(result.dataset_ids)
     reps: dict[str, dict[str, S.OutcomeRow]] = {}
     labels: dict[str, str] = {}
@@ -248,7 +325,8 @@ def build_replication(result: Any, dataset_ids: list[str] | None = None) -> Repl
             reps.setdefault(r.harmonized_outcome_id, {})[r.dataset_id] = r
             labels.setdefault(r.harmonized_outcome_id, r.harmonized_label or r.outcome_label)
     shared = {h: d for h, d in reps.items() if len(d) >= 2}
-    pairs = list(combinations(ids, 2))
+    classes = classify_pairs(ids, overlap=overlap, ancestry_differs=ancestry_differs)
+    pairs, excluded = classes.compared, classes.excluded
     n_shared: dict[tuple[str, str], int] = {}
     alpha: dict[tuple[str, str], float] = {}
 
@@ -261,8 +339,10 @@ def build_replication(result: Any, dataset_ids: list[str] | None = None) -> Repl
         n = sum(1 for d in shared.values() if counted(d, (a, b)))
         n_shared[(a, b)] = n
         alpha[(a, b)] = ALPHA / n if n else ALPHA
-    n3 = a3 = None
-    if len(ids) == 3:
+    n3 = a3 = withheld = None
+    if len(ids) == 3 and excluded:
+        withheld = EXCLUDED_NOT_INDEPENDENT
+    elif len(ids) == 3:
         n3 = sum(1 for d in shared.values() if counted(d, ids))
         a3 = ALPHA / n3 if n3 else ALPHA
     rows = []
@@ -280,7 +360,9 @@ def build_replication(result: Any, dataset_ids: list[str] | None = None) -> Repl
             row.three_way_pair = (ids[pair_ix[0]], ids[pair_ix[1]]) if pair_ix else None
         rows.append(row)
     rows.sort(key=lambda r: (-r.best_neglog10_p, r.harmonized_outcome_id))
-    return ReplicationTable(ids, rows, n_shared, alpha, n3, a3)
+    return ReplicationTable(ids, rows, n_shared, alpha, n3, a3,
+                            excluded_pairs=excluded, excluded_pair_sentences=classes.sentences,
+                            three_way_withheld=withheld, cross_ancestry_pairs=classes.cross_ancestry)
 
 
 def _verdict_lines(labels: dict[str, str], counts: dict[str, int], named: dict[str, list[str]]
@@ -319,9 +401,13 @@ def replication_lines(table: ReplicationTable, *, heading: str = "###") -> list[
         n_shared = table.n_shared[pair]
         c = table.counts(pair)
         if not two:
-            lines += ["", f"**{both}**: {n_shared:,} shared outcomes, threshold "
+            same = get_dataset(pair[0]).family == get_dataset(pair[1]).family
+            head = f"**{both}**" + (" (same biobank, different ancestry group)" if same else "")
+            lines += ["", f"{head}: {n_shared:,} shared outcomes, threshold "
                           f"0.05 / {n_shared:,}." if n_shared else
-                      f"**{both}**: no shared outcomes."]
+                      f"{head}: no shared outcomes."]
+        if pair in table.cross_ancestry_pairs:
+            lines.append(CROSS_ANCESTRY_NOTE)
         named: dict[str, list[str]] = {}
         for r in table.rows:
             named.setdefault(r.verdicts[pair], []).append(r.harmonized_label)
@@ -330,6 +416,13 @@ def replication_lines(table: ReplicationTable, *, heading: str = "###") -> list[
         if no_cmp:
             lines.append(f"{no_cmp:,} harmonized outcomes could not be compared; they are "
                          f"listed apart from the nulls, never counted as nulls.")
+    for pair in table.excluded_pairs:
+        lines += ["", f"**{labels_listed(list(pair))}**: not compared. "
+                      f"{table.excluded_pair_sentences[pair]} Agreement between them would not be "
+                      f"independent replication, so the pair has no verdicts and no threshold."]
+    if table.three_way_withheld:
+        lines += ["", "**All three datasets**: no three-way verdict, because two of them share "
+                      "participants."]
     if table.n_shared_3 is not None:
         n3 = table.n_shared_3
         short = [get_dataset(d).short_label for d in table.dataset_ids]

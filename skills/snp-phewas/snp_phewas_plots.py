@@ -675,8 +675,13 @@ def replication_matrix(table: ReplicationTable, out_png: str, *, max_rows: int =
         # loosest: an "all three" verdict can stand where a pair strip does not
         thr += (f"; all three 0.05/{table.n_shared_3:,} (fewer shared outcomes, so a looser "
                 f"line than the pairs')")
-    ax.set_title(title + ("\nsignificance per pair: " + thr if thr else ""), fontsize=8.5,
-                 color=INK, loc="left", pad=6)
+    title += ("\nsignificance per pair: " + thr if thr else "")
+    # a pair that shares participants is named with the reason, never drawn as a strip
+    excluded = ", ".join(f"{_short_name(a)} × {_short_name(b)}" for a, b in table.excluded_pairs)
+    if excluded:
+        title += (f"\nnot compared, the datasets share participants: {excluded}"
+                  + ("; so no all-three verdict" if table.three_way_withheld else ""))
+    ax.set_title(title, fontsize=8.5, color=INK, loc="left", pad=6)
     # the colorbar sits beside the strips, inside the figure, not at the far right edge
     cax = ax.inset_axes([strips_end + 0.25, max(0.0, len(rows) - 6.5), 0.18,
                          min(6.0, max(1.5, len(rows) - 0.5))], transform=ax.transData)
@@ -730,15 +735,11 @@ _SIGNIFICANT_VERDICTS = (V_REPLICATES, V_CONCORDANT_ONE, V_DISCORDANT, V_SINGLE,
                          V_DIRECTION_UNKNOWN)
 
 
-def paired_effects(table: ReplicationTable, out_png: str) -> str:
-    """Beta in one dataset against another with 95% CIs: one row of panels per dataset pair,
-    one panel per outcome kind present (binary in log-OR, continuous in z units, since effect
-    scales differ across cohorts). Each panel gives the effect correlation over every
-    outcome tested in both AND over the outcomes significant in either, each with its n:
-    over hundreds of shared outcomes the first is dominated by nulls. Two datasets give one
-    row, as before."""
+def paired_panels(table: ReplicationTable) -> tuple[dict[tuple[str, str], list], list]:
+    """({pair: rows tested in both}, [(pair, kind)] panels) over the COMPARED pairs only: a
+    pair whose datasets share participants (`table.excluded_pairs`) gets no panel."""
     if not table.pairs:
-        raise ValueError("a paired effect plot needs two datasets")
+        raise ValueError("a paired effect plot needs two datasets that do not share participants")
     pairs = [p for p in table.pairs if table.n_shared[p]] or table.pairs[:1]
     pts_by: dict[tuple[str, str], list] = {}
     for a, b in pairs:
@@ -751,7 +752,17 @@ def paired_effects(table: ReplicationTable, out_png: str) -> str:
     # figure). Nothing at all still gives one panel that says so.
     panels = [((a, b), k) for a, b in pairs for k in ("binary", "continuous")
               if any(r.cells[a].outcome_kind == k for r in pts_by[(a, b)])]
-    panels = panels or [(pairs[0], "binary")]
+    return pts_by, panels or [(pairs[0], "binary")]
+
+
+def paired_effects(table: ReplicationTable, out_png: str) -> str:
+    """Beta in one dataset against another with 95% CIs: one row of panels per dataset pair,
+    one panel per outcome kind present (binary in log-OR, continuous in z units, since effect
+    scales differ across cohorts). Each panel gives the effect correlation over every
+    outcome tested in both AND over the outcomes significant in either, each with its n:
+    over hundreds of shared outcomes the first is dominated by nulls. Two datasets give one
+    row, as before."""
+    pts_by, panels = paired_panels(table)
     ncol = 1 if len(panels) == 1 else 2
     nrow = math.ceil(len(panels) / ncol)
     fig, axes = plt.subplots(nrow, ncol, figsize=(5.8 * ncol, 5 * nrow), facecolor=SURFACE,
@@ -762,7 +773,9 @@ def paired_effects(table: ReplicationTable, out_png: str) -> str:
         _style(ax)
         pts = [r for r in pts_by[(a, b)] if r.cells[a].outcome_kind == kind]
         if not pts:  # say it rather than draw an empty grid
-            ax.set_title(_paired_title(pts, a, b, kind), fontsize=8.5, color=INK, loc="left")
+            ax.set_title(_paired_title(pts, a, b, kind,
+                                       cross=(a, b) in table.cross_ancestry_pairs),
+                         fontsize=8.5, color=INK, loc="left")
             ax.text(0.5, 0.5, "no outcome of this kind was tested in both", ha="center",
                     va="center", fontsize=8, color=INK_2, transform=ax.transAxes)
             ax.set_xticks([])
@@ -794,7 +807,9 @@ def paired_effects(table: ReplicationTable, out_png: str) -> str:
         unit = "log odds ratio" if kind == "binary" else "z (beta / SE)"
         ax.set_xlabel(f"{_long_name(a)}: {unit}", fontsize=8, color=INK_2)
         ax.set_ylabel(f"{_long_name(b)}: {unit}", fontsize=8, color=INK_2)
-        ax.set_title(_paired_title(pts, a, b, kind), fontsize=8.5, color=INK, loc="left")
+        ax.set_title(_paired_title(pts, a, b, kind,
+                                   cross=(a, b) in table.cross_ancestry_pairs),
+                     fontsize=8.5, color=INK, loc="left")
         if pts:
             ax.legend(fontsize=6.5, frameon=False, loc="upper left")
     fig.tight_layout()
@@ -811,11 +826,14 @@ def paired_correlations(pts, a: str, b: str, kind: str) -> dict[str, Any]:
             "n_sig": len(sig), "r_sig": _corr(sig, a, b, kind) if len(sig) >= 3 else None}
 
 
-def _paired_title(pts, a, b, kind) -> str:
+def _paired_title(pts, a, b, kind, *, cross: bool = False) -> str:
     c = paired_correlations(pts, a, b, kind)
     head = (f"{_short_name(a)} × {_short_name(b)}, "
             f"{'case/control' if kind == 'binary' else 'continuous'} outcomes tested in both: "
             f"{c['n_all']}")
+    if cross:  # effect sizes are not compared across ancestry groups: no correlation is given
+        return head + ("\ndifferent ancestry groups: effect sizes not compared, no correlation "
+                       "given; the verdicts use sign and significance only")
     parts = []
     if c["r_all"] is not None:
         parts.append(f"r = {c['r_all']:.2f} over all {c['n_all']}")

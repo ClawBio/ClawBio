@@ -355,7 +355,7 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
                          f"{_fmt_p(r)} | {_fmt(r.eaf, 3)} | {r.status_label} |")
         lines.append("")
 
-    if table is not None and table.pairs:
+    if table is not None:  # also when no pair was compared: the text says which and why
         lines += replication_lines(table, heading="##")
         lines += _replication_rows_table(table)
         lines += ["", "Full table: `tables/replication.tsv`."]
@@ -397,7 +397,8 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
               "- `figures/manhattan.png`: outcome Manhattan, one panel per dataset."]
     if table is not None:
         lines += ["- `tables/replication.tsv`, `figures/replication_matrix.png`: the replication "
-                  "view (every dataset pair, and all three when three datasets are read).",
+                  "view (every dataset pair that does not share participants, and all three when "
+                  "three datasets are read and none of them do).",
                   "- `figures/paired_effects.png`: effect against effect, one row per dataset "
                   "pair with shared outcomes."]
     lines.append(generate_report_footer())
@@ -511,17 +512,22 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
                          "status_counts": p.get("status_counts", {})}
                      for d, p in result.provenance.items()},
     }
-    if table is not None and table.pairs:
+    if table is not None and (table.pairs or table.excluded_pairs):
         summary["replication"] = {
             "pairs": [{"pair": list(pair), "n_shared": table.n_shared[pair],
                        "alpha": table.alpha[pair], "verdicts": table.counts(pair)}
-                      for pair in table.pairs]}
+                      for pair in table.pairs],
+            # pairs never compared, each with its reason (they share participants)
+            "excluded_pairs": table.excluded_pair_records()}
+        if table.three_way_withheld:
+            summary["replication"]["three_way_withheld"] = table.three_way_withheld
         if table.n_shared_3 is not None:
             summary["replication"]["three_way"] = {
                 "n_shared": table.n_shared_3, "alpha": table.alpha_3,
                 "classes": table.counts_three_way()}
-    # "ok" only when some outcome carries a value: an all-outage run is not a success.
-    any_value = any(r.status in S.TESTED_STATUSES for r in result.rows)
+    # "ok" only when some source answered for some outcome (a value, a FinnGen API report of
+    # p >= 0.05, or a permanent "not testable here"): an all-outage run is not a success.
+    answered = not S.nothing_answered(result.rows)
     data = {"query": v.query, "resolution_note": v.resolution_note, "notes": result.notes,
             "ancestry_notes": ancestry_notes,
             "provenance": result.provenance,
@@ -530,7 +536,7 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
     produced.append(write_result_json(
         out, SKILL_NAME, VERSION, summary, data,
         datasets={d: get_dataset(d).release for d in result.dataset_ids},
-        status="ok" if any_value else "error", ok=any_value))
+        status="ok" if answered else "error", ok=answered))
 
     cmd = shlex.join(["python", SCRIPT_REL, *argv])
     produced.append(write_commands_sh(out, cmd))
@@ -539,6 +545,12 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
 
     print((out / "report.md").read_text(encoding="utf-8"))
     print(f"wrote {out}")
+    if not answered:
+        # every read failed: the run is written so the outage can be inspected, but it is
+        # not a result, and the exit code says so (as result.json's status does)
+        print("snp-phewas: no source answered for this variant (every read failed); this is "
+              "an outage, not an absence. Try again later.", file=sys.stderr)
+        return 3
     return 0
 
 

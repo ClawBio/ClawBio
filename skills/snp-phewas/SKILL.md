@@ -154,6 +154,8 @@ put them on one effect allele and one outcome key, and say which associations re
 6. **Replication verdicts**: per shared outcome for every pair of biobanks, at
    p < 0.05 / (outcomes both share), and a three-way class at p < 0.05 / (outcomes all three
    share), with "not tested", "not read" and "low confidence" kept apart from a tested null.
+   Two datasets that share participants (MVP's meta-analysis and a group it pools) are never
+   compared, and the report says which pair and why.
 7. **Three figures**: outcome Manhattan per biobank, replication matrix (one strip per pair
    plus all three), paired effects (one row of panels per pair with shared outcomes). The
    Manhattan groups the outcomes read into 20 body-system categories taken from each
@@ -348,6 +350,32 @@ discordant, a direction unavailable, significant in one only, null in all three,
 worst missing cell's no-comparison class. Fewer outcomes are shared by all three than by a
 pair, so that line is looser than the pairs'; the figure says so. 5e-8 is drawn on the
 figures for reference and decides nothing.
+
+**Sample overlap**: each dataset in `datasets.yaml` declares the participant groups it is
+computed from (`samples:`; `mvp_meta` lists the four MVP groups). Two datasets whose groups
+intersect share participants, and agreement between them is not independent replication
+(participant overlap biases a two-sample comparison: Burgess S, Davies NM, Thompson SG.
+Genet Epidemiol. 2016;40(7):597-608. doi:10.1002/gepi.21998. PMID 27625185). Such a pair is
+never compared: it has no `n_shared`, threshold, verdicts, counts, strip or panel; it is
+listed in `result.json` under `replication.excluded_pairs` with the reason `not_independent`,
+and the report and the matrix title name it and the shared participants. With three
+datasets, any such pair withholds the three-way class. No dataset's rows are dropped.
+Overlap is declared rather than derived from ancestry labels so that a meta-analysis pooling
+two biobanks (FinnGen publishes FinnGen + UK Biobank meta-analyses) is caught against either.
+That UK Biobank, FinnGen and MVP share no participants rests on study design, not
+measurement; `datasets.yaml` marks it `assumed_by_design (unverified)`. A pair from one
+biobank and two ancestry groups (separate participants, shared outcome definitions) is
+compared and headed "same biobank, different ancestry group".
+
+**Cross-ancestry pairs**: a compared pair of different ancestry groups (FinnGen's Finnish
+participants count as European), or one with a multi-population meta-analysis, carries
+"Effect sizes are not compared across ancestry groups (allele frequency and linkage with the
+causal variant differ); the verdict uses sign and significance only." The verdicts are
+unchanged; that pair's paired-effects panel gives no correlation.
+
+**Exit status**: when no source answered for any outcome (every read failed), the run is
+still written, `result.json` has status `error`, and the script exits 3. A null FinnGen API
+answer or a variant absent from a dataset is an answer and exits 0.
 
 **Two views**: by default every biobank is read over its outcomes with a READABLE
 counterpart in another biobank of the same lookup, the ones the replication view compares,

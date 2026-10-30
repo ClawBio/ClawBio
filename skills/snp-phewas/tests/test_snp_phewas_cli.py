@@ -317,6 +317,75 @@ def test_a_low_confidence_value_is_flagged_and_never_counted_as_a_pass(offline_k
 
 
 
+def test_an_all_outage_run_exits_nonzero(monkeypatch, capsys, tmp_path):
+    """Every source down: the run is written and result.json says "error", and the exit code
+    now says so too (it was 0)."""
+    import json
+
+    import snp_phewas as cli
+    from snp_phewas_catalog import get_dataset
+    from snp_phewas_demo import DemoFinnGenApi, demo_readers
+    from snp_phewas_sources import FinnGenReader, MvpReader
+    from snp_phewas_tabix import SourceUnreachable
+
+    real = cli.lookup_variant
+    gone = str(tmp_path / "gone") + "/"
+
+    def down(*a, **k):
+        raise SourceUnreachable("Ensembl assembly mapper: ReadTimeout")
+
+    def all_down(variant, **kw):
+        readers = demo_readers(api=DemoFinnGenApi(outage=True))
+        readers["finngen_r12"] = FinnGenReader(get_dataset("finngen_r12"), route="hybrid",
+                                               client=DemoFinnGenApi(outage=True),
+                                               data_base=gone, workers=1)
+        readers["mvp_eur"] = MvpReader(get_dataset("mvp_eur"), data_base=gone, workers=1)
+        kw.update(readers=readers, map_fn=down)
+        return real(variant, **kw)
+
+    monkeypatch.setattr(cli, "lookup_variant", all_down)
+    out = tmp_path / "run"
+    assert cli.main(["--demo", "--output", str(out)]) == 3
+    assert "no source answered" in capsys.readouterr().err
+    assert json.loads((out / "result.json").read_text())["status"] == "error"
+
+
+def test_the_report_names_a_pair_not_compared_even_when_it_is_the_only_pair(offline_kwargs,
+                                                                           tmp_path):
+    """With no pair compared the report printed no replication section, so the reason went
+    unsaid."""
+    import argparse
+
+    from snp_phewas_lookup import lookup_variant
+    from snp_phewas_replication import build_replication
+
+    offline_kwargs["outcomes"] = {k: v for k, v in offline_kwargs["outcomes"].items()
+                                  if k in ("finngen_r12", "mvp_eur")}
+    r = lookup_variant("rs12740374", datasets=["finngen_r12", "mvp_eur"], **offline_kwargs)
+    why = "Both datasets include the same participants."
+    table = build_replication(r, overlap=lambda a, b: why)
+    assert table.pairs == []
+    args = argparse.Namespace(demo=False, quick=False)
+    report = snp_phewas.write_report(r, table, tmp_path, args, 0.0).read_text()
+    assert "not compared. " + why in report
+
+
+def test_an_answer_of_no_value_is_not_an_outage():
+    """A null FinnGen API answer (every value above p = 0.05) and a variant absent from a
+    dataset are answers, so they never trip the outage exit."""
+    from types import SimpleNamespace
+
+    import snp_phewas_schema as S
+
+    def rows(*statuses):
+        return [SimpleNamespace(status=st) for st in statuses]
+
+    assert S.nothing_answered(rows(S.ST_UNREACHABLE, S.ST_NOT_QUERIED, S.ST_FILE_MISSING))
+    assert not S.nothing_answered(rows(S.ST_UNREACHABLE, S.ST_API_CENSORED))
+    assert not S.nothing_answered(rows(S.ST_UNREACHABLE, S.ST_ABSENT))
+    assert not S.nothing_answered(rows(S.ST_NOT_QUERIED, S.ST_OK))
+
+
 @pytest.mark.parametrize("extra", [["--ancestry", "AFR"], ["--dataset", "pan_ukbb_csa"]])
 def test_demo_refuses_a_group_it_cannot_read(tmp_path, extra):
     """The demo reads the bundled European-ancestry slices; writing that report under an

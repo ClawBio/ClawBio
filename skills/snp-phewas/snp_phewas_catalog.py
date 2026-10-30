@@ -64,6 +64,12 @@ class DatasetSpec:
     attribution: str
     family_spec: dict[str, Any] = field(repr=False, default_factory=dict)
     short_label: str = ""  # the column / strip header a figure uses ("MVP EUR")
+    #: The participant groups the results are computed from (`samples` in datasets.yaml);
+    #: two datasets whose groups intersect share participants (`sample_overlap`).
+    samples: tuple[str, ...] = ()
+    #: The genetic-ancestry group effect sizes are compared within (`ancestry_group`, else
+    #: `ancestry`): FinnGen's FIN is EUR.
+    ancestry_group: str = ""
 
     @property
     def outcome_catalog_path(self) -> str:
@@ -107,8 +113,14 @@ def load_datasets() -> dict[str, DatasetSpec]:
     """Every served dataset, keyed by dataset_id, in catalog order."""
     raw = _load_yaml()
     out: dict[str, DatasetSpec] = {}
+    groups = raw["sample_groups"]
     for dsid, d in raw["datasets"].items():
         fam = raw["families"][d["family"]]
+        samples = tuple(d.get("samples") or ())
+        # Fail loud: a dataset with no declared participants would look independent of all.
+        if not samples or any(a not in groups for a in samples):
+            raise ValueError(f"datasets.yaml: {dsid} must list its `samples`, each one of "
+                             f"`sample_groups`; got {list(samples)}")
         out[dsid] = DatasetSpec(
             dataset_id=dsid,
             family=d["family"],
@@ -124,6 +136,8 @@ def load_datasets() -> dict[str, DatasetSpec]:
             attribution=" ".join(str(fam["attribution"]).split()),
             family_spec=fam,
             short_label=str(d.get("short_label") or d["label"]),
+            samples=samples,
+            ancestry_group=str(d.get("ancestry_group") or d["ancestry"]),
         )
     return out
 
@@ -156,6 +170,48 @@ ANCESTRY_WORDS: dict[str, str] = {
     "CSA": "Central/South Asian", "MID": "Middle Eastern",
     "META": "multi-population meta-analysis",
 }
+
+
+#: The `ancestry` value of a multi-population meta-analysis (MVP's `mvp_meta`).
+META = "META"
+
+
+def sample_group_label(atom: str) -> str:
+    """The plain-language name of a participant group (`sample_groups` in datasets.yaml)."""
+    return str(_load_yaml()["sample_groups"][atom])
+
+
+def _listed_label(spec: DatasetSpec) -> str:
+    head, sep, tail = spec.label.partition(", ")
+    return f"{head} ({tail})" if sep else spec.label
+
+
+def overlap_between(da: DatasetSpec, db: DatasetSpec) -> str | None:
+    """Why two datasets share participants, as a plain-language sentence; None when their
+    declared `samples` do not intersect. The one home of the rule: overlap is
+    DECLARED in datasets.yaml, never derived from ids or ancestry strings, so a meta-analysis
+    pooling two biobanks is caught against either one."""
+    shared = [a for a in da.samples if a in db.samples]
+    if not shared:
+        return None
+    who = " and the ".join(sample_group_label(a) for a in shared)
+    if set(db.samples) < set(da.samples):
+        return f"{_listed_label(da)} includes the {who}."
+    if set(da.samples) < set(db.samples):
+        return f"{_listed_label(db)} includes the {who}."
+    return f"{_listed_label(da)} and {_listed_label(db)} both include the {who}."
+
+
+def sample_overlap(a: str, b: str) -> str | None:
+    """`overlap_between` for two catalog dataset ids."""
+    return overlap_between(get_dataset(a), get_dataset(b))
+
+
+def cross_ancestry(a: str, b: str) -> bool:
+    """True when effect sizes of `a` and `b` are not compared: different `ancestry_group`s, or
+    either a multi-population meta-analysis (its pooled effect mixes groups)."""
+    ga, gb = get_dataset(a).ancestry_group, get_dataset(b).ancestry_group
+    return ga != gb or META in (ga, gb)
 
 
 def label_in_list(dataset_id: str) -> str:

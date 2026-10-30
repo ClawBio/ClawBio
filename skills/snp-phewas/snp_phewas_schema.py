@@ -104,6 +104,18 @@ def phenome_wide_n(rows) -> int:
                and r.status not in PHENOME_WIDE_EXCLUDED)
 
 
+#: Statuses that are an ANSWER from a source about this variant: a value, a value the FinnGen
+#: API reports only as p >= 0.05, or a permanent "not testable here". Everything else is a
+#: read that failed or did not happen.
+ANSWERED_STATUSES = TESTED_STATUSES | PERMANENT_STATUSES | {ST_API_CENSORED}
+
+
+def nothing_answered(rows) -> bool:
+    """True when no source answered for any outcome (every read failed or did not happen):
+    an outage of everything asked, not an absence. The command line exits nonzero then."""
+    return not any(r.status in ANSWERED_STATUSES for r in rows)
+
+
 # Statuses for which the source returned a record, so its native variant id must be set.
 SOURCE_RECORD_STATUSES = TESTED_STATUSES | {ST_NOT_TESTED, ST_ALLELE_MISMATCH, ST_API_CENSORED}
 

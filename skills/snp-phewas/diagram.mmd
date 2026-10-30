@@ -18,9 +18,12 @@ flowchart TD
     ROWS --> P{"rows == catalog as sets?"}
     P -->|no| X["fail loudly"]
     P -->|yes| H["outcome crosswalk<br/>ICD-10 block / phecode / FinnGen published match /<br/>reviewed MVP measurement match"]
-    H --> V["replication verdict per dataset pair<br/>p &lt; 0.05 / outcomes both share (readable files)"]
-    H --> V3["three-way class with three datasets<br/>p &lt; 0.05 / outcomes all three share"]
-    V --> OUT["report.md and stdout: every pair and all three<br/>result.json, tables/, reproducibility/"]
+    SAMP[("datasets.yaml: samples per dataset<br/>(participant groups), ancestry_group")] -.-> PAIRS
+    H --> PAIRS{"pairs: declared groups intersect?"}
+    PAIRS -->|yes: excluded pair, reason not_independent<br/>no verdicts, named in the report| OUT
+    PAIRS -->|no| V["replication verdict per compared pair<br/>p &lt; 0.05 / outcomes both share (readable files)<br/>different ancestry groups: sign and significance only"]
+    PAIRS -->|three datasets, none excluded| V3["three-way class with three datasets<br/>p &lt; 0.05 / outcomes all three share"]
+    V --> OUT["report.md and stdout: every pair and all three<br/>result.json, tables/, reproducibility/<br/>no source answered: exit 3"]
     V3 --> OUT
     V --> FIG["figures: Manhattan per dataset,<br/>replication matrix with pair strips and all three,<br/>paired effects per pair with shared outcomes"]
     V3 --> FIG
