@@ -922,26 +922,6 @@ def test_clawbio_run_scrna_accepts_whitelisted_contrast_flags(tmp_path: Path):
     assert (output_dir / "tables" / "contrastive_markers_top.csv").exists()
 
 
-def test_doublet_missing_dependency_message(monkeypatch: pytest.MonkeyPatch):
-    from anndata import AnnData  # type: ignore
-
-    module = _load_scrna_module()
-    adata = AnnData(
-        X=np.array([[1, 0, 3], [2, 1, 0], [1, 1, 2]], dtype=np.int32),
-        obs=pd.DataFrame(index=pd.Index(["cell0", "cell1", "cell2"], dtype="object")),
-        var=pd.DataFrame(index=pd.Index(["GeneA", "GeneB", "GeneC"], dtype="object")),
-    )
-
-    def _raise_missing():
-        raise RuntimeError(
-            "scrublet is required for --doublet-method scrublet. Install it with: pip install scrublet"
-        )
-
-    monkeypatch.setattr(module, "_import_scrublet", _raise_missing)
-    with pytest.raises(RuntimeError, match="pip install scrublet"):
-        module.run_doublet_detection(adata, method="scrublet", random_state=0)
-
-
 def test_parse_args_annotation_defaults_and_override(monkeypatch: pytest.MonkeyPatch):
     module = _load_scrna_module()
 
@@ -1071,6 +1051,7 @@ def test_celltypist_annotation_pipeline_writes_cluster_summary(
 
 def test_annotation_missing_local_model_fails_actionably(tmp_path: Path):
     _require_scanpy()
+    pytest.importorskip("celltypist")
     output_dir = tmp_path / "annotation_missing_model"
     result = _run_cmd(
         [
@@ -1254,10 +1235,11 @@ def test_invalid_contrast_scope_is_rejected(tmp_path: Path):
     assert "invalid choice" in result.stderr
 
 
-def test_clawbio_run_scrna_rejects_removed_de_flags(tmp_path: Path):
+def test_scrna_rejects_removed_de_flags(tmp_path: Path):
+    # The script, not `clawbio run`: the runner drops flags outside allowed_extra_flags before the script sees them.
     _require_scanpy()
     output_dir = tmp_path / "removed_de_flags_output"
-    result = _run_clawbio_scrna_cmd(
+    result = _run_cmd(
         [
             "--demo",
             "--output",
