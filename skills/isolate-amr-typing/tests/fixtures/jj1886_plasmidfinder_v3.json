@@ -1,0 +1,63 @@
+{
+ "type": "software_result",
+ "databases": {
+  "PlasmidFinder-2.2.0": {
+   "type": "database",
+   "database_name": "PlasmidFinder",
+   "database_version": "2.2.0",
+   "key": "PlasmidFinder-2.2.0",
+   "database_commit": "unknown"
+  }
+ },
+ "seq_regions": {
+  "NC_022651.1 Escherichia coli JJ1886 plasmid pJJ1886_5, complete sequence:6717..7104:IncFIA_1__AP001918:99.742268": {
+   "type": "seq_region",
+   "phenotypes": [],
+   "ref_database": "PlasmidFinder-2.2.0:enterobacteriales",
+   "key": "NC_022651.1 Escherichia coli JJ1886 plasmid pJJ1886_5, complete sequence:6717..7104:IncFIA_1__AP001918:99.742268",
+   "gene": true,
+   "name": "IncFIA",
+   "identity": 99.74,
+   "alignment_length": 388,
+   "ref_seq_length": 388,
+   "coverage": 100.0,
+   "ref_id": "IncFIA_1__AP001918",
+   "ref_acc": "AP001918",
+   "ref_start_pos": 1,
+   "ref_end_pos": 388,
+   "query_id": "NC_022651.1 Escherichia coli JJ1886 plasmid pJJ1886_5, complete sequence",
+   "query_start_pos": 6717,
+   "query_end_pos": 7104,
+   "note": ""
+  },
+  "NC_022651.1 Escherichia coli JJ1886 plasmid pJJ1886_5, complete sequence:38700..38960:IncFII_1__AY458016:100.000000": {
+   "type": "seq_region",
+   "phenotypes": [],
+   "ref_database": "PlasmidFinder-2.2.0:enterobacteriales",
+   "key": "NC_022651.1 Escherichia coli JJ1886 plasmid pJJ1886_5, complete sequence:38700..38960:IncFII_1__AY458016:100.000000",
+   "gene": true,
+   "name": "IncFII",
+   "identity": 100.0,
+   "alignment_length": 261,
+   "ref_seq_length": 261,
+   "coverage": 100.0,
+   "ref_id": "IncFII_1__AY458016",
+   "ref_acc": "AY458016",
+   "ref_start_pos": 1,
+   "ref_end_pos": 261,
+   "query_id": "NC_022651.1 Escherichia coli JJ1886 plasmid pJJ1886_5, complete sequence",
+   "query_start_pos": 38700,
+   "query_end_pos": 38960,
+   "note": ""
+  }
+ },
+ "seq_variations": {},
+ "phenotypes": {},
+ "software_executions": {},
+ "aln_hits": {},
+ "software_name": "PlasmidFinder",
+ "software_version": "3.0.3",
+ "software_commit": "unknown",
+ "run_date": "05.10.2026",
+ "key": "PlasmidFinder-3.0.3"
+}
