@@ -2,7 +2,7 @@
   "mode": "stable",
   "skill": {
     "name": "nfcore-scrnaseq-wrapper",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "pipeline": {
     "name": "nf-core/scrnaseq",

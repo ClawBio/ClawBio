@@ -1,43 +1,20 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
 
+from clawbio.common.nfcore.errors import SkillError
 
-@dataclass
-class SkillError(Exception):
-    stage: str
-    error_code: str
-    message: str
-    fix: str
-    details: dict[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        super().__init__(self.message)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "status": "error",
-            "ok": False,
-            "stage": self.stage,
-            "error_code": self.error_code,
-            "message": self.message,
-            "fix": self.fix,
-            "details": self.details,
-        }
+__all__ = ["ErrorCode", "SkillError"]
 
 
 class ErrorCode:
     MISSING_INPUT = "MISSING_INPUT"
-    MISSING_FASTQ = "MISSING_FASTQ"
-    INVALID_FASTQ = "INVALID_FASTQ"
     # NOTE: input readability is intentionally NOT pre-checked. The wrapper does not
     # read the FASTQ/BAM/CRAM data — Nextflow does, and under the default Docker profile
     # the container often runs as root and can read files the launching user cannot, so an
     # os.access(R_OK) pre-check by the launcher would false-block valid runs. Output
     # *writability* IS checked (OUTPUT_DIR_NOT_WRITABLE) because the wrapper itself writes
-    # there. Existence of inputs is validated (MISSING_FASTQ); readability is deferred to
-    # Nextflow's staging, which reads in the true execution context.
+    # there. Existence of inputs is nf-schema's (assets/schema_input.json); readability is
+    # deferred to Nextflow's staging, which reads in the true execution context.
     INVALID_SAMPLESHEET = "INVALID_SAMPLESHEET"
     # Remote input/reference URIs (s3://, gs://, https://, ftp://, …) are rejected by
     # default (local-first); they are only allowed with --allow-remote-inputs, which
@@ -73,7 +50,6 @@ class ErrorCode:
     INVALID_ALIGNER = "INVALID_ALIGNER"
     CONFLICTING_FASTA_ARGS = "CONFLICTING_FASTA_ARGS"
     REFERENCE_PATH_NOT_FOUND = "REFERENCE_PATH_NOT_FOUND"
-    INVALID_BAM = "INVALID_BAM"
     INVALID_STEP = "INVALID_STEP"
     INVALID_TOOLS = "INVALID_TOOLS"
     INVALID_PAIRING = "INVALID_PAIRING"
@@ -84,9 +60,6 @@ class ErrorCode:
     MISSING_SNPEFF_DB = "MISSING_SNPEFF_DB"
     INVALID_ASCAT_RESOURCES = "INVALID_ASCAT_RESOURCES"
     UMI_SPARK_INCOMPATIBLE = "UMI_SPARK_INCOMPATIBLE"
-    VARLOCIRAPTOR_MISSING_CONTAMINATION = "VARLOCIRAPTOR_MISSING_CONTAMINATION"
-    INVALID_SEX = "INVALID_SEX"
-    INVALID_STATUS = "INVALID_STATUS"
     INVALID_INTERVALS = "INVALID_INTERVALS"
     INVALID_EMAIL = "INVALID_EMAIL"
     OUTPUT_DIR_INSIDE_REPO = "OUTPUT_DIR_INSIDE_REPO"

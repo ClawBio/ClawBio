@@ -3,9 +3,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import yaml
+from clawbio.common.nfcore.parameters import serialize_params_yaml as _serialize_params
+from clawbio.common.nfcore.parameters import write_params_yaml as _write_params
+from clawbio.common.nfcore.paths import resolve_path_or_uri
 
-from clawbio.common.textio import write_text_lf
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -151,6 +152,21 @@ _BOOLEAN_FIELDS = (
 )
 
 
+def _reject_non_finite_params(params: dict[str, object]) -> None:
+    """Schema rules are nf-schema's; it checks the pinned schema when Nextflow starts."""
+    from clawbio.common.nfcore.parameters import reject_non_finite_numbers
+
+    try:
+        reject_non_finite_numbers(params)
+    except ValueError as exc:
+        raise SkillError(
+            stage="validation", error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
+            message=f"Invalid native rnaseq parameter: {exc}",
+            fix="nf-schema cannot represent NaN or infinity; pass a finite number.",
+            details={"error": str(exc)},
+        ) from exc
+
+
 def build_params_file(
     args, *, normalized_samplesheet: Path, output_dir: Path, gencode_autodetected: bool = False
 ) -> tuple[Path, dict[str, object]]:
@@ -187,6 +203,20 @@ def build_effective_params(
     _add_umi_params(params, args)
     _add_flags(params, args)
     _add_tuning_params(params, args, gencode_autodetected=gencode_autodetected)
+    _reject_non_finite_params(params)
+    return params
+
+
+def tuning_params(args) -> dict[str, object]:
+    """Parameters a real run writes for tuning flags: all but input, outdir, aligner
+    and references. A hermetic test profile owns every one of them."""
+    params: dict[str, object] = {}
+    _add_aligner_params(params, args)
+    _add_contaminant_params(params, args)
+    _add_ribo_params(params, args)
+    _add_umi_params(params, args)
+    _add_flags(params, args)
+    _add_tuning_params(params, args)
     return params
 
 
@@ -283,10 +313,8 @@ def _add_contaminant_params(params: dict[str, object], args) -> None:
 
 
 def _posix_or_uri(value: str) -> str:
-    """Expand to absolute POSIX path, but pass URI schemes (s3://, http://) through unchanged."""
-    if "://" in value:
-        return value
-    return Path(value).expanduser().resolve().as_posix()
+    resolved = resolve_path_or_uri(str(value), base_dir=Path.cwd())
+    return resolved if isinstance(resolved, str) else resolved.as_posix()
 
 
 def _posix_multi(value: str) -> str:
@@ -356,17 +384,8 @@ def _add_tuning_params(params: dict[str, object], args, *, gencode_autodetected:
 
 
 def write_params_yaml(params: dict[str, object], *, output_dir: Path) -> Path:
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
-    params_path = repro_dir / "params.yaml"
-    write_text_lf(params_path, serialize_params_yaml(params))
-    return params_path
+    return _write_params(params, output_dir=output_dir, pipeline_name="nf-core/rnaseq")
 
 
 def serialize_params_yaml(params: dict[str, object]) -> str:
-    header = (
-        "# 'input' and 'outdir' are relative to the Nextflow launch directory (output_dir).\n"
-        "# Use reproducibility/commands.sh for the recommended replay path.\n"
-        "# Manual replay: cd <output_dir> && nextflow run nf-core/rnaseq -params-file reproducibility/params.yaml\n"
-    )
-    return header + yaml.dump(params, allow_unicode=True, sort_keys=False)
+    return _serialize_params(params, pipeline_name="nf-core/rnaseq")

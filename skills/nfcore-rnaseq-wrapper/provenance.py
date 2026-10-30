@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import platform
 import socket
@@ -10,8 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from clawbio.common.checksums import sha256_file
+from clawbio.common.nfcore.artifacts import write_json_lf, write_json_snapshots
 from clawbio.common.reproducibility import write_checksums, write_environment_yml
-from clawbio.common.textio import write_text_lf
+from clawbio.common.nfcore.cli import canonical_work_dir
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -25,7 +25,8 @@ from _isolated_imports import purge_foreign_bare_modules
 purge_foreign_bare_modules("preflight", "schemas")
 
 from preflight import params_payload_checksum
-from schemas import DEFAULT_REMOTE_PIPELINE, JAVA_MIN_VERSION, NEXTFLOW_MIN_VERSION, PROJECT_ROOT, SKILL_ALIAS, SKILL_NAME, SKILL_VERSION
+from schemas import DEFAULT_REMOTE_PIPELINE, JAVA_MIN_VERSION, NEXTFLOW_ENV, NEXTFLOW_MIN_VERSION, PROJECT_ROOT, SKILL_ALIAS, SKILL_NAME, SKILL_VERSION
+from clawbio.common.nfcore.containers import manifest_summary, record_run_containers
 
 
 def write_provenance_bundle(
@@ -62,6 +63,10 @@ def write_provenance_bundle(
     )
     _write_provenance_payloads(provenance_dir, payloads)
     write_reproducibility_environment(output_dir, preflight_result=preflight_result)
+    # The images every process ran, resolved to digests while they are still local.
+    container_record = record_run_containers(output_dir, profile=getattr(args, "profile", ""), env=NEXTFLOW_ENV)
+    for warning in container_record["warnings"]:
+        print(f"WARNING: containers: {warning}", file=sys.stderr)
     checksum_file = output_dir / "reproducibility" / "checksums.sha256"
     manifest_path = write_reproducibility_manifest(
         output_dir,
@@ -71,6 +76,7 @@ def write_provenance_bundle(
         runtime=payloads["runtime.json"],
         params_payload=params_payload,
         checksum_file=checksum_file,
+        containers=manifest_summary(container_record),
     )
     checksum_file = write_reproducibility_checksums(output_dir, execution_result=execution_result)
     return provenance_dir, manifest_path
@@ -141,7 +147,7 @@ def build_runtime_payload(
         "profile": getattr(args, "profile", ""),
         "resume_used": bool(getattr(args, "resume", False)),
         "cwd": str(Path.cwd()),
-        "work_dir": str(output_dir / "upstream" / "work"),
+        "work_dir": canonical_work_dir(args, output_dir),
         "command": command_str,
     }
 
@@ -287,6 +293,7 @@ def write_reproducibility_manifest(
     runtime: dict[str, Any],
     params_payload: dict[str, Any],
     checksum_file: Path,
+    containers: dict[str, Any] | None = None,
 ) -> Path:
     manifest = {
         "skill_name": SKILL_NAME,
@@ -309,20 +316,22 @@ def write_reproducibility_manifest(
         "nextflow_version": runtime["nextflow_version"],
         "python_version": runtime["python_version"],
         "environment_yml_mode": "exact_versions" if (runtime["java_version"] and runtime["nextflow_version"]) else "install_recipe",
+        "work_dir": runtime["work_dir"],
         "params_checksum": params_payload_checksum(params_payload),
         "params_file_sha256": inputs["params_checksum"],
         "samplesheet_checksum": inputs["samplesheet_checksum"],
         "checksums_file": str(checksum_file),
     }
+    if containers is not None:
+        manifest["containers"] = containers
     manifest_path = output_dir / "reproducibility" / "manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    write_text_lf(manifest_path, json.dumps(manifest, indent=2))
+    write_json_lf(manifest_path, manifest, trailing_newline=False)
     return manifest_path
 
 
 def _write_provenance_payloads(provenance_dir: Path, payloads: dict[str, Any]) -> None:
-    for filename, payload in payloads.items():
-        write_text_lf(provenance_dir / filename, json.dumps(payload, indent=2))
+    write_json_snapshots(provenance_dir, payloads)
 
 
 def _dir_checksum(path: Path) -> str:

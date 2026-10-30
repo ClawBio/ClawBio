@@ -2,27 +2,29 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from errors import ErrorCode, SkillError
-from preflight import (
-    PreflightResult,
-    REFERENCE_PATH_PARAMS,
-    _check_annotation_cache,
-    _check_email,
-    _check_enums,
-    _check_flag_compatibility,
-    _check_genome_known,
-    _check_output_dir,
-    _check_pipeline_source,
-    _check_profile_string,
-    _check_reference_paths,
-    _check_resume_drift,
-    _check_step,
-    _check_tools_against_pairing,
-    run_preflight,
-)
+from clawbio.common.tests.nfcore_test_imports import load_tested_module
+
+p = load_tested_module(Path(__file__).resolve().parent.parent, "preflight")
+PreflightResult = p.PreflightResult
+REFERENCE_PATH_PARAMS = p.REFERENCE_PATH_PARAMS
+_check_annotation_cache = p._check_annotation_cache
+_check_email = p._check_email
+_check_enums = p._check_enums
+_check_flag_compatibility = p._check_flag_compatibility
+_check_genome_known = p._check_genome_known
+_check_output_dir = p._check_output_dir
+_check_pipeline_source = p._check_pipeline_source
+_check_profile_string = p._check_profile_string
+_check_reference_paths = p._check_reference_paths
+_check_resume_drift = p._check_resume_drift
+_check_step = p._check_step
+_check_tools_against_pairing = p._check_tools_against_pairing
+run_preflight = p.run_preflight
 
 from preflight_fixtures import make_params, make_pipeline_source, make_samplesheet
 
@@ -35,7 +37,6 @@ from preflight_fixtures import make_params, make_pipeline_source, make_sampleshe
 @pytest.fixture
 def stub_binaries(monkeypatch):
     """Stub shutil.which + subprocess.run so external binaries appear present."""
-    import preflight as p
 
     def fake_which(name: str):
         return f"/usr/bin/{name}"
@@ -65,14 +66,12 @@ def stub_binaries(monkeypatch):
 
 @pytest.fixture
 def stub_no_java(monkeypatch):
-    import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda name: None if name == "java" else f"/usr/bin/{name}")
 
 
 @pytest.fixture
 def stub_old_java(monkeypatch):
-    import preflight as p
 
     def fake_which(name):
         return f"/usr/bin/{name}"
@@ -91,7 +90,6 @@ def stub_old_java(monkeypatch):
 
 @pytest.fixture
 def stub_old_nextflow(monkeypatch):
-    import preflight as p
 
     def fake_which(name):
         return f"/usr/bin/{name}"
@@ -110,7 +108,6 @@ def stub_old_nextflow(monkeypatch):
 
 @pytest.fixture
 def stub_no_docker(monkeypatch):
-    import preflight as p
 
     def fake_which(name):
         return None if name == "docker" else f"/usr/bin/{name}"
@@ -129,7 +126,6 @@ def stub_no_docker(monkeypatch):
 
 @pytest.fixture
 def stub_docker_not_running(monkeypatch):
-    import preflight as p
 
     def fake_which(name):
         return f"/usr/bin/{name}"
@@ -153,11 +149,6 @@ def stub_docker_not_running(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-
-
-
-
-
 # ---------------------------------------------------------------------------
 # §5.1 Java / Nextflow / profile / backend / output dir / email / pipeline
 # ---------------------------------------------------------------------------
@@ -173,16 +164,7 @@ def test_java_missing(stub_no_java):
     assert exc.value.error_code == ErrorCode.MISSING_JAVA
 
 
-def test_java_too_old(stub_old_java):
-    from preflight import _check_java
-
-    with pytest.raises(SkillError) as exc:
-        _check_java()
-    assert exc.value.error_code == ErrorCode.JAVA_VERSION_TOO_OLD
-
-
 def test_java_version_unparseable_is_version_failure(monkeypatch):
-    import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda n: "/usr/bin/java")
     monkeypatch.setattr(p, "_command_output", lambda args: "no version here")
@@ -193,7 +175,6 @@ def test_java_version_unparseable_is_version_failure(monkeypatch):
 
 
 def test_nextflow_missing(monkeypatch):
-    import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda n: None if n == "nextflow" else "/usr/bin/x")
     with pytest.raises(SkillError) as exc:
@@ -201,19 +182,10 @@ def test_nextflow_missing(monkeypatch):
     assert exc.value.error_code == ErrorCode.MISSING_NEXTFLOW
 
 
-def test_nextflow_too_old(stub_old_nextflow):
-    from preflight import _check_nextflow
-
-    with pytest.raises(SkillError) as exc:
-        _check_nextflow()
-    assert exc.value.error_code == ErrorCode.NEXTFLOW_VERSION_TOO_OLD
-
-
 def test_nextflow_version_unparseable_is_version_failure(monkeypatch):
-    import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda n: "/usr/bin/nextflow")
-    monkeypatch.setattr(p, "_command_output", lambda args: "no version here")
+    monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: __import__("subprocess").CompletedProcess(command, 0, "no version here", ""))
     with pytest.raises(SkillError) as exc:
         p._check_nextflow()
     # nextflow IS present but its version can't be confirmed → version failure,
@@ -225,17 +197,13 @@ def test_nextflow_version_preserves_zero_padded_month(monkeypatch):
     """A detected version like '26.04.3' must be reported verbatim, never
     reconstructed from the comparison tuple as '26.4.3' (which is not a real
     Nextflow release and would break NXF_VER / conda pins on replay)."""
-    import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda n: f"/usr/bin/{n}")
-    monkeypatch.setattr(
-        p, "_command_output", lambda args: "  N E X T F L O W\n  version 26.04.3 build 5928"
-    )
+    monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: __import__("subprocess").CompletedProcess(command, 0, "  N E X T F L O W\n  version 26.04.3 build 5928", ""))
     assert p._check_nextflow() == "26.04.3"
 
 
 def test_java_version_preserves_exact_string(monkeypatch):
-    import preflight as p
 
     monkeypatch.setattr(p.shutil, "which", lambda n: f"/usr/bin/{n}")
     monkeypatch.setattr(
@@ -254,9 +222,7 @@ def test_profile_custom_token_is_allowed_for_institutional_configs():
     _check_profile_string("docker,my_institutional_hpc")
 
 
-
 def test_backend_docker_missing(stub_no_docker, monkeypatch):
-    import preflight as p
 
     with pytest.raises(SkillError) as exc:
         p._check_backends_for_profile("docker")
@@ -265,7 +231,6 @@ def test_backend_docker_missing(stub_no_docker, monkeypatch):
 
 
 def test_backend_specific_codes_per_runtime(monkeypatch):
-    import preflight as p
 
     # Binary absent → MISSING_<runtime>; daemon present but down → <runtime>_NOT_RUNNING.
     monkeypatch.setattr(p.shutil, "which", lambda name: None)
@@ -285,7 +250,6 @@ def test_backend_specific_codes_per_runtime(monkeypatch):
 
 
 def test_sentieon_tool_requires_license_secret(monkeypatch):
-    import preflight as p
 
     monkeypatch.delenv("SENTIEON_LICENSE_BASE64", raising=False)
     monkeypatch.delenv("SENTIEON_LICENSE", raising=False)
@@ -296,14 +260,12 @@ def test_sentieon_tool_requires_license_secret(monkeypatch):
             params={"step": "mapping", "tools": ["sentieon_haplotyper"]},
             tools=["sentieon_haplotyper"],
             present_modes={"germline"},
-            rows_by_patient={"P1": [{"sample": "S1", "status": 0, "sex": "NA", "line": 2}]},
         )
 
     assert exc.value.error_code == ErrorCode.MISSING_SENTIEON_LICENSE
 
 
 def test_sentieon_aligner_requires_license_secret(monkeypatch):
-    import preflight as p
 
     monkeypatch.delenv("SENTIEON_LICENSE_BASE64", raising=False)
     monkeypatch.delenv("SENTIEON_LICENSE", raising=False)
@@ -316,14 +278,10 @@ def test_sentieon_aligner_requires_license_secret(monkeypatch):
 
 
 def test_backend_docker_not_running(stub_docker_not_running):
-    import preflight as p
 
     with pytest.raises(SkillError) as exc:
         p._check_backends_for_profile("docker")
     assert exc.value.error_code == ErrorCode.DOCKER_NOT_RUNNING
-
-
-
 
 
 def test_output_dir_inside_repo(tmp_path):
@@ -377,15 +335,10 @@ def test_output_dir_check_then_run_same_dir(tmp_path):
     _check_output_dir(out, repo_root=repo, resume=False)
 
 
-
-
-
 def test_email_invalid():
     with pytest.raises(SkillError) as exc:
         _check_email("not_an_email")
     assert exc.value.error_code == ErrorCode.INVALID_EMAIL
-
-
 
 
 def test_pipeline_source_remote_no_version():
@@ -403,8 +356,6 @@ def test_step_unknown():
     with pytest.raises(SkillError) as exc:
         _check_step({"step": "no_such_step"})
     assert exc.value.error_code == ErrorCode.INVALID_STEP
-
-
 
 
 def test_variant_calling_requires_tools_in_preflight(tmp_path, stub_binaries):
@@ -483,7 +434,6 @@ def _tools_check(
     analysis_mode: str | None = "germline",
     present_modes: set[str] | None = None,
     params: dict | None = None,
-    rows_by_patient: dict | None = None,
 ):
     # Tests may pass a single analysis_mode (legacy) or an explicit set of
     # per-patient present_modes (for mixed-samplesheet scenarios).
@@ -493,7 +443,6 @@ def _tools_check(
         params=params or {},
         tools=tools,
         present_modes=present_modes,
-        rows_by_patient=rows_by_patient or {},
     )
 
 
@@ -520,10 +469,6 @@ def test_merge_requires_snpeff_db_when_cache_set():
     assert exc.value.error_code == ErrorCode.MISSING_SNPEFF_DB
 
 
-
-
-
-
 def test_vep_missing_cache_errors_without_igenomes():
     with pytest.raises(SkillError) as exc:
         _tools_check(tools=["vep"], params={"step": "annotate", "igenomes_ignore": True})
@@ -537,8 +482,6 @@ def test_strelka_tumor_only_rejected():
     assert exc.value.error_code == ErrorCode.INVALID_PAIRING
 
 
-
-
 def test_mpileup_somatic_paired_runs_on_normal_member():
     assert _tools_check(tools=["mpileup"], analysis_mode="somatic_paired") == []
 
@@ -546,12 +489,6 @@ def test_mpileup_somatic_paired_runs_on_normal_member():
 def test_indexcov_tumor_only_rejected():
     with pytest.raises(SkillError) as exc:
         _tools_check(tools=["indexcov"], analysis_mode="tumor_only")
-    assert exc.value.error_code == ErrorCode.INVALID_PAIRING
-
-
-def test_mutect2_germline_rejected():
-    with pytest.raises(SkillError) as exc:
-        _tools_check(tools=["mutect2"], analysis_mode="germline")
     assert exc.value.error_code == ErrorCode.INVALID_PAIRING
 
 
@@ -564,15 +501,6 @@ def test_mutect2_tumor_only_no_pon_warns():
     assert any("Panel-of-Normals" in w for w in warnings)
 
 
-
-
-def test_germline_caller_rejected_when_no_germline_patient():
-    # A germline-only caller on a pure tumor-only samplesheet is still rejected.
-    with pytest.raises(SkillError) as exc:
-        _tools_check(tools=["haplotypecaller"], present_modes={"tumor_only"})
-    assert exc.value.error_code == ErrorCode.INVALID_PAIRING
-
-
 def test_mutect2_default_pon_warns():
     warnings = _tools_check(
         tools=["mutect2"],
@@ -581,7 +509,6 @@ def test_mutect2_default_pon_warns():
                 "germline_resource": "/g.vcf.gz"},
     )
     assert any("default GATK Panel-of-Normals" in w for w in warnings)
-
 
 
 def test_ascat_requires_paired():
@@ -600,15 +527,6 @@ def test_ascat_wes_missing_resources():
     assert exc.value.error_code == ErrorCode.INVALID_ASCAT_RESOURCES
 
 
-
-
-def test_controlfreec_germline_rejected():
-    with pytest.raises(SkillError) as exc:
-        _tools_check(tools=["controlfreec"], analysis_mode="germline")
-    assert exc.value.error_code == ErrorCode.INVALID_PAIRING
-
-
-
 def test_msisensor2_paired_rejected():
     with pytest.raises(SkillError) as exc:
         _tools_check(tools=["msisensor2"], analysis_mode="somatic_paired")
@@ -625,7 +543,6 @@ def test_msisensor2_tumor_only_missing_models():
     assert exc.value.error_code == ErrorCode.MISSING_REFERENCE
 
 
-
 def test_msisensorpro_tumor_only_rejected():
     with pytest.raises(SkillError) as exc:
         _tools_check(tools=["msisensorpro"], analysis_mode="tumor_only")
@@ -639,23 +556,6 @@ def test_msisensorpro_paired_missing_scan():
     assert any("msisensorpro_scan" in w for w in warnings)
 
 
-
-def test_varlociraptor_tumor_missing_contamination():
-    rows = {
-        "P1": [
-            {"sample": "T1", "status": 1, "sex": "XY", "contamination": None, "line": 2},
-        ]
-    }
-    with pytest.raises(SkillError) as exc:
-        _tools_check(
-            tools=["varlociraptor"],
-            analysis_mode="tumor_only",
-            rows_by_patient=rows,
-        )
-    assert exc.value.error_code == ErrorCode.VARLOCIRAPTOR_MISSING_CONTAMINATION
-
-
-
 def test_snpeff_without_db_or_cache_raises_when_no_igenomes():
     # Without --snpeff_db AND without an iGenomes genome that supplies SnpEff
     # config, Sarek will fail → the wrapper raises a hard error.
@@ -666,7 +566,6 @@ def test_snpeff_without_db_or_cache_raises_when_no_igenomes():
             params={"step": "annotate", "genome": "null", "igenomes_ignore": True},
         )
     assert exc.value.error_code == ErrorCode.MISSING_SNPEFF_DB
-
 
 
 def test_snpeff_with_cache_still_requires_db():
@@ -682,32 +581,66 @@ def test_snpeff_with_cache_still_requires_db():
     assert exc.value.error_code == ErrorCode.MISSING_SNPEFF_DB
 
 
-def test_tools_requiring_sex_reject_na_rows():
-    rows = {"P1": [
-        {"sample": "N1", "status": 0, "sex": "NA", "contamination": None, "line": 2},
-        {"sample": "T1", "status": 1, "sex": "XY", "contamination": 0.05, "line": 3},
-    ]}
-    for tool in ("ascat", "controlfreec", "varlociraptor"):
-        with pytest.raises(SkillError) as exc:
-            _tools_check(
-                tools=[tool],
-                analysis_mode="somatic_paired",
-                rows_by_patient=rows,
-                params={
-                    "ascat_alleles": "/a",
-                    "ascat_loci": "/b",
-                    "mappability": "/m",
-                    "chr_dir": "/c",
-                },
-            )
-        assert exc.value.error_code == ErrorCode.INVALID_SEX
+# nf-core/sarek 3.8.1 refuses these itself in subworkflows/local/samplesheet_to_channel
+# when the run starts: --tools ascat/controlfreec/mutect2/msisensorpro with no tumour
+# sample, ascat/deepvariant/haplotypecaller/msisensorpro with no normal sample, ascat/
+# controlfreec/varlociraptor with a sample of sex NA, and varlociraptor with a tumour
+# lacking contamination. Preflight keeps no copy of these rules.
+_SAREK_OWN_TOOL_RULES = {
+    "mutect2 without a tumour": dict(tools=["mutect2"], present_modes={"germline"}),
+    "controlfreec without a tumour": dict(
+        tools=["controlfreec"], present_modes={"germline"}, params={"mappability": "/m", "chr_dir": "/c"}),
+    "haplotypecaller without a normal": dict(tools=["haplotypecaller"], present_modes={"tumor_only"}),
+    "deepvariant without a normal": dict(tools=["deepvariant"], present_modes={"tumor_only"}),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_SAREK_OWN_TOOL_RULES))
+def test_tool_rules_sarek_enforces_reach_it(case):
+    _tools_check(**_SAREK_OWN_TOOL_RULES[case])
+
+
+@pytest.mark.parametrize("tools,mode,rows", [
+    (["controlfreec"], "somatic_paired", [{"sample": "N1", "status": 0, "sex": "NA", "contamination": None, "line": 2},
+                                          {"sample": "T1", "status": 1, "sex": "NA", "contamination": None, "line": 3}]),
+    (["ascat"], "somatic_paired", [{"sample": "N1", "status": 0, "sex": "NA", "contamination": None, "line": 2},
+                                   {"sample": "T1", "status": 1, "sex": "XX", "contamination": 0.1, "line": 3}]),
+    (["mutect2", "varlociraptor"], "tumor_only", [{"sample": "T1", "status": 1, "sex": "NA", "contamination": None, "line": 2}]),
+])
+def test_sex_and_contamination_rules_are_left_to_sarek(tmp_path, stub_binaries, tools, mode, rows):
+    """samplesheet_to_channel refuses sex NA for ascat/controlfreec/varlociraptor and a
+    varlociraptor tumour without contamination; the full preflight passes them on."""
+    (tmp_path / "repo").mkdir()
+    pairings = [{"patient": "P1", "normal": "N1", "tumor": "T1", "mode": mode}]
+    run_preflight(
+        params=make_params(tools=tools),
+        samplesheet=make_samplesheet(analysis_mode=mode, rows_by_patient={"P1": rows}, pairings=pairings),
+        pipeline_source=make_pipeline_source(),
+        output_dir=tmp_path / "results",
+        repo_root=tmp_path / "repo",
+    )
+
+
+@pytest.mark.parametrize("tool,present_modes", [
+    ("sentieon_haplotyper", {"tumor_only"}),
+    ("sentieon_dnascope", {"tumor_only"}),
+    ("muse", {"tumor_only"}),
+    ("lofreq", {"somatic_paired"}),
+    ("strelka", {"tumor_only"}),
+])
+def test_tool_rules_sarek_does_not_check_are_still_refused(tool, present_modes, monkeypatch):
+    """Sarek's own tool checks cover only the tools named above; for these it would
+    run and produce nothing for the samples given, so preflight still refuses."""
+    monkeypatch.setattr(p, "_require_sentieon_license", lambda context: None)
+    with pytest.raises(SkillError) as exc:
+        _tools_check(tools=[tool], present_modes=present_modes)
+    assert exc.value.error_code == ErrorCode.INVALID_PAIRING
 
 
 def test_bcfann_requires_annotations_tbi_and_header_lines():
     with pytest.raises(SkillError) as exc:
         _tools_check(tools=["bcfann"], analysis_mode="germline", params={"step": "annotate"})
     assert exc.value.error_code == ErrorCode.MISSING_REFERENCE
-
 
 
 def test_vep_missing_cache_params():
@@ -720,13 +653,11 @@ def test_vep_missing_cache_params():
     assert exc.value.error_code == ErrorCode.MISSING_VEP_CACHE
 
 
-
 def test_sentieon_tnscope_germline_rejected(monkeypatch):
     # sentieon_tnscope is somatic-only; in a germline run it must be rejected as an
     # invalid pairing BEFORE a Sentieon license is required. Force the no-license
     # condition (as on CI) so this is deterministic regardless of the host
     # environment: the pairing error must win over MISSING_SENTIEON_LICENSE.
-    import preflight as p
     monkeypatch.delenv("SENTIEON_LICENSE_BASE64", raising=False)
     monkeypatch.delenv("SENTIEON_LICENSE", raising=False)
     monkeypatch.setattr(p, "_nextflow_secret_exists", lambda name: False)
@@ -747,7 +678,6 @@ def test_spark_with_save_output_as_bam():
     assert exc.value.error_code == ErrorCode.SPARK_OUTPUT_INCOMPATIBLE
 
 
-
 def test_markduplicates_spark_with_header_umi_rejected():
     # Sarek's exact rule: MarkDuplicatesSpark can't do UMI-based dedup with
     # umi_in_read_header or umi_location.
@@ -758,13 +688,11 @@ def test_markduplicates_spark_with_header_umi_rejected():
         assert exc.value.error_code == ErrorCode.UMI_SPARK_INCOMPATIBLE
 
 
-
 def test_joint_germline_without_caller():
     params = make_params(joint_germline=True, tools=["manta"])
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params=params, tools=["manta"])
     assert exc.value.error_code == ErrorCode.JOINT_GERMLINE_REQUIREMENT
-
 
 
 def test_joint_mutect2_without_mutect2():
@@ -774,15 +702,11 @@ def test_joint_mutect2_without_mutect2():
     assert exc.value.error_code == ErrorCode.JOINT_MUTECT2_REQUIREMENT
 
 
-
 def test_genome_missing_without_igenomes_ignore():
     params = make_params(genome="", igenomes_ignore=False)
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params=params, tools=[])
     assert exc.value.error_code == ErrorCode.GENOME_REQUIRED
-
-
-
 
 
 def test_genome_and_fasta_without_igenomes_ignore_allows_documented_override():
@@ -792,8 +716,6 @@ def test_genome_and_fasta_without_igenomes_ignore_allows_documented_override():
     _check_flag_compatibility(params=params, tools=[])
 
 
-
-
 def test_build_only_index_with_input_real():
     params = make_params(build_only_index=True, input="samplesheet.csv")
     with pytest.raises(SkillError) as exc:
@@ -801,13 +723,11 @@ def test_build_only_index_with_input_real():
     assert exc.value.error_code == ErrorCode.BUILD_ONLY_INDEX_CONFLICT
 
 
-
 def test_parabricks_with_conda_profile():
     params = make_params(aligner="parabricks", profile="conda")
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params=params, tools=[])
     assert exc.value.error_code == ErrorCode.PARABRICKS_CONDA_CONFLICT
-
 
 
 def test_vep_dbnsfp_without_dbnsfp():
@@ -829,8 +749,6 @@ def test_vep_plugins_require_documented_paths(flag, paths):
     assert exc.value.error_code == ErrorCode.MISSING_REFERENCE
     for path_param in paths:
         assert path_param in exc.value.details["missing"]
-
-
 
 
 def test_filter_vcfs_rejects_blank_expression():
@@ -858,19 +776,8 @@ def test_snv_consensus_min_count_too_high():
     assert exc.value.error_code == ErrorCode.INVALID_CONSENSUS_CALLING
 
 
-
 def test_snpsift_missing_databases():
     params = make_params(tools=["snpsift"])
-    with pytest.raises(SkillError) as exc:
-        _check_flag_compatibility(params=params, tools=["snpsift"])
-    assert exc.value.error_code == ErrorCode.MISSING_SNPSIFT_DATABASES
-
-
-
-def test_snpsift_databases_validates_auxiliary_schema(tmp_path):
-    dbs = tmp_path / "snpsift_databases.csv"
-    dbs.write_text("vcf,tbi,fields,prefix,vardb\n/db/dbsnp.txt,,,,\n", encoding="utf-8")
-    params = make_params(tools=["snpsift"], snpsift_databases=str(dbs))
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params=params, tools=["snpsift"])
     assert exc.value.error_code == ErrorCode.MISSING_SNPSIFT_DATABASES
@@ -883,16 +790,8 @@ def test_no_intervals_with_intervals():
     assert exc.value.error_code == ErrorCode.INVALID_INTERVALS
 
 
-
 def test_wes_intervals_must_be_bed():
     params = make_params(wes=True, intervals="/refs/targets.interval_list", genome="null", igenomes_ignore=True, fasta="/refs/genome.fa")
-    with pytest.raises(SkillError) as exc:
-        _check_flag_compatibility(params=params, tools=[])
-    assert exc.value.error_code == ErrorCode.INVALID_INTERVALS
-
-
-def test_wgs_intervals_must_use_official_extensions():
-    params = make_params(intervals="/refs/targets.txt", genome="null", igenomes_ignore=True, fasta="/refs/genome.fa")
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params=params, tools=[])
     assert exc.value.error_code == ErrorCode.INVALID_INTERVALS
@@ -969,16 +868,6 @@ def test_reference_path_uri_skipped(tmp_path):
     _check_reference_paths({"fasta": "s3://bucket/ref.fa"})
 
 
-
-def test_reference_path_missing_local(tmp_path):
-    missing = tmp_path / "no_such_file.fa"
-    with pytest.raises(SkillError) as exc:
-        _check_reference_paths({"fasta": str(missing)})
-    assert exc.value.error_code == ErrorCode.MISSING_REFERENCE
-
-
-
-
 def test_reference_param_list_contains_expected():
     for key in ("fasta", "intervals", "vep_cache", "snpeff_cache", "pon", "ascat_alleles"):
         assert key in REFERENCE_PATH_PARAMS
@@ -995,7 +884,6 @@ def test_download_cache_unwritable(tmp_path, monkeypatch):
     out.mkdir()
     # Force os.access to return False
     monkeypatch.setattr(real_os, "access", lambda p, m: False)
-    import preflight as p
 
     monkeypatch.setattr(p.os, "access", lambda path, mode: False)
     with pytest.raises(SkillError) as exc:
@@ -1006,7 +894,6 @@ def test_download_cache_unwritable(tmp_path, monkeypatch):
     assert exc.value.error_code == ErrorCode.MISSING_ANNOTATION_CACHE
 
 
-
 def test_snpeff_cache_layout_warns(tmp_path):
     cache_root = tmp_path / "snpeff"
     cache_root.mkdir()
@@ -1015,7 +902,6 @@ def test_snpeff_cache_layout_warns(tmp_path):
         output_dir=tmp_path / "out",
     )
     assert any("snpeff_db" in w.lower() or "snpeff" in w.lower() for w in warnings)
-
 
 
 def test_vep_cache_layout_warns(tmp_path):
@@ -1033,13 +919,10 @@ def test_vep_cache_layout_warns(tmp_path):
     assert any("vep" in w.lower() for w in warnings)
 
 
-
 def test_umi_read_structure_invalid_rejected():
     with pytest.raises(SkillError) as exc:
         _check_flag_compatibility(params={"umi_read_structure": "8X nonsense"}, tools=[])
     assert exc.value.error_code == ErrorCode.INVALID_FLAG_COMBINATION
-
-
 
 
 def test_dragmap_without_skip_baserecalibrator_warns():
@@ -1047,7 +930,6 @@ def test_dragmap_without_skip_baserecalibrator_warns():
         params=make_params(aligner="dragmap", step="mapping"), tools=[]
     )
     assert any("DragMap" in w for w in warnings)
-
 
 
 def test_invalid_enum_values_rejected():
@@ -1151,7 +1033,6 @@ def test_testdata_genome_accepted_with_test_datasets_igenomes_base():
 def test_macos_docker_tmp_warns(monkeypatch):
     """On macOS + Docker, an output dir under /tmp warns (Colima does not share
     /tmp into its VM). Mirrors nfcore-scrnaseq-wrapper's guard."""
-    import preflight as p
     from pathlib import Path as _P
     monkeypatch.setattr(p.sys, "platform", "darwin")
     warns = p._check_macos_docker_tmp("docker", _P("/tmp/run_out"))
@@ -1161,7 +1042,6 @@ def test_macos_docker_tmp_warns(monkeypatch):
 
 
 def test_macos_docker_tmp_skipped_off_darwin(monkeypatch):
-    import preflight as p
     from pathlib import Path as _P
     monkeypatch.setattr(p.sys, "platform", "linux")
     assert p._check_macos_docker_tmp("docker", _P("/tmp/run_out")) == []
@@ -1260,11 +1140,6 @@ def test_resume_drift_per_field(field, new_value):
     assert field in exc.value.details["diffs"]
 
 
-
-
-
-
-
 # ---------------------------------------------------------------------------
 # Happy path: full run_preflight
 # ---------------------------------------------------------------------------
@@ -1301,7 +1176,7 @@ def test_check_demo_network_offline_test_profile_raises(monkeypatch):
     """--demo composes the upstream `-profile test`, whose inputs/references are
     remote GitHub URLs; under NXF_OFFLINE it must fail fast with a clear
     DEMO_REQUIRES_NETWORK error instead of a cryptic Nextflow abort."""
-    import preflight as _pf
+    _pf = p
 
     monkeypatch.setenv("NXF_OFFLINE", "true")
     with pytest.raises(SkillError) as exc:
@@ -1311,7 +1186,7 @@ def test_check_demo_network_offline_test_profile_raises(monkeypatch):
 
 def test_check_demo_network_offline_real_run_not_blocked(monkeypatch):
     """A real (non-test-profile) run is fully local; NXF_OFFLINE must not block it."""
-    import preflight as _pf
+    _pf = p
 
     monkeypatch.setenv("NXF_OFFLINE", "true")
     _pf._check_demo_network({"profile": "docker"})
@@ -1319,7 +1194,7 @@ def test_check_demo_network_offline_real_run_not_blocked(monkeypatch):
 
 def test_check_demo_network_test_profile_online_not_blocked(monkeypatch):
     """A test-profile run with network available must not trip the guard."""
-    import preflight as _pf
+    _pf = p
 
     monkeypatch.delenv("NXF_OFFLINE", raising=False)
     _pf._check_demo_network({"profile": "docker,test"})
@@ -1344,7 +1219,7 @@ def test_run_preflight_demo_offline_raises(tmp_path, stub_binaries, monkeypatch)
 # --- --allow-remote-inputs gate (local-first by default) ---------------------
 
 def test_remote_samplesheet_input_rejected_by_default():
-    import preflight as _pf
+    _pf = p
     with pytest.raises(SkillError) as exc:
         _pf._check_remote_inputs(
             {}, {"fastq_paths": ["s3://bucket/n_R1.fastq.gz"], "bam_paths": [], "cram_paths": []},
@@ -1354,7 +1229,7 @@ def test_remote_samplesheet_input_rejected_by_default():
 
 
 def test_remote_reference_param_rejected_by_default():
-    import preflight as _pf
+    _pf = p
     with pytest.raises(SkillError) as exc:
         _pf._check_remote_inputs(
             {"fasta": "https://example.org/genome.fa"}, {}, allow_remote_inputs=False
@@ -1365,14 +1240,14 @@ def test_remote_reference_param_rejected_by_default():
 def test_igenomes_base_remote_default_is_not_gated():
     """The public iGenomes mirror base (s3://ngi-igenomes/) is remote by design and
     must NOT trip the local-first gate."""
-    import preflight as _pf
+    _pf = p
     _pf._check_remote_inputs(
         {"igenomes_base": "s3://ngi-igenomes/igenomes/"}, {}, allow_remote_inputs=False
     )
 
 
 def test_remote_inputs_allowed_with_flag_warns(capsys):
-    import preflight as _pf
+    _pf = p
     _pf._check_remote_inputs(
         {}, {"fastq_paths": ["gs://bucket/n_R1.fastq.gz"]}, allow_remote_inputs=True
     )
@@ -1380,5 +1255,128 @@ def test_remote_inputs_allowed_with_flag_warns(capsys):
 
 
 def test_local_inputs_pass_the_remote_gate():
-    import preflight as _pf
+    _pf = p
     _pf._check_remote_inputs({"fasta": "/refs/genome.fa"}, {"fastq_paths": ["/d/n_R1.fastq.gz"]}, allow_remote_inputs=False)
+
+
+# nf-core/sarek 3.8.1's nextflow_schema.json declares these reference params
+# `exists: true` (known_indels as a file-path-pattern that must match a file), most with
+# a ^\S+ name pattern, and Sarek reads snpsift_databases through its own
+# assets/schema_snpsift_databases.json and checkIfExists: nf-schema and the pipeline
+# refuse a missing path, a wrong name or an intervals file that is neither .bed nor
+# .interval_list when Nextflow starts, before any task runs.
+_SCHEMA_CHECKED_PATHS = (
+    "fasta", "fasta_fai", "dict", "bwa", "bwamem2", "dragmap", "dbsnp", "dbsnp_tbi",
+    "known_indels", "known_indels_tbi", "known_snps", "known_snps_tbi", "pon", "pon_tbi",
+    "intervals", "ascat_alleles", "ascat_loci", "ascat_loci_gc", "ascat_loci_rt", "chr_dir",
+    "msisensor2_models", "msisensorpro_scan", "dbnsfp", "dbnsfp_tbi", "mastermind_file",
+    "phenotypes_file_tbi", "spliceai_snv", "spliceai_snv_tbi", "spliceai_indel",
+    "spliceai_indel_tbi", "bcftools_annotations", "bcftools_annotations_tbi", "condel_config",
+    "cf_chrom_len", "bbsplit_fasta_list", "bbsplit_index", "snpsift_databases",
+)
+
+
+@pytest.mark.parametrize("name", _SCHEMA_CHECKED_PATHS)
+def test_paths_the_schema_checks_are_left_to_nf_schema(tmp_path, name):
+    _check_reference_paths({name: str(tmp_path / "missing" / f"{name}.x")})
+
+
+def test_known_indels_pattern_matching_nothing_is_left_to_nf_schema(tmp_path):
+    _check_reference_paths({"known_indels": str(tmp_path / "{a,b}.vcf.gz")})
+
+
+@pytest.mark.parametrize("name", [
+    "germline_resource", "germline_resource_tbi", "mappability", "ngscheckmate_bed",
+    "phenotypes_file", "sentieon_dnascope_model", "snpeff_cache", "vep_cache", "cnvkit_reference",
+    "bcftools_header_lines", "bcftools_columns", "varlociraptor_scenario_somatic", "multiqc_config",
+])
+def test_paths_the_schema_does_not_check_must_exist(tmp_path, name):
+    """No `exists` in the 3.8.1 schema: a missing local path would fail inside a task."""
+    assert name not in _SCHEMA_CHECKED_PATHS
+    with pytest.raises(SkillError) as exc:
+        _check_reference_paths({name: str(tmp_path / "missing" / name)})
+    assert exc.value.error_code == ErrorCode.MISSING_REFERENCE
+
+
+@pytest.mark.parametrize("name,refused", [
+    ("germline_resource", True), ("germline_resource_tbi", True), ("intervals", True),
+    ("fasta", False), ("dbsnp", False), ("pon", False),
+])
+def test_whitespace_is_refused_only_where_the_schema_pattern_allows_it(name, refused):
+    """germline_resource(_tbi) and intervals have unanchored patterns (\\S+\\.vcf\\.gz$),
+    which a path under a directory with spaces matches; the other patterns start ^\\S+."""
+    value = {"germline_resource": "/my refs/g.vcf.gz", "germline_resource_tbi": "/my refs/g.vcf.gz.tbi",
+             "intervals": "/my refs/t.bed", "fasta": "/my refs/g.fa", "dbsnp": "/my refs/d.vcf.gz",
+             "pon": "/my refs/p.vcf.gz"}[name]
+    if refused:
+        with pytest.raises(SkillError) as exc:
+            p._check_reference_path_whitespace({name: value})
+        assert exc.value.error_code == ErrorCode.MISSING_REFERENCE
+    else:
+        p._check_reference_path_whitespace({name: value})
+
+
+def test_wrong_intervals_extension_is_left_to_sarek():
+    params = make_params(intervals="/refs/targets.txt", genome="null", igenomes_ignore=True,
+                         fasta="/refs/genome.fa", skip_tools=["baserecalibrator"])
+    _check_flag_compatibility(params=params, tools=[])
+
+
+def test_snpsift_databases_csv_rules_are_sareks(tmp_path):
+    """assets/schema_snpsift_databases.json, the fields-or-vardb error and checkIfExists
+    in main.nf are Sarek's; the wrapper refuses only a vardb path with whitespace."""
+    dbs = tmp_path / "snpsift_databases.csv"
+    dbs.write_text("vcf,tbi,fields,prefix,vardb\n/db/dbsnp.txt,,,,\n", encoding="utf-8")
+    _check_flag_compatibility(params=make_params(tools=["snpsift"], snpsift_databases=str(dbs)), tools=["snpsift"])
+    dbs.write_text("vcf,tbi,fields,prefix,vardb\n/db/dbsnp.vcf.gz,,,,/my dbs/x.snpsift.vardb\n", encoding="utf-8")
+    with pytest.raises(SkillError) as exc:
+        _check_flag_compatibility(params=make_params(tools=["snpsift"], snpsift_databases=str(dbs)), tools=["snpsift"])
+    assert exc.value.error_code == ErrorCode.MISSING_SNPSIFT_DATABASES
+
+
+# The minimum versions are Nextflow's to enforce: each pinned release declares
+# manifest.nextflowVersion with `!`, so Nextflow refuses an older engine when the run
+# starts, and the Nextflow launcher refuses a Java outside 17-26 before that. The wrapper
+# checks only that `java` and `nextflow` run and records their versions for the bundle.
+@pytest.mark.parametrize("java_text,nextflow_text", [
+    ('openjdk version "11.0.1"', "Nextflow version 24.10.0 build 5928"),
+    ('openjdk version "16.0.2"', "Nextflow version 25.04.2 build 5947"),
+])
+def test_old_java_and_nextflow_are_left_to_nextflow(monkeypatch, java_text, nextflow_text):
+    monkeypatch.setattr(p.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: __import__("subprocess").CompletedProcess(
+        command, 0, nextflow_text if command[0] == "nextflow" else "", java_text if command[0] == "java" else ""))
+    assert p._check_java() == java_text.split('"')[1]
+    assert p._check_nextflow() == nextflow_text.split()[2]
+
+
+def test_a_launcher_refusal_is_named_when_nextflow_cannot_report_its_version(monkeypatch):
+    """With an unsupported Java the launcher fails `nextflow -version` itself; the
+    error must carry its reason instead of only saying the version is unknown."""
+    import subprocess as sp
+    from errors import SkillError as _SkillError
+    refusal = ("ERROR: Cannot find Java or it's a wrong version -- please make sure that "
+               "Java 17 or later (up to 26) is installed")
+    monkeypatch.setattr(p.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: sp.CompletedProcess(command, 1, "", refusal + "\n"))
+    with pytest.raises(_SkillError) as exc:
+        p._check_nextflow()
+    assert refusal.removeprefix("ERROR: ") in exc.value.message
+
+
+@pytest.mark.parametrize("group,uri", [
+    ("spring_paths", "s3://bucket/n_R1.fastq.gz.spring"),
+    ("vcf_paths", "https://example.org/n.vcf.gz"),
+    ("tables", "gs://bucket/n.recal.table"),
+])
+def test_remote_spring_vcf_and_table_inputs_are_rejected_by_default(group, uri):
+    """Every path group the samplesheet builder reports is gated, not just FASTQ/BAM/CRAM."""
+    from pathlib import Path
+
+    from clawbio.common.tests.nfcore_test_imports import load_tested_module
+
+    preflight = load_tested_module(Path(__file__).resolve().parent.parent, "preflight")
+    with pytest.raises(SkillError) as exc:
+        preflight._check_remote_inputs({}, {group: [uri]}, allow_remote_inputs=False)
+    assert exc.value.error_code == ErrorCode.REMOTE_INPUT_NOT_ALLOWED
+    assert exc.value.details["remote_paths"] == [uri]

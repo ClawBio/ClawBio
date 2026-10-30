@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shlex
 
 import remap_paths
 
@@ -128,9 +129,9 @@ def test_verify_params_references_reports_missing(tmp_path: Path):
 def test_params_reference_keys_match_provenance():
     # The standalone key list must stay in sync with the authoritative set so a
     # newly-added reference param is not silently skipped during remap.
-    from provenance import REFERENCE_PATH_PARAMS
+    import provenance
 
-    assert set(remap_paths._PARAMS_REFERENCE_KEYS) == set(REFERENCE_PATH_PARAMS)
+    assert set(remap_paths._PARAMS_REFERENCE_KEYS) == set(provenance.REFERENCE_PATH_PARAMS)
 
 
 def test_cmd_remap_references_rewrites_params_yaml(tmp_path: Path):
@@ -290,3 +291,87 @@ def test_main_rejects_half_a_prefix_pair(tmp_path: Path):
         with pytest.raises(SystemExit) as exc:
             remap_paths.main(argv, bundle_dir=bundle)
         assert exc.value.code != 0
+
+
+def test_output_dir_relocates_an_output_quoted_by_shlex(tmp_path):
+    """commands.sh quotes --output with shlex.quote, so /Users/Dana's Mac/run 1 is
+    written as '/Users/Dana'"'"'s Mac/run 1'. --output-dir must find and rewrite
+    it, and again after that; it used to report "nothing to change" and exit 0."""
+    commands = tmp_path / "commands.sh"
+    commands.write_text(
+        "set -euo pipefail\n"
+        '"${PYTHON:-python3}" "$SKILL_SCRIPT" \\\n'
+        "    --output " + shlex.quote("/Users/Dana's Mac/run 1") + " \\\n"
+        "    --profile docker\n",
+        encoding="utf-8",
+    )
+    for target in ("/srv/Lab's data/run 2", "/srv/plain"):
+        assert remap_paths.update_commands_output(commands, target)
+        line = next(l for l in commands.read_text(encoding="utf-8").splitlines() if "--output" in l)
+        assert shlex.split(line.strip().rstrip("\\")) == ["--output", target]
+
+
+def test_checksum_writers_select_the_same_files(tmp_path: Path):
+    """A repaired bundle must list exactly what a fresh run lists, or sha256sum -c
+    disagrees with the wrapper's own manifest. Nextflow rotates .nextflow.log to
+    .nextflow.log.1, .2, ... on every run in the launch directory; those are logs
+    too, and hashing one made any later run in place fail verification."""
+    import provenance
+
+    output_dir = tmp_path / "out"
+    bundle = output_dir / "reproducibility"
+    files = [
+        "upstream/results/variant_calling/strelka/test/test.strelka.variants.vcf.gz",
+        "upstream/results/multiqc/multiqc_report.html",
+        "upstream/work/ab/cdef/.command.log",
+        "upstream/work/ab/cdef/out.bam",
+        ".nextflow/history",
+        ".nextflow.log",
+        ".nextflow.log.1",
+        ".nextflow.log.12",
+        "logs/stdout.txt",
+        "reproducibility/params.yaml",
+        "report.md",
+        "result.json",
+        "check_result.json",
+        "notes.txt",
+    ]
+    for name in files:
+        (output_dir / name).parent.mkdir(parents=True, exist_ok=True)
+        (output_dir / name).write_text(name, encoding="utf-8")
+
+    # Nextflow stages a task's inputs as symlinks in its work dir; MultiQC's stage of
+    # the published software-versions file points back into results/.
+    staged = output_dir / "upstream/work/e8/895d18/nf_core_sarek_software_mqc_versions.yml"
+    staged.parent.mkdir(parents=True)
+    published = output_dir / "upstream/results/pipeline_info/nf_core_sarek_software_mqc_versions.yml"
+    published.parent.mkdir(parents=True)
+    published.write_text("versions", encoding="utf-8")
+    staged.symlink_to(published)
+
+    written = tmp_path / "written.sha256"
+    provenance._write_checksums_file(output_dir=output_dir, target=written, outputs_report_present=True)
+    fresh_lines = written.read_text(encoding="utf-8").splitlines()
+    fresh = [line.split("  ", 1)[1] for line in fresh_lines]
+    remap_paths._regenerate_checksums(bundle)
+    repaired_lines = (bundle / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+    assert sorted(fresh_lines) == sorted(repaired_lines)
+    assert len(fresh) == len(set(fresh))
+    assert set(fresh) == {
+        "upstream/results/pipeline_info/nf_core_sarek_software_mqc_versions.yml",
+        "upstream/results/variant_calling/strelka/test/test.strelka.variants.vcf.gz",
+        "upstream/results/multiqc/multiqc_report.html",
+        "notes.txt",
+    }
+
+
+def test_a_second_output_dir_move_keeps_the_original_commands_backup(tmp_path):
+    """Each --output-dir rewrite copied commands.sh over the same .bak, so moving a
+    bundle twice lost the command it was produced with."""
+    commands = tmp_path / "commands.sh"
+    original = '"${PYTHON:-python3}" "$SKILL_SCRIPT" \\\n    --output /old/out \\\n    --profile docker\n'
+    commands.write_text(original, encoding="utf-8")
+    assert remap_paths.update_commands_output(commands, "/first/move")
+    assert remap_paths.update_commands_output(commands, "/second/move")
+    assert "/second/move" in commands.read_text(encoding="utf-8")
+    assert (tmp_path / "commands.sh.bak").read_text(encoding="utf-8") == original

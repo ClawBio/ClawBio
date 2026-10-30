@@ -17,8 +17,8 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
-import traceback
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlsplit
@@ -56,23 +56,31 @@ purge_foreign_bare_modules(
     "schemas",
 )
 
+from clawbio.common.nfcore.resources import cap_to_profile_limits, uses_local_docker_capacity
+from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.cli import resolve_work_dir, timeout_hours, timeout_seconds
+from clawbio.common.nfcore.failures import report_skill_error, report_unexpected_error
 from clawbio.common.textio import write_text_lf
 from command_builder import build_nextflow_command, compose_profile
 from errors import ErrorCode, SkillError
 from executor import execute_nextflow
 from outputs_parser import parse_outputs
-from params_builder import _load_user_params_file, build_effective_params, write_params_yaml
+from params_builder import (
+    DEMO_DROPPED_PARAMS_FILE_KEYS, load_run_params, _load_user_params_file, build_effective_params, write_params_yaml,
+)
 from pipeline_source import resolve_pipeline_source
-from preflight import REFERENCE_PATH_PARAMS, run_preflight
-from provenance import compute_params_checksum, compute_reference_checksums, load_manifest, write_provenance_bundle
+from preflight import _check_output_dir, REFERENCE_PATH_PARAMS, run_preflight
+from provenance import _build_manifest, compute_samplesheet_checksum, compute_params_checksum, compute_reference_checksums, load_manifest, write_provenance_bundle
 from reporting import write_reports
 from samplesheet_builder import validate_and_normalize_samplesheet
 from schemas import (
+    DEMO_RESOURCE_LIMITS,
     DEFAULT_ALIGNER,
     DEFAULT_PIPELINE_VERSION,
     DEFAULT_PROFILE,
     DEFAULT_TIMEOUT_SECONDS,
     SKILL_NAME,
+    SUPPORTED_PROFILES,
     SKILL_VERSION,
     SUPPORTED_ALIGNERS,
     SUPPORTED_GROUP_BY_UMI,
@@ -336,26 +344,9 @@ def _print(msg: str) -> None:
 _DEFAULT_TIMEOUT_HOURS = DEFAULT_TIMEOUT_SECONDS / 3600
 
 
-def _timeout_hours(value: str) -> float:
-    try:
-        hours = float(value)
-    except (TypeError, ValueError):
-        raise argparse.ArgumentTypeError(
-            f"--timeout-hours must be a number, got {value!r}"
-        )
-    if hours < 0:
-        raise argparse.ArgumentTypeError(
-            "--timeout-hours must be >= 0 (0 disables the timeout)"
-        )
-    return hours
-
-
 def _resolve_timeout_seconds(args: argparse.Namespace) -> int | None:
     """Translate --timeout-hours into seconds; 0 disables the cap (returns None)."""
-    hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
-    if hours is None or hours == 0:
-        return None
-    return int(round(hours * 3600))
+    return timeout_seconds(getattr(args, "timeout_hours", None), default_hours=_DEFAULT_TIMEOUT_HOURS)
 
 
 def _check_pipeline_version_supported(args: argparse.Namespace) -> None:
@@ -396,21 +387,66 @@ def _check_pipeline_version_supported(args: argparse.Namespace) -> None:
 
 
 def _resolve_nextflow_work_dir(args: argparse.Namespace, output_dir: Path) -> Path | str:
-    """Resolve the Nextflow work directory: default <output>/upstream/work, or the
-    user's --work-dir (a local path, or an object-store URI kept verbatim for cloud
-    executors). Parity with nfcore-scrnaseq/rnaseq."""
-    raw_work_dir = getattr(args, "work_dir", None)
-    if not raw_work_dir:
-        return output_dir / "upstream" / "work"
-    work_dir = str(raw_work_dir).strip()
-    if "://" in work_dir:
-        return work_dir
-    return Path(work_dir).expanduser().resolve()
+    return resolve_work_dir(getattr(args, "work_dir", None), output_dir=output_dir)
 
 
 # ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
+
+
+def _check_pipeline_source_version(args: argparse.Namespace, pipeline_source: dict[str, object]) -> None:
+    """Enforce the pinned-version contract on a *resolved* pipeline source.
+
+    ``_check_pipeline_version_supported`` only inspects ``--pipeline-version`` (the
+    remote tag). A sibling ``../sarek`` checkout is auto-detected and run regardless
+    of which branch/commit it sits on, so its ``manifest.version`` must be checked
+    too — otherwise 3.8.1-specific parameter/enum/output validations would silently
+    apply to a different pipeline version (audit F-01). An unparseable/absent manifest
+    version (``""``) is treated as unknown and warned, never as a hard mismatch.
+    """
+    if pipeline_source.get("source_kind") != "local_checkout":
+        return
+    manifest_version = str(pipeline_source.get("manifest_version", "") or "").strip()
+    if manifest_version == DEFAULT_PIPELINE_VERSION:
+        return
+    allow_override = getattr(args, "allow_pipeline_version_override", False)
+    if not manifest_version:
+        print(
+            "WARNING: could not determine the local nf-core/sarek checkout version "
+            f"(expected {DEFAULT_PIPELINE_VERSION}). The wrapper's parameter, enum and "
+            f"output validations remain {DEFAULT_PIPELINE_VERSION}-specific.",
+            file=sys.stderr,
+        )
+        return
+    if allow_override:
+        print(
+            f"WARNING: local nf-core/sarek checkout reports version {manifest_version!r}, "
+            f"which differs from the wrapper's pinned {DEFAULT_PIPELINE_VERSION} contract. "
+            f"Validations remain {DEFAULT_PIPELINE_VERSION}-specific and may not match.",
+            file=sys.stderr,
+        )
+        return
+    raise SkillError(
+        stage="validation",
+        error_code=ErrorCode.PIPELINE_SOURCE_INVALID,
+        message=(
+            f"Local nf-core/sarek checkout is version {manifest_version!r}, but this wrapper's "
+            f"validations are pinned to {DEFAULT_PIPELINE_VERSION}."
+        ),
+        fix=(
+            f"Check out nf-core/sarek {DEFAULT_PIPELINE_VERSION} in the sibling 'sarek' "
+            "directory, point --pipeline-local at a 3.8.1 checkout, remove the local "
+            "checkout to use the pinned remote pipeline, or pass "
+            "--allow-pipeline-version-override to run it at your own risk "
+            f"(validations stay {DEFAULT_PIPELINE_VERSION})."
+        ),
+        details={
+            "manifest_version": manifest_version,
+            "contract_version": DEFAULT_PIPELINE_VERSION,
+            "source_ref": pipeline_source.get("source_ref", ""),
+        },
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -482,7 +518,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
     parser.add_argument(
         "--timeout-hours",
-        type=_timeout_hours,
+        type=timeout_hours,
         default=_DEFAULT_TIMEOUT_HOURS,
         help=(
             f"Wall-clock cap for the Nextflow run in hours (default {_DEFAULT_TIMEOUT_HOURS:g}). "
@@ -548,12 +584,12 @@ def main(argv: list[str] | None = None) -> int:
         _check_pipeline_version_supported(args)
         return _run_wrapper(args, output_dir)
     except SkillError as exc:
-        return _handle_skill_error(output_dir, exc, verbose=args.verbose)
+        return report_skill_error(output_dir, exc, verbose=args.verbose)
     except KeyboardInterrupt:
         _print("[abort] Interrupted by user.")
         return 130
     except Exception as exc:
-        return _handle_unexpected_error(output_dir, exc, verbose=args.verbose)
+        return report_unexpected_error(output_dir, exc, verbose=args.verbose)
 
 
 def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
@@ -588,7 +624,16 @@ def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
     if igenomes_notice:
         print(f"WARNING: {igenomes_notice}", file=sys.stderr)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    _check_output_dir(output_dir, repo_root=_detect_repo_root(), resume=bool(args.resume))
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise SkillError(
+            stage="preflight", error_code=ErrorCode.OUTPUT_DIR_NOT_WRITABLE,
+            message="Output directory could not be created.",
+            fix="Choose a writable location for --output.",
+            details={"output_dir": str(output_dir), "error": str(exc)},
+        ) from exc
 
     # --- pipeline source resolution ---
     pipeline_source = resolve_pipeline_source(
@@ -600,8 +645,34 @@ def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
         ),
     )
 
+    _check_pipeline_source_version(args, pipeline_source)
+
+    # A resume validates its samplesheet in a scratch directory and replaces the
+    # completed run's copy only once preflight accepts it, so a refused resume leaves
+    # the earlier bundle exactly as it was (as nfcore-rnaseq/scrnaseq do).
+    run_kwargs = {
+        "pipeline_source": pipeline_source,
+        "composed_profile": composed_profile,
+        "igenomes_notice": igenomes_notice,
+    }
+    # Fresh launches also stage input snapshots until complete scalar validation
+    # succeeds, so a rejected run cannot commit a misleading normalized sheet.
+    with tempfile.TemporaryDirectory(prefix="clawbio-sarek-") as staging:
+        return _run_with_samplesheet(args, output_dir, staging_dir=Path(staging), **run_kwargs)
+
+
+def _run_with_samplesheet(
+    args: argparse.Namespace,
+    output_dir: Path,
+    *,
+    staging_dir: Path | None,
+    pipeline_source: dict[str, Any],
+    composed_profile: str,
+    igenomes_notice: str | None,
+) -> int:
     # --- samplesheet preparation ---
-    samplesheet_report, normalized_csv = _prepare_samplesheet(args, output_dir)
+    samplesheet_report, staged_csv = _prepare_samplesheet(args, output_dir, staging_dir=staging_dir)
+    normalized_csv = output_dir / "reproducibility" / staged_csv.name
 
     # --- preflight ---
     repo_root = _detect_repo_root()
@@ -610,7 +681,12 @@ def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
         load_manifest(output_dir / "reproducibility") if args.resume else None
     )
     if args.resume and resume_manifest is None:
-        _print("[preflight] WARNING: --resume requested but no prior manifest.json found; continuing as a fresh run.")
+        raise SkillError(
+            stage="preflight", error_code=ErrorCode.INVALID_RESUME_STATE,
+            message="Resume requires a manifest from a previous validated launch.",
+            fix="Choose a new output directory, or resume a run with reproducibility/manifest.json.",
+            details={"output_dir": str(output_dir)},
+        )
     elif args.resume:
         # Compare the complete emitted parameter set and local/remote reference
         # fingerprints before allowing reuse of any cached Nextflow work.
@@ -642,6 +718,19 @@ def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
         for n in preflight_result.notes:
             _print(f"  · note: {n}")
 
+    # Check the complete emitted schema before committing snapshots, including --check.
+    params = build_effective_params(
+        args,
+        normalized_samplesheet=normalized_csv,
+        output_dir=output_dir,
+    )
+
+    if staging_dir is not None:
+        normalized_csv.parent.mkdir(parents=True, exist_ok=True)
+        for staged in sorted(staging_dir.iterdir()):
+            shutil.copyfile(staged, normalized_csv.parent / staged.name)
+        samplesheet_report["normalized_path"] = normalized_csv
+
     # --- check mode: stop here ---
     if args.check:
         return _write_check_report(
@@ -653,21 +742,13 @@ def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
         )
 
     # --- params + command ---
-    params = build_effective_params(
-        args,
-        normalized_samplesheet=normalized_csv,
-        output_dir=output_dir,
-    )
     params_path = write_params_yaml(params, output_dir=output_dir)
 
-    # On macOS+docker: the macOS workarounds config (also carries resourceLimits).
-    # On non-macOS+docker (real runs): a host-scaled resourceLimits cap so the local
-    # executor does not abort when a process's production requirement exceeds this
-    # host. Exactly one of the two applies per host; both are self-gating.
+    # Apply platform workarounds first, portable local capacity second, and user
+    # configs last so explicit settings retain precedence.
     auto_cfg = _write_macos_docker_config(output_dir, args=args)
-    if auto_cfg is None:
-        auto_cfg = _write_resource_limits_config(output_dir, args=args)
-    extra_configs = _resolve_extra_configs(args, macos_cfg=auto_cfg)
+    resource_cfg = _write_resource_limits_config(output_dir, args=args)
+    extra_configs = _resolve_extra_configs(args, macos_cfg=auto_cfg, resource_cfg=resource_cfg)
     work_dir = _resolve_nextflow_work_dir(args, output_dir)
 
     nextflow_command, command_str = build_nextflow_command(
@@ -683,6 +764,23 @@ def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
         spark=bool(args.spark_profile),
         mutect_profile=bool(args.mutect_profile),
     )
+
+    from datetime import datetime, timezone
+    from clawbio.common.nfcore.cli import canonical_work_dir
+    from clawbio.common.nfcore.artifacts import write_manifest_checkpoint
+
+    manifest = _build_manifest(
+        params=params, samplesheet_report=samplesheet_report, pipeline_source=pipeline_source,
+        samplesheet_checksum=compute_samplesheet_checksum(normalized_csv),
+        params_checksum=compute_params_checksum(params), reference_checksums=compute_reference_checksums(params),
+        resume_used=bool(args.resume), arm=bool(args.arm), spark=bool(args.spark_profile),
+        gpu=bool(args.gpu), wes=bool(params.get("wes", False)), profile=composed_profile,
+        java_version=getattr(preflight_result, "java_version", None),
+        nextflow_version=getattr(preflight_result, "nextflow_version", None),
+        generated_at=datetime.now(timezone.utc).isoformat(),
+    )
+    manifest["work_dir"] = canonical_work_dir(args, output_dir)
+    write_manifest_checkpoint(output_dir, manifest)
 
     # --- execute ---
     _print(f"[execute] launching Nextflow ({pipeline_source['source_kind']} → {pipeline_source['resolved_version']})")
@@ -758,8 +856,9 @@ def _run_wrapper(args: argparse.Namespace, output_dir: Path) -> int:
         gpu=bool(args.gpu),
         wes=bool(params.get("wes", False)),
         profile=args.profile,
-        java_version=_detect_java_version(),
-        nextflow_version=_detect_nextflow_version(),
+        java_version=getattr(preflight_result, "java_version", None),
+        nextflow_version=getattr(preflight_result, "nextflow_version", None),
+        work_dir=canonical_work_dir(args, output_dir),
     )
 
     # --- downstream handoff ---
@@ -885,6 +984,14 @@ def _apply_demo_overrides(args: argparse.Namespace) -> None:
             "the upstream test profile provides its own bundled references.",
             file=sys.stderr,
         )
+    params_file_values = _load_user_params_file(getattr(args, "params_file", None))
+    dropped = [key for key in params_file_values if key in DEMO_DROPPED_PARAMS_FILE_KEYS]
+    if dropped:
+        print(
+            f"WARNING: --demo ignores --params-file keys ({', '.join(dropped)}); "
+            "the upstream test profile provides its own samplesheet and references.",
+            file=sys.stderr,
+        )
     if args.input:
         print(
             "WARNING: --demo ignores --input; the upstream test profile provides its own samplesheet.",
@@ -925,12 +1032,13 @@ def _auto_disable_igenomes_for_custom_fasta(args: argparse.Namespace) -> str | N
     profile_parts = {p.strip() for p in str(getattr(args, "profile", "") or "").split(",") if p.strip()}
     if any(p == "test" or p.startswith("test_") for p in profile_parts):
         return None
-    if not getattr(args, "fasta", None):
+    native = load_run_params(args)
+    if not (getattr(args, "fasta", None) or native.get("fasta")):
         return None
-    if getattr(args, "genome", None):
+    if getattr(args, "genome", None) or native.get("genome"):
         # Explicit --genome alongside --fasta is a documented override; respect it.
         return None
-    if getattr(args, "igenomes_ignore", False):
+    if getattr(args, "igenomes_ignore", False) or native.get("igenomes_ignore") is True:
         return None
     args.igenomes_ignore = True
     return (
@@ -1045,7 +1153,10 @@ def _build_params_for_preflight(args: argparse.Namespace, *, composed_profile: s
     This is *not* the final params.yaml — that comes from params_builder.
     We only need the keys preflight rules inspect.
     """
-    params: dict[str, Any] = _load_user_params_file(getattr(args, "params_file", None))
+    params: dict[str, Any] = load_run_params(args)
+    from clawbio.common.nfcore.cli import canonical_work_dir
+
+    params["work_dir"] = canonical_work_dir(args, Path(getattr(args, "output", ".")).expanduser().resolve())
     params["profile"] = composed_profile
     params.setdefault("step", "mapping")
 
@@ -1136,10 +1247,14 @@ def _tool_list(raw: Any) -> list[str]:
 
 
 def _prepare_samplesheet(
-    args: argparse.Namespace, output_dir: Path
+    args: argparse.Namespace, output_dir: Path, *, staging_dir: Path | None = None
 ) -> tuple[dict[str, Any], Path]:
-    """Validate the user's samplesheet (or write a demo stub) and return (report, csv_path)."""
-    repro_dir = output_dir / "reproducibility"
+    """Validate the user's samplesheet (or write a demo stub) and return (report, csv_path).
+
+    Files are written to ``staging_dir`` when given, otherwise to the bundle directory;
+    the bundle name is the returned file's name either way.
+    """
+    repro_dir = staging_dir or output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
     if args.demo:
         normalized_csv = repro_dir / "samplesheet.demo.csv"
@@ -1158,7 +1273,6 @@ def _prepare_samplesheet(
             "spring_paths": [],
             "tables": [],
             "unknown_columns": [],
-            "sex_counts": {},
             "status_counts": {},
             "pairings": [],
             "analysis_mode": "germline",
@@ -1178,7 +1292,7 @@ def _prepare_samplesheet(
             "sample_names": [], "patient_names": [],
             "fastq_paths": [], "bam_paths": [], "cram_paths": [],
             "vcf_paths": [], "spring_paths": [], "tables": [],
-            "unknown_columns": [], "sex_counts": {}, "status_counts": {},
+            "unknown_columns": [], "status_counts": {},
             "pairings": [], "analysis_mode": "germline",
             "rows_by_patient": {},
         }, normalized_csv
@@ -1211,7 +1325,6 @@ def _prepare_samplesheet(
         input_path,
         normalized_csv,
         step=getattr(args, "step", None) or "mapping",
-        tools=_tool_list(getattr(args, "tools", None)),
     )
     return report, normalized_csv
 
@@ -1274,42 +1387,28 @@ def _materialize_samplesheet_input(value: str, *, repro_dir: Path) -> Path:
 
 
 def _host_memory_gb() -> int:
-    """Best-effort total physical RAM in GiB (portable; falls back to 16)."""
-    try:
-        return max(1, int(os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") / (1024 ** 3)))
-    except (ValueError, OSError, AttributeError):
-        return 16
+    value = _runtime.host_memory_bytes()
+    return max(1, int(value / (1024 ** 3))) if value is not None else 16
 
 
 def _docker_vm_memory_gb() -> int | None:
-    """Docker runtime's total memory in whole GB, or None when unknown.
-
-    On native Linux this reports the host's cgroup memory (≈ physical RAM); it is
-    the true ceiling before the OOM-killer intervenes. Best-effort: any failure
-    (docker absent, daemon down, unparseable output) returns None.
-    """
-    if not shutil.which("docker"):
-        return None
-    try:
-        proc = subprocess.run(
-            ["docker", "info", "--format", "{{.MemTotal}}"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if proc.returncode != 0:
-        return None
-    raw = proc.stdout.strip()
-    if not raw.isdigit():
-        return None
-    gb = int(int(raw) / (1024 ** 3))
-    return gb or None
+    return _runtime.docker_memory_gb()
 
 
 _RESOURCE_LIMITS_MEMORY_HEADROOM_GB = 4
 _RESOURCE_LIMITS_MEMORY_FLOOR_GB = 8
+
+
+def _docker_vm_cpu_count() -> int | None:
+    from clawbio.common.nfcore.runtime import docker_cpu_count
+
+    return docker_cpu_count()
+
+
+def _runtime_cpu_count() -> int:
+    host = max(1, os.cpu_count() or 1)
+    runtime = _docker_vm_cpu_count()
+    return min(host, runtime) if runtime else host
 
 
 def _resource_limits_memory_gb() -> int:
@@ -1324,7 +1423,8 @@ def _resource_limits_memory_gb() -> int:
     """
     signals = [gb for gb in (_host_memory_gb(), _docker_vm_memory_gb()) if gb]
     budget = (min(signals) - _RESOURCE_LIMITS_MEMORY_HEADROOM_GB) if signals else 12
-    return max(_RESOURCE_LIMITS_MEMORY_FLOOR_GB, budget)
+    ceiling = min(signals) if signals else _RESOURCE_LIMITS_MEMORY_FLOOR_GB
+    return min(max(1, ceiling - 1), max(1, max(_RESOURCE_LIMITS_MEMORY_FLOOR_GB, budget)))
 
 
 def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace) -> Path | None:
@@ -1336,18 +1436,17 @@ def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace)
     portable bundle: ``commands.sh`` re-applies it on non-macOS replay hosts, letting a
     from-scratch reproduction on the generating machine succeed. Carries only the
     portable resourceLimits block — none of the macOS-only workarounds. Returns None
-    when not applicable (macOS is handled by ``_write_macos_docker_config``; ``--demo``
-    relies on -profile test's own limits).
+    when the run uses a site/cloud profile or a different backend. On macOS,
+    platform workarounds are applied before this portable runtime capacity config.
     """
-    if sys.platform == "darwin":
-        return None
-    profile_parts = {p.strip() for p in (args.profile or "").split(",") if p.strip()}
-    if "docker" not in profile_parts or bool(getattr(args, "demo", False)):
+    if not uses_local_docker_capacity(args, SUPPORTED_PROFILES):
         return None
     config_path = output_dir / "reproducibility" / "resource_limits.config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    cpus = max(1, os.cpu_count() or 1)
-    memory_gb = _resource_limits_memory_gb()
+    # The executor's aggregate budget is the host's; a demo's per-process limits stay
+    # within the test profile's own.
+    cpus, memory_gb = _runtime_cpu_count(), _resource_limits_memory_gb()
+    limit_cpus, limit_memory_gb = cap_to_profile_limits(cpus, memory_gb, DEMO_RESOURCE_LIMITS if args.demo else None)
     timeout_hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
     time_hours = int(_DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
     write_text_lf(
@@ -1356,10 +1455,12 @@ def _write_resource_limits_config(output_dir: Path, *, args: argparse.Namespace)
         "// does not abort real runs whose production requirements exceed this machine.\n"
         "// Follows nf-core resourceLimits guidance (values match the machine maximum):\n"
         "// https://nf-co.re/docs/running/configuration/nextflow-for-your-system\n"
+        f"executor.cpus = {cpus}\n"
+        f"executor.memory = '{memory_gb}.GB'\n"
         "process {\n"
         "    resourceLimits = [\n"
-        f"        cpus: {cpus},\n"
-        f"        memory: '{memory_gb}.GB',\n"
+        f"        cpus: {limit_cpus},\n"
+        f"        memory: '{limit_memory_gb}.GB',\n"
         f"        time: '{time_hours}.h'\n"
         "    ]\n"
         "}\n",
@@ -1371,18 +1472,23 @@ def _write_macos_docker_config(output_dir: Path, *, args: argparse.Namespace) ->
     """On macOS with docker backend, add platform support without losing profile flags."""
     if sys.platform != "darwin":
         return None
-    profile_parts = {p.strip() for p in (args.profile or "").split(",") if p.strip()}
-    if "docker" not in profile_parts:
+    if not uses_local_docker_capacity(args, SUPPORTED_PROFILES):
         return None
     repro_dir = output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
     config_path = repro_dir / "macos_docker.config"
     arm = bool(args.arm)
-    cpus = max(4, os.cpu_count() or 4)
+    cpus = _runtime_cpu_count()
     # Scale the memory cap to the host (with ~4 GiB headroom for the OS) instead
     # of a hardcoded 15 GiB: on a 16 GiB Mac a 15 GiB cap leaves nothing for the
     # host and the Docker VM, causing memory pressure / container failures.
     mem_gb = min(15, max(4, _host_memory_gb() - 4))
+    vm_gb = _docker_vm_memory_gb()
+    if vm_gb:
+        mem_gb = min(mem_gb, max(1, int(vm_gb * 0.9)))
+    limit_cpus, limit_mem_gb = cap_to_profile_limits(cpus, mem_gb, DEMO_RESOURCE_LIMITS if args.demo else None)
+    timeout_hours = getattr(args, "timeout_hours", _DEFAULT_TIMEOUT_HOURS)
+    time_hours = int(_DEFAULT_TIMEOUT_HOURS) if timeout_hours == 0 else max(1, int(timeout_hours))
     docker_block = ""
     if not arm:
         # The official docker/gpu/spark profiles set mutually overriding
@@ -1399,12 +1505,14 @@ def _write_macos_docker_config(output_dir: Path, *, args: argparse.Namespace) ->
     write_text_lf(
         config_path,
         "// macOS Docker compatibility for nf-core/sarek.\n"
+        f"executor.cpus = {cpus}\n"
+        f"executor.memory = '{mem_gb}.GB'\n"
         "process {\n"
         "    stageInMode = 'copy'\n"
         "    resourceLimits = [\n"
-        f"        cpus: {cpus},\n"
-        f"        memory: '{mem_gb}.GB',\n"
-        "        time: '24.h'\n"
+        f"        cpus: {limit_cpus},\n"
+        f"        memory: '{limit_mem_gb}.GB',\n"
+        f"        time: '{time_hours}.h'\n"
         "    ]\n"
         + "}\n"
         + docker_block,
@@ -1413,11 +1521,13 @@ def _write_macos_docker_config(output_dir: Path, *, args: argparse.Namespace) ->
 
 
 def _resolve_extra_configs(
-    args: argparse.Namespace, *, macos_cfg: Path | None
+    args: argparse.Namespace, *, macos_cfg: Path | None, resource_cfg: Path | None = None
 ) -> list[Path]:
     configs: list[Path] = []
     if macos_cfg is not None:
         configs.append(macos_cfg)
+    if resource_cfg is not None:
+        configs.append(resource_cfg)
     for cfg in getattr(args, "nextflow_config", None) or []:
         configs.append(Path(cfg).expanduser().resolve())
     return configs
@@ -1430,28 +1540,6 @@ def _detect_repo_root() -> Path:
         if (parent / "clawbio.py").exists():
             return parent
     return _SKILL_DIR.parent.parent
-
-
-def _detect_java_version() -> str | None:
-    try:
-        out = subprocess.run(
-            ["java", "-version"], capture_output=True, text=True, timeout=10
-        )
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
-        return None
-    text = (out.stdout or "") + (out.stderr or "")
-    return text.strip().splitlines()[0] if text.strip() else None
-
-
-def _detect_nextflow_version() -> str | None:
-    try:
-        out = subprocess.run(
-            ["nextflow", "-v"], capture_output=True, text=True, timeout=10
-        )
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
-        return None
-    text = (out.stdout or out.stderr or "").strip()
-    return text or None
 
 
 # ---------------------------------------------------------------------------
@@ -1604,73 +1692,6 @@ def _emit_downstream_handoff(
 # ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------
-
-
-def _handle_skill_error(output_dir: Path, exc: SkillError, *, verbose: bool) -> int:
-    payload = exc.to_dict()
-    _print("")
-    _print("================ SkillError ================")
-    _print(f"  stage:   {exc.stage}")
-    _print(f"  code:    {exc.error_code}")
-    _print(f"  message: {exc.message}")
-    _print(f"  fix:     {exc.fix}")
-    if exc.details and verbose:
-        _print("  details:")
-        _print(_indent(json.dumps(exc.details, indent=2, default=str), 4))
-    _print("============================================")
-    _write_error_result_if_safe(output_dir, payload)
-    # Machine-readable error on stderr: always available even when result.json
-    # cannot be written (e.g. the output dir is a file or inside the repo).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    # Exit 1 for a SkillError (parity with nfcore-scrnaseq/rnaseq). Exit 2 is
-    # reserved for argparse CLI-usage errors, so reusing it for validation
-    # failures would make the two indistinguishable to machine consumers.
-    return 1
-
-
-def _handle_unexpected_error(output_dir: Path, exc: Exception, *, verbose: bool) -> int:
-    payload = {
-        "status": "error",
-        "ok": False,
-        "stage": "internal",
-        "error_code": ErrorCode.UNEXPECTED_ERROR,
-        "message": str(exc),
-        "fix": "Report this as a bug. Include the traceback and command arguments.",
-        "details": {"exception_type": type(exc).__name__},
-    }
-    _print("")
-    _print("================ Internal error ================")
-    _print(f"  type:    {type(exc).__name__}")
-    _print(f"  message: {exc}")
-    if verbose:
-        _print(_indent(traceback.format_exc(), 4))
-    else:
-        _print("  Re-run with --verbose for traceback.")
-    _print("================================================")
-    _write_error_result_if_safe(output_dir, payload)
-    # Machine-readable error on stderr (always available; see _handle_skill_error).
-    print(json.dumps(payload, indent=2), file=sys.stderr)
-    return 1
-
-
-def _write_error_result_if_safe(output_dir: Path, payload: dict[str, Any]) -> None:
-    code = payload.get("error_code")
-    if code in {ErrorCode.OUTPUT_DIR_NOT_EMPTY, ErrorCode.OUTPUT_DIR_NOT_WRITABLE}:
-        return
-    text = json.dumps(payload, indent=2, default=str)
-    # The failure marker lives at the output root, next to where a successful
-    # run writes result.json, so consumers read <output>/result.json regardless
-    # of outcome (parity with nfcore-rnaseq/scrnaseq).
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        write_text_lf(output_dir / "result.json", text)
-    except OSError:
-        return
-
-
-def _indent(text: str, n: int) -> str:
-    pad = " " * n
-    return "\n".join(pad + line for line in text.splitlines())
 
 
 if __name__ == "__main__":

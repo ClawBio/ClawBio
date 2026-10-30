@@ -16,13 +16,15 @@ import hashlib
 import os
 import re
 import csv
-import glob
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
+
+from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.paths import is_under_tmp
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -41,9 +43,6 @@ from schemas import (
     DEFAULT_GENOME,
     DEFAULT_STEP,
     DEFAULT_IGENOMES_BASE,
-    JAVA_MIN_VERSION,
-    NEXTFLOW_MIN_VERSION,
-    is_under_tmp,
     SUPPORTED_ALIGNERS,
     SUPPORTED_ASCAT_GENOME,
     SUPPORTED_GATK_PCR_INDEL_MODEL,
@@ -149,7 +148,7 @@ _BACKEND_PROFILES = frozenset({
     "shifter", "charliecloud", "conda", "mamba",
 })
 
-# Reference path params that must exist on disk if set (and not a URI). §5.5.
+# Reference path params: gated when remote (local-first) and fingerprinted on resume.
 REFERENCE_PATH_PARAMS: tuple[str, ...] = (
     "fasta", "fasta_fai", "dict",
     "bwa", "bwamem2", "dragmap",
@@ -179,7 +178,21 @@ REFERENCE_PATH_PARAMS: tuple[str, ...] = (
     "multiqc_config", "multiqc_logo", "multiqc_methods_description",
     "igenomes_base",
 )
-_REFERENCE_PATH_PATTERN_PARAMS = frozenset({"known_indels", "known_indels_tbi"})
+# The reference params whose existence nf-core/sarek 3.8.1's nextflow_schema.json does
+# not check (no `exists`): a missing local path would fail only inside a task. Every
+# other REFERENCE_PATH_PARAMS entry is `exists: true` there, so nf-schema refuses it
+# when Nextflow starts.
+_PATHS_THE_SCHEMA_DOES_NOT_CHECK: tuple[str, ...] = (
+    "germline_resource", "germline_resource_tbi", "mappability", "ngscheckmate_bed",
+    "phenotypes_file", "sentieon_dnascope_model", "snpeff_cache", "vep_cache",
+    "cnvkit_reference", "bcftools_header_lines", "bcftools_columns",
+    "varlociraptor_scenario_tumor_only", "varlociraptor_scenario_somatic",
+    "varlociraptor_scenario_germline", "multiqc_config", "multiqc_logo",
+    "multiqc_methods_description", "igenomes_base",
+)
+# Patterns in the schema that do not start with ^\S+ (germline_resource is
+# "\S+\.vcf\.gz$"), so a path under a directory with spaces still matches them.
+_UNANCHORED_PATTERN_PATHS: tuple[str, ...] = ("germline_resource", "germline_resource_tbi", "intervals")
 
 
 # --- Public API ------------------------------------------------------------
@@ -198,6 +211,10 @@ class PreflightResult:
     nextflow_version: str = ""
 
 
+# Every path group samplesheet_builder reports; a remote URI in any of them is gated.
+SAMPLESHEET_PATH_GROUPS = ("fastq_paths", "spring_paths", "bam_paths", "cram_paths", "vcf_paths", "tables")
+
+
 def _check_remote_inputs(
     params: dict[str, Any],
     samplesheet: dict[str, Any],
@@ -210,7 +227,7 @@ def _check_remote_inputs(
     object-store ``--work-dir`` and the public iGenomes mirror base (``igenomes_base``,
     default ``s3://ngi-igenomes/``) are intentionally remote and are not gated."""
     remote: list[str] = []
-    for key in ("fastq_paths", "bam_paths", "cram_paths"):
+    for key in SAMPLESHEET_PATH_GROUPS:
         for path in samplesheet.get(key, []) or []:
             if "://" in str(path):
                 remote.append(str(path))
@@ -309,13 +326,11 @@ def run_preflight(
     present_modes = {str(p.get("mode")) for p in pairings if p.get("mode")}
     if not present_modes:
         present_modes = {analysis_mode}
-    rows_by_patient = _extract_rows_by_patient(samplesheet)
     tools = _normalize_tools(params.get("tools"))
     tool_warnings = _check_tools_against_pairing(
         params=params,
         tools=tools,
         present_modes=present_modes,
-        rows_by_patient=rows_by_patient,
     )
     warnings_acc.extend(tool_warnings)
 
@@ -323,9 +338,9 @@ def run_preflight(
     flag_warnings = _check_flag_compatibility(params=params, tools=tools)
     warnings_acc.extend(flag_warnings)
 
-    # §5.5 — reference path existence + documented-suffix sanity ----------
+    # §5.5 — reference paths the schema does not check ---------------------
     _check_reference_paths(params)
-    warnings_acc.extend(_check_reference_path_suffixes(params))
+    _check_reference_path_whitespace(params)
 
     # §5.6 — annotation cache ---------------------------------------------
     ann_warnings = _check_annotation_cache(params=params, output_dir=output_dir)
@@ -352,53 +367,19 @@ def run_preflight(
 # --- §5.1: Java -----------------------------------------------------------
 
 def _command_output(args: list[str]) -> str:
-    """Return combined stdout/stderr of ``args`` (empty string on error)."""
-    try:
-        proc = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            errors="replace",
-            timeout=_SUBPROCESS_TIMEOUT,
-        )
-    except (subprocess.TimeoutExpired, OSError):
+    proc = _runtime.run_probe(args, timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if proc is None:
         return ""
     return ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
 
 
 def _parse_version_tuple(text: str) -> tuple[int, ...]:
-    m = re.search(r"\b(\d+)\.(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
-    m = re.search(r"\b(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)))
-    m = re.search(r"\b(\d+)\b", text)
-    if m:
-        return (int(m.group(1)),)
-    return ()
-
-
-def _pad_version(t: tuple[int, ...], length: int = 3) -> tuple[int, ...]:
-    return t + (0,) * max(0, length - len(t))
-
-
-def _detected_version_string(text: str) -> str:
-    """Return the version exactly as reported by the tool (e.g. '26.04.3').
-
-    The parsed tuple is for *comparison* only; reconstructing a string from it
-    drops zero-padding (26.04.3 → 26.4.3), which is not a real Nextflow release
-    and would break NXF_VER / conda pins on replay. Always store the raw token.
-    """
-    for pattern in (r"\b(\d+\.\d+\.\d+)\b", r"\b(\d+\.\d+)\b", r"\b(\d+)\b"):
-        m = re.search(pattern, text)
-        if m:
-            return m.group(1)
-    return ""
+    return _runtime.parse_version_tuple(text)
 
 
 def _check_java() -> str:
-    """Java >=17 must be present on PATH. Returns the detected version string."""
+    """`java` must run and report a version (recorded in the bundle). Its minimum is
+    the Nextflow launcher's own check (Java 17-26), made before any pipeline code runs."""
     java_path = shutil.which("java")
     if not java_path:
         raise SkillError(
@@ -418,61 +399,40 @@ def _check_java() -> str:
             fix="Install Java 17 or newer and ensure `java -version` works.",
             details={"java_path": java_path, "output": version_text},
         )
-    version_str = _detected_version_string(version_text)
-    if version[0] < JAVA_MIN_VERSION:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.JAVA_VERSION_TOO_OLD,
-            message=f"Java {version_str} is older than the required {JAVA_MIN_VERSION}.",
-            fix=f"Install Java {JAVA_MIN_VERSION} or newer.",
-            details={"detected_version": version_str, "min": JAVA_MIN_VERSION},
-        )
-    return version_str
+    return _runtime.reported_version(version_text)
 
 
 # --- §5.1: Nextflow -------------------------------------------------------
 
 def _check_nextflow() -> str:
-    """Nextflow >= minimum must be present. Returns the detected version string."""
-    minimum = ".".join(map(str, NEXTFLOW_MIN_VERSION))
+    """`nextflow` must run and report the version commands.sh pins with NXF_VER. The
+    minimum is nf-core/sarek 3.8.1's manifest.nextflowVersion ('!>=25.10.2'), which
+    Nextflow enforces itself when the run starts."""
     nextflow_path = shutil.which("nextflow")
     if not nextflow_path:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.MISSING_NEXTFLOW,
             message="Required executable `nextflow` was not found.",
-            fix=f"Install Nextflow >={minimum} and ensure it is on PATH.",
+            fix="Install Nextflow and ensure it is on PATH.",
             details={"executable": "nextflow"},
         )
-    version_text = _command_output(["nextflow", "-version"])
-    version = _parse_version_tuple(version_text)
+    version, reason = _nextflow_version()
     if not version:
         # nextflow IS present but its version cannot be confirmed — this is a
         # version-gate failure, not an absent binary (NEXTFLOW_NOT_FOUND).
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.NEXTFLOW_VERSION_TOO_OLD,
-            message="Nextflow is installed but its version could not be parsed.",
-            fix=f"Install Nextflow >={minimum} and ensure `nextflow -version` works.",
-            details={"nextflow_path": nextflow_path, "output": version_text},
+            message=f"Nextflow is installed but did not report its version: {reason}",
+            fix="Correct what that names (the Nextflow launcher accepts Java 17-26) so that `nextflow -version` works.",
+            details={"nextflow_path": nextflow_path, "output": reason},
         )
-    version_str = _detected_version_string(version_text)
-    if _pad_version(version) < _pad_version(NEXTFLOW_MIN_VERSION):
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.NEXTFLOW_VERSION_TOO_OLD,
-            message=(
-                "Nextflow "
-                f"{version_str} is older than the required "
-                f"{minimum}."
-            ),
-            fix=f"Upgrade Nextflow to {minimum} or newer.",
-            details={
-                "detected_version": version_str,
-                "min_version": minimum,
-            },
-        )
-    return version_str
+    return version
+
+
+def _nextflow_version() -> tuple[str, str]:
+    return _runtime.tool_version(["nextflow", "-version"], timeout_seconds=_SUBPROCESS_TIMEOUT)
 
 
 # --- §5.1: Profile & backends --------------------------------------------
@@ -553,17 +513,8 @@ def _probe_daemon(profile: str, *, binary: str) -> None:
             fix=f"Install {binary} or remove the '{profile}' profile token.",
             details={"profile": profile, "binary": binary},
         )
-    try:
-        info = subprocess.run(
-            [binary, "info"],
-            capture_output=True,
-            text=True,
-            timeout=_SUBPROCESS_TIMEOUT,
-        )
-        ok = info.returncode == 0
-    except (subprocess.TimeoutExpired, OSError):
-        ok = False
-    if not ok:
+    info = _runtime.run_probe([binary, "info"], timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if info is None or info.returncode != 0:
         raise SkillError(
             stage="preflight",
             error_code=_DAEMON_DOWN_CODE.get(profile, ErrorCode.BACKEND_UNAVAILABLE),
@@ -638,6 +589,13 @@ def _check_output_dir(output_dir: Path, *, repo_root: Path, resume: bool) -> Non
         )
     if not output_dir.exists():
         return
+    if not output_dir.is_dir() or not os.access(output_dir, os.W_OK):
+        raise SkillError(
+            stage="preflight", error_code=ErrorCode.OUTPUT_DIR_NOT_WRITABLE,
+            message="Output path is not a writable directory.",
+            fix="Choose a writable directory path for --output.",
+            details={"output_dir": str(output_dir)},
+        )
     if resume:
         return
     try:
@@ -1052,20 +1010,6 @@ def _explicit_resource_supplied(params: dict[str, Any], name: str) -> bool:
     return params.get(name) not in (None, "") and not _explicitly_disabled(params, name)
 
 
-def _extract_rows_by_patient(samplesheet: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
-    """Reconstruct rows-by-patient from samplesheet summary if possible.
-
-    The samplesheet_builder returns inferred pairings but does not surface
-    the per-row contamination directly.  We rely on ``pairings``
-    for tumor/normal sample names and the cached samplesheet rows when
-    provided.
-    """
-    rows = samplesheet.get("rows_by_patient")
-    if isinstance(rows, dict):
-        return rows
-    return {}
-
-
 def _check_tools_known(tools: list[str]) -> None:
     """Reject --tools tokens absent from the 3.8.1 allowlist.
 
@@ -1089,7 +1033,6 @@ def _check_tools_against_pairing(
     params: dict[str, Any],
     tools: list[str],
     present_modes: set[str],
-    rows_by_patient: dict[str, list[dict[str, Any]]],
 ) -> list[str]:
     warnings_acc: list[str] = []
     step = str(params.get("step") or "mapping").strip()
@@ -1208,25 +1151,6 @@ def _check_tools_against_pairing(
             },
         )
 
-    def _require_sex(tool: str) -> None:
-        """Mirror Sarek's global per-input-sample sex validation."""
-        if build_only_index:
-            return
-        missing = []
-        for patient, entries in rows_by_patient.items():
-            for entry in entries:
-                sex = str(entry.get("sex") or "NA")
-                if sex == "NA":
-                    missing.append({"patient": patient, "sample": entry.get("sample"), "line": entry.get("line")})
-        if missing:
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.INVALID_SEX,
-                message=f"Tool '{tool}' requires sex to be set for every sample.",
-                fix="Set the samplesheet `sex` column to XX or XY for each row.",
-                details={"tool": tool, "missing": missing},
-            )
-
     def _require_snpeff_db(tool: str) -> None:
         if _resource_available(params, "snpeff_db", "snpeff"):
             if not params.get("snpeff_db"):
@@ -1299,7 +1223,7 @@ def _check_tools_against_pairing(
             # executable behaviour: germline and paired, never tumor-only.
             _require_germline_or_paired(tool)
         elif tool == "mutect2":
-            _require_tumor_modes(tool)
+            # "Needs a tumour sample" is Sarek's own check (samplesheet_to_channel).
             if not annotation_only and "somatic_paired" in present_modes and _truthy(params.get("no_intervals")):
                 raise SkillError(
                     stage="preflight",
@@ -1342,13 +1266,17 @@ def _check_tools_against_pairing(
             _reject_if_paired_normal_is_only_input(tool, allow_tumor_only=True)
             continue
         elif tool in {"deepvariant", "haplotypecaller", "sentieon_haplotyper", "sentieon_dnascope"}:
-            _require_normal_sample(tool)
+            # Sarek itself refuses deepvariant/haplotypecaller without a normal sample
+            # (samplesheet_to_channel), but not the Sentieon callers.
+            if tool.startswith("sentieon_"):
+                _require_normal_sample(tool)
             _reject_if_paired_normal_is_only_input(tool)
         elif tool in {"manta", "tiddit"}:
             # Any mode OK.
             continue
         elif tool == "ascat":
-            _require_sex(tool)
+            # Sex for every sample is Sarek's own check; a tumour/normal pair within one
+            # patient (stricter than Sarek's "some tumour, some normal") is ClawBio's.
             _require_paired(tool)
             if params.get("ascat_purity") is not None and params.get("ascat_ploidy") is None:
                 raise SkillError(
@@ -1395,8 +1323,7 @@ def _check_tools_against_pairing(
                     details={"tool": tool, "wes": True},
                 )
         elif tool == "controlfreec":
-            _require_sex(tool)
-            _require_tumor_modes(tool)
+            # Sex for every sample and "needs a tumour" are Sarek's own checks.
             if annotation_only:
                 continue
             fields = ("mappability", "chr_dir")
@@ -1450,9 +1377,8 @@ def _check_tools_against_pairing(
                     f"{_effective_genome(params)} iGenomes bundle."
                 )
         elif tool == "varlociraptor":
-            _require_sex(tool)
-            if present_modes & {"tumor_only", "somatic_paired"}:
-                _enforce_varlociraptor_contamination(rows_by_patient, tools=tools)
+            # Sex for every sample and contamination for every tumour are Sarek's own
+            # checks (samplesheet_to_channel; see tests/test_pinned_release_claims.py).
             if not annotation_only and not build_only_index and not (
                 set(tools) & _VARLOCIRAPTOR_CANDIDATE_CALLERS
             ):
@@ -1510,41 +1436,6 @@ def _annotation_step_active(params: dict[str, Any]) -> bool:
     return step in SUPPORTED_STEPS
 
 
-def _enforce_varlociraptor_contamination(
-    rows_by_patient: dict[str, list[dict[str, Any]]],
-    *,
-    tools: list[str],
-) -> None:
-    if not rows_by_patient:
-        # The samplesheet builder already enforces this when given tools;
-        # but if rows aren't surfaced here we cannot re-check.
-        return
-    missing: list[dict[str, Any]] = []
-    for patient, entries in rows_by_patient.items():
-        for entry in entries:
-            try:
-                status = int(entry.get("status", 0))
-            except (TypeError, ValueError):
-                status = 0
-            if status != 1:
-                continue
-            contamination = entry.get("contamination")
-            if contamination in (None, "", "NA"):
-                missing.append({
-                    "patient": patient,
-                    "sample": entry.get("sample"),
-                    "line": entry.get("line"),
-                })
-    if missing:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.VARLOCIRAPTOR_MISSING_CONTAMINATION,
-            message="Varlociraptor requires `contamination` for every tumor row.",
-            fix="Add a `contamination` value (float in [0, 1]) to each tumor row in the samplesheet.",
-            details={"missing": missing, "tools": tools},
-        )
-
-
 # --- §5.4: Flag compatibility --------------------------------------------
 
 def _truthy(value: Any) -> bool:
@@ -1569,32 +1460,9 @@ def _uses_upstream_test_profile(params: dict[str, Any]) -> bool:
 
 
 def _check_demo_network(params: dict[str, Any]) -> None:
-    """--demo composes nf-core's upstream ``-profile test``, whose inputs (test FASTQs
-    and reference FASTA/GTF) are remote GitHub URLs by design. Under ``NXF_OFFLINE`` the
-    nf-schema plugin aborts during parameter validation with a confusing
-    ``does not exist`` before any work starts, so fail early with an actionable message
-    instead. Downloading nf-core's PUBLIC test data does not conflict with the
-    local-first guarantee, which governs USER genetic data (never uploaded)."""
-    if not _uses_upstream_test_profile(params):
-        return
-    offline = str(os.environ.get("NXF_OFFLINE", "")).strip().lower()
-    if offline in {"true", "1", "yes", "on"}:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.DEMO_REQUIRES_NETWORK,
-            message=(
-                "--demo runs the upstream nf-core `-profile test`, which downloads its test "
-                "datasets and reference files from GitHub, but NXF_OFFLINE is set — Nextflow "
-                "would abort during parameter validation because the remote test inputs cannot "
-                "be reached."
-            ),
-            fix=(
-                "Unset NXF_OFFLINE to run the demo (it fetches only nf-core's public test data — "
-                "no user or genetic data is uploaded), or run a real analysis with your own local "
-                "--input samplesheet and references, which is fully offline."
-            ),
-            details={"NXF_OFFLINE": os.environ.get("NXF_OFFLINE")},
-        )
+    """--demo composes nf-core's upstream ``-profile test``, whose inputs are remote."""
+    if _uses_upstream_test_profile(params):
+        _runtime.require_network_for_demo()
 
 
 def _check_flag_compatibility(*, params: dict[str, Any], tools: list[str]) -> list[str]:
@@ -1986,15 +1854,10 @@ def _check_flag_compatibility(*, params: dict[str, Any], tools: list[str]) -> li
             "results may include off-target regions."
         )
 
+    # The .bed/.interval_list extension is nf-schema's (pattern) and samplesheet_to_channel's.
+    # Its WES-needs-BED branch never runs in 3.8.1 (`!step == 'annotate'` is always
+    # false), so the wrapper keeps that rule.
     intervals = str(params.get("intervals") or "").strip() if _explicit_resource_supplied(params, "intervals") else ""
-    if intervals and not intervals.lower().endswith((".bed", ".interval_list")):
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.INVALID_INTERVALS,
-            message="--intervals must end with .bed or .interval_list.",
-            fix="Provide an intervals file accepted by the nf-core/sarek 3.8.1 parameter schema: .bed or .interval_list.",
-            details={"intervals": intervals},
-        )
     if _truthy(params.get("wes")) and intervals and not intervals.lower().endswith(".bed"):
         raise SkillError(
             stage="preflight",
@@ -2050,45 +1913,25 @@ def _is_valid_bcftools_criteria(criteria: str) -> bool:
 
 
 def _validate_snpsift_databases(path_text: str) -> None:
-    """Validate the SnpSift database CSV shape from Sarek's auxiliary schema."""
+    """Refuse a vardb path with whitespace, the one rule Sarek does not check: main.nf
+    reads the CSV through assets/schema_snpsift_databases.json (vcf/tbi names, vcf
+    required), requires fields without a vardb and checks every file exists."""
     if _is_uri(path_text):
         return
-    path = Path(os.path.expanduser(path_text))
-    if not path.exists():
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.MISSING_SNPSIFT_DATABASES,
-            message="--snpsift_databases file does not exist.",
-            fix="Provide a readable CSV with vcf,tbi,fields,prefix,vardb columns.",
-            details={"path": path_text},
-        )
     try:
-        with path.open(newline="", encoding="utf-8-sig") as handle:
-            reader = csv.DictReader(handle)
-            fieldnames = reader.fieldnames or []
-            if "vcf" not in fieldnames:
-                raise ValueError("missing required column 'vcf'")
-            for line_number, row in enumerate(reader, start=2):
-                vcf = (row.get("vcf") or "").strip()
-                tbi = (row.get("tbi") or "").strip()
-                fields = (row.get("fields") or "").strip()
-                vardb = (row.get("vardb") or "").strip()
-                if not re.match(r"^\S+\.vcf(\.gz)?$", vcf):
-                    raise ValueError(f"line {line_number}: vcf must end with .vcf or .vcf.gz and contain no whitespace")
-                if tbi and not re.match(r"^\S+\.tbi$", tbi):
-                    raise ValueError(f"line {line_number}: tbi must end with .tbi and contain no whitespace")
-                if not fields and not vardb:
-                    raise ValueError(f"line {line_number}: fields is required when vardb is not provided")
-                if vardb and any(ch.isspace() for ch in vardb):
-                    raise ValueError(f"line {line_number}: vardb must not contain whitespace")
-    except (OSError, csv.Error, ValueError) as exc:
+        with Path(os.path.expanduser(path_text)).open(newline="", encoding="utf-8-sig") as handle:
+            vardbs = [(row.get("vardb") or "").strip() for row in csv.DictReader(handle)]
+    except (OSError, csv.Error, UnicodeError):
+        return  # unreadable or malformed: nf-schema names it when Nextflow starts
+    spaced = [vardb for vardb in vardbs if any(ch.isspace() for ch in vardb)]
+    if spaced:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.MISSING_SNPSIFT_DATABASES,
-            message="--snpsift_databases is not compatible with Sarek's CSV schema.",
-            fix="Use columns vcf,tbi,fields,prefix,vardb; vcf is required and fields is required when vardb is empty.",
-            details={"path": path_text, "error": str(exc)},
-        ) from exc
+            message="--snpsift_databases lists a vardb path containing whitespace.",
+            fix="Move the .snpsift.vardb directory to a path without spaces.",
+            details={"path": path_text, "vardb": spaced},
+        )
 
 
 # --- §5.5: Reference path existence --------------------------------------
@@ -2097,112 +1940,33 @@ def _is_uri(value: str) -> bool:
     return any(value.startswith(prefix) for prefix in _URI_PREFIXES)
 
 
-def _glob_reference_pattern(pattern: str) -> list[str]:
-    """Resolve basic Nextflow-style glob patterns, including `{a,b}` groups."""
-    expanded = [pattern]
-    brace_re = re.compile(r"\{([^{}]+)\}")
-    while any(brace_re.search(item) for item in expanded):
-        next_expanded: list[str] = []
-        for item in expanded:
-            match = brace_re.search(item)
-            if match is None:
-                next_expanded.append(item)
-                continue
-            for alternative in match.group(1).split(","):
-                next_expanded.append(item[:match.start()] + alternative + item[match.end():])
-        expanded = next_expanded
-    return sorted({match for item in expanded for match in glob.glob(item)})
-
-
-# Documented filename patterns (nextflow_schema.json) for reference paths that
-# declare one. Mismatches are WARNINGS, not errors: a valid file with a
-# non-standard name should not block the run, but a likely mistake is surfaced.
-_REFERENCE_PATH_PATTERNS = {
-    "pon": re.compile(r"\.vcf\.gz$"),
-    "pon_tbi": re.compile(r"\.vcf\.gz\.tbi$"),
-    "dbsnp": re.compile(r"\.vcf\.gz$"),
-    "dbsnp_tbi": re.compile(r"\.vcf\.gz\.tbi$"),
-    "germline_resource": re.compile(r"\.vcf\.gz$"),
-    "germline_resource_tbi": re.compile(r"\.vcf\.gz\.tbi$"),
-    "known_snps": re.compile(r"\.vcf\.gz$"),
-    "known_snps_tbi": re.compile(r"\.vcf\.gz\.tbi$"),
-    "ascat_alleles": re.compile(r"\.zip$"),
-    "ascat_loci": re.compile(r"\.zip$"),
-    "ascat_loci_gc": re.compile(r"\.zip$"),
-    "ascat_loci_rt": re.compile(r"\.zip$"),
-    "cf_chrom_len": re.compile(r"\.(fai|len)$"),
-    "cnvkit_reference": re.compile(r"\.cnn$"),
-    "dbnsfp": re.compile(r"\.gz$"),
-    "dbnsfp_tbi": re.compile(r"\.gz\.(csi|tbi)$"),
-    "mappability": re.compile(r"\.gem$"),
-    "mastermind_file": re.compile(r"\.vcf\.gz$"),
-    "ngscheckmate_bed": re.compile(r"\.bed$"),
-    "phenotypes_file": re.compile(r"\.(gff|gvf)(\.gz)?$"),
-    "phenotypes_file_tbi": re.compile(r"\.(gff|gvf)\.gz\.(csi|tbi)$"),
-    "sentieon_dnascope_model": re.compile(r"\.model$"),
-    "spliceai_snv": re.compile(r"\.vcf\.gz$"),
-    "spliceai_snv_tbi": re.compile(r"\.vcf\.gz\.(csi|tbi)$"),
-    "spliceai_indel": re.compile(r"\.vcf\.gz$"),
-    "spliceai_indel_tbi": re.compile(r"\.vcf\.gz\.(csi|tbi)$"),
-    "bcftools_annotations": re.compile(r"\.vcf\.gz$"),
-    "bcftools_annotations_tbi": re.compile(r"\.vcf\.gz\.tbi$"),
-    "snpsift_databases": re.compile(r"\.csv$"),
-    "intervals": re.compile(r"\.(bed|interval_list)$"),
-    "dict": re.compile(r"\.dict$"),
-    "fasta": re.compile(r"\.fn?a(sta)?(\.gz)?$"),
-}
-
-
-def _check_reference_path_suffixes(params: dict[str, Any]) -> list[str]:
-    """Warn when a reference path's filename does not match its documented suffix."""
-    warnings_acc: list[str] = []
-    for name, pattern in _REFERENCE_PATH_PATTERNS.items():
+def _check_reference_path_whitespace(params: dict[str, Any]) -> None:
+    """Refuse whitespace where the schema's own pattern would let it through."""
+    for name in _UNANCHORED_PATTERN_PATHS:
         raw = params.get(name)
         if raw is None or _explicitly_disabled(params, name):
             continue
         text = str(raw).strip()
-        if not text:
-            continue
         if any(ch.isspace() for ch in text):
             raise SkillError(
                 stage="preflight",
                 error_code=ErrorCode.MISSING_REFERENCE,
-                message=f"--{name} value contains whitespace, which does not match the nf-core/sarek schema.",
+                message=f"--{name} value contains whitespace.",
                 fix=f"Move or rename the --{name} path so the complete value contains no spaces.",
                 details={"param": name, "path": text},
             )
-        basename = text.rsplit("/", 1)[-1]
-        if not pattern.search(basename):
-            warnings_acc.append(
-                f"--{name} value '{basename}' does not match the expected pattern "
-                f"'{pattern.pattern}'; verify it is the correct file type."
-            )
-    return warnings_acc
 
 
 def _check_reference_paths(params: dict[str, Any]) -> None:
-    """Every set, non-URI reference path must exist on disk."""
-    for name in REFERENCE_PATH_PARAMS:
+    """Every set, local reference path the schema does not check must exist on disk."""
+    for name in _PATHS_THE_SCHEMA_DOES_NOT_CHECK:
         raw = params.get(name)
         if raw is None or _explicitly_disabled(params, name):
             continue
         text = str(raw).strip()
-        if not text:
+        if not text or _is_uri(text):
             continue
-        if _is_uri(text):
-            continue
-        if name in _REFERENCE_PATH_PATTERN_PARAMS and (glob.has_magic(text) or ("{" in text and "}" in text)):
-            if _glob_reference_pattern(text):
-                continue
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.MISSING_REFERENCE,
-                message=f"Reference pattern for --{name} did not match any files.",
-                fix=f"Correct --{name} or remove it.",
-                details={"param": name, "path_pattern": text},
-            )
-        path = Path(os.path.expanduser(text))
-        if not path.exists():
+        if not Path(os.path.expanduser(text)).exists():
             raise SkillError(
                 stage="preflight",
                 error_code=ErrorCode.MISSING_REFERENCE,
@@ -2288,6 +2052,7 @@ _RESUME_TRACKED_FIELDS = (
     "params_checksum",
     "reference_checksums",
     "samplesheet_checksum",
+    "work_dir",
 )
 
 
@@ -2319,6 +2084,7 @@ def _check_resume_drift(
     current["joint_mutect2"] = _truthy(params.get("joint_mutect2"))
     current["wes"] = _truthy(params.get("wes"))
     current["profile"] = params.get("profile")
+    current["work_dir"] = params.get("work_dir") or "upstream/work"
     current["params_checksum"] = params.get("params_checksum")
     current["reference_checksums"] = params.get("reference_checksums")
     _normalized = samplesheet.get("normalized_path")

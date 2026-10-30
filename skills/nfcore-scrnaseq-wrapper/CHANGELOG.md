@@ -4,9 +4,79 @@ All notable changes to the `nfcore-scrnaseq-wrapper` ClawBio skill are documente
 here. The format roughly follows [Keep a Changelog](https://keepachangelog.com)
 and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
-## [Unreleased] — 0.1.0
+## [Unreleased] — 0.2.0
+
+### Added
+
+- **The bundle records the container images named by the run.** `reproducibility/containers.json`
+  lists local or explicit digests, image IDs, platforms and processes. A complete Docker/Podman record
+  produces `containers.config`, applied on replay without a Nextflow cache. Registry-only lookups
+  describe the tag currently served, cannot confirm the original task image/platform, and therefore
+  mark the record incomplete and withhold replay pins.
+
+### Changed
+
+- **Samplesheet rules are nf-core/scrnaseq's.** nf-schema (`assets/schema_input.json`) and
+  the pipeline's initialisation check the samplesheet when Nextflow starts, before any task
+  runs, and `result.json` names the refused entry; the builder no longer repeats them
+  (required columns, FASTQ names and existence, a FASTQ that is a directory, the
+  `sample_type`/`feature_type` enums, integer `expected_cells`, `sample_type` and
+  `fastq_barcode` for `cellrangerarc`). It still normalizes names and paths and refuses
+  name collisions, duplicate FASTQ rows, repeated samples with different metadata,
+  `cellrangermulti` rows without `feature_type` (the pipeline drops them silently), an
+  `expected_cells` below 1 and FASTQ names Cell Ranger cannot pair. `MISSING_FASTQ` is no
+  longer raised and is removed.
+- **Reference paths are nf-schema's.** nf-core/scrnaseq 4.1.0's `nextflow_schema.json`
+  declares every reference and auxiliary path the wrapper exposes `exists: true` except
+  `motifs` and `cellrangerarc_config`, and gives `fasta` a name pattern; preflight no
+  longer repeats the existence checks or the FASTA pattern, and still existence-checks
+  those two, a local `--igenomes-base` mirror and the `-c` configs.
+- **Minimum versions are Nextflow's.** nf-core/scrnaseq 4.1.0 declares
+  `manifest.nextflowVersion = '!>=25.04.0'`, so Nextflow refuses an older engine when the
+  run starts, and the Nextflow launcher refuses a Java outside 17-26. Preflight no longer
+  repeats those minimums (`JAVA_MIN_VERSION`/`NEXTFLOW_MIN_VERSION*` go); it still requires
+  `java` and `nextflow` on PATH and a readable version, which it records for `NXF_VER`.
+- **A failed `nextflow -version` says why.** With a Java the Nextflow launcher refuses,
+  `nextflow -version` itself fails; preflight's error now quotes the launcher's reason
+  instead of only saying the version could not be determined, and never reads a version
+  out of a failed run's output.
+- **A missing or `auto` protocol is nf-core/scrnaseq's to refuse.** 4.1.0 defaults
+  `protocol` to `auto` and refuses it for every aligner but the Cell Ranger family at
+  the start of `workflows/scrnaseq.nf`, before any task runs; preflight and the
+  contract no longer repeat that (`PRESETS_SUPPORTING_AUTO_PROTOCOL` and
+  `PRESETS_REQUIRING_EXPLICIT_PROTOCOL` go, from `scripts/generate_scrnaseq_contract.py`
+  too). The pipeline passes every other unknown string to the aligner verbatim, so the
+  wrapper keeps the usage docs' support table: `smartseq2` refused, `smartseq` only for
+  `star`/`kallisto`, and no custom strings for the Cell Ranger family.
+
+### Removed
+
+- **Error codes for checks nf-core now makes, hence 0.2.0.** The `MISSING_FASTQ` code is gone.
+  nf-schema, the pipeline or Nextflow refuses those inputs when the run starts, and the wrapper
+  reports `EXECUTION_FAILED` with nf-core's reason in `result.json`. An agent that branched on the
+  old codes should match `EXECUTION_FAILED` and read the message.
 
 ### Fixed
+
+- Stop tasks that ignore SIGTERM even when the Nextflow group leader exits first.
+- A Ctrl+C or SIGTERM that landed while the wrapper was checking on Nextflow could leave it
+  waiting forever instead of stopping the run; the stop is now recorded and acted on once the wait returns.
+- Match Docker Hub aliases to local digests, keep offline local-image pins, and withhold unverified registry-only replay pins.
+
+- Route launcher defaults outside the source tree and correct example output paths.
+- Reject ambiguous CSV inputs and NaN or infinite parameter values; nf-schema checks every other parameter rule against the pinned 4.1.0 schema when Nextflow starts, and its refusals are named in `result.json`.
+- Canonicalize recognized protocol aliases and preserve remote MultiQC configuration URIs.
+- Record launch manifests before execution and verify samplesheet checksums on resumed runs/checks.
+- Bound local Docker scheduler/process capacity, including demos and macOS; preserve user-config precedence in live runs and replay. A demo's per-process limits stay within `-profile test`'s own 4 CPUs / 15 GB (lowered on a smaller machine, never raised); the executor's aggregate budget is the host's, so tasks still run in parallel.
+- Replay against the smaller recorded/current Docker capacity without modifying checksummed configs.
+- Reject nonfinite timeouts and bound failure-log reads.
+- **Runs on Nextflow 26.04+.** Its default strict syntax parser rejects nf-core/scrnaseq
+  4.1.0's include of `conf/test_multiome.config`, which the tag does not ship; the
+  wrapper sets `NXF_SYNTAX_PARSER=v1` for the run, the recorded command and
+  `commands.sh`.
+- **`--timeout-hours nan`/`inf` is a usage error** instead of an `UNEXPECTED_ERROR`.
+- **`params.yaml` is written one value per line**, so the bundle remapper reads long
+  reference paths whole; `--resume` still accepts bundles fingerprinted before.
 
 - **A lane-split sample is now counted once, not once per row.** The samplesheet summary
   counted raw CSV rows (`sample_count = len(normalized_rows)`) and appended to

@@ -9,8 +9,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from errors import ErrorCode, SkillError
 from schemas import (
     DEFAULT_PIPELINE_VERSION,
-    JAVA_MIN_VERSION,
-    NEXTFLOW_MIN_VERSION,
     SUPPORTED_PRESETS,
     SUPPORTED_PROFILES,
 )
@@ -61,11 +59,6 @@ def test_pinned_versions_match_runtime_constants():
     )
     pinned = json.loads(path.read_text(encoding="utf-8"))
     assert pinned["pipeline"]["default_version"] == DEFAULT_PIPELINE_VERSION
-    assert int(pinned["minimum_versions"]["java"]) == JAVA_MIN_VERSION
-    assert (
-        tuple(map(int, pinned["minimum_versions"]["nextflow"].split(".")))
-        == NEXTFLOW_MIN_VERSION
-    )
     assert set(pinned["supported_profiles"]) == SUPPORTED_PROFILES
     assert set(pinned["supported_presets"]) == SUPPORTED_PRESETS
 

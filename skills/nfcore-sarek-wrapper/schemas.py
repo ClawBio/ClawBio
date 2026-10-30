@@ -3,9 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 
+
+# resourceLimits of the pinned release's own -profile test (conf/test.config). --demo keeps
+# them: the launcher may lower them on a smaller machine but never raises them.
+DEMO_RESOURCE_LIMITS = {"cpus": 4, "memory_gb": 15}
+
 SKILL_NAME = "nfcore-sarek-wrapper"
 SKILL_ALIAS = "sarek-pipeline"
-SKILL_VERSION = "0.1.0"
+SKILL_VERSION = "0.2.0"
 SKILL_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SKILL_DIR.parent.parent
 REPO_PARENT = PROJECT_ROOT.parent
@@ -22,35 +27,15 @@ DEFAULT_GENOME = "GATK.GRCh38"
 # conf/igenomes.config (SUPPORTED_IGENOMES_NAMES); a custom base may define others.
 DEFAULT_IGENOMES_BASE = "s3://ngi-igenomes/igenomes/"
 
-JAVA_MIN_VERSION = 17
-# From nf-core/sarek 3.8.1 nextflow.config: manifest.nextflowVersion = '!>=25.10.2'.
-NEXTFLOW_MIN_VERSION = (25, 10, 2)
+
+# Environment Nextflow needs for the pinned release, applied to the run, shown in
+# the recorded command and exported by commands.sh. nf-core/sarek 3.8.1 predates
+# Nextflow's strict syntax, which Nextflow 26.04 applies by default and which
+# rejects its configs ("Unexpected input: ':'" in conf/modules); the v1 parser
+# runs the release unmodified.
+NEXTFLOW_ENV: dict[str, str] = {"NXF_SYNTAX_PARSER": "v1"}
 PIPELINE_REQUIRED_FILES = ("main.nf", "nextflow.config", "assets/schema_input.json")
 
-
-def is_under_tmp(path: Path) -> bool:
-    """Return True when ``path`` resolves to (or inside) /tmp or /private/tmp.
-
-    Single source of truth for the macOS+Docker /tmp guard, shared by preflight
-    (pre-run WARNING) and executor (post-failure hint) so the two cannot diverge.
-    On macOS, Colima/Docker does not share /tmp into its VM, so a work-dir under
-    /tmp surfaces as a confusing '.command.run: No such file or directory'.
-    Resolve-based (not a string prefix) so symlinks and the canonical
-    /tmp -> /private/tmp mapping are handled. Mirrors the nfcore-scrnaseq /
-    nfcore-rnaseq helper.
-    """
-    try:
-        resolved = path.resolve()
-    except OSError:
-        return False
-    tmp = Path("/tmp").resolve()
-    private_tmp = Path("/private/tmp").resolve()
-    return (
-        resolved == tmp
-        or resolved == private_tmp
-        or tmp in resolved.parents
-        or private_tmp in resolved.parents
-    )
 
 # 25 profiles from nf-core/sarek 3.8.1 nextflow.config (verified against
 # https://github.com/nf-core/sarek/blob/3.8.1/nextflow.config — profiles block).
@@ -116,9 +101,6 @@ SUPPORTED_SKIP_TOOLS = {
     "markduplicates", "markduplicates_report",
     "mosdepth", "multiqc", "samtools", "vcftools", "versions",
 }
-
-SUPPORTED_SEX = {"XX", "XY", "NA"}
-SUPPORTED_STATUS = {0, 1}
 
 # fgbio GroupReadsByUmi strategies (schema enum: Identity, Edit, Adjacency, Paired).
 SUPPORTED_GROUP_BY_UMI = {"Identity", "Edit", "Adjacency", "Paired"}
@@ -206,4 +188,3 @@ SUPPORTED_SAMPLE_COLUMNS = {
     "vcf", "variantcaller",
     "contamination",   # required by varlociraptor for tumor-only/somatic
 }
-REQUIRED_SAMPLE_COLUMNS_ANY_STEP = ("patient", "sample")

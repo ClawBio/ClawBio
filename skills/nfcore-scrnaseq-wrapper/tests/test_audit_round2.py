@@ -216,25 +216,30 @@ def test_timeout_hours_rejects_negative():
         parser.parse_args(["--output", "/tmp/out", "--demo", "--timeout-hours", "-3"])
 
 
-def test_executor_passes_none_timeout_through_to_wait(tmp_path, monkeypatch):
-    """timeout_seconds=None must reach proc.wait(timeout=None) (no wall-clock cap)
-    and complete normally instead of raising EXECUTION_FAILED."""
+def test_executor_without_a_timeout_never_times_out(tmp_path, monkeypatch):
+    """timeout_seconds=None sets no wall-clock cap: the run completes normally
+    instead of raising EXECUTION_FAILED, however long Nextflow keeps running."""
     import subprocess
     import executor
-
-    seen = {}
 
     class _Proc:
         pid = 4321
 
+        def __init__(self):
+            self.checks = 0
+
         def wait(self, timeout=None):
-            seen["timeout"] = timeout
+            # Still running for the first checks; without a cap none may end the run.
+            self.checks += 1
+            if self.checks < 5:
+                raise subprocess.TimeoutExpired(["nextflow"], timeout)
             return 0
 
         def kill(self):  # pragma: no cover - not expected
             pass
 
-    monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: _Proc())
+    proc = _Proc()
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
     result = executor.execute_nextflow(
         ["nextflow", "run", "test"],
         cwd=tmp_path,
@@ -242,7 +247,7 @@ def test_executor_passes_none_timeout_through_to_wait(tmp_path, monkeypatch):
         timeout_seconds=None,
     )
     assert result["exit_code"] == 0
-    assert seen["timeout"] is None
+    assert proc.checks == 5
 
 
 # ── R2-3: --expected-cells documents single-sample restriction ─────────────────
@@ -385,10 +390,10 @@ def test_runner_forwards_explicit_no_save_align_intermeds_and_new_safety_flags(
     assert exc.value.code == 0
     assert captured["skill_name"] == "scrnaseq-pipeline"
     assert captured["extra_args"] == [
-        "--require-local-pipeline",
-        "--allow-conda-cellranger",
         "--work-dir",
         "s3://bucket/scrnaseq/work",
+        "--require-local-pipeline",
+        "--allow-conda-cellranger",
         "--no-save-align-intermeds",
     ]
 
@@ -748,16 +753,18 @@ def test_declared_packages_cover_external_imports():
 
 
 def test_is_under_tmp_helper_behaviour():
-    assert schemas.is_under_tmp(Path("/tmp/clawbio_run")) is True
-    assert schemas.is_under_tmp(Path("/private/tmp/clawbio_run")) is True
+    from clawbio.common.nfcore.paths import is_under_tmp
+
+    assert is_under_tmp(Path("/tmp/clawbio_run")) is True
+    assert is_under_tmp(Path("/private/tmp/clawbio_run")) is True
     home_path = Path.home() / "clawbio_run"
-    assert schemas.is_under_tmp(home_path) is False
+    assert is_under_tmp(home_path) is False
 
 
 def test_preflight_and_executor_reuse_the_shared_helper():
     import preflight
-    import executor
+    from clawbio.common.nfcore import execution, paths
 
-    # Both modules must reference the centralised predicate, not a private copy.
-    assert preflight.is_under_tmp is schemas.is_under_tmp
-    assert executor.is_under_tmp is schemas.is_under_tmp
+    # The pre-run WARNING and the post-failure hint must use one predicate.
+    assert preflight.is_under_tmp is paths.is_under_tmp
+    assert execution.is_under_tmp is paths.is_under_tmp

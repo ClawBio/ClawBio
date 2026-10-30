@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import json
 import os
 import re
 import shutil
@@ -9,6 +8,9 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.paths import is_under_tmp
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -25,7 +27,6 @@ from nfcore_4_1_0_contract import (
     KNOWN_PROTOCOL_TOKENS,
     POLICY_SOURCE_CLAWBIO,
     POLICY_SOURCE_NFCORE_DOCS,
-    PRESETS_REQUIRING_EXPLICIT_PROTOCOL,
     PRESETS_SUPPORTING_CUSTOM_PROTOCOL,
     PRESETS_SUPPORTING_SMARTSEQ_PROTOCOL,
     PROTOCOLS_JSON_4_1_0,
@@ -33,22 +34,16 @@ from nfcore_4_1_0_contract import (
 from schemas import (
     ALL_REFERENCE_PATH_FIELDS,
     GENOME_REFERENCE_FIELDS,
-    JAVA_MIN_VERSION,
-    NEXTFLOW_MIN_VERSION,
-    NEXTFLOW_MIN_VERSION_DISPLAY,
     PRESET_REQUIREMENTS,
     PROJECT_ROOT,
     SUPPORTED_PRESETS,
     SUPPORTED_PROFILES,
-    SYMBOLIC_REFERENCE_FIELDS,
-    is_under_tmp,
     profile_components,
     profile_includes,
 )
 
 
 _SUBPROCESS_TIMEOUT = 60
-_FASTA_SCHEMA_RE = re.compile(r"^\S+\.fn?a(sta)?(\.gz)?$")
 _EMAIL_SCHEMA_RE = re.compile(
     r"^([a-zA-Z0-9_\-.]+)@([a-zA-Z0-9_\-.]+)\.([a-zA-Z]{2,5})$"
 )
@@ -56,50 +51,16 @@ _PROFILE_COMPONENT_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 def _command_output(args: list[str]) -> str:
-    try:
-        proc = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            errors="replace",
-            timeout=_SUBPROCESS_TIMEOUT,
-        )
-    except (subprocess.TimeoutExpired, OSError):
+    proc = _runtime.run_probe(args, timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if proc is None:
         return ""
     if proc.returncode != 0:
         return ""
     return (proc.stdout or proc.stderr).strip()
 
 
-def _pad_version(t: tuple[int, ...], length: int = 3) -> tuple[int, ...]:
-    return t + (0,) * max(0, length - len(t))
-
-
 def _parse_version_tuple(text: str) -> tuple[int, ...]:
-    m = re.search(r"\b(\d+)\.(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
-    m = re.search(r"\b(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)))
-    m = re.search(r"\b(\d+)\b", text)
-    if m:
-        return (int(m.group(1)),)
-    return ()
-
-
-def _detected_version_string(text: str) -> str:
-    """Return the version exactly as reported by the tool (e.g. '25.04.0').
-
-    The parsed tuple is for *comparison* only; reconstructing a string from it
-    drops zero-padding (25.04.0 → 25.4.0), which is not a real Nextflow release
-    and would break NXF_VER / conda pins on replay. Always store the raw token.
-    """
-    for pattern in (r"\b(\d+\.\d+\.\d+)\b", r"\b(\d+\.\d+)\b", r"\b(\d+)\b"):
-        m = re.search(pattern, text)
-        if m:
-            return m.group(1)
-    return ""
+    return _runtime.parse_version_tuple(text)
 
 
 def _check_executable(name: str) -> str:
@@ -116,6 +77,8 @@ def _check_executable(name: str) -> str:
 
 
 def _check_java() -> dict[str, str]:
+    """`java` runs and reports a version (recorded in the bundle). Its minimum is the
+    Nextflow launcher's own check (Java 17-26), made before any pipeline code runs."""
     java_path = _check_executable("java")
     version_text = _command_output(["java", "-version"])
     version_tuple = _parse_version_tuple(version_text)
@@ -129,40 +92,30 @@ def _check_java() -> dict[str, str]:
             fix="Install Java 17 or newer and ensure `java -version` works.",
             details={"java_path": java_path},
         )
-    if version_tuple[0] < JAVA_MIN_VERSION:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.JAVA_VERSION_TOO_OLD,
-            message="Java version is too old for this wrapper.",
-            fix="Install Java 17 or newer.",
-            details={"detected_version": _detected_version_string(version_text)},
-        )
-    return {"path": java_path, "version": _detected_version_string(version_text)}
+    return {"path": java_path, "version": _runtime.reported_version(version_text)}
 
 
 def _check_nextflow() -> dict[str, str]:
+    """`nextflow` runs and reports the version commands.sh pins with NXF_VER. The
+    minimum is nf-core/scrnaseq 4.1.0's manifest.nextflowVersion ('!>=25.04.0'),
+    which Nextflow enforces itself when the run starts."""
     nextflow_path = _check_executable("nextflow")
-    version_text = _command_output(["nextflow", "-version"])
-    version_tuple = _parse_version_tuple(version_text)
-    if not version_tuple:
+    version, reason = _nextflow_version()
+    if not version:
         # nextflow IS present but its version can't be confirmed — version-gate
         # failure, not an absent binary (MISSING_NEXTFLOW).
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.NEXTFLOW_VERSION_TOO_OLD,
-            message="Nextflow is installed but its version could not be determined.",
-            fix=f"Install Nextflow {NEXTFLOW_MIN_VERSION_DISPLAY} or newer and ensure `nextflow -version` works.",
-            details={"nextflow_path": nextflow_path},
+            message=f"Nextflow is installed but did not report its version: {reason}",
+            fix="Correct what that names (the Nextflow launcher accepts Java 17-26) so that `nextflow -version` works.",
+            details={"nextflow_path": nextflow_path, "output": reason},
         )
-    if _pad_version(version_tuple) < _pad_version(NEXTFLOW_MIN_VERSION):
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.NEXTFLOW_VERSION_TOO_OLD,
-            message="Nextflow version is too old for this wrapper.",
-            fix=f"Upgrade Nextflow to {NEXTFLOW_MIN_VERSION_DISPLAY} or newer.",
-            details={"detected_version": _detected_version_string(version_text)},
-        )
-    return {"path": nextflow_path, "version": _detected_version_string(version_text)}
+    return {"path": nextflow_path, "version": version}
+
+
+def _nextflow_version() -> tuple[str, str]:
+    return _runtime.tool_version(["nextflow", "-version"], timeout_seconds=_SUBPROCESS_TIMEOUT)
 
 
 def _check_profile(profile: str) -> dict[str, object]:
@@ -270,17 +223,8 @@ def _check_docker_profile(profile: str) -> dict[str, object]:
             fix="Install Docker or choose another supported profile.",
             details={"profile": profile},
         )
-    try:
-        info = subprocess.run(
-            ["docker", "info"],
-            capture_output=True,
-            text=True,
-            timeout=_SUBPROCESS_TIMEOUT,
-        )
-        docker_ok = info.returncode == 0
-    except (subprocess.TimeoutExpired, OSError):
-        docker_ok = False
-    if not docker_ok:
+    info = _runtime.run_probe(["docker", "info"], timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if info is None or info.returncode != 0:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.DOCKER_NOT_RUNNING,
@@ -464,13 +408,14 @@ def check_output_dir_available(output_dir: Path, *, resume: bool) -> None:
     _check_output_dir(output_dir, resume=resume)
 
 
-# Fields that are string identifiers, not local paths — never existence-checked.
-_SYMBOLIC_REFERENCE_FIELDS = frozenset(SYMBOLIC_REFERENCE_FIELDS)
-
 # Every local path collected and existence-checked (genome refs + auxiliary
 # files). Categories are centralised in schemas.py so preflight and
 # params_builder cannot diverge (audit H-3).
 _EXPLICIT_REFERENCE_FIELDS = ALL_REFERENCE_PATH_FIELDS
+# The paths nf-core/scrnaseq 4.1.0's nextflow_schema.json gives no `exists`; it declares
+# every other one `exists: true` (fasta also a name pattern), so nf-schema refuses a
+# missing local path when Nextflow starts.
+_PATHS_THE_SCHEMA_DOES_NOT_CHECK = frozenset({"motifs", "cellrangerarc_config"})
 
 
 def _check_remote_inputs(args, samplesheet_summary: dict[str, Any]) -> None:
@@ -604,15 +549,9 @@ def _check_cellrangerarc_config_pairing(resolved: dict[str, str]) -> None:
 
 def _check_reference_paths_exist(resolved: dict[str, str]) -> None:
     for key, value in resolved.items():
-        if key in _SYMBOLIC_REFERENCE_FIELDS:
-            continue  # symbolic identifiers, not local paths
-        if value and "://" in value:
-            # Remote URI (s3://, gs://, https://, …): Nextflow resolves it at runtime,
-            # so existence is not pre-checked here. Matches nfcore-rnaseq/sarek and the
-            # nf-core schema, which types references as strings Nextflow may fetch.
-            continue
-        _check_upstream_path_schema_compatibility(key, value)
-        if value and not Path(value).expanduser().exists():
+        if key not in _PATHS_THE_SCHEMA_DOES_NOT_CHECK or not value or "://" in value:
+            continue  # nf-schema's, or a remote URI Nextflow stages at runtime
+        if not Path(value).expanduser().exists():
             raise SkillError(
                 stage="preflight",
                 error_code=ErrorCode.MISSING_REFERENCE,
@@ -620,29 +559,6 @@ def _check_reference_paths_exist(resolved: dict[str, str]) -> None:
                 fix="Correct the missing reference path and try again.",
                 details={"field": key, "path": value},
             )
-
-
-def _check_upstream_path_schema_compatibility(key: str, value: str) -> None:
-    if key != "fasta" or not value:
-        return
-    fasta_path = Path(value).expanduser().as_posix()
-    if _FASTA_SCHEMA_RE.match(fasta_path):
-        return
-    raise SkillError(
-        stage="preflight",
-        error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
-        message="FASTA paths must match the nf-core/scrnaseq 4.1.0 schema.",
-        fix=(
-            "Use a whitespace-free FASTA path ending in .fa, .fna, .fasta, .fa.gz, "
-            ".fna.gz, or .fasta.gz, then pass it via --fasta."
-        ),
-        details={
-            "field": key,
-            "path": value,
-            "schema_pattern": r"^\S+\.fn?a(sta)?(\.gz)?$",
-            "policy_source": POLICY_SOURCE_NFCORE_DOCS,
-        },
-    )
 
 
 def _check_parameter_schema_compatibility(args) -> None:
@@ -810,32 +726,8 @@ def _normalize_protocol_token(protocol: str) -> str:
 
 
 def _check_demo_network(args) -> None:
-    """--demo runs nf-core's upstream ``-profile test``, whose inputs (test FASTQs and
-    reference FASTA/GTF) are remote GitHub URLs by design. Under ``NXF_OFFLINE`` the
-    nf-schema plugin aborts during parameter validation with a confusing
-    ``does not exist`` before any work starts, so fail early with an actionable message
-    instead. Downloading nf-core's PUBLIC test data does not conflict with the
-    local-first guarantee, which governs USER genetic data (never uploaded)."""
-    if not getattr(args, "demo", False):
-        return
-    offline = str(os.environ.get("NXF_OFFLINE", "")).strip().lower()
-    if offline in {"true", "1", "yes", "on"}:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.DEMO_REQUIRES_NETWORK,
-            message=(
-                "--demo runs the upstream nf-core `-profile test`, which downloads its test "
-                "datasets and reference files from GitHub, but NXF_OFFLINE is set — Nextflow "
-                "would abort during parameter validation because the remote test inputs cannot "
-                "be reached."
-            ),
-            fix=(
-                "Unset NXF_OFFLINE to run the demo (it fetches only nf-core's public test data — "
-                "no user or genetic data is uploaded), or run a real analysis with your own local "
-                "--input samplesheet and references, which is fully offline."
-            ),
-            details={"NXF_OFFLINE": os.environ.get("NXF_OFFLINE")},
-        )
+    if getattr(args, "demo", False):
+        _runtime.require_network_for_demo()
 
 
 def run_preflight(
@@ -1113,41 +1005,24 @@ def _check_cellrangermulti_multiplexing_policy(args, feature_types: set[str]) ->
 
 
 def _check_protocol_compatibility(args) -> None:
+    """The protocol rules nf-core/scrnaseq 4.1.0 does not check itself.
+
+    The pipeline defaults protocol to `auto` and refuses it for every aligner but the
+    Cell Ranger family at the start of workflows/scrnaseq.nf, so a missing or `auto`
+    protocol is its to refuse (params_builder writes the alias in the exact form it
+    compares). Any other unknown string it passes to the aligner verbatim; the usage
+    docs' support table below catches the ones that cannot work.
+    """
     if getattr(args, "demo", False):
         return
     raw_protocol = getattr(args, "protocol", None)
-    preset = getattr(args, "preset", "")
     if raw_protocol is None or not str(raw_protocol).strip():
-        if preset in PRESETS_REQUIRING_EXPLICIT_PROTOCOL:
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
-                message="The selected preset requires an explicit protocol in nf-core/scrnaseq 4.1.0.",
-                fix="Provide --protocol with a value supported by the selected aligner, such as 10XV2, 10XV3, 10XV4, dropseq, or smartseq where documented. nf-core/scrnaseq takes the protocol from this flag (a global pipeline parameter); a `protocol` column in the samplesheet is not read for it, so pass the value explicitly here even if your samplesheet has one.",
-                details={
-                    "preset": preset,
-                    "missing_field": "protocol",
-                    "policy_source": POLICY_SOURCE_NFCORE_DOCS,
-                },
-            )
         return
+    preset = getattr(args, "preset", "")
     protocol = str(raw_protocol).strip()
     normalized_protocol = _normalize_protocol_token(protocol)
-    # `auto` chemistry detection is defined by protocols.json only for the
-    # cellranger family; cellrangermulti is samplesheet-driven (not in the matrix)
-    # so its protocol is deferred to upstream rather than rejected here.
-    if normalized_protocol == "auto" and preset in PRESETS_REQUIRING_EXPLICIT_PROTOCOL:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
-            message="The selected preset does not support protocol=auto in nf-core/scrnaseq 4.1.0.",
-            fix="Use an explicit protocol such as 10XV2, 10XV3, dropseq, smartseq, or a custom string supported by the selected aligner.",
-            details={
-                "preset": preset,
-                "protocol": protocol,
-                "policy_source": POLICY_SOURCE_NFCORE_DOCS,
-            },
-        )
+    if normalized_protocol == "auto":
+        return
     if normalized_protocol == "smartseq2":
         # nf-core/scrnaseq 4.1.0 docs: 'smartseq' denotes Smart-seq3; Smart-seq2 is
         # explicitly unsupported and routed to nf-core/rnaseq (usage.md). Reject it
@@ -1473,7 +1348,17 @@ def _check_resume_compatibility(
             fix="Remove --resume or point --output to a compatible prior run directory.",
             details={"manifest": str(manifest_path)},
         )
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    from clawbio.common.nfcore.artifacts import read_json_mapping
+
+    try:
+        manifest = read_json_mapping(manifest_path)
+    except (ValueError, OSError) as exc:
+        raise SkillError(
+            stage="preflight", error_code=ErrorCode.INVALID_RESUME_STATE,
+            message="Resume manifest is not a valid JSON object.",
+            fix="Use an intact manifest from a previous validated launch.",
+            details={"manifest": str(manifest_path), "error": str(exc)},
+        ) from exc
     _check_resume_preset_and_profile(args, manifest)
     _check_resume_pipeline_source(pipeline_source, manifest)
     _check_resume_work_dir(args, output_dir=output_dir, manifest=manifest)

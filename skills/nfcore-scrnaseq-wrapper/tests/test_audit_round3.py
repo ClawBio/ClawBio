@@ -46,8 +46,6 @@ from nfcore_scrnaseq_wrapper import _build_parameter_support_summary
 from outputs_parser import validate_expected_outputs
 from samplesheet_builder import validate_and_normalize_samplesheet
 from schemas import (
-    JAVA_MIN_VERSION,
-    NEXTFLOW_MIN_VERSION_DISPLAY,
     PRESET_ALIGNERS,
     SUPPORTED_PRESETS,
     SUPPORTED_PROFILES,
@@ -206,12 +204,6 @@ def test_pinned_versions_profiles_match_supported_profiles():
 
 def test_pinned_versions_presets_match_supported_presets():
     assert set(_pinned_versions()["supported_presets"]) == SUPPORTED_PRESETS
-
-
-def test_pinned_versions_minimums_match_schemas():
-    minimums = _pinned_versions()["minimum_versions"]
-    assert minimums["nextflow"] == NEXTFLOW_MIN_VERSION_DISPLAY
-    assert minimums["java"] == str(JAVA_MIN_VERSION)
 
 
 # ── F-05: freeze the exact 4.1.0 parameter-name surface ───────────────────────

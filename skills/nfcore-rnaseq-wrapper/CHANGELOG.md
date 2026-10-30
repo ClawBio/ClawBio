@@ -4,9 +4,87 @@ All notable changes to the `nfcore-rnaseq-wrapper` ClawBio skill are documented
 here. The format roughly follows [Keep a Changelog](https://keepachangelog.com)
 and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
-## [Unreleased] — 0.1.0
+## [Unreleased] — 0.2.0
+
+### Added
+
+- **The bundle records the container images named by the run.** `reproducibility/containers.json`
+  lists local or explicit digests, image IDs, platforms and processes. A complete Docker/Podman record
+  produces `containers.config`, applied on replay without a Nextflow cache. Registry-only lookups
+  describe the tag currently served, cannot confirm the original task image/platform, and therefore
+  mark the record incomplete and withhold replay pins.
+
+### Changed
+
+- **Samplesheet rules are nf-core/rnaseq's.** nf-schema (`assets/schema_input.json`) checks
+  the samplesheet when Nextflow starts, before any task runs (required columns, patterns,
+  the `strandedness` enum, FASTQ/BAM names and existence, `percent_mapped` bounds), and
+  `checkSamplesAfterGrouping` refuses runs of one sample with different strandedness;
+  `result.json` names each refused entry. The builder and preflight no longer repeat
+  them. They still parse the CSV strictly, normalize sample names and refuse name
+  collisions, duplicate sample/FASTQ rows, FASTQ+BAM rows without `--skip-alignment` and
+  remote URIs without `--allow-remote-inputs`. `MISSING_FASTQ`, `INVALID_FASTQ`,
+  `INVALID_STRANDEDNESS` and `INVALID_BAM` are no longer raised and are removed.
+- **Reference paths are nf-schema's.** The pinned `nextflow_schema.json` declares every
+  reference, index, rRNA manifest and BBSplit path `exists: true` (and a `^\S+` name
+  pattern for FASTA/GTF/GFF/BED), so nf-schema refuses a missing path, a wrong name, a
+  whitespace path or a directory where a file is expected when Nextflow starts, and
+  `result.json` names it. Preflight no longer repeats those checks; it still checks
+  reference combinations, gates remote URIs and existence-checks the contaminant
+  databases the schema does not (`--kraken-db`, `--sylph-db`, `--sylph-taxonomy`).
+  `REFERENCE_PATH_HAS_WHITESPACE` is no longer raised and is removed.
+- **Minimum versions are Nextflow's.** nf-core/rnaseq 3.26.0 declares
+  `manifest.nextflowVersion = '!>=25.04.3'`, so Nextflow refuses an older engine when the
+  run starts, and the Nextflow launcher refuses a Java outside 17-26. Preflight no longer
+  repeats those minimums; it still requires `java` and `nextflow` on PATH and a readable
+  version, which it records for `environment.yml` and `NXF_VER`. `JAVA_VERSION_TOO_OLD`
+  and `NEXTFLOW_VERSION_TOO_OLD` are no longer raised and are removed.
+- **A failed `nextflow -version` says why.** With a Java the Nextflow launcher refuses,
+  `nextflow -version` itself fails; preflight's error now quotes the launcher's reason
+  instead of only saying the version could not be determined, and never reads a version
+  out of a failed run's output.
+
+### Removed
+
+- **Error codes for checks nf-core now makes, hence 0.2.0.** The `INVALID_BAM`, `INVALID_FASTQ`,
+  `INVALID_STRANDEDNESS`, `MISSING_FASTQ`, `REFERENCE_PATH_HAS_WHITESPACE`,
+  `NEXTFLOW_VERSION_TOO_OLD` and `JAVA_VERSION_TOO_OLD` codes are gone. nf-schema, the pipeline or
+  Nextflow refuses those inputs when the run starts, and the wrapper reports `EXECUTION_FAILED` with
+  nf-core's reason in `result.json`. An agent that branched on the old codes should match
+  `EXECUTION_FAILED` and read the message.
 
 ### Fixed
+
+- Select replay container pins using the requested output cache, including after output remapping while the original cache remains.
+
+- Stop tasks that ignore SIGTERM even when the Nextflow group leader exits first.
+- A Ctrl+C or SIGTERM that landed while the wrapper was checking on Nextflow could leave it
+  waiting forever instead of stopping the run; the stop is now recorded and acted on once the wait returns.
+- Match Docker Hub aliases to local digests, keep offline local-image pins, and withhold unverified registry-only replay pins.
+
+- Route launcher defaults outside the source tree and correct example output paths.
+- Reject ambiguous CSV inputs and NaN or infinite parameter values; nf-schema checks every other parameter rule against the pinned 3.26.0 schema when Nextflow starts, and its refusals are named in `result.json`.
+- Record launch manifests before execution; guard resumed checks and track the work directory.
+- Parse local versions safely, bound Docker scheduler/process capacity, reject nonfinite timeouts, and bound failure-log reads. A demo's per-process limits stay within `-profile test`'s own 4 CPUs / 15 GB (lowered on a smaller machine, never raised); the executor's aggregate budget is the host's, so tasks still run in parallel.
+- Terminate interrupted process groups and align Python metadata with the repository floor.
+- **Ctrl+C now stops Nextflow.** Nextflow runs in its own session, so the terminal's
+  SIGINT never reached it: the wrapper exited 130 while Nextflow kept running and held
+  the `.nextflow` lock against the next `--resume`. The wrapper now terminates its
+  process group, as scrnaseq already did.
+- **`--timeout-hours nan`/`inf` is a usage error** instead of an `UNEXPECTED_ERROR`
+  after preflight; through `clawbio run`, the runner's own cap now follows the flag.
+- **Relocated bundles.** `remap_paths.py --output-dir` found no `--output` when the
+  original path held an apostrophe and a space (as `shlex.quote` writes it) and exited
+  0 without changing anything; the replay resume guard broke on output paths with `$`,
+  a backtick or `"`. Both now round-trip any path.
+- **`--demo` reports what ran.** nf-core/rnaseq 3.26.0's test profile also runs Salmon
+  pseudo-alignment, but the report said `Pseudo-aligner: none` and omitted its counts.
+  Under a test profile the wrapper now reads the pseudo-aligner from nf-core's own
+  `pipeline_info/params_*.json` and labels it; `result.json` adds
+  `pseudo_aligner_effective`.
+- **Every flag a test profile ignores is named.** The warning covered nine hand-picked
+  flags, so e.g. `--skip-qc` or `--pseudo-aligner-kmer-size` vanished under `--demo`
+  without a word. The list is now derived from the params builder.
 
 - **`remap_paths.py`: combining actions no longer discards one of them silently.**
   `main()` dispatched through a chain of early returns, so only the first matching flag

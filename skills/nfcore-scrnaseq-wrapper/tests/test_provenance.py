@@ -256,3 +256,38 @@ def test_environment_yml_is_installable_recipe(tmp_path):
     assert "openjdk=17" in env
     assert "openjdk=17.0.10" not in env
     assert ">=" not in env
+
+
+_FASTQC = "quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0"
+_FASTQC_DIGEST = "sha256:" + "a" * 64
+
+
+def test_bundle_records_pins_and_checksums_the_containers(tmp_path, monkeypatch):
+    import subprocess
+
+    from clawbio.common.nfcore import containers
+
+    seen_env = []
+
+    def run(command, *, cwd=None, env=None, timeout_seconds):
+        if command[:2] == ["nextflow", "log"]:
+            seen_env.append(env)
+            return subprocess.CompletedProcess(command, 0, f"NFCORE_SCRNASEQ:SCRNASEQ:FASTQC\t{_FASTQC}\tCOMPLETED\n", "")
+        if command[1:3] == ["image", "inspect"]:
+            payload = {"Id": "sha256:" + "f" * 64, "RepoDigests": [f"quay.io/biocontainers/fastqc@{_FASTQC_DIGEST}"],
+                       "Os": "linux", "Architecture": "amd64"}
+            return subprocess.CompletedProcess(command, 0, json.dumps(payload), "")
+        if command[1:2] == ["version"]:
+            return subprocess.CompletedProcess(command, 0, "29.1.3 linux/amd64\n", "")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(containers, "_run", run)
+    (tmp_path / ".nextflow").mkdir()
+    (tmp_path / ".nextflow" / "history").write_text("run\n", encoding="utf-8")
+    bundle_dir, manifest_path = _run_write_provenance_bundle(tmp_path)
+    record = json.loads((bundle_dir / "containers.json").read_text())
+    assert record["images"][0]["pinned_reference"] == f"quay.io/biocontainers/fastqc@{_FASTQC_DIGEST}"
+    assert seen_env == [{"NXF_SYNTAX_PARSER": "v1"}]
+    assert json.loads(manifest_path.read_text())["containers"]["pin_config"] == "reproducibility/containers.config"
+    labels = [line.split("  ", 1)[1] for line in (bundle_dir / "checksums.sha256").read_text().splitlines()]
+    assert "reproducibility/containers.json" in labels and "reproducibility/containers.config" in labels

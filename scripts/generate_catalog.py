@@ -182,8 +182,30 @@ def load_ci_tested_skill_folders() -> set[str]:
     """Return skill folders with explicit pytest coverage in the CI workflow."""
     if not CI_WORKFLOW_PATH.exists():
         return set()
+    import yaml
+
     source = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
-    return set(re.findall(r"pytest\s+skills/([^/\s]+)/tests(?:/|\s)", source))
+    workflow = yaml.safe_load(source) or {}
+    folders = set()
+    for job in workflow.get("jobs", {}).values():
+        for step in job.get("steps", []):
+            command = step.get("run", "").replace("\\\n", " ")
+            for line in command.splitlines():
+                try:
+                    tokens = shlex.split(line, comments=True)
+                except ValueError:
+                    continue  # A fragment of a multiline shell construct.
+                if "pytest" not in tokens:
+                    continue
+                start = tokens.index("pytest")
+                prefix = tokens[:start]
+                if prefix not in ([], ["uv", "run"], ["python", "-m"], ["python3", "-m"]):
+                    continue
+                for argument in tokens[start + 1:]:
+                    match = re.match(r"skills/([a-z0-9][a-z0-9-]*)/tests(?:/|$)", argument)
+                    if match:
+                        folders.add(match.group(1))
+    return folders
 
 
 def compute_maturity(

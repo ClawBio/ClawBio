@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from clawbio.common.nfcore.cli import canonical_work_dir
+from clawbio.common.nfcore.artifacts import read_json_mapping
+
 import gzip
 import hashlib
-import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import warnings
 from pathlib import Path
@@ -14,6 +15,8 @@ from pathlib import Path
 import yaml
 
 from clawbio.common.checksums import sha256_file
+from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.paths import is_under_tmp
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -31,11 +34,7 @@ from schemas import (
     DEFAULT_PIPELINE_VERSION,
     DEFAULT_REMOTE_PIPELINE,
     DEFAULT_TRIMMER,
-    FASTQ_BASENAME_RE as _FASTQ_BASENAME_RE,
-    JAVA_MIN_VERSION,
-    NEXTFLOW_MIN_VERSION,
     PROJECT_ROOT,
-    is_under_tmp,
     SUPPORTED_ALIGNERS,
     SUPPORTED_IGENOMES_NAMES,
     SUPPORTED_PSEUDO_ALIGNERS,
@@ -43,28 +42,17 @@ from schemas import (
     SUPPORTED_RIBO_TOOLS,
     SUPPORTED_RSEQC_MODULES,
     SUPPORTED_SALMON_LIB_TYPES,
-    SUPPORTED_STRANDEDNESS,
     SUPPORTED_TRIMMERS,
     SUPPORTED_UMI_EXTRACT_METHODS,
     SUPPORTED_UMI_GROUPING_METHODS,
     SUPPORTED_UMI_TOOLS,
-    WHITESPACE_RE as _WHITESPACE_RE,
 )
 
 
 _SUBPROCESS_TIMEOUT = 30
-# _WHITESPACE_RE is imported from schemas (single source shared with params_builder).
 _EMAIL_RE = re.compile(r"^([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$")
 _GENOME_ID_RE = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
-# nf-core/rnaseq accepts .fa, .fasta, .fna (optionally .gz). The earlier pattern
-# also matched non-extensions like ".fnasta"; tightened to the canonical set (audit F-06).
-_FASTA_EXT_RE = re.compile(r"^\S+\.(fa|fasta|fna)(\.gz)?$")
-_GTF_EXT_RE = re.compile(r"^\S+\.gtf(\.gz)?$")
-_GFF_EXT_RE = re.compile(r"^\S+\.gff3?(\.gz)?$")
-_BED_EXT_RE = re.compile(r"^\S+\.bed(\.gz)?$")
 _HISAT2_MEM_RE = re.compile(r"^\d+(\.\d+)?\.?\s*(K|M|G|T)?B$")
-# _FASTQ_BASENAME_RE is the shared regex imported from schemas (single source of
-# truth, also used by samplesheet_builder); it must NOT be redefined locally.
 _REFERENCE_GROUPS = (("genome",), ("fasta", "gtf"), ("fasta", "gff"))
 _ANNOTATION_REFERENCE_FIELDS = (
     "fasta",
@@ -98,9 +86,11 @@ _GENOME_CONFLICTING_REFERENCE_FIELDS = (
     "hisat2_index",
     "bowtie2_index",
 )
-# sortmerna_index is an rRNA filter database, not a genome index — it is compatible with
-# --genome and must not participate in the genome-vs-explicit-reference conflict check.
-_CONTAMINANT_PATH_FIELDS = ("kraken_db", "sylph_db", "sylph_taxonomy", "bbsplit_fasta_list", "bbsplit_index", "sortmerna_index")
+# Contaminant databases whose existence nf-core/rnaseq 3.26.0's schema does not check
+# (kraken_db is `format: path`, sylph_db/sylph_taxonomy `file-path`, none `exists`).
+# Every other reference path is `exists: true` there (with a name pattern for the
+# FASTA/GTF/GFF/BED params), so nf-schema refuses it when Nextflow starts.
+_CONTAMINANT_PATH_FIELDS = ("kraken_db", "sylph_db", "sylph_taxonomy")
 _COMMA_SEPARATED_CONTAMINANT_FIELDS = frozenset({"sylph_db", "sylph_taxonomy"})
 # Catch every Groovy form that assigns into `params`: block (`params {`),
 # property (`params.x` / `params.put(...)`), assignment (`params = ...`),
@@ -145,8 +135,8 @@ def check_resume_params_checksum(params_payload: dict[str, object], output_dir: 
     manifest: dict[str, object] = {}
     if manifest_path.exists():
         try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
+            manifest = read_json_mapping(manifest_path)
+        except (ValueError, OSError) as exc:
             raise SkillError(
                 stage="preflight",
                 error_code=ErrorCode.INVALID_RESUME_STATE,
@@ -184,8 +174,8 @@ def check_resume_samplesheet_checksum(samplesheet_path: Path, output_dir: Path) 
             details={"manifest": str(manifest_path)},
         )
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+        manifest = read_json_mapping(manifest_path)
+    except (ValueError, OSError) as exc:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.INVALID_RESUME_STATE,
@@ -208,49 +198,22 @@ def check_resume_samplesheet_checksum(samplesheet_path: Path, output_dir: Path) 
     return current_checksum
 
 
-
 def _command_output(args: list[str]) -> str:
-    try:
-        proc = subprocess.run(args, capture_output=True, text=True, errors="replace", timeout=_SUBPROCESS_TIMEOUT)
-    except (subprocess.TimeoutExpired, OSError):
+    proc = _runtime.run_probe(args, timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if proc is None:
         return ""
     if proc.returncode != 0:
         return ""
     return (proc.stdout or proc.stderr).strip()
 
 
-def _pad_version(t: tuple[int, ...], length: int = 3) -> tuple[int, ...]:
-    return t + (0,) * max(0, length - len(t))
-
-
-def _detected_version_string(text: str) -> str:
-    """Return the version exactly as reported by the tool (e.g. '26.04.3').
-
-    The parsed tuple is for *comparison* only; reconstructing a string from it
-    drops zero-padding (26.04.3 → 26.4.3), which is not a real Nextflow release
-    and would break NXF_VER / conda pins on replay. Always store the raw token.
-    """
-    for pattern in (r"\b(\d+\.\d+\.\d+)\b", r"\b(\d+\.\d+)\b", r"\b(\d+)\b"):
-        m = re.search(pattern, text)
-        if m:
-            return m.group(1)
-    return ""
-
-
 def _parse_version_tuple(text: str) -> tuple[int, ...]:
-    m = re.search(r"\b(\d+)\.(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
-    m = re.search(r"\b(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)))
-    m = re.search(r"\b(\d+)\b", text)
-    if m:
-        return (int(m.group(1)),)
-    return ()
+    return _runtime.parse_version_tuple(text)
 
 
 def _check_java() -> dict[str, str]:
+    """`java` runs and reports a version (recorded in the bundle). Its minimum is the
+    Nextflow launcher's own check (Java 17-26), made before any pipeline code runs."""
     java_path = shutil.which("java")
     if not java_path:
         raise SkillError(
@@ -270,19 +233,13 @@ def _check_java() -> dict[str, str]:
             fix="Install Java 17 or newer and ensure `java -version` works.",
             details={"java_path": java_path},
         )
-    version_str = _detected_version_string(version_text)
-    if version_tuple[0] < JAVA_MIN_VERSION:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.JAVA_VERSION_TOO_OLD,
-            message="Java version is too old for nf-core/rnaseq.",
-            fix="Install Java 17 or newer.",
-            details={"detected_version": version_str},
-        )
-    return {"path": java_path, "version": version_str}
+    return {"path": java_path, "version": _runtime.reported_version(version_text)}
 
 
 def _check_nextflow() -> dict[str, str]:
+    """`nextflow` runs and reports the version commands.sh pins with NXF_VER. The
+    minimum is nf-core/rnaseq 3.26.0's manifest.nextflowVersion ('!>=25.04.3'),
+    which Nextflow enforces itself when the run starts."""
     nextflow_path = shutil.which("nextflow")
     if not nextflow_path:
         raise SkillError(
@@ -292,26 +249,20 @@ def _check_nextflow() -> dict[str, str]:
             fix="Install Nextflow and ensure it is available on PATH.",
             details={"executable": "nextflow"},
         )
-    version_text = _command_output(["nextflow", "-version"])
-    version_tuple = _parse_version_tuple(version_text)
-    if not version_tuple:
+    version, reason = _nextflow_version()
+    if not version:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.MISSING_NEXTFLOW,
-            message="Nextflow is installed but its version could not be determined.",
-            fix="Install Nextflow 25.04.3 or newer and ensure `nextflow -version` works.",
-            details={"nextflow_path": nextflow_path},
+            message=f"Nextflow is installed but did not report its version: {reason}",
+            fix="Correct what that names (the Nextflow launcher accepts Java 17-26) so that `nextflow -version` works.",
+            details={"nextflow_path": nextflow_path, "output": reason},
         )
-    version_str = _detected_version_string(version_text)
-    if _pad_version(version_tuple) < _pad_version(NEXTFLOW_MIN_VERSION):
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.NEXTFLOW_VERSION_TOO_OLD,
-            message="Nextflow version is too old for nf-core/rnaseq 3.26.0.",
-            fix="Upgrade Nextflow to 25.04.3 or newer.",
-            details={"detected_version": version_str},
-        )
-    return {"path": nextflow_path, "version": version_str}
+    return {"path": nextflow_path, "version": version}
+
+
+def _nextflow_version() -> tuple[str, str]:
+    return _runtime.tool_version(["nextflow", "-version"], timeout_seconds=_SUBPROCESS_TIMEOUT)
 
 
 def _check_nextflow_presence() -> dict[str, str | bool]:
@@ -376,12 +327,8 @@ def _check_daemon_profile(profile: str, binary: str, missing_code: str, not_runn
             fix=f"Install {binary} or choose another supported profile.",
             details={"profile": profile},
         )
-    try:
-        info = subprocess.run([binary, "info"], capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
-        ok = info.returncode == 0
-    except (subprocess.TimeoutExpired, OSError):
-        ok = False
-    if not ok:
+    info = _runtime.run_probe([binary, "info"], timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if info is None or info.returncode != 0:
         raise SkillError(
             stage="preflight",
             error_code=not_running_code,
@@ -548,32 +495,8 @@ def _check_remote_inputs(args, samplesheet_summary: dict[str, object]) -> None:
 
 
 def _check_demo_network(args) -> None:
-    """--demo runs nf-core's upstream ``-profile test``, whose inputs (test FASTQs and
-    reference FASTA/GTF) are remote GitHub URLs by design. Under ``NXF_OFFLINE`` the
-    nf-schema plugin aborts during parameter validation with a confusing
-    ``does not exist`` before any work starts, so fail early with an actionable message
-    instead. Downloading nf-core's PUBLIC test data does not conflict with the
-    local-first guarantee, which governs USER genetic data (never uploaded)."""
-    if not getattr(args, "demo", False):
-        return
-    offline = str(os.environ.get("NXF_OFFLINE", "")).strip().lower()
-    if offline in {"true", "1", "yes", "on"}:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.DEMO_REQUIRES_NETWORK,
-            message=(
-                "--demo runs the upstream nf-core `-profile test`, which downloads its test "
-                "datasets and reference files from GitHub, but NXF_OFFLINE is set — Nextflow "
-                "would abort during parameter validation because the remote test inputs cannot "
-                "be reached."
-            ),
-            fix=(
-                "Unset NXF_OFFLINE to run the demo (it fetches only nf-core's public test data — "
-                "no user or genetic data is uploaded), or run a real analysis with your own local "
-                "--input samplesheet and references, which is fully offline."
-            ),
-            details={"NXF_OFFLINE": os.environ.get("NXF_OFFLINE")},
-        )
+    if getattr(args, "demo", False):
+        _runtime.require_network_for_demo()
 
 
 def run_preflight(args, *, pipeline_source: dict[str, object], samplesheet_summary: dict[str, object]) -> dict[str, object]:
@@ -588,18 +511,16 @@ def run_preflight(args, *, pipeline_source: dict[str, object], samplesheet_summa
     java_info = _check_java()
     nextflow_info = _check_nextflow_presence() if getattr(args, "check", False) else _check_nextflow()
     if nextflow_info.get("version_checked") is False:
-        # --check verifies Nextflow is present but intentionally defers the
-        # >=25.04.3 version gate to the real run (audit F-5). Surface that so a
-        # check is not silently assumed to confirm a compatible Nextflow.
+        # --check verifies Nextflow is present but does not run it (audit F-5); the
+        # release's manifest.nextflowVersion is checked by Nextflow on the actual run.
         warnings.append(
-            "Nextflow version was not verified in --check mode; the >=25.04.3 "
-            "requirement is enforced on the actual run."
+            "Nextflow version was not read in --check mode; nf-core/rnaseq 3.26.0 needs "
+            ">=25.04.3, which Nextflow checks when the actual run starts."
         )
     profile_info = _check_profile(args.profile)
     output_dir = Path(args.output).expanduser().resolve()
     check_output_dir_available(output_dir, resume=getattr(args, "resume", False))
     _check_contaminant_paths(args)
-    _check_ribo_paths(args)
     _check_nextflow_configs(args, warnings)
     _check_acceleration_compatibility(args)
     _check_contaminant_screening(args, warnings)
@@ -958,7 +879,6 @@ def _check_references(args, *, bam_reprocessing: bool = False, warnings: list[st
                 ),
                 details={"accepted_combinations": [list(group) for group in _REFERENCE_GROUPS]},
             )
-    _check_reference_paths_exist(values)
     return values
 
 
@@ -1030,91 +950,6 @@ def _collect_reference_values(args) -> dict[str, str]:
     return values
 
 
-def _check_reference_paths_exist(values: dict[str, str]) -> None:
-    _EXTENSION_CHECKS: dict[str, tuple[re.Pattern[str], str, str]] = {
-        "fasta": (
-            _FASTA_EXT_RE,
-            "does not have a recognised FASTA extension "
-            "(nf-core schema: .fa, .fasta, .fna, .fa.gz, .fasta.gz, .fna.gz).",
-            "Rename the file to use a standard FASTA extension, e.g. genome.fa or genome.fasta.gz.",
-        ),
-        "transcript_fasta": (
-            _FASTA_EXT_RE,
-            "does not have a recognised FASTA extension "
-            "(nf-core schema: .fa, .fasta, .fna, .fa.gz, .fasta.gz, .fna.gz).",
-            "Rename the file to use a standard FASTA extension, e.g. transcriptome.fa or transcriptome.fasta.gz.",
-        ),
-        "additional_fasta": (
-            _FASTA_EXT_RE,
-            "does not have a recognised FASTA extension "
-            "(nf-core schema: .fa, .fasta, .fna, .fa.gz, .fasta.gz, .fna.gz).",
-            "Rename the file to use a standard FASTA extension, e.g. spike_in.fa or spike_in.fa.gz.",
-        ),
-        "gtf": (
-            _GTF_EXT_RE,
-            "does not have a recognised GTF extension (nf-core schema: .gtf or .gtf.gz).",
-            "Rename the file to use a standard GTF extension, e.g. genes.gtf or genes.gtf.gz.",
-        ),
-        "gff": (
-            _GFF_EXT_RE,
-            "does not have a recognised GFF extension (nf-core schema: .gff or .gff3, optionally .gz).",
-            "Rename the file to use a standard GFF extension, e.g. genes.gff3 or genes.gff.gz.",
-        ),
-        "gene_bed": (
-            _BED_EXT_RE,
-            "does not have a recognised BED extension (nf-core schema: .bed or .bed.gz).",
-            "Rename the file to use a standard BED extension, e.g. genes.bed or genes.bed.gz.",
-        ),
-    }
-    for field, value in values.items():
-        if field == "genome" or not value:
-            continue
-        if "://" in value:
-            # URI scheme (https://, s3://, gs://, ftp://) — existence check not applicable;
-            # Nextflow resolves remote refs directly at runtime.
-            continue
-        if field in _EXTENSION_CHECKS:
-            # The wrapper resolves reference paths to absolute POSIX before writing
-            # params.yaml, so a path that resolves into a directory containing
-            # whitespace would fail the nf-core ^\S+ schema pattern at runtime
-            # (audit F-1). Catch it here — on the *resolved* path — with a precise,
-            # dedicated error, mirroring the samplesheet input guard. This check
-            # precedes the extension check because the ^\S+ extension regex also
-            # fails on whitespace and would otherwise report a misleading message.
-            resolved = Path(value).expanduser().resolve()
-            if _WHITESPACE_RE.search(resolved.as_posix()):
-                raise SkillError(
-                    stage="preflight",
-                    error_code=ErrorCode.REFERENCE_PATH_HAS_WHITESPACE,
-                    message=(
-                        f"--{field.replace('_', '-')} resolves to a path containing whitespace, "
-                        "which the nf-core/rnaseq schema rejects (pattern ^\\S+)."
-                    ),
-                    fix=(
-                        "Move the reference into a directory whose full path has no spaces, "
-                        "or symlink it to a whitespace-free location, then point the flag there."
-                    ),
-                    details={"field": field, "value": value, "resolved": resolved.as_posix()},
-                )
-            pat, msg, fix = _EXTENSION_CHECKS[field]
-            if not pat.match(value):
-                raise SkillError(
-                    stage="preflight",
-                    error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
-                    message=f"--{field.replace('_', '-')} {msg}",
-                    fix=fix,
-                    details={"field": field, "value": value},
-                )
-        if not Path(value).expanduser().exists():
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.REFERENCE_PATH_NOT_FOUND,
-                message="A reference path was not found.",
-                fix="Correct the missing reference path and try again.",
-                details={"field": field, "path": value},
-            )
-
-
 def _collect_gencode_autodetect_warning(args, warnings: list[str]) -> bool:
     if getattr(args, "demo", False) or getattr(args, "gencode", False):
         return False
@@ -1172,48 +1007,6 @@ def _check_existing_contaminant_path(field: str, value: str) -> None:
             message="A contaminant screening reference path was not found.",
             fix="Correct the missing contaminant screening path and try again.",
             details={"field": field, "path": value},
-        )
-    if field == "bbsplit_fasta_list" and not path.is_file():
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
-            message="--bbsplit-fasta-list must be a TSV file path, not a directory.",
-            fix=(
-                "Provide the path to a tab-separated file listing FASTA genomes for BBSplit "
-                "(one genome per line: <name>\t<path>). See the nf-core/rnaseq docs for format."
-            ),
-            details={"field": field, "path": value, "expected": "file", "got": "directory"},
-        )
-
-
-def _check_ribo_paths(args) -> None:
-    manifest = getattr(args, "ribo_database_manifest", None)
-    if not manifest:
-        return
-    _check_existing_ribo_manifest(manifest)
-
-
-def _check_existing_ribo_manifest(value: str) -> None:
-    if "://" in value:
-        # Remote URIs are resolved by Nextflow at runtime; local existence checks
-        # are only meaningful for filesystem paths.
-        return
-    path = Path(value).expanduser()
-    if not path.exists():
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.REFERENCE_PATH_NOT_FOUND,
-            message="The rRNA database manifest path was not found.",
-            fix="Correct --ribo-database-manifest or remove it.",
-            details={"field": "ribo_database_manifest", "path": value},
-        )
-    if not path.is_file():
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
-            message="--ribo-database-manifest must point to a manifest file, not a directory.",
-            fix="Provide the manifest file path expected by the selected rRNA removal tool.",
-            details={"field": "ribo_database_manifest", "path": value, "expected": "file", "got": "directory"},
         )
 
 
@@ -1483,34 +1276,8 @@ def _check_skip_alignment_requirements(args, *, bam_paths: list) -> None:
 
 
 def _check_samplesheet_summary(args, *, samplesheet_summary: dict[str, object]) -> None:
-    for strandedness in samplesheet_summary.get("strandedness_counts", {}):
-        if strandedness not in SUPPORTED_STRANDEDNESS:
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.INVALID_STRANDEDNESS,
-                message="Samplesheet summary contains invalid strandedness.",
-                fix="Use auto, forward, reverse, or unstranded in every samplesheet row.",
-                details={"strandedness": strandedness},
-            )
-    for fastq_path in samplesheet_summary.get("fastq_paths", []):
-        raw_path = str(fastq_path)
-        path = Path(raw_path)
-        if not _FASTQ_BASENAME_RE.match(path.name):
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.INVALID_FASTQ,
-                message="FASTQ basename is not compatible with nf-core/rnaseq.",
-                fix="Use .fq, .fastq, .fq.gz, or .fastq.gz and remove whitespace from the basename.",
-                details={"filename": path.name},
-            )
-        if "://" not in raw_path and not path.exists():
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.MISSING_FASTQ,
-                message="FASTQ path from samplesheet summary was not found.",
-                fix="Correct the FASTQ path and rerun samplesheet validation.",
-                details={"path": str(path)},
-            )
+    """ClawBio's own samplesheet policy. Strandedness values, FASTQ/BAM names and
+    their existence are nf-schema's (assets/schema_input.json) when Nextflow starts."""
     raw_bam_paths = [str(path) for path in samplesheet_summary.get("bam_paths", [])]
     if raw_bam_paths and not getattr(args, "skip_alignment", False):
         raise SkillError(
@@ -1520,18 +1287,6 @@ def _check_samplesheet_summary(args, *, samplesheet_summary: dict[str, object]) 
             fix="Add --skip-alignment, or remove BAM columns from the samplesheet.",
             details={"bam_count": len(raw_bam_paths)},
         )
-    for raw_bam_path in raw_bam_paths:
-        if "://" in raw_bam_path:
-            continue
-        bam_path = Path(raw_bam_path)
-        if not bam_path.exists():
-            raise SkillError(
-                stage="preflight",
-                error_code=ErrorCode.REFERENCE_PATH_NOT_FOUND,
-                message="BAM path from samplesheet summary was not found.",
-                fix="Correct the BAM path in the samplesheet.",
-                details={"field": "bam", "path": str(bam_path)},
-            )
 
 
 def _check_resume_compatibility(args, *, output_dir: Path, pipeline_source: dict[str, object]) -> None:
@@ -1547,8 +1302,8 @@ def _check_resume_compatibility(args, *, output_dir: Path, pipeline_source: dict
             details={"manifest": str(manifest_path)},
         )
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+        manifest = read_json_mapping(manifest_path)
+    except (ValueError, OSError) as exc:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.INVALID_RESUME_STATE,
@@ -1583,6 +1338,9 @@ def _check_resume_compatibility(args, *, output_dir: Path, pipeline_source: dict
     for key in ("source_kind", "resolved_version"):
         if previous_source.get(key) != pipeline_source.get(key):
             _raise_resume_mismatch(f"pipeline_source.{key}", pipeline_source.get(key), previous_source.get(key))
+
+    if "work_dir" in manifest and manifest["work_dir"] != canonical_work_dir(args, output_dir):
+        _raise_resume_mismatch("work_dir", canonical_work_dir(args, output_dir), manifest["work_dir"])
 
 
 def _raise_resume_mismatch(field: str, expected: object, observed: object) -> None:

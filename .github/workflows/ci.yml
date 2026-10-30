@@ -317,6 +317,13 @@ jobs:
       - name: Run library tests
         run: uv run pytest clawbio/tests/ clawbio/common/tests/ -v
 
+      - name: Run all nf-core wrappers together
+        run: >-
+          uv run pytest skills/nfcore-rnaseq-wrapper/tests/
+          skills/nfcore-sarek-wrapper/tests/
+          skills/nfcore-scrnaseq-wrapper/tests/
+          -m "not integration and not network and not slow" -v
+
       # The steps above are a hardcoded allowlist, so a NEW skill's tests never
       # run: ClawBio#329 shipped a test that cannot pass and CI was still green,
       # and ClawBio#324's just-prs suite never executed here at all. Any skill

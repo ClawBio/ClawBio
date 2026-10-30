@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import math
 import re
 import sys
 from pathlib import Path
 
-import yaml
+from clawbio.common.nfcore.parameters import serialize_params_yaml as _serialize_params
+from clawbio.common.nfcore.parameters import write_params_yaml as _write_params
+from clawbio.common.nfcore.paths import resolve_path_or_uri
 
-from clawbio.common.textio import write_text_lf
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -38,30 +40,24 @@ _SKIP_FLAGS = (
 _REFERENCE_PATH_FIELDS = ALL_REFERENCE_PATH_FIELDS
 
 
-def _posix(value: str) -> str:
-    """Resolve a user-supplied path to absolute and convert to forward-slash notation.
-
-    Nextflow (Java) accepts forward slashes on all platforms, including Windows.
-    Using as_posix() avoids YAML escape-sequence ambiguity with backslashes and
-    ensures relative paths are anchored before Nextflow changes its working directory.
-    """
-    return Path(value).expanduser().resolve().as_posix()
-
-
 def _posix_or_uri(value: str) -> str:
-    """Like :func:`_posix`, but pass remote URIs (``s3://``, ``gs://``, ``https://``,
-    ``ftp://`` …) through unchanged.
+    resolved = resolve_path_or_uri(str(value), base_dir=Path.cwd())
+    return resolved if isinstance(resolved, str) else resolved.as_posix()
 
-    ``Path(...).resolve()`` on a URI corrupts it: the ``//`` collapses and the
-    scheme is anchored to the current directory
-    (``https://host/x`` → ``<cwd>/https:/host/x``), which nf-core then rejects at
-    parameter validation. Remote references are gated behind ``--allow-remote-inputs``
-    at preflight and staged by Nextflow, so they must reach ``params.yaml`` verbatim.
-    Mirrors ``igenomes_base`` handling and the nfcore-rnaseq/sarek wrappers.
-    """
-    if "://" in str(value):
-        return str(value)
-    return _posix(value)
+
+def _reject_non_finite_params(params: dict[str, object]) -> None:
+    """Schema rules are nf-schema's; it checks the pinned schema when Nextflow starts."""
+    from clawbio.common.nfcore.parameters import reject_non_finite_numbers
+
+    try:
+        reject_non_finite_numbers(params)
+    except ValueError as exc:
+        raise SkillError(
+            stage="validation", error_code=ErrorCode.INVALID_PRESET_CONFIGURATION,
+            message=f"Invalid native scrnaseq parameter: {exc}",
+            fix="nf-schema cannot represent NaN or infinity; pass a finite number.",
+            details={"error": str(exc)},
+        ) from exc
 
 
 def build_params_file(
@@ -96,7 +92,21 @@ def build_effective_params(
     _add_save_flags(params, args)
     _add_symbolic_reference_params(params, args)
     _add_reference_path_params(params, args)
+    _reject_non_finite_params(params)
     return params
+
+
+def _canonical_protocol(value: str) -> str:
+    # Upstream protocols.json lookups are case-sensitive. Preflight accepts
+    # these aliases, so emit the corresponding key rather than a custom token.
+    if not isinstance(value, str):
+        return value  # scalar validation reports the type error
+    normalized = re.sub(r"[\s_-]+", "", value.lower())
+    if re.fullmatch(r"10xv[1-4]", normalized):
+        return normalized.upper()
+    if normalized in {"auto", "dropseq", "smartseq"}:
+        return normalized
+    return value
 
 
 def _build_base_params(
@@ -126,7 +136,7 @@ def _build_base_params(
     # protocol is supplied by the test profile in demo mode (see hermetic-demo
     # rationale in build_effective_params); never override it from the CLI.
     if args.protocol and not args.demo:
-        params["protocol"] = args.protocol
+        params["protocol"] = _canonical_protocol(args.protocol)
     return params
 
 
@@ -179,7 +189,7 @@ def _add_generic_nfcore_params(params: dict[str, object], args) -> None:
     for param_name in ("multiqc_config", "multiqc_logo", "multiqc_methods_description"):
         value = getattr(args, param_name, None)
         if value:
-            params[param_name] = _posix(value)
+            params[param_name] = _posix_or_uri(value)
     if getattr(args, "publish_dir_mode", None):
         params["publish_dir_mode"] = args.publish_dir_mode
     if getattr(args, "trace_report_suffix", None):
@@ -260,19 +270,8 @@ def _add_reference_path_params(params: dict[str, object], args) -> None:
 
 
 def write_params_yaml(params: dict[str, object], *, output_dir: Path) -> Path:
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
-    params_path = repro_dir / "params.yaml"
-    write_text_lf(params_path, serialize_params_yaml(params))
-    return params_path
+    return _write_params(params, output_dir=output_dir, pipeline_name="nf-core/scrnaseq")
 
 
-def serialize_params_yaml(params: dict[str, object]) -> str:
-    # Explanatory header mirrors nfcore-rnaseq/sarek so a reader knows the
-    # relative-path convention and the recommended replay path.
-    header = (
-        "# 'input' and 'outdir' are relative to the Nextflow launch directory (output_dir).\n"
-        "# Use reproducibility/commands.sh for the recommended replay path.\n"
-        "# Manual replay: cd <output_dir> && nextflow run nf-core/scrnaseq -params-file reproducibility/params.yaml\n"
-    )
-    return header + yaml.dump(params, allow_unicode=True, sort_keys=False)
+def serialize_params_yaml(params: dict[str, object], *, line_width: float = math.inf) -> str:
+    return _serialize_params(params, pipeline_name="nf-core/scrnaseq", line_width=line_width)

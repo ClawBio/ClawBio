@@ -3,9 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 import pytest
+from hypothesis import HealthCheck, example, given, settings
+from hypothesis import strategies as st
 
 _SKILL_DIR = Path(__file__).resolve().parent.parent
 if str(_SKILL_DIR) in sys.path:
@@ -31,7 +34,16 @@ def _purge_local_modules(*names: str) -> None:
 
 _purge_foreign_bare_modules("reporting", "schemas")
 
-from reporting import _REPO_ROOT, _REPRO_PATH_FLAGS, build_repro_command_args, write_report, write_repro_commands, write_result
+from reporting import (
+    _CONTAINER_PIN_GUARD,
+    _REPO_ROOT,
+    _REPRO_PATH_FLAGS,
+    _apply_container_pin,
+    build_repro_command_args,
+    write_report,
+    write_repro_commands,
+    write_result,
+)
 from schemas import DEFAULT_TIMEOUT_HOURS
 
 _purge_local_modules("reporting", "schemas")
@@ -199,7 +211,7 @@ def test_write_report_creates_rnaseq_report(tmp_path):
 
 def test_report_header_includes_skill_version(tmp_path):
     """report.md must show the skill version, consistent with result.json/manifest.json/
-    catalog.json (all 0.1.0). An empty Version field is an inconsistency."""
+    catalog.json (all SKILL.md's version). An empty Version field is an inconsistency."""
     from schemas import SKILL_VERSION
     write_report(tmp_path, args=_args(tmp_path), pipeline_source=_source(), preflight_result=_preflight(), parsed_outputs=_parsed(), command_str="cmd")
     content = (tmp_path / "report.md").read_text(encoding="utf-8")
@@ -374,6 +386,33 @@ def test_repro_commands_sh_has_idempotent_resume_guard_for_demo(tmp_path):
     assert '"${PYTHON:-python3}" "$SKILL_SCRIPT" $CLAWBIO_RESUME' in content
     assert "\n    --demo" in content
 
+
+
+def _run_resume_guard(content: str) -> str:
+    start = content.index('CLAWBIO_RESUME=""')
+    end = content.index("\nfi\n", start) + len("\nfi\n")
+    result = subprocess.run(
+        ["bash", "-c", content[start:end] + 'printf %s "$CLAWBIO_RESUME"'],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the guard is bash")
+def test_resume_guard_tests_the_literal_output_dir(tmp_path):
+    """The guard tests the manifest path inside bash double quotes, so an output
+    directory containing $, a backtick or a double quote must stay literal: never
+    expanded, and never able to end the quoted string early."""
+    out = tmp_path / 'run $HOME `false` "q"'
+    out.mkdir()
+    write_repro_commands(out, args=_args(out, output=str(out)))
+    content = (out / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+    assert _run_resume_guard(content) == ""
+    (out / "reproducibility" / "manifest.json").write_text("{}", encoding="utf-8")
+    assert _run_resume_guard(content) == "--resume"
 
 def test_repro_commands_sh_resume_guard_skipped_when_run_used_resume(tmp_path):
     """If the original run already used --resume the command always resumes, so the
@@ -806,3 +845,94 @@ def test_replay_line_is_shell_safe_for_apostrophe_path(tmp_path):
     assert f"bash '{commands_sh_path}'" not in content
     # The replay line must still reference commands.sh somehow.
     assert "commands.sh" in content
+
+
+def _replay_argv(tmp_path, *, session: bool, pinned: bool, manifest: bool = True) -> list[str]:
+    """Run the generated commands.sh with a fake interpreter; return the wrapper argv."""
+    import os
+    import shutil
+    import subprocess
+
+    output_dir = tmp_path / "out"
+    repro = output_dir / "reproducibility"
+    pin = repro / "containers.config"
+    if pinned:
+        pin.write_text("process {}\n", encoding="utf-8")
+    else:
+        pin.unlink(missing_ok=True)
+    (repro / "manifest.json").write_text("{}", encoding="utf-8") if manifest else (repro / "manifest.json").unlink(missing_ok=True)
+    if session:
+        (output_dir / ".nextflow").mkdir(exist_ok=True)
+    else:
+        shutil.rmtree(output_dir / ".nextflow", ignore_errors=True)
+    fake = tmp_path / "fake-python"
+    argv_file = tmp_path / "argv.txt"
+    fake.write_text('#!/bin/sh\nshift\nprintf "%s\\n" "$@" > "$ARGV_FILE"\n', encoding="utf-8")
+    fake.chmod(0o755)
+    subprocess.run(
+        ["/bin/bash", str(repro / "commands.sh")], check=True, capture_output=True, text=True,
+        env={**os.environ, "PYTHON": str(fake), "ARGV_FILE": str(argv_file)},
+    )
+    return argv_file.read_text(encoding="utf-8").splitlines()
+
+
+def test_repro_commands_sh_pins_container_digests_without_a_nextflow_cache(tmp_path):
+    """A replay into a directory without a Nextflow cache (bundle copied elsewhere, so
+    its manifest travels along) runs every process on the digest it ran originally,
+    after any user config so the pins win; an in-place replay keeps the cache."""
+    output_dir = tmp_path / "out"
+    user_config = tmp_path / "user.config"
+    user_config.write_text("process {}\n", encoding="utf-8")
+    write_repro_commands(output_dir, args=_args(output_dir, demo=True, nextflow_config=[str(user_config)]))
+    pin = str(output_dir / "reproducibility" / "containers.config")
+    fresh = _replay_argv(tmp_path, session=False, pinned=True)
+    assert fresh[-2:] == ["--nextflow-config", pin]
+    assert fresh.count("--nextflow-config") == 2
+    in_place = _replay_argv(tmp_path, session=True, pinned=True)
+    assert "--resume" in in_place and pin not in in_place
+    assert pin not in _replay_argv(tmp_path, session=False, pinned=False)
+
+
+def test_container_pin_refuses_a_script_it_cannot_anchor(tmp_path):
+    """commands.sh gains its digest pin by locating the wrapper launch line. If that
+    line ever changes, the pin must fail loudly rather than ship a bundle that
+    replays re-pushed tags without saying so."""
+    with pytest.raises(RuntimeError, match="containers.config"):
+        _apply_container_pin('#!/bin/bash\nexec something-else --output x\n', output_dir=tmp_path)
+
+
+def test_written_commands_pass_the_container_pin_last(tmp_path):
+    write_repro_commands(tmp_path, args=argparse.Namespace(demo=True, profile="test,docker", pipeline_version="3.26.0"))
+    script = (tmp_path / "reproducibility" / "commands.sh").read_text()
+    launch = script[script.index('"${PYTHON:-python3}" "$SKILL_SCRIPT"'):]
+    assert launch.split("\n\n", 1)[0].rstrip().endswith('${CLAWBIO_PIN[@]+"${CLAWBIO_PIN[@]}"}')
+    assert _CONTAINER_PIN_GUARD.split("\n")[-2] in script
+
+
+@settings(deadline=None, max_examples=15, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@example(component="fresh $a's `b`", target_cached=False)
+@given(component=st.text(alphabet="abc $'\"`\\", min_size=1, max_size=10), target_cached=st.booleans())
+def test_remapped_output_uses_its_own_cache_to_choose_container_pins(tmp_path, component, target_cached):
+    """A retained original cache must not disable pins for a fresh replay target."""
+    import importlib.util
+    import shutil
+
+    original = tmp_path / "out"
+    target = tmp_path / ("target-" + component)
+    target.mkdir(exist_ok=True)
+    if target_cached:
+        (target / ".nextflow").mkdir(exist_ok=True)
+    else:
+        shutil.rmtree(target / ".nextflow", ignore_errors=True)
+    write_repro_commands(original, args=_args(tmp_path, demo=True))
+    spec = importlib.util.spec_from_file_location("_rnaseq_remap_pin_target", _SKILL_DIR / "remap_paths.py")
+    remap = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(remap)
+    assert remap.update_commands_output(original / "reproducibility/commands.sh", str(target))
+    argv = _replay_argv(tmp_path, session=True, pinned=True)
+    assert argv[argv.index("--output") + 1] == str(target)
+    pin = str(original / "reproducibility/containers.config")
+    if target_cached:
+        assert pin not in argv
+    else:
+        assert argv[-2:] == ["--nextflow-config", pin]

@@ -31,14 +31,14 @@ def _purge_foreign(*names: str) -> None:
 
 _purge_foreign("provenance", "schemas", "preflight")
 
-import provenance  # noqa: E402
-from provenance import (  # noqa: E402
-    ProvenanceBundle,
-    compute_params_checksum,
-    compute_reference_checksums,
-    load_manifest,
-    write_provenance_bundle,
-)
+from clawbio.common.tests.nfcore_test_imports import load_tested_module  # noqa: E402
+
+provenance = load_tested_module(_SKILL_DIR, "provenance")
+ProvenanceBundle = provenance.ProvenanceBundle
+compute_params_checksum = provenance.compute_params_checksum
+compute_reference_checksums = provenance.compute_reference_checksums
+load_manifest = provenance.load_manifest
+write_provenance_bundle = provenance.write_provenance_bundle
 
 
 # ---------------------------------------------------------------------------
@@ -538,8 +538,6 @@ def test_pinned_versions_parity_with_schemas():
     assert set(pinned["supported_steps"]) == set(schemas.SUPPORTED_STEPS)
     assert set(pinned["supported_tools"]) == set(schemas.SUPPORTED_TOOLS)
     assert set(pinned["supported_skip_tools"]) == set(schemas.SUPPORTED_SKIP_TOOLS)
-    assert set(pinned["supported_sex"]) == set(schemas.SUPPORTED_SEX)
-    assert set(pinned["supported_status"]) == set(schemas.SUPPORTED_STATUS)
     assert set(pinned["igenomes_catalogue"]) == set(schemas.SUPPORTED_IGENOMES_NAMES)
 
     official_profiles = {
@@ -645,3 +643,67 @@ def test_intervals_hash_recorded(tmp_path: Path):
     assert manifest["intervals_hash"] is not None
     assert manifest["intervals_hash"].startswith("sha256:")
     assert manifest["wes"] is True
+
+
+# ---------------------------------------------------------------------------
+# containers.json / containers.config
+# ---------------------------------------------------------------------------
+
+_FASTQC = "quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0"
+_FASTQC_DIGEST = "sha256:" + "a" * 64
+
+
+def _fake_container_engine(seen_env: list):
+    def run(command, *, cwd=None, env=None, timeout_seconds):
+        if command[:2] == ["nextflow", "log"]:
+            seen_env.append(env)
+            return subprocess.CompletedProcess(command, 0, f"NFCORE_SAREK:SAREK:FASTQC\t{_FASTQC}\tCOMPLETED\n", "")
+        if command[1:3] == ["image", "inspect"]:
+            payload = {"Id": "sha256:" + "f" * 64, "RepoDigests": [f"quay.io/biocontainers/fastqc@{_FASTQC_DIGEST}"],
+                       "Os": "linux", "Architecture": "amd64"}
+            return subprocess.CompletedProcess(command, 0, json.dumps(payload), "")
+        if command[1:2] == ["version"]:
+            return subprocess.CompletedProcess(command, 0, "29.1.3 linux/amd64\n", "")
+        raise AssertionError(command)
+    return run
+
+
+def _bundle_after_a_run(tmp_path: Path) -> ProvenanceBundle:
+    samplesheet_csv, params_yaml, commands_sh = _write_caller_artifacts(tmp_path)
+    output_dir = tmp_path / "out"
+    (output_dir / ".nextflow").mkdir(parents=True)
+    (output_dir / ".nextflow" / "history").write_text("run\n")
+    bundle_args: dict[str, Any] = {
+        "output_dir": output_dir, "skill_dir": _SKILL_DIR, "samplesheet_csv_src": samplesheet_csv,
+        "params_yaml_src": params_yaml, "commands_sh_src": commands_sh, "params": _base_params(),
+        "samplesheet_report": _FakeSamplesheetReport(), "pipeline_source": _FakePipelineSource(),
+        "outputs_report": _FakeOutputsReport(), "nextflow_version": "26.04.3", "java_version": "17.0.10",
+        "profile": "test,docker",
+    }
+    return write_provenance_bundle(**bundle_args)
+
+
+def test_bundle_records_and_pins_the_containers_the_run_used(tmp_path: Path, monkeypatch):
+    from clawbio.common.nfcore import containers
+
+    seen_env: list = []
+    monkeypatch.setattr(containers, "_run", _fake_container_engine(seen_env))
+    bundle = _bundle_after_a_run(tmp_path)
+    record = json.loads((bundle.bundle_dir / "containers.json").read_text())
+    (image,) = record["images"]
+    assert image["pinned_reference"] == f"quay.io/biocontainers/fastqc@{_FASTQC_DIGEST}"
+    assert image["processes"] == ["NFCORE_SAREK:SAREK:FASTQC"] and record["engine"] == "docker"
+    assert "withName: 'NFCORE_SAREK:SAREK:FASTQC'" in (bundle.bundle_dir / "containers.config").read_text()
+    # The task log is read with the environment the pinned release runs under.
+    assert seen_env == [{"NXF_SYNTAX_PARSER": "v1"}]
+    manifest = json.loads(bundle.manifest_path.read_text())
+    assert manifest["containers"]["complete"] is True
+    assert manifest["containers"]["pin_config"] == "reproducibility/containers.config"
+    assert bundle.bundle_dir / "containers.json" in bundle.files_written
+
+
+def test_bundle_without_a_nextflow_run_says_its_containers_are_unrecorded(tmp_path: Path):
+    bundle = _run_bundle(tmp_path)
+    record = json.loads((bundle.bundle_dir / "containers.json").read_text())
+    assert record["complete"] is False and not (bundle.bundle_dir / "containers.config").exists()
+    assert any("containers" in warning for warning in bundle.warnings)

@@ -1,0 +1,140 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://raw.githubusercontent.com/nf-core/sarek/master/assets/schema_input.json",
+    "title": "nf-core/sarek pipeline - params.input schema",
+    "description": "Schema for the file provided with params.input",
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "patient": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "Patient ID must be provided, cannot contain spaces and must be a string value",
+                "meta": ["patient"]
+            },
+            "sample": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "Sample ID must be provided, cannot contain spaces and must be a string value",
+                "meta": ["sample"]
+            },
+            "sex": {
+                "errorMessage": "Sex must be one of 'XX', 'XY', or 'NA'",
+                "meta": ["sex"],
+                "enum": ["XX", "XY", "NA"],
+                "default": "NA",
+                "type": "string"
+            },
+            "status": {
+                "type": "integer",
+                "errorMessage": "Status can only be 0 (normal) or 1 (tumor). Defaults to 0, if none is supplied.",
+                "meta": ["status"],
+                "default": 0,
+                "enum": [0, 1]
+            },
+            "lane": {
+                "anyOf": [{ "type": "integer" }, { "type": "string" }],
+                "pattern": "^\\S+$",
+                "description": "Lane identifier used to distinguish between different sequencing runs of the same sample.",
+                "errorMessage": "Lane identifier cannot contain spaces",
+                "meta": ["lane"]
+            },
+            "fastq_1": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q\\.gz$",
+                "errorMessage": "FastQ file for reads 1 must be provided, cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+            },
+            "fastq_2": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q\\.gz$",
+                "errorMessage": "FastQ file for reads 2 cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+            },
+            "spring_1": {
+                "errorMessage": "Gzipped and spring-compressed FastQ file for reads 1 cannot contain spaces, has to be a string, has to exist and must have extension '.fq.gz.spring' or '.fastq.gz.spring'",
+                "type": "string",
+                "pattern": "^\\S+\\.f(ast)?q\\.gz.spring$",
+                "format": "file-path",
+                "exists": true
+            },
+            "spring_2": {
+                "errorMessage": "Gzipped and spring-compressed FastQ file for reads 2 cannot contain spaces, has to be a string, has to exist and must have extension '.fq.gz.spring' or '.fastq.gz.spring'",
+                "type": "string",
+                "pattern": "^\\S+\\.f(ast)?q\\.gz.spring$",
+                "format": "file-path",
+                "exists": true
+            },
+            "table": {
+                "errorMessage": "Recalibration table cannot contain spaces, has to be a string, has to exist and must have extension '.table'",
+                "type": "string",
+                "pattern": "^\\S+\\.table$",
+                "format": "file-path",
+                "exists": true
+            },
+            "cram": {
+                "errorMessage": "CRAM file cannot contain spaces, has to be a string, has to exist and must have extension '.cram'",
+                "type": "string",
+                "pattern": "^\\S+\\.cram$",
+                "format": "file-path",
+                "exists": true
+            },
+            "crai": {
+                "errorMessage": "CRAM index file cannot contain spaces, has to be a string, has to exist and must have extension '.crai'",
+                "type": "string",
+                "pattern": "^\\S+\\.crai$",
+                "format": "file-path",
+                "exists": true
+            },
+            "bam": {
+                "errorMessage": "BAM file cannot contain spaces, has to be a string, has to exist and must have extension '.bam'",
+                "type": "string",
+                "pattern": "^\\S+\\.bam$",
+                "format": "file-path",
+                "exists": true
+            },
+            "bai": {
+                "errorMessage": "BAM index file cannot contain spaces, has to be a string, has to exist and must have extension '.bai'",
+                "type": "string",
+                "pattern": "^\\S+\\.bai$",
+                "format": "file-path",
+                "exists": true
+            },
+            "contamination": {
+                "errorMessage": "(1 - tumor purity) must be a value between 0 and 1, set to 0 for normal samples",
+                "type": "number",
+                "exists": true
+            },
+            "vcf": {
+                "errorMessage": "VCF file for reads 1 cannot contain spaces, has to be a string, has to exist and must have extension '.vcf' or '.vcf.gz'",
+                "type": "string",
+                "pattern": "^\\S+\\.vcf(\\.gz)?$",
+                "format": "file-path",
+                "exists": true
+            },
+            "variantcaller": {
+                "type": "string"
+            }
+        },
+        "anyOf": [
+            {
+                "dependentRequired": { "lane": ["fastq_1"] }
+            },
+            {
+                "dependentRequired": { "lane": ["spring_1"] }
+            },
+            {
+                "dependentRequired": { "lane": ["bam"] }
+            }
+        ],
+        "dependentRequired": {
+            "fastq_2": ["fastq_1"],
+            "spring_2": ["spring_1"]
+        },
+        "required": ["patient", "sample"],
+        "uniqueEntries": ["lane", "patient", "sample"]
+    }
+}

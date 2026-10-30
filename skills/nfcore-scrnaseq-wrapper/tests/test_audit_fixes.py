@@ -16,6 +16,8 @@ silently regress:
 
 from __future__ import annotations
 
+import subprocess
+
 from argparse import Namespace
 from pathlib import Path
 import importlib.util
@@ -254,13 +256,14 @@ def test_macos_config_real_run_has_no_resource_limits():
     assert "STAR_ALIGN" in content
 
 
-def test_build_extra_configs_real_run_uncapped_on_macos(tmp_path, monkeypatch):
+def test_build_extra_configs_real_run_has_separate_runtime_cap_on_macos(tmp_path, monkeypatch):
     module = _load_skill_module()
     monkeypatch.setattr(module.platform, "system", lambda: "Darwin")
     args = Namespace(profile="docker", demo=False)
     configs = module._build_extra_nextflow_configs(args, tmp_path)
-    assert len(configs) == 1
+    assert len(configs) == 2
     assert "resourceLimits" not in configs[0].read_text(encoding="utf-8")
+    assert "resourceLimits" in configs[1].read_text(encoding="utf-8")
 
 
 def test_build_extra_configs_demo_capped_on_macos(tmp_path, monkeypatch):
@@ -268,7 +271,7 @@ def test_build_extra_configs_demo_capped_on_macos(tmp_path, monkeypatch):
     monkeypatch.setattr(module.platform, "system", lambda: "Darwin")
     args = Namespace(profile="docker", demo=True)
     configs = module._build_extra_nextflow_configs(args, tmp_path)
-    assert len(configs) == 1
+    assert len(configs) == 2
     assert "resourceLimits" in configs[0].read_text(encoding="utf-8")
 
 
@@ -442,6 +445,13 @@ def _patch_versions(monkeypatch, *, nextflow_text=None, java_text=None):
         return ""
 
     monkeypatch.setattr(preflight, "_command_output", fake_output)
+    monkeypatch.setattr(
+        preflight._runtime,
+        "run_probe",
+        lambda command, timeout_seconds: subprocess.CompletedProcess(
+            command, 0, fake_output(list(command)), ""
+        ),
+    )
 
 
 def test_nextflow_version_preserves_zero_padded_month(monkeypatch):
@@ -465,47 +475,6 @@ def test_java_version_preserves_exact_string(monkeypatch):
 # ── H-14: single source for the minimum Nextflow version ───────────────────────
 
 
-def test_nextflow_min_display_matches_comparison_tuple():
-    import preflight
-
-    parsed = preflight._parse_version_tuple(schemas.NEXTFLOW_MIN_VERSION_DISPLAY)
-    assert parsed == schemas.NEXTFLOW_MIN_VERSION, (
-        "the human-readable Nextflow min version must parse to the comparison tuple"
-    )
-
-
-def test_preflight_messages_use_canonical_nextflow_version(monkeypatch):
-    """User-facing fix messages must show the canonical '25.04.0', never the
-    tuple rendering '25.4.0'."""
-    import preflight
-    from errors import SkillError
-
-    assert (
-        ".".join(map(str, schemas.NEXTFLOW_MIN_VERSION)) == "25.4.0"
-    )  # the anti-pattern
-
-    monkeypatch.setattr(preflight.shutil, "which", lambda name: f"/usr/bin/{name}")
-    # unparseable version -> MISSING_NEXTFLOW fix message
-    monkeypatch.setattr(preflight, "_command_output", lambda args: "no version here")
-    try:
-        preflight._check_nextflow()
-        assert False, "expected SkillError"
-    except SkillError as exc:
-        assert schemas.NEXTFLOW_MIN_VERSION_DISPLAY in exc.fix
-        assert "25.4.0" not in exc.fix
-
-    # too-old version -> NEXTFLOW_VERSION_TOO_OLD fix message
-    monkeypatch.setattr(
-        preflight, "_command_output", lambda args: "version 24.10.0 build 1"
-    )
-    try:
-        preflight._check_nextflow()
-        assert False, "expected SkillError"
-    except SkillError as exc:
-        assert schemas.NEXTFLOW_MIN_VERSION_DISPLAY in exc.fix
-        assert "25.4.0" not in exc.fix
-
-
 def test_unparseable_version_is_version_failure_not_missing(monkeypatch):
     """A present binary whose version can't be parsed is a version-gate failure,
     not a MISSING_* binary (the code must not contradict the 'is installed'
@@ -513,8 +482,7 @@ def test_unparseable_version_is_version_failure_not_missing(monkeypatch):
     import preflight
     from errors import ErrorCode, SkillError
 
-    monkeypatch.setattr(preflight.shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(preflight, "_command_output", lambda args: "no version here")
+    _patch_versions(monkeypatch, nextflow_text="no version here", java_text="no version here")
 
     with pytest.raises(SkillError) as exc:
         preflight._check_java()

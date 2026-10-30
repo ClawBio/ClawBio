@@ -6,7 +6,7 @@ ClawBio wrapper for running `nf-core/rnaseq` bulk RNA-seq preprocessing from FAS
 
 - Upstream bulk RNA-seq preprocessing via Nextflow.
 - Supported aligners: `star_salmon`, `star_rsem`, `hisat2`, `bowtie2_salmon`.
-- Validated samplesheet input with normalized local FASTQ/BAM paths (local-first by default; remote URIs require `--allow-remote-inputs`).
+- Samplesheet input with normalized local FASTQ/BAM paths (local-first by default; remote URIs require `--allow-remote-inputs`); nf-schema validates its columns, values and files when Nextflow starts.
 - Reproducibility bundle, provenance bundle, `report.md`, and `result.json`.
 - Canonical merged count matrix detection for downstream `rnaseq`.
 
@@ -19,7 +19,7 @@ ClawBio wrapper for running `nf-core/rnaseq` bulk RNA-seq preprocessing from FAS
 ## Quick Start
 
 ```bash
-python clawbio.py run rnaseq-pipeline --demo --output ./outputs/rnaseq_demo
+python clawbio.py run rnaseq-pipeline --demo --output "$HOME/clawbio-runs/rnaseq_demo"
 ```
 
 For real data:
@@ -27,9 +27,17 @@ For real data:
 ```bash
 python clawbio.py run rnaseq-pipeline \
   --input samplesheet.csv \
-  --output ./rnaseq_run \
+  --output "$HOME/clawbio-runs/rnaseq_run" \
   --aligner star_salmon \
   --genome GRCh38
 ```
 
-Use `--check` to run preflight without launching Nextflow.
+Use `--check` to run preflight without launching Nextflow. It covers ClawBio's own checks only: nf-schema's parameter, samplesheet and reference-path checks and the release's Nextflow version gate run when Nextflow starts. Checkout-mode runs without `--output` default to `~/clawbio-runs/`; explicit destinations must be outside the repository.
+
+## Validation and resume
+
+nf-schema checks every parameter against the pinned `nextflow_schema.json` when Nextflow starts; the wrapper refuses only NaN and infinity, which nf-schema cannot represent, and a failed run names each value nf-schema refused. Malformed or ambiguous samplesheets fail before normalized snapshots are written. An atomic launch manifest supports resuming failed launches; resumed `--check` also validates params and samplesheet checksums.
+
+Local Docker runs, including demos, cap both per-process requests and the local executor budget to detected host/Docker CPU and memory capacity. Site/cloud profiles and object-store work directories keep their own resource policy. Explicit `--nextflow-config` files have final precedence. Resource caps cannot make a dataset fit insufficient RAM.
+
+See the [compatibility audit](../../docs/nfcore-wrapper-audit.md) for upstream contracts, fixes, test results, and execution limits.

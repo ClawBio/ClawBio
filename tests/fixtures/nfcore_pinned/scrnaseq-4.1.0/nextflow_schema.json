@@ -1,0 +1,570 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://raw.githubusercontent.com/nf-core/scrnaseq/master/nextflow_schema.json",
+    "title": "nf-core/scrnaseq pipeline parameters",
+    "description": "Pipeline for processing 10x Genomics single cell rnaseq data",
+    "type": "object",
+    "$defs": {
+        "input_output_options": {
+            "title": "Input/output options",
+            "type": "object",
+            "fa_icon": "fas fa-terminal",
+            "description": "Define where the pipeline should find input data and save output data.",
+            "required": ["input", "outdir"],
+            "properties": {
+                "input": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "schema": "assets/schema_input.json",
+                    "mimetype": "text/csv",
+                    "pattern": "^\\S+\\.csv$",
+                    "description": "Path to comma-separated file containing information about the samples in the experiment.",
+                    "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 4 columns, and a header row. See [usage docs](https://nf-co.re/rnaseq/usage#samplesheet-input)."
+                },
+                "outdir": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "description": "The output directory where the results will be saved. You have to use absolute paths to storage on Cloud infrastructure.",
+                    "fa_icon": "fas fa-folder-open"
+                },
+                "email": {
+                    "type": "string",
+                    "description": "Email address for completion summary.",
+                    "fa_icon": "fas fa-envelope",
+                    "help_text": "Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits. If set in your user config file (`~/.nextflow/config`), then you don't need to specify this on the command line for every run.",
+                    "pattern": "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$"
+                },
+                "multiqc_title": {
+                    "type": "string",
+                    "description": "MultiQC report title. Printed as page header, used for filename if not otherwise specified.",
+                    "fa_icon": "fas fa-file-signature"
+                }
+            }
+        },
+        "mandatory_arguments": {
+            "title": "Mandatory arguments",
+            "type": "object",
+            "description": "",
+            "default": "",
+            "properties": {
+                "barcode_whitelist": {
+                    "type": "string",
+                    "description": "If not using the 10X Genomics platform, a custom barcode whitelist can be used with `--barcode_whitelist`.",
+                    "fa_icon": "fas fa-barcode",
+                    "format": "file-path",
+                    "exists": true
+                },
+                "aligner": {
+                    "type": "string",
+                    "description": "Name of the tool to use for scRNA (pseudo-) alignment.",
+                    "default": "simpleaf",
+                    "help_text": "The workflow can handle three types of methods:\n\n- Kallisto/Bustools\n- SimpleAF \n- STARsolo\n\nTo choose which one to use, please specify either `simpleaf`, `star` or `kallisto` as a parameter option for `--aligner`. By default, the pipeline runs the `simpleaf` option. Note that specifying another aligner option also requires choosing appropriate parameters (see below) for the selected option.",
+                    "fa_icon": "fas fa-align-center",
+                    "enum": ["kallisto", "star", "simpleaf", "cellranger", "cellrangerarc", "cellrangermulti"]
+                },
+                "protocol": {
+                    "type": "string",
+                    "description": "The protocol that was used to generate the single cell data, e.g. 10x Genomics v2 Chemistry.\n\n Can be 'auto' (cellranger only), '10XV1', '10XV2', '10XV3', '10XV4', or any other protocol string that will get directly passed the respective aligner.",
+                    "help_text": "The default is to auto-detect the protocol when running cellranger. For all other aligners, the protocol MUST be manually specified. \n\n The following protocols are recognized by the pipeline and mapped to the corresponding protocol name of the respective aligner: '10XV1', '10XV2', '10XV3', '10XV4'. \n\nAny other protocol value is passed to the aligner verbatim to support other sequencing platforms. See the [kallisto](https://pachterlab.github.io/kallisto/manual#bus), [simpleaf](https://simpleaf.readthedocs.io/en/latest/quant-command.html#a-note-on-the-chemistry-flag), [starsolo](https://gensoft.pasteur.fr/docs/STAR/2.7.9a/STARsolo.html)",
+                    "default": "auto",
+                    "fa_icon": "fas fa-cogs"
+                }
+            },
+            "fa_icon": "fas fa-terminal"
+        },
+        "skip_tools": {
+            "title": "Skip Tools",
+            "type": "object",
+            "description": "This section can be used to disable certain tools in the pipeline",
+            "default": "",
+            "fa_icon": "fas fa-forward",
+            "properties": {
+                "skip_multiqc": {
+                    "type": "boolean",
+                    "description": "Skip MultiQC Report"
+                },
+                "skip_fastqc": {
+                    "type": "boolean",
+                    "description": "Skip FastQC"
+                },
+                "skip_cellbender": {
+                    "type": "boolean",
+                    "description": "Skip cellbender empty drops filter subworkflow"
+                },
+                "skip_emptydrops": {
+                    "type": "boolean",
+                    "deprecated": true,
+                    "errorMessage": "Parameter has been deprecated in favour of --skip_cellbender to properly match name of workflow."
+                }
+            }
+        },
+        "reference_genome_options": {
+            "title": "Reference genome options",
+            "type": "object",
+            "fa_icon": "fas fa-dna",
+            "description": "Reference genome related files and options required for the workflow.",
+            "properties": {
+                "genome": {
+                    "type": "string",
+                    "description": "Name of iGenomes reference.",
+                    "fa_icon": "fas fa-book",
+                    "help_text": "If using a reference genome configured in the pipeline using iGenomes, use this parameter to give the ID for the reference. This is then used to build the full paths for all required reference genome files e.g. `--genome GRCh38`. \n\nSee the [nf-core website docs](https://nf-co.re/usage/reference_genomes) for more details."
+                },
+                "fasta": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "mimetype": "text/plain",
+                    "pattern": "^\\S+\\.fn?a(sta)?(\\.gz)?$",
+                    "description": "Path to FASTA genome file.",
+                    "help_text": "This parameter is *mandatory* if `--genome` is not specified. If you don't have a BWA index available, this will be generated for you automatically. Combine with `--save_reference` to save BWA index for future runs.",
+                    "fa_icon": "far fa-file-code"
+                },
+                "igenomes_ignore": {
+                    "type": "boolean",
+                    "description": "Do not load the iGenomes reference config.",
+                    "fa_icon": "fas fa-ban",
+                    "hidden": true,
+                    "help_text": "Do not load `igenomes.config` when running the pipeline. You may choose this option if you observe clashes between custom parameters and those supplied in `igenomes.config`."
+                },
+                "transcript_fasta": {
+                    "type": "string",
+                    "description": "A cDNA FASTA file",
+                    "fa_icon": "fas fa-dna",
+                    "format": "file-path",
+                    "exists": true,
+                    "help_text": "If simpleaf is used as the aligner, this must be provided together with a transcript-to-gene ID mapping file (`txp2gene`)."
+                },
+                "gtf": {
+                    "type": "string",
+                    "description": "Reference GTF annotation file",
+                    "fa_icon": "fas fa-code-branch",
+                    "format": "file-path",
+                    "exists": true
+                },
+                "save_reference": {
+                    "type": "boolean",
+                    "description": "Specify this parameter to save the indices created (STAR, Kallisto, Simpleaf) to the results.",
+                    "fa_icon": "fas fa-bookmark"
+                },
+                "save_align_intermeds": {
+                    "type": "boolean",
+                    "description": "Specify this parameter to save the intermediate alignment files (STAR, CellRanger) to the results.",
+                    "fa_icon": "fas fa-bookmark"
+                },
+                "igenomes_base": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "description": "Directory / URL base for iGenomes references.",
+                    "default": "s3://ngi-igenomes/igenomes/",
+                    "fa_icon": "fas fa-cloud-download-alt",
+                    "hidden": true
+                },
+                "txp2gene": {
+                    "type": "string",
+                    "description": "Path to transcript to gene mapping file. This allows the specification of a transcript to gene mapping file for Kallisto/BUS and Alevin-fry with AlevinQC.",
+                    "fa_icon": "fas fa-map-marked-alt",
+                    "format": "file-path",
+                    "exists": true
+                }
+            }
+        },
+        "simpleaf_options": {
+            "title": "Simpleaf Options",
+            "type": "object",
+            "description": "",
+            "default": "",
+            "properties": {
+                "simpleaf_index": {
+                    "type": "string",
+                    "help_text": "This can be used to specify a precomputed Simpleaf index in the pipeline, in order to skip the generation of required indices by Simpleaf itself.",
+                    "description": "Path to pre-built Simpleaf index.",
+                    "fa_icon": "fas fa-fish",
+                    "format": "path",
+                    "exists": true
+                },
+                "simpleaf_umi_resolution": {
+                    "type": "string",
+                    "default": "cr-like",
+                    "enum": [
+                        "cr-like",
+                        "cr-like-em",
+                        "parsimony",
+                        "parsimony-em",
+                        "parsimony-gene",
+                        "parsimony-gene-em"
+                    ],
+                    "description": "UMI resolution strategy to deduplicate UMIs.",
+                    "help_text": "This parameter specifies the [UMI resolution strategy](https://simpleaf.readthedocs.io/en/latest/quant-command.html) to use for deduplicating UMIs. The default is `cr-like`, which mimics the behavior of Cell Ranger, i.e., discarding UMIs equally compatible to multiple genes. Strategies that resolve multi-mapped UMIs by expectation maximization are available, like `cr-like-em`, `parsimony-em`, and `parsimony-gene-em`.",
+                    "fa_icon": "fas fa-map-marked-alt"
+                }
+            }
+        },
+        "starsolo_options": {
+            "title": "STARSolo Options",
+            "type": "object",
+            "description": "",
+            "default": "",
+            "properties": {
+                "star_index": {
+                    "type": "string",
+                    "description": "Specify a path to the precomputed STAR index.",
+                    "help_text": "> NB: This has to be computed with STAR Version 2.7 or later, as STARsolo was only first supported by STAR Version 2.7.",
+                    "fa_icon": "fas fa-asterisk",
+                    "format": "path",
+                    "exists": true
+                },
+                "star_ignore_sjdbgtf": {
+                    "type": "string",
+                    "description": "Ignore the SJDB GTF file."
+                },
+                "seq_center": {
+                    "type": "string",
+                    "description": "Name of sequencing center for BAM read group tag."
+                },
+                "star_feature": {
+                    "type": "string",
+                    "default": "Gene",
+                    "enum": ["Gene", "GeneFull", "Gene Velocyto"],
+                    "description": "Quantification type of different transcriptomic feature. Use `GeneFull` on pre-mRNA count for single-nucleus RNA-seq reads. Use `Gene Velocyto` to generate RNA velocity matrix.",
+                    "fa_icon": "fas fa-asterisk"
+                }
+            },
+            "fa_icon": "fas fa-star"
+        },
+        "kallisto_bus_options": {
+            "title": "Kallisto/BUS Options",
+            "type": "object",
+            "description": "Params related to Kallisto/BUS tool",
+            "default": "",
+            "fa_icon": "fas fa-rainbow",
+            "properties": {
+                "kallisto_index": {
+                    "type": "string",
+                    "description": "Specify a path to the precomputed Kallisto index.",
+                    "fa_icon": "fas fa-rainbow",
+                    "format": "path",
+                    "exists": true
+                },
+                "kb_t1c": {
+                    "type": "string",
+                    "description": "Specify a path to the cDNA transcripts-to-capture.",
+                    "fa_icon": "fas fa-rainbow",
+                    "format": "file-path",
+                    "exists": true
+                },
+                "kb_t2c": {
+                    "type": "string",
+                    "description": "Specify a path to the intron transcripts-to-capture.",
+                    "fa_icon": "fas fa-rainbow",
+                    "format": "file-path",
+                    "exists": true
+                },
+                "kb_workflow": {
+                    "type": "string",
+                    "default": "standard",
+                    "description": "Type of workflow. Use `nac` for an index type that can quantify nascent and mature RNA. Use `lamanno` for RNA velocity based on La Manno et al. 2018 logic. (default: standard)",
+                    "fa_icon": "fas fa-rainbow",
+                    "enum": ["standard", "lamanno", "nac"]
+                }
+            }
+        },
+        "cellranger_options": {
+            "title": "Cellranger Options",
+            "type": "object",
+            "description": "Params related to the Cellranger pipeline",
+            "default": "",
+            "properties": {
+                "cellranger_index": {
+                    "type": "string",
+                    "description": "Specify a pre-calculated cellranger index. Readily prepared indexes can be obtained from the 10x Genomics website. Provide the base directory of the index (e.g., '/PATH/TO/10X_REF/refdata-gex-GRCh38-2024-A/')",
+                    "format": "path",
+                    "exists": true
+                },
+                "skip_cellranger_renaming": {
+                    "type": "boolean",
+                    "description": "Should it skip the automatic renaming included in cellranger-related modules?"
+                }
+            }
+        },
+        "cellrangerarc_options": {
+            "title": "Cellranger ARC Options",
+            "type": "object",
+            "description": "Params related to the Cellranger pipeline",
+            "default": "",
+            "properties": {
+                "motifs": {
+                    "type": "string",
+                    "description": "Specify a motif file to create a cellranger-arc index. Can be taken, e.g., from the JASPAR database."
+                },
+                "cellrangerarc_config": {
+                    "type": "string",
+                    "description": "Specify a config file to create the cellranger-arc index."
+                },
+                "cellrangerarc_reference": {
+                    "type": "string",
+                    "description": "Specify the genome reference name used in the config file to create a cellranger-arc index."
+                }
+            }
+        },
+        "cellranger_multi_options": {
+            "title": "Cellranger Multi options",
+            "type": "object",
+            "description": "",
+            "default": "",
+            "properties": {
+                "cellranger_vdj_index": {
+                    "type": "string",
+                    "format": "path",
+                    "exists": true,
+                    "description": "Specify a pre-built Cell Ranger index for VDJ analysis."
+                },
+                "skip_cellrangermulti_vdjref": {
+                    "type": "boolean",
+                    "description": "Skip mkvdjref if not using VDJ data with cellranger/multi"
+                },
+                "gex_frna_probe_set": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Provide a probe set for fixed RNA-seq profiling (used with FFPE samples). Please refer to the [10x documentation about probesets](https://www.10xgenomics.com/support/single-cell-gene-expression-flex/documentation/steps/probe-sets/chromium-frp-probe-set-files) for more details."
+                },
+                "gex_target_panel": {
+                    "type": "string",
+                    "description": "Provide a panel description for targeted sequencing.",
+                    "format": "file-path",
+                    "exists": true
+                },
+                "gex_cmo_set": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Provide a Cell Multiplexing Oligo (CMO) description file when working with multiplexed samples. This is only necessary if you with to override Cell Ranger's default CMO-set. Please refer to the [10x documentation](https://www.10xgenomics.com/support/software/cell-ranger/latest/analysis/running-pipelines/cr-3p-multi#cmo-ref) about CMO references for more details."
+                },
+                "fb_reference": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Provide a reference file for feature barcoding (e.g. antibody measurements). Please refer to the [Cell Ranger Feature Reference documentation](https://www.10xgenomics.com/support/software/cell-ranger/latest/analysis/inputs/cr-feature-ref-csv) for more details."
+                },
+                "vdj_inner_enrichment_primers": {
+                    "type": "string",
+                    "description": "This argument takes a .txt file containing primer sequences that were used to enrich cDNA for V(D)J sequences. This is only necessary if you with to override Cell Ranger's defaults.",
+                    "format": "file-path",
+                    "exists": true
+                },
+                "gex_barcode_sample_assignment": {
+                    "type": "string",
+                    "format": "file-path",
+                    "mimetype": "text/csv",
+                    "exists": true,
+                    "description": "This is only necessary to override Cell Ranger's default cell calling and tag calling steps. In most cases, you need to only use the `cellranger_multi_barcodes` parameter. Please refer to the [10x documentation](https://www.10xgenomics.com/support/software/cell-ranger/latest/analysis/running-pipelines/cr-3p-multi#barcode-asst) for more information about this file."
+                },
+                "cellranger_multi_barcodes": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "mimetype": "text/csv",
+                    "description": "Additional samplesheet to provide information about multiplexed samples. See the 'Usage' section for more details."
+                }
+            }
+        },
+        "institutional_config_options": {
+            "title": "Institutional config options",
+            "type": "object",
+            "fa_icon": "fas fa-university",
+            "description": "Parameters used to describe centralised config profiles. These should not be edited.",
+            "help_text": "The centralised nf-core configuration profiles use a handful of pipeline parameters to describe themselves. This information is then printed to the Nextflow log when you run a pipeline. You should not need to change these values when you run a pipeline.",
+            "properties": {
+                "custom_config_version": {
+                    "type": "string",
+                    "description": "Git commit id for Institutional configs.",
+                    "default": "master",
+                    "hidden": true,
+                    "fa_icon": "fas fa-users-cog"
+                },
+                "custom_config_base": {
+                    "type": "string",
+                    "description": "Base directory for Institutional configs.",
+                    "default": "https://raw.githubusercontent.com/nf-core/configs/master",
+                    "hidden": true,
+                    "help_text": "If you're running offline, Nextflow will not be able to fetch the institutional config files from the internet. If you don't need them, then this is not a problem. If you do need them, you should download the files from the repo and tell Nextflow where to find them with this parameter.",
+                    "fa_icon": "fas fa-users-cog"
+                },
+                "config_profile_name": {
+                    "type": "string",
+                    "description": "Institutional config name.",
+                    "hidden": true,
+                    "fa_icon": "fas fa-users-cog"
+                },
+                "config_profile_description": {
+                    "type": "string",
+                    "description": "Institutional config description.",
+                    "hidden": true,
+                    "fa_icon": "fas fa-users-cog"
+                },
+                "config_profile_contact": {
+                    "type": "string",
+                    "description": "Institutional config contact information.",
+                    "hidden": true,
+                    "fa_icon": "fas fa-users-cog"
+                },
+                "config_profile_url": {
+                    "type": "string",
+                    "description": "Institutional config URL link.",
+                    "hidden": true,
+                    "fa_icon": "fas fa-users-cog"
+                }
+            }
+        },
+        "generic_options": {
+            "title": "Generic options",
+            "type": "object",
+            "fa_icon": "fas fa-file-import",
+            "description": "Less common options for the pipeline, typically set in a config file.",
+            "help_text": "These options are common to all nf-core pipelines and allow you to customise some of the core preferences for how the pipeline runs.\n\nTypically these options would be set in a Nextflow config file loaded for all pipeline runs, such as `~/.nextflow/config`.",
+            "properties": {
+                "version": {
+                    "type": "boolean",
+                    "description": "Display version and exit.",
+                    "fa_icon": "fas fa-question-circle",
+                    "hidden": true
+                },
+                "publish_dir_mode": {
+                    "type": "string",
+                    "default": "copy",
+                    "description": "Method used to save pipeline results to output directory.",
+                    "help_text": "The Nextflow `publishDir` option specifies which intermediate files should be saved to the output directory. This option tells the pipeline what method should be used to move these files. See [Nextflow docs](https://www.nextflow.io/docs/latest/process.html#publishdir) for details.",
+                    "fa_icon": "fas fa-copy",
+                    "enum": ["symlink", "rellink", "link", "copy", "copyNoFollow", "move"],
+                    "hidden": true
+                },
+                "email_on_fail": {
+                    "type": "string",
+                    "description": "Email address for completion summary, only when pipeline fails.",
+                    "fa_icon": "fas fa-exclamation-triangle",
+                    "pattern": "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$",
+                    "help_text": "An email address to send a summary email to when the pipeline is completed - ONLY sent if the pipeline does not exit successfully.",
+                    "hidden": true
+                },
+                "plaintext_email": {
+                    "type": "boolean",
+                    "description": "Send plain-text email instead of HTML.",
+                    "fa_icon": "fas fa-remove-format",
+                    "hidden": true
+                },
+                "max_multiqc_email_size": {
+                    "type": "string",
+                    "description": "File size limit when attaching MultiQC reports to summary emails.",
+                    "pattern": "^\\d+(\\.\\d+)?\\.?\\s*(K|M|G|T)?B$",
+                    "default": "25.MB",
+                    "fa_icon": "fas fa-file-upload",
+                    "hidden": true
+                },
+                "monochrome_logs": {
+                    "type": "boolean",
+                    "description": "Do not use coloured log outputs.",
+                    "fa_icon": "fas fa-palette",
+                    "hidden": true
+                },
+                "hook_url": {
+                    "type": "string",
+                    "description": "Incoming hook URL for messaging service",
+                    "fa_icon": "fas fa-people-group",
+                    "help_text": "Incoming hook URL for messaging service. Currently, MS Teams and Slack are supported.",
+                    "hidden": true
+                },
+                "multiqc_config": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "Custom config file to supply to MultiQC.",
+                    "exists": true,
+                    "fa_icon": "fas fa-cog",
+                    "hidden": true
+                },
+                "multiqc_logo": {
+                    "type": "string",
+                    "description": "Custom logo file to supply to MultiQC. File name must also be set in the MultiQC config file",
+                    "fa_icon": "fas fa-image",
+                    "hidden": true
+                },
+                "multiqc_methods_description": {
+                    "type": "string",
+                    "description": "Custom MultiQC yaml file containing HTML including a methods description.",
+                    "fa_icon": "fas fa-cog"
+                },
+                "validate_params": {
+                    "type": "boolean",
+                    "description": "Boolean whether to validate parameters against the schema at runtime",
+                    "default": true,
+                    "fa_icon": "fas fa-check-square",
+                    "hidden": true
+                },
+                "pipelines_testdata_base_path": {
+                    "type": "string",
+                    "fa_icon": "far fa-check-circle",
+                    "description": "Base URL or local path to location of pipeline test dataset files",
+                    "default": "https://raw.githubusercontent.com/nf-core/test-datasets/",
+                    "hidden": true
+                },
+                "trace_report_suffix": {
+                    "type": "string",
+                    "fa_icon": "far calendar",
+                    "description": "Suffix to add to the trace report filename. Default is the date and time in the format yyyy-MM-dd_HH-mm-ss.",
+                    "hidden": true
+                },
+                "help": {
+                    "type": ["boolean", "string"],
+                    "description": "Display the help message."
+                },
+                "help_full": {
+                    "type": "boolean",
+                    "description": "Display the full detailed help message."
+                },
+                "show_hidden": {
+                    "type": "boolean",
+                    "description": "Display hidden parameters in the help message (only works when --help or --help_full are provided)."
+                }
+            }
+        }
+    },
+    "allOf": [
+        {
+            "$ref": "#/$defs/input_output_options"
+        },
+        {
+            "$ref": "#/$defs/mandatory_arguments"
+        },
+        {
+            "$ref": "#/$defs/skip_tools"
+        },
+        {
+            "$ref": "#/$defs/reference_genome_options"
+        },
+        {
+            "$ref": "#/$defs/simpleaf_options"
+        },
+        {
+            "$ref": "#/$defs/starsolo_options"
+        },
+        {
+            "$ref": "#/$defs/kallisto_bus_options"
+        },
+        {
+            "$ref": "#/$defs/cellranger_options"
+        },
+        {
+            "$ref": "#/$defs/cellrangerarc_options"
+        },
+        {
+            "$ref": "#/$defs/cellranger_multi_options"
+        },
+        {
+            "$ref": "#/$defs/institutional_config_options"
+        },
+        {
+            "$ref": "#/$defs/generic_options"
+        }
+    ]
+}

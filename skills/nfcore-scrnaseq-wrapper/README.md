@@ -6,7 +6,7 @@ ClawBio wrapper for running the upstream `scrnaseq` Nextflow pipeline from FASTQ
 
 - Upstream scRNA preprocessing from FASTQ via Nextflow.
 - Curated presets for `standard`/simpleaf, `star`, `kallisto`, `cellranger`, `cellrangerarc`, and `cellrangermulti`.
-- Validated samplesheet input with absolute normalized FASTQ paths.
+- Samplesheet input with absolute normalized FASTQ paths; nf-schema and the pipeline check its columns, values and FASTQs when Nextflow starts.
 - Reproducibility bundle, provenance bundle, `report.md`, and `result.json`.
 - Canonical `.h5ad` detection for downstream `scrna` and `scrna-embedding`.
 - Minimum nf-core output validation before reporting a successful run.
@@ -21,7 +21,7 @@ ClawBio wrapper for running the upstream `scrnaseq` Nextflow pipeline from FASTQ
 ## Quick Start
 
 ```bash
-python clawbio.py run scrnaseq-pipeline --demo --output ./outputs/scrnaseq_demo
+python clawbio.py run scrnaseq-pipeline --demo --output "$HOME/clawbio-runs/scrnaseq_demo"
 ```
 
 For real data:
@@ -29,13 +29,13 @@ For real data:
 ```bash
 python clawbio.py run scrnaseq-pipeline \
   --input samplesheet.csv \
-  --output ./scrnaseq_run \
+  --output "$HOME/clawbio-runs/scrnaseq_run" \
   --preset star \
   --protocol 10XV3 \
   --genome GRCh38
 ```
 
-Use `--check` to run preflight without launching Nextflow.
+Use `--check` to run preflight without launching Nextflow. It covers ClawBio's own checks only: nf-schema's parameter, samplesheet and reference-path checks and the release's Nextflow version gate run when Nextflow starts. Checkout-mode runs without `--output` default to `~/clawbio-runs/`; explicit destinations must be outside the repository.
 
 ## nf-core/scrnaseq 4.1.0 Compatibility Policy
 
@@ -50,11 +50,11 @@ Unsupported parameters are either hidden/institutional metadata, interactive hel
 
 ## Input & Reference Path Policy
 
-**Local-first by default.** Samplesheet FASTQs and reference/index inputs must be local paths; remote URIs (`s3://`, `gs://`, `https://`, `ftp://`, …) are rejected at preflight (`REMOTE_INPUT_NOT_ALLOWED`) so genetic data and references stay on the local machine. Pass `--allow-remote-inputs` to opt in — remote URIs are then passed through verbatim (Nextflow stages them; only the basename is validated) and a runtime warning lists every path fetched over the network. The same flag is shared by all three nf-core wrappers. Local references and FASTQs are always existence-checked at preflight so missing local paths fail fast.
+**Local-first by default.** Samplesheet FASTQs and reference/index inputs must be local paths; remote URIs (`s3://`, `gs://`, `https://`, `ftp://`, …) are rejected at preflight (`REMOTE_INPUT_NOT_ALLOWED`) so genetic data and references stay on the local machine. Pass `--allow-remote-inputs` to opt in — remote URIs are then passed through verbatim (Nextflow stages them and nf-schema checks their names) and a runtime warning lists every path fetched over the network. The same flag is shared by all three nf-core wrappers. nf-schema checks that local FASTQs and references exist when Nextflow starts.
 
 ## Protocol Policy
 
-For `standard`, `star`, and `kallisto`, `--protocol` is required because nf-core/scrnaseq 4.1.0 documents `auto` as CellRanger-only. Explicit `auto` is rejected for those presets. `smartseq` is accepted for `star` and `kallisto` only. `cellranger` accepts only `auto` and `10XV1`-`10XV4`; `cellrangerarc` accepts only `auto`; `cellrangermulti` is samplesheet-driven. Unknown custom protocol strings are passed through only for `standard`, `star`, and `kallisto`, where nf-core documents custom values.
+For `standard`, `star`, and `kallisto`, `--protocol` is required: nf-core/scrnaseq 4.1.0 defaults to `auto` and refuses it outside the Cell Ranger family itself when the run starts. `smartseq` is accepted for `star` and `kallisto` only. `cellranger` accepts only `auto` and `10XV1`-`10XV4`; `cellrangerarc` accepts only `auto`; `cellrangermulti` is samplesheet-driven. Unknown custom protocol strings are passed through only for `standard`, `star`, and `kallisto`, where nf-core documents custom values.
 
 ## Output Policy
 
@@ -68,3 +68,13 @@ After Nextflow exits, the wrapper validates `pipeline_info/`, the effective alig
 - `--require-local-pipeline` fails instead of falling back to the remote nf-core pipeline when a local checkout is required.
 - RNA velocity pairings are validated before execution: STARsolo `Gene Velocyto` requires `--star-ignore-sjdbgtf`, and Kallisto `lamanno`/`nac` requires both capture files.
 - `--check` reports the official nf-core parameter surface, supported upstream parameters, and intentionally unsupported parameters.
+
+## Validation and resume
+
+nf-schema checks every parameter against the pinned `nextflow_schema.json` when Nextflow starts; the wrapper refuses only NaN and infinity, which nf-schema cannot represent, and a failed run names each value nf-schema refused. Malformed or ambiguous samplesheets fail before normalized snapshots are written. An atomic launch manifest supports resuming failed launches; resumed `--check` also validates params and samplesheet checksums.
+
+Local Docker runs, including demos, cap both per-process requests and the local executor budget to detected host/Docker CPU and memory capacity. Site/cloud profiles and object-store work directories keep their own resource policy. Explicit `--nextflow-config` files have final precedence. Resource caps cannot make a dataset fit insufficient RAM.
+
+Replay uses the smaller of recorded limits and current Docker capacity, on macOS and Linux, through a temporary config; the original checksummed config is preserved. User config snapshots retain final precedence, except for container images: a replay without a Nextflow cache applies `containers.config` last when a complete, locally verified container record is available. Registry-only observations do not establish the original image and withhold the pin config.
+
+See the [compatibility audit](../../docs/nfcore-wrapper-audit.md) for upstream contracts, fixes, test results, and execution limits.

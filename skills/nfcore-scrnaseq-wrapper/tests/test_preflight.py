@@ -8,7 +8,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import preflight
+from clawbio.common.tests.nfcore_test_imports import load_tested_module
+
+preflight = load_tested_module(Path(__file__).resolve().parent.parent, "preflight")
 from errors import SkillError
 from nfcore_4_1_0_contract import POLICY_SOURCE_NFCORE_DOCS
 
@@ -89,13 +91,6 @@ def test_reference_paths_accept_remote_uris():
             "star_index": "gs://bucket/star/",
         }
     )
-
-
-def test_reference_paths_still_reject_missing_local(tmp_path):
-    """A *local* reference that does not exist still fails fast (MISSING_REFERENCE)."""
-    with pytest.raises(SkillError) as exc:
-        preflight._check_reference_paths_exist({"fasta": str(tmp_path / "nope.fa")})
-    assert exc.value.error_code == "MISSING_REFERENCE"
 
 
 # --- --allow-remote-inputs gate (local-first by default) ---------------------
@@ -271,19 +266,7 @@ def test_preflight_rejects_missing_nextflow_config(tmp_path, monkeypatch):
     assert exc.value.details["field"] == "extra_config"
 
 
-def test_preflight_rejects_missing_reference(tmp_path, monkeypatch):
-    args = _args(tmp_path)
-    _mock_env(monkeypatch)
-    with pytest.raises(SkillError) as exc:
-        preflight.run_preflight(
-            args,
-            pipeline_source=_PIPELINE_SOURCE,
-            samplesheet_summary={"sample_count": 1, "unknown_columns": []},
-        )
-    assert exc.value.error_code == "MISSING_REFERENCE"
-
-
-def test_fasta_path_with_whitespace_fails_before_nextflow_schema(tmp_path, monkeypatch):
+def test_fasta_path_with_whitespace_is_left_to_nf_schema(tmp_path, monkeypatch):
     args = _args(tmp_path)
     fasta_dir = tmp_path / "refs with spaces"
     fasta_dir.mkdir()
@@ -295,15 +278,13 @@ def test_fasta_path_with_whitespace_fails_before_nextflow_schema(tmp_path, monke
     args.gtf = str(gtf)
     _mock_env(monkeypatch)
 
-    with pytest.raises(SkillError) as exc:
-        preflight.run_preflight(
-            args,
-            pipeline_source=_PIPELINE_SOURCE,
-            samplesheet_summary={"sample_count": 1, "unknown_columns": []},
-        )
-
-    assert exc.value.error_code == "INVALID_PRESET_CONFIGURATION"
-    assert exc.value.details["field"] == "fasta"
+    # The fasta pattern ^\S+\.fn?a(sta)?(\.gz)?$ covers the whole path, so nf-schema
+    # refuses it when Nextflow starts.
+    preflight.run_preflight(
+        args,
+        pipeline_source=_PIPELINE_SOURCE,
+        samplesheet_summary={"sample_count": 1, "unknown_columns": []},
+    )
 
 
 def test_preflight_rejects_email_not_matching_nfcore_schema(tmp_path, monkeypatch):
@@ -320,31 +301,6 @@ def test_preflight_rejects_email_not_matching_nfcore_schema(tmp_path, monkeypatc
 
     assert exc.value.error_code == "INVALID_PRESET_CONFIGURATION"
     assert exc.value.details["field"] == "email"
-
-
-@pytest.mark.parametrize("preset", ["standard", "star", "kallisto"])
-def test_missing_protocol_is_rejected_for_non_cellranger_presets(
-    tmp_path, monkeypatch, preset
-):
-    args = _args(tmp_path)
-    args.preset = preset
-    args.protocol = None
-    Path(args.fasta).write_text(">chr1\nACGT\n", encoding="utf-8")
-    Path(args.gtf).write_text(
-        'chr1\tsrc\tgene\t1\t4\t.\t+\t.\tgene_id "g1";\n', encoding="utf-8"
-    )
-    _mock_env(monkeypatch)
-
-    with pytest.raises(SkillError) as exc:
-        preflight.run_preflight(
-            args,
-            pipeline_source=_PIPELINE_SOURCE,
-            samplesheet_summary={"sample_count": 1, "unknown_columns": []},
-        )
-
-    assert exc.value.error_code == "INVALID_PRESET_CONFIGURATION"
-    assert exc.value.details["missing_field"] == "protocol"
-    assert exc.value.details["policy_source"] == POLICY_SOURCE_NFCORE_DOCS
 
 
 @pytest.mark.parametrize("preset", ["cellranger", "cellrangerarc", "cellrangermulti"])
@@ -422,27 +378,6 @@ def test_scrnaseq_rejects_smartseq_protocol_for_unsupported_presets(
 
     assert exc.value.error_code == "INVALID_PRESET_CONFIGURATION"
     assert "Smart-seq" in exc.value.message
-    assert exc.value.details["policy_source"] == POLICY_SOURCE_NFCORE_DOCS
-
-
-@pytest.mark.parametrize("preset", ["standard", "star", "kallisto"])
-def test_non_cellranger_presets_reject_auto_protocol_case_insensitively(
-    tmp_path, monkeypatch, preset
-):
-    args = _args(tmp_path)
-    args.preset = preset
-    args.protocol = "AUTO"
-    _mock_env(monkeypatch)
-
-    with pytest.raises(SkillError) as exc:
-        preflight.run_preflight(
-            args,
-            pipeline_source=_PIPELINE_SOURCE,
-            samplesheet_summary={"sample_count": 1, "unknown_columns": []},
-        )
-
-    assert exc.value.error_code == "INVALID_PRESET_CONFIGURATION"
-    assert exc.value.details["protocol"] == "AUTO"
     assert exc.value.details["policy_source"] == POLICY_SOURCE_NFCORE_DOCS
 
 
@@ -838,21 +773,95 @@ def test_seq_center_with_star_preset_does_not_warn(tmp_path, monkeypatch, capsys
     assert "seq_center" not in capsys.readouterr().err
 
 
-def test_nfcore_schema_errors_identify_nfcore_policy(tmp_path, monkeypatch):
+# nf-core/scrnaseq 4.1.0's nextflow_schema.json declares every reference and auxiliary
+# path the wrapper exposes `exists: true` except motifs and cellrangerarc_config, and
+# gives fasta the ^\S+\.fn?a(sta)?(\.gz)?$ pattern: nf-schema refuses a missing path or
+# a wrong FASTA name when Nextflow starts, before any task runs.
+_SCHEMA_CHECKED_PATHS = (
+    "fasta", "gtf", "transcript_fasta", "txp2gene", "simpleaf_index", "kallisto_index",
+    "star_index", "cellranger_index", "barcode_whitelist", "kb_t1c", "kb_t2c",
+    "cellranger_vdj_index", "gex_frna_probe_set", "gex_target_panel", "gex_cmo_set",
+    "fb_reference", "vdj_inner_enrichment_primers", "gex_barcode_sample_assignment",
+    "cellranger_multi_barcodes",
+)
+
+
+@pytest.mark.parametrize("field", _SCHEMA_CHECKED_PATHS)
+def test_paths_the_schema_checks_are_left_to_nf_schema(tmp_path, field):
+    preflight._check_reference_paths_exist({field: str(tmp_path / "missing" / field)})
+
+
+def test_a_fasta_name_the_schema_refuses_is_left_to_nf_schema(tmp_path, monkeypatch):
     args = _args(tmp_path)
-    fasta = tmp_path / "genome.txt"
-    gtf = tmp_path / "genes.gtf"
-    fasta.write_text(">chr1\nACGT\n", encoding="utf-8")
-    gtf.write_text('chr1\tsrc\tgene\t1\t4\t.\t+\t.\tgene_id "g1";\n', encoding="utf-8")
-    args.fasta = str(fasta)
-    args.gtf = str(gtf)
+    for name in ("genome.txt", "genes.gtf"):
+        (tmp_path / name).write_text("x", encoding="utf-8")
+    args.fasta = str(tmp_path / "genome.txt")
     _mock_env(monkeypatch)
+    preflight.run_preflight(args, pipeline_source=_PIPELINE_SOURCE,
+                            samplesheet_summary={"sample_count": 1, "unknown_columns": []})
 
+
+@pytest.mark.parametrize("field", ["motifs", "cellrangerarc_config"])
+def test_paths_the_schema_does_not_check_must_exist(tmp_path, field):
+    """No `exists` for these in 4.1.0: workflows/scrnaseq.nf reads motifs with a plain
+    file(), so a missing local file would fail only inside the ARC task."""
     with pytest.raises(SkillError) as exc:
-        preflight.run_preflight(
-            args,
-            pipeline_source=_PIPELINE_SOURCE,
-            samplesheet_summary={"sample_count": 1, "unknown_columns": []},
-        )
+        preflight._check_reference_paths_exist({field: str(tmp_path / f"missing_{field}")})
+    assert exc.value.error_code == "MISSING_REFERENCE"
+    assert exc.value.details["field"] == field
 
-    assert exc.value.details.get("policy_source") == POLICY_SOURCE_NFCORE_DOCS
+
+# The minimum versions are Nextflow's to enforce: each pinned release declares
+# manifest.nextflowVersion with `!`, so Nextflow refuses an older engine when the run
+# starts, and the Nextflow launcher refuses a Java outside 17-26 before that. The wrapper
+# checks only that `java` and `nextflow` run and records their versions for the bundle.
+@pytest.mark.parametrize("java_text,nextflow_text", [
+    ('openjdk version "11.0.1"', "Nextflow version 24.10.0 build 5928"),
+    ('openjdk version "16.0.2"', "Nextflow version 25.04.2 build 5947"),
+])
+def test_old_java_and_nextflow_are_left_to_nextflow(monkeypatch, java_text, nextflow_text):
+    import preflight as p
+    monkeypatch.setattr(p.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: __import__("subprocess").CompletedProcess(
+        command, 0, nextflow_text if command[0] == "nextflow" else "", java_text if command[0] == "java" else ""))
+    assert p._check_java()["version"] == java_text.split('"')[1]
+    assert p._check_nextflow()["version"] == nextflow_text.split()[2]
+
+
+# nf-core/scrnaseq 4.1.0 refuses protocol `auto` for every aligner but the Cell Ranger
+# family itself, at the start of workflows/scrnaseq.nf ("Only cellranger supports
+# `protocol = 'auto'`"), and `auto` is its default, so a run without --protocol lands
+# there too. The wrapper keeps no copy of that rule; params_builder writes an `auto`
+# alias in the exact form the pipeline compares.
+@pytest.mark.parametrize("preset", ["standard", "star", "kallisto"])
+@pytest.mark.parametrize("protocol", [None, "auto", "AUTO", "Auto"])
+def test_auto_and_missing_protocol_are_left_to_the_pipeline(tmp_path, monkeypatch, preset, protocol):
+    import params_builder
+
+    args = _args(tmp_path)
+    args.preset = preset
+    args.protocol = protocol
+    _mock_env(monkeypatch)
+    result = preflight.run_preflight(
+        args,
+        pipeline_source=_PIPELINE_SOURCE,
+        samplesheet_summary={"sample_count": 1, "unknown_columns": []},
+    )
+    assert result["ok"] is True
+    if protocol is not None:
+        assert params_builder._canonical_protocol(protocol) == "auto"
+
+
+def test_a_launcher_refusal_is_named_when_nextflow_cannot_report_its_version(monkeypatch):
+    """With an unsupported Java the launcher fails `nextflow -version` itself; the
+    error must carry its reason instead of only saying the version is unknown."""
+    import subprocess as sp
+    import preflight as p
+    from errors import SkillError as _SkillError
+    refusal = ("ERROR: Cannot find Java or it's a wrong version -- please make sure that "
+               "Java 17 or later (up to 26) is installed")
+    monkeypatch.setattr(p.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(p._runtime, "run_probe", lambda command, timeout_seconds: sp.CompletedProcess(command, 1, "", refusal + "\n"))
+    with pytest.raises(_SkillError) as exc:
+        p._check_nextflow()
+    assert refusal.removeprefix("ERROR: ") in exc.value.message

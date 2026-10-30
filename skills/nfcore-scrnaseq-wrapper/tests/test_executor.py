@@ -3,12 +3,14 @@ from __future__ import annotations
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from clawbio.common.nfcore import execution as shared_execution
 from errors import SkillError
 from executor import execute_nextflow
 
@@ -19,20 +21,22 @@ class _MockProc:
     def __init__(
         self,
         returncode: int = 0,
-        timeout_on_first_wait: bool = False,
+        runs_until_killed: bool = False,
         keyboard_interrupt_on_first_wait: bool = False,
     ):
         self._rc = returncode
-        self._timeout_on_first = timeout_on_first_wait
+        self._runs_until_killed = runs_until_killed
         self._keyboard_interrupt_on_first = keyboard_interrupt_on_first_wait
         self._wait_calls = 0
         self.killed = False
         self.pid = 1234
+        self.args = ["nextflow", "run", "test"]
 
     def wait(self, timeout=None):
         self._wait_calls += 1
-        if self._timeout_on_first and self._wait_calls == 1:
-            raise subprocess.TimeoutExpired(cmd=["nextflow"], timeout=timeout or 1)
+        if self._runs_until_killed and not self.killed:
+            time.sleep(timeout)  # A real wait blocks this long before giving up.
+            raise subprocess.TimeoutExpired(cmd=["nextflow"], timeout=timeout)
         if self._keyboard_interrupt_on_first and self._wait_calls == 1:
             raise KeyboardInterrupt
         return self._rc
@@ -83,7 +87,7 @@ def _record_taskkill(monkeypatch) -> list[list[str]]:
 
 
 def test_execute_nextflow_kills_process_on_timeout(tmp_path, monkeypatch):
-    proc = _MockProc(returncode=0, timeout_on_first_wait=True)
+    proc = _MockProc(returncode=0, runs_until_killed=True)
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
     monkeypatch.setattr(sys, "platform", "win32")
     taskkill_calls = _record_taskkill(monkeypatch)
@@ -155,28 +159,19 @@ def test_execute_nextflow_cleans_up_empty_logs_on_popen_failure(tmp_path, monkey
 def test_macos_tmp_failure_hint_added_under_tmp(monkeypatch):
     """On macOS, an EXECUTION_FAILED for an --output under /tmp must include the
     actionable Colima/Docker hint (audit Hallazgo 2)."""
-    import executor
-    from pathlib import Path
-
-    monkeypatch.setattr(executor.sys, "platform", "darwin")
-    hint = executor._macos_tmp_failure_hint(Path("/tmp/scrnaseq_run"))
+    monkeypatch.setattr(sys, "platform", "darwin")
+    hint = shared_execution.macos_tmp_failure_hint(Path("/tmp/scrnaseq_run"))
     assert "/tmp" in hint and "HOME" in hint
 
 
 def test_macos_tmp_failure_hint_empty_under_home(monkeypatch):
-    import executor
-    from pathlib import Path
-
-    monkeypatch.setattr(executor.sys, "platform", "darwin")
-    assert executor._macos_tmp_failure_hint(Path.home() / "scrnaseq_run") == ""
+    monkeypatch.setattr(sys, "platform", "darwin")
+    assert shared_execution.macos_tmp_failure_hint(Path.home() / "scrnaseq_run") == ""
 
 
 def test_macos_tmp_failure_hint_empty_on_linux(monkeypatch):
-    import executor
-    from pathlib import Path
-
-    monkeypatch.setattr(executor.sys, "platform", "linux")
-    assert executor._macos_tmp_failure_hint(Path("/tmp/scrnaseq_run")) == ""
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert shared_execution.macos_tmp_failure_hint(Path("/tmp/scrnaseq_run")) == ""
 
 
 def test_memory_limit_failure_hint(tmp_path):

@@ -60,7 +60,7 @@
     ]
   },
   "skill": "nfcore-sarek-wrapper",
-  "skill_version": "0.1.0",
+  "skill_version": "0.2.0",
   "supported_aligners": [
     "bwa-mem",
     "bwa-mem2",

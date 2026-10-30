@@ -3,9 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 
+
+# resourceLimits of the pinned release's own -profile test (conf/test.config). --demo keeps
+# them: the launcher may lower them on a smaller machine but never raises them.
+DEMO_RESOURCE_LIMITS = {"cpus": 4, "memory_gb": 15}
+
 SKILL_NAME = "nfcore-scrnaseq-wrapper"
 SKILL_ALIAS = "scrnaseq-pipeline"
-SKILL_VERSION = "0.1.0"
+SKILL_VERSION = "0.2.0"
 SKILL_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SKILL_DIR.parent.parent
 REPO_PARENT = PROJECT_ROOT.parent
@@ -45,13 +50,13 @@ SUPPORTED_PROFILES = {
     "test_cellrangermulti",
     "test_multiome",
 }
-JAVA_MIN_VERSION = 17
-# Comparison tuple (numeric) and the canonical human-readable string. Nextflow
-# releases use a zero-padded YY.MM.patch format ("25.04.0"), which is the ONLY
-# correct way to show the version to users — the tuple renders to "25.4.0",
-# which is not a real Nextflow version. Keep both in sync (guarded by a test).
-NEXTFLOW_MIN_VERSION = (25, 4, 0)
-NEXTFLOW_MIN_VERSION_DISPLAY = "25.04.0"
+
+# Environment Nextflow needs for the pinned release, applied to the run, shown in
+# the recorded command and exported by commands.sh. nf-core/scrnaseq 4.1.0 predates
+# Nextflow's strict syntax, which Nextflow 26.04 applies by default: it rejects the
+# release's include of conf/test_multiome.config, a file the tag does not ship. The
+# v1 parser runs the release unmodified.
+NEXTFLOW_ENV: dict[str, str] = {"NXF_SYNTAX_PARSER": "v1"}
 PIPELINE_REQUIRED_FILES = ("main.nf", "nextflow.config", "assets/schema_input.json")
 SUPPORTED_SAMPLE_COLUMNS = {
     "sample",
@@ -63,8 +68,6 @@ SUPPORTED_SAMPLE_COLUMNS = {
     "fastq_barcode",
     "feature_type",
 }
-REQUIRED_SAMPLE_COLUMNS = ("sample", "fastq_1", "fastq_2")
-SUPPORTED_SAMPLE_TYPE_VALUES = {"atac", "gex"}
 SUPPORTED_FEATURE_TYPE_VALUES = {"gex", "vdj", "ab", "crispr", "cmo"}
 
 PRESET_ALIGNERS = {
@@ -112,28 +115,6 @@ AUXILIARY_PATH_FIELDS = (
 SYMBOLIC_REFERENCE_FIELDS = ("genome", "cellrangerarc_reference")
 # Every local path written to params.yaml / existence-checked in preflight.
 ALL_REFERENCE_PATH_FIELDS = GENOME_REFERENCE_FIELDS + AUXILIARY_PATH_FIELDS
-
-
-def is_under_tmp(path: Path) -> bool:
-    """Return True when ``path`` resolves to (or inside) /tmp or /private/tmp.
-
-    Single source of truth for the macOS+Docker /tmp guard, shared by preflight
-    (pre-run WARNING) and executor (post-failure hint) so the two cannot diverge.
-    On macOS, Colima/Docker does not share /tmp into its VM, so a work-dir under
-    /tmp surfaces as a confusing '.command.run: No such file or directory'.
-    """
-    try:
-        resolved = path.resolve()
-    except OSError:
-        return False
-    tmp = Path("/tmp").resolve()
-    private_tmp = Path("/private/tmp").resolve()
-    return (
-        resolved == tmp
-        or resolved == private_tmp
-        or tmp in resolved.parents
-        or private_tmp in resolved.parents
-    )
 
 
 def profile_components(profile: str) -> list[str]:

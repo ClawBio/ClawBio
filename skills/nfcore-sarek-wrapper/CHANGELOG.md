@@ -1,12 +1,100 @@
 # nfcore-sarek-wrapper — Changelog
 
+
 All notable changes to the `nfcore-sarek-wrapper` ClawBio skill are documented
 here. The format roughly follows [Keep a Changelog](https://keepachangelog.com)
 and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
-## [Unreleased] — 0.1.0
+## [Unreleased] — 0.2.0
+
+### Added
+
+- **The bundle records the container images named by the run.** `reproducibility/containers.json`
+  lists local or explicit digests, image IDs, platforms and processes. A complete Docker/Podman record
+  produces `containers.config`, applied on replay without a Nextflow cache. Registry-only lookups
+  describe the tag currently served, cannot confirm the original task image/platform, and therefore
+  mark the record incomplete and withhold replay pins.
+
+### Changed
+
+- Stop duplicating sample sex metadata in wrapper summaries and JSON provenance. The normalized input sheet still forwards the required sex values unchanged to Sarek; pairing and variant calling are unchanged. A property test covers both data minimization and exact input forwarding.
+
+- **Samplesheet rules are nf-core/sarek's.** nf-schema (`assets/schema_input.json`) and
+  `samplesheet_to_channel` check the samplesheet when Nextflow starts, before any task runs,
+  and `result.json` names the refused entry; the builder and preflight no longer repeat
+  them (required columns per step, whitespace, `sex`/`status` values, file names and
+  existence, duplicate rows, a sample under two patients, two normals with one tumour,
+  tumour/normal samples for mutect2/controlfreec/haplotypecaller/deepvariant, sex for
+  ascat/controlfreec/varlociraptor, varlociraptor's contamination). The wrapper still
+  refuses rows mixing input modes, BAM/CRAM rows without an index after `mapping`,
+  `recalibrate` rows without a table and contamination outside [0, 1]. The error codes
+  `INVALID_FASTQ`, `MISSING_FASTQ`, `INVALID_BAM`, `INVALID_SEX`, `INVALID_STATUS` and
+  `VARLOCIRAPTOR_MISSING_CONTAMINATION` are no longer raised and are removed.
+- **Reference paths are nf-schema's where the schema checks them.** nf-core/sarek 3.8.1's
+  `nextflow_schema.json` declares 37 of the wrapper's reference params `exists: true` (with
+  a name pattern for most, a file-path-pattern for known_indels), and Sarek validates the
+  SnpSift databases CSV itself; preflight no longer repeats those existence, name and
+  CSV checks, nor the suffix warnings and the intervals extension check. It still
+  existence-checks the 18 local paths the schema does not check, gates remote URIs,
+  refuses whitespace where the schema pattern is unanchored (germline resource and its
+  index, intervals) or in a SnpSift `vardb`, and requires a BED for `--wes` (Sarek's
+  own check is unreachable in 3.8.1).
+- **Minimum versions are Nextflow's.** nf-core/sarek 3.8.1 declares
+  `manifest.nextflowVersion = '!>=25.10.2'`, so Nextflow refuses an older engine when the
+  run starts, and the Nextflow launcher refuses a Java outside 17-26. Preflight no longer
+  repeats those minimums (`JAVA_MIN_VERSION`/`NEXTFLOW_MIN_VERSION` go); it still requires
+  `java` and `nextflow` on PATH and a readable version, which it records for `NXF_VER`.
+- **A failed `nextflow -version` says why.** With a Java the Nextflow launcher refuses,
+  `nextflow -version` itself fails; preflight's error now quotes the launcher's reason
+  instead of only saying the version could not be determined, and never reads a version
+  out of a failed run's output.
+
+### Removed
+
+- **Error codes for checks nf-core now makes, hence 0.2.0.** The `INVALID_BAM`, `INVALID_FASTQ`,
+  `INVALID_SEX`, `INVALID_STATUS`, `MISSING_FASTQ` and `VARLOCIRAPTOR_MISSING_CONTAMINATION` codes
+  are gone. nf-schema, the pipeline or Nextflow refuses those inputs when the run starts, and the
+  wrapper reports `EXECUTION_FAILED` with nf-core's reason in `result.json`. An agent that branched
+  on the old codes should match `EXECUTION_FAILED` and read the message.
 
 ### Fixed
+
+- The local-first gate now reads every samplesheet path group. A remote `spring_1`, `spring_2`,
+  `vcf` or `table` path reached Nextflow without `--allow-remote-inputs`; only FASTQ, BAM and CRAM
+  paths were checked (`main` has the same gap).
+- `--demo` now names the `--params-file` keys it drops (input, genome, references) in a WARNING,
+  as it already did for reference flags.
+- Stop tasks that ignore SIGTERM even when the Nextflow group leader exits first.
+- A Ctrl+C or SIGTERM that landed while the wrapper was checking on Nextflow could leave it
+  waiting forever instead of stopping the run; the stop is now recorded and acted on once the wait returns.
+- Match Docker Hub aliases to local digests, keep offline local-image pins, and withhold unverified registry-only replay pins.
+
+- Reuse parsed preflight Java/Nextflow versions in the success bundle, keeping manifest, replay and environment pins consistent instead of capturing raw tool banners.
+- Route launcher defaults outside the source tree and correct example output paths.
+- Reject duplicate/malformed parameter mappings, ambiguous CSV inputs and NaN or infinite parameter values; nf-schema checks every other parameter rule against the pinned 3.8.1 schema when Nextflow starts, and its refusals are named in `result.json`.
+- **Replay reads the recorded resource limits exactly.** The replay guard took the first line mentioning cpus
+  or memory and stripped every non-digit, so a hand-edited `15.5.GB` became 155 GB. It now reads the
+  `executor.cpus` and `executor.memory` lines with their unit and decimal point.
+- Apply custom-reference and demo policy to parameter files, and validate local pipeline versions.
+- Stage samplesheets until preflight succeeds, require valid resume manifests, and track the work directory.
+- Record launch manifests before execution and validate output-directory failures before creating artifacts.
+- Bound Docker scheduler/process capacity on macOS/Linux, including demos; preserve user-config precedence and similarly named config snapshots. A demo's per-process limits stay within `-profile test`'s own 4 CPUs / 15 GB (lowered on a smaller machine, never raised; bounding by the host had raised them to 28 CPUs, running bwa with 24 threads instead of the test profile's 4); the executor's aggregate budget is the host's, so tasks still run in parallel.
+- Anchor replay before resource probes and cap to the smaller recorded/current Docker capacity without changing checksummed originals.
+- Use the shared environment writer; reject nonfinite timeouts, bound failure-log reads, and terminate interrupted process groups.
+- **Runs on Nextflow 26.04+.** Its default strict syntax parser rejects nf-core/sarek
+  3.8.1's configs (`Unexpected input: ':'`); the wrapper sets `NXF_SYNTAX_PARSER=v1`
+  for the run, the recorded command and `commands.sh`.
+- **Ctrl+C now stops Nextflow** instead of leaving it running after the wrapper exits.
+- **A refused `--resume` leaves the completed run untouched.** `RESUME_DRIFT`
+  overwrote its `result.json` with the refusal, and the new samplesheet had already
+  replaced `reproducibility/samplesheet.valid.csv`, so replaying that bundle would have
+  analysed the refused request's samples. A resume now validates the samplesheet in a
+  scratch directory and commits it only after preflight accepts the resume.
+- **Checksums survive later runs in place.** Nextflow's rotated `.nextflow.log.N` files
+  were hashed, so `sha256sum -c` failed on them after a later run in place; `--repair-bundle`
+  now selects exactly the files a fresh run lists.
+- **`--timeout-hours nan`/`inf` is a usage error**, and `params.yaml` references with
+  YAML quoting or long paths are remapped and verified correctly.
 
 - **`remap_paths.py`: combining actions no longer discards one of them silently.**
   `main()` dispatched through a chain of early returns, so only the first matching flag
