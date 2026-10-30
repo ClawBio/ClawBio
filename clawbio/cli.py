@@ -1044,6 +1044,41 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "mag-pipeline": {
+        "script": SKILLS_DIR / "metagenome-mag-pipeline" / "metagenome_mag_pipeline.py",
+        # --allow-fetch: the demo clones the pinned third-party workflow on a cold
+        # cache, so the registered demo command carries the consent flag.
+        "demo_args": ["--demo", "--allow-fetch"],
+        "description": "Shotgun metagenomics QC, assembly, binning and MAG assessment (Snakemake wrapper)",
+        # Kept above the wrapper's own --timeout-hours cap (12 h) so the wrapper
+        # terminates the process group before the runner gives up on it.
+        "default_timeout_seconds": 60 * 60 * 12 + 10 * 60,
+        "max_output_files_listed": 50,
+        # Keep this allowlist aligned with build_parser() in
+        # skills/metagenome-mag-pipeline/metagenome_mag_pipeline.py.
+        # tests/test_extra_flags_match_parsers.py enforces the match.
+        "allowed_extra_flags": set("""
+            --check --preset --cores --mem-mb --coassemble --binners
+            --host-fasta --skip-host-removal --allow-host-download
+            --checkm2-db --gtdbtk-db --taxonomy-db --taxdump
+            --kegg-db --cog-db --pfam-db
+            --pipeline-dir --conda-prefix --allow-fetch --allow-remote-inputs
+            --timeout-hours --force
+        """.split()),
+        "allowed_extra_flags_without_values": set("""
+            --check --coassemble --skip-host-removal --allow-host-download
+            --allow-fetch --allow-remote-inputs --force
+        """.split()),
+        # The runner starts the script in the skill folder; resolve these against
+        # the caller's directory first.
+        "extra_path_flags": set("""
+            --host-fasta --checkm2-db --gtdbtk-db --taxonomy-db --taxdump
+            --kegg-db --cog-db --pfam-db --pipeline-dir --conda-prefix
+        """.split()),
+        # The wrapper decides for itself whether --demo or --input is required.
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
     "rdoutlier": {
         "script": SKILLS_DIR / "rare-disease-rnaseq" / "rare_disease_rnaseq.py",
         "demo_args": ["--demo"],
