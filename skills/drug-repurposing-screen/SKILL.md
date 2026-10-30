@@ -220,6 +220,8 @@ python clawbio.py run repurposing --demo --output /tmp/drs_demo
 
 Expected output: 3 primary hits among the synthetic context-selective compounds (BRD-0003, BRD-0007, BRD-0015); methylation-context biomarker signal; full artefact tree under `/tmp/drs_demo/`.
 
+`--demo` and the CLI tests read the committed bundle in `demo/`, which `generate_demo_bundle.py` writes (seeded, default `--output-dir demo/`). After changing the generator, regenerate it into `demo/` and commit the result in the same change: `tests/test_generate_demo_bundle.py` fails when the committed values no longer match what the generator writes.
+
 ## Algorithm / Methodology
 
 The skill can be applied even without the Python script by following these steps:
