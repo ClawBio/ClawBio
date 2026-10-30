@@ -1382,3 +1382,21 @@ def test_remote_inputs_allowed_with_flag_warns(capsys):
 def test_local_inputs_pass_the_remote_gate():
     import preflight as _pf
     _pf._check_remote_inputs({"fasta": "/refs/genome.fa"}, {"fastq_paths": ["/d/n_R1.fastq.gz"]}, allow_remote_inputs=False)
+
+
+@pytest.mark.parametrize("group,uri", [
+    ("spring_paths", "s3://bucket/n_R1.fastq.gz.spring"),
+    ("vcf_paths", "https://example.org/n.vcf.gz"),
+    ("tables", "gs://bucket/n.recal.table"),
+])
+def test_remote_spring_vcf_and_table_inputs_are_rejected_by_default(group, uri):
+    """Every path group the samplesheet builder reports is gated, not just FASTQ/BAM/CRAM."""
+    from pathlib import Path
+
+    from clawbio.common.tests.nfcore_test_imports import load_tested_module
+
+    preflight = load_tested_module(Path(__file__).resolve().parent.parent, "preflight")
+    with pytest.raises(SkillError) as exc:
+        preflight._check_remote_inputs({}, {group: [uri]}, allow_remote_inputs=False)
+    assert exc.value.error_code == ErrorCode.REMOTE_INPUT_NOT_ALLOWED
+    assert exc.value.details["remote_paths"] == [uri]

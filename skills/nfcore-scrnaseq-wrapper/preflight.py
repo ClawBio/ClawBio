@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import json
 import os
 import re
 import shutil
@@ -9,6 +8,9 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+from clawbio.common.nfcore import runtime as _runtime
+from clawbio.common.nfcore.paths import is_under_tmp
 
 _SKILL_DIR = Path(__file__).resolve().parent
 if str(_SKILL_DIR) in sys.path:
@@ -41,7 +43,6 @@ from schemas import (
     SUPPORTED_PRESETS,
     SUPPORTED_PROFILES,
     SYMBOLIC_REFERENCE_FIELDS,
-    is_under_tmp,
     profile_components,
     profile_includes,
 )
@@ -56,15 +57,8 @@ _PROFILE_COMPONENT_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 def _command_output(args: list[str]) -> str:
-    try:
-        proc = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            errors="replace",
-            timeout=_SUBPROCESS_TIMEOUT,
-        )
-    except (subprocess.TimeoutExpired, OSError):
+    proc = _runtime.run_probe(args, timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if proc is None:
         return ""
     if proc.returncode != 0:
         return ""
@@ -72,34 +66,11 @@ def _command_output(args: list[str]) -> str:
 
 
 def _pad_version(t: tuple[int, ...], length: int = 3) -> tuple[int, ...]:
-    return t + (0,) * max(0, length - len(t))
+    return _runtime.pad_version(t, length)
 
 
 def _parse_version_tuple(text: str) -> tuple[int, ...]:
-    m = re.search(r"\b(\d+)\.(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
-    m = re.search(r"\b(\d+)\.(\d+)\b", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)))
-    m = re.search(r"\b(\d+)\b", text)
-    if m:
-        return (int(m.group(1)),)
-    return ()
-
-
-def _detected_version_string(text: str) -> str:
-    """Return the version exactly as reported by the tool (e.g. '25.04.0').
-
-    The parsed tuple is for *comparison* only; reconstructing a string from it
-    drops zero-padding (25.04.0 → 25.4.0), which is not a real Nextflow release
-    and would break NXF_VER / conda pins on replay. Always store the raw token.
-    """
-    for pattern in (r"\b(\d+\.\d+\.\d+)\b", r"\b(\d+\.\d+)\b", r"\b(\d+)\b"):
-        m = re.search(pattern, text)
-        if m:
-            return m.group(1)
-    return ""
+    return _runtime.parse_version_tuple(text)
 
 
 def _check_executable(name: str) -> str:
@@ -135,9 +106,9 @@ def _check_java() -> dict[str, str]:
             error_code=ErrorCode.JAVA_VERSION_TOO_OLD,
             message="Java version is too old for this wrapper.",
             fix="Install Java 17 or newer.",
-            details={"detected_version": _detected_version_string(version_text)},
+            details={"detected_version": _runtime.reported_version(version_text)},
         )
-    return {"path": java_path, "version": _detected_version_string(version_text)}
+    return {"path": java_path, "version": _runtime.reported_version(version_text)}
 
 
 def _check_nextflow() -> dict[str, str]:
@@ -160,9 +131,9 @@ def _check_nextflow() -> dict[str, str]:
             error_code=ErrorCode.NEXTFLOW_VERSION_TOO_OLD,
             message="Nextflow version is too old for this wrapper.",
             fix=f"Upgrade Nextflow to {NEXTFLOW_MIN_VERSION_DISPLAY} or newer.",
-            details={"detected_version": _detected_version_string(version_text)},
+            details={"detected_version": _runtime.reported_version(version_text)},
         )
-    return {"path": nextflow_path, "version": _detected_version_string(version_text)}
+    return {"path": nextflow_path, "version": _runtime.reported_version(version_text)}
 
 
 def _check_profile(profile: str) -> dict[str, object]:
@@ -270,17 +241,8 @@ def _check_docker_profile(profile: str) -> dict[str, object]:
             fix="Install Docker or choose another supported profile.",
             details={"profile": profile},
         )
-    try:
-        info = subprocess.run(
-            ["docker", "info"],
-            capture_output=True,
-            text=True,
-            timeout=_SUBPROCESS_TIMEOUT,
-        )
-        docker_ok = info.returncode == 0
-    except (subprocess.TimeoutExpired, OSError):
-        docker_ok = False
-    if not docker_ok:
+    info = _runtime.run_probe(["docker", "info"], timeout_seconds=_SUBPROCESS_TIMEOUT)
+    if info is None or info.returncode != 0:
         raise SkillError(
             stage="preflight",
             error_code=ErrorCode.DOCKER_NOT_RUNNING,
@@ -810,32 +772,8 @@ def _normalize_protocol_token(protocol: str) -> str:
 
 
 def _check_demo_network(args) -> None:
-    """--demo runs nf-core's upstream ``-profile test``, whose inputs (test FASTQs and
-    reference FASTA/GTF) are remote GitHub URLs by design. Under ``NXF_OFFLINE`` the
-    nf-schema plugin aborts during parameter validation with a confusing
-    ``does not exist`` before any work starts, so fail early with an actionable message
-    instead. Downloading nf-core's PUBLIC test data does not conflict with the
-    local-first guarantee, which governs USER genetic data (never uploaded)."""
-    if not getattr(args, "demo", False):
-        return
-    offline = str(os.environ.get("NXF_OFFLINE", "")).strip().lower()
-    if offline in {"true", "1", "yes", "on"}:
-        raise SkillError(
-            stage="preflight",
-            error_code=ErrorCode.DEMO_REQUIRES_NETWORK,
-            message=(
-                "--demo runs the upstream nf-core `-profile test`, which downloads its test "
-                "datasets and reference files from GitHub, but NXF_OFFLINE is set — Nextflow "
-                "would abort during parameter validation because the remote test inputs cannot "
-                "be reached."
-            ),
-            fix=(
-                "Unset NXF_OFFLINE to run the demo (it fetches only nf-core's public test data — "
-                "no user or genetic data is uploaded), or run a real analysis with your own local "
-                "--input samplesheet and references, which is fully offline."
-            ),
-            details={"NXF_OFFLINE": os.environ.get("NXF_OFFLINE")},
-        )
+    if getattr(args, "demo", False):
+        _runtime.require_network_for_demo()
 
 
 def run_preflight(
@@ -1473,7 +1411,17 @@ def _check_resume_compatibility(
             fix="Remove --resume or point --output to a compatible prior run directory.",
             details={"manifest": str(manifest_path)},
         )
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    from clawbio.common.nfcore.artifacts import read_json_mapping
+
+    try:
+        manifest = read_json_mapping(manifest_path)
+    except (ValueError, OSError) as exc:
+        raise SkillError(
+            stage="preflight", error_code=ErrorCode.INVALID_RESUME_STATE,
+            message="Resume manifest is not a valid JSON object.",
+            fix="Use an intact manifest from a previous validated launch.",
+            details={"manifest": str(manifest_path), "error": str(exc)},
+        ) from exc
     _check_resume_preset_and_profile(args, manifest)
     _check_resume_pipeline_source(pipeline_source, manifest)
     _check_resume_work_dir(args, output_dir=output_dir, manifest=manifest)

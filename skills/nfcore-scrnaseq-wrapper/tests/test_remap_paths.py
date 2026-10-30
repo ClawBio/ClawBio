@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import sys
 from pathlib import Path
 
@@ -9,6 +10,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 
 from remap_paths import cmd_output_dir_hint, cmd_remap, main, remap_csv, verify_paths
+from clawbio.common.tests.nfcore_test_imports import load_tested_module
+
+_outputs_parser = load_tested_module(Path(__file__).resolve().parent.parent, "outputs_parser")
+find_h5ad_candidates = _outputs_parser.find_h5ad_candidates
+find_multiqc_report = _outputs_parser.find_multiqc_report
 
 
 def test_cmd_output_dir_hint_is_accepted_noop(capsys):
@@ -286,14 +292,11 @@ def test_bundle_copy_regenerates_keys_even_if_in_repo_literal_drifts(
     import reporting
     from schemas import ALL_REFERENCE_PATH_FIELDS
 
-    drifted_source = (
-        "from pathlib import Path\n"
-        "import re\n"
-        "_BUNDLE_DIR = Path(__file__).resolve().parent\n"
-        "# >>> AUTO-GENERATED reference keys (do not edit by hand) >>>\n"
-        '_PARAMS_REFERENCE_KEYS = ("WRONG_DRIFTED_KEY",)\n'
-        "# <<< AUTO-GENERATED reference keys <<<\n"
-        "_PARAMS_REF_RE = re.compile('|'.join(re.escape(k) for k in _PARAMS_REFERENCE_KEYS))\n"
+    source = reporting._REMAP_SCRIPT_SRC.read_text(encoding="utf-8")
+    drifted_source = reporting._REMAP_AUTOGEN_RE.sub(
+        reporting._REMAP_AUTOGEN_START + '\n_PARAMS_REFERENCE_KEYS = ("WRONG_DRIFTED_KEY",)\n' + reporting._REMAP_AUTOGEN_END,
+        source,
+        count=1,
     )
     fake_src = tmp_path / "src_remap_paths.py"
     fake_src.write_text(drifted_source, encoding="utf-8")
@@ -385,7 +388,7 @@ def test_regenerated_checksums_verify_against_files(tmp_path):
     """Safety guarantee: every entry in the regenerated checksums.sha256 must match
     the actual file digest, with labels resolving relative to output_dir — i.e.
     `sha256sum -c checksums.sha256` run from the output dir passes."""
-    from remap_paths import _sha256_file, cmd_repair_bundle
+    from remap_paths import cmd_repair_bundle
 
     bundle = _make_repairable_bundle(tmp_path)
     cmd_repair_bundle(bundle_dir=bundle)
@@ -398,7 +401,7 @@ def test_regenerated_checksums_verify_against_files(tmp_path):
         seen_labels.append(label)
         target = output_dir / label
         assert target.is_file(), f"checksum label does not resolve to a file: {label}"
-        assert _sha256_file(target) == digest, f"stale/wrong digest for {label}"
+        assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, f"stale/wrong digest for {label}"
     # The checksum file must never hash itself.
     assert "reproducibility/checksums.sha256" not in seen_labels
     # Must cover the regenerated params.yaml (the file remap mutates) and the output.
@@ -461,7 +464,6 @@ def test_repaired_checksums_match_freshly_generated_manifest(tmp_path):
     be byte-identical to the one the wrapper itself would write, i.e. cover exactly the
     original allowlist and not the reproducibility/*.json tree, environment.yml/
     manifest.json, other upstream outputs, or extra logs."""
-    from outputs_parser import find_h5ad_candidates, find_multiqc_report
     from provenance import write_reproducibility_checksums
     from remap_paths import _regenerate_checksums
 
@@ -567,3 +569,35 @@ def test_main_rejects_half_a_prefix_pair(tmp_path):
         with pytest.raises(SystemExit) as exc:
             main(argv, bundle_dir=bundle)
         assert exc.value.code != 0
+
+
+def test_repaired_checksums_cover_the_container_record_like_a_fresh_bundle(tmp_path):
+    """containers.json and containers.config pin the images a replay runs, so both
+    are in the allowlist, and --repair-bundle must rebuild exactly the same list."""
+    from provenance import write_reproducibility_checksums
+    from remap_paths import _regenerate_checksums
+
+    bundle = _make_realistic_bundle(tmp_path)
+    output_dir = bundle.parent
+    (bundle / "containers.json").write_text('{"images": []}\n', encoding="utf-8")
+    (bundle / "containers.config").write_text("process {}\n", encoding="utf-8")
+    results = output_dir / "upstream" / "results"
+    fresh_path = write_reproducibility_checksums(
+        output_dir,
+        normalized_samplesheet=bundle / "samplesheet.valid.csv",
+        params_path=bundle / "params.yaml",
+        preflight_result={},
+        # _make_realistic_bundle writes the MultiQC report here; repair finds it on its own.
+        parsed_outputs={"h5ad_candidates": find_h5ad_candidates(results),
+                        "multiqc_report": str(results / "multiqc" / "multiqc_report.html")},
+        execution_result={
+            "stdout_path": str(output_dir / "logs" / "stdout.txt"),
+            "stderr_path": str(output_dir / "logs" / "stderr.txt"),
+        },
+    )
+    fresh = fresh_path.read_bytes()
+    labels = [line.split("  ", 1)[1] for line in fresh_path.read_text().splitlines()]
+    assert labels[2:4] == ["reproducibility/containers.json", "reproducibility/containers.config"]
+    fresh_path.unlink()
+    _regenerate_checksums(bundle)
+    assert (bundle / "checksums.sha256").read_bytes() == fresh

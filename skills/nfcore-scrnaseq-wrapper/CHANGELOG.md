@@ -6,7 +6,35 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Added
+
+- **The bundle records the container images named by the run.** `reproducibility/containers.json`
+  lists local or explicit digests, image IDs, platforms and processes. A complete Docker/Podman record
+  produces `containers.config`, applied on replay without a Nextflow cache. Registry-only lookups
+  describe the tag currently served, cannot confirm the original task image/platform, and therefore
+  mark the record incomplete and withhold replay pins.
+
 ### Fixed
+
+- Stop tasks that ignore SIGTERM even when the Nextflow group leader exits first.
+- A Ctrl+C or SIGTERM that landed while the wrapper was checking on Nextflow could leave it
+  waiting forever instead of stopping the run; the stop is now recorded and acted on once the wait returns.
+- Match Docker Hub aliases to local digests, keep offline local-image pins, and withhold unverified registry-only replay pins.
+
+- Route launcher defaults outside the source tree and correct example output paths.
+- Reject ambiguous CSV inputs and NaN or infinite parameter values; nf-schema checks every other parameter rule against the pinned 4.1.0 schema when Nextflow starts, and its refusals are named in `result.json`.
+- Canonicalize recognized protocol aliases and preserve remote MultiQC configuration URIs.
+- Record launch manifests before execution and verify samplesheet checksums on resumed runs/checks.
+- Bound local Docker scheduler/process capacity, including demos and macOS; preserve user-config precedence in live runs and replay. A demo's per-process limits stay within `-profile test`'s own 4 CPUs / 15 GB (lowered on a smaller machine, never raised); the executor's aggregate budget is the host's, so tasks still run in parallel.
+- Replay against the smaller recorded/current Docker capacity without modifying checksummed configs.
+- Reject nonfinite timeouts and bound failure-log reads.
+- **Runs on Nextflow 26.04+.** Its default strict syntax parser rejects nf-core/scrnaseq
+  4.1.0's include of `conf/test_multiome.config`, which the tag does not ship; the
+  wrapper sets `NXF_SYNTAX_PARSER=v1` for the run, the recorded command and
+  `commands.sh`.
+- **`--timeout-hours nan`/`inf` is a usage error** instead of an `UNEXPECTED_ERROR`.
+- **`params.yaml` is written one value per line**, so the bundle remapper reads long
+  reference paths whole; `--resume` still accepts bundles fingerprinted before.
 
 - **A lane-split sample is now counted once, not once per row.** The samplesheet summary
   counted raw CSV rows (`sample_count = len(normalized_rows)`) and appended to

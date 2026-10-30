@@ -34,31 +34,35 @@ skipped by the remap and verify steps below. Before replaying on a different mac
 from __future__ import annotations
 
 import argparse
-import csv
-import hashlib
-import json
 import re
 import shlex
-import shutil
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 _BUNDLE_DIR = Path(__file__).resolve().parent
 
-
-def _write_text_lf(path: Path, text: str) -> None:
-    """Write ``text`` with LF line endings on every OS (self-contained).
-
-    This script is shipped inside the reproducibility bundle and runs standalone
-    at replay (no ClawBio package available), so it cannot import the shared
-    ``clawbio.common.textio`` helper. CRLF/CR are normalised to LF and the result
-    is written as bytes (bypassing text-mode newline translation) so a rewrite on
-    Windows never reintroduces CRLF into commands.sh, params.yaml, or checksums.
-    Mirrors the nfcore-sarek-wrapper helper.
-    """
-    normalised = text.replace("\r\n", "\n").replace("\r", "\n")
-    Path(path).write_bytes(normalised.encode("utf-8"))
+# >>> SHARED NFCORE RUNTIME >>>
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+from clawbio.common.nfcore.bundle_runtime import (
+    SHELL_WORD as _nfcore_SHELL_WORD,
+    backup_once as _nfcore_backup_once,
+    escape_double_quoted as _nfcore_escape_double_quoted,
+    format_output_value as _nfcore_format_output_value,
+    missing_csv_paths as _nfcore_missing_csv_paths,
+    missing_flag_references as _nfcore_missing_flag_references,
+    remap_csv as _nfcore_remap_csv,
+    remap_flag_references as _nfcore_remap_flag_references,
+    repair_bundle as _nfcore_repair_bundle,
+    run_actions as _nfcore_run_actions,
+    sha256_file as _nfcore_sha256_file,
+    unquote_shell_word as _nfcore_unquote_shell_word,
+    write_environment_stub as _nfcore_write_environment_stub,
+    write_manifest_stub as _nfcore_write_manifest_stub,
+    write_text_lf as _nfcore_write_text_lf,
+)
+# <<< SHARED NFCORE RUNTIME <<<
 
 
 _FASTQ_COLUMNS = ("fastq_1", "fastq_2")
@@ -99,9 +103,9 @@ _REFERENCE_FLAGS = (
 
 # Matches `    --output /path \` lines — requires line to start with whitespace
 # (not #) so comment lines containing --output are never modified. The value
-# may be unquoted, single-quoted, or double-quoted.
+# is one shell word, quoted however shlex.quote or a relocation wrote it.
 _OUTPUT_FLAG_RE = re.compile(
-    r"""^([ \t]+--output[ \t]+)(?P<value>"[^"\n]*"|'[^'\n]*'|\S+)([ \t]*(?:\\[ \t]*)?)$""",
+    r"^([ \t]+--output[ \t]+)(?P<value>" + _nfcore_SHELL_WORD + r")([ \t]*(?:\\[ \t]*)?)$",
     re.MULTILINE,
 )
 
@@ -110,15 +114,22 @@ _OUTPUT_FLAG_RE = re.compile(
 # The captured value is the output directory, kept in sync with the --output flag
 # so a relocated bundle checks the NEW output dir (not the original) for a prior run.
 _RESUME_GUARD_RE = re.compile(
-    r"""^(if \[\[ -f ")(?P<value>[^"\n]*)(/reproducibility/manifest\.json" \]\]; then)$""",
+    r"""^(if \[\[ -f ")(?P<value>(?:[^"\\\n]|\\.)*)(/reproducibility/manifest\.json" \]\]; then)$""",
+    re.MULTILINE,
+)
+
+# Keep digest selection tied to the actual replay output, including bundles
+# generated before this guard used an explicit output path.
+_CACHE_GUARD_RE = re.compile(
+    r'''^(if \[\[ ! -d ")(?P<value>(?:[^"\\\n]|\\.)*)(/\.nextflow" && -f .*)$''',
     re.MULTILINE,
 )
 
 # Matches any of the reference flags in commands.sh, same quoting rules.
 _REFERENCE_FLAG_RE = re.compile(
-    r"""^([ \t]+--(?:"""
+    r"^([ \t]+--(?:"
     + "|".join(re.escape(f) for f in _REFERENCE_FLAGS)
-    + r""")[ \t]+)(?P<value>"[^"\n]*"|'[^'\n]*'|\S+)([ \t]*(?:\\[ \t]*)?)$""",
+    + r")[ \t]+)(?P<value>" + _nfcore_SHELL_WORD + r")([ \t]*(?:\\[ \t]*)?)$",
     re.MULTILINE,
 )
 
@@ -138,13 +149,6 @@ def find_commands_sh(bundle_dir: Path | None = None) -> Path | None:
     return p if p.exists() else None
 
 
-def _prefix_matches(path: str, prefix: str) -> bool:
-    if path == prefix:
-        return True
-    sep = "" if prefix.endswith("/") else "/"
-    return path.startswith(prefix + sep)
-
-
 def remap_csv(
     samplesheet: Path,
     old_prefix: str,
@@ -153,31 +157,13 @@ def remap_csv(
     dry_run: bool,
 ) -> list[tuple[str, str, str]]:
     """Return list of (column, old_path, new_path) for every changed cell."""
-    text = samplesheet.read_text(encoding="utf-8")
-    fieldnames = list(csv.DictReader(text.splitlines()).fieldnames or [])
-    rows = list(csv.DictReader(text.splitlines()))
-    changes: list[tuple[str, str, str]] = []
-
-    for row in rows:
-        for col in _REMAPPABLE_COLUMNS:
-            if col in row and row[col] and _prefix_matches(row[col], old_prefix):
-                new_val = new_prefix + row[col][len(old_prefix):]
-                changes.append((col, row[col], new_val))
-                if not dry_run:
-                    row[col] = new_val
-
-    if not dry_run and changes:
-        backup = samplesheet.with_name(samplesheet.name + ".bak")
-        shutil.copy2(samplesheet, backup)
-        with samplesheet.open("w", newline="", encoding="utf-8") as fh:
-            # lineterminator="\n" matches how the wrapper first wrote the samplesheet
-            # (samplesheet_builder._write_normalized_samplesheet); the csv default of
-            # "\r\n" would otherwise flip every line ending on this remap step.
-            writer = csv.DictWriter(fh, fieldnames=fieldnames, lineterminator="\n")
-            writer.writeheader()
-            writer.writerows(rows)
-
-    return changes
+    return _nfcore_remap_csv(
+        samplesheet,
+        old_prefix,
+        new_prefix,
+        columns=_REMAPPABLE_COLUMNS,
+        dry_run=dry_run,
+    )
 
 
 def remap_commands_references(
@@ -188,62 +174,19 @@ def remap_commands_references(
     dry_run: bool,
 ) -> list[tuple[str, str, str]]:
     """Remap reference/index paths in commands.sh. Return (flag, old, new) triples."""
-    content = commands_sh.read_text(encoding="utf-8")
-    changes: list[tuple[str, str, str]] = []
-
-    def _replace(m: re.Match) -> str:
-        raw = m.group("value")
-        value = _unquote_output_value(raw)
-        if not _prefix_matches(value, old_prefix):
-            return m.group(0)
-        new_value = new_prefix + value[len(old_prefix):]
-        flag = m.group(1).strip()
-        changes.append((flag, value, new_value))
-        return f"{m.group(1)}{_format_output_value(new_value, old_value=raw)}{m.group(3)}"
-
-    updated = _REFERENCE_FLAG_RE.sub(_replace, content)
-
-    if not dry_run and changes:
-        backup = commands_sh.with_suffix(".sh.bak")
-        shutil.copy2(commands_sh, backup)
-        _write_text_lf(commands_sh, updated)
-
-    return changes
+    return _nfcore_remap_flag_references(
+        commands_sh, old_prefix, new_prefix, dry_run=dry_run, pattern=_REFERENCE_FLAG_RE
+    )
 
 
 def verify_paths(samplesheet: Path) -> list[str]:
-    """Return FASTQ/BAM paths in the samplesheet that don't exist on disk.
-
-    Remote URIs (s3://, https://, etc.) and bash variable references ($VAR/…
-    or ${VAR}/…) are skipped — they cannot be stat-checked locally and are
-    valid entries for cloud or replay-time execution.
-    """
-    missing: list[str] = []
-    for row in csv.DictReader(samplesheet.read_text(encoding="utf-8").splitlines()):
-        for col in _REMAPPABLE_COLUMNS:
-            val = row.get(col, "")
-            if not val or "://" in val or val.startswith("$"):
-                continue
-            if not Path(val).exists():
-                missing.append(val)
-    return missing
+    """Return FASTQ/BAM paths in the samplesheet that don't exist on disk."""
+    return _nfcore_missing_csv_paths(samplesheet, columns=_REMAPPABLE_COLUMNS)
 
 
 def verify_reference_paths(commands_sh: Path) -> list[str]:
-    """Return local reference paths in commands.sh that don't exist on disk.
-
-    Remote URIs (s3://, https://, etc.) and bash variable references are skipped
-    because they cannot be verified with a simple filesystem check.
-    """
-    content = commands_sh.read_text(encoding="utf-8")
-    missing: list[str] = []
-    for m in _REFERENCE_FLAG_RE.finditer(content):
-        value = _unquote_output_value(m.group("value"))
-        if not value or value.startswith("$") or "://" in value:
-            continue
-        if not Path(value).exists():
-            missing.append(value)
-    return missing
+    """Return local reference paths in commands.sh that don't exist on disk."""
+    return _nfcore_missing_flag_references(commands_sh, pattern=_REFERENCE_FLAG_RE)
 
 
 def update_commands_output(commands_sh: Path, new_output_dir: str) -> bool:
@@ -252,19 +195,23 @@ def update_commands_output(commands_sh: Path, new_output_dir: str) -> bool:
     if not _OUTPUT_FLAG_RE.search(original):
         return False
     updated = _OUTPUT_FLAG_RE.sub(
-        lambda m: f"{m.group(1)}{_format_output_value(new_output_dir, old_value=m.group('value'))}{m.group(3)}",
+        lambda m: f"{m.group(1)}{_nfcore_format_output_value(new_output_dir, old_value=m.group('value'))}{m.group(3)}",
         original,
     )
     # Keep the idempotent-replay guard's manifest path in sync with the --output flag.
+    # The guard tests it inside bash double quotes, so escape it for that context.
     updated = _RESUME_GUARD_RE.sub(
-        lambda m: f"{m.group(1)}{new_output_dir}{m.group(3)}",
+        lambda m: f"{m.group(1)}{_nfcore_escape_double_quoted(new_output_dir)}{m.group(3)}",
+        updated,
+    )
+    updated = _CACHE_GUARD_RE.sub(
+        lambda m: f"{m.group(1)}{_nfcore_escape_double_quoted(new_output_dir)}{m.group(3)}",
         updated,
     )
     if updated == original:
         return False
-    backup = commands_sh.with_suffix(".sh.bak")
-    shutil.copy2(commands_sh, backup)
-    _write_text_lf(commands_sh, updated)
+    _nfcore_backup_once(commands_sh, commands_sh.with_suffix(".sh.bak"))
+    _nfcore_write_text_lf(commands_sh, updated)
     return True
 
 
@@ -380,7 +327,7 @@ def cmd_update_output(new_output_dir: str, *, dry_run: bool, bundle_dir: Path | 
             print("No --output flag found in commands.sh — nothing to change.")
             return 0
         print("[DRY RUN] Would change --output in commands.sh:")
-        print(f"    - {_unquote_output_value(m.group('value'))}")
+        print(f"    - {_nfcore_unquote_shell_word(m.group('value'))}")
         print(f"    + {new_output_dir}")
         return 0
 
@@ -419,7 +366,7 @@ def cmd_verify(bundle_dir: Path | None = None) -> int:
 
         m = _OUTPUT_FLAG_RE.search(content)
         if m:
-            output_path = _unquote_output_value(m.group("value"))
+            output_path = _nfcore_unquote_shell_word(m.group("value"))
             out = Path(output_path)
             if out.exists():
                 print(f"Output dir:  exists ({output_path})")
@@ -474,15 +421,6 @@ def cmd_verify(bundle_dir: Path | None = None) -> int:
     return 0 if ok else 1
 
 
-def _sha256_file(path: Path) -> str:
-    """Compute SHA-256 hex digest of a single file (stdlib-only, portable)."""
-    h = hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
 def _regenerate_checksums(bundle_dir: Path) -> None:
     """Write checksums.sha256 over all bundle content (stdlib-only, portable).
 
@@ -514,115 +452,23 @@ def _regenerate_checksums(bundle_dir: Path) -> None:
                 rel = f.relative_to(output_dir).as_posix()
             except ValueError:
                 rel = f.name
-            lines.append(f"{_sha256_file(f)}  {rel}")
-    _write_text_lf(checksum_path, "\n".join(lines) + ("\n" if lines else ""))
-
-
-def _regenerate_manifest_stub(bundle_dir: Path, commands_sh: Path) -> None:
-    """Write a post-hoc manifest.json stub.
-
-    The original manifest requires runtime metadata (args, params checksum,
-    java/nextflow versions detected at run time) that cannot be reconstructed
-    from the bundle alone.  The stub is clearly marked so audit consumers can
-    distinguish it from an original.
-    """
-    manifest = {
-        "regenerated_post_hoc": True,
-        "note": (
-            "Original manifest was lost because the wrapper crashed during "
-            "post-processing. This stub was written by remap_paths.py --repair-bundle. "
-            "For a complete audit bundle with original metadata, re-run the wrapper."
-        ),
-        "commands_sh": str(commands_sh),
-        "regenerated_at": datetime.now(timezone.utc).isoformat(),
-    }
-    _write_text_lf(bundle_dir / "manifest.json", json.dumps(manifest, indent=2))
+            lines.append(f"{_nfcore_sha256_file(f)}  {rel}")
+    _nfcore_write_text_lf(checksum_path, "\n".join(lines) + ("\n" if lines else ""))
 
 
 def _regenerate_environment_stub(bundle_dir: Path) -> None:
-    """Write a post-hoc environment.yml stub.
-
-    The original environment.yml captures exact Java/Nextflow versions detected
-    at run time.  Without the wrapper context those cannot be reconstructed, so
-    this stub records only a named placeholder that auditors can recognise.
-    """
-    _write_text_lf(
-        bundle_dir / "environment.yml",
-        "# regenerated post-hoc by remap_paths.py --repair-bundle\n"
-        "# Original environment snapshot was lost because the wrapper crashed during\n"
-        "# post-processing. For the original snapshot, re-run the wrapper.\n"
-        "name: clawbio-nfcore-rnaseq-wrapper\n"
-        "regenerated_post_hoc: true\n",
-    )
+    _nfcore_write_environment_stub(bundle_dir, name="clawbio-nfcore-rnaseq-wrapper")
 
 
 def cmd_repair_bundle(bundle_dir: Path | None = None) -> int:
-    """Regenerate missing bundle files from existing bundle contents.
-
-    checksums.sha256 is recomputed from whatever files are present — fully
-    accurate.  manifest.json and environment.yml are written as post-hoc stubs
-    (marked regenerated_post_hoc: true) because the original runtime metadata
-    cannot be reconstructed without re-running the wrapper.
-
-    Returns 0 when all required files exist after repair, 1 on failure.
-    Idempotent: re-running on a complete bundle is a no-op (returns 0).
-    """
-    bd = bundle_dir or _BUNDLE_DIR
-    commands_sh = find_commands_sh(bundle_dir=bd)
-    if commands_sh is None:
-        print(
-            "ERROR: commands.sh not found in bundle directory.\n"
-            "  Cannot repair bundle without the original command record.",
-            file=sys.stderr,
-        )
-        return 1
-
-    missing = [f for f in _REQUIRED_BUNDLE_FILES if not (bd / f).exists()]
-    if not missing:
-        print("Bundle is complete - all required files are present. Nothing to repair.")
-        return 0
-
-    print(f"Repairing bundle - regenerating {len(missing)} missing file(s):")
-    try:
-        wrote_new_files = False
-        if "manifest.json" in missing:
-            _regenerate_manifest_stub(bd, commands_sh)
-            print("  [OK] manifest.json  (post-hoc stub - original metadata unavailable)")
-            wrote_new_files = True
-        if "environment.yml" in missing:
-            _regenerate_environment_stub(bd)
-            print("  [OK] environment.yml  (post-hoc stub - original snapshot unavailable)")
-            wrote_new_files = True
-        # Always recompute checksums when any file was written (or checksums itself was
-        # missing), so the checksum file covers the full post-repair bundle state.
-        if wrote_new_files or "checksums.sha256" in missing:
-            _regenerate_checksums(bd)
-            print("  [OK] checksums.sha256  (recomputed from current bundle contents)")
-    except Exception as exc:
-        print(f"ERROR: Repair failed: {exc}", file=sys.stderr)
-        return 1
-
-    still_missing = [f for f in _REQUIRED_BUNDLE_FILES if not (bd / f).exists()]
-    if still_missing:
-        print(
-            f"ERROR: Repair incomplete - still missing: {', '.join(still_missing)}",
-            file=sys.stderr,
-        )
-        return 1
-
-    stubs_regenerated = [f for f in ("manifest.json", "environment.yml") if f in missing]
-    if stubs_regenerated:
-        stub_list = " and ".join(stubs_regenerated)
-        stub_word = "stubs" if len(stubs_regenerated) > 1 else "stub"
-        are_or_is = "are" if len(stubs_regenerated) > 1 else "is a"
-        print(
-            f"\nRepair complete. Note: {stub_list} {are_or_is} post-hoc {stub_word}\n"
-            "(marked regenerated_post_hoc: true). For a fully-original audit bundle,\n"
-            "re-run the wrapper instead."
-        )
-    else:
-        print("\nRepair complete.")
-    return 0
+    return _nfcore_repair_bundle(
+        bundle_dir or _BUNDLE_DIR,
+        required_files=_REQUIRED_BUNDLE_FILES,
+        commands_finder=find_commands_sh,
+        regenerate_manifest=_nfcore_write_manifest_stub,
+        regenerate_environment=_regenerate_environment_stub,
+        regenerate_checksums=_regenerate_checksums,
+    )
 
 
 def main(argv: list[str] | None = None, *, bundle_dir: Path | None = None) -> int:
@@ -689,48 +535,19 @@ examples:
     # output directory — a green light on a stale bundle. Actions compose; none is
     # discarded. The first non-zero step decides the exit code, but later steps still run
     # so the user sees every problem in one pass.
-    exit_code = 0
-
-    def _record(rc: int) -> None:
-        nonlocal exit_code
-        if exit_code == 0 and rc != 0:
-            exit_code = rc
+    actions = []
 
     if args.repair_bundle:
-        _record(cmd_repair_bundle(bundle_dir=bundle_dir))
+        actions.append(lambda: cmd_repair_bundle(bundle_dir=bundle_dir))
     if args.old is not None:
-        _record(cmd_remap(args.old, args.new, dry_run=args.dry_run, bundle_dir=bundle_dir))
+        actions.append(lambda: cmd_remap(args.old, args.new, dry_run=args.dry_run, bundle_dir=bundle_dir))
     if args.refs_old is not None:
-        _record(cmd_remap_references(args.refs_old, args.refs_new, dry_run=args.dry_run, bundle_dir=bundle_dir))
+        actions.append(lambda: cmd_remap_references(args.refs_old, args.refs_new, dry_run=args.dry_run, bundle_dir=bundle_dir))
     if args.output_dir is not None:
-        _record(cmd_update_output(args.output_dir, dry_run=args.dry_run, bundle_dir=bundle_dir))
+        actions.append(lambda: cmd_update_output(args.output_dir, dry_run=args.dry_run, bundle_dir=bundle_dir))
     if args.verify:
-        _record(cmd_verify(bundle_dir=bundle_dir))
-    return exit_code
-
-
-def _format_output_value(new_output_dir: str, *, old_value: str) -> str:
-    if old_value.startswith('"') and old_value.endswith('"'):
-        return f'"{_escape_double_quoted(new_output_dir)}"'
-    if old_value.startswith("'") and old_value.endswith("'"):
-        if "'" not in new_output_dir:
-            return f"'{new_output_dir}'"
-        return shlex.quote(new_output_dir)
-    if re.search(r"\s", new_output_dir):
-        return f'"{_escape_double_quoted(new_output_dir)}"'
-    if re.search(r"""[$'`\\]""", new_output_dir):
-        return f'"{_escape_double_quoted(new_output_dir)}"'
-    return new_output_dir
-
-
-def _escape_double_quoted(value: str) -> str:
-    return value.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$").replace("`", "\\`")
-
-
-def _unquote_output_value(value: str) -> str:
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-        return value[1:-1]
-    return value
+        actions.append(lambda: cmd_verify(bundle_dir=bundle_dir))
+    return _nfcore_run_actions(actions)
 
 
 if __name__ == "__main__":

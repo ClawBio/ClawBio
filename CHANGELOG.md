@@ -31,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and bundle writing.
 
 ### Changed
+- **The three nf-core wrappers share `clawbio.common.nfcore`.** rnaseq, sarek and
+  scrnaseq now share Nextflow execution, failure reporting, run-control options,
+  params.yaml writing and the standalone bundle remapper instead of keeping three
+  copies; scientific policy (references, samplesheets, presets, resources,
+  checksum scope) stays in each skill. See `docs/nfcore-wrapper-architecture.md`.
+  Parameter validation stays with nf-schema, which checks the pinned
+  `nextflow_schema.json` when Nextflow starts; the wrappers keep no copy of those
+  rules. They refuse only NaN and infinity, which nf-schema cannot represent, and
+  a run nf-schema refuses names each refused value in `result.json`.
 - `biostudies-fetch` and `arrayexpress-fetch` resolve file downloads from the
   BioStudies `/info` endpoint's `httpLink` rather than the hardcoded
   `/biostudies/files/{acc}/{path}` path. Marked `DIVERGES FROM UPSTREAM` in the
@@ -60,6 +69,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   TCP/443, not a port to open.
 
 ### Fixed
+- **nf-core wrappers.** The sarek 3.8.1 and scrnaseq 4.1.0 demos failed on
+  Nextflow 26.04+, whose strict syntax parser rejects both releases; they now run
+  with `NXF_SYNTAX_PARSER=v1`. Ctrl+C left Nextflow running (rnaseq, sarek), and
+  `clawbio run` killed the wrappers at 12h10m whatever `--timeout-hours` said;
+  both now stop Nextflow cleanly, as does a SIGTERM to the wrapper (exit 143). Relocating a reproducibility bundle no longer
+  silently skips paths containing spaces with apostrophes, `$`, quotes or YAML
+  special characters, drops or doubles a separator when either prefix ends in `/`,
+  or overwrites the original `.bak` on a second move. A refused sarek `--resume` no longer replaces the completed
+  run's samplesheet, and the rnaseq demo report states the Salmon pseudo-alignment
+  nf-core's test profile runs. Per-skill details are in each wrapper's CHANGELOG.
+- **nf-core bundles record their container images.** Each wrapper's `reproducibility/containers.json`
+  lists every image with its digest and the processes that ran it, and `containers.config` pins them
+  for replays without a Nextflow cache. Offline (`NXF_OFFLINE`) the registry is never queried, and
+  one unreachable registry query skips the rest instead of each waiting in turn; a query the
+  registry refuses once (quay.io intermittently answers `unsupported manifest format`) is asked again.
+- **`clawbio run` relays a successful skill's `WARNING:` lines.** stderr was shown
+  only on failure, so e.g. `--demo --skip-qc` succeeded without saying the flag had
+  no effect.
 - **The test suite no longer rewrites drug-repurposing-screen's demo data.** A fixture regenerated
   the bundle into the checked-in `demo/`, so every run modified three CSVs (pandas 3 writes some floats
   one digit shorter). `generate_demo_bundle.py` takes `--output-dir`, and the fixture uses a temporary one.

@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
+import shlex
+import subprocess
 import sys
 
 import pytest
+
+from clawbio.common.nfcore.bundle_runtime import format_output_value as _format_output_value
 
 _SKILL_DIR = Path(__file__).resolve().parent.parent
 if str(_SKILL_DIR) in sys.path:
@@ -31,7 +35,6 @@ def _purge_local_modules(*names: str) -> None:
 _purge_foreign_bare_modules("remap_paths")
 
 from remap_paths import (
-    _format_output_value,
     cmd_remap,
     cmd_remap_references,
     cmd_repair_bundle,
@@ -611,6 +614,38 @@ def test_update_commands_output_rewrites_resume_guard_manifest(tmp_path):
     assert "/old/out" not in updated
 
 
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the guard is bash")
+def test_relocated_resume_guard_stays_literal_and_relocatable(tmp_path):
+    """--output-dir writes the new directory into the guard's double-quoted test, so
+    $, backticks and quotes must be escaped there just as they are for --output, and
+    a later relocation must still recognise the escaped guard."""
+    commands = tmp_path / "commands.sh"
+    commands.write_text(
+        'CLAWBIO_RESUME=""\n'
+        'if [[ -f "/old/out/reproducibility/manifest.json" ]]; then\n'
+        '  CLAWBIO_RESUME="--resume"\n'
+        'fi\n'
+        '"${PYTHON:-python3}" "$SKILL_SCRIPT" $CLAWBIO_RESUME \\\n'
+        "    --output /old/out \\\n"
+        "    --profile docker\n",
+        encoding="utf-8",
+    )
+    moved = tmp_path / 'moved $HOME `false` "q"'
+    (moved / "reproducibility").mkdir(parents=True)
+    (moved / "reproducibility" / "manifest.json").write_text("{}", encoding="utf-8")
+    assert update_commands_output(commands, str(moved))
+    content = commands.read_text(encoding="utf-8")
+    guard = content[: content.index("\nfi\n") + len("\nfi\n")]
+    result = subprocess.run(
+        ["bash", "-c", guard + 'printf %s "$CLAWBIO_RESUME"'],
+        capture_output=True, text=True, check=False,
+    )
+    assert (result.returncode, result.stdout) == (0, "--resume"), result.stderr
+
+    assert update_commands_output(commands, "/plain/out")
+    assert 'if [[ -f "/plain/out/reproducibility/manifest.json" ]]; then' in commands.read_text(encoding="utf-8")
+
 def test_module_docstring_does_not_claim_all_inputs_are_absolute():
     """The remap_paths.py header must not state unconditionally that every FASTQ/BAM
     and reference path is stored as an absolute path. A run started with
@@ -700,3 +735,33 @@ def test_main_rejects_half_a_prefix_pair(tmp_path):
         with pytest.raises(SystemExit) as exc:
             main(argv, bundle_dir=tmp_path)
         assert exc.value.code != 0
+
+
+def test_output_dir_relocates_an_output_quoted_by_shlex(tmp_path):
+    """commands.sh quotes --output with shlex.quote, so /Users/Dana's Mac/run 1 is
+    written as '/Users/Dana'"'"'s Mac/run 1'. --output-dir must find and rewrite
+    it, and again after that; it used to report "nothing to change" and exit 0."""
+    commands = tmp_path / "commands.sh"
+    commands.write_text(
+        "set -euo pipefail\n"
+        '"${PYTHON:-python3}" "$SKILL_SCRIPT" \\\n'
+        "    --output " + shlex.quote("/Users/Dana's Mac/run 1") + " \\\n"
+        "    --profile docker\n",
+        encoding="utf-8",
+    )
+    for target in ("/srv/Lab's data/run 2", "/srv/plain"):
+        assert update_commands_output(commands, target)
+        line = next(l for l in commands.read_text(encoding="utf-8").splitlines() if "--output" in l)
+        assert shlex.split(line.strip().rstrip("\\")) == ["--output", target]
+
+
+def test_a_second_output_dir_move_keeps_the_original_commands_backup(tmp_path):
+    """Each --output-dir rewrite copied commands.sh over the same .bak, so moving a
+    bundle twice lost the command it was produced with."""
+    commands = tmp_path / "commands.sh"
+    original = '"${PYTHON:-python3}" "$SKILL_SCRIPT" \\\n    --output /old/out \\\n    --profile docker\n'
+    commands.write_text(original, encoding="utf-8")
+    assert update_commands_output(commands, "/first/move")
+    assert update_commands_output(commands, "/second/move")
+    assert "/second/move" in commands.read_text(encoding="utf-8")
+    assert (tmp_path / "commands.sh.bak").read_text(encoding="utf-8") == original

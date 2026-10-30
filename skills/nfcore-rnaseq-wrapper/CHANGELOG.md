@@ -6,7 +6,46 @@ and the wrapper version is tracked in `SKILL.md` YAML frontmatter.
 
 ## [Unreleased] — 0.1.0
 
+### Added
+
+- **The bundle records the container images named by the run.** `reproducibility/containers.json`
+  lists local or explicit digests, image IDs, platforms and processes. A complete Docker/Podman record
+  produces `containers.config`, applied on replay without a Nextflow cache. Registry-only lookups
+  describe the tag currently served, cannot confirm the original task image/platform, and therefore
+  mark the record incomplete and withhold replay pins.
+
 ### Fixed
+
+- Select replay container pins using the requested output cache, including after output remapping while the original cache remains.
+
+- Stop tasks that ignore SIGTERM even when the Nextflow group leader exits first.
+- A Ctrl+C or SIGTERM that landed while the wrapper was checking on Nextflow could leave it
+  waiting forever instead of stopping the run; the stop is now recorded and acted on once the wait returns.
+- Match Docker Hub aliases to local digests, keep offline local-image pins, and withhold unverified registry-only replay pins.
+
+- Route launcher defaults outside the source tree and correct example output paths.
+- Reject ambiguous CSV inputs and NaN or infinite parameter values; nf-schema checks every other parameter rule against the pinned 3.26.0 schema when Nextflow starts, and its refusals are named in `result.json`.
+- Record launch manifests before execution; guard resumed checks and track the work directory.
+- Parse local versions safely, bound Docker scheduler/process capacity, reject nonfinite timeouts, and bound failure-log reads. A demo's per-process limits stay within `-profile test`'s own 4 CPUs / 15 GB (lowered on a smaller machine, never raised); the executor's aggregate budget is the host's, so tasks still run in parallel.
+- Terminate interrupted process groups and align Python metadata with the repository floor.
+- **Ctrl+C now stops Nextflow.** Nextflow runs in its own session, so the terminal's
+  SIGINT never reached it: the wrapper exited 130 while Nextflow kept running and held
+  the `.nextflow` lock against the next `--resume`. The wrapper now terminates its
+  process group, as scrnaseq already did.
+- **`--timeout-hours nan`/`inf` is a usage error** instead of an `UNEXPECTED_ERROR`
+  after preflight; through `clawbio run`, the runner's own cap now follows the flag.
+- **Relocated bundles.** `remap_paths.py --output-dir` found no `--output` when the
+  original path held an apostrophe and a space (as `shlex.quote` writes it) and exited
+  0 without changing anything; the replay resume guard broke on output paths with `$`,
+  a backtick or `"`. Both now round-trip any path.
+- **`--demo` reports what ran.** nf-core/rnaseq 3.26.0's test profile also runs Salmon
+  pseudo-alignment, but the report said `Pseudo-aligner: none` and omitted its counts.
+  Under a test profile the wrapper now reads the pseudo-aligner from nf-core's own
+  `pipeline_info/params_*.json` and labels it; `result.json` adds
+  `pseudo_aligner_effective`.
+- **Every flag a test profile ignores is named.** The warning covered nine hand-picked
+  flags, so e.g. `--skip-qc` or `--pseudo-aligner-kmer-size` vanished under `--demo`
+  without a word. The list is now derived from the params builder.
 
 - **`remap_paths.py`: combining actions no longer discards one of them silently.**
   `main()` dispatched through a chain of early returns, so only the first matching flag

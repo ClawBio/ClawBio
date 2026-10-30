@@ -259,7 +259,7 @@ def test_commands_sh_applies_shipped_resource_limits(tmp_path: Path) -> None:
         pipeline_source_kind="remote",
     )
     commands = (output_dir / "reproducibility" / "commands.sh").read_text()
-    assert 'if [[ "$(uname -s)" != "Darwin" ]]; then' in commands
+    assert 'docker info --format' in commands
     assert 'RESOURCE_CONFIG="-c reproducibility/resource_limits.config"' in commands
     assert "$RESOURCE_CONFIG" in commands
     # The absolute live-run path must not survive inline in the portable bundle.
@@ -754,7 +754,7 @@ def test_commands_sh_warns_when_unsafe_absolute_paths(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_remap_paths_py_copied(tmp_path: Path) -> None:
+def test_remap_paths_py_generated_standalone(tmp_path: Path) -> None:
     output_dir = _make_output_dir(tmp_path)
     artifacts = write_reports(
         output_dir=output_dir,
@@ -769,7 +769,12 @@ def test_remap_paths_py_copied(tmp_path: Path) -> None:
     src = _skill_dir() / "remap_paths.py"
     dst = artifacts.remap_paths_py
     assert dst.exists()
-    assert dst.read_bytes() == src.read_bytes()
+    import subprocess
+    import sys
+    result = subprocess.run([sys.executable, "-I", "-S", str(dst), "--help"], cwd=tmp_path, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "--repair-bundle" in result.stdout
+    assert dst.stat().st_mode & 0o777 == src.stat().st_mode & 0o777
 
 
 # ---------------------------------------------------------------------------
@@ -944,3 +949,67 @@ def test_report_and_result_written_at_output_root(tmp_path: Path) -> None:
     assert not (output_dir / "reproducibility" / "result.json").exists()
     # Replay/provenance artifacts remain in the bundle.
     assert artifacts.commands_sh == output_dir / "reproducibility" / "commands.sh"
+
+
+def test_commands_sh_exports_the_syntax_parser_sarek_3_8_1_needs(tmp_path: Path) -> None:
+    """Replay runs Nextflow directly, so it must set the parser the wrapper used:
+    on Nextflow >= 26.04 the default strict parser rejects sarek 3.8.1's configs."""
+    output_dir = _make_output_dir(tmp_path)
+    artifacts = write_reports(
+        output_dir=output_dir,
+        skill_dir=_skill_dir(),
+        params=_minimal_params(),
+        samplesheet_report=_minimal_samplesheet(),
+        pipeline_source=_minimal_pipeline_source(),
+        outputs_report=_FakeOutputsReport(),
+        nextflow_command=_minimal_command(output_dir),
+        pipeline_source_kind="remote",
+        nextflow_version="26.04.3",
+    )
+    text = artifacts.commands_sh.read_text(encoding="utf-8")
+    assert 'export NXF_SYNTAX_PARSER="v1"' in text
+    assert text.index('export NXF_SYNTAX_PARSER="v1"') < text.index('(cd "$SCRIPT_DIR/.."')
+
+
+def _replay_argv(tmp_path: Path, output_dir: Path, *, resume: bool, pinned: bool) -> list[str]:
+    """Run the generated commands.sh with a fake nextflow; return the argv it got."""
+    repro = output_dir / "reproducibility"
+    (repro / "params.yaml").write_text("outdir: upstream/results\n", encoding="utf-8")
+    pin = repro / "containers.config"
+    if pinned:
+        pin.write_text("process {}\n", encoding="utf-8")
+    else:
+        pin.unlink(missing_ok=True)
+    session = output_dir / ".nextflow"
+    if resume:
+        session.mkdir(exist_ok=True)
+    else:
+        shutil.rmtree(session, ignore_errors=True)
+    binaries = tmp_path / "bin"
+    binaries.mkdir(exist_ok=True)
+    argv_file = tmp_path / "argv.txt"
+    (binaries / "nextflow").write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$ARGV_FILE"\n', encoding="utf-8")
+    (binaries / "nextflow").chmod(0o755)
+    subprocess.run(
+        ["/bin/bash", str(repro / "commands.sh")], check=True, capture_output=True, text=True,
+        env={**os.environ, "PATH": f"{binaries}{os.pathsep}{os.environ['PATH']}", "ARGV_FILE": str(argv_file)},
+    )
+    return argv_file.read_text(encoding="utf-8").splitlines()
+
+
+def test_commands_sh_pins_container_digests_only_on_a_fresh_replay(tmp_path: Path) -> None:
+    """A fresh replay runs every process on the digest it ran originally; an in-place
+    resume keeps the cached tasks; a bundle without containers.config pins nothing."""
+    output_dir = _make_output_dir(tmp_path)
+    write_reports(
+        output_dir=output_dir, skill_dir=_skill_dir(), params=_minimal_params(),
+        samplesheet_report=_minimal_samplesheet(), pipeline_source=_minimal_pipeline_source(),
+        outputs_report=_FakeOutputsReport(), nextflow_command=_minimal_command(output_dir),
+        pipeline_source_kind="remote",
+    )
+    fresh = _replay_argv(tmp_path, output_dir, resume=False, pinned=True)
+    assert fresh[-2:] == ["-c", "reproducibility/containers.config"]
+    resumed = _replay_argv(tmp_path, output_dir, resume=True, pinned=True)
+    assert "-resume" in resumed and "reproducibility/containers.config" not in resumed
+    unpinned = _replay_argv(tmp_path, output_dir, resume=False, pinned=False)
+    assert "reproducibility/containers.config" not in unpinned

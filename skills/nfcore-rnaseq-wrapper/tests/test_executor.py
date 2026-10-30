@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import shlex
+import signal
 import subprocess
 import sys
+import threading
+import time
 
 import pytest
+
+from clawbio.common.nfcore import execution as shared_execution
 
 _SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_SKILL_DIR))
@@ -35,7 +41,6 @@ def _remove_skill_dir_from_sys_path() -> None:
 _purge_foreign_modules("errors", "executor")
 
 from errors import SkillError
-import executor as executor_module
 from executor import execute_nextflow
 
 _purge_local_modules("errors", "executor")
@@ -43,17 +48,17 @@ _remove_skill_dir_from_sys_path()
 
 
 class _MockProc:
-    def __init__(self, returncode: int = 0, timeout_on_first_wait: bool = False):
+    def __init__(self, returncode: int = 0, runs_until_killed: bool = False):
         self._rc = returncode
-        self._timeout_on_first = timeout_on_first_wait
-        self._wait_calls = 0
+        self._runs_until_killed = runs_until_killed
         self.killed = False
         self.pid = 1234
+        self.args = ["nextflow", "run", "test"]
 
     def wait(self, timeout=None):
-        self._wait_calls += 1
-        if self._timeout_on_first and self._wait_calls == 1:
-            raise subprocess.TimeoutExpired(cmd=["nextflow"], timeout=timeout or 1)
+        if self._runs_until_killed and not self.killed:
+            time.sleep(timeout)  # A real wait blocks this long before giving up.
+            raise subprocess.TimeoutExpired(cmd=["nextflow"], timeout=timeout)
         return self._rc
 
     def kill(self):
@@ -88,8 +93,8 @@ def test_execute_nextflow_failure_appends_macos_tmp_hint(tmp_path, monkeypatch):
     nfcore-scrnaseq), so the silent cause of the failure is surfaced."""
     proc = _MockProc(returncode=1)
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
-    monkeypatch.setattr(executor_module.sys, "platform", "darwin")
-    monkeypatch.setattr(executor_module, "is_under_tmp", lambda _p: True, raising=False)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(shared_execution, "is_under_tmp", lambda _p: True)
     with pytest.raises(SkillError) as exc:
         execute_nextflow(["nextflow", "run", "test"], cwd=tmp_path, output_dir=tmp_path, timeout_seconds=60)
     assert "No such file or directory" in exc.value.fix
@@ -100,8 +105,8 @@ def test_execute_nextflow_failure_no_tmp_hint_when_not_under_tmp(tmp_path, monke
     """The macOS /tmp hint must not appear for a non-/tmp output directory."""
     proc = _MockProc(returncode=1)
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
-    monkeypatch.setattr(executor_module.sys, "platform", "darwin")
-    monkeypatch.setattr(executor_module, "is_under_tmp", lambda _p: False, raising=False)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(shared_execution, "is_under_tmp", lambda _p: False)
     with pytest.raises(SkillError) as exc:
         execute_nextflow(["nextflow", "run", "test"], cwd=tmp_path, output_dir=tmp_path, timeout_seconds=60)
     assert "No such file or directory" not in exc.value.fix
@@ -121,22 +126,67 @@ def test_execute_nextflow_starts_new_session_on_posix(tmp_path, monkeypatch):
     assert popen_kwargs["start_new_session"] is True
 
 
-def test_execute_nextflow_terminates_process_group_on_posix_timeout(tmp_path, monkeypatch):
-    proc = _MockProc(returncode=0, timeout_on_first_wait=True)
-    pgid = 5678
-    signals_sent: list[tuple[int, int]] = []
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups")
+def test_execute_nextflow_terminates_process_group_on_posix_timeout(tmp_path):
+    """The wrapper must stop a real child task, not just the Nextflow leader."""
+    pid_file = tmp_path / "task.pid"
+    command = ["sh", "-c", f"sleep 60 & echo $! > {shlex.quote(str(pid_file))}; wait"]
+    task = None
+    try:
+        with pytest.raises(SkillError) as failure:
+            execute_nextflow(command, cwd=tmp_path, output_dir=tmp_path, timeout_seconds=1)
+        assert failure.value.error_code == "EXECUTION_FAILED"
+        assert failure.value.details == {"timeout_seconds": 1}
+        task = int(pid_file.read_text())
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                os.kill(task, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the wrapper timed out but its task kept running")
+    finally:
+        if task is None and pid_file.exists():
+            task = int(pid_file.read_text())
+        if task is not None:
+            try:
+                os.kill(task, signal.SIGKILL)
+            except ProcessLookupError:
+                pass  # Successful cleanup already stopped the synthetic task.
 
-    monkeypatch.setattr(sys, "platform", "linux")
-    monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
-    monkeypatch.setattr(executor_module.os, "getpgid", lambda pid: pgid)
-    monkeypatch.setattr(executor_module.os, "killpg", lambda sent_pgid, sig: signals_sent.append((sent_pgid, sig)))
 
-    with pytest.raises(SkillError):
-        execute_nextflow(["nextflow", "run", "test"], cwd=tmp_path, output_dir=tmp_path, timeout_seconds=1)
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups and SIGINT")
+def test_ctrl_c_terminates_nextflow_instead_of_orphaning_it(tmp_path):
+    """Nextflow runs in its own session, so the terminal's SIGINT never reaches it.
+    Ctrl+C must therefore stop the child explicitly, or Nextflow keeps running (and
+    holds the .nextflow lock) after the wrapper has exited 130."""
+    pid_file = tmp_path / "child.pid"
+    main_thread = threading.main_thread().ident
 
-    assert signals_sent
-    assert all(sent_pgid == pgid for sent_pgid, _ in signals_sent)
-    assert proc.killed is False
+    def interrupt_once_child_runs() -> None:
+        deadline = time.monotonic() + 30
+        while not pid_file.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        if pid_file.exists():
+            # What the terminal does on Ctrl+C, aimed at the thread blocked in
+            # waitpid so the kernel cannot pick this helper thread instead.
+            signal.pthread_kill(main_thread, signal.SIGINT)
+
+    # Hermetic: other tests in a full run may leave a different SIGINT handler.
+    previous_handler = signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        threading.Thread(target=interrupt_once_child_runs, daemon=True).start()
+        with pytest.raises(KeyboardInterrupt):
+            execute_nextflow(
+                ["sh", "-c", f"echo $$ > {shlex.quote(str(pid_file))}; exec sleep 60"],
+                cwd=tmp_path, output_dir=tmp_path, timeout_seconds=None,
+            )
+    finally:
+        signal.signal(signal.SIGINT, previous_handler)
+    with pytest.raises(ProcessLookupError):
+        os.kill(int(pid_file.read_text()), 0)
 
 
 def test_execute_nextflow_cleans_up_empty_logs_on_popen_failure(tmp_path, monkeypatch):
@@ -152,20 +202,20 @@ def test_execute_nextflow_cleans_up_empty_logs_on_popen_failure(tmp_path, monkey
 
 
 def test_execute_nextflow_timeout_error_reports_timeout_seconds(tmp_path, monkeypatch):
-    proc = _MockProc(returncode=0, timeout_on_first_wait=True)
+    proc = _MockProc(returncode=0, runs_until_killed=True)
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
     monkeypatch.setattr(subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess(a[0], 0))
     with pytest.raises(SkillError) as exc:
-        execute_nextflow(["nextflow", "run", "test"], cwd=tmp_path, output_dir=tmp_path, timeout_seconds=7)
-    assert exc.value.details["timeout_seconds"] == 7
+        execute_nextflow(["nextflow", "run", "test"], cwd=tmp_path, output_dir=tmp_path, timeout_seconds=1)
+    assert exc.value.details["timeout_seconds"] == 1
 
 
 def test_timeout_error_fix_mentions_leftover_containers(tmp_path, monkeypatch):
     """Killing Nextflow does not stop containers spawned by the Docker daemon (they
     are not in Nextflow's process group). The timeout error must tell the user to
     check for and clean up any leftover containers (audit F7)."""
-    proc = _MockProc(returncode=0, timeout_on_first_wait=True)
+    proc = _MockProc(returncode=0, runs_until_killed=True)
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **kw: proc)
     monkeypatch.setattr(subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess(a[0], 0))
@@ -174,49 +224,6 @@ def test_timeout_error_fix_mentions_leftover_containers(tmp_path, monkeypatch):
     assert "container" in exc.value.fix.lower()
 
 
-def test_terminate_process_tree_falls_back_to_sigkill_when_sigterm_times_out(monkeypatch):
-    """_terminate_process_tree must send SIGKILL when SIGTERM's wait() times out."""
-    import signal as signal_module
-
-    signals_sent: list[int] = []
-    wait_calls = [0]
-
-    class _SlowProc:
-        def __init__(self):
-            self.pid = 9999
-            self.killed = False
-
-        def wait(self, timeout=None):
-            wait_calls[0] += 1
-            # First wait (grace period after SIGTERM) times out.
-            # Second wait (after SIGKILL) completes immediately.
-            if wait_calls[0] == 1:
-                raise subprocess.TimeoutExpired(cmd=["nextflow"], timeout=timeout or 1)
-            return -signal_module.SIGKILL
-
-        def kill(self):
-            self.killed = True
-
-    proc = _SlowProc()
-    pgid = 9999
-
-    monkeypatch.setattr(sys, "platform", "linux")
-    monkeypatch.setattr(executor_module.os, "getpgid", lambda pid: pgid)
-    monkeypatch.setattr(
-        executor_module.os,
-        "killpg",
-        lambda sent_pgid, sig: signals_sent.append(sig),
-    )
-
-    executor_module._terminate_process_tree(proc)
-
-    # SIGTERM must be sent first, then SIGKILL as the fallback — order matters.
-    assert signals_sent == [signal_module.SIGTERM, signal_module.SIGKILL], (
-        f"Expected [SIGTERM, SIGKILL], got {signals_sent}"
-    )
-    # proc.kill() (last-resort fallback) must NOT have been called —
-    # killpg(SIGKILL) should have succeeded.
-    assert proc.killed is False
 
 
 def test_memory_limit_failure_hint(tmp_path):

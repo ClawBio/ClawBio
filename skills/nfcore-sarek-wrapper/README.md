@@ -25,7 +25,7 @@ ClawBio wrapper around `nf-core/sarek` 3.8.1 covering mapping through annotation
 python skills/nfcore-sarek-wrapper/nfcore_sarek_wrapper.py --help
 
 # Synthetic demo using the upstream -profile test dataset
-python clawbio.py run sarek-pipeline --demo --output /tmp/sarek_demo
+python clawbio.py run sarek-pipeline --demo --output "$HOME/clawbio-runs/sarek_demo"
 ```
 
 For real data:
@@ -33,13 +33,23 @@ For real data:
 ```bash
 python clawbio.py run sarek-pipeline \
   --input samplesheet.csv \
-  --output ./sarek_run \
+  --output "$HOME/clawbio-runs/sarek_run" \
   --genome GATK.GRCh38 \
   --tools haplotypecaller,vep
 ```
 
-Use `--check` to run preflight without launching Nextflow.
+Use `--check` to run preflight without launching Nextflow. Checkout-mode runs without `--output` default to `~/clawbio-runs/`; explicit destinations must be outside the repository.
 
 `clawbio.py run sarek-pipeline` promotes the common flags to first-class options; any other sarek parameter is passed through with `--extra-param key=value`.
 
 See `SKILL.md` in this directory for trigger phrases, samplesheet schema per step, the full CLI reference, gotchas (ASCAT-WES, Mutect2 PON, GATK Spark + UMI, iGenomes default, somatic status pairing, `--demo` reference clearing), profile composition rules, downstream chaining, and the §1–§6 output layout.
+
+## Validation and resume
+
+nf-schema checks every parameter against the pinned `nextflow_schema.json` when Nextflow starts; the wrapper refuses only NaN and infinity, which nf-schema cannot represent, and a failed run names each value nf-schema refused. Malformed or ambiguous samplesheets fail before normalized snapshots are written. An atomic launch manifest supports resuming failed launches; resumed `--check` also validates params and samplesheet checksums.
+
+Local Docker runs, including demos, cap both per-process requests and the local executor budget to detected host/Docker CPU and memory capacity. Site/cloud profiles and object-store work directories keep their own resource policy. Explicit `--nextflow-config` files have final precedence. Resource caps cannot make a dataset fit insufficient RAM.
+
+Replay uses the smaller of recorded limits and current Docker capacity, on macOS and Linux, through a temporary config; the original checksummed config is preserved. User config snapshots retain final precedence, except for container images: a replay without a Nextflow cache applies `containers.config` last when a complete, locally verified container record is available. Registry-only observations do not establish the original image and withhold the pin config.
+
+See the [compatibility audit](../../docs/nfcore-wrapper-audit.md) for upstream contracts, fixes, test results, and execution limits.

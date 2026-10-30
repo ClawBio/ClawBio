@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -123,7 +124,7 @@ def _patch_heavy(monkeypatch, module, *, pipeline_source=None, preflight=None,
     )
     monkeypatch.setattr(
         module, "load_manifest",
-        lambda *a, **kw: None,
+        lambda *a, **kw: {},
     )
     if samplesheet_report is None:
         samplesheet_report = {
@@ -145,10 +146,11 @@ def _patch_heavy(monkeypatch, module, *, pipeline_source=None, preflight=None,
             "pairings": [],
             "analysis_mode": "germline",
         }
-    monkeypatch.setattr(
-        module, "validate_and_normalize_samplesheet",
-        lambda *a, **kw: samplesheet_report,
-    )
+    def _validate_sheet(input_path, output_path, **kwargs):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("patient,sample,lane,fastq_1,fastq_2\n")
+        return {**samplesheet_report, "normalized_path": output_path}
+    monkeypatch.setattr(module, "validate_and_normalize_samplesheet", _validate_sheet)
 
     def _build_effective_params(args, *, normalized_samplesheet, output_dir):
         return {
@@ -212,8 +214,6 @@ def _patch_heavy(monkeypatch, module, *, pipeline_source=None, preflight=None,
 
     monkeypatch.setattr(module, "write_provenance_bundle", _write_provenance_bundle)
 
-    monkeypatch.setattr(module, "_detect_java_version", lambda: "openjdk 21")
-    monkeypatch.setattr(module, "_detect_nextflow_version", lambda: "25.10.2")
     return call_log
 
 
@@ -773,6 +773,132 @@ def test_main_keyboard_interrupt_returns_130(module, monkeypatch, tmp_path):
 
 
 
+def test_rejected_resume_keeps_the_completed_runs_result_json(module, monkeypatch, tmp_path):
+    """--resume refused for drift leaves the earlier run untouched, so its result.json
+    must survive. Overwriting it with the refusal would record a failure over outputs
+    that are still on disk (parity with nfcore-rnaseq/scrnaseq INVALID_RESUME_STATE)."""
+    out = tmp_path / "out"
+    out.mkdir()
+    completed = '{"status": "success", "ok": true}'
+    (out / "result.json").write_text(completed, encoding="utf-8")
+    _patch_heavy(monkeypatch, module)
+
+    def _drift(**kw):
+        raise module.SkillError(
+            stage="preflight",
+            error_code=module.ErrorCode.RESUME_DRIFT,
+            message="Resume manifest is incompatible with the current run.",
+            fix="Use a fresh output directory.",
+        )
+
+    monkeypatch.setattr(module, "run_preflight", _drift)
+    rc = module.main(["--output", str(out), "--demo", "--resume", "--no-banner"])
+    assert rc == 1
+    assert (out / "result.json").read_text(encoding="utf-8") == completed
+
+
+_COMPLETED_SHEET = "patient,sample,lane,fastq_1,fastq_2\nP1,S1,L1,/data/a_1.fq.gz,/data/a_2.fq.gz\n"
+_REQUESTED_SHEET = "patient,sample,lane,fastq_1,fastq_2\nP2,S2,L1,/data/b_1.fq.gz,/data/b_2.fq.gz\n"
+
+
+def _completed_run_with_samplesheet(module, monkeypatch, tmp_path):
+    """A finished run's bundle plus a different samplesheet requested on --resume.
+
+    Normalisation is stubbed as a byte copy so the test sees exactly which file the
+    wrapper writes where; the drift decision itself is pinned in test_preflight.py.
+    """
+    out = tmp_path / "out"
+    (out / "reproducibility").mkdir(parents=True)
+    (out / "reproducibility" / "samplesheet.valid.csv").write_text(_COMPLETED_SHEET, encoding="utf-8")
+    requested = tmp_path / "requested.csv"
+    requested.write_text(_REQUESTED_SHEET, encoding="utf-8")
+    _patch_heavy(monkeypatch, module)
+    monkeypatch.setattr(module, "load_manifest", lambda *a, **kw: {"schema_version": 1})
+
+    def _normalize(input_path, normalized_csv, **kw):
+        Path(normalized_csv).write_bytes(Path(input_path).read_bytes())
+        return {"normalized_path": Path(normalized_csv), "step": "mapping", "pairings": [],
+                "analysis_mode": "germline", "sample_count": 1, "patient_count": 1}
+
+    monkeypatch.setattr(module, "validate_and_normalize_samplesheet", _normalize)
+    return out, requested
+
+
+def test_refused_resume_leaves_the_completed_runs_samplesheet_untouched(module, monkeypatch, tmp_path):
+    """params.yaml and commands.sh of the completed run point at its validated
+    samplesheet. A --resume refused for drift must not replace it, or a later replay
+    of that bundle would analyse the samples of the refused request."""
+    out, requested = _completed_run_with_samplesheet(module, monkeypatch, tmp_path)
+    judged: dict[str, str] = {}
+
+    def _drift(**kw):
+        judged["content"] = Path(kw["samplesheet"]["normalized_path"]).read_text(encoding="utf-8")
+        raise module.SkillError(
+            stage="preflight",
+            error_code=module.ErrorCode.RESUME_DRIFT,
+            message="Resume manifest is incompatible with the current run.",
+            fix="Use a fresh output directory.",
+        )
+
+    monkeypatch.setattr(module, "run_preflight", _drift)
+    rc = module.main(["--output", str(out), "--input", str(requested), "--genome", "GATK.GRCh38",
+                      "--resume", "--no-banner"])
+    assert rc == 1
+    # Drift is still judged on the samplesheet that was requested ...
+    assert judged["content"] == _REQUESTED_SHEET
+    # ... but the completed run keeps its own.
+    assert (out / "reproducibility" / "samplesheet.valid.csv").read_text(encoding="utf-8") == _COMPLETED_SHEET
+    assert sorted(p.name for p in (out / "reproducibility").iterdir()) == ["samplesheet.valid.csv"]
+
+
+def test_refused_demo_resume_does_not_rewrite_the_demo_samplesheet(module, monkeypatch, tmp_path):
+    out = tmp_path / "out"
+    sheet = out / "reproducibility" / "samplesheet.demo.csv"
+    sheet.parent.mkdir(parents=True)
+    sheet.write_text("patient,sample,lane,fastq_1,fastq_2\n", encoding="utf-8")
+    os.utime(sheet, ns=(1_000_000_000, 1_000_000_000))
+    _patch_heavy(monkeypatch, module)
+    monkeypatch.setattr(module, "load_manifest", lambda *a, **kw: {"schema_version": 1})
+
+    def _drift(**kw):
+        raise module.SkillError(stage="preflight", error_code=module.ErrorCode.RESUME_DRIFT,
+                                message="drift", fix="fresh output")
+
+    monkeypatch.setattr(module, "run_preflight", _drift)
+    assert module.main(["--output", str(out), "--demo", "--resume", "--no-banner"]) == 1
+    assert sheet.stat().st_mtime_ns == 1_000_000_000
+
+
+def test_accepted_resume_commits_the_validated_samplesheet(module, monkeypatch, tmp_path):
+    """Once preflight accepts the resume the validated samplesheet replaces the old
+    copy, params.yaml keeps pointing at the bundle path, and no scratch path leaks
+    into what the run records."""
+    out, requested = _completed_run_with_samplesheet(module, monkeypatch, tmp_path)
+    call_log = _patch_heavy(monkeypatch, module)
+    monkeypatch.setattr(module, "load_manifest", lambda *a, **kw: {"schema_version": 1})
+    monkeypatch.setattr(module, "validate_and_normalize_samplesheet",
+                        lambda input_path, normalized_csv, **kw: (
+                            Path(normalized_csv).write_bytes(Path(input_path).read_bytes()),
+                            {"normalized_path": Path(normalized_csv), "step": "mapping", "pairings": [],
+                             "analysis_mode": "germline", "sample_count": 1, "patient_count": 1},
+                        )[1])
+    seen: dict[str, object] = {}
+
+    def _build_effective_params(args, *, normalized_samplesheet, output_dir):
+        seen.setdefault("normalized_samplesheet", []).append(Path(normalized_samplesheet))
+        return {"outdir": "upstream/results", "step": "mapping"}
+
+    monkeypatch.setattr(module, "build_effective_params", _build_effective_params)
+    rc = module.main(["--output", str(out), "--input", str(requested), "--genome", "GATK.GRCh38",
+                      "--resume", "--no-banner"])
+    assert rc == 0
+    final = out / "reproducibility" / "samplesheet.valid.csv"
+    assert final.read_text(encoding="utf-8") == _REQUESTED_SHEET
+    assert all(p == final for p in seen["normalized_samplesheet"])
+    assert call_log["write_provenance_bundle"]["samplesheet_csv_src"] == final
+    assert call_log["write_reports"]["samplesheet_report"]["normalized_path"] == final
+
+
 def test_main_extra_param_merges_into_run(module, monkeypatch, tmp_path):
     call_log = _patch_heavy(monkeypatch, module)
     rc = module.main([
@@ -815,6 +941,7 @@ def test_macos_docker_memory_scales_to_host(module, monkeypatch, tmp_path):
     # be hardcoded at 15.GB — on a 16GB Mac a 15GB cap starves the host.
     monkeypatch.setattr(module.sys, "platform", "darwin")
     monkeypatch.setattr(module, "_host_memory_gb", lambda: 16)
+    monkeypatch.setattr(module, "_docker_vm_memory_gb", lambda: None)
     args = module.build_parser().parse_args(["--output", str(tmp_path / "out"), "--demo", "--profile", "docker"])
     args.profile = "test,docker"
     cfg = module._write_macos_docker_config(tmp_path / "out", args=args)
@@ -874,16 +1001,16 @@ def test_resource_limits_config_scales_with_host(module, monkeypatch, tmp_path):
     assert mem > 15 and mem <= 64  # no 15 GB macOS ceiling, never above physical RAM
 
 
-def test_resource_limits_config_none_on_demo(module, monkeypatch, tmp_path):
+def test_resource_limits_config_bounds_demo(module, monkeypatch, tmp_path):
     monkeypatch.setattr(module.sys, "platform", "linux")
     args = _resource_args(module, tmp_path, demo=True)
-    assert module._write_resource_limits_config(tmp_path / "out", args=args) is None
+    assert module._write_resource_limits_config(tmp_path / "out", args=args).is_file()
 
 
-def test_resource_limits_config_none_on_macos(module, monkeypatch, tmp_path):
+def test_resource_limits_config_separate_on_macos(module, monkeypatch, tmp_path):
     monkeypatch.setattr(module.sys, "platform", "darwin")
     args = _resource_args(module, tmp_path)
-    assert module._write_resource_limits_config(tmp_path / "out", args=args) is None
+    assert module._write_resource_limits_config(tmp_path / "out", args=args).is_file()
 
 
 def test_resource_limits_config_none_without_docker(module, monkeypatch, tmp_path):
@@ -1145,6 +1272,8 @@ def test_main_user_samplesheet_path_runs_validator(module, monkeypatch, tmp_path
     captured_csv: dict[str, Any] = {}
 
     def capture_sheet(input_path, output_path, *, step, tools):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("patient,sample,lane\n")
         captured_csv["input"] = input_path
         captured_csv["output"] = output_path
         captured_csv["step"] = step
@@ -1271,3 +1400,27 @@ def test_sarek_pipeline_allowlist_consistent_with_wrapper(module):
         "flags marked value-free but the wrapper expects a value: "
         f"{sorted(booleans - no_value)}"
     )
+
+
+def test_success_bundle_uses_versions_validated_before_execution(module, monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    preflight = _fake_preflight()
+    preflight.java_version = '21.0.7'
+    preflight.nextflow_version = '25.10.4'
+    calls = _patch_heavy(monkeypatch, module, preflight=preflight)
+    monkeypatch.setattr(module, '_write_macos_docker_config', lambda *a, **kw: None)
+    monkeypatch.setattr(module, '_write_resource_limits_config', lambda *a, **kw: None)
+    monkeypatch.setattr(
+        module.subprocess, 'run',
+        lambda cmd, **kw: SimpleNamespace(
+            returncode=0,
+            stdout='nextflow version 26.04.3.11173\n' if cmd[0] == 'nextflow' else '',
+            stderr='openjdk version "21.0.8" 2026-01-20 LTS\n' if cmd[0] == 'java' else '',
+        ),
+    )
+    assert module.main(['--demo', '--output', str(tmp_path / 'out'), '--no-banner']) == 0
+    provenance = calls['write_provenance_bundle']
+    assert provenance['nextflow_version'] == '25.10.4'
+    assert provenance['java_version'] == '21.0.7'
+    assert provenance['nextflow_version'] == calls['write_reports']['nextflow_version']

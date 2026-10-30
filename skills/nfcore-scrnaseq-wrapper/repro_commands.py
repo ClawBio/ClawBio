@@ -19,6 +19,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from clawbio.common.nfcore.containers import replay_pin_guard
+from clawbio.common.nfcore.resources import build_runtime_resource_guard
 from clawbio.common.textio import write_text_lf
 
 _SKILL_DIR = Path(__file__).resolve().parent
@@ -28,9 +30,10 @@ sys.path.insert(0, str(_SKILL_DIR))
 sys.modules.pop("_isolated_imports", None)
 from _isolated_imports import purge_foreign_bare_modules
 
-purge_foreign_bare_modules("nfcore_4_1_0_contract")
+purge_foreign_bare_modules("nfcore_4_1_0_contract", "schemas")
 
 from nfcore_4_1_0_contract import MACOS_DEMO_RESOURCE_LIMITS, STAR_ALIGN_BASE_EXT_ARGS
+from schemas import NEXTFLOW_ENV
 
 _HEADER = """\
 #!/usr/bin/env bash
@@ -103,20 +106,9 @@ fi
 
 """
 
-# Applies the host-scaled resourceLimits cap the wrapper generated for the original
-# run, ONLY when replaying on a non-macOS host (on macOS the Docker VM is the ceiling
-# and macos_docker.config applies instead). Shipping it makes a from-scratch
-# reproduction on the generating machine — the whole point of the bundle — succeed
-# instead of re-aborting with "Process requirement exceeds available memory".
-# resourceLimits only ever caps requests (never grants more), so a larger replay host
-# simply under-uses it. A plain assigned string keeps bash 3.2 happy under `set -u`.
-_RESOURCE_GUARD = """\
-RESOURCE_CONFIG=""
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  RESOURCE_CONFIG="-c reproducibility/resource_limits.config"
-fi
-
-"""
+# Preserve the recorded ceilings while bounding them to the replay Docker VM.
+# The checksummed source config stays unchanged on every platform.
+_RESOURCE_GUARD = build_runtime_resource_guard()
 
 # Nextflow config with the macOS + Apple-Silicon Docker workarounds. Always
 # shipped inside docker bundles; applied at replay only under the uname guard
@@ -255,13 +247,15 @@ def build_nextflow_commands_sh(
     # $EXTRA_CONFIG / $RESUME are unquoted so they word-split to a flag or to
     # nothing; both are always assigned, so they are safe under `set -u`.
     tail: list[str] = []
-    for config_path in extra_configs or []:
-        tail.append(f"  -c {shlex.quote(config_path)}")
     tail.append("  $RESUME")
-    if resource_limits_config:
-        tail.append("  $RESOURCE_CONFIG")
     if macos_docker_config:
         tail.append("  $EXTRA_CONFIG")
+    if resource_limits_config:
+        tail.append("  $RESOURCE_CONFIG")
+    for config_path in extra_configs or []:
+        tail.append(f"  -c {shlex.quote(config_path)}")
+    # Last, so the digest pins win over any container a user config sets.
+    tail.append("  $CONTAINER_PIN")
     if tail:
         run_lines[-1] = run_lines[-1] + " \\"
         for i, line in enumerate(tail):
@@ -271,6 +265,7 @@ def build_nextflow_commands_sh(
         _HEADER.format(generated_at=generated_at),
         "\n# ── Replay command ────────────────────────────────────────────────────────────\n",
         _RESUME_GUARD,
+        replay_pin_guard(resume_variable="RESUME", bundle_dir="$BUNDLE_DIR") + "\n",
     ]
     if resource_limits_config:
         parts.append(_RESOURCE_GUARD)
@@ -280,6 +275,11 @@ def build_nextflow_commands_sh(
         parts.append(
             "# Pin the Nextflow engine to the version that produced this run.\n"
             f'export NXF_VER="{nextflow_version}"\n\n'
+        )
+    for key, value in NEXTFLOW_ENV.items():
+        parts.append(
+            "# Nextflow setting the pinned nf-core/scrnaseq release needs (see schemas.py).\n"
+            f'export {key}="{value}"\n\n'
         )
     if macos_docker_config:
         parts.append(_MACOS_GUARD)
