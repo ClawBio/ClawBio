@@ -243,8 +243,8 @@ def format_pharmgx_preview(report_text: str, report_path: str):
         if len(row) < 4:
             continue
         gene, _, diplotype, phenotype = row[:4]
-        # Split off "(X/Y SNPs tested)" qualifier from diplotype for cleaner display
-        dip_match = re.match(r'^(.+?)\s*(\(\d/\d SNPs tested\))?$', diplotype)
+        # Split off "(X/Y SNPs tested[; M not tested])" qualifier from diplotype for cleaner display
+        dip_match = re.match(r'^(.+?)\s*(\(\d+/\d+ SNPs tested(?:; [^()]+ not tested)?\))?$', diplotype)
         dip_core = dip_match[1] if dip_match else diplotype
         dip_note = f" {DIM}{dip_match[2]}{RESET}" if dip_match and dip_match[2] else ""
         # Preserve the report's phenotype, including uncertainty and coverage
