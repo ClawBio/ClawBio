@@ -22,7 +22,9 @@ from typing import Iterable
 # bootstrap block before this module is imported, so a flat `from <module>`
 # resolves correctly inside the fork's flat skill layout.
 from eqtl_catalogue_region_fetch import (
+    EQTLCatalogueDuplicateRowConflict,
     EQTLCatalogueRelease,
+    collapse_duplicate_rsid_rows,
     RegionResult as EQTLRegionResult,
     RegionVariant as EQTLRegionVariant,
 )
@@ -53,16 +55,21 @@ def _open_text(path: Path):
     return path.open("rt", encoding="utf-8")
 
 
+# Cell values read as missing. NaN counts: a NaN never equals itself, so two
+# identical copies carrying one would otherwise read as disagreeing.
+_MISSING_TOKENS = ("NA", "NAN")
+
+
 def _parse_float_or_none(s: str) -> float | None:
     s = s.strip()
-    if s == "" or s.upper() == "NA":
+    if s == "" or s.upper() in _MISSING_TOKENS:
         return None
     return float(s)
 
 
 def _parse_int_or_none(s: str) -> int | None:
     s = s.strip()
-    if s == "" or s.upper() == "NA":
+    if s == "" or s.upper() in _MISSING_TOKENS:
         return None
     return int(s)
 
@@ -140,6 +147,13 @@ def load_sumstats_tsv(path: Path) -> list[EQTLRegionVariant]:
             effect_allele_frequency=eaf,
             raw={},
         ))
+        # The optional `rsid` and `molecular_trait_id` columns ride on `raw`: a
+        # row collapsed onto another copy of the same variant keeps its rsID in
+        # `raw["rsids"]`, and the exposure client checks the file holds one trait.
+        for col in ("rsid", "molecular_trait_id"):
+            value = cols[header_idx[col]].strip() if col in header_idx else ""
+            if value and value.upper() not in _MISSING_TOKENS:
+                variants[-1].raw[col] = value
     return variants
 
 
@@ -251,13 +265,53 @@ class PrefetchedEQTLClient:
         end_bp: int,
         gene_id: str | None = None,
     ) -> EQTLRegionResult:
+        # The plot draws ONE molecular trait. A file that mixes several
+        # (transcripts or splicing events of one gene) would pair a variant once
+        # per trait, so it stops here and names them.
+        traits = sorted({v.raw["molecular_trait_id"] for v in self.variants
+                         if v.raw.get("molecular_trait_id")})
+        if len(traits) > 1:
+            raise PrefetchedSchemaError(
+                f"pre-fetched exposure file holds {len(traits)} molecular traits "
+                f"(e.g. {', '.join(traits[:3])}); the plot draws one trait, so "
+                f"filter the file to one molecular_trait_id first"
+            )
+        # One row per variant, as the live fetch returns. A slice cut from the
+        # eQTL Catalogue carries one row per rsID, so a variant with several
+        # rsIDs repeats with identical statistics: those copies collapse to the
+        # first, and each dropped copy is kept on the result's `collapsed`.
+        # Copies that DISAGREE cannot be merged, and picking one would be a
+        # guess, so the render stops.
+        try:
+            collapse = collapse_duplicate_rsid_rows(
+                self.variants, dataset_id=self.dataset_id or dataset_id,
+            )
+        except EQTLCatalogueDuplicateRowConflict as e:
+            detail = str(e).split(" disagree on ", 1)[-1].split(";", 1)[0]
+            vids = [v.variant_id for v in self.variants]
+            repeated = sorted({vid for vid in vids if vids.count(vid) > 1})
+            raise PrefetchedSchemaError(
+                f"pre-fetched exposure file has rows of one variant that disagree "
+                f"on {detail} (variants with repeated rows include "
+                f"{', '.join(repeated[:3])}); repeated rows must be identical "
+                f"copies, so no row was picked"
+            ) from e
+        variants = collapse.kept
+        notes = list(self.notes) + ["sumstats loaded from pre-fetched TSV (no live fetch)"]
+        if collapse.collapsed:
+            notes.append(
+                f"{len(collapse.collapsed)} repeated row(s) of a variant with identical "
+                f"statistics (one row per rsID) collapsed to one row each"
+            )
         return EQTLRegionResult(
             dataset_id=self.dataset_id or dataset_id,
             chromosome=chromosome,
             region_start_bp=start_bp,
             region_end_bp=end_bp,
-            n_variants=len(self.variants),
-            variants=self.variants,
+            n_variants=len(variants),
+            variants=variants,
+            n_rows_read=len(self.variants),
+            collapsed=collapse.collapsed,
             release=EQTLCatalogueRelease(
                 api_version="prefetched",
                 dataset_release=self.dataset_release,
@@ -266,7 +320,7 @@ class PrefetchedEQTLClient:
                 tissue_label=self.tissue_label,
                 quant_method=self.quant_method,
             ),
-            notes=list(self.notes) + ["sumstats loaded from pre-fetched TSV (no live fetch)"],
+            notes=notes,
         )
 
 

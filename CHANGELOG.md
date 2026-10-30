@@ -59,6 +59,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   every `ftp://` URL is rewritten to `https://`, so this is host filtering on
   TCP/443, not a port to open.
 
+### Fixed
+- **The test suite no longer rewrites drug-repurposing-screen's demo data.** A fixture regenerated
+  the bundle into the checked-in `demo/`, so every run modified three CSVs (pandas 3 writes some floats
+  one digit shorter). `generate_demo_bundle.py` takes `--output-dir`, and the fixture uses a temporary one.
+
 ### Notes
 - Upstream's `--out` defaults were relative to the working directory; every
   ported path now resolves under `--output`, so a run writes nothing into the

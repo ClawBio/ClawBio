@@ -60,3 +60,20 @@ def test_bundled_index_agrees_with_the_ftp_for_the_odd_one_out():
 
     listed = ftp_url_for(row["study_id"], "QTD000584", file_class="all") + ".tbi"
     assert status(listed) == 200, listed
+
+
+def test_duplicate_rsid_rows_are_collapsed_on_the_sort1_window():
+    """The catalogue writes one row per rsID, so a variant with several rsIDs comes
+    back on several rows. Pins the measurement to the source: the SORT1 QTD000276
+    1 Mb window read 2,833 rows for 2,740 (trait, variant) keys on 2026-10-22. If the
+    counts move, the catalogue re-released this dataset; re-measure before editing."""
+    result = EQTLCatalogueClient().fetch_region(
+        dataset_id="QTD000276", chromosome="1",
+        start_bp=108_774_968, end_bp=109_774_968,
+        gene_id="ENSG00000134243",
+    )
+    assert result.n_rows_read == 2833
+    assert result.n_variants == len(result.variants) == 2740
+    assert len(result.collapsed) == 93
+    by_id = {v.variant_id: v for v in result.variants}
+    assert by_id["1_108778690_T_TTATA"].raw["rsids"] == "rs35423568;rs5776947"

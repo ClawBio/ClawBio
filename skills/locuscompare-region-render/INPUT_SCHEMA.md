@@ -28,7 +28,7 @@ so they can chain into `locuscompare` without per-source plumbing.
 
 ## Required columns
 
-These must be present in every row. Missing values: empty string OR explicit `NA`. A row with a missing required field is invalid and the skill will reject the file.
+These must be present in every row. Missing values: empty string OR explicit `NA` (`NaN` reads the same). A row with a missing required field is invalid and the skill will reject the file.
 
 | Column | Type | Description |
 |---|---|---|
@@ -52,7 +52,7 @@ Present if the source emits them; ignored if absent. Skills SHOULD produce these
 | `maf` | float | Minor-allele frequency in the study cohort. Range [0, 0.5]. |
 | `eaf` | float | Effect-allele frequency (frequency of `allele_b`). Range [0, 1]. |
 | `n` | integer | Effective sample size for the variant. For binary traits this is typically the case-equivalent N or the harmonic-mean N per study convention. |
-| `rsid` | string | dbSNP rs identifier if known. May be present multiple times per `variant_id` for multi-allelic loci; canonical join is on `variant_id`, not `rsid`. |
+| `rsid` | string | dbSNP rs identifier if known. The join is on `variant_id`, not `rsid`: the two alleles of a multi-allelic site can share one rsID. A variant with several rsIDs may appear once per rsID (the eQTL Catalogue writes its files this way); in an exposure file those rows must have identical statistics and are collapsed to one, keeping every rsID, and rows of one `variant_id` that disagree stop the render. Outcome files are not checked for repeats; give one row per `variant_id`. |
 | `info` | float | Imputation INFO score, [0, 1]. |
 | `molecular_trait_id` | string | For QTL data: the ENSG / ENST / molecular feature id the variant is tested against. Required by eQTL Cat–style datasets where one TSV bundles multiple traits. |
 | `study_id` | string | Source-native study identifier (e.g. eQTL Cat `dataset_id`, GWAS Cat `accession`, FinnGen phenotype code). For self-documentation; not used for join. |
@@ -86,6 +86,9 @@ Use the VCF normalisation convention: `allele_a` is the longest common prefix-re
 - Missing `beta`/`se`/`p` for a single variant: row is dropped before harmonisation.
 - Missing optional columns: tolerated, downstream features that depend on them gracefully degrade (e.g. MAF-weighted plots fall back to unweighted; `n`-aware diagnostics fall back to N-agnostic).
 - `p = 0` is replaced with the underflow floor (`5e-324`) before plotting on a `-log10` axis. Producers MAY emit `p = 0` for variants where the reported p is below floating-point precision; consumers handle the substitution.
+
+### One trait per exposure file
+The plot draws one molecular trait. A source that bundles several in one TSV (an eQTL Catalogue or GTEx file) must be filtered to one `molecular_trait_id` before it is used as an exposure; an exposure file with more than one stops the render and names them.
 
 ### Sign-checked vs unchecked sumstats
 Some sources emit summary stats that have NOT been sign-checked against a reference (e.g. raw GTEx v8 cis-eQTL bgz files). Effect-allele direction in those is undefined relative to the reference allele. Producers MUST document sign-checking status in `provenance.json` (see below) and ideally do the sign check themselves before emitting this format.
