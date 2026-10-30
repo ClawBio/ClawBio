@@ -315,7 +315,7 @@ python tests/benchmark/mock_api_server.py &
 
 ## Git Workflow
 
-- Branch from `main` in a new git worktree, so agents can work in parallel — name branches `feat/<skill-name>` or `fix/<skill-name>`
+- Branch from `main` in a new git worktree and run `uv sync` in it (each worktree needs its own `.venv`), so agents can work in parallel — name branches `feat/<skill-name>` or `fix/<skill-name>`
 - **One skill per PR** — keep changes focused
 - Tests must pass on Python 3.11, 3.12, and 3.13
 - Include demo output in the PR description so reviewers can verify
