@@ -16,7 +16,7 @@ description: |
 license: MIT
 metadata:
   skill-author: Aviv Madar
-  version: 0.1.0
+  version: 0.1.2
   domain: bioinformatics
   tags:
     - pqtl
@@ -33,7 +33,7 @@ metadata:
       required: true
     - name: ancestry
       type: string
-      description: One of EUR (European discovery; N=46,673), AFR (African; N=931), CSA / SAS (Central / South Asian; N=920), EAS (East Asian; N=262), MID (Middle East; N=124), AMR (American Hispanic; N=60), ALL (Combined multi-ancestry meta; N=47,970). Per Sun 2023 Nature Table 1.
+      description: One of EUR (European discovery cohort; n = 34,557), AFR (African; n = 931), CSA / SAS (Central / South Asian; n = 920), EAS (East Asian; n = 262), MID (Middle Eastern; n = 308), AMR (admixed American; n = 97), ALL (all ancestries in one analysis; n = 52,363). Cohort sizes as published in Sun et al. 2023 (Results). The N reported for a slice is the per-variant N in its summary statistics; for EUR it is lower (all 2,953 UKB_PPP_EUR studies in Open Targets 26.06 are below 34,557), and for the other strata it is not measured.
       required: true
     - name: chromosome
       type: string
@@ -53,7 +53,7 @@ metadata:
       description: Per-variant rows with variant_id (chr_pos_ref_alt, OT convention), chromosome, position, ref, alt, beta, se, p_value (linear; converted from LOG10P), maf, effect_allele_frequency, molecular_trait_id (Olink reagent id), study_id (Synapse fileID).
     - name: release
       type: object
-      description: UKBPPPRelease with protein_hgnc, protein_uniprot, olink_reagent_id, olink_panel, ancestry, ancestry_label, n_samples, synapse_id, source_url, release_label, fetched_at_utc.
+      description: UKBPPPRelease with protein_hgnc, protein_uniprot, olink_reagent_id, olink_panel, ancestry, ancestry_label, n_samples (per-variant N from the rows; the largest when it varies), n_samples_min, n_samples_label, cohort_n (published cohort size for the ancestry, cited), cohort_n_source, synapse_id, source_url, release_label, fetched_at_utc.
   dependencies:
     - python>=3.10
     - synapseclient>=3.0
@@ -114,7 +114,7 @@ When a live fetch is attempted without a Synapse PAT, the skill raises a multi-l
 
 ## Overview
 
-UKB-PPP (Sun et al. 2023 *Nature*) is the largest open-access plasma proteomic GWAS resource, profiling 2,923 Olink Explore 3072 proteins across 54,219 UK Biobank participants stratified into European discovery (N=46,673) plus six smaller ancestry breakouts (African, Central/South Asian, East Asian, Middle East, American Hispanic, and a Combined multi-ancestry meta-analysis). Summary statistics are released per (protein × ancestry) as REGENIE step-2 outputs and packaged as `<HGNC>_<UniProt>_<OlinkID>_v1_<Panel>.tar` archives on Synapse (`syn51364943`). Each tar contains one gzipped REGENIE file per autosome + X. This skill resolves a protein label (HGNC or UniProt) to the canonical Synapse fileID, downloads the protein's tar to a local cache, extracts the per-chromosome file, filters to a `(chr, start, end)` window, and emits a harmonised TSV slice plus a provenance manifest.
+UKB-PPP (Sun et al. 2023 *Nature*) is the largest open-access plasma proteomic GWAS resource, measuring 2,923 unique proteins (Olink Explore 3072) in 54,219 participants (Abstract and Results), with pQTL mapping in a European-ancestry discovery cohort (n = 34,557) and a replication cohort (n = 17,806), five non-European strata (AFR 931, CSA 920, MID 308, EAS 262, AMR 97) and the full cohort analyzed together (n = 52,363). Summary statistics are released per (protein × ancestry) as REGENIE step-2 outputs and packaged as `<HGNC>_<UniProt>_<OlinkID>_v1_<Panel>.tar` archives on Synapse (`syn51364943`). Each tar contains one gzipped REGENIE file per autosome + X. This skill resolves a protein label (HGNC or UniProt) to the canonical Synapse fileID, downloads the protein's tar to a local cache, extracts the per-chromosome file, filters to a `(chr, start, end)` window, and emits a harmonised TSV slice plus a provenance manifest.
 
 ## Trigger
 
@@ -141,11 +141,11 @@ UKB-PPP (Sun et al. 2023 *Nature*) is the largest open-access plasma proteomic G
 When an agent asks for a regional pQTL slice from UKB-PPP:
 
 1. **Resolve the protein.** The skill lists the requested ancestry folder on Synapse (`syn51365303` for EUR, etc.) and parses `<HGNC>_<UniProt>_<OlinkID>_v1_<Panel>.tar` filenames into a (HGNC, UniProt) -> Synapse fileID index. Lookup tolerates both keys; HGNC is the default surface. The listing call is auth-free; only the subsequent download requires a Synapse PAT.
-2. **Resolve the ancestry.** EUR is the default for most coloc renders given its 50x cohort size advantage; use AFR / EAS / CSA / MID / AMR for ancestry-specific renders. The 1000 Genomes super-population for the LD reference panel (1000G Phase 3) maps EUR -> EUR, AFR -> AFR, EAS -> EAS, CSA/SAS -> SAS, MID -> EUR proxy with caption caveat, AMR -> AMR.
+2. **Resolve the ancestry.** EUR is the default for most coloc renders given its roughly 37x cohort size advantage (34,557 vs 931 for AFR, the next largest); use AFR / EAS / CSA / MID / AMR for ancestry-specific renders. The 1000 Genomes super-population for the LD reference panel (1000G Phase 3) maps EUR -> EUR, AFR -> AFR, EAS -> EAS, CSA/SAS -> SAS, MID -> EUR proxy with caption caveat, AMR -> AMR.
 3. **Download the tar (cached).** First fetch downloads the protein tar via `synapseclient` to the local cache (`UKB_PPP_CACHE_DIR` env or `~/.clawbio/ukb_ppp_region_fetch_cache/`). Repeat fetches across regions on the same protein reuse the cached tar.
 4. **Extract the chromosome.** The tar contains one gzipped REGENIE file per autosome + X. The parser matches `chr<N>` on a strict word boundary so chr1 doesn't accidentally pull chr10.
 5. **Stream-filter to the window.** REGENIE files are plain gzip (not BGZ / tabix), so regional fetches scan one chromosome's file linearly. ~1M rows per chromosome; ~2 s on a modern laptop per window. Rows are normalised to OT `chr_pos_ref_alt` ALT-effect convention; LOG10P is converted to a linear p-value; A1FREQ above 0.5 is folded to MAF.
-6. **Write outputs** to `--output <dir>/`: a flat `variants.tsv` (effect-allele-aligned, GRCh38, ALT-effect β), a `manifest.yaml` with provenance (study_label, release_label, protein_hgnc, protein_uniprot, olink_reagent_id, olink_panel, ancestry, ancestry_label, n_samples, synapse_id, source_url, fetched-at UTC timestamp, attribution string), and a `report.md` human-readable summary.
+6. **Write outputs** to `--output <dir>/`: a flat `variants.tsv` (effect-allele-aligned, GRCh38, ALT-effect β), a `manifest.yaml` with provenance (study_label, release_label, protein_hgnc, protein_uniprot, olink_reagent_id, olink_panel, ancestry, ancestry_label, n_samples, n_samples_min, n_samples_label, cohort_n, cohort_n_source, synapse_id, source_url, fetched-at UTC timestamp, attribution string), and a `report.md` human-readable summary that states the per-variant N and the published cohort size on separate, labeled lines.
 
 ## CLI Reference
 
@@ -203,11 +203,13 @@ ukb-ppp-region-fetch: ~120,000 variants -> /tmp/sort1_ukbppp_demo/variants.tsv
 
 7. **Per-chromosome file names vary slightly across the release.** The parser matches `chr<N>` on a strict word boundary inside `.tar` members, accepting names like `discovery_chr1_<protein>_*.regenie.gz` or `chr1_*.tsv.gz`. The strict boundary prevents chr1 from accidentally matching chr10 / chr11, a class of bug that would silently return the wrong chromosome's data.
 
+8. **The model will want to quote the paper's cohort size as the N of a slice. Do not.** The paper's 34,557 is the EUR discovery cohort; each protein's summary statistics carry their own per-variant N (SORT1 EUR: 33,628 on all 5,205 rows of the bundled slice), and in Open Targets 26.06 the 2,953 UKB_PPP_EUR studies range from 9,216 to 34,090. Report `n_samples` (from the rows) as the N and `cohort_n` as the published cohort, each labeled. `n_samples` is the largest per-variant N when the rows disagree, with `n_samples_min` beside it, and None when no row states N.
+
 ## Safety
 
 **Not for clinical decisions.** This skill returns research-grade summary statistics from a public proteomic GWAS. Do not use the output for direct clinical decision-making, diagnosis, or treatment selection without independent validation by a qualified clinician.
 
-**Effect estimates may not generalise across populations.** UKB-PPP's discovery cohort is overwhelmingly European (N=46,673 vs N=931 for African, the next-largest stratum). Effect sizes from EUR-discovery analyses should not be assumed to apply uniformly across other ancestries; the orchestrator's caption layer flags this when the ancestry side of an LD reference panel mismatches the source study.
+**Effect estimates may not generalise across populations.** UKB-PPP's discovery cohort is overwhelmingly European (n = 34,557 vs n = 931 for African, the next-largest stratum). Effect sizes from EUR-discovery analyses should not be assumed to apply uniformly across other ancestries; the orchestrator's caption layer flags this when the ancestry side of an LD reference panel mismatches the source study.
 
 **Plasma vs tissue.** UKB-PPP measures circulating plasma proteins, which is biologically distinct from cell- or tissue-level protein abundance. Downstream interpretation should not assume a plasma cis-pQTL implies an identical effect on intra-cellular abundance for the same protein.
 
@@ -218,8 +220,8 @@ The skill returns harmonised summary statistics (β, SE, p-value, MAF, EAF) for 
 - **Use the output as input to colocalisation, fine-mapping, or Mendelian randomisation tooling.** These are the appropriate downstream methods for inferring causal effects.
 - **NOT make causal-effect claims directly from a single pQTL p-value.** Statistical association ≠ causation; instrumental-variable assumptions must be satisfied for MR.
 - **NOT cherry-pick variants by p-value alone.** Statistical inference requires the full credible set / window context.
-- **NOT compare effect sizes across ancestries without acknowledging cohort N.** EUR's 50x sample-size advantage means EUR effect estimates have much tighter SEs; "no effect" in a small-N ancestry stratum may reflect power, not biology.
-- **Surface protein identity, Olink reagent ID, and ancestry in the user-facing reply** alongside any β / p-value the agent quotes. Per the user-friendly enum-expansion rule (`AGENTS.md`), expand all three fields: `protein = SORT1 (Q99523, OID20213); ancestry = European (discovery) (EUR); N = 46,673`.
+- **NOT compare effect sizes across ancestries without acknowledging cohort N.** EUR's roughly 37x sample-size advantage (34,557 vs 931) means EUR effect estimates have much tighter SEs; "no effect" in a small-N ancestry stratum may reflect power, not biology.
+- **Surface protein identity, Olink reagent ID, and ancestry in the user-facing reply** alongside any β / p-value the agent quotes. Per the user-friendly enum-expansion rule (`AGENTS.md`), expand all three fields: `protein = SORT1 (Q99523, OID20213); ancestry = European (discovery) (EUR); N = 33,628 (per-variant, from the summary statistics); published cohort n = 34,557`.
 - **NOT silently swap Olink reagents.** If the user asked for `SORT1` and the dataset is `SORT1-AOH2` (a different isoform reagent), the agent must say so explicitly.
 
 ## Citations

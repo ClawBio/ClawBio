@@ -1627,6 +1627,15 @@ class _SkillFailed(Exception):
     """Marks the audit span ERROR: run_skill reports failure as a dict, not a raise."""
 
 
+def _failure_message(exit_code: int, stderr: str) -> str:
+    """The exit code plus the last non-blank stderr line: a traceback ends on the exception.
+
+    skill_run passes this through the OPENINFERENCE_HIDE_* flags, since the line can quote the input.
+    """
+    last = next((line.strip() for line in reversed(stderr.splitlines()) if line.strip()), "")
+    return f"exit code {exit_code}: {last}" if last else f"exit code {exit_code}"
+
+
 def _skill_version(skill_name: str) -> str:
     """The SKILL.md frontmatter version, so an audit record says which methodology ran."""
     script = SKILLS.get(skill_name, {}).get("script")
@@ -1674,7 +1683,7 @@ def run_skill(
             skill_name, input_path, output_dir, demo, extra_args, timeout, profile_path
         )
         if not result["success"]:
-            raise _SkillFailed(f"exit code {result['exit_code']}")
+            raise _SkillFailed(_failure_message(result["exit_code"], result.get("stderr") or ""))
     return result
 
 
@@ -2094,15 +2103,6 @@ def main():
 
     # list
     sub.add_parser("list", help="List available skills")
-
-    # mcp
-    sub.add_parser(
-        "mcp",
-        help=(
-            "Run ClawBio as an MCP server over stdio. DEPRECATED since 0.7.0, removed in "
-            "0.8.0: use the Claude Code plugin or load skills/ as Agent Skills instead"
-        ),
-    )
 
     # upload
     upload_parser = sub.add_parser("upload", help="Upload genetic data and create a patient profile")
@@ -2557,11 +2557,6 @@ def main():
 
     if args.command == "list":
         list_skills()
-
-    elif args.command == "mcp":
-        from clawbio.mcp_server import serve
-
-        serve()
 
     elif args.command == "upload":
         result = upload_profile(

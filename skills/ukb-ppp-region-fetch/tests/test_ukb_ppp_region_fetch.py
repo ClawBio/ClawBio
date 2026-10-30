@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from hypothesis import given, strategies as st
 
 # Inject the skill dir so the bare-name `ukb_ppp_region_fetch` resolves
 # under ClawBio's kebab-cased skill directory (`skills/ukb-ppp-region-fetch/`),
@@ -35,14 +36,20 @@ from ukb_ppp_region_fetch import (  # noqa: E402
     UKBPPPAccessError,
     UKBPPPClient,
     UKBPPPRelease,
+    UKB_PPP_COHORT_N,
+    UKB_PPP_COHORT_N_SOURCE,
     save_region_result_as_bundled_slice,
 )
 from ukb_ppp_region_fetch import (  # noqa: E402
     _bundled_slice_key,
+    _bundled_slices_dir,
     _extract_region_from_tar,
+    _load_bundled_slice,
+    _maybe_int,
+    _n_samples_from_rows,
     _normalise_row,
     _ProteinIndex,
-    _UKB_PPP_N_BY_ANCESTRY,
+    main,
 )
 
 
@@ -102,9 +109,33 @@ def test_regenie_columns_count_is_14():
     assert len(REGENIE_COLUMNS) == 14
 
 
-def test_n_by_ancestry_eur_is_46673():
-    """Discovery cohort N per Sun 2023 Table 1."""
-    assert _UKB_PPP_N_BY_ANCESTRY["EUR"] == 46_673
+def test_cohort_n_matches_sun_2023():
+    """Published cohort sizes, quoted from Sun BB et al. Nature 2023;622:329-338
+    (doi:10.1038/s41586-023-06592-6, PMID 37794186), Results:
+
+    - "Discovery pQTL analyses were performed in participants of European
+      ancestry from the randomly selected baseline cohort ( n = 34,557)"
+    - "ancestry-specific pQTL analyses within five ancestry groups as defined
+      by pan-UKBB: African (AFR, n = 931), Central/South Asian (CSA, n = 920),
+      Middle Eastern (MID, n = 308), East Asian (EAS, n = 262) and admixed
+      American (AMR, n = 97)"
+    - "we also performed pQTL mapping for the full UKB-PPP cohort ( n = 52,363)"
+
+    SAS is an alias of CSA. These are cohort sizes, not the N of any slice.
+    """
+    assert UKB_PPP_COHORT_N == {
+        "EUR": 34_557, "AFR": 931, "CSA": 920, "SAS": 920,
+        "EAS": 262, "MID": 308, "AMR": 97, "ALL": 52_363,
+    }
+    assert "37794186" in UKB_PPP_COHORT_N_SOURCE
+    assert "10.1038/s41586-023-06592-6" in UKB_PPP_COHORT_N_SOURCE
+
+
+def test_ancestry_label_all_is_not_a_meta_analysis():
+    """The full-cohort (ALL) analysis is one GWAS of all participants
+    (n = 52,363), not a meta-analysis of the strata."""
+    assert "meta" not in ANCESTRY_LABELS["ALL"].lower()
+
 
 
 # ----------------------- Protein index resolution -----------------------
@@ -196,7 +227,7 @@ def test_normalise_row_harmonises_to_alt_effect():
     row = {
         "CHROM": "1", "GENPOS": "109274968",
         "ALLELE0": "T", "ALLELE1": "G",
-        "A1FREQ": "0.32", "INFO": "0.999", "N": "46673", "TEST": "ADD",
+        "A1FREQ": "0.32", "INFO": "0.999", "N": "33628", "TEST": "ADD",
         "BETA": "0.44", "SE": "0.05", "CHISQ": "75.8",
         "LOG10P": "12.5", "EXTRA": "",
     }
@@ -220,7 +251,7 @@ def test_normalise_row_maf_fold_when_eaf_above_half():
     row = {
         "CHROM": "1", "GENPOS": "109274968",
         "ALLELE0": "T", "ALLELE1": "G",
-        "A1FREQ": "0.78", "INFO": "0.999", "N": "46673", "TEST": "ADD",
+        "A1FREQ": "0.78", "INFO": "0.999", "N": "33628", "TEST": "ADD",
         "BETA": "0.44", "SE": "0.05", "CHISQ": "75.8",
         "LOG10P": "12.5", "EXTRA": "",
     }
@@ -233,7 +264,7 @@ def test_normalise_row_handles_missing_logp():
     row = {
         "CHROM": "1", "GENPOS": "109274968",
         "ALLELE0": "T", "ALLELE1": "G",
-        "A1FREQ": "NA", "INFO": "0.5", "N": "46673", "TEST": "ADD",
+        "A1FREQ": "NA", "INFO": "0.5", "N": "33628", "TEST": "ADD",
         "BETA": "NA", "SE": "NA", "CHISQ": "NA",
         "LOG10P": "NA", "EXTRA": "",
     }
@@ -250,7 +281,7 @@ def test_normalise_row_clamps_overflow_to_zero():
     row = {
         "CHROM": "1", "GENPOS": "109274968",
         "ALLELE0": "T", "ALLELE1": "G",
-        "A1FREQ": "0.32", "INFO": "0.999", "N": "46673", "TEST": "ADD",
+        "A1FREQ": "0.32", "INFO": "0.999", "N": "33628", "TEST": "ADD",
         "BETA": "0.44", "SE": "0.05", "CHISQ": "9999",
         "LOG10P": "500", "EXTRA": "",
     }
@@ -290,7 +321,7 @@ def synthetic_tar(tmp_path: Path) -> Path:
         {
             "CHROM": "1", "GENPOS": "109274968", "ID": "rs12740374",
             "ALLELE0": "T", "ALLELE1": "G",
-            "A1FREQ": "0.32", "INFO": "0.999", "N": "46673", "TEST": "ADD",
+            "A1FREQ": "0.32", "INFO": "0.999", "N": "33628", "TEST": "ADD",
             "BETA": "0.44", "SE": "0.05", "CHISQ": "75.8",
             "LOG10P": "12.5", "EXTRA": "0",
         },
@@ -298,7 +329,7 @@ def synthetic_tar(tmp_path: Path) -> Path:
         {
             "CHROM": "1", "GENPOS": "109274970", "ID": "rsX",
             "ALLELE0": "A", "ALLELE1": "C",
-            "A1FREQ": "0.05", "INFO": "0.95", "N": "46673", "TEST": "ADD",
+            "A1FREQ": "0.05", "INFO": "0.95", "N": "33628", "TEST": "ADD",
             "BETA": "0.02", "SE": "0.04", "CHISQ": "0.25",
             "LOG10P": "0.4", "EXTRA": "0",
         },
@@ -306,7 +337,7 @@ def synthetic_tar(tmp_path: Path) -> Path:
         {
             "CHROM": "1", "GENPOS": "108774967", "ID": "rsY",
             "ALLELE0": "G", "ALLELE1": "A",
-            "A1FREQ": "0.1", "INFO": "0.9", "N": "46673", "TEST": "ADD",
+            "A1FREQ": "0.1", "INFO": "0.9", "N": "33628", "TEST": "ADD",
             "BETA": "0.0", "SE": "0.05", "CHISQ": "0.01",
             "LOG10P": "0.01", "EXTRA": "0",
         },
@@ -314,7 +345,7 @@ def synthetic_tar(tmp_path: Path) -> Path:
         {
             "CHROM": "1", "GENPOS": "109774969", "ID": "rsZ",
             "ALLELE0": "T", "ALLELE1": "C",
-            "A1FREQ": "0.1", "INFO": "0.9", "N": "46673", "TEST": "ADD",
+            "A1FREQ": "0.1", "INFO": "0.9", "N": "33628", "TEST": "ADD",
             "BETA": "0.0", "SE": "0.05", "CHISQ": "0.01",
             "LOG10P": "0.01", "EXTRA": "0",
         },
@@ -322,7 +353,7 @@ def synthetic_tar(tmp_path: Path) -> Path:
         {
             "CHROM": "2", "GENPOS": "109274968", "ID": "rsOtherChrom",
             "ALLELE0": "T", "ALLELE1": "G",
-            "A1FREQ": "0.32", "INFO": "0.999", "N": "46673", "TEST": "ADD",
+            "A1FREQ": "0.32", "INFO": "0.999", "N": "33628", "TEST": "ADD",
             "BETA": "0.0", "SE": "0.05", "CHISQ": "0.1",
             "LOG10P": "0.1", "EXTRA": "0",
         },
@@ -404,7 +435,7 @@ def test_extract_region_word_boundary_avoids_chr1_chr10_collision(tmp_path):
 # ----------------------- Client end-to-end with mocks -----------------------
 
 
-def test_client_fetch_region_assembles_release_metadata(synthetic_tar, stub_lister, tmp_path):
+def test_live_fetch_n_samples_comes_from_rows(synthetic_tar, stub_lister, tmp_path):
     """End-to-end: client resolves protein, downloads tar, extracts region.
 
     `bundled_slices_dir` is pointed at an empty tmp dir so the client
@@ -434,11 +465,98 @@ def test_client_fetch_region_assembles_release_metadata(synthetic_tar, stub_list
     assert result.release.olink_reagent_id == "OID20684"
     assert result.release.ancestry == "EUR"
     assert result.release.ancestry_label == "European (discovery)"
-    assert result.release.n_samples == 46_673
+    # N is the rows' own REGENIE N, not a per-ancestry constant; the
+    # published cohort size rides beside it.
+    assert result.release.n_samples == 33_628
+    assert result.release.n_samples_min == 33_628
+    assert result.release.n_samples_label == "33,628"
+    assert result.release.cohort_n == 34_557
     assert result.release.synapse_id == "syn52362400"
     assert "syn52362400" in result.release.source_url
     # Verify downloader received the right synapse id
     downloader.download_tar.assert_called_once_with("syn52362400")
+
+
+def _two_row_live_result(tmp_path, stub_lister, n_values: tuple[str, str]):
+    """Mocked live fetch over a tar with two in-window rows carrying `n_values`."""
+    base = {
+        "CHROM": "1", "ID": "rs", "ALLELE0": "T", "ALLELE1": "G",
+        "A1FREQ": "0.3", "INFO": "0.99", "TEST": "ADD", "BETA": "0.1",
+        "SE": "0.05", "CHISQ": "4", "LOG10P": "1.3", "EXTRA": "0",
+    }
+    rows = [
+        {**base, "GENPOS": "109274968", "N": n_values[0]},
+        {**base, "GENPOS": "109274970", "N": n_values[1]},
+    ]
+    tar = _build_test_tar(tmp_path, chrom="1", rows=rows)
+    stub_lister.list_folder.return_value = [
+        {"name": "SORT1_Q99523_OID20684_v1_Cardiometabolic.tar", "id": "syn1"},
+    ]
+    downloader = MagicMock()
+    downloader.download_tar = MagicMock(return_value=tar)
+    client = UKBPPPClient(
+        lister=stub_lister, downloader=downloader,
+        bundled_slices_dir=tmp_path / "empty_bundle",
+    )
+    return client.fetch_region(
+        protein_label="SORT1", ancestry="EUR",
+        chromosome="1", start_bp=108_774_968, end_bp=109_774_968,
+    )
+
+
+def test_n_samples_is_a_range_when_rows_disagree(stub_lister, tmp_path):
+    """REGENIE N is per variant; when the rows disagree the release carries
+    the range (max as `n_samples`, min beside it) and the label says so."""
+    result = _two_row_live_result(tmp_path, stub_lister, ("33000", "33628"))
+    assert result.n_variants == 2
+    assert result.release.n_samples == 33_628
+    assert result.release.n_samples_min == 33_000
+    assert result.release.n_samples_label == "33,000 to 33,628 (varies by variant)"
+
+
+def test_n_samples_none_when_rows_state_no_n(stub_lister, tmp_path):
+    """Rows with no usable N leave the N unknown (None), never a table value;
+    the rows themselves are kept and the published cohort size still rides."""
+    result = _two_row_live_result(tmp_path, stub_lister, ("NA", "NA"))
+    assert result.n_variants == 2
+    assert result.release.n_samples is None
+    assert result.release.n_samples_min is None
+    assert result.release.n_samples_label is None
+    assert result.release.cohort_n == 34_557
+
+
+_N_CELL = st.one_of(
+    st.integers(min_value=0, max_value=60_000).map(str),
+    st.sampled_from(["NA", "", "n/a", "3.5e4", "33628.0", "33.5", "-5", "nan"]),
+)
+
+
+@given(cells=st.lists(_N_CELL, max_size=20))
+def test_n_samples_from_rows_is_the_range_of_the_parsable_ns(cells):
+    """Property: the (min, max) is taken over exactly the rows whose N is a
+    positive whole number (written as an integer or a float); no such N gives
+    (None, None)."""
+    variants = [
+        RegionVariant(
+            variant_id=f"1_{i}_A_C", chromosome="1", position=i, ref="A",
+            alt="C", beta=None, se=None, p_value=None, maf=None,
+            effect_allele_frequency=None, raw={"N": c},
+        )
+        for i, c in enumerate(cells)
+    ]
+    def whole_positive(c):
+        try:
+            f = float(c)
+        except ValueError:
+            return None
+        return int(f) if f == f and f > 0 and f == int(f) else None
+
+    parsed = [n for n in map(whole_positive, cells) if n is not None]
+    lo, hi = _n_samples_from_rows(variants)
+    if parsed:
+        assert (lo, hi) == (min(parsed), max(parsed))
+    else:
+        assert (lo, hi) == (None, None)
 
 
 # ----------------------- Bundled-slice loader -----------------------
@@ -454,15 +572,17 @@ def _sort1_eur_test_result(chrom="1", start=108_774_968, end=109_774_968):
         olink_panel="Cardiometabolic",
         ancestry="EUR",
         ancestry_label="European (discovery)",
-        n_samples=46_673,
+        n_samples=33_628,
         synapse_id="syn52362400",
         source_url="https://www.synapse.org/Synapse:syn52362400",
+        n_samples_min=33_628,
+        cohort_n=34_557,
     )
     variants = [
         RegionVariant(
             variant_id="1_109274968_T_G", chromosome=chrom, position=109_274_968,
             ref="T", alt="G", beta=0.44, se=0.05, p_value=3.16e-13,
-            maf=0.32, effect_allele_frequency=0.32, raw={},
+            maf=0.32, effect_allele_frequency=0.32, raw={"N": "33628"},
         ),
     ]
     return RegionResult(
@@ -502,7 +622,81 @@ def test_save_and_load_round_trip(tmp_path):
     assert loaded.variants[0].variant_id == "1_109274968_T_G"
     assert loaded.release.protein_hgnc == "SORT1"
     assert loaded.release.synapse_id == "syn52362400"
-    assert loaded.release.n_samples == 46_673
+    assert loaded.release.n_samples == 33_628
+    assert loaded.release.n_samples_min == 33_628
+    assert loaded.release.cohort_n == 34_557
+
+
+def test_slice_saved_before_0_1_2_is_rederived_from_its_rows(tmp_path):
+    """A slice written before 0.1.2 stores a per-ancestry table value as its N
+    and has no `n_samples_min`. The loader derives the N from the rows instead,
+    so a caller's own older slice never shows the retired number under the
+    "per-variant N" label."""
+    path = save_region_result_as_bundled_slice(
+        _sort1_eur_test_result(), bundled_slices_dir=tmp_path,
+    )
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        d = json.load(f)
+    d["release"]["n_samples"] = 46_673
+    for key in ("n_samples_min", "cohort_n"):
+        d["release"].pop(key, None)
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        json.dump(d, f)
+    r = _load_bundled_slice(path)
+    assert r.release.n_samples == 33_628
+    assert r.release.n_samples_min == 33_628
+    assert r.release.cohort_n == 34_557
+
+
+def test_maybe_int_reads_only_positive_whole_numbers():
+    assert _maybe_int("33628") == 33_628
+    assert _maybe_int("33628.0") == 33_628
+    assert _maybe_int(33_628) == 33_628
+    for bad in ("", "NA", None, "0", "-5", "33.5", "nan", "n/a"):
+        assert _maybe_int(bad) is None, bad
+
+
+def test_every_shipped_slice_stores_the_rows_n():
+    """Every bundled slice's stored N equals the per-variant N of its own rows.
+    The loader trusts the stored block, so this is the invariant that keeps it
+    honest: a slice saved with a stale or invented N fails here."""
+    slices = sorted(_bundled_slices_dir().glob("*.json.gz"))
+    assert slices, "no bundled slices found"
+    for path in slices:
+        r = _load_bundled_slice(path)
+        lo, hi = _n_samples_from_rows(r.variants)
+        assert hi is not None, path.name
+        assert r.release.n_samples == hi, path.name
+        assert r.release.n_samples_min == lo, path.name
+        assert r.release.cohort_n == UKB_PPP_COHORT_N[r.ancestry], path.name
+    sort1 = _load_bundled_slice(
+        _bundled_slices_dir() / "SORT1__EUR__chr1__108774968_109774968.json.gz"
+    )
+    assert _n_samples_from_rows(sort1.variants) == (33_628, 33_628)
+    assert sort1.release.cohort_n == 34_557
+
+
+def test_cli_demo_manifest_and_report_carry_both_numbers(tmp_path, capsys):
+    """The offline demo reports the rows' N and the published cohort size,
+    each labeled, and never the retired table value."""
+    assert main(["--demo", "sort1_ukb_ppp_eur", "--output", str(tmp_path)]) == 0
+    assert "| N = 33,628" in capsys.readouterr().out
+    if (tmp_path / "manifest.yaml").exists():
+        import yaml
+        manifest = yaml.safe_load((tmp_path / "manifest.yaml").read_text())
+    else:
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+    rel = manifest["release"]
+    assert rel["n_samples"] == 33628
+    assert rel["n_samples_min"] == 33628
+    assert rel["n_samples_label"] == "33,628"
+    assert rel["cohort_n"] == 34557
+    assert "37794186" in rel["cohort_n_source"]
+    report = (tmp_path / "report.md").read_text()
+    assert "per-variant N" in report
+    assert "33,628" in report
+    assert "34,557" in report
+    assert "46,673" not in report
 
 
 def test_bundled_slice_takes_precedence_over_live_fetch(tmp_path, synthetic_tar):

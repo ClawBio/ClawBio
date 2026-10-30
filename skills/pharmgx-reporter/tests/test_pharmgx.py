@@ -1004,6 +1004,77 @@ def test_dpyd_without_hapb3_is_not_called_normal():
     assert _dpyd(genotypes)[1].startswith("Indeterminate")
 
 
+# CPIC fluorouracil/capecitabine recommendation at DPYD activity score 1.0
+# (api.cpicpgx.org/v1/recommendation, RxNorm:4492 and RxNorm:194000).
+_CPIC_D949V_HOM = ("Patients with the c.2846A>T/c.2846A>T genotype may require "
+                   ">50% reduction in starting dose.")
+
+
+def _dpyd_profiles(genotypes):
+    diplotype, phenotype = _dpyd(genotypes)
+    return {"DPYD": {"diplotype": diplotype, "phenotype": phenotype}}
+
+
+def _batch_entry(profiles, drug):
+    return next(d for cat in lookup_drugs(profiles).values() for d in cat if d["drug"] == drug)
+
+
+@pytest.mark.parametrize("drug", ["Fluorouracil", "Capecitabine"])
+def test_dpyd_homozygous_d949v_carries_cpic_caveat(drug):
+    """CPIC: c.2846A>T homozygotes (AS 1.0) may need more than the standard 50% reduction."""
+    profiles = _dpyd_profiles({**_DPYD_REF, "rs67376798": "AA"})
+    assert profiles["DPYD"]["diplotype"] == "D949V/D949V"
+    batch = _batch_entry(profiles, drug)
+    single = lookup_single_drug(drug, profiles)
+    for entry in (batch, single):
+        assert entry["classification"] == "caution"
+        assert _CPIC_D949V_HOM in entry.get("note", "")
+
+
+@pytest.mark.parametrize("genotypes", [
+    {**_DPYD_REF, "rs67376798": "TA"},                         # Normal/D949V, AS 1.5
+    {**_DPYD_REF, "rs3918290": "CT"},                          # Normal/*2A, AS 1.0
+    {**_DPYD_REF, "rs75017182": "CC"},                         # HapB3/HapB3, AS 1.0
+    {**_DPYD_REF, "rs67376798": "TA", "rs75017182": "GC"},     # D949V/HapB3, AS 1.0
+])
+@pytest.mark.parametrize("drug", ["Fluorouracil", "Capecitabine"])
+def test_dpyd_caveat_only_for_homozygous_d949v(genotypes, drug):
+    profiles = _dpyd_profiles(genotypes)
+    for entry in (_batch_entry(profiles, drug), lookup_single_drug(drug, profiles)):
+        assert not entry.get("note")
+
+
+def test_dpyd_d949v_caveat_reaches_dosage_card():
+    profiles = _dpyd_profiles({**_DPYD_REF, "rs67376798": "AA"})
+    card = format_dosage_card(lookup_single_drug("Capecitabine", profiles))
+    assert ">50% reduction in starting dose" in " ".join(card.split())
+
+
+def test_dpyd_d949v_caveat_survives_dose_aware_card():
+    """A visible dose rewrites the recommendation line; the CPIC caveat must stay on the card."""
+    profiles = _dpyd_profiles({**_DPYD_REF, "rs67376798": "AA"})
+    card = " ".join(format_dosage_card(lookup_single_drug("Capecitabine", profiles), visible_dose="500 mg").split())
+    assert "500 mg may need adjustment." in card
+    assert ">50% reduction in starting dose" in card
+
+
+@pytest.mark.parametrize("phenotype", [
+    "Intermediate Metabolizer",
+    "Intermediate Metabolizer (HapB3 not tested)",
+])
+def test_dpyd_d949v_caveat_survives_phenotype_qualifier(phenotype):
+    """#603: a partly genotyped D949V/D949V can carry a qualifier on the phenotype."""
+    from pharmgx_reporter import _dpyd_note, _DPYD_D949V_HOM_NOTE
+    profile = {"phenotype": phenotype, "diplotype": "D949V/D949V"}
+    assert _dpyd_note("DPYD", profile) == _DPYD_D949V_HOM_NOTE
+
+
+def test_dpyd_d949v_caveat_not_for_other_phenotypes():
+    from pharmgx_reporter import _dpyd_note
+    for phenotype in ("Poor Metabolizer", "Normal Metabolizer", "Indeterminate"):
+        assert _dpyd_note("DPYD", {"phenotype": phenotype, "diplotype": "D949V/D949V"}) is None
+
+
 # ── Demo runs offline ─────────────────────────────────────────────────────────
 
 

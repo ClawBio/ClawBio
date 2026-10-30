@@ -7,6 +7,7 @@ Synthetic but PRISM-shaped: 10 samples × 20 compounds, two contexts
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -123,8 +124,8 @@ def build_readout(treatment: pd.DataFrame, sample_info: pd.DataFrame) -> pd.Data
     return wide
 
 
-def build_features(sample_info: pd.DataFrame) -> None:
-    feat_dir = DEMO_DIR / "features"
+def build_features(sample_info: pd.DataFrame, demo_dir: Path) -> None:
+    feat_dir = demo_dir / "features"
     feat_dir.mkdir(parents=True, exist_ok=True)
     expr = pd.DataFrame(
         RNG.normal(5, 1, size=(len(SAMPLES), 30)),
@@ -142,7 +143,7 @@ def build_features(sample_info: pd.DataFrame) -> None:
     meth.to_csv(feat_dir / "methylation.csv")
 
 
-def build_configs() -> None:
+def build_configs(demo_dir: Path) -> None:
     schema = {
         "name": "demo_toy_screen",
         "screen_topology": "primary_only",
@@ -178,28 +179,34 @@ def build_configs() -> None:
             "phenocopy_support": 0.10,
         },
     }
-    (DEMO_DIR / "schema.yaml").write_text(
+    (demo_dir / "schema.yaml").write_text(
         __import__("yaml").dump(schema, sort_keys=False)
     )
-    (DEMO_DIR / "objective.yaml").write_text(
+    (demo_dir / "objective.yaml").write_text(
         __import__("yaml").dump(objective, sort_keys=False)
     )
 
 
-def main() -> None:
-    DEMO_DIR.mkdir(parents=True, exist_ok=True)
-    (DEMO_DIR / "readouts").mkdir(exist_ok=True)
-    (DEMO_DIR / "metadata").mkdir(exist_ok=True)
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--output-dir", type=Path, default=DEMO_DIR,
+        help="Where to write the bundle (default: the skill's checked-in demo/).",
+    )
+    demo_dir = parser.parse_args(argv).output_dir
+    demo_dir.mkdir(parents=True, exist_ok=True)
+    (demo_dir / "readouts").mkdir(exist_ok=True)
+    (demo_dir / "metadata").mkdir(exist_ok=True)
 
     treatment = build_treatment_info()
     sample_info = build_sample_info()
     primary = build_readout(treatment, sample_info)
 
-    treatment.to_csv(DEMO_DIR / "metadata/treatment_info.csv", index=False)
-    sample_info.to_csv(DEMO_DIR / "metadata/sample_info.csv", index=False)
-    primary.to_csv(DEMO_DIR / "readouts/primary.csv")
-    build_features(sample_info)
-    build_configs()
+    treatment.to_csv(demo_dir / "metadata/treatment_info.csv", index=False)
+    sample_info.to_csv(demo_dir / "metadata/sample_info.csv", index=False)
+    primary.to_csv(demo_dir / "readouts/primary.csv")
+    build_features(sample_info, demo_dir)
+    build_configs(demo_dir)
 
     manifest = {
         "description": "Synthetic toy repurposing screen (10 samples, 20 compounds, 2 plates)",
@@ -207,8 +214,8 @@ def main() -> None:
         "target_context": "context_A (IBD organoid)",
         "reference_context": "context_B (fibroblast)",
     }
-    (DEMO_DIR / "manifest.json").write_text(json.dumps(manifest, indent=2))
-    print(f"Demo bundle written to {DEMO_DIR}")
+    (demo_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    print(f"Demo bundle written to {demo_dir}")
 
 
 if __name__ == "__main__":

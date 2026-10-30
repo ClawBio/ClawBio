@@ -18,14 +18,14 @@ produces (numbers below verified live 2026-05-15 against UKB-PPP r1):
 ```
 info: using bundled slice SORT1__EUR__chr1__108774968_109774968.json.gz (no Synapse auth needed)
 ukb-ppp-region-fetch: 5205 variants -> /tmp/sort1_ukbppp_demo/variants.tsv
-  source: UKB-PPP | SORT1 (Q99523, OID20213) | European (discovery) (EUR)
+  source: UKB-PPP | SORT1 (Q99523, OID20213) | European (discovery) (EUR) | N = 33,628
 ```
 
 `<output_dir>/manifest.yaml`:
 
 ```yaml
 skill: ukb-ppp-region-fetch
-version: 0.1.0
+version: 0.1.2
 protein_label: SORT1
 ancestry: EUR
 region:
@@ -43,13 +43,29 @@ release:
   olink_panel: Cardiometabolic
   ancestry: EUR
   ancestry_label: European (discovery)
-  n_samples: 46673
+  n_samples: 33628
+  n_samples_min: 33628
+  n_samples_label: 33,628
+  cohort_n: 34557
+  cohort_n_source: 'Sun BB et al. Plasma proteomic associations with genetics and
+    health in the UK Biobank. Nature. 2023;622(7982):329-338. doi:10.1038/s41586-023-06592-6.
+    PMID 37794186 (Results: discovery cohort and non-European pQTL mapping).'
   synapse_id: syn51469328
   source_url: https://www.synapse.org/Synapse:syn51469328
   fetched_at_utc: '2026-05-15T18:00:00Z'
 attribution: 'UK Biobank Pharma Proteomics Project (Sun et al. 2023 Nature; PMID 37794186); accessed via Synapse syn51364943.'
 outputs:
   variants_tsv: variants.tsv
+```
+
+`n_samples` is the per-variant N carried by the slice's own rows (all 5,205
+rows state N = 33,628); `cohort_n` is the published EUR discovery cohort size
+(Sun et al. 2023). They differ, and the report states both on separate lines:
+
+```
+- **Ancestry:** European (discovery) (EUR)
+- **Sample size (per-variant N in the summary statistics):** 33,628
+- **Published cohort size:** 34,557 (European (discovery); Sun et al. 2023). This is the cohort as published, not the N of this slice's rows.
 ```
 
 `<output_dir>/variants.tsv`: the canonical 1p13.3 lead variant rs12740374

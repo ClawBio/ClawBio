@@ -838,6 +838,24 @@ def resolve_drug_name(query):
     return best
 
 
+# CPIC fluorouracil/capecitabine recommendation at DPYD activity score 1.0,
+# verbatim (api.cpicpgx.org/v1/recommendation, RxNorm:4492 and RxNorm:194000).
+# D949V is c.2846A>T (rs67376798).
+_DPYD_D949V_HOM_NOTE = ("Patients with the c.2846A>T/c.2846A>T genotype may require "
+                        ">50% reduction in starting dose.")
+
+
+def _dpyd_note(gene, profile):
+    """CPIC caveat for c.2846A>T homozygotes, who are AS 1.0 like *2A carriers."""
+    # Match on the key, not the label: a partly genotyped D949V/D949V reads
+    # "Intermediate Metabolizer (HapB3 not tested)" (#603) and must keep the caveat.
+    if gene != "DPYD" or phenotype_to_key(profile.get("phenotype", "")) != "intermediate_metabolizer":
+        return None
+    if profile.get("diplotype", "").split("(")[0].strip() == "D949V/D949V":
+        return _DPYD_D949V_HOM_NOTE
+    return None
+
+
 def lookup_single_drug(drug_name, profiles):
     """Look up a single resolved drug against gene profiles.
 
@@ -877,11 +895,15 @@ def lookup_single_drug(drug_name, profiles):
     recs = info.get("recs", {})
     classification = recs.get(pheno_key, "indeterminate")
 
-    return {
+    result = {
         "drug": drug_name, "brand": info["brand"], "class": info["class"],
         "gene": gene, "diplotype": prof["diplotype"], "phenotype": prof["phenotype"],
         "classification": classification,
     }
+    note = _dpyd_note(gene, prof)
+    if note:
+        result["note"] = note
+    return result
 
 
 _CLASS_LABELS = {
@@ -913,6 +935,9 @@ def format_dosage_card(result, visible_dose=None):
             rec_text = f"{visible_dose} may need adjustment."
         elif cl == "avoid":
             rec_text = f"Your genotype contraindicates {result['drug']} {visible_dose}."
+        # Keep guideline caveats (DPYD c.2846A>T, warfarin) beside the dose line.
+        if result.get("note") and cl in ("standard", "caution", "avoid"):
+            rec_text = f"{rec_text} {result['note']}"
 
     # Wrap recommendation text at ~42 chars
     words = rec_text.split()
@@ -1375,11 +1400,15 @@ def lookup_drugs(profiles):
         recs = drug.get("recs", {})
         classification = recs.get(pheno_key, "indeterminate")
 
-        results.setdefault(classification, []).append({
+        entry = {
             "drug": drug_name, "brand": drug["brand"],
             "class": drug["class"], "gene": gene,
             "classification": classification,
-        })
+        }
+        note = _dpyd_note(gene, profiles[gene])
+        if note:
+            entry["note"] = note
+        results.setdefault(classification, []).append(entry)
 
     return results
 
