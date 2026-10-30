@@ -368,6 +368,48 @@ def test_the_report_names_a_pair_not_compared_even_when_it_is_the_only_pair(offl
     args = argparse.Namespace(demo=False, quick=False)
     report = snp_phewas.write_report(r, table, tmp_path, args, 0.0).read_text()
     assert "not compared. " + why in report
+    summary = report.split("## Notes")[0]                     # the Summary bullets, before the notes
+    assert "**: not compared; " + why in summary, summary
+
+
+def test_result_json_lists_the_excluded_pair_when_it_is_the_only_pair(monkeypatch, tmp_path):
+    import json
+
+    import snp_phewas as cli
+    import snp_phewas_replication as R
+
+    why = "Both datasets include the same participants."
+    monkeypatch.setitem(R.build_replication.__kwdefaults__, "overlap", lambda a, b: why)   # every pair excluded
+    out = tmp_path / "run"
+    assert cli.main(["--demo", "--output", str(out)]) == 0
+    rep = json.loads((out / "result.json").read_text())["summary"]["replication"]
+    assert rep["pairs"] == [] and [r["detail"] for r in rep["excluded_pairs"]] == [why] * 3
+    assert rep["three_way_withheld"] == R.EXCLUDED_NOT_INDEPENDENT
+
+
+def test_a_run_where_every_source_answered_with_no_value_is_ok_and_exits_0(monkeypatch, tmp_path):
+    """Before this change result.json said "error" whenever no outcome had a value, so a run
+    where every FinnGen result was above the API's reporting threshold, or a variant absent
+    from every dataset, said error. Those are answers: "ok", exit 0."""
+    import dataclasses
+    import json
+
+    import snp_phewas as cli
+    import snp_phewas_schema as S
+
+    real = cli.lookup_variant
+
+    def no_values(variant, **kw):
+        res = real(variant, **kw)
+        # every source answered that the variant is not in its data: an answer, not an outage
+        res.rows[:] = [dataclasses.replace(r, status=S.ST_ABSENT, beta=None, se=None, neglog10_p=None)
+                       for r in res.rows]
+        return res
+
+    monkeypatch.setattr(cli, "lookup_variant", no_values)
+    out = tmp_path / "run"
+    assert cli.main(["--demo", "--output", str(out)]) == 0
+    assert json.loads((out / "result.json").read_text())["status"] == "ok"
 
 
 def test_an_answer_of_no_value_is_not_an_outage():

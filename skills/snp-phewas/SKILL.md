@@ -8,7 +8,7 @@ description: >-
   replication verdict per shared outcome for every biobank pair and across all three.
 license: MIT
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   author: Aviv Madar
   domain: genomics
   tags:
@@ -354,11 +354,12 @@ figures for reference and decides nothing.
 **Sample overlap**: each dataset in `datasets.yaml` declares the participant groups it is
 computed from (`samples:`; `mvp_meta` lists the four MVP groups). Two datasets whose groups
 intersect share participants, and agreement between them is not independent replication
-(participant overlap biases a two-sample comparison: Burgess S, Davies NM, Thompson SG.
-Genet Epidemiol. 2016;40(7):597-608. doi:10.1002/gepi.21998. PMID 27625185). Such a pair is
+(the bias participant overlap causes is documented for two-sample Mendelian randomization:
+Burgess S, Davies NM, Thompson SG. Genet Epidemiol. 2016;40(7):597-608.
+doi:10.1002/gepi.21998. PMID 27625185). Such a pair is
 never compared: it has no `n_shared`, threshold, verdicts, counts, strip or panel; it is
 listed in `result.json` under `replication.excluded_pairs` with the reason `not_independent`,
-and the report and the matrix title name it and the shared participants. With three
+and the report names it and the shared participants; the matrix title names it. With three
 datasets, any such pair withholds the three-way class. No dataset's rows are dropped.
 Overlap is declared rather than derived from ancestry labels so that a meta-analysis pooling
 two biobanks (FinnGen publishes FinnGen + UK Biobank meta-analyses) is caught against either.

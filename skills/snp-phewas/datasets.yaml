@@ -118,8 +118,14 @@ families:
 # Declared, never derived from ids or ancestry strings: a meta-analysis lists every group it
 # pools (mvp_meta: the four MVP groups; in catalogs/mvp_outcomes.tsv.gz, of the 1,707 traits
 # with exactly one META study and one study per pooled group, META n equals the sum of the
-# pooled groups' n for 1,706; platelet count (mean) is larger, 583,459 against 468,963; 12
-# trait names with several studies were not compared; measured 2026-10-30), and a
+# pooled groups' n for 1,706; platelet count (mean) is larger, 583,459 against 468,963,
+# because the GWAS Catalog lists that trait's African-ancestry study, GCST90476298, with 235
+# participants while the meta's own record, GCST90480651, lists 114,731 for the same group, a
+# Catalog record anomaly; 12 trait names with several studies were not compared; measured
+# 2026-10-30. One META study pools two to four groups: of 1,731, 490 pool all four, 956
+# EUR+AFR+AMR, 279 EUR+AFR, 6 EUR+AMR; for every one of the 1,719 META traits, each MVP group
+# with its own study of that trait is pooled, so the overlap holds for every outcome a pair
+# can compare), and a
 # cross-biobank meta-analysis would list groups of both biobanks. Pan-UKBB assigns each
 # person to one continental group (pan.ukbb.broadinstitute.org/docs/qc), so its groups are
 # separate.

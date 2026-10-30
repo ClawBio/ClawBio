@@ -416,9 +416,22 @@ def test_a_meta_analysis_and_a_group_it_pools_are_never_compared(tmp_path):
     assert [name for name, _ in plots.pair_strips(t)] == ["MVP EUR × FinnGen", "MVP meta × FinnGen"]
     _pts, panels = plots.paired_panels(t)
     assert [p for p, _kind in panels] == t.pairs
-    plots.replication_matrix(t, str(tmp_path / "m.png"))
+    import matplotlib.axes
+    titles = []
+    real_set_title = matplotlib.axes.Axes.set_title
+    def spy(self, label, *a, **k):
+        titles.append(label)
+        return real_set_title(self, label, *a, **k)
+    matplotlib.axes.Axes.set_title = spy
+    try:
+        plots.replication_matrix(t, str(tmp_path / "m.png"))
+    finally:
+        matplotlib.axes.Axes.set_title = real_set_title
+    assert any("not compared, the datasets share participants: MVP EUR × MVP meta" in x for x in titles), titles
     plots.paired_effects(t, str(tmp_path / "p.png"))
     text = "\n".join(replication_lines(t))
+    assert "because one pair of them shares participants" in text
+    assert "Different biobanks are treated as independent" in text        # MVP vs FinnGen is compared
     assert ("Million Veteran Program (multi-population meta-analysis) includes the Million "
             "Veteran Program participants of European genetic ancestry") in text
     assert "**Million Veteran Program (European genetic ancestry) and Million Veteran Program " \
@@ -432,6 +445,8 @@ def test_two_overlapping_datasets_alone_give_no_pair_and_no_figure_crash(tmp_pat
 
     t = _sig_everywhere(["mvp_eur", "mvp_meta"])
     assert t.pairs == [] and t.n_shared == {} and list(t.excluded_pairs) == [("mvp_eur", "mvp_meta")]
+    assert t.rows == []          # outcomes shared only by a pair that is not compared are not in the table
+    assert "Different biobanks are treated as independent" not in "\n".join(replication_lines(t))
     assert "not compared" in "\n".join(replication_lines(t))
     plots.replication_matrix(t, str(tmp_path / "m.png"))
     with pytest.raises(ValueError):
@@ -527,3 +542,13 @@ def test_same_biobank_pairs_are_headed_so_with_all_datasets():
             "(same biobank, different ancestry group)") in text
     assert "**Pan-UK Biobank (European ancestry) and Million Veteran Program (European genetic " \
            "ancestry)**:" in text
+
+
+
+def test_the_independence_sentence_appears_only_for_a_compared_cross_biobank_pair():
+    from snp_phewas_replication import replication_lines
+
+    same_biobank = "\n".join(replication_lines(_sig_everywhere(["mvp_eur", "mvp_afr"])))
+    cross = "\n".join(replication_lines(_sig_everywhere(["mvp_eur", "finngen_r12"])))
+    assert "Different biobanks are treated as independent" not in same_biobank
+    assert "Different biobanks are treated as independent" in cross and "not something this lookup measures" in cross

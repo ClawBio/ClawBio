@@ -2,9 +2,9 @@
 
 # Variant PheWAS across biobanks: rs12740374
 
-**Date**: 2026-10-20 15:30 UTC
+**Date**: 2026-10-30 17:37 UTC
 **Skill**: snp-phewas
-**Version**: 0.2.0
+**Version**: 0.3.0
 **Variant (GRCh38)**: 1_109274968_G_T
 **Effect allele**: T (other allele G)
 **Datasets**: Pan-UK Biobank (European ancestry), FinnGen R12 (Finnish) and Million Veteran Program (European genetic ancestry)
@@ -88,6 +88,8 @@
 - replicates (significant in both, same direction): 1 (Ischemic Heart Disease)
 232 harmonized outcomes could not be compared; they are listed apart from the nulls, never counted as nulls.
 
+Different biobanks are treated as independent: they recruit different people (UK Biobank, FinnGen and the Million Veteran Program), which is a matter of study design, not something this lookup measures.
+
 **All three biobanks** (Pan-UKBB EUR, FinnGen and MVP EUR): 157 outcomes with a readable file are shared by all three; each is compared at 0.05 / 157.
 - not read in one of the three (an outage, outside this lookup, or a study the source holds with no readable file; not a null): 232
 - replicates in all three (significant in each, same direction): 1 (Ischemic Heart Disease)
@@ -127,7 +129,7 @@ This lookup read the European-ancestry datasets. Other ancestry groups can be re
 - Million Veteran Program, European genetic ancestry: release `mvp_gwphewas_gwascatalog_2026-10-19` (GRCh38); route tabix; 2 files read; 0 s.
   - Status of every catalog outcome: outcome was not part of this lookup: 1,219, the GWAS Catalog holds this study without a position index (or without summary statistics), so it cannot be read; not a null: 849, tested: 2.
 - Tabix indexes: 0 downloaded (0.0 MB), 0 already cached.
-- Wall time: 1.6 s.
+- Wall time: 1.5 s.
 
 ## Data sources
 
@@ -140,7 +142,7 @@ This lookup read the European-ancestry datasets. Other ancestry groups can be re
 - `tables/snp_phewas_rows.tsv`: one row per catalog outcome per dataset, every status.
 - `tables/excluded.tsv`: the rows with no value, each with its reason.
 - `figures/manhattan.png`: outcome Manhattan, one panel per dataset.
-- `tables/replication.tsv`, `figures/replication_matrix.png`: the replication view (every dataset pair, and all three when three datasets are read).
+- `tables/replication.tsv`, `figures/replication_matrix.png`: the replication view (every dataset pair that does not share participants, and all three when three datasets are read and none of them do).
 - `figures/paired_effects.png`: effect against effect, one row per dataset pair with shared outcomes.
 
 ---

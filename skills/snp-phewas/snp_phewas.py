@@ -75,7 +75,7 @@ from snp_phewas_tabix import INDEX_STATS, SourceUnreachable, reset_index_stats  
 from snp_phewas_variant import VariantResolutionError  # noqa: E402
 
 SKILL_NAME = "snp-phewas"
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 SCRIPT_REL = "skills/snp-phewas/snp_phewas.py"
 PIP_DEPS = ["requests>=2.28", "matplotlib>=3.7", "numpy>=1.24", "pyyaml>=6.0"]
 TOP_N = 12
@@ -322,7 +322,7 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
                 line += (" (1 low-confidence value is not counted)" if n_low == 1 else
                          f" ({n_low:,} low-confidence values are not counted)")
         lines.append(line + ".")
-    if table is not None and table.pairs:
+    if table is not None and (table.pairs or table.excluded_pairs):
         for pair in table.pairs:
             n = table.n_shared[pair]
             c = table.counts(pair)
@@ -335,6 +335,14 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
                          f"{c['concordant_one_significant']:,} same direction significant in "
                          f"one only, {c['discordant']:,} opposite directions, "
                          f"{c['both_null']:,} null in both.")
+        for pair in table.excluded_pairs:
+            lines.append(f"- **Replication, {labels_listed(list(pair))}**: not compared; "
+                         f"{table.excluded_pair_sentences[pair]}")
+        if table.three_way_withheld:
+            lines.append("- **Replication, all three**: no three-way class, because "
+                         + ("one pair of the three datasets shares participants."
+                            if len(table.excluded_pairs) == 1 else
+                            f"{len(table.excluded_pairs)} pairs of the three datasets share participants."))
         if table.n_shared_3:
             c3 = table.counts_three_way()
             lines.append(f"- **Replication, all three** (threshold 0.05 / {table.n_shared_3:,} "

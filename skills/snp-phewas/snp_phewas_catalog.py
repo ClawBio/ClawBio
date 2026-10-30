@@ -202,6 +202,12 @@ def overlap_between(da: DatasetSpec, db: DatasetSpec) -> str | None:
     return f"{_listed_label(da)} and {_listed_label(db)} both include the {who}."
 
 
+def cross_biobank_independence_unverified() -> bool:
+    """True while datasets.yaml marks the independence of different biobanks as assumed by
+    study design rather than measured; the replication text then says so to the reader."""
+    return "unverified" in str(_load_yaml().get("cross_biobank_independence", ""))
+
+
 def sample_overlap(a: str, b: str) -> str | None:
     """`overlap_between` for two catalog dataset ids."""
     return overlap_between(get_dataset(a), get_dataset(b))

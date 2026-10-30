@@ -324,9 +324,11 @@ def build_replication(result: Any, dataset_ids: list[str] | None = None, *,
         if r.dataset_id in ids and r.harmonized_outcome_id and r.harmonized_representative:
             reps.setdefault(r.harmonized_outcome_id, {})[r.dataset_id] = r
             labels.setdefault(r.harmonized_outcome_id, r.harmonized_label or r.outcome_label)
-    shared = {h: d for h, d in reps.items() if len(d) >= 2}
     classes = classify_pairs(ids, overlap=overlap, ancestry_differs=ancestry_differs)
     pairs, excluded = classes.compared, classes.excluded
+    # an outcome is in the table only when some COMPARED pair carries it: one shared only by a
+    # pair that is not compared has nothing to report
+    shared = {h: d for h, d in reps.items() if any(a in d and b in d for a, b in pairs)}
     n_shared: dict[tuple[str, str], int] = {}
     alpha: dict[tuple[str, str], float] = {}
 
@@ -384,7 +386,7 @@ def replication_lines(table: ReplicationTable, *, heading: str = "###") -> list[
     three-way summary when three datasets were compared. Every count comes from the table.
     The report and the command-line output both print this one text, so a third dataset
     cannot be reported by one and silently cut to the first pair by the other."""
-    from snp_phewas_catalog import get_dataset, labels_listed
+    from snp_phewas_catalog import cross_biobank_independence_unverified, get_dataset, labels_listed
 
     two = len(table.dataset_ids) == 2
     lines = ["", f"{heading} Replication across " + ("the two biobanks" if two else "biobanks"),
@@ -421,8 +423,15 @@ def replication_lines(table: ReplicationTable, *, heading: str = "###") -> list[
                       f"{table.excluded_pair_sentences[pair]} Agreement between them would not be "
                       f"independent replication, so the pair has no verdicts and no threshold."]
     if table.three_way_withheld:
-        lines += ["", "**All three datasets**: no three-way verdict, because two of them share "
-                      "participants."]
+        n_ex = len(table.excluded_pairs)
+        lines += ["", "**All three datasets**: no three-way verdict, because "
+                      + ("one pair of them shares participants." if n_ex == 1
+                         else f"{n_ex} pairs of them share participants.")]
+    if any(get_dataset(a).family != get_dataset(b).family for a, b in table.pairs) \
+            and cross_biobank_independence_unverified():
+        lines += ["", "Different biobanks are treated as independent: they recruit different "
+                      "people (UK Biobank, FinnGen and the Million Veteran Program), which is a "
+                      "matter of study design, not something this lookup measures."]
     if table.n_shared_3 is not None:
         n3 = table.n_shared_3
         short = [get_dataset(d).short_label for d in table.dataset_ids]
