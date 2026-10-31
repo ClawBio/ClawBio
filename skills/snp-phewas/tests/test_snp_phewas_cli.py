@@ -387,6 +387,8 @@ def test_result_json_lists_the_excluded_pair_when_it_is_the_only_pair(monkeypatc
     assert rep["pairs"] == [] and [r["detail"] for r in rep["excluded_pairs"]] == [why] * 3
     assert rep["three_way_withheld"] == R.EXCLUDED_NOT_INDEPENDENT
     assert rep["n_harmonized"] == 1537       # harmonized, just not compared
+    report = (out / "report.md").read_text()
+    assert "Full table" not in report        # replication.tsv has no rows to point to
 
 
 def test_a_run_where_every_source_answered_with_no_value_is_ok_and_exits_0(monkeypatch, tmp_path):

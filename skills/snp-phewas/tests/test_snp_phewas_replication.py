@@ -453,6 +453,10 @@ def test_two_overlapping_datasets_alone_give_no_pair_and_no_figure_crash(tmp_pat
     assert "not compared" in "\n".join(replication_lines(t))
     # the outcomes ARE harmonized across both; they are just not compared
     assert "4 outcomes are harmonized across the two datasets" in "\n".join(replication_lines(t))
+    # both are MVP: one biobank, two datasets
+    assert "Replication across the two datasets" in "\n".join(replication_lines(t))
+    assert "Replication across the two biobanks" in "\n".join(
+        replication_lines(_sig_everywhere(["mvp_eur", "finngen_r12"])))
     plots.replication_matrix(t, str(tmp_path / "m.png"))
     with pytest.raises(ValueError):
         plots.paired_effects(t, str(tmp_path / "p.png"))

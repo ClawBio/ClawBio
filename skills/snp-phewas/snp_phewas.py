@@ -366,7 +366,8 @@ def write_report(result: SnpPhewasResult, table: ReplicationTable | None, out: P
     if table is not None:  # also when no pair was compared: the text says which and why
         lines += replication_lines(table, heading="##")
         lines += _replication_rows_table(table)
-        lines += ["", "Full table: `tables/replication.tsv`."]
+        if table.rows:  # with no pair compared the file has a header and no rows
+            lines += ["", "Full table: `tables/replication.tsv`."]
         basis = Counter(r.harmonization_basis for r in result.rows)
         lines += ["", "Harmonization basis across all rows:", ""]
         lines += [f"- {basis_label(k)}: {n:,}" for k, n in basis.most_common()]

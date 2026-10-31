@@ -411,8 +411,10 @@ def replication_lines(table: ReplicationTable, *, heading: str = "###") -> list[
     from snp_phewas_catalog import cross_biobank_independence_unverified, get_dataset, labels_listed
 
     two = len(table.dataset_ids) == 2
-    lines = ["", f"{heading} Replication across " + ("the two biobanks" if two else "biobanks"),
-             ""]
+    # MVP's European group and its meta-analysis are two datasets of ONE biobank
+    noun = ("datasets" if len({get_dataset(d).family for d in table.dataset_ids}) == 1
+            else "biobanks")
+    lines = ["", f"{heading} Replication across " + (f"the two {noun}" if two else noun), ""]
     lines.append(
         f"{table.n_harmonized:,} outcomes are harmonized across "
         f"{'the two datasets' if two else 'at least two of the datasets'} (the same ICD-10 "
