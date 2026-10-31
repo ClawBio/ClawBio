@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -144,6 +145,52 @@ def test_wheel_excludes_every_unredistributable_folder_on_disk():
         if lic and lic not in WHEEL_LICENCES and name not in excluded
     ]
     assert offenders == [], f"unredistributable skills that would ship in the MIT wheel: {offenders}"
+
+
+def _loads_skill_in_process(source: str, skill: str) -> bool:
+    """True if `source` imports `skill` as a Python module rather than running it."""
+    import ast
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import) and any(skill in a.name.split(".") for a in node.names):
+            return True
+        if isinstance(node, ast.ImportFrom) and skill in (node.module or "").split("."):
+            return True
+        if (isinstance(node, ast.Call)
+                and getattr(node.func, "attr", getattr(node.func, "id", None))
+                in {"spec_from_file_location", "import_module", "run_path", "__import__"}
+                and any(isinstance(c, ast.Constant) and isinstance(c.value, str) and skill in c.value
+                        for arg in node.args for c in ast.walk(arg))):
+            return True
+    return False
+
+
+def test_copyleft_skills_are_only_run_as_subprocesses():
+    """GPL-3.0 reaches combined works. clawbio/cli.py runs fastreer.py as a
+    separate process with file handoff, and fastreer.py runs the fastreeR binary
+    the same way: that is aggregation, which copyleft does not reach. Importing
+    a copyleft skill into another skill or the CLI would make a combined work
+    and needs a licence review first, so it fails here rather than silently."""
+    copyleft = [name for name, lic in _licences_on_disk().items() if lic.startswith("GPL")]
+    assert copyleft, "no GPL skills on disk; drop this test or update FOLDER_ONLY"
+    offenders = []
+    tracked = subprocess.run(["git", "ls-files", "*.py"], cwd=ROOT, capture_output=True,
+                             text=True, check=True).stdout.split()
+    for rel in map(Path, tracked):
+        if rel == Path(__file__).relative_to(ROOT) or not (ROOT / rel).is_file():
+            continue
+        source = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
+        for skill in copyleft:
+            if rel.parts[:2] != ("skills", skill) and skill in source and _loads_skill_in_process(source, skill):
+                offenders.append((str(rel), skill))
+    assert offenders == [], f"copyleft skills imported in-process: {offenders}"
+
+
+def test_in_process_load_detection():
+    assert _loads_skill_in_process("import fastreer", "fastreer")
+    assert _loads_skill_in_process("from skills.fastreer import fastreer", "fastreer")
+    assert _loads_skill_in_process('spec_from_file_location("f", ROOT / "fastreer" / "fastreer.py")', "fastreer")
+    assert not _loads_skill_in_process('SCRIPT = SKILLS_DIR / "fastreer" / "fastreer.py"', "fastreer")
+    assert not _loads_skill_in_process('subprocess.run(["fastreeR", "VCF2TREE"])', "fastreer")
 
 
 def test_every_skill_folder_on_disk_declares_a_code_licence():
