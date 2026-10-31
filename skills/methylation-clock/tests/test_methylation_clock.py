@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -10,12 +11,13 @@ pytest.importorskip("pyaging")
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from methylation_clock import DEFAULT_CLOCKS, parse_clock_list, run_analysis
+from methylation_clock import DEFAULT_CLOCKS, _resolve_geo_pickle, parse_clock_list, run_analysis
 
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = SKILL_DIR.parents[1]
-FIXTURE = SKILL_DIR / "data" / "GSE139307_small.csv.gz"
+FIXTURE = SKILL_DIR / "data" / "synthetic_beta_demo.csv.gz"
+LIVE_CLOCKS = os.environ.get("CLAWBIO_TEST_METHYLATION_NETWORK") == "1"
 
 
 def test_parse_clock_list_defaults():
@@ -23,6 +25,8 @@ def test_parse_clock_list_defaults():
     assert clocks == DEFAULT_CLOCKS
 
 
+@pytest.mark.network
+@pytest.mark.skipif(not LIVE_CLOCKS, reason="set CLAWBIO_TEST_METHYLATION_NETWORK=1 to download clock weights")
 def test_run_analysis_with_fixture(tmp_path):
     out_dir = tmp_path / "methylation_report"
     result = run_analysis(
@@ -48,7 +52,25 @@ def test_run_analysis_with_fixture(tmp_path):
     report_text = (out_dir / "report.md").read_text()
     assert "ClawBio is a research and educational tool" in report_text
 
+    clock_metadata = json.loads((out_dir / "tables" / "clock_metadata.json").read_text())
+    horvath_metadata = clock_metadata["Horvath2013"]
+    assert "unit" in horvath_metadata
+    assert horvath_metadata["unit"] in (["years"], "years")
+    assert "| horvath2013 | years |" in (out_dir / "report.md").read_text().lower()
 
+
+@pytest.mark.network
+@pytest.mark.skipif(not LIVE_CLOCKS, reason="set CLAWBIO_TEST_METHYLATION_NETWORK=1 to download PyAging data")
+def test_geo_download_uses_output_input_directory(tmp_path):
+    output_dir = tmp_path / "geo_run"
+    downloaded = _resolve_geo_pickle("GSE139307", verbose=False, output_dir=output_dir)
+
+    assert downloaded.is_file()
+    assert downloaded.is_relative_to(output_dir / "input")
+
+
+@pytest.mark.network
+@pytest.mark.skipif(not LIVE_CLOCKS, reason="set CLAWBIO_TEST_METHYLATION_NETWORK=1 to download clock weights")
 def test_cli_smoke_with_fixture(tmp_path):
     out_dir = tmp_path / "methylation_cli"
     script = SKILL_DIR / "methylation_clock.py"
@@ -56,8 +78,7 @@ def test_cli_smoke_with_fixture(tmp_path):
     cmd = [
         sys.executable,
         str(script),
-        "--input",
-        str(FIXTURE),
+        "--demo",
         "--output",
         str(out_dir),
         "--clocks",
