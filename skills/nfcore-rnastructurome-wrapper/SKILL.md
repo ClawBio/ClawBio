@@ -106,7 +106,7 @@ This is a **SKILL.md-only** skill: there is no wrapper Python script. Apply the 
 
 ## Scope
 
-One skill, one task: run `nf-core/rnastructurome` from FASTQ to per-base reactivity and secondary-structure output. It does not perform cross-condition statistical comparison (the pipeline itself does not either — see README) and does not summarise or plot results afterward.
+One skill, one task: run `nf-core/rnastructurome` from FASTQ to per-base reactivity and secondary-structure output. It does not perform cross-condition statistical comparison (the pipeline itself does not either) and does not summarise or plot results afterward.
 
 ## Core Capabilities
 
@@ -322,7 +322,7 @@ Local hacks are non-reproducible and get lost on the next `nextflow pull`; the f
 
 **Owner: RNAcentral (EMBL-EBI)** — the same team that maintains the upstream `nf-core/rnastructurome` pipeline, so version bumps and Gotcha updates here should track pipeline releases. Route questions and PRs for this skill to the SKILL.md author.
 
-Pinned upstream: `nf-core/rnastructurome` v1.0.0. Before changing the default version, re-diff `nextflow.config`, `assets/schema_input.json`, `nextflow_schema.json`, and `docs/output.md`, then regenerate [`references/parameters.md`](references/parameters.md) from the new `nextflow_schema.json` (re-applying the hand-corrected rf-fold flag letters if the schema descriptions are still wrong) and review this file's Gotchas/CLI Reference sections against the new release's notes, `docs/usage.md` and `conf/modules.config`. Bump `-r` in every command in this file, `README.md` and `demo/README.md` together.
+Pinned upstream: `nf-core/rnastructurome` v1.0.0. Before changing the default version, re-diff `nextflow.config`, `assets/schema_input.json`, `nextflow_schema.json`, and `docs/output.md`, then regenerate [`references/parameters.md`](references/parameters.md) from the new `nextflow_schema.json` (re-applying the hand-corrected rf-fold flag letters if the schema descriptions are still wrong) and review this file's Gotchas/CLI Reference sections against the new release's notes, `docs/usage.md` and `conf/modules.config`. Bump `-r` in every command in this file and `demo/README.md` together.
 
 ## Citations
 
