@@ -13,7 +13,6 @@ ROOT = Path(__file__).resolve().parents[1]
 # into SKILL.md or references/, delete the README, and remove the name here.
 LEGACY_READMES = {
     "nfcore-rnastructurome-wrapper",
-    "nfcore-sarek-wrapper",
     "nfcore-scrnaseq-wrapper",
     "seq-wrangler",
 }
