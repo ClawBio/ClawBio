@@ -35,6 +35,7 @@ data/
 !skills/eqtl-catalogue-region-fetch/data/
 !skills/eqtl-catalogue-region-fetch/data/dataset_index_r7.tsv
 !skills/eqtl-catalogue-region-fetch/data/dataset_index_r7.provenance.json
+!skills/snp-phewas/demo/mvp/GCST90475001-GCST90476000/*/harmonised/*.running.log
 skills/proteomics-de/output_diann_test/
 skills/proteomics-de/output_maxquant_test/
 .venv/

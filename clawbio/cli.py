@@ -1258,6 +1258,20 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "snp-phewas": {
+        "script": SKILLS_DIR / "snp-phewas" / "snp_phewas.py",
+        "demo_args": ["--demo"],
+        "description": "Variant PheWAS across Pan-UK Biobank, FinnGen R12 and the Million Veteran Program: every outcome with nulls, one effect allele, replication verdicts",
+        "default_timeout_seconds": 3600,
+        "allowed_extra_flags": {
+            "--variant", "--build", "--dataset", "--ancestry", "--all-outcomes", "--quick", "--outcomes",
+            "--finngen-route", "--workers", "--index-cache", "--list-datasets",
+        },
+        "allowed_extra_flags_without_values": {"--all-outcomes", "--quick", "--list-datasets"},
+        "extra_path_flags": {"--index-cache"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
     "affprot": {
         "script": SKILLS_DIR / "affinity-proteomics" / "affinity_proteomics.py",
         "demo_args": ["--demo", "--platform", "olink"],

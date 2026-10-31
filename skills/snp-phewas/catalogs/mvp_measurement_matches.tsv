@@ -1,0 +1,84 @@
+# Million Veteran Program measurement -> Pan-UK Biobank outcome, one row per MVP measurement
+# (the GWAS Catalog trait text, case-folded, with its qualifier in brackets). match = exact:
+# compared (the mean or single value; the maximum and minimum keep the id but are not
+# compared); near_equivalent: listed, not compared; none: no Pan-UK Biobank counterpart.
+# Curated 2026-10-19 from a name match of the GWAS Catalog trait text, checked against the
+# Pan-UKBB catalog; MVP values are inverse-normal transformed, so the rank-normalized
+# (irnt) Pan-UKBB version is used where one exists. Review before widening.
+mvp_measurement	match	pan_ukbb_outcome_ids	note
+age at menopause	exact	continuous-3581-both_sexes-irnt	
+alanine transaminase [alt]	exact	biomarkers-30620-both_sexes-irnt	
+albumin	exact	biomarkers-30600-both_sexes-irnt	
+aspartate aminotransferase [ast]	exact	biomarkers-30650-both_sexes-irnt	
+at what age did you start to smoke cigarettes regularly?	near_equivalent	continuous-2867-both_sexes-irnt;continuous-3436-both_sexes-irnt	UK Biobank asks former and current smokers separately
+basophil [absolute count]	near_equivalent	continuous-30160-both_sexes	MVP unit not stated in the record
+basophil [fraction]	near_equivalent	continuous-30220-both_sexes-irnt	fraction vs UK Biobank percentage
+beta-hydroxybutyrate [bohb]	none		
+bicarbonate	none		
+blood urea nitrogen [bun]	near_equivalent	biomarkers-30670-both_sexes-irnt	BUN against UK Biobank serum urea (urea nitrogen vs urea)
+body mass index [bmi]	exact	continuous-21001-both_sexes-irnt	
+brain natriuretic peptide [bnp]	none		
+c-peptide	none		
+c-reactive protein [crp, dl]	exact	biomarkers-30710-both_sexes-irnt	CRP in mg/dL
+c-reactive protein [crp, l]	exact	biomarkers-30710-both_sexes-irnt	CRP in mg/L
+calcium	exact	biomarkers-30680-both_sexes-irnt	
+chloride	none		
+creatine kinase-mb [ckmb, absolute]	none		
+creatine kinase-mb [ckmb, fraction]	none		
+creatinine	exact	biomarkers-30700-both_sexes-irnt	
+cyclic citrullinated peptide [ccp]	none		
+diastolic blood pressure [dbp]	exact	continuous-4079-both_sexes-irnt	
+eosinophil [absolute count]	near_equivalent	continuous-30150-both_sexes-irnt	MVP unit not stated in the record
+eosinophil [fraction]	near_equivalent	continuous-30210-both_sexes-irnt	fraction vs UK Biobank percentage
+erythrocyte sedimentation rate [esr]	none		
+estimated glomerular filtration rate [egfr]	none		
+ferritin	none		
+glucose [fasting status unknown]	exact	biomarkers-30740-both_sexes-irnt	UK Biobank glucose is not fasting-specified either
+glucose [fasting]	near_equivalent	biomarkers-30740-both_sexes-irnt	fasting glucose vs UK Biobank glucose (fasting time not fixed)
+glucose [finger stick]	near_equivalent	biomarkers-30740-both_sexes-irnt	capillary vs serum glucose
+heart rate [hr]	near_equivalent	continuous-102-both_sexes-irnt	EHR heart rate vs UK Biobank pulse rate
+height	exact	continuous-50-both_sexes-irnt	
+hematocrit	exact	continuous-30030-both_sexes-irnt	
+hemoglobin	exact	continuous-30020-both_sexes-irnt	
+hemoglobin a1c [hba1c]	exact	biomarkers-30750-both_sexes-irnt	
+hepatitis c virus rna viral load [hcv_rnavl]	none		
+high density lipoprotein cholesterol [hdlc]	exact	biomarkers-30760-both_sexes-irnt	
+how many years have you or did you smoke cigarettes?	none		
+how old were you when you had your first menstrual period?	exact	continuous-2714-both_sexes	
+iron	none		
+low density lipoprotein cholesterol [ldlc]	exact	biomarkers-30780-both_sexes-irnt	
+lymphocyte [absolute count]	near_equivalent	continuous-30120-both_sexes-irnt	MVP unit not stated in the record
+lymphocyte [fraction]	near_equivalent	continuous-30180-both_sexes-irnt	fraction vs UK Biobank percentage
+magnesium [mg]	none		
+mean corpuscular hemoglobin [mch]	exact	continuous-30050-both_sexes-irnt	
+mean corpuscular hemoglobin concentration [mchc]	exact	continuous-30060-both_sexes-irnt	
+mean corpuscular volume [mcv]	exact	continuous-30040-both_sexes-irnt	
+mean platelet volume [mpv]	exact	continuous-30100-both_sexes-irnt	
+monocyte [absolute count]	near_equivalent	continuous-30130-both_sexes-irnt	MVP unit not stated in the record
+monocyte [fraction]	near_equivalent	continuous-30190-both_sexes-irnt	fraction vs UK Biobank percentage
+neutrophil [absolute count]	near_equivalent	continuous-30140-both_sexes-irnt	MVP unit not stated in the record
+neutrophil [fraction]	near_equivalent	continuous-30200-both_sexes-irnt	fraction vs UK Biobank percentage
+platelet count	exact	continuous-30080-both_sexes-irnt	
+potassium	none		
+pro-brain natriuretic peptide [probnp]	none		
+prostate-specific antigen [psa]	none		
+prothrombin time [pt]	none		
+pt international normalized ratio [inr]	none		
+red blood cell count [rbc]	exact	continuous-30010-both_sexes-irnt	
+red cell diameter width [rdw]	exact	continuous-30070-both_sexes-irnt	red cell distribution width
+rheumatoid factor [rf]	exact	biomarkers-30820-both_sexes-irnt	
+sodium	none		
+systolic blood pressure [sbp]	exact	continuous-4080-both_sexes-irnt	
+total cholesterol	exact	biomarkers-30690-both_sexes-irnt	
+total creatine kinase	none		
+total iron	none		
+total troponin	none		
+transferrin saturation [tsat]	none		
+triglyceride	exact	biomarkers-30870-both_sexes-irnt	
+troponin i	none		
+troponin t	none		
+weight	exact	continuous-21002-both_sexes-irnt	
+what is your height? [cm]	near_equivalent	continuous-50-both_sexes-irnt	self-reported vs measured height
+what is your weight? [pounds]	near_equivalent	continuous-21002-both_sexes-irnt	self-reported vs measured weight
+what was the birth weight of your first child? [pounds]	exact	continuous-2744-both_sexes	
+white blood cell count [wbc]	exact	continuous-30000-both_sexes-irnt	

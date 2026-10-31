@@ -424,3 +424,60 @@ class TestDnaspRouting:
         fold = detect_multiple_skills("predict this protein fold and compute Tajima's D")
         assert "struct-predictor" in fold and "dnasp" in fold
 
+
+
+@pytest.mark.parametrize("query", [
+    "PheWAS for rs12740374 across UK Biobank and FinnGen",
+    "Does rs12740374 replicate in FinnGen?",
+    "snp phewas rs12740374",
+    "Pan-UKBB phenome scan for 1_109274968_G_T",
+    "PheWAS for rs7903146 in the Million Veteran Program",
+    "MVP PheWAS for rs12740374",
+    "Does rs12740374 replicate in MVP?",
+    "PheWAS for rs7903146 in MVP",
+    "The same PheWAS for rs7903146 in African ancestry",
+])
+def test_biobank_variant_phewas_routes_to_snp_phewas(query):
+    skill, _hint = detect_skill_with_hint_from_query(query)
+    assert skill == "snp-phewas", (query, skill)
+    assert "snp-phewas" in detect_multiple_skills(query), query
+
+
+@pytest.mark.parametrize("query, expected", [
+    ("Phenome-wide PRS association for LDL polygenic score in UK Biobank", "gwas-prs"),
+    ("Run a phenome-wide scan of LDL polygenic risk score across ancestry groups", "gwas-prs"),
+    ("phenome-wide association of PCSK9 loss-of-function burden in UK Biobank", None),
+    ("ancestry PCA then phenome-wide scan", None),
+    ("Compare LDL GWAS heritability across biobanks", None),
+    ("Meta-analyse T2D GWAS across biobanks", "gwas-lookup"),
+])
+def test_a_biobank_scan_that_names_no_variant_is_not_snp_phewas(query, expected):
+    skill, _hint = detect_skill_with_hint_from_query(query)
+    assert skill != "snp-phewas", (query, skill)
+    if expected is not None:
+        assert skill == expected, (query, skill)
+    assert "snp-phewas" not in detect_multiple_skills(query), query
+
+
+def test_a_biobank_gwas_question_without_phewas_is_not_snp_phewas():
+    skill, _hint = detect_skill_with_hint_from_query(
+        "Million Veteran Program GWAS summary statistics for type 2 diabetes")
+    assert skill != "snp-phewas"
+
+
+@pytest.mark.parametrize("query", [
+    "FinnGen GWAS summary statistics for type 2 diabetes",
+    "Which FinnGen endpoints exist for asthma?",
+    "Pan-UKBB LDL summary statistics download",
+])
+def test_a_bare_biobank_name_without_a_phewas_is_not_snp_phewas(query):
+    skill, _hint = detect_skill_with_hint_from_query(query)
+    assert skill != "snp-phewas", (query, skill)
+    if "gwas" in query.lower():
+        assert skill == "gwas-lookup", (query, skill)
+    assert "snp-phewas" not in detect_multiple_skills(query), query
+
+
+def test_plain_phewas_still_routes_to_gwas_lookup():
+    skill, _hint = detect_skill_with_hint_from_query("phewas for rs12740374")
+    assert skill == "gwas-lookup"
