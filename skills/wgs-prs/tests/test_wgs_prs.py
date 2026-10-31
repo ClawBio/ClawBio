@@ -20,7 +20,7 @@ if str(SKILL_DIR) not in sys.path:
 
 from wgs_prs import BridgeConfig, BridgeReport, WgsToPrsBridge, write_demo_vcf
 from clawbio.common.sarek import SarekConfig
-from clawbio.common.vcf_qc import QcConfig
+from clawbio.common.vcf_qc import QcConfig, VcfQC
 
 # ---------------------------------------------------------------------------
 # Synthetic VCF fixture (enough SNPs to pass QC thresholds)
@@ -288,3 +288,34 @@ class TestDemoVcf:
         ]
 
         assert positions == sorted(positions)
+
+    def test_demo_vcf_titv_is_within_qc_range(self, tmp_path) -> None:
+        """An all-transition filler gave Ti/Tv ~65, so every demo raised a QC warning."""
+        cfg = QcConfig()
+        stats = VcfQC(cfg)._python_stats(write_demo_vcf(tmp_path / "demo.vcf"))
+
+        assert cfg.min_titv_ratio <= stats["titv_ratio"] <= cfg.max_titv_ratio
+
+    @pytest.mark.parametrize("genotype", ["0/1", "1/1"])
+    def test_demo_vcf_titv_is_within_qc_range_for_each_genotype(self, tmp_path, genotype) -> None:
+        """Allele and genotype cycles in step made hom calls Ti/Tv 66 and het calls 1.0."""
+        lines = write_demo_vcf(tmp_path / "demo.vcf").read_text(encoding="utf-8").splitlines()
+        subset = tmp_path / "subset.vcf"
+        subset.write_text(
+            "\n".join(
+                line for line in lines
+                if line.startswith("#") or line.split("\t")[9].split(":")[0] == genotype
+            ) + "\n",
+            encoding="utf-8",
+        )
+        cfg = QcConfig()
+        stats = VcfQC(cfg)._python_stats(subset)
+
+        assert cfg.min_titv_ratio <= stats["titv_ratio"] <= cfg.max_titv_ratio
+
+    def test_demo_vcf_het_hom_is_within_qc_range(self, tmp_path) -> None:
+        cfg = QcConfig()
+        stats = VcfQC(cfg)._python_stats(write_demo_vcf(tmp_path / "demo.vcf"))
+        ratio = stats["number of heterozygous SNPs:"] / stats["number of homozygous SNPs:"]
+
+        assert cfg.min_het_hom_ratio <= ratio <= cfg.max_het_hom_ratio
