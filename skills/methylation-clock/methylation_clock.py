@@ -159,7 +159,10 @@ def _validate_clock_covariates(
     """Require PyAging's additional model inputs for GrimAge-family defaults."""
     if not {clock.lower() for clock in clocks} & {"pcgrimage", "grimage2"}:
         return
-    hidden_covariates = {"age", "female"} & set(metadata_cols or [])
+    df = _normalize_required_covariate_names(df)
+    hidden_covariates = {"age", "female"} & {
+        str(col).casefold() for col in (metadata_cols or [])
+    }
     if hidden_covariates:
         raise ValueError(
             f"--metadata-cols cannot include required model input columns: {sorted(hidden_covariates)}"
@@ -217,7 +220,7 @@ def _resolve_geo_pickle(geo_id: str, verbose: bool, output_dir: Path) -> Path:
 
 
 def _ensure_female_column(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
+    out = _normalize_required_covariate_names(df)
     cols_lower = {col.lower(): col for col in out.columns}
     if "female" in cols_lower:
         return out
@@ -241,6 +244,20 @@ def _ensure_female_column(df: pd.DataFrame) -> pd.DataFrame:
     male_mask = values.isin({"M", "MALE", "XY"})
     out["female"] = np.where(female_mask, 1.0, np.where(male_mask, 0.0, np.nan))
 
+    return out
+
+
+def _normalize_required_covariate_names(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize age/female names case-insensitively for PyAging's model inputs."""
+    out = df.copy()
+    for canonical in ("age", "female"):
+        matches = [col for col in out.columns if str(col).casefold() == canonical]
+        if len(matches) > 1:
+            raise ValueError(
+                f"Multiple columns match required covariate {canonical!r} case-insensitively"
+            )
+        if matches and matches[0] != canonical:
+            out = out.rename(columns={matches[0]: canonical})
     return out
 
 

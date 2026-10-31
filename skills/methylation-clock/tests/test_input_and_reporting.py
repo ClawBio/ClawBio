@@ -196,7 +196,17 @@ def test_mortality_clocks_require_age_and_known_sex():
     clock._validate_clock_covariates(frame.drop(columns=["age", "female"]), ["Horvath2013"])
 
 
-@pytest.mark.parametrize("metadata_column", ["age", "female"])
+def test_mortality_covariates_are_case_insensitive_and_normalized():
+    frame = pd.DataFrame({"Age": [35, 65], "Female": [1, 0]})
+
+    normalized = clock._ensure_female_column(frame)
+    clock._validate_clock_covariates(frame, ["PCGrimAge"])
+
+    assert "age" in normalized.columns
+    assert "female" in normalized.columns
+
+
+@pytest.mark.parametrize("metadata_column", ["age", "female", "AGE", "Female"])
 def test_required_covariates_cannot_be_removed_as_metadata(metadata_column):
     frame = pd.DataFrame(
         {"cg00000029": [0.2, 0.8], "age": [35, 65], "female": [1, 0]}
