@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 108,
+  "skill_count": 109,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -3090,6 +3090,52 @@
         "DunedinPACE",
         "GEO",
         "GSE"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "multiomics-locus-integrator",
+      "cli_alias": "multiomics-locus",
+      "description": "Integrate chromatin accessibility, histone marks, and 3D-contact (TAD/loop) evidence at a genomic locus into one scored regulatory-evidence table, with target genes assigned by proximity or loop contact.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run multiomics-locus --demo",
+      "dependencies": [
+        "python>=3.11"
+      ],
+      "tags": [
+        "multiomics",
+        "chromatin",
+        "regulatory-genomics",
+        "enhancer",
+        "3d-genome",
+        "locus-annotation"
+      ],
+      "trigger_keywords": [
+        "multiomics integration",
+        "multi-omic",
+        "ATAC H3K27ac integration",
+        "chromatin loop target gene",
+        "enhancer gene evidence",
+        "integrate chromatin and variant evidence",
+        "regulatory evidence scoring",
+        "TAD loop locus integration"
       ],
       "chaining_partners": [],
       "license": "MIT",
