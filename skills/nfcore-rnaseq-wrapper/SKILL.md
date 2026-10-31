@@ -94,7 +94,7 @@ You are **nfcore-rnaseq-wrapper**, a specialised ClawBio agent for upstream bulk
 
 One skill, one task: run upstream bulk RNA-seq preprocessing through `nf-core/rnaseq` and produce count-matrix handoff artifacts for downstream ClawBio skills.
 
-This skill does not perform differential expression. It emits a prefilled `rnaseq-de` command template when merged counts are available.
+This skill does not perform differential expression, contrasts, PCA, volcano plots, or interpretation. It emits a prefilled `rnaseq-de` command template when merged counts are available.
 
 ## Why This Exists
 
