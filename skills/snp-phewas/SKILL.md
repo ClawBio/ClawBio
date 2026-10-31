@@ -361,6 +361,9 @@ never compared: it has no `n_shared`, threshold, verdicts, counts, strip or pane
 listed in `result.json` under `replication.excluded_pairs` with the reason `not_independent`,
 and the report names it and the shared participants; the matrix title names it. With three
 datasets, any such pair withholds the three-way class. No dataset's rows are dropped.
+When an MVP group and the MVP meta-analysis are both read with a third biobank, each can
+replicate against it; those two verdicts are not independent of each other (the group's
+participants are in both), so they are one piece of evidence, not two.
 Overlap is declared rather than derived from ancestry labels so that a meta-analysis pooling
 two biobanks (FinnGen publishes FinnGen + UK Biobank meta-analyses) is caught against either.
 That UK Biobank, FinnGen and MVP share no participants rests on study design, not
