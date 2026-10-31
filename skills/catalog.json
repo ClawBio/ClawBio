@@ -4531,7 +4531,7 @@
       "name": "snp-phewas",
       "cli_alias": "snp-phewas",
       "description": "Variant PheWAS across three curated biobanks, Pan-UK Biobank, FinnGen R12 and the Million Veteran Program: one variant in, beta / SE / p / allele frequency for every outcome each biobank tested (nulls included), on one effect allele, every untested or unreadable outcome kept as a row with a reason, outcomes harmonized across the biobanks, and a replication verdict per shared outcome for every biobank pair and across all three.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "status": "planned",
       "maturity_tier": "cli-registered",
       "maturity_evidence": {
