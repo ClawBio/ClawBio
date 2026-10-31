@@ -91,11 +91,12 @@ def test_gene_targets_tss_window_plus_strand(tmp_path: Path) -> None:
 
 
 def test_gene_targets_tss_window_minus_strand(tmp_path: Path) -> None:
-    # '-' strand TSS = BED end; window = [TSS-250, TSS+1000).
+    # '-' strand TSS = BED end - 1 (BED end is exclusive, so the actual
+    # last base / TSS is one bp lower); window = [TSS-250, TSS+1000).
     bed = tmp_path / "genes.bed"
     bed.write_text("chr1\t5000\t8000\tGENE_MINUS\t-\n")
     genes = mli.parse_gene_targets(bed)
-    assert genes == [("chr1", 7750, 9000, "GENE_MINUS")]
+    assert genes == [("chr1", 7749, 8999, "GENE_MINUS")]
 
 
 def test_gene_targets_requires_strand(tmp_path: Path) -> None:

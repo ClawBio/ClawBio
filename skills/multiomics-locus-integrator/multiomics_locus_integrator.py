@@ -83,7 +83,10 @@ def parse_gene_targets(path: Path) -> list[Interval]:
                 tss = start
                 win_start, win_end = tss - TSS_UPSTREAM_BP, tss + TSS_DOWNSTREAM_BP
             elif strand == "-":
-                tss = end
+                # BED end is exclusive (half-open [start, end)), so the
+                # feature's actual last base -- the TSS on the minus
+                # strand -- is end-1, not end (PR #678 review round 3).
+                tss = end - 1
                 win_start, win_end = tss - TSS_DOWNSTREAM_BP, tss + TSS_UPSTREAM_BP
             else:
                 raise ValueError(f"{path}:{line_no}: strand must be '+' or '-', got {strand!r}")
