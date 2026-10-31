@@ -2534,6 +2534,7 @@ def main():
     run_parser.add_argument("--sample-detail", default=None, dest="sample_detail", help="Get sample details by ID (flow skill)")
     run_parser.add_argument("--execution-detail", default=None, dest="execution_detail", help="Get execution details by ID (flow skill)")
     run_parser.add_argument("--json", action="store_true", help="Output raw JSON (flow skill)")
+    run_parser.add_argument("--sealed", action="store_true", help="Print only delivery metadata as JSON, never report contents (for agent hosts)")
 
     args, extra = parser.parse_known_args()
 
@@ -3099,15 +3100,25 @@ def main():
         if args.timeout == 300:
             run_timeout = SKILLS.get(args.skill, {}).get("default_timeout_seconds", args.timeout)
 
+        output_dir = args.output_dir
+        if args.sealed and not output_dir:
+            # Summary-mode skills print instead of writing a report, and sealed output drops stdout.
+            output_dir = str(DEFAULT_OUTPUT_ROOT / f"{args.skill}_{datetime.now():%Y%m%d_%H%M%S}")
+
         result = run_skill(
             skill_name=args.skill,
             input_path=args.input_path,
-            output_dir=args.output_dir,
+            output_dir=output_dir,
             demo=args.demo,
             extra_args=extra or None,
             timeout=run_timeout,
             profile_path=getattr(args, "profile_path", None),
         )
+
+        if args.sealed:
+            from clawbio.privacy import seal_result
+            print(json.dumps(seal_result(result)))
+            sys.exit(0 if result["success"] else 1)
 
         # Summary mode: skill printed text to stdout — relay it directly
         if result["output_dir"] is None and result["success"] and result["stdout"]:

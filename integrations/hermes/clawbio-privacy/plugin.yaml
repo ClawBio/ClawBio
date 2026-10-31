@@ -1,0 +1,12 @@
+name: clawbio-privacy
+version: "0.1.0"
+description: "Keep genomic file contents (VCF, FASTQ, 23andMe/AncestryDNA raw data) out of the model's context. Withholds pasted uploads, blocks tools that would read them, and only lets ClawBio run them with --sealed, so reports go to the user, not the model."
+author: "ClawBio"
+requires_hermes: ">=0.21.5"
+provides_hooks:
+  - pre_gateway_dispatch
+  - pre_tool_call
+  - transform_tool_result
+  - transform_llm_output
+provides_middleware:
+  - llm_request
