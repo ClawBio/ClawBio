@@ -526,7 +526,8 @@ def run(args: argparse.Namespace, argv: list[str]) -> int:
                        "alpha": table.alpha[pair], "verdicts": table.counts(pair)}
                       for pair in table.pairs],
             # pairs never compared, each with its reason (they share participants)
-            "excluded_pairs": table.excluded_pair_records()}
+            "excluded_pairs": table.excluded_pair_records(),
+            "n_harmonized": table.n_harmonized}
         if table.three_way_withheld:
             summary["replication"]["three_way_withheld"] = table.three_way_withheld
         if table.n_shared_3 is not None:

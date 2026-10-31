@@ -326,6 +326,8 @@ def _table_for(ids, cells):
 
     for i, cs in enumerate(cells):
         for ds, c in zip(ids, cs):
+            if c is None:  # the outcome is not in this dataset
+                continue
             R.rows.append(S.OutcomeRow(**{**c.__dict__, "dataset_id": ds, "outcome_id": f"o{i}",
                                          "harmonized_outcome_id": f"H{i}",
                                          "harmonized_label": f"h{i}",
@@ -437,6 +439,7 @@ def test_a_meta_analysis_and_a_group_it_pools_are_never_compared(tmp_path):
     assert "**Million Veteran Program (European genetic ancestry) and Million Veteran Program " \
            "(multi-population meta-analysis)**: not compared" in text
     assert "no three-way verdict" in text and "All three datasets**:" in text
+    assert "4 outcomes are harmonized across at least two of the datasets" in text
 
 
 def test_two_overlapping_datasets_alone_give_no_pair_and_no_figure_crash(tmp_path):
@@ -448,9 +451,70 @@ def test_two_overlapping_datasets_alone_give_no_pair_and_no_figure_crash(tmp_pat
     assert t.rows == []          # outcomes shared only by a pair that is not compared are not in the table
     assert "Different biobanks are treated as independent" not in "\n".join(replication_lines(t))
     assert "not compared" in "\n".join(replication_lines(t))
+    # the outcomes ARE harmonized across both; they are just not compared
+    assert "4 outcomes are harmonized across the two datasets" in "\n".join(replication_lines(t))
     plots.replication_matrix(t, str(tmp_path / "m.png"))
     with pytest.raises(ValueError):
         plots.paired_effects(t, str(tmp_path / "p.png"))
+
+
+def test_the_partition_check_fires_on_each_way_a_table_can_break_it():
+    """`check_pair_partition` asserts that compared + excluded pairs partition every pair;
+    each violation is constructed here so the check is seen failing, not assumed."""
+    import copy
+
+    from snp_phewas_replication import check_pair_partition
+
+    t = _sig_everywhere(["mvp_eur", "mvp_meta", "finngen_r12"])
+    check_pair_partition(t)
+    overlap = ("mvp_eur", "mvp_meta")
+    leaked = copy.deepcopy(t)
+    leaked.n_shared[overlap] = 4
+    leaked.alpha[overlap] = 0.0125
+    vanished = copy.deepcopy(t)
+    del vanished.excluded_pairs[overlap]
+    no_alpha = copy.deepcopy(t)
+    no_alpha.alpha.pop(t.pairs[0])
+    row_verdict = copy.deepcopy(t)
+    row_verdict.rows[0].verdicts[overlap] = "replicated"
+    for broken in (leaked, vanished, no_alpha):
+        with pytest.raises(AssertionError, match="partition"):
+            check_pair_partition(broken)
+    with pytest.raises(AssertionError, match="verdicts"):
+        check_pair_partition(row_verdict)
+
+
+def test_an_outcome_shared_only_by_an_excluded_pair_is_counted_and_said():
+    """H1 is harmonized only across the pair that is not compared: it counts as harmonized,
+    is not in the table, and the text says how many are missing from it and why."""
+    from snp_phewas_replication import replication_lines
+
+    sig = _cell(1e-9, -0.1)
+    t = _table_for(["mvp_eur", "mvp_meta", "finngen_r12"],
+                   [[sig, sig, sig], [sig, sig, None], [sig, None, sig]])
+    assert t.n_harmonized == 3 and len(t.rows) == 2 == len(t.to_records())
+    text = "\n".join(replication_lines(t))
+    assert "3 outcomes are harmonized across at least two of the datasets" in text
+    assert "1 of them is shared only by a pair that is not compared, so not in the table." in text
+    # with no outcome missing from the table, nothing is said
+    assert "shared only by a pair" not in "\n".join(
+        replication_lines(_sig_everywhere(["mvp_eur", "mvp_meta", "finngen_r12"])))
+
+
+def test_the_table_builder_runs_the_partition_check(monkeypatch):
+    """A classification that both compares and excludes a pair stops the build."""
+    import snp_phewas_replication as Rep
+
+    real = Rep.classify_pairs
+
+    def leaky(ids, **kw):
+        c = real(ids, **kw)
+        return Rep.PairClasses(c.compared + list(c.excluded), c.excluded, c.sentences,
+                               c.cross_ancestry)
+
+    monkeypatch.setattr(Rep, "classify_pairs", leaky)
+    with pytest.raises(AssertionError, match="partition"):
+        _sig_everywhere(["mvp_eur", "mvp_meta", "finngen_r12"])
 
 
 def test_overlap_is_declared_and_every_catalog_pair_is_classified():

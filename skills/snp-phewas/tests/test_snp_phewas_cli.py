@@ -92,6 +92,7 @@ def test_demo_report_states_scope_sources_and_disclaimer(demo_out):
         ("pan_ukbb_eur", "finngen_r12"): 2, ("pan_ukbb_eur", "mvp_eur"): 2,
         ("finngen_r12", "mvp_eur"): 1}
     assert res["summary"]["replication"]["three_way"]["classes"]["replicates_in_all_three"] == 1
+    assert res["summary"]["replication"]["n_harmonized"] == 1537   # the report's headline count
     assert res["summary"]["datasets"]["mvp_eur"]["n_read"] == 2
     assert res["data"]["uncataloged"] == ["K11_GINGIVITIS_PERIODONTAL"]
 
@@ -385,6 +386,7 @@ def test_result_json_lists_the_excluded_pair_when_it_is_the_only_pair(monkeypatc
     rep = json.loads((out / "result.json").read_text())["summary"]["replication"]
     assert rep["pairs"] == [] and [r["detail"] for r in rep["excluded_pairs"]] == [why] * 3
     assert rep["three_way_withheld"] == R.EXCLUDED_NOT_INDEPENDENT
+    assert rep["n_harmonized"] == 1537       # harmonized, just not compared
 
 
 def test_a_run_where_every_source_answered_with_no_value_is_ok_and_exits_0(monkeypatch, tmp_path):

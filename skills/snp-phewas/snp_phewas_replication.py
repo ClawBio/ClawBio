@@ -230,6 +230,9 @@ class ReplicationTable:
     three_way_withheld: str | None = None
     #: Compared pairs of different genetic-ancestry groups (`CROSS_ANCESTRY_NOTE` applies).
     cross_ancestry_pairs: list[tuple[str, str]] = field(default_factory=list)
+    #: Outcomes harmonized across at least two of the datasets, compared or not (`rows` holds
+    #: only those some compared pair carries).
+    n_harmonized: int = 0
 
     @property
     def pairs(self) -> list[tuple[str, str]]:
@@ -296,16 +299,30 @@ class PairClasses:
 def classify_pairs(ids: list[str], *,
                    overlap: Callable[[str, str], str | None] = sample_overlap,
                    ancestry_differs: Callable[[str, str], bool] = cross_ancestry) -> PairClasses:
-    """The one place a pair is judged comparable. Kept + excluded partition every pair,
-    asserted."""
+    """The one place a pair is judged comparable. `check_pair_partition` asserts the built
+    table keeps to it."""
     every_pair = list(combinations(ids, 2))
     sentences = {p: why for p in every_pair if (why := overlap(*p))}
     excluded = {p: EXCLUDED_NOT_INDEPENDENT for p in sentences}
     compared = [p for p in every_pair if p not in excluded]
-    if len(compared) + len(excluded) != len(every_pair) or set(compared) & set(excluded):
-        raise AssertionError("compared and excluded pairs must partition every dataset pair")
     return PairClasses(compared, excluded, sentences,
                        [p for p in compared if ancestry_differs(*p)])
+
+
+def check_pair_partition(table: ReplicationTable) -> None:
+    """The built table's compared pairs (`n_shared`, `alpha`, every row's verdicts) and its
+    excluded pairs partition every pair of its datasets, or this raises: an excluded pair that
+    leaked into a count, or a pair that vanished from both, fails here rather than in a
+    sentence."""
+    every = set(combinations(table.dataset_ids, 2))
+    compared, excluded = set(table.n_shared), set(table.excluded_pairs)
+    if compared & excluded or compared | excluded != every or set(table.alpha) != compared:
+        raise AssertionError(f"compared {sorted(compared)} and excluded {sorted(excluded)} pairs "
+                             f"must partition every pair of {table.dataset_ids}")
+    for r in table.rows:
+        if set(r.verdicts) != compared:
+            raise AssertionError(f"{r.harmonized_outcome_id}: verdicts for {sorted(r.verdicts)}, "
+                                 f"compared pairs are {sorted(compared)}")
 
 
 def build_replication(result: Any, dataset_ids: list[str] | None = None, *,
@@ -328,6 +345,7 @@ def build_replication(result: Any, dataset_ids: list[str] | None = None, *,
     pairs, excluded = classes.compared, classes.excluded
     # an outcome is in the table only when some COMPARED pair carries it: one shared only by a
     # pair that is not compared has nothing to report
+    n_harmonized = sum(1 for d in reps.values() if len(d) >= 2)
     shared = {h: d for h, d in reps.items() if any(a in d and b in d for a, b in pairs)}
     n_shared: dict[tuple[str, str], int] = {}
     alpha: dict[tuple[str, str], float] = {}
@@ -362,9 +380,13 @@ def build_replication(result: Any, dataset_ids: list[str] | None = None, *,
             row.three_way_pair = (ids[pair_ix[0]], ids[pair_ix[1]]) if pair_ix else None
         rows.append(row)
     rows.sort(key=lambda r: (-r.best_neglog10_p, r.harmonized_outcome_id))
-    return ReplicationTable(ids, rows, n_shared, alpha, n3, a3,
-                            excluded_pairs=excluded, excluded_pair_sentences=classes.sentences,
-                            three_way_withheld=withheld, cross_ancestry_pairs=classes.cross_ancestry)
+    table = ReplicationTable(ids, rows, n_shared, alpha, n3, a3,
+                             excluded_pairs=excluded, excluded_pair_sentences=classes.sentences,
+                             three_way_withheld=withheld,
+                             cross_ancestry_pairs=classes.cross_ancestry,
+                             n_harmonized=n_harmonized)
+    check_pair_partition(table)
+    return table
 
 
 def _verdict_lines(labels: dict[str, str], counts: dict[str, int], named: dict[str, list[str]]
@@ -392,12 +414,17 @@ def replication_lines(table: ReplicationTable, *, heading: str = "###") -> list[
     lines = ["", f"{heading} Replication across " + ("the two biobanks" if two else "biobanks"),
              ""]
     lines.append(
-        f"{len(table.rows):,} outcomes are harmonized across "
+        f"{table.n_harmonized:,} outcomes are harmonized across "
         f"{'the two datasets' if two else 'at least two of the datasets'} (the same ICD-10 "
         f"block or phecode, FinnGen's own published match, or a reviewed match of the same "
         f"lab measurement). An outcome replicates in a pair when both p-values are below "
         f"0.05 / n, n = the outcomes both datasets of the pair share, with the same "
         f"direction.")
+    only_excluded = table.n_harmonized - len(table.rows)
+    if table.pairs and only_excluded:
+        lines.append(f"{only_excluded:,} of them "
+                     + ("is" if only_excluded == 1 else "are")
+                     + " shared only by a pair that is not compared, so not in the table.")
     for pair in table.pairs:
         both = labels_listed(list(pair))
         n_shared = table.n_shared[pair]
