@@ -14,7 +14,6 @@ ROOT = Path(__file__).resolve().parents[1]
 LEGACY_READMES = {
     "nfcore-rnaseq-wrapper",
     "nfcore-rnastructurome-wrapper",
-    "nfcore-sarek-wrapper",
     "nfcore-scrnaseq-wrapper",
     "seq-wrangler",
 }

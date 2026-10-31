@@ -196,6 +196,9 @@ A failure raises a structured `SkillError` with `stage`, `error_code`, `message`
 ## CLI Reference
 
 ```bash
+# Every supported flag (177: 154 Sarek passthrough + 23 wrapper controls)
+python skills/nfcore-sarek-wrapper/nfcore_sarek_wrapper.py --help
+
 # Preflight only; no Nextflow execution
 python clawbio.py run sarek-pipeline \
   --input samplesheet.csv --output ./sarek_check --check \
