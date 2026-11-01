@@ -148,3 +148,42 @@ def test_all_contacted_genes_reported_not_just_the_first() -> None:
     assert 'GENE_NEAR' in row['target_gene_contact']
     assert 'GENE_FAR' in row['target_gene_contact']
     assert row['nearest_vs_contact_disagreement'] is True
+
+
+def test_parse_bed_space_delimited_gets_a_specific_error(tmp_path: Path) -> None:
+    # PR #678 review round 4: a space-delimited BED previously raised the
+    # generic ">=3 tab-separated fields" count error even though the real
+    # problem (wrong delimiter) is detectable and worth naming directly.
+    # NOTE: pytest's tmp_path fixture embeds the TEST FUNCTION NAME in its
+    # generated directory path, so an earlier version of this test
+    # (naively matching the substring "space") passed for the wrong
+    # reason -- it matched "..._space_delimited_..." in the tmp_path
+    # itself, never the actual exception text. Using an unrelated,
+    # unique directory name here closes that loophole.
+    bed_dir = tmp_path / "unrelated_fixture_dir"
+    bed_dir.mkdir()
+    bed = bed_dir / "unrelated_fixture_name.bed"
+    bed.write_text("chr1 100 200 PEAK1\n")
+    with pytest.raises(ValueError, match="space-separated"):
+        mli.parse_bed(bed)
+
+
+def test_parse_gene_targets_space_delimited_gets_a_specific_error(tmp_path: Path) -> None:
+    bed_dir = tmp_path / "unrelated_fixture_dir"
+    bed_dir.mkdir()
+    bed = bed_dir / "unrelated_fixture_name.bed"
+    bed.write_text("chr1 100 200 GENE1 +\n")
+    with pytest.raises(ValueError, match="space-separated"):
+        mli.parse_gene_targets(bed)
+
+
+def test_evidence_table_has_a_distance_column_note(tmp_path: Path) -> None:
+    # PR #678 review round 4 (optional): a reader of the raw TSV alone
+    # (without SKILL.md open) should learn that the distance column is
+    # measured to the TSS window edge, not the TSS point.
+    output_dir = tmp_path / "out"
+    mli.main(["--demo", "--output", str(output_dir)])
+    lines = (output_dir / "tables" / "evidence_table.tsv").read_text().splitlines()
+    assert lines[0].startswith("#")
+    assert "target_gene_nearest_distance_bp" in lines[0]
+    assert lines[1].split("\t")[0] == "locus_id"  # real header follows the comment

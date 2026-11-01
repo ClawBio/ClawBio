@@ -38,6 +38,20 @@ Interval = tuple[str, int, int, str]
 LoopAnchor = tuple[str, int, int, str, int, int, str]
 
 
+def _field_count_error(path: Path, line_no: int, line: str, fields: list[str], minimum: int, context: str) -> ValueError:
+    """Build a field-count error, naming a likely wrong-delimiter cause
+    directly rather than just reporting the count (PR #678 review round 4).
+    """
+    if len(fields) < minimum and len(line.split()) >= minimum:
+        return ValueError(
+            f"{path}:{line_no}: {context} needs >={minimum} tab-separated "
+            f"fields, but got {len(fields)} -- this line looks "
+            f"space-separated instead of tab-separated. BED/BEDPE files "
+            f"must use literal tab characters between fields."
+        )
+    return ValueError(f"{path}:{line_no}: {context} needs >={minimum} tab-separated fields")
+
+
 def parse_bed(path: Path) -> list[Interval]:
     intervals: list[Interval] = []
     with path.open(encoding="utf-8") as handle:
@@ -47,7 +61,7 @@ def parse_bed(path: Path) -> list[Interval]:
                 continue
             fields = line.split("\t")
             if len(fields) < 3:
-                raise ValueError(f"{path}:{line_no}: BED record needs >=3 tab-separated fields")
+                raise _field_count_error(path, line_no, line, fields, 3, "BED record")
             chrom, start, end = fields[0], int(fields[1]), int(fields[2])
             name = fields[3] if len(fields) > 3 else f"{chrom}:{start}-{end}"
             intervals.append((chrom, start, end, name))
@@ -73,9 +87,9 @@ def parse_gene_targets(path: Path) -> list[Interval]:
                 continue
             fields = line.split("\t")
             if len(fields) < 5:
-                raise ValueError(
-                    f"{path}:{line_no}: gene-targets BED needs >=5 tab-separated "
-                    f"fields (chrom, start, end, gene_symbol, strand)"
+                raise _field_count_error(
+                    path, line_no, line, fields, 5,
+                    "gene-targets BED (chrom, start, end, gene_symbol, strand)",
                 )
             chrom, start, end = fields[0], int(fields[1]), int(fields[2])
             name, strand = fields[3], fields[4]
@@ -324,6 +338,19 @@ def _write_evidence_table(path: Path, loci: list[dict]) -> None:
         "target_gene_contact", "contact_loop_id", "nearest_vs_contact_disagreement",
     ]
     with path.open("w", newline="", encoding="utf-8") as handle:
+        # PR #678 review round 4 (optional): readers asked for a note on
+        # target_gene_nearest_distance_bp's real meaning directly in the
+        # TSV, not only in SKILL.md. A leading "#" comment line is a
+        # standard, widely-supported convention (UCSC/samtools-style;
+        # pandas.read_csv(comment="#") skips it automatically) that does
+        # not disturb strict single-header-row parsers that start reading
+        # from the first non-comment line.
+        handle.write(
+            "# target_gene_nearest_distance_bp is distance to the TSS "
+            "window edge, not the TSS point itself -- any locus inside "
+            "the window reads 0 regardless of position within it. See "
+            "SKILL.md Maintenance.\n"
+        )
         writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter="\t")
         writer.writeheader()
         for row in loci:
