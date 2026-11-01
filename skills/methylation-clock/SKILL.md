@@ -70,7 +70,7 @@ This skill standardizes a PyAging-first pipeline from ingestion to report genera
 
 ### Demo And Usage
 
-The bundled two-sample demo is synthetic. Its fixed-seed generator, public probe-identifier source, and checksums are documented in `skills/methylation-clock/data/PROVENANCE.md`. Its placeholder ages and sex labels have no relationship to the simulated beta values; use its clock predictions only to check that the workflow runs.
+The bundled two-sample demo is synthetic. Its fixed-seed generator, public probe-identifier source, and checksums are documented in `skills/methylation-clock/data/PROVENANCE.md`. Its placeholder ages and sex labels have no relationship to the simulated beta values; use its clock predictions only to check that the workflow runs. Reports label this fixture as synthetic whether it is selected with `--demo` or supplied through `--input`.
 
 Install the optional PyAging dependency in the Python environment used to run ClawBio. The demo below was verified with PyAging 0.5.7; first use of a clock downloads its public model weights. Local input data is not uploaded.
 

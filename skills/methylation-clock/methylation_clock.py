@@ -55,6 +55,7 @@ FALLBACK_CLOCK_UNITS = {
     "grimage2": "years",
     "dunedinpace": "biological years per chronological year",
 }
+SYNTHETIC_DEMO_SHA256 = "c6fe0fa1574ec9cd002128f53eaf0b67fce6374e1dc32821a3c24ecd3246ffca"
 PROBE_NAME = re.compile(r"^(?:cg|ch|rs|nv)(?=[0-9.])[0-9A-Za-z.\-]*(?:_|$)", re.IGNORECASE)
 
 
@@ -189,6 +190,20 @@ def _get_repo_root() -> Path:
 
 def _get_skill_data_dir() -> Path:
     return Path(__file__).resolve().parent / "data"
+
+
+def _is_synthetic_demo_input(path: Path) -> bool:
+    """Identify the bundled synthetic fixture, including renamed copies."""
+    bundled_fixture = _get_skill_data_dir() / "synthetic_beta_demo.csv.gz"
+    try:
+        if path.resolve() == bundled_fixture.resolve():
+            return True
+        return (
+            path.stat().st_size == bundled_fixture.stat().st_size
+            and _sha256(path) == SYNTHETIC_DEMO_SHA256
+        )
+    except OSError:
+        return False
 
 
 def _resolve_geo_pickle(geo_id: str, verbose: bool, output_dir: Path) -> Path:
@@ -616,6 +631,8 @@ def run_analysis(
         if resolved_input is None or not resolved_input.exists():
             raise FileNotFoundError(f"Input file not found: {resolved_input}")
 
+    synthetic_demo = demo or _is_synthetic_demo_input(resolved_input)
+
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "tables").mkdir(exist_ok=True)
     (output_dir / "figures").mkdir(exist_ok=True)
@@ -674,7 +691,7 @@ def run_analysis(
         missing_df=missing_df,
         metadata_json=metadata_json,
         input_qc=input_qc,
-        synthetic_demo=demo,
+        synthetic_demo=synthetic_demo,
     )
 
     result = {
@@ -683,7 +700,7 @@ def run_analysis(
         "n_samples": int(predictions.shape[0]),
         "clocks_found": clock_cols,
         "input_qc": input_qc,
-        "synthetic_demo": demo,
+        "synthetic_demo": synthetic_demo,
     }
     (output_dir / "result.json").write_text(json.dumps(result, indent=2))
     return result

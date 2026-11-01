@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -262,11 +263,16 @@ def test_report_shows_clock_units_and_only_existing_figures(tmp_path):
     assert "clock_correlation.png" not in report
 
 
+def test_default_clock_unit_fallbacks_cover_missing_metadata():
+    assert clock._clock_unit("Horvath2013", {}) == "years"
+    assert clock._clock_unit("DunedinPACE", {}) == "biological years per chronological year"
+    assert clock._clock_unit("CustomClock", {}) == "unspecified"
+
+
 def test_run_analysis_writes_structured_result_and_qc(tmp_path, monkeypatch):
-    source = tmp_path / "samples.csv"
-    pd.DataFrame(
-        {"sample_id": ["s1", "s2"], "cg00000029": [0.1, 0.8]}
-    ).to_csv(source, index=False)
+    bundled_fixture = Path(__file__).parent.parent / "data" / "synthetic_beta_demo.csv.gz"
+    source = tmp_path / "renamed_synthetic_input.csv.gz"
+    shutil.copyfile(bundled_fixture, source)
 
     class FakeAdata:
         def __init__(self, frame):
@@ -284,19 +290,20 @@ def test_run_analysis_writes_structured_result_and_qc(tmp_path, monkeypatch):
     result = clock.run_analysis(
         output,
         ["Horvath2013"],
-        [],
+        ["tissue_type", "gender"],
         "mean",
         False,
         input_path=source,
         skip_epicv2_aggregation=True,
-        demo=True,
     )
 
     assert result["n_samples"] == 2
     assert result["synthetic_demo"] is True
     assert (output / "result.json").exists()
     assert (output / "tables" / "input_qc.json").exists()
-    assert pd.read_csv(output / "tables" / "predictions.csv")["sample_id"].tolist() == ["s1", "s2"]
+    assert pd.read_csv(output / "tables" / "predictions.csv")["sample_id"].tolist() == [
+        "synthetic_01", "synthetic_02"
+    ]
     assert "Input QC" in (output / "report.md").read_text()
     assert "Synthetic demo" in (output / "report.md").read_text()
 
