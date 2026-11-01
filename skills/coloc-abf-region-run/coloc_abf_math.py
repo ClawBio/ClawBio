@@ -70,13 +70,18 @@ import numpy as np
 
 TraitType = Literal["quant", "cc"]
 
-# Per-variant priors. p12 is the one worth arguing about, and the one the
-# sensitivity sweep is built around.
+# Per-variant priors. p1 and p2 are the single-trait priors Wallace 2020 uses
+# throughout and calls well supported by data. p12 is the contested one: 1e-5 is
+# the reference implementation's default, matched here so results are comparable
+# with it, but Wallace 2020 reports that it "may be overly liberal" and suggests
+# 5e-6 as more generally robust. Hence the sweep below, whose range covers both.
 DEFAULT_P1 = 1e-4
 DEFAULT_P2 = 1e-4
 DEFAULT_P12 = 1e-5
 
-# Prior effect-size standard deviations.
+# Prior effect-size standard deviations, from Giambartolomei 2014's "Choice of
+# priors": "we set this to 0.20 for binary traits and 0.15 for quantitative
+# traits".
 QUANT_PRIOR_SD = 0.15  # standardised scale; W = (0.15 * sdY)^2
 CC_PRIOR_SD = 0.2      # log-odds scale; W = 0.2^2 = 0.04
 

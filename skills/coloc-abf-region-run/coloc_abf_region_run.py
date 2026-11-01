@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import shlex
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -832,8 +833,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.output is None:
         parser.error("--output is required")
 
-    invocation = " ".join([
-        "python", str(Path(__file__).name),
+    invocation = shlex.join([
+        "python", f"skills/{_SKILL_DIR.name}/{Path(__file__).name}",
         *(["--demo", args.demo] if args.demo is not None else ["--input", str(config_path)]),
         "--output", str(args.output),
     ])
