@@ -134,8 +134,7 @@ evidence favours one shared causal variant or two different ones.
 - The user has no regional summary statistics yet (route to
   `gwas-catalog-region-fetch`, `eqtl-catalogue-region-fetch` or
   `ukb-ppp-region-fetch` first)
-- The user wants genome-wide genetic correlation between two traits, which is a
-  different scale of question entirely
+- The user wants genome-wide genetic correlation, a different scale of question
 
 ## Why This Exists
 
@@ -160,11 +159,10 @@ evidence favours one shared causal variant or two different ones.
 3. **Prior sensitivity**: the posteriors recomputed across a range of p12, with a
    verdict of robust, prior-driven, or no shared signal
 4. **Quantitative and case-control traits**: sdY supplied or estimated from
-   allele frequency, standard error and sample size; the log-odds prior for a
-   case-control trait
+   allele frequency, standard error and sample size; the log-odds prior otherwise
 5. **An accounting of every row**: each variant that did not reach the
-   computation is a row with a reason, and the kept and excluded sets are
-   asserted to add up to what was read
+   computation is a row with a reason, and kept plus excluded is asserted to
+   equal what was read
 
 ## Scope
 
@@ -278,15 +276,18 @@ than taken on trust.
 5. **Prior sweep** (Wallace 2020): recompute the posteriors across p12 and report
    whether the rule's verdict is constant across the range.
 
-**Key thresholds and parameters**:
-- `p1 = 1e-4`, `p2 = 1e-4`, `p12 = 1e-5`: the per-variant priors of the coloc.abf
-  model (Giambartolomei 2014; Wallace 2020 on eliciting them). All three are
-  configurable.
-- Prior effect SD `0.15` on the trait-SD-standardised scale, `0.2` on the
-  log-odds scale (Wakefield 2009's normal prior, as parameterised by the
-  coloc.abf model).
-- The swept range `p12` from `1e-6` to `1e-4`: one order of magnitude either side
-  of the default.
+**Key thresholds and parameters**, all three priors configurable:
+- `p1 = p2 = 1e-4`, the single-trait priors used throughout Wallace 2020, whose
+  summary calls the default single-trait priors well supported by data.
+- `p12 = 1e-5`, the default of the reference coloc.abf implementation, matched
+  here so results are comparable with it. Wallace 2020 reports that this default
+  "may be overly liberal" and that "p12 = 5x10-6 may be a more generally robust
+  choice". That live disagreement is why the sweep is not optional.
+- Prior effect SD `0.15` for a quantitative trait and `0.20` for a case-control
+  one (Giambartolomei 2014, Choice of priors: "we set this to 0.20 for binary
+  traits and 0.15 for quantitative traits").
+- The swept `p12` range `1e-6` to `1e-4`, an order of magnitude either side of
+  the default, which brackets both values above.
 - `PP.H4 >= 0.5`, the rule the sweep is judged against. **This skill deliberately
   does not apply a stricter threshold for you.** A cutoff on PP.H4 is a decision
   about how much evidence you want, not a property of the data, so the posteriors
@@ -387,8 +388,9 @@ output is frozen in `tests/fixtures/coloc_abf_r_reference.json`. See Safety.
 
 - **Quoting PP.H4 without the prior sweep**: you will want to report the single
   number, because it is the one everybody asks for. Do not report it alone. p12
-  is elicited judgement, not a measurement, and a posterior near the rule can
-  flip inside a defensible range of it. The skill always writes the sweep, and a
+  is elicited judgement, not a measurement, the default used here is one Wallace
+  2020 calls possibly "overly liberal", and a posterior near the rule can flip
+  inside a defensible range of it. The skill always writes the sweep, and a
   `prior_driven` verdict means the conclusion is a property of the prior rather
   than of the data.
 
@@ -488,6 +490,6 @@ claim, suppress a `prior_driven` verdict, or restate PP.H3 as a null result.
   Bayes factor the per-variant evidence is built from. *Genet Epidemiol*
   33(1):79-86. doi:10.1002/gepi.20359
 - [Wallace (2020)](https://pubmed.ncbi.nlm.nih.gov/32310995/); eliciting the
-  priors, and why a colocalisation result needs a sensitivity analysis rather
-  than a single posterior. *PLoS Genet* 16(4):e1008720.
-  doi:10.1371/journal.pgen.1008720
+  priors. Reports that the coloc default p12 of 1e-5 may be overly liberal, and
+  strongly advises sensitivity analysis for key results. *PLoS Genet*
+  16(4):e1008720. doi:10.1371/journal.pgen.1008720
