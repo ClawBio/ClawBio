@@ -12,7 +12,6 @@ ROOT = Path(__file__).resolve().parents[1]
 # Skills that still carry a root README. Fix one per PR: fold anything unique
 # into SKILL.md or references/, delete the README, and remove the name here.
 LEGACY_READMES = {
-    "nfcore-rnastructurome-wrapper",
     "nfcore-scrnaseq-wrapper",
     "seq-wrangler",
 }
