@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 110,
+  "skill_count": 111,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -1196,6 +1196,61 @@
         "structural variant interpretation",
         "ClinGen dosage sensitivity",
         "deletion duplication pathogenic"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "coloc-abf-region-run",
+      "cli_alias": "coloc-abf",
+      "description": "Colocalise two traits over one genomic region with coloc.abf. Computes the five\nposterior probabilities (PP.H0 to PP.H4) from each trait's regional beta and\nstandard error using Wakefield approximate Bayes factors and the\nGiambartolomei single-causal-variant combine, and reports whether the\nconclusion survives the p12 prior. Answers whether an eQTL, pQTL or caQTL\nsignal and a GWAS signal share a causal variant, or merely sit in the same\nlocus. A clean-room Python implementation: nothing is imported from the GPL R\ncoloc package.\n",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run coloc-abf --demo",
+      "dependencies": [
+        "python>=3.11",
+        "numpy>=2.0",
+        "matplotlib>=3.7",
+        "pyyaml>=6.0"
+      ],
+      "tags": [
+        "colocalisation",
+        "colocalization",
+        "coloc",
+        "coloc-abf",
+        "bayesian",
+        "gwas",
+        "eqtl",
+        "statistical-genetics",
+        "drug-target-validation"
+      ],
+      "trigger_keywords": [
+        "colocalisation",
+        "colocalization",
+        "coloc",
+        "coloc.abf",
+        "PP.H4",
+        "posterior probability of colocalisation",
+        "do these two signals share a causal variant",
+        "same causal variant",
+        "eQTL GWAS colocalisation",
+        "shared causal variant",
+        "H3 versus H4"
       ],
       "chaining_partners": [],
       "license": "MIT",

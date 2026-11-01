@@ -1280,6 +1280,14 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "coloc-abf": {
+        "script": SKILLS_DIR / "coloc-abf-region-run" / "coloc_abf_region_run.py",
+        "demo_args": ["--demo"],
+        "description": "coloc.abf region run: PP.H0 to PP.H4 for two traits over one region, with the p12 prior sweep (Giambartolomei 2014)",
+        "allowed_extra_flags": {"--list-demos"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
     "affprot": {
         "script": SKILLS_DIR / "affinity-proteomics" / "affinity_proteomics.py",
         "demo_args": ["--demo", "--platform", "olink"],
