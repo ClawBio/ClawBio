@@ -52,7 +52,7 @@ metadata:
   - name: samplesheet
     type: file
     format: csv
-    description: CSV with columns sample, fastq1, fastq2
+    description: CSV with columns sample, fastq_1, fastq_2
     required: false
   - name: index
     type: string
@@ -128,7 +128,7 @@ Without this skill, aligning FASTQ reads to a reference genome requires manually
 |--------|-----------|----------------|
 | FASTQ (SE) | `.fastq.gz`, `.fq.gz` | Single-end reads |
 | FASTQ (PE) | `.fastq.gz`, `.fq.gz` | R1 + R2 paired reads |
-| Samplesheet | `.csv` | `sample`, `fastq1`, `fastq2` (optional) |
+| Samplesheet | `.csv` | `sample`, `fastq_1`, `fastq_2` (optional) |
 | Aligner index | prefix | Pre-built BWA/Bowtie2/Minimap2 index |
 
 ## Workflow
@@ -141,7 +141,7 @@ Without this skill, aligning FASTQ reads to a reference genome requires manually
 6. Sort by read name with `samtools sort -n`
 7. Fix mate-pair information with `samtools fixmate`
 8. Coordinate sort with `samtools sort`
-9. Mark (or remove) duplicates with `samtools markdup`
+9. Mark duplicates with `samtools markdup` (removes them with `-r` if `--remove-duplicates`)
 10. Index final BAM with `samtools index`
 11. Compute flagstat, coverage, insert size
 12. Aggregate with MultiQC (if `--run-multiqc`)
@@ -181,6 +181,25 @@ python skills/seq-wrangler/seq_wrangler.py \
   --trim --remove-duplicates --keep-sam \
   --output results/
 ```
+
+| Flag | Description | Default |
+|---|---|---|
+| `--r1` | FASTQ R1 or single-end FASTQ | — |
+| `--r2` | FASTQ R2 for paired-end | — |
+| `--sample-name` | Sample name for single-sample mode | — |
+| `--samplesheet` | CSV with columns `sample,fastq_1,fastq_2` | — |
+| `--index` | Aligner index prefix | required unless `--demo` |
+| `--aligner` | `bwa`, `bowtie2`, or `minimap2` | `bwa` |
+| `--genome-build` | `GRCh38` or `GRCh37` (metadata only) | `GRCh38` |
+| `--output` | Output directory | required |
+| `--threads` | Number of threads | CPU count − 1 |
+| `--mapq` | MAPQ filter threshold | `20` |
+| `--trim` | Run fastp trimming before alignment | off |
+| `--remove-duplicates` | Remove duplicates with `samtools markdup -r` instead of only marking them | off |
+| `--keep-sam` | Keep intermediate SAM files | off |
+| `--run-fastqc` | Run FastQC if available | off |
+| `--run-multiqc` | Run MultiQC aggregation if available | off |
+| `--demo` | Run with synthetic data, no tools needed | off |
 
 ## Demo
 
