@@ -187,3 +187,15 @@ def test_evidence_table_has_a_distance_column_note(tmp_path: Path) -> None:
     assert lines[0].startswith("#")
     assert "target_gene_nearest_distance_bp" in lines[0]
     assert lines[1].split("\t")[0] == "locus_id"  # real header follows the comment
+
+
+def test_parse_bedpe_space_delimited_gets_a_specific_error(tmp_path: Path) -> None:
+    # PR #678 review round 5: parse_bedpe still raised the plain field-count
+    # error, missing the space-separated hint parse_bed/parse_gene_targets
+    # already give.
+    bed_dir = tmp_path / "unrelated_fixture_dir"
+    bed_dir.mkdir()
+    bedpe = bed_dir / "unrelated_fixture_name.bedpe"
+    bedpe.write_text("chr1 90 120 chr1 50 100 LOOP_1\n")
+    with pytest.raises(ValueError, match="space-separated"):
+        mli.parse_bedpe(bedpe)

@@ -7,7 +7,7 @@ description: >-
 license: MIT
 metadata:
   version: "0.1.0"
-  author: Your Name
+  author: Muhammad Adeel
   domain: genomics
   tags:
     - multiomics
@@ -77,7 +77,7 @@ metadata:
     - path: demo_targets.bed
       description: 4 synthetic candidate target genes
   endpoints:
-    cli: python skills/multiomics-locus-integrator/multiomics_locus_integrator.py --loci {loci} --gene-targets {gene_targets} --output {output_dir}
+    cli: python skills/multiomics-locus-integrator/multiomics_locus_integrator.py --loci {loci} --gene-targets {gene_targets} --accessibility-track {accessibility_track} --output {output_dir}
   openclaw:
     requires:
       bins:

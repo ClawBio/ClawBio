@@ -117,7 +117,7 @@ def parse_bedpe(path: Path) -> list[LoopAnchor]:
                 continue
             fields = line.split("\t")
             if len(fields) < 6:
-                raise ValueError(f"{path}:{line_no}: BEDPE record needs >=6 tab-separated fields")
+                raise _field_count_error(path, line_no, line, fields, 6, "BEDPE record")
             chrom1, start1, end1 = fields[0], int(fields[1]), int(fields[2])
             chrom2, start2, end2 = fields[3], int(fields[4]), int(fields[5])
             name = fields[6] if len(fields) > 6 else f"loop_{line_no}"
