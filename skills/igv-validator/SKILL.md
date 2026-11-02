@@ -191,7 +191,7 @@ depth plots and interactive views are the evidence: judge each result there befo
 2. **Select** (prescriptive): apply `--variants` / `--regions` / `--genes` (combined with AND) and `--pass-only`; cap at `--max-variants` (default 50) and say how many were skipped.
 3. **Classify** (prescriptive): SNV, insertion, deletion, BND (bracket notation, or symbolic `<TRA>`/`<BND>` with `CHR2`/`END` as SURVIVOR and Delly write) or symbolic `<DEL>/<DUP>/<INV>` of at least 1 kb. Other records (MNVs, small symbolic SVs, CNV-only records) are listed as "not evaluable", never counted. Deletions and insertions written out as sequence (as Manta and SURVIVOR often do) are counted like indels, and from 50 bp they count as SVs in the summary and the curated comparison.
 4. **Count** (prescriptive): run the counters with MAPQ >= 20, base quality >= 20, no duplicate/secondary/supplementary/QC-fail reads.
-5. **Flag** (prescriptive): apply the rules in *Algorithm*; derive the automatic status.
+5. **Flag** (prescriptive): apply the rules in [`references/methodology.md`](references/methodology.md); derive the automatic status.
 6. **Screenshot** (prescriptive): unless `--no-igv` or IGV is not found, start the isolated IGV, take one image per variant (two for SVs), check each image rendered, caption it, close IGV.
 7. **Report** (flexible): write the outputs. When presenting results, the agent may add its own reading of the screenshots, labelled as a reviewer judgement and kept separate from the automatic status.
 
@@ -220,36 +220,7 @@ python skills/igv-validator/igv_validator.py --demo --output /tmp/igv_demo
 python clawbio.py run igv-validator --demo
 ```
 
-| Option | What it does |
-|---|---|
-| `--vcf` (`--input`) | VCF/VCF.gz of SNV, indel or SV calls (any caller) |
-| `--tumor` | tumor BAM/CRAM, indexed (required except for `--summarize`) |
-| `--normal` | matched normal BAM/CRAM; leave out for tumor-only |
-| `--tumor-only` | ignore any normal (e.g. with `--demo`) |
-| `--reference` | FASTA the BAMs were aligned to (screenshots, indel rescue, CRAM) |
-| `--genes` | gene symbols. With `--samplesheet`: the genes to check, found in `--annotation` (default: the curated calls' genes). In a single check: selects VCF records by their gene names (VEP, SnpEff, ANNOVAR, GENE) |
-| `--regions` | BED of genes (chrom, start, end, name): selects variants/SVs, sets copy-number genes, overview and interactive windows |
-| `--variants` | TSV of chrom, pos, [ref, alt] to check exactly (e.g. a filtered table) |
-| `--pass-only` | only FILTER=PASS calls |
-| `--max-variants` | cap per run (default 50) |
-| `--caller-sample` | VCF column whose caller counts to compare (default: the tumor's sample name) |
-| `--tumor-name`, `--normal-name` | labels in reports and images (use your sample names) |
-| `--cnv`, `--cnv-sample` | copy-number mode: segment file, and the sample in a multi-sample file |
-| `--samplesheet` | one command for a whole run: every check for every sample, into a new dated folder with its summary |
-| `--skip-unknown-genes` | with `--samplesheet`: run without gene names the annotation does not know (default: stop with suggestions) |
-| `--reports-dir` | with `--samplesheet`: where runs are kept (default `igv_reports/`) |
-| `--summarize` | build the summary page over every run in a folder (full: with images, interactive pages, zip) |
-| `--index` | write `<folder>/index.html` listing every batch folder with a summary; it then keeps itself updated |
-| `--project` | project folder of all runs: its `summary.html` is refreshed after this check (automatic for later checks once the folder has a summary) |
-| `--curated-calls` (`--heatmap`) | curated table to compare with IGV (sample, gene, alteration) |
-| `--overview` | with `--summarize` and `--regions`: one IGV image per gene and sample |
-| `--interactive` | with `--summarize` and `--regions`: zoomable pages per sample and gene (needs igv-reports; contain read data) |
-| `--annotation` | GTF/GFF3/BED of genes (e.g. GENCODE) drawn as a genes track in every image |
-| `--no-bundle` | with `--summarize`: skip `igv_validation_full.zip` (made by default: the whole report, linked from the page) |
-| `--no-igv` | counts and reports only |
-| `--igv-path`, `--igv-timeout` | IGV to use (found automatically) and how long to wait for it (default 300 s) |
-| `--output` | output folder |
-| `--demo`, `--demo-cnv` | run on the bundled synthetic data |
+Every option, with what it does: [`references/cli-options.md`](references/cli-options.md).
 
 ## Demo
 
@@ -264,14 +235,7 @@ command runs the whole-project workflow on synthetic data and shows a planted wr
 
 ## Algorithm / Methodology
 
-1. **SNV**: pysam pileup at the position; a read supports the call when its base equals ALT. Overlapping mates are counted once (pileup overlap handling).
-2. **Indel**: a molecule supports the call when its CIGAR has an indel of the same length starting within ±5 bp and with the same bases as the call. One placed elsewhere in the window counts only if it is the same event: with `--reference`, if it yields the same sequence (true inside a tandem repeat); without it, see Gotchas. A molecule soft-clipped (>= 5 bp) exactly at the indel edge also supports it when the clipped bases match the ALT haplotype better than the reference (needs `--reference`).
-3. **SV breakpoint**: split reads (`SA` tag within 500 bp of the partner breakpoint) plus discordant pairs (mate within 1 kb of the partner), looked up from **both** breakpoints and merged by read name, so each molecule counts once. Depth is in the same unit: DNA fragments with a read across the breakpoint or spanning it, plus the supporting ones, so support never exceeds depth. Mate BND records collapse to one event; either position selects it.
-4. **Flags** on the tumor/normal pair: `normal_support` (any supporting read in normal), `low_support` (< 3 reads), `low_vaf` (< 5%), `strand_bias` (>= 4 reads, all one strand; chance 1 in 2^(n-1)), `read_end` (> 50% of alt bases within 10 bp of a read end), `low_depth` (< 10 reads in tumor or normal), `germline_site` (SNV where >= 20% of normal reads carry a third allele), `high_depth` (depth > 2.5x the run median, with >= 3 variants: repeat or mismapping), `caller_disagrees` (caller-reported VAF differs from the BAM by > 10 points, or the caller reports >= 3 alt reads where the BAM has none). In tumor-only mode `normal_support`, `germline_site` and the swap check are skipped.
-   - The caller's column is the VCF sample named like the tumor BAM's `SM`, the only sample, the one sample with "tumor" in its name, or `--caller-sample`; otherwise the comparison is skipped and the report says why.
-5. **Status**: `supported` (>= 3 reads, no flags), `flagged` (supporting reads with at least one flag), `insufficient` (< 3 reads), `no_coverage` (no reads in either BAM). Records the skill cannot evaluate are listed separately with the reason.
-6. **Copy number** (`--cnv`): read starts per bin (MAPQ >= 20, and all MAPQ) in each gene. **Depth log2** = log2(gene depth / sample-wide depth), the sample-wide depth being the median over 300 random 10 kb windows on all autosomes (so a gain or loss of the gene's own chromosome cannot shift the scale); `cnv_disagrees` when it does not reproduce the segment log2 (off by > 0.5, or deep, below -2, on one side only). The **local ratio** compares the gene with flanks 3x its length (10 kb-1 Mb) placed outside any focal (<= 3 Mb) gain/loss and its adjacent same-call segments, to show focal changes; it is not computed ("flanks too low") when the flanks average under 5x, e.g. next to a telomere or an assembly gap. A gene shorter than 1 kb is measured as one bin of its own length; its depth rests on few reads, so when it suggests a change the review notes ask you to judge it on the depth plot or in IGV. `no_segment` when the gene sits between segments; `ambiguous_mapping` (status flagged for a called gain/loss) when most reads in the gene have MAPQ < 20 with alternative hits (XA) or MAPQ 0, and the all-reads depth log2 (as IGV shows) is reported next to the MAPQ >= 20 one; `low_mapq_remaining` when the reads left in a deep loss are mostly MAPQ < 20 without alternative hits.
-7. **Run-level checks**: stop if the reference's contigs or lengths differ from the BAM; warn when the normal carries most of the support (samples probably swapped); warn when variants have no reads (region not in the BAMs).
+SNVs are counted from the pileup, indels from CIGAR matches within ±5 bp plus soft-clip rescue, SV breakpoints from split reads and discordant pairs looked up from both ends; each molecule counts once. Flags (`normal_support`, `low_support`, `low_vaf`, `strand_bias`, `read_end`, `low_depth`, `germline_site`, `high_depth`, `caller_disagrees`) set the status: `supported`, `flagged`, `insufficient` or `no_coverage`. Copy-number mode compares gene depth with the sample-wide depth and with the gene's flanks. The exact rules for every step, flag, status and copy-number check are in [`references/methodology.md`](references/methodology.md); read it before explaining a flag or status to a user.
 
 **Key thresholds / parameters**:
 - MAPQ >= 20 and base quality >= 20: common somatic-caller defaults (GATK Mutect2 uses MQ 20 / BQ 10-20)
