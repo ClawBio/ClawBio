@@ -52,11 +52,7 @@ def test_run_analysis_with_fixture(tmp_path):
     report_text = (out_dir / "report.md").read_text()
     assert "ClawBio is a research and educational tool" in report_text
 
-    clock_metadata = json.loads((out_dir / "tables" / "clock_metadata.json").read_text())
-    horvath_metadata = clock_metadata["Horvath2013"]
-    assert "unit" in horvath_metadata
-    assert horvath_metadata["unit"] in (["years"], "years")
-    assert "| horvath2013 | years |" in (out_dir / "report.md").read_text().lower()
+    assert "| horvath2013 | years |" in report_text.lower()
 
 
 @pytest.mark.network

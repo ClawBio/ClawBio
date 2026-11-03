@@ -87,6 +87,7 @@ python skills/methylation-clock/methylation_clock.py \
 # GEO input
 python skills/methylation-clock/methylation_clock.py \
   --geo-id GSE139307 \
+  --clocks Horvath2013 \
   --output /tmp/methylation_clock_geo
 
 # Local methylation file
