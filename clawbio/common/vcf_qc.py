@@ -250,14 +250,17 @@ class VcfQC:
     # ------------------------------------------------------------------
 
     def _compute_stats(self, vcf: Path) -> dict:
-        """Run bcftools stats and parse the summary numbers table."""
-        cmd = [self._bcftools, "stats", str(vcf)]
+        """Run bcftools stats and parse the summary and per-sample tables."""
+        # ``-s -`` adds the PSC (per-sample counts) section, the only place
+        # bcftools reports het and hom-alt counts.
+        cmd = [self._bcftools, "stats", "-s", "-", str(vcf)]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return self._parse_bcftools_stats(result.stdout)
 
     def _parse_bcftools_stats(self, stats_output: str) -> dict:
-        """Extract key metrics from bcftools stats SN (summary numbers) section."""
+        """Extract key metrics from bcftools stats SN, TSTV and PSC sections."""
         metrics: dict = {}
+        seen_sample = False
         for line in stats_output.splitlines():
             if line.startswith("SN"):
                 # bcftools stats SN format: SN \t 0 \t key: \t value
@@ -278,6 +281,20 @@ class VcfQC:
                         metrics["titv_ratio"] = float(parts[4])
                     except (ValueError, IndexError):
                         pass
+
+            # Het / hom-alt SNP counts are in the PSC section. Read the first
+            # sample only, as the Python fallback does.
+            if line.startswith("PSC") and not seen_sample:
+                parts = line.split("\t")
+                if len(parts) >= 6:
+                    try:
+                        hom_alt = float(parts[4])
+                        het = float(parts[5])
+                    except ValueError:
+                        continue
+                    metrics["number of homozygous SNPs:"] = hom_alt
+                    metrics["number of heterozygous SNPs:"] = het
+                    seen_sample = True
 
         return metrics
 
