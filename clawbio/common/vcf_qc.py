@@ -250,8 +250,9 @@ class VcfQC:
     # ------------------------------------------------------------------
 
     def _compute_stats(self, vcf: Path) -> dict:
-        """Run bcftools stats and parse the summary numbers table."""
-        cmd = [self._bcftools, "stats", str(vcf)]
+        """Run bcftools stats and parse the summary and per-sample tables."""
+        # -s - adds the PSC per-sample lines, the only place het/hom counts appear
+        cmd = [self._bcftools, "stats", "-s", "-", str(vcf)]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return self._parse_bcftools_stats(result.stdout)
 
@@ -278,6 +279,17 @@ class VcfQC:
                         metrics["titv_ratio"] = float(parts[4])
                     except (ValueError, IndexError):
                         pass
+
+            # Per-sample counts: PSC \t id \t sample \t nRefHom \t nNonRefHom \t nHets ...
+            if line.startswith("PSC"):
+                parts = line.split("\t")
+                if len(parts) >= 6:
+                    try:
+                        hom, het = float(parts[4]), float(parts[5])
+                    except ValueError:
+                        continue
+                    for key, val in (("number of homozygous SNPs:", hom), ("number of heterozygous SNPs:", het)):
+                        metrics[key] = metrics.get(key, 0.0) + val
 
         return metrics
 

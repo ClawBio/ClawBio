@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
+from hypothesis import given, strategies as st
 import sys
 
 from clawbio.common.vcf_qc import VcfQC, QcConfig, QcResult
@@ -28,15 +29,22 @@ MINIMAL_VCF = textwrap.dedent("""\
     1\t500\trs5\tA\tAT\t40\tPASS\t.\tGT:DP\t0/1:15
 """)
 
+# Real `bcftools stats -s -` output (bcftools 1.24) for MINIMAL_VCF with rs4
+# changed to T>G. bcftools writes per-sample het/hom counts only on PSC lines.
 BCFTOOLS_STATS_OUTPUT = textwrap.dedent("""\
-    # This file was produced by bcftools stats
+    # This file was produced by bcftools stats (1.24 (pysam)+htslib-1.24) and can be plotted using plot-vcfstats.
     SN\t0\tnumber of samples:\t1
     SN\t0\tnumber of records:\t5
+    SN\t0\tnumber of no-ALTs:\t0
     SN\t0\tnumber of SNPs:\t4
+    SN\t0\tnumber of MNPs:\t0
     SN\t0\tnumber of indels:\t1
-    SN\t0\tnumber of heterozygous SNPs:\t3
-    SN\t0\tnumber of homozygous SNPs:\t1
-    TSTV\t0\t3\t1\t2\t2.000\t0\t0
+    SN\t0\tnumber of others:\t0
+    SN\t0\tnumber of multiallelic sites:\t0
+    SN\t0\tnumber of multiallelic SNP sites:\t0
+    TSTV\t0\t3\t1\t3.00\t3\t1\t3.00
+    # PSC\t[2]id\t[3]sample\t[4]nRefHom\t[5]nNonRefHom\t[6]nHets\t[7]nTransitions\t[8]nTransversions\t[9]nIndels\t[10]average depth\t[11]nSingletons\t[12]nHapRef\t[13]nHapAlt\t[14]nMissing
+    PSC\t0\tSAMPLE\t0\t1\t3\t3\t1\t1\t25.0\t5\t0\t0\t0
 """)
 
 
@@ -118,13 +126,32 @@ class TestParseBcftoolsStats:
     def test_parses_titv_ratio(self):
         qc = VcfQC.__new__(VcfQC)
         stats = qc._parse_bcftools_stats(BCFTOOLS_STATS_OUTPUT)
-        assert stats["titv_ratio"] == pytest.approx(2.000)
+        assert stats["titv_ratio"] == pytest.approx(3.0)
 
     def test_parses_het_hom(self):
         qc = VcfQC.__new__(VcfQC)
         stats = qc._parse_bcftools_stats(BCFTOOLS_STATS_OUTPUT)
         assert stats["number of heterozygous SNPs:"] == 3.0
         assert stats["number of homozygous SNPs:"] == 1.0
+
+    def test_compute_stats_requests_per_sample_counts(self, tmp_path):
+        qc = VcfQC.__new__(VcfQC)
+        qc._bcftools = "bcftools"
+        with patch("clawbio.common.vcf_qc.subprocess.run") as run:
+            run.return_value = MagicMock(stdout=BCFTOOLS_STATS_OUTPUT)
+            stats = qc._compute_stats(tmp_path / "x.vcf.gz")
+        assert run.call_args.args[0][:4] == ["bcftools", "stats", "-s", "-"]
+        assert stats["number of heterozygous SNPs:"] == 3.0
+
+    @given(st.lists(st.tuples(st.integers(0, 10**6), st.integers(0, 10**6)), min_size=1, max_size=4))
+    def test_psc_counts_sum_over_samples(self, samples):
+        psc = "".join(
+            f"PSC\t0\tS{i}\t0\t{hom}\t{het}\t0\t0\t0\t30.0\t0\t0\t0\t0\n"
+            for i, (hom, het) in enumerate(samples)
+        )
+        stats = VcfQC.__new__(VcfQC)._parse_bcftools_stats(psc)
+        assert stats["number of homozygous SNPs:"] == sum(hom for hom, _ in samples)
+        assert stats["number of heterozygous SNPs:"] == sum(het for _, het in samples)
 
 
 # ---------------------------------------------------------------------------
