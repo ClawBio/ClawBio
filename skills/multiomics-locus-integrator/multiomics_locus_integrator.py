@@ -34,6 +34,17 @@ HIGH_MIN_DISTINCT_LAYERS = 2
 TSS_UPSTREAM_BP = 1000
 TSS_DOWNSTREAM_BP = 250
 
+# Named out of the report-building list (CodeQL: implicit string
+# concatenation inside a list literal looks like a missing comma, even
+# though this one is intentional -- one long sentence split across source
+# lines for readability). Naming it here removes the ambiguous pattern
+# entirely rather than just suppressing the warning.
+_RESEARCH_TOOL_NOTE = (
+    "ClawBio is a research tool. Locus tiers are a starting point for manual review, "
+    "not a substitute for experimental validation (e.g. CRISPRi/luciferase for enhancer "
+    "activity, 4C/Capture-C for contact confirmation)."
+)
+
 Interval = tuple[str, int, int, str]
 LoopAnchor = tuple[str, int, int, str, int, int, str]
 
@@ -441,9 +452,7 @@ def write_outputs(
         "",
         result["note"],
         "",
-        "ClawBio is a research tool. Locus tiers are a starting point for manual review, "
-        "not a substitute for experimental validation (e.g. CRISPRi/luciferase for enhancer "
-        "activity, 4C/Capture-C for contact confirmation).",
+        _RESEARCH_TOOL_NOTE,
         "",
     ])
     (output_dir / "report.md").write_text("\n".join(rows), encoding="utf-8")
