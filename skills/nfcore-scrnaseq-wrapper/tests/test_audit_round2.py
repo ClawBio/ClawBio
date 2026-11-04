@@ -421,7 +421,7 @@ def test_runner_value_less_flags_are_marked_without_values():
 
 
 def test_runner_allowlist_includes_config_short_flag():
-    """README documents `-c/--config`; the runner must forward the short form too,
+    """SKILL.md documents `-c/--config`; the runner must forward the short form too,
     or an HPC user's `-c site.config` is silently dropped before reaching Nextflow."""
     clawbio = _load_clawbio()
     entry = clawbio.SKILLS["scrnaseq-pipeline"]
@@ -674,7 +674,7 @@ def _read_yaml_frontmatter():
 
 
 def test_unsupported_param_lists_in_docs_match_code():
-    """SKILL.md and README 'Intentionally unsupported' lists must equal the code's
+    """SKILL.md's 'Intentionally unsupported' list must equal the code's
     INTENTIONALLY_UNSUPPORTED_PARAMS, and supported∪unsupported must partition the
     official params with no overlap."""
     from nfcore_4_1_0_contract import (
@@ -684,7 +684,7 @@ def test_unsupported_param_lists_in_docs_match_code():
     )
 
     code = set(INTENTIONALLY_UNSUPPORTED_PARAMS)
-    for doc in ("SKILL.md", "README.md"):
+    for doc in ("SKILL.md",):
         text = (_SKILL_DIR / doc).read_text(encoding="utf-8")
         m = re.search(
             r"Intentionally unsupported upstream parameters:\*\*\s*(.+)", text
