@@ -155,13 +155,19 @@ def test_blank_sample_ids_are_rejected(tmp_path, sample_id):
 @given(st.floats(min_value=1.001, max_value=10, allow_nan=False, allow_infinity=False))
 def test_beta_values_above_one_are_rejected(value):
     frame = pd.DataFrame({"cg00000029": [0.2, value]}, index=["s1", "s2"])
-    with pytest.raises(ValueError, match="outside.*0.*1"):
+    with pytest.raises(ValueError, match=r"beta values in \[0, 1\]"):
         clock._validate_methylation_frame(frame, [])
 
 
 def test_percent_scale_is_rejected_with_conversion_guidance():
     frame = pd.DataFrame({"cg00000029": [25.0, 75.0]})
     with pytest.raises(ValueError, match="divide by 100"):
+        clock._validate_methylation_frame(frame, [])
+
+
+def test_m_values_are_rejected_with_beta_conversion_guidance():
+    frame = pd.DataFrame({"cg00000029": [-1.0, 0.5]})
+    with pytest.raises(ValueError, match="M-values.*convert them to beta values"):
         clock._validate_methylation_frame(frame, [])
 
 

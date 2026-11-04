@@ -138,8 +138,9 @@ def _validate_methylation_frame(df: pd.DataFrame, metadata_cols: list[str]) -> d
     values = df.loc[:, probe_cols].to_numpy(dtype=float, copy=False)
     if np.isinf(values).any() or ((values < 0) | (values > 1)).any():
         raise ValueError(
-            "Methylation beta values outside [0, 1] or infinite; "
-            "if your file contains percentages on [0, 100], divide by 100 before input"
+            "Input must contain methylation beta values in [0, 1] (missing values are allowed). "
+            "If values are percentages on [0, 100], divide by 100. M-values are not beta values; "
+            "convert them to beta values before input."
         )
     observed = values[~np.isnan(values)]
     if observed.size == 0:
