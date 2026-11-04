@@ -42,9 +42,19 @@ def make_cases(dn):
         aln = dn.parse_fasta(path)
     outgroup_index = aln.names.index("outgroup")
     ingroup = [seq for i, seq in enumerate(aln.seqs) if i != outgroup_index]
+    ingroup_aln = dn.Alignment(
+        names=[name for i, name in enumerate(aln.names) if i != outgroup_index],
+        seqs=ingroup,
+    )
     return {
         "demo_analysis": partial(
             dn.run_analysis, aln, analyses=dn.VALID_ANALYSES - {"divergence"}
+        ),
+        "demo_analysis_outgroup": partial(
+            dn.run_analysis,
+            ingroup_aln,
+            analyses=dn.VALID_ANALYSES - {"divergence"},
+            outgroup=aln.seqs[outgroup_index],
         ),
         "demo_kaks_all_pairs": partial(dn.compute_ka_ks, aln.seqs),
         "demo_kaks_outgroup": partial(
@@ -77,7 +87,7 @@ def main():
             ):
                 return run()
 
-        timer = timeit.Timer(quiet_run if name == "demo_analysis" else run)
+        timer = timeit.Timer(quiet_run if name.startswith("demo_analysis") else run)
         number, _ = timer.autorange()
         samples = timer.repeat(repeat=args.repeat, number=number)
         results[name] = {
