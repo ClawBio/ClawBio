@@ -533,6 +533,17 @@ def build_catalog() -> list[dict]:
     return entries
 
 
+def replace_directory_entries(page: str, entries: str) -> str:
+    page, count = re.subn(
+        r'<div id="results">.*?</div><!-- skills:end -->',
+        lambda _: '<div id="results">' + entries + '</div><!-- skills:end -->',
+        page, flags=re.DOTALL,
+    )
+    if count != 1:
+        raise ValueError("Expected exactly one skills directory marker")
+    return page
+
+
 def main() -> None:
     catalog = build_catalog()
 
@@ -558,6 +569,51 @@ def main() -> None:
         json.dumps(catalog_obj, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+
+    # Website metadata is strictly frontmatter-derived, without routing fallbacks.
+    directory = []
+    for entry in catalog:
+        raw = parse_yaml_frontmatter((SKILLS_DIR / entry["name"] / "SKILL.md").read_text(encoding="utf-8"))
+        metadata = raw.get("metadata") or {}
+        openclaw = metadata.get("openclaw") or {}
+        directory.append({
+            "name": raw.get("name") or entry["name"],
+            "slug": entry["name"],
+            "license": raw.get("license") or metadata.get("license") or "",
+            "description": raw.get("description") or "",
+            "version": raw.get("version") or metadata.get("version") or "",
+            "trigger_keywords": raw.get("trigger_keywords") or openclaw.get("trigger_keywords") or [],
+            "tags": raw.get("tags") or metadata.get("tags") or [],
+        })
+    (SKILLS_DIR / "directory.json").write_text(
+        json.dumps({"skills": directory}, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    # Keep the directory readable without JavaScript, using the same metadata.
+    from html import escape
+    page_path = CLAWBIO_DIR / "skills.html"
+    if page_path.exists():
+        rows = []
+        for skill in sorted(directory, key=lambda item: item["name"]):
+            name = escape(str(skill["name"]))
+            version = "v" + str(skill["version"]) if skill["version"] else "Version not specified"
+            keywords = dict.fromkeys(skill["tags"])
+            badges = "".join('<span class="keyword">' + escape(str(k)) + '</span>' for k in keywords)
+            rows.append(
+                '<article id="' + escape(skill["slug"], quote=True) + '" data-search-keywords="' + escape(' '.join(skill["trigger_keywords"]), quote=True) + '"><div class="skill-info">'
+                + '<h2 class="name">' + name + '</h2><span class="badge">' + escape(version) + '</span>'
+                + ('<span class="license">Licence: ' + escape(str(skill["license"])) + '</span>' if skill["license"] else '<span class="license">Licence not specified</span>')
+                + '<span class="description">' + escape(str(skill["description"])) + '</span>'
+                + ('<span class="keywords">' + badges + '</span>' if badges else '') + '</div>'
+                + '<div class="detail"><a aria-label="Documentation for ' + name + '" href="https://github.com/ClawBio/ClawBio/blob/main/skills/'
+                + escape(skill["slug"], quote=True) + '/SKILL.md">Documentation ↗</a></div></article>'
+            )
+        page = page_path.read_text(encoding="utf-8")
+        page = replace_directory_entries(page, "\n".join(rows))
+        page = re.sub(r'(<p id="count"[^>]*>).*?(</p>)',
+                      lambda m: m[1] + str(len(directory)) + ' of ' + str(len(directory)) + ' skills' + m[2], page)
+        page_path.write_text(page, encoding="utf-8")
 
     mvp = sum(1 for s in catalog if s["status"] == "mvp")
     planned = sum(1 for s in catalog if s["status"] == "planned")
