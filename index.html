@@ -121,7 +121,7 @@
   </nav>
   <a href="https://luma.com/clawbio" target="_blank" rel="noopener noreferrer" aria-label="Follow the ClawBio events calendar on Luma" style="display:block;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;text-align:center;padding:0.8rem 1rem;font-size:0.98rem;font-weight:700;text-decoration:none;">📅 Join the ClawBio community: follow the official calendar for hackathons, workshops, meetups and new events &rarr;</a>
   <section class="hero">
-    <div class="hero-badge">📊 Publicly benchmarked · 1,171 stars · 108 skills · 75 contributors · 6,234 tests</div>
+    <div class="hero-badge">📊 Publicly benchmarked · 1,172 stars · 108 skills · 77 contributors · 6,234 tests</div>
     <h1>The first <em>bioinformatics-native</em><br>AI agent skill library</h1>
     <p>ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call.</p>
     <div style="max-width:440px;margin:0 auto 2rem;">
@@ -344,7 +344,7 @@ clawbio run pharmgx --demo</pre>
             </tr>
           </thead>
           <tbody>
-            <tr style="border-bottom:1px solid var(--border);background:rgba(63,185,80,0.05);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">ClawBio</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,171</td><td style="padding:0.6rem 1rem;text-align:right;">291</td><td style="padding:0.6rem 1rem;text-align:right;">108</td></tr>
+            <tr style="border-bottom:1px solid var(--border);background:rgba(63,185,80,0.05);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">ClawBio</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,172</td><td style="padding:0.6rem 1rem;text-align:right;">292</td><td style="padding:0.6rem 1rem;text-align:right;">108</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/FreedomIntelligence/OpenClaw-Medical-Skills" target="_blank" style="color:var(--accent2);">OpenClaw-Medical-Skills</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,037</td><td style="padding:0.6rem 1rem;text-align:right;">123</td><td style="padding:0.6rem 1rem;text-align:right;">869</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/GPTomics/bioSkills" target="_blank" style="color:var(--accent2);">bioSkills</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">331</td><td style="padding:0.6rem 1rem;text-align:right;">52</td><td style="padding:0.6rem 1rem;text-align:right;">425</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/wu-yc/LabClaw" target="_blank" style="color:var(--accent2);">LabClaw</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">317</td><td style="padding:0.6rem 1rem;text-align:right;">54</td><td style="padding:0.6rem 1rem;text-align:right;">211</td></tr>
@@ -361,6 +361,13 @@ clawbio run pharmgx --demo</pre>
       <div class="section-label">Recent Updates</div>
       <div class="section-title">Latest from the community</div>
       <div style="display:grid;gap:0.75rem;max-width:700px;">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🧫</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(nfcore-scrnaseq-wrapper): fold README.md into SKILL.md and remove it.</strong> The README had drifted from SKILL.md, which agents actually load; its one unique detail, that <code style="font-size:0.85rem;">--check</code> reports the nf-core parameter surface, now lives in the Key flags table's <code style="font-size:0.85rem;">--check</code> row, naming <code style="font-size:0.85rem;">parameter_support</code> in <code style="font-size:0.85rem;">check_result.json</code>. The README is deleted, closing out <code style="font-size:0.85rem;">LEGACY_READMES</code> in <code style="font-size:0.85rem;">tests/test_no_skill_readmes.py</code>. Contributed by @ShryukGrandhi.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #742 · merged · 4 November 2026</div>
+          </div>
+        </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">📖</span>
           <div>
@@ -424,13 +431,6 @@ clawbio run pharmgx --demo</pre>
             <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #677 · merged · 30 October 2026</div>
           </div>
         </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">💊</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>drug-repurposing-screen: check the committed demo's values, not just its file names.</strong> A new test regenerates the demo bundle and compares every table's values against the committed copy, not just file names, so a generator change that silently shifted the numbers is now caught. Contributed by @danilomonge.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #718 · merged · 30 October 2026</div>
-          </div>
-        </div>
       </div>
       <p style="margin-top:1.25rem;"><a href="https://github.com/ClawBio/ClawBio/pulls?q=is%3Apr+is%3Amerged" target="_blank" style="color:var(--accent2);font-size:0.9rem;">View all merged pull requests on GitHub &rarr;</a></p>
     </div>
@@ -438,7 +438,7 @@ clawbio run pharmgx --demo</pre>
   <section id="contributors" style="background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
     <div class="section-inner" style="text-align:center;">
       <div class="section-title">Built in the open by a global community</div>
-      <p style="color:var(--text-muted);max-width:660px;margin:0 auto 2.5rem;">More than 75 contributors from labs around the world have shipped skills, fixes, and benchmarks into ClawBio. Every skill is a piece of someone's domain expertise, frozen into reproducible code that any agent can call.</p>
+      <p style="color:var(--text-muted);max-width:660px;margin:0 auto 2.5rem;">More than 77 contributors from labs around the world have shipped skills, fixes, and benchmarks into ClawBio. Every skill is a piece of someone's domain expertise, frozen into reproducible code that any agent can call.</p>
       <div style="display:flex;flex-wrap:wrap;gap:1.4rem;justify-content:center;max-width:900px;margin:0 auto;">
         <a href="https://github.com/camlloyd" target="_blank" title="Cameron Lloyd" style="text-decoration:none;display:flex;flex-direction:column;align-items:center;width:84px;">
           <img src="https://github.com/camlloyd.png?size=128" alt="Cameron Lloyd" width="64" height="64" loading="lazy" style="border-radius:50%;border:1px solid var(--border);background:var(--bg2);">
