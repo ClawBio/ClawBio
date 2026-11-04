@@ -363,6 +363,14 @@ SKILLS = {
         "allowed_extra_flags": set(),
         "accepts_genotypes": False,
     },
+    "seqtk-downsample": {
+        "script": SKILLS_DIR / "seqtk-downsample" / "seqtk_downsample.py",
+        "demo_args": ["--demo"],
+        "description": "Randomly downsample FASTQ files to N reads or a fraction with seqtk sample (single or paired-end, fixed seed)",
+        "extra_path_flags": {"--input2"},
+        "allowed_extra_flags": {"--input2", "--n-reads", "--fraction", "--seed"},
+        "accepts_genotypes": False,
+    },
     "phylo": {
         "script": SKILLS_DIR / "phylogenetics-builder" / "phylogenetics_builder.py",
         "demo_args": ["--demo"],
