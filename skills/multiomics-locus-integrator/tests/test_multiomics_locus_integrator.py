@@ -34,7 +34,7 @@ def test_demo_covers_every_tier(tmp_path: Path) -> None:
 def test_not_assayed_is_distinct_from_unsupported() -> None:
     loci = [("chr1", 100, 101, "L1")]
     accessibility = [("chr1", 1000, 1100, "peak1")]  # far from the locus, defines a narrow span
-    genes = [("chr1", 50, 200, "GENE_X")]
+    genes = [("chr1", 50, 200, "GENE_X", 50)]
     result = mli.analyze(loci, accessibility, [], [], genes)
     row = result["loci"][0]
     assert row["tier"] == "not_assayed"
@@ -47,7 +47,7 @@ def test_true_absence_is_unsupported_not_not_assayed() -> None:
     # Two peaks on either side of the locus: their combined span covers the
     # locus (so it is "assayed"), but neither overlaps it directly.
     accessibility = [("chr1", 0, 50, "peak1"), ("chr1", 200, 300, "peak2")]
-    genes = [("chr1", 0, 50, "GENE_X")]
+    genes = [("chr1", 0, 50, "GENE_X", 0)]
     result = mli.analyze(loci, accessibility, [], [], genes)
     row = result["loci"][0]
     assert row["tier"] == "unsupported"
@@ -57,7 +57,7 @@ def test_true_absence_is_unsupported_not_not_assayed() -> None:
 
 def test_contact_gene_disagreement_is_flagged_not_resolved() -> None:
     loci = [("chr1", 100, 110, "L1")]
-    genes = [("chr1", 0, 50, "GENE_NEAR"), ("chr1", 1000, 1050, "GENE_FAR")]
+    genes = [("chr1", 0, 50, "GENE_NEAR", 0), ("chr1", 1000, 1050, "GENE_FAR", 1000)]
     loops = [("chr1", 90, 120, "chr1", 1010, 1040, "LOOP_1")]
     result = mli.analyze(loci, [], [], loops, genes)
     row = result["loci"][0]
@@ -87,7 +87,7 @@ def test_gene_targets_tss_window_plus_strand(tmp_path: Path) -> None:
     bed = tmp_path / "genes.bed"
     bed.write_text("chr1\t5000\t8000\tGENE_PLUS\t+\n")
     genes = mli.parse_gene_targets(bed)
-    assert genes == [("chr1", 4000, 5250, "GENE_PLUS")]
+    assert genes == [("chr1", 4000, 5250, "GENE_PLUS", 5000)]  # tss=5000 (BED start, + strand)
 
 
 def test_gene_targets_tss_window_minus_strand(tmp_path: Path) -> None:
@@ -96,7 +96,7 @@ def test_gene_targets_tss_window_minus_strand(tmp_path: Path) -> None:
     bed = tmp_path / "genes.bed"
     bed.write_text("chr1\t5000\t8000\tGENE_MINUS\t-\n")
     genes = mli.parse_gene_targets(bed)
-    assert genes == [("chr1", 7749, 8999, "GENE_MINUS")]
+    assert genes == [("chr1", 7749, 8999, "GENE_MINUS", 7999)]  # tss=7999 (BED end-1, - strand)
 
 
 def test_gene_targets_requires_strand(tmp_path: Path) -> None:
@@ -122,7 +122,7 @@ def test_gene_targets_window_never_goes_negative(tmp_path: Path) -> None:
 
 def test_high_tier_requires_two_distinct_supported_layers() -> None:
     loci = [("chr1", 100, 110, "L1")]
-    genes = [("chr1", 0, 50, "GENE_X")]
+    genes = [("chr1", 0, 50, "GENE_X", 0)]
     loops = [("chr1", 90, 120, "chr1", 10, 40, "LOOP_1")]
     result = mli.analyze(loci, [], [], loops, genes)
     row = result["loci"][0]
@@ -138,7 +138,7 @@ def test_all_contacted_genes_reported_not_just_the_first() -> None:
     # nearest_vs_contact_disagreement could read False even when a loop
     # genuinely contacts a different gene than the nearest one.
     loci = [('chr1', 100, 110, 'L1')]
-    genes = [('chr1', 50, 100, 'GENE_NEAR'), ('chr1', 2000, 2050, 'GENE_FAR')]
+    genes = [('chr1', 50, 100, 'GENE_NEAR', 50), ('chr1', 2000, 2050, 'GENE_FAR', 2000)]
     loops = [
         ('chr1', 90, 120, 'chr1', 50, 100, 'LOOP_TO_NEAR'),
         ('chr1', 90, 120, 'chr1', 2000, 2050, 'LOOP_TO_FAR'),
@@ -177,16 +177,16 @@ def test_parse_gene_targets_space_delimited_gets_a_specific_error(tmp_path: Path
         mli.parse_gene_targets(bed)
 
 
-def test_evidence_table_has_a_distance_column_note(tmp_path: Path) -> None:
-    # PR #678 review round 4 (optional): a reader of the raw TSV alone
-    # (without SKILL.md open) should learn that the distance column is
-    # measured to the TSS window edge, not the TSS point.
+def test_evidence_table_has_no_leading_comment_line(tmp_path: Path) -> None:
+    # PR #678 review round 6: the round-4 comment line is gone now that
+    # the distance column is genuine TSS-point distance (no caveat left
+    # to document), and a plain csv.reader -- unlike pandas
+    # read_csv(comment="#") -- does not skip "#" lines, a real risk for
+    # a chaining partner reading this table.
     output_dir = tmp_path / "out"
     mli.main(["--demo", "--output", str(output_dir)])
     lines = (output_dir / "tables" / "evidence_table.tsv").read_text().splitlines()
-    assert lines[0].startswith("#")
-    assert "target_gene_nearest_distance_bp" in lines[0]
-    assert lines[1].split("\t")[0] == "locus_id"  # real header follows the comment
+    assert lines[0].split("\t")[0] == "locus_id"  # header is the real first line
 
 
 def test_parse_bedpe_space_delimited_gets_a_specific_error(tmp_path: Path) -> None:
@@ -199,3 +199,23 @@ def test_parse_bedpe_space_delimited_gets_a_specific_error(tmp_path: Path) -> No
     bedpe.write_text("chr1 90 120 chr1 50 100 LOOP_1\n")
     with pytest.raises(ValueError, match="space-separated"):
         mli.parse_bedpe(bedpe)
+
+
+def test_nearest_gene_ranks_by_true_tss_not_window_edge(tmp_path: Path) -> None:
+    # PR #678 review round 6: the window-edge method could rank the WRONG
+    # gene as nearest. GENE_A's window edge is closer to this locus than
+    # GENE_B's, but GENE_B's true TSS is genuinely closer than GENE_A's.
+    #   GENE_A: + strand, TSS=2000, window=[1000, 2250) -> edge dist to 900 is 100
+    #   GENE_B: + strand, TSS=500,  window=[0, 750)     -> edge dist to 900 is 150
+    #   -> old window-edge ranking would have picked GENE_A (100 < 150), wrong.
+    #   -> true TSS distance: GENE_A |900-2000|=1100, GENE_B |900-500|=400
+    #   -> correct ranking picks GENE_B.
+    bed = tmp_path / "genes.bed"
+    bed.write_text(
+        "chr1\t2000\t3000\tGENE_A\t+\n"
+        "chr1\t500\t1000\tGENE_B\t+\n"
+    )
+    genes = mli.parse_gene_targets(bed)
+    name, dist = mli.nearest_gene("chr1", 900, 901, genes)
+    assert name == "GENE_B"
+    assert dist == 400

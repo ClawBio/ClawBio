@@ -46,6 +46,12 @@ _RESEARCH_TOOL_NOTE = (
 )
 
 Interval = tuple[str, int, int, str]
+# Genes carry their strand-aware TSS point alongside the regulatory
+# window, so ranking/distance can use the real TSS directly instead of
+# window-edge distance (PR #678 review round 6 -- round 2's deferral,
+# now done: the window alone could occasionally rank the wrong gene as
+# nearest, not just misreport the distance number).
+GeneWindow = tuple[str, int, int, str, int]
 LoopAnchor = tuple[str, int, int, str, int, int, str]
 
 
@@ -79,18 +85,18 @@ def parse_bed(path: Path) -> list[Interval]:
     return intervals
 
 
-def parse_gene_targets(path: Path) -> list[Interval]:
+def parse_gene_targets(path: Path) -> list[GeneWindow]:
     """Parse gene-targets BED (chrom, start, end, gene_symbol, strand) into
-    strand-aware TSS windows: [TSS-1000bp, TSS+250bp).
+    strand-aware TSS windows: [TSS-1000bp, TSS+250bp), carrying the TSS
+    point itself alongside the window.
 
-    The window, not the full gene body, IS the gene's region from here on —
-    nearest_gene() and contact_genes() just see it as an ordinary Interval and
-    need no changes. This replaced an earlier "nearest-TSS" label that was
-    actually measuring distance to the nearer edge of the whole gene body
-    (wrong for any minus-strand gene, since BED carries no strand of its own
-    without this column).
+    The window is still what contact_genes() overlaps against (a locus
+    reaching anywhere in the regulatory window counts); the TSS point is
+    what nearest_gene() ranks by, so ranking and the reported distance
+    both reflect genuine proximity to the TSS, not to whichever window
+    edge happens to be nearer.
     """
-    genes: list[Interval] = []
+    genes: list[GeneWindow] = []
     with path.open(encoding="utf-8") as handle:
         for line_no, line in enumerate(handle, start=1):
             line = line.strip()
@@ -115,7 +121,7 @@ def parse_gene_targets(path: Path) -> list[Interval]:
                 win_start, win_end = tss - TSS_DOWNSTREAM_BP, tss + TSS_UPSTREAM_BP
             else:
                 raise ValueError(f"{path}:{line_no}: strand must be '+' or '-', got {strand!r}")
-            genes.append((chrom, max(win_start, 0), win_end, name))
+            genes.append((chrom, max(win_start, 0), win_end, name, tss))
     return genes
 
 
@@ -168,16 +174,13 @@ def overlapping_names(chrom: str, start: int, end: int, intervals: list[Interval
     return [name for (c, s, e, name) in intervals if _overlaps(chrom, start, end, c, s, e)]
 
 
-def nearest_gene(chrom: str, start: int, end: int, genes: list[Interval]) -> tuple[str | None, int | None]:
+def nearest_gene(chrom: str, start: int, end: int, genes: list[GeneWindow]) -> tuple[str | None, int | None]:
     best_name, best_dist = None, None
     midpoint = (start + end) // 2
-    for g_chrom, g_start, g_end, g_name in genes:
+    for g_chrom, _g_start, _g_end, g_name, g_tss in genes:
         if g_chrom != chrom:
             continue
-        if g_start <= midpoint < g_end:
-            dist = 0
-        else:
-            dist = min(abs(midpoint - g_start), abs(midpoint - g_end))
+        dist = abs(midpoint - g_tss)
         if best_dist is None or dist < best_dist:
             best_name, best_dist = g_name, dist
     return best_name, best_dist
@@ -200,7 +203,7 @@ def locus_in_any_loop(chrom: str, start: int, end: int, loops: list[LoopAnchor])
 
 
 def contact_genes(
-    chrom: str, start: int, end: int, loops: list[LoopAnchor], genes: list[Interval]
+    chrom: str, start: int, end: int, loops: list[LoopAnchor], genes: list[GeneWindow]
 ) -> list[tuple[str, str]]:
     """Genes contacted via a loop whose OTHER anchor overlaps this locus."""
     hits: list[tuple[str, str]] = []
@@ -213,7 +216,7 @@ def contact_genes(
         if other_anchor is None:
             continue
         o_chrom, o_start, o_end = other_anchor
-        for g_chrom, g_start, g_end, g_name in genes:
+        for g_chrom, g_start, g_end, g_name, _g_tss in genes:
             if _overlaps(o_chrom, o_start, o_end, g_chrom, g_start, g_end):
                 hits.append((g_name, loop_name))
     return hits
@@ -228,7 +231,7 @@ def score_locus(
     layer_spans: dict[str, dict[str, tuple[int, int]]],
     loops: list[LoopAnchor],
     loop_span: dict[str, tuple[int, int]],
-    genes: list[Interval],
+    genes: list[GeneWindow],
 ) -> dict:
     checked: list[str] = []
     supported: list[str] = []
@@ -302,7 +305,7 @@ def analyze(
     accessibility: list[Interval],
     histone: list[Interval],
     loops: list[LoopAnchor],
-    genes: list[Interval],
+    genes: list[GeneWindow],
 ) -> dict:
     layers = {}
     if accessibility:
@@ -349,19 +352,11 @@ def _write_evidence_table(path: Path, loci: list[dict]) -> None:
         "target_gene_contact", "contact_loop_id", "nearest_vs_contact_disagreement",
     ]
     with path.open("w", newline="", encoding="utf-8") as handle:
-        # PR #678 review round 4 (optional): readers asked for a note on
-        # target_gene_nearest_distance_bp's real meaning directly in the
-        # TSV, not only in SKILL.md. A leading "#" comment line is a
-        # standard, widely-supported convention (UCSC/samtools-style;
-        # pandas.read_csv(comment="#") skips it automatically) that does
-        # not disturb strict single-header-row parsers that start reading
-        # from the first non-comment line.
-        handle.write(
-            "# target_gene_nearest_distance_bp is distance to the TSS "
-            "window edge, not the TSS point itself -- any locus inside "
-            "the window reads 0 regardless of position within it. See "
-            "SKILL.md Maintenance.\n"
-        )
+        # No leading comment line (PR #678 review round 6): the
+        # distance column is now genuine TSS-point distance, so there is
+        # no caveat left to document, and a plain csv.reader -- unlike
+        # pandas.read_csv(comment="#") -- does not skip "#" lines, which
+        # is a real risk for a chaining partner reading this table.
         writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter="\t")
         writer.writeheader()
         for row in loci:
