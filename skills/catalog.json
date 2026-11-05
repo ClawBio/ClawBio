@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 108,
+  "skill_count": 109,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -4479,6 +4479,48 @@
         "flagstat",
         "sort and index bam",
         "process fastq"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "seqtk-downsample",
+      "cli_alias": "seqtk-downsample",
+      "description": "Randomly downsample FASTQ files to N reads or a fraction with `seqtk sample`, single-end or paired-end, fixed seed (default 12345), gzip in and out.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run seqtk-downsample --demo",
+      "dependencies": [
+        "python>=3.11"
+      ],
+      "tags": [
+        "fastq",
+        "seqtk",
+        "downsampling",
+        "subsampling",
+        "sequencing"
+      ],
+      "trigger_keywords": [
+        "downsample fastq",
+        "subsample fastq",
+        "seqtk sample",
+        "take 10000 reads from fastq",
+        "reduce fastq size for testing"
       ],
       "chaining_partners": [],
       "license": "MIT",

@@ -39,6 +39,7 @@ SKIP_IN_CI = {
     "scrna-orchestrator", # needs scanpy + anndata (heavy)
     "galaxy-bridge",      # queries live Galaxy API
     "nfcore-sarek-wrapper",  # needs Nextflow + Java + Docker/Singularity (heavy)
+    "seqtk-downsample",   # needs the seqtk binary, which CI does not install
 }
 
 
