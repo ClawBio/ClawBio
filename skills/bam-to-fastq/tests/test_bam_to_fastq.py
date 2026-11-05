@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SKILL_DIR))
@@ -146,6 +148,28 @@ class TestHelpers:
         r2.write_text("@b/2\nA\n+\nI\n")
         with pytest.raises(b.BamToFastqError, match="names differ"):
             b.check_pair_names(r1, r2)
+
+
+class TestProperties:
+    """Property tests for the FASTQ name parser."""
+
+    name = st.text(
+        alphabet=st.characters(min_codepoint=33, max_codepoint=126, blacklist_characters="@/"),
+        min_size=1, max_size=40,
+    )
+
+    @given(name=name, mate=st.sampled_from(["", "/1", "/2"]),
+           comment=st.sampled_from(["", " 1:N:0:ACGT", " BC:Z:AAA"]))
+    def test_mate_suffix_and_comment_never_change_the_key(self, tmp_path_factory, name, mate, comment):
+        fq = tmp_path_factory.mktemp("fq") / "x.fastq"
+        fq.write_text(f"@{name}{mate}{comment}\nA\n+\nI\n")
+        assert list(b.fastq_names(fq)) == [name]
+
+    @given(n=st.integers(min_value=0, max_value=50))
+    def test_record_count_matches_records_written(self, tmp_path_factory, n):
+        fq = tmp_path_factory.mktemp("fq") / "x.fastq"
+        fq.write_text("".join(f"@r{i}/1\nA\n+\nI\n" for i in range(n)))
+        assert b.count_fastq(fq) == n
 
 
 @needs_tools
