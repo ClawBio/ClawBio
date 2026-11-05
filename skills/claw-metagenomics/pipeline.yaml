@@ -1,0 +1,70 @@
+skill: claw-metagenomics
+version: 1
+
+# Shotgun metagenomics profiling: taxonomy (Kraken2+Bracken), resistome
+# (RGI/CARD + WHO priority classification), and functional pathways
+# (HUMAnN3) are three independently meaningful, independently invoked
+# stages in the ClawBio 1.x script -- they take raw reads directly and
+# don't depend on each other's output. Figures then resistome and
+# taxonomy; report fans in everything (mirrors gwas_lookup's
+# resolve -> [parallel fetches] -> merge -> report shape).
+#
+# DAG: [taxonomy, resistome, functional] (parallel) -> figures -> report
+#
+# Demo mode: pass the bundled data/demo_R1.fastq.gz + data/demo_R2.fastq.gz
+# as r1/r2 -- every stage script detects the fixture filenames and uses the
+# pre-computed Peru sewage dataset instead of invoking kraken2/bracken/rgi/
+# humann. See SKILL.md for real-mode database requirements.
+
+inputs:
+  - name: r1
+    required: true
+  - name: r2
+    required: true
+  - name: kraken2_db
+    required: true
+  - name: humann_db
+    required: true
+
+steps:
+  - id: taxonomy
+    summary: "Kraken2 classification + Bracken species-level re-estimation"
+    requires_inputs: [r1, r2, kraken2_db]
+    emits: [taxonomy_table]
+    command_template: "python3 {skill_dir}/scripts/taxonomy.py --r1 {r1} --r2 {r2} --kraken2-db {kraken2_db} --out {out}/taxonomy_species.tsv"
+
+  - id: resistome
+    summary: "RGI/CARD antimicrobial resistance gene detection + WHO priority classification"
+    requires_inputs: [r1, r2]
+    emits: [resistome_table, who_priority_table]
+    command_template: "python3 {skill_dir}/scripts/resistome.py --r1 {r1} --r2 {r2} --out-resistome {out}/resistome_profile.tsv --out-who {out}/who_priority_args.tsv"
+
+  - id: functional
+    summary: "HUMAnN3 functional pathway profiling (MetaCyc/UniRef)"
+    requires_inputs: [r1, r2, humann_db]
+    emits: [pathway_table]
+    command_template: "python3 {skill_dir}/scripts/functional.py --r1 {r1} --r2 {r2} --humann-db {humann_db} --out {out}/pathway_abundance.tsv"
+
+  - id: figures
+    summary: "Taxonomy bar chart, resistome heatmap, WHO-critical ARG summary (300 dpi)"
+    prereqs: [taxonomy, resistome]
+    requires:
+      taxonomy_table: present
+      resistome_table: present
+      who_priority_table: present
+    emits: [taxonomy_figure, resistome_figure, who_critical_figure]
+    command_template: "python3 {skill_dir}/scripts/figures.py --taxonomy-table {taxonomy_table} --resistome-table {resistome_table} --who-table {who_priority_table} --out-taxonomy {out}/taxonomy_barplot.png --out-resistome {out}/resistome_heatmap.png --out-who {out}/who_critical_args.png"
+
+  - id: report
+    summary: "Render unified Markdown report from all tables and figures"
+    prereqs: [taxonomy, resistome, functional, figures]
+    requires:
+      taxonomy_table: present
+      resistome_table: present
+      who_priority_table: present
+      pathway_table: present
+      taxonomy_figure: present
+      resistome_figure: present
+      who_critical_figure: present
+    emits: [report_md]
+    command_template: "python3 {skill_dir}/scripts/report.py --taxonomy-table {taxonomy_table} --resistome-table {resistome_table} --who-table {who_priority_table} --pathway-table {pathway_table} --taxonomy-figure {taxonomy_figure} --resistome-figure {resistome_figure} --who-figure {who_critical_figure} --out {out}/report.md"

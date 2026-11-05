@@ -1,0 +1,23 @@
+name: clawbio-bioconductor-bridge
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10
+  # `--demo` — the mode this pipeline.yaml's step invokes — is stdlib-only
+  # Python: `load_catalog()` reads the bundled `data/demo_catalog.json`
+  # fixture (CLAWBIO_BIOC_FIXTURE_JSON) and never shells out to Rscript,
+  # and `fetch_package_documentation()` is short-circuited by
+  # CLAWBIO_BIOC_OFFLINE before it ever imports urllib for a live request.
+  # So `pipeline.yaml` runs with just the stdlib.
+  #
+  # `Rscript` (from ClawBio 1.x's `metadata.openclaw.install.requires.bins`)
+  # plus a Bioconductor R installation (BiocManager + target packages) are
+  # only needed to run scripts/bioconductor_bridge.py directly against a
+  # live Bioconductor mirror: --search/--recommend/--docs-search/
+  # --package-details/--package-docs (live metadata + package-page HTTP
+  # fetches), --setup (inspects local R/BiocManager readiness), and
+  # --install (runs real BiocManager::install() — a real side effect, never
+  # invoked by this pipeline.yaml).
+  - r-base   # optional: only for --search/--recommend/--workflow/--setup/
+             # --install run directly; not needed for `clawbio start/next/
+             # open/done/bundle` against this pipeline.yaml

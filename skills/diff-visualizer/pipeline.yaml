@@ -1,0 +1,48 @@
+skill: diff-visualizer
+version: 1
+
+# Single-invocation skill: one script call renders the full bulk RNA-seq
+# differential-expression figure/report package (volcano, MA, top-gene bar,
+# effect bubble, gene-metrics panel, counts+metadata heatmap) plus
+# report.md/report.html/result.json from one output dir.
+#
+# The 1.x script also supports `--mode scrna` (contrast/marker volcano,
+# ranking bars, optional AnnData dotplot/heatmap/UMAP). That mode is not
+# wired into this pipeline.yaml: mode changes *which* figure files get
+# written (disjoint filenames, not just disjoint content), and pipeline.yaml
+# v1 requires one fixed `emits` list per step with no conditionals to select
+# between them (see pipeline-schema.md "Forbidden in v1"). Bulk mode is the
+# one path whose output-file set is invariant given required inputs, so it is
+# the DAG this pipeline.yaml encodes. See SKILL.md for the full rationale and
+# how to invoke scRNA mode directly (same script, outside this DAG).
+#
+# `counts`/`metadata` are optional flags in 1.x (heatmap enrichment only if
+# given); made required here so the counts+metadata heatmap is always
+# produced and can be declared as a guaranteed emit (same reasoning as
+# claw_ancestry_pca's `pop_map`).
+
+inputs:
+  - name: de_results
+    required: true
+  - name: counts
+    required: true
+  - name: metadata
+    required: true
+
+steps:
+  - id: visualize
+    summary: "Render bulk RNA-seq DE volcano/MA/bar/heatmap figures + report.md/report.html/result.json from a DE results table"
+    requires_inputs: [de_results, counts, metadata]
+    emits:
+      - report_md
+      - report_html
+      - result_json
+      - top_genes_csv
+      - significant_genes_csv
+      - volcano_png
+      - top_genes_bar_png
+      - effect_bubble_png
+      - gene_metrics_heatmap_png
+      - ma_plot_png
+      - top_genes_heatmap_png
+    command_template: "python3 {skill_dir}/scripts/diff_visualizer.py --input {de_results} --counts {counts} --metadata {metadata} --output {out}"

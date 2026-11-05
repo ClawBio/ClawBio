@@ -1,0 +1,18 @@
+skill: sample-qc-triage
+version: 1
+
+# Deterministic, local-only multi-sample QC triage from a sample-level metrics
+# table. Single CLI invocation writes four files (report, JSON, a per-sample
+# flags CSV, a command trace) in one pass, so this is a single-step pipeline
+# with multiple emits rather than a fabricated multi-step DAG.
+
+inputs:
+  - name: input_file
+    required: true
+
+steps:
+  - id: triage
+    summary: "Validate QC metrics, apply identity/sex/contamination/batch-shift thresholds, and flag outlier samples"
+    requires_inputs: [input_file]
+    emits: [report_md, result_json, sample_flags_csv, commands_sh]
+    command_template: "python3 {skill_dir}/scripts/sample_qc_triage.py --input {input_file} --output {out}"

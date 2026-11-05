@@ -1,0 +1,19 @@
+skill: galaxy-bridge
+version: 1
+
+# Galaxy tool discovery/recommendation/execution bridge — 8,000+ bioinformatics
+# tools from usegalaxy.org. Live modes (--search, --recommend, --workflow,
+# --tool-details, --run) need only the bundled catalog except --run, which
+# submits a real job to a remote Galaxy server and requires GALAXY_URL /
+# GALAXY_API_KEY. None of those are deterministic/offline enough for a DAG
+# step, so this pipeline has a single step: the --demo FastQC path, which is
+# explicitly documented upstream as "offline, no API key" and is seeded for
+# reproducible output.
+
+inputs: []
+
+steps:
+  - id: demo
+    summary: "Run the offline FastQC demo (deterministic, no GALAXY_API_KEY needed)"
+    emits: [fastqc_html, result_json, report_md]
+    command_template: "python3 {skill_dir}/scripts/galaxy_bridge.py --demo --output {out}"

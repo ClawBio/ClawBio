@@ -1,0 +1,16 @@
+name: clawbio-rnaseq-de
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10
+  - pandas
+  - numpy
+  - scipy
+  - matplotlib
+  - scikit-learn
+  # Optional: only needed for `--backend pydeseq2` / `--backend auto`'s
+  # preferred path. `--backend simple` (the CLI default demo path) never
+  # imports it. Install via pip; not on conda-forge under this name.
+  - pip
+  - pip:
+      - pydeseq2

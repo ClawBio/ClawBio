@@ -1,0 +1,105 @@
+skill: nfcore-scrnaseq-wrapper
+version: 1
+
+# Wraps nf-core/scrnaseq 4.1.0 (real Nextflow pipeline: FASTQ -> h5ad, 10x-aware).
+# Nextflow, a container runtime (Docker/Singularity), and reference genome data
+# are NOT available in this sandbox and are never required by this DAG — it
+# validates and PREPARES a real run without executing one. Ported from ClawBio
+# 1.x's nfcore-scrnaseq-wrapper.py, whose 7-step in-process pipeline is:
+#   pipeline-source-resolution -> samplesheet-validation -> preflight ->
+#   params-construction -> command-build+EXECUTE -> output-parsing -> provenance.
+# This port keeps the first four stages (all pure Python, no external binaries)
+# as real DAG steps and stops at "compose the command" — EXECUTE, output-parsing,
+# and provenance-of-a-completed-run are dropped because they need a live
+# Nextflow process. See SKILL.md for the full rationale and the "preflight
+# never aborts the DAG" adaptation.
+#
+# DAG: resolve_pipeline_source -> validate_samplesheet -> [preflight, build_params]
+#      -> build_command -> report
+#
+# preflight and build_params both only depend on validate_samplesheet (and
+# preflight also on resolve_pipeline_source), so they are independent siblings,
+# not a strict chain -- same fan-out shape gwas_lookup uses for its API
+# fetches, just with two branches instead of eight. build_command fans back in
+# on resolve_pipeline_source + build_params; report fans in on all five.
+#
+# Every flag this DAG exposes is a required: true input (no per-run default
+# mechanism exists, and command_template must stay a static string) --
+# use the sentinel value "none" for "not set", exactly like phylogenetics_builder.
+
+inputs:
+  - name: samplesheet
+    required: true
+  - name: preset
+    required: true
+  - name: protocol
+    required: true
+  - name: genome
+    required: true
+  - name: fasta
+    required: true
+  - name: gtf
+    required: true
+  - name: profile
+    required: true
+  - name: pipeline_version
+    required: true
+  - name: allow_remote_inputs
+    required: true
+  - name: expected_cells
+    required: true
+  - name: skip_cellbender
+    required: true
+  - name: output_dir
+    required: true
+  - name: work_dir
+    required: true
+
+steps:
+  - id: resolve_pipeline_source
+    summary: "Resolve nf-core/scrnaseq source: local sibling checkout, or pinned remote tag"
+    requires_inputs: [pipeline_version]
+    emits: [pipeline_source_json]
+    command_template: "python3 {skill_dir}/scripts/step_resolve_pipeline.py --pipeline-version {pipeline_version} --out {out}/pipeline_source.json"
+
+  - id: validate_samplesheet
+    summary: "Parse, validate and normalize the samplesheet CSV (nf-core/scrnaseq 4.1.0 schema)"
+    requires_inputs: [samplesheet, preset, expected_cells]
+    emits: [normalized_samplesheet_csv, samplesheet_summary_json]
+    command_template: "python3 {skill_dir}/scripts/step_validate_samplesheet.py --input {samplesheet} --preset {preset} --expected-cells {expected_cells} --out {out}/samplesheet.valid.csv --out-summary {out}/samplesheet_summary.json"
+
+  - id: preflight
+    summary: "Java/Nextflow/backend/reference/protocol checks; report ok/fail without aborting the DAG"
+    prereqs: [resolve_pipeline_source, validate_samplesheet]
+    requires: {pipeline_source_json: present, samplesheet_summary_json: present}
+    requires_inputs: [preset, protocol, genome, fasta, gtf, profile, allow_remote_inputs, skip_cellbender, output_dir]
+    emits: [preflight_report_json]
+    command_template: "python3 {skill_dir}/scripts/step_preflight.py --pipeline-source {pipeline_source_json} --samplesheet-summary {samplesheet_summary_json} --preset {preset} --protocol {protocol} --genome {genome} --fasta {fasta} --gtf {gtf} --profile {profile} --allow-remote-inputs {allow_remote_inputs} --skip-cellbender {skip_cellbender} --output-dir {output_dir} --out {out}/preflight_report.json"
+
+  - id: build_params
+    summary: "Compose the effective nf-core/scrnaseq params.yaml (no Nextflow invocation)"
+    prereqs: [validate_samplesheet]
+    requires: {normalized_samplesheet_csv: present}
+    requires_inputs: [preset, protocol, genome, fasta, gtf, skip_cellbender, output_dir]
+    emits: [params_yaml, params_json]
+    command_template: "python3 {skill_dir}/scripts/step_build_params.py --samplesheet {normalized_samplesheet_csv} --preset {preset} --protocol {protocol} --genome {genome} --fasta {fasta} --gtf {gtf} --skip-cellbender {skip_cellbender} --output-dir {output_dir} --out {out}/params.yaml --out-json {out}/params.json"
+
+  - id: build_command
+    summary: "Compose the exact `nextflow run ...` command line (does not execute Nextflow)"
+    prereqs: [resolve_pipeline_source, build_params]
+    requires: {pipeline_source_json: present, params_yaml: present}
+    requires_inputs: [profile, work_dir]
+    emits: [nextflow_command_txt, nextflow_command_json]
+    command_template: "python3 {skill_dir}/scripts/step_build_command.py --pipeline-source {pipeline_source_json} --params {params_yaml} --profile {profile} --work-dir {work_dir} --out {out}/nextflow_command.txt --out-json {out}/nextflow_command.json"
+
+  - id: report
+    summary: "Fan in pipeline source + samplesheet + preflight + params + command into report.md/result.json"
+    prereqs: [resolve_pipeline_source, validate_samplesheet, preflight, build_params, build_command]
+    requires:
+      pipeline_source_json: present
+      samplesheet_summary_json: present
+      preflight_report_json: present
+      params_json: present
+      nextflow_command_json: present
+    emits: [report_md, result_json]
+    command_template: "python3 {skill_dir}/scripts/step_report.py --pipeline-source {pipeline_source_json} --samplesheet-summary {samplesheet_summary_json} --preflight {preflight_report_json} --params {params_json} --command {nextflow_command_json} --out-report {out}/report.md --out-result {out}/result.json"

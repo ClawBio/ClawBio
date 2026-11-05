@@ -1,0 +1,20 @@
+skill: genome-compare
+version: 1
+
+# Single-invocation skill: one script call parses the input 23andMe file and
+# the bundled George Church (PGP-1) reference, computes IBS (overall +
+# per-chromosome), runs EM admixture ancestry estimation against a bundled
+# AIMs panel, renders four figures, and writes report.md + result.json from
+# one output dir. Same "multiple emits, one step" shape as claw_ancestry_pca
+# — no separable stage boundary exists in the source script.
+
+inputs:
+  - name: input
+    required: true
+
+steps:
+  - id: compare_genomes
+    summary: "Parse 23andMe input + bundled George Church (PGP-1) reference, compute IBS, estimate ancestry (EM admixture), render figures + report"
+    requires_inputs: [input]
+    emits: [report_md, result_json, chromosome_ibs_png, ancestry_pie_png, ibs_context_png, ancestry_comparison_png]
+    command_template: "python3 {skill_dir}/scripts/genome_compare.py --input {input} --reference {skill_dir}/data/george_church_23andme.txt.gz --aims-panel {skill_dir}/data/aims_panel.json --output {out}"

@@ -1,0 +1,7 @@
+name: clawbio-genome-compare
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10
+  - numpy>=1.24
+  - matplotlib>=3.7

@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://clawbio.ai/schemas/pipeline.schema.json",
+  "title": "ClawBio pipeline.yaml (v1)",
+  "description": "Shape of a ClawBio 2.0 skill's pipeline.yaml. This schema covers the structural contract; cross-step semantics (unknown prereqs, forward refs, unresolved {var} placeholders, requires-emit gating) are enforced by the clawbio-flow CLI loader at `clawbio-flow start` time and cannot be expressed in JSON Schema.",
+  "type": "object",
+  "required": ["skill", "version", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "skill": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Slug identifying the skill."
+    },
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version. Only 1 is accepted today."
+    },
+    "inputs": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/input" },
+      "description": "Inputs the user or agent supplies at `clawbio-flow start`."
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/step" },
+      "description": "Ordered DAG of pipeline steps. Must be non-empty."
+    }
+  },
+  "definitions": {
+    "input": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+          "description": "Key used by `--input name=value`."
+        },
+        "required": {
+          "type": "boolean",
+          "default": true,
+          "description": "If true, `clawbio-flow start` fails when missing."
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": ["id", "summary", "command_template"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+          "description": "Unique step slug."
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One-line description shown by `clawbio-flow next` and `clawbio-flow status`."
+        },
+        "command_template": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Shell snippet with {var} placeholders. Resolved at `clawbio-flow open` time from {out}, {skill_dir}, declared inputs, and emits from prior steps. Forbidden: conditionals, loops, templating beyond {var}."
+        },
+        "requires_inputs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$" },
+          "uniqueItems": true,
+          "description": "Inputs that must be present at run start."
+        },
+        "prereqs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$" },
+          "uniqueItems": true,
+          "description": "Step IDs that must be `done` before this step is unblocked. Must reference earlier steps only."
+        },
+        "requires": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Emit-key gates. Each key must be in some prior step's `emits`. Value is a stub today (use 'present')."
+        },
+        "emits": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$" },
+          "uniqueItems": true,
+          "description": "Output keys this step produces. Matches `clawbio-flow done --output`."
+        },
+        "optional": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, this step may be skipped via `clawbio-flow skip <id> --reason ...` instead of executed. Default false — every existing pipeline.yaml keeps validating clean."
+        }
+      }
+    }
+  }
+}

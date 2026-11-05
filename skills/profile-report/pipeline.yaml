@@ -1,0 +1,21 @@
+skill: profile-report
+version: 1
+
+# Single-invocation skill: one script call reads a populated PatientProfile
+# JSON (itself an aggregation of other skills' result.json envelopes under a
+# skill_results key) and synthesizes a unified "Your Genomic Profile"
+# markdown report + result.json envelope. This is presentation/synthesis
+# over already-computed data — no re-computation, no per-skill fetch — so
+# there is no separable analysis stage to fan out to, unlike gwas_lookup's
+# resolve->fetch DAG.
+
+inputs:
+  - name: profile
+    required: true
+
+steps:
+  - id: synthesize_report
+    summary: "Read PatientProfile JSON, synthesize per-skill sections + cross-domain insights into a unified report"
+    requires_inputs: [profile]
+    emits: [report_md, result_json]
+    command_template: "python3 {skill_dir}/scripts/profile_report.py --profile {profile} --output {out}"

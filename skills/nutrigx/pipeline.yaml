@@ -1,0 +1,50 @@
+skill: nutrigx
+version: 1
+
+# Personalised nutrition report from consumer genetic data. 1.x's nutrigx.py
+# entrypoint calls four genuinely separable stages in sequence -- parse the
+# input file, look up the curated SNP panel, score nutrient-domain risk, then
+# render the report -- each consuming/producing a plain JSON dict (no shared
+# in-memory state beyond that). That's a straightforward linear file-handoff
+# DAG (parse -> extract -> score -> report), the same "each stage is its own
+# meaningful, independently-invokable unit" reasoning claw_metagenomics used,
+# just linear instead of fan-out/fan-in since these stages are true producer
+# -> consumer dependencies, not independent parallel invocations.
+#
+# repro_bundle.py (1.x's own commands.sh/environment.yml/checksums.txt writer)
+# was dropped -- `clawbio bundle` is this repo's authoritative reproducibility
+# record for the whole run.
+
+inputs:
+  - name: genetic_data
+    required: true
+
+steps:
+  - id: parse_input
+    summary: "Parse 23andMe/AncestryDNA/MyHeritage/VCF file into a {rsid: genotype} table"
+    requires_inputs: [genetic_data]
+    emits: [genotype_table_json]
+    command_template: "python3 {skill_dir}/scripts/parse_input.py --input {genetic_data} --out {out}/genotype_table.json"
+
+  - id: extract_genotypes
+    summary: "Look up the curated SNP panel in the genotype table, with forward-strand normalisation"
+    prereqs: [parse_input]
+    requires: {genotype_table_json: present}
+    emits: [snp_calls_json]
+    command_template: "python3 {skill_dir}/scripts/extract_genotypes.py --genotype-table {genotype_table_json} --panel {skill_dir}/data/snp_panel.json --out {out}/snp_calls.json"
+
+  - id: score_variants
+    summary: "Compute per-nutrient-domain composite risk scores (0-10) from SNP calls"
+    prereqs: [extract_genotypes]
+    requires: {snp_calls_json: present}
+    emits: [risk_scores_json]
+    command_template: "python3 {skill_dir}/scripts/score_variants.py --snp-calls {snp_calls_json} --panel {skill_dir}/data/snp_panel.json --out {out}/risk_scores.json"
+
+  - id: generate_report
+    summary: "Render Markdown report, radar chart + gene x nutrient heatmap, and result.json"
+    prereqs: [extract_genotypes, score_variants]
+    requires:
+      snp_calls_json: present
+      risk_scores_json: present
+    emits: [report_md, radar_png, heatmap_png, result_json]
+    command_template: "python3 {skill_dir}/scripts/generate_report.py --snp-calls {snp_calls_json} --risk-scores {risk_scores_json} --panel {skill_dir}/data/snp_panel.json --input-file {genetic_data} --out {out}"

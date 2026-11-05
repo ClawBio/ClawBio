@@ -1,0 +1,34 @@
+{
+  "_comment": "Bundled offline demo fixture for ClawBio 2.0's clinpgx port. Raw ClinPGx-API-shaped payload (same shape ClinPGxClient.search_chemical / get_clinical_annotations / get_drug_labels return) so it runs through the exact same extract_* functions a live response would. Representative structure, not a verbatim API dump. CC BY-SA 4.0 attribution applies to any values sourced from ClinPGx/PharmGKB/CPIC.",
+  "chemical": {
+    "id": "PA449088",
+    "name": "codeine",
+    "types": ["Drug", "Small Molecule", "Prodrug"]
+  },
+  "clinical_annotations": [
+    {
+      "accessionId": "CA204750001",
+      "relatedChemicals": [{"name": "codeine"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "levelOfEvidence": {"term": "1A"},
+      "phenotypeCategory": "Toxicity"
+    },
+    {
+      "accessionId": "CA204750002",
+      "relatedChemicals": [{"name": "codeine"}, {"name": "tramadol"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "levelOfEvidence": {"term": "1A"},
+      "phenotypeCategory": "Efficacy"
+    }
+  ],
+  "drug_labels": [
+    {
+      "id": "PA166104938",
+      "name": "Codeine FDA Label",
+      "relatedChemicals": [{"name": "codeine"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "source": "FDA",
+      "testingLevel": "Actionable PGx"
+    }
+  ]
+}

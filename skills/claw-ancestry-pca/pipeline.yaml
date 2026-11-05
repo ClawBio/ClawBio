@@ -1,0 +1,23 @@
+skill: claw-ancestry-pca
+version: 1
+
+# Single-invocation skill: one script call computes PCA on the input VCF's
+# genotype matrix, colours by population label, and writes a full report
+# bundle (figures + tables + report.md + result.json) from one output dir.
+# No separable "fetch reference panel" stage exists in the source script —
+# unlike gwas_lookup's resolve->fetch fan-out, there is nothing to fan out
+# to here (see SKILL.md for why: the shipped script does not merge against
+# an external reference panel).
+
+inputs:
+  - name: vcf
+    required: true
+  - name: pop_map
+    required: true
+
+steps:
+  - id: compute_pca
+    summary: "Parse VCF genotype matrix, run PCA, render 4-panel figure + report"
+    requires_inputs: [vcf, pop_map]
+    emits: [report_md, result_json, pc_coordinates_csv, variance_csv, figure_png]
+    command_template: "python3 {skill_dir}/scripts/ancestry_pca.py --input {vcf} --pop-map {pop_map} --output {out}"

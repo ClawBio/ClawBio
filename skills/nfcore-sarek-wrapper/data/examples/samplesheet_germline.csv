@@ -1,0 +1,2 @@
+patient,sample,lane,fastq_1,fastq_2,sex,status
+P1,Normal1,lane_1,reads/normal1_L001_R1.fastq.gz,reads/normal1_L001_R2.fastq.gz,XX,0

@@ -1,0 +1,34 @@
+skill: equity-scorer
+version: 1
+
+# Single-invocation skill: one script call parses the input (VCF genotype
+# matrix or ancestry CSV — auto-detected by extension inside the script),
+# computes heterozygosity / pairwise FST / PCA (VCF only) or literature-based
+# estimates (CSV only), scores the composite HEIM Equity Score, and writes a
+# full report bundle (figures + tables + report.md + result.json) from one
+# output dir. VCF-vs-CSV branching lives inside scripts/equity_scorer.py, not
+# in this YAML (see CLAUDE.md's "no Turing-complete YAML" constraint) — same
+# single-invocation, multiple-emits pattern as claw_ancestry_pca and
+# rnaseq_de. No separable "fetch reference panel" stage exists: the shipped
+# script never merges against an external reference panel (see SKILL.md).
+
+inputs:
+  - name: input
+    required: true
+  - name: pop_map
+    required: true
+  - name: weights
+    required: true
+
+steps:
+  - id: score_equity
+    summary: "Parse VCF or ancestry CSV, compute heterozygosity/FST/PCA, score HEIM equity, render report"
+    requires_inputs: [input, pop_map, weights]
+    emits:
+      - report_md
+      - result_json
+      - population_summary_csv
+      - heim_score_json
+      - figure_gauge_png
+      - figure_ancestry_png
+    command_template: "python3 {skill_dir}/scripts/equity_scorer.py --input {input} --pop-map {pop_map} --weights {weights} --output {out}"

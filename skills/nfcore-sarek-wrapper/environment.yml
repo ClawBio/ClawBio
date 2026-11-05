@@ -1,0 +1,39 @@
+# Derived from ClawBio 1.x nfcore-sarek-wrapper SKILL.md's
+# metadata.dependencies / Dependencies section / metadata.openclaw.requires.bins.
+#
+# This port's sandbox-runnable path (samplesheet_validate -> preflight ->
+# build_params -> build_command -> report, all with skip_runtime_checks=true)
+# needs only the Python dependencies below. Actually EXECUTING the composed
+# Nextflow command (reproducibility/commands_preview.sh, never run by this
+# DAG — see SKILL.md) additionally needs the external, non-pip/conda-installable
+# requirements listed below: Nextflow itself, a container runtime, and
+# reference genome data.
+name: clawbio-nfcore-sarek-wrapper
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.11
+  - pyyaml
+  - pip
+
+# --- External requirements for an ACTUAL nf-core/sarek 3.8.1 run ----------
+# None of these are installable via this environment.yml; they are separate,
+# heavier system/infra dependencies the 1.x SKILL.md documents under
+# `metadata.openclaw.requires.bins` and "Dependencies":
+#
+#   - Java >=17                          (openjdk, e.g. `conda install -c conda-forge openjdk=17`)
+#   - Nextflow >=25.10.2                 (https://www.nextflow.io/docs/latest/install.html;
+#                                          this wrapper's schema/profile/output-parsing rules
+#                                          are pinned to nf-core/sarek 3.8.1's exact contract)
+#   - One container/execution backend    (Docker, Singularity, Apptainer, Podman, Conda/Mamba,
+#                                          Shifter, or Charliecloud -- whichever --profile names)
+#   - Reference genome data               (an iGenomes key resolved over the network at run time,
+#                                          e.g. GATK.GRCh38, OR a local --fasta + indices; not
+#                                          needed for --demo, which uses the upstream small
+#                                          `-profile test` dataset -- itself fetched over the
+#                                          network from nf-core/test-datasets, requiring outbound
+#                                          internet access)
+#
+# None of the above exist in the ClawBio 2.0 CI/sandbox environment this port
+# was validated in. See SKILL.md's "What a real run additionally needs".

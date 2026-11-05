@@ -1,0 +1,35 @@
+skill: rnaseq-de
+version: 1
+
+# Bulk / pseudo-bulk RNA-seq differential expression: one CLI invocation does
+# QC + low-count filtering + PCA + contrast testing (DESeq2/PyDESeq2 or a
+# stdlib-only "simple" Welch's-t backend) + plotting + report in a single pass.
+# The 1.x script (rnaseq_de.py) exposes this as one entrypoint, not separately
+# invokable stages, so this is a single-step pipeline with multiple emits.
+
+inputs:
+  - name: counts
+    required: true
+  - name: metadata
+    required: true
+  - name: formula
+    required: true
+  - name: contrast
+    required: true
+  - name: backend
+    required: true
+
+steps:
+  - id: differential_expression
+    summary: "QC, PCA, and contrast testing on a bulk/pseudo-bulk count matrix"
+    requires_inputs: [counts, metadata, formula, contrast, backend]
+    emits:
+      - report_md
+      - qc_summary_csv
+      - normalized_counts_csv
+      - de_results_csv
+      - pca_png
+      - volcano_png
+      - ma_plot_png
+      - result_json
+    command_template: "python3 {skill_dir}/scripts/rnaseq_de.py --counts {counts} --metadata {metadata} --formula \"{formula}\" --contrast \"{contrast}\" --backend {backend} --output {out}"

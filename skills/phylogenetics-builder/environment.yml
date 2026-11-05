@@ -1,0 +1,30 @@
+# Derived from ClawBio 1.x phylogenetics-builder SKILL.md's
+# metadata.openclaw.install / metadata.dependencies.
+#
+# Demo mode (bundled demo_alignment.fasta + examples/demo_tree.nwk, with
+# aligned=true + demo=true) needs only the Python dependencies below --
+# align/build_tree fall back gracefully when a binary is missing. Real-data
+# mode additionally needs the bioconda system dependencies -- see
+# SKILL.md's Dependencies section for which stage needs which binary.
+name: clawbio-phylo
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.10
+  - pandas>=2.0
+  - biopython>=1.80
+  - matplotlib>=3.5
+  - iqtree>=2.0
+  - raxml-ng
+  - mafft
+  - muscle
+  - trimal
+  - clustalw
+  - kalign3
+  - t_coffee
+  - prank
+  - pip
+  - pip:
+      - ete3>=3.1  # optional: midpoint rooting; falls back to Bio.Phylo if absent

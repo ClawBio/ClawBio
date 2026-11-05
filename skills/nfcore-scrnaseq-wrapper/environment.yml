@@ -1,0 +1,34 @@
+# Derived from ClawBio 1.x nfcore-scrnaseq-wrapper SKILL.md's
+# metadata.dependencies / metadata.openclaw.requires.bins.
+#
+# Every step in this port's pipeline.yaml (resolve_pipeline_source,
+# validate_samplesheet, preflight, build_params, build_command, report) is
+# pure Python + PyYAML — no external binary is invoked. `preflight` genuinely
+# probes for java/nextflow/docker on PATH (and reports honestly when they are
+# missing, see SKILL.md), but it never requires them to be present for the
+# DAG itself to complete: it always emits a report and lets the DAG proceed
+# to `build_params`/`build_command`.
+#
+# Actually EXECUTING the command this DAG composes (outside the DAG, by
+# hand) needs the full nf-core/scrnaseq 4.1.0 stack below — none of it is
+# installed by this environment.yml, and none of it exists in this project's
+# sandbox.
+name: clawbio-nfcore-scrnaseq-wrapper
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python>=3.11
+  - pyyaml
+  # --- Everything below is required to EXECUTE the composed `nextflow run`
+  # --- command for real. Not installed by this file; listed for reference.
+  # - openjdk>=17          # Nextflow's runtime requirement
+  # - nextflow>=25.04.0
+  # (plus one container runtime on PATH/running: Docker Desktop / Docker
+  # Engine, or Singularity/Apptainer, or conda/mamba for -profile conda —
+  # see SKILL.md's "External requirements for a real run" section)
+  #
+  # Reference data (not conda-installable): an iGenomes shortcut
+  # (--genome GRCh38, ...) resolved from s3://ngi-igenomes/igenomes/, or a
+  # local genome FASTA + GTF (--fasta/--gtf), or a prebuilt aligner index.

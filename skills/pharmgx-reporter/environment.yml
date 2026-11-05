@@ -1,0 +1,10 @@
+name: clawbio-pharmgx-reporter
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10
+  # Standard library only. `enrich_clinpgx.py` talks to the ClinPGx REST API
+  # over `urllib.request` (stdlib), not `requests` — see that script's
+  # module docstring for why (mirrors skills/gwas_lookup's stdlib-only
+  # convention rather than adding a new dependency for one optional-content
+  # step). No other script in this skill makes network calls.

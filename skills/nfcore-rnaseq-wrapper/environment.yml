@@ -1,0 +1,36 @@
+# Derived from ClawBio 1.x nfcore-rnaseq-wrapper SKILL.md's
+# metadata.dependencies / "Dependencies" section, split into what this DAG
+# actually needs (pip-installable pure Python) vs. what a real Nextflow run
+# additionally needs (system-level, not installable via conda/pip alone).
+#
+# This DAG (resolve_source -> prepare_samplesheet -> preflight -> build_params
+# -> build_command -> report) only needs the Python packages below -- no
+# Nextflow, Java, or container runtime is required to validate/prepare a run.
+name: clawbio-nfcore-rnaseq
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.10
+  - pyyaml>=6.0
+  - pip
+
+# --- External requirements for an ACTUAL Nextflow execution (NOT covered by ---
+# --- this conda env, and NOT installable this way -- install separately)   ---
+#
+# The command this DAG's `build_command` step composes (nf-core/rnaseq via
+# Nextflow) is never invoked by `clawbio open`/`clawbio done` -- it is written
+# to nextflow_command.txt for you to run yourself once the following are
+# installed:
+#
+#   - Nextflow >=25.04.3        https://www.nextflow.io/docs/latest/install.html
+#   - Java >=17                 (Nextflow's runtime requirement)
+#   - One container/env backend: Docker, Singularity, Apptainer, Podman,
+#     Conda/Mamba, Shifter, or Charliecloud (selected via the `profile` input)
+#   - Reference genome data: either an iGenomes `genome` name (fetched by
+#     Nextflow at run time, optionally pinned locally via `igenomes_base`),
+#     or your own `fasta`+`gtf`/`gff` files. `demo=true` needs neither --
+#     it downloads nf-core's public `-profile test` fixtures over the network.
+#
+# None of the above can be pip/conda-installed as a Python dependency; they
+# are standalone system installs the agent/user performs outside this skill.
