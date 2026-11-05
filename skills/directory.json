@@ -2353,6 +2353,27 @@
       ]
     },
     {
+      "name": "seqtk-downsample",
+      "slug": "seqtk-downsample",
+      "license": "MIT",
+      "description": "Randomly downsample FASTQ files to N reads or a fraction with `seqtk sample`, single-end or paired-end, fixed seed (default 12345), gzip in and out.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "downsample fastq",
+        "subsample fastq",
+        "seqtk sample",
+        "take 10000 reads from fastq",
+        "reduce fastq size for testing"
+      ],
+      "tags": [
+        "fastq",
+        "seqtk",
+        "downsampling",
+        "subsampling",
+        "sequencing"
+      ]
+    },
+    {
       "name": "skill-builder",
       "slug": "skill-builder",
       "license": "MIT",
