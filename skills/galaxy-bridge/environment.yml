@@ -1,0 +1,22 @@
+# Conda-style dependency spec for galaxy_bridge, derived from the ClawBio 1.x
+# SKILL.md frontmatter (metadata.openclaw.install / metadata.openclaw.requires).
+#
+# The DAG's only step (`demo`) needs nothing beyond the stdlib — verified by
+# checking galaxy_bridge.py and tool_recommender.py imports directly:
+#   - `bioblend` is imported lazily inside get_galaxy_instance(), reached only
+#     by --run (live Galaxy execution).
+#   - tool_recommender.py imports only json/math/re/sys/pathlib.
+# bioblend is listed below for completeness (live --run / --search-against-a-
+# live-server modes outside the DAG) but is NOT required to run `clawbio
+# start/next/open/done/bundle` against this skill's pipeline.yaml.
+name: galaxy_bridge
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python>=3.9
+  - pip
+  - pip:
+      # Only needed for live modes (--run; GALAXY_URL/GALAXY_API_KEY set).
+      # Not imported anywhere on the --demo code path.
+      - bioblend

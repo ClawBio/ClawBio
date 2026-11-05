@@ -1,0 +1,18 @@
+skill: marker-dominance-mapper
+version: 1
+
+# Deterministic marker-dominance region mapping from a spot-level marker
+# count CSV. One Python invocation (stdlib only, no network) both computes
+# and writes every output file, so this is a single step with six emits —
+# not a fabricated multi-step DAG for one CLI call (see CLAUDE.md).
+
+inputs:
+  - name: input_file
+    required: true
+
+steps:
+  - id: map_spots
+    summary: "Assign marker-dominance regions/hotspots to spots; write report, tables, and SVG map"
+    requires_inputs: [input_file]
+    emits: [report_md, result_json, mapped_spots_csv, region_summary_csv, marker_map_svg, commands_sh]
+    command_template: "python3 {skill_dir}/scripts/marker_dominance_mapper.py --input {input_file} --output {out}"

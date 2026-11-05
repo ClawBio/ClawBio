@@ -1,0 +1,18 @@
+skill: crispr-screen-triage
+version: 1
+
+# Deterministic, local-only gene triage from a guide-level CRISPR screen count
+# table. Single CLI invocation writes five files (report, JSON, two CSVs, a
+# command trace) in one pass, so this is a single-step pipeline with multiple
+# emits rather than a fabricated multi-step DAG.
+
+inputs:
+  - name: input_file
+    required: true
+
+steps:
+  - id: triage
+    summary: "Validate guide counts, aggregate to genes, and rank hits by depletion + essentiality + druggability"
+    requires_inputs: [input_file]
+    emits: [report_md, result_json, triaged_genes_csv, guide_metrics_csv, commands_sh]
+    command_template: "python3 {skill_dir}/scripts/crispr_screen_triage.py --input {input_file} --output {out}"

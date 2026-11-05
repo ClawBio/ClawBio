@@ -1,0 +1,9 @@
+name: clawbio-analyze-fasta
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python>=3.10
+  - pip
+  - pip:
+      - biopython>=1.80

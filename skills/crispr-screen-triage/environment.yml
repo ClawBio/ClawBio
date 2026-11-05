@@ -1,0 +1,5 @@
+name: crispr_screen_triage
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10

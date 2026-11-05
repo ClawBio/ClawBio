@@ -1,0 +1,54 @@
+skill: gwas-prs
+version: 1
+
+# Polygenic risk score calculation from DTC (23andMe/AncestryDNA) genotype
+# data against PGS Catalog scoring files.
+#
+# The 1.x script (gwas_prs.py) mixes three genuinely independent concerns
+# behind one CLI: (1) deciding which PGS Catalog scoring file(s) to use —
+# bundled curated data by default, live PGS Catalog fetch as a fallback —
+# and (2) parsing the patient's genotype file. Neither depends on the
+# other's output, so they run as DAG siblings, mirroring claw_metagenomics's
+# "independent stages -> fan-in" shape (and the resolve->fetch split in
+# gwas_lookup, scaled down from 8 parallel fetches to 2 independent stages
+# since there's no per-score fan-out here: the score list is a single
+# resolved manifest, not N separately-invoked steps).
+#
+# DAG: [resolve_scores, parse_genotype] (parallel) -> calculate_prs -> report
+
+inputs:
+  - name: genotype_file
+    required: true
+  - name: pgs_ids
+    required: true
+
+steps:
+  - id: resolve_scores
+    summary: "Resolve PGS Catalog scoring file(s): bundled curated data first, live fetch fallback"
+    requires_inputs: [pgs_ids]
+    emits: [scoring_manifest_json]
+    command_template: "python3 {skill_dir}/scripts/resolve_scores.py --pgs-ids {pgs_ids} --skill-dir {skill_dir} --out {out}/scoring_manifest.json"
+
+  - id: parse_genotype
+    summary: "Parse 23andMe/AncestryDNA genotype file into {rsid: genotype} map"
+    requires_inputs: [genotype_file]
+    emits: [genotype_json]
+    command_template: "python3 {skill_dir}/scripts/parse_genotype.py --input {genotype_file} --out {out}/genotype.json"
+
+  - id: calculate_prs
+    summary: "Compute dosage-weighted PRS + population percentile for each resolved score"
+    prereqs: [resolve_scores, parse_genotype]
+    requires:
+      scoring_manifest_json: present
+      genotype_json: present
+    emits: [results_json, variants_csv]
+    command_template: "python3 {skill_dir}/scripts/calculate_prs.py --genotype-json {genotype_json} --scoring-manifest {scoring_manifest_json} --out-results {out}/prs_results.json --out-variants {out}/prs_variants.csv"
+
+  - id: report
+    summary: "Render unified Markdown report + result.json envelope"
+    prereqs: [parse_genotype, calculate_prs]
+    requires:
+      genotype_json: present
+      results_json: present
+    emits: [report_md, result_json]
+    command_template: "python3 {skill_dir}/scripts/report.py --results {results_json} --genotype-json {genotype_json} --out-report {out}/report.md --out-result-json {out}/result.json"

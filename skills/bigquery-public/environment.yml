@@ -1,0 +1,16 @@
+name: clawbio-bigquery-public
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10
+  # Only needed for live query/discovery modes (--query, --input,
+  # --list-datasets, --list-tables, --describe). `--demo` — the mode this
+  # pipeline.yaml's step invokes — never imports google.auth or
+  # google.cloud.bigquery (see scripts/bigquery_backends.py:
+  # _load_python_bigquery_client does the import lazily), so `pipeline.yaml`
+  # runs with just the stdlib. Install these only if you plan to run
+  # scripts/bigquery_public.py directly against real BigQuery.
+  - pip
+  - pip:
+      - google-auth>=2,<3
+      - google-cloud-bigquery>=3,<4

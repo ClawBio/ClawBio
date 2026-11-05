@@ -1,0 +1,115 @@
+skill: phylogenetics-builder
+version: 1
+
+# End-to-end ML phylogenetic tree inference. Unlike gwas_lookup (fan-out
+# fetches) or claw_metagenomics ([taxonomy, resistome, functional] in
+# parallel), the 1.x script (phylogenetics_builder.py) genuinely threads
+# ONE fasta file through six sequential stages, each stage's output file
+# feeding the next: align -> trim -> select_model -> build_tree -> root ->
+# render. `report` fans in the small `*_meta.json` sidecar each stage
+# writes (its provenance: which tool ran, or why it was skipped/fell back)
+# plus render's table/figure/tree, mirroring gwas_lookup's merge->report
+# shape but over a linear chain instead of parallel fetches.
+#
+# DAG: align -> trim -> select_model -> build_tree -> root -> render -> report
+#
+# Every flag the 1.x CLI exposes (--aligned/--aligner/--no-trim/--model/
+# --engine/--bootstrap/--outgroup/--root/--threads/--seed) is a required
+# pipeline.yaml input with a documented sentinel default (see SKILL.md) --
+# pipeline.yaml has no per-run default values, and command_template must
+# stay a static string (no conditionals), so every value a stage script
+# might branch on has to arrive as an explicit input.
+#
+# Demo mode: pass the bundled demo_alignment.fasta (skill root) as input_file with
+# aligned=true and demo=true. align/build_tree gracefully fall back
+# (pass-through / pre-computed examples/demo_tree.nwk) instead of erroring when
+# the corresponding binary is missing, exactly matching 1.x's "never
+# refuse" demo contract. See SKILL.md for real-mode binary requirements.
+
+inputs:
+  - name: input_file
+    required: true
+  - name: aligned
+    required: true
+  - name: aligner
+    required: true
+  - name: trim
+    required: true
+  - name: model
+    required: true
+  - name: engine
+    required: true
+  - name: bootstrap
+    required: true
+  - name: outgroup
+    required: true
+  - name: root
+    required: true
+  - name: threads
+    required: true
+  - name: seed
+    required: true
+  - name: demo
+    required: true
+
+steps:
+  - id: align
+    summary: "MSA (mafft/muscle/clustalw/kalign/tcoffee/prank), or pass through if --aligned"
+    requires_inputs: [input_file, aligned, aligner, demo]
+    emits: [aligned_fasta, align_meta]
+    command_template: "python3 {skill_dir}/scripts/align.py --input {input_file} --aligned {aligned} --aligner {aligner} --demo {demo} --skill-dir {skill_dir} --out {out}/aligned.fasta --out-meta {out}/align_meta.json"
+
+  - id: trim
+    summary: "trimAl -automated1 column trimming, or pass through if --trim=false"
+    prereqs: [align]
+    requires: {aligned_fasta: present}
+    requires_inputs: [trim]
+    emits: [trimmed_fasta, trim_meta]
+    command_template: "python3 {skill_dir}/scripts/trim.py --input {aligned_fasta} --trim {trim} --out {out}/trimmed.fasta --out-meta {out}/trim_meta.json"
+
+  - id: select_model
+    summary: "IQ-TREE2 ModelFinder (-m MFP), or use --model directly if provided"
+    prereqs: [trim]
+    requires: {trimmed_fasta: present}
+    requires_inputs: [model]
+    emits: [model_file, model_meta]
+    command_template: "python3 {skill_dir}/scripts/select_model.py --input {trimmed_fasta} --model {model} --out {out}/model.txt --out-meta {out}/model_meta.json"
+
+  - id: build_tree
+    summary: "IQ-TREE2 or RAxML-NG tree search with bootstrap + outgroup rooting"
+    prereqs: [select_model]
+    requires: {trimmed_fasta: present, model_file: present}
+    requires_inputs: [engine, bootstrap, outgroup, threads, seed, demo]
+    emits: [tree_nwk, tree_meta]
+    command_template: "python3 {skill_dir}/scripts/build_tree.py --input {trimmed_fasta} --model-file {model_file} --engine {engine} --bootstrap {bootstrap} --outgroup {outgroup} --threads {threads} --seed {seed} --demo {demo} --skill-dir {skill_dir} --out {out}/tree.nwk --out-meta {out}/tree_meta.json"
+
+  - id: root
+    summary: "Post-inference midpoint rooting (ETE3 -> Bio.Phylo -> identity fallback), or pass through"
+    prereqs: [build_tree]
+    requires: {tree_nwk: present}
+    requires_inputs: [root, outgroup]
+    emits: [rooted_tree_nwk, root_meta]
+    command_template: "python3 {skill_dir}/scripts/root.py --input {tree_nwk} --root {root} --outgroup {outgroup} --out {out}/rooted_tree.nwk --out-meta {out}/root_meta.json"
+
+  - id: render
+    summary: "Parse Newick into branch-support table + draw proportional phylogram"
+    prereqs: [root]
+    requires: {rooted_tree_nwk: present}
+    emits: [phylo_tree_nwk, branch_support_table, phylogram_png]
+    command_template: "python3 {skill_dir}/scripts/render.py --input {rooted_tree_nwk} --out-tree {out}/phylo_tree.nwk --out-table {out}/branch_support.csv --out-figure {out}/phylogram.png"
+
+  - id: report
+    summary: "Fan in all stage provenance + render outputs into report.md and result.json"
+    prereqs: [align, trim, select_model, build_tree, root, render]
+    requires:
+      align_meta: present
+      trim_meta: present
+      model_meta: present
+      tree_meta: present
+      root_meta: present
+      phylo_tree_nwk: present
+      branch_support_table: present
+      phylogram_png: present
+    requires_inputs: [input_file]
+    emits: [report_md, result_json]
+    command_template: "python3 {skill_dir}/scripts/report.py --input {input_file} --align-meta {align_meta} --trim-meta {trim_meta} --model-meta {model_meta} --tree-meta {tree_meta} --root-meta {root_meta} --tree {phylo_tree_nwk} --table {branch_support_table} --figure {phylogram_png} --out-report {out}/report.md --out-result {out}/result.json"

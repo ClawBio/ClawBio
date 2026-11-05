@@ -1,0 +1,13 @@
+name: gwas_prs
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.9
+# No third-party packages required. The 1.x SKILL.md frontmatter lists
+# `requests` (openclaw.install) for PGS Catalog API queries; this port uses
+# stdlib `urllib.request` instead (see scripts/resolve_scores.py), so the
+# live-fetch fallback path needs no extra dependency either. `scipy` and
+# `matplotlib` are listed as optional in the 1.x SKILL.md (precise normal
+# CDF / bell-curve figure) but the shipped script's percentile math uses
+# `math.erf` unconditionally (exact, not an approximation needing scipy),
+# and no figure step exists in this port — see SKILL.md.

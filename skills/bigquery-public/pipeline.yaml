@@ -1,0 +1,28 @@
+skill: bigquery-public
+version: 1
+
+# Single-invocation skill: one script call runs the offline demo mode
+# (bundled Shakespeare-corpus fixture, no GCP call) and writes report.md,
+# result.json, and tables/results.csv from one output dir.
+#
+# The underlying scripts/bigquery_public.py also supports live SQL query
+# execution (--query/--input) and schema discovery (--list-datasets,
+# --list-tables, --describe) against real BigQuery public datasets, but
+# those all require GCP credentials (ADC or a logged-in `bq` CLI) that
+# cannot be guaranteed in a `clawbio start` environment, and the choice of
+# mode is exactly the kind of conditional pipeline.yaml cannot express (see
+# CLAUDE.md's "no Turing-complete YAML" constraint — no if/when, no
+# fan-out beyond declared steps). So this pipeline.yaml fixes the DAG to the
+# one mode that is deterministic and always available offline: --demo.
+# Real query/discovery runs remain available by invoking
+# scripts/bigquery_public.py directly outside the clawbio DAG — see
+# SKILL.md.
+
+steps:
+  - id: run_demo_query
+    summary: "Run the bundled offline demo query (Shakespeare word-count fixture, no GCP call) and write report + results"
+    emits:
+      - report_md
+      - results_csv
+      - result_json
+    command_template: "python3 {skill_dir}/scripts/bigquery_public.py --demo --output {out}"

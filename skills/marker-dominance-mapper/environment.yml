@@ -1,0 +1,5 @@
+name: marker-dominance-mapper
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10

@@ -1,0 +1,53 @@
+skill: pharmgx-reporter
+version: 1
+
+# Pharmacogenomic report from DTC genetic data (23andMe/AncestryDNA): parse
+# -> call star alleles/phenotypes -> CPIC drug lookup -> ClinPGx evidence
+# enrichment -> report. Four steps, linear chain (no fan-out): 1.x's
+# main() ran these as sequential in-process stages over one parsed file, so
+# there's nothing to parallelize the way gwas_lookup fans out to 8 APIs.
+#
+# `enrich_clinpgx` is a normal (non-skippable) step, not `optional: true`:
+# this worktree's `clawbio` CLI has no `optional`/`clawbio skip` support at
+# port time (checked in clawbio/pipeline.py and clawbio/commands.py — no
+# such field, no such subcommand). Making the step hard-fail on missing
+# network would strand every offline run, so instead its script
+# (scripts/enrich_clinpgx.py) degrades gracefully per-gene on any network
+# error — mirroring skills/gwas_lookup/scripts/fetch_api.py's error-stub
+# pattern — and always exits 0 with a valid (possibly empty) emit. The step
+# always runs; only its *content* varies with network availability.
+
+inputs:
+  - name: patient_file
+    required: true
+
+steps:
+  - id: parse_and_profile
+    summary: "Parse 23andMe/AncestryDNA file, extract 32-SNP PGx panel, call star-allele diplotypes and CPIC phenotypes"
+    requires_inputs: [patient_file]
+    emits: [profile_json]
+    command_template: "python3 {skill_dir}/scripts/parse_and_profile.py --input {patient_file} --out {out}/profile.json"
+
+  - id: lookup_drugs
+    summary: "Look up CPIC drug recommendations (AVOID/CAUTION/STANDARD/INSUFFICIENT) for every gene profile"
+    prereqs: [parse_and_profile]
+    requires: {profile_json: present}
+    emits: [drug_recommendations_json]
+    command_template: "python3 {skill_dir}/scripts/lookup_drugs.py --profile {profile_json} --out {out}/drug_recommendations.json"
+
+  - id: enrich_clinpgx
+    summary: "Enrich AVOID/CAUTION drugs with ClinPGx evidence levels (network best-effort; degrades to empty on failure)"
+    prereqs: [lookup_drugs]
+    requires: {drug_recommendations_json: present}
+    emits: [clinpgx_enrichment_json]
+    command_template: "python3 {skill_dir}/scripts/enrich_clinpgx.py --drug-recommendations {drug_recommendations_json} --out {out}/clinpgx_enrichment.json"
+
+  - id: report
+    summary: "Render report.md + result.json from gene profiles, drug recommendations, and ClinPGx evidence"
+    prereqs: [parse_and_profile, lookup_drugs, enrich_clinpgx]
+    requires:
+      profile_json: present
+      drug_recommendations_json: present
+      clinpgx_enrichment_json: present
+    emits: [report_md, result_json]
+    command_template: "python3 {skill_dir}/scripts/report.py --profile {profile_json} --drug-recommendations {drug_recommendations_json} --enrichment {clinpgx_enrichment_json} --out {out}"

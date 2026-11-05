@@ -1,0 +1,18 @@
+skill: analyze-fasta
+version: 1
+
+# Single-step DAG: one Biopython script call that auto-detects nucleotide vs
+# protein and emits report.md + result.json + report.html in one invocation.
+# No branching needed — detection and metric selection happen inside the
+# script, not in the pipeline.
+
+inputs:
+  - name: fasta_path
+    required: true
+
+steps:
+  - id: analyze
+    summary: "Auto-detect nucleotide/protein type; compute GC/ORF/MW/pI/GRAVY/secondary-structure metrics with Biopython"
+    requires_inputs: [fasta_path]
+    emits: [report_md, result_json, report_html]
+    command_template: "python3 {skill_dir}/scripts/analyze_fasta.py --input {fasta_path} --output {out}"

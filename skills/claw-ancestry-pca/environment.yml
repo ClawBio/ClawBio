@@ -1,0 +1,9 @@
+name: claw_ancestry_pca
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.9
+  - numpy
+  - pandas
+  - scikit-learn
+  - matplotlib
