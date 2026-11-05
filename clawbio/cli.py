@@ -371,6 +371,13 @@ SKILLS = {
         "allowed_extra_flags": {"--input2", "--n-reads", "--fraction", "--seed"},
         "accepts_genotypes": False,
     },
+    "bam-to-fastq": {
+        "script": SKILLS_DIR / "bam-to-fastq" / "bam_to_fastq.py",
+        "demo_args": ["--demo"],
+        "description": "Convert a BAM back to FASTQ (paired-end via bedtools bamtofastq, single-end via samtools fastq) with read-count checks",
+        "allowed_extra_flags": {"--paired", "--name-sort", "--prefix", "--tags", "--skip-check", "--check-n"},
+        "accepts_genotypes": False,
+    },
     "phylo": {
         "script": SKILLS_DIR / "phylogenetics-builder" / "phylogenetics_builder.py",
         "demo_args": ["--demo"],

@@ -40,6 +40,7 @@ SKIP_IN_CI = {
     "galaxy-bridge",      # queries live Galaxy API
     "nfcore-sarek-wrapper",  # needs Nextflow + Java + Docker/Singularity (heavy)
     "seqtk-downsample",   # needs the seqtk binary, which CI does not install
+    "bam-to-fastq",       # needs samtools + bedtools, which CI does not install
 }
 
 
