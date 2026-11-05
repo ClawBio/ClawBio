@@ -60,7 +60,7 @@ def make_cases(dn):
         "demo_kaks_outgroup": partial(
             dn.compute_ka_ks, ingroup, outgroup=aln.seqs[outgroup_index]
         ),
-        "single_sequence": partial(dn.compute_ka_ks, [aln.seqs[0]]),
+        "single_sequence_early_return": partial(dn.compute_ka_ks, [aln.seqs[0]]),
     }
 
 

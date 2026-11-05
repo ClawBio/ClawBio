@@ -3374,9 +3374,10 @@ def compute_ka_ks(
     # classified, once each; identical sequence pairs are compared once.
     pair_classes: dict[tuple[str, str], tuple[float, float]] = {}
     seq_pair_totals: dict[tuple[str, str], tuple[int, float, float]] = {}
+    reuse_seq_pairs = len(set(seqs)) < n
     for a, b in pairs:
         seq_key = (site_pool[a], site_pool[b])
-        totals = seq_pair_totals.get(seq_key)
+        totals = seq_pair_totals.get(seq_key) if reuse_seq_pairs else None
         if totals is None:
             total_sd = 0.0
             total_nd = 0.0
@@ -3395,7 +3396,8 @@ def compute_ka_ks(
                 total_sd += changes[0]
                 total_nd += changes[1]
             totals = (n_valid, total_sd, total_nd)
-            seq_pair_totals[seq_key] = totals
+            if reuse_seq_pairs:
+                seq_pair_totals[seq_key] = totals
         n_valid, total_sd, total_nd = totals
         if n_valid == 0:
             continue
