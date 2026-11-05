@@ -160,6 +160,27 @@
       ]
     },
     {
+      "name": "bam-to-fastq",
+      "slug": "bam-to-fastq",
+      "license": "MIT",
+      "description": "Convert a BAM back to FASTQ, paired-end with `bedtools bamtofastq` or single-end with `samtools fastq`, with read counts checked before and after every step.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "bam to fastq",
+        "bamtofastq",
+        "extract reads from bam",
+        "revert bam to fastq",
+        "convert bam back to fastq"
+      ],
+      "tags": [
+        "bam",
+        "fastq",
+        "bedtools",
+        "samtools",
+        "sequencing"
+      ]
+    },
+    {
       "name": "bgpt-mcp",
       "slug": "bgpt-mcp",
       "license": "MIT",
@@ -2350,6 +2371,27 @@
         "samtools",
         "ngs",
         "genomics"
+      ]
+    },
+    {
+      "name": "seqtk-downsample",
+      "slug": "seqtk-downsample",
+      "license": "MIT",
+      "description": "Randomly downsample FASTQ files to N reads or a fraction with `seqtk sample`, single-end or paired-end, fixed seed (default 12345), gzip in and out.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "downsample fastq",
+        "subsample fastq",
+        "seqtk sample",
+        "take 10000 reads from fastq",
+        "reduce fastq size for testing"
+      ],
+      "tags": [
+        "fastq",
+        "seqtk",
+        "downsampling",
+        "subsampling",
+        "sequencing"
       ]
     },
     {

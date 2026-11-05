@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 109,
+  "skill_count": 110,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -288,6 +288,48 @@
         "download research data",
         "get files from zenodo",
         "fetch data from figshare"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
+      "name": "bam-to-fastq",
+      "cli_alias": "bam-to-fastq",
+      "description": "Convert a BAM back to FASTQ, paired-end with `bedtools bamtofastq` or single-end with `samtools fastq`, with read counts checked before and after every step.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run bam-to-fastq --demo",
+      "dependencies": [
+        "python>=3.11"
+      ],
+      "tags": [
+        "bam",
+        "fastq",
+        "bedtools",
+        "samtools",
+        "sequencing"
+      ],
+      "trigger_keywords": [
+        "bam to fastq",
+        "bamtofastq",
+        "extract reads from bam",
+        "revert bam to fastq",
+        "convert bam back to fastq"
       ],
       "chaining_partners": [],
       "license": "MIT",
