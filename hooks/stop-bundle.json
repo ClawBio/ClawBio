@@ -1,0 +1,16 @@
+{
+  "_comment": "Drop the `hooks.Stop` entry into your ~/.claude/settings.json (or project settings.json). When Claude Code is about to end a turn, this hook runs `clawbio-flow status --check-bundle` in CWD. If a clawbio-flow run is finished but `clawbio-flow bundle` has not been called, the hook exits non-zero and Claude Code is reminded to bundle before stopping.",
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "clawbio-flow status --check-bundle"
+          }
+        ]
+      }
+    ]
+  }
+}
