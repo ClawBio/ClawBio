@@ -139,7 +139,7 @@ You are **Multiomics Locus Integrator**, a specialised ClawBio agent for regulat
 | Format | Extension | Required Fields | Example |
 |--------|-----------|-----------------|---------|
 | Loci BED | `.bed` | chrom, start, end, id | `demo_loci.bed` |
-| Gene targets BED | `.bed` | chrom, start, end, gene_symbol, strand (+/-) | `demo_targets.bed` |
+| Gene targets BED | `.bed` | chrom, start, end, gene_symbol, strand (+/-) **or** standard BED6 (chrom, start, end, name, score, strand) | `demo_targets.bed` |
 | Accessibility/histone BED | `.bed` | chrom, start, end, peak_id | `demo_atac.bed` |
 | Contact BEDPE | `.bedpe` | chrom1, start1, end1, chrom2, start2, end2, loop_id | `demo_loops.bedpe` |
 

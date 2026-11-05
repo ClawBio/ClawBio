@@ -86,9 +86,16 @@ def parse_bed(path: Path) -> list[Interval]:
 
 
 def parse_gene_targets(path: Path) -> list[GeneWindow]:
-    """Parse gene-targets BED (chrom, start, end, gene_symbol, strand) into
-    strand-aware TSS windows: [TSS-1000bp, TSS+250bp), carrying the TSS
-    point itself alongside the window.
+    """Parse gene-targets BED into strand-aware TSS windows:
+    [TSS-1000bp, TSS+250bp), carrying the TSS point itself alongside
+    the window.
+
+    Accepts two column layouts (PR #678 review round 7): this skill's
+    own 5-column form (chrom, start, end, gene_symbol, strand), or a
+    standard BED6 file (chrom, start, end, name, score, strand) so
+    users do not have to convert a real BED6 file first -- column 6 is
+    used as strand whenever it is a valid '+'/'-', falling back to
+    column 5 otherwise.
 
     The window is still what contact_genes() overlaps against (a locus
     reaching anywhere in the regulatory window counts); the TSS point is
@@ -109,7 +116,15 @@ def parse_gene_targets(path: Path) -> list[GeneWindow]:
                     "gene-targets BED (chrom, start, end, gene_symbol, strand)",
                 )
             chrom, start, end = fields[0], int(fields[1]), int(fields[2])
-            name, strand = fields[3], fields[4]
+            name = fields[3]
+            # BED6 carries strand in column 6 (fields[5]), with a score
+            # in column 5 (fields[4]) that this skill does not use.
+            # Prefer it when present and valid; fall back to this
+            # skill's own column-5 convention otherwise.
+            if len(fields) >= 6 and fields[5] in ("+", "-"):
+                strand = fields[5]
+            else:
+                strand = fields[4]
             if strand == "+":
                 tss = start
                 win_start, win_end = tss - TSS_UPSTREAM_BP, tss + TSS_DOWNSTREAM_BP

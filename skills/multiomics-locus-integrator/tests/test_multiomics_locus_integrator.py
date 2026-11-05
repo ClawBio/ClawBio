@@ -100,14 +100,27 @@ def test_gene_targets_tss_window_minus_strand(tmp_path: Path) -> None:
 
 
 def test_gene_targets_requires_strand(tmp_path: Path) -> None:
-    bed = tmp_path / "genes.bed"
+    # Unrelated fixture directory name (PR #678 review round 7): this
+    # test's own name contains "strand", and tmp_path embeds the test
+    # function name, so match="strand" could coincidentally match the
+    # path instead of the real message -- same class of issue already
+    # fixed for the space-delimited tests in round 4. Verified this one
+    # already passed for the right reason (the message genuinely says
+    # "...gene_symbol, strand) needs..."), but removing the ambiguity
+    # entirely is cheap and matches the established convention.
+    bed_dir = tmp_path / "unrelated_fixture_dir"
+    bed_dir.mkdir()
+    bed = bed_dir / "unrelated_fixture_name.bed"
     bed.write_text("chr1\t5000\t8000\tGENE_NOSTRAND\n")  # only 4 fields, no strand
     with pytest.raises(ValueError, match="strand"):
         mli.parse_gene_targets(bed)
 
 
 def test_gene_targets_rejects_invalid_strand(tmp_path: Path) -> None:
-    bed = tmp_path / "genes.bed"
+    # Same unrelated-fixture-name reasoning as above.
+    bed_dir = tmp_path / "unrelated_fixture_dir"
+    bed_dir.mkdir()
+    bed = bed_dir / "unrelated_fixture_name.bed"
     bed.write_text("chr1\t5000\t8000\tGENE_BAD\t.\n")
     with pytest.raises(ValueError, match="strand"):
         mli.parse_gene_targets(bed)
@@ -219,3 +232,20 @@ def test_nearest_gene_ranks_by_true_tss_not_window_edge(tmp_path: Path) -> None:
     name, dist = mli.nearest_gene("chr1", 900, 901, genes)
     assert name == "GENE_B"
     assert dist == 400
+
+
+def test_gene_targets_accepts_standard_bed6(tmp_path: Path) -> None:
+    # PR #678 review round 7: a standard BED6 file (chrom, start, end,
+    # name, score, strand) should be readable directly -- strand lives in
+    # column 6 there, with a score in column 5 this skill doesn't use.
+    bed = tmp_path / "genes.bed"
+    bed.write_text("chr1\t5000\t8000\tGENE_BED6\t960\t+\n")
+    genes = mli.parse_gene_targets(bed)
+    assert genes == [("chr1", 4000, 5250, "GENE_BED6", 5000)]
+
+
+def test_gene_targets_bed6_minus_strand(tmp_path: Path) -> None:
+    bed = tmp_path / "genes.bed"
+    bed.write_text("chr1\t5000\t8000\tGENE_BED6\t960\t-\n")
+    genes = mli.parse_gene_targets(bed)
+    assert genes == [("chr1", 7749, 8999, "GENE_BED6", 7999)]
