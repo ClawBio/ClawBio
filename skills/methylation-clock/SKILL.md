@@ -111,6 +111,12 @@ Use pickle input only when you trust its source; deserializing an untrusted pick
 
 The targets, tissues, and units come from the [PyAging clock catalogue](https://pyaging.readthedocs.io/en/latest/clock_glossary.html); its [DNA methylation tutorial](https://pyaging.readthedocs.io/en/latest/tutorials/tutorial_dnam.html) identifies age and sex as features for PCGrimAge and GrimAge2. The report uses a unit from PyAging metadata when available, with documented units for the five default clocks as fallbacks. `tissue_type` is descriptive metadata, not an automatic compatibility check. Compare predictions only within an appropriate tissue and target; a DunedinPACE value is not an age in years. A difference between an estimate and chronological age is not, by itself, a validated health assessment or an age-acceleration analysis.
 
+## Gotchas
+
+- **GEO metadata**: You may expect every GEO pickle column to be recognized automatically. Inspect nonnumeric columns and list any fields beyond `gender`, `sex`, `tissue_type`, and `dataset` in `--metadata-cols`; input QC rejects undeclared nonnumeric fields.
+- **Clock covariates**: You may use the default clock list without age and sex. PCGrimAge and GrimAge2 require age and a known sex value; otherwise choose clocks whose required inputs you have.
+- **Input scale and demo meaning**: You may pass percentage beta values, M-values, or interpret the bundled predictions biologically. Supply beta values in `[0, 1]`; convert percentages or M-values first, and treat demo predictions as a software check only.
+
 ### Output Structure
 
 ```
