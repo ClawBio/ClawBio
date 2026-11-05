@@ -1,0 +1,100 @@
+{
+  "_comment": "Bundled offline demo fixture for ClawBio 2.0's clinpgx port. Raw ClinPGx-API-shaped payload (same shape ClinPGxClient.get_gene / get_clinical_annotations / get_guidelines / get_drug_labels return) so it runs through the exact same extract_* functions a live response would. Representative structure and evidence levels reflecting well-documented CYP2D6 pharmacogenomics (codeine, tamoxifen, atomoxetine); not a verbatim API dump. CC BY-SA 4.0 attribution applies to any values sourced from ClinPGx/PharmGKB/CPIC.",
+  "gene": {
+    "symbol": "CYP2D6",
+    "name": "cytochrome P450 family 2 subfamily D member 6",
+    "id": "PA128",
+    "chr": {"name": "chr22"},
+    "cpicGene": true,
+    "alleleType": "star"
+  },
+  "clinical_annotations": [
+    {
+      "accessionId": "CA204750001",
+      "relatedChemicals": [{"name": "codeine"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "levelOfEvidence": {"term": "1A"},
+      "phenotypeCategory": "Toxicity"
+    },
+    {
+      "accessionId": "CA204750002",
+      "relatedChemicals": [{"name": "codeine"}, {"name": "tramadol"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "levelOfEvidence": {"term": "1A"},
+      "phenotypeCategory": "Efficacy"
+    },
+    {
+      "accessionId": "CA204750003",
+      "relatedChemicals": [{"name": "tamoxifen"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "levelOfEvidence": {"term": "1A"},
+      "phenotypeCategory": "Efficacy"
+    },
+    {
+      "accessionId": "CA204750004",
+      "relatedChemicals": [{"name": "atomoxetine"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "levelOfEvidence": {"term": "2A"},
+      "phenotypeCategory": "Metabolism/PK"
+    },
+    {
+      "accessionId": "CA204750005",
+      "relatedChemicals": [{"name": "nortriptyline"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "levelOfEvidence": {"term": "1B"},
+      "phenotypeCategory": "Dosage"
+    }
+  ],
+  "guidelines": [
+    {
+      "id": "PA166104996",
+      "name": "CPIC Guideline for codeine and CYP2D6",
+      "relatedChemicals": [{"name": "codeine"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "source": "CPIC",
+      "dosingInformation": true
+    },
+    {
+      "id": "PA166105006",
+      "name": "CPIC Guideline for tamoxifen and CYP2D6",
+      "relatedChemicals": [{"name": "tamoxifen"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "source": "CPIC",
+      "dosingInformation": true
+    },
+    {
+      "id": "PA166105172",
+      "name": "DPWG Guideline for atomoxetine and CYP2D6",
+      "relatedChemicals": [{"name": "atomoxetine"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "source": "DPWG",
+      "dosingInformation": true
+    }
+  ],
+  "drug_labels": [
+    {
+      "id": "PA166104938",
+      "name": "Codeine FDA Label",
+      "relatedChemicals": [{"name": "codeine"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "source": "FDA",
+      "testingLevel": "Actionable PGx"
+    },
+    {
+      "id": "PA166104939",
+      "name": "Atomoxetine FDA Label",
+      "relatedChemicals": [{"name": "atomoxetine"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "source": "FDA",
+      "testingLevel": "Actionable PGx"
+    },
+    {
+      "id": "PA166104940",
+      "name": "Tamoxifen FDA Label",
+      "relatedChemicals": [{"name": "tamoxifen"}],
+      "relatedGenes": [{"symbol": "CYP2D6"}],
+      "source": "FDA",
+      "testingLevel": "Informative PGx"
+    }
+  ]
+}

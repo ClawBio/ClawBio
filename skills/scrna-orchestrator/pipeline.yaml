@@ -1,0 +1,89 @@
+skill: scrna-orchestrator
+version: 1
+
+# Local Scanpy scRNA-seq pipeline: QC -> optional doublet detection ->
+# normalize/HVG -> cluster (Leiden) -> marker discovery -> optional CellTypist
+# annotation -> report.
+#
+# Two steps are `optional: true`: detect_doublets and annotate_celltypist.
+# Downstream steps that merely BENEFIT from an optional step's output (rather
+# than strictly needing it) declare `prereqs` on it for DAG ordering only —
+# no `requires` gate on its emit — so `clawbio skip <id> --reason ...` never
+# blocks the rest of the run. See preprocess.py and report.py module
+# docstrings for how those two steps discover optional upstream results
+# (sibling-file lookup in the shared `{out}` dir) without a hard data gate.
+
+inputs:
+  - name: input_h5ad
+    required: true
+
+steps:
+  - id: qc_filter
+    summary: "Load raw-count .h5ad/10x input and apply QC filtering (min genes/cells, max MT%)"
+    requires_inputs: [input_h5ad]
+    emits: [qc_filtered_h5ad, qc_stats_json]
+    command_template: "python3 {skill_dir}/scripts/qc_filter.py --input {input_h5ad} --out {out}/qc_filtered.h5ad --stats-out {out}/qc_stats.json"
+
+  - id: detect_doublets
+    summary: "OPTIONAL: Scrublet doublet detection on QC-filtered raw counts"
+    optional: true
+    prereqs: [qc_filter]
+    requires: {qc_filtered_h5ad: present}
+    emits: [doublet_filtered_h5ad, doublet_summary_json]
+    command_template: "python3 {skill_dir}/scripts/detect_doublets.py --qc-h5ad {qc_filtered_h5ad} --out {out}/doublet_filtered.h5ad --summary-out {out}/doublet_summary.json"
+
+  - id: preprocess
+    summary: "Normalize (target_sum=1e4), log1p, and select HVGs (seurat flavor)"
+    # `detect_doublets` is ordering-only here: doublet removal is scientifically
+    # optional (sorted single-cell protocols, negligible doublet rates), so this
+    # step must unblock whether detect_doublets is done OR skipped. The mandatory
+    # data gate is qc_filtered_h5ad (from the non-optional qc_filter step); the
+    # script itself checks for a sibling doublet_filtered.h5ad and prefers it
+    # when present. See preprocess.py's module docstring.
+    prereqs: [qc_filter, detect_doublets]
+    requires: {qc_filtered_h5ad: present}
+    emits: [normalized_h5ad, hvg_h5ad, preprocess_summary_json]
+    command_template: "python3 {skill_dir}/scripts/preprocess.py --qc-h5ad {qc_filtered_h5ad} --norm-out {out}/normalized.h5ad --hvg-out {out}/hvg.h5ad --summary-out {out}/preprocess_summary.json"
+
+  - id: cluster
+    summary: "PCA (or latent rep) + neighbors + UMAP + Leiden clustering"
+    prereqs: [preprocess]
+    requires:
+      hvg_h5ad: present
+      normalized_h5ad: present
+    emits: [clustered_h5ad, cluster_summary_json]
+    command_template: "python3 {skill_dir}/scripts/cluster.py --hvg-h5ad {hvg_h5ad} --norm-h5ad {normalized_h5ad} --use-rep auto --out {out}/clustered.h5ad --summary-out {out}/cluster_summary.json"
+
+  - id: find_markers
+    summary: "Attach Leiden labels to normalized full-gene expression; Wilcoxon cluster-vs-rest markers"
+    prereqs: [cluster, preprocess]
+    requires:
+      clustered_h5ad: present
+      normalized_h5ad: present
+    emits: [markers_h5ad, markers_top_csv, markers_all_csv, cluster_summary_csv]
+    command_template: "python3 {skill_dir}/scripts/find_markers.py --clustered-h5ad {clustered_h5ad} --norm-h5ad {normalized_h5ad} --out {out}/markers.h5ad --top-csv-out {out}/markers_top.csv --all-csv-out {out}/markers_all.csv --cluster-summary-out {out}/cluster_summary.csv"
+
+  - id: annotate_celltypist
+    summary: "OPTIONAL: local CellTypist annotation aggregated to cluster-level putative labels"
+    optional: true
+    prereqs: [find_markers]
+    requires: {markers_h5ad: present}
+    emits: [cluster_annotations_csv, annotation_info_json]
+    command_template: "python3 {skill_dir}/scripts/annotate_celltypist.py --markers-h5ad {markers_h5ad} --out {out}/cluster_annotations.csv --info-out {out}/annotation_info.json"
+
+  - id: report
+    summary: "Render report.md, result.json, tables, and figures"
+    # `annotate_celltypist` is ordering-only here for the same reason detect_doublets
+    # is ordering-only for preprocess: CellTypist annotation is a genuine add-on that
+    # report.py can render around (see its module docstring's sibling-file lookup).
+    prereqs: [find_markers, annotate_celltypist]
+    requires:
+      clustered_h5ad: present
+      markers_h5ad: present
+      markers_top_csv: present
+      cluster_summary_csv: present
+      qc_stats_json: present
+      cluster_summary_json: present
+      preprocess_summary_json: present
+    emits: [report_md, result_json]
+    command_template: "python3 {skill_dir}/scripts/report.py --clustered-h5ad {clustered_h5ad} --markers-h5ad {markers_h5ad} --markers-top-csv {markers_top_csv} --cluster-summary-csv {cluster_summary_csv} --qc-stats-json {qc_stats_json} --cluster-summary-json {cluster_summary_json} --preprocess-summary-json {preprocess_summary_json} --report-out {out}/report.md --result-json-out {out}/result.json"

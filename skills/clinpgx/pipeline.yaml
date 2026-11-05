@@ -1,0 +1,32 @@
+skill: clinpgx
+version: 1
+
+# Single-invocation skill: one script call queries the ClinPGx REST API for
+# gene and/or drug pharmacogenomic data (gene info, clinical annotations,
+# CPIC/DPWG guidelines, FDA drug labels), then writes a markdown report,
+# CSV tables, and result.json from one output dir. The source script has no
+# separable "resolve" vs "fetch" stage — query_gene()/query_drug() each run
+# their own sequential API calls (gene/chemical lookup -> annotations ->
+# guidelines/labels) inside one function, so there is nothing to fan out to
+# as a DAG (contrast gwas_lookup's resolve -> 8 parallel fetches -> merge).
+#
+# `genes` and `drugs` are both declared required (comma-separated, may be
+# an empty string) rather than optional, because an omitted optional input
+# would leave its `{var}` placeholder unresolved at `open` time — there is
+# no conditional-placeholder mechanism in pipeline.yaml v1 (see
+# claw_ancestry_pca's pipeline.yaml for the same reasoning applied to
+# pop_map). The script's own "at least one of genes/drugs" validation still
+# applies: passing both as empty exits non-zero.
+
+inputs:
+  - name: genes
+    required: true
+  - name: drugs
+    required: true
+
+steps:
+  - id: query
+    summary: "Query ClinPGx for gene/drug info, clinical annotations, CPIC/DPWG guidelines, FDA labels; render report + CSV tables"
+    requires_inputs: [genes, drugs]
+    emits: [report_md, result_json]
+    command_template: "python3 {skill_dir}/scripts/clinpgx.py --genes '{genes}' --drugs '{drugs}' --skill-dir {skill_dir} --output {out}"

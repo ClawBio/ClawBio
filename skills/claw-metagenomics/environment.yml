@@ -1,0 +1,24 @@
+# Derived from ClawBio 1.x claw-metagenomics SKILL.md's
+# metadata.openclaw.dependencies / system_dependencies.
+#
+# `demo` mode (bundled data/demo_R{1,2}.fastq.gz fixtures) needs only the
+# Python dependencies below. Real-data mode additionally needs the four
+# bioconda system dependencies plus large reference databases -- see
+# SKILL.md's Dependencies section.
+name: clawbio-metagenomics
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.9
+  - kraken2>=2.1.3
+  - bracken>=2.9
+  - rgi>=6.0
+  - humann>=3.8
+  - pandas>=2.0
+  - numpy>=1.24
+  - matplotlib>=3.7
+  - seaborn>=0.12
+  - scipy>=1.10
+  - biopython>=1.82

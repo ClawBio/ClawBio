@@ -1,0 +1,126 @@
+skill: nfcore-sarek-wrapper
+version: 1
+
+# nf-core/sarek 3.8.1 wrapper: mapping -> markduplicates -> prepare_recalibration
+# -> recalibrate -> variant_calling -> annotate, for germline / tumor-only /
+# somatic-paired analyses. Real execution needs Nextflow, a container runtime
+# (Docker/Singularity/...), Java >=17, and reference genome data — none of
+# which exist in this sandbox, and the 1.x wrapper's own CLI already draws
+# this exact line: it ships a `--check` mode ("preflight + samplesheet
+# validation only; no Nextflow") specifically for environments like this one.
+#
+# DAG: samplesheet_validate -> preflight -> build_params -> build_command -> report
+#
+# A genuine linear chain (like phylogenetics_builder, not a fan-out/fan-in
+# like gwas_lookup): each stage's output feeds the next, mirroring the 1.x
+# orchestrator's own real sequence (nfcore_sarek_wrapper.py's `_run_wrapper`:
+# samplesheet prep -> preflight -> [build params + compose command] -> execute
+# -> report) with the "execute" step removed and "report" narrowed to
+# describe what was validated/prepared rather than a completed run's outputs.
+# Every step wraps a faithfully-ported 1.x module (scripts/samplesheet_builder.py,
+# scripts/preflight.py, scripts/params_builder.py, scripts/command_builder.py —
+# byte-identical rule logic, see each file's header) via a thin new CLI script
+# (scripts/samplesheet_validate.py, preflight_check.py, build_params.py,
+# build_command.py) that adapts the flags to pipeline.yaml's static
+# {placeholder} substitution. `report` is new: it fans in every prior stage's
+# JSON output into report.md/result.json, matching gwas_lookup's merge->report
+# shape.
+#
+# `build_command` composes the exact `nextflow run nf-core/sarek ...` command
+# a real run would execute and writes it to reproducibility/commands_preview.sh
+# — but never runs it. See SKILL.md's "What a real run additionally needs".
+#
+# No conditionals: every 1.x CLI flag this port surfaces is a `required: true`
+# input with a documented sentinel default (see SKILL.md) — pipeline.yaml has
+# no per-run default mechanism and command_template must stay a static string.
+# The 1.x wrapper exposes 150+ Sarek passthrough flags (see its SKILL.md);
+# this port surfaces the ones preflight/params/command-building actually
+# branch on and covers the rest via the `extra_params_json` escape hatch
+# (a JSON object of native Sarek param overrides — the file-based equivalent
+# of 1.x's repeatable `--extra-param key=value`).
+
+inputs:
+  - name: input_samplesheet
+    required: true
+  - name: step
+    required: true
+  - name: tools
+    required: true
+  - name: skip_tools
+    required: true
+  - name: aligner
+    required: true
+  - name: genome
+    required: true
+  - name: igenomes_ignore
+    required: true
+  - name: fasta
+    required: true
+  - name: wes
+    required: true
+  - name: profile
+    required: true
+  - name: demo
+    required: true
+  - name: allow_remote_inputs
+    required: true
+  - name: skip_runtime_checks
+    required: true
+  - name: extra_params_json
+    required: true
+  - name: pipeline_version
+    required: true
+  - name: pipeline_local
+    required: true
+  - name: sarek_output_dir
+    required: true
+  - name: arm
+    required: true
+  - name: gpu
+    required: true
+  - name: spark_profile
+    required: true
+  - name: mutect_profile
+    required: true
+
+steps:
+  - id: samplesheet_validate
+    summary: "Validate + normalize the Sarek samplesheet for --step (or skip, under --demo)"
+    requires_inputs: [input_samplesheet, step, tools, demo]
+    emits: [normalized_samplesheet_csv, samplesheet_report_json]
+    command_template: "python3 {skill_dir}/scripts/samplesheet_validate.py --input {input_samplesheet} --step {step} --tools {tools} --demo {demo} --out-samplesheet {out}/samplesheet.valid.csv --out-report {out}/samplesheet_report.json"
+
+  - id: preflight
+    summary: "Run the wrapper's real preflight rules (tool/mode pairing, reference paths, flag compatibility, ...)"
+    prereqs: [samplesheet_validate]
+    requires: {samplesheet_report_json: present}
+    requires_inputs: [step, tools, skip_tools, aligner, genome, igenomes_ignore, fasta, wes, profile, demo, arm, gpu, spark_profile, mutect_profile, allow_remote_inputs, skip_runtime_checks, extra_params_json, pipeline_version, pipeline_local, sarek_output_dir]
+    emits: [preflight_report_json]
+    command_template: "python3 {skill_dir}/scripts/preflight_check.py --samplesheet-report {samplesheet_report_json} --step {step} --tools {tools} --skip-tools {skip_tools} --aligner {aligner} --genome {genome} --igenomes-ignore {igenomes_ignore} --fasta {fasta} --wes {wes} --profile {profile} --demo {demo} --arm {arm} --gpu {gpu} --spark-profile {spark_profile} --mutect-profile {mutect_profile} --allow-remote-inputs {allow_remote_inputs} --skip-runtime-checks {skip_runtime_checks} --extra-params-json {extra_params_json} --pipeline-version {pipeline_version} --pipeline-local {pipeline_local} --sarek-output-dir {sarek_output_dir} --out {out}/preflight_report.json"
+
+  - id: build_params
+    summary: "Assemble the effective Sarek params.yaml (only reachable once preflight has passed)"
+    prereqs: [preflight]
+    requires: {preflight_report_json: present, samplesheet_report_json: present}
+    requires_inputs: [step, tools, skip_tools, aligner, genome, igenomes_ignore, fasta, wes, demo, extra_params_json]
+    emits: [params_yaml]
+    command_template: "python3 {skill_dir}/scripts/build_params.py --samplesheet-report {samplesheet_report_json} --step {step} --tools {tools} --skip-tools {skip_tools} --aligner {aligner} --genome {genome} --igenomes-ignore {igenomes_ignore} --fasta {fasta} --wes {wes} --demo {demo} --extra-params-json {extra_params_json} --out-dir {out} --out {out}/params.yaml"
+
+  - id: build_command
+    summary: "Compose (do not run) the nf-core/sarek 3.8.1 Nextflow command"
+    prereqs: [build_params]
+    requires: {params_yaml: present}
+    requires_inputs: [profile, demo, arm, gpu, spark_profile, mutect_profile, pipeline_version, pipeline_local]
+    emits: [nextflow_command_json, commands_preview_sh]
+    command_template: "python3 {skill_dir}/scripts/build_command.py --params-yaml {params_yaml} --profile {profile} --demo {demo} --arm {arm} --gpu {gpu} --spark-profile {spark_profile} --mutect-profile {mutect_profile} --pipeline-version {pipeline_version} --pipeline-local {pipeline_local} --out-command-json {out}/nextflow_command.json --out-commands-sh {out}/commands_preview.sh"
+
+  - id: report
+    summary: "Fan in samplesheet + preflight + params + command into report.md and result.json"
+    prereqs: [samplesheet_validate, preflight, build_params, build_command]
+    requires:
+      samplesheet_report_json: present
+      preflight_report_json: present
+      params_yaml: present
+      nextflow_command_json: present
+    emits: [report_md, result_json]
+    command_template: "python3 {skill_dir}/scripts/report.py --samplesheet-report {samplesheet_report_json} --preflight-report {preflight_report_json} --params-yaml {params_yaml} --command-json {nextflow_command_json} --out-report {out}/report.md --out-result {out}/result.json"

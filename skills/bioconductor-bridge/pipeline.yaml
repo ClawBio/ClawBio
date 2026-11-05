@@ -1,0 +1,42 @@
+skill: bioconductor-bridge
+version: 1
+
+# Single-invocation skill: one script call runs the built-in offline demo
+# recommendation workflow (bundled 5-package catalog fixture, no live
+# Bioconductor VIEWS fetch, no package-page HTTP reranking, no Rscript
+# required) and writes report.md, result.json, and
+# tables/recommended_packages.csv from one output dir.
+#
+# The underlying scripts/bioconductor_bridge.py also supports live package
+# search/recommendation (--search, --recommend, --docs-search,
+# --package-details, --package-docs) against real Bioconductor VIEWS
+# indexes and package pages, local Bioconductor setup inspection (--setup),
+# and opt-in installation (--install, which runs BiocManager::install()).
+# --search/--recommend/--docs-search/--package-details/--package-docs all
+# fetch live Bioconductor metadata and/or package documentation pages over
+# HTTP; --install mutates the local R environment. None of that belongs in
+# a `pipeline.yaml` step: which mode to run is exactly the kind of runtime
+# branching pipeline.yaml cannot express (no if/when, no fan-out beyond
+# declared steps — see CLAUDE.md's "no Turing-complete YAML" constraint),
+# and live network / environment-mutating calls aren't reproducible or
+# guaranteed available in a `clawbio start` sandbox.
+#
+# Even `--demo` itself is not offline out of the box in 1.x: it calls
+# `load_catalog()` (an `Rscript` + live Bioconductor VIEWS fetch unless a
+# `CLAWBIO_BIOC_FIXTURE_JSON` fixture is set — an escape hatch 1.x already
+# shipped for its own test suite) and it reranks candidates against live
+# package-page HTML via `fetch_package_documentation()` (no offline
+# fallback in 1.x). This port adds a `CLAWBIO_BIOC_OFFLINE` guard in
+# scripts/bioc_recommender.py that short-circuits the HTTP reranking call
+# to `None`, and this step sets both env vars so the whole run is fully
+# offline and deterministic — see SKILL.md and scripts/bioc_recommender.py's
+# module docstring.
+
+steps:
+  - id: run_demo_recommendation
+    summary: "Run the bundled offline demo recommendation (fixture catalog, no live Bioconductor/HTTP calls) and write report + recommendations table"
+    emits:
+      - report_md
+      - result_json
+      - recommended_packages_csv
+    command_template: "CLAWBIO_BIOC_FIXTURE_JSON={skill_dir}/data/demo_catalog.json CLAWBIO_BIOC_OFFLINE=1 python3 {skill_dir}/scripts/bioconductor_bridge.py --demo --output {out}"

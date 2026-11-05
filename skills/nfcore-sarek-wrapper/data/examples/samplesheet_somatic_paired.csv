@@ -1,0 +1,3 @@
+patient,sample,lane,fastq_1,fastq_2,sex,status
+P2,Normal2,lane_1,reads/normal1_L001_R1.fastq.gz,reads/normal1_L001_R2.fastq.gz,XY,0
+P2,Tumor2,lane_1,reads/tumor1_L001_R1.fastq.gz,reads/tumor1_L001_R2.fastq.gz,XY,1
