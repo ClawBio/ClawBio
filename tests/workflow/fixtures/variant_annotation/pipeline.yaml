@@ -1,0 +1,22 @@
+skill: variant_annotation
+version: 1
+
+inputs:
+  - name: vcf_path
+    required: true
+  - name: reference
+    required: true
+
+steps:
+  - id: normalize
+    summary: "bcftools-norm placeholder — copies input VCF as 'normalized'"
+    requires_inputs: [vcf_path, reference]
+    emits: [normalized_vcf]
+    command_template: "cp {vcf_path} {out}/normalized.vcf && echo '# reference={reference}' >> {out}/normalized.vcf"
+
+  - id: annotate
+    summary: "VEP placeholder — appends an annotation header"
+    prereqs: [normalize]
+    requires: {normalized_vcf: present}
+    emits: [annotated_vcf]
+    command_template: "cp {normalized_vcf} {out}/annotated.vcf && echo '##INFO=<ID=VEP,Description=stub>' >> {out}/annotated.vcf"

@@ -853,6 +853,7 @@ bot = [
 ]
 dev = [
     { name = "hypothesis" },
+    { name = "jsonschema" },
     { name = "pypdf" },
     { name = "pytest" },
     { name = "skills-ref" },
@@ -907,6 +908,7 @@ bot = [
 ]
 dev = [
     { name = "hypothesis", specifier = ">=6.170.12" },
+    { name = "jsonschema", specifier = ">=4" },
     { name = "pypdf", specifier = ">=6.21.2,<7" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "skills-ref", specifier = ">=0.1.1,<1" },

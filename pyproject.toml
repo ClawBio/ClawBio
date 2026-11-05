@@ -144,6 +144,7 @@ override-dependencies = ["liknorm ; sys_platform == 'clawbio-never'"]
 
 [project.scripts]
 clawbio = "clawbio.cli:main"
+clawbio-flow = "clawbio.workflow.__main__:main"
 
 [project.urls]
 Homepage = "https://clawbio.ai"
@@ -158,6 +159,7 @@ dev = [
     "skills-ref>=0.1.1,<1",
     # prs-abstain tests inspect the rendered PDFs.
     "pypdf>=6.21.2,<7",
+    "jsonschema>=4",
 ]
 bot = [
     "python-telegram-bot[job-queue]>=22.8",
