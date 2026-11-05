@@ -1,0 +1,35 @@
+skill: scrna-embedding
+version: 1
+
+# Single-step port: one scVI/scANVI training+export call, five guaranteed
+# emits. The underlying script (scripts/scrna_embedding.py) has real
+# branching (demo vs. real input; scvi vs. scanvi; optional batch/label
+# columns) but pipeline.yaml cannot express `if`/`when` — so every input
+# below is required and always passed on the one fixed command_template.
+# Unused knobs use the literal sentinel "none" (or "demo" for --input);
+# the script's `_resolve_sentinels()` turns those back into real None/True.
+# QC and training hyperparameters (min_genes, max_epochs, latent_dim, ...)
+# keep the script's own argparse defaults and are not exposed as pipeline
+# inputs — see SKILL.md "Direct invocation" for overriding them outside
+# the clawbio-driven loop.
+
+inputs:
+  - name: input
+    required: true
+  - name: method
+    required: true
+  - name: batch_key
+    required: true
+  - name: labels_key
+    required: true
+  - name: unlabeled_category
+    required: true
+  - name: layer
+    required: true
+
+steps:
+  - id: embed
+    summary: "Train scVI/scANVI latent embedding, run neighbors+UMAP, export integrated.h5ad + report"
+    requires_inputs: [input, method, batch_key, labels_key, unlabeled_category, layer]
+    emits: [report_md, result_json, integrated_h5ad, latent_embeddings_csv, umap_latent_png]
+    command_template: "python3 {skill_dir}/scripts/scrna_embedding.py --input {input} --output {out} --method {method} --batch-key {batch_key} --labels-key {labels_key} --unlabeled-category {unlabeled_category} --layer {layer}"

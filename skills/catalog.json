@@ -4765,7 +4765,7 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/ukb-navigator/ukb_navigator.py --demo",
+      "demo_command": "python skills/ukb-navigator/scripts/ukb_navigator.py --demo",
       "dependencies": [],
       "tags": [],
       "trigger_keywords": [

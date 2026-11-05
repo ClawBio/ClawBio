@@ -1,0 +1,17 @@
+name: clawbio-ukb-navigator
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10
+  # Only needed for live embed/query modes (--embed, --query, --field).
+  # `--demo` — the mode this pipeline.yaml's step invokes — never imports
+  # chromadb or voyageai (both are lazily imported inside _get_collection /
+  # _get_embed_fn, only reached from embed_schema()/query_schema(), which
+  # the --demo branch in main() never calls), so `pipeline.yaml` runs with
+  # just the stdlib. Install these only if you plan to run
+  # scripts/ukb_navigator.py directly against a real UKB schema export.
+  - pip
+  - pip:
+      - chromadb>=0.4
+      - voyageai  # optional: only used if VOYAGE_API_KEY is set; falls
+                  # back to ChromaDB's bundled default embedder otherwise

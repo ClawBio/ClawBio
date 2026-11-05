@@ -1,0 +1,106 @@
+skill: gwas-lookup
+version: 1
+
+# Federated variant lookup across 9 genomic databases.
+# DAG: resolve_variant -> 8 parallel API fetches -> merge -> report.
+# Each API fetch declares `requires: {variant_json: present}` so it cannot
+# run before coordinates are resolved. `merge` requires all 8 emits.
+
+inputs:
+  - name: rsid
+    required: true
+
+steps:
+  - id: resolve_variant
+    summary: "Resolve rsID via Ensembl (variation + VEP) into chr/pos/alleles (GRCh38 + GRCh37)"
+    requires_inputs: [rsid]
+    emits: [variant_json]
+    command_template: "python3 {skill_dir}/scripts/resolve.py --rsid {rsid} --skill-dir {skill_dir} --out {out}/variant.json"
+
+  - id: fetch_gwas_catalog
+    summary: "GWAS Catalog associations for the variant"
+    prereqs: [resolve_variant]
+    requires: {variant_json: present}
+    emits: [gwas_catalog_json]
+    command_template: "python3 {skill_dir}/scripts/fetch_api.py --api gwas_catalog --variant {variant_json} --skill-dir {skill_dir} --out {out}/gwas_catalog.json"
+
+  - id: fetch_open_targets
+    summary: "Open Targets Genetics variant page"
+    prereqs: [resolve_variant]
+    requires: {variant_json: present}
+    emits: [open_targets_json]
+    command_template: "python3 {skill_dir}/scripts/fetch_api.py --api open_targets --variant {variant_json} --skill-dir {skill_dir} --out {out}/open_targets.json"
+
+  - id: fetch_open_targets_credsets
+    summary: "Open Targets fine-mapping credible sets"
+    prereqs: [resolve_variant]
+    requires: {variant_json: present}
+    emits: [open_targets_credsets_json]
+    command_template: "python3 {skill_dir}/scripts/fetch_api.py --api open_targets_credsets --variant {variant_json} --skill-dir {skill_dir} --out {out}/open_targets_credsets.json"
+
+  - id: fetch_pheweb_ukb
+    summary: "UKB-TOPMed PheWeb phenome-wide associations"
+    prereqs: [resolve_variant]
+    requires: {variant_json: present}
+    emits: [pheweb_ukb_json]
+    command_template: "python3 {skill_dir}/scripts/fetch_api.py --api pheweb_ukb --variant {variant_json} --skill-dir {skill_dir} --out {out}/pheweb_ukb.json"
+
+  - id: fetch_finngen
+    summary: "FinnGen r12 PheWeb associations"
+    prereqs: [resolve_variant]
+    requires: {variant_json: present}
+    emits: [finngen_json]
+    command_template: "python3 {skill_dir}/scripts/fetch_api.py --api finngen --variant {variant_json} --skill-dir {skill_dir} --out {out}/finngen.json"
+
+  - id: fetch_pheweb_bbj
+    summary: "Biobank Japan PheWeb associations (GRCh37)"
+    prereqs: [resolve_variant]
+    requires: {variant_json: present}
+    emits: [pheweb_bbj_json]
+    command_template: "python3 {skill_dir}/scripts/fetch_api.py --api pheweb_bbj --variant {variant_json} --skill-dir {skill_dir} --out {out}/pheweb_bbj.json"
+
+  - id: fetch_gtex
+    summary: "GTEx v8 eQTL associations across tissues"
+    prereqs: [resolve_variant]
+    requires: {variant_json: present}
+    emits: [gtex_json]
+    command_template: "python3 {skill_dir}/scripts/fetch_api.py --api gtex --variant {variant_json} --skill-dir {skill_dir} --out {out}/gtex.json"
+
+  - id: fetch_eqtl_catalogue
+    summary: "EBI eQTL Catalogue cis-eQTL associations"
+    prereqs: [resolve_variant]
+    requires: {variant_json: present}
+    emits: [eqtl_catalogue_json]
+    command_template: "python3 {skill_dir}/scripts/fetch_api.py --api eqtl_catalogue --variant {variant_json} --skill-dir {skill_dir} --out {out}/eqtl_catalogue.json"
+
+  - id: merge
+    summary: "Merge + dedupe + rank all 8 API results into a unified record"
+    prereqs:
+      - resolve_variant
+      - fetch_gwas_catalog
+      - fetch_open_targets
+      - fetch_open_targets_credsets
+      - fetch_pheweb_ukb
+      - fetch_finngen
+      - fetch_pheweb_bbj
+      - fetch_gtex
+      - fetch_eqtl_catalogue
+    requires:
+      variant_json: present
+      gwas_catalog_json: present
+      open_targets_json: present
+      open_targets_credsets_json: present
+      pheweb_ukb_json: present
+      finngen_json: present
+      pheweb_bbj_json: present
+      gtex_json: present
+      eqtl_catalogue_json: present
+    emits: [merged_json]
+    command_template: "python3 {skill_dir}/scripts/merge.py --variant {variant_json} --gwas-catalog {gwas_catalog_json} --open-targets {open_targets_json} --open-targets-credsets {open_targets_credsets_json} --pheweb-ukb {pheweb_ukb_json} --finngen {finngen_json} --pheweb-bbj {pheweb_bbj_json} --gtex {gtex_json} --eqtl-catalogue {eqtl_catalogue_json} --out {out}/merged.json"
+
+  - id: report
+    summary: "Render unified Markdown report from merged results"
+    prereqs: [merge]
+    requires: {merged_json: present}
+    emits: [report_md]
+    command_template: "python3 {skill_dir}/scripts/report.py --merged {merged_json} --out {out}/report.md"

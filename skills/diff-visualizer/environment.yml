@@ -1,0 +1,16 @@
+name: clawbio-diff-visualizer
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10
+  - pandas
+  - numpy
+  - matplotlib
+  # Optional: only needed for `--mode scrna`'s AnnData-based enhancement
+  # plots (marker dotplot/heatmap, UMAP feature panel). Not required by the
+  # bulk-mode DAG this pipeline.yaml drives; install via pip if invoking the
+  # script directly in scRNA mode (see SKILL.md).
+  - pip
+  - pip:
+      - anndata
+      - scanpy

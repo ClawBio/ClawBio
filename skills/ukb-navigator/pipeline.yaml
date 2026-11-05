@@ -1,0 +1,28 @@
+skill: ukb-navigator
+version: 1
+
+# Single-invocation skill: one script call runs the offline demo search
+# (hardcoded DEMO_RESULTS for "blood pressure and hypertension", no ChromaDB
+# call, no schema file, no embedding model) and writes report.md +
+# matched_fields.csv from one output dir.
+#
+# The underlying scripts/ukb_navigator.py also supports one-time schema
+# embedding (--embed a ukb_schema.csv into ChromaDB, optionally with Voyage
+# AI embeddings via VOYAGE_API_KEY) and live semantic search (--query /
+# --field against that embedded collection). Both need a UKB schema export
+# (a public metadata CSV, not bundled here — see SKILL.md) and the chromadb
+# package (voyageai optional), and picking embed-vs-query-vs-demo is exactly
+# the kind of runtime branching pipeline.yaml cannot express (see CLAUDE.md's
+# "no Turing-complete YAML" constraint — no if/when, no fan-out beyond
+# declared steps). So this pipeline.yaml fixes the DAG to the one mode that
+# is deterministic and always available offline: --demo. Real embed/query
+# runs remain available by invoking scripts/ukb_navigator.py directly
+# outside the clawbio DAG — see SKILL.md.
+
+steps:
+  - id: run_demo_search
+    summary: "Run the bundled offline demo search (pre-cached 'blood pressure and hypertension' matches, no ChromaDB/embedding call) and write report + matched fields"
+    emits:
+      - report_md
+      - matched_fields_csv
+    command_template: "python3 {skill_dir}/scripts/ukb_navigator.py --demo --output {out}"

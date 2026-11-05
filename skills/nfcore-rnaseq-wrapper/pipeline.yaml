@@ -1,0 +1,116 @@
+skill: nfcore-rnaseq-wrapper
+version: 1
+
+# ClawBio 1.x's nfcore-rnaseq-wrapper is a strict-preflight wrapper around a
+# real Nextflow pipeline (nf-core/rnaseq). Its own CLI already separates
+# "prepare a run" (--check: validate + build params.yaml, exit before
+# Nextflow) from "run it" (launch Nextflow, which needs Java, Nextflow,
+# a container/env runtime, and reference genome data -- none of which exist
+# in this sandbox). This DAG covers exactly the --check-shaped, pure-Python
+# side: resolve the pipeline source -> normalize the samplesheet (or write
+# the --demo stub) -> config-only preflight -> build params.yaml -> compose
+# (but do not run) the Nextflow command -> report. It is a genuine 6-step
+# fan-out/fan-in DAG, not a single wrapped CLI call: resolve_source and
+# prepare_samplesheet run independently (no shared prereq); preflight and
+# build_params fan in from both; build_command needs the resolved source
+# *and* the built params; report fans in every prior stage's file output.
+#
+# DAG:
+#   resolve_source ------\
+#                          +--> preflight --> build_params --> build_command --\
+#   prepare_samplesheet -/                                                     +--> report
+#         \_______________________________________________________________ ___/
+#
+# Deliberately NOT covered (out-of-DAG, documented in SKILL.md): the
+# java/nextflow-presence/container-daemon readiness gate 1.x's preflight.py
+# also runs (needs real binaries), and actually launching Nextflow.
+#
+# Every 1.x CLI flag this port exposes is a required pipeline.yaml input with
+# a documented sentinel default (see SKILL.md) -- same pattern as
+# phylogenetics_builder: pipeline.yaml has no per-run default values and
+# command_template must stay a static string, so every value a stage script
+# might branch on has to arrive as an explicit input.
+
+inputs:
+  - name: output
+    required: true
+  - name: demo
+    required: true
+  - name: input
+    required: true
+  - name: aligner
+    required: true
+  - name: genome
+    required: true
+  - name: fasta
+    required: true
+  - name: gtf
+    required: true
+  - name: gff
+    required: true
+  - name: profile
+    required: true
+  - name: prokaryotic
+    required: true
+  - name: allow_remote_inputs
+    required: true
+  - name: skip_alignment
+    required: true
+  - name: pipeline_version
+    required: true
+  - name: pipeline_local
+    required: true
+  - name: allow_pipeline_version_override
+    required: true
+  - name: work_dir
+    required: true
+
+steps:
+  - id: resolve_source
+    summary: "Resolve nf-core/rnaseq source: sibling local checkout (version-pinned) or remote at the pinned tag"
+    requires_inputs: [pipeline_version, pipeline_local, allow_pipeline_version_override]
+    emits: [pipeline_source_json]
+    command_template: "python3 {skill_dir}/scripts/resolve_source.py --pipeline-version {pipeline_version} --pipeline-local {pipeline_local} --allow-pipeline-version-override {allow_pipeline_version_override} --out {out}/pipeline_source.json"
+
+  - id: prepare_samplesheet
+    summary: "Validate+normalize the user samplesheet, or write the --demo/self-contained-test-profile stub"
+    requires_inputs: [output, demo, input, skip_alignment, profile]
+    emits: [normalized_samplesheet, samplesheet_summary_json]
+    command_template: "python3 {skill_dir}/scripts/prepare_samplesheet.py --output {output} --demo {demo} --input {input} --skip-alignment {skip_alignment} --profile {profile} --out-summary {out}/samplesheet_summary.json"
+
+  - id: preflight
+    summary: "Config-only preflight: samplesheet/reference/enum/threshold/mutual-exclusion checks (java/nextflow/docker presence NOT checked here)"
+    prereqs: [resolve_source, prepare_samplesheet]
+    requires: {pipeline_source_json: present, samplesheet_summary_json: present}
+    requires_inputs: [output, demo, input, aligner, genome, fasta, gtf, gff, profile, prokaryotic, allow_remote_inputs, skip_alignment]
+    emits: [preflight_result_json]
+    command_template: "python3 {skill_dir}/scripts/preflight_stage.py --output {output} --demo {demo} --input {input} --aligner {aligner} --genome {genome} --fasta {fasta} --gtf {gtf} --gff {gff} --profile {profile} --prokaryotic {prokaryotic} --allow-remote-inputs {allow_remote_inputs} --skip-alignment {skip_alignment} --pipeline-source {pipeline_source_json} --samplesheet-summary {samplesheet_summary_json} --out {out}/preflight_result.json"
+
+  - id: build_params
+    summary: "Translate the audited CLI surface into reproducibility/params.yaml"
+    prereqs: [preflight, prepare_samplesheet]
+    requires: {preflight_result_json: present, normalized_samplesheet: present}
+    requires_inputs: [output, demo, input, aligner, genome, fasta, gtf, gff, profile, prokaryotic]
+    emits: [params_yaml, params_json]
+    command_template: "python3 {skill_dir}/scripts/build_params.py --output {output} --demo {demo} --input {input} --aligner {aligner} --genome {genome} --fasta {fasta} --gtf {gtf} --gff {gff} --profile {profile} --prokaryotic {prokaryotic} --normalized-samplesheet {normalized_samplesheet} --preflight-result {preflight_result_json} --out {out}/params.json"
+
+  - id: build_command
+    summary: "Compose (but do not run) the nextflow run invocation from the resolved source + params.yaml"
+    prereqs: [build_params, resolve_source]
+    requires: {params_yaml: present, pipeline_source_json: present}
+    requires_inputs: [output, demo, profile, prokaryotic, work_dir]
+    emits: [nextflow_command_txt, nextflow_command_json]
+    command_template: "python3 {skill_dir}/scripts/build_command.py --output {output} --demo {demo} --profile {profile} --prokaryotic {prokaryotic} --work-dir {work_dir} --pipeline-source {pipeline_source_json} --params-yaml {params_yaml} --out-txt {out}/nextflow_command.txt --out-json {out}/nextflow_command.json"
+
+  - id: report
+    summary: "Fan in source/samplesheet/preflight/params/command into report.md + result.json"
+    prereqs: [resolve_source, prepare_samplesheet, preflight, build_params, build_command]
+    requires:
+      pipeline_source_json: present
+      samplesheet_summary_json: present
+      preflight_result_json: present
+      params_json: present
+      nextflow_command_json: present
+    requires_inputs: [output]
+    emits: [report_md, result_json]
+    command_template: "python3 {skill_dir}/scripts/report.py --output {output} --pipeline-source {pipeline_source_json} --samplesheet-summary {samplesheet_summary_json} --preflight-result {preflight_result_json} --params-json {params_json} --command-json {nextflow_command_json} --out-report {out}/report.md --out-result {out}/result.json"
