@@ -249,3 +249,43 @@ def test_gene_targets_bed6_minus_strand(tmp_path: Path) -> None:
     bed.write_text("chr1\t5000\t8000\tGENE_BED6\t960\t-\n")
     genes = mli.parse_gene_targets(bed)
     assert genes == [("chr1", 7749, 8999, "GENE_BED6", 7999)]
+
+
+def test_nearest_gene_flags_when_distant(tmp_path: Path) -> None:
+    # PR #678 review round 8: a sparse gene-targets file can leave the
+    # only candidate gene megabases away; the distance column shows the
+    # raw number, but nothing flagged that it should be read with
+    # suspicion. target_gene_nearest_is_distant makes that explicit.
+    loci = [("chr1", 100, 110, "L1")]
+    genes = [("chr1", 2_000_000, 2_000_050, "GENE_FAR", 2_000_025)]  # ~2Mb away
+    loops = []
+    result = mli.analyze(loci, [], [], loops, genes)
+    row = result["loci"][0]
+    assert row["target_gene_nearest_distance_bp"] > mli.NEAREST_GENE_FAR_THRESHOLD_BP
+    assert row["target_gene_nearest_is_distant"] is True
+
+
+def test_nearest_gene_not_flagged_when_close() -> None:
+    loci = [("chr1", 100, 110, "L1")]
+    genes = [("chr1", 0, 50, "GENE_NEAR", 25)]
+    result = mli.analyze(loci, [], [], [], genes)
+    row = result["loci"][0]
+    assert row["target_gene_nearest_is_distant"] is False
+
+
+def test_layer_coverage_reported_in_summary() -> None:
+    # PR #678 review round 8: one stray far-off interval can silently
+    # stretch a layer's observed span and mask a real coverage gap
+    # elsewhere; surfacing the actual span per layer lets a reader spot
+    # that directly instead of having to infer it from which loci read
+    # not_assayed.
+    loci = [("chr1", 100, 101, "L1")]
+    accessibility = [("chr1", 50, 150, "peak1")]
+    histone = [("chr1", 200, 300, "peak2")]
+    loops = [("chr1", 90, 120, "chr1", 500, 600, "LOOP_1")]
+    genes = [("chr1", 0, 50, "GENE_X", 0)]
+    result = mli.analyze(loci, accessibility, histone, loops, genes)
+    coverage = result["summary"]["layer_coverage"]
+    assert coverage["accessibility"] == "chr1:50-150"
+    assert coverage["histone"] == "chr1:200-300"
+    assert coverage["contact"] == "chr1:90-600"

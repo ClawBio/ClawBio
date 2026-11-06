@@ -28,6 +28,14 @@ LAYER_WEIGHTS = {"accessibility": 1.0, "histone": 1.0, "contact": 2.0}
 HIGH_SCORE_THRESHOLD = 0.75
 HIGH_MIN_DISTINCT_LAYERS = 2
 
+# PR #678 review round 8: a sparse --gene-targets file can leave the
+# only candidate gene megabases away. 1Mb is a generous but finite
+# cis-regulatory distance (most enhancer-promoter contacts and TAD
+# sizes fall well inside it); past it, the nearest gene is flagged as
+# distant rather than silently reported as if it were meaningful. The
+# gene and its real distance are still returned -- never hidden.
+NEAREST_GENE_FAR_THRESHOLD_BP = 1_000_000
+
 # Promoter-proximal TSS window (standard convention, e.g. HOMER/ChIPseeker
 # defaults in this range): upstream is more generous than downstream because
 # most regulatory elements cluster just upstream of the TSS.
@@ -297,6 +305,10 @@ def score_locus(
         gene_nearest and any(name != gene_nearest for name in contact_gene_names)
     )
 
+    nearest_is_distant = bool(
+        dist_nearest is not None and dist_nearest > NEAREST_GENE_FAR_THRESHOLD_BP
+    )
+
     return {
         "locus_id": name,
         "chrom": chrom,
@@ -309,6 +321,7 @@ def score_locus(
         "tier": tier,
         "target_gene_nearest": gene_nearest,
         "target_gene_nearest_distance_bp": dist_nearest,
+        "target_gene_nearest_is_distant": nearest_is_distant,
         "target_gene_contact": gene_contact,
         "contact_loop_id": loop_name,
         "nearest_vs_contact_disagreement": disagreement,
@@ -339,11 +352,25 @@ def analyze(
     for r in results:
         tier_counts[r["tier"]] = tier_counts.get(r["tier"], 0) + 1
 
+    # PR #678 review round 8: a layer's observed span can be
+    # silently stretched by one stray distant interval, masking a
+    # real coverage gap elsewhere. Surfacing the actual span per
+    # layer lets a reader spot that directly.
+    layer_coverage: dict[str, str] = {
+        layer: ",".join(f"{chrom}:{lo}-{hi}" for chrom, (lo, hi) in sorted(spans.items()))
+        for layer, spans in layer_spans.items()
+    }
+    if loop_span:
+        layer_coverage["contact"] = ",".join(
+            f"{chrom}:{lo}-{hi}" for chrom, (lo, hi) in sorted(loop_span.items())
+        )
+
     return {
         "skill": "multiomics-locus-integrator",
         "summary": {
             "locus_count": len(results),
             "layers_supplied": sorted(list(layers.keys()) + (["contact"] if loops else [])),
+            "layer_coverage": layer_coverage,
             "tier_counts": tier_counts,
             "disagreement_count": sum(1 for r in results if r["nearest_vs_contact_disagreement"]),
         },
@@ -364,6 +391,7 @@ def _write_evidence_table(path: Path, loci: list[dict]) -> None:
         "locus_id", "chrom", "start", "end", "score", "tier",
         "layers_checked", "layers_supported", "layers_not_assayed",
         "target_gene_nearest", "target_gene_nearest_distance_bp",
+        "target_gene_nearest_is_distant",
         "target_gene_contact", "contact_loop_id", "nearest_vs_contact_disagreement",
     ]
     with path.open("w", newline="", encoding="utf-8") as handle:
@@ -445,15 +473,29 @@ def write_outputs(
         f"**Tier counts**: {result['summary']['tier_counts']}",
         f"**Nearest-gene vs. contact-gene disagreements**: {result['summary']['disagreement_count']}",
         "",
-        "| Locus | Coordinates | Score | Tier | Checked | Supported | Not assayed | Nearest gene | Contact gene | Disagreement |",
-        "|---|---|---:|---|---|---|---|---|---|---|",
     ]
+    coverage = result["summary"].get("layer_coverage") or {}
+    if coverage:
+        rows.append("## Layer coverage (observed span per supplied track)")
+        rows.append("")
+        rows.append(
+            "A layer's `not_assayed` loci are only as trustworthy as this span -- "
+            "one stray distant interval in a track inflates it and can mask a real "
+            "coverage gap elsewhere (PR #678 review round 8)."
+        )
+        rows.append("")
+        for layer_name in sorted(coverage):
+            rows.append(f"- **{layer_name}**: {coverage[layer_name]}")
+        rows.append("")
+    rows.append("| Locus | Coordinates | Score | Tier | Checked | Supported | Not assayed | Nearest gene | Distant | Contact gene | Disagreement |")
+    rows.append("|---|---|---:|---|---|---|---|---|---|---|---|")
     for r in result["loci"]:
         score_cell = "" if r["score"] is None else r["score"]
         rows.append(
             f"| {r['locus_id']} | {r['chrom']}:{r['start']}-{r['end']} | {score_cell} | {r['tier']} | "
             f"{','.join(r['layers_checked']) or '-'} | {','.join(r['layers_supported']) or '-'} | "
             f"{','.join(r['layers_not_assayed']) or '-'} | {r['target_gene_nearest'] or '-'} | "
+            f"{'YES' if r['target_gene_nearest_is_distant'] else ''} | "
             f"{r['target_gene_contact'] or '-'} | {'YES' if r['nearest_vs_contact_disagreement'] else ''} |"
         )
     rows.extend([

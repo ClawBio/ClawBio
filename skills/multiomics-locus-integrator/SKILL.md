@@ -195,11 +195,17 @@ All demo coordinates are synthetic (fictitious `chr5` positions, invented gene s
 **Tier counts**: {'high': 2, 'partial': 2, 'unsupported': 1, 'not_assayed': 1}
 **Nearest-gene vs. contact-gene disagreements**: 1
 
-| Locus | Coordinates | Score | Tier | Checked | Supported | Not assayed | Nearest gene | Contact gene | Disagreement |
-|---|---|---:|---|---|---|---|---|---|---|
-| L1_agree_high | chr5:1000100-1000101 | 1.0 | high | accessibility,contact,histone | accessibility,contact,histone | - | GENE_A | GENE_A | |
-| L4_disagree | chr5:1030100-1030101 | 0.667 | partial | contact,histone | contact | accessibility | GENE_B | GENE_C | YES |
-| L6_not_assayed | chr5:1050100-1050101 |  | not_assayed | - | - | accessibility,contact,histone | GENE_D |  | |
+## Layer coverage (observed span per supplied track)
+
+- **accessibility**: chr5:1000050-1021100
+- **contact**: chr5:999950-1041100
+- **histone**: chr5:1000050-1040200
+
+| Locus | Coordinates | Score | Tier | Checked | Supported | Not assayed | Nearest gene | Distant | Contact gene | Disagreement |
+|---|---|---:|---|---|---|---|---|---|---|---|
+| L1_agree_high | chr5:1000100-1000101 | 1.0 | high | accessibility,contact,histone | accessibility,contact,histone | - | GENE_A | | GENE_A | |
+| L4_disagree | chr5:1030100-1030101 | 0.667 | partial | contact,histone | contact | accessibility | GENE_B | | GENE_C | YES |
+| L6_not_assayed | chr5:1050100-1050101 |  | not_assayed | - | - | accessibility,contact,histone | GENE_D | | | |
 
 ClawBio is a research tool. Locus tiers are a starting point for manual review, not a substitute for experimental validation.
 ```
@@ -226,6 +232,8 @@ output_directory/
 
 - **A gene with no strand is a BED record with no usable TSS.** The upstream/downstream sense of "1kb upstream, 250bp downstream" only means something once strand picks which end of the interval is the start — `gene-targets` therefore requires a 5th strand column (`+`/`-`); earlier revisions silently measured distance to whichever gene-body edge was nearer, which is the wrong edge for every minus-strand gene (PR #678 review).
 - **A `not_assayed` locus is not evidence of absence.** If a track was never generated over a region, every locus in it will otherwise read identically to a true negative unless this distinction is computed explicitly — this skill derives `not_assayed` from each layer's own observed chromosomal span, not from a hardcoded genome-wide assumption.
+- **A nearest gene is only as meaningful as the gene list it came from.** With a sparse `--gene-targets` file, "nearest" can mean "the only one supplied, megabases away" — `target_gene_nearest_is_distant` flags any pick past `NEAREST_GENE_FAR_THRESHOLD_BP` (1Mb) rather than silently reporting a distant gene as if it were a confident local call (PR #678 review round 8). The gene and its real distance are still returned; nothing is hidden, only flagged.
+- **Report the layer coverage, not just the per-locus `not_assayed` flag.** A track's observed span can be stretched by a single far-off interval, which would otherwise mask a real coverage gap elsewhere — the `## Layer coverage` section in `report.md` makes each track's actual span visible so a reader can judge this directly rather than inferring it from which loci happen to read `not_assayed` (PR #678 review round 8).
 - **Enumerate every evidence file's actual coverage before trusting a `tier`.** A loop/TAD file can cover only part of a chromosome; the per-chromosome span check is what catches this, but it is only as good as the supplied file — a track with one stray far-off interval will inflate its apparent span and hide a real `not_assayed` region.
 - **Nearest-gene and contact-gene disagreement must be surfaced, not silently resolved.** Early drafts defaulted to "contact wins" — this is wrong: both are real candidate answers with different evidence bases, and collapsing them hides exactly the kind of judgment call a reviewer needs to see (demonstrated by `L4_disagree` in the demo data).
 - **A single heavily-weighted layer should not alone earn `high`.** Requiring ≥2 distinct supported layer types for the `high` tier (not just a score threshold) prevents one noisy, high-weight loop call from single-handedly producing a false high-confidence result.
