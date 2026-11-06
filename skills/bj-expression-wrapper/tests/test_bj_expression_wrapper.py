@@ -1344,3 +1344,46 @@ def test_the_report_says_when_work_was_removed_and_that_resume_is_gone(setup):
     run_cli(base_args(setup, "--accept-bioskryb-terms"), env=setup["env"])
     text = (setup["out"] / "report.md").read_text().lower()
     assert "work directory was removed" in text and "--resume" in text
+
+
+# ──────────────────────────────────────────────
+# Status email at the end of a run
+# ──────────────────────────────────────────────
+
+def _notify_result(status="success"):
+    return {"status": status, "pipeline": {"version": "2.0.0-sn2", "commit": "4cce486103c4"},
+            "samples": ["a", "b"], "trace": {"tasks": 5, "retried_tasks": []},
+            "ignored_failures": [], "missing_outputs": [], "samples_missing_from_outputs": [],
+            "work_removed": True, "work_cleanup_reason": "removed after verified success"}
+
+
+def test_status_email_is_skipped_without_config_and_never_raises(tmp_path):
+    mod = _load_module()
+    outcome = mod.send_status_email(_notify_result(), tmp_path, config_path=tmp_path / "none.env")
+    assert outcome.startswith("not sent: not configured")
+
+
+def test_status_email_is_sent_over_smtp_with_the_run_summary(tmp_path, monkeypatch):
+    from unittest import mock
+    mod = _load_module()
+    cfg = tmp_path / "notify.env"
+    cfg.write_text("BJ_NOTIFY_TO=info@aeneas.bio\nBJ_SMTP_HOST=smtp.example.test\n"
+                   "BJ_SMTP_PORT=2525\nBJ_SMTP_FROM=pipeline@example.test\nBJ_SMTP_STARTTLS=0\n")
+    with mock.patch("smtplib.SMTP") as smtp_cls:
+        smtp = smtp_cls.return_value.__enter__.return_value
+        outcome = mod.send_status_email(_notify_result(), tmp_path / "AZ_all_b01", config_path=cfg)
+    assert outcome == "sent to info@aeneas.bio"
+    smtp_cls.assert_called_once_with("smtp.example.test", 2525, timeout=60)
+    sent = smtp.send_message.call_args.args[0]
+    assert sent["To"] == "info@aeneas.bio"
+    assert "AZ_all_b01: success" in sent["Subject"]
+    assert "Work directory removed: True" in sent.get_content()
+
+
+def test_status_email_failure_is_reported_not_raised(tmp_path):
+    mod = _load_module()
+    cfg = tmp_path / "notify.env"
+    cfg.write_text("BJ_NOTIFY_TO=info@aeneas.bio\nBJ_SMTP_HOST=127.0.0.1\nBJ_SMTP_PORT=1\n"
+                   "BJ_SMTP_FROM=pipeline@example.test\nBJ_SMTP_STARTTLS=0\n")
+    outcome = mod.send_status_email(_notify_result("failed"), tmp_path, config_path=cfg)
+    assert outcome.startswith("not sent: ")

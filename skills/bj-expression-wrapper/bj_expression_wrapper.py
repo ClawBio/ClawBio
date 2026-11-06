@@ -1071,6 +1071,11 @@ def run(args: argparse.Namespace) -> int:
             result["work_removed"], result["work_cleanup_reason"] = cleanup_work(
                 out_dir / "work", *reports)
 
+    if mode == "run":
+        # Email the final status before result.json is written, so the file (and the bundle's
+        # checksums) record the notification outcome once. A mail failure is recorded, not fatal.
+        result["notification"] = send_status_email(result, out_dir)
+        print(f"{PROG}: status email: {result['notification']}")
     (out_dir / "result.json").write_text(json.dumps(result, indent=2) + "\n")
     write_report(out_dir, result)
     write_bundle(out_dir, None if mode == "demo" else command_text, kept_config)
@@ -1091,6 +1096,74 @@ def run(args: argparse.Namespace) -> int:
         else:
             print(f"{PROG}: WARNING: {msg}")
     return exit_code
+
+
+NOTIFY_CONFIG = Path.home() / ".config" / "bj-expression" / "notify.env"
+NOTIFY_REQUIRED = ("BJ_NOTIFY_TO", "BJ_SMTP_HOST", "BJ_SMTP_FROM")
+
+
+def load_notify_config(path: Path = NOTIFY_CONFIG) -> dict:
+    """KEY=VALUE lines from notify.env; BJ_* environment variables override the file."""
+    cfg: dict = {}
+    if path.is_file():
+        for line in path.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            cfg[key.strip()] = value.strip().strip('"').strip("'")
+    cfg.update({k: v for k, v in os.environ.items() if k.startswith("BJ_")})
+    return cfg
+
+
+def build_status_email(result: dict, out_dir: Path, sender: str, recipient: str):
+    from email.message import EmailMessage
+
+    status = result.get("status")
+    trace = result.get("trace") or {}
+    msg = EmailMessage()
+    msg["Subject"] = f"[bj-expression] {out_dir.name}: {status}"
+    msg["From"] = sender
+    msg["To"] = recipient
+    lines = [
+        f"Run folder: {out_dir}",
+        f"Status: {status}",
+        f"Pipeline: {result.get('pipeline', {}).get('version')} "
+        f"commit {str(result.get('pipeline', {}).get('commit', ''))[:8]}",
+        f"Samples: {len(result.get('samples', []) or [])}",
+        f"Tasks in trace: {trace.get('tasks')}, retried: {len(trace.get('retried_tasks') or [])}",
+        f"Ignored failures: {', '.join(result.get('ignored_failures') or []) or 'none'}",
+        f"Missing outputs: {', '.join(result.get('missing_outputs') or []) or 'none'}",
+        f"Samples missing from outputs: "
+        f"{', '.join(result.get('samples_missing_from_outputs') or []) or 'none'}",
+        f"Work directory removed: {result.get('work_removed')} ({result.get('work_cleanup_reason')})",
+        f"Report: {out_dir / 'report.md'}",
+    ]
+    msg.set_content("\n".join(lines) + "\n")
+    return msg
+
+
+def send_status_email(result: dict, out_dir: Path, config_path: Path = NOTIFY_CONFIG) -> str:
+    """Email the run status. Never raises: returns a short outcome string for result.json."""
+    import smtplib
+    import ssl
+
+    try:
+        cfg = load_notify_config(config_path)
+        missing = [k for k in NOTIFY_REQUIRED if not cfg.get(k)]
+        if missing:
+            return f"not sent: not configured (missing {', '.join(missing)})"
+        msg = build_status_email(result, out_dir, cfg["BJ_SMTP_FROM"], cfg["BJ_NOTIFY_TO"])
+        port = int(cfg.get("BJ_SMTP_PORT", "587"))
+        with smtplib.SMTP(cfg["BJ_SMTP_HOST"], port, timeout=60) as smtp:
+            if cfg.get("BJ_SMTP_STARTTLS", "1") == "1":
+                smtp.starttls(context=ssl.create_default_context())
+            if cfg.get("BJ_SMTP_USER"):
+                smtp.login(cfg["BJ_SMTP_USER"], cfg.get("BJ_SMTP_PASSWORD", ""))
+            smtp.send_message(msg)
+        return f"sent to {cfg['BJ_NOTIFY_TO']}"
+    except Exception as exc:  # the run result must survive a mail failure
+        return f"not sent: {type(exc).__name__}: {exc}"
 
 
 def main(argv: list[str] | None = None) -> int:
