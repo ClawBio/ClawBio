@@ -16,12 +16,11 @@ Usage:
 from __future__ import annotations
 
 import json
-import shlex
-import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
+
+from clawbio.common import demo_runner
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CATALOG = PROJECT_ROOT / "skills" / "catalog.json"
@@ -66,87 +65,21 @@ def load_demo_skills() -> list[dict]:
     return demos
 
 
-def with_output(argv: list[str], output: Path) -> list[str]:
-    """Return argv with any --output removed and `--output <output>` appended."""
-    kept, skip_value = [], False
-    for i, arg in enumerate(argv):
-        if skip_value:
-            skip_value = False
-            continue
-        if arg == "--output":
-            skip_value = i + 1 < len(argv) and not argv[i + 1].startswith("--")
-            continue
-        if arg.startswith("--output="):
-            continue
-        kept.append(arg)
-    return kept + ["--output", str(output)]
-
-
 def run_demo(skill: dict, timeout: int, output_dir: Path | None) -> dict:
-    """Run a single skill's demo command. Return result dict."""
+    """Run a single skill's demo into output_dir/<name>, or a temp dir removed afterwards."""
     name = skill["name"]
-    cmd = skill["demo_command"]
-
-    t0 = time.time()
     tmp = None
     try:
-        # demo_command is built from skill filenames, which contributors
-        # choose, so it is split into argv and never handed to a shell.
-        argv = shlex.split(cmd)
-
-        # Use the same Python that's running this script
-        if argv and argv[0] == "python":
-            argv[0] = sys.executable
-
-        # Every skill must write only under --output (AGENTS.md), so every demo
-        # gets one. A skill that rejects it fails here, which is the point.
         if output_dir:
             skill_out = output_dir / name
             skill_out.mkdir(parents=True, exist_ok=True)
         else:
             tmp = tempfile.TemporaryDirectory(prefix=f"clawbio-demo-{name}-")
             skill_out = Path(tmp.name)
-        argv = with_output(argv, skill_out)
-
-        cmd = shlex.join(argv)
-        proc = subprocess.run(
-            argv,
-            cwd=str(PROJECT_ROOT),
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        elapsed = time.time() - t0
-        return {
-            "name": name,
-            "command": cmd,
-            "exit_code": proc.returncode,
-            "elapsed": round(elapsed, 1),
-            "stderr_tail": proc.stderr[-500:] if proc.stderr else "",
-            "passed": proc.returncode == 0,
-            # Checked here, before a temp output dir is removed in `finally`.
-            "contract_gaps": contract_gaps(skill_out),
-        }
-    except subprocess.TimeoutExpired:
-        elapsed = time.time() - t0
-        return {
-            "name": name,
-            "command": cmd,
-            "exit_code": -1,
-            "elapsed": round(elapsed, 1),
-            "stderr_tail": f"TIMEOUT after {timeout}s",
-            "passed": False,
-        }
-    except Exception as e:
-        elapsed = time.time() - t0
-        return {
-            "name": name,
-            "command": cmd,
-            "exit_code": -2,
-            "elapsed": round(elapsed, 1),
-            "stderr_tail": str(e),
-            "passed": False,
-        }
+        result = demo_runner.run_demo(name, skill_out, timeout=timeout)
+        # Checked here, before a temp output dir is removed in `finally`.
+        result["contract_gaps"] = contract_gaps(skill_out)
+        return result
     finally:
         if tmp:
             tmp.cleanup()
