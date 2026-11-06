@@ -12,6 +12,9 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from inline_snapshot import snapshot
+
+from clawbio.common import demo_runner
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -367,28 +370,6 @@ def test_fst_report_label_matches_formula():
     assert "Nei" in eq.compute_pairwise_fst.__doc__
 
 
-# ── End-to-End with Demo VCF ──────────────────────────────────────────────────
-
-def test_end_to_end_demo_vcf():
-    """Full pipeline on demo VCF produces a valid HEIM score."""
-    samples, vids, geno = parse_vcf(DEMO_VCF)
-    pop_map = load_population_map(DEMO_MAP, samples)
-    pop_indices = {}
-    pop_counts = {}
-    for i, s in enumerate(samples):
-        pop = pop_map[s]
-        pop_indices.setdefault(pop, []).append(i)
-        pop_counts[pop] = pop_counts.get(pop, 0) + 1
-
-    obs_het, _, _, _ = compute_heterozygosity(geno, pop_indices)
-    _, fst_dict = compute_pairwise_fst(geno, pop_indices)
-
-    result = compute_heim_score(pop_counts, obs_het, len(fst_dict))
-    assert result["heim_score"] > 0
-    assert result["n_samples"] == 50
-    assert result["n_populations"] == len(pop_indices)
-
-
 # ── HEIM inflation regressions ────────────────────────────────────────────────
 
 def test_het_balance_ignores_population_with_no_calls():
@@ -419,3 +400,215 @@ def test_fst_coverage_excludes_undefined_pairs(tmp_path):
     )
     result = run_vcf_pipeline(vcf, pop_map, tmp_path / "out", (0, 0, 1, 0))
     assert result["components"]["fst_coverage"] == 0.0
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/equity-scorer/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("equity-scorer", tmp_path) == snapshot({'report.md': """\
+# HEIM Equity Report
+
+**Date**: <TIMESTAMP> UTC
+**Input**: `demo_populations.vcf`
+**Checksum (SHA-256)**: `f847bb32a384508cd062bda6caac0979297dbef3fe14d7e645c2b21f1f9f7c68`
+**Samples**: 50
+**Populations**: 5
+**Variants analysed**: 500
+
+---
+
+## HEIM Equity Score: 76.2/100 (Good)
+
+![HEIM Gauge](figures/heim_gauge.png)
+
+### Score Breakdown
+
+| Component | Value | Weight | Description |
+|-----------|-------|--------|-------------|
+| Representation Index | 0.720 | 0.35 | Match to global population proportions |
+| Heterozygosity Balance | 0.667 | 0.25 | Genetic diversity relative to theoretical max |
+| FST Coverage | 1.000 | 0.2 | Fraction of pairwise comparisons computed |
+| Geographic Spread | 0.714 | 0.2 | Continental groups represented (out of 7) |
+
+### Key Findings
+
+- **Most represented**: EUR (44.0%, 2.8x global proportion)
+- **Least represented**: AMR (10.0%, 0.8x global proportion)
+- **Mean observed heterozygosity**: 0.3335 (highest: AFR at 0.3543)
+
+---
+
+## Population Distribution
+
+| Population | Count | Sample % | Global % | Ratio | Obs Het | Exp Het |
+|------------|-------|-----------|-----------|-------|---------|---------|
+| AFR | 8 | 16.0% | 17.0% | 0.94x | 0.3543 | 0.3338 |
+| AMR | 5 | 10.0% | 13.0% | 0.77x | 0.3472 | 0.3064 |
+| EAS | 7 | 14.0% | 22.0% | 0.64x | 0.3014 | 0.2788 |
+| EUR | 22 | 44.0% | 16.0% | 2.75x | 0.3139 | 0.3075 |
+| SAS | 8 | 16.0% | 26.0% | 0.62x | 0.3508 | 0.3220 |
+
+![Ancestry Distribution](figures/ancestry_bar.png)
+
+## Heterozygosity
+
+![Heterozygosity](figures/heterozygosity.png)
+
+## Pairwise FST
+
+| Comparison | Nei's GST (FST) |
+|------------|-----------------|
+| AFR vs AMR | 0.0773 |
+| AFR vs EAS | 0.1011 |
+| AFR vs EUR | 0.0590 |
+| AFR vs SAS | 0.0619 |
+| AMR vs EAS | 0.0898 |
+| AMR vs EUR | 0.0425 |
+| AMR vs SAS | 0.0692 |
+| EAS vs EUR | 0.0439 |
+| EAS vs SAS | 0.0782 |
+| EUR vs SAS | 0.0467 |
+
+![FST Heatmap](figures/fst_heatmap.png)
+
+
+## Principal Component Analysis
+
+![PCA](figures/pca_plot.png)
+
+- PC1 explains 7.6% of variance
+- PC2 explains 4.9% of variance
+- Top 5 components explain 23.0% of total variance
+
+
+---
+
+## Methods
+
+- **Tool**: ClawBio Equity Scorer v0.1.0
+- **HEIM framework**: Health Equity Index for Minorities (Corpas, 2026)
+- **Heterozygosity**: Observed = proportion of heterozygous genotypes per site, averaged across 500 variants. Expected = 2pq from population allele frequencies.
+- **FST**: Nei's GST (HT-HS)/HT, ratio of averages across sites. Values floored at 0.
+- **PCA**: scikit-learn PCA on mean-imputed genotype matrix (0/1/2 encoding).
+- **Global reference**: Approximate continental proportions from the 1000 Genomes Project.
+
+## Reproducibility
+
+```bash
+# Re-run this analysis
+python equity_scorer.py --input demo_populations.vcf --output demo_output
+```
+
+**Input checksum**: `f847bb32a384508cd062bda6caac0979297dbef3fe14d7e645c2b21f1f9f7c68`
+
+## References
+
+- Corpas, M. (2026). ClawBio. https://github.com/ClawBio/ClawBio
+- Nei, M. (1973). Analysis of Gene Diversity in Subdivided Populations. PNAS, 70(12), 3321-3323.
+- Hudson, R.R., Slatkin, M. & Maddison, W.P. (1992). Estimation of levels of gene flow from DNA sequence data. Genetics, 132(2), 583-589.
+- The 1000 Genomes Project Consortium (2015). A global reference for human genetic variation. Nature, 526, 68-74.
+
+---
+
+## Disclaimer
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'result.json': """\
+{
+  "skill": "equity-scorer",
+  "version": "0.2.0",
+  "completed_at": "<TIMESTAMP>",
+  "input_checksum": "sha256:f847bb32a384508cd062bda6caac0979297dbef3fe14d7e645c2b21f1f9f7c68",
+  "datasets": {},
+  "summary": {
+    "heim_score": 76.2,
+    "rating": "Good",
+    "n_samples": 50,
+    "n_populations": 5
+  },
+  "data": {
+    "heim_score": 76.2,
+    "rating": "Good",
+    "components": {
+      "representation_index": 0.72,
+      "heterozygosity_balance": 0.667,
+      "fst_coverage": 1.0,
+      "geographic_spread": 0.714
+    },
+    "weights": {
+      "w1": 0.35,
+      "w2": 0.25,
+      "w3": 0.2,
+      "w4": 0.2
+    },
+    "n_samples": 50,
+    "n_populations": 5,
+    "population_counts": {
+      "AFR": 8,
+      "AMR": 5,
+      "EAS": 7,
+      "EUR": 22,
+      "SAS": 8
+    },
+    "unknown_fraction": 0.0,
+    "representation_warning": null,
+    "het_source": "computed",
+    "fst_estimator": "Nei_GST"
+  }
+}\
+""", 'tables/fst_matrix.csv': """\
+,AFR,AMR,EAS,EUR,SAS
+AFR,0.0,0.07729026973161958,0.10109176634894292,0.059007353052296485,0.061931475314574345
+AMR,0.07729026973161958,0.0,0.08983741986855488,0.042500319633088424,0.06924789557155057
+EAS,0.10109176634894292,0.08983741986855488,0.0,0.043865792382887424,0.0781626295766291
+EUR,0.059007353052296485,0.042500319633088424,0.043865792382887424,0.0,0.04666476240435645
+SAS,0.061931475314574345,0.06924789557155057,0.0781626295766291,0.04666476240435645,0.0
+""", 'tables/heim_score.json': """\
+{
+  "heim_score": 76.2,
+  "rating": "Good",
+  "components": {
+    "representation_index": 0.72,
+    "heterozygosity_balance": 0.667,
+    "fst_coverage": 1.0,
+    "geographic_spread": 0.714
+  },
+  "weights": {
+    "w1": 0.35,
+    "w2": 0.25,
+    "w3": 0.2,
+    "w4": 0.2
+  },
+  "n_samples": 50,
+  "n_populations": 5,
+  "population_counts": {
+    "AFR": 8,
+    "AMR": 5,
+    "EAS": 7,
+    "EUR": 22,
+    "SAS": 8
+  },
+  "unknown_fraction": 0.0,
+  "representation_warning": null,
+  "het_source": "computed",
+  "fst_estimator": "Nei_GST"
+}\
+""", 'tables/heterozygosity.csv': """\
+population,observed_het,expected_het
+AFR,0.35425,0.333796875
+AMR,0.34720000000000006,0.30639999999999995
+EAS,0.30142857142857143,0.2787959183673469
+EUR,0.31390909090909086,0.30745247933884295
+SAS,0.35075,0.322015625
+""", 'tables/population_summary.csv': """\
+population,count,proportion,obs_het,exp_het
+AFR,8,0.16,0.35425,0.333796875
+AMR,5,0.1,0.34720000000000006,0.30639999999999995
+EAS,7,0.14,0.30142857142857143,0.2787959183673469
+EUR,22,0.44,0.31390909090909086,0.30745247933884295
+SAS,8,0.16,0.35075,0.322015625
+"""})

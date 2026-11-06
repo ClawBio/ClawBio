@@ -317,6 +317,12 @@ jobs:
       - name: Run library tests
         run: uv run pytest clawbio/tests/ clawbio/common/tests/ -v
 
+      # Demo snapshots catch a change in shared code (e.g. clawbio/common) that
+      # moves a skill's demo numbers. Neither the allowlist above nor the
+      # changed-skills step below sees that, so every snapshot runs on every PR.
+      - name: Run all demo snapshot tests
+        run: uv run pytest skills/ -m demo_snapshot -v
+
       # The steps above are a hardcoded allowlist, so a NEW skill's tests never
       # run: ClawBio#329 shipped a test that cannot pass and CI was still green,
       # and ClawBio#324's just-prs suite never executed here at all. Any skill
