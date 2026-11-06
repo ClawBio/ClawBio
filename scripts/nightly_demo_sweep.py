@@ -46,8 +46,7 @@ SKIP_IN_CI = {
 REPRO_BUNDLE_FILES = ("commands.sh", "environment.yml", "checksums.sha256")
 
 # The skill run contract (AGENTS.md). skills/contract_known_gaps.json maps each skill to
-# the checks it fails today, and is shared with the tests that check SKILL.md and parsers.
-# It only shrinks: a skill failing a check not listed for it fails, and a listed check it
+# the checks it fails today. It only shrinks: a skill failing a check not listed for it fails, and a listed check it
 # now passes fails until it is removed.
 SWEEP_CHECKS = {"repro_files"}  # reproducibility/ holds REPRO_BUNDLE_FILES
 CONTRACT_KNOWN_GAPS_FILE = PROJECT_ROOT / "skills" / "contract_known_gaps.json"

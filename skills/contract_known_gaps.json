@@ -1,4 +1,7 @@
 {
+  "article-data-fetcher": [
+    "repro_files"
+  ],
   "clinical-variant-prioritizer": [
     "repro_files"
   ],
@@ -18,9 +21,6 @@
     "repro_files"
   ],
   "locuscompare-region-render": [
-    "repro_files"
-  ],
-  "mendelian-randomisation": [
     "repro_files"
   ],
   "omics-target-evidence-mapper": [
