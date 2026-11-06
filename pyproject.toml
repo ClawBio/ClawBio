@@ -158,6 +158,7 @@ dev = [
     "skills-ref>=0.1.1,<1",
     # prs-abstain tests inspect the rendered PDFs.
     "pypdf>=6.21.2,<7",
+    "inline-snapshot>=0.36.1",
 ]
 bot = [
     "python-telegram-bot[job-queue]>=22.8",
