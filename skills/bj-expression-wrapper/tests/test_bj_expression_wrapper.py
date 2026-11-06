@@ -54,6 +54,10 @@ if args[:1] == ["-version"]:
     sys.exit(0)
 mode = os.environ.get("FAKE_NF_MODE", "ok")
 if mode == "fail":
+    if "-work-dir" in args:  # a real failed run still leaves its work/ behind
+        wdf = args[args.index("-work-dir") + 1]
+        os.makedirs(os.path.join(wdf, "ab", "cd"), exist_ok=True)
+        open(os.path.join(wdf, "ab", "cd", "task.txt"), "w").write("scratch\\n")
     print("boom: process STARALIGN failed", file=sys.stderr)
     sys.exit(3)
 if mode == "empty":
@@ -87,6 +91,10 @@ for s in samples:
     if s != drop:
         files += [sa + "/alignment_htseq/" + s + ".bam",
                   sa + "/alignment_htseq/" + s + ".bam.bai"]
+wd = args[args.index("-work-dir") + 1] if "-work-dir" in args else None
+if wd:
+    os.makedirs(os.path.join(wd, "ab", "cd"), exist_ok=True)
+    open(os.path.join(wd, "ab", "cd", "task.txt"), "w").write("scratch\\n")
 pm = os.environ.get("FAKE_NF_PUBLISH", "copy")
 for f in files:
     os.makedirs(os.path.dirname(f), exist_ok=True)
@@ -1270,3 +1278,59 @@ def test_the_report_says_which_counts_drive_multiqc_and_cell_typing(setup):
     run_cli(base_args(setup, "--accept-bioskryb-terms"), env=setup["env"])
     text = (setup["out"] / "report.md").read_text().lower()
     assert "intron-inclusive" in text and "_exon" in text
+
+
+# ──────────────────────────────────────────────
+# Remove work/ after a verified run (default); --keep-work turns it off
+# ──────────────────────────────────────────────
+
+def test_a_successful_run_removes_work_by_default_and_keeps_real_results(setup):
+    run_cli(base_args(setup, "--accept-bioskryb-terms"), env=setup["env"])
+    r = result_json(setup["out"])
+    assert r["status"] == "success"
+    assert not (setup["out"] / "work").exists(), "work/ should be removed by default"
+    assert r["work_removed"] is True
+    assert (setup["out"] / "results_clawbio" / "multiqc" / "multiqc_report.html").is_file()
+    assert links_under(setup["out"] / "results_clawbio") == []
+
+
+def test_keep_work_leaves_work_in_place(setup):
+    run_cli(base_args(setup, "--accept-bioskryb-terms", "--keep-work"), env=setup["env"])
+    r = result_json(setup["out"])
+    assert (setup["out"] / "work").is_dir()
+    assert r["work_removed"] is False and "keep-work" in r["work_cleanup_reason"]
+
+
+def test_a_failed_run_keeps_work_so_it_can_be_resumed(setup):
+    env = {**setup["env"], "FAKE_NF_MODE": "fail"}
+    run_cli(base_args(setup, "--accept-bioskryb-terms"), env=env, expect=1)
+    r = result_json(setup["out"])
+    assert (setup["out"] / "work").is_dir()
+    assert r["work_removed"] is False and "not successful" in r["work_cleanup_reason"]
+
+
+def test_keep_symlinks_keeps_work_because_the_links_still_point_into_it(setup):
+    run_cli(base_args(setup, "--accept-bioskryb-terms", "--keep-symlinks"), env=setup["env"])
+    r = result_json(setup["out"])
+    assert (setup["out"] / "work").is_dir()
+    assert r["work_removed"] is False and "not materialised" in r["work_cleanup_reason"]
+
+
+def test_cleanup_refuses_when_any_result_is_not_a_real_file(tmp_path):
+    mod = _load_module()
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "x").write_text("x")
+    ok = {"files": 3, "broken": [], "failed": []}
+    bad = {"files": 3, "broken": ["a.html"], "failed": []}
+    assert mod.cleanup_work(work, ok, ok)[0] is True and not work.exists()
+    work.mkdir(); (work / "x").write_text("x")
+    removed, reason = mod.cleanup_work(work, ok, bad)
+    assert removed is False and "not real files" in reason and work.exists()
+    assert mod.cleanup_work(work, None, ok)[0] is False
+
+
+def test_the_report_says_when_work_was_removed_and_that_resume_is_gone(setup):
+    run_cli(base_args(setup, "--accept-bioskryb-terms"), env=setup["env"])
+    text = (setup["out"] / "report.md").read_text().lower()
+    assert "work directory was removed" in text and "--resume" in text

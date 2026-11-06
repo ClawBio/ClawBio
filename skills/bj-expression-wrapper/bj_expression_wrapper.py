@@ -585,6 +585,25 @@ def _replace_link_with_dir(link: Path, target: Path) -> tuple[int, int]:
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+def cleanup_work(work_dir: Path, *reports) -> tuple[bool, str]:
+    """Remove the Nextflow work directory, but only once every published result is a real file.
+
+    `reports` are the materialise reports for each results folder. A None report means the
+    results were not materialised (symlinks would dangle), and any broken or failed copy also
+    keeps work/. Removing work/ ends --resume for the run, so the caller only asks for this
+    after a successful run.
+    """
+    if not work_dir.exists():
+        return False, "no work directory"
+    for rep in reports:
+        if rep is None:
+            return False, "results were not materialised (--keep-symlinks), so links still point into work/"
+        if rep["broken"] or rep["failed"]:
+            return False, "some results are not real files, so work/ is kept"
+    shutil.rmtree(work_dir)
+    return True, "removed after every published result was verified as a real file"
+
+
 def materialise_results(results_dir: Path) -> dict:
     """Replace every symlink under results_dir with a verified real copy.
 
@@ -696,6 +715,10 @@ def write_report(out_dir: Path, result: dict) -> Path:
         if ed["missing_outputs"]:
             lines += ["> **Warning:** missing from the exon duplicate: "
                       + ", ".join(f"`{m}`" for m in ed["missing_outputs"]), ""]
+    if result.get("work_removed"):
+        lines += ["> **The work directory was removed** after every published result was verified "
+                  "as a real file. `--resume` is not possible for this run; it is not needed for a "
+                  "successful run.", ""]
     mat = result.get("results_materialised")
     if mat:
         lines += [f"**Results are real files:** {mat['files']} files ({mat['bytes'] / 1e6:.1f} MB) "
@@ -858,6 +881,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--resume", action="store_true", help="Pass -resume to Nextflow")
     p.add_argument("--strict", action="store_true",
                    help="Exit 1 if any task failed and was ignored by the pipeline")
+    p.add_argument("--keep-work", action="store_true",
+                   help="Keep Nextflow's work/ directory after a successful run (default: remove it "
+                        "once every result is a verified real file; --resume is then not possible)")
     p.add_argument("--keep-symlinks", action="store_true",
                    help="Leave Nextflow's symlinks in results_clawbio/ (default: replace "
                         "them with verified real copies after a successful run)")
@@ -987,6 +1013,8 @@ def run(args: argparse.Namespace) -> int:
         "profile": args.profile,
         "results_materialised": None,
         "exon_materialised": None,
+        "work_removed": None,
+        "work_cleanup_reason": None,
         "exon_duplicate": None,
         "subsampling": sub,
         "nextflow_version_requested": args.nextflow_version,
@@ -1026,6 +1054,19 @@ def run(args: argparse.Namespace) -> int:
             exit_code = 1 if args.strict else 0
         else:
             result["status"] = "success"
+
+    if mode == "run":
+        if args.keep_work:
+            result["work_removed"], result["work_cleanup_reason"] = False, "kept: --keep-work given"
+        elif result["status"] not in ("success", "success_with_ignored_failures"):
+            result["work_removed"], result["work_cleanup_reason"] = False, (
+                f"not successful ({result['status']}); work/ is kept so the run can be resumed")
+        else:
+            reports = [result.get("results_materialised")]
+            if result.get("exon_duplicate") and Path(result["exon_duplicate"]["results_dir"]).is_dir():
+                reports.append(result.get("exon_materialised"))
+            result["work_removed"], result["work_cleanup_reason"] = cleanup_work(
+                out_dir / "work", *reports)
 
     (out_dir / "result.json").write_text(json.dumps(result, indent=2) + "\n")
     write_report(out_dir, result)

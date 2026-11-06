@@ -209,7 +209,7 @@ python skills/bj-expression-wrapper/bj_expression_wrapper.py --demo --output ~/s
 
 **Required for a run or `--check`:** `--reads-per-file N|all` (see the next section). Optional overrides (each omitted flag keeps the pipeline default): `--read-length`, `--min-reads`, `--skip-subsampling` (same as `--reads-per-file all`), `--skip-cutadapt`, `--skip-qc-plots`, `--instrument`, `--genomes-base`.
 
-Wrapper options: `--keep-symlinks` (leave Nextflow's symlinks in `results_clawbio/`; by default they are replaced with verified real copies after a successful run), `--materialise-only` (do that for an existing run: `--output <run folder>`, run directly, not through `clawbio.py`, which requires an input), `--strict` (exit 1 when any task failed and was ignored, instead of exit 0 with a warning), `--nextflow-version` (default `25.04.6`, set as `NXF_VER` on every Nextflow call; `system` leaves your install alone) and `--extra-config FILE` (passed to Nextflow with `-c` and copied into the bundle).
+Wrapper options: `--keep-work` (keep Nextflow's `work/` after a successful run; by default it is removed once every published result is a verified real file, which ends `--resume` for that run), `--keep-symlinks` (leave Nextflow's symlinks in `results_clawbio/`; by default they are replaced with verified real copies after a successful run), `--materialise-only` (do that for an existing run: `--output <run folder>`, run directly, not through `clawbio.py`, which requires an input), `--strict` (exit 1 when any task failed and was ignored, instead of exit 0 with a warning), `--nextflow-version` (default `25.04.6`, set as `NXF_VER` on every Nextflow call; `system` leaves your install alone) and `--extra-config FILE` (passed to Nextflow with `-c` and copied into the bundle).
 
 ## Hosts without Docker (for example a gVisor container)
 
@@ -273,8 +273,8 @@ output_directory/
 ```
 
 <!-- Tree is what --demo produces. A real run also writes results_clawbio/ (the
-     pipeline's published outputs), nextflow_run/ (logs) and work/ (Nextflow's
-     work directory). -->
+     pipeline's published outputs), nextflow_run/ (logs) and, after a failed or
+     `--keep-work` run, work/ (Nextflow's work directory; removed after a successful run). -->
 
 ## Dependencies
 
@@ -290,7 +290,7 @@ Docker needs a Carolina Cloud VM; containers cannot run it. The README suggests 
 
 - **The model will want to read defaults from the README. Do not.** It says `--reads_csv` where the code takes `--input_csv`, calls subsampling skipped by default when the config does not, and gives a different read length than the config. Use the pinned `nextflow.config`. It also lists `pipeline_metrics_summary.csv` as an output; 2.0.0 writes `qualimap_stats_mqc.csv` and `pipeline_metrics_summary_percents.csv` instead (the first real run was wrongly flagged `incomplete` because the wrapper required the README's name).
 - **The model will want to use the newest Nextflow. Do not.** Nextflow 26.x cannot parse this pipeline's config (it includes two profile files that are not in the public repo). 25.04.6 and 24.10.5 parse it (config parse only; a full run on 24.10.5 was not tried). The wrapper pins 25.04.6.
-- **The model will want to say the pipeline copies its results. It does not.** BioSkryb's 37 `publishDir` directives set no mode, so Nextflow publishes symlinks into `work/`, and a config override does not change that (tested). Deleting `work/` would break every published result. After a successful run the wrapper replaces each link with a SHA-256-verified real copy (`results_materialised` in `result.json`); `work/` is then only needed for `--resume`. Broken links or failed copies are reported and left as symlinks.
+- **The model will want to say the pipeline copies its results. It does not.** BioSkryb's 37 `publishDir` directives set no mode, so Nextflow publishes symlinks into `work/`, and a config override does not change that (tested). Deleting `work/` would break every published result. After a successful run the wrapper replaces each link with a SHA-256-verified real copy (`results_materialised` in `result.json`); `work/` is then only needed for `--resume`, so after a successful run the wrapper removes it (`work_removed` in `result.json`). Broken links or failed copies are reported, left as symlinks, and `work/` is kept.
 - **The model will want to say the sandbox workaround is proven. It is not.** It was tested end to end with Nextflow 25.04.6 and one real image (seqtk 1.3) only. Whether other images, or many tasks sharing one writable sandbox, behave the same is untested.
 - **The model will want to treat a SingleR RDS as a drop-in `db_celltype_qbio.RDS`. It is not.** The pipeline's cell-typing script reads a named list with `HPCA_singleR` (labels `label.main2`) and four BioSkryb-built references `GTEx_singleR`, `GTExmeds_singleR`, `TCGA_STN_singleR`, `TCGA_PT_singleR` (labels `Treatment`). Other lists fail that step, and the pipeline then retries twice and ignores the failure.
 - **The pipeline ignores failed tasks after two retries.** A run can exit 0 with steps missing. The wrapper reads Nextflow's trace and sets `status` to `success_with_ignored_failures` and lists the tasks; never report a clean run from the exit code alone. If no trace was written, `ignored_failures` is `null`, which means unknown, not none. Every invocation writes its own `trace_<UTC>.tsv` (path in `result.json`): Nextflow refuses to overwrite an existing trace file, which once made a `--resume` report the previous run's failures and miss its own.
