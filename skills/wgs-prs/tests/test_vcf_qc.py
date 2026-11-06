@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import textwrap
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -160,6 +161,31 @@ class TestParseBcftoolsStats:
         stats = qc._parse_bcftools_stats(BCFTOOLS_STATS_PER_SAMPLE_OUTPUT + second)
         assert stats["number of heterozygous SNPs:"] == 3.0
         assert stats["number of homozygous SNPs:"] == 1.0
+
+    def test_reads_psc_columns_from_header(self):
+        # A PSC layout with an extra column before the counts. The parser
+        # follows the "# PSC" header instead of fixed positions.
+        output = textwrap.dedent("""\
+            # PSC\t[2]id\t[3]sample\t[4]extra\t[5]nRefHom\t[6]nNonRefHom\t[7]nHets
+            PSC\t0\tSAMPLE\t99\t0\t1\t3
+        """)
+        qc = VcfQC.__new__(VcfQC)
+        stats = qc._parse_bcftools_stats(output)
+        assert stats["number of heterozygous SNPs:"] == 3.0
+        assert stats["number of homozygous SNPs:"] == 1.0
+
+    def test_logs_sample_used_for_multi_sample_vcf(self, caplog):
+        second = "PSC\t0\tOTHER\t0\t9\t9\t0\t0\t0\t0.0\t0\t0\t0\t0\n"
+        qc = VcfQC.__new__(VcfQC)
+        with caplog.at_level(logging.INFO, logger="clawbio.common.vcf_qc"):
+            qc._parse_bcftools_stats(BCFTOOLS_STATS_PER_SAMPLE_OUTPUT + second)
+        assert "from sample SAMPLE, the first of 2 samples" in caplog.text
+
+    def test_single_sample_vcf_logs_no_sample_note(self, caplog):
+        qc = VcfQC.__new__(VcfQC)
+        with caplog.at_level(logging.INFO, logger="clawbio.common.vcf_qc"):
+            qc._parse_bcftools_stats(BCFTOOLS_STATS_PER_SAMPLE_OUTPUT)
+        assert "first of" not in caplog.text
 
     def test_compute_stats_requests_per_sample_counts(self, tmp_path):
         qc = VcfQC.__new__(VcfQC)
