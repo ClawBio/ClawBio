@@ -451,7 +451,7 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest = {
         "skill": "gwas-catalog-region-fetch",
-        "version": "0.2.0",
+        "version": "0.2.1",
         "accession": cfg["accession"],
         "region": {"chromosome": str(cfg["chromosome"]),
                    "start_bp": int(cfg["start_bp"]),
@@ -623,10 +623,13 @@ def _region_result_from_cache(d: dict) -> "RegionResult":
 
 def _write_canonical_tsv(result, tsv_path: Path) -> None:
     """Emit the canonical sumstats-slice TSV (variant_id, chromosome,
-    position_bp, allele_a, allele_b, beta, se, p, eaf, study_id) for
-    downstream coloc / fine-mapping / regional plotting tools."""
+    position_bp, allele_a, allele_b, beta, se, p, eaf, odds_ratio, ci_lower,
+    ci_upper, study_id) for downstream coloc / fine-mapping / regional plotting
+    tools. The odds ratio and its CI ride along so a study that reports only an
+    odds ratio keeps its effect sizes when this file is the consumer's input."""
     cols = ["variant_id", "chromosome", "position_bp",
-            "allele_a", "allele_b", "beta", "se", "p", "eaf", "study_id"]
+            "allele_a", "allele_b", "beta", "se", "p", "eaf",
+            "odds_ratio", "ci_lower", "ci_upper", "study_id"]
     with tsv_path.open("w") as f:
         f.write("# locuscompare-schema-version: 1.0\n")
         f.write("# source: gwas_catalog\n")
@@ -640,6 +643,12 @@ def _write_canonical_tsv(result, tsv_path: Path) -> None:
                 "" if v.se is None else f"{v.se:.6g}",
                 "" if v.p_value is None else f"{v.p_value:.6g}",
                 "" if v.effect_allele_frequency is None else f"{v.effect_allele_frequency:.6g}",
+                # repr precision: ln(OR) of an OR near 1 is sensitive to rounding, and
+                # the file path should derive the same beta the live path does. The CI
+                # is written only beside an odds ratio, where it bounds that ratio.
+                "" if v.odds_ratio is None else repr(v.odds_ratio),
+                "" if v.odds_ratio is None or v.ci_lower is None else repr(v.ci_lower),
+                "" if v.odds_ratio is None or v.ci_upper is None else repr(v.ci_upper),
                 result.accession,
             ]
             f.write("\t".join(row) + "\n")

@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -170,6 +171,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
     from locuscompare_region_render import (
         EXPOSURE_KIND_EQTL_CATALOGUE,
         EXPOSURE_KIND_UKB_PPP,
+        _QUANT_METHOD_MODALITY,
         LocusCompareSpec,
         Tier2NotAvailable,
         render_locuscompare_for_lead,
@@ -196,6 +198,10 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
     lead_position_bp = int(lead["position_bp"])
     window_bp = int(lead["window_bp"])
     lead_rs_id = lead.get("rs_id") or None
+    lead_candidates, err = _parse_lead_candidates(lead.get("candidates"), chromosome)
+    if err:
+        print(f"lead.candidates: {err}", file=sys.stderr)
+        return 2
 
     exposure = config.get("exposure") or {}
     outcome = config.get("outcome") or {}
@@ -297,6 +303,15 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
     super_pop_str = ld_block.get("super_pop", "EUR")
     super_pop = SuperPop[super_pop_str]
     ld_source = ld_block.get("source", "1000g_phase3_grch38")
+    if ld_source == "synthetic" and lead_candidates:
+        # A synthetic LD matrix is r2 with one fixed variant; it cannot recolour the
+        # plot for a different lead, so a fallback would label the wrong r2 as LD.
+        print(
+            "lead.candidates cannot be used with ld.source: synthetic (its r2 values are "
+            "with one fixed variant); remove the candidates or use the 1000 Genomes panel.",
+            file=sys.stderr,
+        )
+        return 2
     if ld_source == "synthetic":
         from _prefetched import PrefetchedLDClient, load_synthetic_ld
         ld_matrix_path = ld_block.get("ld_matrix_path")
@@ -351,6 +366,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
         gencode_gtf_path = Path(gencode_gtf_path)
     gene_biotypes = tuple(gene_track_block.get("biotypes") or ("protein_coding",))
     prefetched_gene_track = None
+    gene_track_label: str | None = None
     gt_source = gene_track_block.get("source", "gencode_v39")
     if gt_source == "synthetic":
         from _prefetched import load_synthetic_gene_track
@@ -364,6 +380,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
             return 2
         genes_full = _resolve_path(genes_path, config_dir)
         prefetched_gene_track = load_synthetic_gene_track(genes_full)
+        gene_track_label = f"synthetic TSV {genes_full.name}"
         print(
             f"info: gene track from synthetic TSV ({len(prefetched_gene_track)} "
             f"genes): {genes_full}",
@@ -393,6 +410,7 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
                 )
                 for g in genes
             ]
+            gene_track_label = f"{release_meta['release_label']}, {', '.join(gene_biotypes)}"
             print(
                 f"info: gene track from Ensembl REST ({len(prefetched_gene_track)} genes, "
                 f"{release_meta['release_label']})",
@@ -434,7 +452,9 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
         gencode_gtf_path=gencode_gtf_path,
         gene_biotypes=gene_biotypes,
         prefetched_gene_track=prefetched_gene_track,
+        gene_track_label=gene_track_label,
         lead_rs_id=lead_rs_id,
+        lead_candidates=lead_candidates,
     )
 
     # ----- Build clients
@@ -442,12 +462,25 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
     # `sumstats_path:`, else the live fetcher matching the dispatched kind.
     if exposure_prefetched:
         from _prefetched import PrefetchedEQTLClient, load_sumstats_tsv
+        # A declared quantification must be one we can name; an unknown or
+        # misspelt code would otherwise turn into a "QTL" figure with no word
+        # about why, so refuse it here instead.
+        declared_qm = str(exposure.get("quant_method") or "").strip().lower() or None
+        if declared_qm is not None and declared_qm not in _QUANT_METHOD_MODALITY:
+            print(
+                f"exposure.quant_method {exposure.get('quant_method')!r} is not a known "
+                f"quantification code; use one of: "
+                f"{', '.join(sorted(_QUANT_METHOD_MODALITY))}, or leave it out.",
+                file=sys.stderr,
+            )
+            return 2
         exposure_tsv = _resolve_path(exposure["sumstats_path"], config_dir)
         exposure_variants = load_sumstats_tsv(exposure_tsv)
         eqtl_client = PrefetchedEQTLClient(
             variants=exposure_variants,
             dataset_id=eqtl_dataset_id,
             study_label=exposure.get("trait_label") or None,
+            quant_method=declared_qm,
         )
         ukb_ppp_client = None
         print(
@@ -497,11 +530,22 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
         return 1
 
     # ----- Manifest + report
+    # The lead drawn can differ from the configured one (lead fallback); the
+    # manifest's lead is the drawn one, the request and the reason ride beside it.
+    # The rs id was given for the configured lead, so it is kept only when that is
+    # the lead drawn. The plot's file name stays keyed to the configured lead.
+    block = result.manifest_block
+    used_lead = block.get("lead_variant_id") or lead_variant_id
+    lead_fallback = block.get("lead_fallback")
     manifest = {
         "skill": "locuscompare",
-        "version": "0.2.0",
-        "lead_variant_id": lead_variant_id,
-        "lead_rs_id": lead_rs_id,
+        "version": "0.3.0",
+        "lead_variant_id": used_lead,
+        "lead_rs_id": lead_rs_id if used_lead == lead_variant_id else None,
+        "lead_requested_variant_id": lead_variant_id,
+        # Copies, so the YAML holds plain values rather than anchors into render_block.
+        "lead_fallback": dict(lead_fallback) if lead_fallback else None,
+        "lead_candidates": [dict(r) for r in block.get("lead_candidates") or []],
         "n_pairs": result.n_pairs,
         "n_palindromic_excluded": result.n_palindromic_excluded,
         "plot_path": str(plot_path.relative_to(output)),
@@ -510,15 +554,24 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
     }
     (output / "manifest.yaml").write_text(yaml.safe_dump(manifest, sort_keys=False))
 
-    lead_line = (
-        f"- **Lead variant:** `{lead_variant_id}`"
-        + (f" ({lead_rs_id}; " if lead_rs_id else " (")
-        + f"chr{chromosome}:{lead_position_bp}, ±{window_bp//2000} kb)"
-    )
+    if lead_fallback:
+        lead_lines = [
+            f"- **Lead variant:** `{used_lead}` (window fetched around "
+            f"chr{chromosome}:{lead_position_bp}, ±{window_bp//2000} kb)",
+            f"- **Requested lead:** `{lead_variant_id}`"
+            + (f" ({lead_rs_id})" if lead_rs_id else "")
+            + f": {lead_fallback['reason']}",
+        ]
+    else:
+        lead_lines = [
+            f"- **Lead variant:** `{lead_variant_id}`"
+            + (f" ({lead_rs_id}; " if lead_rs_id else " (")
+            + f"chr{chromosome}:{lead_position_bp}, ±{window_bp//2000} kb)"
+        ]
     report_lines = [
         "# locuscompare report",
         "",
-        lead_line,
+        *lead_lines,
         f"- **Exposure:** {exposure_label}",
         f"- **Outcome:** {outcome_label}",
         f"- **n_pairs:** {result.n_pairs}",
@@ -530,11 +583,60 @@ def _run(*, config: dict, config_dir: Path, output: Path) -> int:
         report_lines.append("## Notes")
         for n in result.notes:
             report_lines.append(f"- {n}")
+    # The caveats printed under the figure (a lead fallback among them) also go in
+    # the report and on stdout, so a reader of either sees them.
+    caveats = list(block.get("ancestry_caveats") or [])
+    if caveats:
+        report_lines.append("")
+        report_lines.append("## Caveats")
+        for c in caveats:
+            report_lines.append(f"- {c}")
     (output / "report.md").write_text("\n".join(report_lines) + "\n")
 
     print(f"locuscompare: rendered {plot_path}")
     print(f"  n_pairs = {result.n_pairs}, n_palindromic_excluded = {result.n_palindromic_excluded}")
+    for c in caveats:
+        print(f"  warning: {c}")
     return 0
+
+
+_VARIANT_ID_RE = re.compile(r"(?:chr)?([0-9]+|X|Y|MT?)_(\d+)_([ACGTN]+)_([ACGTN]+)", re.IGNORECASE)
+
+
+def _parse_lead_candidates(raw, chromosome: str) -> tuple[list[tuple[str, float]], str | None]:
+    """`lead.candidates: [{variant_id, pip}, ...]` -> [(variant_id, pip)], or an error.
+
+    Absent or empty: no candidates (the configured lead is drawn as configured). A
+    candidate must be a `chr_pos_ref_alt` id on the lead's chromosome with a PIP in
+    [0, 1]; anything else is refused rather than skipped, since a dropped candidate
+    would silently narrow the fallback.
+    """
+    if raw is None:
+        return [], None
+    if not isinstance(raw, list):
+        return [], "must be a list of {variant_id, pip} entries"
+    out: list[tuple[str, float]] = []
+    want = chromosome.lower().removeprefix("chr")
+    for i, entry in enumerate(raw):
+        if not isinstance(entry, dict) or "variant_id" not in entry:
+            return [], f"entry {i} must be a mapping with variant_id and pip"
+        vid = str(entry["variant_id"])
+        m = _VARIANT_ID_RE.fullmatch(vid)
+        if not m:
+            return [], f"entry {i}: {vid!r} is not a chr_pos_ref_alt variant id"
+        if m.group(1).lower() != want:
+            return [], (
+                f"entry {i}: {vid} is on chromosome {m.group(1)}, not the lead's "
+                f"chromosome {chromosome}"
+            )
+        try:
+            pip = float(entry.get("pip"))
+        except (TypeError, ValueError):
+            return [], f"entry {i}: pip {entry.get('pip')!r} is not a number"
+        if not 0.0 <= pip <= 1.0:
+            return [], f"entry {i}: pip {pip} is outside [0, 1]"
+        out.append((vid, pip))
+    return out, None
 
 
 def _format_provenance_prefix(config: dict) -> str:

@@ -1,0 +1,41 @@
+schema_version: "1.0"
+
+# Starting point: an Open Targets credible-set page
+#   https://platform.opentargets.org/credible-set/2f6755df0a7737586c9ff36fa2643c61
+# Resolved through the Open Targets API as in references/from_open_targets.md:
+#   GWAS:    GCST90225550, inflammatory bowel disease (Mize 2022)
+#   lead:    1_67240275_G_A (rs11209026, IL23R R381Q)
+#   QTL:     sun_2018_aptamer_plasma_il23r_5088_175_3_1, the only molecular QTL listed
+#            (pQTL, H4 0.991); summarystatsLocation .../QTS000035/QTD000584,
+#            target.id ENSG00000162594
+
+lead:
+  variant_id: "1_67240275_G_A"
+  rs_id: "rs11209026"
+  chromosome: "1"
+  position_bp: 67240275
+  window_bp: 1000000
+
+exposure:
+  trait_label: "IL23R plasma protein (Sun 2018, aptamer)"
+  gene_symbol: "IL23R"
+  fetch:
+    source: eqtl_catalogue
+    dataset_id: QTD000584
+    molecular_trait_id: ENSG00000162594
+
+outcome:
+  trait_label: "inflammatory bowel disease"
+  fetch:
+    source: gwas_catalog
+    accession: GCST90225550
+
+ld:
+  source: 1000g_phase3_grch38
+  super_pop: EUR
+
+gene_track:
+  source: gencode_v39
+
+harmonisation:
+  exclude_palindromic: true
