@@ -1058,9 +1058,12 @@ def run(args: argparse.Namespace) -> int:
     if mode == "run":
         if args.keep_work:
             result["work_removed"], result["work_cleanup_reason"] = False, "kept: --keep-work given"
-        elif result["status"] not in ("success", "success_with_ignored_failures"):
+        elif result["status"] != "success":
+            # Only a clean "success" may remove work/. success_with_ignored_failures means a
+            # task failed and was skipped, so work/ must stay for --resume and diagnosis.
             result["work_removed"], result["work_cleanup_reason"] = False, (
-                f"not successful ({result['status']}); work/ is kept so the run can be resumed")
+                f"not successful (status {result['status']}, only a clean success removes work/); "
+                f"work/ is kept so the run can be resumed")
         else:
             reports = [result.get("results_materialised")]
             if result.get("exon_duplicate") and Path(result["exon_duplicate"]["results_dir"]).is_dir():

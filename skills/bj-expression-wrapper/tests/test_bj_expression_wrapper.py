@@ -766,6 +766,16 @@ def test_ignored_failure_is_reported_but_the_run_still_exits_zero(setup):
     assert "ignored" in res.stdout.lower()
 
 
+def test_ignored_failure_keeps_work_so_the_skipped_task_can_be_rerun(setup):
+    # success_with_ignored_failures is not a clean success: work/ must survive.
+    env = {**setup["env"], "FAKE_NF_TRACE": "ignored"}
+    run_cli(base_args(setup, "--accept-bioskryb-terms"), env=env)
+    r = result_json(setup["out"])
+    assert r["status"] == "success_with_ignored_failures"
+    assert r["work_removed"] is False
+    assert (setup["out"] / "work").is_dir()
+
+
 def test_strict_turns_ignored_failures_into_a_nonzero_exit(setup):
     env = {**setup["env"], "FAKE_NF_TRACE": "ignored"}
     res = run_cli(base_args(setup, "--accept-bioskryb-terms", "--strict"), env=env, expect=1)
