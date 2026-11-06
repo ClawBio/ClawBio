@@ -55,6 +55,21 @@ def test_registered_demo_uses_synthetic_fixture():
     assert SKILLS["methylation"]["demo_args"] == ["--demo"]
 
 
+def test_synthetic_input_is_labelled_when_hash_check_fails(tmp_path, monkeypatch):
+    source = tmp_path / "renamed_synthetic_input.csv.gz"
+    shutil.copyfile(
+        Path(__file__).parent.parent / "data" / "synthetic_beta_demo.csv.gz",
+        source,
+    )
+
+    def fail_hash(_path):
+        raise OSError("file became unreadable during hash check")
+
+    monkeypatch.setattr(clock, "_sha256", fail_hash)
+
+    assert clock._is_synthetic_demo_input(source) is True
+
+
 def test_aggregation_sends_only_probe_columns_to_pyaging(monkeypatch):
     seen = []
 

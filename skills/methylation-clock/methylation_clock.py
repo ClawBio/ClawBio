@@ -204,7 +204,10 @@ def _is_synthetic_demo_input(path: Path) -> bool:
             and _sha256(path) == SYNTHETIC_DEMO_SHA256
         )
     except OSError:
-        return False
+        # If inspection fails, preserve the safer label. The subsequent input
+        # load will report any file-access error without producing an unlabeled
+        # report for data that may be the bundled synthetic fixture.
+        return True
 
 
 def _resolve_geo_pickle(geo_id: str, verbose: bool, output_dir: Path) -> Path:
