@@ -72,12 +72,20 @@ DISCLAIMER = (
 # Names follow the pipeline's own CODE and tests/main.nf.test, not its README: the
 # README still lists pipeline_metrics_summary.csv, which 2.0.0 does not write
 # (the module CREATE_QC_REPORT emits qualimap_stats_mqc.csv and the _percents file).
+# Single-nucleus version: Salmon is not run. MultiQC, cell typing and the HTSeq matrix in the
+# main results folder come from the INTRON-INCLUSIVE counts (HTSeq -t gene).
 REQUIRED_OUTPUTS = {
     "multiqc_report": "multiqc/multiqc_report.html",
     "qualimap_stats": "secondary_analyses/secondary_metrics/qualimap_stats_mqc.csv",
     "pipeline_metrics_summary_percents": "secondary_analyses/secondary_metrics/pipeline_metrics_summary_percents.csv",
-    "salmon_gene_counts": "secondary_analyses/quantification_salmon/df_gene_counts_salmon.tsv",
     "htseq_gene_counts": "secondary_analyses/quantification_htseq/df_gene_counts_starhtseq.tsv",
+    "cell_typing": "tertiary_analyses/classification_cell_typing/df_cell_typing_summary_singler_hpca_gtex_tcga.tsv",
+}
+# The duplicate built from EXON counts (HTSeq -t exon), published to <results>_exon.
+EXON_DUPLICATE_OUTPUTS = {
+    "multiqc_report": "multiqc/multiqc_report.html",
+    "htseq_gene_counts": "secondary_analyses/quantification_htseq/df_gene_counts_starhtseq.tsv",
+    "cell_typing": "tertiary_analyses/classification_cell_typing/df_cell_typing_summary_singler_hpca_gtex_tcga.tsv",
 }
 OPTIONAL_OUTPUTS = {
     "dynamic_range_expression": "secondary_analyses/secondary_metrics/df_dynamicrange_expression.tsv",
@@ -498,6 +506,17 @@ def parse_trace(path: Path) -> dict | None:
     return {"tasks": len(history), "ignored_failures": ignored, "retried_tasks": retried}
 
 
+def collect_exon_duplicate(exon_dir: Path) -> dict:
+    """Outputs of the exon-count duplicate run (cell typing and MultiQC)."""
+    found, missing = {}, []
+    for key, rel in EXON_DUPLICATE_OUTPUTS.items():
+        if (exon_dir / rel).is_file():
+            found[key] = str(exon_dir / rel)
+        else:
+            missing.append(rel)
+    return {"results_dir": str(exon_dir), "outputs": found, "missing_outputs": missing}
+
+
 def collect_outputs(results_dir: Path, samples: list[str]) -> dict:
     found, missing = {"results_dir": str(results_dir)}, []
     for key, rel in REQUIRED_OUTPUTS.items():
@@ -668,6 +687,15 @@ def write_report(out_dir: Path, result: dict) -> Path:
         lines.append("")
         for w in sub["warnings"]:
             lines += [f"> **Warning:** {w}", ""]
+    ed = result.get("exon_duplicate")
+    if ed:
+        lines += ["## Counts used for MultiQC and cell typing", "",
+                  "The main results use **intron-inclusive** counts (HTSeq `-t gene`) for MultiQC "
+                  "and cell typing. Duplicates built from **exon** counts (HTSeq `-t exon`) are in "
+                  f"`{Path(ed['results_dir']).name}/`: their own MultiQC report and cell-typing tables.", ""]
+        if ed["missing_outputs"]:
+            lines += ["> **Warning:** missing from the exon duplicate: "
+                      + ", ".join(f"`{m}`" for m in ed["missing_outputs"]), ""]
     mat = result.get("results_materialised")
     if mat:
         lines += [f"**Results are real files:** {mat['files']} files ({mat['bytes'] / 1e6:.1f} MB) "
@@ -958,6 +986,8 @@ def run(args: argparse.Namespace) -> int:
         "tools": tools,
         "profile": args.profile,
         "results_materialised": None,
+        "exon_materialised": None,
+        "exon_duplicate": None,
         "subsampling": sub,
         "nextflow_version_requested": args.nextflow_version,
         "extra_config": str(kept_config) if kept_config else None,
@@ -972,10 +1002,15 @@ def run(args: argparse.Namespace) -> int:
         result["nextflow_exit_code"] = code
         result["stderr_tail"] = tail
         found = collect_outputs(Path(params["publish_dir"] + "_" + RUN_TIMESTAMP), samples)
+        exon_dir = Path(params["publish_dir"] + "_exon_" + RUN_TIMESTAMP)
+        result["exon_duplicate"] = collect_exon_duplicate(exon_dir)
+        found["missing_outputs"] += [f"exon duplicate: {m}" for m in result["exon_duplicate"]["missing_outputs"]]
         result.update(found)
         results_dir = Path(params["publish_dir"] + "_" + RUN_TIMESTAMP)
         if code == 0 and not args.keep_symlinks and results_dir.is_dir():
             result["results_materialised"] = materialise_results(results_dir)
+            if exon_dir.is_dir():
+                result["exon_materialised"] = materialise_results(exon_dir)
         trace = parse_trace(trace_path)
         result["trace"] = ({"available": True, "path": str(trace_path), "tasks": trace["tasks"],
                             "retried_tasks": trace["retried_tasks"]} if trace

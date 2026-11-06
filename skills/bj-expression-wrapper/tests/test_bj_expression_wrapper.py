@@ -69,9 +69,20 @@ files = [
     sa + "/secondary_metrics/qualimap_stats_mqc.csv",
     sa + "/secondary_metrics/pipeline_metrics_summary_percents.csv",
     sa + "/secondary_metrics/df_dynamicrange_expression.tsv",
-    sa + "/quantification_salmon/df_gene_counts_salmon.tsv",
     sa + "/quantification_htseq/df_gene_counts_starhtseq.tsv",
+    res + "/tertiary_analyses/classification_cell_typing/df_cell_typing_summary_singler_hpca_gtex_tcga.tsv",
 ]
+# exon duplicates (cell typing and MultiQC built from exon counts) go to <publish_dir>_exon_<ts>
+rex = params["publish_dir"] + "_exon_" + params["timestamp"]
+sx = rex + "/secondary_analyses"
+exon_files = [
+    rex + "/multiqc/multiqc_report.html",
+    sx + "/quantification_htseq/df_gene_counts_starhtseq.tsv",
+    rex + "/tertiary_analyses/classification_cell_typing/df_cell_typing_summary_singler_hpca_gtex_tcga.tsv",
+]
+if os.environ.get("FAKE_NF_DROP_EXON"):
+    exon_files = [f for f in exon_files if os.environ["FAKE_NF_DROP_EXON"] not in f]
+files += exon_files
 for s in samples:
     if s != drop:
         files += [sa + "/alignment_htseq/" + s + ".bam",
@@ -468,7 +479,11 @@ def test_successful_run_records_status_outputs_and_samples(setup):
     assert sorted(r["samples"]) == ["s1", "s2"]
     assert r["samples_missing_from_outputs"] == []
     assert r["outputs"]["multiqc_report"].endswith("multiqc_report.html")
-    assert r["outputs"]["salmon_gene_counts"].endswith("df_gene_counts_salmon.tsv")
+    assert "salmon_gene_counts" not in r["outputs"], "Salmon is not run in the single-nucleus version"
+    assert r["outputs"]["htseq_gene_counts"].endswith("df_gene_counts_starhtseq.tsv")
+    assert r["exon_duplicate"]["results_dir"].endswith("results_exon_clawbio")
+    assert r["exon_duplicate"]["missing_outputs"] == []
+    assert r["exon_duplicate"]["outputs"]["multiqc_report"].endswith("multiqc/multiqc_report.html")
     assert r["outputs"]["htseq_gene_counts"].endswith("df_gene_counts_starhtseq.tsv")
     assert r["outputs"]["qualimap_stats"].endswith("qualimap_stats_mqc.csv")
     assert r["outputs"]["pipeline_metrics_summary_percents"].endswith("pipeline_metrics_summary_percents.csv")
@@ -1229,3 +1244,29 @@ def test_the_trim_length_comes_from_the_pinned_pipeline_config(tmp_path):
     run_cli(base_args(s, "--accept-bioskryb-terms", "--reads-per-file", "10", "--read-length", "40"),
             env=s["env"])
     assert result_json(s["out"])["subsampling"]["trim_to_bp"] == 40
+
+
+# ──────────────────────────────────────────────
+# Single-nucleus version: intron primary, exon duplicates in <results>_exon
+# ──────────────────────────────────────────────
+
+def test_a_missing_exon_duplicate_makes_the_run_incomplete(setup):
+    env = {**setup["env"], "FAKE_NF_DROP_EXON": "multiqc"}
+    run_cli(base_args(setup, "--accept-bioskryb-terms"), env=env, expect=1)
+    r = result_json(setup["out"])
+    assert r["status"] == "incomplete"
+    assert any("exon" in m and "multiqc" in m for m in r["missing_outputs"])
+    assert r["exon_duplicate"]["missing_outputs"]
+
+
+def test_exon_duplicate_folder_is_the_results_folder_with_an_exon_suffix(setup):
+    run_cli(base_args(setup, "--accept-bioskryb-terms"), env=setup["env"])
+    r = result_json(setup["out"])
+    assert r["exon_duplicate"]["results_dir"] == str(setup["out"] / "results_exon_clawbio")
+    assert (setup["out"] / "results_exon_clawbio" / "multiqc" / "multiqc_report.html").exists()
+
+
+def test_the_report_says_which_counts_drive_multiqc_and_cell_typing(setup):
+    run_cli(base_args(setup, "--accept-bioskryb-terms"), env=setup["env"])
+    text = (setup["out"] / "report.md").read_text().lower()
+    assert "intron-inclusive" in text and "_exon" in text
