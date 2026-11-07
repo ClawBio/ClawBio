@@ -67,7 +67,7 @@ def test_contact_gene_disagreement_is_flagged_not_resolved() -> None:
 
 
 def test_contact_support_is_independent_of_a_known_gene_at_the_far_anchor() -> None:
-    # PR #678 review (manuelcorpas): a locus genuinely sitting inside a real
+    # a locus genuinely sitting inside a real
     # loop anchor must count as contact-supported even when --gene-targets is
     # too sparse to name the gene at the loop's far end. "Is there a loop
     # here?" and "do we know the gene?" are two separate questions; a thin
@@ -100,7 +100,7 @@ def test_gene_targets_tss_window_minus_strand(tmp_path: Path) -> None:
 
 
 def test_gene_targets_requires_strand(tmp_path: Path) -> None:
-    # Unrelated fixture directory name (PR #678 review round 7): this
+    # Unrelated fixture directory name: this
     # test's own name contains "strand", and tmp_path embeds the test
     # function name, so match="strand" could coincidentally match the
     # path instead of the real message -- same class of issue already
@@ -146,7 +146,7 @@ def test_high_tier_requires_two_distinct_supported_layers() -> None:
 
 
 def test_all_contacted_genes_reported_not_just_the_first() -> None:
-    # PR #678 review round 2 (manuelcorpas): gene_contact = contacts[0][0]
+    # gene_contact = contacts[0][0]
     # silently dropped every contacted gene past the first, so
     # nearest_vs_contact_disagreement could read False even when a loop
     # genuinely contacts a different gene than the nearest one.
@@ -164,7 +164,7 @@ def test_all_contacted_genes_reported_not_just_the_first() -> None:
 
 
 def test_parse_bed_space_delimited_gets_a_specific_error(tmp_path: Path) -> None:
-    # PR #678 review round 4: a space-delimited BED previously raised the
+    # a space-delimited BED previously raised the
     # generic ">=3 tab-separated fields" count error even though the real
     # problem (wrong delimiter) is detectable and worth naming directly.
     # NOTE: pytest's tmp_path fixture embeds the TEST FUNCTION NAME in its
@@ -191,7 +191,7 @@ def test_parse_gene_targets_space_delimited_gets_a_specific_error(tmp_path: Path
 
 
 def test_evidence_table_has_no_leading_comment_line(tmp_path: Path) -> None:
-    # PR #678 review round 6: the round-4 comment line is gone now that
+    # the round-4 comment line is gone now that
     # the distance column is genuine TSS-point distance (no caveat left
     # to document), and a plain csv.reader -- unlike pandas
     # read_csv(comment="#") -- does not skip "#" lines, a real risk for
@@ -203,7 +203,7 @@ def test_evidence_table_has_no_leading_comment_line(tmp_path: Path) -> None:
 
 
 def test_parse_bedpe_space_delimited_gets_a_specific_error(tmp_path: Path) -> None:
-    # PR #678 review round 5: parse_bedpe still raised the plain field-count
+    # parse_bedpe still raised the plain field-count
     # error, missing the space-separated hint parse_bed/parse_gene_targets
     # already give.
     bed_dir = tmp_path / "unrelated_fixture_dir"
@@ -215,7 +215,7 @@ def test_parse_bedpe_space_delimited_gets_a_specific_error(tmp_path: Path) -> No
 
 
 def test_nearest_gene_ranks_by_true_tss_not_window_edge(tmp_path: Path) -> None:
-    # PR #678 review round 6: the window-edge method could rank the WRONG
+    # the window-edge method could rank the WRONG
     # gene as nearest. GENE_A's window edge is closer to this locus than
     # GENE_B's, but GENE_B's true TSS is genuinely closer than GENE_A's.
     #   GENE_A: + strand, TSS=2000, window=[1000, 2250) -> edge dist to 900 is 100
@@ -235,7 +235,7 @@ def test_nearest_gene_ranks_by_true_tss_not_window_edge(tmp_path: Path) -> None:
 
 
 def test_gene_targets_accepts_standard_bed6(tmp_path: Path) -> None:
-    # PR #678 review round 7: a standard BED6 file (chrom, start, end,
+    # a standard BED6 file (chrom, start, end,
     # name, score, strand) should be readable directly -- strand lives in
     # column 6 there, with a score in column 5 this skill doesn't use.
     bed = tmp_path / "genes.bed"
@@ -252,7 +252,7 @@ def test_gene_targets_bed6_minus_strand(tmp_path: Path) -> None:
 
 
 def test_nearest_gene_flags_when_distant(tmp_path: Path) -> None:
-    # PR #678 review round 8: a sparse gene-targets file can leave the
+    # a sparse gene-targets file can leave the
     # only candidate gene megabases away; the distance column shows the
     # raw number, but nothing flagged that it should be read with
     # suspicion. target_gene_nearest_is_distant makes that explicit.
@@ -274,7 +274,7 @@ def test_nearest_gene_not_flagged_when_close() -> None:
 
 
 def test_layer_coverage_reported_in_summary() -> None:
-    # PR #678 review round 8: one stray far-off interval can silently
+    # one stray far-off interval can silently
     # stretch a layer's observed span and mask a real coverage gap
     # elsewhere; surfacing the actual span per layer lets a reader spot
     # that directly instead of having to infer it from which loci read

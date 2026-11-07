@@ -28,17 +28,20 @@ LAYER_WEIGHTS = {"accessibility": 1.0, "histone": 1.0, "contact": 2.0}
 HIGH_SCORE_THRESHOLD = 0.75
 HIGH_MIN_DISTINCT_LAYERS = 2
 
-# PR #678 review round 8: a sparse --gene-targets file can leave the
-# only candidate gene megabases away. 1Mb is a generous but finite
+# A sparse --gene-targets file can leave the only candidate gene
+# megabases away. 1Mb is a generous but finite
 # cis-regulatory distance (most enhancer-promoter contacts and TAD
 # sizes fall well inside it); past it, the nearest gene is flagged as
 # distant rather than silently reported as if it were meaningful. The
 # gene and its real distance are still returned -- never hidden.
 NEAREST_GENE_FAR_THRESHOLD_BP = 1_000_000
 
-# Promoter-proximal TSS window (standard convention, e.g. HOMER/ChIPseeker
-# defaults in this range): upstream is more generous than downstream because
-# most regulatory elements cluster just upstream of the TSS.
+# Promoter-proximal TSS window: a deliberately chosen, declared
+# convention (not a specific tool's default -- HOMER uses roughly
+# -1000/+100bp and ChIPseeker defaults to about +-3kb, neither of
+# which matches these numbers). Upstream is more generous than
+# downstream because most regulatory elements cluster just upstream
+# of the TSS.
 TSS_UPSTREAM_BP = 1000
 TSS_DOWNSTREAM_BP = 250
 
@@ -56,16 +59,15 @@ _RESEARCH_TOOL_NOTE = (
 Interval = tuple[str, int, int, str]
 # Genes carry their strand-aware TSS point alongside the regulatory
 # window, so ranking/distance can use the real TSS directly instead of
-# window-edge distance (PR #678 review round 6 -- round 2's deferral,
-# now done: the window alone could occasionally rank the wrong gene as
-# nearest, not just misreport the distance number).
+# window-edge distance -- the window alone could occasionally rank the
+# wrong gene as nearest, not just misreport the distance number.
 GeneWindow = tuple[str, int, int, str, int]
 LoopAnchor = tuple[str, int, int, str, int, int, str]
 
 
 def _field_count_error(path: Path, line_no: int, line: str, fields: list[str], minimum: int, context: str) -> ValueError:
     """Build a field-count error, naming a likely wrong-delimiter cause
-    directly rather than just reporting the count (PR #678 review round 4).
+    directly rather than just reporting the count.
     """
     if len(fields) < minimum and len(line.split()) >= minimum:
         return ValueError(
@@ -98,7 +100,7 @@ def parse_gene_targets(path: Path) -> list[GeneWindow]:
     [TSS-1000bp, TSS+250bp), carrying the TSS point itself alongside
     the window.
 
-    Accepts two column layouts (PR #678 review round 7): this skill's
+    Accepts two column layouts: this skill's
     own 5-column form (chrom, start, end, gene_symbol, strand), or a
     standard BED6 file (chrom, start, end, name, score, strand) so
     users do not have to convert a real BED6 file first -- column 6 is
@@ -139,7 +141,7 @@ def parse_gene_targets(path: Path) -> list[GeneWindow]:
             elif strand == "-":
                 # BED end is exclusive (half-open [start, end)), so the
                 # feature's actual last base -- the TSS on the minus
-                # strand -- is end-1, not end (PR #678 review round 3).
+                # strand -- is end-1, not end.
                 tss = end - 1
                 win_start, win_end = tss - TSS_DOWNSTREAM_BP, tss + TSS_UPSTREAM_BP
             else:
@@ -215,7 +217,7 @@ def locus_in_any_loop(chrom: str, start: int, end: int, loops: list[LoopAnchor])
     Deliberately independent of whether a gene is known at the other anchor —
     "is there contact evidence here" and "do we know the gene it reaches" are
     two separate questions (see contact_genes below). Conflating them let a
-    sparse --gene-targets list silently hide real loop evidence (PR #678).
+    sparse --gene-targets list silently hide real loop evidence.
     """
     for chrom1, start1, end1, chrom2, start2, end2, _name in loops:
         if _overlaps(chrom, start, end, chrom1, start1, end1) or _overlaps(
@@ -293,7 +295,7 @@ def score_locus(
 
     gene_nearest, dist_nearest = nearest_gene(chrom, start, end, genes)
     contacts = contact_genes(chrom, start, end, loops, genes) if "contact" in checked else []
-    # Report every contacted gene, not just the first (PR #678 round 2): a
+    # Report every contacted gene, not just the first: a
     # locus can have more than one loop, or a loop can reach more than one
     # gene at its far anchor, and dropping any of them could silently hide
     # a real nearest-vs-contact disagreement.
@@ -352,8 +354,8 @@ def analyze(
     for r in results:
         tier_counts[r["tier"]] = tier_counts.get(r["tier"], 0) + 1
 
-    # PR #678 review round 8: a layer's observed span can be
-    # silently stretched by one stray distant interval, masking a
+    # A layer's observed span can be silently stretched by one
+    # stray distant interval, masking a
     # real coverage gap elsewhere. Surfacing the actual span per
     # layer lets a reader spot that directly.
     layer_coverage: dict[str, str] = {
@@ -395,7 +397,7 @@ def _write_evidence_table(path: Path, loci: list[dict]) -> None:
         "target_gene_contact", "contact_loop_id", "nearest_vs_contact_disagreement",
     ]
     with path.open("w", newline="", encoding="utf-8") as handle:
-        # No leading comment line (PR #678 review round 6): the
+        # No leading comment line: the
         # distance column is now genuine TSS-point distance, so there is
         # no caveat left to document, and a plain csv.reader -- unlike
         # pandas.read_csv(comment="#") -- does not skip "#" lines, which
@@ -481,7 +483,7 @@ def write_outputs(
         rows.append(
             "A layer's `not_assayed` loci are only as trustworthy as this span -- "
             "one stray distant interval in a track inflates it and can mask a real "
-            "coverage gap elsewhere (PR #678 review round 8)."
+            "coverage gap elsewhere."
         )
         rows.append("")
         for layer_name in sorted(coverage):
