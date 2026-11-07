@@ -32,8 +32,6 @@ metadata:
     - kind: uv
       package: anndata
     - kind: uv
-      package: scrublet
-    - kind: uv
       package: celltypist
     trigger_keywords:
     - scrna
@@ -241,7 +239,6 @@ output_directory/
 - `numpy`, `pandas`, `matplotlib`, `leidenalg`, `python-igraph`
 
 **Optional**:
-- `scrublet` for `--doublet-method scrublet`
 - `celltypist` for `--annotate celltypist`
 
 **Out of scope**:
