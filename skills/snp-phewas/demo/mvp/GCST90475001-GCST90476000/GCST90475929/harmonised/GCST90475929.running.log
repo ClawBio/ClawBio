@@ -1,0 +1,72 @@
+################################################################
+
+HARMONISATION RUNNING REPORT
+
+################################################################
+
+1. Pipeline details
+
+    A. Pipeline Version: v1.1.10
+
+    B. Running date: Jun 22 2025
+
+    C. Input file: GCST90475929.tsv.gz
+
+################################################################
+
+
+2. Reference data
+
+##source=ensembl;version=95;url=http://vertebrates.ensembl.org/homo_sapiens
+
+##reference=ftp://ftp.ensembl.org/pub/release-95/fasta/homo_sapiens/dna/
+
+##ID=dbSNP_151,Number=0,Type=Flag,Description="Variants (including SNPs and indels) imported from dbSNP"
+
+################################################################
+
+3. Mapping result
+
+0.00% (0 sites out of 19708268) were dropped because they could not be mapped.
+100.00% (19708268 sites) were carried forward.
+
+################################################################
+
+4. Palindromic SNPs
+
+palin_mode: forward
+Direction of palindromic SNPs inferred as forward by establishing consensus direction of 100f all sites (forward sites ratio = 0.0000).
+
+################################################################
+
+
+5. Successfully harmonised variants
+
+99.80% ( 19669670 of 19708268 ) sites successfully harmonised.
+
+hm_code	Number	Percentage	Explanation
+10	582	0.00%	Forward strand; Correct orientation; Already harmonised
+11	16851376	85.50%	Forward strand; Flipped orientation; Requires harmonisation
+12	40	0.00%	Reverse strand; Correct orientation; Already harmonised
+13	214	0.00%	Reverse strand; Flipped orientation; Requires harmonisation
+5	80	0.00%	Palindromic; Assume forward strand; Correct orientation; Already harmonised
+6	2817378	14.30%	Palindromic; Assume forward strand; Flipped orientation; Requires harmonisation
+
+################################################################
+
+
+6. Failed harmonisation
+
+0.20% ( 38598 of 19708268 ) sites failed to harmonise.
+
+hm_code	Number	Percentage	Explanation
+15	38577	0.20%	No matching variants in reference VCF; Cannot harmonise
+16	21	0.00%	Multiple matching variants in reference VCF (ambiguous); Cannot harmonise
+
+################################################################
+
+
+7. Overview
+
+Result	SUCCESS_HARMONIZATION
+
