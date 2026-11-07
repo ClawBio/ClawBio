@@ -1,0 +1,6 @@
+chr5	1000100	1000101	L1_agree_high
+chr5	1010100	1010101	L2_partial
+chr5	1020100	1020101	L3_unsupported
+chr5	1030100	1030101	L4_disagree
+chr5	1040100	1040101	L5_agree_high
+chr5	1050100	1050101	L6_not_assayed
