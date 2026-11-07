@@ -643,6 +643,7 @@ GUIDELINES = {
         "recs": {
             "normal_metabolizer": "standard",
             "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
+            "intermediate_or_poor_metabolizer": "caution",
         },
     },
     "Capecitabine": {
@@ -650,6 +651,7 @@ GUIDELINES = {
         "recs": {
             "normal_metabolizer": "standard",
             "intermediate_metabolizer": "caution", "poor_metabolizer": "avoid",
+            "intermediate_or_poor_metabolizer": "caution",
         },
     },
     # --- TPMT / NUDT15 drugs ---
@@ -900,7 +902,7 @@ def lookup_single_drug(drug_name, profiles):
         "gene": gene, "diplotype": prof["diplotype"], "phenotype": prof["phenotype"],
         "classification": classification,
     }
-    note = _dpyd_note(gene, prof)
+    note = _range_note(gene, prof["phenotype"], prof.get("diplotype")) or _dpyd_note(gene, prof)
     if note:
         result["note"] = note
     return result
@@ -1223,7 +1225,10 @@ def call_diplotype(gene, pgx_snps):
         # An untested SNP can only change the call unless it is already two alleles
         # with at least one no-function (activity score <= 0.5, Poor).
         if len(tested) < len(gene_rsids) and not (len(ranked) == 2 and ranked[0][1] == "no_function"):
-            diplotype += f" ({len(tested)}/{len(gene_rsids)} SNPs tested)"
+            # Name the untested alleles so call_phenotype can bound the activity
+            # score instead of discarding what was observed (#602).
+            untested = ", ".join(gdef["variants"][r]["allele"] for r in gene_rsids if r not in tested)
+            diplotype += f" ({len(tested)}/{len(gene_rsids)} SNPs tested; {untested} not tested)"
         return diplotype
 
     if not detected:
@@ -1261,6 +1266,40 @@ def call_diplotype(gene, pgx_snps):
     return "/".join(alleles)
 
 
+# CPIC DPYD activity values per allele and phenotype bands
+# (api.cpicpgx.org gene_result: AS 2.0 Normal; 1.0, 1.5 Intermediate; 0.5, 0.0 Poor).
+_DPYD_ALLELE_ACTIVITY = {"normal": 1.0, "decreased_function": 0.5, "no_function": 0.0}
+
+
+def _dpyd_as_band(score):
+    if score >= 2.0:
+        return "Normal Metabolizer"
+    if score >= 1.0:
+        return "Intermediate Metabolizer"
+    return "Poor Metabolizer"
+
+
+def _dpyd_bounded_phenotype(gdef, diplotype):
+    """Bound a partially genotyped DPYD call by its activity score (#602).
+
+    A detected decreased- or no-function allele caps the activity score whatever
+    the untested markers are, so the call is "at least Intermediate". The lower
+    bound assumes the worst untested allele sits on the other gene copy, or in
+    cis with the higher-activity copy. Returns None when nothing was detected
+    (that stays Indeterminate: an untested marker could still make it IM).
+    """
+    reach = _dpyd_as_range(diplotype, gdef)
+    if reach is None or reach[0] == 2.0:
+        return None
+    best, worst, untested = reach
+    best_band = _dpyd_as_band(best)
+    worst_band = _dpyd_as_band(worst)
+    label = ", ".join(untested)
+    if best_band == worst_band:
+        return f"{best_band} ({label} not tested)"
+    return f"{best_band.split()[0]} or {worst_band} ({label} not tested)"
+
+
 def call_phenotype(gene, diplotype):
     import re as _re
 
@@ -1277,6 +1316,11 @@ def call_phenotype(gene, diplotype):
     # Check for partial-coverage annotations (e.g. "*1/*1 (1/3 SNPs tested)")
     has_partial = "(" in norm and "SNPS TESTED" in norm
     match_str = norm.split("(")[0].strip()
+
+    if has_partial and gdef.get("type") == "dpyd":
+        bounded = _dpyd_bounded_phenotype(gdef, diplotype)
+        if bounded:
+            return bounded
 
     if has_partial:
         cov_match = _re.search(r"\((\d+)/(\d+)\s+SNPS", norm)
@@ -1305,6 +1349,7 @@ def phenotype_to_key(phenotype_desc):
         "Normal Metabolizer": "normal_metabolizer",
         "Intermediate Metabolizer": "intermediate_metabolizer",
         "Poor Metabolizer": "poor_metabolizer",
+        "Intermediate or Poor Metabolizer": "intermediate_or_poor_metabolizer",
         "Rapid Metabolizer": "rapid_metabolizer",
         "Ultrarapid Metabolizer": "ultrarapid_metabolizer",
         "Normal Warfarin Sensitivity": "normal_warfarin_sensitivity",
@@ -1362,6 +1407,58 @@ def get_warfarin_rec(profiles):
         return "caution", None
 
 
+def _join_list(items):
+    """British list without the Oxford comma: "A", "A and B", "A, B and C"."""
+    items = list(items)
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _dpyd_as_range(diplotype, gdef=None):
+    """Reachable DPYD activity scores for a partially genotyped call.
+
+    Returns (best, worst, untested markers), or None when the call is not
+    partial. Best is the score of the detected alleles; worst assumes the
+    lowest-activity untested allele replaces the higher-activity copy.
+    """
+    import re as _re
+    m = _re.search(r"\(\d+/\d+ SNPs tested; (.+) not tested\)", diplotype or "")
+    if not m:
+        return None
+    gdef = gdef or GENE_DEFS["DPYD"]
+    effect_by_allele = {v["allele"]: v["effect"] for v in gdef["variants"].values()}
+    alleles = diplotype.split("(")[0].strip().split("/")
+    act = sorted(_DPYD_ALLELE_ACTIVITY[effect_by_allele.get(a, "normal")] for a in alleles)
+    untested = [a.strip() for a in m.group(1).split(",")]
+    worst = min(_DPYD_ALLELE_ACTIVITY[effect_by_allele[a]] for a in untested)
+    return sum(act), act[0] + min(act[1], worst), untested
+
+
+def _range_note(gene, phenotype, diplotype=None):
+    """Note for a bounded "Intermediate or Poor" call: keep the IM action, flag PM (#602).
+
+    CPIC (fluorouracil/capecitabine): AS 0.5 avoid, or a strongly reduced dose with
+    early TDM if no alternative; AS 0.0 avoid only. The fallback is mentioned only
+    when the worst reachable activity score is 0.5 (#603 review).
+    """
+    if gene != "DPYD" or not phenotype.startswith("Intermediate or Poor Metabolizer"):
+        return None
+    if "(" in phenotype:
+        markers = [a.strip() for a in phenotype.split("(", 1)[1].split(" not tested")[0].split(",")]
+    else:
+        markers = ["a DPYD marker"]
+    untested = _join_list(markers)
+    verb = "were" if len(markers) > 1 else "was"
+    reach = _dpyd_as_range(diplotype)
+    best, worst = (reach[0], reach[1]) if reach else (1.0, None)
+    fallback = (" (at activity score 0.5 only, a strongly reduced dose with early TDM "
+                "if no alternative exists)") if worst != 0 else ""
+    return (f"At least Intermediate Metabolizer (activity score {best:.1f} or lower): CPIC recommends "
+            "reducing the starting dose by 50%, then titrating on toxicity or TDM. "
+            f"Possible Poor Metabolizer because {untested} {verb} not tested: "
+            f"CPIC recommends avoiding fluoropyrimidines{fallback}. "
+            f"Genotype {untested} before the first dose.")
+
+
 def lookup_drugs(profiles):
     results = {"standard": [], "caution": [], "avoid": [], "indeterminate": []}
 
@@ -1405,7 +1502,8 @@ def lookup_drugs(profiles):
             "class": drug["class"], "gene": gene,
             "classification": classification,
         }
-        note = _dpyd_note(gene, profiles[gene])
+        note = (_range_note(gene, profiles[gene]["phenotype"], profiles[gene].get("diplotype"))
+                or _dpyd_note(gene, profiles[gene]))
         if note:
             entry["note"] = note
         results.setdefault(classification, []).append(entry)
