@@ -1,0 +1,34 @@
+name: Colab demo
+
+on:
+  pull_request:
+    paths:
+      - docs/tutorial-first-skill.ipynb
+      - tests/test_colab_tutorial.py
+      - .github/workflows/colab-demo.yml
+  push:
+    branches: [main]
+    paths:
+      - docs/tutorial-first-skill.ipynb
+      - tests/test_colab_tutorial.py
+      - .github/workflows/colab-demo.yml
+  schedule:
+    - cron: '23 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notebook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+      - name: Execute public notebook and verify missing-evidence behaviour
+        env:
+          CLAWBIO_TEST_COLAB: '1'
+        run: uv run --no-project --python 3.12 --with pip --with nbformat --with nbclient --with ipykernel python -m unittest discover -s tests -p test_colab_tutorial.py -v
