@@ -3051,6 +3051,63 @@
       "data_license": ""
     },
     {
+      "name": "metagenome-mag-pipeline",
+      "cli_alias": "mag-pipeline",
+      "description": "Assemble and bin a shotgun metagenome and assess the recovered MAGs, by driving the pinned metagenomics-workflow Snakemake pipeline (metaSPAdes, MetaBAT2/MaxBin2/VAMB + DAS Tool, CheckM2, dRep, GTDB-Tk).",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "ci_tested": false,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run mag-pipeline --demo --allow-fetch",
+      "dependencies": [
+        "python>=3.11",
+        "pyyaml>=6.0"
+      ],
+      "tags": [
+        "metagenomics",
+        "assembly",
+        "binning",
+        "MAG",
+        "snakemake"
+      ],
+      "trigger_keywords": [
+        "metagenome assembly",
+        "MAG",
+        "metagenome-assembled genomes",
+        "metagenomic binning",
+        "metaSPAdes",
+        "MetaPhlAn",
+        "CheckM2",
+        "GTDB-Tk",
+        "dRep",
+        "DAS Tool",
+        "contig taxonomy",
+        "strain heterogeneity",
+        "host read removal",
+        "shotgun metagenomics assembly"
+      ],
+      "chaining_partners": [
+        "claw-metagenomics",
+        "multiqc-reporter",
+        "phylogenetics-builder",
+        "bio-orchestrator"
+      ],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
+    },
+    {
       "name": "methylation-clock",
       "cli_alias": "methylation",
       "description": "Compute epigenetic age from DNA methylation arrays using PyAging clocks from GEO accessions or local files.",
