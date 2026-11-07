@@ -46,6 +46,21 @@ def _is_complete_genotype(value: str) -> bool:
     return bool(re.fullmatch(r"\d+(?:[|/]\d+)*", value))
 
 
+def _bcftools_header_columns(header: str, wanted: dict[str, int]) -> dict[str, int]:
+    """Map field names to 0-based columns from a bcftools stats header line.
+
+    The header has tab-separated fields such as ``# PSC``, ``[2]id``,
+    ``[3]sample`` and ``[4]nRefHom``, where ``[n]`` is the 1-based column of
+    the field named after it.
+    """
+    columns: dict[str, int] = {}
+    for field_spec in header.split("\t")[1:]:
+        match = re.fullmatch(r"\[(\d+)\](.+)", field_spec.strip())
+        if match and match.group(2) in wanted:
+            columns[match.group(2)] = int(match.group(1)) - 1
+    return columns
+
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -250,15 +265,26 @@ class VcfQC:
     # ------------------------------------------------------------------
 
     def _compute_stats(self, vcf: Path) -> dict:
-        """Run bcftools stats and parse the summary numbers table."""
-        cmd = [self._bcftools, "stats", str(vcf)]
+        """Run bcftools stats and parse the summary and per-sample tables."""
+        # ``-s -`` adds the PSC (per-sample counts) section, the only place
+        # bcftools reports het and hom-alt counts.
+        cmd = [self._bcftools, "stats", "-s", "-", str(vcf)]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return self._parse_bcftools_stats(result.stdout)
 
     def _parse_bcftools_stats(self, stats_output: str) -> dict:
-        """Extract key metrics from bcftools stats SN (summary numbers) section."""
+        """Extract key metrics from bcftools stats SN, TSTV and PSC sections."""
         metrics: dict = {}
+        # Column positions of the PSC fields, 0-based. bcftools documents
+        # them in its "# PSC" header line; these defaults match bcftools 1.x.
+        psc_columns = {"sample": 2, "nNonRefHom": 4, "nHets": 5}
+        psc_sample: str | None = None
+        psc_rows = 0
         for line in stats_output.splitlines():
+            if line.startswith("# PSC\t"):
+                psc_columns.update(_bcftools_header_columns(line, psc_columns))
+                continue
+
             if line.startswith("SN"):
                 # bcftools stats SN format: SN \t 0 \t key: \t value
                 parts = line.split("\t")
@@ -279,6 +305,28 @@ class VcfQC:
                     except (ValueError, IndexError):
                         pass
 
+            # Het / hom-alt SNP counts are in the PSC section. Read the first
+            # sample only, as the Python fallback does.
+            if line.startswith("PSC\t"):
+                psc_rows += 1
+                if psc_sample is not None:
+                    continue
+                parts = line.split("\t")
+                try:
+                    hom_alt = float(parts[psc_columns["nNonRefHom"]])
+                    het = float(parts[psc_columns["nHets"]])
+                    sample = parts[psc_columns["sample"]]
+                except (ValueError, IndexError):
+                    continue
+                metrics["number of homozygous SNPs:"] = hom_alt
+                metrics["number of heterozygous SNPs:"] = het
+                psc_sample = sample
+
+        if psc_sample is not None and psc_rows > 1:
+            log.info(
+                "Het/Hom counts are from sample %s, the first of %d samples in the VCF",
+                psc_sample, psc_rows,
+            )
         return metrics
 
     # ------------------------------------------------------------------
