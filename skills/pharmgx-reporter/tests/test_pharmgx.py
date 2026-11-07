@@ -161,17 +161,17 @@ def test_mthfr_forward_strand_conversion_corpas():
     }
     diplotype = call_diplotype("MTHFR", pgx)
     assert diplotype == "677CC/1298AC", f"Expected 677CC/1298AC, got {diplotype}"
-    assert call_phenotype("MTHFR", diplotype) == "Reduced MTHFR enzyme activity (677CT)"
+    assert call_phenotype("MTHFR", diplotype) == "Mildly reduced MTHFR enzyme activity (1298AC)"
 
 
 def test_mthfr_level2_reduced():
-    """MTHFR 677TT/1298AA: DPWG guideline: Strongly reduced MTHFR enzyme activity."""
+    """MTHFR 677TT/1298AA: lowest activity (Frosst 1995); informational, no drug grade."""
     assert call_phenotype("MTHFR", "677TT/1298AA") == "Strongly reduced MTHFR enzyme activity (677TT)"
 
 
 def test_mthfr_level2_intermediate():
-    """MTHFR 677CT/1298AA: DPWG guideline: Reduced MTHFR enzyme activity."""
-    assert call_phenotype("MTHFR", "677CT/1298AA") == "Reduced MTHFR enzyme activity (677CT)"
+    """MTHFR 677CT/1298AA: mildly reduced activity; informational, no drug grade."""
+    assert call_phenotype("MTHFR", "677CT/1298AA") == "Mildly reduced MTHFR enzyme activity (677CT)"
 
 
 def test_dpyd_normal_or_indeterminate():
@@ -1004,6 +1004,73 @@ def test_dpyd_without_hapb3_is_not_called_normal():
     assert _dpyd(genotypes)[1].startswith("Indeterminate")
 
 
+def test_mthfr_compound_het_label_names_the_observed_genotype():
+    """677CT/1298AC is labelled moderately reduced and is not printed as 677TT."""
+    label = call_phenotype("MTHFR", "677CT/1298AC")
+    assert label.startswith("Moderately reduced MTHFR enzyme activity")
+    assert "677TT" not in label
+    assert "677CT/1298AC" in label
+
+
+def test_mthfr_1298ac_alone_label():
+    label = call_phenotype("MTHFR", "677CC/1298AC")
+    assert label.startswith("Mildly reduced MTHFR enzyme activity")
+    assert "677CT" not in label
+
+
+def test_mthfr_labels_map_to_activity_categories():
+    cp, fn = call_phenotype, phenotype_to_key
+    assert fn(cp("MTHFR", "677CT/1298AA")) == fn(cp("MTHFR", "677CC/1298AC")) == "mildly_reduced_activity"
+    assert fn(cp("MTHFR", "677CT/1298AC")) == fn(cp("MTHFR", "677CC/1298CC")) == "moderately_reduced_activity"
+    assert fn(cp("MTHFR", "677CT/1298CC")) == "moderately_reduced_activity"
+    assert fn(cp("MTHFR", "677TT/1298AA")) == fn(cp("MTHFR", "677TT/1298AC")) == "strongly_reduced_activity"
+
+
+def test_mthfr_double_variant_genotypes_are_mapped():
+    """677TT/1298AC and 677CT/1298CC get a label (extrapolated, see GENE_DEFS comment)."""
+    assert call_phenotype("MTHFR", "677TT/1298AC") == "Strongly reduced MTHFR enzyme activity (677TT/1298AC)"
+    assert call_phenotype("MTHFR", "677CT/1298CC") == "Moderately reduced MTHFR enzyme activity (677CT/1298CC)"
+
+
+def test_mthfr_label_order_follows_activity():
+    """677TT (lowest measured activity) must not read milder than the compound heterozygote."""
+    rank = {"normal_activity": 0, "mildly_reduced_activity": 1,
+            "moderately_reduced_activity": 2, "strongly_reduced_activity": 3}
+    r = lambda d: rank[phenotype_to_key(call_phenotype("MTHFR", d))]
+    assert r("677CC/1298AA") < r("677CT/1298AA") < r("677CT/1298AC") < r("677TT/1298AA")
+    assert r("677CC/1298AC") < r("677CC/1298CC")
+
+# Issue #594: MTHFR has no CPIC or DPWG drug guideline, so no drug may be graded on it.
+_MTHFR_GENOTYPES = ["677CC/1298AA", "677CT/1298AA", "677CC/1298AC", "677CT/1298AC",
+                    "677CC/1298CC", "677TT/1298AA", "677TT/1298AC", "677CT/1298CC"]
+
+
+def _mthfr_profiles(diplotype):
+    return {"MTHFR": {"diplotype": diplotype, "phenotype": call_phenotype("MTHFR", diplotype)}}
+
+
+def test_no_drug_action_is_driven_by_mthfr_alone():
+    for d in _MTHFR_GENOTYPES:
+        res = lookup_drugs(_mthfr_profiles(d))
+        for bucket in ("standard", "caution", "avoid"):
+            graded = [x["drug"] for x in res.get(bucket, []) if x["gene"] == "MTHFR"]
+            assert not graded, f"{d}: {graded} graded '{bucket}' on MTHFR alone"
+
+
+def test_methotrexate_is_informational_with_a_stated_reason():
+    for d in _MTHFR_GENOTYPES:
+        res = lookup_drugs(_mthfr_profiles(d))
+        mtx = [x for x in res["indeterminate"] if x["drug"] == "Methotrexate"]
+        assert mtx and "No CPIC or DPWG guideline" in mtx[0]["note"], d
+
+
+def test_mthfr_677tt_labels_match_scientific_audit_wording():
+    """clawbio-bench case mthfr_677tt_methotrexate expects 677TT reported as "Strongly reduced"."""
+    for d in ("677TT/1298AA", "677TT/1298AC"):
+        assert call_phenotype("MTHFR", d).startswith("Strongly reduced MTHFR enzyme activity (677TT"), d
+    assert not any(k.lower().startswith("severely") for k in GENE_DEFS["MTHFR"]["phenotypes"])
+
+
 # CPIC fluorouracil/capecitabine recommendation at DPYD activity score 1.0
 # (api.cpicpgx.org/v1/recommendation, RxNorm:4492 and RxNorm:194000).
 _CPIC_D949V_HOM = ("Patients with the c.2846A>T/c.2846A>T genotype may require "
@@ -1106,3 +1173,42 @@ def test_clawbio_run_demo_skips_clinpgx(tmp_path, monkeypatch):
     result = run_skill("pharmgx", demo=True, output_dir=str(tmp_path / "out"))
     assert result["success"], result["stderr"][-2000:]
     assert "Querying ClinPGx" not in result["stdout"]
+
+
+@pytest.mark.parametrize("diplotype, tested, untested", [
+    ("677CC/1298NOT_TESTED", "677CC", "1298"),
+    ("677NOT_TESTED/1298AA", "1298AA", "677"),
+])
+def test_mthfr_partial_genotype_label_names_only_what_was_tested(diplotype, tested, untested):
+    """A label must not name a position that was not genotyped (review on #599)."""
+    label = call_phenotype("MTHFR", diplotype)
+    assert tested in label and f"{untested} not tested" in label, label
+    assert phenotype_to_key(label) == "normal_activity"
+
+
+@pytest.mark.parametrize("profiles", [
+    {},                                                                        # MTHFR absent
+    {"MTHFR": {"diplotype": "NOT_TESTED", "phenotype": "Indeterminate (not genotyped)"}},
+])
+def test_methotrexate_reason_shown_when_mthfr_not_genotyped(profiles):
+    entry = next(d for d in lookup_drugs(profiles)["indeterminate"] if d["drug"] == "Methotrexate")
+    assert entry.get("note"), entry
+
+
+def test_single_drug_methotrexate_reason_shown_when_mthfr_absent():
+    """The single-drug path must carry the reason too, not only lookup_drugs (review on #599)."""
+    result = lookup_single_drug("Methotrexate", {})
+    assert result["classification"] == "indeterminate"
+    assert result.get("note"), result
+
+
+@pytest.mark.parametrize("diplotype, label", [
+    ("677CT/1298NOT_TESTED", "Mildly reduced MTHFR enzyme activity (677CT; 1298 not tested)"),
+    ("677TT/1298NOT_TESTED", "Strongly reduced MTHFR enzyme activity (677TT; 1298 not tested)"),
+    ("677NOT_TESTED/1298AC", "Mildly reduced MTHFR enzyme activity (1298AC; 677 not tested)"),
+    ("677NOT_TESTED/1298CC", "Moderately reduced MTHFR enzyme activity (1298CC; 677 not tested)"),
+])
+def test_mthfr_partial_variant_genotypes_get_named_labels(diplotype, label):
+    """Partial genotypes with a variant at the tested position are named, not Unknown."""
+    assert call_phenotype("MTHFR", diplotype) == label
+    assert phenotype_to_key(label) != "indeterminate"
