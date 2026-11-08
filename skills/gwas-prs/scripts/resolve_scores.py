@@ -37,6 +37,29 @@ PGS_API_BASE = "https://www.pgscatalog.org/rest"
 PGS_FTP_BASE = "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores"
 
 
+CURATED_PANEL_MARKER = "#clawbio_panel=curated_demo"
+
+
+def is_curated_demo_panel(filepath: str | Path) -> bool:
+    """True if the file's leading comment block carries the curated-demo marker.
+
+    Same contract as 1.x `gwas_prs.is_curated_demo_panel`: reads only the
+    leading `#` block and is safe on a missing or unreadable path.
+    """
+    path = Path(filepath)
+    try:
+        opener = gzip.open if path.suffix == ".gz" else open
+        with opener(path, "rt") as handle:  # type: ignore[operator]
+            for line in handle:
+                if not line.startswith("#"):
+                    return False
+                if line.strip() == CURATED_PANEL_MARKER:
+                    return True
+    except (OSError, EOFError, UnicodeDecodeError):
+        return False
+    return False
+
+
 def _load_curated(skill_dir: Path) -> dict:
     path = skill_dir / "curated_scores.json"
     return json.loads(path.read_text())
@@ -89,6 +112,7 @@ def resolve(pgs_ids: list[str], skill_dir: Path, cache_dir: Path) -> list[dict]:
             local_path = data_dir / f"{pgs_id}_{BUILD}.txt"
 
         if local_path.exists():
+            curated_flag = is_curated_demo_panel(local_path)
             manifest.append({
                 "pgs_id": pgs_id,
                 "trait": meta.get("trait", "Unknown"),
@@ -99,6 +123,11 @@ def resolve(pgs_ids: list[str], skill_dir: Path, cache_dir: Path) -> list[dict]:
                 },
                 "reference_distribution": meta.get("reference_distribution"),
                 "source": "bundled",
+                "curated_demo_panel": curated_flag,
+                "curated_panel_id": (
+                    meta.get("curated_panel_id") or pgs_id if curated_flag else None
+                ),
+                "legacy_pgs_id": meta.get("legacy_pgs_id") if curated_flag else None,
             })
             print(f"  {pgs_id}: bundled scoring file ({meta.get('trait', 'Unknown')})")
             continue
@@ -115,6 +144,9 @@ def resolve(pgs_ids: list[str], skill_dir: Path, cache_dir: Path) -> list[dict]:
                 "metadata": {},
                 "reference_distribution": meta.get("reference_distribution"),
                 "source": "error",
+                "curated_demo_panel": False,
+                "curated_panel_id": None,
+                "legacy_pgs_id": None,
                 "error": str(e),
             })
             continue
@@ -129,6 +161,9 @@ def resolve(pgs_ids: list[str], skill_dir: Path, cache_dir: Path) -> list[dict]:
             },
             "reference_distribution": meta.get("reference_distribution"),
             "source": "fetched",
+            "curated_demo_panel": False,
+            "curated_panel_id": None,
+            "legacy_pgs_id": None,
         })
         print(f"  {pgs_id}: fetched live scoring file")
 

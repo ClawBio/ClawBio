@@ -2,9 +2,11 @@
 """Stage 4 of the gwas_prs DAG: render the Markdown report + result.json envelope.
 
 Port of ClawBio 1.x `gwas-prs` (skills/gwas-prs/gwas_prs.py::generate_report).
-Report structure and content are unchanged from the 1.x source; only the
-I/O boundary changed (reads scripts/calculate_prs.py's prs_results.json
-instead of holding results in-process).
+Report structure follows the 1.x source, including its curated-demo-panel
+provenance labelling (issue #356): bundled CLAWBIO-* panels are labelled as
+ClawBio curated demo panels, never as PGS Catalog scores. The I/O boundary
+changed (reads scripts/calculate_prs.py's prs_results.json instead of holding
+results in-process).
 
 No dependency on the `clawbio.common` shared library (that package does not
 exist in this repo) — the small write_result_json/DISCLAIMER envelope it
@@ -119,10 +121,23 @@ def generate_report(results: list[dict], input_info: dict) -> str:
         lines.append("")
         lines.append("| Property | Value |")
         lines.append("|----------|-------|")
-        lines.append(f"| **PGS ID** | {pgs_id} |")
+        id_label = "Score ID" if r.get("curated_demo_panel") else "PGS ID"
+        lines.append(f"| **{id_label}** | {pgs_id} |")
         lines.append(f"| **Trait** | {trait} |")
+        if r.get("curated_demo_panel"):
+            lines.append(
+                f"| **Source** | ClawBio curated demo panel "
+                f"`{r.get('curated_panel_id') or pgs_id}`, "
+                "NOT a PGS Catalog score |"
+            )
+            if r.get("legacy_pgs_id"):
+                lines.append(
+                    f"| **Historical alias** | `{r['legacy_pgs_id']}` "
+                    "(compatibility only; not Catalog identity) |"
+                )
         if metadata.get("publication"):
-            lines.append(f"| **Publication** | {metadata['publication']} |")
+            label = "Loci reference" if r.get("curated_demo_panel") else "Publication"
+            lines.append(f"| **{label}** | {metadata['publication']} |")
         lines.append(f"| **Variants in score** | {prs['variants_total']} |")
         lines.append(f"| **Variants matched** | {prs['variants_used']} |")
         lines.append(f"| **Variants missing** | {prs['variants_missing']} |")
@@ -186,7 +201,17 @@ def generate_report(results: list[dict], input_info: dict) -> str:
         "Hardy-Weinberg equilibrium."
     )
     lines.append("")
-    lines.append("**Scoring files**: PGS Catalog (https://www.pgscatalog.org/)")
+    if any(r.get("curated_demo_panel") for r in results):
+        lines.append(
+            "**Scoring files**: ClawBio curated demo panel, NOT a PGS Catalog "
+            "score. The loci are established trait associations but the weights "
+            "are approximate and are not the published betas. Curated panels "
+            "use `CLAWBIO-*` identifiers and filenames; historical PGS accessions "
+            "are provenance metadata only. Do not cite these results as a "
+            "published PRS. See ClawBio issue #356."
+        )
+    else:
+        lines.append("**Scoring files**: PGS Catalog (https://www.pgscatalog.org/)")
     lines.append("")
     lines.append("**Genome build**: GRCh37")
     lines.append("")
@@ -261,6 +286,9 @@ def main() -> None:
                 {
                     "pgs_id": r["pgs_id"],
                     "trait": r["trait"],
+                    "curated_demo_panel": bool(r.get("curated_demo_panel")),
+                    "curated_panel_id": r.get("curated_panel_id"),
+                    "legacy_pgs_id": r.get("legacy_pgs_id"),
                     "raw_score": r["prs"]["raw_score"],
                     "variants_used": r["prs"]["variants_used"],
                     "variants_total": r["prs"]["variants_total"],

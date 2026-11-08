@@ -3,10 +3,12 @@
 
 Port of ClawBio 1.x `gwas-prs` (skills/gwas-prs/gwas_prs.py). Core scoring
 math (parse_scoring_file, compute_allele_dosage, calculate_prs,
-estimate_percentile) is unchanged from the 1.x source — only the I/O
-boundary changed: this stage consumes the JSON manifest/genotype emitted
-by scripts/resolve_scores.py and scripts/parse_genotype.py rather than
-doing file resolution and genotype parsing inline.
+estimate_percentile) is unchanged from the 1.x source. The I/O boundary
+changed: this stage consumes the JSON manifest/genotype emitted by
+scripts/resolve_scores.py and scripts/parse_genotype.py rather than doing
+file resolution and genotype parsing inline. It also carries the manifest's
+curated-demo-panel provenance (curated_demo_panel, curated_panel_id,
+legacy_pgs_id) through to prs_results.json so the report can label it.
 
 Standard additive PRS model: PRS = sum(dosage_i * effect_weight_i).
 """
@@ -266,6 +268,9 @@ def main() -> None:
             "pgs_id": pgs_id,
             "trait": trait,
             "metadata": entry.get("metadata", {}),
+            "curated_demo_panel": bool(entry.get("curated_demo_panel")),
+            "curated_panel_id": entry.get("curated_panel_id"),
+            "legacy_pgs_id": entry.get("legacy_pgs_id"),
             "prs": prs,
             "percentile_info": pct_info,
         })
