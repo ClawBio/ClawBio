@@ -57,9 +57,11 @@ SEQUENCE_NAME_MAX_CHARS = 128
 # Extra operator-facing context appended to a too-short rejection.
 TASK_MIN_BP_HINT: Dict[str, str] = {
     "expression": (
-        "the TSS must be at least 4599 bp from each end. A 9198 bp sequence "
-        "centred on the TSS needs no --tss-index; anything longer does. Each "
-        "model's bio_spec.recommended_flank_bp is how much to fetch on each side."
+        "the TSS must be at least 4599 bp from each end. Fetch F bp on each "
+        "side of the TSS, gene-sense, where F is the largest "
+        "bio_spec.recommended_flank_bp in GET /v1/tasks/expression/models, and "
+        "pass --tss-index F. Only an exact 9198 bp sequence centred on the TSS "
+        "needs no --tss-index."
     ),
     "annotation": "the gene finder needs a genomic region, not a single exon.",
 }
