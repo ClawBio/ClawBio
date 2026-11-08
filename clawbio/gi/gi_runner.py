@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -131,6 +132,20 @@ def regime_note(task: str, sequence_length: int) -> Optional[str]:
     )
 
 
+_TSS_INDEX_IN_HEADER = re.compile(r"(?:^|\|)tss_index[=:](\d+)(?:\||$)")
+
+
+def header_tss_index(sequence_name: str) -> Optional[int]:
+    """The ``tss_index`` a FASTA header records, or None.
+
+    The bundled expression demo, shared with the official client, carries
+    ``|tss_index=F|`` so the sequence and the offset into it travel together.
+    ``tss_index:F`` is read too. An explicit ``--tss-index`` wins.
+    """
+    m = _TSS_INDEX_IN_HEADER.search(sequence_name or "")
+    return int(m.group(1)) if m else None
+
+
 def validate_expression_input(sequence: str, tss_index: Optional[int]) -> Optional[str]:
     """Check an expression submission against the API contract locally.
 
@@ -174,7 +189,7 @@ def _parse_args(task: str) -> argparse.Namespace:
     p.add_argument("--demo", action="store_true", help="Run with the bundled example FASTA")
     p.add_argument("--model", type=str, default=None, help="Override default model name")
     p.add_argument("--description", type=str, default=None, help="Cell type / assay context (required by gi-expression; ignored by other tasks)")
-    p.add_argument("--tss-index", type=int, default=None, dest="tss_index", help="0-based TSS offset into the sequence, counted after whitespace is stripped (gi-expression only; required unless the sequence is exactly 9198 bp)")
+    p.add_argument("--tss-index", type=int, default=None, dest="tss_index", help="0-based TSS offset into the sequence, counted after whitespace is stripped (gi-expression only; required unless the sequence is exactly 9198 bp or its FASTA header records tss_index=N)")
     p.add_argument("--api-key", type=str, default=None, help="Override GI_API_KEY env (otherwise uses env; raises if unset — see each SKILL.md Authentication section)")
     p.add_argument("--base-url", type=str, default=None, help="Override GI_BASE_URL (default: https://api.genomicintelligence.ai)")
     return p.parse_args()
@@ -487,6 +502,13 @@ def run_skill(*, task: str, demo_path: Path, async_mode: bool = False, default_m
     if not sequence:
         print(f"Error: parsed an empty sequence from {input_path}", file=sys.stderr)
         return 1
+    # A header that records its TSS offset (the bundled demo does) supplies
+    # --tss-index when the caller gave none. Read before truncation below.
+    if task == "expression" and args.tss_index is None:
+        hinted = header_tss_index(sequence_name)
+        if hinted is not None:
+            args.tss_index = hinted
+            print(f"[gi-{task}] tss_index={hinted:,} from the FASTA header", file=sys.stderr)
     # ``sequence_name`` is capped at 128 chars in every request schema; a long
     # FASTA header would otherwise be a 422 over a display-only field.
     if len(sequence_name) > SEQUENCE_NAME_MAX_CHARS:

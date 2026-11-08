@@ -34,7 +34,7 @@ metadata:
   author: ClawBio + Genomic Intelligence
   demo_data:
   - path: example_data/expression_hbb_k562.fa
-    description: HBB (β-globin), 9,198 bp centred on the TSS, reverse-complemented to gene-sense. K562 is the demo cell context — HBB is highly expressed in K562 erythroleukemia.
+    description: HBB (β-globin), TSS-centred with the flank the model list recommended when it was built, reverse-complemented to gene-sense; the header records tss_index, which the skill sends. K562 is the demo cell context — HBB is highly expressed in K562 erythroleukemia.
   dependencies:
     python: '>=3.10'
     packages:
@@ -191,7 +191,7 @@ export GI_API_KEY=gi_yourkeyhere
 python clawbio.py run gi-expression --demo
 ```
 
-Bundled fixture is HBB centered on its canonical TSS, RC'd to gene-sense, scored with the skill's default K562 description. It is the 9,198 bp minimum, so it runs without `--tss-index`, and a model that reads further than that sees only this much. For a real gene, fetch as in [Building the input from a gene](#building-the-input-from-a-gene).
+Bundled fixture is HBB centred on its canonical TSS, RC'd to gene-sense, scored with the skill's default K562 description. It was built as in [Building the input from a gene](#building-the-input-from-a-gene): F from the model list, the TSS at offset F. Its header records `tss_index`, and the skill sends that when `--tss-index` is not given. If the model list now recommends more flank than the fixture carries, fetch the gene again rather than trusting the bundled length.
 
 > Read the predicted value from your own run rather than from this page. Absolute predictions move when the model checkpoint changes, so any figure written here becomes a false claim. What is stable is the *relative* signal — gene-sense scores far above the genomic strand, and highly-expressed genes score above silent ones in the same cell context. Do not build assertions on an absolute value read from documentation.
 
