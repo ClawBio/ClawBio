@@ -2,8 +2,8 @@
 """
 score_variants.py — DAG step 3/4: composite per-nutrient-domain risk scores.
 
-Ported verbatim (core compute_nutrient_risk_scores logic unchanged) from
-ClawBio 1.x skills/nutrigx/score_variants.py. Reads the snp_calls.json
+Ported from ClawBio 1.x skills/nutrigx/score_variants.py, including the
+per-SNP `inheritance` handling (additive vs dominant_protective). Reads the snp_calls.json
 emitted by extract_genotypes.py plus the SNP panel JSON, and writes a
 risk_scores.json (per-domain 0-10 composite score, category, and
 contributing SNPs) consumed by generate_report.py.
@@ -19,22 +19,30 @@ from collections import defaultdict
 from pathlib import Path
 
 
-def snp_raw_score(risk_count):
+def snp_raw_score(risk_count, inheritance="additive"):
     """
-    Convert risk allele count to a 0-1 dosage score.
-    0 copies -> 0.0 (homozygous reference)
-    1 copy   -> 0.5 (heterozygous)
-    2 copies -> 1.0 (homozygous risk)
+    Convert risk allele count to a 0-1 score.
+
+    additive: 0 / 0.5 / 1.0 by copy number.
+    dominant_protective: any non-risk copy is protective (0.0 unless
+    homozygous for the risk allele). Used for lactase persistence at
+    rs4988235, where -13910T is dominant.
     """
     if risk_count is None:
         return None
-    dosage_map = {0: 0.0, 1: 0.5, 2: 1.0}
-    if risk_count not in dosage_map:
+    if risk_count not in (0, 1, 2):
         raise ValueError(
             f"Unexpected risk_count={risk_count!r}. "
             f"Expected 0, 1, 2, or None."
         )
-    return dosage_map[risk_count]
+    if inheritance == "dominant_protective":
+        return 1.0 if risk_count == 2 else 0.0
+    if inheritance not in ("additive", "", None):
+        raise ValueError(
+            f"Unexpected inheritance={inheritance!r}. "
+            f"Expected 'additive' or 'dominant_protective'."
+        )
+    return {0: 0.0, 1: 0.5, 2: 1.0}[risk_count]
 
 
 def compute_nutrient_risk_scores(snp_calls: dict, snp_panel: list) -> dict:
@@ -73,7 +81,10 @@ def compute_nutrient_risk_scores(snp_calls: dict, snp_panel: list) -> dict:
                 missing += 1
                 continue
 
-            raw = snp_raw_score(call["risk_count"])
+            raw = snp_raw_score(
+                call["risk_count"],
+                inheritance=panel_entry.get("inheritance", "additive"),
+            )
             if raw is None:
                 missing += 1
                 continue
