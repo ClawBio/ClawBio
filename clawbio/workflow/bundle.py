@@ -14,13 +14,18 @@ def cmd_bundle() -> None:
     state = st.read()
     run = st.run_dir()
 
+    failed = [sid for sid, e in state["steps"].items() if e["status"] == st.FAILED]
     not_done = [
-        sid for sid, e in state["steps"].items() if e["status"] not in (st.DONE, st.SKIPPED)
+        sid for sid, e in state["steps"].items()
+        if e["status"] not in (st.DONE, st.SKIPPED, st.FAILED)
     ]
-    if not_done:
-        raise RuntimeError(
-            f"cannot bundle: steps not done: {not_done}"
-        )
+    if failed or not_done:
+        problems = []
+        if failed:
+            problems.append(f"failed steps: {failed} (retry with `clawbio-flow open <step>`)")
+        if not_done:
+            problems.append(f"steps not done: {not_done}")
+        raise RuntimeError("cannot bundle: " + "; ".join(problems))
 
     _write_commands_sh(state, run / "commands.sh")
     _write_checksums(state, run / "checksums.sha256")

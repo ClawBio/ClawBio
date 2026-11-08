@@ -72,6 +72,14 @@ def cmd_status(check_bundle: bool = False) -> None:
     if check_bundle:
         if state.get("bundled_at"):
             return
+        failed = _failed_ids(state)
+        if failed:
+            # Non-blocking: a failed step needs a retry or a human, not a bundle.
+            print(
+                f"clawbio-flow: run has failed step(s): {', '.join(failed)} — "
+                "retry with `clawbio-flow open <step>`; the run cannot be bundled until they succeed"
+            )
+            return
         all_done = all(e["status"] in (st.DONE, st.SKIPPED) for e in state["steps"].values())
         if all_done:
             print("active clawbio run is complete but `clawbio-flow bundle` has not been called")
@@ -120,10 +128,19 @@ def cmd_next(quiet_if_none: bool = False) -> None:
         if all_done:
             print("all steps done — run `clawbio-flow bundle`")
             return
+        failed = _failed_ids(state)
+        if failed:
+            raise CommandError(
+                f"no ready steps; failed steps: {failed} — retry with `clawbio-flow open <step>`"
+            )
         raise CommandError("no ready steps (everything is blocked or in_progress)")
 
     summary = pipeline.step(sid).summary
     print(f"{sid}\t{summary}")
+
+
+def _failed_ids(state: dict) -> list[str]:
+    return [sid for sid, e in state["steps"].items() if e["status"] == st.FAILED]
 
 
 def _next_ready_id(state: dict) -> str | None:
@@ -157,7 +174,7 @@ def cmd_open(step_id: str) -> None:
                 f"step {step_id!r} is blocked by: {', '.join(entry['blocked_by'])} "
                 "— complete prerequisites first"
             )
-        if status != st.PENDING:
+        if status not in (st.PENDING, st.FAILED):
             raise CommandError(f"step {step_id!r} has unexpected status {status!r}")
 
         step = pipeline.step(step_id)
@@ -167,9 +184,13 @@ def cmd_open(step_id: str) -> None:
         Path(out_dir).mkdir(parents=True, exist_ok=True)
         rendered = pl.render_command(step, inputs, emitted, out_dir, state["skill_dir"])
 
+        # Re-opening a failed step is a retry: clear the failed attempt's
+        # fields. The attempt itself stays in the event log as a `fail` event.
         entry["status"] = st.IN_PROGRESS
         entry["started_at"] = st.now_iso()
         entry["command"] = rendered
+        entry["exit_code"] = None
+        entry["failed_at"] = None
         st.append_event(state, "open", step=step_id, command=rendered)
         st.write(state)
 
@@ -201,6 +222,41 @@ def cmd_done(step_id: str, output_pairs: list[str], exit_code: int = 0) -> None:
             )
 
         step = pipeline.step(step_id)
+
+        if exit_code != 0:
+            extra = [k for k in outputs if k not in step.emits]
+            if extra:
+                raise CommandError(
+                    f"step {step_id!r} produced --output keys not in emits: {extra} (declared: {step.emits})"
+                )
+
+            # A failing step often produces nothing: skip the emits-present and
+            # is-a-file checks. Outputs that do exist are recorded on the `fail`
+            # event for diagnosis only; they never become emitted outputs, so
+            # downstream steps stay blocked.
+            hashes, resolved = {}, {}
+            for key, path_str in outputs.items():
+                p = Path(path_str)
+                if p.is_file():
+                    hashes[key] = _sha256(p)
+                    resolved[key] = str(p.resolve())
+
+            entry["status"] = st.FAILED
+            entry["failed_at"] = st.now_iso()
+            entry["completed_at"] = None
+            entry["outputs"] = {}
+            entry["output_hashes"] = {}
+            entry["exit_code"] = exit_code
+
+            st.append_event(
+                state, "fail", step=step_id, outputs=resolved, hashes=hashes, exit_code=exit_code
+            )
+            st.recompute_blocks(state, pipeline)
+            st.write(state)
+
+            print(f"step {step_id!r} marked failed (exit code {exit_code})")
+            print(f"retry with `clawbio-flow open {step_id}`; downstream steps stay blocked")
+            return
 
         missing_emits = [e for e in step.emits if e not in outputs]
         if missing_emits:
