@@ -62,11 +62,53 @@ BCFTOOLS_STATS_PER_SAMPLE_OUTPUT = textwrap.dedent("""\
     PSC\t0\tSAMPLE\t0\t1\t3\t4\t0\t1\t25.0\t5\t0\t0\t0
 """)
 
+# Four het SNPs and one hom-alt SNP: Het/Hom 4.0, above the default 3.0 limit.
+HIGH_HET_HOM_VCF = textwrap.dedent("""\
+    ##fileformat=VCFv4.2
+    ##FILTER=<ID=PASS,Description="All filters passed">
+    ##contig=<ID=1>
+    ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+    ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+    #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE
+    1\t100\trs1\tA\tG\t50\tPASS\t.\tGT:DP\t0/1:30
+    1\t200\trs2\tC\tT\t60\tPASS\t.\tGT:DP\t0/1:25
+    1\t300\trs3\tG\tA\t45\tPASS\t.\tGT:DP\t0/1:20
+    1\t400\trs4\tT\tC\t55\tPASS\t.\tGT:DP\t0/1:35
+    1\t500\trs5\tA\tC\t40\tPASS\t.\tGT:DP\t1/1:15
+""")
+
+# Real `bcftools stats -s -` (1.19) output for HIGH_HET_HOM_VCF, SN/TSTV/PSC
+# sections only.
+HIGH_HET_HOM_STATS_OUTPUT = textwrap.dedent("""\
+    # SN\t[2]id\t[3]key\t[4]value
+    SN\t0\tnumber of samples:\t1
+    SN\t0\tnumber of records:\t5
+    SN\t0\tnumber of SNPs:\t5
+    SN\t0\tnumber of indels:\t0
+    # TSTV\t[2]id\t[3]ts\t[4]tv\t[5]ts/tv\t[6]ts (1st ALT)\t[7]tv (1st ALT)\t[8]ts/tv (1st ALT)
+    TSTV\t0\t4\t1\t4.00\t4\t1\t4.00
+    # PSC\t[2]id\t[3]sample\t[4]nRefHom\t[5]nNonRefHom\t[6]nHets\t[7]nTransitions\t[8]nTransversions\t[9]nIndels\t[10]average depth\t[11]nSingletons\t[12]nHapRef\t[13]nHapAlt\t[14]nMissing
+    PSC\t0\tSAMPLE\t0\t1\t4\t4\t1\t0\t25.0\t5\t0\t0\t0
+""")
+
 VCF_HEADER_LINES = (
     "##contig=<ID=1>\n"
     '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n'
     '##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">\n'
 )
+
+
+def _run_with_bcftools_stats(tmp_path: Path, vcf: Path, stats_output: str) -> QcResult:
+    """Run VcfQC on the bcftools path with ``bcftools stats`` output stubbed."""
+    qc = VcfQC(QcConfig(min_snp_count=1))
+    qc._bcftools = "bcftools"
+    canonical = tmp_path / "canonical.vcf.gz"
+    canonical.write_text("placeholder\n")
+    completed = MagicMock(stdout=stats_output)
+    with patch.object(qc, "_normalise", return_value=canonical), \
+         patch.object(qc, "_hard_filter", return_value=(canonical, 0)), \
+         patch("clawbio.common.vcf_qc.subprocess.run", return_value=completed):
+        return qc.run(vcf, tmp_path / "qc")
 
 
 @pytest.fixture
@@ -181,6 +223,15 @@ class TestParseBcftoolsStats:
             qc._parse_bcftools_stats(BCFTOOLS_STATS_PER_SAMPLE_OUTPUT + second)
         assert "from sample SAMPLE, the first of 2 samples" in caplog.text
 
+    def test_multi_sample_note_is_a_qc_warning(self, minimal_vcf, tmp_path):
+        second = "PSC\t0\tOTHER\t0\t9\t9\t0\t0\t0\t0.0\t0\t0\t0\t0\n"
+        result = _run_with_bcftools_stats(
+            tmp_path, minimal_vcf, BCFTOOLS_STATS_PER_SAMPLE_OUTPUT + second
+        )
+        note = "Het/Hom counts are from sample SAMPLE, the first of 2 samples in the VCF"
+        assert note in result.warnings
+        assert note in json.loads(result.metrics_json.read_text())["warnings"]
+
     def test_single_sample_vcf_logs_no_sample_note(self, caplog):
         qc = VcfQC.__new__(VcfQC)
         with caplog.at_level(logging.INFO, logger="clawbio.common.vcf_qc"):
@@ -207,6 +258,33 @@ class TestParseBcftoolsStats:
         assert result.het_count == 3
         assert result.hom_alt_count == 1
         assert result.het_hom_ratio == pytest.approx(3.0)
+
+
+class TestHetHomGateOnBcftoolsPath:
+    """The Het/Hom gate applies on the bcftools path as it does on the fallback."""
+
+    def test_out_of_range_ratio_fails_like_python_fallback(self, tmp_path):
+        vcf = tmp_path / "high_het_hom.vcf"
+        vcf.write_text(HIGH_HET_HOM_VCF)
+        with patch("clawbio.common.vcf_qc.shutil.which", return_value=None):
+            fallback = VcfQC(QcConfig(min_snp_count=1)).run(vcf, tmp_path / "py")
+        bcftools = _run_with_bcftools_stats(tmp_path, vcf, HIGH_HET_HOM_STATS_OUTPUT)
+
+        reason = "Het/Hom ratio too high: 4.000 > 3.0 (possible mixed sample)"
+        for result in (fallback, bcftools):
+            assert (result.het_count, result.hom_alt_count) == (4, 1)
+            assert not result.passes_qc
+            assert result.fail_reasons == [reason]
+
+    @pytest.mark.skipif(shutil.which("bcftools") is None, reason="bcftools not installed")
+    def test_real_bcftools_run_fails_out_of_range_ratio(self, tmp_path):
+        vcf = tmp_path / "high_het_hom.vcf"
+        vcf.write_text(HIGH_HET_HOM_VCF)
+        result = VcfQC(QcConfig(min_snp_count=1)).run(vcf, tmp_path / "qc")
+        assert result.het_hom_ratio == pytest.approx(4.0)
+        assert result.fail_reasons == [
+            "Het/Hom ratio too high: 4.000 > 3.0 (possible mixed sample)"
+        ]
 
 
 # ---------------------------------------------------------------------------

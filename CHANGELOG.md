@@ -63,6 +63,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The test suite no longer rewrites drug-repurposing-screen's demo data.** A fixture regenerated
   the bundle into the checked-in `demo/`, so every run modified three CSVs (pandas 3 writes some floats
   one digit shorter). `generate_demo_bundle.py` takes `--output-dir`, and the fixture uses a temporary one.
+- **wgs-prs applies the Het/Hom QC gate when bcftools is installed.** The bcftools path never read
+  het and hom-alt counts, so the ratio was always N/A and the documented 1.0 to 3.0 gate only ran on the
+  Python fallback. VCF QC now reads them from the `bcftools stats -s -` per-sample (PSC) table, so a VCF
+  outside that range fails QC on both paths. Use `--no-fail-fast` to continue past a QC failure. On a
+  multi-sample VCF, `qc_metrics.json` warnings name the sample the counts come from.
 
 ### Notes
 - Upstream's `--out` defaults were relative to the working directory; every

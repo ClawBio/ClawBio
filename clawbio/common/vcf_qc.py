@@ -190,6 +190,8 @@ class VcfQC:
         self._populate_result(result, stats)
         result.missing_genotype_rate = self._missing_genotype_rate(input_vcf)
         self._evaluate_pass_fail(result)
+        if stats.get("het_hom_sample_note"):
+            result.warnings.append(stats["het_hom_sample_note"])
 
         metrics_path = output_dir / "qc_metrics.json"
         self._write_metrics(result, metrics_path)
@@ -323,10 +325,12 @@ class VcfQC:
                 psc_sample = sample
 
         if psc_sample is not None and psc_rows > 1:
-            log.info(
-                "Het/Hom counts are from sample %s, the first of %d samples in the VCF",
-                psc_sample, psc_rows,
+            note = (
+                f"Het/Hom counts are from sample {psc_sample}, "
+                f"the first of {psc_rows} samples in the VCF"
             )
+            log.info("%s", note)
+            metrics["het_hom_sample_note"] = note
         return metrics
 
     # ------------------------------------------------------------------
