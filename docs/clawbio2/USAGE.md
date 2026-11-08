@@ -29,10 +29,10 @@ start  →  next  →  open  →  done  →  bundle
 | --- | --- | --- |
 | `start <skill-dir> --input k=v ...` | Loads `pipeline.yaml`, validates it, writes `.clawbio-run/state.json`. | A run already exists; required inputs missing; unknown input given; YAML invalid. |
 | `next` | Prints the id of the next ready step (prereqs done, required emits present). | — (prints nothing when no step is ready). |
-| `open <step-id>` | Renders `{placeholders}` in `command_template`, prints the command, marks the step `in_progress`. | Step is blocked, already in progress, or already done. |
-| `done <step-id> --output k=path ...` | Hashes each declared output (sha256), records absolute paths, recomputes downstream blocks. | Step isn't in progress; output keys don't match the step's `emits` exactly; an output file is missing. |
+| `open <step-id>` | Renders `{placeholders}` in `command_template`, prints the command, marks the step `in_progress`. Also the retry verb for a `failed` step. | Step is blocked, already in progress, or already done. |
+| `done <step-id> --output k=path ... [--exit-code N]` | Hashes each declared output (sha256), records absolute paths, recomputes downstream blocks. With a nonzero `--exit-code`, marks the step `failed` instead (see [When a step fails](#when-a-step-fails)). | Step isn't in progress; output keys don't match the step's `emits` exactly; an output file is missing. |
 | `skip <step-id> --reason "..."` | Marks an `optional: true` step `skipped` instead of run; recorded on the events log. | Step isn't `optional`; step isn't `pending` (blocked steps must be unblocked first; done/in-progress/already-skipped steps can't be re-skipped). |
-| `bundle` | Emits `commands.sh` (execution order), `checksums.sha256`, `environment.yml`. | Any step isn't `done` or `skipped`. |
+| `bundle` | Emits `commands.sh` (execution order), `checksums.sha256`, `environment.yml`. | Any step isn't `done` or `skipped`, including any `failed` step. |
 
 `status` is the seventh verb but doesn't change state — it prints a
 self-sufficient human-readable summary, written so an agent that just woke up
@@ -95,6 +95,44 @@ clawbio-flow bundle              # writes commands.sh, checksums.sha256, environ
   lives in `.clawbio-run/state.json`. After a context wipe, `clawbio-flow status`
   alone re-orients an agent.
 
+## When a step fails
+
+If the command you ran exits nonzero, report that instead of fabricating outputs:
+
+```bash
+clawbio-flow done annotate --exit-code 2
+# step 'annotate' marked failed (exit code 2)
+# retry with `clawbio-flow open annotate`; downstream steps stay blocked
+```
+
+- **Outputs are not required and are not emitted.** A failing step often produces
+  nothing, so the missing-emit and is-a-file checks are skipped. `--output` keys
+  not in the step's `emits` are still refused. Any output file that does exist is
+  hashed onto the `fail` event for diagnosis only; it never becomes an emitted
+  output, so **downstream steps stay blocked**.
+- **`status` shows it as `[!]`** with status `failed`:
+
+  ```
+    [x] normalize                done
+    [!] annotate                 failed
+    [ ] report                   blocked  (blocked by: annotate)
+  ```
+
+- **Retry with `clawbio-flow open <step>`.** `open` accepts a `failed` step,
+  re-renders the command, and sets it back to `in_progress`. The failed attempt
+  stays in the event log as a `fail` event, but only `done` events feed
+  `commands.sh`, so the failed attempt does not appear there.
+- **`bundle` refuses a run with failed steps:**
+  `cannot bundle: failed steps: ['annotate'] (retry with `clawbio-flow open <step>`)`.
+  Retry until the step is `done`, or, if the step is `optional: true`, you cannot
+  `skip` it once it has failed (skip needs `pending`), so retry or start a fresh run.
+- **The Stop hook does not block on a failed run.** `status --check-bundle` exits 0
+  and prints a notice naming the failed steps, because a failed step needs a retry
+  or a human, not a bundle:
+  `clawbio-flow: run has failed step(s): annotate — retry with `clawbio-flow open <step>`; the run cannot be bundled until they succeed`
+- **`next` says so** when failed steps are what is blocking the run:
+  `no ready steps; failed steps: ['annotate'] — retry with `clawbio-flow open <step>``
+
 ## Common refusals and what they mean
 
 | Message | Cause | Fix |
@@ -106,7 +144,8 @@ clawbio-flow bundle              # writes commands.sh, checksums.sha256, environ
 | `not in emits: bonus` | `done --output` key not in the step's `emits` list | Use only the keys the step declares. |
 | `not a file: /path` | `done` got a path that doesn't exist | Run the rendered command first; verify the output. |
 | `refusing to overwrite .clawbio-run/` | `start` called inside an existing run | `rm -rf .clawbio-run/` to restart from scratch, or `cd` elsewhere. |
-| `bundle: stepX is not done` | `bundle` before the run is complete | Finish the remaining steps. |
+| `cannot bundle: steps not done: ['stepX']` | `bundle` before the run is complete | Finish the remaining steps. |
+| `cannot bundle: failed steps: ['stepX'] (retry with `clawbio-flow open <step>`)` | `bundle` while a step is `failed` | Retry the failed step (see [When a step fails](#when-a-step-fails)). |
 | `stepX is not optional; cannot skip` | `clawbio-flow skip` on a step without `optional: true` | Run it with `open`/`done` like any other step. |
 | `stepX is not pending; cannot skip` | `clawbio-flow skip` on a blocked, done, in-progress, or already-skipped step | Unblock it first, or don't re-skip. |
 
