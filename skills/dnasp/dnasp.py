@@ -88,7 +88,7 @@ from dataclasses import dataclass, field, fields, is_dataclass
 from datetime import datetime
 from decimal import Decimal
 from functools import lru_cache
-from itertools import combinations
+from itertools import combinations, permutations
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -2679,12 +2679,11 @@ def _classify_codon_pair(
     if n_diff == 1:
         return (1.0, 0.0) if aa1 == aa2 else (0.0, 1.0)
 
-    from itertools import permutations as _perms
     total_syn = 0.0
     total_nonsyn = 0.0
     n_valid = 0
 
-    for perm in _perms(diff_pos):
+    for perm in permutations(diff_pos):
         current = c1
         path_syn = 0.0
         path_nonsyn = 0.0
@@ -3322,23 +3321,38 @@ def compute_ka_ks(
         n_codons -= 1   # the coding region's terminal stop is not analysed
 
     # Per-sequence site counts, over every sequence being compared (the
-    # ingroup, plus the outgroup itself when one is given).
+    # ingroup, plus the outgroup itself when one is given).  Each distinct
+    # codon is checked and counted once per call; ``seq_codons`` keeps every
+    # sequence split into codons, with None for codons not analysed.
+    codon_info: dict[str, Optional[tuple[float, bool]]] = {}
+    seq_codons: list[list[Optional[str]]] = []
     S_per_seq: list[float] = []
     N_per_seq: list[float] = []
     analysed_in_all = [True] * n_codons
     has_stop = [False] * n_codons
     for seq in site_pool:
+        codons: list[Optional[str]] = [seq[i:i + 3] for i in range(0, 3 * n_codons, 3)]
         S = 0.0
         n_analysed = 0
-        for ci in range(n_codons):
-            codon = seq[ci * 3:(ci + 1) * 3]
-            if any(nt not in 'ATCG' for nt in codon):
+        for ci, codon in enumerate(codons):
+            if codon in codon_info:
+                info = codon_info[codon]
+            else:
+                if any(nt not in 'ATCG' for nt in codon):
+                    info = None
+                else:
+                    info = (_count_syn_sites_codon(codon, genetic_code),
+                            genetic_code.get(codon) == '*')
+                codon_info[codon] = info
+            if info is None:
                 analysed_in_all[ci] = False
+                codons[ci] = None
                 continue
-            if genetic_code.get(codon) == '*':
+            if info[1]:
                 has_stop[ci] = True
             n_analysed += 1
-            S += _count_syn_sites_codon(codon, genetic_code)
+            S += info[0]
+        seq_codons.append(codons)
         S_per_seq.append(S)
         N_per_seq.append(3.0 * n_analysed - S)
 
@@ -3348,27 +3362,43 @@ def compute_ka_ks(
     result.S_sites = sum(S_per_seq) / len(site_pool)
     result.N_sites = sum(N_per_seq) / len(site_pool)
 
-    # Pairwise differences
+    # Pairwise differences, as indices into site_pool / seq_codons.
     Sd_all: list[float] = []
     Nd_all: list[float] = []
     if outgroup is None:
-        pairs = list(combinations(seqs, 2))
+        pairs = list(combinations(range(n), 2))
     else:
-        pairs = [(s, outgroup) for s in seqs]
+        pairs = [(i, n) for i in range(n)]
 
-    for seq_a, seq_b in pairs:
-        total_sd = 0.0
-        total_nd = 0.0
-        n_valid = 0
-        for ci in range(n_codons):
-            c1 = seq_a[ci * 3:(ci + 1) * 3]
-            c2 = seq_b[ci * 3:(ci + 1) * 3]
-            if any(nt not in 'ATCG' for nt in c1 + c2):
-                continue
-            n_valid += 1
-            sd, nd = _classify_codon_pair(c1, c2, genetic_code)
-            total_sd += sd
-            total_nd += nd
+    # Identical codons differ by nothing, so only distinct codon pairs are
+    # classified, once each; identical sequence pairs are compared once.
+    pair_classes: dict[tuple[str, str], tuple[float, float]] = {}
+    seq_pair_totals: dict[tuple[str, str], tuple[int, float, float]] = {}
+    reuse_seq_pairs = len(set(seqs)) < n
+    for a, b in pairs:
+        seq_key = (site_pool[a], site_pool[b])
+        totals = seq_pair_totals.get(seq_key) if reuse_seq_pairs else None
+        if totals is None:
+            total_sd = 0.0
+            total_nd = 0.0
+            n_valid = 0
+            for c1, c2 in zip(seq_codons[a], seq_codons[b]):
+                if c1 is None or c2 is None:
+                    continue
+                n_valid += 1
+                if c1 == c2:
+                    continue
+                codon_pair = (c1, c2)
+                changes = pair_classes.get(codon_pair)
+                if changes is None:
+                    changes = _classify_codon_pair(c1, c2, genetic_code)
+                    pair_classes[codon_pair] = changes
+                total_sd += changes[0]
+                total_nd += changes[1]
+            totals = (n_valid, total_sd, total_nd)
+            if reuse_seq_pairs:
+                seq_pair_totals[seq_key] = totals
+        n_valid, total_sd, total_nd = totals
         if n_valid == 0:
             continue
         Sd_all.append(total_sd)
