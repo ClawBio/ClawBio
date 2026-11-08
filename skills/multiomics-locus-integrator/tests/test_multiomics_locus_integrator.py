@@ -289,3 +289,35 @@ def test_layer_coverage_reported_in_summary() -> None:
     assert coverage["accessibility"] == "chr1:50-150"
     assert coverage["histone"] == "chr1:200-300"
     assert coverage["contact"] == "chr1:90-600"
+
+
+def test_contact_not_assayed_uses_per_loop_span_not_chromosome_wide_merge() -> None:
+    # PR review round 10: coverage used one merged span per chromosome
+    # across every loop's anchors, so a single distant loop widened the
+    # "assayed" region for a locus nowhere near any actual loop. A locus
+    # sitting between two unrelated loops on the same chromosome -- inside
+    # their combined chromosome-wide bounding box, but outside either
+    # loop's own span -- must read not_assayed, not checked-and-unsupported.
+    loci = [("chr1", 5000, 5001, "L1")]
+    loops = [
+        ("chr1", 90, 120, "chr1", 150, 180, "LOOP_NEAR_START"),
+        ("chr1", 9000, 9050, "chr1", 9100, 9150, "LOOP_NEAR_END"),
+    ]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(loci, [], [], loops, genes)
+    row = result["loci"][0]
+    assert "contact" in row["layers_not_assayed"]
+    assert "contact" not in row["layers_checked"]
+
+
+def test_contact_still_assayed_within_a_single_loops_own_span() -> None:
+    # Sanity check: a locus between the two anchors of ONE loop (not
+    # overlapping either anchor directly) is still correctly assayed and
+    # unsupported, not not_assayed.
+    loci = [("chr1", 500, 501, "L1")]
+    loops = [("chr1", 90, 120, "chr1", 900, 950, "LOOP_1")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(loci, [], [], loops, genes)
+    row = result["loci"][0]
+    assert "contact" in row["layers_checked"]
+    assert "contact" not in row["layers_supported"]

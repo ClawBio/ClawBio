@@ -180,6 +180,11 @@ def chrom_spans(intervals: list[Interval]) -> dict[str, tuple[int, int]]:
 
 
 def loop_chrom_spans(loops: list[LoopAnchor]) -> dict[str, tuple[int, int]]:
+    """Per-chromosome min/max across every loop's anchors, for the
+    informational "## Layer coverage" summary only -- NOT for deciding
+    not_assayed (see loop_spans_per_loop below for why merging across
+    unrelated loops is wrong for that).
+    """
     spans: dict[str, tuple[int, int]] = {}
     for chrom1, start1, end1, chrom2, start2, end2, _name in loops:
         for chrom, start, end in ((chrom1, start1, end1), (chrom2, start2, end2)):
@@ -188,11 +193,33 @@ def loop_chrom_spans(loops: list[LoopAnchor]) -> dict[str, tuple[int, int]]:
     return spans
 
 
+def loop_spans_per_loop(loops: list[LoopAnchor]) -> list[tuple[str, int, int]]:
+    """One (chrom, lo, hi) span PER LOOP, covering just that loop's own
+    two anchors -- never merged across different loops. A chromosome-wide
+    merge would let a single distant loop widen the "assayed" region for
+    a locus nowhere near any actual loop (review round 10); checking
+    against each loop's own span instead keeps not_assayed as tight as
+    the real evidence.
+    """
+    spans: list[tuple[str, int, int]] = []
+    for chrom1, start1, end1, chrom2, start2, end2, _name in loops:
+        if chrom1 == chrom2:
+            spans.append((chrom1, min(start1, start2), max(end1, end2)))
+        else:
+            spans.append((chrom1, start1, end1))
+            spans.append((chrom2, start2, end2))
+    return spans
+
+
 def within_span(chrom: str, start: int, end: int, spans: dict[str, tuple[int, int]]) -> bool:
     if chrom not in spans:
         return False
     lo, hi = spans[chrom]
     return start < hi and end > lo
+
+
+def within_any_span(chrom: str, start: int, end: int, spans: list[tuple[str, int, int]]) -> bool:
+    return any(chrom == c and start < hi and end > lo for c, lo, hi in spans)
 
 
 def overlapping_names(chrom: str, start: int, end: int, intervals: list[Interval]) -> list[str]:
@@ -255,7 +282,7 @@ def score_locus(
     layers: dict[str, list[Interval]],
     layer_spans: dict[str, dict[str, tuple[int, int]]],
     loops: list[LoopAnchor],
-    loop_span: dict[str, tuple[int, int]],
+    loop_span: list[tuple[str, int, int]],
     genes: list[GeneWindow],
 ) -> dict:
     checked: list[str] = []
@@ -271,7 +298,7 @@ def score_locus(
             supported.append(layer_name)
 
     if loops:
-        if within_span(chrom, start, end, loop_span):
+        if within_any_span(chrom, start, end, loop_span):
             checked.append("contact")
             if locus_in_any_loop(chrom, start, end, loops):
                 supported.append("contact")
@@ -343,7 +370,7 @@ def analyze(
     if histone:
         layers["histone"] = histone
     layer_spans = {name: chrom_spans(intervals) for name, intervals in layers.items()}
-    loop_span = loop_chrom_spans(loops)
+    loop_span = loop_spans_per_loop(loops)
 
     results = [
         score_locus(chrom, start, end, name, layers, layer_spans, loops, loop_span, genes)
@@ -362,9 +389,10 @@ def analyze(
         layer: ",".join(f"{chrom}:{lo}-{hi}" for chrom, (lo, hi) in sorted(spans.items()))
         for layer, spans in layer_spans.items()
     }
-    if loop_span:
+    loop_display_span = loop_chrom_spans(loops)
+    if loop_display_span:
         layer_coverage["contact"] = ",".join(
-            f"{chrom}:{lo}-{hi}" for chrom, (lo, hi) in sorted(loop_span.items())
+            f"{chrom}:{lo}-{hi}" for chrom, (lo, hi) in sorted(loop_display_span.items())
         )
 
     return {
