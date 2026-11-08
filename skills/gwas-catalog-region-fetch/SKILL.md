@@ -9,7 +9,7 @@ description: |
 license: MIT
 metadata:
   skill-author: Aviv Madar
-  version: 0.2.0
+  version: 0.2.1
   domain: bioinformatics
   tags:
     - gwas
@@ -111,7 +111,7 @@ When an agent asks for a regional GWAS slice from the GWAS Catalog:
 2. **Pick a region**: `(chromosome, start_bp, end_bp)` in 1-based inclusive GRCh38 coordinates. For LocusCompare-style coloc inspection centre on the lead variant ± 500 kb; for "what does this trait look like in the gene's cis-window" centre on the gene TSS ± 1 Mb.
 3. **Tabix range fetch**: the skill performs a single byte-range request against `<GCST>.h.tsv.gz` on the EBI GWAS Catalog FTP. The `harmonised/` subdirectory is the canonical path; do NOT swap to the raw upload (Gotcha #1).
 4. **Use `hm_*` columns**: the harmonised TSV emits `hm_chrom`, `hm_pos`, `hm_effect_allele`, `hm_other_allele`, `hm_beta`, `hm_se`, `hm_effect_allele_frequency`. The skill maps these to canonical `(variant_id, chromosome, position, ref, alt, beta, se, p_value, maf)` with `alt` as the effect allele.
-5. **Write outputs** to `--output <dir>/`: a flat `variants.tsv` (effect-allele-aligned, GRCh38, ALT-effect β), a `manifest.yaml` with provenance (accession, harmonised file path, harmoniser pipeline version where surfaced, n_variants, source URL, fetched-at UTC timestamp), and a `report.md` human-readable summary.
+5. **Write outputs** to `--output <dir>/`: a flat `variants.tsv` (effect-allele-aligned, GRCh38, ALT-effect β, with the odds ratio and its CI where the study reports them), a `manifest.yaml` with provenance (accession, harmonised file path, harmoniser pipeline version where surfaced, n_variants, source URL, fetched-at UTC timestamp), and a `report.md` human-readable summary.
 
 ## CLI Reference
 
@@ -173,7 +173,7 @@ gwas-catalog-region-fetch: 2914 variants -> /tmp/sort1_vldl_demo/variants.tsv
 
 ```yaml
 skill: gwas-catalog-region-fetch
-version: 0.2.0
+version: 0.2.1
 accession: GCST90269602
 trait_label: cholesterol in medium VLDL
 region:
@@ -193,10 +193,10 @@ outputs:
 `<output_dir>/variants.tsv` (first three rows shown):
 
 ```
-variant_id              chromosome  position_bp  allele_a  allele_b  beta        se        p          maf       study_id
-1_108774974_TCTAC_T     1           108774974    TCTAC     T          0.0123     0.0089     0.165     0.171     GCST90269602
-1_108775337_C_T         1           108775337    C         T         -0.0205     0.0095     0.031     0.314     GCST90269602
-1_108775606_G_T         1           108775606    G         T          0.0089     0.0188     0.636     0.072     GCST90269602
+variant_id              chromosome  position_bp  allele_a  allele_b  beta        se        p          eaf       odds_ratio  ci_lower  ci_upper  study_id
+1_108774974_TCTAC_T     1           108774974    TCTAC     T          0.0123     0.0089     0.165     0.171                                     GCST90269602
+1_108775337_C_T         1           108775337    C         T         -0.0205     0.0095     0.031     0.314                                     GCST90269602
+1_108775606_G_T         1           108775606    G         T          0.0089     0.0188     0.636     0.072                                     GCST90269602
 ```
 
 `<output_dir>/report.md`:

@@ -90,6 +90,22 @@ class OnDemandLDResult:
     notes: list[str] = field(default_factory=list)
 
 
+def _alpha_plink_id(variant_id: str) -> str:
+    """Convert a `chr_pos_ref_alt` id to plink 1.9's `chr:pos:allele1:allele2`,
+    alleles in alphabetical order.
+
+    plink 1.9's `--set-missing-var-ids '@:#:$1:$2'` writes the two alleles in
+    alphabetical order, not REF/ALT order, so REF=G ALT=A becomes `chr:pos:A:G`.
+    A naive `_` -> `:` swap cannot find such a variant with `--ld-snp` / `--extract`.
+    """
+    parts = variant_id.split("_", 3)
+    if len(parts) < 4:
+        return variant_id.replace("_", ":", 3)
+    chrom, pos, a, b = parts
+    a_sorted, b_sorted = sorted([a, b])
+    return f"{chrom}:{pos}:{a_sorted}:{b_sorted}"
+
+
 class OnDemandLDError(Exception):
     """Raised when on-demand LD compute cannot proceed."""
 
@@ -258,9 +274,13 @@ class OnDemand1000GLDClient:
             # `--set-all-var-ids` (plink2's spelling) is NOT available in 1.9;
             # `--set-missing-var-ids` covers the case because every VCF row's
             # ID field is `.` in this distribution, which 1.9 treats as missing.
-            sep = ":"
-            lead_panel = lead.replace("_", sep, 3)
-            partner_panel = [p.replace("_", sep, 3) for p in partner_list]
+            lead_panel = _alpha_plink_id(lead)
+            ot_form_by_plink: dict[str, str] = {}
+            partner_panel: list[str] = []
+            for p in partner_list:
+                pf = _alpha_plink_id(p)
+                ot_form_by_plink[pf] = p
+                partner_panel.append(pf)
 
             extract_path = td_path / "extract.txt"
             with extract_path.open("w") as f:
@@ -286,9 +306,32 @@ class OnDemand1000GLDClient:
             except (subprocess.TimeoutExpired, FileNotFoundError) as e:
                 raise OnDemandLDError(f"plink invocation failed: {e!s}") from e
             if proc.returncode != 0:
+                # Lead not in the 1000G panel (rare allele, indel encoded
+                # differently, variant added after 1000G): plink cannot compute
+                # LD against a variant it has no genotypes for. Return no pairs
+                # with a note, so the caller renders without LD colouring
+                # instead of failing the whole run.
+                stderr = proc.stderr or ""
+                if (
+                    "No valid variants specified by --ld-snp" in stderr
+                    or "No variants remaining after --extract" in stderr
+                ):
+                    notes.append(
+                        f"lead variant {lead!r} (or every partner) not in 1000G "
+                        f"{self.super_pop} panel; returning empty pairs"
+                    )
+                    return OnDemandLDResult(
+                        panel_id=self.panel_id, panel_version=self.panel_version,
+                        super_pop=self.super_pop, plink_version=self.plink_version,
+                        chromosome=chrom_bare, lead_variant_id=lead, window_bp=window_bp,
+                        n_partners_requested=len(partner_list), n_partners_returned=0,
+                        pairs=[],
+                        fetched_at_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                        notes=notes,
+                    )
                 raise OnDemandLDError(
                     f"plink exited with code {proc.returncode}. "
-                    f"stderr (truncated): {(proc.stderr or '')[:1000]}"
+                    f"stderr (truncated): {stderr[:1000]}"
                 )
 
             ld_path = Path(f"{out_prefix}.ld")
@@ -299,7 +342,9 @@ class OnDemand1000GLDClient:
                 )
             pairs = _parse_ld(ld_path, lead_panel, notes)
             for p in pairs:
-                p.partner_variant_id = p.partner_variant_id.replace(":", "_", 3)
+                p.partner_variant_id = ot_form_by_plink.get(
+                    p.partner_variant_id, p.partner_variant_id.replace(":", "_", 3)
+                )
 
         return OnDemandLDResult(
             panel_id=self.panel_id, panel_version=self.panel_version,
