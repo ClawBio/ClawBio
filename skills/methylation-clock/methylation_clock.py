@@ -193,21 +193,28 @@ def _get_skill_data_dir() -> Path:
     return Path(__file__).resolve().parent / "data"
 
 
-def _is_synthetic_demo_input(path: Path) -> bool:
-    """Identify the bundled synthetic fixture, including renamed copies."""
+def _synthetic_demo_reason(path: Path) -> str | None:
+    """Return why an input is identified as the bundled synthetic fixture."""
     bundled_fixture = _get_skill_data_dir() / "synthetic_beta_demo.csv.gz"
     try:
         if path.resolve() == bundled_fixture.resolve():
-            return True
-        return (
+            return "bundled_fixture_path"
+        if (
             path.stat().st_size == bundled_fixture.stat().st_size
             and _sha256(path) == SYNTHETIC_DEMO_SHA256
-        )
+        ):
+            return "fixture_sha256"
+        return None
     except OSError:
         # If inspection fails, preserve the safer label. The subsequent input
         # load will report any file-access error without producing an unlabeled
         # report for data that may be the bundled synthetic fixture.
-        return True
+        return "inspection_error"
+
+
+def _is_synthetic_demo_input(path: Path) -> bool:
+    """Identify the bundled synthetic fixture, including renamed copies."""
+    return _synthetic_demo_reason(path) is not None
 
 
 def _resolve_geo_pickle(geo_id: str, verbose: bool, output_dir: Path) -> Path:
@@ -635,7 +642,10 @@ def run_analysis(
         if resolved_input is None or not resolved_input.exists():
             raise FileNotFoundError(f"Input file not found: {resolved_input}")
 
-    synthetic_demo = demo or _is_synthetic_demo_input(resolved_input)
+    synthetic_demo_reason = (
+        "demo_flag" if demo else _synthetic_demo_reason(resolved_input)
+    )
+    synthetic_demo = synthetic_demo_reason is not None
 
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "tables").mkdir(exist_ok=True)
@@ -705,6 +715,7 @@ def run_analysis(
         "clocks_found": clock_cols,
         "input_qc": input_qc,
         "synthetic_demo": synthetic_demo,
+        "synthetic_demo_reason": synthetic_demo_reason,
     }
     (output_dir / "result.json").write_text(json.dumps(result, indent=2))
     return result

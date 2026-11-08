@@ -1,6 +1,7 @@
 """Input and report contracts that run without downloading clock weights."""
 
 import hashlib
+import json
 import re
 import shutil
 import subprocess
@@ -68,6 +69,7 @@ def test_synthetic_input_is_labelled_when_hash_check_fails(tmp_path, monkeypatch
     monkeypatch.setattr(clock, "_sha256", fail_hash)
 
     assert clock._is_synthetic_demo_input(source) is True
+    assert clock._synthetic_demo_reason(source) == "inspection_error"
 
 
 def test_aggregation_sends_only_probe_columns_to_pyaging(monkeypatch):
@@ -320,7 +322,9 @@ def test_run_analysis_writes_structured_result_and_qc(tmp_path, monkeypatch):
 
     assert result["n_samples"] == 2
     assert result["synthetic_demo"] is True
-    assert (output / "result.json").exists()
+    assert result["synthetic_demo_reason"] == "fixture_sha256"
+    result_json = json.loads((output / "result.json").read_text())
+    assert result_json["synthetic_demo_reason"] == "fixture_sha256"
     assert (output / "tables" / "input_qc.json").exists()
     assert pd.read_csv(output / "tables" / "predictions.csv")["sample_id"].tolist() == [
         "synthetic_01", "synthetic_02"
