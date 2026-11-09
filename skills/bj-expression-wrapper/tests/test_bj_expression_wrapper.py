@@ -95,6 +95,9 @@ wd = args[args.index("-work-dir") + 1] if "-work-dir" in args else None
 if wd:
     os.makedirs(os.path.join(wd, "ab", "cd"), exist_ok=True)
     open(os.path.join(wd, "ab", "cd", "task.txt"), "w").write("scratch\\n")
+os.makedirs(os.path.join(wd, "ab", "ef"), exist_ok=True)
+open(os.path.join(wd, "ab", "cd", "multiqc_in.txt"), "w").write("intron input\\n")
+open(os.path.join(wd, "ab", "ef", "multiqc_in.txt"), "w").write("exon input\\n")
 pm = os.environ.get("FAKE_NF_PUBLISH", "copy")
 for f in files:
     os.makedirs(os.path.dirname(f), exist_ok=True)
@@ -114,6 +117,9 @@ tr = os.environ.get("FAKE_NF_TRACE", "clean")
 if "-with-trace" in args and tr != "none" and not os.path.exists(args[args.index("-with-trace") + 1]):
     tp = args[args.index("-with-trace") + 1]
     rows = ["1\\tab\\t-\\tRNASEQ_WF:STARALIGN (s1)\\tCOMPLETED\\t0"]
+    if tr in ("clean", "ignored", "retry_ok"):  # MultiQC tasks, as a real run records them
+        rows += ["4\\tab/cd\\t-\\tRNASEQ_WF:HTSEQ_DOWNSTREAM_INTRON:MULTIQC_WF:MULTIQC (multiqc)\\tCOMPLETED\\t0",
+                 "5\\tab/ef\\t-\\tRNASEQ_WF:HTSEQ_DOWNSTREAM_EXON:MULTIQC_WF:MULTIQC (multiqc)\\tCOMPLETED\\t0"]
     if tr == "ignored":
         rows += ["2\\tcd\\t-\\tRNASEQ_WF:CELL_TYPING (CELL_TYPING)\\tFAILED\\t1",
                  "2\\tcd\\t-\\tRNASEQ_WF:CELL_TYPING (CELL_TYPING)\\tFAILED\\t1"]
@@ -1387,3 +1393,46 @@ def test_status_email_failure_is_reported_not_raised(tmp_path):
                    "BJ_SMTP_FROM=pipeline@example.test\nBJ_SMTP_STARTTLS=0\n")
     outcome = mod.send_status_email(_notify_result("failed"), tmp_path, config_path=cfg)
     assert outcome.startswith("not sent: ")
+
+
+# ──────────────────────────────────────────────
+# MultiQC input capture (kept per batch so one MultiQC run can cover many batches)
+# ──────────────────────────────────────────────
+
+def _trace_with_multiqc(path, hashes):
+    rows = ["task_id\thash\tnative_id\tname\tstatus\texit"]
+    for i, (branch, h) in enumerate(hashes.items(), 1):
+        rows.append(f"{i}\t{h}\t-\tRNASEQ_WF:HTSEQ_DOWNSTREAM_{branch.upper()}:MULTIQC_WF:MULTIQC (multiqc)\tCOMPLETED\t0")
+    path.write_text("\n".join(rows) + "\n")
+
+
+def test_capture_copies_each_branch_inputs_with_a_verified_manifest(tmp_path):
+    mod = _load_module()
+    work, out = tmp_path / "work", tmp_path / "out"
+    for h, name in (("ab/cd", "intron.csv"), ("ef/gh", "exon.csv")):
+        d = work / h.split("/")[0] / (h.split("/")[1] + "xyz")
+        d.mkdir(parents=True)
+        (d / name).write_text("data\n")
+        (d / ".command.sh").write_text("hidden\n")
+        (d / "multiqc_report.html").write_text("generated\n")
+    trace = tmp_path / "trace.tsv"
+    _trace_with_multiqc(trace, {"intron": "ab/cd", "exon": "ef/gh"})
+    summary = mod.capture_multiqc_inputs(out, work, trace)
+    assert summary["intron"]["files"] == 1 and summary["exon"]["files"] == 1
+    assert (out / "multiqc_inputs/intron/intron.csv").read_text() == "data\n"
+    assert not (out / "multiqc_inputs/intron/.command.sh").exists()
+    assert not (out / "multiqc_inputs/intron/multiqc_report.html").exists()
+    manifest = (out / "multiqc_inputs/exon/MANIFEST.tsv").read_text().splitlines()
+    assert manifest[0] == "file\tbytes\tsha256" and manifest[1].startswith("exon.csv\t5\t")
+
+
+def test_capture_refuses_when_a_branch_has_no_completed_multiqc_task(tmp_path):
+    mod = _load_module()
+    work = tmp_path / "work"
+    (work / "ab" / "cdxyz").mkdir(parents=True)
+    (work / "ab" / "cdxyz" / "intron.csv").write_text("data\n")
+    trace = tmp_path / "trace.tsv"
+    _trace_with_multiqc(trace, {"intron": "ab/cd"})  # no exon row
+    import pytest as _pt
+    with _pt.raises(RuntimeError, match="no completed MultiQC task for the exon branch"):
+        mod.capture_multiqc_inputs(tmp_path / "out", work, trace)

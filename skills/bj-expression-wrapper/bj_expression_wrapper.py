@@ -585,6 +585,65 @@ def _replace_link_with_dir(link: Path, target: Path) -> tuple[int, int]:
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+MULTIQC_BRANCHES = {
+    "intron": "HTSEQ_DOWNSTREAM_INTRON:MULTIQC_WF:MULTIQC",
+    "exon": "HTSEQ_DOWNSTREAM_EXON:MULTIQC_WF:MULTIQC",
+}
+# Written by MultiQC itself, so it is not an input and is not kept.
+MULTIQC_GENERATED = {"multiqc_report.html"}
+
+
+def capture_multiqc_inputs(out_dir: Path, work_dir: Path, trace_path: Path) -> dict:
+    """Copy the files each completed MultiQC task read into out_dir/multiqc_inputs/<branch>/.
+
+    The task directory is found from the Nextflow trace (hash column). Every regular file in
+    that directory is copied (symlinks followed), except dotfiles and MultiQC's own report.
+    Each copy is checked against its source size, and a MANIFEST.tsv with sha256 is written.
+    Raises RuntimeError if a branch has no completed MultiQC task or a copy does not match.
+    """
+    if not Path(trace_path).is_file():
+        raise RuntimeError(f"trace not found: {trace_path}")
+    found: dict[str, str] = {}
+    with open(trace_path, newline="", encoding="utf-8", errors="replace") as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            name, status, hsh = row.get("name") or "", (row.get("status") or "").strip(), row.get("hash") or ""
+            for branch, marker in MULTIQC_BRANCHES.items():
+                if marker in name and status == "COMPLETED" and "/" in hsh:
+                    found[branch] = hsh  # the last completed row wins
+    summary: dict = {}
+    for branch in MULTIQC_BRANCHES:
+        if branch not in found:
+            raise RuntimeError(f"no completed MultiQC task for the {branch} branch in the trace")
+        prefix, rest = found[branch].split("/", 1)
+        matches = sorted((work_dir / prefix).glob(rest + "*")) if (work_dir / prefix).is_dir() else []
+        if len(matches) != 1:
+            raise RuntimeError(f"{branch} MultiQC task {found[branch]} not found in work/")
+        task = matches[0]
+        dest = out_dir / "multiqc_inputs" / branch
+        dest.mkdir(parents=True, exist_ok=True)
+        manifest, total, count = [], 0, 0
+        for src in sorted(task.iterdir()):
+            if src.name.startswith(".") or src.name in MULTIQC_GENERATED:
+                continue
+            real = src.resolve()
+            if not real.is_file():
+                continue
+            target = dest / src.name
+            shutil.copyfile(real, target)
+            if target.stat().st_size != real.stat().st_size:
+                raise RuntimeError(f"copy of {src.name} does not match its source size")
+            digest = hashlib.sha256(target.read_bytes()).hexdigest()
+            manifest.append(f"{src.name}\t{target.stat().st_size}\t{digest}")
+            total += target.stat().st_size
+            count += 1
+        if count == 0:
+            raise RuntimeError(f"{branch} MultiQC task {found[branch]} had no input files")
+        (dest / "MANIFEST.tsv").write_text("file\tbytes\tsha256\n" + "\n".join(manifest) + "\n")
+        summary[branch] = {"task": found[branch], "files": count, "bytes": total,
+                           "dir": str(dest.relative_to(out_dir))}
+    return summary
+
+
 def cleanup_work(work_dir: Path, *reports) -> tuple[bool, str]:
     """Remove the Nextflow work directory, but only once every published result is a real file.
 
@@ -1065,11 +1124,22 @@ def run(args: argparse.Namespace) -> int:
                 f"not successful (status {result['status']}, only a clean success removes work/); "
                 f"work/ is kept so the run can be resumed")
         else:
-            reports = [result.get("results_materialised")]
-            if result.get("exon_duplicate") and Path(result["exon_duplicate"]["results_dir"]).is_dir():
-                reports.append(result.get("exon_materialised"))
-            result["work_removed"], result["work_cleanup_reason"] = cleanup_work(
-                out_dir / "work", *reports)
+            # Keep the exact files each MultiQC task read, so one MultiQC run can later cover
+            # many batches. work/ is removed only if that copy is complete and verified.
+            try:
+                result["multiqc_inputs"] = capture_multiqc_inputs(
+                    out_dir, out_dir / "work", Path(result["trace"]["path"]))
+            except (OSError, RuntimeError, KeyError) as exc:
+                result["multiqc_inputs"] = {"error": f"{type(exc).__name__}: {exc}"}
+            if "error" in result["multiqc_inputs"]:
+                result["work_removed"], result["work_cleanup_reason"] = False, (
+                    f"MultiQC inputs not captured ({result['multiqc_inputs']['error']}); work/ is kept")
+            else:
+                reports = [result.get("results_materialised")]
+                if result.get("exon_duplicate") and Path(result["exon_duplicate"]["results_dir"]).is_dir():
+                    reports.append(result.get("exon_materialised"))
+                result["work_removed"], result["work_cleanup_reason"] = cleanup_work(
+                    out_dir / "work", *reports)
 
     if mode == "run":
         # Email the final status before result.json is written, so the file (and the bundle's
