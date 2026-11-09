@@ -44,11 +44,11 @@ dependencies = [
     # Python 3.12+. On 3.11 pydeseq2 still pulls an older anndata, and h5ad tests skip.
     "anndata>=0.13 ; python_version >= '3.12'",
     "biopython>=1.88",
-    "conda-lock>=4.0.3",
+    "conda-lock>=4.0.4",
     "matplotlib>=3.11.2",
     "numpy>=2.4.6",
-    "openai>=3.39.0",
-    "opentelemetry-sdk>=1.45.1,<2",
+    "openai>=3.42.1",
+    "opentelemetry-sdk>=1.45.2,<2",
     "pandas>=3.1.0",
     "pyyaml>=6.0",
     "pydeseq2>=0.4",
@@ -59,7 +59,7 @@ dependencies = [
 
 [project.optional-dependencies]
 just-prs = [
-    "fastmcp>=4.1.4,<5",
+    "fastmcp>=4.1.5,<5",
     "typer>=0.27.3,<1",
 ]
 # SuShiE fine-mapping engine (jax-based) for skills/fine-mapping.
@@ -71,7 +71,7 @@ fine-mapping = [
 # Ship audit spans to a tracing backend; opt in with CLAWBIO_OTLP_ENDPOINT.
 # Plain OTLP/HTTP, so point it at a localhost collector or an https:// URL.
 otlp = [
-    "opentelemetry-exporter-otlp-proto-http>=1.44.0,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.2,<2",
 ]
 # Shared by the four region skills (eqtl-catalogue-region-fetch,
 # gwas-catalog-region-fetch, ld-1000g-region-compute, ukb-ppp-region-fetch).
@@ -109,7 +109,7 @@ data-extractor = [
 # and falls back to the `bq` CLI when it is absent.
 bigquery = [
     "google-auth>=2.62.0,<3",
-    "google-cloud-bigquery>=3.46.2,<4",
+    "google-cloud-bigquery>=3.47.0,<4",
 ]
 # The Robotary web UI (robotary/server.py).
 robotary = [
@@ -153,11 +153,11 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 
 [dependency-groups]
 dev = [
-    "hypothesis>=6.170.12",
-    "pytest>=9.1.1",
+    "hypothesis>=6.170.14",
+    "pytest>=9.2.0",
     "skills-ref>=0.1.1,<1",
     # prs-abstain tests inspect the rendered PDFs.
-    "pypdf>=6.21.2,<7",
+    "pypdf>=6.21.4,<7",
     "inline-snapshot>=0.36.1",
 ]
 bot = [
