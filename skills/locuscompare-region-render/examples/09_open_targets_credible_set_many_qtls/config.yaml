@@ -1,0 +1,69 @@
+schema_version: "1.0"
+
+# Written by ot_credible_set.py from https://platform.opentargets.org/credible-set/e723d7b2d797c4c3d9e3889ef3e79997
+
+lead:
+  variant_id: "1_55025188_T_C"
+  rs_id: "rs4500361"
+  chromosome: "1"
+  position_bp: 55025188
+  window_bp: 1000000
+  candidates:  # credible-set members, PIP high to low; delete to pin the lead
+    - {variant_id: "1_55025188_T_C", pip: 0.5455178285672266}
+    - {variant_id: "1_55021673_C_G", pip: 0.15265175798257496}
+    - {variant_id: "1_55023869_C_T", pip: 0.11662137994006753}
+    - {variant_id: "1_55026242_C_T", pip: 0.10676911666165162}
+    - {variant_id: "1_55027911_C_A", pip: 0.038941391092447264}
+
+exposure:
+  trait_label: "PCSK9 expression - lung (GTEx v8 via eQTL Catalogue r7)"
+  gene_symbol: "PCSK9"
+  fetch:
+    source: eqtl_catalogue
+    dataset_id: QTD000271
+    molecular_trait_id: ENSG00000169174
+
+outcome:
+  trait_label: "Hypercholesterolemia (PheCode 272.11)"
+  fetch:
+    source: gwas_catalog
+    accession: GCST90475721
+
+ld:
+  source: 1000g_phase3_grch38
+  super_pop: EUR
+
+gene_track:
+  source: gencode_v39
+
+harmonisation:
+  exclude_palindromic: true
+
+provenance:
+  source: Open Targets Platform
+  retrieved: "2026-10-13"
+  credible_set: "e723d7b2d797c4c3d9e3889ef3e79997"
+  page_study: "GCST90013932"
+  page_study_file_check: "no_index"
+  outcome_study_file_check: "indexed"
+  qtl_study: "gtex-v10_ge_lung_ensg00000169174"
+  qtl_credible_set: "227c96a4630d2dbb1cb3cf1e637ebc49"
+  qtl_kind: "eqtl"
+  coloc_qtl_vs_page_h4: 0.9991706008647426
+  coloc_qtl_vs_page_beta_ratio_sign: 1
+  outcome_study: "GCST90475721"
+  coloc_qtl_vs_outcome_h4: 0.9885503861387172
+  coloc_qtl_vs_outcome_beta_ratio_sign: 1
+  substitutions:
+    - side: "outcome"
+      requested: "GCST90013932"
+      used: "GCST90475721"
+      reason: "the page study cannot be read by region (no indexed harmonised file under the name the fetcher reads)"
+    - side: "exposure"
+      requested: "gtex-v10_ge_lung_ensg00000169174"
+      used: "QTD000271 (eQTL Catalogue r7, GTEx v8)"
+      reason: "the bundled fetcher reads eQTL Catalogue r7, which holds GTEx v8"
+
+caveats:
+  - "The outcome is GCST90475721 (Hypercholesterolemia (PheCode 272.11)), not the page study GCST90013932 (High cholesterol (SPA correction)): the page study cannot be read by region (no indexed harmonised file under the name the fetcher reads)."
+  - "Open Targets computed this colocalisation on GTEx v10 (n=652); the bundled fetcher reads GTEx v8 from eQTL Catalogue r7 (n=510), so the plot shows the same gene and tissue from an older release."

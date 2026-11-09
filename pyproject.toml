@@ -47,9 +47,9 @@ dependencies = [
     "conda-lock>=4.0.3",
     "matplotlib>=3.11.2",
     "numpy>=2.4.6",
-    "openai>=3.35.1",
+    "openai>=3.39.0",
     "opentelemetry-sdk>=1.45.1,<2",
-    "pandas>=3.0.6",
+    "pandas>=3.1.0",
     "pyyaml>=6.0",
     "pydeseq2>=0.4",
     "rocrate>=0.16.0",
@@ -59,7 +59,7 @@ dependencies = [
 
 [project.optional-dependencies]
 just-prs = [
-    "fastmcp>=4.1.1,<5",
+    "fastmcp>=4.1.4,<5",
     "typer>=0.27.3,<1",
 ]
 # SuShiE fine-mapping engine (jax-based) for skills/fine-mapping.
@@ -113,13 +113,13 @@ bigquery = [
 ]
 # The Robotary web UI (robotary/server.py).
 robotary = [
-    "fastapi>=0.149.0",
+    "fastapi>=0.162.0",
     "uvicorn>=0.54.0",
 ]
 
 # PDF rendering in prs-abstain; the skill degrades to markdown-only without them.
 prs-abstain = [
-    "reportlab>=5.0.1,<6",
+    "reportlab>=5.1.0,<6",
     "pillow>=13.0.0,<14",
 ]
 
@@ -153,11 +153,12 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 
 [dependency-groups]
 dev = [
-    "hypothesis>=6.170.2",
+    "hypothesis>=6.170.12",
     "pytest>=9.1.1",
     "skills-ref>=0.1.1,<1",
     # prs-abstain tests inspect the rendered PDFs.
-    "pypdf>=6.21.1,<7",
+    "pypdf>=6.21.2,<7",
+    "inline-snapshot>=0.36.1",
 ]
 bot = [
     "python-telegram-bot[job-queue]>=22.8",

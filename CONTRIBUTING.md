@@ -4,6 +4,13 @@ We welcome skills from anyone working in bioinformatics, computational biology, 
 
 **Join the contributors community: [t.me/ClawBioContributors](https://t.me/ClawBioContributors)**
 
+## Working on an Issue
+
+Claim the issue before you start, so two people do not fix the same thing:
+
+1. Check that nobody has it: look for open PRs that link the issue (`gh pr list --state open --search "<issue#>"`) and read the issue's comments.
+2. If it is free, comment "I'd like to work on this" on the issue. A maintainer will assign it to you.
+
 ## How to Contribute a Skill
 
 ### 1. Copy the template

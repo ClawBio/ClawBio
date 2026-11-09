@@ -363,6 +363,12 @@ distance values, or bootstrap support figures; all must come from fastreeR outpu
 - `claw-ancestry-pca`: use PCA for admixture and fastreeR for hierarchical clustering; the two provide complementary views of population structure
 - `seq-wrangler`: Align sequences first (seq-wrangler), then compute FASTA2DIST tree
 
+**Licence (GPL-3.0)**: chaining is aggregation, not a combined work. The CLI
+runs `fastreer.py` as a separate process, it runs the `fastreeR` binary the same
+way, and skills exchange files only. Nothing imports this skill in-process;
+`tests/test_licence_policy.py` fails if anything starts to. The folder is also
+excluded from the MIT wheel (`hatch_build.py`).
+
 ## Maintenance
 
 - **Review cadence**: Check for new fastreeR releases quarterly (PyPI: `pip index versions fastreer`)

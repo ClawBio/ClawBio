@@ -16,12 +16,11 @@ Usage:
 from __future__ import annotations
 
 import json
-import shlex
-import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
+
+from clawbio.common import demo_runner
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CATALOG = PROJECT_ROOT / "skills" / "catalog.json"
@@ -39,8 +38,20 @@ SKIP_IN_CI = {
     "scrna-orchestrator", # needs scanpy + anndata (heavy)
     "galaxy-bridge",      # queries live Galaxy API
     "nfcore-sarek-wrapper",  # needs Nextflow + Java + Docker/Singularity (heavy)
+    "seqtk-downsample",   # needs the seqtk binary, which CI does not install
 }
 
+
+REPRO_BUNDLE_FILES = ("commands.sh", "environment.yml", "checksums.sha256")
+
+# The skill run contract (AGENTS.md). skills/contract_known_gaps.json maps each skill to
+# the checks it fails today. It only shrinks: a skill failing a check not listed for it fails, and a listed check it
+# now passes fails until it is removed.
+SWEEP_CHECKS = {"repro_files"}  # reproducibility/ holds REPRO_BUNDLE_FILES
+CONTRACT_KNOWN_GAPS_FILE = PROJECT_ROOT / "skills" / "contract_known_gaps.json"
+CONTRACT_KNOWN_GAPS = {
+    skill: set(checks) for skill, checks in json.loads(CONTRACT_KNOWN_GAPS_FILE.read_text()).items()
+}
 
 def load_demo_skills() -> list[dict]:
     """Return skills from catalog that have demo mode."""
@@ -54,85 +65,21 @@ def load_demo_skills() -> list[dict]:
     return demos
 
 
-def with_output(argv: list[str], output: Path) -> list[str]:
-    """Return argv with any --output removed and `--output <output>` appended."""
-    kept, skip_value = [], False
-    for i, arg in enumerate(argv):
-        if skip_value:
-            skip_value = False
-            continue
-        if arg == "--output":
-            skip_value = i + 1 < len(argv) and not argv[i + 1].startswith("--")
-            continue
-        if arg.startswith("--output="):
-            continue
-        kept.append(arg)
-    return kept + ["--output", str(output)]
-
-
 def run_demo(skill: dict, timeout: int, output_dir: Path | None) -> dict:
-    """Run a single skill's demo command. Return result dict."""
+    """Run a single skill's demo into output_dir/<name>, or a temp dir removed afterwards."""
     name = skill["name"]
-    cmd = skill["demo_command"]
-
-    t0 = time.time()
     tmp = None
     try:
-        # demo_command is built from skill filenames, which contributors
-        # choose, so it is split into argv and never handed to a shell.
-        argv = shlex.split(cmd)
-
-        # Use the same Python that's running this script
-        if argv and argv[0] == "python":
-            argv[0] = sys.executable
-
-        # Every skill must write only under --output (AGENTS.md), so every demo
-        # gets one. A skill that rejects it fails here, which is the point.
         if output_dir:
             skill_out = output_dir / name
             skill_out.mkdir(parents=True, exist_ok=True)
         else:
             tmp = tempfile.TemporaryDirectory(prefix=f"clawbio-demo-{name}-")
             skill_out = Path(tmp.name)
-        argv = with_output(argv, skill_out)
-
-        cmd = shlex.join(argv)
-        proc = subprocess.run(
-            argv,
-            cwd=str(PROJECT_ROOT),
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        elapsed = time.time() - t0
-        return {
-            "name": name,
-            "command": cmd,
-            "exit_code": proc.returncode,
-            "elapsed": round(elapsed, 1),
-            "stderr_tail": proc.stderr[-500:] if proc.stderr else "",
-            "passed": proc.returncode == 0,
-        }
-    except subprocess.TimeoutExpired:
-        elapsed = time.time() - t0
-        return {
-            "name": name,
-            "command": cmd,
-            "exit_code": -1,
-            "elapsed": round(elapsed, 1),
-            "stderr_tail": f"TIMEOUT after {timeout}s",
-            "passed": False,
-        }
-    except Exception as e:
-        elapsed = time.time() - t0
-        return {
-            "name": name,
-            "command": cmd,
-            "exit_code": -2,
-            "elapsed": round(elapsed, 1),
-            "stderr_tail": str(e),
-            "passed": False,
-        }
+        result = demo_runner.run_demo(name, skill_out, timeout=timeout)
+        # Checked here, before a temp output dir is removed in `finally`.
+        result["contract_gaps"] = contract_gaps(skill_out)
+        return result
     finally:
         if tmp:
             tmp.cleanup()
@@ -213,6 +160,33 @@ def run_benchmark_scoring(output_dir: Path | None) -> dict | None:
     result = scorer.score(list(all_genes))
     result["skills_contributing"] = {k: len(v) for k, v in skill_genes.items()}
     return result
+
+
+def contract_gaps(skill_out: Path) -> dict[str, str]:
+    """The run-contract checks this demo output fails, each with what is wrong."""
+    gaps = {}
+    missing = [f for f in REPRO_BUNDLE_FILES if not (skill_out / "reproducibility" / f).is_file()]
+    if missing:
+        gaps["repro_files"] = "reproducibility/ is missing " + ", ".join(missing)
+    return gaps
+
+
+def contract_regressions(results: list[dict], known: dict[str, set[str]] = CONTRACT_KNOWN_GAPS) -> list[str]:
+    """Problems that move a skill's run-contract gaps away from CONTRACT_KNOWN_GAPS.
+
+    Only demos that passed are judged: a crashed demo already fails the sweep.
+    """
+    problems = []
+    for r in results:
+        if not r["passed"]:
+            continue
+        found = r.get("contract_gaps", {})
+        listed = known.get(r["name"], set()) & SWEEP_CHECKS  # other checks have their own tests
+        for gap in sorted(found.keys() - listed):
+            problems.append(f"{r['name']}: {found[gap]}")
+        for gap in sorted(listed - found.keys()):
+            problems.append(f"{r['name']}: now passes {gap}; remove it from CONTRACT_KNOWN_GAPS")
+    return problems
 
 
 def generate_summary(results: list[dict], benchmark: dict | None = None) -> str:
@@ -342,6 +316,9 @@ def main():
 
     print()
     summary = generate_summary(results, benchmark=benchmark)
+    contract_problems = contract_regressions(results)
+    if contract_problems:
+        summary += "\n## Run contract\n\n" + "".join(f"- {p}\n" for p in contract_problems)
     print(summary)
 
     # Write summary to file if output dir specified
@@ -363,8 +340,9 @@ def main():
             f.write(summary)
 
     failed = [r for r in results if not r["passed"]]
-    if failed:
-        print(f"\n{len(failed)} skill(s) failed. Exiting with code 1.")
+    if failed or contract_problems:
+        print(f"\n{len(failed)} skill(s) failed, {len(contract_problems)} run contract "
+              "problem(s). Exiting with code 1.")
         sys.exit(1)
     else:
         print(f"\nAll {len(results)} demos passed.")

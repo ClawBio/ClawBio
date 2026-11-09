@@ -12,15 +12,16 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import shutil
 import sys
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 if str(SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(SKILL_DIR))
 
-from wgs_prs import BridgeConfig, BridgeReport, WgsToPrsBridge
+from wgs_prs import BridgeConfig, BridgeReport, WgsToPrsBridge, write_demo_vcf
 from clawbio.common.sarek import SarekConfig
-from clawbio.common.vcf_qc import QcConfig
+from clawbio.common.vcf_qc import QcConfig, VcfQC
 
 # ---------------------------------------------------------------------------
 # Synthetic VCF fixture (enough SNPs to pass QC thresholds)
@@ -247,3 +248,95 @@ class TestCorpasIntegration:
         assert report.qc_metrics is not None
         # Stage 3 may fail if gwas-prs dependencies are missing; that is acceptable here
         assert report.report_json is not None and report.report_json.exists()
+
+
+# ---------------------------------------------------------------------------
+# Demo VCF must be valid input for bcftools
+# ---------------------------------------------------------------------------
+
+class TestDemoVcf:
+    def test_demo_vcf_header_declares_every_contig_and_format_field(self, tmp_path) -> None:
+        """bcftools >= 1.23 refuses to write records whose contig is undeclared."""
+        lines = write_demo_vcf(tmp_path / "demo.vcf").read_text(encoding="utf-8").splitlines()
+        header = [line for line in lines if line.startswith("##")]
+        records = [line.split("\t") for line in lines if not line.startswith("#")]
+
+        declared_contigs = {
+            line.split("ID=", 1)[1].split(",")[0].rstrip(">")
+            for line in header
+            if line.startswith("##contig=<")
+        }
+        declared_formats = {
+            line.split("ID=", 1)[1].split(",")[0]
+            for line in header
+            if line.startswith("##FORMAT=<")
+        }
+
+        assert {record[0] for record in records} <= declared_contigs
+        assert {key for record in records for key in record[8].split(":")} <= declared_formats
+
+    def test_demo_vcf_records_are_sorted_for_indexing(self, tmp_path) -> None:
+        """bcftools index fails when a contig's records are not contiguous."""
+        lines = write_demo_vcf(tmp_path / "demo.vcf").read_text(encoding="utf-8").splitlines()
+        contig_order = [
+            line.split("ID=", 1)[1].split(",")[0].rstrip(">")
+            for line in lines
+            if line.startswith("##contig=<")
+        ]
+        positions = [
+            (contig_order.index(fields[0]), int(fields[1]))
+            for fields in (line.split("\t") for line in lines if not line.startswith("#"))
+        ]
+
+        assert positions == sorted(positions)
+
+    def test_demo_vcf_titv_is_within_qc_range(self, tmp_path) -> None:
+        """An all-transition filler gave Ti/Tv ~65, so every demo raised a QC warning."""
+        cfg = QcConfig()
+        stats = VcfQC(cfg)._python_stats(write_demo_vcf(tmp_path / "demo.vcf"))
+
+        assert cfg.min_titv_ratio <= stats["titv_ratio"] <= cfg.max_titv_ratio
+
+    @pytest.mark.skipif(shutil.which("bcftools") is None, reason="bcftools not installed")
+    def test_demo_vcf_passes_het_hom_gate_with_bcftools(self, tmp_path) -> None:
+        """bcftools now reports Het/Hom, so the demo must sit inside the QC range."""
+        cfg = QcConfig()
+        result = VcfQC(cfg).run(write_demo_vcf(tmp_path / "demo.vcf"), tmp_path / "qc")
+
+        assert result.passes_qc, result.fail_reasons
+        assert cfg.min_het_hom_ratio <= result.het_hom_ratio <= cfg.max_het_hom_ratio
+
+    @pytest.mark.skipif(shutil.which("bcftools") is None, reason="bcftools not installed")
+    def test_real_genome_passes_het_hom_gate_with_bcftools(self, corpas_chr20_vcf, tmp_path) -> None:
+        """A real 30x WGS chr20 subset stays inside the Het/Hom range under bcftools."""
+        if corpas_chr20_vcf is None:
+            pytest.skip("Corpas chr20 subset not available")
+        cfg = QcConfig()
+        result = VcfQC(cfg).run(corpas_chr20_vcf, tmp_path / "qc")
+
+        assert result.passes_qc, result.fail_reasons
+        assert cfg.min_het_hom_ratio <= result.het_hom_ratio <= cfg.max_het_hom_ratio
+
+    @pytest.mark.parametrize("genotype", ["0/1", "1/1"])
+    def test_demo_vcf_titv_is_within_qc_range_for_each_genotype(self, tmp_path, genotype) -> None:
+        """Allele and genotype cycles in step made hom calls Ti/Tv 66 and het calls 1.0."""
+        lines = write_demo_vcf(tmp_path / "demo.vcf").read_text(encoding="utf-8").splitlines()
+        subset = tmp_path / "subset.vcf"
+        subset.write_text(
+            "\n".join(
+                line for line in lines
+                if line.startswith("#") or line.split("\t")[9].split(":")[0] == genotype
+            ) + "\n",
+            encoding="utf-8",
+        )
+        cfg = QcConfig()
+        stats = VcfQC(cfg)._python_stats(subset)
+
+        assert cfg.min_titv_ratio <= stats["titv_ratio"] <= cfg.max_titv_ratio
+
+    def test_demo_vcf_het_hom_is_within_qc_range(self, tmp_path) -> None:
+        cfg = QcConfig()
+        stats = VcfQC(cfg)._python_stats(write_demo_vcf(tmp_path / "demo.vcf"))
+        ratio = stats["number of heterozygous SNPs:"] / stats["number of homozygous SNPs:"]
+
+        assert cfg.min_het_hom_ratio <= ratio <= cfg.max_het_hom_ratio

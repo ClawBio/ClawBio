@@ -315,12 +315,11 @@ python tests/benchmark/mock_api_server.py &
 
 ## Git Workflow
 
-- Branch from `main` in a new git worktree, so agents can work in parallel — name branches `feat/<skill-name>` or `fix/<skill-name>`
+- **Claim an issue before you start work on it**: follow [Working on an Issue](CONTRIBUTING.md#working-on-an-issue).
+- Branch from `main` in a new git worktree and run `uv sync` in it (each worktree needs its own `.venv`), so agents can work in parallel — name branches `feat/<skill-name>` or `fix/<skill-name>`
 - **One skill per PR** — keep changes focused
-- Tests must pass on Python 3.11, 3.12, and 3.13
-- Include demo output in the PR description so reviewers can verify
 - Update `skills/catalog.json` if you changed any SKILL.md YAML frontmatter
-- When opening a PR, use `.github/PULL_REQUEST_TEMPLATE.md` as the body — fill in every section, do not leave placeholders
+- Tests must pass on Python 3.11, 3.12, and 3.13
 
 ## Before Opening a PR
 
@@ -338,6 +337,8 @@ python tests/benchmark/mock_api_server.py &
   note, not a bug, until you show the condition occurs: live, or documented by the upstream
   service. For code that calls an external API, run it against the real API before calling it
   broken.
+- Include demo output in the PR description so reviewers can verify
+- When opening a PR, use `.github/PULL_REQUEST_TEMPLATE.md` as the body — fill in every section, do not leave placeholders
 
 ## Homepage (index.html) — STRICT
 
