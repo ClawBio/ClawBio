@@ -1,6 +1,6 @@
 name: clawbio-privacy
 version: "0.1.0"
-description: "Keep genomic file contents (VCF, FASTQ, 23andMe/AncestryDNA raw data) out of the model's context. Withholds pasted uploads, blocks tools that would read them, and only lets ClawBio run them with --sealed, so reports go to the user, not the model."
+description: "Keep genomic file contents (VCF, FASTQ, 23andMe/AncestryDNA raw data) out of the model's context. Withholds pasted uploads, blocks tools that would read them, and only lets ClawBio run them with --sealed (and no flags but --input, --demo and --profile), so reports go to the user, not the model. Sealed hides results from the model; it does not keep data local: some skills send variants to online services (docs/data-handling.md). Best effort: it pattern-matches tool arguments and shell text, so an encoded path or a relative read from inside the checkout gets past it; run Hermes in a sandbox for a hard guarantee."
 author: "ClawBio"
 requires_hermes: ">=0.21.5"
 provides_hooks:

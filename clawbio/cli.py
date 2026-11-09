@@ -2534,7 +2534,7 @@ def main():
     run_parser.add_argument("--sample-detail", default=None, dest="sample_detail", help="Get sample details by ID (flow skill)")
     run_parser.add_argument("--execution-detail", default=None, dest="execution_detail", help="Get execution details by ID (flow skill)")
     run_parser.add_argument("--json", action="store_true", help="Output raw JSON (flow skill)")
-    run_parser.add_argument("--sealed", action="store_true", help="Print only delivery metadata as JSON, never report contents (for agent hosts)")
+    run_parser.add_argument("--sealed", action="store_true", help="Print only delivery metadata as JSON, never report contents (for agent hosts). Hides results from the model; does not stop a skill uploading, e.g. --upload-sample")
 
     args, extra = parser.parse_known_args()
 

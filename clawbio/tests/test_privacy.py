@@ -180,6 +180,39 @@ def test_reading_clawbio_output_is_refused(tmp_path):
     assert privacy.check_path(str(tmp_path / "output" / "pharmgx_20261030_111316" / "report.md"), [str(tmp_path)])
 
 
+@pytest.mark.parametrize("ancestor", [lambda d: d, lambda d: d.parent])
+@pytest.mark.parametrize("command", ["grep -r CYP2D6 {}", "find {} -name report.md", "tar czf - {}"])
+def test_a_recursive_read_of_an_output_ancestor_is_refused(tmp_path, ancestor, command):
+    # `grep -r` on the checkout reaches output/<run>/report.md without naming it.
+    assert privacy.check_command(command.format(ancestor(tmp_path)), [str(tmp_path)])
+
+
+def test_a_recursive_read_of_home_is_refused_when_the_checkout_is_under_it(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path.parent))
+    assert privacy.check_command("grep -r CYP2D6 ~", [str(tmp_path)])
+
+
+@pytest.mark.parametrize("command", ["echo 'Online / Onsite'", "jq '.closed_at // \"\"' prs.json", "echo $((6 / 2))"])
+def test_a_slash_in_ordinary_text_is_not_a_path(tmp_path, command):
+    # Replayed Hermes commands: a lone / or jq's // resolved to the root, which holds every output/.
+    assert privacy.check_command(command, [str(tmp_path)]) is None
+
+
+def test_searching_an_output_ancestor_is_refused_but_its_other_files_are_not(tmp_path):
+    readme = tmp_path / "README.md"
+    readme.write_text("ClawBio\n")
+    assert privacy.check_path(str(tmp_path), [str(tmp_path)])
+    assert privacy.check_path(str(readme), [str(tmp_path)]) is None
+    assert privacy.check_command(f"cat {readme}", [str(tmp_path)]) is None
+
+
+def test_sealed_after_a_double_dash_is_refused():
+    # argparse stops parsing options at `--`, so this run is unsealed and prints the report.
+    command = "python clawbio.py run pharmgx --input /tmp/s.vcf -- --sealed"
+    assert not privacy.is_sealed_run(command)
+    assert privacy.check_command(command, [])
+
+
 def test_the_sealed_run_is_the_only_allowed_command_on_a_genomic_file():
     assert privacy.check_command(_SEALED, []) is None
     assert privacy.check_command("cat /tmp/s.vcf", [])
@@ -224,6 +257,24 @@ def test_nothing_can_be_appended_to_a_sealed_run(sep):
 def test_no_prefix_of_output_rides_along_with_a_sealed_run(flag, value):
     # argparse accepts any unambiguous prefix (--out /tmp/x); the report would land outside output/.
     assert not privacy.is_sealed_run(f"{_SEALED} {flag}{value}")
+
+
+@pytest.mark.parametrize("flag", ["--upload-sample", "--upload", "--up", "--reads1 /tmp/r1.fastq.gz", "--email a@b.c"])
+def test_a_flag_that_sends_data_away_never_rides_along_with_a_sealed_run(flag):
+    # flow --upload-sample posts --reads1 to app.flow.bio; argparse also takes its prefixes.
+    assert not privacy.is_sealed_run(f"python clawbio.py run flow --input /tmp/s.vcf {flag} --sealed")
+
+
+@given(name=st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789-", min_size=1, max_size=20))
+@example(name="")  # a bare `--`
+def test_only_allowlisted_flags_ride_along_with_a_sealed_run(name):
+    flag = f"--{name}"
+    assert privacy.is_sealed_run(f"{_SEALED} {flag}") == (flag in {"--input", "--demo", "--profile", "--sealed"})
+
+
+def test_every_allowlisted_flag_keeps_a_run_sealed():
+    assert privacy.is_sealed_run("python clawbio.py run pharmgx --input=/tmp/s.vcf --profile /tmp/p.json --sealed")
+    assert privacy.is_sealed_run("python clawbio.py run pharmgx --demo --sealed")
 
 
 @pytest.mark.parametrize("body", [
