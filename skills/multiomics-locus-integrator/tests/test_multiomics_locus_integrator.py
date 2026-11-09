@@ -292,7 +292,7 @@ def test_layer_coverage_reported_in_summary() -> None:
 
 
 def test_contact_not_assayed_uses_per_loop_span_not_chromosome_wide_merge() -> None:
-    # PR review round 10: coverage used one merged span per chromosome
+    # Coverage used one merged span per chromosome
     # across every loop's anchors, so a single distant loop widened the
     # "assayed" region for a locus nowhere near any actual loop. A locus
     # sitting between two unrelated loops on the same chromosome -- inside
@@ -321,3 +321,19 @@ def test_contact_still_assayed_within_a_single_loops_own_span() -> None:
     row = result["loci"][0]
     assert "contact" in row["layers_checked"]
     assert "contact" not in row["layers_supported"]
+
+
+def test_gene_targets_bed6_unstranded_names_the_right_column(tmp_path: Path) -> None:
+    # A BED6 line with strand "." in column 6 fell
+    # back to column 5 (the score column) as if IT were strand, so the
+    # error named a nonsense value ("960") with no indication it came
+    # from the wrong column. Column 6 is strand whenever the line has
+    # >=6 fields (BED6-shaped); falling back to column 5 is only correct
+    # for this skill's OWN 5-field format, never as a second guess after
+    # a 6+-field line's real strand column fails to parse.
+    bed_dir = tmp_path / "unrelated_fixture_dir"
+    bed_dir.mkdir()
+    bed = bed_dir / "unrelated_fixture_name.bed"
+    bed.write_text("chr1\t5000\t8000\tGENE\t960\t.\n")
+    with pytest.raises(ValueError, match="column 6"):
+        mli.parse_gene_targets(bed)

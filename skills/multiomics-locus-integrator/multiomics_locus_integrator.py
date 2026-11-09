@@ -131,10 +131,19 @@ def parse_gene_targets(path: Path) -> list[GeneWindow]:
             # in column 5 (fields[4]) that this skill does not use.
             # Prefer it when present and valid; fall back to this
             # skill's own column-5 convention otherwise.
-            if len(fields) >= 6 and fields[5] in ("+", "-"):
-                strand = fields[5]
+            # Deterministic, not a fallback chain: a 6+-field line is
+            # BED6-shaped, so column 6 IS strand -- never cross-check
+            # column 5 (that is the score column in real BED6) if
+            # column 6 turns out invalid. A 5-field line is this
+            # skill's own format, where column 5 is strand. An
+            # earlier version fell back to column 5 whenever column 6
+            # was not a recognised strand, so a BED6 "." (unstranded)
+            # line raised an error naming the score value instead of
+            # saying which column was actually wrong.
+            if len(fields) >= 6:
+                strand, strand_col = fields[5], 6
             else:
-                strand = fields[4]
+                strand, strand_col = fields[4], 5
             if strand == "+":
                 tss = start
                 win_start, win_end = tss - TSS_UPSTREAM_BP, tss + TSS_DOWNSTREAM_BP
@@ -145,7 +154,7 @@ def parse_gene_targets(path: Path) -> list[GeneWindow]:
                 tss = end - 1
                 win_start, win_end = tss - TSS_DOWNSTREAM_BP, tss + TSS_UPSTREAM_BP
             else:
-                raise ValueError(f"{path}:{line_no}: strand must be '+' or '-', got {strand!r}")
+                raise ValueError(f"{path}:{line_no}: strand must be '+' or '-', got {strand!r} in column {strand_col}")
             genes.append((chrom, max(win_start, 0), win_end, name, tss))
     return genes
 
@@ -197,7 +206,7 @@ def loop_spans_per_loop(loops: list[LoopAnchor]) -> list[tuple[str, int, int]]:
     """One (chrom, lo, hi) span PER LOOP, covering just that loop's own
     two anchors -- never merged across different loops. A chromosome-wide
     merge would let a single distant loop widen the "assayed" region for
-    a locus nowhere near any actual loop (review round 10); checking
+    a locus nowhere near any actual loop; checking
     against each loop's own span instead keeps not_assayed as tight as
     the real evidence.
     """
