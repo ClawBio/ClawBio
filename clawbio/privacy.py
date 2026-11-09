@@ -55,10 +55,16 @@ GENOMIC_EXTENSIONS = (".vcf", ".vcf.gz", ".fastq", ".fastq.gz", ".fq", ".fq.gz",
 
 WITHHELD = "[withheld by clawbio-privacy: genomic data is not shown to the model]"
 
+# The only flags a sealed run may carry, spelled in full: the sealed note's `run <skill> --input <path> --sealed`,
+# plus the demo and a local PatientProfile. Add one only for a real sealed use, and only if it never sends data away.
+SEALED_RUN_FLAGS = frozenset({"--input", "--demo", "--profile", "--sealed"})
+
 _GENOMIC_EXT_RE = re.compile(r"\S+?(" + "|".join(re.escape(e) for e in GENOMIC_EXTENSIONS) + r")\b", re.I)
 _RSID_RE = re.compile(r"\brs\d{3,}\b")
 _SEALED_RUN_RE = re.compile(r"^\s*(uv run\s+)?\S*python3?\s+\S*clawbio\.py\s+run\s+[^;&|<>`$\n]*--sealed[^;&|<>`$\n]*$")
-_PATHISH_RE = re.compile(r"(?:~|/)[^\s'\";|&<>()]+")
+# A bare `~` is a path (`grep -r x ~`); a lone `/` or `//` is not, since prose and jq's `//` use them.
+# shortcut: `find / -name report.md` gets past it; a sandbox does not. Upgrade if the host exposes the cwd and argv.
+_PATHISH_RE = re.compile(r"~[^\s'\";|&<>()]*|/[^/\s'\";|&<>()][^\s'\";|&<>()]*")
 # A VCF header anywhere (BCF puts binary before it); raw-data and SAM headers at a line start, after
 # read_file's "12|" line numbers if present.
 _GENOMIC_HEADER_RE = re.compile(r"##fileformat=VCF|^(?:\d+\|)?(?:# rsid|rsid\t|@(?:HD|SQ)\t)", re.M | re.I)
@@ -114,8 +120,11 @@ def is_sealed_run(command: str) -> bool:
         args = shlex.split(command)
     except ValueError:  # unbalanced quotes
         return False
-    # argparse takes any prefix of --output, and a report written elsewhere escapes the output/ block.
-    return "--sealed" in args and not any(a.startswith("--o") and "--output".startswith(a.split("=")[0]) for a in args)
+    # An allowlist, so it fails closed: `--` (argparse stops reading options, leaving --sealed unparsed),
+    # any prefix of --output (report lands outside output/), and --upload-sample (sends reads to Flow) are all refused,
+    # and so is any flag the CLI gains later.
+    flags = [a.split("=")[0] for a in args if a.startswith("-")]
+    return "--sealed" in flags and all(f in SEALED_RUN_FLAGS for f in flags)
 
 
 def is_under_output(path: str, dirs: list[str]) -> bool:
@@ -129,9 +138,21 @@ def is_under_output(path: str, dirs: list[str]) -> bool:
     return any(target.is_relative_to(Path(d).expanduser().resolve() / "output") for d in dirs)
 
 
+def _reaches_output(path: str, dirs: list[str]) -> bool:
+    """Under a ClawBio output/ folder, or a folder holding one: `grep -r` on the checkout reaches the reports."""
+    if is_under_output(path, dirs):
+        return True
+    try:
+        target = Path(path).expanduser().resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return any((Path(d).expanduser().resolve() / "output").is_relative_to(target) for d in dirs)
+
+
 def _command_touches_output(command: str, dirs: list[str]) -> bool:
-    # ponytail: string matching on shell text; `find /` or an encoded path gets past it, a sandbox does not
-    return bool(_RELATIVE_OUTPUT_RE.search(command)) or any(is_under_output(p, dirs) for p in _paths(command))
+    # ponytail: string matching on shell text; `grep -r x .` from inside the checkout or an encoded path
+    # gets past it, a sandbox does not
+    return bool(_RELATIVE_OUTPUT_RE.search(command)) or any(_reaches_output(p, dirs) for p in _paths(command))
 
 
 def _clawbio(dirs: list[str]) -> str:
@@ -165,7 +186,7 @@ def _refusal(dirs: list[str], path: str = "<file>") -> str:
 
 def check_path(path: str, dirs: list[str]) -> str | None:
     """Why the model may not read or send this file, or None if it may."""
-    if is_under_output(path, dirs):
+    if _reaches_output(path, dirs):
         return _refusal(dirs)
     if is_genomic_path(path):
         return _refusal(dirs, path)
