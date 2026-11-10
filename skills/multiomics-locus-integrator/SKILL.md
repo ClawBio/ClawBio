@@ -262,4 +262,4 @@ The agent (LLM) explains tiers and disagreements to the user. The skill (Python)
 
 ## Citations
 
-- Fulco, C.P. et al. (2019). Activity-by-contact model of enhancer-promoter regulation from thousands of CRISPR perturbations. *Nature Genetics*, 51, 1664–1669. (Conceptual basis for contact-weighted locus-gene assignment.)
+- Fulco, C.P. et al. (2019). Activity-by-contact model of enhancer-promoter regulation from thousands of CRISPR perturbations. *Nature Genetics*, 51, 1664–1669. (Conceptual basis for weighting contact evidence higher than a single peak call -- **not an implementation of the ABC score itself**. The real ABC model multiplies measured activity by measured contact frequency; this skill's score is a simpler weighted presence/absence sum over whichever evidence layers were supplied. A reader expecting an actual activity-times-contact calculation should look elsewhere; this is ABC-inspired, not ABC.)

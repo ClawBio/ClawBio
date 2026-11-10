@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 109,
+  "skill_count": 111,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -3137,7 +3137,13 @@
         "regulatory evidence scoring",
         "TAD loop locus integration"
       ],
-      "chaining_partners": [],
+      "chaining_partners": [
+        "gwas-catalog-region-fetch",
+        "eqtl-catalogue-region-fetch",
+        "gi-enhancer",
+        "gi-chromatin",
+        "locuscompare-region-render"
+      ],
       "license": "MIT",
       "model_license": "",
       "data_license": ""
