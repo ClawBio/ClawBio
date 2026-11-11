@@ -331,6 +331,36 @@ def _check_counts(counts) -> tuple[float, np.ndarray]:
     return non_integer, totals
 
 
+def _non_integer_counts_warning(
+    non_integer_fraction: float, *, count_source: str, allowed: bool
+) -> str | None:
+    """Refuse non-integer counts unless the caller vouches for them.
+
+    The baseline runs normalize_total -> log1p on whatever it is given, so a
+    matrix that is already log-transformed would be transformed twice. The
+    shared loader screens on the fraction of non-integer values, and in a dense,
+    mostly zero matrix the zeros dilute that fraction below its bar. Raw counts
+    are integers however they are stored, so any non-integer value stops the
+    run here. Returns the warning to record when the values are allowed, or
+    None when every value is an integer.
+    """
+    if non_integer_fraction <= 0:
+        return None
+    share = f"{non_integer_fraction:.1%}" if non_integer_fraction >= 0.001 else "<0.1%"
+    if not allowed:
+        raise InputError(
+            f"{share} of the values in {count_source} are not integers, so they may "
+            "already be normalised or log-transformed, and the PCA baseline would "
+            "normalise and log-transform them a second time. Point --counts-layer at "
+            "raw counts, or pass --allow-non-integer-counts if these are estimated or "
+            "corrected counts (EM quantification, ambient-RNA correction)"
+        )
+    return (
+        f"{share} of the values in {count_source} are not integers; "
+        "--allow-non-integer-counts was passed, so the baseline treats them as counts"
+    )
+
+
 # --- baseline ----------------------------------------------------------------
 
 
@@ -425,6 +455,7 @@ def run_audit(
     max_cells: int,
     n_resamples: int,
     random_state: int,
+    allow_non_integer_counts: bool = False,
 ) -> dict:
     timings: dict[str, float] = {}
     warnings: list[str] = []
@@ -436,11 +467,13 @@ def run_audit(
 
     counts = _counts_dense_or_sparse(adata.X)
     non_integer_fraction, totals = _check_counts(counts)
-    if non_integer_fraction > 0:
-        warnings.append(
-            f"{non_integer_fraction:.1%} of count values are not integers (EM-based quantification?); "
-            "the baseline treats them as counts"
-        )
+    non_integer_warning = _non_integer_counts_warning(
+        non_integer_fraction,
+        count_source=count_source,
+        allowed=allow_non_integer_counts,
+    )
+    if non_integer_warning:
+        warnings.append(non_integer_warning)
 
     keep = np.ones(adata.n_obs, dtype=bool)
     dropped: dict[str, int] = {}
@@ -910,6 +943,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="layer holding raw counts (default: 'counts' if present, else X)",
     )
     parser.add_argument(
+        "--allow-non-integer-counts",
+        action="store_true",
+        help="accept non-integer values in the count source as estimated or corrected "
+        "counts (refused by default: they may already be normalised or log-transformed)",
+    )
+    parser.add_argument(
         "--n-top-hvg", type=int, default=2000, help="HVGs for the PCA baseline"
     )
     parser.add_argument(
@@ -987,8 +1026,15 @@ def main(argv: list[str] | None = None) -> None:
             file=sys.stderr,
         )
     if args.demo:
-        if args.counts_layer or args.expected_input_sha256:
-            parser.error("--counts-layer and --expected-input-sha256 require --input")
+        if (
+            args.counts_layer
+            or args.expected_input_sha256
+            or args.allow_non_integer_counts
+        ):
+            parser.error(
+                "--counts-layer, --expected-input-sha256 and "
+                "--allow-non-integer-counts require --input"
+            )
         input_path = None
         source_label = "synthetic demo (examples/demo_spec.json)"
     else:
@@ -1044,6 +1090,7 @@ def main(argv: list[str] | None = None) -> None:
             max_cells=args.max_cells,
             n_resamples=args.n_resamples,
             random_state=args.random_state,
+            allow_non_integer_counts=args.allow_non_integer_counts,
         )
     except InputError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
@@ -1055,6 +1102,7 @@ def main(argv: list[str] | None = None) -> None:
         "batch_key": None if args.demo else args.batch_key,
         "exclude_labels": exclude_labels or None,
         "counts_layer": args.counts_layer,
+        "allow_non_integer_counts": args.allow_non_integer_counts,
         "n_top_hvg": args.n_top_hvg,
         "n_pcs": args.n_pcs,
         "lisi_neighbors": args.lisi_neighbors,

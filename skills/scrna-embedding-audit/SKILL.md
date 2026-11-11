@@ -122,13 +122,13 @@ Independent benchmarks keep finding that zero-shot single-cell foundation models
 |--------|-----------|-----------------|---------|
 | AnnData | `.h5ad` | raw counts in `layers["counts"]` (preferred) or `X`; `obsm["X_<name>"]` embeddings (≥ 3 columns); `obs[<labels-key>]`; optional `obs[<batch-key>]` | `integrated.h5ad` from `scrna-embedding` with `--counts-layer counts` auto-detected |
 
-Normalised or log-transformed matrices without a counts layer are refused (exit 2) because the baseline needs counts. Non-integer counts (EM quantification) are accepted and their fraction is reported.
+Normalised or log-transformed matrices are refused (exit 2): the baseline needs counts and would log-transform them a second time. Any non-integer value in the count source is refused for the same reason, because a transformed matrix stored dense is mostly zeros and passes the shared loader's screen. Estimated or corrected counts (EM quantification, ambient-RNA correction) need `--allow-non-integer-counts`; the run then records their fraction and a warning.
 
 ## Workflow
 
 When the user asks to audit embeddings:
 
-1. **Validate** (prescriptive): `.h5ad` only; counts screened by `clawbio.common.scrna_io.load_count_adata`; labels column must exist; cells with missing label/batch, excluded labels or zero counts are dropped and counted; fewer than 50 scorable cells → exit 2.
+1. **Validate** (prescriptive): `.h5ad` only; counts screened by `clawbio.common.scrna_io.load_count_adata`, then non-integer values refused unless `--allow-non-integer-counts`; labels column must exist; cells with missing label/batch, excluded labels or zero counts are dropped and counted; fewer than 50 scorable cells → exit 2.
 2. **Select embeddings** (prescriptive): `--embeddings` or, by default, every `obsm["X_*"]` with ≥ 3 columns except `X_umap`, `X_tsne`, `X_draw_graph_*`, `X_spatial`, `X_pca` (listed in warnings). Above `--max-cells` (5000) one stratified subsample is scored.
 3. **Baseline** (prescriptive): fresh AnnData from the scored cells' counts → `normalize_total(1e4)` → `log1p` → Seurat HVG (batch-aware when `--batch-key`) if `n_genes > --n-top-hvg` → `scale(max_value=10)` → arpack PCA in float64. Plus a seeded N(0, 1) control of the same dimension.
 4. **Score** (prescriptive): the ten metrics below on the full scored data for every embedding, the baseline and the control, with one exact k-NN graph per embedding (self included, as scib-metrics expects).
@@ -152,7 +152,7 @@ python clawbio.py run scrna-embedding-audit --input cells.h5ad --output audit/ -
 python clawbio.py run scrna-embedding-audit --demo
 ```
 
-Flags: `--embeddings`, `--labels-key` (required with `--input`), `--batch-key`, `--exclude-labels`, `--counts-layer` (default `counts` if present, else `X`), `--n-top-hvg 2000`, `--n-pcs 50`, `--lisi-neighbors 90`, `--graph-neighbors 15`, `--transfer-k 15`, `--max-cells 5000`, `--n-resamples 50`, `--random-state 0`, `--expected-input-sha256`, `--overwrite`. Bounds: lisi neighbours ≥ 3, resamples ≥ 10, max cells ≥ 50 (exit 2 otherwise). Through `clawbio.py run`, only these flags are forwarded; anything else is dropped silently by the runner's allowlist.
+Flags: `--embeddings`, `--labels-key` (required with `--input`), `--batch-key`, `--exclude-labels`, `--counts-layer` (default `counts` if present, else `X`), `--allow-non-integer-counts`, `--n-top-hvg 2000`, `--n-pcs 50`, `--lisi-neighbors 90`, `--graph-neighbors 15`, `--transfer-k 15`, `--max-cells 5000`, `--n-resamples 50`, `--random-state 0`, `--expected-input-sha256`, `--overwrite`. Bounds: lisi neighbours ≥ 3, resamples ≥ 10, max cells ≥ 50 (exit 2 otherwise). Through `clawbio.py run`, only these flags are forwarded; anything else is dropped silently by the runner's allowlist.
 
 ## Demo
 
@@ -248,6 +248,7 @@ output_directory/
 - **You will want to call an scANVI or fine-tuned embedding the winner on biological conservation. Do not, without saying where the labels came from.** An embedding trained on the labels it is scored against, or labels derived from one of the scored embeddings, scores circularly, and this skill cannot detect that.
 - **You will want to expect `graph_connectivity = 1` for a single clean cluster. Do not.** scib-metrics uses strongly connected components on the *directed* k-NN graph, so a boundary cell that nobody lists as a neighbour is its own component; one Gaussian blob of 100 cells scores about 0.99.
 - **You will want to pass `--layer` or `--label-key` through `clawbio.py run`. Do not.** The runner forwards only the flags in its allowlist (`--counts-layer`, `--labels-key`, …); misspelt flags are dropped without an error. Run the script directly to get argparse's error.
+- **You will want to add `--allow-non-integer-counts` to get past the refusal on a normalised `X`. Do not.** The flag vouches that the values are counts. The baseline still runs `normalize_total` and `log1p` on them, so a log-normalised matrix is transformed twice and the baseline is no longer the recipe the report states. Point `--counts-layer` at the raw counts; keep the flag for estimated or corrected counts.
 - **You will want to read the random control as "another embedding". Do not.** `control:random` is seeded noise that mixes batches perfectly and carries no biology; it is shown for scale and never enters a verdict.
 - **You will want to read small `higher`/`lower` calls on a `--max-cells` run as method differences. Do not, when the embedding was fitted on more cells than are scored.** The baseline is fitted on the scored subsample; an embedding fitted on the full dataset differs from it by fit population alone (on 44,721 PBMCs scored at 5,000, an identical recipe fitted on all cells differed by up to 0.09 on graph connectivity and got directional verdicts on 6 of 10 metrics; `examples/public_validation.md`). Raise `--max-cells` or compare embeddings fitted on the same cells.
 - **You will want to run this on a 64-core host with default BLAS threading. Do not expect it to be fast.** The 660-cell demo takes about 11 s with `OMP_NUM_THREADS=1` and about 40 s with every core spin-waiting; pin the thread count for large runs.

@@ -861,6 +861,114 @@ def test_normalised_matrix_without_counts_layer_exits_2(tmp_path):
     assert "normalized/log-transformed" in proc.stderr
 
 
+def _dense_lognormalised_adata(seed: int = 3):
+    """Log-normalised X, stored dense and mostly zero, with no counts layer.
+
+    In a dense matrix the zeros count as integers, so the non-integer fraction
+    the shared loader screens on stays low and the matrix is not refused there.
+    """
+    adata = sea.generate_demo_adata(seed=seed)
+    counts = np.asarray(adata.layers["counts"], dtype=np.float64)
+    rng = np.random.default_rng(seed)
+    thinned = counts * (rng.random(counts.shape) < 0.12)
+    thinned[thinned.sum(axis=1) == 0, 0] = 1.0
+    del adata.layers["counts"]
+    adata.X = thinned
+    scanpy.pp.normalize_total(adata, target_sum=1e4)
+    scanpy.pp.log1p(adata)
+    adata.X = np.asarray(adata.X, dtype=np.float32)
+    assert float(np.mean(adata.X == 0)) > 0.8
+    return adata
+
+
+def _estimated_counts_adata(seed: int = 3):
+    """Counts where one non-zero entry in ten carries a fractional part."""
+    adata = sea.generate_demo_adata(seed=seed)
+    counts = np.asarray(adata.layers["counts"], dtype=np.float64)
+    rng = np.random.default_rng(seed)
+    nonzero = np.argwhere(counts > 0)
+    picked = nonzero[rng.choice(len(nonzero), size=len(nonzero) // 10, replace=False)]
+    counts[picked[:, 0], picked[:, 1]] += 0.5
+    adata.layers["counts"] = counts
+    adata.X = counts.copy()
+    return adata
+
+
+def test_dense_lognormalised_matrix_without_counts_layer_exits_2(tmp_path):
+    path = _write_h5ad(_dense_lognormalised_adata(), tmp_path / "dense_norm.h5ad")
+    proc = run_cli(_user_args(path, tmp_path / "out", "--embeddings", "X_corrected"))
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert not (tmp_path / "out/result.json").exists()
+
+
+def test_non_integer_counts_exit_2_and_name_both_ways_out(tmp_path):
+    path = _write_h5ad(_estimated_counts_adata(), tmp_path / "estimated.h5ad")
+    proc = run_cli(_user_args(path, tmp_path / "out", "--embeddings", "X_corrected"))
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert "layers['counts']" in proc.stderr and "not integers" in proc.stderr
+    assert "--counts-layer" in proc.stderr
+    assert "--allow-non-integer-counts" in proc.stderr
+    assert not (tmp_path / "out/result.json").exists()
+
+
+def test_non_integer_counts_are_scored_and_recorded_when_allowed(tmp_path):
+    path = _write_h5ad(_estimated_counts_adata(), tmp_path / "estimated.h5ad")
+    proc = run_cli(
+        _user_args(
+            path,
+            tmp_path / "out",
+            "--embeddings",
+            "X_corrected",
+            "--allow-non-integer-counts",
+        )
+    )
+    assert proc.returncode == 0, proc.stderr
+    result = _result(tmp_path / "out")
+    assert 0 < result["non_integer_fraction"] < 0.2
+    assert result["parameters"]["allow_non_integer_counts"] is True
+    flagged = [w for w in result["warnings"] if "not integers" in w]
+    assert flagged and "--allow-non-integer-counts" in flagged[0]
+    assert flagged[0] in (tmp_path / "out/report.md").read_text()
+    # the replay command must carry the override, or the replay would refuse
+    commands = (tmp_path / "out/reproducibility/commands.sh").read_text()
+    assert "--allow-non-integer-counts" in commands
+
+
+def test_integer_counts_record_that_the_override_was_not_used(tmp_path):
+    path = _user_h5ad(tmp_path)
+    proc = run_cli(_user_args(path, tmp_path / "out", "--embeddings", "X_corrected"))
+    assert proc.returncode == 0, proc.stderr
+    result = _result(tmp_path / "out")
+    assert result["non_integer_fraction"] == 0
+    assert result["parameters"]["allow_non_integer_counts"] is False
+    assert not [w for w in result["warnings"] if "not integers" in w]
+    commands = (tmp_path / "out/reproducibility/commands.sh").read_text()
+    assert "--allow-non-integer-counts" not in commands
+
+
+def test_run_audit_refuses_lognormalised_x_passed_in_memory():
+    # run_audit is importable; a caller that skips load_input must not reach
+    # the baseline's normalize_total -> log1p with an already transformed X
+    adata = _dense_lognormalised_adata()
+    with pytest.raises(sea.InputError, match="not integers"):
+        sea.run_audit(
+            adata,
+            labels_key="cell_type",
+            batch_key="donor",
+            embedding_keys=["X_corrected"],
+            exclude_labels=[],
+            count_source="X",
+            n_top_hvg=2000,
+            n_pcs=50,
+            lisi_neighbors=90,
+            graph_neighbors=15,
+            transfer_k=15,
+            max_cells=5000,
+            n_resamples=10,
+            random_state=0,
+        )
+
+
 def test_negative_values_in_counts_layer_exit_2(tmp_path):
     adata = sea.generate_demo_adata(seed=3)
     adata.layers["counts"] = np.asarray(adata.layers["counts"]) - 1.0
@@ -901,10 +1009,12 @@ def test_non_empty_output_requires_overwrite(tmp_path):
     assert proc.returncode == 0, proc.stderr
 
 
-def test_demo_rejects_input_only_flags(tmp_path):
-    proc = run_cli(
-        ["--demo", "--output", str(tmp_path / "out"), "--counts-layer", "counts"]
-    )
+@pytest.mark.parametrize(
+    "extra",
+    [["--counts-layer", "counts"], ["--allow-non-integer-counts"]],
+)
+def test_demo_rejects_input_only_flags(tmp_path, extra):
+    proc = run_cli(["--demo", "--output", str(tmp_path / "out"), *extra])
     assert proc.returncode == 2 and "require --input" in proc.stderr
 
 
@@ -933,6 +1043,7 @@ def test_cli_registered_with_matching_flags():
         "--batch-key",
         "--exclude-labels",
         "--counts-layer",
+        "--allow-non-integer-counts",
         "--n-top-hvg",
         "--n-pcs",
         "--lisi-neighbors",

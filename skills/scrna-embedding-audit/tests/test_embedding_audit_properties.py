@@ -1,8 +1,7 @@
-"""Property tests for the metric implementations (Hypothesis).
+"""Property tests for the metric implementations and the count gate (Hypothesis).
 
-Hypothesis is not yet in the ClawBio lockfile (ClawBio/ClawBio#537 is open), so
-this module is skipped where it is absent and runs locally with
-``uv run --with hypothesis pytest skills/scrna-embedding-audit/tests``.
+Hypothesis is in the ``dev`` dependency group, so ``uv sync`` installs it; the
+module is skipped only where it is absent.
 """
 
 from __future__ import annotations
@@ -22,6 +21,7 @@ SKILL_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SKILL_DIR))
 
 import embedding_audit_metrics as eam
+import scrna_embedding_audit as sea
 
 SETTINGS = settings(
     max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow]
@@ -198,3 +198,39 @@ def test_stratified_subsample_keeps_every_stratum_and_hits_the_target(
     strata_kept = set(zip(labels[idx], batches[idx]))
     assert strata_kept == strata_all
     assert len(idx) == max(len(strata_all), round(fraction * n))
+
+
+@SETTINGS
+@given(
+    hnp.arrays(
+        np.int64,
+        st.tuples(st.integers(2, 12), st.integers(2, 12)),
+        elements=st.integers(0, 500),
+    ),
+    st.integers(0, 10_000),
+    st.floats(0.001, 0.999),
+    st.booleans(),
+)
+def test_one_fractional_count_is_refused_unless_the_caller_allows_it(
+    integer_counts, position, fraction, as_sparse
+):
+    from scipy import sparse
+
+    def gate(matrix, *, allowed):
+        stored = sparse.csr_matrix(matrix) if as_sparse else matrix
+        non_integer, _totals = sea._check_counts(stored)
+        return non_integer, sea._non_integer_counts_warning(
+            non_integer, count_source="X", allowed=allowed
+        )
+
+    counts = integer_counts.astype(np.float64)
+    for allowed in (False, True):
+        assert gate(counts, allowed=allowed) == (0.0, None)
+
+    counts.reshape(-1)[position % counts.size] += fraction
+    # the decision must not depend on how many zeros surround the one bad value,
+    # nor on whether the matrix is stored dense or sparse
+    with pytest.raises(sea.InputError, match="not integers"):
+        gate(counts, allowed=False)
+    non_integer, warning = gate(counts, allowed=True)
+    assert non_integer > 0 and "not integers" in warning
