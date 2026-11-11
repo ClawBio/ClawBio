@@ -26,9 +26,6 @@
   "prs-abstain": [
     "repro_files"
   ],
-  "target-validation-scorer": [
-    "repro_files"
-  ],
   "ukb-ppp-region-fetch": [
     "repro_files"
   ],
