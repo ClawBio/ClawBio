@@ -26,6 +26,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from clawbio.common.checksums import sha256_file
+from clawbio.common.report import skill_version
 from clawbio.common.reproducibility import (
     ReproCommand,
     write_checksums,
@@ -40,7 +41,7 @@ from clawbio.common.scrna_io import (
 
 SKILL_DIR = Path(__file__).resolve().parent
 SKILL_NAME = "scrna-embedding-audit"
-SKILL_VERSION = "0.1.0"
+SKILL_VERSION = skill_version(__file__)
 DEMO_SPEC = SKILL_DIR / "examples" / "demo_spec.json"
 
 # Guards below are this skill's own choices, not upstream figures.
