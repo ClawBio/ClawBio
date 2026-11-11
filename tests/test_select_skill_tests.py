@@ -2,6 +2,8 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,11 +45,18 @@ def repo(tmp_path_factory):
     _write(root, "skills/borrows-standalone/run.py", "p = SKILLS / 'standalone' / 'data'\n")
     _write(root, "skills/fakes-standalone/tests/test_x.py", "d = tmp_path / 'skills' / 'standalone'\n")
     _write(root, "skills/router/run.py", "ROUTES = {'standalone': 'fasta'}\n")
+    # shared data at the repo root, reached by path parts or by a full path string
+    _write(root, "skills/reads-examples/tests/test_x.py", "VCF = ROOT / 'examples' / 'demo.vcf'\n")
+    _write(root, "skills/reads-corpas/run.py", "P = ROOT / 'corpas-30x/subsets/pgx.vcf.gz'\n")
+    _write(root, "skills/fakes-examples/tests/test_x.py", "v = tmp_path / 'demo.vcf'\n")
     _write(root, "skills/catalog.json", "{}")
     return root
 
 
-SKILLS = ["borrows-standalone", "fakes-standalone", "router", "runs-cli", "standalone", "uses-checksums", "uses-report", "uses-textio"]
+SKILLS = [
+    "borrows-standalone", "fakes-examples", "fakes-standalone", "reads-corpas", "reads-examples",
+    "router", "runs-cli", "standalone", "uses-checksums", "uses-report", "uses-textio",
+]
 
 
 def test_change_inside_one_skill_selects_only_that_skill(repo):
@@ -97,9 +106,46 @@ def test_data_file_in_shared_package_selects_that_package_importers(repo):
     assert select(repo, ["clawbio/common/data/table.json"]) == expected
 
 
-@pytest.mark.parametrize("path", ["uv.lock", "pyproject.toml", "conftest.py", "pytest.ini"])
+@pytest.mark.parametrize("path", [
+    "uv.lock", "pyproject.toml", "conftest.py", "pytest.ini",
+    # a change to the selection rules themselves runs everything
+    "scripts/select_skill_tests.py", ".github/workflows/ci.yml",
+])
 def test_environment_files_select_every_skill(repo, path):
     assert select(repo, [path]) == SKILLS
+
+
+def test_root_data_file_selects_skills_that_name_it(repo):
+    # fakes-examples writes its own demo.vcf under tmp_path: not a reader
+    assert select(repo, ["examples/demo.vcf"]) == ["reads-examples"]
+
+
+def test_root_data_file_named_by_full_path_selects_its_reader(repo):
+    assert select(repo, ["corpas-30x/subsets/pgx.vcf.gz"]) == ["reads-corpas"]
+
+
+def test_root_file_no_skill_names_selects_nothing(repo):
+    assert select(repo, ["examples/unused.csv"]) == []
+
+
+def test_real_repo_shared_demo_vcf_selects_the_skills_that_read_it():
+    # Manuel's #640 review: this selected [] although both skills' tests read it
+    selected = select(ROOT, ["examples/demo_populations.vcf"])
+    assert {"equity-scorer", "claw-ancestry-pca"} <= set(selected)
+    assert len(selected) < len(select(ROOT, ["uv.lock"]))
+
+
+CANDIDATE_PATHS = [
+    "skills/uses-report/run.py", "skills/standalone/run.py", "skills/catalog.json",
+    "clawbio/common/checksums.py", "clawbio/common/textio.py", "clawbio.py", "README.md",
+    "examples/demo.vcf", "examples/unused.csv", "corpas-30x/subsets/pgx.vcf.gz", "tests/test_x.py",
+]
+
+
+@settings(deadline=None, max_examples=60)
+@given(st.lists(st.sampled_from(CANDIDATE_PATHS), unique=True), st.sampled_from(CANDIDATE_PATHS))
+def test_adding_a_changed_path_never_drops_a_selected_skill(repo, changed, extra):
+    assert set(select(repo, changed)) <= set(select(repo, changed + [extra]))
 
 
 MIXED = [

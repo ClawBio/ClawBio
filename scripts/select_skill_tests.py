@@ -4,6 +4,8 @@ Reads changed paths (one per line) on stdin and prints skill folder names.
 A skill is selected when the PR changes:
   - a file inside the skill's folder, or inside another skill it reaches by path;
   - a clawbio module it imports, directly or through other clawbio modules;
+  - a file outside skills/ and clawbio/ that its code names (shared demo data
+    such as examples/demo_populations.vcf), by full path or by file name;
   - a file that shapes every test environment (ENVIRONMENT_FILES): all skills.
 Explicit imports only: clawbio/__init__.py imports the runner, so counting the
 package imports Python runs implicitly would select every skill for any clawbio
@@ -18,7 +20,12 @@ import re
 import sys
 from pathlib import Path
 
-ENVIRONMENT_FILES = {"uv.lock", "pyproject.toml", "conftest.py", "pytest.ini"}
+# Files that shape every test environment, plus the selection rules themselves:
+# a change to how skills are picked runs every skill.
+ENVIRONMENT_FILES = {
+    "uv.lock", "pyproject.toml", "conftest.py", "pytest.ini",
+    "scripts/select_skill_tests.py", ".github/workflows/ci.yml",
+}
 
 
 def _module_name(root: Path, path: Path) -> str:
@@ -56,6 +63,11 @@ def _imports(path: Path, module: str, known: set[str]) -> set[str]:
 def _path_segment(name: str) -> re.Pattern[str]:
     n = re.escape(name)
     return re.compile(rf"/{n}/|[\"']{n}[\"']\s*/|/\s*[\"']{n}[\"']")
+
+
+def _file_name(name: str) -> re.Pattern[str]:
+    """A file name standing alone, not inside a longer name (demo.vcf, not my_demo.vcf)."""
+    return re.compile(rf"(?<![\w.-]){re.escape(name)}(?![\w.-])")
 
 
 def _python_files(folder: Path) -> list[Path]:
@@ -117,6 +129,16 @@ def select_skills(root: Path, changed: list[str]) -> list[str]:
             imported |= _imports(path, "", known)
         if imported & affected:
             selected.add(skill)
+
+    # Shared files outside skills/ and clawbio/: select the skills that name them.
+    # Over-selecting costs CI time; missing a reader hides a broken test.
+    outside = [
+        rel for rel in changed
+        if rel != "clawbio.py" and Path(rel).parts and Path(rel).parts[0] not in {"skills", "clawbio"}
+    ]
+    for rel in outside:
+        pattern = _file_name(Path(rel).name)
+        selected.update(skill for skill in skills if pattern.search(texts[skill]))
 
     # Skills that reach a selected skill's folder by path: skills/<name>/... or
     # SKILLS_DIR / "<name>". A bare name in a routing table does not count.
