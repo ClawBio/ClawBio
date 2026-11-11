@@ -28,52 +28,7 @@ CATALOG_PATH = SKILLS_DIR / "catalog.json"
 
 sys.path.insert(0, str(CLAWBIO_DIR))
 
-# ---------------------------------------------------------------------------
-# YAML frontmatter parser (lightweight, no PyYAML dependency)
-# ---------------------------------------------------------------------------
-
-
-def parse_yaml_frontmatter(text: str) -> dict:
-    """Extract YAML frontmatter between --- markers."""
-    match = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
-    if not match:
-        return {}
-    raw = match.group(1)
-    import yaml
-
-    data = yaml.safe_load(raw) or {}
-    return data if isinstance(data, dict) else {}
-
-
-def normalize_skill_metadata(raw: dict) -> dict:
-    """Normalize legacy top-level and AgentSkills nested metadata."""
-    metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
-    openclaw = metadata.get("openclaw") if isinstance(metadata.get("openclaw"), dict) else {}
-    return {
-        "name": raw.get("name", ""),
-        "description": raw.get("description", ""),
-        "license": raw.get("license", ""),
-        # Declared separately from `license` on purpose. A permissive
-        # wrapper licence grants no rights over third-party weights or
-        # reference data, which are frequently non-commercial. Empty means
-        # "no such dependency declared", never "permissive".
-        # Nested under `metadata` in new skills: the agentskills spec rejects any
-        # top-level frontmatter key outside the six it names, so a declaration
-        # there fails `agentskills validate`. Top-level is still read for the
-        # skills written before that was known.
-        "model_license": raw.get("model_license", metadata.get("model_license", "")),
-        "data_license": raw.get("data_license", metadata.get("data_license", "")),
-        "version": raw.get("version", metadata.get("version", "0.1.0")),
-        "author": raw.get("author", metadata.get("author", "")),
-        "domain": raw.get("domain", metadata.get("domain", "")),
-        "tags": raw.get("tags", metadata.get("tags", [])),
-        "inputs": raw.get("inputs", metadata.get("inputs", [])),
-        "outputs": raw.get("outputs", metadata.get("outputs", [])),
-        "dependencies": raw.get("dependencies", metadata.get("dependencies", [])),
-        "demo_data": raw.get("demo_data", metadata.get("demo_data", [])),
-        "endpoints": raw.get("endpoints", metadata.get("endpoints", {})),
-        "openclaw": openclaw,
-    }
+from clawbio.common.skill_manifest import read_skill_manifest  # noqa: E402
 
 
 def _normalize_dependencies(value: object) -> list[str]:
@@ -451,8 +406,7 @@ def build_catalog() -> list[dict]:
             continue
 
         folder_name = skill_dir.name
-        yaml_data = parse_yaml_frontmatter(skill_md.read_text(encoding="utf-8"))
-        skill_meta = normalize_skill_metadata(yaml_data)
+        manifest = read_skill_manifest(skill_dir)
 
         # Determine CLI alias
         cli_alias = folder_to_alias.get(folder_name)
@@ -483,15 +437,15 @@ def build_catalog() -> list[dict]:
             cli_registered=cli_registered,
         )
 
-        tags = [str(tag) for tag in skill_meta.get("tags", [])]
-        deps = _normalize_dependencies(skill_meta.get("dependencies"))
-        trigger_keywords = yaml_data.get("trigger_keywords") or skill_meta.get("openclaw", {}).get("trigger_keywords") or TRIGGER_KEYWORDS.get(folder_name, [])
+        tags = list(manifest.tags)
+        deps = _normalize_dependencies(manifest.dependencies)
+        trigger_keywords = manifest.openclaw.get("trigger_keywords") or TRIGGER_KEYWORDS.get(folder_name, [])
 
         entry = {
             "name": folder_name,
             "cli_alias": cli_alias,
-            "description": skill_meta.get("description", ""),
-            "version": str(skill_meta.get("version", "0.1.0")),
+            "description": manifest.description,
+            "version": manifest.version,
             "status": status,
             "maturity_tier": maturity_tier,
             "maturity_evidence": maturity_evidence,
@@ -508,9 +462,9 @@ def build_catalog() -> list[dict]:
             # code; the other two cover third-party weights and reference data
             # the skill pulls at runtime, over which no licence in this repo
             # can grant rights. Empty means "none declared", not "permissive".
-            "license": str(skill_meta.get("license", "")),
-            "model_license": str(skill_meta.get("model_license", "")),
-            "data_license": str(skill_meta.get("data_license", "")),
+            "license": manifest.license,
+            "model_license": manifest.model_license,
+            "data_license": manifest.data_license,
         }
         entries.append(entry)
 
@@ -557,17 +511,15 @@ def main() -> None:
     # Website metadata is strictly frontmatter-derived, without routing fallbacks.
     directory = []
     for entry in catalog:
-        raw = parse_yaml_frontmatter((SKILLS_DIR / entry["name"] / "SKILL.md").read_text(encoding="utf-8"))
-        metadata = raw.get("metadata") or {}
-        openclaw = metadata.get("openclaw") or {}
+        manifest = read_skill_manifest(SKILLS_DIR / entry["name"])
         directory.append({
-            "name": raw.get("name") or entry["name"],
+            "name": manifest.name or entry["name"],
             "slug": entry["name"],
-            "license": raw.get("license") or metadata.get("license") or "",
-            "description": raw.get("description") or "",
-            "version": raw.get("version") or metadata.get("version") or "",
-            "trigger_keywords": raw.get("trigger_keywords") or openclaw.get("trigger_keywords") or [],
-            "tags": raw.get("tags") or metadata.get("tags") or [],
+            "license": manifest.license,
+            "description": manifest.description,
+            "version": manifest.version,
+            "trigger_keywords": manifest.openclaw.get("trigger_keywords") or [],
+            "tags": list(manifest.tags),
         })
     (SKILLS_DIR / "directory.json").write_text(
         json.dumps({"skills": directory}, indent=2, ensure_ascii=False) + "\n",
