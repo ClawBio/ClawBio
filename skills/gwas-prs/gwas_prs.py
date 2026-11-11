@@ -900,9 +900,11 @@ def _skipped_scores_section(skipped: list[dict]) -> list[str]:
         )
     lines += [
         "",
-        "A score is calculated only when the share of its variants found in the "
-        "genotype file reaches `--min-overlap`. Below that it is withheld rather "
-        "than calculated from a subset of its variants.",
+        (
+            "A score is calculated only when the share of its variants found in the "
+            "genotype file reaches `--min-overlap`. Below that it is withheld rather "
+            "than calculated from a subset of its variants."
+        ),
         "",
     ]
     return lines
@@ -918,8 +920,10 @@ def generate_no_score_report(
     lines += [
         "## Summary",
         "",
-        "No polygenic risk score was calculated. Every requested score was "
-        "withheld for the reason given below, so this report carries no result.",
+        (
+            "No polygenic risk score was calculated. Every requested score was "
+            "withheld for the reason given below, so this report carries no result."
+        ),
         "",
     ]
     lines += _skipped_scores_section(skipped)
