@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import shlex
 import sys
 from dataclasses import dataclass
@@ -71,6 +72,7 @@ from coloc_abf_math import (  # noqa: E402
     ColocError,
     aligned_log_abf,
     coloc_sensitivity,
+    format_prior_change,
     run_coloc_abf,
 )
 
@@ -174,9 +176,11 @@ def _to_float(value: str | None) -> float | None:
     if v == "" or v.upper() in {"NA", "NAN", "NULL", "."}:
         return None
     try:
-        return float(v)
+        f = float(v)
     except ValueError:
         return None
+    # "-nan" (C printf, PLINK) parses to NaN: a missing value, like "NA".
+    return None if math.isnan(f) else f
 
 
 def load_regional_sumstats(path: str | Path) -> list[SumstatRow]:
@@ -249,6 +253,36 @@ class PairedRegion:
     excluded: list[dict[str, Any]]
     n_read1: int
     n_read2: int
+    # What each file contributes to the large-region prior adjustment
+    # (`variants_in_file`); the shared count alone would miss a large file paired
+    # with a small one.
+    n_counted1: int = 0
+    n_counted2: int = 0
+
+
+def variants_in_file(rows: Sequence[SumstatRow]) -> int:
+    """How many variants one file contributes to the large-region prior check.
+
+    R coloc checks `p1` and `p2` against the rows of each dataset as handed to
+    it, and merges no row first. So this counts every row with a beta and a
+    standard error, whatever their values (a zero se counts, as R counts it),
+    collapsing only exact copies: the same identifier, chromosome, position and
+    allele pair. On a file R accepts, with sdY supplied or a case-control trait,
+    this is R's count. R refuses a file with a missing value or a repeated
+    identifier outright, where this runner drops or collapses those rows, so for
+    such a file the count is this rule rather than R's.
+    """
+    seen: set[tuple[str, str, int, frozenset[str]]] = set()
+    for r in rows:
+        if r.beta is None or r.se is None or math.isnan(r.beta) or math.isnan(r.se):
+            continue
+        seen.add((
+            r.variant_id,
+            r.chromosome.lower().removeprefix("chr"),
+            r.position,
+            frozenset({r.ref.upper(), r.alt.upper()}),
+        ))
+    return len(seen)
 
 
 def _usable(row: SumstatRow) -> str | None:
@@ -362,6 +396,8 @@ def pair_region(
         excluded=excluded,
         n_read1=len(rows1),
         n_read2=len(rows2),
+        n_counted1=variants_in_file(rows1),
+        n_counted2=variants_in_file(rows2),
     )
 
 
@@ -480,7 +516,7 @@ def run_pair(
     d2 = dataset_from_rows(paired.keys, paired.rows2, trait2_type,
                            label=label2, sdY=sdY2, n=n2)
 
-    aligned = aligned_log_abf(d1, d2)
+    aligned = aligned_log_abf(d1, d2, n_full=(paired.n_counted1, paired.n_counted2))
     result = run_coloc_abf(d1, d2, p1=p1, p2=p2, p12=p12, aligned=aligned)
     sensitivity = coloc_sensitivity(
         d1, d2, p1=p1, p2=p2, p12_default=p12,
@@ -537,10 +573,10 @@ def write_outputs(run: dict[str, Any], output_dir: Path, invocation: str) -> dic
     sensitivity_tsv = output_dir / "tables" / "sensitivity_p12.tsv"
     with sensitivity_tsv.open("w", encoding="utf-8", newline="") as fh:
         w = csv.writer(fh, delimiter="\t", lineterminator="\n")
-        w.writerow(["p12", "PP.H3", "PP.H4", "rule_passes"])
+        w.writerow(["p12", "p12_used", "PP.H3", "PP.H4", "rule_passes"])
         for pt in sens.points:
-            w.writerow([f"{pt.p12:.6g}", f"{pt.h3:.6g}", f"{pt.h4:.6g}",
-                        "yes" if pt.rule_passes else "no"])
+            w.writerow([f"{pt.p12:.6g}", f"{pt.p12_effective:.6g}", f"{pt.h3:.6g}",
+                        f"{pt.h4:.6g}", "yes" if pt.rule_passes else "no"])
 
     excluded_tsv = output_dir / "tables" / "excluded_variants.tsv"
     with excluded_tsv.open("w", encoding="utf-8", newline="") as fh:
@@ -566,14 +602,18 @@ def write_outputs(run: dict[str, Any], output_dir: Path, invocation: str) -> dic
         "traits": {
             "trait1": {"label": label1, "trait_type": run["trait_types"][0],
                        "variants_read": paired.n_read1,
+                       "variants_counted": paired.n_counted1,
                        "sdY": result.sdy_used["trait1"],
                        "sdY_estimated": result.sdy_estimated["trait1"]},
             "trait2": {"label": label2, "trait_type": run["trait_types"][1],
                        "variants_read": paired.n_read2,
+                       "variants_counted": paired.n_counted2,
                        "sdY": result.sdy_used["trait2"],
                        "sdY_estimated": result.sdy_estimated["trait2"]},
         },
         "priors": result.priors,
+        "priors_effective": result.priors_effective,
+        "priors_adjusted": list(result.priors_adjusted),
         "prior_sd": result.prior_sd,
         "posteriors": result.pp,
         "n_shared_variants": result.n_snps,
@@ -588,8 +628,11 @@ def write_outputs(run: dict[str, Any], output_dir: Path, invocation: str) -> dic
             "prior_driven": sens.prior_driven,
             "robust": sens.robust,
             "passing_p12_range": list(sens.passing_p12_range) if sens.passing_p12_range else None,
-            "points": [{"p12": pt.p12, "PP.H3": pt.h3, "PP.H4": pt.h4,
-                        "rule_passes": pt.rule_passes} for pt in sens.points],
+            "p12_cap": sens.p12_cap,
+            "p12_cap_note": sens.p12_cap_note,
+            "points": [{"p12": pt.p12, "p12_used": pt.p12_effective, "PP.H3": pt.h3,
+                        "PP.H4": pt.h4, "rule_passes": pt.rule_passes}
+                       for pt in sens.points],
         },
         "excluded_variants": {"total": len(paired.excluded), "by_reason": reason_counts},
         "caveats": run["caveats"],
@@ -622,6 +665,19 @@ def write_outputs(run: dict[str, Any], output_dir: Path, invocation: str) -> dic
         "excluded": excluded_tsv,
         "figure": figure,
     }
+
+
+def lowered_priors_line(result) -> str | None:
+    """The line beside the posteriors naming the priors used, when the large-region
+    adjustment changed them; None when it did not."""
+    if not result.priors_adjusted:
+        return None
+    used = ", ".join(
+        "{} = {} (requested {})".format(
+            k, *reversed(format_prior_change(result.priors[k], result.priors_effective[k])))
+        for k in result.priors_adjusted)
+    return (f"These posteriors use priors lowered for a large region, as R coloc does: "
+            f"{used}. The caveats say why.")
 
 
 def _write_sensitivity_figure(sens, path: Path, label1: str, label2: str) -> Path:
@@ -680,6 +736,9 @@ def _render_report(run: dict[str, Any], payload: dict[str, Any]) -> str:
     lines.append(f"- Candidate shared variant: `{run['lead_display_id']}` "
                  f"(holds {result.best_snp_pp_h4:.3f} of the shared-variant evidence)")
     lines.append(f"- 95% of that evidence sits on {result.n_colocalising_variants} variant(s)")
+    lowered = lowered_priors_line(result)
+    if lowered:
+        lines.append(f"- {lowered}")
     lines.append("")
     lines.append("## Prior sensitivity")
     lines.append("")
@@ -693,12 +752,14 @@ def _render_report(run: dict[str, Any], payload: dict[str, Any]) -> str:
     if sens.passing_p12_range:
         lo, hi = sens.passing_p12_range
         lines.append(f"- The rule holds for p12 between {lo:.0e} and {hi:.0e}")
+    if sens.p12_cap_note:
+        lines.append(f"- {sens.p12_cap_note}")
     lines.append(f"- See `figures/sensitivity_p12.png` and `tables/sensitivity_p12.tsv`")
     lines.append("")
     lines.append("## Priors used")
     lines.append("")
     p = result.priors
-    lines.append(f"- p1 = {p['p1']:g}, p2 = {p['p2']:g}, p12 = {p['p12']:g}")
+    lines.append(f"- Requested: p1 = {p['p1']:g}, p2 = {p['p2']:g}, p12 = {p['p12']:g}")
     lines.append(f"- Prior effect SD: {result.prior_sd['trait1']:g} for {label1}, "
                  f"{result.prior_sd['trait2']:g} for {label2}")
     for side, label in (("trait1", label1), ("trait2", label2)):
@@ -784,10 +845,12 @@ DEFAULT_DEMO = "sort1_eqtl_x_ldl_gwas"
 def headline(run: dict[str, Any]) -> str:
     """One line for a log or a chat surface."""
     result, sens = run["result"], run["sensitivity"]
+    lowered = (f"; priors lowered for a large region: {', '.join(result.priors_adjusted)}"
+               if result.priors_adjusted else "")
     return (
         f"PP.H4={result.h4:.3f} PP.H3={result.h3:.3f} "
         f"shared_variants={result.n_snps} lead={run['lead_display_id']} "
-        f"sensitivity={sens.verdict}"
+        f"sensitivity={sens.verdict}{lowered}"
     )
 
 

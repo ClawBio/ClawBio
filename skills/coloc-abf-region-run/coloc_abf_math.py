@@ -35,6 +35,17 @@ per-variant priors `p1`, `p2`, `p12`:
 off-diagonal mass (each trait causal at a different variant), H4 the diagonal
 (one variant causal for both).
 
+**Large-region prior adjustment (R coloc, CRAN 5.2.2 and later).** Before
+combining, each per-variant prior is checked against its own variant count:
+`p1` against the first dataset's rows, `p2` against the second's, `p12` against
+the shared variants. Where `n * p >= 1` the region would expect one or more
+causal variants a priori, which the single-causal-variant model cannot hold, so
+the prior is lowered to `1 / (n + 1)`. With the default priors that happens at
+10,000 variants for `p1` and `p2` and at 100,000 for `p12`. This rule is not in
+the papers; it is matched to R coloc's behaviour and pinned against R's output
+on three large regions. The requested and the effective priors are both
+reported, and the run says when they differ.
+
 **Sensitivity (Wallace 2020).** A single PP.H4 is sensitive to `p12`, the prior
 that one variant is causal for both traits. The posteriors are therefore
 recomputed across a range of `p12` and the conclusion is reported as
@@ -179,6 +190,10 @@ class ColocAbfResult:
     sdy_estimated: dict[str, bool]
     notes: list[str] = field(default_factory=list)
     provenance: dict[str, Any] = field(default_factory=dict)
+    # `priors` is what was requested; these are what the posteriors were computed
+    # with after the large-region adjustment, and which of the three it changed.
+    priors_effective: dict[str, float] = field(default_factory=dict)
+    priors_adjusted: tuple[str, ...] = ()
 
     @property
     def pp(self) -> dict[str, float]:
@@ -210,12 +225,21 @@ class AlignedLogAbf:
 
 @dataclass(frozen=True)
 class SensitivityPoint:
-    """One p12 on the grid: its posteriors, and whether the rule holds there."""
+    """One p12 on the grid: its posteriors, and whether the rule holds there.
+
+    `p12` is the grid value; `p12_effective` is the value combined with, which is
+    lower when the large-region adjustment applies to that point.
+    """
 
     p12: float
     h3: float
     h4: float
     rule_passes: bool
+    p12_effective: float | None = None
+
+    @property
+    def clamped(self) -> bool:
+        return self.p12_effective is not None and self.p12_effective != self.p12
 
 
 @dataclass(frozen=True)
@@ -238,17 +262,25 @@ class SensitivityResult:
     passing_p12_range: tuple[float, float] | None
     points: list[SensitivityPoint] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    # The cap the large-region adjustment put on p12, when it lowered at least one
+    # grid point; None otherwise. `p12_cap_text` prints it with enough digits to
+    # read below every point it lowered.
+    p12_cap: float | None = None
+    p12_cap_text: str | None = None
+    p12_cap_note: str | None = None
 
     @property
     def verdict(self) -> str:
         """A short disposition for a log line or a report heading."""
         if not self.passes_at_default:
             return "no shared signal (H4 below the rule at the default p12)"
+        capped = (f", with p12 capped at {self.p12_cap_text} on this region, as coloc does"
+                  if self.p12_cap is not None else "")
         if self.robust:
             lo = self.points[0].p12
             hi = self.points[-1].p12
-            return f"robust (the H4 call holds across p12 {lo:.0e} to {hi:.0e})"
-        return "prior-driven (the H4 call flips inside the swept p12 range)"
+            return f"robust (the H4 call holds across p12 {lo:.0e} to {hi:.0e}{capped})"
+        return f"prior-driven (the H4 call flips inside the swept p12 range{capped})"
 
 
 # ---------------------------------------------------------------------------
@@ -336,6 +368,82 @@ def _logdiff(a: float, b: float) -> float:
     return a + math.log1p(-math.exp(b - a))
 
 
+def adjust_prior(p: float, n_snps: int) -> float:
+    """The large-region adjustment: `1 / (n + 1)` when `n * p >= 1`, else `p`.
+
+    A per-variant prior `p` over `n` variants expects `n * p` causal variants in
+    the region. At one or more, the single-causal-variant model is being asked
+    to expect what it cannot hold, so the prior is capped just below that. Same
+    threshold and the same `>=` as R coloc, verified by running it.
+    """
+    if n_snps * p >= 1:
+        return 1.0 / (n_snps + 1)
+    return p
+
+
+def format_prior_change(requested: float, effective: float) -> tuple[str, str]:
+    """Two priors as text, with enough digits that a lowered prior never prints as
+    its requested value: 1/10,001 is "9.999e-05", not "0.0001" beside "0.0001"."""
+    for digits in range(3, 13):
+        a, b = f"{requested:.{digits}g}", f"{effective:.{digits}g}"
+        if a != b or requested == effective:
+            return a, b
+    return repr(requested), repr(effective)
+
+
+@dataclass(frozen=True)
+class EffectivePriors:
+    """The priors combined with, beside the ones requested.
+
+    `adjusted` names the priors the large-region adjustment changed, in p1, p2,
+    p12 order, and is empty on a region too small for it. `counts` are the
+    variant counts each prior was checked against.
+    """
+
+    requested: dict[str, float]
+    effective: dict[str, float]
+    counts: dict[str, int]
+    adjusted: tuple[str, ...]
+
+    def sentence(self) -> str | None:
+        """The adjustment in plain language, or None when nothing changed."""
+        if not self.adjusted:
+            return None
+        where = {"p1": "in the first dataset", "p2": "in the second dataset",
+                 "p12": "shared"}
+        parts = []
+        for name in self.adjusted:
+            req, eff = format_prior_change(self.requested[name], self.effective[name])
+            parts.append(f"{name} from {req} to {eff} "
+                         f"({self.counts[name]:,} variants {where[name]})")
+        listed = parts[0] if len(parts) == 1 else (
+            ", ".join(parts[:-1]) + " and " + parts[-1])
+        return (
+            "The region is large, so the priors were lowered as R coloc lowers them: "
+            f"{listed}. Since version 5.2.2, coloc caps a per-variant prior at "
+            "1/(variants + 1) when the region would otherwise expect one or more "
+            "causal variants."
+        )
+
+
+def effective_priors(
+    p1: float, p2: float, p12: float, *, n1: int, n2: int, n12: int
+) -> EffectivePriors:
+    """Apply `adjust_prior` the way R coloc.abf does.
+
+    `n1` and `n2` are each dataset's own variant count, not the intersection,
+    because coloc checks each dataset whole before merging them; `n12` is the
+    shared count.
+    """
+    requested = {"p1": p1, "p2": p2, "p12": p12}
+    counts = {"p1": n1, "p2": n2, "p12": n12}
+    effective = {k: adjust_prior(requested[k], counts[k]) for k in requested}
+    adjusted = tuple(k for k in requested if effective[k] != requested[k])
+    return EffectivePriors(
+        requested=requested, effective=effective, counts=counts, adjusted=adjusted
+    )
+
+
 def combine_abf(
     l1: np.ndarray,
     l2: np.ndarray,
@@ -348,7 +456,8 @@ def combine_abf(
 
     `l1` and `l2` are the per-variant natural-log Bayes factors of the two
     traits, aligned to the same variants in the same order. Returns the five
-    posteriors keyed H0 to H4.
+    posteriors keyed H0 to H4. The priors are used as given; the large-region
+    adjustment is applied by the callers (`run_coloc_abf`, `coloc_sensitivity`).
     """
     l1 = np.asarray(l1, dtype=float)
     l2 = np.asarray(l2, dtype=float)
@@ -399,12 +508,22 @@ def _resolve_w(d: ColocDataset) -> tuple[float, float | None, bool]:
     )
 
 
-def aligned_log_abf(dataset1: ColocDataset, dataset2: ColocDataset) -> AlignedLogAbf:
+def aligned_log_abf(
+    dataset1: ColocDataset,
+    dataset2: ColocDataset,
+    *,
+    n_full: tuple[int, int] | None = None,
+) -> AlignedLogAbf:
     """Intersect two datasets by variant and compute each trait's per-variant lABF.
 
     coloc.abf is defined on variants measured in both traits, so this takes the
     intersection, preserving the order of `dataset2`, resolves each trait's prior
     variance, and returns the two aligned lABF vectors.
+
+    `n_full` is each trait's own variant count, for a caller whose datasets were
+    already cut down to the shared variants (the file runner pairs the two files
+    before building them). The large-region adjustment checks `p1` and `p2`
+    against each dataset whole. Without it, the counts are the datasets' lengths.
     """
     idx1 = {s: i for i, s in enumerate(dataset1.snp)}
     shared = [s for s in dataset2.snp if s in idx1]
@@ -423,14 +542,22 @@ def aligned_log_abf(dataset1: ColocDataset, dataset2: ColocDataset) -> AlignedLo
 
     l1 = per_snp_log_abf(dataset1.beta[take1], dataset1.se[take1], w1)
     l2 = per_snp_log_abf(dataset2.beta[take2], dataset2.se[take2], w2)
+    n1, n2 = n_full if n_full is not None else (len(dataset1.snp), len(dataset2.snp))
+    for label, n in ((dataset1.label or "trait 1", n1), (dataset2.label or "trait 2", n2)):
+        if n < len(shared):
+            raise ColocError(
+                f"{len(shared):,} shared variants, more than the {n:,} variants given "
+                f"for {label!r}: the count of each dataset must cover the variants it "
+                "shares with the other."
+            )
     return AlignedLogAbf(
         shared_snps=shared,
         l1=l1,
         l2=l2,
         sdy_used={"trait1": sdy1, "trait2": sdy2},
         sdy_estimated={"trait1": est1, "trait2": est2},
-        n_full1=len(dataset1.snp),
-        n_full2=len(dataset2.snp),
+        n_full1=int(n1),
+        n_full2=int(n2),
     )
 
 
@@ -454,7 +581,9 @@ def run_coloc_abf(
         aligned = aligned_log_abf(dataset1, dataset2)
     shared, l1, l2 = aligned.shared_snps, aligned.l1, aligned.l2
 
-    pp = combine_abf(l1, l2, p1=p1, p2=p2, p12=p12)
+    eff = effective_priors(p1, p2, p12, n1=aligned.n_full1, n2=aligned.n_full2,
+                           n12=len(shared))
+    pp = combine_abf(l1, l2, **eff.effective)
 
     # How the H4 mass is spread over variants.
     lsum = l1 + l2
@@ -471,6 +600,9 @@ def run_coloc_abf(
             f"{n_full1} and the second {n_full2}. Variants present in only one trait "
             "are not used, because coloc.abf needs both traits at the same variant."
         )
+    lowered = eff.sentence()
+    if lowered:
+        notes.append(lowered)
 
     return ColocAbfResult(
         h0=pp["H0"], h1=pp["H1"], h2=pp["H2"], h3=pp["H3"], h4=pp["H4"],
@@ -491,6 +623,8 @@ def run_coloc_abf(
             "trait1_type": dataset1.trait_type,
             "trait2_type": dataset2.trait_type,
         },
+        priors_effective=dict(eff.effective),
+        priors_adjusted=eff.adjusted,
     )
 
 
@@ -512,27 +646,51 @@ def coloc_sensitivity(
     The per-variant Bayes factors do not depend on the priors, so the sweep
     reuses them and repeats only the combine. The default grid brackets the
     default p12 by an order of magnitude either way.
+
+    Each point is lowered as R coloc lowers it on a large region (p12 against the
+    shared count, p1 and p2 against each dataset's own). The default p12 of 1e-5
+    is not lowered below 100,000 shared variants, but the grid's top, 1e-4, is from
+    10,000, so on a mid-sized region the sweep's upper end is adjusted while the
+    call it tests is not. Each point carries both values, and the verdict names
+    the cap whenever a point was lowered.
     """
     if aligned is None:
         aligned = aligned_log_abf(dataset1, dataset2)
     l1, l2 = aligned.l1, aligned.l2
 
     grid = np.logspace(np.log10(p12_grid_low), np.log10(p12_grid_high), n_points)
+    # logspace is 10 ** linspace, and that power is not correctly rounded on every
+    # platform, so a point meant to equal a literal can land one ULP off it. Set the
+    # ends to the requested values and a point within rounding of the default to the
+    # default. Otherwise the dedupe below keeps both the point and the default (ten
+    # points where nine were asked for), and a top end one ULP under 1e-4 escapes
+    # the adjustment at exactly 10,000 shared variants, where R applies it.
+    if n_points >= 1:
+        grid[0] = p12_grid_low
+    if n_points >= 2:
+        grid[-1] = p12_grid_high
+    grid[np.isclose(grid, p12_default, rtol=1e-9, atol=0.0)] = p12_default
     # Evaluate the default p12 exactly, so the headline number is one of the
     # swept points rather than an interpolation of them.
     grid = np.unique(np.concatenate([grid, [p12_default]]))
 
+    n12 = len(aligned.shared_snps)
     points: list[SensitivityPoint] = []
     for p12 in grid:
-        pp = combine_abf(l1, l2, p1=p1, p2=p2, p12=float(p12))
+        eff = effective_priors(p1, p2, float(p12), n1=aligned.n_full1,
+                               n2=aligned.n_full2, n12=n12).effective
+        pp = combine_abf(l1, l2, **eff)
         points.append(
             SensitivityPoint(
                 p12=float(p12),
                 h3=pp["H3"],
                 h4=pp["H4"],
                 rule_passes=pp["H4"] >= rule_h4_min,
+                p12_effective=eff["p12"],
             )
         )
+    clamped = [pt for pt in points if pt.clamped]
+    p12_cap = clamped[0].p12_effective if clamped else None
 
     default_pt = min(points, key=lambda pt: abs(pt.p12 - p12_default))
     passes_at_default = default_pt.rule_passes
@@ -544,6 +702,18 @@ def coloc_sensitivity(
     robust = passes_at_default and not prior_driven
 
     notes: list[str] = []
+    p12_cap_text = p12_cap_note = None
+    if p12_cap is not None:
+        # Each lowered point printed against the cap, and the cap against the nearest
+        # lowered point, so no printed point reads at or below the printed cap.
+        values = ", ".join(format_prior_change(pt.p12, p12_cap)[0] for pt in clamped)
+        p12_cap_text = format_prior_change(min(pt.p12 for pt in clamped), p12_cap)[1]
+        is_are, was_were = ("is", "was") if len(clamped) == 1 else ("are", "were")
+        p12_cap_note = (
+            f"{len(clamped)} of {len(points)} p12 grid points ({values}) {is_are} "
+            f"above coloc's cap of {p12_cap_text} for {n12:,} shared variants and "
+            f"{was_were} computed at the cap, as R coloc computes them."
+        )
     if prior_driven and passes_at_default:
         notes.append(
             f"The H4 call is prior-driven: the rule (PP.H4 >= {rule_h4_min}) does not "
@@ -568,6 +738,9 @@ def coloc_sensitivity(
         passing_p12_range=passing_range,
         points=points,
         notes=notes,
+        p12_cap=p12_cap,
+        p12_cap_text=p12_cap_text,
+        p12_cap_note=p12_cap_note,
     )
 
 
@@ -577,6 +750,7 @@ __all__ = [
     "ColocAbfResult",
     "ColocDataset",
     "ColocError",
+    "EffectivePriors",
     "DEFAULT_P1",
     "DEFAULT_P2",
     "DEFAULT_P12",
@@ -588,10 +762,13 @@ __all__ = [
     "SensitivityPoint",
     "SensitivityResult",
     "TraitType",
+    "adjust_prior",
     "aligned_log_abf",
     "coloc_sensitivity",
     "combine_abf",
+    "effective_priors",
     "estimate_sdy",
+    "format_prior_change",
     "per_snp_log_abf",
     "prior_variance",
     "run_coloc_abf",

@@ -38,9 +38,13 @@ from coloc_abf_math import (  # noqa: E402
     QUANT_PRIOR_SD,
     ColocDataset,
     ColocError,
+    adjust_prior,
+    aligned_log_abf,
     coloc_sensitivity,
     combine_abf,
+    effective_priors,
     estimate_sdy,
+    format_prior_change,
     per_snp_log_abf,
     prior_variance,
     run_coloc_abf,
@@ -418,3 +422,178 @@ class TestSensitivity:
             direct = run_coloc_abf(d1, d2, p12=point.p12)
             assert direct.h4 == pytest.approx(point.h4, rel=1e-12)
             assert direct.h3 == pytest.approx(point.h3, rel=1e-12)
+
+
+# ---------------------------------------------------------------------------
+# Large regions: the prior adjustment R coloc applies (CRAN 5.2.2 and later)
+# ---------------------------------------------------------------------------
+
+LARGE_REFERENCE = Path(__file__).parent / "fixtures" / "coloc_abf_large_region_r_reference.json"
+_LARGE = json.loads(LARGE_REFERENCE.read_text())
+_PP = ("PP.H0", "PP.H1", "PP.H2", "PP.H3", "PP.H4")
+
+
+def _closed_form(trait: dict, n: int, start: int) -> ColocDataset:
+    """The signal capture_r_reference_large_region.R builds, rebuilt exactly."""
+    i = np.arange(start, start + n)
+    z = 0.9 * np.sin(trait["a"] * i + trait["ph"]) + 0.6 * np.cos(trait["b"] * i)
+    for pos, zl in trait["leads"]:
+        z[i == pos] = zl
+    return ColocDataset(
+        snp=[f"1_{1000000 + int(k)}_A_G" for k in i],
+        beta=0.01 * z, se=np.full(n, 0.01),
+        trait_type=_LARGE["generator"]["type"], sdY=_LARGE["generator"]["sdY"],
+    )
+
+
+def _large_pair(name: str):
+    cf, g = _LARGE["configs"][name], _LARGE["generator"]
+    return (_closed_form(g["trait1"], cf["n1"], cf["start1"]),
+            _closed_form(g["trait2"], cf["n2"], cf["start2"]),
+            cf["p12"])
+
+
+def _strong_large(n: int = 12_000):
+    g = _LARGE["generator"]
+    return (_closed_form({**g["trait1"], "leads": [[6000, 6.0]]}, n, 0),
+            _closed_form({**g["trait2"], "leads": [[6000, 6.0]]}, n, 0))
+
+
+class TestLargeRegionPriorAdjustment:
+    """Above n * p >= 1, R coloc lowers each prior to 1/(n + 1) before combining.
+
+    The 12-variant parity fixture cannot reach that, so it passes on an
+    implementation that never adjusts. These three regions do reach it, and the
+    numbers are R's own (see capture_r_reference_large_region.R).
+    """
+
+    @pytest.mark.parametrize("name", sorted(_LARGE["configs"]))
+    def test_posteriors_match_r_where_the_adjustment_fires(self, name):
+        d1, d2, p12 = _large_pair(name)
+        r = run_coloc_abf(d1, d2, p1=1e-4, p2=1e-4, p12=p12)
+        ref = _LARGE["r_reference"][name]
+        assert r.n_snps == ref["nsnps"]
+        for k in _PP:
+            assert r.pp[k] == pytest.approx(ref[k], rel=1e-9, abs=1e-12), k
+        for k in ("p1", "p2", "p12"):
+            assert r.priors_effective[k] == pytest.approx(ref[k], rel=1e-12), k
+        assert list(r.priors_adjusted) == _LARGE["configs"][name]["adjusted"]
+        assert r.priors == {"p1": 1e-4, "p2": 1e-4, "p12": p12}
+
+    @pytest.mark.parametrize("name", sorted(_LARGE["configs"]))
+    def test_the_fixture_tells_unadjusted_priors_apart_from_r(self, name):
+        """The defect, built: requested priors used as given. H3 carries p1 * p2,
+        so it moves most, and it misses R by far more than the parity tolerance."""
+        d1, d2, p12 = _large_pair(name)
+        a = aligned_log_abf(d1, d2)
+        flat = combine_abf(a.l1, a.l2, p1=1e-4, p2=1e-4, p12=p12)
+        assert abs(flat["H3"] - _LARGE["r_reference"][name]["PP.H3"]) > 1e-3
+
+    def test_each_prior_is_checked_against_its_own_dataset(self):
+        """Config B: 10,500 vs 9,999 rows, 9,999 shared. R lowers p1 because dataset
+        1 is 10,500 rows whole. Checked against the shared count, nothing is lowered
+        and B misses R."""
+        d1, d2, p12 = _large_pair("B")
+        a = aligned_log_abf(d1, d2)
+        n12 = len(a.shared_snps)
+        wrong = effective_priors(1e-4, 1e-4, p12, n1=n12, n2=n12, n12=n12)
+        assert wrong.adjusted == ()
+        pp = combine_abf(a.l1, a.l2, **wrong.effective)
+        assert abs(pp["H3"] - _LARGE["r_reference"]["B"]["PP.H3"]) > 1e-3
+        right = effective_priors(1e-4, 1e-4, 1e-4, n1=10_500, n2=9_999, n12=9_000)
+        assert right.adjusted == ("p1",)
+
+    def test_the_threshold_is_inclusive(self):
+        assert adjust_prior(1e-4, 9_999) == 1e-4
+        assert adjust_prior(1e-4, 10_000) == 1 / 10_001
+        assert adjust_prior(1e-5, 99_999) == 1e-5
+        assert adjust_prior(1e-5, 100_000) == 1 / 100_001
+
+    def test_the_adjustment_is_said_in_the_notes(self):
+        d1, d2, p12 = _large_pair("A")
+        r = run_coloc_abf(d1, d2, p12=p12)
+        said = [n for n in r.notes if "priors were lowered" in n]
+        assert len(said) == 1
+        assert "p1 from 0.0001 to 8.33e-05 (12,000 variants in the first dataset)" in said[0]
+
+    def test_a_small_region_is_untouched_and_says_nothing(self):
+        d1, d2 = _region()
+        r = run_coloc_abf(d1, d2)
+        assert r.priors_adjusted == ()
+        assert r.priors_effective == r.priors
+        assert not [n for n in r.notes if "priors were lowered" in n]
+
+    def test_a_full_count_below_the_shared_count_is_refused(self):
+        d1, d2, _ = _large_pair("A")
+        with pytest.raises(ColocError, match="12,000 shared variants, more than the 11,999"):
+            aligned_log_abf(d1, d2, n_full=(12_000, 11_999))
+
+    def test_a_lowered_prior_never_prints_as_its_requested_value(self):
+        assert format_prior_change(1e-4, 1 / 12_001) == ("0.0001", "8.33e-05")
+        assert format_prior_change(1e-4, 1 / 10_001) == ("0.0001", "9.999e-05")
+        assert format_prior_change(1e-5, 1e-5) == ("1e-05", "1e-05")
+
+
+class TestSensitivityOnALargeRegion:
+
+    def test_the_sweep_lowers_each_point_as_r_does_and_names_the_cap(self):
+        """At 12,000 shared variants the default p12 = 1e-5 is untouched but the top
+        of the grid, 1e-4, is lowered: the sweep reaches the adjusted regime before
+        the call it is the sensitivity analysis of. Its top point is config C."""
+        d1, d2, _ = _large_pair("A")
+        s = coloc_sensitivity(d1, d2)
+        cap = 1 / 12_001
+        clamped = [pt for pt in s.points if pt.clamped]
+        assert [pt.p12 for pt in clamped] == [1e-4]
+        assert s.p12_cap == pytest.approx(cap)
+        top = s.points[-1]
+        assert top.p12_effective == pytest.approx(cap)
+        assert top.h4 == pytest.approx(_LARGE["r_reference"]["C"]["PP.H4"], rel=1e-9)
+        assert top.h3 == pytest.approx(_LARGE["r_reference"]["C"]["PP.H3"], rel=1e-9)
+        assert s.h4_at_default == pytest.approx(_LARGE["r_reference"]["A"]["PP.H4"], rel=1e-9)
+        assert s.p12_cap_note.startswith(
+            "1 of 9 p12 grid points (0.0001) is above coloc's cap of 8.33e-05")
+
+    def test_a_robust_verdict_names_the_cap(self):
+        s = coloc_sensitivity(*_strong_large())
+        assert s.robust and s.p12_cap is not None
+        assert "capped at 8.33e-05 on this region, as coloc does" in s.verdict
+
+    def test_a_small_region_sweep_names_no_cap(self):
+        d1, d2 = _region()
+        s = coloc_sensitivity(d1, d2)
+        assert s.p12_cap is None and s.p12_cap_note is None
+        assert "capped" not in s.verdict
+        assert all(not pt.clamped for pt in s.points)
+
+
+def _logspace_one_ulp_off(direction: float):
+    """np.logspace with every point moved one ULP, as a platform whose pow is not
+    correctly rounded can return it."""
+    real = np.logspace
+
+    def fake(*args, **kwargs):
+        return np.nextafter(real(*args, **kwargs), direction * np.inf)
+
+    return fake
+
+
+class TestSweepGrid:
+
+    @pytest.mark.parametrize("direction", [1.0, -1.0])
+    def test_the_grid_is_nine_points_whatever_the_last_bit_of_pow(self, monkeypatch, direction):
+        """One ULP off, the middle point no longer equals the default p12, so it was
+        kept beside it: ten points where nine were asked for."""
+        monkeypatch.setattr(np, "logspace", _logspace_one_ulp_off(direction))
+        d1, d2 = _region()
+        grid = [pt.p12 for pt in coloc_sensitivity(d1, d2).points]
+        assert len(grid) == 9
+        assert grid[0] == 1e-6 and grid[4] == 1e-5 and grid[-1] == 1e-4
+
+    def test_the_top_point_is_lowered_at_exactly_10000_shared_variants(self, monkeypatch):
+        """R lowers p12 = 1e-4 at 10,000 variants (10,000 * 1e-4 >= 1). One ULP under
+        1e-4 the product falls below 1 and the top of the sweep would escape it."""
+        monkeypatch.setattr(np, "logspace", _logspace_one_ulp_off(-1.0))
+        s = coloc_sensitivity(*_strong_large(10_000))
+        assert s.points[-1].p12 == 1e-4 and s.points[-1].clamped
+        assert s.p12_cap == 1 / 10_001

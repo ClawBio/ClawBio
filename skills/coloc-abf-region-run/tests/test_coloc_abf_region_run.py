@@ -570,3 +570,103 @@ class TestOutputContract:
         payload = json.loads((out / "result.json").read_text())
         assert payload["excluded_variants"]["total"] == 3
         assert sum(payload["excluded_variants"]["by_reason"].values()) == 3
+
+
+# ---------------------------------------------------------------------------
+# Large regions: each file's own count reaches the prior adjustment
+# ---------------------------------------------------------------------------
+
+_LARGE = json.loads(
+    (Path(__file__).parent / "fixtures" / "coloc_abf_large_region_r_reference.json").read_text())
+
+
+def _closed_form_rows(trait: str, n: int, start: int) -> list[str]:
+    """The closed-form signal of capture_r_reference_large_region.R as file rows."""
+    import numpy as np
+    g = _LARGE["generator"][trait]
+    i = np.arange(start, start + n)
+    z = 0.9 * np.sin(g["a"] * i + g["ph"]) + 0.6 * np.cos(g["b"] * i)
+    for pos, zl in g["leads"]:
+        z[i == pos] = zl
+    return [_row(f"1_{1000000 + k}_A_G", 1000000 + k, "A", "G", repr(0.01 * zk), 0.01)
+            for k, zk in zip(i.tolist(), z.tolist())]
+
+
+def _run_large(tmp_path: Path, name: str, rows1=None, rows2=None) -> dict:
+    cf = _LARGE["configs"][name]
+    _write_tsv(tmp_path / "t1.tsv", rows1 or _closed_form_rows("trait1", cf["n1"], cf["start1"]))
+    _write_tsv(tmp_path / "t2.tsv", rows2 or _closed_form_rows("trait2", cf["n2"], cf["start2"]))
+    config = tmp_path / "run.json"
+    config.write_text(json.dumps({
+        "trait1": {"sumstats": "t1.tsv", "trait_type": "quant", "sdY": 1.0},
+        "trait2": {"sumstats": "t2.tsv", "trait_type": "quant", "sdY": 1.0},
+        "priors": {"p1": 1e-4, "p2": 1e-4, "p12": cf["p12"]},
+    }), encoding="utf-8")
+    return skill.run_from_config(config, tmp_path / "out", "test")
+
+
+class TestLargeRegion:
+
+    def test_unequal_files_are_each_counted_whole_and_match_r(self, tmp_path):
+        """Config B from files: 10,500 rows against 9,999, so 9,999 shared. The runner
+        pairs the files before building the datasets; R lowers p1 because the first
+        file is 10,500 rows, which counting the shared rows would miss."""
+        run = _run_large(tmp_path, "B")
+        ref = _LARGE["r_reference"]["B"]
+        for k in ("PP.H0", "PP.H1", "PP.H2", "PP.H3", "PP.H4"):
+            assert run["result"].pp[k] == pytest.approx(ref[k], rel=1e-9), k
+        assert run["result"].priors_adjusted == ("p1",)
+        assert run["sensitivity"].h4_at_default == pytest.approx(ref["PP.H4"], rel=1e-9)
+        payload = json.loads((tmp_path / "out" / "result.json").read_text())
+        assert payload["traits"]["trait1"]["variants_counted"] == 10_500
+        assert payload["traits"]["trait2"]["variants_counted"] == 9_999
+        assert payload["priors"] == {"p1": 1e-4, "p2": 1e-4, "p12": 1e-5}
+        assert payload["priors_effective"]["p1"] == pytest.approx(ref["p1"], rel=1e-12)
+        assert payload["priors_adjusted"] == ["p1"]
+
+    def test_the_report_and_headline_say_which_priors_were_used(self, tmp_path):
+        run = _run_large(tmp_path, "A")
+        md = (tmp_path / "out" / "report.md").read_text()
+        assert ("These posteriors use priors lowered for a large region, as R coloc "
+                "does: p1 = 8.33e-05 (requested 0.0001), p2 = 8.33e-05 "
+                "(requested 0.0001)") in md
+        assert "1 of 9 p12 grid points (0.0001) is above coloc's cap of 8.33e-05" in md
+        assert "priors lowered for a large region: p1, p2" in skill.headline(run)
+        with (tmp_path / "out" / "tables" / "sensitivity_p12.tsv").open(newline="") as fh:
+            top = list(csv.DictReader(fh, delimiter="\t"))[-1]
+        assert (top["p12"], top["p12_used"]) == ("0.0001", "8.33264e-05")
+
+    def test_a_small_region_report_says_nothing_about_lowered_priors(self, tmp_path):
+        skill.main(["--demo", "--output", str(tmp_path)])
+        md = (tmp_path / "report.md").read_text()
+        assert "lowered" not in md and "cap of" not in md
+
+
+class TestFileCount:
+    """What each file contributes to the prior adjustment: R counts the rows it is
+    handed and merges none, so every row with a beta and an se counts, whatever
+    their values, and only an exact copy (same id, position and alleles) collapses."""
+
+    def test_the_count_follows_the_rows_not_the_identifier(self):
+        def row(vid, pos, ref, alt, beta=0.1, se=0.02, chrom="1"):
+            return skill.SumstatRow(vid, chrom, pos, ref, alt, beta, se, None, None, None)
+        rows = [row("1_10_A_G", 10, "A", "G"),
+                row("1_10_A_G", 10, "A", "G"),                # exact copy: once
+                row("1_10_A_G", 10, "a", "g", chrom="chr1"),  # same row, other spelling
+                row("rs1", 0, "C", "A"), row("rs2", 0, "C", "A"),  # two ids, one position
+                row(".", 12, "A", "G"), row(".", 13, "A", "G"),    # one placeholder, two positions
+                row("1_14_C_A", 14, "C", "A", se=0.0),        # zero se: R counts it
+                row("1_15_C_G", 15, "C", "G", beta=None),     # no beta: not counted
+                row("1_16_C_G", 16, "C", "G", se=float("nan"))]  # no se: not counted
+        assert skill.variants_in_file(rows) == 6
+
+    def test_a_beta_written_minus_nan_is_read_as_missing(self, tmp_path):
+        """PLINK and C printf write a missing value as '-nan', which parses to NaN."""
+        path = _write_tsv(tmp_path / "a.tsv", [
+            _row("rs1", 100, "A", "G", "-nan", 0.02),
+            _row("rs2", 200, "C", "T", 0.1, "nan"),
+        ])
+        rows = skill.load_regional_sumstats(path)
+        assert rows[0].beta is None and rows[1].se is None
+        paired = skill.pair_region(rows, rows)
+        assert {e["reason"] for e in paired.excluded} == {skill.EXCLUDED_MISSING_STATS}

@@ -147,9 +147,8 @@ evidence favours one shared causal variant or two different ones.
   the candidate shared variant, and a statement of whether the call survives the
   prior it is most sensitive to.
 - **Why ClawBio**: the arithmetic is written from Wakefield 2009 and
-  Giambartolomei 2014 rather than guessed, it is pinned against the R
-  implementation's own output on a frozen example, and every claim it refuses to
-  make is in the report.
+  Giambartolomei 2014, it is pinned against R coloc's own output on four frozen
+  examples, and every claim it refuses to make is in the report.
 
 ## Core Capabilities
 
@@ -201,9 +200,10 @@ give `beta` as log odds.
    quantitative trait, `0.2^2` for a case-control trait, estimating sdY when it
    was not supplied.
 5. **Compute** each trait's per-variant approximate Bayes factor and combine them
-   into PP.H0 to PP.H4 at the configured priors.
-6. **Sweep** p12 across the plausible range and judge the result against the
-   rule, recording whether the verdict changes inside the range.
+   into PP.H0 to PP.H4 at the configured priors, lowered on a large region as R
+   coloc lowers them. Prescriptive: when a prior is lowered, the report says so.
+6. **Sweep** p12 across the plausible range (9 points, ends exact) and judge the
+   result against the rule, recording whether the verdict changes inside it.
 7. **Report**: write `report.md`, `result.json`, the tables, the sensitivity
    figure and the reproducibility bundle. Interpretive: the narrative may explain
    what the posteriors mean for the user's question, but must not restate a
@@ -253,10 +253,8 @@ shared variant is `1_109300000_A_C`, and the prior sweep returns robust. The
 second demo, `distinct_signals_negative`, uses the same window with the two
 causal variants 60 kb apart and returns PP.H3 of 1.00 and no shared signal.
 
-Both demo tables are synthetic and say so in their file names. They are written
-by `examples/make_demo_data.py` from a fixed seed, and a test regenerates them
-and requires a byte-for-byte match, so the committed data is auditable rather
-than taken on trust.
+The demo tables are synthetic, written by `examples/make_demo_data.py` from a
+fixed seed; a test regenerates them and requires a byte-for-byte match.
 
 ## Algorithm / Methodology
 
@@ -273,8 +271,15 @@ than taken on trust.
    `lH4 = log(p12) + logsum(l1+l2)`; `lH0 = 0`; then normalise.
 4. **Per-variant H4 share**: `exp(l1+l2)` normalised, which gives the candidate
    shared variant and the size of the smallest set holding 95% of that evidence.
-5. **Prior sweep** (Wallace 2020): recompute the posteriors across p12 and report
-   whether the rule's verdict is constant across the range.
+5. **Large-region prior adjustment** (R coloc, CRAN 5.2.2 and later): where
+   `n p >= 1`, a prior is lowered to `1/(n+1)`, with `p1` checked against the
+   first file's variants, `p2` against the second's and `p12` against the shared
+   ones. The default `p1` and `p2` are lowered from 10,000 variants, `p12` from
+   100,000. Not in the papers; matched to R and pinned against R's output.
+6. **Prior sweep** (Wallace 2020): recompute the posteriors across p12 and report
+   whether the rule's verdict is constant across the range. Each point is
+   adjusted as in step 5, so on a region of 10,000 or more shared variants the
+   top of the sweep is capped while the default call is not; the verdict says so.
 
 **Key thresholds and parameters**, all three priors configurable:
 - `p1 = p2 = 1e-4`, the single-trait priors used throughout Wallace 2020, whose
@@ -362,9 +367,7 @@ output_directory/
 - `matplotlib` >= 3.7; the sensitivity figure
 - `pyyaml` >= 6.0; reading the config
 
-**Not a dependency**: the R `coloc` package. The arithmetic here is written from
-the papers, and the R implementation is used only as an offline reference whose
-output is frozen in `tests/fixtures/coloc_abf_r_reference.json`. See Safety.
+**Not a dependency**: the R `coloc` package, an offline reference only (Safety).
 
 ## Gotchas
 
@@ -419,9 +422,10 @@ output is frozen in `tests/fixtures/coloc_abf_r_reference.json`. See Safety.
   read local files only; nothing is uploaded.
 - **Licence boundary**: the R `coloc` package is GPL and ClawBio is MIT, so it is
   never installed, imported, vendored or invoked. The arithmetic is a clean-room
-  implementation from Wakefield 2009 and Giambartolomei 2014. `tests/capture_r_reference.R`
-  exists so that anyone can re-derive the reference numbers in an environment of
-  their own; it is not run by the test suite and installs nothing here.
+  implementation from Wakefield 2009 and Giambartolomei 2014; the large-region
+  prior adjustment is matched to R's behaviour. The two `tests/capture_r_reference*.R`
+  scripts let anyone re-derive the reference numbers in an environment of their
+  own; the test suite does not run them.
 - **Disclaimer**: every report carries the ClawBio medical disclaimer.
 - **No hallucinated science**: every prior, prior SD and swept range traces to a
   cited paper, and the one threshold the skill applies is named, configurable and
@@ -464,7 +468,7 @@ claim, suppress a `prior_driven` verdict, or restate PP.H3 as a null result.
 - **Input**: a config naming two files, each with a trait type and either sdY or
   a sample size
 - **Output**: `result.json` with `posteriors` (the five, keyed PP.H0 to PP.H4),
-  `lead_variant`, `n_shared_variants`, `n_colocalising_variants`, a `sensitivity`
+  `priors` as requested and `priors_effective` as used, `lead_variant`, `n_shared_variants`, `n_colocalising_variants`, a `sensitivity`
   object (`rule`, `verdict`, `shared_signal_at_default_p12`, `prior_driven`,
   `robust`, `points`), `excluded_variants` counts by reason, and `caveats`.
   Written with `allow_nan=False`, so it is valid JSON or it is not written.
@@ -476,7 +480,7 @@ claim, suppress a `prior_driven` verdict, or restate PP.H3 as a null result.
   produces.
 - **Staleness signals**: a new recommended p12 range; a revision to the sdY
   estimator; an R coloc release that changes the frozen reference numbers, which
-  is what `capture_r_reference.R` is for.
+  is what the capture scripts are for.
 - **Deprecation**: a multiple-causal-variant colocalisation skill would not
   replace this one, which needs no LD reference panel and so runs on data such a
   skill cannot.
