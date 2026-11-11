@@ -2,7 +2,7 @@
 
 We welcome skills from anyone working in bioinformatics, computational biology, or related fields.
 
-**Join the contributors community: [t.me/ClawBioContributors](https://t.me/ClawBioContributors)**
+**Join the contributors community on Slack: the [`#all-clawbio` channel](https://clawbioworkspace.slack.com/channels/all-clawbio) ([invite](https://clawbio.ai/join/slack/))**
 
 ## Working on an Issue
 
