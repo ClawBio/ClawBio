@@ -293,7 +293,8 @@ output_directory/
 ├── report_technical.pdf         # Typeset technical report (optional; needs reportlab)
 ├── result.json                  # Verdicts, calibration provenance, gated scores
 ├── figures/
-│   └── gate_overview.png        # Panel PCA with threshold circle (optional; needs matplotlib)
+│   ├── gate_overview.png        # Panel PCA with threshold circle (optional; needs matplotlib)
+│   └── individual_<id>.png      # One per individual (optional; needs matplotlib)
 ├── tables/
 │   ├── decisions.csv            # One row per individual
 │   ├── gated_scores.csv         # One row per individual x score
@@ -301,7 +302,8 @@ output_directory/
 │   └── af_shift_per_variant.csv # Per-SNP percentile shift (optional; needs --population-af)
 └── reproducibility/
     ├── commands.sh              # Exact command to reproduce
-    └── environment.yml          # Environment snapshot
+    ├── environment.yml          # Environment snapshot
+    └── checksums.sha256         # SHA-256 of every output above; verify with `cd output_directory && sha256sum -c reproducibility/checksums.sha256`
 ```
 
 ## Dependencies
