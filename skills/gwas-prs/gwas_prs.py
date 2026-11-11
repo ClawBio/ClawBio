@@ -828,25 +828,34 @@ def estimate_percentile(
 # ---------------------------------------------------------------------------
 
 
-def generate_report(
-    results: list[dict],
-    input_info: dict,
-    args: argparse.Namespace,
-) -> str:
-    """Generate a Markdown report from PRS results.
+SKIP_REASON_LOW_OVERLAP = "overlap_below_min_overlap"
+SKIP_REASON_NO_VARIANTS = "no_valid_variants"
 
-    Args:
-        results: List of per-score result dicts, each containing:
-            score_id, pgs_id, trait, prs (from calculate_prs), percentile_info
-            (from estimate_percentile), metadata, scoring_variants.
-        input_info: Dict with format, total_snps, filepath.
-        args: CLI args namespace.
 
-    Returns:
-        Markdown string.
+def skipped_score_record(
+    identity: dict, prs: dict, min_overlap: float
+) -> Optional[dict]:
+    """The record kept for a score the ``--min-overlap`` gate withholds.
+
+    Returns None when the overlap clears the gate and the score is calculated.
+    The record carries what a reader needs to see why no result exists: the
+    score's identity, how many of its variants were found, and the bar.
     """
+    if not (prs["overlap_fraction"] < min_overlap):
+        return None
+    return {
+        **identity,
+        "reason": SKIP_REASON_LOW_OVERLAP,
+        "variants_used": prs["variants_used"],
+        "variants_total": prs["variants_total"],
+        "overlap_fraction": prs["overlap_fraction"],
+        "min_overlap": min_overlap,
+    }
+
+
+def _report_header(input_info: dict, args: argparse.Namespace) -> list[str]:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    lines = [
+    return [
         "# GWAS Polygenic Risk Score Report",
         "",
         f"**Date**: {now}",
@@ -859,6 +868,86 @@ def generate_report(
         "---",
         "",
     ]
+
+
+def _skipped_scores_section(skipped: list[dict]) -> list[str]:
+    """Markdown for the scores that were requested and not calculated."""
+    lines = [
+        "## Scores Not Calculated",
+        "",
+        "These scores were requested and withheld. No result is reported for them.",
+        "",
+        "| Score ID | Trait | Variants matched | Overlap | Reason | Source |",
+        "|----------|-------|------------------|---------|--------|--------|",
+    ]
+    for s in skipped:
+        if s["reason"] == SKIP_REASON_LOW_OVERLAP:
+            matched = f"{s['variants_used']}/{s['variants_total']}"
+            overlap = f"{s['overlap_fraction'] * 100:.1f}%"
+            reason = f"below `--min-overlap` {s['min_overlap'] * 100:.0f}%"
+        else:
+            matched = "0/0"
+            overlap = "N/A"
+            reason = "scoring file has no usable variants"
+        source = (
+            "ClawBio curated demo panel, NOT a PGS Catalog score"
+            if s.get("curated_demo_panel")
+            else "PGS Catalog"
+        )
+        lines.append(
+            f"| {s['score_id']} | {s.get('trait', 'Unknown')} | {matched} "
+            f"| {overlap} | {reason} | {source} |"
+        )
+    lines += [
+        "",
+        "A score is calculated only when the share of its variants found in the "
+        "genotype file reaches `--min-overlap`. Below that it is withheld rather "
+        "than calculated from a subset of its variants.",
+        "",
+    ]
+    return lines
+
+
+def generate_no_score_report(
+    skipped: list[dict],
+    input_info: dict,
+    args: argparse.Namespace,
+) -> str:
+    """Report for a run in which no requested score was calculated."""
+    lines = _report_header(input_info, args)
+    lines += [
+        "## Summary",
+        "",
+        "No polygenic risk score was calculated. Every requested score was "
+        "withheld for the reason given below, so this report carries no result.",
+        "",
+    ]
+    lines += _skipped_scores_section(skipped)
+    lines += ["## Disclaimer", "", f"*{DISCLAIMER}*", ""]
+    return "\n".join(lines)
+
+
+def generate_report(
+    results: list[dict],
+    input_info: dict,
+    args: argparse.Namespace,
+    skipped: Optional[list[dict]] = None,
+) -> str:
+    """Generate a Markdown report from PRS results.
+
+    Args:
+        results: List of per-score result dicts, each containing:
+            score_id, pgs_id, trait, prs (from calculate_prs), percentile_info
+            (from estimate_percentile), metadata, scoring_variants.
+        input_info: Dict with format, total_snps, filepath.
+        args: CLI args namespace.
+        skipped: Records from skipped_score_record for scores that were
+            requested and not calculated; listed in their own section.
+
+    Returns:
+        Markdown string.
+    """
+    lines = _report_header(input_info, args)
 
     # ----- Summary table -----
     lines.append("## Summary")
@@ -907,6 +996,10 @@ def generate_report(
                 f"({prs['overlap_fraction'] * 100:.1f}% overlap)"
             )
         lines.append("")
+
+    # ----- Scores requested and withheld -----
+    if skipped:
+        lines += _skipped_scores_section(skipped)
 
     # ----- Per-score detail sections -----
     lines.append("---")
@@ -1527,6 +1620,11 @@ def main():
     # Step 3: Calculate PRS for each scoring file
     # -----------------------------------------------------------
     all_results: list[dict] = []
+    # Scores that were requested and not calculated. They go into the report
+    # and result.json, so a withheld score leaves a record outside stdout.
+    skipped_scores: list[dict] = []
+    # Every scoring file this run evaluated, scored or not, for provenance.
+    evaluated_scoring_files: list[dict] = []
 
     for sf in scoring_files:
         score_id = sf["score_id"]
@@ -1537,10 +1635,40 @@ def main():
 
         print(f"Scoring {score_id} ({trait})...")
 
+        # Issue #356: carry the panel marker on the result itself, so every
+        # durable artefact can state it. Derived from the file that was
+        # actually scored, not from the accession, so it stays true whichever
+        # path (--demo, --pgs-id, --trait) selected it.
+        curated = is_curated_demo_panel(sf["filepath"])
+        curated_meta = CURATED_SCORES.get(score_id, {}) if curated else {}
+        identity = {
+            "score_id": score_id,
+            "pgs_id": pgs_id,
+            "trait": trait,
+            "curated_demo_panel": curated,
+            "curated_panel_id": score_id if curated else None,
+            "legacy_pgs_id": curated_meta.get("legacy_pgs_id"),
+            "legacy_pgs_compatibility": bool(
+                sf.get("legacy_pgs_compatibility")
+            ),
+            "pgs_catalog_id": (
+                curated_meta.get("pgs_catalog_id") if curated else pgs_id
+            ),
+        }
+        evaluated_scoring_files.append({**identity, "filepath": Path(filepath)})
+
         # Parse scoring file
         scoring_variants = parse_scoring_file(filepath)
         if not scoring_variants:
             print(f"  WARNING: No valid variants in scoring file, skipping")
+            skipped_scores.append({
+                **identity,
+                "reason": SKIP_REASON_NO_VARIANTS,
+                "variants_used": 0,
+                "variants_total": 0,
+                "overlap_fraction": None,
+                "min_overlap": args.min_overlap,
+            })
             continue
 
         print(f"  Variants in score: {len(scoring_variants)}")
@@ -1553,11 +1681,13 @@ def main():
         )
 
         # Check minimum overlap
-        if prs["overlap_fraction"] < args.min_overlap:
+        skipped = skipped_score_record(identity, prs, args.min_overlap)
+        if skipped is not None:
             print(
                 f"  Skipping: overlap {prs['overlap_fraction'] * 100:.1f}% "
                 f"below --min-overlap {args.min_overlap * 100:.0f}%"
             )
+            skipped_scores.append(skipped)
             continue
 
         print(f"  Raw PRS: {prs['raw_score']:.6f}")
@@ -1575,36 +1705,14 @@ def main():
         else:
             print("  Percentile: N/A (no reference distribution available)")
 
-        # Issue #356: carry the panel marker on the result itself, so every
-        # durable artefact can state it. Derived from the file that was
-        # actually scored, not from the accession, so it stays true whichever
-        # path (--demo, --pgs-id, --trait) selected it.
-        curated = is_curated_demo_panel(sf["filepath"])
-        curated_meta = CURATED_SCORES.get(score_id, {}) if curated else {}
         all_results.append({
-            "score_id": score_id,
-            "pgs_id": pgs_id,
-            "trait": trait,
+            **identity,
             "prs": prs,
             "percentile_info": pct_info,
             "metadata": metadata,
             "scoring_variants": scoring_variants,
-            "scoring_file_path": Path(filepath),
-            "curated_demo_panel": curated,
-            "curated_panel_id": score_id if curated else None,
-            "legacy_pgs_id": curated_meta.get("legacy_pgs_id"),
-            "legacy_pgs_compatibility": bool(
-                sf.get("legacy_pgs_compatibility")
-            ),
-            "pgs_catalog_id": (
-                curated_meta.get("pgs_catalog_id") if curated else pgs_id
-            ),
         })
         print()
-
-    if not all_results:
-        print("No scores produced results. Check input file and overlap.")
-        sys.exit(0)
 
     # -----------------------------------------------------------
     # Step 4: Generate report
@@ -1612,7 +1720,16 @@ def main():
     # Strip per_variant from results before report to keep report manageable
     # (the generate_report function accesses prs["per_variant"] directly)
 
-    report = generate_report(all_results, input_info, args)
+    if all_results:
+        report = generate_report(
+            all_results, input_info, args, skipped=skipped_scores
+        )
+    else:
+        # Nothing was calculated. The run still exits 0 and writes the same
+        # output files as any other run, so a caller can tell "asked and
+        # withheld" from a run that never happened.
+        print("No scores produced results. Check input file and overlap.")
+        report = generate_no_score_report(skipped_scores, input_info, args)
 
     if args.output:
         output_dir = Path(args.output)
@@ -1679,17 +1796,25 @@ def main():
             version="0.2.0",
             summary={
                 "scores_calculated": len(all_results),
+                "scores_skipped": len(skipped_scores),
                 "trait": first.get("trait", ""),
                 "score_id": first.get("score_id"),
                 "pgs_id": first.get("pgs_id"),
                 # Issue #356: a consumer reading this envelope, for example
                 # profile-report, must be able to tell a curated panel from a
-                # PGS Catalog score without reading our stdout.
-                "curated_demo_panel": bool(first.get("curated_demo_panel")),
+                # PGS Catalog score without reading our stdout. With no
+                # calculated score there is no panel to describe, so these
+                # are null rather than a false that reads as "not curated";
+                # data.skipped_scores carries each skipped score's identity.
+                "curated_demo_panel": (
+                    bool(first.get("curated_demo_panel")) if all_results else None
+                ),
                 "curated_panel_id": first.get("curated_panel_id"),
                 "legacy_pgs_id": first.get("legacy_pgs_id"),
-                "legacy_pgs_compatibility": first.get(
-                    "legacy_pgs_compatibility", False
+                "legacy_pgs_compatibility": (
+                    first.get("legacy_pgs_compatibility", False)
+                    if all_results
+                    else None
                 ),
                 "pgs_catalog_id": first.get("pgs_catalog_id"),
                 "raw_score": first.get("prs", {}).get("raw_score"),
@@ -1700,6 +1825,7 @@ def main():
             data={
                 "input_info": input_info,
                 "results": json_results,
+                "skipped_scores": skipped_scores,
             },
             input_checksum=sha256_hex(str(input_path)) if input_path.exists() else "",
         )
@@ -1709,20 +1835,7 @@ def main():
             output_dir=output_dir,
             input_path=input_path,
             input_info=input_info,
-            scoring_files=[
-                {
-                    "score_id": result["score_id"],
-                    "pgs_id": result["pgs_id"],
-                    "trait": result["trait"],
-                    "filepath": result["scoring_file_path"],
-                    "curated_demo_panel": result["curated_demo_panel"],
-                    "curated_panel_id": result["curated_panel_id"],
-                    "legacy_pgs_id": result["legacy_pgs_id"],
-                    "legacy_pgs_compatibility": result["legacy_pgs_compatibility"],
-                    "pgs_catalog_id": result["pgs_catalog_id"],
-                }
-                for result in all_results
-            ],
+            scoring_files=evaluated_scoring_files,
             args=args,
             output_paths=[report_path, json_path, csv_path, result_json_path],
         )
@@ -1742,6 +1855,8 @@ def main():
     print("=" * 60)
     print("PRS SUMMARY")
     print("=" * 60)
+    if not all_results:
+        print("  No polygenic risk score was calculated.")
     for r in all_results:
         pct = r["percentile_info"]
         pct_str = (
