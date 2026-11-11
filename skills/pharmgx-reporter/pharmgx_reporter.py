@@ -28,6 +28,9 @@ from clawbio.common.parsers import parse_genetic_file, genotypes_to_simple, geno
 from clawbio.common.checksums import sha256_hex, sha256_file
 from clawbio.common.report import write_result_json, DISCLAIMER
 from clawbio.common.html_report import HtmlReportBuilder, write_html_report
+from clawbio.common.reproducibility import (
+    ReproCommand, ReproPath, write_checksums, write_environment_yml, write_portable_commands_sh,
+)
 
 # ---------------------------------------------------------------------------
 # Strand utilities (mirrors nutrigx/extract_genotypes.py)
@@ -2136,31 +2139,29 @@ def generate_html_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_r
 # 8. Main
 # ---------------------------------------------------------------------------
 
-def write_commands_sh(output_dir, input_path):
-    """Write reproducibility/commands.sh with the exact command to regenerate the report.
+def write_repro_bundle(outdir, args, outputs):
+    """Write reproducibility/ (commands.sh, environment.yml, checksums.sha256) for this run.
 
-    The SKILL.md output contract documents output_dir/reproducibility/commands.sh,
-    so the script must always produce it (not rely on the calling agent to create it).
-    Returns the path to the written file.
+    checksums.sha256 is written last so it covers the other two bundle files.
+    Returns the path to commands.sh.
     """
-    repro_dir = Path(output_dir) / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
-    fname = Path(input_path).name
-    checksum = sha256_file(str(input_path))
-    script = "\n".join([
-        "#!/usr/bin/env bash",
-        "# Reproduce this ClawBio PharmGx report.",
-        f"# Input file: {fname}",
-        f"# Input SHA-256: {checksum}",
-        "set -euo pipefail",
-        "",
-        f"python pharmgx_reporter.py --input {fname} --output report",
-        "",
-    ])
-    path = repro_dir / "commands.sh"
-    path.write_text(script)
-    path.chmod(0o755)
-    return path
+    repo_root = Path(__file__).resolve().parents[2]
+    outdir = Path(outdir).resolve()
+    if args.demo:
+        cli = ["--demo"]
+    else:
+        cli = ["--input", ReproPath(Path(args.input).resolve(), anchor="repo_root")]
+        if args.no_enrich:
+            cli.append("--no-enrich")
+    cli += ["--output", ReproPath(outdir, anchor="output_dir")]
+    commands = write_portable_commands_sh(outdir, ReproCommand(
+        script_path=Path(__file__).resolve().relative_to(repo_root),
+        args=cli,
+        comment=f"Reproduce this ClawBio PharmGx report. Input SHA-256: {sha256_file(str(args.input))}",
+    ), repo_root=repo_root)
+    env = write_environment_yml(outdir, "clawbio-pharmgx-reporter", pip_deps=[])
+    write_checksums([*outputs, commands, env], outdir, anchor=outdir)
+    return commands
 
 
 def main():
@@ -2371,8 +2372,7 @@ def main():
         input_checksum=input_checksum,
     )
 
-    # Write reproducibility/commands.sh (documented in the SKILL.md output contract)
-    commands_path = write_commands_sh(outdir, args.input)
+    commands_path = write_repro_bundle(outdir, args, [report_path, html_path, result_json_path])
 
     print(f"Report saved: {report_path}")
     print(f"HTML report:  {html_path}")

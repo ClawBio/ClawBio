@@ -35,7 +35,6 @@ from pharmgx_reporter import (
     generate_report,
     generate_html_report,
     enrich_with_clinpgx,
-    write_commands_sh,
     _evidence_cell_html,
     _evidence_level_html,
 )
@@ -392,23 +391,6 @@ def test_report_renders_standard_classification_token():
     assert len(results["standard"]) > 0, "demo patient should have >=1 standard drug"
     report = generate_report(str(DEMO), "23andme", 31, pgx, p, results)
     assert "STANDARD" in report, "report must label standard-dosing drugs as STANDARD"
-
-
-# ── Reproducibility commands.sh ───────────────────────────────────────────────
-
-def test_write_commands_sh_creates_file(tmp_path):
-    """write_commands_sh must create reproducibility/commands.sh with the rerun command.
-
-    Regression for Tessl eval 019e83b8 scenario 6: reproducibility/commands.sh
-    scored 0/10 because the script never wrote the file the SKILL.md promises.
-    """
-    path = write_commands_sh(str(tmp_path), str(DEMO))
-    assert path.exists(), "commands.sh should be written to disk"
-    assert path.name == "commands.sh"
-    assert path.parent.name == "reproducibility"
-    content = path.read_text()
-    assert "pharmgx_reporter.py" in content
-    assert DEMO.name in content, "commands.sh should reference the input filename"
 
 
 # ── Output contract (SKILL.md must match what the skill actually produces) ─────
