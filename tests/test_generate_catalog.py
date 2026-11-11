@@ -78,20 +78,18 @@ def test_build_catalog_adds_objective_maturity_tiers():
 
     catalog = {entry["name"]: entry for entry in generate_catalog.build_catalog()}
 
-    assert catalog["pharmgx-reporter"]["maturity_tier"] == "ci-validated"
+    assert catalog["pharmgx-reporter"]["maturity_tier"] == "cli-registered"
     assert catalog["pharmgx-reporter"]["maturity_evidence"] == {
         "has_skill_md": True,
         "has_script": True,
         "has_tests": True,
         "has_demo": True,
         "cli_registered": True,
-        "ci_tested": True,
         "benchmark_validated": False,
     }
 
     assert catalog["fastreer"]["maturity_tier"] == "cli-registered"
     assert catalog["fastreer"]["maturity_evidence"]["cli_registered"] is True
-    assert catalog["fastreer"]["maturity_evidence"]["ci_tested"] is False
 
     assert catalog["claw-semantic-sim"]["maturity_tier"] == "spec-only"
     assert catalog["claw-semantic-sim"]["maturity_evidence"]["has_script"] is False
