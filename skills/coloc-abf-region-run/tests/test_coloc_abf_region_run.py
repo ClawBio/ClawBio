@@ -69,6 +69,37 @@ class TestLoading:
         assert rows[0].eaf == pytest.approx(0.31)
         assert rows[0].p_value == pytest.approx(0.4)
 
+    def test_reads_a_region_fetch_variants_tsv_unrewritten(self, tmp_path):
+        """The file gwas-catalog-, eqtl-catalogue- and ukb-ppp-region-fetch write
+        (`_write_canonical_tsv`): comment lines above the header, position_bp, and
+        the effect allele as allele_b."""
+        path = tmp_path / "variants.tsv"
+        path.write_text(
+            "# locuscompare-schema-version: 1.0\n"
+            "# source: eqtl_catalogue\n"
+            "# dataset_id: QTD000001\n"
+            "variant_id\tchromosome\tposition_bp\tallele_a\tallele_b\tbeta\tse\tp\tmaf\tstudy_id\n"
+            "chr1_100_A_G\t1\t100\tA\tG\t0.1\t0.02\t0.4\t0.31\tQTD000001\n"
+            "chr1_200_C_T\t1\tnot-a-number\tC\tT\t0.1\t0.02\t0.4\t0.31\tQTD000001\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(skill.ColocInputError, match="line 6: bad position"):
+            skill.load_regional_sumstats(path)
+        path.write_text("".join(path.read_text().splitlines(keepends=True)[:5]))
+        rows = skill.load_regional_sumstats(path)
+        assert [(r.variant_id, r.position, r.ref, r.alt) for r in rows] == [
+            ("chr1_100_A_G", 100, "A", "G")]
+        assert rows[0].eaf == pytest.approx(0.31)
+
+    def test_a_header_that_starts_with_a_hash_is_the_header(self, tmp_path):
+        path = tmp_path / "hash_header.tsv"
+        path.write_text(
+            "#variant_id\tchromosome\tposition\tref\talt\tbeta\tse\n"
+            "rs1\t1\t100\tA\tG\t0.1\t0.02\n",
+            encoding="utf-8",
+        )
+        assert [r.variant_id for r in skill.load_regional_sumstats(path)] == ["rs1"]
+
     def test_reads_a_comma_separated_file(self, tmp_path):
         path = tmp_path / "a.csv"
         path.write_text(

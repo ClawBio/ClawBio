@@ -5,9 +5,10 @@ description: |
   posterior probabilities (PP.H0 to PP.H4) from each trait's regional beta and
   standard error using Wakefield approximate Bayes factors and the
   Giambartolomei single-causal-variant combine, and reports whether the
-  conclusion survives the p12 prior. Answers whether an eQTL, pQTL or caQTL
-  signal and a GWAS signal share a causal variant, or merely sit in the same
-  locus. A clean-room Python implementation: nothing is imported from the GPL R
+  conclusion survives the p12 prior. Answers whether two association signals
+  share a causal variant or merely sit in the same locus: a molecular QTL of any
+  kind (expression, protein, chromatin accessibility, splicing, methylation and
+  others) against a GWAS, two QTLs, or two GWAS. A clean-room Python implementation: nothing is imported from the GPL R
   coloc package.
 license: MIT
 metadata:
@@ -152,11 +153,18 @@ evidence favours one shared causal variant or two different ones.
 
 ## Core Capabilities
 
-1. **The five posteriors**: PP.H0 to PP.H4 over the variants both traits measured
+1. **The five posteriors** over the variants both traits measured, one per
+   hypothesis about the region, summing to one:
+   - H0: neither trait has a causal variant here
+   - H1: only trait 1 does
+   - H2: only trait 2 does
+   - H3: both do, at different variants
+   - H4: both do, at one shared variant (colocalization)
 2. **The candidate shared variant**: which variant carries the H4 evidence, and
    how few variants carry 95% of it
-3. **Prior sensitivity**: the posteriors recomputed across a range of p12, with a
-   verdict of robust, prior-driven, or no shared signal
+3. **Prior sensitivity**: the posteriors recomputed for p12 (the prior that a
+   variant is causal for both traits) from 1e-6 to 1e-4, with a verdict of
+   robust, prior-driven, or no shared signal (see Key thresholds)
 4. **Quantitative and case-control traits**: sdY supplied or estimated from
    allele frequency, standard error and sample size; the log-odds prior otherwise
 5. **An accounting of every row**: each variant that did not reach the
@@ -178,9 +186,13 @@ regions with several independent signals (it detects that case and says so).
 | Regional summary statistics | `.tsv`, `.csv` | variant_id, chromosome, position, ref, alt, beta, se | `examples/sumstats/synthetic_eqtl_shared.tsv` |
 
 Header aliases, matched without regard to case: `snp`/`rsid`/`variant` for
-variant_id; `chr`/`chrom`; `pos`/`bp`/`base_pair_location`; `a1`/`ea`/`effect_allele`
-for alt; `a2`/`nea`/`other_allele` for ref; `p`/`pval`/`pvalue`; `af`/`freq`/
-`effect_allele_frequency` for eaf; `sample_size` for n.
+variant_id; `chr`/`chrom`; `pos`/`bp`/`base_pair_location`/`position_bp`;
+`a1`/`ea`/`effect_allele`/`allele_b` for alt; `a2`/`nea`/`other_allele`/`allele_a`
+for ref; `p`/`pval`/`pvalue`; `af`/`freq`/
+`effect_allele_frequency` for eaf; `sample_size` for n. So the `variants.tsv`
+written by `gwas-catalog-region-fetch`, `eqtl-catalogue-region-fetch` and
+`ukb-ppp-region-fetch` loads as written: the `#` comment lines above its header
+are skipped.
 
 A case-control trait needs no sdY: its prior is fixed on the log-odds scale, so
 give `beta` as log odds.
@@ -293,6 +305,20 @@ fixed seed; a test regenerates them and requires a byte-for-byte match.
   traits and 0.15 for quantitative traits").
 - The swept `p12` range `1e-6` to `1e-4`, an order of magnitude either side of
   the default, which brackets both values above.
+
+**What p12 does, and what it does not.** `p1`, `p2` and `p12` are the prior
+probabilities that any one variant is causal for trait 1 only, trait 2 only, and
+both. They weight the hypotheses, not the variants: every shared variant enters
+the computation whatever p12 is, and p12 is not a threshold any variant's
+evidence must pass. Because p12 multiplies the H4 term alone (formula 3 above),
+raising it moves posterior mass from H3, H1 and H2 to H4, and lowering it does
+the reverse. It cannot change the candidate shared variant, which is the variant
+with the largest share of `exp(l1+l2)` (formula 4), a quantity p12 does not
+enter. The sweep therefore asks one question: does the verdict on `PP.H4 >= 0.5`
+depend on a prior nobody can measure? `robust` means it passes at every swept
+p12; `prior-driven` means it passes at the default p12 but fails somewhere in the
+range; `no shared signal` means it fails at the default p12, even if a larger p12
+would pass it.
 - `PP.H4 >= 0.5`, the rule the sweep is judged against. **This skill deliberately
   does not apply a stricter threshold for you.** A cutoff on PP.H4 is a decision
   about how much evidence you want, not a property of the data, so the posteriors

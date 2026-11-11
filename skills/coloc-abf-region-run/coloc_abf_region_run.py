@@ -107,12 +107,17 @@ _ALIASES = {
     "pos": "position",
     "bp": "position",
     "base_pair_location": "position",
+    "position_bp": "position",
     "effect_allele": "alt",
     "other_allele": "ref",
     "ea": "alt",
     "nea": "ref",
     "a1": "alt",
     "a2": "ref",
+    # gwas-catalog-, eqtl-catalogue- and ukb-ppp-region-fetch write the effect allele
+    # (the one beta is for) as allele_b and the other as allele_a.
+    "allele_a": "ref",
+    "allele_b": "alt",
     "p": "p_value",
     "pval": "p_value",
     "pvalue": "p_value",
@@ -188,50 +193,57 @@ def load_regional_sumstats(path: str | Path) -> list[SumstatRow]:
 
     Required columns, after alias mapping: variant_id, chromosome, position, ref,
     alt, beta, se. Optional: p_value, eaf (or maf), n. Tab-separated by default;
-    a comma-separated file with no tabs is also accepted.
+    a comma-separated file with no tabs is also accepted. Leading comment lines
+    (a `#` line with no delimiter in it, as the region-fetch skills write above
+    their header) are skipped; a header that itself starts with `#` is kept.
     """
     path = Path(path)
     if not path.exists():
         raise ColocInputError(f"summary statistics file not found: {path}")
 
     with path.open(newline="", encoding="utf-8") as fh:
-        first = fh.readline()
-        fh.seek(0)
-        delimiter = "," if ("," in first and "\t" not in first) else "\t"
-        reader = csv.DictReader(fh, delimiter=delimiter)
-        if reader.fieldnames is None:
-            raise ColocInputError(f"empty summary statistics file: {path}")
-        field_map = {name: _canonical(name) for name in reader.fieldnames}
-        present = set(field_map.values())
-        missing = [c for c in _REQUIRED_COLUMNS if c not in present]
-        if missing:
-            raise ColocInputError(
-                f"{path}: missing required column(s) {missing}. Columns read: "
-                f"{sorted(present)}."
-            )
+        lines = fh.readlines()
+    skipped = 0
+    while (skipped < len(lines) and lines[skipped].startswith("#")
+           and "\t" not in lines[skipped] and "," not in lines[skipped]):
+        skipped += 1
+    body = lines[skipped:]
+    first = body[0] if body else ""
+    delimiter = "," if ("," in first and "\t" not in first) else "\t"
+    reader = csv.DictReader(body, delimiter=delimiter)
+    if reader.fieldnames is None:
+        raise ColocInputError(f"empty summary statistics file: {path}")
+    field_map = {name: _canonical(name) for name in reader.fieldnames}
+    present = set(field_map.values())
+    missing = [c for c in _REQUIRED_COLUMNS if c not in present]
+    if missing:
+        raise ColocInputError(
+            f"{path}: missing required column(s) {missing}. Columns read: "
+            f"{sorted(present)}."
+        )
 
-        rows: list[SumstatRow] = []
-        for line_no, raw in enumerate(reader, start=2):
-            row = {field_map[k]: v for k, v in raw.items() if k in field_map}
-            eaf = _to_float(row.get("eaf"))
-            if eaf is None:
-                eaf = _to_float(row.get("maf"))
-            try:
-                position = int(float(row["position"]))
-            except (TypeError, ValueError) as exc:
-                raise ColocInputError(f"{path} line {line_no}: bad position: {exc}") from exc
-            rows.append(SumstatRow(
-                variant_id=(row.get("variant_id") or "").strip(),
-                chromosome=str(row.get("chromosome") or "").strip(),
-                position=position,
-                ref=(row.get("ref") or "").strip(),
-                alt=(row.get("alt") or "").strip(),
-                beta=_to_float(row.get("beta")),
-                se=_to_float(row.get("se")),
-                p_value=_to_float(row.get("p_value")),
-                eaf=eaf,
-                n=_to_float(row.get("n")),
-            ))
+    rows: list[SumstatRow] = []
+    for line_no, raw in enumerate(reader, start=skipped + 2):
+        row = {field_map[k]: v for k, v in raw.items() if k in field_map}
+        eaf = _to_float(row.get("eaf"))
+        if eaf is None:
+            eaf = _to_float(row.get("maf"))
+        try:
+            position = int(float(row["position"]))
+        except (TypeError, ValueError) as exc:
+            raise ColocInputError(f"{path} line {line_no}: bad position: {exc}") from exc
+        rows.append(SumstatRow(
+            variant_id=(row.get("variant_id") or "").strip(),
+            chromosome=str(row.get("chromosome") or "").strip(),
+            position=position,
+            ref=(row.get("ref") or "").strip(),
+            alt=(row.get("alt") or "").strip(),
+            beta=_to_float(row.get("beta")),
+            se=_to_float(row.get("se")),
+            p_value=_to_float(row.get("p_value")),
+            eaf=eaf,
+            n=_to_float(row.get("n")),
+        ))
 
     if not rows:
         raise ColocInputError(f"{path}: no data rows")
