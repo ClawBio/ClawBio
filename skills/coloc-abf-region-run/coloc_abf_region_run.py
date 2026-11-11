@@ -894,16 +894,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {name}  ({path.relative_to(_SKILL_DIR)})")
         return 0
 
+    if args.demo is None and args.input is None:
+        parser.error("one of --input or --demo is required")
     if args.demo is not None:
         if args.demo not in demos:
             print(f"[{SKILL_NAME}] unknown demo {args.demo!r}; choose one of "
                   f"{sorted(demos)}", file=sys.stderr)
             return 2
         config_path = demos[args.demo]
-    elif args.input is not None:
-        config_path = args.input
     else:
-        parser.error("one of --input or --demo is required")
+        config_path = args.input
 
     if args.output is None:
         parser.error("--output is required")
