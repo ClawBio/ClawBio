@@ -49,8 +49,11 @@ from fine_mapping_core.abf import compute_abf
 from fine_mapping_core.susie import run_susie
 from fine_mapping_core.credible_sets import build_credible_sets_susie, build_credible_set_abf
 from fine_mapping_core.report import (
-    generate_markdown, write_tables, generate_figures,
-    write_reproducibility, DISCLAIMER,
+    generate_markdown, write_tables, generate_figures, DISCLAIMER,
+)
+from clawbio.common.reproducibility import (
+    ReproCommand, ReproPath, write_checksums, write_environment_yml,
+    write_portable_commands_sh,
 )
 
 try:
@@ -293,11 +296,11 @@ def run_finemapping(
     (output_dir / "report.md").write_text(report_md)
 
     print("  Writing tables...")
-    write_tables(output_dir, df, credible_sets)
+    written = [output_dir / "report.md", *write_tables(output_dir, df, credible_sets)]
 
     if make_figures:
         print("  Generating figures...")
-        generate_figures(output_dir, df, credible_sets, R=R, gene_track=gene_track)
+        written += generate_figures(output_dir, df, credible_sets, R=R, gene_track=gene_track)
 
     print("  Writing fine_mapping.json...")
     results = {
@@ -328,10 +331,19 @@ def run_finemapping(
             data=results,
         )
 
-    # Reproducibility bundle
-    cmd = _build_cmd(sumstats_path, ld_path, output_dir, chr_, start, end,
-                     max_signals, coverage, min_purity, w, demo)
-    write_reproducibility(output_dir, cmd, params)
+    # Reproducibility bundle; checksums last so they cover everything above.
+    written += [output_dir / "fine_mapping.json", output_dir / "result.json"]
+    written.append(write_portable_commands_sh(
+        output_dir,
+        _build_cmd(sumstats_path, ld_path, output_dir, chr_, start, end, max_signals,
+                   coverage, min_purity, w, demo, make_figures, gene_track),
+        repo_root=_PROJECT_ROOT,
+    ))
+    pip_deps = ["numpy>=1.24", "scipy>=1.10", "pandas>=1.5", "matplotlib>=3.7"]
+    if method == "SuSiE":
+        pip_deps.append("sushie>=0.20,<0.21")
+    written.append(write_environment_yml(output_dir, "clawbio-fine-mapping", pip_deps))
+    write_checksums(written, output_dir, anchor=output_dir)
 
     print(f"  Report: {output_dir / 'report.md'}")
     print(f"  Full output: {output_dir}/")
@@ -340,25 +352,35 @@ def run_finemapping(
     return results
 
 
-def _build_cmd(sumstats_path, ld_path, output_dir, chr_, start, end,
-               max_signals, coverage, min_purity, w, demo) -> str:
-    parts = ["python skills/fine-mapping/fine_mapping.py"]
+def _build_cmd(sumstats_path, ld_path, output_dir, chr_, start, end, max_signals,
+               coverage, min_purity, w, demo, make_figures, gene_track) -> ReproCommand:
+    args: list = []
     if demo:
-        parts.append("--demo")
+        args.append("--demo")
     else:
-        parts.append(f"--sumstats {sumstats_path}")
+        args += ["--sumstats", ReproPath(Path(sumstats_path).resolve(), "repo_root")]
         if ld_path:
-            parts.append(f"--ld {ld_path}")
-        if chr_:
-            parts += [f"--chr {chr_}", f"--start {start}", f"--end {end}"]
-    parts += [
-        f"--max-signals {max_signals}",
-        f"--coverage {coverage}",
-        f"--min-purity {min_purity}",
-        f"--prior-variance {w}",
-        f"--output {output_dir}",
+            args += ["--ld", ReproPath(Path(ld_path).resolve(), "repo_root")]
+    # Record exactly what was passed; load_sumstats decides whether a partial window applies.
+    for flag, value in (("--chr", chr_), ("--start", start), ("--end", end)):
+        if value is not None:
+            args += [flag, str(value)]
+    args += [
+        "--max-signals", str(max_signals),
+        "--coverage", str(coverage),
+        "--min-purity", str(min_purity),
+        "--prior-variance", str(w),
     ]
-    return " \\\n  ".join(parts)
+    if not make_figures:
+        args.append("--no-figures")
+    if gene_track:
+        args.append("--gene-track")
+    args += ["--output", ReproPath(output_dir, "output_dir")]
+    return ReproCommand(
+        script_path=Path("skills/fine-mapping/fine_mapping.py"),
+        args=args,
+        comment="Reproduce this fine-mapping run",
+    )
 
 
 # ---------------------------------------------------------------------------
