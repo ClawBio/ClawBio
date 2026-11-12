@@ -363,15 +363,17 @@ SKILLS = {
         "description": "Integrate ATAC/histone/loop evidence at a locus into one scored regulatory-evidence table",
         # No --input flag on this skill (its primary input is --loci, not
         # a single file); without this the runner rejects any non-demo
-        # call before extra_args are even read (PR #678 review round 2).
+        # call before extra_args are even read.
         "no_input_required": True,
         "allowed_extra_flags": {
             "--loci", "--accessibility-track", "--histone-track",
-            "--contact-evidence", "--gene-targets",
+            "--accessibility-coverage-bed", "--histone-coverage-bed",
+            "--contact-evidence", "--contact-coverage-bed", "--gene-targets",
         },
         "extra_path_flags": {
             "--loci", "--accessibility-track", "--histone-track",
-            "--contact-evidence", "--gene-targets",
+            "--accessibility-coverage-bed", "--histone-coverage-bed",
+            "--contact-evidence", "--contact-coverage-bed", "--gene-targets",
         },
         "accepts_genotypes": False,
     },

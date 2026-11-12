@@ -176,8 +176,28 @@ def parse_bedpe(path: Path) -> list[LoopAnchor]:
     return loops
 
 
+def _normalize_chrom(chrom: str) -> str:
+    """Normalize a 'chr' naming-convention difference for comparison only --
+    'chr5' and '5' are the same chromosome under this convention, so every
+    cross-file chromosome comparison in this skill goes through this first.
+    A locus on '5' against a track on 'chr5' used to silently compare
+    unequal, which reads as a false not_assayed/no-overlap rather than the
+    real match. Every per-locus output field still reports the chromosome
+    exactly as given in its own source file; only the comparison is
+    normalized, never the data.
+
+    This does NOT and cannot detect a genome-build mismatch (e.g. hg19 vs
+    hg38 coordinates) -- that requires reference data this skill does not
+    have, and a build mismatch can share identical 'chr5'-vs-'chr5' naming
+    while meaning two different sequences. Verify all inputs share one
+    assembly before trusting a result; this skill only guards against the
+    naming-convention difference, not the build difference.
+    """
+    return chrom[3:] if len(chrom) > 3 and chrom[:3].lower() == "chr" else chrom
+
+
 def _overlaps(chrom: str, start: int, end: int, chrom2: str, start2: int, end2: int) -> bool:
-    return chrom == chrom2 and start < end2 and start2 < end
+    return _normalize_chrom(chrom) == _normalize_chrom(chrom2) and start < end2 and start2 < end
 
 
 def chrom_spans(intervals: list[Interval]) -> dict[str, tuple[int, int]]:
@@ -240,7 +260,7 @@ def loop_spans_per_loop(loops: list[LoopAnchor]) -> list[tuple[str, int, int]]:
     """
     spans: list[tuple[str, int, int]] = []
     for chrom1, start1, end1, chrom2, start2, end2, _name in loops:
-        if chrom1 == chrom2:
+        if _normalize_chrom(chrom1) == _normalize_chrom(chrom2):
             spans.append((chrom1, min(start1, start2), max(end1, end2)))
         else:
             spans.append((chrom1, start1, end1))
@@ -249,14 +269,16 @@ def loop_spans_per_loop(loops: list[LoopAnchor]) -> list[tuple[str, int, int]]:
 
 
 def within_span(chrom: str, start: int, end: int, spans: dict[str, tuple[int, int]]) -> bool:
-    if chrom not in spans:
-        return False
-    lo, hi = spans[chrom]
-    return start < hi and end > lo
+    key = _normalize_chrom(chrom)
+    return any(
+        _normalize_chrom(c) == key and start < hi and end > lo
+        for c, (lo, hi) in spans.items()
+    )
 
 
 def within_any_span(chrom: str, start: int, end: int, spans: list[tuple[str, int, int]]) -> bool:
-    return any(chrom == c and start < hi and end > lo for c, lo, hi in spans)
+    key = _normalize_chrom(chrom)
+    return any(_normalize_chrom(c) == key and start < hi and end > lo for c, lo, hi in spans)
 
 
 def overlapping_names(chrom: str, start: int, end: int, intervals: list[Interval]) -> list[str]:
@@ -266,8 +288,9 @@ def overlapping_names(chrom: str, start: int, end: int, intervals: list[Interval
 def nearest_gene(chrom: str, start: int, end: int, genes: list[GeneWindow]) -> tuple[str | None, int | None]:
     best_name, best_dist = None, None
     midpoint = (start + end) // 2
+    key = _normalize_chrom(chrom)
     for g_chrom, _g_start, _g_end, g_name, g_tss in genes:
-        if g_chrom != chrom:
+        if _normalize_chrom(g_chrom) != key:
             continue
         dist = abs(midpoint - g_tss)
         if best_dist is None or dist < best_dist:
@@ -321,6 +344,7 @@ def score_locus(
     layer_coverage_overrides: dict[str, list[tuple[str, int, int]]],
     loops: list[LoopAnchor],
     loop_span: list[tuple[str, int, int]],
+    contact_coverage_override: list[tuple[str, int, int]] | None,
     genes: list[GeneWindow],
 ) -> dict:
     checked: list[str] = []
@@ -340,7 +364,16 @@ def score_locus(
             supported.append(layer_name)
 
     if loops:
-        if within_any_span(chrom, start, end, loop_span):
+        # An explicit --contact-coverage-bed is opt-in, same as the
+        # accessibility/histone coverage overrides: when supplied, it
+        # states the real assayed footprint of the 3D-contact assay (e.g.
+        # a Capture-C/HiChIP capture region), so a gap within it is a
+        # true negative, not missing data -- unlike the default per-loop
+        # span, which only ever covers each loop's own two anchors.
+        effective_contact_span = (
+            contact_coverage_override if contact_coverage_override is not None else loop_span
+        )
+        if within_any_span(chrom, start, end, effective_contact_span):
             checked.append("contact")
             if locus_in_any_loop(chrom, start, end, loops):
                 supported.append("contact")
@@ -407,6 +440,7 @@ def analyze(
     genes: list[GeneWindow],
     accessibility_coverage: list[Interval] | None = None,
     histone_coverage: list[Interval] | None = None,
+    contact_coverage: list[Interval] | None = None,
 ) -> dict:
     layers = {}
     if accessibility:
@@ -429,9 +463,13 @@ def analyze(
         if name not in layer_coverage_overrides
     }
     loop_span = loop_spans_per_loop(loops)
+    contact_coverage_override = layer_coverage_blocks(contact_coverage) if contact_coverage else None
 
     results = [
-        score_locus(chrom, start, end, name, layers, layer_spans, layer_coverage_overrides, loops, loop_span, genes)
+        score_locus(
+            chrom, start, end, name, layers, layer_spans, layer_coverage_overrides,
+            loops, loop_span, contact_coverage_override, genes,
+        )
         for (chrom, start, end, name) in loci
     ]
 
@@ -453,11 +491,16 @@ def analyze(
         layer: ",".join(f"{chrom}:{lo}-{hi}" for chrom, lo, hi in sorted(blocks))
         for layer, blocks in layer_coverage_overrides.items()
     })
-    loop_display_span = loop_chrom_spans(loops)
-    if loop_display_span:
+    if contact_coverage_override is not None:
         layer_coverage["contact"] = ",".join(
-            f"{chrom}:{lo}-{hi}" for chrom, (lo, hi) in sorted(loop_display_span.items())
+            f"{chrom}:{lo}-{hi}" for chrom, lo, hi in sorted(contact_coverage_override)
         )
+    else:
+        loop_display_span = loop_chrom_spans(loops)
+        if loop_display_span:
+            layer_coverage["contact"] = ",".join(
+                f"{chrom}:{lo}-{hi}" for chrom, (lo, hi) in sorted(loop_display_span.items())
+            )
 
     return {
         "skill": "multiomics-locus-integrator",
@@ -623,6 +666,13 @@ def main(argv: list[str] | None = None) -> int:
         help="Same as --accessibility-coverage-bed, for --histone-track.",
     )
     parser.add_argument("--contact-evidence", type=Path)
+    parser.add_argument(
+        "--contact-coverage-bed", type=Path,
+        help="Real assayed footprint for --contact-evidence (e.g. a Capture-C/HiChIP "
+             "capture region). When supplied, not_assayed for the contact layer is "
+             "decided from this file's own merged intervals instead of each loop's "
+             "own anchor span.",
+    )
     parser.add_argument("--gene-targets", type=Path)
     parser.add_argument("--output", type=Path, default=Path("multiomics_locus_integrator_out"))
     parser.add_argument("--demo", action="store_true")
@@ -648,6 +698,7 @@ def main(argv: list[str] | None = None) -> int:
 
     accessibility_coverage_path = None if args.demo else args.accessibility_coverage_bed
     histone_coverage_path = None if args.demo else args.histone_coverage_bed
+    contact_coverage_path = None if args.demo else args.contact_coverage_bed
 
     try:
         loci = parse_bed(loci_path)
@@ -657,6 +708,7 @@ def main(argv: list[str] | None = None) -> int:
         loops = parse_bedpe(contact_path) if contact_path else []
         accessibility_coverage = parse_bed(accessibility_coverage_path) if accessibility_coverage_path else []
         histone_coverage = parse_bed(histone_coverage_path) if histone_coverage_path else []
+        contact_coverage = parse_bed(contact_coverage_path) if contact_coverage_path else []
     except (ValueError, FileNotFoundError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
@@ -672,11 +724,15 @@ def main(argv: list[str] | None = None) -> int:
         loci, accessibility, histone, loops, genes,
         accessibility_coverage=accessibility_coverage,
         histone_coverage=histone_coverage,
+        contact_coverage=contact_coverage,
     )
     extra_inputs = {
         "--accessibility-track": accessibility_path,
         "--histone-track": histone_path,
+        "--accessibility-coverage-bed": accessibility_coverage_path,
+        "--histone-coverage-bed": histone_coverage_path,
         "--contact-evidence": contact_path,
+        "--contact-coverage-bed": contact_coverage_path,
         "--gene-targets": gene_path,
     }
     write_outputs(result, loci_path, args.output, args.demo, extra_inputs)

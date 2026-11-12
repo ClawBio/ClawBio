@@ -391,6 +391,140 @@ def test_coverage_bed_applies_per_layer_independently() -> None:
     assert "histone" in row["layers_checked"]  # unaffected, still the default span
 
 
+def test_chrom_naming_normalizes_chr_prefix_for_overlap() -> None:
+    # "5" and "chr5" are the same chromosome under a UCSC-vs-plain naming
+    # difference. A locus on "5" against a peak track on "chr5" used to
+    # compare unequal and silently read as no overlap at all.
+    loci = [("5", 100, 200, "L1")]
+    accessibility = [("chr5", 100, 200, "peak1")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(loci, accessibility, [], [], genes)
+    row = result["loci"][0]
+    assert "accessibility" in row["layers_supported"]
+
+
+def test_chrom_naming_normalizes_for_not_assayed_span() -> None:
+    # Same naming difference, but for the chromosome-wide span check
+    # (not just the direct overlap check): a locus on "5" must be
+    # "checked" against an accessibility track whose whole span is on
+    # "chr5", not read as not_assayed just because the strings differ.
+    loci = [("5", 500, 501, "L1")]
+    accessibility = [("chr5", 0, 1000, "peak1")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(loci, accessibility, [], [], genes)
+    row = result["loci"][0]
+    assert "accessibility" in row["layers_checked"]
+    assert "accessibility" not in row["layers_not_assayed"]
+
+
+def test_chrom_naming_normalizes_for_contact() -> None:
+    loci = [("5", 100, 110, "L1")]
+    loops = [("chr5", 90, 120, "chr5", 1000, 1050, "LOOP_1")]
+    genes = [("chr5", 1000, 1050, "GENE_X", 1000)]
+    result = mli.analyze(loci, [], [], loops, genes)
+    row = result["loci"][0]
+    assert "contact" in row["layers_supported"]
+    assert row["target_gene_contact"] == "GENE_X"
+
+
+def test_chrom_naming_normalizes_for_nearest_gene() -> None:
+    loci = [("5", 100, 101, "L1")]
+    genes = [("chr5", 0, 50, "GENE_X", 0)]
+    result = mli.analyze(loci, [], [], [], genes)
+    row = result["loci"][0]
+    assert row["target_gene_nearest"] == "GENE_X"
+
+
+def test_chrom_naming_normalizes_for_coverage_bed_override() -> None:
+    loci = [("5", 50, 51, "L1")]
+    accessibility = [("chr5", 9000, 9050, "peak_far_away")]
+    accessibility_coverage = [("chr5", 0, 100, "panel_a")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(
+        loci, accessibility, [], [], genes,
+        accessibility_coverage=accessibility_coverage,
+    )
+    row = result["loci"][0]
+    assert "accessibility" in row["layers_checked"]
+
+
+def test_contact_coverage_bed_overrides_the_per_loop_span() -> None:
+    # Default (per-loop-span) behaviour: a locus between two unrelated
+    # loops reads not_assayed -- see
+    # test_contact_not_assayed_uses_per_loop_span_not_chromosome_wide_merge.
+    # An explicit --contact-coverage-bed states the real capture/assayed
+    # footprint of the 3D-contact assay (e.g. a Capture-C target region),
+    # so a gap inside it is a true negative (checked, unsupported), not
+    # missing data, even though no loop was called there specifically.
+    loci = [("chr1", 5000, 5001, "L1")]
+    loops = [
+        ("chr1", 90, 120, "chr1", 150, 180, "LOOP_NEAR_START"),
+        ("chr1", 9000, 9050, "chr1", 9100, 9150, "LOOP_NEAR_END"),
+    ]
+    contact_coverage = [("chr1", 0, 10000, "capture_region")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(loci, [], [], loops, genes, contact_coverage=contact_coverage)
+    row = result["loci"][0]
+    assert "contact" in row["layers_checked"]
+    assert "contact" not in row["layers_not_assayed"]
+    assert "contact" not in row["layers_supported"]
+
+
+def test_contact_coverage_bed_omitted_keeps_default_per_loop_behaviour() -> None:
+    loci = [("chr1", 5000, 5001, "L1")]
+    loops = [
+        ("chr1", 90, 120, "chr1", 150, 180, "LOOP_NEAR_START"),
+        ("chr1", 9000, 9050, "chr1", 9100, 9150, "LOOP_NEAR_END"),
+    ]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(loci, [], [], loops, genes)
+    row = result["loci"][0]
+    assert "contact" in row["layers_not_assayed"]
+
+
+def test_contact_coverage_bed_cli_flag_produces_the_tighter_check(tmp_path: Path) -> None:
+    loci_bed = tmp_path / "loci.bed"
+    loci_bed.write_text("chr1\t5000\t5001\tL1\n")
+    loops_bedpe = tmp_path / "loops.bedpe"
+    loops_bedpe.write_text(
+        "chr1\t90\t120\tchr1\t150\t180\tLOOP_NEAR_START\n"
+        "chr1\t9000\t9050\tchr1\t9100\t9150\tLOOP_NEAR_END\n"
+    )
+    coverage_bed = tmp_path / "capture.bed"
+    coverage_bed.write_text("chr1\t0\t10000\tcapture_region\n")
+    genes_bed = tmp_path / "genes.bed"
+    genes_bed.write_text("chr1\t0\t50\tGENE_X\t+\n")
+    output_dir = tmp_path / "out"
+
+    rc = mli.main([
+        "--loci", str(loci_bed),
+        "--contact-evidence", str(loops_bedpe),
+        "--contact-coverage-bed", str(coverage_bed),
+        "--gene-targets", str(genes_bed),
+        "--output", str(output_dir),
+    ])
+    assert rc == 0
+    result = json.loads((output_dir / "result.json").read_text())
+    row = result["loci"][0]
+    assert "contact" in row["layers_checked"]
+    assert "contact" not in row["layers_not_assayed"]
+
+
+def test_multiomics_locus_cli_registry_allows_all_coverage_bed_flags() -> None:
+    # clawbio.cli's "multiomics-locus" alias must pass --accessibility-
+    # coverage-bed / --histone-coverage-bed / --contact-coverage-bed
+    # through "clawbio run" the same way it already does for the tracks
+    # they override -- missing from either set here means the runner
+    # either rejects the flag outright or passes it through as a bare
+    # string instead of resolving it as a path.
+    import importlib
+    cli = importlib.import_module("clawbio.cli")
+    entry = cli.SKILLS["multiomics-locus"]
+    for flag in ("--accessibility-coverage-bed", "--histone-coverage-bed", "--contact-coverage-bed"):
+        assert flag in entry["allowed_extra_flags"], flag
+        assert flag in entry["extra_path_flags"], flag
+
+
 def test_coverage_bed_cli_flags_produce_the_tighter_not_assayed(tmp_path: Path) -> None:
     loci_bed = tmp_path / "loci.bed"
     loci_bed.write_text("chr1\t5000\t5001\tL1\n")
