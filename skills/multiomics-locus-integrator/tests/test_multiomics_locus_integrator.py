@@ -410,7 +410,6 @@ def test_coverage_bed_cli_flags_produce_the_tighter_not_assayed(tmp_path: Path) 
         "--output", str(output_dir),
     ])
     assert rc == 0
-    import json
     result = json.loads((output_dir / "result.json").read_text())
     row = result["loci"][0]
     assert "accessibility" in row["layers_not_assayed"]
