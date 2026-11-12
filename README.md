@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml"><img src="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.11+-blue?logo=python&logoColor=white" alt="Python 3.11+"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.12+-blue?logo=python&logoColor=white" alt="Python 3.12+"></a>
   <a href="skills/catalog.json"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FClawBio%2FClawBio%2Fmain%2Fskills%2Fcatalog.json&query=%24.skill_count&label=skills&color=3fb950" alt="Skill count, read live from skills/catalog.json"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
   <a href="https://luma.com/clawbio"><img src="https://img.shields.io/badge/Events-Follow_on_Luma-7c3aed" alt="Follow ClawBio Events on Luma"></a>
@@ -27,7 +27,7 @@
 ### Install in 30 seconds
 
 ```bash
-pip install clawbio                 # Python 3.11+
+pip install clawbio                 # Python 3.12+
 clawbio run pharmgx --demo
 ```
 
@@ -196,7 +196,7 @@ The exact contents can vary by skill, and some replays also require the original
 
 A curated cross-section of ClawBio's skills. The full machine-readable catalog (with status flags, objective `maturity_tier` evidence, trigger keywords, demo commands, and chaining partners) lives in [`skills/catalog.json`](skills/catalog.json); browse the directory at [`skills/`](skills/) to see every skill folder.
 
-Catalog maturity tiers are computed from repository evidence: `spec-only` (SKILL.md only), `scripted` (has runnable code), `tested` (has skill tests), `cli-registered` (available via `python clawbio.py run`), `ci-validated` (explicitly tested in CI), and `bench-validated` (reserved for skills with blocking scientific benchmark validation).
+Catalog maturity tiers are computed from repository evidence: `spec-only` (SKILL.md only), `scripted` (has runnable code), `tested` (has skill tests), `cli-registered` (available via `python clawbio.py run`), and `bench-validated` (reserved for skills with blocking scientific benchmark validation).
 
 | Skill | Scale | Description |
 |-------|-------|-------------|
@@ -405,7 +405,7 @@ pip install clawbio                      # or: conda install -c bioconda clawbio
 clawbio run pharmgx --demo
 ```
 
-PharmGx demo runs in <2 seconds. Needs Python 3.11+. To develop ClawBio or get
+PharmGx demo runs in <2 seconds. Needs Python 3.12+. To develop ClawBio or get
 all skills with full demo data, work from a source checkout instead:
 
 ```bash

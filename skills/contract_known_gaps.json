@@ -5,9 +5,6 @@
   "clinical-variant-prioritizer": [
     "repro_files"
   ],
-  "drug-photo": [
-    "repro_files"
-  ],
   "drug-repurposing-screen": [
     "repro_files"
   ],
@@ -24,9 +21,6 @@
     "repro_files"
   ],
   "omics-target-evidence-mapper": [
-    "repro_files"
-  ],
-  "pharmgx-reporter": [
     "repro_files"
   ],
   "prs-abstain": [

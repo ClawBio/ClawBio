@@ -16,13 +16,16 @@ ClawBio is a bioinformatics AI agent skill library built on [OpenClaw](https://g
 # Clone
 git clone https://github.com/ClawBio/ClawBio.git && cd ClawBio
 
-# Install dependencies (from pyproject.toml + uv.lock)
-uv sync
+# Install uv (https://docs.astral.sh/uv/getting-started/installation/), then
+uv sync                                     # Python 3.12+ and every dependency
 
 # Verify
-python clawbio.py list                      # List all skills
-python clawbio.py run pharmgx --demo        # Run flagship skill demo
+uv run python clawbio.py list               # List all skills
+uv run python clawbio.py run pharmgx --demo # Run flagship skill demo
 ```
+
+Run every `python` command in this file and in `skills/catalog.json` through `uv run`:
+a bare `python` may be missing or older than 3.12.
 
 ## Commands
 
@@ -112,7 +115,7 @@ python -m pytest skills/pharmgx-reporter/tests/ -v     # Single skill
 python -m pytest -k "test_demo" -v                     # By pattern
 ```
 
-Tests must pass on Python 3.11, 3.12, and 3.13. CI runs all three via GitHub Actions.
+Tests must pass on Python 3.12, 3.13 and 3.14. CI runs all three via GitHub Actions.
 
 ### Optional dependencies
 
@@ -134,7 +137,7 @@ Step 2 without step 1 hides the tests everywhere. Run `uv sync --all-extras` to 
 
 ## Code Style
 
-- **Python**: 3.11+ (type hints encouraged, `X | None` syntax over `Optional[X]`)
+- **Python**: 3.12+ (type hints encouraged, `X | None` syntax over `Optional[X]`)
 - **Paths**: Always use `pathlib.Path`. Derive from `Path(__file__).resolve().parent`. Never hardcode absolute paths.
 - **Naming**: Skill folders use lowercase-hyphens (`gwas-lookup`). Python files use lowercase_underscores (`gwas_lookup.py`).
 - **Imports**: Sibling modules loaded via `importlib.util.spec_from_file_location` — no package structure. Bare-name imports (`import foo`) share `sys.modules` across skills, so give skill-level modules names unique across skills (`nutrigx_repro_bundle.py`, not `repro_bundle.py`).
@@ -319,7 +322,7 @@ python tests/benchmark/mock_api_server.py &
 - Branch from `main` in a new git worktree and run `uv sync` in it (each worktree needs its own `.venv`), so agents can work in parallel — name branches `feat/<skill-name>` or `fix/<skill-name>`
 - **One skill per PR** — keep changes focused
 - Update `skills/catalog.json` if you changed any SKILL.md YAML frontmatter
-- Tests must pass on Python 3.11, 3.12, and 3.13
+- Tests must pass on Python 3.12, 3.13 and 3.14
 
 ## Before Opening a PR
 

@@ -139,3 +139,23 @@ def test_mcp_subcommand_is_removed():
     result = _run("mcp")
     assert result.returncode == 2
     assert "invalid choice: 'mcp'" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("frontmatter", "expected"),
+    [
+        ("name: s\nmetadata:\n  version: 1.2.3", "1.2.3"),
+        # Only metadata.version counts; a nested `version:` elsewhere is not the skill's.
+        ("name: s\nmetadata:\n  install:\n  - kind: pip\n    version: 9.9.9", "unknown"),
+        ("name: s", "unknown"),
+    ],
+)
+def test_audit_skill_version_reads_metadata_version_only(monkeypatch, tmp_path, frontmatter, expected):
+    (tmp_path / "SKILL.md").write_text(f"---\n{frontmatter}\n---\n", encoding="utf-8")
+    monkeypatch.setattr(cli, "SKILLS", {"s": {"script": tmp_path / "run.py"}})
+    assert cli._skill_version("s") == expected
+
+
+def test_audit_skill_version_of_an_unregistered_skill_is_unknown(monkeypatch):
+    monkeypatch.setattr(cli, "SKILLS", {})
+    assert cli._skill_version("nope") == "unknown"

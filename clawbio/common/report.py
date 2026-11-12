@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from clawbio.common.audit import write as _audit_write
 from clawbio.common.checksums import sha256_file
+from clawbio.common.skill_manifest import read_skill_manifest
 
 _DEFAULT_AUDIT_LOG = Path.home() / ".clawbio" / "audit.jsonl"
 
@@ -93,33 +93,14 @@ def generate_report_footer() -> str:
 """
 
 
-def version_from_skill_md(text: str) -> str:
-    """Return `metadata.version` from a SKILL.md's YAML frontmatter.
-
-    Raises ValueError when there is no frontmatter or no version: a missing
-    version is an error, never a silent `0.1.0`.
-    """
-    import yaml  # lazy, like scripts/generate_catalog.py
-
-    match = re.match(r"---\n(.*?)\n---\n", text, re.S)
-    front = yaml.safe_load(match.group(1)) if match else None
-    version = ((front or {}).get("metadata") or {}).get("version")
-    if not version:
-        raise ValueError("SKILL.md frontmatter has no metadata.version")
-    return str(version)
-
-
 def skill_version(path: str | Path) -> str:
     """Version of the skill that owns `path`, read from the nearest SKILL.md above it.
 
     Call it as `skill_version(__file__)`; SKILL.md is the only place a skill's
-    version is written.
+    version is written. Raises SkillManifestError (a ValueError) when there is
+    no SKILL.md or no `metadata.version`: never a silent default.
     """
-    for folder in Path(path).resolve().parents:
-        skill_md = folder / "SKILL.md"
-        if skill_md.is_file():
-            return version_from_skill_md(skill_md.read_text(encoding="utf-8"))
-    raise FileNotFoundError(f"no SKILL.md above {path}")
+    return read_skill_manifest(path).version
 
 
 def write_result_json(
