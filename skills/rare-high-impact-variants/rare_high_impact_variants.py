@@ -19,10 +19,20 @@ import argparse
 import csv
 import gzip
 import json
+import shlex
 import sys
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = SKILL_DIR.parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 VERSION = "0.1.0"
 DISCLAIMER = ("ClawBio is a research and educational tool. It is not a medical device "
              "and does not provide clinical diagnoses. Consult a healthcare professional "
@@ -257,21 +267,23 @@ def write_report(result: dict, output_dir: Path) -> None:
                         "" if x["population_af"] is None else x["population_af"],
                         x["rarity"], x["clnsig"]])
 
-    # reproducibility bundle
-    repro = output_dir / "reproducibility"
-    repro.mkdir(exist_ok=True)
-    (repro / "commands.sh").write_text(
-        "#!/bin/bash\n# Reproduce this rare-high-impact-variants run:\n"
-        f"python3 {Path(__file__).name} --input <annotated.vcf> "
-        f"--max-af {result['rarity_threshold']} --output <out_dir>\n")
-    (repro / "environment.yml").write_text(
-        "name: rare-high-impact-variants\n"
-        "channels:\n  - conda-forge\n"
-        "dependencies:\n  - python>=3.11\n"
-        "  # pure Python standard library; no third-party runtime dependencies\n")
-
     print(f"Report written to {output_dir / 'report.md'}")
     print(f"Results written to {output_dir / 'result.json'}")
+
+
+def write_reproducibility(output_dir: Path, args: argparse.Namespace) -> None:
+    """Write reproducibility/ (commands.sh, environment.yml, checksums.sha256)."""
+    cmd = ["python", "skills/rare-high-impact-variants/rare_high_impact_variants.py"]
+    if args.demo:
+        cmd.append("--demo")
+    else:
+        cmd += ["--input", str(args.input_file)]
+    cmd += ["--output", str(output_dir), "--max-af", str(args.max_af)]
+    write_commands_sh(output_dir, shlex.join(cmd))
+    env_path = write_environment_yml(output_dir, "clawbio-rare-high-impact-variants", [])
+    outputs = [output_dir / "report.md", output_dir / "result.json",
+               output_dir / "tables" / "results.csv", env_path]
+    write_checksums(outputs, output_dir, anchor=output_dir)
 
 
 def run_demo(output_dir: Path, max_af: float = DEFAULT_MAX_AF) -> None:
@@ -296,6 +308,7 @@ def main():
     else:
         print("Error: provide --input <file> or --demo", file=sys.stderr)
         sys.exit(1)
+    write_reproducibility(output, args)
 
 
 if __name__ == "__main__":

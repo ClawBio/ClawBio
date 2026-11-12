@@ -1,6 +1,6 @@
 # Examples
 
-Seven numbered demos covering the main entry vectors and QTL modalities for
+Nine numbered demos covering the main entry vectors and QTL modalities for
 `locuscompare`, one chain pattern, plus four harmonization recipes for
 non-bundled data sources.
 
@@ -15,6 +15,8 @@ non-bundled data sources.
 | `05_sqtl_sort1_liver_txrev/` | bundled fetchers (`.cc.tsv.gz`) | Yes | sQTL exposure (splicing); SORT1 in GTEx liver |
 | `06_sceqtl_sort1_onek1k_cd14_mono/` | bundled fetchers | Yes | sceQTL exposure (single-cell eQTL); SORT1 in OneK1K CD14+ monocytes |
 | `07_pqtl_sort1_ukbppp_eur/` | bundled fetchers (UKB-PPP dispatch) | Yes | pQTL exposure via `UKB_PPP_*` dispatch; SORT1 plasma sortilin |
+| `08_open_targets_credible_set/` | bundled fetchers (eQTL Catalogue aptamer + GWAS Catalog) | Yes | start from an Open Targets credible-set page; IL23R plasma protein × IBD |
+| `09_open_targets_credible_set_many_qtls/` | `ot_credible_set.py` + bundled fetchers | Yes | an Open Targets page lists many QTLs and its GWAS file is unreadable; PCSK9 lung expression × hypercholesterolemia |
 
 ## Chain pattern (not in `--list-demos`; requires upstream skill output first)
 

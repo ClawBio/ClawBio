@@ -142,6 +142,7 @@ output_directory/
 ├── tables/
 │   └── results.csv
 └── reproducibility/
+    ├── checksums.sha256
     ├── commands.sh
     ├── environment.yml
     ├── job_metadata.json

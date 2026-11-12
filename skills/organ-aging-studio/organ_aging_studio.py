@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,8 +22,15 @@ _SKILL_DIR = Path(__file__).resolve().parent
 _CLAWBIO_ROOT = _SKILL_DIR.parent.parent
 _PROTEOMICS_CLOCK_DIR = _SKILL_DIR.parent / "proteomics-clock"
 
-if str(_PROTEOMICS_CLOCK_DIR) not in sys.path:
-    sys.path.insert(0, str(_PROTEOMICS_CLOCK_DIR))
+for _path in (_CLAWBIO_ROOT, _PROTEOMICS_CLOCK_DIR):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 
 from proteomics_clock import (  # noqa: E402
     DISCLAIMER,
@@ -121,6 +129,7 @@ def run_studio(
     sample_id: str | None = None,
     top_n: int | None = None,
     min_abs_coef: float = 0.0,
+    demo: bool = False,
 ) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     df = load_input(input_path)
@@ -192,17 +201,35 @@ def run_studio(
     report = build_report(results)
     (output_dir / "report.md").write_text(report)
 
-    commands = "\n".join(
-        [
-            "#!/usr/bin/env bash",
-            f"python skills/organ-aging-studio/organ_aging_studio.py \\",
-            f"  --input {input_path} \\",
-            f"  --output {output_dir} \\",
-            f"  --organs {','.join(organs)} \\",
-            f"  --generation {generation}",
-        ]
+    cmd = ["python", "skills/organ-aging-studio/organ_aging_studio.py"]
+    cmd += ["--demo"] if demo else ["--input", str(input_path)]
+    cmd += [
+        "--output", str(output_dir),
+        "--organs", ",".join(organs),
+        "--generation", generation,
+        "--fold", str(fold),
+        "--min-abs-coef", str(min_abs_coef),
+    ]
+    if sample_id is not None:
+        cmd += ["--sample-id", str(sample_id)]
+    if top_n is not None:
+        cmd += ["--top-n", str(top_n)]
+    write_commands_sh(output_dir, shlex.join(cmd))
+    env_path = write_environment_yml(
+        output_dir,
+        "clawbio-organ-aging-studio",
+        pip_deps=["pandas>=2.0", "numpy>=1.24", "requests>=2.28", "matplotlib"],
     )
-    (output_dir / "commands.sh").write_text(commands + "\n")
+    write_checksums(
+        [
+            output_dir / "report.md",
+            output_dir / "result.json",
+            tables_dir / "protein_contributions.csv",
+            env_path,
+        ],
+        output_dir,
+        anchor=output_dir,
+    )
 
     return results
 
@@ -329,6 +356,7 @@ def main() -> None:
         sample_id=args.sample_id,
         top_n=args.top_n,
         min_abs_coef=args.min_abs_coef,
+        demo=args.demo,
     )
     n_samples = len(result["samples"])
     print(f"✓ Organ Aging Studio complete — {n_samples} sample(s) → {args.output}")

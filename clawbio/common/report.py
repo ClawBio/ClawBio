@@ -9,6 +9,7 @@ from typing import Any
 
 from clawbio.common.audit import write as _audit_write
 from clawbio.common.checksums import sha256_file
+from clawbio.common.skill_manifest import read_skill_manifest
 
 _DEFAULT_AUDIT_LOG = Path.home() / ".clawbio" / "audit.jsonl"
 
@@ -90,6 +91,16 @@ def generate_report_footer() -> str:
 
 *{DISCLAIMER}*
 """
+
+
+def skill_version(path: str | Path) -> str:
+    """Version of the skill that owns `path`, read from the nearest SKILL.md above it.
+
+    Call it as `skill_version(__file__)`; SKILL.md is the only place a skill's
+    version is written. Raises SkillManifestError (a ValueError) when there is
+    no SKILL.md or no `metadata.version`: never a silent default.
+    """
+    return read_skill_manifest(path).version
 
 
 def write_result_json(

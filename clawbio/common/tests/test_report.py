@@ -4,7 +4,14 @@ import json
 import tempfile
 from pathlib import Path
 
-from clawbio.common.report import generate_report_header, write_audit_log, write_result_json
+import pytest
+
+from clawbio.common.report import (
+    generate_report_header,
+    skill_version,
+    write_audit_log,
+    write_result_json,
+)
 
 
 def test_write_audit_log_appends_jsonl_record(tmp_path):
@@ -92,3 +99,10 @@ def test_generate_report_header_includes_skill_name():
     )
     assert "**Skill**: pharmgx" in result
     assert "**Version**: 0.1.0" in result
+
+
+def test_skill_version_delegates_to_the_skill_manifest(tmp_path):
+    """Kept as the name skills call; reading lives in clawbio.common.skill_manifest."""
+    (tmp_path / "SKILL.md").write_text("---\nname: demo\nmetadata:\n  version: 1.4.2\n---\n")
+    (tmp_path / "core").mkdir()
+    assert skill_version(tmp_path / "core" / "my_skill.py") == "1.4.2"

@@ -8,7 +8,7 @@ description = "Bioinformatics-native AI agent skill library. Local-first, reprod
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dynamic = ["version"]
 authors = [
     { name = "Manuel Corpas", email = "mc.admin@manuelcorpas.com" },
@@ -33,23 +33,22 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
 dependencies = [
-    # anndata 0.13 is the first that writes pandas 3 string columns to .h5ad; it needs
-    # Python 3.12+. On 3.11 pydeseq2 still pulls an older anndata, and h5ad tests skip.
-    "anndata>=0.13 ; python_version >= '3.12'",
+    # anndata 0.13 is the first that writes pandas 3 string columns to .h5ad.
+    "anndata>=0.13",
     "biopython>=1.88",
-    "conda-lock>=4.0.2",
+    "conda-lock>=4.0.4",
     "matplotlib>=3.11.2",
     "numpy>=2.4.6",
-    "openai>=3.26.0",
-    "opentelemetry-sdk>=1.45.1,<2",
-    "pandas>=3.0.6",
+    "openai>=3.42.1",
+    "opentelemetry-sdk>=1.45.2,<2",
+    "pandas>=3.1.0",
     "pyyaml>=6.0",
     "pydeseq2>=0.4",
     "rocrate>=0.16.0",
@@ -58,12 +57,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# DEPRECATED since 0.7.0, removed in 0.8.0 (see CHANGELOG). Kept so existing
-# `uvx --from 'clawbio[mcp]' clawbio mcp` configurations keep working until then.
-# Pinned below 2.0: mcp 2.0.0 removed mcp.server.fastmcp (now mcp.server.mcpserver).
-mcp = ["mcp>=1.9,<2"]
 just-prs = [
-    "fastmcp>=3.4.4,<4",
+    "fastmcp>=4.1.5,<5",
     "typer>=0.27.3,<1",
 ]
 # SuShiE fine-mapping engine (jax-based) for skills/fine-mapping.
@@ -75,7 +70,7 @@ fine-mapping = [
 # Ship audit spans to a tracing backend; opt in with CLAWBIO_OTLP_ENDPOINT.
 # Plain OTLP/HTTP, so point it at a localhost collector or an https:// URL.
 otlp = [
-    "opentelemetry-exporter-otlp-proto-http>=1.44.0,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.2,<2",
 ]
 # Shared by the four region skills (eqtl-catalogue-region-fetch,
 # gwas-catalog-region-fetch, ld-1000g-region-compute, ukb-ppp-region-fetch).
@@ -95,7 +90,7 @@ cell-detection = [
 labstep = ["labstep>=3.0"]
 galaxy-bridge = ["bioblend>=1.2"]
 affinity-proteomics = ["statsmodels>=0.14", "seaborn>=0.12"]
-drug-repurposing-screen = ["pyarrow>=14.0"]
+drug-repurposing-screen = ["pyarrow>=26.0.0"]
 # Scanpy/Leiden for skills/spatial-transcriptomics. Squidpy is not on this
 # extra: 1.4–1.6 all pull spatialdata + dask + s3fs into `uv sync --all-extras`
 # for every CI job. Spatial statistics (Moran's I, neighbourhood enrichment,
@@ -105,6 +100,10 @@ spatial = [
     "scanpy>=1.10",
     "leidenalg>=0.10",
 ]
+# celltypist for skills/scrna-orchestrator's optional --annotate celltypist.
+# --doublet-method scrublet uses scanpy's own sc.pp.scrublet, not the scrublet package;
+# its automatic threshold needs scikit-image, which scanpy[scrublet] installs.
+scrna = ["celltypist>=1.7", "scanpy[scrublet]"]
 # cv2 for skills/data-extractor's axis calibration (data_extractor_core/cv_calibration.py).
 data-extractor = [
     "opencv-python-headless>=5.0.0.93",
@@ -112,19 +111,19 @@ data-extractor = [
 # Python BigQuery client for skills/bigquery-public, which imports it lazily
 # and falls back to the `bq` CLI when it is absent.
 bigquery = [
-    "google-auth>=2.60.0,<3",
-    "google-cloud-bigquery>=3.46.1,<4",
+    "google-auth>=2.62.0,<3",
+    "google-cloud-bigquery>=3.47.0,<4",
 ]
 # The Robotary web UI (robotary/server.py).
 robotary = [
-    "fastapi>=0.143.0",
+    "fastapi>=0.162.0",
     "uvicorn>=0.54.0",
 ]
 
 # PDF rendering in prs-abstain; the skill degrades to markdown-only without them.
 prs-abstain = [
-    "reportlab>=4.0,<5",
-    "pillow>=10,<13",
+    "reportlab>=5.1.0,<6",
+    "pillow>=13.0.0,<14",
 ]
 
 [tool.uv]
@@ -157,11 +156,13 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 
 [dependency-groups]
 dev = [
-    "hypothesis>=6.168.5",
-    "pytest>=9.1.1",
+    "hypothesis>=6.170.14",
+    "pytest>=9.2.0",
     "skills-ref>=0.1.1,<1",
     # prs-abstain tests inspect the rendered PDFs.
-    "pypdf>=4,<7",
+    "pypdf>=6.21.4,<7",
+    "inline-snapshot>=0.36.1",
+    "pytest-xdist>=3.8.0",
 ]
 bot = [
     "python-telegram-bot[job-queue]>=22.8",

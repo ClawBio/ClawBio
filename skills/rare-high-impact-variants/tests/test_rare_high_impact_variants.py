@@ -1,5 +1,6 @@
 """Tests for rare-high-impact-variants. Red/green TDD: these should fail until implementation is complete."""
 
+import hashlib
 import json
 import re
 import subprocess
@@ -157,3 +158,32 @@ class TestOutputContract:
             "'(optional)' in the SKILL.md tree, or remove them from the "
             "documented Output Structure."
         )
+
+
+class TestReproducibilityBundle:
+    """The demo writes a reproducibility bundle whose checksums verify."""
+
+    def test_demo_bundle_verifies(self, tmp_path):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--demo", "--output", str(tmp_path)],
+            capture_output=True, text=True
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        repro = tmp_path / "reproducibility"
+        for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+            assert (repro / name).exists(), f"missing reproducibility/{name}"
+
+        commands = (repro / "commands.sh").read_text()
+        assert "skills/rare-high-impact-variants/rare_high_impact_variants.py" in commands
+        assert "--demo" in commands
+        assert str(SKILL_DIR) not in commands
+
+        lines = (repro / "checksums.sha256").read_text().splitlines()
+        labels = {line.split("  ", 1)[1] for line in lines}
+        assert {"report.md", "result.json", "tables/results.csv",
+                "reproducibility/environment.yml"} <= labels
+        for line in lines:
+            digest, label = line.split("  ", 1)
+            path = tmp_path / label
+            assert path.is_file(), f"checksum label does not resolve: {label}"
+            assert hashlib.sha256(path.read_bytes()).hexdigest() == digest, label

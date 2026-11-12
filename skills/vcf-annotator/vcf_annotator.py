@@ -158,28 +158,31 @@ DEMO_ANNOTATIONS = [
 
 def parse_vcf(vcf_path: Path) -> list[dict]:
     """Parse a VCF file. Uses cyvcf2 if available, falls back to stdlib."""
-    if HAS_CYVCF2:
-        variants = []
-        for v in cyvcf2.VCF(str(vcf_path)):
-            variants.append({
-                "chrom": str(v.CHROM).replace("chr", ""),
-                "pos":   str(v.POS),
-                "id":    v.ID or "",
-                "ref":   v.REF,
-                "alt":   v.ALT[0] if v.ALT else ".",
-            })
-        return variants
-
-    # Stdlib fallback
+    fixed_columns = ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO"]
+    header = None
     variants = []
     with open(vcf_path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
+        for line_number, line in enumerate(f, 1):
+            line = line.rstrip("\r\n")
+            error_prefix = f"not valid VCF at line {line_number}: "
+            if line.startswith("##") and header is None:
                 continue
             parts = line.split("\t")
-            if len(parts) < 5:
+            if line.startswith("#"):
+                if header is not None or parts[:8] != fixed_columns:
+                    raise ValueError(error_prefix + "expected the eight tab-delimited fixed columns")
+                if len(parts) > 8 and (parts[8] != "FORMAT" or not all(parts[8:])):
+                    raise ValueError(error_prefix + "expected FORMAT and nonempty sample columns")
+                header = parts
                 continue
+            if header is None:
+                raise ValueError(error_prefix + "record before #CHROM column header")
+            if len(parts) != len(header):
+                raise ValueError(error_prefix + f"expected {len(header)} tab-delimited columns")
+            if any(not cell.strip() for cell in parts):
+                raise ValueError(error_prefix + "empty field; use '.' for missing values")
+            if not parts[1].isascii() or not parts[1].isdigit():
+                raise ValueError(error_prefix + "POS must be an integer")
             variants.append({
                 "chrom": parts[0].replace("chr", ""),
                 "pos":   parts[1],
@@ -187,6 +190,24 @@ def parse_vcf(vcf_path: Path) -> list[dict]:
                 "ref":   parts[3],
                 "alt":   parts[4],
             })
+    if header is None:
+        raise ValueError("not valid VCF at EOF: missing #CHROM column header")
+
+    # Validate the entire file before invoking the optional backend.
+    if HAS_CYVCF2 and variants:
+        variants = []
+        reader = cyvcf2.VCF(str(vcf_path))
+        try:
+            for v in reader:
+                variants.append({
+                    "chrom": str(v.CHROM).replace("chr", ""),
+                    "pos":   str(v.POS),
+                    "id":    v.ID or "",
+                    "ref":   v.REF,
+                    "alt":   v.ALT[0] if v.ALT else ".",
+                })
+        finally:
+            reader.close()
     return variants
 
 
@@ -539,7 +560,17 @@ def main() -> None:
         print()
 
         print("📂 Parsing VCF …")
-        raw_variants = parse_vcf(vcf_path)
+        try:
+            raw_variants = parse_vcf(vcf_path)
+        except (OSError, UnicodeError) as exc:
+            print(f"ERROR: could not read VCF: {exc}", file=sys.stderr)
+            sys.exit(1)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            sys.exit(1)
+        if not raw_variants:
+            print("ERROR: no variant records in input", file=sys.stderr)
+            sys.exit(1)
         print(f"   Found {len(raw_variants)} variants")
 
         print("🔬 Annotating with VEP + ClinVar + gnomAD …")

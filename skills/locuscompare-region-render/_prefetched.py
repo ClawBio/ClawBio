@@ -22,7 +22,9 @@ from typing import Iterable
 # bootstrap block before this module is imported, so a flat `from <module>`
 # resolves correctly inside the fork's flat skill layout.
 from eqtl_catalogue_region_fetch import (
+    EQTLCatalogueDuplicateRowConflict,
     EQTLCatalogueRelease,
+    collapse_duplicate_rsid_rows,
     RegionResult as EQTLRegionResult,
     RegionVariant as EQTLRegionVariant,
 )
@@ -40,6 +42,11 @@ REQUIRED_COLUMNS = (
     "allele_a", "allele_b", "beta", "se", "p",
 )
 
+# Optional odds-ratio columns (INPUT_SCHEMA.md). Parsed to floats and carried on
+# `raw` so `gwas_variants_from_eqtl` can hand them to the outcome side, where the
+# harmoniser derives beta = ln(OR) for a row that has no reported beta.
+ODDS_RATIO_COLUMNS = ("odds_ratio", "ci_lower", "ci_upper")
+
 
 class PrefetchedSchemaError(ValueError):
     """Raised when a pre-fetched TSV does not satisfy INPUT_SCHEMA.md."""
@@ -53,16 +60,21 @@ def _open_text(path: Path):
     return path.open("rt", encoding="utf-8")
 
 
+# Cell values read as missing. NaN counts: a NaN never equals itself, so two
+# identical copies carrying one would otherwise read as disagreeing.
+_MISSING_TOKENS = ("NA", "NAN")
+
+
 def _parse_float_or_none(s: str) -> float | None:
     s = s.strip()
-    if s == "" or s.upper() == "NA":
+    if s == "" or s.upper() in _MISSING_TOKENS:
         return None
     return float(s)
 
 
 def _parse_int_or_none(s: str) -> int | None:
     s = s.strip()
-    if s == "" or s.upper() == "NA":
+    if s == "" or s.upper() in _MISSING_TOKENS:
         return None
     return int(s)
 
@@ -111,11 +123,20 @@ def load_sumstats_tsv(path: Path) -> list[EQTLRegionVariant]:
             beta = _parse_float_or_none(cols[header_idx["beta"]])
             se = _parse_float_or_none(cols[header_idx["se"]])
             p = _parse_float_or_none(cols[header_idx["p"]])
+            odds = {
+                col: _parse_float_or_none(cols[header_idx[col]])
+                for col in ODDS_RATIO_COLUMNS
+                if col in header_idx
+            }
         except ValueError as e:
             raise PrefetchedSchemaError(f"{path}:{lineno}: parse error: {e}") from e
 
-        # Drop rows missing required beta/se/p per INPUT_SCHEMA.md §Missing data
-        if beta is None or se is None or p is None:
+        # A row with no p-value cannot be placed on any panel and is dropped (INPUT_SCHEMA.md
+        # §Missing data). A row with a p-value but no beta or SE is KEPT: it belongs on both
+        # p-value panels, an outcome row with an odds ratio converts to a beta, and otherwise
+        # the effect-size panel states which side lacks effect sizes. Dropping it made an
+        # OR-only or p-value-only slice load as zero variants.
+        if p is None:
             continue
 
         maf = (
@@ -138,8 +159,15 @@ def load_sumstats_tsv(path: Path) -> list[EQTLRegionVariant]:
             p_value=p,
             maf=maf,
             effect_allele_frequency=eaf,
-            raw={},
+            raw=odds,
         ))
+        # The optional `rsid` and `molecular_trait_id` columns ride on `raw`: a
+        # row collapsed onto another copy of the same variant keeps its rsID in
+        # `raw["rsids"]`, and the exposure client checks the file holds one trait.
+        for col in ("rsid", "molecular_trait_id"):
+            value = cols[header_idx[col]].strip() if col in header_idx else ""
+            if value and value.upper() not in _MISSING_TOKENS:
+                variants[-1].raw[col] = value
     return variants
 
 
@@ -239,7 +267,10 @@ class PrefetchedEQTLClient:
     dataset_release: str = "prefetched"
     study_label: str | None = None
     tissue_label: str | None = None
-    quant_method: str = "ge"
+    # The eQTL Catalogue quantification code the file was produced with, when the
+    # config states it (`exposure.quant_method`). None means not stated: the
+    # figure then says "QTL" instead of assuming gene expression.
+    quant_method: str | None = None
     notes: list[str] = field(default_factory=list)
 
     def fetch_region(
@@ -251,13 +282,53 @@ class PrefetchedEQTLClient:
         end_bp: int,
         gene_id: str | None = None,
     ) -> EQTLRegionResult:
+        # The plot draws ONE molecular trait. A file that mixes several
+        # (transcripts or splicing events of one gene) would pair a variant once
+        # per trait, so it stops here and names them.
+        traits = sorted({v.raw["molecular_trait_id"] for v in self.variants
+                         if v.raw.get("molecular_trait_id")})
+        if len(traits) > 1:
+            raise PrefetchedSchemaError(
+                f"pre-fetched exposure file holds {len(traits)} molecular traits "
+                f"(e.g. {', '.join(traits[:3])}); the plot draws one trait, so "
+                f"filter the file to one molecular_trait_id first"
+            )
+        # One row per variant, as the live fetch returns. A slice cut from the
+        # eQTL Catalogue carries one row per rsID, so a variant with several
+        # rsIDs repeats with identical statistics: those copies collapse to the
+        # first, and each dropped copy is kept on the result's `collapsed`.
+        # Copies that DISAGREE cannot be merged, and picking one would be a
+        # guess, so the render stops.
+        try:
+            collapse = collapse_duplicate_rsid_rows(
+                self.variants, dataset_id=self.dataset_id or dataset_id,
+            )
+        except EQTLCatalogueDuplicateRowConflict as e:
+            detail = str(e).split(" disagree on ", 1)[-1].split(";", 1)[0]
+            vids = [v.variant_id for v in self.variants]
+            repeated = sorted({vid for vid in vids if vids.count(vid) > 1})
+            raise PrefetchedSchemaError(
+                f"pre-fetched exposure file has rows of one variant that disagree "
+                f"on {detail} (variants with repeated rows include "
+                f"{', '.join(repeated[:3])}); repeated rows must be identical "
+                f"copies, so no row was picked"
+            ) from e
+        variants = collapse.kept
+        notes = list(self.notes) + ["sumstats loaded from pre-fetched TSV (no live fetch)"]
+        if collapse.collapsed:
+            notes.append(
+                f"{len(collapse.collapsed)} repeated row(s) of a variant with identical "
+                f"statistics (one row per rsID) collapsed to one row each"
+            )
         return EQTLRegionResult(
             dataset_id=self.dataset_id or dataset_id,
             chromosome=chromosome,
             region_start_bp=start_bp,
             region_end_bp=end_bp,
-            n_variants=len(self.variants),
-            variants=self.variants,
+            n_variants=len(variants),
+            variants=variants,
+            n_rows_read=len(self.variants),
+            collapsed=collapse.collapsed,
             release=EQTLCatalogueRelease(
                 api_version="prefetched",
                 dataset_release=self.dataset_release,
@@ -266,7 +337,7 @@ class PrefetchedEQTLClient:
                 tissue_label=self.tissue_label,
                 quant_method=self.quant_method,
             ),
-            notes=list(self.notes) + ["sumstats loaded from pre-fetched TSV (no live fetch)"],
+            notes=notes,
         )
 
 
@@ -348,9 +419,10 @@ def gwas_variants_from_eqtl(variants: list[EQTLRegionVariant]) -> list[GWASRegio
     """Re-shape EQTL-flavoured RegionVariant rows into GWAS-flavoured ones.
 
     The outcome side of the orchestrator expects GWAS Catalog's RegionVariant
-    (one extra optional `odds_ratio` field; otherwise identical). We load
-    both sides via the canonical INPUT_SCHEMA TSV loader (which yields eQTL-
-    flavoured rows) and reshape the outcome list here.
+    (extra optional `odds_ratio` / `ci_lower` / `ci_upper` fields; otherwise
+    identical). We load both sides via the canonical INPUT_SCHEMA TSV loader
+    (which yields eQTL-flavoured rows, the odds-ratio columns parked on `raw`)
+    and reshape the outcome list here.
     """
     out: list[GWASRegionVariant] = []
     for v in variants:
@@ -363,8 +435,10 @@ def gwas_variants_from_eqtl(variants: list[EQTLRegionVariant]) -> list[GWASRegio
             beta=v.beta,
             se=v.se,
             p_value=v.p_value,
-            odds_ratio=None,
+            odds_ratio=v.raw.get("odds_ratio"),
             effect_allele_frequency=v.effect_allele_frequency,
+            ci_lower=v.raw.get("ci_lower"),
+            ci_upper=v.raw.get("ci_upper"),
             raw={},
         ))
     return out

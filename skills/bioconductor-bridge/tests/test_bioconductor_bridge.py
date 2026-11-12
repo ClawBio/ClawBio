@@ -200,6 +200,44 @@ def test_demo_creates_report_and_result_json(tmp_path: Path, monkeypatch: pytest
     assert result["summary"]["detected_domain"] == "bulk_rnaseq"
 
 
+def test_demo_writes_verifiable_reproducibility_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import hashlib
+
+    monkeypatch.setattr(bridge, "load_catalog", lambda: SAMPLE_CATALOG)
+    monkeypatch.setattr(
+        bridge,
+        "inspect_setup",
+        lambda packages: {
+            "r_available": True,
+            "r_version": "R 4.5.0",
+            "warnings": [],
+            "biocmanager_installed": True,
+            "installed_packages": {pkg: False for pkg in packages},
+            "remote_validation": "validated live with BiocManager::valid()",
+        },
+    )
+    monkeypatch.setattr(bridge, "capture_session_info", lambda: "sessionInfo()\n")
+
+    assert bridge.main(["--demo", "--output", str(tmp_path)]) == 0
+    repro = tmp_path / "reproducibility"
+
+    commands = (repro / "commands.sh").read_text(encoding="utf-8")
+    assert "python skills/bioconductor-bridge/bioconductor_bridge.py --demo" in commands
+    assert str(SKILL_DIR) not in commands
+
+    env = (repro / "environment.yml").read_text(encoding="utf-8")
+    assert "r-base" in env and "r-biocmanager" in env
+
+    lines = (repro / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+    labels = {line.split("  ", 1)[1] for line in lines}
+    assert {"report.md", "result.json", "reproducibility/environment.yml"} <= labels
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        target = (tmp_path / label).resolve()
+        assert target.is_relative_to(tmp_path.resolve()), label
+        assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, label
+
+
 def test_search_handles_package_without_inferred_domain(monkeypatch: pytest.MonkeyPatch) -> None:
     args = bridge.build_parser().parse_args(["--search", "MotifPeeker"])
     monkeypatch.setattr(

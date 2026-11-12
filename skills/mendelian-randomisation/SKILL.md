@@ -224,7 +224,9 @@ output_directory/
 │   ├── funnel.png                         # Precision vs effect
 │   └── leave_one_out.png                  # IVW after removing each SNP
 └── reproducibility/
-    ├── commands.sh
+    ├── commands.sh                        # Command that reproduces this run
+    ├── environment.yml                    # Conda environment for the skill
+    ├── checksums.sha256                   # SHA-256 of outputs (sha256sum -c from output dir)
     └── software_versions.json
 ```
 

@@ -11,8 +11,13 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from hypothesis import HealthCheck, example, given, settings, strategies as st
+from types import SimpleNamespace
+from unittest.mock import Mock
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+import vcf_annotator as annotator
 from vcf_annotator import (
     DEMO_ANNOTATIONS,
     DEMO_VCF_CONTENT,
@@ -80,7 +85,7 @@ class TestParseVCF:
 
     def test_empty_vcf_returns_empty_list(self, tmp_path):
         empty = tmp_path / "empty.vcf"
-        empty.write_text("##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\n")
+        empty.write_text("##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
         variants = parse_vcf(empty)
         assert variants == []
 
@@ -346,3 +351,141 @@ class TestCLI:
         )
         assert result.returncode == 1
         assert "not found" in result.stderr.lower()
+
+
+HEADER = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+ROW = "chr1\t1\t.\tAT\tA\t.\tPASS\t.\n"
+
+
+@pytest.mark.parametrize("content, location", [
+    ("", "EOF"),
+    ("##fileformat=VCFv4.2\n", "EOF"),
+    (HEADER.replace("\t", " "), "line 1"),
+    (ROW, "line 1"),
+    (HEADER.replace("POS", "POSITION"), "line 1"),
+    (HEADER + ROW.replace("\t", " "), "line 2"),
+    (HEADER + "1\t1\t.\tA\tT\n", "line 2"),
+    *[(HEADER + "\t".join("" if i == column else cell
+                          for i, cell in enumerate(ROW.rstrip("\n").split("\t"))) + "\n",
+       "line 2") for column in [0, 1, 3, 4, 7]],
+    (HEADER + ROW.replace("\t1\t", "\tx\t"), "line 2"),
+    (HEADER + ROW.rstrip("\n") + "\tGT\n", "line 2"),
+    (HEADER.rstrip("\n") + "\tFORMAT\tsample\n" + ROW, "line 2"),
+])
+@pytest.mark.parametrize("backend", [False, True])
+def test_invalid_structure_precedes_backend(tmp_path, monkeypatch, content, location, backend):
+    path = tmp_path / "invalid.vcf"
+    path.write_text(content)
+    reader = Mock(side_effect=AssertionError("backend must not run"))
+    monkeypatch.setattr(annotator, "HAS_CYVCF2", backend)
+    monkeypatch.setattr(annotator, "cyvcf2", SimpleNamespace(VCF=reader), raising=False)
+    with pytest.raises(ValueError, match=f"not valid VCF.*{location}"):
+        parse_vcf(path)
+    reader.assert_not_called()
+
+
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None)
+@example(rows=[("A", "T", 1)], index=0, spaces=False)
+@given(rows=st.lists(st.tuples(st.text("ACGT", min_size=1, max_size=3),
+                              st.text("ACGT", min_size=1, max_size=3),
+                              st.integers(1, 1000)), min_size=1, max_size=5),
+       index=st.integers(0, 5), spaces=st.booleans())
+def test_corrupt_record_never_returns_partial_results(tmp_path, monkeypatch, rows, index, spaces):
+    monkeypatch.setattr(annotator, "HAS_CYVCF2", False)
+    path = tmp_path / "property.vcf"
+    records = [f"chr1\t{pos}\t.\t{ref}\t{alt}\t.\tPASS\t.\n"
+               for ref, alt, pos in rows]
+    path.write_text(HEADER + "".join(records))
+    assert parse_vcf(path) == [dict(chrom="1", pos=str(pos), id="", ref=ref, alt=alt)
+                               for ref, alt, pos in rows]
+    index %= len(records) + 1
+    bad = ROW.replace("\t", " ") if spaces else "1\t1\t.\n"
+    records.insert(index, bad)
+    path.write_text(HEADER + "".join(records))
+    with pytest.raises(ValueError, match=f"line {index + 2}"):
+        parse_vcf(path)
+
+
+@pytest.mark.parametrize("samples", [False, True])
+def test_valid_crlf_and_sample_columns(tmp_path, monkeypatch, samples):
+    monkeypatch.setattr(annotator, "HAS_CYVCF2", False)
+    suffix = "\tFORMAT\tsample" if samples else ""
+    values = "\tGT\t0/1" if samples else ""
+    path = tmp_path / "valid.vcf"
+    path.write_bytes(("##fileformat=VCFv4.2\r\n" + HEADER.rstrip("\n") + suffix +
+                      "\r\n" + ROW.rstrip("\n") + values + "\r\n").encode())
+    assert parse_vcf(path) == [dict(chrom="1", pos="1", id="", ref="AT", alt="A")]
+
+
+@pytest.mark.parametrize("case", ["public", "empty", "header", "first", "middle", "last", "unreadable"])
+@pytest.mark.parametrize("existing", [False, True])
+def test_cli_rejects_input_without_side_effects(tmp_path, monkeypatch, capsys, case, existing):
+    path = tmp_path / "input.vcf"
+    if case == "public":
+        path = SCRIPT.parents[1] / "pharmgx-reporter" / "demo_patient.txt"
+    elif case == "unreadable":
+        path.mkdir()
+    else:
+        rows = [ROW, ROW]
+        if case in ["first", "middle", "last"]:
+            rows.insert(["first", "middle", "last"].index(case), "bad row\n")
+        path.write_text("" if case == "empty" else HEADER if case == "header"
+                        else HEADER + "".join(rows))
+    out = tmp_path / "output"
+    if existing:
+        out.mkdir()
+        (out / "sentinel").write_text("untouched")
+    blocked = Mock(side_effect=AssertionError("must not annotate or write"))
+    monkeypatch.setattr(annotator, "HAS_CYVCF2", False)
+    for name in ["annotate_variants", "generate_report"]:
+        monkeypatch.setattr(annotator, name, blocked)
+    monkeypatch.setattr(annotator.urllib.request, "urlopen", blocked)
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "--input", str(path), "--output", str(out)])
+    with pytest.raises(SystemExit) as exc:
+        annotator.main()
+    assert exc.value.code == 1
+    captured = capsys.readouterr()
+    diagnostic = ("no variant records in input" if case == "header" else
+                  "could not read VCF" if case == "unreadable" else "not valid VCF")
+    assert diagnostic in captured.err
+    assert "Pathogenic:" not in captured.out
+    assert "Report:" not in captured.out
+    blocked.assert_not_called()
+    if existing:
+        assert list(out.iterdir()) == [out / "sentinel"]
+        assert (out / "sentinel").read_text() == "untouched"
+    else:
+        assert not out.exists()
+
+
+def test_valid_cli_still_generates_report(sample_vcf, tmp_path, monkeypatch):
+    out = tmp_path / "report"
+    monkeypatch.setattr(annotator, "HAS_CYVCF2", False)
+    annotation = Mock(return_value=DEMO_ANNOTATIONS)
+    monkeypatch.setattr(annotator, "annotate_variants", annotation)
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "--input", str(sample_vcf), "--output", str(out)])
+    annotator.main()
+    annotation.assert_called_once_with(parse_vcf(sample_vcf))
+    assert json.loads((out / "results.json").read_text()) == DEMO_ANNOTATIONS
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_optional_reader_is_closed(sample_vcf, monkeypatch, fails):
+    record = SimpleNamespace(CHROM="chr1", POS=1, ID=None, REF="AT", ALT=["A"])
+    def records():
+        yield record
+        if fails:
+            raise ValueError("backend read failed")
+    reader = SimpleNamespace(close=Mock())
+    class Reader:
+        close = reader.close
+        def __iter__(self):
+            return records()
+    monkeypatch.setattr(annotator, "HAS_CYVCF2", True)
+    monkeypatch.setattr(annotator, "cyvcf2", SimpleNamespace(VCF=lambda _: Reader()), raising=False)
+    if fails:
+        with pytest.raises(ValueError):
+            parse_vcf(sample_vcf)
+    else:
+        assert parse_vcf(sample_vcf) == [dict(chrom="1", pos="1", id="", ref="AT", alt="A")]
+    reader.close.assert_called_once()

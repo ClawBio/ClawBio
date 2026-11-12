@@ -120,9 +120,12 @@ Antiplatelet, opioids, statins, anticoagulants, PPIs, antidepressants (TCAs, SSR
 ```
 output_directory/
 ├── report.md              # Full pharmacogenomic report
+├── report.html            # HTML version of the report
 ├── result.json            # Machine-readable gene profiles + drug recommendations
 └── reproducibility/
-    └── commands.sh        # Exact command to reproduce
+    ├── commands.sh        # Exact command to reproduce this run
+    ├── environment.yml    # Conda environment (standard library only)
+    └── checksums.sha256   # SHA-256 of every output; verify from output_directory
 ```
 
 ## Dependencies

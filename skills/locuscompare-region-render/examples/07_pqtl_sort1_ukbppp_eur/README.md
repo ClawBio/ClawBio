@@ -31,7 +31,8 @@ dual-modality pair (eQTL + pQTL × LDL-C) that anchors v1.3.
 
 - **Exposure**: UKB-PPP r1 (Sun 2023 *Nature*, PMID 37794186) plasma
   cis-pQTL for SORT1 (UniProt Q99523, Olink reagent OID20213 on the
-  Cardiometabolic panel) in European discovery cohort (N=46,673).
+  Cardiometabolic panel) in the European-ancestry discovery cohort
+  (published n = 34,557; per-variant N in this slice 33,628).
   Verified live 2026-05-15: rs12740374 at chr1:109,274,968 shows
   β=0.120, SE=0.0089, p=4.95e-41, MAF=0.221: the textbook plasma-
   sortilin pQTL signal, protein-side counterpart to the Musunuru 2010

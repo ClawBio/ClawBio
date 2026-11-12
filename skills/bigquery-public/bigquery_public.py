@@ -117,6 +117,7 @@ def run_plan(
     max_rows: int,
     max_bytes_billed: int | None,
     dry_run: bool,
+    cli_args: list[str],
 ) -> QueryExecutionResult:
     _ensure_output_dir_ready(output_dir)
 
@@ -150,7 +151,6 @@ def run_plan(
     )
     (output_dir / "report.md").write_text(report_text, encoding="utf-8")
     _write_results_csv(output_dir / "tables" / "results.csv", result.rows, result.columns)
-    write_reproducibility_bundle(output_dir, plan, result)
 
     summary = {
         "mode": plan.mode,
@@ -196,6 +196,7 @@ def run_plan(
         summary=summary,
         data=data,
     )
+    write_reproducibility_bundle(output_dir, plan, result, cli_args)
     return result
 
 
@@ -220,6 +221,7 @@ def main(argv: list[str] | None = None) -> int:
             max_rows=args.max_rows,
             max_bytes_billed=args.max_bytes_billed,
             dry_run=args.dry_run,
+            cli_args=sys.argv[1:] if argv is None else argv,
         )
     except (BigQuerySetupError, QueryValidationError, FileNotFoundError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

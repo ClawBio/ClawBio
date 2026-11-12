@@ -145,3 +145,36 @@ def test_demo_tau_in_expected_range(tmp_path):
     # MS4A1 is B-cell restricted in pbmc3k -> very high tau.
     assert profile["tau"] >= 0.85
     assert profile["interpretation"] == "cell-type-specific (tau > 0.69)"
+
+
+def test_demo_reproducibility_bundle(tmp_path):
+    import hashlib
+
+    out = tmp_path / "out3"
+    subprocess.run(
+        [sys.executable, os.path.join(SKILL_DIR, "profiler.py"), "--demo", "--output", str(out)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    repro = out / "reproducibility"
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (repro / name).exists(), name
+
+    commands = (repro / "commands.sh").read_text()
+    assert "python skills/celltype-specificity-profiler/profiler.py" in commands
+    assert "--demo" in commands
+    assert SKILL_DIR not in commands
+
+    env = (repro / "environment.yml").read_text()
+    for dep in ("scanpy", "anndata", "numpy", "scipy", "pandas"):
+        assert dep in env
+
+    labels = set()
+    for line in (repro / "checksums.sha256").read_text().splitlines():
+        digest, label = line.split("  ", 1)
+        target = out / label
+        assert target.resolve().is_relative_to(out.resolve()), label
+        assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, label
+        labels.add(label)
+    assert {"profile.json", "per_celltype.csv", "reproducibility/environment.yml"} <= labels

@@ -8,6 +8,11 @@ GTEx minor salivary gland ge-eQTL dataset (QTD000276).
 `RegionResult` dataclass with:
 
 - `n_variants`: ~3000 variants (window-dependent; varies slightly per release)
+- `n_rows_read` and `collapsed`: the catalogue writes one row per rsID, so a
+  variant with several rsIDs arrives on several identical rows; the fetch keeps
+  one (with all its rsIDs in `raw["rsids"]`) and lists each dropped copy in
+  `collapsed`. Measured 2026-10-22 on this window: 2,833 rows read, 93 collapsed,
+  2,740 variants returned.
 - `release`:
   - `study_label`: `GTEx`
   - `tissue_label`: `minor salivary gland`

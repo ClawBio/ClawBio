@@ -1,0 +1,2677 @@
+{
+  "skills": [
+    {
+      "name": "affinity-proteomics",
+      "slug": "affinity-proteomics",
+      "license": "MIT",
+      "description": "Unified analysis pipeline for affinity-based proteomics platforms — Olink (PEA, NPX) and SomaLogic SomaScan (SOMAmer, RFU). Platform-aware QC, normalisation, differential abundance, volcano plots, heatmaps, and PCA.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "Olink",
+        "SomaLogic",
+        "SomaScan",
+        "NPX",
+        "proteomics",
+        "affinity proteomics",
+        "protein biomarker",
+        "plasma proteomics",
+        "ADAT"
+      ],
+      "tags": [
+        "proteomics",
+        "olink",
+        "somalogic",
+        "somascan",
+        "npx",
+        "affinity",
+        "differential-abundance",
+        "biomarker"
+      ]
+    },
+    {
+      "name": "analyze-fasta",
+      "slug": "analyze-fasta",
+      "license": "MIT",
+      "description": "Analyze a single FASTA file (nucleotide or protein), compute sequence-level metrics (GC, ORFs, MW, pI, GRAVY, secondary-structure fractions) with Biopython, and write a Markdown report plus structured JSON for downstream chaining.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "fasta",
+        "analyze fasta",
+        "analiza fasta",
+        "sequence analysis",
+        "gc content",
+        "find orfs",
+        "orf finder",
+        "protein properties",
+        "isoelectric point",
+        "gravy index",
+        "protparam",
+        "molecular weight protein",
+        "molecular weight dna"
+      ],
+      "tags": [
+        "fasta",
+        "biopython",
+        "sequence-analysis",
+        "gc-content",
+        "orf",
+        "protein-properties",
+        "isoelectric-point",
+        "gravy"
+      ]
+    },
+    {
+      "name": "ancestry-risk-profiler",
+      "slug": "ancestry-risk-profiler",
+      "license": "MIT",
+      "description": "Infers genetic super-population ancestry from a 23andMe/AncestryDNA file and computes ancestry-stratified odds ratios with an exploratory Ancestry Elevation Score (AES) showing where ancestry-specific GWAS effect sizes diverge from European reference estimates. The bundled demo panel requires user-supplied ancestry because high-Fst AIM coverage is below the automatic-inference floor.",
+      "version": "1.4.0",
+      "trigger_keywords": [
+        "ancestry risk",
+        "population-stratified risk",
+        "South Asian diabetes risk",
+        "ancestry-aware variant risk",
+        "which diseases am I at risk for given my ancestry",
+        "ancestry elevation score",
+        "APOL1 African kidney",
+        "KCNQ1 East Asian diabetes",
+        "genetic super-population disease risk"
+      ],
+      "tags": [
+        "ancestry",
+        "disease-risk",
+        "population-genetics",
+        "gwas",
+        "ancestry-stratified"
+      ]
+    },
+    {
+      "name": "archaic-introgression",
+      "slug": "archaic-introgression",
+      "license": "MIT",
+      "description": "Detect Neanderthal and Denisovan introgression segments from modern human genomes",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "archaic introgression",
+        "Neanderthal DNA",
+        "Denisovan ancestry",
+        "IBDmix",
+        "Sprime",
+        "hmmix",
+        "introgressed segments"
+      ],
+      "tags": []
+    },
+    {
+      "name": "arrayexpress-fetch",
+      "slug": "arrayexpress-fetch",
+      "license": "MIT",
+      "description": "Query metadata and download data from ArrayExpress, EMBL-EBI's functional genomics collection, now hosted inside BioStudies. Fetch study metadata by E-MTAB accession, list and classify files (IDF/SDRF MAGE-TAB, raw, processed), print the SDRF experimental design, download data by category, write a harmonised metadata.tsv, and build an nf-core/rnaseq or nf-core/scrnaseq samplesheet.csv from the SDRF.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "ArrayExpress",
+        "E-MTAB",
+        "MAGE-TAB",
+        "SDRF",
+        "IDF",
+        "functional genomics experiment"
+      ],
+      "tags": [
+        "arrayexpress",
+        "embl-ebi",
+        "functional-genomics",
+        "mage-tab",
+        "data-retrieval",
+        "public-archives"
+      ]
+    },
+    {
+      "name": "article-data-fetcher",
+      "slug": "article-data-fetcher",
+      "license": "MIT",
+      "description": "Given an article DOI or PubMed ID, discover and download the genomics data files deposited by the authors (VCF, FASTA, H5AD, CSV, JSON, BAM, etc.) from public repositories such as GEO, ENA, Zenodo, Figshare, Dryad, and OSF.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "download data from paper",
+        "download genomics data from article",
+        "get VCF from paper",
+        "get FASTA from study",
+        "fetch supplementary data files",
+        "download dataset from publication",
+        "retrieve genomics files from doi",
+        "get raw data from study",
+        "download from GEO",
+        "download from ENA",
+        "fetch h5ad from paper",
+        "get csv from publication",
+        "article data download",
+        "paper dataset download",
+        "download research data",
+        "get files from zenodo",
+        "fetch data from figshare"
+      ],
+      "tags": [
+        "data-download",
+        "genomics",
+        "reproducibility",
+        "geo",
+        "ena",
+        "zenodo"
+      ]
+    },
+    {
+      "name": "bgpt-mcp",
+      "slug": "bgpt-mcp",
+      "license": "MIT",
+      "description": "Search scientific papers via the BGPT MCP server and retrieve structured experimental data — methods, results, conclusions, quality scores, and 25+ metadata fields per paper.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "search papers",
+        "find papers",
+        "literature search",
+        "experimental data",
+        "paper search",
+        "search studies",
+        "find studies",
+        "bgpt",
+        "scientific papers",
+        "research papers",
+        "paper data",
+        "full-text data",
+        "methods and results"
+      ],
+      "tags": [
+        "literature",
+        "papers",
+        "mcp",
+        "search",
+        "experimental-data",
+        "pubmed",
+        "scientific"
+      ]
+    },
+    {
+      "name": "bigquery-public",
+      "slug": "bigquery-public",
+      "license": "MIT",
+      "description": "Run read-only SQL against BigQuery public datasets with local result capture, cost safeguards, and reproducibility outputs.",
+      "version": "0.2.1",
+      "trigger_keywords": [
+        "bigquery",
+        "public dataset sql",
+        "query public data",
+        "bigquery public data",
+        "public genomics dataset"
+      ],
+      "tags": [
+        "bigquery",
+        "public-datasets",
+        "sql",
+        "cloud",
+        "genomics"
+      ]
+    },
+    {
+      "name": "bio-orchestrator",
+      "slug": "bio-orchestrator",
+      "license": "MIT",
+      "description": "Meta-agent that routes bioinformatics requests to specialised sub-skills. Handles file type detection, analysis planning, report generation, and reproducibility export.",
+      "version": "0.1.0",
+      "trigger_keywords": [],
+      "tags": []
+    },
+    {
+      "name": "bioconductor-bridge",
+      "slug": "bioconductor-bridge",
+      "license": "MIT",
+      "description": "Bioconductor package discovery, workflow recommendation, setup inspection, and starter code generation grounded in official Bioconductor containers and BiocManager.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "bioconductor",
+        "bioc",
+        "biocmanager",
+        "summarizedexperiment",
+        "singlecellexperiment",
+        "genomicranges",
+        "variantannotation",
+        "annotationhub",
+        "experimenthub",
+        "which bioconductor package",
+        "what package should i use",
+        "set up bioconductor"
+      ],
+      "tags": [
+        "bioconductor",
+        "r",
+        "package-discovery",
+        "workflows",
+        "transcriptomics",
+        "genomics",
+        "single-cell",
+        "annotation"
+      ]
+    },
+    {
+      "name": "bioqc-mcp",
+      "slug": "bioqc-mcp",
+      "license": "MIT",
+      "description": "Automated sequencing quality control and advanced visualization wrapping FastQC, MultiQC, and custom chart generation. Exposes an MCP stdio server for live AI integration alongside a ClawBio CLI runner.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "bioqc",
+        "fastqc mcp",
+        "multiqc mcp",
+        "automated qc pipeline",
+        "mcp qc",
+        "fastq quality control",
+        "sequencing quality control",
+        "generate chart qc"
+      ],
+      "tags": [
+        "qc",
+        "fastqc",
+        "multiqc",
+        "visualization",
+        "sequencing",
+        "mcp"
+      ]
+    },
+    {
+      "name": "biostudies-fetch",
+      "slug": "biostudies-fetch",
+      "license": "MIT",
+      "description": "Query metadata and download data from EMBL-EBI BioStudies, the database that describes biological studies and links their data across collections (ArrayExpress, BioImages, BioModels, EGA-linked studies and standalone submissions). Fetch study metadata by accession, list and download attached files, search across collections, and write a harmonised metadata.tsv.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "BioStudies",
+        "S-BSST",
+        "S-BIAD",
+        "BioImage Archive",
+        "supplementary study data EBI",
+        "EBI study metadata"
+      ],
+      "tags": [
+        "biostudies",
+        "embl-ebi",
+        "data-retrieval",
+        "metadata",
+        "public-archives"
+      ]
+    },
+    {
+      "name": "busco-assessor",
+      "slug": "busco-assessor",
+      "license": "MIT",
+      "description": "Genome, transcriptome, and protein completeness assessment via BUSCO v6. Agentic lineage routing from organism description, all three BUSCO modes, auto-lineage support, and full demo mode without the BUSCO binary.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "genome completeness",
+        "BUSCO score",
+        "BUSCO assessment",
+        "assembly quality",
+        "check my assembly",
+        "BUSCO genome mode",
+        "completeness metrics",
+        "assembly QC",
+        "transcriptome completeness",
+        "protein set completeness",
+        "auto-lineage",
+        "busco -m genome",
+        "how complete is my genome",
+        "BUSCO bacteria",
+        "run BUSCO"
+      ],
+      "tags": [
+        "busco",
+        "genome-completeness",
+        "assembly-qc",
+        "transcriptome",
+        "lineage",
+        "orthodb",
+        "hmmer",
+        "prokaryote",
+        "eukaryote"
+      ]
+    },
+    {
+      "name": "cell-detection",
+      "slug": "cell-detection",
+      "license": "MIT",
+      "description": "Cell segmentation in fluorescence microscopy images. Supports Cellpose/cpsam (Cellpose 4.0) with additional backends planned. Produces segmentation masks, per-cell morphology metrics (area, diameter, centroid, eccentricity), overlay figures, and a report.md.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "cellpose",
+        "cpsam",
+        "cell segmentation",
+        "nucleus segmentation",
+        "fluorescence microscopy",
+        "microscopy image",
+        "image segmentation",
+        "cell counting",
+        "segmentation mask"
+      ],
+      "tags": [
+        "microscopy",
+        "segmentation",
+        "cellpose",
+        "fluorescence",
+        "imaging",
+        "cell-biology"
+      ]
+    },
+    {
+      "name": "celltype-specificity-profiler",
+      "slug": "celltype-specificity-profiler",
+      "license": "MIT",
+      "description": "Given a gene and a single-cell atlas, compute how cell-type-specific its expression is — the tau specificity index, Sarle's expression bimodality coefficient, and the cell types that drive the signal; a pure analytic transform that chains downstream of scrna-embedding.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "cell-type specificity",
+        "cell type specificity",
+        "specificity index",
+        "tau index",
+        "tau specificity",
+        "bimodality",
+        "bimodality coefficient",
+        "cell-type-specific expression",
+        "expression specificity",
+        "marker gene specificity"
+      ],
+      "tags": [
+        "scrna",
+        "single-cell",
+        "specificity",
+        "tau",
+        "bimodality",
+        "target-prioritization",
+        "marker-gene",
+        "h5ad"
+      ]
+    },
+    {
+      "name": "claw-amplicon-qc",
+      "slug": "claw-amplicon-qc",
+      "license": "MIT",
+      "description": "16S/18S rRNA amplicon preprocessing — from raw paired-end FASTQ files through N removal and primer trimming, producing outputs ready for DADA2 quality filtering and denoising. Deliberately stops before quality-filtering decisions that require researcher judgment.",
+      "version": "0.2.2",
+      "trigger_keywords": [
+        "16S amplicon QC",
+        "16S primer trimming",
+        "amplicon preprocessing",
+        "amplicon QC",
+        "cutadapt primer trimming",
+        "DADA2 preprocessing",
+        "remove primers from FASTQ",
+        "18S amplicon QC",
+        "microbiome QC",
+        "rRNA amplicon preprocessing"
+      ],
+      "tags": [
+        "amplicon",
+        "16S",
+        "18S",
+        "DADA2",
+        "cutadapt",
+        "quality-control",
+        "environmental",
+        "microbiome"
+      ]
+    },
+    {
+      "name": "claw-ancestry-pca",
+      "slug": "claw-ancestry-pca",
+      "license": "MIT",
+      "description": "Ancestry decomposition PCA against the Simons Genome Diversity Project",
+      "version": "0.1.0",
+      "trigger_keywords": [],
+      "tags": [
+        "population-genetics",
+        "PCA",
+        "ancestry",
+        "SGDP",
+        "global-diversity"
+      ]
+    },
+    {
+      "name": "claw-metagenomics",
+      "slug": "claw-metagenomics",
+      "license": "MIT",
+      "description": "Shotgun metagenomics profiling — taxonomy, resistome, and functional pathways",
+      "version": "0.1.0",
+      "trigger_keywords": [],
+      "tags": [
+        "metagenomics",
+        "antimicrobial-resistance",
+        "taxonomy",
+        "functional-profiling",
+        "environmental",
+        "WHO-critical-ARGs"
+      ]
+    },
+    {
+      "name": "claw-methylation-cycle",
+      "slug": "claw-methylation-cycle",
+      "license": "MIT",
+      "description": "Methylation cycle analysis — enzymatic activity profiles, Net Methylation Capacity, BH4 axis estimates, compound heterozygosity detection from SNP genotype data.",
+      "version": "0.1.3",
+      "trigger_keywords": [
+        "methylation",
+        "MTHFR",
+        "folate cycle",
+        "BH4",
+        "homocysteine",
+        "methylation cycle",
+        "metilación",
+        "neurotransmitter synthesis"
+      ],
+      "tags": [
+        "genomics",
+        "methylation",
+        "MTHFR",
+        "neurodevelopment"
+      ]
+    },
+    {
+      "name": "claw-semantic-sim",
+      "slug": "claw-semantic-sim",
+      "license": "MIT",
+      "description": "Semantic Similarity Index for disease research literature using PubMedBERT embeddings",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "semantic similarity",
+        "disease neglect",
+        "research gaps",
+        "NTDs",
+        "SII",
+        "knowledge silo"
+      ],
+      "tags": [
+        "health-equity",
+        "semantic-analysis",
+        "NLP",
+        "PubMedBERT",
+        "disease-neglect"
+      ]
+    },
+    {
+      "name": "clawpathy-autoresearch",
+      "slug": "clawpathy-autoresearch",
+      "license": "MIT",
+      "description": "Eval-driven skill tuning. Given a task and an LLM-judge rubric, iteratively rewrites a SKILL.md until a downstream executor agent performs well against the judge. Low-code: all evaluation is LLM-as-judge, not deterministic Python.",
+      "version": "1.0.0",
+      "trigger_keywords": [
+        "auto research",
+        "autoresearch",
+        "tune a skill",
+        "skill tuning",
+        "improve a skill",
+        "eval-driven",
+        "clawpathy",
+        "replicate paper",
+        "reproduce paper"
+      ],
+      "tags": [
+        "meta",
+        "autoresearch",
+        "skill-tuning",
+        "llm-judge",
+        "eval-driven"
+      ]
+    },
+    {
+      "name": "clinical-trial-finder",
+      "slug": "clinical-trial-finder",
+      "license": "MIT",
+      "description": "Find clinical trials for a gene, variant, or condition from ClinicalTrials.gov + EUCTR, with FHIR R4 output",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "clinical trial",
+        "clinical trials",
+        "trial finder",
+        "FHIR",
+        "ResearchStudy",
+        "NCT",
+        "ClinicalTrials.gov",
+        "GWAS",
+        "rsID",
+        "variant"
+      ],
+      "tags": [
+        "clinical-trials",
+        "genomics",
+        "drug-discovery",
+        "clinical",
+        "precision-medicine"
+      ]
+    },
+    {
+      "name": "clinical-variant-prioritizer",
+      "slug": "clinical-variant-prioritizer",
+      "license": "MIT",
+      "description": "Screen a genotype set (array or WGS-derived) against OMIM-morbid, ACMG-SF and Hereditary-Cancer gene panels and prioritise carried variants by ClinVar significance, gnomAD frequency, inheritance model and zygosity, following the pathogenicity-screening method of Corpas et al. 2021 (Whole Genome Interpretation for a Family of Five).",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "variant prioritisation",
+        "clinical variants",
+        "pathogenic variant",
+        "ClinVar",
+        "carrier status",
+        "disease risk variants"
+      ],
+      "tags": [
+        "clinical-genomics",
+        "variant-prioritisation",
+        "clinvar",
+        "acmg",
+        "pathogenicity",
+        "carrier-screening"
+      ]
+    },
+    {
+      "name": "clinical-variant-reporter",
+      "slug": "clinical-variant-reporter",
+      "license": "MIT",
+      "description": "Classify germline variants from VCF/BCF files according to the ACMG/AMP 2015 28-criteria evidence framework and generate clinical-grade interpretation reports with per-variant evidence audit trails and ACMG SF v3.2 secondary findings screening.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "ACMG",
+        "ACMG classification",
+        "pathogenic variant",
+        "likely pathogenic",
+        "variant of uncertain significance",
+        "VUS",
+        "clinical variant",
+        "germline classification",
+        "secondary findings",
+        "ACMG SF",
+        "variant interpretation"
+      ],
+      "tags": [
+        "acmg",
+        "variant-classification",
+        "clinical-genomics",
+        "pathogenicity",
+        "germline",
+        "secondary-findings",
+        "exome",
+        "genome"
+      ]
+    },
+    {
+      "name": "clinpgx",
+      "slug": "clinpgx",
+      "license": "MIT",
+      "description": "Query the ClinPGx API for pharmacogenomic gene-drug data, clinical annotations, CPIC guidelines, and FDA drug labels",
+      "version": "0.1.0",
+      "trigger_keywords": [],
+      "tags": []
+    },
+    {
+      "name": "cnv-acmg-classifier",
+      "slug": "cnv-acmg-classifier",
+      "license": "MIT",
+      "description": "Classify structural variants / copy-number variants (deletions and duplications) using the ClinGen / ACMG 2019 (Riggs et al. 2020) point framework and return a five-tier classification with a per-section evidence trail. Germline CNV interpretation, not SNV/indel.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "CNV classification",
+        "copy number variant ACMG",
+        "structural variant interpretation",
+        "ClinGen dosage sensitivity",
+        "deletion duplication pathogenic"
+      ],
+      "tags": [
+        "cnv",
+        "structural-variant",
+        "acmg",
+        "clingen",
+        "dosage-sensitivity"
+      ]
+    },
+    {
+      "name": "crispr-screen-triage",
+      "slug": "crispr-screen-triage",
+      "license": "MIT",
+      "description": "Deterministic CRISPR screen hit ranking from local guide-level count tables",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "CRISPR screen triage",
+        "guide count ranking",
+        "rank CRISPR hits",
+        "depleted guide screen"
+      ],
+      "tags": [
+        "crispr",
+        "screen",
+        "triage"
+      ]
+    },
+    {
+      "name": "data-extractor",
+      "slug": "data-extractor",
+      "license": "MIT",
+      "description": "Extract numerical data from scientific figure images using Claude vision + OpenCV calibration. Supports 26+ plot types including bar charts, scatter plots, forest plots, Kaplan-Meier curves, box plots, and more.",
+      "version": "0.1.0",
+      "trigger_keywords": [],
+      "tags": []
+    },
+    {
+      "name": "de-summary",
+      "slug": "de-summary",
+      "license": "MIT",
+      "description": "Summarise pre-computed differential expression results with ranked gene lists, biological themes, and publication-ready interpretation.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "DE summary",
+        "differential expression summary",
+        "top DE genes",
+        "summarise DE results",
+        "interpret DE",
+        "volcano summary",
+        "gene expression summary"
+      ],
+      "tags": [
+        "transcriptomics",
+        "differential-expression",
+        "summary",
+        "interpretation",
+        "bulk-rna-seq"
+      ]
+    },
+    {
+      "name": "deepspot-m",
+      "slug": "deepspot-m",
+      "license": "MIT",
+      "description": "Transcriptome-wide virtual spatial transcriptomics from H&E histology with DeepSpot-M. Scores a 224x224 tile and returns per-gene log1p-CPM values for any HGNC symbols you ask for, with a CSV, a report and a reproducibility bundle.",
+      "version": "0.3.0",
+      "trigger_keywords": [
+        "virtual spatial transcriptomics",
+        "gene expression from histology",
+        "spatial transcriptomics from H&E",
+        "predict gene expression from a tissue image",
+        "DeepSpot-M"
+      ],
+      "tags": [
+        "spatial-transcriptomics",
+        "histology",
+        "gene-expression",
+        "foundation-model",
+        "digital-pathology",
+        "h-and-e"
+      ]
+    },
+    {
+      "name": "diff-visualizer",
+      "slug": "diff-visualizer",
+      "license": "MIT",
+      "description": "Rich downstream visualisation and reporting for bulk RNA-seq differential expression and scRNA marker/contrast outputs.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "visualize de results",
+        "differential expression visualization",
+        "marker heatmap",
+        "marker dotplot",
+        "top genes heatmap",
+        "diffviz"
+      ],
+      "tags": [
+        "differential-expression",
+        "visualisation",
+        "rnaseq",
+        "scrna",
+        "volcano",
+        "heatmap"
+      ]
+    },
+    {
+      "name": "dnasp",
+      "slug": "dnasp",
+      "license": "MIT",
+      "description": "Population genetics of pre-aligned DNA sequences or multi-sample VCFs using selected DnaSP 6 methods. Use for diversity, neutrality statistics, linkage disequilibrium, InDel polymorphism, divergence, MK, Ka/Ks and codon usage; not alignment, phasing or clinical interpretation.",
+      "version": "0.6.1",
+      "trigger_keywords": [
+        "nucleotide diversity",
+        "Tajima's D",
+        "DNA polymorphism",
+        "population genetics sequences",
+        "haplotype diversity",
+        "DnaSP",
+        "segregating sites",
+        "Fu and Li test",
+        "neutrality test alignment",
+        "Watterson theta",
+        "linkage disequilibrium",
+        "recombination events",
+        "mismatch distribution",
+        "population expansion",
+        "InDel polymorphism",
+        "divergence between populations",
+        "Dxy Da net divergence",
+        "fixed differences populations",
+        "Ramos-Onsins Rozas R2",
+        "Fu Li D F outgroup",
+        "outgroup polarised mutations",
+        "HKA test neutrality",
+        "Hudson Kreitman Aguade",
+        "two-locus neutrality",
+        "polymorphism divergence ratio",
+        "McDonald-Kreitman test",
+        "MK test",
+        "adaptive evolution test",
+        "alpha McDonald-Kreitman",
+        "neutrality index NI",
+        "direction of selection DoS",
+        "Ka/Ks",
+        "dN/dS",
+        "omega synonymous nonsynonymous",
+        "synonymous substitution rate",
+        "nonsynonymous substitution rate",
+        "coding sequence neutrality",
+        "Nei-Gojobori method",
+        "Fu's Fs test",
+        "Fu 1997 Fs",
+        "site frequency spectrum",
+        "SFS folded unfolded",
+        "allele frequency spectrum",
+        "singleton excess",
+        "minor allele frequency distribution",
+        "VCF population genetics",
+        "multi-sample VCF nucleotide diversity",
+        "VCF to haplotypes",
+        "population genomics from VCF"
+      ],
+      "tags": [
+        "population-genetics",
+        "molecular-evolution",
+        "DNA-polymorphism",
+        "neutrality-tests",
+        "linkage-disequilibrium",
+        "recombination",
+        "divergence",
+        "sequence-analysis"
+      ]
+    },
+    {
+      "name": "drug-photo",
+      "slug": "drug-photo",
+      "license": "MIT",
+      "description": "Medication photo to personalised PGx dosage card via Claude vision — snap a pill, get genotype-informed guidance",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "drug photo",
+        "medication photo",
+        "pill photo",
+        "drug image"
+      ],
+      "tags": [
+        "pharmacogenomics",
+        "computer-vision",
+        "drug-identification",
+        "dosage-guidance"
+      ]
+    },
+    {
+      "name": "drug-repurposing-screen",
+      "slug": "drug-repurposing-screen",
+      "license": "MIT",
+      "description": "Objective-driven pooled viability screen analysis: QC, hit calling, context-selectivity, biomarker sweep, and ranked repurposing candidates. Format-agnostic via schema.yaml + objective.yaml; includes offline demo.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "drug repurposing",
+        "repurposing screen",
+        "viability screen",
+        "PRISM",
+        "compound panel",
+        "selective killing biomarker",
+        "pooled viability analysis",
+        "context-selective compound"
+      ],
+      "tags": [
+        "drug-repurposing",
+        "viability-screen",
+        "dose-response",
+        "biomarker",
+        "cell-line-panel"
+      ]
+    },
+    {
+      "name": "ena-fetch",
+      "slug": "ena-fetch",
+      "license": "MIT",
+      "description": "Query metadata and download sequencing data from the European Nucleotide Archive (ENA) via the Portal and Browser APIs. Works with ENA/SRA accessions (PRJEB/PRJNA studies, ERR/SRR/DRR runs, ERX/SRX experiments, SAMEA/SAMN samples), listing runs and FASTQ links, building custom file reports, running advanced metadata searches, and emitting a standardised metadata.tsv plus a pipeline-ready nf-core/rnaseq or nf-core/scrnaseq samplesheet.csv.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "ENA",
+        "European Nucleotide Archive",
+        "PRJEB",
+        "ERR run accession",
+        "filereport",
+        "FASTQ links",
+        "samplesheet",
+        "nf-core samplesheet"
+      ],
+      "tags": [
+        "ena",
+        "embl-ebi",
+        "sequencing",
+        "fastq",
+        "samplesheet",
+        "nf-core",
+        "public-archives"
+      ]
+    },
+    {
+      "name": "eqtl-catalogue-region-fetch",
+      "slug": "eqtl-catalogue-region-fetch",
+      "license": "MIT",
+      "description": "Fetch a region of cis-eQTL summary statistics from EBI eQTL Catalogue v7+\nvia tabix-on-FTP. Use when an agent needs eQTL beta / SE / p-value for\nevery variant in a window around a gene's TSS for one specific dataset\n(study × tissue × quantification method). Input: dataset_id, chromosome,\nstart, end, optional molecular_trait_id. Output: harmonised TSV slice.\n",
+      "version": "0.2.0",
+      "trigger_keywords": [
+        "eqtl region fetch",
+        "eqtl catalogue tabix",
+        "eqtl sumstats slice",
+        "cis-eqtl region pull",
+        "GTEx eqtl region"
+      ],
+      "tags": [
+        "eqtl",
+        "eqtl-catalogue",
+        "region-fetch",
+        "tabix",
+        "summary-statistics",
+        "cis-eqtl"
+      ]
+    },
+    {
+      "name": "equity-scorer",
+      "slug": "equity-scorer",
+      "license": "MIT",
+      "description": "Compute HEIM diversity and equity metrics from VCF or ancestry data. Generates heterozygosity, FST, PCA plots, and a composite HEIM Equity Score with markdown reports.",
+      "version": "0.1.0",
+      "trigger_keywords": [],
+      "tags": []
+    },
+    {
+      "name": "fastreer",
+      "slug": "fastreer",
+      "license": "GPL-3.0",
+      "description": "Phylogenetic distance matrices and trees from VCF or FASTA data using the fastreeR hybrid Java/Python toolkit (VCF2TREE, VCF2DIST, DIST2TREE, FASTA2DIST).",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "phylogenetic tree",
+        "distance matrix from VCF",
+        "VCF",
+        "VCF2TREE",
+        "VCF2DIST",
+        "fastreer",
+        "fastreeR",
+        "genomic distance",
+        "hierarchical clustering tree",
+        "k-mer distance",
+        "FASTA2DIST",
+        "variant distance matrix",
+        "population tree",
+        "DIST2TREE",
+        "cosine distance VCF",
+        "sample phylogeny"
+      ],
+      "tags": [
+        "phylogenetics",
+        "distance-matrix",
+        "tree-building",
+        "vcf",
+        "fasta",
+        "population-genomics"
+      ]
+    },
+    {
+      "name": "fine-mapping",
+      "slug": "fine-mapping",
+      "license": "MIT",
+      "description": "Statistical fine-mapping of GWAS loci using SuSiE, SuSiE-inf, and Approximate Bayes Factors to identify credible sets and posterior inclusion probabilities (PIPs) for causal variant discovery. SuSiE-inf adds an infinitesimal polygenic component for improved calibration at well-powered loci.",
+      "version": "0.3.0",
+      "trigger_keywords": [
+        "fine-mapping",
+        "finemapping",
+        "susie",
+        "susie-inf",
+        "susieinf",
+        "infinitesimal fine-mapping",
+        "credible set",
+        "posterior inclusion probability",
+        "PIP",
+        "causal variant",
+        "fine map",
+        "ABF",
+        "approximate bayes factor",
+        "FINEMAP",
+        "polyfun",
+        "fine map locus",
+        "causal SNP"
+      ],
+      "tags": [
+        "gwas",
+        "fine-mapping",
+        "susie",
+        "credible-sets",
+        "pip",
+        "causal-variants",
+        "statistics"
+      ]
+    },
+    {
+      "name": "flow-bio",
+      "slug": "flow-bio",
+      "license": "MIT",
+      "description": "Flow.bio API bridge — authenticate, browse pipelines/samples/projects, search, upload data, launch pipeline executions, and check run status on any Flow instance.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "flow",
+        "flow.bio",
+        "flow bio",
+        "flow pipeline",
+        "flow sample",
+        "flow execution",
+        "flow project",
+        "flow upload",
+        "run on flow"
+      ],
+      "tags": [
+        "flow",
+        "flow.bio",
+        "LIMS",
+        "pipelines",
+        "samples",
+        "nextflow",
+        "bioinformatics",
+        "cloud"
+      ]
+    },
+    {
+      "name": "galaxy-bridge",
+      "slug": "galaxy-bridge",
+      "license": "MIT",
+      "description": "Galaxy tool discovery, intelligent recommendation, and execution — 8,000+ bioinformatics tools from usegalaxy.org with multi-signal scoring and workflow suggestions",
+      "version": "0.2.0",
+      "trigger_keywords": [
+        "galaxy",
+        "usegalaxy",
+        "tool shed",
+        "bioblend",
+        "run on galaxy",
+        "galaxy tool",
+        "galaxy workflow",
+        "NGS pipeline"
+      ],
+      "tags": [
+        "galaxy",
+        "bioinformatics",
+        "tool-discovery",
+        "workflows",
+        "NGS",
+        "genomics",
+        "proteomics",
+        "metagenomics"
+      ]
+    },
+    {
+      "name": "genome-compare",
+      "slug": "genome-compare",
+      "license": "MIT",
+      "description": "Compare your genome to George Church (PGP-1) and estimate ancestry composition via IBS and EM admixture",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "genome comparison",
+        "IBS",
+        "identity by state",
+        "George Church",
+        "Corpasome",
+        "pairwise"
+      ],
+      "tags": [
+        "genome-comparison",
+        "IBS",
+        "ancestry",
+        "PGP",
+        "admixture"
+      ]
+    },
+    {
+      "name": "genome-match",
+      "slug": "genome-match",
+      "license": "MIT",
+      "description": "Score genetic compatibility across all male-female pairings in a Genomebook generation",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "genome match",
+        "compatibility",
+        "mating pairs",
+        "genomebook match",
+        "heterozygosity score",
+        "breeding pairs"
+      ],
+      "tags": [
+        "genomebook",
+        "compatibility",
+        "heterozygosity",
+        "disease-risk",
+        "mating-selection"
+      ]
+    },
+    {
+      "name": "geo-fetch",
+      "slug": "geo-fetch",
+      "license": "MIT",
+      "description": "Query metadata and download data from the NCBI Gene Expression Omnibus (GEO). Works with GEO accessions (GSE series, GSM samples, GPL platforms, GDS datasets) to search GEO DataSets, fetch series and sample metadata, list and download series matrix / SOFT / MINiML / supplementary files, fetch the SRA Run Selector files, and emit a standardised metadata.tsv plus a pipeline-ready nf-core/rnaseq or nf-core/scrnaseq samplesheet.csv.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "GEO",
+        "GSE",
+        "GSM",
+        "gene expression omnibus",
+        "series matrix",
+        "GEO supplementary",
+        "SraRunTable",
+        "SRR_Acc_List",
+        "samplesheet"
+      ],
+      "tags": [
+        "geo",
+        "ncbi",
+        "transcriptomics",
+        "samplesheet",
+        "nf-core",
+        "sra",
+        "public-archives"
+      ]
+    },
+    {
+      "name": "gi-annotation",
+      "slug": "gi-annotation",
+      "license": "MIT",
+      "description": "Predict gene and transcript structure (intervals, exons, strand) from a DNA sequence using the Genomic Intelligence DNA Annotation model, via the hosted /v1/tasks/annotation/predict API. Submitted asynchronously — the pipeline takes ~20 s for ~20 kbp.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "gene annotation",
+        "transcript annotation",
+        "annotate sequence",
+        "gene structure prediction",
+        "predict transcripts",
+        "de novo gene prediction",
+        "DNA annotation",
+        "gene boundaries",
+        "exon prediction",
+        "gi annotation",
+        "genomic intelligence annotation"
+      ],
+      "tags": [
+        "genomics",
+        "annotation",
+        "gene-prediction",
+        "transcript-prediction",
+        "gene-structure",
+        "dna-lm",
+        "gi-api"
+      ]
+    },
+    {
+      "name": "gi-chromatin",
+      "slug": "gi-chromatin",
+      "license": "MIT",
+      "description": "Predict chromatin state — histone marks, DNase, TF binding — across 919 tracks (DeepSEA-style) for DNA sequences, via the hosted Genomic Intelligence /v1/tasks/chromatin/predict API.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "chromatin",
+        "chromatin state",
+        "chromatin annotation",
+        "histone mark",
+        "histone modification",
+        "DNase",
+        "ATAC",
+        "TF binding",
+        "transcription factor binding",
+        "DeepSEA",
+        "epigenome",
+        "gi chromatin",
+        "genomic intelligence chromatin"
+      ],
+      "tags": [
+        "genomics",
+        "chromatin",
+        "histone",
+        "DNase",
+        "ATAC",
+        "TF-binding",
+        "deepsea",
+        "dna-lm",
+        "gi-api"
+      ]
+    },
+    {
+      "name": "gi-enhancer",
+      "slug": "gi-enhancer",
+      "license": "MIT",
+      "description": "Predict enhancer activity in DNA sequences using the Genomic Intelligence G0 DeepSTARR model, via the hosted /v1/tasks/enhancer/predict API. Returns per-window activity scores.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "enhancer",
+        "enhancer activity",
+        "predict enhancer",
+        "regulatory element",
+        "cis-regulatory",
+        "CRE",
+        "DeepSTARR",
+        "STARR-seq",
+        "massively parallel reporter assay",
+        "MPRA",
+        "gi enhancer",
+        "genomic intelligence enhancer"
+      ],
+      "tags": [
+        "genomics",
+        "enhancer",
+        "regulatory",
+        "cis-regulatory",
+        "deepstarr",
+        "dna-lm",
+        "gi-api"
+      ]
+    },
+    {
+      "name": "gi-expression",
+      "slug": "gi-expression",
+      "license": "MIT",
+      "description": "Predict tissue / cell-type expression (log TPM + TPM) from 9,198–500,000 bp of DNA around a TSS, at least 4,599 bp each side (anything but exactly 9,198 bp needs --tss-index) using the Genomic Intelligence G0 Expression model, via the hosted /v1/tasks/expression/predict API. The model is conditioned on a free-text cell-type / assay description.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "expression prediction",
+        "predict expression",
+        "sequence to expression",
+        "TPM prediction",
+        "cell type expression",
+        "tissue expression",
+        "RNA-seq prediction",
+        "gi expression",
+        "G0 expression",
+        "genomic intelligence expression"
+      ],
+      "tags": [
+        "genomics",
+        "expression",
+        "RNA-seq",
+        "TPM",
+        "sequence-to-expression",
+        "dna-lm",
+        "gi-api"
+      ]
+    },
+    {
+      "name": "gi-promoter",
+      "slug": "gi-promoter",
+      "license": "MIT",
+      "description": "Detect promoter regions in DNA sequences using the Genomic Intelligence G0 transformer (GENA-LM BERT Large), via the hosted /v1/tasks/promoter/predict API. Returns per-window promoter probabilities and called regions.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "promoter",
+        "promoter prediction",
+        "predict promoter",
+        "find promoter",
+        "promoter region",
+        "TSS prediction",
+        "transcription start site",
+        "gi promoter",
+        "genomic intelligence promoter",
+        "G0 promoter",
+        "GENA-LM promoter"
+      ],
+      "tags": [
+        "genomics",
+        "promoter",
+        "transcription",
+        "regulatory",
+        "dna-lm",
+        "transformer",
+        "gi-api"
+      ]
+    },
+    {
+      "name": "gi-splice",
+      "slug": "gi-splice",
+      "license": "MIT",
+      "description": "Detect splice donor and acceptor sites in DNA sequences using the Genomic Intelligence G0 BigBird transformer, via the hosted /v1/tasks/splice/predict API. Returns per-position site probabilities and called sites.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "splice",
+        "splice site",
+        "splice donor",
+        "splice acceptor",
+        "splicing prediction",
+        "intron exon boundary",
+        "cryptic splice site",
+        "GT-AG site",
+        "gi splice",
+        "G0 splice",
+        "genomic intelligence splice"
+      ],
+      "tags": [
+        "genomics",
+        "splice",
+        "splice-site",
+        "splicing",
+        "intron-exon",
+        "dna-lm",
+        "transformer",
+        "gi-api"
+      ]
+    },
+    {
+      "name": "gwas-catalog-region-fetch",
+      "slug": "gwas-catalog-region-fetch",
+      "license": "MIT",
+      "description": "Fetch a region of GWAS summary statistics from the NHGRI-EBI GWAS Catalog\nharmonised collection via tabix-on-FTP. Use when an agent needs GWAS beta /\nSE / p-value for every variant in a window for one specific study (GCST\naccession). Input: accession, chromosome, start, end. Output: harmonised\nTSV slice in canonical format.\n",
+      "version": "0.2.1",
+      "trigger_keywords": [
+        "gwas region fetch",
+        "gwas catalog region",
+        "gwas sumstats slice",
+        "GCST harmonised tabix",
+        "GWAS catalog tabix"
+      ],
+      "tags": [
+        "gwas",
+        "gwas-catalog",
+        "region-fetch",
+        "tabix",
+        "summary-statistics",
+        "harmonised"
+      ]
+    },
+    {
+      "name": "gwas-lookup",
+      "slug": "gwas-lookup",
+      "license": "MIT",
+      "description": "Federated variant lookup across 8 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, and more.",
+      "version": "0.1.0",
+      "trigger_keywords": [],
+      "tags": []
+    },
+    {
+      "name": "gwas-pipeline",
+      "slug": "gwas-pipeline",
+      "license": "MIT",
+      "description": "End-to-end GWAS automation wrapping PLINK2 for genotype QC and REGENIE for two-step whole-genome regression association testing. Produces Manhattan plots, QQ plots, clumped lead variants, and structured summary statistics.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "GWAS",
+        "genome-wide association",
+        "PLINK",
+        "REGENIE",
+        "association testing",
+        "Manhattan plot",
+        "QQ plot",
+        "polygenic",
+        "case-control"
+      ],
+      "tags": [
+        "gwas",
+        "association-testing",
+        "regenie",
+        "plink2",
+        "population-genetics",
+        "biobank",
+        "quality-control"
+      ]
+    },
+    {
+      "name": "gwas-prs",
+      "slug": "gwas-prs",
+      "license": "MIT",
+      "description": "Calculate polygenic risk scores from DTC genetic data using the PGS Catalog",
+      "version": "0.2.0",
+      "trigger_keywords": [],
+      "tags": []
+    },
+    {
+      "name": "gwas-sumstats-harmonize",
+      "slug": "gwas-sumstats-harmonize",
+      "license": "MIT",
+      "description": "Harmonize GWAS summary statistics from any common format (GWAS-Catalog SSF, PLINK 1.9/2, REGENIE, METAL, BOLT, SAIGE) to one canonical table (SNP CHR BP EA NEA EAF BETA SE P N): column detection, BETA/SE/P derivation, QC with drop reasons, and allele alignment to a reference panel, run as a Snakemake workflow.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "harmonize summary statistics",
+        "harmonise GWAS sumstats",
+        "standardize GWAS columns",
+        "align alleles to reference",
+        "flip alleles strand palindromic",
+        "prepare sumstats for meta-analysis",
+        "format sumstats for LDSC MR coloc"
+      ],
+      "tags": [
+        "gwas",
+        "summary-statistics",
+        "harmonization",
+        "allele-alignment",
+        "meta-analysis",
+        "snakemake"
+      ]
+    },
+    {
+      "name": "hla-typing",
+      "slug": "hla-typing",
+      "license": "MIT",
+      "description": "HLA allele typing from WGS/WES VCF data",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "allele",
+        "typing",
+        "from"
+      ],
+      "tags": [
+        "allele",
+        "typing",
+        "from"
+      ]
+    },
+    {
+      "name": "igv-validator",
+      "slug": "igv-validator",
+      "license": "MIT",
+      "description": "Read-level validation of variant calls from any VCF, tumor/normal or tumor-only: counts read support in the BAMs (SNVs, indels, SV breakpoints), compares it with the caller's reported counts, flags artifact patterns, takes one IGV screenshot per variant and writes a report.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "validate in IGV",
+        "IGV validation",
+        "check variant calls in IGV",
+        "is this mutation real",
+        "read support for variant",
+        "tumor normal read counts",
+        "IGV screenshot of variant",
+        "validate somatic calls against BAM",
+        "do the caller calls agree with the reads",
+        "tumor-only IGV check"
+      ],
+      "tags": [
+        "igv",
+        "variant-validation",
+        "somatic",
+        "tumor-normal",
+        "bam",
+        "structural-variants"
+      ]
+    },
+    {
+      "name": "illumina-bridge",
+      "slug": "illumina-bridge",
+      "license": "MIT",
+      "description": "Import DRAGEN-exported Illumina result bundles into ClawBio for local tertiary analysis and downstream routing.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "illumina",
+        "dragen",
+        "ica",
+        "basespace",
+        "sample sheet",
+        "samplesheet"
+      ],
+      "tags": [
+        "illumina",
+        "dragen",
+        "ica",
+        "tertiary-analysis",
+        "vcf",
+        "genomics"
+      ]
+    },
+    {
+      "name": "just-prs-mcp",
+      "slug": "just-prs-mcp",
+      "license": "MIT",
+      "description": "Compute evidence-aware polygenic risk scores from a local VCF or WGS file through the validated just-prs engine and a pinned local just-prs MCP server.",
+      "version": "0.1.1",
+      "trigger_keywords": [
+        "compute PRS from VCF",
+        "WGS polygenic risk score",
+        "evidence-aware PRS from VCF",
+        "just-prs"
+      ],
+      "tags": [
+        "polygenic-risk-score",
+        "personal-genomics",
+        "model-quality"
+      ]
+    },
+    {
+      "name": "labstep",
+      "slug": "labstep",
+      "license": "MIT",
+      "description": "Query and display Labstep electronic lab notebook data — experiments, protocols, resources, and inventory — via labstepPy.  Supports offline demo mode with synthetic biology data.",
+      "version": "0.2.0",
+      "trigger_keywords": [
+        "labstep",
+        "lab notebook",
+        "ELN",
+        "experiment",
+        "protocol steps",
+        "reagent inventory",
+        "lab inventory",
+        "LIMS"
+      ],
+      "tags": [
+        "labstep",
+        "ELN",
+        "lab-notebook",
+        "experiments",
+        "protocols",
+        "inventory",
+        "LIMS"
+      ]
+    },
+    {
+      "name": "ld-1000g-region-compute",
+      "slug": "ld-1000g-region-compute",
+      "license": "MIT",
+      "description": "Compute pairwise r² between a lead variant and every variant in a window\nusing the 1000 Genomes Phase 3 GRCh38 reference panel, ancestry-stratified.\nUse when an agent needs LD coloring for a regional plot or LD pruning\naround a candidate causal variant. Single client (on-demand region fetch\nfrom EBI 1000G FTP); no multi-GB cold-start.\n",
+      "version": "0.1.1",
+      "trigger_keywords": [
+        "ld around lead",
+        "ld region 1000g",
+        "r-squared 1000g phase 3",
+        "ancestry-stratified ld",
+        "locuszoom ld coloring",
+        "1000 genomes ld panel"
+      ],
+      "tags": [
+        "ld",
+        "1000-genomes",
+        "reference-panel",
+        "plink",
+        "ancestry-stratified",
+        "on-demand"
+      ]
+    },
+    {
+      "name": "lit-synthesizer",
+      "slug": "lit-synthesizer",
+      "license": "MIT",
+      "description": "Search PubMed and bioRxiv for bioinformatics literature, synthesise results into a structured report, and build a citation graph — all locally, with a reproducibility bundle.\n",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "search pubmed",
+        "find papers",
+        "literature review",
+        "search biorxiv",
+        "find articles",
+        "citation graph",
+        "synthesize literature",
+        "find research papers",
+        "pubmed search",
+        "recent papers on"
+      ],
+      "tags": [
+        "literature",
+        "pubmed",
+        "biorxiv",
+        "citation",
+        "synthesis"
+      ]
+    },
+    {
+      "name": "locuscompare-region-render",
+      "slug": "locuscompare-region-render",
+      "license": "MIT",
+      "description": "Render a 4-panel regional LocusCompare diagnostic for one (lead variant,\nexposure study, outcome study) tuple - overlays GWAS Manhattan, QTL Manhattan,\nGENCODE gene track, and cross-trait scatter colored by LD r². Use when an\nagent needs visual confirmation that two GWAS / QTL signals share the same\ncausal variant (the Liu 2019 LocusCompare convention). Inputs: lead variant +\ntwo pre-fetched harmonised sumstats slices (or eQTL Catalogue / GWAS Catalog\nidentifiers for bundled fetch). Output: PNG + JSON manifest.\n",
+      "version": "0.3.0",
+      "trigger_keywords": [
+        "regional locuscompare",
+        "regional coloc plot",
+        "two-trait coloc visualization",
+        "GWAS eQTL overlay",
+        "liu 2019 locuscompare convention",
+        "colocalization plot for a lead variant",
+        "regional plot for coloc lead"
+      ],
+      "tags": [
+        "regional-plot",
+        "coloc",
+        "eqtl",
+        "gwas",
+        "locuscompare",
+        "mendelian-randomisation",
+        "target-validation",
+        "drug-discovery"
+      ]
+    },
+    {
+      "name": "marker-dominance-mapper",
+      "slug": "marker-dominance-mapper",
+      "license": "MIT",
+      "description": "Deterministic marker-dominance region mapping from local spot-count CSVs",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "marker dominance mapping",
+        "map marker spots",
+        "marker-based tissue regions"
+      ],
+      "tags": [
+        "marker-dominance",
+        "spot-map",
+        "marker-mapping"
+      ]
+    },
+    {
+      "name": "mendelian-randomisation",
+      "slug": "mendelian-randomisation",
+      "license": "MIT",
+      "description": "Two-sample Mendelian Randomisation from GWAS summary statistics with IVW, MR-Egger, weighted median/mode, and full sensitivity analysis (Cochran Q, Egger intercept, Steiger, F-statistic, leave-one-out).",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "mendelian randomisation",
+        "mendelian randomization",
+        "MR analysis",
+        "two-sample MR",
+        "causal inference genetics",
+        "IVW",
+        "MR-Egger",
+        "instrumental variable",
+        "drug target validation MR",
+        "GWAS causal"
+      ],
+      "tags": [
+        "mendelian-randomisation",
+        "causal-inference",
+        "two-sample-mr",
+        "ivw",
+        "mr-egger",
+        "gwas",
+        "genetic-epidemiology",
+        "drug-target-validation"
+      ]
+    },
+    {
+      "name": "methylation-clock",
+      "slug": "methylation-clock",
+      "license": "MIT",
+      "description": "Compute epigenetic age from DNA methylation arrays using PyAging clocks from GEO accessions or local files.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "epigenetic age",
+        "methylation clock",
+        "pyaging",
+        "Horvath",
+        "GrimAge",
+        "DunedinPACE",
+        "GEO",
+        "GSE"
+      ],
+      "tags": [
+        "epigenetics",
+        "methylation",
+        "aging",
+        "clock",
+        "pyaging",
+        "GEO",
+        "illlumina-450k",
+        "EPIC"
+      ]
+    },
+    {
+      "name": "multiqc-reporter",
+      "slug": "multiqc-reporter",
+      "license": "MIT",
+      "description": "Aggregates QC reports from any bioinformatics tool outputs (FastQC, fastp, STAR, Picard, samtools, etc.) into a single MultiQC HTML report plus a ClawBio markdown summary with per-sample QC metrics.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "multiqc",
+        "aggregate QC",
+        "QC report",
+        "FastQC summary",
+        "multi-sample QC",
+        "sequencing QC report",
+        "combine QC",
+        "QC aggregation"
+      ],
+      "tags": [
+        "qc",
+        "fastqc",
+        "multiqc",
+        "sequencing",
+        "alignment",
+        "rna-seq",
+        "wgs",
+        "wes",
+        "aggregation"
+      ]
+    },
+    {
+      "name": "ncbi-datasets",
+      "slug": "ncbi-datasets",
+      "license": "MIT",
+      "description": "Download genomes, genes, virus sequences, and taxonomy data from NCBI using the datasets and dataformat CLI tools.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "ncbi",
+        "datasets download",
+        "datasets summary",
+        "dataformat",
+        "download genome",
+        "download gene",
+        "reference genome",
+        "genome accession",
+        "gene symbol",
+        "ortholog",
+        "download virus",
+        "sars-cov-2 sequence",
+        "taxonomy data",
+        "dehydrated download",
+        "rehydrate",
+        "GCF",
+        "GCA"
+      ],
+      "tags": [
+        "ncbi",
+        "genomics",
+        "bioinformatics",
+        "genome-download",
+        "gene",
+        "virus",
+        "taxonomy",
+        "datasets",
+        "dataformat",
+        "refseq",
+        "genbank"
+      ]
+    },
+    {
+      "name": "nfcore-rnaseq-wrapper",
+      "slug": "nfcore-rnaseq-wrapper",
+      "license": "MIT",
+      "description": "Wrapper skill for running nf-core/rnaseq bulk RNA-seq preprocessing from FASTQ or BAM inputs with strict preflight, reproducibility outputs, and downstream handoff to ClawBio bulk RNA-seq DE skills.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "bulk RNA-seq preprocessing",
+        "nf-core rnaseq",
+        "run rnaseq from fastq",
+        "preprocess RNA-seq FASTQs",
+        "FASTQ to count matrix",
+        "STAR Salmon RNA-seq pipeline",
+        "RSEM RNA-seq pipeline",
+        "HISAT2 RNA-seq alignment",
+        "bowtie2 salmon prokaryotic rnaseq"
+      ],
+      "tags": [
+        "rnaseq",
+        "bulk-rna-seq",
+        "nextflow",
+        "nf-core",
+        "fastq",
+        "preprocessing",
+        "counts"
+      ]
+    },
+    {
+      "name": "nfcore-rnastructurome-wrapper",
+      "slug": "nfcore-rnastructurome-wrapper",
+      "license": "MIT",
+      "description": "Wrapper skill for running nf-core/rnastructurome — chemical-probing RNA structure analysis (SHAPE/DMS, RT-stop/MaP readout) from FASTQ to per-base reactivity, secondary-structure predictions, and 2D diagrams.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "nf-core rnastructurome",
+        "RNA structure probing pipeline",
+        "SHAPE-MaP",
+        "SHAPE-seq",
+        "DMS-MaP",
+        "DMS-seq",
+        "RT-stop reactivity",
+        "mutational profiling RNA structure",
+        "RNA Framework pipeline",
+        "rf-count rf-norm rf-fold",
+        "R2DT structure diagram",
+        "per-base RNA reactivity"
+      ],
+      "tags": [
+        "rna-structure",
+        "shape",
+        "dms",
+        "chemical-probing",
+        "rna-framework",
+        "nextflow",
+        "nf-core",
+        "reactivity",
+        "secondary-structure"
+      ]
+    },
+    {
+      "name": "nfcore-sarek-wrapper",
+      "slug": "nfcore-sarek-wrapper",
+      "license": "MIT",
+      "description": "ClawBio wrapper around nf-core/sarek 3.8.1 covering mapping through annotation for germline, tumor-only, and somatic paired analyses.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "sarek",
+        "germline variant calling",
+        "somatic variant calling",
+        "tumor-normal pair",
+        "mutect2",
+        "strelka",
+        "haplotypecaller",
+        "ascat",
+        "WES variant calling",
+        "WGS variant calling",
+        "VEP annotation",
+        "SnpEff",
+        "GATK pipeline",
+        "nf-core",
+        "Nextflow"
+      ],
+      "tags": [
+        "sarek",
+        "variant-calling",
+        "germline",
+        "somatic",
+        "tumor-only",
+        "wes",
+        "wgs",
+        "nextflow",
+        "nf-core"
+      ]
+    },
+    {
+      "name": "nfcore-scrnaseq-wrapper",
+      "slug": "nfcore-scrnaseq-wrapper",
+      "license": "MIT",
+      "description": "Wrapper skill for running nf-core/scrnaseq 4.1.0 upstream single-cell RNA-seq preprocessing from FASTQ with strict preflight, reproducibility outputs, and downstream handoff to ClawBio scRNA skills.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "scrnaseq",
+        "nf-core scrnaseq",
+        "run scrnaseq from fastq",
+        "preprocess 10x fastqs",
+        "generate h5ad from single-cell fastq",
+        "single-cell preprocessing",
+        "nextflow scrna pipeline",
+        "10x chromium fastq pipeline",
+        "starsolo upstream processing",
+        "alevin-fry fastq to counts",
+        "run nextflow scrnaseq",
+        "upstream single-cell pipeline",
+        "fastq to h5ad single cell",
+        "10x genomics fastq pipeline"
+      ],
+      "tags": [
+        "scrna",
+        "single-cell",
+        "nextflow",
+        "nf-core",
+        "fastq",
+        "10x",
+        "h5ad",
+        "preprocessing"
+      ]
+    },
+    {
+      "name": "nutrigx",
+      "slug": "nutrigx",
+      "license": "MIT",
+      "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
+      "version": "0.2.0",
+      "trigger_keywords": [
+        "personalised nutrition",
+        "nutrigenomics",
+        "diet genetics",
+        "MTHFR",
+        "APOE",
+        "FTO",
+        "vitamin D",
+        "caffeine metabolism",
+        "lactose",
+        "omega-3",
+        "folate",
+        "what should I eat based on my DNA",
+        "vitamin absorption genetics",
+        "gluten"
+      ],
+      "tags": [
+        "nutrigenomics",
+        "nutrition",
+        "diet",
+        "genetics",
+        "23andme",
+        "ancestrydna",
+        "vcf"
+      ]
+    },
+    {
+      "name": "omics-target-evidence-mapper",
+      "slug": "omics-target-evidence-mapper",
+      "license": "MIT",
+      "description": "Aggregate public target-level evidence across omics and translational sources for research triage.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "target evidence",
+        "gene disease evidence",
+        "target triage",
+        "omics evidence",
+        "gene disease mapper"
+      ],
+      "tags": [
+        "omics",
+        "targets",
+        "translational-research",
+        "literature",
+        "trials"
+      ]
+    },
+    {
+      "name": "organ-aging-studio",
+      "slug": "organ-aging-studio",
+      "license": "MIT",
+      "description": "Interactive Goeminne proteomic aging clock with organ filters and per-protein contribution breakdown (protein NPX × coefficient). Agent- and demo-friendly.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "organ aging studio",
+        "proteomic clock breakdown",
+        "protein coefficient aging",
+        "Goeminne clock explain",
+        "which proteins drive organ age"
+      ],
+      "tags": [
+        "aging",
+        "longevity",
+        "proteomics",
+        "biological age",
+        "organ clock",
+        "Goeminne",
+        "interpretability"
+      ]
+    },
+    {
+      "name": "pathway-enricher",
+      "slug": "pathway-enricher",
+      "license": "MIT",
+      "description": "Gene-set pathway enrichment analysis using Enrichr — queries KEGG, GO (BP/MF/CC), Reactome, WikiPathways, MSigDB, and Disease Ontology. Produces ranked pathway tables, interactive bubble charts, and a reproducible Markdown report.",
+      "version": "0.1.0",
+      "trigger_keywords": [],
+      "tags": []
+    },
+    {
+      "name": "pharmgx-reporter",
+      "slug": "pharmgx-reporter",
+      "license": "MIT",
+      "description": "Pharmacogenomic report from DTC genetic data (23andMe/AncestryDNA) — 12 genes, 31 SNPs, 51 drugs",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "pharmacogenomics",
+        "drug interactions",
+        "23andMe medications",
+        "CYP2D6",
+        "CYP2C19",
+        "warfarin",
+        "CPIC"
+      ],
+      "tags": [
+        "pharmacogenomics",
+        "CPIC",
+        "DTC-genetics",
+        "precision-medicine"
+      ]
+    },
+    {
+      "name": "phylogenetics-builder",
+      "slug": "phylogenetics-builder",
+      "license": "MIT",
+      "description": "End-to-end ML phylogenetic tree inference — MSA, trimming, ModelFinder, IQ-TREE2/RAxML-NG.",
+      "version": "0.3.0",
+      "trigger_keywords": [
+        "phylogeny",
+        "phylogenetic tree",
+        "iqtree",
+        "raxml",
+        "maximum likelihood tree",
+        "mafft alignment",
+        "build tree from sequences",
+        "model selection",
+        "ModelFinder",
+        "bootstrap support",
+        "evolutionary tree",
+        "molecular phylogeny"
+      ],
+      "tags": []
+    },
+    {
+      "name": "polars-bio",
+      "slug": "polars-bio",
+      "license": "Apache-2.0",
+      "description": "Fast genomic interval operations (overlap, nearest, merge, coverage, cluster, complement, subtract, count-overlaps), multi-format bioinformatics I/O, DataFusion SQL, and pileup on Polars DataFrames via polars-bio. A scalable bioframe/bedtools alternative.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "interval overlap",
+        "nearest interval",
+        "merge intervals",
+        "genomic coverage",
+        "BED intersect",
+        "bioframe",
+        "polars-bio",
+        "interval arithmetic",
+        "complement intervals",
+        "subtract intervals",
+        "count overlaps",
+        "DataFusion SQL genomic",
+        "BigWig",
+        "BigBed",
+        "genomic pileup depth"
+      ],
+      "tags": [
+        "genomic-intervals",
+        "interval-arithmetic",
+        "bioframe-alternative",
+        "file-io",
+        "datafusion-sql",
+        "polars"
+      ]
+    },
+    {
+      "name": "pride-fetch",
+      "slug": "pride-fetch",
+      "license": "MIT",
+      "description": "Query metadata and download data from the PRIDE Archive, EMBL-EBI's proteomics identifications database, via the PRIDE Archive REST API v3. Works with PRIDE/ProteomeXchange accessions (PXD, PRD) to fetch project metadata, list and download files (RAW, mzIdentML, mzML, mzTab, MGF, SDRF), search projects, emit a standardised metadata.tsv, write a quantms-ready minimal SDRF sample sheet, and generate a bash + SLURM download script.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "PRIDE",
+        "ProteomeXchange",
+        "PXD",
+        "proteomics data",
+        "mass spectrometry archive",
+        "mzML",
+        "mzIdentML",
+        "SDRF",
+        "quantms"
+      ],
+      "tags": [
+        "pride",
+        "proteomics",
+        "mass-spectrometry",
+        "proteomexchange",
+        "sdrf",
+        "quantms",
+        "public-archives"
+      ]
+    },
+    {
+      "name": "profile-report",
+      "slug": "profile-report",
+      "license": "MIT",
+      "description": "Unified personal genomic profile report — reads a PatientProfile JSON and synthesizes all skill results into a single \"Your Genomic Profile\" document.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "profile report",
+        "unified report",
+        "my profile",
+        "genomic profile",
+        "personal profile"
+      ],
+      "tags": [
+        "profile",
+        "report-synthesis",
+        "personal-genomics"
+      ]
+    },
+    {
+      "name": "proteomics-clock",
+      "slug": "proteomics-clock",
+      "license": "MIT",
+      "description": "Compute organ-specific biological age from Olink proteomic data using Goeminne et al. (2025) elastic net aging clocks.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "proteomics clock",
+        "organ aging",
+        "proteomic clock",
+        "olink clock",
+        "organ clock",
+        "goeminne",
+        "plasma protein aging",
+        "organ-specific aging"
+      ],
+      "tags": [
+        "proteomics",
+        "aging",
+        "olink",
+        "organ-clock",
+        "biological age",
+        "Goeminne"
+      ]
+    },
+    {
+      "name": "proteomics-de",
+      "slug": "proteomics-de",
+      "license": "MIT",
+      "description": "Differential expression analysis for label-free quantitative (LFQ) intensity data with standard MaxQuant and DIA-NN output. Workflow includes preprocessing, imputation, and statistical testing.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "Differential expression analysis of proteomics data from MaxQuant or DIA-NN output"
+      ],
+      "tags": []
+    },
+    {
+      "name": "protocols-io",
+      "slug": "protocols-io",
+      "license": "MIT",
+      "description": "Search, browse, and retrieve scientific protocols from protocols.io via REST API. Client token authentication for private protocols. Use when user mentions protocols.io, lab protocols, DOI lookup, protocol search, protocol steps, or scientific methods.",
+      "version": "0.2.0",
+      "trigger_keywords": [
+        "protocols.io",
+        "protocol search",
+        "lab protocol",
+        "scientific protocol",
+        "protocol steps",
+        "protocol DOI",
+        "methods repository"
+      ],
+      "tags": [
+        "protocols",
+        "lab-methods",
+        "reproducibility",
+        "protocols-io",
+        "scientific-methods",
+        "DOI"
+      ]
+    },
+    {
+      "name": "prs-abstain",
+      "slug": "prs-abstain",
+      "license": "MIT",
+      "description": "Gates polygenic risk score percentiles on trait applicability, score integrity and ancestry transferability, withholding the percentile when it would be uninterpretable and attributing the error to individual SNPs.",
+      "version": "0.4.0",
+      "trigger_keywords": [
+        "should this polygenic score be reported",
+        "PRS ancestry transferability",
+        "refuse to report percentile",
+        "polygenic score abstention",
+        "is this PRS valid for this ancestry"
+      ],
+      "tags": [
+        "polygenic-risk-score",
+        "ancestry",
+        "abstention",
+        "health-equity",
+        "transferability"
+      ]
+    },
+    {
+      "name": "prs-applicability-gate",
+      "slug": "prs-applicability-gate",
+      "license": "MIT",
+      "description": "Deterministic gate for ONE already-computed polygenic score result and ONE person: returns SUPPORTED (raw score, standardised score and reference percentile may be shown), RAW_ONLY (raw score only) or ABSTAIN (nothing), with reason codes, a full rule trace and what would change the result. Never produces absolute risk.",
+      "version": "2.2.0",
+      "trigger_keywords": [
+        "can this polygenic score be interpreted",
+        "is this PRS percentile valid for me",
+        "PRS applicability",
+        "prs gate",
+        "should this PGS percentile be shown"
+      ],
+      "tags": [
+        "polygenic-score",
+        "prs",
+        "applicability",
+        "ancestry",
+        "pgs-catalog",
+        "safety-gate"
+      ]
+    },
+    {
+      "name": "pubmed-summariser",
+      "slug": "pubmed-summariser",
+      "license": "MIT",
+      "description": "Search PubMed, preserve complete abstracts and sections, and produce research briefings with abstract openings or optional OpenAI/Ollama summaries.",
+      "version": "0.2.0",
+      "trigger_keywords": [
+        "pubmed",
+        "summarise papers",
+        "research briefing",
+        "papers about",
+        "recent studies",
+        "literature search pubmed",
+        "gene papers",
+        "disease papers"
+      ],
+      "tags": []
+    },
+    {
+      "name": "rare-disease-rnaseq",
+      "slug": "rare-disease-rnaseq",
+      "license": "MIT",
+      "description": "Blood RNA-seq expression-outlier detection for rare-disease diagnostics. Cases scored against a control reference panel; outliers ranked and filtered by a haploinsufficient disease-gene panel.",
+      "version": "0.1.0",
+      "trigger_keywords": [],
+      "tags": [
+        "rna-seq",
+        "rare-disease",
+        "outlier-detection",
+        "OUTRIDER",
+        "FRASER",
+        "diagnostic",
+        "blood",
+        "transcriptomics",
+        "haploinsufficiency"
+      ]
+    },
+    {
+      "name": "rare-high-impact-variants",
+      "slug": "rare-high-impact-variants",
+      "license": "MIT",
+      "description": "Count rare, high-impact loss-of-function variants carried in a VCF, annotated with molecular consequence and population allele frequency",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "count",
+        "rare,",
+        "high-impact"
+      ],
+      "tags": [
+        "count",
+        "rare",
+        "high-impact",
+        "loss-of-function",
+        "variant-burden",
+        "lof"
+      ]
+    },
+    {
+      "name": "recombinator",
+      "slug": "recombinator",
+      "license": "MIT",
+      "description": "Produce offspring genomes from parent pairs via meiotic recombination, mutation, and clinical evaluation",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "recombinator",
+        "recombination",
+        "offspring",
+        "breed",
+        "meiosis",
+        "genomebook breed",
+        "next generation"
+      ],
+      "tags": [
+        "genomebook",
+        "recombination",
+        "meiosis",
+        "mutation",
+        "offspring",
+        "clinical-genetics"
+      ]
+    },
+    {
+      "name": "repro-enforcer",
+      "slug": "repro-enforcer",
+      "license": "MIT",
+      "description": "Export any bioinformatics analysis as a reproducible bundle with Conda environment, Singularity container definition, and Nextflow pipeline.",
+      "version": "0.1.0",
+      "trigger_keywords": [],
+      "tags": []
+    },
+    {
+      "name": "rnaseq-de",
+      "slug": "rnaseq-de",
+      "license": "MIT",
+      "description": "Differential expression analysis for bulk RNA-seq and pseudo-bulk count matrices with QC, PCA, and contrast testing.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "rna-seq",
+        "differential expression",
+        "bulk RNA",
+        "pseudo-bulk",
+        "volcano plot",
+        "ma plot",
+        "count matrix",
+        "DESeq2",
+        "pydeseq2"
+      ],
+      "tags": [
+        "rna-seq",
+        "differential expression",
+        "bulk",
+        "pseudo-bulk",
+        "transcriptomics",
+        "DESeq2",
+        "PyDESeq2",
+        "QC",
+        "PCA"
+      ]
+    },
+    {
+      "name": "sample-qc-triage",
+      "slug": "sample-qc-triage",
+      "license": "MIT",
+      "description": "Deterministic multi-sample QC triage for identity, sex, contamination, and batch-shift outliers",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "sample QC triage",
+        "sequencing QC outliers",
+        "sex mismatch",
+        "fingerprint concordance",
+        "contamination batch shift"
+      ],
+      "tags": [
+        "quality-control",
+        "sequencing-qc",
+        "triage"
+      ]
+    },
+    {
+      "name": "scrna-embedding",
+      "slug": "scrna-embedding",
+      "license": "MIT",
+      "description": "Local scVI/scANVI-based single-cell latent embedding and batch-aware integration from raw-count .h5ad or 10x Matrix Market input, with stable integrated AnnData export for downstream latent analysis.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "scvi",
+        "scanvi",
+        "embedding",
+        "latent",
+        "integration",
+        "batch correction",
+        "batch integration",
+        "h5ad",
+        "10x"
+      ],
+      "tags": [
+        "scrna",
+        "single-cell",
+        "scvi",
+        "scanvi",
+        "embedding",
+        "integration",
+        "batch-correction",
+        "h5ad",
+        "10x"
+      ]
+    },
+    {
+      "name": "scrna-orchestrator",
+      "slug": "scrna-orchestrator",
+      "license": "MIT",
+      "description": "Local Scanpy pipeline for single-cell RNA-seq QC, optional doublet detection, clustering, marker discovery, optional CellTypist annotation, optional latent downstream mode from integrated.h5ad/X_scvi, and optional dataset-level plus within-cluster contrastive marker analysis from raw-count .h5ad or 10x Matrix Market input.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "scrna",
+        "single-cell",
+        "scanpy",
+        "h5ad",
+        "mtx",
+        "10x",
+        "leiden",
+        "marker genes",
+        "differential expression",
+        "contrastive markers",
+        "integrated.h5ad",
+        "x_scvi",
+        "doublet",
+        "celltypist"
+      ],
+      "tags": [
+        "scrna",
+        "single-cell",
+        "scanpy",
+        "clustering",
+        "differential-expression",
+        "h5ad",
+        "mtx",
+        "10x"
+      ]
+    },
+    {
+      "name": "seq-wrangler",
+      "slug": "seq-wrangler",
+      "license": "MIT",
+      "description": "NGS read QC, alignment, and BAM processing pipeline. Wraps FastQC, BWA/Bowtie2/Minimap2, SAMtools, and MultiQC for automated read-to-BAM workflows.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "align reads",
+        "align fastq",
+        "map reads",
+        "paired-end alignment",
+        "bwa mem",
+        "bowtie2",
+        "minimap2",
+        "fastq to bam",
+        "read qc",
+        "trim adapters",
+        "coverage of bam",
+        "flagstat",
+        "sort and index bam",
+        "process fastq"
+      ],
+      "tags": [
+        "fastq",
+        "alignment",
+        "bam",
+        "qc",
+        "bowtie2",
+        "bwa",
+        "minimap2",
+        "samtools",
+        "ngs",
+        "genomics"
+      ]
+    },
+    {
+      "name": "seqtk-downsample",
+      "slug": "seqtk-downsample",
+      "license": "MIT",
+      "description": "Randomly downsample FASTQ files to N reads or a fraction with `seqtk sample`, single-end or paired-end, fixed seed (default 12345), gzip in and out.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "downsample fastq",
+        "subsample fastq",
+        "seqtk sample",
+        "take 10000 reads from fastq",
+        "reduce fastq size for testing"
+      ],
+      "tags": [
+        "fastq",
+        "seqtk",
+        "downsampling",
+        "subsampling",
+        "sequencing"
+      ]
+    },
+    {
+      "name": "skill-builder",
+      "slug": "skill-builder",
+      "license": "MIT",
+      "description": "Scaffold a new ClawBio skill from a spec file (JSON/YAML) or interactively — generates SKILL.md, Python skeleton, tests, and updates catalog.json",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "create skill",
+        "new skill",
+        "scaffold skill",
+        "skill template",
+        "skill builder",
+        "add a skill",
+        "build a skill",
+        "make a skill"
+      ],
+      "tags": [
+        "meta",
+        "scaffolding",
+        "developer-tools",
+        "skill-creation"
+      ]
+    },
+    {
+      "name": "snp-phewas",
+      "slug": "snp-phewas",
+      "license": "MIT",
+      "description": "Variant PheWAS across three curated biobanks, Pan-UK Biobank, FinnGen R12 and the Million Veteran Program: one variant in, beta / SE / p / allele frequency for every outcome each biobank tested (nulls included), on one effect allele, every untested or unreadable outcome kept as a row with a reason, outcomes harmonized across the biobanks, and a replication verdict per shared outcome for every biobank pair and across all three.",
+      "version": "0.3.0",
+      "trigger_keywords": [
+        "snp phewas",
+        "variant phewas across biobanks",
+        "pan-ukbb phewas",
+        "finngen phewas",
+        "million veteran program phewas",
+        "mvp phewas",
+        "phewas replication",
+        "phenome-wide association for rs"
+      ],
+      "tags": [
+        "phewas",
+        "pan-ukbb",
+        "finngen",
+        "million-veteran-program",
+        "replication",
+        "summary-statistics",
+        "tabix"
+      ]
+    },
+    {
+      "name": "spatial-transcriptomics",
+      "slug": "spatial-transcriptomics",
+      "license": "MIT",
+      "description": "Analyse 10x Visium spatial transcriptomics: SpaceRanger outs or spatial h5ad in, then QC, Leiden clustering, Wilcoxon markers, Moran's I, neighbourhood enrichment and co-occurrence in one local report.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "visium",
+        "spatial transcriptomics",
+        "SpaceRanger",
+        "Moran's I",
+        "neighbourhood enrichment",
+        "spatially variable genes"
+      ],
+      "tags": [
+        "spatial-transcriptomics",
+        "visium",
+        "scanpy",
+        "moran",
+        "clustering"
+      ]
+    },
+    {
+      "name": "struct-predictor",
+      "slug": "struct-predictor",
+      "license": "MIT",
+      "description": "Protein structure prediction with Boltz-2 (default) or OpenFold3. Accepts YAML inputs (single protein or multi-chain complex), runs the chosen backend offline, extracts per-residue pLDDT and PAE confidence, and writes a markdown report with figures.",
+      "version": "0.3.0",
+      "trigger_keywords": [],
+      "tags": []
+    },
+    {
+      "name": "target-validation-scorer",
+      "slug": "target-validation-scorer",
+      "license": "MIT",
+      "description": "Evidence-grounded target validation scoring with GO/NO-GO decisions for drug discovery campaigns",
+      "version": "1.0.0",
+      "trigger_keywords": [
+        "target validation",
+        "is this target druggable",
+        "evaluate drug target",
+        "GO NO-GO decision for target"
+      ],
+      "tags": [
+        "drug-discovery",
+        "target-validation",
+        "evidence-grading",
+        "decision-support",
+        "kinase"
+      ]
+    },
+    {
+      "name": "turingdb-graph",
+      "slug": "turingdb-graph",
+      "license": "MIT",
+      "description": "Build, query, and analyse biomedical knowledge graphs in TuringDB, a columnar graph database with git-like versioning.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "knowledge graph",
+        "biomedical graph",
+        "turingdb",
+        "cypher query",
+        "patient cohort graph",
+        "pathway graph",
+        "graph database",
+        "build a graph from CSV",
+        "comorbidity analysis",
+        "comedication analysis"
+      ],
+      "tags": [
+        "graph-database",
+        "knowledge-graph",
+        "turingdb",
+        "cypher",
+        "biomedical",
+        "patient-cohort",
+        "pathway"
+      ]
+    },
+    {
+      "name": "ukb-navigator",
+      "slug": "ukb-navigator",
+      "license": "MIT",
+      "description": "Semantic search across UK Biobank's 12,000+ data fields and publications — find the right variables for your research question.",
+      "version": "0.1.0",
+      "trigger_keywords": [],
+      "tags": []
+    },
+    {
+      "name": "ukb-ppp-region-fetch",
+      "slug": "ukb-ppp-region-fetch",
+      "license": "MIT",
+      "description": "Fetch a regional slice of plasma pQTL summary statistics from the UK\nBiobank Pharma Proteomics Project (UKB-PPP; Sun 2023 Nature) for a\nspecific (protein, ancestry) measurement. Use when an agent needs\nper-variant beta / SE / p-value around a coloc-lead variant for\ndownstream colocalisation, Mendelian randomisation, or regional\nplotting against a pQTL exposure. The canonical use case is the\ncis-window around the protein's coding gene TSS, but UKB-PPP releases\nfull-genome summary stats per protein so any GRCh38 window (including\ntrans loci) is supported when the user supplies an explicit\n(chromosome, start_bp, end_bp). Input: protein_label (HGNC or\nUniProt), ancestry, chromosome, start_bp, end_bp. Output: harmonised\nTSV slice + manifest + human-readable report.\n",
+      "version": "0.1.2",
+      "trigger_keywords": [
+        "ukb-ppp pqtl region fetch",
+        "pqtl regional summary stats",
+        "sun 2023 ukbppp",
+        "protein qtl summary stats",
+        "plasma pqtl regional fetch"
+      ],
+      "tags": [
+        "pqtl",
+        "ukb-ppp",
+        "region-fetch",
+        "regenie",
+        "summary-statistics",
+        "proteomics",
+        "olink"
+      ]
+    },
+    {
+      "name": "variant-annotation",
+      "slug": "variant-annotation",
+      "license": "MIT",
+      "description": "Annotate VCF variants with Ensembl VEP REST, ClinVar significance, gnomAD/population frequency context, and prioritized variant ranking.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "vcf",
+        "variant annotation",
+        "vep",
+        "clinvar",
+        "gnomad",
+        "annotate variants",
+        "pathogenic variants"
+      ],
+      "tags": [
+        "genomics",
+        "vcf",
+        "variant-annotation",
+        "vep",
+        "clinvar",
+        "gnomad"
+      ]
+    },
+    {
+      "name": "vcf-annotator",
+      "slug": "vcf-annotator",
+      "license": "MIT",
+      "description": "Annotate VCF variants with Ensembl VEP, ClinVar, and gnomAD. Ranks variants by impact (HIGH/MODERATE/LOW/MODIFIER) and generates a reproducible report.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "annotate vcf",
+        "annotate variants",
+        "variant annotation",
+        "clinvar lookup",
+        "gnomad frequency",
+        "vep annotation",
+        "pathogenic variants",
+        "variant effect",
+        "annotate my vcf",
+        "what variants are pathogenic"
+      ],
+      "tags": [
+        "vcf",
+        "variants",
+        "annotation",
+        "clinvar",
+        "gnomad",
+        "vep",
+        "genomics"
+      ]
+    },
+    {
+      "name": "wes-clinical-report-en",
+      "slug": "wes-clinical-report-en",
+      "license": "PROPRIETARY",
+      "description": "Generates professional clinical PDF reports in English from WES (Whole Exome Sequencing) data with clinical interpretation summary, pharmacogenomic alerts, and follow-up recommendations.",
+      "version": "1.0.0",
+      "trigger_keywords": [
+        "WES clinical report",
+        "exome PDF report english",
+        "clinical report english",
+        "Novogene report english",
+        "WES report PDF"
+      ],
+      "tags": [
+        "WES",
+        "exome",
+        "clinical-report",
+        "english",
+        "pharmacogenomics",
+        "PDF",
+        "ANNOVAR"
+      ]
+    },
+    {
+      "name": "wgs-prs",
+      "slug": "wgs-prs",
+      "license": "MIT",
+      "description": "End-to-end WGS to polygenic risk score pipeline. Takes paired-end FASTQ files (or a pre-existing VCF) through nf-core/sarek for variant calling, applies VCF QC (normalisation, hard filtering, Ti/Tv and Het/Hom checks), then computes polygenic risk scores via the PGS Catalog. Fills the FASTQ to VCF gap upstream of the gwas-prs skill.",
+      "version": "0.2.0",
+      "trigger_keywords": [
+        "WGS",
+        "whole genome sequencing",
+        "FASTQ to PRS",
+        "variant calling",
+        "nf-core sarek",
+        "sarek",
+        "FASTQ VCF",
+        "WGS polygenic risk",
+        "germline variant calling",
+        "GATK HaplotypeCaller",
+        "WGS pipeline",
+        "raw sequencing to risk scores"
+      ],
+      "tags": [
+        "wgs",
+        "whole-genome-sequencing",
+        "polygenic-risk-scores",
+        "prs",
+        "sarek",
+        "nf-core",
+        "nextflow",
+        "variant-calling",
+        "vcf-qc",
+        "gatk"
+      ]
+    },
+    {
+      "name": "xena-tcga-gene-query",
+      "slug": "xena-tcga-gene-query",
+      "license": "MIT",
+      "description": "Query TCGA tumor biology through the ucscxenatoolspy API. Supports tumor-vs-normal differential expression, gene-gene correlation, survival association, and cancer catalogue browsing across 30+ TCGA cancer types.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "TCGA",
+        "tumor vs normal",
+        "differential expression",
+        "gene expression cancer",
+        "survival analysis",
+        "co-expression",
+        "prognosis",
+        "cancer biomarker",
+        "肿瘤",
+        "肺癌",
+        "乳腺癌",
+        "差异表达",
+        "生存分析",
+        "预后"
+      ],
+      "tags": [
+        "tcga",
+        "gene-expression",
+        "survival-analysis",
+        "differential-expression",
+        "co-expression",
+        "cancer",
+        "tumor-biology"
+      ]
+    }
+  ]
+}

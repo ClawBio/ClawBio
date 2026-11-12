@@ -345,6 +345,29 @@ class TestDemoMode:
         assert result["total_variants"] == 20
         assert result["framework"] == "ACMG/AMP 2015 (Richards et al., PMID 25741868)"
 
+    def test_demo_cli_writes_verifiable_reproducibility_bundle(self, tmp_path):
+        import hashlib
+        import subprocess
+
+        repo_root = Path(__file__).resolve().parents[3]
+        out = tmp_path / "out"
+        subprocess.run(
+            [sys.executable, "skills/clinical-variant-reporter/clinical_variant_reporter.py",
+             "--demo", "--output", str(out)],
+            cwd=repo_root, check=True, capture_output=True,
+        )
+        repro = out / "reproducibility"
+        commands = (repro / "commands.sh").read_text()
+        assert "python skills/clinical-variant-reporter/clinical_variant_reporter.py --demo" in commands
+        assert "requests" in (repro / "environment.yml").read_text()
+
+        lines = (repro / "checksums.sha256").read_text().splitlines()
+        labels = {line.split("  ", 1)[1] for line in lines}
+        assert {"report.md", "result.json", "reproducibility/environment.yml"} <= labels
+        for line in lines:
+            digest, label = line.split("  ", 1)
+            assert hashlib.sha256((out / label).read_bytes()).hexdigest() == digest, label
+
     def test_demo_transcripts_are_versioned(self, demo_vcf_path):
         """HGVS v21.1 requires versioned transcript accessions (e.g. ENST00000357654.9)."""
         records = parse_vcf(demo_vcf_path)

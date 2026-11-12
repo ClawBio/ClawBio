@@ -9,7 +9,7 @@ description: |
 license: MIT
 metadata:
   skill-author: Aviv Madar
-  version: 0.1.0
+  version: 0.2.0
   domain: bioinformatics
   tags:
     - eqtl
@@ -43,6 +43,9 @@ metadata:
     - name: variants
       type: list
       description: Per-variant rows with variant_id, chromosome, position, ref, alt, beta, se, p_value, maf, molecular_trait_id, dataset_id.
+    - name: collapsed
+      type: list
+      description: One row per duplicate rsID copy dropped (variant_id, molecular_trait_id, rsid, kept_rsid, reason); n_variants + len(collapsed) == n_rows_read.
     - name: release
       type: object
       description: EQTLCatalogueRelease with study_label, tissue_label, condition_label, sample_group, quant_method, dataset_release, fetched_at_utc.
@@ -115,7 +118,7 @@ When an agent asks for a regional cis-QTL slice from eQTL Catalogue:
 2. **Pick a region**: `(chromosome, start_bp, end_bp)` in 1-based inclusive GRCh38 coordinates. For LocusCompare-style coloc inspection centre on the lead variant ± 500 kb; for "what does this gene's cis-window look like" queries centre on the gene TSS ± 1 Mb (the catalogue's full cis-window for that gene).
 3. **Tabix range fetch**: the skill performs a single byte-range request against the dataset's per-variant file on the EBI FTP (`<QTD>.all.tsv.gz` or `<QTD>.cc.tsv.gz`, whichever the catalogue's dataset table lists for it, as recorded in the bundled table). No REST endpoint is used (see Gotchas #1 and #6).
 4. **Filter by `molecular_trait_id`** (recommended for `ge` datasets): the harmonised `.all.tsv.gz` for `ge` quant_method bundles every gene's variants together. Pass the target ENSG to filter; without it you get every gene's rows in the window.
-5. **Write outputs** to `--output <dir>/`: a flat `variants.tsv` (effect-allele-aligned, GRCh38, ALT-effect β), a `manifest.yaml` with provenance (`study_label`, `tissue_label`, `quant_method` + human-readable label, `n_variants`, source URL, fetched-at UTC timestamp), and a `report.md` human-readable summary.
+5. **Write outputs** to `--output <dir>/`: a flat `variants.tsv` (effect-allele-aligned, GRCh38, ALT-effect β), a `manifest.yaml` with provenance (`study_label`, `tissue_label`, `quant_method` + human-readable label, `n_variants`, source URL, fetched-at UTC timestamp, `n_rows_read`, `n_collapsed_duplicate_rsid_rows`), a `report.md` human-readable summary, and, when the catalogue repeated a variant once per rsID, a `collapsed_rows.tsv` with one line per dropped copy (see Gotcha 8).
 
 ## CLI Reference
 
@@ -154,7 +157,8 @@ Running `--demo sort1_gtex_minor_salivary_gland`:
 
 ```
 info: using bundled demo sort1_gtex_minor_salivary_gland.json
-eqtl-catalogue-region-fetch: 2833 variants -> /tmp/sort1_demo/variants.tsv
+eqtl-catalogue-region-fetch: 2740 variants -> /tmp/sort1_demo/variants.tsv
+  2833 rows read; 93 duplicate rsID rows collapsed (82 variants carry 2 to 4 rsIDs); 2740 variants returned
   source: GTEx | minor salivary gland | gene expression
 ```
 
@@ -162,14 +166,17 @@ eqtl-catalogue-region-fetch: 2833 variants -> /tmp/sort1_demo/variants.tsv
 
 ```yaml
 skill: eqtl-catalogue-region-fetch
-version: 0.1.0
+version: 0.2.0
 dataset_id: QTD000276
 molecular_trait_id: ENSG00000134243
 region:
   chromosome: '1'
   start_bp: 108774968
   end_bp: 109774968
-n_variants: 2833
+n_variants: 2740
+n_rows_read: 2833
+n_collapsed_duplicate_rsid_rows: 93
+n_variants_with_multiple_rsids: 82
 release:
   study_label: GTEx
   tissue_label: minor salivary gland
@@ -181,6 +188,14 @@ release:
   fetched_at_utc: '2026-05-06T15:50:33Z'
 outputs:
   variants_tsv: variants.tsv
+  collapsed_rows_tsv: collapsed_rows.tsv
+```
+
+`<output_dir>/collapsed_rows.tsv` (one line per duplicate rsID copy that was dropped; first row shown):
+
+```
+variant_id           molecular_trait_id  rsid       kept_rsid   reason
+1_108778690_T_TTATA  ENSG00000134243     rs5776947  rs35423568  duplicate_rsid_row
 ```
 
 `<output_dir>/variants.tsv` (first three rows shown):
@@ -201,7 +216,8 @@ variant_id              chromosome  position_bp  allele_a  allele_b  beta       
 - **Source:** GTEx | minor salivary gland | quantification = gene expression
 - **Region:** chr1:108,774,968-109,774,968
 - **Molecular trait:** ENSG00000134243
-- **Variants returned:** 2833
+- **Variants returned:** 2740
+- **Rows read:** 2833 rows read; 93 duplicate rsID rows collapsed (82 variants carry 2 to 4 rsIDs); 2740 variants returned
 - **Output TSV:** variants.tsv
 ```
 
@@ -227,6 +243,8 @@ variant_id              chromosome  position_bp  allele_a  allele_b  beta       
 6. **Dataset metadata comes from the bundled table, and the API is gone.** The catalogue permanently disabled its metadata REST API in September 2026 (it answers HTTP 410; [eQTL-Catalogue-resources#59](https://github.com/eQTL-Catalogue/eQTL-Catalogue-resources/issues/59)), so `study_id`, the quantification method, the labels and the per-variant file class are read from `data/dataset_index_r7.tsv`, derived from the catalogue's own published dataset table, [`tabix/tabix_ftp_paths.tsv`](https://github.com/eQTL-Catalogue/eQTL-Catalogue-resources/blob/master/tabix/tabix_ftp_paths.tsv) in the eQTL-Catalogue-resources repository (758 datasets; provenance, source checksum and licence in `data/dataset_index_r7.provenance.json`). A `dataset_id` the table does not carry (one added upstream after r7) raises `EQTLCatalogueDatasetNotFound`; it can still be fetched by passing `study_id` and `file_class` (`all` or `cc`) explicitly, which bypasses the table. Do not infer the file class from the quantification method: the table lists `.all` for QTD000584 (aptamer) where that rule says `.cc`, and since every `.all` dataset also serves a `.cc` file (33 of 758 probed 2026-09-13, 17 listed `.all`, all with a `.cc` twin), opening the wrong one substitutes the credible-set-filtered rows for the full ones without any error (QTD000584 over the 1 Mb SORT1 locus (chr1:108.77-109.77 Mb, GRCh38): `.all` holds 33,240 rows across 11 aptamers (10 genes), `.cc` holds 3,892 rows for 1 aptamer, 11.7% of the rows and 1 of the 11 traits). The result cache (`~/.clawbio/eqtl_catalogue_region_fetch_cache`) keys each window on the file class that is opened and on the table's release (`r7`), so a window cached before the table existed, under the retired inference rule, is never served again, and a table upgrade retires the cache the same way; `--no-cache` bypasses it entirely.
 
 7. **A row that does not match the expected columns fails the whole fetch.** Every row in the window is checked against the 19 columns the script reads (`FTP_COLUMNS`), and its `position` must be an integer. If any row fails, the fetch raises `EQTLCatalogueSchemaError` naming the file, the first bad row and how many rows of the window were malformed; the CLI prints that message, exits 2 and writes no `variants.tsv`, manifest or report. It never returns the rows that did parse, because a window with some rows dropped reads as the full association set, and one with all rows dropped reads as a region with no associations. A cached window is reused only if it was written under this check.
+
+8. **One row per variant, not one row per rsID.** The catalogue stores one rsID per line, so a variant with several rsIDs is written on several lines with identical statistics, and its [FAQ](https://www.ebi.ac.uk/eqtl/Data_access/) recommends removing the duplicates before downstream analysis such as colocalization. The fetch collapses them on `(molecular_trait_id, variant_id)`: two rows merge only when every other column, `rsid` aside, is equal; the first copy is kept, and every kept row carries `raw["rsids"]`, the variant's rsIDs in file order joined by `;` (`raw["rsid"]` stays the first one). Each dropped copy is a row on `RegionResult.collapsed` and in `collapsed_rows.tsv`, and `n_variants + len(collapsed) == n_rows_read` is checked, not assumed. Two copies that disagree on any statistic fail the fetch with `EQTLCatalogueDuplicateRowConflict` (the CLI exits 2 and writes nothing) rather than keeping both or picking one; measured 2026-10-22, 0 of 468 repeated keys disagreed (82 in the SORT1 QTD000276 window, 311 in QTD000609, 75 in QTD000269 `.cc`), and every repeat in the SORT1 window is an indel. Not collapsed: a multi-allelic site (same position, different alleles) and one variant under two traits, which are different keys. `RegionResult` refuses a repeated key at construction. `n_variants` therefore counts variants, not rows: the SORT1 demo window returns 2,740, not 2,833. A window cached by 0.1.0 is not served (the cache key changed).
 
 ## Safety
 

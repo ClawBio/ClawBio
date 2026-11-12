@@ -7,8 +7,9 @@ Project (Sun et al. 2023, Nature). Returns harmonised rows
 protein_hgnc, ancestry) suitable for downstream colocalization, fine-mapping,
 regional plotting, or Mendelian randomisation on the pQTL exposure axis.
 
-Source: UKB-PPP release 1 (2023), 2,923 proteins x ~46k EUR + multi-ancestry
-breakouts. Hosted on Synapse (`syn51364943`) + the AWS Open Data Registry
+Source: UKB-PPP release 1 (2023), 2,923 proteins; EUR discovery cohort
+n = 34,557, five non-European strata, and a full-cohort analysis
+(n = 52,363). Hosted on Synapse (`syn51364943`) + the AWS Open Data Registry
 (`s3://ukbiobank.opendata.sagebase.org`). The AWS bucket is documented as
 public but anonymous reads return `AccessDenied` as of 2026-05-15; the
 canonical functional access path is Synapse with an authenticated PAT.
@@ -66,7 +67,7 @@ import re
 import sys
 import tarfile
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, replace
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -92,8 +93,8 @@ ANCESTRY_FOLDER_IDS: dict[str, str] = {
     "SAS": "syn51365305",   # alias
     "EAS": "syn51365306",   # East Asian
     "MID": "syn51365307",   # Middle East
-    "AMR": "syn51500434",   # American (Hispanic)
-    "ALL": "syn51365308",   # Combined (multi-ancestry meta)
+    "AMR": "syn51500434",   # admixed American
+    "ALL": "syn51365308",   # Combined (full cohort, all ancestries in one analysis)
 }
 
 # Human-readable ancestry expansion per the AGENTS.md output-friendly rule.
@@ -104,8 +105,8 @@ ANCESTRY_LABELS: dict[str, str] = {
     "SAS": "Central / South Asian",
     "EAS": "East Asian",
     "MID": "Middle Eastern",
-    "AMR": "American (Hispanic)",
-    "ALL": "Combined (multi-ancestry meta)",
+    "AMR": "Admixed American",
+    "ALL": "Combined (all ancestries, one analysis)",
 }
 
 # UKB-PPP per-protein file name pattern, verified 2026-05-15 against the
@@ -144,10 +145,35 @@ class UKBPPPRelease:
     olink_panel: str            # e.g. "Cardiometabolic"
     ancestry: str               # short code (EUR/AFR/...)
     ancestry_label: str         # user-friendly expansion
-    n_samples: int | None       # discovery cohort N (EUR ≈ 46_673)
+    # Per-variant N from the summary statistics: the largest REGENIE `N` over
+    # the slice's rows (equals `n_samples_min` when every row agrees). None
+    # when no row states N. This is the N of THESE rows, not a cohort size.
+    n_samples: int | None
     synapse_id: str             # e.g. "syn51469328"
     source_url: str             # canonical Synapse entity URL
     study_label: str = "UKB-PPP"
+    # Smallest per-variant N over the rows; with `n_samples` gives the range.
+    n_samples_min: int | None = None
+    # Published cohort size for this ancestry (`UKB_PPP_COHORT_N`), NOT the N
+    # of these rows. Rides beside `n_samples`, labeled, never in its place.
+    cohort_n: int | None = None
+
+    @property
+    def n_samples_label(self) -> str | None:
+        """Human-readable per-variant N: one number when every row agrees,
+        a range when the rows disagree, None when no row states N."""
+        if self.n_samples is None:
+            return None
+        if self.n_samples_min is None or self.n_samples_min == self.n_samples:
+            return f"{self.n_samples:,}"
+        return f"{self.n_samples_min:,} to {self.n_samples:,} (varies by variant)"
+
+    @property
+    def cohort_n_label(self) -> str | None:
+        """Published cohort size with its ancestry and source, or None."""
+        if self.cohort_n is None:
+            return None
+        return f"{self.cohort_n:,} ({self.ancestry_label}; Sun et al. 2023)"
 
     @property
     def protein_label(self) -> str:
@@ -442,6 +468,11 @@ def _load_bundled_slice(path: Path) -> RegionResult:
         synapse_id=rel.get("synapse_id", ""),
         source_url=rel.get("source_url", ""),
         study_label=rel.get("study_label", "UKB-PPP"),
+        # Trust the stored block when it was written by 0.1.2 or later (it then
+        # carries `n_samples_min`): the shipped-slice test asserts it equals
+        # the rows' own N. An older slice is re-derived below.
+        n_samples_min=rel.get("n_samples_min"),
+        cohort_n=rel.get("cohort_n"),
     )
     variants = [
         RegionVariant(
@@ -459,6 +490,15 @@ def _load_bundled_slice(path: Path) -> RegionResult:
         )
         for v in d.get("variants", [])
     ]
+    if "n_samples_min" not in rel:
+        # Saved before 0.1.2: its `n_samples` is a per-ancestry table value,
+        # not its rows' N. Derive the N from the rows and attach the
+        # published cohort size for the slice's ancestry.
+        n_min, n_max = _n_samples_from_rows(variants)
+        release = replace(
+            release, n_samples=n_max, n_samples_min=n_min,
+            cohort_n=UKB_PPP_COHORT_N.get(str(d.get("ancestry", "")).upper()),
+        )
     return RegionResult(
         protein_label_short=d["protein_label_short"],
         ancestry=d["ancestry"],
@@ -585,7 +625,7 @@ class UKBPPPClient:
             end_bp=int(end_bp),
         )
 
-        n_samples = _UKB_PPP_N_BY_ANCESTRY.get(ancestry_u)
+        n_min, n_max = _n_samples_from_rows(variants)
         release = UKBPPPRelease(
             release_label="UKB-PPP r1 2023 (Sun 2023)",
             fetched_at_utc=_now_utc(),
@@ -595,9 +635,11 @@ class UKBPPPClient:
             olink_panel=rec["olink_panel"],
             ancestry=ancestry_u,
             ancestry_label=ANCESTRY_LABELS.get(ancestry_u, ancestry_u),
-            n_samples=n_samples,
+            n_samples=n_max,
             synapse_id=rec["synapse_id"],
             source_url=f"https://www.synapse.org/Synapse:{rec['synapse_id']}",
+            n_samples_min=n_min,
+            cohort_n=UKB_PPP_COHORT_N.get(ancestry_u),
         )
         return RegionResult(
             protein_label_short=rec["hgnc"],
@@ -612,19 +654,49 @@ class UKBPPPClient:
         )
 
 
-# Discovery cohort sizes per Sun 2023 Nature Table 1. EUR is the largest
-# stratum by ~10x; trans-ancestry coloc renders should surface the smaller
-# strata's N to remind the reader about power.
-_UKB_PPP_N_BY_ANCESTRY: dict[str, int | None] = {
-    "EUR": 46_673,
+# Published cohort sizes, Sun et al. 2023 Nature 622:329-338,
+# doi:10.1038/s41586-023-06592-6, PMID 37794186. EUR: "Discovery pQTL analyses
+# were performed in participants of European ancestry from the randomly
+# selected baseline cohort (n = 34,557)" (Results). Five strata: "African
+# (AFR, n = 931), Central/South Asian (CSA, n = 920), Middle Eastern (MID,
+# n = 308), East Asian (EAS, n = 262) and admixed American (AMR, n = 97)"
+# (Results, Non-European pQTL mapping). ALL: "pQTL mapping for the full
+# UKB-PPP cohort (n = 52,363)" (Results); one analysis, not a meta-analysis.
+# SAS is an alias of CSA (one Synapse folder under two codes). These are
+# cohort sizes; the N that applies to a slice's rows is the per-variant
+# REGENIE N. For EUR it is lower (SORT1: 33,628 on all 5,205 rows; all 2,953
+# UKB_PPP_EUR studies in Open Targets 26.06 are below 34,557); for the other
+# strata it is not measured.
+UKB_PPP_COHORT_N: dict[str, int] = {
+    "EUR": 34_557,
     "AFR": 931,
     "CSA": 920,
     "SAS": 920,
     "EAS": 262,
-    "MID": 124,
-    "AMR": 60,
-    "ALL": 47_970,
+    "MID": 308,
+    "AMR": 97,
+    "ALL": 52_363,
 }
+UKB_PPP_COHORT_N_SOURCE = (
+    "Sun BB et al. Plasma proteomic associations with genetics and health in "
+    "the UK Biobank. Nature. 2023;622(7982):329-338. "
+    "doi:10.1038/s41586-023-06592-6. PMID 37794186 "
+    "(Results: discovery cohort and non-European pQTL mapping)."
+)
+
+
+def _n_samples_from_rows(
+    variants: list[RegionVariant],
+) -> tuple[int | None, int | None]:
+    """(min, max) of the per-variant REGENIE `N` over the rows that state one.
+
+    REGENIE writes N per variant (the samples analyzed for that variant). A
+    row whose N is missing, NA or non-integer contributes nothing; if no row
+    states N both values are None. Rows are never dropped by this function.
+    """
+    ns = [n for n in (_maybe_int(v.raw.get("N")) for v in variants)
+          if n is not None]
+    return (min(ns), max(ns)) if ns else (None, None)
 
 
 def _extract_region_from_tar(
@@ -794,6 +866,21 @@ def _maybe_float(v: Any) -> float | None:
     return f if (f == f) else None  # filter NaN
 
 
+def _maybe_int(v: Any) -> int | None:
+    """Positive integer or None for "", "NA", zero, a negative, a fraction or
+    an unparsable value. A whole number written as a float ("33628.0") is
+    read as that integer."""
+    if v is None or v == "" or v == "NA":
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if f != f or f <= 0 or f != int(f):
+        return None
+    return int(f)
+
+
 def _now_utc() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -892,7 +979,7 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest = {
         "skill": "ukb-ppp-region-fetch",
-        "version": "0.1.0",
+        "version": "0.1.2",
         "protein_label": cfg["protein_label"],
         "ancestry": result.ancestry,
         "region": {"chromosome": result.chromosome,
@@ -910,6 +997,13 @@ def main(argv: list[str] | None = None) -> int:
             "ancestry": result.release.ancestry,
             "ancestry_label": result.release.ancestry_label,
             "n_samples": result.release.n_samples,
+            "n_samples_min": result.release.n_samples_min,
+            "n_samples_label": result.release.n_samples_label,
+            "cohort_n": result.release.cohort_n,
+            "cohort_n_source": (
+                UKB_PPP_COHORT_N_SOURCE
+                if result.release.cohort_n is not None else None
+            ),
             "synapse_id": result.release.synapse_id,
             "source_url": result.release.source_url,
             "fetched_at_utc": result.release.fetched_at_utc,
@@ -935,8 +1029,18 @@ def main(argv: list[str] | None = None) -> int:
         "",
         f"- **Protein:** {result.release.protein_label}",
         f"- **Olink panel:** {result.release.olink_panel}",
-        f"- **Ancestry:** {result.release.ancestry_label} ({result.ancestry})"
-        + (f"; N = {result.release.n_samples:,}" if result.release.n_samples else ""),
+        f"- **Ancestry:** {result.release.ancestry_label} ({result.ancestry})",
+        "- **Sample size (per-variant N in the summary statistics):** "
+        + (result.release.n_samples_label
+           or ("no variants in the region" if not result.variants
+               else "not stated in the source rows")),
+        "- **Published cohort size:** "
+        + (
+            f"{result.release.cohort_n_label}. This is the cohort as "
+            "published, not the N of this slice's rows."
+            if result.release.cohort_n_label
+            else f"not available for ancestry {result.ancestry}"
+        ),
         f"- **Region:** chr{result.chromosome}:{result.region_start_bp:,}-{result.region_end_bp:,}",
         f"- **Variants returned:** {result.n_variants}",
         f"- **Source:** {result.release.source_url}",
@@ -945,8 +1049,10 @@ def main(argv: list[str] | None = None) -> int:
     (args.output / "report.md").write_text("\n".join(report) + "\n")
 
     print(f"ukb-ppp-region-fetch: {result.n_variants} variants -> {tsv_path}")
+    n_label = result.release.n_samples_label
     print(f"  source: UKB-PPP | {result.release.protein_label} | "
-          f"{result.release.ancestry_label} ({result.ancestry})")
+          f"{result.release.ancestry_label} ({result.ancestry})"
+          + (f" | N = {n_label}" if n_label else ""))
     return 0
 
 
@@ -1089,6 +1195,8 @@ __all__ = [
     "UKBPPPAccessError",
     "UKBPPPClient",
     "UKBPPPRelease",
+    "UKB_PPP_COHORT_N",
+    "UKB_PPP_COHORT_N_SOURCE",
     "save_region_result_as_bundled_slice",
 ]
 

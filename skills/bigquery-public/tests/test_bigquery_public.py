@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import importlib.util
+import hashlib
 import json
 import subprocess
 import sys
@@ -18,11 +18,6 @@ import bigquery_public as skill  # noqa: E402
 
 
 from clawbio import cli as clawbio_runner  # noqa: E402
-
-_CATALOG_SPEC = importlib.util.spec_from_file_location("generate_catalog_module", PROJECT_ROOT / "scripts" / "generate_catalog.py")
-assert _CATALOG_SPEC and _CATALOG_SPEC.loader
-generate_catalog = importlib.util.module_from_spec(_CATALOG_SPEC)
-_CATALOG_SPEC.loader.exec_module(generate_catalog)
 
 
 def test_validate_read_only_sql_accepts_select_and_with():
@@ -78,21 +73,6 @@ def test_parse_scalar_param_invalid_format_and_type():
         skill.parse_scalar_param("gene=ARRAY:TP53")
     with pytest.raises(ValueError, match="must not contain newlines or NUL bytes"):
         skill.parse_scalar_param("gene=STRING:TP53\nBRCA1")
-
-
-def test_generate_catalog_parser_folds_block_scalar_description():
-    payload = """---
-name: demo
-description: >-
-  First line
-  second line
-tags: [one, two]
----
-body
-"""
-    parsed = generate_catalog.parse_yaml_frontmatter(payload)
-    assert parsed["description"] == "First line second line"
-    assert parsed["tags"] == ["one", "two"]
 
 
 def test_ensure_output_dir_ready_rejects_non_empty_dir(tmp_path: Path):
@@ -423,6 +403,25 @@ def test_demo_main_creates_expected_outputs(tmp_path: Path):
     assert "Execution mode" in report
     assert "demo-fixture" in report
     assert "bigquery-public-data.samples.shakespeare" in report
+
+
+def test_demo_writes_verifiable_reproducibility_bundle(tmp_path: Path):
+    assert skill.main(["--demo", "--output", str(tmp_path)]) == 0
+    repro = tmp_path / "reproducibility"
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (repro / name).exists(), name
+
+    commands = (repro / "commands.sh").read_text(encoding="utf-8")
+    assert "python skills/bigquery-public/bigquery_public.py --demo" in commands
+    assert str(Path(skill.__file__).resolve()) not in commands
+    assert "google-cloud-bigquery" in (repro / "environment.yml").read_text(encoding="utf-8")
+
+    lines = (repro / "checksums.sha256").read_text(encoding="utf-8").splitlines()
+    labels = {line.split("  ", 1)[1] for line in lines}
+    assert {"report.md", "result.json", "tables/results.csv", "reproducibility/environment.yml"} <= labels
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        assert hashlib.sha256((tmp_path / label).read_bytes()).hexdigest() == digest, label
 
 
 def test_demo_main_respects_max_rows_and_dry_run(tmp_path: Path):

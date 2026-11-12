@@ -1,5 +1,5 @@
 {
-  "_description": "SORT1 cis-pQTL in plasma, UKB-PPP European (discovery), N ~46,673: the protein-side companion to the canonical 1p13.3 LDL/CHD locus (Musunuru 2010). Pairs with cholesterol-VLDL on the GWAS side. Forms the SORT1 dual-modality demo (eQTL + pQTL exposure) per the v1.3 multi-modality demo plan.",
+  "_description": "SORT1 cis-pQTL in plasma, UKB-PPP European (discovery), per-variant N 33,628; published EUR discovery cohort n = 34,557: the protein-side companion to the canonical 1p13.3 LDL/CHD locus (Musunuru 2010). Pairs with cholesterol-VLDL on the GWAS side. Forms the SORT1 dual-modality demo (eQTL + pQTL exposure) per the v1.3 multi-modality demo plan.",
   "protein_label": "SORT1",
   "ancestry": "EUR",
   "chromosome": "1",

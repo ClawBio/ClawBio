@@ -12,7 +12,6 @@ import argparse
 import csv
 import importlib.util
 import json
-import os
 import shlex
 import shutil
 import subprocess
@@ -26,6 +25,11 @@ PROJECT_ROOT = SKILL_DIR.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from clawbio.common.reproducibility import (  # noqa: E402
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 from bioc_recommender import (
     DOMAIN_DEFINITIONS,
     detect_domain,
@@ -357,43 +361,6 @@ def capture_session_info() -> str:
             f"stdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}\n"
         )
     return proc.stdout
-
-
-def build_environment_yml(
-    setup_status: dict[str, Any],
-    target_packages: list[str],
-    detected_domain: str | None,
-) -> str:
-    """Write a small environment manifest for reproducibility."""
-    python_version = ".".join(str(value) for value in sys.version_info[:3])
-    lines = [
-        "name: bioconductor-bridge",
-        "channels: []",
-        "dependencies:",
-        f"  - python={python_version}",
-    ]
-    if setup_status.get("r_version"):
-        lines.append(f'  - r-base="{setup_status["r_version"]}"')
-    if setup_status.get("bioconductor_version"):
-        lines.append(f'  - bioconductor="{setup_status["bioconductor_version"]}"')
-    if setup_status.get("biocmanager_version"):
-        lines.append(f'  - biocmanager="{setup_status["biocmanager_version"]}"')
-    lines.append("variables:")
-    lines.append(f'  detected_domain: "{detected_domain or ""}"')
-    lines.append(f'  requested_packages: "{",".join(target_packages)}"')
-    lines.append(
-        f'  remote_validation: "{setup_status.get("remote_validation", "").replace(chr(34), chr(39))}"'
-    )
-    return "\n".join(lines) + "\n"
-
-
-def write_checksums(output_dir: Path, files: list[Path]) -> None:
-    repro_dir = output_dir / "reproducibility"
-    lines = []
-    for file_path in files:
-        if file_path.exists():
-            lines.append(f"{sha256_file(file_path)}  {file_path.relative_to(output_dir)}")
-    (repro_dir / "checksums.sha256").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def write_recommendation_table(output_dir: Path, recommendations: list[dict[str, Any]]) -> Path | None:
@@ -923,50 +890,26 @@ def write_reproducibility_bundle(
     payload: dict[str, Any],
     starter_script: str,
     command_line: str,
-    setup_status: dict[str, Any],
 ) -> list[Path]:
     repro_dir = output_dir / "reproducibility"
     repro_dir.mkdir(exist_ok=True)
 
     install_script_path = repro_dir / "install_packages.R"
     starter_script_path = repro_dir / "starter_workflow.R"
-    commands_path = repro_dir / "commands.sh"
-    env_path = repro_dir / "environment.yml"
     session_path = repro_dir / "sessionInfo.txt"
 
     install_script_path.write_text(build_install_script(payload["target_packages"]), encoding="utf-8")
     starter_script_path.write_text(starter_script, encoding="utf-8")
 
-    commands = [
-        "#!/usr/bin/env bash",
-        "set -euo pipefail",
-        "",
-        f"# Original invocation",
-        command_line,
-    ]
-    if payload.get("target_packages"):
-        install_expr = build_install_expr(payload["target_packages"])
-        commands.extend(
-            [
-                "",
-                "# Optional install command",
-                _shell_command_for_expr(install_expr),
-                "# Live validation",
-                "Rscript --vanilla -e 'BiocManager::valid()'",
-            ]
-        )
-    commands_path.write_text("\n".join(commands) + "\n", encoding="utf-8")
-    os.chmod(commands_path, 0o755)
-
-    env_path.write_text(
-        build_environment_yml(
-            setup_status=setup_status,
-            target_packages=payload["target_packages"],
-            detected_domain=payload["detected_domain"],
-        ),
-        encoding="utf-8",
-    )
     session_path.write_text(capture_session_info(), encoding="utf-8")
+    commands_path = write_commands_sh(output_dir, command_line)
+    # Python side is stdlib-only; R and BiocManager are the real runtime deps (SKILL.md Dependencies).
+    env_path = write_environment_yml(
+        output_dir,
+        env_name="clawbio-bioconductor-bridge",
+        pip_deps=[],
+        conda_deps=["r-base", "r-biocmanager"],
+    )
     return [commands_path, env_path, install_script_path, starter_script_path, session_path]
 
 
@@ -1049,13 +992,14 @@ def main(argv: list[str] | None = None) -> int:
         output_dir=output_dir,
         payload=payload,
         starter_script=starter_script,
-        command_line=shlex.join([sys.executable, str(Path(__file__).resolve()), *sys.argv[1:]]),
-        setup_status=payload["setup_status"],
+        command_line=shlex.join(
+            ["python", "skills/bioconductor-bridge/bioconductor_bridge.py", *(sys.argv[1:] if argv is None else argv)]
+        ),
     )
     files_to_checksum = [report_path, result_path, *repro_files]
     if table_path:
         files_to_checksum.append(table_path)
-    write_checksums(output_dir, files_to_checksum)
+    write_checksums(files_to_checksum, output_dir, anchor=output_dir)
 
     print_summary(payload, output_dir)
 

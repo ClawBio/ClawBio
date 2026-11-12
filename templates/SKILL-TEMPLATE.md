@@ -211,7 +211,8 @@ output_directory/
 │   └── results.csv        # Tabular data
 └── reproducibility/
     ├── commands.sh         # Exact commands to reproduce
-    └── environment.yml     # Conda/pip environment snapshot
+    ├── environment.yml     # Conda/pip environment snapshot
+    └── checksums.sha256    # Output checksums, relative to output_directory
 ```
 
 <!-- This tree is the skill's output contract. TestOutputContract in tests/ runs

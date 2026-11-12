@@ -209,6 +209,8 @@ output_directory/
 │   └── classification_summary.png     # Bar chart of P/LP/VUS/LB/B distribution
 └── reproducibility/
     ├── commands.sh                    # Exact command to reproduce
+    ├── environment.yml                # Conda/pip environment for the run
+    ├── checksums.sha256               # SHA-256 of outputs; verify with `sha256sum -c` from output dir
     └── database_versions.json         # ClinVar date, gnomAD version, VEP release, SF list version
 ```
 

@@ -28,6 +28,9 @@ from clawbio.common.parsers import parse_genetic_file, genotypes_to_simple, geno
 from clawbio.common.checksums import sha256_hex, sha256_file
 from clawbio.common.report import write_result_json, DISCLAIMER
 from clawbio.common.html_report import HtmlReportBuilder, write_html_report
+from clawbio.common.reproducibility import (
+    ReproCommand, ReproPath, write_checksums, write_environment_yml, write_portable_commands_sh,
+)
 
 # ---------------------------------------------------------------------------
 # Strand utilities (mirrors nutrigx/extract_genotypes.py)
@@ -838,6 +841,24 @@ def resolve_drug_name(query):
     return best
 
 
+# CPIC fluorouracil/capecitabine recommendation at DPYD activity score 1.0,
+# verbatim (api.cpicpgx.org/v1/recommendation, RxNorm:4492 and RxNorm:194000).
+# D949V is c.2846A>T (rs67376798).
+_DPYD_D949V_HOM_NOTE = ("Patients with the c.2846A>T/c.2846A>T genotype may require "
+                        ">50% reduction in starting dose.")
+
+
+def _dpyd_note(gene, profile):
+    """CPIC caveat for c.2846A>T homozygotes, who are AS 1.0 like *2A carriers."""
+    # Match on the key, not the label: a partly genotyped D949V/D949V reads
+    # "Intermediate Metabolizer (HapB3 not tested)" (#603) and must keep the caveat.
+    if gene != "DPYD" or phenotype_to_key(profile.get("phenotype", "")) != "intermediate_metabolizer":
+        return None
+    if profile.get("diplotype", "").split("(")[0].strip() == "D949V/D949V":
+        return _DPYD_D949V_HOM_NOTE
+    return None
+
+
 def lookup_single_drug(drug_name, profiles):
     """Look up a single resolved drug against gene profiles.
 
@@ -877,11 +898,15 @@ def lookup_single_drug(drug_name, profiles):
     recs = info.get("recs", {})
     classification = recs.get(pheno_key, "indeterminate")
 
-    return {
+    result = {
         "drug": drug_name, "brand": info["brand"], "class": info["class"],
         "gene": gene, "diplotype": prof["diplotype"], "phenotype": prof["phenotype"],
         "classification": classification,
     }
+    note = _dpyd_note(gene, prof)
+    if note:
+        result["note"] = note
+    return result
 
 
 _CLASS_LABELS = {
@@ -913,6 +938,9 @@ def format_dosage_card(result, visible_dose=None):
             rec_text = f"{visible_dose} may need adjustment."
         elif cl == "avoid":
             rec_text = f"Your genotype contraindicates {result['drug']} {visible_dose}."
+        # Keep guideline caveats (DPYD c.2846A>T, warfarin) beside the dose line.
+        if result.get("note") and cl in ("standard", "caution", "avoid"):
+            rec_text = f"{rec_text} {result['note']}"
 
     # Wrap recommendation text at ~42 chars
     words = rec_text.split()
@@ -1375,11 +1403,15 @@ def lookup_drugs(profiles):
         recs = drug.get("recs", {})
         classification = recs.get(pheno_key, "indeterminate")
 
-        results.setdefault(classification, []).append({
+        entry = {
             "drug": drug_name, "brand": drug["brand"],
             "class": drug["class"], "gene": gene,
             "classification": classification,
-        })
+        }
+        note = _dpyd_note(gene, profiles[gene])
+        if note:
+            entry["note"] = note
+        results.setdefault(classification, []).append(entry)
 
     return results
 
@@ -2107,31 +2139,29 @@ def generate_html_report(input_path, fmt, total_snps, pgx_snps, profiles, drug_r
 # 8. Main
 # ---------------------------------------------------------------------------
 
-def write_commands_sh(output_dir, input_path):
-    """Write reproducibility/commands.sh with the exact command to regenerate the report.
+def write_repro_bundle(outdir, args, outputs):
+    """Write reproducibility/ (commands.sh, environment.yml, checksums.sha256) for this run.
 
-    The SKILL.md output contract documents output_dir/reproducibility/commands.sh,
-    so the script must always produce it (not rely on the calling agent to create it).
-    Returns the path to the written file.
+    checksums.sha256 is written last so it covers the other two bundle files.
+    Returns the path to commands.sh.
     """
-    repro_dir = Path(output_dir) / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
-    fname = Path(input_path).name
-    checksum = sha256_file(str(input_path))
-    script = "\n".join([
-        "#!/usr/bin/env bash",
-        "# Reproduce this ClawBio PharmGx report.",
-        f"# Input file: {fname}",
-        f"# Input SHA-256: {checksum}",
-        "set -euo pipefail",
-        "",
-        f"python pharmgx_reporter.py --input {fname} --output report",
-        "",
-    ])
-    path = repro_dir / "commands.sh"
-    path.write_text(script)
-    path.chmod(0o755)
-    return path
+    repo_root = Path(__file__).resolve().parents[2]
+    outdir = Path(outdir).resolve()
+    if args.demo:
+        cli = ["--demo"]
+    else:
+        cli = ["--input", ReproPath(Path(args.input).resolve(), anchor="repo_root")]
+        if args.no_enrich:
+            cli.append("--no-enrich")
+    cli += ["--output", ReproPath(outdir, anchor="output_dir")]
+    commands = write_portable_commands_sh(outdir, ReproCommand(
+        script_path=Path(__file__).resolve().relative_to(repo_root),
+        args=cli,
+        comment=f"Reproduce this ClawBio PharmGx report. Input SHA-256: {sha256_file(str(args.input))}",
+    ), repo_root=repo_root)
+    env = write_environment_yml(outdir, "clawbio-pharmgx-reporter", pip_deps=[])
+    write_checksums([*outputs, commands, env], outdir, anchor=outdir)
+    return commands
 
 
 def main():
@@ -2151,6 +2181,7 @@ def main():
             print("Error: demo_patient.txt not found alongside script", file=sys.stderr)
             sys.exit(1)
         args.input = str(demo_file)
+        args.no_enrich = True  # demos run offline
         if args.output == "pharmgx_report":
             args.output = str(Path(__file__).resolve().parent / "demo_report")
         print("Running in demo mode with bundled patient data")
@@ -2341,8 +2372,7 @@ def main():
         input_checksum=input_checksum,
     )
 
-    # Write reproducibility/commands.sh (documented in the SKILL.md output contract)
-    commands_path = write_commands_sh(outdir, args.input)
+    commands_path = write_repro_bundle(outdir, args, [report_path, html_path, result_json_path])
 
     print(f"Report saved: {report_path}")
     print(f"HTML report:  {html_path}")

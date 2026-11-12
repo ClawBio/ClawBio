@@ -57,9 +57,10 @@ import io
 import json
 import sys
 import time
+from collections import Counter
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Sequence
 
 
 DEFAULT_FTP_BASE = "https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/sumstats"
@@ -168,6 +169,26 @@ class RegionResult:
     # for a result that never read one (a hand-built double, a replayed fixture),
     # so a consumer is not forced to claim a class it never read.
     file_class: str | None = None
+    # Rows that passed the schema check and the gene / trait filters: the set
+    # `collapse_duplicate_rsid_rows` splits into `variants` + `collapsed`. None on a
+    # hand-built result that read nothing.
+    n_rows_read: int | None = None
+    # One row per duplicate-rsID copy the collapse dropped (see `CollapsedRow`).
+    collapsed: list["CollapsedRow"] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        # One row per (molecular trait, variant), whatever built the result. The
+        # catalogue writes one row per rsID, and a result that repeats a key counts
+        # that variant twice downstream (pairs drawn twice, a colocalization summing
+        # its Bayes factor twice). Checking the type, not one code path, keeps a
+        # cache, a replayed fixture or a future reader from carrying the repeats.
+        dupes = _repeated_keys(self.variants)
+        if dupes:
+            raise ValueError(
+                f"{self.dataset_id}: {len(dupes)} (molecular_trait_id, variant_id) "
+                f"key(s) appear more than once, e.g. {dupes[:3]}; pass the rows "
+                f"through collapse_duplicate_rsid_rows before building a RegionResult"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -176,7 +197,9 @@ class RegionResult:
             "region_start_bp": self.region_start_bp,
             "region_end_bp": self.region_end_bp,
             "n_variants": self.n_variants,
+            "n_rows_read": self.n_rows_read,
             "variants": [asdict(v) for v in self.variants],
+            "collapsed": [asdict(c) for c in self.collapsed],
             "release": asdict(self.release),
             "notes": list(self.notes),
             "file_class": self.file_class,
@@ -205,6 +228,172 @@ class EQTLCatalogueSchemaError(EQTLCatalogueAPIError):
     file, the first offending row's number and field count, and how many rows of the
     window were malformed.
     """
+
+
+# ----------------------- duplicate-rsID row collapse -----------------------
+#
+# The eQTL Catalogue stores ONE rsID PER LINE, so a variant that carries several
+# rsIDs is written on several lines with identical statistics. The catalogue's own
+# FAQ says so and recommends removing the duplicates before any downstream analysis
+# (https://www.ebi.ac.uk/eqtl/Data_access/, read 2026-10-22). Measured on the SORT1
+# QTD000276 1 Mb window: 2,833 rows, 2,740 distinct (trait, variant) keys, 82 keys
+# repeated 2 to 4 times, every one an indel, and 0 of the 82 groups differ in any
+# column but `rsid`. Live QTD000609 (311 repeated keys) and QTD000269 `.cc` (75)
+# also had 0 differing groups (2026-10-22).
+
+COLLAPSE_REASON_DUPLICATE_RSID_ROW = "duplicate_rsid_row"
+# The reason ENUM. A new way of dropping a row is a new member here, never a new
+# bucket hidden inside an existing one.
+COLLAPSE_REASONS: tuple[str, ...] = (COLLAPSE_REASON_DUPLICATE_RSID_ROW,)
+
+# The `RegionVariant` fields two copies must agree on (every field but `raw`, which
+# is compared separately without its rsID keys). Comparing the fields AS WELL AS
+# `raw` matters: a prefetched TSV row carries a sparse `raw`, and `raw` alone would
+# call two rows with different betas equal.
+_COLLAPSE_COMPARED_FIELDS: tuple[str, ...] = (
+    "chromosome", "position", "ref", "alt", "beta", "se", "p_value", "maf",
+    "effect_allele_frequency",
+)
+# `raw` keys allowed to differ between copies of one variant.
+_COLLAPSE_RSID_KEYS = frozenset({"rsid", "rsids"})
+_MISSING_RSID_TOKENS = frozenset({"", "na", "nan", "none", "null", "."})
+
+
+@dataclass(frozen=True)
+class CollapsedRow:
+    """One duplicate copy dropped by `collapse_duplicate_rsid_rows`, kept as data.
+
+    Keyed like the kept row, so "which rows were dropped, and in favor of which"
+    is a query rather than a counter in a log.
+    """
+
+    variant_id: str  # chr_pos_ref_alt, same spelling as the kept row
+    molecular_trait_id: str | None  # None when the slice carries no trait column
+    rsid: str | None  # THIS copy's rsID (None when the row had none)
+    kept_rsid: str | None  # the rsID of the copy that was kept
+    reason: str  # one of COLLAPSE_REASONS
+
+
+@dataclass(frozen=True)
+class CollapseResult:
+    kept: list[RegionVariant]
+    collapsed: list[CollapsedRow]
+
+
+class EQTLCatalogueDuplicateRowConflict(EQTLCatalogueAPIError):
+    """Two rows for one (molecular trait, variant) disagree on a statistic.
+
+    A hard failure, never a keep-both: keeping both is the defect the collapse
+    exists to remove, and keeping one would be a guess.
+    """
+
+
+def _collapse_key(v: RegionVariant) -> tuple[str | None, str]:
+    return (v.raw.get("molecular_trait_id") or None, v.variant_id)
+
+
+def _repeated_keys(variants: Sequence[RegionVariant]) -> list[tuple[str | None, str]]:
+    counts = Counter(_collapse_key(v) for v in variants)
+    return [k for k, n in counts.items() if n > 1]
+
+
+def _clean_rsid(value: Any) -> str | None:
+    if value is None:
+        return None
+    s = str(value).strip()
+    return None if s.lower() in _MISSING_RSID_TOKENS else s
+
+
+def _copy_rsids(v: RegionVariant) -> list[str]:
+    """The rsIDs one copy contributes. A row that already carries `rsids` (an
+    already-collapsed row passed through again) contributes all of them, so the
+    collapse is idempotent."""
+    joined = v.raw.get("rsids")
+    if joined:
+        return [r for r in (_clean_rsid(x) for x in str(joined).split(";")) if r]
+    one = _clean_rsid(v.raw.get("rsid"))
+    return [one] if one else []
+
+
+def _first_difference(a: RegionVariant, b: RegionVariant) -> tuple[str, Any, Any] | None:
+    for name in _COLLAPSE_COMPARED_FIELDS:
+        if getattr(a, name) != getattr(b, name):
+            return name, getattr(a, name), getattr(b, name)
+    names = [k for k in a.raw if k not in _COLLAPSE_RSID_KEYS]
+    names += [k for k in b.raw if k not in _COLLAPSE_RSID_KEYS and k not in a.raw]
+    for name in names:
+        if a.raw.get(name) != b.raw.get(name):
+            return name, a.raw.get(name), b.raw.get(name)
+    return None
+
+
+def _collapse_groups(
+    variants: Sequence[RegionVariant], dataset_id: str,
+) -> tuple[list[RegionVariant], list[CollapsedRow]]:
+    """First occurrence wins. A dict keyed on (trait, variant), so adjacency in
+    the stream is not assumed."""
+    first: dict[tuple[str | None, str], RegionVariant] = {}
+    rsids: dict[tuple[str | None, str], list[str]] = {}
+    kept: list[RegionVariant] = []
+    collapsed: list[CollapsedRow] = []
+    for v in variants:
+        key = _collapse_key(v)
+        if key not in first:
+            first[key] = v
+            rsids[key] = _copy_rsids(v)
+            kept.append(v)
+            continue
+        k = first[key]
+        diff = _first_difference(k, v)
+        if diff is not None:
+            col, a, b = diff
+            raise EQTLCatalogueDuplicateRowConflict(
+                f"{dataset_id or 'eQTL Catalogue slice'}: two rows for molecular "
+                f"trait {key[0]!r}, variant {key[1]!r} disagree on {col} "
+                f"({a!r} vs {b!r}); the catalogue writes one row per rsID with "
+                f"identical statistics, so these cannot be merged and no row was "
+                f"picked"
+            )
+        for r in _copy_rsids(v):
+            if r not in rsids[key]:
+                rsids[key].append(r)
+        collapsed.append(CollapsedRow(
+            variant_id=v.variant_id,
+            molecular_trait_id=key[0],
+            rsid=_clean_rsid(v.raw.get("rsid")),
+            kept_rsid=_clean_rsid(k.raw.get("rsid")),
+            reason=COLLAPSE_REASON_DUPLICATE_RSID_ROW,
+        ))
+    for v in kept:
+        v.raw["rsids"] = ";".join(rsids[_collapse_key(v)])
+    return kept, collapsed
+
+
+def collapse_duplicate_rsid_rows(
+    variants: Sequence[RegionVariant], *, dataset_id: str = "",
+) -> CollapseResult:
+    """Collapse the catalogue's one-row-per-rsID copies to one row per
+    (molecular_trait_id, variant_id).
+
+    Two rows with one key are merged only when every `RegionVariant` field and
+    every `raw` column except the rsID is equal, compared exactly as read; any
+    difference raises `EQTLCatalogueDuplicateRowConflict`. The first copy is
+    kept, and EVERY kept row gets `raw["rsids"]`: the group's rsIDs in file
+    order joined by ";" (a single-copy row gets its own rsID, a row with none
+    gets ""). `raw["rsid"]` stays the first copy's value. Each dropped copy is
+    returned as a `CollapsedRow`. Raises if kept + collapsed does not partition
+    the input. Multi-allelic rows (same position, different alleles) and one
+    variant under two traits have different keys and are never collapsed.
+    """
+    variants = list(variants)
+    kept, collapsed = _collapse_groups(variants, dataset_id)
+    if len(kept) + len(collapsed) != len(variants):
+        raise RuntimeError(
+            f"{dataset_id or 'eQTL Catalogue slice'}: the duplicate-row collapse "
+            f"kept {len(kept)} rows and dropped {len(collapsed)} but was given "
+            f"{len(variants)}; a row went missing without a record"
+        )
+    return CollapseResult(kept=kept, collapsed=collapsed)
 
 
 _INDEX_CACHE: dict[Path, dict[str, dict[str, str]]] = {}
@@ -454,6 +643,18 @@ class EQTLCatalogueClient:
                 f"because a partial or empty set would read as the region's associations."
             )
 
+        # One row per (molecular trait, variant): the catalogue writes one row per
+        # rsID. The dropped copies ride on the result as rows, and the split is
+        # re-checked here, where the result is assembled.
+        n_rows_read = len(variants)
+        collapse = collapse_duplicate_rsid_rows(variants, dataset_id=dataset_id)
+        variants = collapse.kept
+        if len(variants) + len(collapse.collapsed) != n_rows_read:
+            raise RuntimeError(
+                f"{dataset_id}: {len(variants)} variants + {len(collapse.collapsed)} "
+                f"collapsed rows != {n_rows_read} rows read"
+            )
+
         release = EQTLCatalogueRelease(
             # Kept for manifest/cache compatibility; there is no metadata API any more.
             api_version="",
@@ -475,6 +676,8 @@ class EQTLCatalogueClient:
             release=release,
             notes=notes,
             file_class=fc.lower(),
+            n_rows_read=n_rows_read,
+            collapsed=collapse.collapsed,
         )
 
 
@@ -544,6 +747,7 @@ def main(argv: list[str] | None = None) -> int:
 
     Writes to <output>/:
         variants.tsv        # one row per variant; columns documented in SKILL.md
+        collapsed_rows.tsv  # one row per duplicate rsID copy dropped (only when any were)
         manifest.yaml       # source release + provenance
         report.md           # human-readable run summary
     """
@@ -589,7 +793,7 @@ def main(argv: list[str] | None = None) -> int:
         result = _fetch_with_cache(
             client=client, cfg=cfg, cache_dir=cache_dir,
         )
-    except EQTLCatalogueSchemaError as e:
+    except (EQTLCatalogueSchemaError, EQTLCatalogueDuplicateRowConflict) as e:
         # Nothing is written: no variants.tsv, manifest or report, so no downstream
         # step can read an incomplete fetch as a finished one.
         print(f"eqtl-catalogue-region-fetch: error: {e}", file=sys.stderr)
@@ -598,17 +802,29 @@ def main(argv: list[str] | None = None) -> int:
     # Write a flat sumstats TSV (one row per variant) for downstream consumers.
     tsv_path = args.output / "variants.tsv"
     _write_canonical_tsv(result, tsv_path)
+    outputs = {"variants_tsv": "variants.tsv"}
+    if result.collapsed:
+        _write_collapsed_rows_tsv(result, args.output / COLLAPSED_ROWS_TSV)
+        outputs["collapsed_rows_tsv"] = COLLAPSED_ROWS_TSV
+    rsid_counts = _rsid_counts_of_multi_rsid_variants(result)
+    collapse_line = _collapse_summary_line(result)
 
     # Manifest + report
     manifest = {
         "skill": "eqtl-catalogue-region-fetch",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "dataset_id": cfg["dataset_id"],
         "molecular_trait_id": cfg.get("molecular_trait_id"),
         "region": {"chromosome": str(cfg["chromosome"]),
                    "start_bp": int(cfg["start_bp"]),
                    "end_bp": int(cfg["end_bp"])},
         "n_variants": result.n_variants,
+        # The rows the fetch read, and how many were the catalogue's one-row-per-rsID
+        # copies of a variant already returned:
+        # n_variants + n_collapsed_duplicate_rsid_rows == n_rows_read.
+        "n_rows_read": result.n_rows_read,
+        "n_collapsed_duplicate_rsid_rows": len(result.collapsed),
+        "n_variants_with_multiple_rsids": len(rsid_counts),
         # The file class that was OPENED (from the index, or the caller's explicit
         # choice), so a consumer never has to re-infer it from quant_method.
         "file_class": result.file_class,
@@ -624,7 +840,7 @@ def main(argv: list[str] | None = None) -> int:
             "dataset_release": result.release.dataset_release,
             "fetched_at_utc": result.release.fetched_at_utc,
         },
-        "outputs": {"variants_tsv": "variants.tsv"},
+        "outputs": outputs,
     }
     try:
         import yaml as _yaml
@@ -642,11 +858,13 @@ def main(argv: list[str] | None = None) -> int:
         f"- **Region:** chr{cfg['chromosome']}:{int(cfg['start_bp']):,}-{int(cfg['end_bp']):,}",
         f"- **Molecular trait:** {cfg.get('molecular_trait_id') or '(all in window)'}",
         f"- **Variants returned:** {result.n_variants}",
+        f"- **Rows read:** {collapse_line}",
         f"- **Output TSV:** {tsv_path.name}",
     ]
     (args.output / "report.md").write_text("\n".join(report) + "\n")
 
     print(f"eqtl-catalogue-region-fetch: {result.n_variants} variants -> {tsv_path}")
+    print(f"  {collapse_line}")
     print(f"  source: {result.release.study_label or '?'} | "
           f"{result.release.tissue_label or '?'} | "
           f"{result.release.quant_method_label}")
@@ -756,7 +974,9 @@ def _cache_key(cfg: dict, index_path: Path = DATASET_INDEX_PATH) -> str:
 
     The `rows-checked` segment retires every entry written while malformed rows were
     skipped with a note instead of failing the fetch: such an entry can hold a partial
-    window, and serving it would bypass `EQTLCatalogueSchemaError`."""
+    window, and serving it would bypass `EQTLCatalogueSchemaError`. The
+    `rsid-collapsed` segment retires every entry written before duplicate rsID rows
+    were collapsed: such an entry repeats variants."""
     chrom = str(cfg["chromosome"]).lstrip("chr")
     mt = cfg.get("molecular_trait_id") or "_all"
     fc = cfg.get("file_class")
@@ -764,7 +984,7 @@ def _cache_key(cfg: dict, index_path: Path = DATASET_INDEX_PATH) -> str:
         row = load_dataset_index(index_path).get(str(cfg["dataset_id"]))
         fc = (row or {}).get("file_class") or "unresolved"
     return (f"{cfg['dataset_id']}__{mt}__chr{chrom}_{int(cfg['start_bp'])}_{int(cfg['end_bp'])}"
-            f"__{str(fc).lower()}__index-{DATASET_INDEX_RELEASE}__rows-checked.json")
+            f"__{str(fc).lower()}__index-{DATASET_INDEX_RELEASE}__rows-checked__rsid-collapsed.json")
 
 
 def _fetch_with_cache(*, client, cfg: dict, cache_dir: Path | None) -> "RegionResult":
@@ -810,13 +1030,62 @@ def _region_result_from_cache(d: dict) -> "RegionResult":
             raw=v.get("raw") or {},
         ) for v in d.get("variants", [])
     ]
+    n_rows_read = d.get("n_rows_read")
+    # An entry written before the collapse has neither field. Its cache key is
+    # retired, and if one were read, a repeated key in it is refused by
+    # `RegionResult.__post_init__`.
     return RegionResult(
         dataset_id=d["dataset_id"], chromosome=d["chromosome"],
         region_start_bp=int(d["region_start_bp"]), region_end_bp=int(d["region_end_bp"]),
         release=release, n_variants=int(d["n_variants"]),
         variants=variants, notes=list(d.get("notes") or []),
         file_class=d.get("file_class"),
+        n_rows_read=None if n_rows_read is None else int(n_rows_read),
+        collapsed=[CollapsedRow(**c) for c in d.get("collapsed") or []],
     )
+
+
+COLLAPSED_ROWS_TSV = "collapsed_rows.tsv"
+COLLAPSED_ROWS_COLUMNS = ("variant_id", "molecular_trait_id", "rsid", "kept_rsid", "reason")
+
+
+def _write_collapsed_rows_tsv(result, path: Path) -> None:
+    """One line per duplicate rsID copy the fetch dropped, keyed like variants.tsv."""
+    with path.open("w") as f:
+        f.write("\t".join(COLLAPSED_ROWS_COLUMNS) + "\n")
+        for c in result.collapsed:
+            f.write("\t".join("" if getattr(c, k) is None else str(getattr(c, k))
+                              for k in COLLAPSED_ROWS_COLUMNS) + "\n")
+
+
+def _rsid_counts_of_multi_rsid_variants(result) -> list[int]:
+    """How many rsIDs each returned variant carries, for the variants with more than one."""
+    counts = []
+    for v in result.variants:
+        rsids = v.raw.get("rsids") or ""
+        n = len([r for r in rsids.split(";") if r])
+        if n > 1:
+            counts.append(n)
+    return counts
+
+
+def _collapse_summary_line(result) -> str:
+    """e.g. `2833 rows read; 93 duplicate rsID rows collapsed (82 variants carry 2 to
+    4 rsIDs); 2740 variants returned`."""
+    read = result.n_rows_read if result.n_rows_read is not None else result.n_variants
+    n_collapsed = len(result.collapsed)
+    if not n_collapsed:
+        return f"{read} rows read; no duplicate rsID rows; {result.n_variants} variants returned"
+    counts = _rsid_counts_of_multi_rsid_variants(result)
+    carry = ""
+    if counts:
+        lo, hi = min(counts), max(counts)
+        span = f"{lo}" if lo == hi else f"{lo} to {hi}"
+        carry = (f" ({len(counts)} variant{'s carry' if len(counts) != 1 else ' carries'} "
+                 f"{span} rsIDs)")
+    return (f"{read} rows read; {n_collapsed} duplicate rsID "
+            f"row{'s' if n_collapsed != 1 else ''} collapsed{carry}; "
+            f"{result.n_variants} variants returned")
 
 
 def _write_canonical_tsv(result, tsv_path: Path) -> None:

@@ -30,6 +30,7 @@ from pathlib import Path
 
 from clawbio import __version__
 from clawbio.contract_alerts import append_contract_alert_log, normalise_contract_alerts
+from clawbio.common.skill_manifest import SkillManifestError, read_skill_manifest
 
 # --------------------------------------------------------------------------- #
 # Paths
@@ -307,10 +308,7 @@ UNBUNDLED_SKILLS = {
 SKILLS = {
     "pharmgx": {
         "script": SKILLS_DIR / "pharmgx-reporter" / "pharmgx_reporter.py",
-        "demo_args": [
-            "--input",
-            str(SKILLS_DIR / "pharmgx-reporter" / "demo_patient.txt"),
-        ],
+        "demo_args": ["--demo"],
         "description": "Pharmacogenomics reporter (12 genes, 31 SNPs, 51 drugs)",
         "allowed_extra_flags": set(),
         "api_module": "skills.pharmgx-reporter.api",
@@ -364,6 +362,14 @@ SKILLS = {
         "demo_args": ["--demo"],
         "description": "Single FASTA analyzer (auto-detect nucleotide/protein, GC, ORFs, MW, pI, GRAVY)",
         "allowed_extra_flags": set(),
+        "accepts_genotypes": False,
+    },
+    "seqtk-downsample": {
+        "script": SKILLS_DIR / "seqtk-downsample" / "seqtk_downsample.py",
+        "demo_args": ["--demo"],
+        "description": "Randomly downsample FASTQ files to N reads or a fraction with seqtk sample (single or paired-end, fixed seed)",
+        "extra_path_flags": {"--input2"},
+        "allowed_extra_flags": {"--input2", "--n-reads", "--fraction", "--seed"},
         "accepts_genotypes": False,
     },
     "phylo": {
@@ -1258,6 +1264,20 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "snp-phewas": {
+        "script": SKILLS_DIR / "snp-phewas" / "snp_phewas.py",
+        "demo_args": ["--demo"],
+        "description": "Variant PheWAS across Pan-UK Biobank, FinnGen R12 and the Million Veteran Program: every outcome with nulls, one effect allele, replication verdicts",
+        "default_timeout_seconds": 3600,
+        "allowed_extra_flags": {
+            "--variant", "--build", "--dataset", "--ancestry", "--all-outcomes", "--quick", "--outcomes",
+            "--finngen-route", "--workers", "--index-cache", "--list-datasets",
+        },
+        "allowed_extra_flags_without_values": {"--all-outcomes", "--quick", "--list-datasets"},
+        "extra_path_flags": {"--index-cache"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
     "affprot": {
         "script": SKILLS_DIR / "affinity-proteomics" / "affinity_proteomics.py",
         "demo_args": ["--demo", "--platform", "olink"],
@@ -1609,15 +1629,24 @@ class _SkillFailed(Exception):
     """Marks the audit span ERROR: run_skill reports failure as a dict, not a raise."""
 
 
+def _failure_message(exit_code: int, stderr: str) -> str:
+    """The exit code plus the last non-blank stderr line: a traceback ends on the exception.
+
+    skill_run passes this through the OPENINFERENCE_HIDE_* flags, since the line can quote the input.
+    """
+    last = next((line.strip() for line in reversed(stderr.splitlines()) if line.strip()), "")
+    return f"exit code {exit_code}: {last}" if last else f"exit code {exit_code}"
+
+
 def _skill_version(skill_name: str) -> str:
     """The SKILL.md frontmatter version, so an audit record says which methodology ran."""
     script = SKILLS.get(skill_name, {}).get("script")
-    try:
-        frontmatter = (script.parent / "SKILL.md").read_text(encoding="utf-8").split("---")[1]
-    except (AttributeError, OSError, IndexError):
+    if not script:
         return "unknown"
-    match = re.search(r"^\s*version:\s*['\"]?([^'\"\s]+)", frontmatter, re.M)
-    return match.group(1) if match else "unknown"
+    try:
+        return read_skill_manifest(script).version
+    except (SkillManifestError, OSError):
+        return "unknown"  # the audit record must not stop a run
 
 
 def run_skill(
@@ -1656,7 +1685,7 @@ def run_skill(
             skill_name, input_path, output_dir, demo, extra_args, timeout, profile_path
         )
         if not result["success"]:
-            raise _SkillFailed(f"exit code {result['exit_code']}")
+            raise _SkillFailed(_failure_message(result["exit_code"], result.get("stderr") or ""))
     return result
 
 
@@ -2076,15 +2105,6 @@ def main():
 
     # list
     sub.add_parser("list", help="List available skills")
-
-    # mcp
-    sub.add_parser(
-        "mcp",
-        help=(
-            "Run ClawBio as an MCP server over stdio. DEPRECATED since 0.7.0, removed in "
-            "0.8.0: use the Claude Code plugin or load skills/ as Agent Skills instead"
-        ),
-    )
 
     # upload
     upload_parser = sub.add_parser("upload", help="Upload genetic data and create a patient profile")
@@ -2539,11 +2559,6 @@ def main():
 
     if args.command == "list":
         list_skills()
-
-    elif args.command == "mcp":
-        from clawbio.mcp_server import serve
-
-        serve()
 
     elif args.command == "upload":
         result = upload_profile(
