@@ -303,9 +303,13 @@ medical decisions.*
 ├── report.md              # Primary markdown report
 ├── result.json            # Machine-readable results (API responses)
 └── reproducibility/
-    ├── commands.sh        # Exact curl commands to reproduce
-    └── run.json           # Run metadata (timestamps, base URL, API version)
+    ├── commands.sh        # Re-runs this exact CLI invocation (API key never recorded)
+    ├── environment.yml    # Conda environment (stdlib only, no pip deps)
+    ├── run.json           # Run metadata (timestamps, base URL, API version)
+    └── checksums.sha256   # SHA-256 of every file above; verify from <output_dir>
 ```
+
+Verify a bundle with `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256`.
 
 ## Dependencies
 
