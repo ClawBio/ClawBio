@@ -188,6 +188,34 @@ def chrom_spans(intervals: list[Interval]) -> dict[str, tuple[int, int]]:
     return spans
 
 
+def layer_coverage_blocks(intervals: list[Interval]) -> list[tuple[str, int, int]]:
+    """Merged contiguous blocks per chromosome, from only touching or
+    overlapping intervals -- never a chromosome-wide min/max. Used ONLY
+    for an explicit --coverage-bed override, where the file's whole
+    purpose is to state the real assayed footprint (e.g. a capture
+    panel's target regions): there, a gap between two entries genuinely
+    means "never measured," unlike the default peak-track span (see
+    chrom_spans above), where a gap between two peaks is a true negative
+    on a whole-genome assay, not missing data.
+    """
+    by_chrom: dict[str, list[tuple[int, int]]] = {}
+    for chrom, start, end, _name in intervals:
+        by_chrom.setdefault(chrom, []).append((start, end))
+
+    blocks: list[tuple[str, int, int]] = []
+    for chrom, spans in by_chrom.items():
+        spans.sort()
+        cur_start, cur_end = spans[0]
+        for start, end in spans[1:]:
+            if start <= cur_end:
+                cur_end = max(cur_end, end)
+            else:
+                blocks.append((chrom, cur_start, cur_end))
+                cur_start, cur_end = start, end
+        blocks.append((chrom, cur_start, cur_end))
+    return blocks
+
+
 def loop_chrom_spans(loops: list[LoopAnchor]) -> dict[str, tuple[int, int]]:
     """Per-chromosome min/max across every loop's anchors, for the
     informational "## Layer coverage" summary only -- NOT for deciding
@@ -290,6 +318,7 @@ def score_locus(
     name: str,
     layers: dict[str, list[Interval]],
     layer_spans: dict[str, dict[str, tuple[int, int]]],
+    layer_coverage_overrides: dict[str, list[tuple[str, int, int]]],
     loops: list[LoopAnchor],
     loop_span: list[tuple[str, int, int]],
     genes: list[GeneWindow],
@@ -299,7 +328,11 @@ def score_locus(
     not_assayed: list[str] = []
 
     for layer_name, intervals in layers.items():
-        if not within_span(chrom, start, end, layer_spans[layer_name]):
+        if layer_name in layer_coverage_overrides:
+            assayed = within_any_span(chrom, start, end, layer_coverage_overrides[layer_name])
+        else:
+            assayed = within_span(chrom, start, end, layer_spans[layer_name])
+        if not assayed:
             not_assayed.append(layer_name)
             continue
         checked.append(layer_name)
@@ -372,17 +405,33 @@ def analyze(
     histone: list[Interval],
     loops: list[LoopAnchor],
     genes: list[GeneWindow],
+    accessibility_coverage: list[Interval] | None = None,
+    histone_coverage: list[Interval] | None = None,
 ) -> dict:
     layers = {}
     if accessibility:
         layers["accessibility"] = accessibility
     if histone:
         layers["histone"] = histone
-    layer_spans = {name: chrom_spans(intervals) for name, intervals in layers.items()}
+
+    # An explicit --coverage-bed is opt-in, per layer, and never changes
+    # the default chromosome-wide-span behaviour for a layer that does
+    # not supply one.
+    coverage_by_layer = {"accessibility": accessibility_coverage, "histone": histone_coverage}
+    layer_coverage_overrides = {
+        name: layer_coverage_blocks(coverage)
+        for name, coverage in coverage_by_layer.items()
+        if coverage
+    }
+    layer_spans = {
+        name: chrom_spans(intervals)
+        for name, intervals in layers.items()
+        if name not in layer_coverage_overrides
+    }
     loop_span = loop_spans_per_loop(loops)
 
     results = [
-        score_locus(chrom, start, end, name, layers, layer_spans, loops, loop_span, genes)
+        score_locus(chrom, start, end, name, layers, layer_spans, layer_coverage_overrides, loops, loop_span, genes)
         for (chrom, start, end, name) in loci
     ]
 
@@ -393,11 +442,17 @@ def analyze(
     # A layer's observed span can be silently stretched by one
     # stray distant interval, masking a
     # real coverage gap elsewhere. Surfacing the actual span per
-    # layer lets a reader spot that directly.
+    # layer lets a reader spot that directly. A layer with an explicit
+    # --coverage-bed override is shown as its merged blocks instead,
+    # since that is what was actually used to decide not_assayed for it.
     layer_coverage: dict[str, str] = {
         layer: ",".join(f"{chrom}:{lo}-{hi}" for chrom, (lo, hi) in sorted(spans.items()))
         for layer, spans in layer_spans.items()
     }
+    layer_coverage.update({
+        layer: ",".join(f"{chrom}:{lo}-{hi}" for chrom, lo, hi in sorted(blocks))
+        for layer, blocks in layer_coverage_overrides.items()
+    })
     loop_display_span = loop_chrom_spans(loops)
     if loop_display_span:
         layer_coverage["contact"] = ",".join(
@@ -555,6 +610,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--loci", type=Path)
     parser.add_argument("--accessibility-track", type=Path)
     parser.add_argument("--histone-track", type=Path)
+    parser.add_argument(
+        "--accessibility-coverage-bed", type=Path,
+        help="Real assayed footprint for --accessibility-track (e.g. a capture "
+             "panel's target regions). When supplied, not_assayed for this layer "
+             "is decided from this file's own merged intervals instead of the "
+             "track's chromosome-wide span -- use this for a targeted/capture "
+             "track, where a gap really does mean 'never measured.'",
+    )
+    parser.add_argument(
+        "--histone-coverage-bed", type=Path,
+        help="Same as --accessibility-coverage-bed, for --histone-track.",
+    )
     parser.add_argument("--contact-evidence", type=Path)
     parser.add_argument("--gene-targets", type=Path)
     parser.add_argument("--output", type=Path, default=Path("multiomics_locus_integrator_out"))
@@ -579,12 +646,17 @@ def main(argv: list[str] | None = None) -> int:
     if gene_path is None:
         parser.error("--gene-targets is required unless --demo is used")
 
+    accessibility_coverage_path = None if args.demo else args.accessibility_coverage_bed
+    histone_coverage_path = None if args.demo else args.histone_coverage_bed
+
     try:
         loci = parse_bed(loci_path)
         genes = parse_gene_targets(gene_path)
         accessibility = parse_bed(accessibility_path) if accessibility_path else []
         histone = parse_bed(histone_path) if histone_path else []
         loops = parse_bedpe(contact_path) if contact_path else []
+        accessibility_coverage = parse_bed(accessibility_coverage_path) if accessibility_coverage_path else []
+        histone_coverage = parse_bed(histone_coverage_path) if histone_coverage_path else []
     except (ValueError, FileNotFoundError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
@@ -596,7 +668,11 @@ def main(argv: list[str] | None = None) -> int:
         print("ERROR: at least one evidence layer (accessibility, histone, or contact) is required", file=sys.stderr)
         return 2
 
-    result = analyze(loci, accessibility, histone, loops, genes)
+    result = analyze(
+        loci, accessibility, histone, loops, genes,
+        accessibility_coverage=accessibility_coverage,
+        histone_coverage=histone_coverage,
+    )
     extra_inputs = {
         "--accessibility-track": accessibility_path,
         "--histone-track": histone_path,

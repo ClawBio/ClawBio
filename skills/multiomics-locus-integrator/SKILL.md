@@ -41,6 +41,18 @@ metadata:
         - bed
       description: Histone ChIP-seq peak calls, e.g. H3K27ac/H3K4me1 (optional evidence layer)
       required: false
+    - name: accessibility_coverage_bed
+      type: file
+      format:
+        - bed
+      description: Real assayed footprint for accessibility_track (e.g. a capture panel's target regions); overrides the default chromosome-wide-span not_assayed heuristic for this layer with a tighter, per-interval gap check
+      required: false
+    - name: histone_coverage_bed
+      type: file
+      format:
+        - bed
+      description: Same as accessibility_coverage_bed, for histone_track
+      required: false
     - name: contact_evidence
       type: file
       format:
@@ -141,6 +153,7 @@ You are **Multiomics Locus Integrator**, a specialised ClawBio agent for regulat
 | Loci BED | `.bed` | chrom, start, end, id | `demo_loci.bed` |
 | Gene targets BED | `.bed` | chrom, start, end, gene_symbol, strand (+/-) **or** standard BED6 (chrom, start, end, name, score, strand) | `demo_targets.bed` |
 | Accessibility/histone BED | `.bed` | chrom, start, end, peak_id | `demo_atac.bed` |
+| Coverage BED (optional) | `.bed` | chrom, start, end, region_id | n/a -- user-supplied capture/target regions |
 | Contact BEDPE | `.bedpe` | chrom1, start1, end1, chrom2, start2, end2, loop_id | `demo_loops.bedpe` |
 
 ## Workflow
@@ -157,6 +170,13 @@ You are **Multiomics Locus Integrator**, a specialised ClawBio agent for regulat
 python skills/multiomics-locus-integrator/multiomics_locus_integrator.py \
   --loci loci.bed --gene-targets genes.bed \
   --accessibility-track atac.bed --histone-track h3k27ac.bed --contact-evidence loops.bedpe \
+  --output report_dir
+
+# With a targeted/capture track, where a gap really does mean "never
+# measured" rather than "no signal called" -- see Gotchas below
+python skills/multiomics-locus-integrator/multiomics_locus_integrator.py \
+  --loci loci.bed --gene-targets genes.bed \
+  --accessibility-track atac.bed --accessibility-coverage-bed panel_targets.bed \
   --output report_dir
 
 # Demo mode (synthetic data, no user files needed)
@@ -176,7 +196,7 @@ All demo coordinates are synthetic (fictitious `chr5` positions, invented gene s
 ## Algorithm / Methodology
 
 1. For each locus, overlap against each supplied layer (BED/BEDPE interval intersection, half-open coordinates).
-2. A layer is `not_assayed` for a locus if the locus falls outside that layer's observed min/max span on that chromosome (the layer file never covered this region) — reported separately from `unsupported` (checked, no overlap found).
+2. A layer is `not_assayed` for a locus if the locus falls outside that layer's observed min/max span on that chromosome (the layer file never covered this region) — reported separately from `unsupported` (checked, no overlap found). If an explicit `--accessibility-coverage-bed` / `--histone-coverage-bed` is supplied for that layer, its own merged, per-interval blocks are used instead of the track's chromosome-wide span (see Gotchas).
 3. Score = (sum of weights of *supported* layers) / (sum of weights of *checked* layers) — only layers actually supplied and spanning the locus count toward the denominator, so a locus is never penalised for a layer nobody ran.
 4. Tier: `high` (score ≥ 0.75 **and** ≥ 2 distinct supported layer types — a single heavily-weighted layer alone cannot reach `high`), `partial` (any support), `unsupported` (checked, zero support), `not_assayed` (no layer covered this locus at all).
 5. Target gene: nearest gene by **true distance to its strand-aware TSS point** (`+`-strand TSS = BED start, `-`-strand TSS = BED end — not to the TSS window's edge, which could occasionally rank the wrong gene as nearest), **and separately** any gene contacted via a loop whose other anchor overlaps the locus (checked against the TSS window: `TSS-1000bp` to `TSS+250bp`, standard promoter-proximal convention). If they disagree, both are reported — contact evidence does not silently override proximity.
@@ -235,7 +255,7 @@ output_directory/
 - **A nearest gene is only as meaningful as the gene list it came from.** With a sparse `--gene-targets` file, "nearest" can mean "the only one supplied, megabases away" — `target_gene_nearest_is_distant` flags any pick past `NEAREST_GENE_FAR_THRESHOLD_BP` (1Mb) rather than silently reporting a distant gene as if it were a confident local call. The gene and its real distance are still returned; nothing is hidden, only flagged.
 - **Report the layer coverage, not just the per-locus `not_assayed` flag.** A track's observed span can be stretched by a single far-off interval, which would otherwise mask a real coverage gap elsewhere — the `## Layer coverage` section in `report.md` makes each track's actual span visible so a reader can judge this directly rather than inferring it from which loci happen to read `not_assayed`.
 - **Enumerate every evidence file's actual coverage before trusting a `tier`.** A loop/TAD file can cover only part of a chromosome; the per-chromosome span check is what catches this, but it is only as good as the supplied file — a track with one stray far-off interval will inflate its apparent span and hide a real `not_assayed` region.
-- **A chromosome-wide span is a deliberate choice, not an oversight.** `not_assayed` treats the gap between two peaks on the same chromosome as "assayed, no signal called" (a true negative), matching a whole-genome assay where peaks are sparse by design -- not as missing data. A targeted or capture-based track where gaps really do mean "never measured" would need a different, narrower coverage model; this skill does not attempt to infer which case a supplied file is from the BED alone, so check that assumption against how each track was actually generated before trusting a `not_assayed` call near a coverage boundary.
+- **A chromosome-wide span is a deliberate choice, not an oversight -- and `--coverage-bed` is the opt-out.** `not_assayed` treats the gap between two peaks on the same chromosome as "assayed, no signal called" (a true negative) by default, matching a whole-genome assay where peaks are sparse by design -- not as missing data. For a targeted or capture-based track, where a gap really does mean "never measured," supply `--accessibility-coverage-bed` / `--histone-coverage-bed` pointing at the actual assayed regions (e.g. the panel's target BED): that layer's `not_assayed` is then decided from the coverage file's own merged, per-interval blocks instead of the track's span. This is opt-in per layer and never changes the default for a layer that does not supply one; the two layers' overrides are also independent of each other.
 - **Nearest-gene and contact-gene disagreement must be surfaced, not silently resolved.** Early drafts defaulted to "contact wins" — this is wrong: both are real candidate answers with different evidence bases, and collapsing them hides exactly the kind of judgment call a reviewer needs to see (demonstrated by `L4_disagree` in the demo data).
 - **A locus's contact coverage comes from its own loop, not every loop on the chromosome.** Merging all loops' anchors into one chromosome-wide span would let a single distant, unrelated loop make a locus look "assayed for contact" when no loop is actually anywhere near it — this skill checks each loop's own span independently instead, so `not_assayed` stays as tight as the real evidence.
 - **A single heavily-weighted layer should not alone earn `high`.** Requiring ≥2 distinct supported layer types for the `high` tier (not just a score threshold) prevents one noisy, high-weight loop call from single-handedly producing a false high-confidence result.

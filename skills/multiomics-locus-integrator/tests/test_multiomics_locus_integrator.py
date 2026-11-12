@@ -323,6 +323,99 @@ def test_contact_still_assayed_within_a_single_loops_own_span() -> None:
     assert "contact" not in row["layers_supported"]
 
 
+def test_coverage_bed_gives_a_tighter_not_assayed_than_the_track_span() -> None:
+    # Default behaviour (no coverage file) treats the whole span between a
+    # layer's first and last peak as "assayed" -- see
+    # test_true_absence_is_unsupported_not_not_assayed. An explicit
+    # --accessibility-coverage-bed states the REAL assayed footprint (e.g.
+    # a capture panel's target regions), so gaps between its entries
+    # genuinely do mean "never measured" and should read not_assayed, not
+    # unsupported, even though the peak track's own span would cover it.
+    loci = [("chr1", 5000, 5001, "L1")]
+    accessibility = [("chr1", 0, 50, "peak1"), ("chr1", 9000, 9050, "peak2")]
+    accessibility_coverage = [("chr1", 0, 100, "panel_a"), ("chr1", 9000, 9100, "panel_b")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(
+        loci, accessibility, [], [], genes,
+        accessibility_coverage=accessibility_coverage,
+    )
+    row = result["loci"][0]
+    assert "accessibility" in row["layers_not_assayed"]
+    assert "accessibility" not in row["layers_checked"]
+
+
+def test_coverage_bed_still_assayed_within_its_own_block() -> None:
+    # Sanity check: a locus inside one of the coverage file's own entries
+    # is assayed, whether or not a peak was actually called there.
+    loci = [("chr1", 50, 51, "L1")]
+    accessibility = [("chr1", 9000, 9050, "peak_far_away")]
+    accessibility_coverage = [("chr1", 0, 100, "panel_a")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(
+        loci, accessibility, [], [], genes,
+        accessibility_coverage=accessibility_coverage,
+    )
+    row = result["loci"][0]
+    assert "accessibility" in row["layers_checked"]
+    assert "accessibility" not in row["layers_supported"]
+
+
+def test_coverage_bed_omitted_keeps_default_span_behaviour() -> None:
+    # Omitting the coverage argument entirely must reproduce the existing,
+    # deliberate default (chromosome-wide track span) exactly --
+    # the new parameter must never change behaviour for every existing
+    # caller that does not pass it.
+    loci = [("chr1", 100, 101, "L1")]
+    accessibility = [("chr1", 0, 50, "peak1"), ("chr1", 200, 300, "peak2")]
+    genes = [("chr1", 0, 50, "GENE_X", 0)]
+    result = mli.analyze(loci, accessibility, [], [], genes)
+    row = result["loci"][0]
+    assert row["tier"] == "unsupported"
+
+
+def test_coverage_bed_applies_per_layer_independently() -> None:
+    # accessibility_coverage must not affect histone's not_assayed
+    # decision, and vice versa -- each layer's coverage override is
+    # independent.
+    loci = [("chr1", 5000, 5001, "L1")]
+    accessibility = [("chr1", 0, 50, "peak1"), ("chr1", 9000, 9050, "peak2")]
+    histone = [("chr1", 0, 50, "peak1"), ("chr1", 9000, 9050, "peak2")]
+    accessibility_coverage = [("chr1", 0, 100, "panel_a"), ("chr1", 9000, 9100, "panel_b")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(
+        loci, accessibility, histone, [], genes,
+        accessibility_coverage=accessibility_coverage,
+    )
+    row = result["loci"][0]
+    assert "accessibility" in row["layers_not_assayed"]
+    assert "histone" in row["layers_checked"]  # unaffected, still the default span
+
+
+def test_coverage_bed_cli_flags_produce_the_tighter_not_assayed(tmp_path: Path) -> None:
+    loci_bed = tmp_path / "loci.bed"
+    loci_bed.write_text("chr1\t5000\t5001\tL1\n")
+    accessibility_bed = tmp_path / "accessibility.bed"
+    accessibility_bed.write_text("chr1\t0\t50\tpeak1\nchr1\t9000\t9050\tpeak2\n")
+    coverage_bed = tmp_path / "coverage.bed"
+    coverage_bed.write_text("chr1\t0\t100\tpanel_a\nchr1\t9000\t9100\tpanel_b\n")
+    genes_bed = tmp_path / "genes.bed"
+    genes_bed.write_text("chr1\t0\t50\tGENE_X\t+\n")
+    output_dir = tmp_path / "out"
+
+    rc = mli.main([
+        "--loci", str(loci_bed),
+        "--accessibility-track", str(accessibility_bed),
+        "--accessibility-coverage-bed", str(coverage_bed),
+        "--gene-targets", str(genes_bed),
+        "--output", str(output_dir),
+    ])
+    assert rc == 0
+    import json
+    result = json.loads((output_dir / "result.json").read_text())
+    row = result["loci"][0]
+    assert "accessibility" in row["layers_not_assayed"]
+
+
 def test_gene_targets_bed6_unstranded_names_the_right_column(tmp_path: Path) -> None:
     # A BED6 line with strand "." in column 6 fell
     # back to column 5 (the score column) as if IT were strand, so the
