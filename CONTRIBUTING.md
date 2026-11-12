@@ -4,6 +4,15 @@ We welcome skills from anyone working in bioinformatics, computational biology, 
 
 **Join the contributors community: [t.me/ClawBioContributors](https://t.me/ClawBioContributors)**
 
+## Set up
+
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
+(`curl -LsSf https://astral.sh/uv/install.sh | sh` or `brew install uv`). It provides Python 3.12+
+and every dependency, so you do not need a system Python. Then run `uv sync`.
+
+Run every command in this guide and in [`AGENTS.md`](AGENTS.md) through `uv run`
+(`uv run python clawbio.py list`, `uv run pytest ...`): a bare `python` may be missing or older than 3.12.
+
 ## Working on an Issue
 
 Claim the issue before you start, so two people do not fix the same thing:
@@ -59,21 +68,21 @@ channels:
 
 ```bash
 # Confirm the runner is working
-python clawbio.py list
+uv run python clawbio.py list
 
 # Test a registered skill through the real CLI
-python clawbio.py run <registered-alias> --demo
+uv run python clawbio.py run <registered-alias> --demo
 
 # Test a new skill directly before registration
-python skills/your-skill-name/your_skill.py --demo --output /tmp/your-skill-demo
+uv run python skills/your-skill-name/your_skill.py --demo --output /tmp/your-skill-demo
 ```
 
-Use the direct script path until the skill is registered in `clawbio.py`. Once you add the alias to `clawbio.py`, confirm it appears in `python clawbio.py list` and then validate it through `python clawbio.py run <registered-alias> --demo`.
+Use the direct script path until the skill is registered in `clawbio.py`. Once you add the alias to `clawbio.py`, confirm it appears in `uv run python clawbio.py list` and then validate it through `uv run python clawbio.py run <registered-alias> --demo`.
 
 If the skill includes tests, run:
 
 ```bash
-python -m pytest skills/your-skill-name/tests/ -v
+uv run pytest skills/your-skill-name/tests/ -v
 ```
 
 Use pytest's built-in fixtures where needed: `tmp_path` for temporary files and
@@ -88,7 +97,7 @@ in `AGENTS.md`.
 If you changed `SKILL.md` YAML frontmatter, regenerate the catalog:
 
 ```bash
-python scripts/generate_catalog.py
+uv run python scripts/generate_catalog.py
 ```
 
 ### 5. Submit
@@ -189,11 +198,11 @@ AI coding agents (Codex, Devin, Claude Code, Cursor, etc.) should follow the sam
 
 1. Read [`AGENTS.md`](AGENTS.md) for setup, commands, code style, and project structure
 2. Read the target skill's `SKILL.md` before modifying any code
-3. Use `python clawbio.py list` to verify skills still load after changes
-4. Run `python -m pytest skills/your-skill-name/tests/ -v` to confirm your skill's tests pass
-5. Regenerate `skills/catalog.json` if you changed any SKILL.md YAML frontmatter: `python scripts/generate_catalog.py`
+3. Use `uv run python clawbio.py list` to verify skills still load after changes
+4. Run `uv run pytest skills/your-skill-name/tests/ -v` to confirm your skill's tests pass
+5. Regenerate `skills/catalog.json` if you changed any SKILL.md YAML frontmatter: `uv run python scripts/generate_catalog.py`
 6. Do not hand-type skill, demo or CLI counts anywhere (README, llms.txt, CITATION.cff, .zenodo.json, .claude-plugin/). The only count is `skill_count` in `skills/catalog.json`, and the README badge reads it live. `tests/test_public_claims.py` fails if a literal count appears in those files.
-7. If `skills/catalog.json` conflicts with `main`, take `main`'s version (`git checkout origin/main -- skills/catalog.json`), run `python scripts/generate_catalog.py` to add your skill back, and commit the result. Never resolve the conflict by hand.
+7. If `skills/catalog.json` conflicts with `main`, take `main`'s version (`git checkout origin/main -- skills/catalog.json`), run `uv run python scripts/generate_catalog.py` to add your skill back, and commit the result. Never resolve the conflict by hand.
 
 ### SKILL.md Quality Checklist
 
