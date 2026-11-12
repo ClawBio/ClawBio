@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,8 +22,18 @@ from pathlib import Path
 import pandas as pd
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[1]
 sys.path.insert(0, str(SCRIPT_DIR))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
+from clawbio.common.reproducibility import (
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
 from screen_engine import DISCLAIMER, PipelineResult, load_yaml, run_pipeline
 
 
@@ -67,30 +76,40 @@ def write_report(result: PipelineResult, output_dir: Path, objective: dict) -> N
 def write_reproducibility(output_dir: Path, args: argparse.Namespace) -> None:
     repro = output_dir / "reproducibility"
     repro.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        "python", str(SCRIPT_DIR / "drug_repurposing_screen.py"),
-        "--output", str(output_dir),
-    ]
-    if args.demo:
-        cmd.append("--demo")
-    else:
-        cmd.extend(["--bundle", str(args.bundle), "--schema", str(args.schema),
-                    "--objective", str(args.objective)])
-    (repro / "commands.sh").write_text("#!/bin/bash\n" + " ".join(cmd) + "\n")
-    try:
-        out = subprocess.run(
-            [sys.executable, "-m", "pip", "freeze"],
-            capture_output=True, text=True, check=False,
-        )
-        (repro / "environment.yml").write_text(
-            "# pip freeze snapshot\n" + out.stdout
-        )
-    except OSError:
-        pass
     if args.schema and Path(args.schema).exists():
         shutil.copy(args.schema, repro / "schema.yaml")
     if args.objective and Path(args.objective).exists():
         shutil.copy(args.objective, repro / "objective.yaml")
+
+    cmd_args: list[str | ReproPath] = ["--output", ReproPath(output_dir, anchor="output_dir")]
+    if args.demo:
+        cmd_args.append("--demo")
+    else:
+        for flag in ("--bundle", "--schema", "--objective"):
+            cmd_args += [flag, ReproPath(Path(getattr(args, flag[2:])).resolve(), anchor="repo_root")]
+    write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=SCRIPT_DIR.relative_to(REPO_ROOT) / "drug_repurposing_screen.py",
+            args=cmd_args,
+            comment="Reproduce this drug-repurposing-screen run",
+        ),
+        repo_root=REPO_ROOT,
+    )
+    write_environment_yml(
+        output_dir,
+        env_name="clawbio-drug-repurposing-screen",
+        pip_deps=["numpy>=1.24", "pandas>=2.0", "scipy>=1.10", "pyyaml>=6.0", "pyarrow>=14.0"],
+    )
+    # Written last so it covers everything above. report.md/report.html carry a
+    # wall-clock timestamp, so they stay out to keep replays byte-identical.
+    files = [output_dir / "result.json"]
+    files += [output_dir / "tables" / n for n in
+              ("selectivity.csv", "biomarker_univariate_all_matrices.csv", "priority_table.csv")]
+    files += [output_dir / "cache" / f"{n}.parquet" for n in
+              ("qc_primary", "primary_hits", "selectivity", "biomarkers", "priority")]
+    files += [repro / n for n in ("schema.yaml", "objective.yaml", "commands.sh", "environment.yml")]
+    write_checksums(files, output_dir, anchor=output_dir)
 
 
 def write_outputs(result: PipelineResult, output_dir: Path, objective: dict, args: argparse.Namespace) -> None:
