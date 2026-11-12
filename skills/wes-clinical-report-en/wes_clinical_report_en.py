@@ -1174,7 +1174,7 @@ def _build_argparser():
     )
     parser.add_argument("--report-dir", type=str, default=str(REPORT_DIR),
                         help="Directory containing WES markdown reports")
-    parser.add_argument("--output-dir", type=str, default=str(OUTPUT_DIR),
+    parser.add_argument("--output-dir", "--output", dest="output_dir", type=str, default=str(OUTPUT_DIR),
                         help="Output directory for PDF reports")
     parser.add_argument("--logo-left", type=str, default=LOGO_LEFT,
                         help="Left institutional logo (JPG/PNG)")
@@ -1183,12 +1183,16 @@ def _build_argparser():
     parser.add_argument("--samples", type=str, default=None,
                         help="Comma-separated list of samples (default: Sample1-7)")
     parser.add_argument("--demo", action="store_true",
-                        help="Run with default Novogene project data")
+                        help="Run with the bundled synthetic report (examples/demo_WES_Report.md)")
     return parser
 
 
 def main():
+    import shlex
     import sys
+
+    # Script runs as a file, not a package: make `clawbio.common` importable.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
     parser = _build_argparser()
     args = parser.parse_args()
@@ -1206,9 +1210,9 @@ def main():
         samples = SAMPLES
 
     if args.demo:
-        report_dir = REPORT_DIR
-        output_dir = OUTPUT_DIR
-        samples = SAMPLES
+        # Bundled synthetic report; keep the caller's --output-dir.
+        report_dir = Path(__file__).resolve().parent / "examples"
+        samples = ["demo"]
 
     print("WES Clinical Report Generator (English)")
     print(f"Input directory:  {report_dir}")
@@ -1239,6 +1243,30 @@ def main():
     print(f"Generated {len(generated)}/{len(samples)} PDF reports")
     for f in generated:
         print(f"  {f}")
+
+    from clawbio.common.reproducibility import (
+        ReproCommand, ReproPath, write_checksums, write_environment_yml,
+        write_portable_commands_sh,
+    )
+    if args.demo:
+        replay = ["--demo"]
+    else:
+        replay = ["--report-dir", ReproPath(report_dir.resolve()),
+                  "--logo-left", ReproPath(Path(args.logo_left).resolve()),
+                  "--logo-right", ReproPath(Path(args.logo_right).resolve()),
+                  "--samples", shlex.quote(",".join(samples))]
+    commands_path = write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/wes-clinical-report-en/wes_clinical_report_en.py"),
+            args=[*replay, "--output", ReproPath(output_dir, anchor="output_dir")],
+        ),
+        repo_root=Path(__file__).resolve().parents[2],
+    )
+    environment_path = write_environment_yml(
+        output_dir, "clawbio-wes-clinical-report-en", ["reportlab>=4.0"])
+    # last: covers the PDFs and the two bundle files above
+    write_checksums([*generated, commands_path, environment_path], output_dir, anchor=output_dir)
 
 
 if __name__ == "__main__":
