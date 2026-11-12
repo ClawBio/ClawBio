@@ -2,7 +2,7 @@
   "_comment": [
     "Per-harness pass rates recorded from a real CI run. The scientific-audit",
     "job fails if any harness drops below its rate here (see #342).",
-    "These are NOT targets. Seven harnesses are below 100% and that debt is",
+    "These are NOT targets. Six harnesses are below 100% and that debt is",
     "tracked in #106. Raising a number is a reviewable commit; lowering one",
     "should be treated as a bug report, not routine maintenance.",
     "",
@@ -59,6 +59,16 @@
         "dpyd_2a_het",
         "dpyd_neg"
       ]
+    },
+    "gwas-prs_rerecorded": {
+      "pr": 773,
+      "date": "2026-11-11",
+      "clawbio_commit": "d704e00",
+      "benchmark_suite_version": "0.1.5",
+      "benchmark_revision": "49a0f11a8393b87a90f0721261a9bec5d52b61db",
+      "mode": "smoke",
+      "run_url": "https://github.com/ClawBio/ClawBio/actions/runs/43043560118",
+      "result": "8/8 pass (100.0%), 0 harness errors"
     }
   },
   "harnesses": {
@@ -69,7 +79,7 @@
     "cvr-acmg-correctness": 69.2,
     "cvr-variant-identity": 100.0,
     "equity-scorer": 100.0,
-    "gwas-prs": 62.5,
+    "gwas-prs": 100.0,
     "nutrigx-advisor": 0.0,
     "pharmgx-reporter": 90.9
   },
