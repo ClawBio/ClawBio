@@ -1,0 +1,28 @@
+{
+  "description": "Recipe for the offline synthetic demo of scrna-embedding-audit. generate_demo_adata() reads this file; the embeddings are derived from the simulated counts, not drawn from the labels.",
+  "seed": 0,
+  "n_genes": 300,
+  "shared_cell_types": ["T cell", "B cell", "Monocyte"],
+  "batches": ["donor_1", "donor_2"],
+  "cells_per_type_per_batch": 100,
+  "single_batch_cell_type": {"name": "NK cell", "batch": "donor_2", "n_cells": 60},
+  "n_cells": 660,
+  "markers_per_type": 30,
+  "marker_fold_change": 3.0,
+  "n_batch_genes": 60,
+  "batch_fold_change": 2.0,
+  "batch_shifted_in": "donor_2",
+  "gene_mean_log_normal": {"mean": 0.0, "sigma": 1.0},
+  "negative_binomial_dispersion": 2.0,
+  "normalize_target_sum": 10000.0,
+  "n_embedding_dims": 10,
+  "embeddings": {
+    "X_corrected": "PCA of the log-normalised matrix after centring each gene within each batch",
+    "X_batchy": "PCA of the globally centred log-normalised matrix with the batch genes weighted x5",
+    "X_overcorrected": "PCA after per-batch centring with every marker gene removed"
+  },
+  "batch_gene_weight": 5.0,
+  "cell_types": ["T cell", "B cell", "Monocyte", "NK cell"],
+  "embedding_keys": ["X_corrected", "X_batchy", "X_overcorrected"],
+  "obs_columns": {"labels": "cell_type", "batch": "donor"}
+}
