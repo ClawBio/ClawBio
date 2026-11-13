@@ -28,8 +28,12 @@ demo_output/
   fhir_bundle.json       # FHIR R4 Bundle of ResearchStudy resources
   tables/
     trials.csv           # CSV for Excel/R/pandas import
-  commands.sh            # exact command to reproduce this run
-  checksums.sha256       # SHA-256 of all outputs (verify with sha256sum -c)
+  figures/
+    phase_distribution.png
+  reproducibility/
+    commands.sh          # exact command to reproduce this run
+    environment.yml      # conda environment snapshot
+    checksums.sha256     # SHA-256 of all outputs (verify with sha256sum -c)
 ```
 
 ### report.md
@@ -69,7 +73,7 @@ completion_date, conditions, interventions`. List fields are pipe-delimited
 
 ```bash
 cd demo_output
-sha256sum -c checksums.sha256
+sha256sum -c reproducibility/checksums.sha256
 # All OK
 ```
 
