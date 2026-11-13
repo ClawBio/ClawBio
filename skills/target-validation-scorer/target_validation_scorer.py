@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -12,7 +13,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 SKILL_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SKILL_DIR.parent.parent
 DEMO_DATA = SKILL_DIR / "demo_input.json"
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
 
 # ---------------------------------------------------------------------------
 # Scoring logic
@@ -369,12 +382,36 @@ def plot_scoring_summary(result, output_dir: Path) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def main():
+def write_repro_bundle(args, outputs) -> None:
+    """Write <output>/reproducibility/; checksums last so they cover the other outputs."""
+    output_dir = args.output.resolve()
+    run_args = ["--demo"] if args.demo else ["--input", ReproPath(args.input.resolve(), anchor="repo_root")]
+    run_args += ["--output", ReproPath(output_dir, anchor="output_dir")]
+    write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/target-validation-scorer/target_validation_scorer.py"),
+            args=run_args,
+            comment="Reproduce this target-validation-scorer run",
+        ),
+        repo_root=PROJECT_ROOT,
+    )
+    # Bounds from SKILL.md frontmatter; only the packages this script imports.
+    write_environment_yml(
+        output_dir,
+        "clawbio-target-validation-scorer",
+        pip_deps=[],
+        conda_deps=["matplotlib>=3.7", "numpy>=1.24"],
+    )
+    write_checksums([Path(p).resolve() for p in outputs], output_dir, anchor=output_dir)
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser(description="Target Validation Scorer")
     parser.add_argument("--input", type=Path, required=False, help="Input JSON file")
     parser.add_argument("--output", type=Path, default=Path("/tmp/target_validation_output"), help="Output directory")
     parser.add_argument("--demo", action="store_true", help="Run with built-in TGFBR1/IPF demo data")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.demo:
         input_path = DEMO_DATA
@@ -401,6 +438,8 @@ def main():
 
     # Generate figure
     fig_path = plot_scoring_summary(result, args.output)
+
+    write_repro_bundle(args, [report_path, json_path, fig_path])
 
     # Print summary to stdout
     print(f"\n{'='*60}")
