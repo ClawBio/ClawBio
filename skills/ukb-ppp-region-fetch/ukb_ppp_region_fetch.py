@@ -1016,13 +1016,11 @@ def main(argv: list[str] | None = None) -> int:
     }
     try:
         import yaml as _yaml
-        (args.output / "manifest.yaml").write_text(
-            _yaml.safe_dump(manifest, sort_keys=False)
-        )
+        manifest_path = args.output / "manifest.yaml"
+        manifest_path.write_text(_yaml.safe_dump(manifest, sort_keys=False))
     except ImportError:
-        (args.output / "manifest.json").write_text(
-            json.dumps(manifest, indent=2, default=str)
-        )
+        manifest_path = args.output / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2, default=str))
 
     report = [
         "# ukb-ppp-region-fetch report",
@@ -1047,6 +1045,7 @@ def main(argv: list[str] | None = None) -> int:
         f"- **Output TSV:** {tsv_path.name}",
     ]
     (args.output / "report.md").write_text("\n".join(report) + "\n")
+    _write_repro_bundle(args, [tsv_path, manifest_path, args.output / "report.md"])
 
     print(f"ukb-ppp-region-fetch: {result.n_variants} variants -> {tsv_path}")
     n_label = result.release.n_samples_label
@@ -1054,6 +1053,43 @@ def main(argv: list[str] | None = None) -> int:
           f"{result.release.ancestry_label} ({result.ancestry})"
           + (f" | N = {n_label}" if n_label else ""))
     return 0
+
+
+def _write_repro_bundle(args: argparse.Namespace, outputs: list[Path]) -> None:
+    """Write <output>/reproducibility/ via clawbio.common.reproducibility."""
+    repo_root = Path(__file__).resolve().parents[2]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    from clawbio.common.reproducibility import (
+        ReproCommand,
+        ReproPath,
+        write_checksums,
+        write_environment_yml,
+        write_portable_commands_sh,
+    )
+
+    out = args.output.resolve()
+    if args.demo is not None:
+        run_args: list = ["--demo"] + ([] if args.demo == "__default__" else [args.demo])
+    else:
+        run_args = ["--input", ReproPath(args.input.resolve(), anchor="repo_root")]
+    run_args += ["--output", ReproPath(out, anchor="output_dir")]
+    write_portable_commands_sh(
+        out,
+        ReproCommand(
+            script_path=Path(__file__).resolve().relative_to(repo_root),
+            args=run_args,
+            comment="Reproduce this ukb-ppp-region-fetch run",
+        ),
+        repo_root=repo_root,
+    )
+    write_environment_yml(
+        out,
+        env_name="clawbio-ukb-ppp-region-fetch",
+        pip_deps=["requests>=2.28", "pyyaml", "synapseclient>=3.0"],
+    )
+    # Last, so it covers this run's outputs and nothing left by earlier runs.
+    write_checksums([p.resolve() for p in outputs], out, anchor=out)
 
 
 def _load_config(path: Path) -> dict:

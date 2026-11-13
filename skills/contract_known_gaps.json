@@ -29,9 +29,6 @@
   "target-validation-scorer": [
     "repro_files"
   ],
-  "ukb-ppp-region-fetch": [
-    "repro_files"
-  ],
   "variant-annotation": [
     "repro_files"
   ],
