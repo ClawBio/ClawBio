@@ -23,9 +23,6 @@
   "omics-target-evidence-mapper": [
     "repro_files"
   ],
-  "prs-abstain": [
-    "repro_files"
-  ],
   "target-validation-scorer": [
     "repro_files"
   ],
