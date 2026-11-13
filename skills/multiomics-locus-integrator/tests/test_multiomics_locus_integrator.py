@@ -92,11 +92,15 @@ def test_gene_targets_tss_window_plus_strand(tmp_path: Path) -> None:
 
 def test_gene_targets_tss_window_minus_strand(tmp_path: Path) -> None:
     # '-' strand TSS = BED end - 1 (BED end is exclusive, so the actual
-    # last base / TSS is one bp lower); window = [TSS-250, TSS+1000).
+    # last base / TSS is one bp lower); window = [TSS-250+1, TSS+1000+1)
+    # -- the +1 on both bounds keeps the TSS base itself classified as
+    # the first base of the downstream segment, matching the plus-strand
+    # convention (see the window-construction comment in
+    # parse_gene_targets for why a direct mirror would be 1bp off).
     bed = tmp_path / "genes.bed"
     bed.write_text("chr1\t5000\t8000\tGENE_MINUS\t-\n")
     genes = mli.parse_gene_targets(bed)
-    assert genes == [("chr1", 7749, 8999, "GENE_MINUS", 7999)]  # tss=7999 (BED end-1, - strand)
+    assert genes == [("chr1", 7750, 9000, "GENE_MINUS", 7999)]  # tss=7999 (BED end-1, - strand)
 
 
 def test_gene_targets_requires_strand(tmp_path: Path) -> None:
@@ -248,7 +252,7 @@ def test_gene_targets_bed6_minus_strand(tmp_path: Path) -> None:
     bed = tmp_path / "genes.bed"
     bed.write_text("chr1\t5000\t8000\tGENE_BED6\t960\t-\n")
     genes = mli.parse_gene_targets(bed)
-    assert genes == [("chr1", 7749, 8999, "GENE_BED6", 7999)]
+    assert genes == [("chr1", 7750, 9000, "GENE_BED6", 7999)]
 
 
 def test_nearest_gene_flags_when_distant(tmp_path: Path) -> None:
@@ -508,6 +512,47 @@ def test_contact_coverage_bed_cli_flag_produces_the_tighter_check(tmp_path: Path
     row = result["loci"][0]
     assert "contact" in row["layers_checked"]
     assert "contact" not in row["layers_not_assayed"]
+
+
+def test_chrom_naming_normalizes_mitochondrial_mt_vs_chrm() -> None:
+    # "MT" (Ensembl/RefSeq-style, no "chr" prefix) and "chrM" (UCSC-style)
+    # name the same chromosome, but stripping a leading "chr" alone
+    # leaves "chrM" -> "M" while "MT" stays "MT" -- still unequal. Both
+    # must normalize to the same key.
+    loci = [("MT", 100, 200, "L1")]
+    accessibility = [("chrM", 100, 200, "peak1")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(loci, accessibility, [], [], genes)
+    row = result["loci"][0]
+    assert "accessibility" in row["layers_supported"]
+
+
+def test_tss_window_treats_the_tss_base_consistently_across_strands(tmp_path: Path) -> None:
+    # The TSS base itself must be classified as the first base of the
+    # DOWNSTREAM segment on both strands -- not downstream on one strand
+    # and upstream on the other, which a direct mirror of the plus-strand
+    # formula would do. Locus = exactly the TSS base on each gene.
+    bed = tmp_path / "genes.bed"
+    bed.write_text(
+        "chr1\t5000\t8000\tGENE_PLUS\t+\n"
+        "chr1\t5000\t8000\tGENE_MINUS\t-\n"
+    )
+    genes = mli.parse_gene_targets(bed)
+    plus_window = next(g for g in genes if g[3] == "GENE_PLUS")
+    minus_window = next(g for g in genes if g[3] == "GENE_MINUS")
+    plus_tss = plus_window[4]
+    minus_tss = minus_window[4]
+    # Both windows' total width must still be UP+DOWN=1250, unaffected
+    # by which base is classified which way.
+    assert plus_window[2] - plus_window[1] == 1250
+    assert minus_window[2] - minus_window[1] == 1250
+    # On the plus strand, the TSS base starts the downstream segment:
+    # window_start is exactly UP bases before tss.
+    assert plus_tss - plus_window[1] == 1000
+    # On the minus strand, after the fix, the TSS base also starts its
+    # strand's downstream segment: window_start is exactly DOWN-1 bases
+    # before tss (not DOWN, which would put tss one base into upstream).
+    assert minus_tss - minus_window[1] == 249
 
 
 def test_multiomics_locus_cli_registry_allows_all_coverage_bed_flags() -> None:

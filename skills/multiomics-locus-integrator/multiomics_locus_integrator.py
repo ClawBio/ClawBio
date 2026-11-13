@@ -152,7 +152,20 @@ def parse_gene_targets(path: Path) -> list[GeneWindow]:
                 # feature's actual last base -- the TSS on the minus
                 # strand -- is end-1, not end.
                 tss = end - 1
-                win_start, win_end = tss - TSS_DOWNSTREAM_BP, tss + TSS_UPSTREAM_BP
+                # +1 on both bounds, not a plain mirror of the plus-strand
+                # formula: on the plus strand the TSS base itself is the
+                # first base of the DOWNSTREAM segment ([tss, tss+DOWN)),
+                # with the UPSTREAM segment strictly before it
+                # ([tss-UP, tss)). A direct mirror
+                # (tss-DOWN, tss+UP) instead puts the TSS base itself
+                # into the UPSTREAM segment, 1bp inconsistent with the
+                # plus-strand convention (the window's total width is
+                # identical either way, so this never changes an overlap
+                # result -- it only changes which single base at the
+                # boundary is classified upstream vs. downstream).
+                # Shifting both bounds by +1 restores the same
+                # TSS-base-starts-downstream convention on this strand.
+                win_start, win_end = tss - TSS_DOWNSTREAM_BP + 1, tss + TSS_UPSTREAM_BP + 1
             else:
                 raise ValueError(f"{path}:{line_no}: strand must be '+' or '-', got {strand!r} in column {strand_col}")
             genes.append((chrom, max(win_start, 0), win_end, name, tss))
@@ -193,7 +206,16 @@ def _normalize_chrom(chrom: str) -> str:
     assembly before trusting a result; this skill only guards against the
     naming-convention difference, not the build difference.
     """
-    return chrom[3:] if len(chrom) > 3 and chrom[:3].lower() == "chr" else chrom
+    key = chrom[3:] if len(chrom) > 3 and chrom[:3].lower() == "chr" else chrom
+    # The mitochondrial chromosome is the one case where stripping "chr"
+    # alone is not enough: UCSC uses "chrM" (becomes "M" above), but
+    # Ensembl/RefSeq-style files use "MT" with no "chr" prefix at all, so
+    # the two would still compare unequal. This is an explicit, narrow
+    # alias for the single most common real-world exception -- not a
+    # general synonym table for every alternative chromosome name.
+    if key.upper() == "MT":
+        return "M"
+    return key
 
 
 def _overlaps(chrom: str, start: int, end: int, chrom2: str, start2: int, end2: int) -> bool:
