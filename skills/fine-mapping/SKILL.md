@@ -223,16 +223,18 @@ where D² are eigenvalues of X'X (n × LD eigenvalues). When τ²→0 the model 
 output_directory/
 ├── report.md                    # Primary markdown report
 ├── fine_mapping.json            # Machine-readable PIPs + credible sets
+├── result.json                  # Standard ClawBio result envelope
 ├── figures/
 │   ├── pip_locus_plot.png       # Per-variant PIP coloured by LD r²
 │   ├── regional_association.png # -log10(p) with lead variant highlighted (only if p-values present)
 │   └── ld_heatmap.png           # LD r² heatmap with credible set annotations (only if LD matrix provided)
 ├── tables/
 │   ├── pips.tsv                 # rsid, chr, pos, pip, cs_membership
-│   └── credible_sets.tsv        # cs_id, size, coverage, lead_rsid, variants
+│   └── credible_sets.tsv        # cs_id, size, coverage, lead_rsid, variants (only if a credible set is found)
 └── reproducibility/
-    ├── commands.sh              # Exact command to reproduce
-    └── environment.yml          # Package versions
+    ├── commands.sh              # Portable command that replays this run ($CLAWBIO_ROOT, $OUTPUT_DIR)
+    ├── environment.yml          # Conda env with version bounds (sushie added on the SuSiE path)
+    └── checksums.sha256         # sha256 of this run's outputs; verify with `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256`
 ```
 
 ## Dependencies
