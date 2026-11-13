@@ -5,9 +5,6 @@
   "clinical-variant-prioritizer": [
     "repro_files"
   ],
-  "drug-repurposing-screen": [
-    "repro_files"
-  ],
   "eqtl-catalogue-region-fetch": [
     "repro_files"
   ],

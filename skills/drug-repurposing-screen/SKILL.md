@@ -297,11 +297,16 @@ output_directory/
 │   └── priority.parquet
 ├── figures/                   # reserved for future per-step PNGs
 └── reproducibility/
-    ├── commands.sh
+    ├── commands.sh            # portable replay: $CLAWBIO_ROOT / $OUTPUT_DIR
     ├── environment.yml
-    ├── schema.yaml
-    └── objective.yaml
+    ├── checksums.sha256       # cd output_directory && sha256sum -c reproducibility/checksums.sha256
+    ├── schema.yaml            # --bundle runs only
+    └── objective.yaml         # --bundle runs only
 ```
+
+`checksums.sha256` covers `result.json`, `tables/`, `cache/` and the other
+`reproducibility/` files. It leaves out `report.md` and `report.html` because
+they carry a timestamp, so a replay gives an identical manifest.
 
 ## Dependencies
 
