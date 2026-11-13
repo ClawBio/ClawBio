@@ -24,9 +24,11 @@ Algorithm
    a. Compute weighted residual  XtΩr = V · (V'b / var)  where var = τ²Dsq + σ²
    b. Update per-effect prior variance s² via bounded scalar optimisation
    c. Update α (posterior weights), μ (posterior means), ω (precisions)
-4. Update σ², τ² by method-of-moments every iteration
+4. Update σ² by method-of-moments every iteration, and τ² with it when
+   est_tausq=True. The τ² estimate is applied as it stands; a non-positive
+   solution sets τ² = 0.
 5. Convergence on max |ΔPIP| < tol
-6. Final PIP = 1 − ∏_l (1 − Σ_j α_{lj})  (collapsed across effects)
+6. Final PIP_j = 1 − ∏_l (1 − α_{jl})  (collapsed across all L effects)
 """
 
 from __future__ import annotations
@@ -72,7 +74,9 @@ def run_susie_inf(
     ssq_range : (lower, upper) bounds for per-effect s² optimisation
     est_ssq : estimate per-effect prior variances s² by MLE
     est_sigmasq : estimate residual variance σ² by method-of-moments
-    est_tausq : estimate infinitesimal variance τ² by method-of-moments
+    est_tausq : estimate infinitesimal variance τ² by method-of-moments.
+        Off by default: τ² then stays at its starting value, and with the
+        default start of 0 the fit has no infinitesimal component
     sigmasq : initial residual variance σ²
     tausq : initial infinitesimal variance τ² (0 = no infinitesimal term)
     max_iter : maximum IBSS iterations
@@ -177,12 +181,11 @@ def run_susie_inf(
                 n, V, Dsq, VtXty, Xty, yty,
                 est_sigmasq=est_sigmasq, est_tausq=est_tausq,
             )
-            # Only apply tausq to the variance structure if it exceeds a
-            # minimum threshold. Tiny tausq estimates (< 1e-3) spread
-            # posterior weight across eigenvectors without meaningfully
-            # modelling a polygenic background, degrading SER quality.
-            effective_tausq = tausq if tausq >= 1e-3 else 0.0
-            var = effective_tausq * Dsq + sigmasq
+            # The estimate is applied as it stands. On per-SNP scale τ² is
+            # small (1e-5 to 1e-4 on realistic loci), and Dsq = n · eigenvalue
+            # makes that matter; a floor on τ² silently turns the fit back
+            # into plain SuSiE. A non-positive solution already means τ² = 0.
+            var = tausq * Dsq + sigmasq
             diag_XtOX = np.sum(V ** 2 * (Dsq / var), axis=1)
             XtOy = V @ (VtXty / var)
 
@@ -191,32 +194,10 @@ def run_susie_inf(
             converged = True
             break
 
-    # Prune inactive effects: exclude effects with near-zero ssq AND
-    # near-uniform alpha from PIP computation. When null_weight is active,
-    # the null component in alpha normalization already down-weights
-    # inactive effects, so pruning is less critical. When est_tausq is
-    # active, use aggressive pruning to prevent background inflation.
-    active_mask = np.ones(L, dtype=bool)
-    if est_tausq:
-        # With infinitesimal component, aggressively prune effects whose
-        # ssq has been shrunk below threshold by the optimizer.
-        uniform_alpha = 1.0 / p
-        ssq_threshold = max(ssq_init * 0.01, 1e-6)
-        for l in range(L):
-            alpha_max = alpha[:, l].max()
-            is_uniform = alpha_max < uniform_alpha * 3.0
-            is_tiny_ssq = ssq[l] < ssq_threshold
-            if is_uniform and is_tiny_ssq:
-                active_mask[l] = False
-
-    # Collapse per-effect alpha into marginal PIPs (active effects only).
-    # When no effects are active (all pruned), assign uniform PIPs (1/p)
-    # representing maximum uncertainty, consistent with the prior.
-    if active_mask.any():
-        alpha_active = alpha[:, active_mask]
-        pip = 1.0 - np.prod(1.0 - alpha_active, axis=1)
-    else:
-        pip = np.full(p, 1.0 / p)
+    # Collapse per-effect alpha into marginal PIPs over all L effects, with
+    # or without the infinitesimal term. An effect that found nothing stays
+    # near its prior, and the null weight is what keeps its contribution low.
+    pip = 1.0 - np.prod(1.0 - alpha, axis=1)
     pip = np.clip(pip, 0.0, 1.0)
 
     return {
@@ -251,7 +232,9 @@ def _mom_update(
 
     Solves the linear system  A [σ², τ²]' = x  derived from the
     second-order moments of the residual.  If only σ² is estimated,
-    uses the first equation directly.
+    uses the first equation directly.  When τ² is estimated and the
+    solution is not positive in both components (or the system cannot
+    be solved), τ² is set to 0 and σ² comes from the first equation.
     """
     p, L = mu.shape
 
@@ -281,14 +264,16 @@ def _mom_update(
     x[1] = float(VtXty ** 2 @ np.ones(p)) - 2.0 * float(Vtb * Dsq @ VtXty) + float((Dsq ** 2) @ diag_VtMV)
 
     if est_tausq:
+        # No positive solution means no infinitesimal component: τ² goes to
+        # 0, it does not keep the value it came in with.
         try:
             sol = scipy.linalg.solve(A, x)
             if sol[0] > 0 and sol[1] > 0:
                 sigmasq, tausq = float(sol[0]), float(sol[1])
             else:
-                sigmasq = float(x[0] / n)
+                sigmasq, tausq = float(x[0] / n), 0.0
         except np.linalg.LinAlgError:
-            sigmasq = float(x[0] / n)
+            sigmasq, tausq = float(x[0] / n), 0.0
     elif est_sigmasq:
         new_sigma = (x[0] - A[0, 1] * tausq) / n
         if new_sigma > 0:
