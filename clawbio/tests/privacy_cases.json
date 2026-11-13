@@ -1,0 +1,142 @@
+[
+  {
+    "check": "genomic_text",
+    "input": "##fileformat=VCFv4.2\n#CHROM\tPOS\tID",
+    "expected": true
+  },
+  {
+    "check": "genomic_text",
+    "input": "[The user sent a text document]\n##fileformat=VCFv4.2\n",
+    "expected": true
+  },
+  {
+    "check": "genomic_text",
+    "input": "# rsid\tchromosome\tposition\tgenotype\n",
+    "expected": true
+  },
+  {
+    "check": "genomic_text",
+    "input": "RSID\tchromosome\tposition\tgenotype\n",
+    "expected": true
+  },
+  {
+    "check": "genomic_text",
+    "input": "rs4244285 rs1057910 rs3892097",
+    "expected": true
+  },
+  {
+    "check": "genomic_text",
+    "input": "rs4244285 rs1057910",
+    "expected": false
+  },
+  {
+    "check": "genomic_text",
+    "input": "rs4244285 rs4244285 rs4244285",
+    "expected": false
+  },
+  {
+    "check": "genomic_text",
+    "input": "rs12 rs34 rs56",
+    "expected": false
+  },
+  {
+    "check": "genomic_text",
+    "input": "Please run the pharmgx demo",
+    "expected": false
+  },
+  {
+    "check": "genomic_text",
+    "input": "",
+    "expected": false
+  },
+  {
+    "check": "genomic_path",
+    "input": "/uploads/sample.vcf",
+    "expected": true
+  },
+  {
+    "check": "genomic_path",
+    "input": "/uploads/SAMPLE.VCF.GZ",
+    "expected": true
+  },
+  {
+    "check": "genomic_path",
+    "input": "reads_R1.fq.gz",
+    "expected": true
+  },
+  {
+    "check": "genomic_path",
+    "input": "aligned.cram",
+    "expected": true
+  },
+  {
+    "check": "genomic_path",
+    "input": "genome_v5.23andme",
+    "expected": false
+  },
+  {
+    "check": "genomic_path",
+    "input": "/uploads/notes.txt",
+    "expected": false
+  },
+  {
+    "check": "genomic_path",
+    "input": "vcf_guide.md",
+    "expected": false
+  },
+  {
+    "check": "sealed_run",
+    "input": "python clawbio.py run pharmgx --input /up/a.vcf --sealed",
+    "expected": true
+  },
+  {
+    "check": "sealed_run",
+    "input": "uv run python clawbio.py run pharmgx --input a.vcf --sealed",
+    "expected": true
+  },
+  {
+    "check": "sealed_run",
+    "input": "/opt/clawbio/.venv/bin/python /opt/clawbio/clawbio.py run pharmgx --input /up/a.vcf --sealed",
+    "expected": true
+  },
+  {
+    "check": "sealed_run",
+    "input": "python clawbio.py run pharmgx --input a.vcf",
+    "expected": false
+  },
+  {
+    "check": "sealed_run",
+    "input": "python clawbio.py run pharmgx --input a.vcf --sealed; cat a.vcf",
+    "expected": false
+  },
+  {
+    "check": "sealed_run",
+    "input": "python clawbio.py run pharmgx --input $(cat a.vcf) --sealed",
+    "expected": false
+  },
+  {
+    "check": "sealed_run",
+    "input": "python clawbio.py run pharmgx --input a.vcf --sealed | head",
+    "expected": false
+  },
+  {
+    "check": "sealed_run",
+    "input": "cat a.vcf",
+    "expected": false
+  },
+  {
+    "check": "sealed_run",
+    "input": "python clawbio.py run illumina --demo --sealed --output /tmp/cb_f1",
+    "expected": false
+  },
+  {
+    "check": "sealed_run",
+    "input": "python clawbio.py run pharmgx --input a.vcf --output=/tmp/x --sealed",
+    "expected": false
+  },
+  {
+    "check": "sealed_run",
+    "input": "python clawbio.py run pharmgx --demo --sealed --out /tmp/x",
+    "expected": false
+  }
+]
