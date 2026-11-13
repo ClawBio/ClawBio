@@ -1,0 +1,100 @@
+{
+  "description": "A fixed, deterministic coloc.abf example used to pin this implementation against R coloc. Two quantitative traits with sdY = 1.0, default priors p1 = p2 = 1e-4 and p12 = 1e-5, and the quantitative prior effect SD of 0.15.",
+  "inputs": {
+    "snp": [
+      "1_109000000_A_G",
+      "1_109000500_A_G",
+      "1_109001000_A_G",
+      "1_109001500_A_G",
+      "1_109002000_A_G",
+      "1_109002500_A_G",
+      "1_109003000_A_G",
+      "1_109003500_A_G",
+      "1_109004000_A_G",
+      "1_109004500_A_G",
+      "1_109005000_A_G",
+      "1_109005500_A_G"
+    ],
+    "beta1": [
+      0.01,
+      -0.02,
+      0.18,
+      0.03,
+      -0.01,
+      0.22,
+      0.05,
+      -0.03,
+      0.02,
+      0.01,
+      -0.02,
+      0.04
+    ],
+    "se1": [
+      0.04,
+      0.04,
+      0.035,
+      0.04,
+      0.05,
+      0.03,
+      0.045,
+      0.04,
+      0.04,
+      0.05,
+      0.04,
+      0.04
+    ],
+    "beta2": [
+      0.0,
+      -0.01,
+      0.15,
+      0.02,
+      0.01,
+      0.2,
+      0.03,
+      -0.02,
+      0.01,
+      0.02,
+      -0.01,
+      0.03
+    ],
+    "se2": [
+      0.05,
+      0.05,
+      0.04,
+      0.05,
+      0.05,
+      0.035,
+      0.05,
+      0.05,
+      0.05,
+      0.05,
+      0.05,
+      0.05
+    ],
+    "type1": "quant",
+    "type2": "quant",
+    "sdY1": 1.0,
+    "sdY2": 1.0,
+    "p1": 0.0001,
+    "p2": 0.0001,
+    "p12": 1e-05
+  },
+  "our_reference": {
+    "PP.H0": 2.5006277471454263e-12,
+    "PP.H1": 8.300745832345804e-06,
+    "PP.H2": 3.0129796118408583e-10,
+    "PP.H3": 1.5643971023294692e-07,
+    "PP.H4": 0.9999915425106596
+  },
+  "r_reference": {
+    "present": true,
+    "note": "Captured from R coloc 5.2.3 by running tests/capture_r_reference.R offline. The R package is GPL and ClawBio is MIT, so it is never installed, imported or vendored here: the script is provenance for re-capturing these numbers, and the test reads the stored values. The Python implementation reproduces all five posteriors to about 16 significant figures; the test asserts a relative tolerance of 1e-4.",
+    "coloc_version": "5.2.3",
+    "PP.H0": 2.5006277471454263e-12,
+    "PP.H1": 8.300745832345804e-06,
+    "PP.H2": 3.0129796118408583e-10,
+    "PP.H3": 1.5643971023294692e-07,
+    "PP.H4": 0.9999915425106596
+  },
+  "our_reference_note": "This implementation's own output on the same inputs, frozen. A change that moves these numbers means the code changed; do not refresh without saying why."
+}

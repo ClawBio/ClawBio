@@ -1,0 +1,106 @@
+{
+  "description": "R coloc.abf on regions large enough for coloc's prior adjustment (CRAN coloc 5.2.2 and later) to fire. The inputs are the closed-form signal in capture_r_reference_large_region.R, rebuilt by the test rather than stored. Captured with R 4.6.1 and coloc 5.2.3; r_reference is that script's output, unedited.",
+  "generator": {
+    "formula": "z_i = 0.9 sin(a i + ph) + 0.6 cos(b i); leads overwritten; beta = 0.01 z; se = 0.01; snp = 1_<1000000+i>_A_G",
+    "trait1": {
+      "a": 0.37,
+      "b": 1.13,
+      "ph": 0.0,
+      "leads": [
+        [
+          6000,
+          4.5
+        ]
+      ]
+    },
+    "trait2": {
+      "a": 0.53,
+      "b": 0.71,
+      "ph": 1.0,
+      "leads": [
+        [
+          3000,
+          4.5
+        ],
+        [
+          6000,
+          3.5
+        ]
+      ]
+    },
+    "type": "quant",
+    "sdY": 1.0,
+    "p1": 0.0001,
+    "p2": 0.0001
+  },
+  "configs": {
+    "A": {
+      "n1": 12000,
+      "start1": 0,
+      "n2": 12000,
+      "start2": 0,
+      "p12": 1e-05,
+      "adjusted": [
+        "p1",
+        "p2"
+      ]
+    },
+    "B": {
+      "n1": 10500,
+      "start1": 0,
+      "n2": 9999,
+      "start2": 501,
+      "p12": 1e-05,
+      "adjusted": [
+        "p1"
+      ]
+    },
+    "C": {
+      "n1": 12000,
+      "start1": 0,
+      "n2": 12000,
+      "start2": 0,
+      "p12": 0.0001,
+      "adjusted": [
+        "p1",
+        "p2",
+        "p12"
+      ]
+    }
+  },
+  "r_reference": {
+    "A": {
+      "nsnps": 12000,
+      "PP.H0": 0.5051482620978253,
+      "PP.H1": 0.11423938748691731,
+      "PP.H2": 0.11546867167150719,
+      "PP.H3": 0.02594718379290835,
+      "PP.H4": 0.23919649495084191,
+      "p1": 8.332638946754438e-05,
+      "p2": 8.332638946754438e-05,
+      "p12": 1e-05
+    },
+    "B": {
+      "nsnps": 9999,
+      "PP.H0": 0.4924974862220835,
+      "PP.H1": 0.1184800600655275,
+      "PP.H2": 0.12584956654374607,
+      "PP.H3": 0.030053617632267448,
+      "PP.H4": 0.23311926953637555,
+      "p1": 9.522902580706599e-05,
+      "p2": 0.0001,
+      "p12": 1e-05
+    },
+    "C": {
+      "nsnps": 12000,
+      "PP.H0": 0.18342737335338272,
+      "PP.H1": 0.04148213970528625,
+      "PP.H2": 0.041928512356649565,
+      "PP.H3": 0.00942183538212183,
+      "PP.H4": 0.7237401392025596,
+      "p1": 8.332638946754438e-05,
+      "p2": 8.332638946754438e-05,
+      "p12": 8.332638946754438e-05
+    }
+  }
+}
