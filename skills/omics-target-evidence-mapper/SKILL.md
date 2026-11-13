@@ -62,9 +62,26 @@ This skill is for research triage only. It does not infer causality, rank therap
 4. Normalise results into a structured evidence object.
 5. Write JSON and Markdown outputs.
 6. Write reproducibility bundle:
-   - `reproducibility/checksums.sha256` — SHA-256 hashes of all output files
+   - `reproducibility/commands.sh` — the command that re-runs this query (portable `$CLAWBIO_ROOT` / `$OUTPUT_DIR` paths)
    - `reproducibility/environment.yml` — pinned Conda/pip environment
    - `ro-crate-metadata.json` — RO-Crate 1.1 provenance record (run params, outputs, script)
+   - `reproducibility/checksums.sha256` — written last; SHA-256 of every output above, relative to the output dir
+
+## Output Structure
+
+```
+<output_dir>/
+├── report.md
+├── evidence.json
+├── metadata.json
+├── ro-crate-metadata.json
+└── reproducibility/
+    ├── commands.sh
+    ├── environment.yml
+    └── checksums.sha256
+```
+
+Verify with `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256`.
 
 # CLI Reference
 

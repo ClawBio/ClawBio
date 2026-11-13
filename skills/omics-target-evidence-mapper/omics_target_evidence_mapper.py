@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,7 +12,14 @@ from typing import Any
 
 import requests
 
-from clawbio.common.reproducibility import write_checksums, write_environment_yml, write_ro_crate
+from clawbio.common.reproducibility import (
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+    write_ro_crate,
+)
 
 
 DEMO_GENE = "IL6R"
@@ -406,6 +414,23 @@ def main() -> None:
     write_json(evidence_path, evidence)
     write_text(report_path, report)
     write_json(metadata_path, metadata)
+    query_args = ["--demo"] if args.demo else ["--gene", shlex.quote(args.gene)]
+    if not args.demo and args.disease:
+        query_args += ["--disease", shlex.quote(args.disease)]
+    commands_path = write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/omics-target-evidence-mapper/omics_target_evidence_mapper.py"),
+            args=[
+                *query_args,
+                "--max-papers", str(args.max_papers),
+                "--max-trials", str(args.max_trials),
+                "--output", ReproPath(output_dir, anchor="output_dir"),
+            ],
+            comment="Re-run omics-target-evidence-mapper (queries live public APIs; results may differ).",
+        ),
+        repo_root=Path(__file__).resolve().parents[2],
+    )
     environment_path = write_environment_yml(
         output_dir,
         env_name="clawbio-omics-target-evidence-mapper",
@@ -427,7 +452,7 @@ def main() -> None:
         },
     )
     write_checksums(
-        [evidence_path, report_path, metadata_path, environment_path, ro_crate_path],
+        [evidence_path, report_path, metadata_path, commands_path, environment_path, ro_crate_path],
         output_dir,
         anchor=output_dir,
     )
