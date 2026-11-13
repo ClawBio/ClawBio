@@ -160,6 +160,27 @@
       ]
     },
     {
+      "name": "bam-to-fastq",
+      "slug": "bam-to-fastq",
+      "license": "MIT",
+      "description": "Convert a BAM back to FASTQ, paired-end with `bedtools bamtofastq` or single-end with `samtools fastq`, with read counts checked before and after every step.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "bam to fastq",
+        "bamtofastq",
+        "extract reads from bam",
+        "revert bam to fastq",
+        "convert bam back to fastq"
+      ],
+      "tags": [
+        "bam",
+        "fastq",
+        "bedtools",
+        "samtools",
+        "sequencing"
+      ]
+    },
+    {
       "name": "bgpt-mcp",
       "slug": "bgpt-mcp",
       "license": "MIT",
