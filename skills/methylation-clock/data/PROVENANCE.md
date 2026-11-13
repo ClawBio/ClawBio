@@ -1,26 +1,34 @@
-# Demo Fixture Provenance
+# Synthetic Demo Fixture Provenance
 
-File: `GSE139307_small.csv.gz`
+The bundled demo is `synthetic_beta_demo.csv.gz`: two entirely simulated rows
+with 485,512 public CpG/probe identifiers. It contains **no donor methylation
+measurements**. The identifiers in `probe_ids.txt.gz` were extracted from the
+header of the public GSE139307 example previously used by this skill; only the
+column names were retained.
 
-## What It Contains
+`generate_synthetic_demo.py` hashes each public probe identifier with seed
+`20261019` and applies an integer-only bimodal transform. Each sample gets a
+separately hashed offset of at most `0.04`; values are clipped to `[0, 1]` and
+written to six decimal places. This makes regeneration byte-stable across
+Python and NumPy versions. The fixture labels
+both rows as `blood` and supplies placeholder ages (35 and 65 years) and sexes
+so the five default clocks can be exercised. Those labels are **not encoded in
+the simulated methylation values**. Clock predictions from this fixture test
+software operation and must not be interpreted biologically.
 
-- A small, local demo subset of methylation data for GEO accession `GSE139307`
-- Intended for smoke testing and documentation demos of `skills/methylation-clock/methylation_clock.py`
-- Stored as gzipped CSV for smaller repository footprint and lower deserialization risk
+Rebuild from the repository root:
 
-## Source And Generation
+```bash
+python skills/methylation-clock/data/generate_synthetic_demo.py \
+  --output skills/methylation-clock/data/synthetic_beta_demo.csv.gz
+```
 
-- Upstream source dataset: `GSE139307` (downloaded through PyAging helper utilities)
-- Generation workflow: `PyAging_tutorial.ipynb`
-- Method summary: load the full `GSE139307.pkl`, then persist a reduced two-sample subset as `GSE139307_small.csv.gz` for lightweight tests
+SHA-256 of `synthetic_beta_demo.csv.gz`:
+`c6fe0fa1574ec9cd002128f53eaf0b67fce6374e1dc32821a3c24ecd3246ffca`
 
-## Integrity
+SHA-256 of `probe_ids.txt.gz`:
+`cd72d91c20878ac2dff24f4b2a1c28a5eb03541b4b5339f8abe84699036b0c01`
 
-- SHA-256: `48704266f1c5c39269e30d343a9bc8553c826195825f5d48afee61013f52191c`
-- Size (bytes): `5845000`
-
-## Safety Note
-
-This file is a repository-controlled fixture and should only be loaded from this trusted repository path.
-
-ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.
+ClawBio is a research and educational tool. It is not a medical device and does
+not provide clinical diagnoses. Consult a healthcare professional before making
+any medical decisions.
