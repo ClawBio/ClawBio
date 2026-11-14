@@ -182,8 +182,9 @@ where D² are eigenvalues of X'X (n × LD eigenvalues). When τ²→0 the model 
 
 1. Eigendecompose LD once: `LD = V diag(d²/n) V'`
 2. IBSS loop with Ω-weighted residuals instead of σ²-only residuals
-3. Method-of-moments update for σ² and τ² each iteration
-4. Credible sets via per-effect PIPs (p×L matrix) with purity filter
+3. Method-of-moments update each iteration: σ² always, τ² only when `run_susie_inf(est_tausq=True)`. The τ² estimate is applied as it stands, with no floor; a non-positive solution sets τ² = 0
+4. PIPs aggregate over all L effects, `PIP_i = 1 - prod_l (1 - α_l_i)`, with or without τ²
+5. Credible sets via per-effect PIPs (p×L matrix) with purity filter
 
 **When to prefer SuSiE-inf over SuSiE**:
 - Large cohort (N > 50k): background polygenic signal is detectable
@@ -205,6 +206,7 @@ where D² are eigenvalues of X'X (n × LD eigenvalues). When τ²→0 the model 
 4. **Non-convergence is a warning plus a flag, not an exception.** Hitting `max_iter` emits a `RuntimeWarning` and sets `converged: False`, mirroring `susieR::susie_rss`; finite PIPs are still returned. The model will want to report those PIPs as results. Do not — surface `converged` in the report and say the estimate is provisional.
 5. **`coverage` and `min_purity` must lie strictly inside (0, 1).** sushie rejects the endpoints, so `--coverage 1.0` or `--min-purity 0` raise a `ValueError` before any data is loaded. The old pure-Python engine accepted them, and ABF still does; only the SuSiE path is this strict, so scripts that passed `1.0` need updating.
 6. **`--max-signals` above the variant count is clamped, not honoured.** sushie refuses a fit whose internal `min_snps` guard sits below `L`, so a 9-variant locus under the default `--max-signals 10` would otherwise be a hard error where the old engine simply ran. `run_susie` clamps `L` to the number of variants and emits a `RuntimeWarning`. The model will want to read the clamp as data loss. It is not — a locus of `p` variants cannot support more than `p` distinct single effects.
+7. **A SuSiE-inf fit has an infinitesimal component only if `tausq` in its result is above 0.** `run_susie_inf` estimates τ² only when called with `est_tausq=True`; by default τ² stays at its starting value of 0 and the fit is SuSiE with this module's prior and null weight. The model will want to describe any `run_susie_inf` output as "adjusted for polygenic background". Do not: read `tausq` first. And do not dismiss a small value as noise. On per-SNP scale a real estimate is of order 1e-5 to 1e-4, and it is multiplied by n times the LD eigenvalues, so on a 200-variant diffuse locus τ² = 5.5e-5 moves an outlier's PIP from 0.154 to 0.022.
 
 ## Example Queries
 
@@ -221,16 +223,18 @@ where D² are eigenvalues of X'X (n × LD eigenvalues). When τ²→0 the model 
 output_directory/
 ├── report.md                    # Primary markdown report
 ├── fine_mapping.json            # Machine-readable PIPs + credible sets
+├── result.json                  # Standard ClawBio result envelope
 ├── figures/
 │   ├── pip_locus_plot.png       # Per-variant PIP coloured by LD r²
 │   ├── regional_association.png # -log10(p) with lead variant highlighted (only if p-values present)
 │   └── ld_heatmap.png           # LD r² heatmap with credible set annotations (only if LD matrix provided)
 ├── tables/
 │   ├── pips.tsv                 # rsid, chr, pos, pip, cs_membership
-│   └── credible_sets.tsv        # cs_id, size, coverage, lead_rsid, variants
+│   └── credible_sets.tsv        # cs_id, size, coverage, lead_rsid, variants (only if a credible set is found)
 └── reproducibility/
-    ├── commands.sh              # Exact command to reproduce
-    └── environment.yml          # Package versions
+    ├── commands.sh              # Portable command that replays this run ($CLAWBIO_ROOT, $OUTPUT_DIR)
+    ├── environment.yml          # Conda env with version bounds (sushie added on the SuSiE path)
+    └── checksums.sha256         # sha256 of this run's outputs; verify with `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256`
 ```
 
 ## Dependencies
