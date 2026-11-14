@@ -353,6 +353,10 @@ CHAINING: dict[str, list[str]] = {
     "clinpgx": ["pharmgx-reporter", "gwas-lookup"],
     "gwas-lookup": ["clinpgx", "gwas-prs", "lit-synthesizer"],
     "bigquery-public": [],
+    "multiomics-locus-integrator": [
+        "gwas-catalog-region-fetch", "eqtl-catalogue-region-fetch",
+        "gi-enhancer", "gi-chromatin", "locuscompare-region-render",
+    ],
     "gwas-prs": ["profile-report", "gwas-lookup", "prs-abstain"],
     "prs-abstain": ["gwas-prs", "just-prs-mcp"],
     "just-prs-mcp": ["wgs-prs", "gwas-prs", "profile-report"],
