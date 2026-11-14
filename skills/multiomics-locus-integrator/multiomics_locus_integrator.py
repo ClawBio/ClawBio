@@ -530,6 +530,12 @@ def analyze(
             "locus_count": len(results),
             "layers_supplied": sorted(list(layers.keys()) + (["contact"] if loops else [])),
             "layer_coverage": layer_coverage,
+            # True whenever contact's not_assayed came from the default
+            # per-loop-anchor span rather than an explicit
+            # --contact-coverage-bed override -- used only to decide
+            # whether write_outputs() prints the legend note explaining
+            # that default span's whole-region-between-anchors behaviour.
+            "contact_uses_default_span": bool(loops) and contact_coverage_override is None,
             "tier_counts": tier_counts,
             "disagreement_count": sum(1 for r in results if r["nearest_vs_contact_disagreement"]),
         },
@@ -642,6 +648,13 @@ def write_outputs(
             "one stray distant interval in a track inflates it and can mask a real "
             "coverage gap elsewhere."
         )
+        if result["summary"].get("contact_uses_default_span"):
+            rows.append(
+                "For `contact`, the default span (no `--contact-coverage-bed` supplied) "
+                "covers the WHOLE region between a loop's two anchors, not just the "
+                "anchors themselves -- a locus sitting midway between them is `checked` "
+                "and correctly reads as a true negative (`unsupported`), not `not_assayed`."
+            )
         rows.append("")
         for layer_name in sorted(coverage):
             rows.append(f"- **{layer_name}**: {coverage[layer_name]}")

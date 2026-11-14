@@ -232,6 +232,8 @@ All demo coordinates are synthetic (fictitious `chr5` positions, invented gene s
 
 ## Layer coverage (observed span per supplied track)
 
+For `contact`, the default span (no `--contact-coverage-bed` supplied) covers the WHOLE region between a loop's two anchors, not just the anchors themselves -- a locus sitting midway between them is `checked` and correctly reads as a true negative (`unsupported`), not `not_assayed`.
+
 - **accessibility**: chr5:1000050-1021100
 - **contact**: chr5:999950-1041100
 - **histone**: chr5:1000050-1040200
@@ -275,6 +277,7 @@ output_directory/
 - **A `chr`-prefix naming difference is normalized, including the mitochondrial chromosome's extra naming quirk; a genome-build difference is not, and cannot be.** `"5"` and `"chr5"` compare equal everywhere this skill compares chromosomes -- a locus on one naming convention against a track on the other used to silently read as no overlap / `not_assayed` instead of matching. The mitochondrial chromosome needed one more explicit alias beyond the general `chr`-strip rule: `"MT"` (Ensembl/RefSeq-style, no `chr` prefix) and `"chrM"` (UCSC-style) both normalize to the same key. Every output field still reports the chromosome exactly as its own source file spelled it; only the comparison is normalized. This skill has no reference genome to check against, so it cannot detect (and does not attempt to detect) a genome-build mismatch -- two different assemblies can use identical `chr5` labels for coordinates that mean different things. Confirm all your input files share one assembly before trusting a result.
 - **Nearest-gene and contact-gene disagreement must be surfaced, not silently resolved.** Early drafts defaulted to "contact wins" — this is wrong: both are real candidate answers with different evidence bases, and collapsing them hides exactly the kind of judgment call a reviewer needs to see (demonstrated by `L4_disagree` in the demo data).
 - **A locus's contact coverage comes from its own loop, not every loop on the chromosome.** Merging all loops' anchors into one chromosome-wide span would let a single distant, unrelated loop make a locus look "assayed for contact" when no loop is actually anywhere near it — this skill checks each loop's own span independently instead, so `not_assayed` stays as tight as the real evidence.
+- **A loop's own span still covers its WHOLE anchor-to-anchor region, not just the two anchors.** A locus sitting midway between a loop's two anchors -- not overlapping either one -- is still `checked` for contact (by design: the loop's existence is evidence the whole region was interrogated by the assay, not just the two called anchor peaks), and correctly reads as `unsupported` (a true negative), not `not_assayed`. The report's `## Layer coverage` legend states this explicitly whenever the default per-loop span (no `--contact-coverage-bed`) is in effect.
 - **A single heavily-weighted layer should not alone earn `high`.** Requiring ≥2 distinct supported layer types for the `high` tier (not just a score threshold) prevents one noisy, high-weight loop call from single-handedly producing a false high-confidence result.
 
 ## Safety

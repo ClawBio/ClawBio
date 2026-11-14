@@ -452,6 +452,49 @@ def test_chrom_naming_normalizes_for_coverage_bed_override() -> None:
     assert "accessibility" in row["layers_checked"]
 
 
+def test_contact_default_span_flag_set_without_coverage_override() -> None:
+    loci = [("chr1", 500, 501, "L1")]
+    loops = [("chr1", 90, 120, "chr1", 900, 950, "LOOP_1")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(loci, [], [], loops, genes)
+    assert result["summary"]["contact_uses_default_span"] is True
+
+
+def test_contact_default_span_flag_false_with_coverage_override() -> None:
+    loci = [("chr1", 500, 501, "L1")]
+    loops = [("chr1", 90, 120, "chr1", 900, 950, "LOOP_1")]
+    contact_coverage = [("chr1", 0, 1000, "capture_region")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(loci, [], [], loops, genes, contact_coverage=contact_coverage)
+    assert result["summary"]["contact_uses_default_span"] is False
+
+
+def test_contact_default_span_flag_false_without_any_loops() -> None:
+    loci = [("chr1", 500, 501, "L1")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(loci, [], [], [], genes)
+    assert result["summary"]["contact_uses_default_span"] is False
+
+
+def test_report_legend_explains_contact_default_span_only_when_default(tmp_path: Path) -> None:
+    loci_bed = tmp_path / "loci.bed"
+    loci_bed.write_text("chr1\t500\t501\tL1\n")
+    loops_bedpe = tmp_path / "loops.bedpe"
+    loops_bedpe.write_text("chr1\t90\t120\tchr1\t900\t950\tLOOP_1\n")
+    genes_bed = tmp_path / "genes.bed"
+    genes_bed.write_text("chr1\t0\t50\tGENE_X\t+\n")
+    output_dir = tmp_path / "out"
+
+    mli.main([
+        "--loci", str(loci_bed),
+        "--contact-evidence", str(loops_bedpe),
+        "--gene-targets", str(genes_bed),
+        "--output", str(output_dir),
+    ])
+    report = (output_dir / "report.md").read_text()
+    assert "WHOLE region between a loop's two anchors" in report
+
+
 def test_contact_coverage_bed_overrides_the_per_loop_span() -> None:
     # Default (per-loop-span) behaviour: a locus between two unrelated
     # loops reads not_assayed -- see
