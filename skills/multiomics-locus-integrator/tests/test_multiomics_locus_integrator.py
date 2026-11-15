@@ -476,6 +476,42 @@ def test_contact_default_span_flag_false_without_any_loops() -> None:
     assert result["summary"]["contact_uses_default_span"] is False
 
 
+def test_orphaned_accessibility_coverage_bed_not_shown_without_its_track() -> None:
+    # A coverage BED passed without its matching track must not appear
+    # in the Layer coverage display -- score_locus never even considers
+    # a layer absent from `layers`, so showing it there reads as if the
+    # layer ran when nothing happened for it at all.
+    loci = [("chr1", 100, 101, "L1")]
+    accessibility_coverage = [("chr1", 0, 1000, "panel")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(loci, [], [], [], genes, accessibility_coverage=accessibility_coverage)
+    assert result["summary"]["layers_supplied"] == []
+    assert "accessibility" not in result["summary"]["layer_coverage"]
+
+
+def test_orphaned_contact_coverage_bed_not_shown_without_loops() -> None:
+    loci = [("chr1", 100, 101, "L1")]
+    contact_coverage = [("chr1", 0, 1000, "capture")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(loci, [], [], [], genes, contact_coverage=contact_coverage)
+    assert result["summary"]["layers_supplied"] == []
+    assert "contact" not in result["summary"]["layer_coverage"]
+
+
+def test_coverage_bed_shown_normally_when_its_track_is_present() -> None:
+    # Sanity check: the fix above must not hide a coverage override when
+    # the matching track IS supplied.
+    loci = [("chr1", 100, 101, "L1")]
+    accessibility = [("chr1", 9000, 9050, "peak_far_away")]
+    accessibility_coverage = [("chr1", 0, 1000, "panel")]
+    genes: list[tuple[str, int, int, str, int]] = []
+    result = mli.analyze(
+        loci, accessibility, [], [], genes,
+        accessibility_coverage=accessibility_coverage,
+    )
+    assert "accessibility" in result["summary"]["layer_coverage"]
+
+
 def test_report_legend_explains_contact_default_span_only_when_default(tmp_path: Path) -> None:
     loci_bed = tmp_path / "loci.bed"
     loci_bed.write_text("chr1\t500\t501\tL1\n")

@@ -474,10 +474,16 @@ def analyze(
     # the default chromosome-wide-span behaviour for a layer that does
     # not supply one.
     coverage_by_layer = {"accessibility": accessibility_coverage, "histone": histone_coverage}
+    # Only honour a --*-coverage-bed override for a layer that actually
+    # has a track supplied -- a coverage file passed without its
+    # matching track previously still showed up in the "Layer coverage"
+    # display (and in layer_coverage_overrides generally), reading as if
+    # that layer had run when score_locus never even considers a layer
+    # absent from `layers`.
     layer_coverage_overrides = {
         name: layer_coverage_blocks(coverage)
         for name, coverage in coverage_by_layer.items()
-        if coverage
+        if coverage and name in layers
     }
     layer_spans = {
         name: chrom_spans(intervals)
@@ -513,11 +519,14 @@ def analyze(
         layer: ",".join(f"{chrom}:{lo}-{hi}" for chrom, lo, hi in sorted(blocks))
         for layer, blocks in layer_coverage_overrides.items()
     })
-    if contact_coverage_override is not None:
+    # Same "don't honour an override with no matching track" rule as
+    # above, for contact: a --contact-coverage-bed with no
+    # --contact-evidence must not show up in the display either.
+    if loops and contact_coverage_override is not None:
         layer_coverage["contact"] = ",".join(
             f"{chrom}:{lo}-{hi}" for chrom, lo, hi in sorted(contact_coverage_override)
         )
-    else:
+    elif loops:
         loop_display_span = loop_chrom_spans(loops)
         if loop_display_span:
             layer_coverage["contact"] = ",".join(
