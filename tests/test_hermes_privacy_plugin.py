@@ -85,7 +85,7 @@ def test_message_without_media_is_untouched():
 
 # Hypothesis reruns a test per example and warns about per-test fixtures; tmp_path and monkeypatch are
 # safe to share here because every example writes the same file and sets the same variable.
-_SHARED_FIXTURES = settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+_SHARED_FIXTURES = settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None)
 
 
 @_SHARED_FIXTURES
@@ -189,6 +189,7 @@ _ARGS = st.recursive(_ARG_TEXT | st.integers() | st.none(),
                      max_leaves=8)
 
 
+@settings(deadline=None)  # slow CI runners exceed the 200 ms default
 @given(args=st.dictionaries(st.text(max_size=5), _ARGS, max_size=4))
 @example(args={"body": "~approx 3pm"})
 @example(args={"": "\x00"})  # Path() refuses a NUL with ValueError
@@ -197,6 +198,7 @@ def test_connector_guard_never_raises(args):
     assert result is None or result["action"] == "block"
 
 
+@settings(deadline=None)
 @given(args=st.dictionaries(st.text(max_size=5), _ARGS, max_size=4), where=st.lists(st.sampled_from(["a", "b"]), max_size=3))
 def test_connector_with_a_genomic_path_anywhere_is_blocked(args, where):
     nested = "/home/u/doc_0123456789ab_sample.vcf"
@@ -550,6 +552,7 @@ def _hermes_wrapped(tool, text):
     return json.dumps({"output": text, "exit_code": 0, "error": None})
 
 
+@settings(deadline=None)
 @given(body=st.sampled_from([VCF, TWENTY_THREE]),
        tool=st.sampled_from(["terminal", "read_file"]), prefix=st.text(max_size=20))
 @example(body=VCF, tool="terminal", prefix="")  # live: full `bcftools view` output passed through
