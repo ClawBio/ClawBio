@@ -120,5 +120,3 @@ Maintainer: @camlloyd.
 - The sdist is ~12 MB because it carries the full `skills/` tree (the wheel build
   hook reads it to assemble the curated wheel). If a leaner sdist is wanted later,
   add an sdist-target filter mirroring the wheel hook.
-- `README.md`'s "No `pip install clawbio` package yet" line should be removed once
-  the first PyPI release is live.
