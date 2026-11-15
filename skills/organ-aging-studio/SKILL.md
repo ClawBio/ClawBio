@@ -214,6 +214,7 @@ output_dir/
 - **Filtered predictions are illustrative**: `--top-n` and `--min-abs-coef` intentionally drop part of the published clock, so the resulting ages and raw deltas are not the validated full-model outputs.
 - **Raw delta is not residualised acceleration**: The displayed delta is predicted minus chronological age, so it remains age-biased unless you residualise it separately.
 - **Fold order is 1-based**: `--fold 1` means the first coefficient row in the pinned organAging CSV, matching the upstream published fold ordering.
+- **Text outputs are UTF-8**: `report.md` contains `Σ` and `×`, so read it as UTF-8 rather than with the locale's default encoding, which is not UTF-8 everywhere (cp1252 on many Windows systems).
 
 ## Real-world data (download separately)
 
