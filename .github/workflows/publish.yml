@@ -64,19 +64,6 @@ jobs:
           name: dist
           path: dist/
 
-      # Trusted Publishing (OIDC) is the intended mechanism and needs no secret,
-      # but it has never succeeded: every tagged run so far failed with
-      # `invalid-publisher`, because no publisher matching this repository,
-      # workflow and environment is registered on PyPI. Until that registration
-      # exists, publish with an API token held as an environment secret.
-      #
-      # The secret lives on the `pypi` environment, not on the repository, and
-      # that environment accepts `v*` tags only, so no branch build and no pull
-      # request can reach it.
-      #
-      # To return to Trusted Publishing: register the publisher on PyPI
-      # (owner ClawBio, repository ClawBio, workflow publish.yml, environment
-      # pypi), then delete the `password` line below and the secret.
       # `verify-metadata: false` because the twine bundled in the action's
       # container rejects Metadata-Version 2.5, which current hatchling emits:
       # the v0.7.1 run failed with `InvalidDistribution: '2.5' is not a valid
@@ -87,5 +74,4 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
           verify-metadata: false

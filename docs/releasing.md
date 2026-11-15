@@ -70,25 +70,12 @@ To cut a release:
    sdist + wheel, runs `twine check`, and publishes to PyPI. Watch it under the
    repo's Actions tab.
 
-### Current state: API token, not Trusted Publishing
+### Trusted Publisher registration
 
-Trusted Publishing has never worked on this project. Every tagged run failed
-with `invalid-publisher`, because no publisher matching this repository is
-registered on PyPI, so 0.5.2, 0.6.1 and 0.7.0 were all uploaded by hand.
-
-Since 2026-09-05 the workflow authenticates with an API token instead, held as
-the `PYPI_API_TOKEN` secret on the `pypi` **environment** (not on the
-repository), and that environment accepts `v*` tags only. A pull request or a
-branch build therefore cannot read it.
-
-The token is account-scoped, so it can publish any of the owner's PyPI
-projects. Replacing it with a token scoped to `clawbio` alone is the obvious
-improvement, and returning to Trusted Publishing removes the secret entirely.
-
-### Returning to Trusted Publishing (removes the secret)
-
-On PyPI, open the `clawbio` project -> **Manage** -> **Publishing**, then under
-**Add a new publisher** choose GitHub and enter exactly:
+The publisher is registered on PyPI under the `clawbio` project -> **Manage** ->
+**Publishing**, as a GitHub publisher with exactly these values. If any of them
+change (repo rename, workflow rename, environment rename), update them on PyPI
+too, or publishing fails with `invalid-publisher`:
 
 | Field | Value |
 |-------|-------|
