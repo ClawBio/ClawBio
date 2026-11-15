@@ -55,7 +55,8 @@ To route a request:
 2. **Confirm** by reading `skills/<name>/SKILL.md` — its `## Trigger` section says
    when to fire and, just as importantly, when not to.
 3. **Run** it, using the catalog entry:
-   - `cli_alias` set → `python clawbio.py run <cli_alias> --input <file> --output <dir>`
+   - `cli_alias` set → `python clawbio.py run <name> --input <file> --output <dir>`,
+     where `<name>` is the skill's folder name or its `cli_alias` (both resolve)
    - `cli_alias` null but `has_script: true` → run the script directly:
      `python skills/<name>/<script>.py --input <file> --output <dir>`
    - `has_script: false` → no Python yet. Apply the SKILL.md methodology with your
@@ -193,7 +194,7 @@ Every skill is defined by a `SKILL.md` file with:
 1. **YAML frontmatter** (`openclaw` schema) — name, description, version, dependencies, install instructions, emoji, OS compatibility
 2. **Markdown body** — Core Capabilities, Workflow, Output Structure, Dependencies, Safety, Integration with Bio Orchestrator
 
-Skills with Python implementations are registered in the `SKILLS` dict in `clawbio/cli.py`. Each entry maps a CLI alias to its script path, demo args, description, allowed flags, and capabilities.
+Skills with Python implementations are registered in the `SKILLS` dict in `clawbio/cli.py`. Each entry maps a CLI alias to its script path, demo args, description, allowed flags, and capabilities. `clawbio run` also accepts the folder name that holds the entry's script (`resolve_skill_name`), so keep the script inside its skill folder.
 
 The **Bio Orchestrator** (`skills/bio-orchestrator/`) routes user queries to the right skill based on file type and keywords.
 
@@ -245,7 +246,7 @@ Hypothesis's default 200 ms deadline otherwise makes them flaky in CI.
 
 **Every new skill MUST conform to `templates/SKILL-TEMPLATE.md`.** No exceptions.
 
-1. **Create the directories**: `mkdir -p skills/<your-skill-name>/tests skills/<your-skill-name>/examples`
+1. **Create the directories**: `mkdir -p skills/<your-skill-name>/tests skills/<your-skill-name>/examples`. Pick a name that is neither an existing folder nor any `cli_alias` in `skills/catalog.json`.
 2. **Copy the template**: `cp templates/SKILL-TEMPLATE.md skills/<your-skill-name>/SKILL.md`
 3. **Fill in every required section of SKILL.md** (do not delete template sections):
    - YAML frontmatter: name (must match folder), version, author, description, inputs, outputs, `trigger_keywords` (minimum 3)
