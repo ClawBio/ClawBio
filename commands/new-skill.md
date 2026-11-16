@@ -15,7 +15,7 @@ Parse `$ARGUMENTS` to get the skill name. If empty, ask the user what the skill 
 
 Rules:
 - Lowercase with hyphens only (e.g. `pathway-enrichment`, not `PathwayEnrichment`)
-- Must not already exist in `skills/`
+- Must be free: not a folder in `skills/` and not any skill's `cli_alias` in `skills/catalog.json` (a folder named like another skill's alias is shadowed by it)
 - Should be 2-4 words maximum
 
 Store as `SKILL_NAME`. Also derive `SKILL_NAME_UNDERSCORE` by replacing hyphens with underscores (e.g. `pathway-enrichment` becomes `pathway_enrichment`). Use this for Python filenames and test files.
