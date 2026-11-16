@@ -698,7 +698,7 @@ def test_demo_output_matches_snapshot(tmp_path):
     </section>
 
     <footer class="footer">
-        <p>Generado por analyze_fasta.py &middot; Biopython 1.88 &middot; Python 3.12.14</p>
+        <p>Generado por analyze_fasta.py</p>
     </footer>
 </div>
 
