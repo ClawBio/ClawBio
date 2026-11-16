@@ -8,7 +8,9 @@
 # Run it once, outside this repository's environment, paste the printed vector
 # into the fixture under "r_reference", and set "present": true.
 #
-#   Rscript capture_r_reference.R         # needs install.packages("coloc")
+#   Rscript capture_r_reference.R         # needs coloc 5.2.3: remotes::install_version("coloc", "5.2.3")
+#
+# Captured with R 4.6.1 and coloc 5.2.3.
 #
 # The inputs below must stay identical to the fixture's "inputs" block (the same
 # snp, beta, se, sdY and priors), or the comparison means nothing.
@@ -29,4 +31,5 @@ D2 <- list(beta = beta2, varbeta = se2^2, snp = snp, type = "quant", sdY = 1.0)
 res <- coloc.abf(D1, D2, p1 = 1e-4, p2 = 1e-4, p12 = 1e-5)
 
 cat("Paste these into r_reference, and set present = true:\n")
-print(res$summary[c("PP.H0.abf","PP.H1.abf","PP.H2.abf","PP.H3.abf","PP.H4.abf")])
+pp <- res$summary[c("PP.H0.abf", "PP.H1.abf", "PP.H2.abf", "PP.H3.abf", "PP.H4.abf")]
+cat(sprintf("%s = %.17g\n", names(pp), pp), sep = "")

@@ -28,7 +28,7 @@
 # suite. Run it in an environment of your own; it prints the "r_reference"
 # block of the fixture as JSON.
 #
-#   Rscript capture_r_reference_large_region.R   # needs install.packages("coloc")
+#   Rscript capture_r_reference_large_region.R   # needs coloc 5.2.3: remotes::install_version("coloc", "5.2.3")
 #
 # Captured with R 4.6.1 and coloc 5.2.3.
 
