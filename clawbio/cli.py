@@ -1285,6 +1285,7 @@ SKILLS = {
         "demo_args": ["--demo"],
         "description": "coloc.abf region run: PP.H0 to PP.H4 for two traits over one region, with the p12 prior sweep (Giambartolomei 2014)",
         "allowed_extra_flags": {"--list-demos"},
+        "allowed_extra_flags_without_values": {"--list-demos"},
         "no_input_required": True,
         "accepts_genotypes": False,
     },
