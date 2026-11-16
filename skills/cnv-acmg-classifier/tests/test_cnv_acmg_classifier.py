@@ -9,9 +9,12 @@ complete established call (2A/2F) is made; partial-overlap sub-calls
 
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
@@ -378,6 +381,19 @@ def test_demo_cli_writes_expected_outputs(tmp_path):
     assert "conda-forge" in env and "nodefaults" in env
     checksums = (out / "reproducibility" / "checksums.sha256").read_text(encoding="utf-8")
     assert "report.md" in checksums and len(checksums.splitlines()) >= 3
+
+
+@pytest.mark.parametrize("report", ["report.md", "result.json", "tables/cnv_classifications.csv"])
+def test_reports_do_not_record_the_input_directory(tmp_path, report):
+    """Reports are shared; an absolute input path leaks the user's name and folder layout."""
+    private_dir = tmp_path / "private_user_dir"
+    private_dir.mkdir()
+    calls = shutil.copy(SKILL_DIR / "demo_cnv_calls.csv", private_dir / "calls.csv")
+    out = tmp_path / "cnv_out"
+    subprocess.run([sys.executable, str(MODULE_PATH), "--input", str(calls), "--output", str(out)],
+                   text=True, capture_output=True, check=True)
+    text = (out / report).read_text(encoding="utf-8")
+    assert str(private_dir) not in text and str(private_dir.resolve()) not in text
 
 
 def test_demo_reproducibility_bundle_verifies(tmp_path):
