@@ -27,7 +27,7 @@ metadata:
       format: json
       description: Machine-readable results
   dependencies:
-    python: ">=3.11"
+    python: ">=3.12"
   tags:
     - count
     - rare
@@ -199,7 +199,7 @@ output_directory/
 ## Dependencies
 
 **Required**:
-- Python >= 3.11; pure standard library, no third-party runtime dependencies.
+- Python >=3.12; pure standard library, no third-party runtime dependencies.
 
 **Optional (for producing an annotated input VCF, upstream of this skill)**:
 - `bcftools`; intersect a genome with ClinVar and transfer `MC` / `AF_*` annotations.

@@ -69,7 +69,7 @@ metadata:
     format: csv
     description: Trial data as CSV for import into Excel, R, or pandas (tables/trials.csv)
   dependencies:
-    python: '>=3.11'
+    python: '>=3.12'
   demo_data:
   - path: demo_input.txt
     description: Synthetic query for BRCA1 breast cancer trials — exercises recruiting and completed status paths

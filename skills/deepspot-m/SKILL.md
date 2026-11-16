@@ -50,7 +50,7 @@ metadata:
         - dir
       description: commands.sh, environment.yml and checksums.sha256
   dependencies:
-    python: ">=3.11"
+    python: ">=3.12"
     packages:
       - deepspotm>=1.0,<2
       - Pillow>=9.0

@@ -507,7 +507,7 @@ python "$REPO_ROOT/skills/vcf-annotator/vcf_annotator.py" \\
 channels:
   - defaults
 dependencies:
-  - python=3.11
+  - python=3.12
   - pip
 # Generated: {now}
 # No extra packages required — uses only Python stdlib

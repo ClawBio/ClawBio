@@ -35,7 +35,7 @@ metadata:
         - json
       description: ClawBio result envelope carrying the full deterministic decision (schema prs-applicability-gate.output.v2)
   dependencies:
-    python: ">=3.11"
+    python: ">=3.12"
     packages:
       - pyyaml>=6.0
   demo_data:

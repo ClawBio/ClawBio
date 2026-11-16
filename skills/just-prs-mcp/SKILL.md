@@ -38,7 +38,7 @@ metadata:
         - csv
       description: Per-model scores and interpretation fields
   dependencies:
-    python: ">=3.11"
+    python: ">=3.12"
     packages:
       - fastmcp>=3.4.4,<4
       - typer>=0.27.0,<1

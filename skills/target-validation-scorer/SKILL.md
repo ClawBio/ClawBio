@@ -29,7 +29,7 @@ metadata:
     format: json
     description: Machine-readable scoring output with evidence objects
   dependencies:
-    python: '>=3.11'
+    python: '>=3.12'
     packages:
     - pandas>=2.0
     - matplotlib>=3.7

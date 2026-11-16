@@ -26,7 +26,7 @@ metadata:
     format: md
     description: Structured markdown report with paper summaries and citation graph
   dependencies:
-    python: '>=3.11'
+    python: '>=3.12'
     packages:
     - biopython>=1.83
   demo_data:

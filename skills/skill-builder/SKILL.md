@@ -180,7 +180,7 @@ Generated skill at skills/<name>/:
 ## Dependencies
 
 **Required** (stdlib only — zero install):
-- Python 3.11+ standard library (`argparse`, `pathlib`, `json`, `re`, `textwrap`, `shutil`, `getpass`, `socket`)
+- Python 3.12+ standard library (`argparse`, `pathlib`, `json`, `re`, `textwrap`, `shutil`, `getpass`, `socket`)
 
 **Optional**:
 - `pyyaml` >= 6.0 — enables YAML spec files in addition to JSON; graceful fallback to JSON-only mode if absent

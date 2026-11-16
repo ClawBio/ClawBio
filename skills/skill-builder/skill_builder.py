@@ -615,7 +615,7 @@ def _md_deps(deps: dict) -> str:
         # are present the skill is plainly not stdlib-only, so the phrase is
         # misleading — say "none required" instead.
         lines.append(
-            "- Python 3.11+ standard library only — no external packages"
+            "- Python 3.12+ standard library only — no external packages"
             if not opt
             else "- None required (pure stdlib)"
         )

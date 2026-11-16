@@ -127,7 +127,7 @@
       "has_demo": true,
       "demo_command": "python skills/ancestry-risk-profiler/ancestry_risk_profiler.py --demo --ancestry SAS",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "matplotlib>=3.6"
       ],
       "tags": [
@@ -251,7 +251,7 @@
       "has_demo": true,
       "demo_command": "python skills/article-data-fetcher/article_data_fetcher.py --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "requests>=2.31",
         "biopython>=1.83",
         "pydantic>=2.0"
@@ -483,7 +483,7 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run bioqc --demo",
       "dependencies": [
-        "python>=3.11"
+        "python>=3.12"
       ],
       "tags": [
         "qc",
@@ -984,7 +984,7 @@
       "has_demo": true,
       "demo_command": "python skills/clinical-trial-finder/clinical_trial_finder.py --demo",
       "dependencies": [
-        "python>=3.11"
+        "python>=3.12"
       ],
       "tags": [
         "clinical-trials",
@@ -1305,7 +1305,7 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run deepspot-m --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "deepspotm>=1.0,<2",
         "Pillow>=9.0"
       ],
@@ -2505,7 +2505,7 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run harmonize --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "pyyaml>=6.0"
       ],
       "tags": [
@@ -2550,7 +2550,7 @@
       "has_demo": true,
       "demo_command": "python skills/hla-typing/hla_typing.py --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "pandas>=2.0"
       ],
       "tags": [
@@ -2678,7 +2678,7 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run just-prs --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "fastmcp>=3.4.4,<4",
         "typer>=0.27.0,<1"
       ],
@@ -2812,7 +2812,7 @@
       "has_demo": true,
       "demo_command": "python skills/lit-synthesizer/lit_synthesizer.py --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "biopython>=1.83"
       ],
       "tags": [
@@ -3050,7 +3050,7 @@
       "has_demo": true,
       "demo_command": "python skills/multiqc-reporter/multiqc_reporter.py --demo",
       "dependencies": [
-        "python>=3.11"
+        "python>=3.12"
       ],
       "tags": [
         "qc",
@@ -3256,7 +3256,7 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run sarek-pipeline --demo",
       "dependencies": [
-        "python>=3.11"
+        "python>=3.12"
       ],
       "tags": [
         "sarek",
@@ -3315,7 +3315,7 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run scrnaseq-pipeline --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "pyyaml"
       ],
       "tags": [
@@ -3465,7 +3465,7 @@
       "has_demo": true,
       "demo_command": "python skills/organ-aging-studio/organ_aging_studio.py --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "pandas>=2.0",
         "numpy>=1.24",
         "requests>=2.28"
@@ -3629,7 +3629,7 @@
       "has_demo": true,
       "demo_command": "python skills/polars-bio/polars_bio_runner.py --demo",
       "dependencies": [
-        "python>=3.11,<3.15",
+        "python>=3.12,<3.15",
         "polars-bio",
         "matplotlib"
       ],
@@ -3772,7 +3772,7 @@
       "has_demo": true,
       "demo_command": "python skills/proteomics-clock/proteomics_clock.py --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "pandas>=2.0",
         "numpy>=1.24",
         "matplotlib>=3.7",
@@ -3938,7 +3938,7 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run prs-gate --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "pyyaml>=6.0"
       ],
       "tags": [
@@ -4054,7 +4054,7 @@
       "has_demo": true,
       "demo_command": "python skills/rare-high-impact-variants/rare_high_impact_variants.py --demo",
       "dependencies": [
-        "python>=3.11"
+        "python>=3.12"
       ],
       "tags": [
         "count",
@@ -4409,7 +4409,7 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run seqtk-downsample --demo",
       "dependencies": [
-        "python>=3.11"
+        "python>=3.12"
       ],
       "tags": [
         "fastq",
@@ -4491,7 +4491,7 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run snp-phewas --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "requests>=2.28",
         "matplotlib>=3.7",
         "numpy>=1.24",
@@ -4541,7 +4541,7 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run spatial --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "scanpy>=1.10",
         "leidenalg>=0.10",
         "numpy>=1.24",
@@ -4617,7 +4617,7 @@
       "has_demo": true,
       "demo_command": "python skills/target-validation-scorer/target_validation_scorer.py --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "pandas>=2.0",
         "matplotlib>=3.7",
         "numpy>=1.24"
@@ -4660,7 +4660,7 @@
       "has_demo": true,
       "demo_command": "python skills/turingdb-graph/turingdb_graph.py --demo",
       "dependencies": [
-        "python>=3.11",
+        "python>=3.12",
         "turingdb>=1.29",
         "pandas>=2.0",
         "fastapi>=0.110",
@@ -4835,7 +4835,7 @@
       "has_demo": true,
       "demo_command": "python skills/vcf-annotator/vcf_annotator.py --demo",
       "dependencies": [
-        "python>=3.11"
+        "python>=3.12"
       ],
       "tags": [
         "vcf",

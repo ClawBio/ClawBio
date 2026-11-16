@@ -48,7 +48,7 @@ metadata:
         - json
       description: Machine-readable results
   dependencies:
-    python: ">=3.11"
+    python: ">=3.12"
   demo_data:
     - path: examples/synthetic_demo_R1.fastq.gz
       description: Synthetic read 1 (500 reads)

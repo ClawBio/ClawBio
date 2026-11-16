@@ -161,7 +161,7 @@ output_directory/
 
 ## Dependencies
 
-- Python 3.11+ and the standard library only.
+- Python 3.12+ and the standard library only.
 
 ## Gotchas
 

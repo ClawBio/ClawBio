@@ -32,7 +32,7 @@ metadata:
     - html
     description: Interactive MultiQC HTML report
   dependencies:
-    python: '>=3.11'
+    python: '>=3.12'
   endpoints:
     cli: python skills/bioqc-mcp/bioqc_mcp.py --input {input_dir} --output {output_dir}
   openclaw:

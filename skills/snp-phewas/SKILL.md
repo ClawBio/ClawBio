@@ -51,7 +51,7 @@ metadata:
         - tsv
       description: One row per catalog outcome per dataset with status and plain-language label
   dependencies:
-    python: ">=3.11"
+    python: ">=3.12"
     packages:
       - requests>=2.28
       - matplotlib>=3.7

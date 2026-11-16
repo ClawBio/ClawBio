@@ -48,7 +48,7 @@ metadata:
         - json
       description: Structured result payload with detected CRAMs, per-tool VCFs, MultiQC HTML, and provenance
   dependencies:
-    python: ">=3.11"
+    python: ">=3.12"
     packages:
   demo_data:
     - path: demo/README.md
@@ -359,7 +359,7 @@ Under the `output/` root the wrapper writes two child directories — `upstream/
 ## Dependencies
 
 **Required**
-- Python >=3.11
+- Python >=3.12
 - Java >=17
 - Nextflow >=25.10.2
 - One execution backend: Docker, Singularity, Apptainer, Podman, Conda/Mamba, Shifter, or Charliecloud
