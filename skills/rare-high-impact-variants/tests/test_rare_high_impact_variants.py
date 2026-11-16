@@ -43,6 +43,23 @@ class TestCLI:
         assert result.returncode == 0, f"stderr: {result.stderr}"
         assert (tmp_path / "report.md").exists()
 
+    @pytest.mark.parametrize("report", ["report.md", "result.json"])
+    def test_reports_do_not_record_the_input_directory(self, tmp_path, report):
+        """Reports are shared; an absolute input path leaks the user's name and folder layout."""
+        private_dir = tmp_path / "private_user_dir"
+        private_dir.mkdir()
+        vcf = private_dir / "sample.vcf"
+        vcf.write_bytes(DEMO_INPUT.read_bytes())
+        out = tmp_path / "out"
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--input", str(vcf), "--output", str(out)],
+            capture_output=True, text=True
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        text = (out / report).read_text()
+        assert "sample.vcf" in text
+        assert str(private_dir) not in text and str(private_dir.resolve()) not in text
+
     def test_missing_input_exits_nonzero(self, tmp_path):
         result = subprocess.run(
             [sys.executable, str(SCRIPT),
