@@ -881,7 +881,6 @@ def generate_skill_py(spec: dict) -> str:
             write_environment_yml(
                 output_dir,
                 env_name="{name}",
-                python_version="3.11",
                 pip_deps={pip_deps_repr},
                 conda_deps=[],
             )
@@ -1710,7 +1709,6 @@ def write_skill_builder_report(
     write_environment_yml(
         output_dir,
         env_name="clawbio-skill-builder",
-        python_version="3.11",
         pip_deps=[],
         conda_deps=[],
     )

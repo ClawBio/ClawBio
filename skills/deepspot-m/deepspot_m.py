@@ -823,7 +823,6 @@ def write_reproducibility(
         output_dir,
         env_name="clawbio-deepspot-m",
         pip_deps=PIP_DEPS,
-        python_version="3.11",
         channels=["conda-forge", "nodefaults"],
     )
 

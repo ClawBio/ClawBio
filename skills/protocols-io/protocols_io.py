@@ -537,7 +537,6 @@ def _write_reproducibility(args: argparse.Namespace, output_dir: Path, output_fi
         output_dir,
         env_name="clawbio-protocols-io",
         pip_deps=["requests"],
-        python_version="3.11",
     )
 
 

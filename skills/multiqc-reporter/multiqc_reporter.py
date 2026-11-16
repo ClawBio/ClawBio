@@ -238,7 +238,7 @@ def repro_command_for_bundle(output_dir: Path, *, demo: bool, input_dirs: list[P
 
 
 def write_reproducibility_bundle(output_dir: Path, *, demo: bool, input_dirs: list[Path]) -> None:
-    write_environment_yml(output_dir, "clawbio-multiqc-reporter", pip_deps=[_multiqc_pip_spec()], python_version="3.11")
+    write_environment_yml(output_dir, "clawbio-multiqc-reporter", pip_deps=[_multiqc_pip_spec()])
     write_portable_commands_sh(
         output_dir,
         repro_command_for_bundle(output_dir, demo=demo, input_dirs=input_dirs),

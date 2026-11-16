@@ -1022,7 +1022,7 @@ def write_repro_bundle(output_dir: Path, is_demo: bool, input_dir: Path | None) 
     if HAS_VIZ:
         pip_deps.extend(["matplotlib>=3.7", "seaborn>=0.12", "pandas>=2.0"])
     
-    write_environment_yml(output_dir, "clawbio-bioqc", pip_deps=pip_deps, python_version="3.11")
+    write_environment_yml(output_dir, "clawbio-bioqc", pip_deps=pip_deps)
 
     # Portable commands sh
     args: list[str | ReproPath] = []
