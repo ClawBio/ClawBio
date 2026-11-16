@@ -8,6 +8,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from inline_snapshot import snapshot
+
+from clawbio.common import demo_runner
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SCRIPT = SKILL_DIR / "rare_high_impact_variants.py"
@@ -204,3 +207,103 @@ class TestReproducibilityBundle:
             path = tmp_path / label
             assert path.is_file(), f"checksum label does not resolve: {label}"
             assert hashlib.sha256(path.read_bytes()).hexdigest() == digest, label
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/rare-high-impact-variants/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("rare-high-impact-variants", tmp_path) == snapshot({'report.md': """\
+# Rare High-Impact Variants Report
+
+**Input**: demo_input.txt
+**Rarity threshold**: population AF < 0.01
+
+## 3 rare high-impact variants carried
+
+Of 6 carried, annotated variants, 5 are high-impact (loss-of-function). Of those:
+
+- **3 rare** with documented population frequency below 0.01 (ultra-rare AF < 0.001: 1; rare: 2)
+- 1 common (documented AF at or above the threshold)
+- 1 with no population-frequency data, so they cannot be confirmed rare (absence of a frequency is not evidence of rarity; many are common LoF polymorphisms)
+
+## Variants
+
+| Gene | Locus | Consequence | Zygosity | Population AF | ClinVar |
+|------|-------|-------------|----------|---------------|---------|
+| GENE1 | 1:100000 C>T | nonsense | het | 0.0002 | Pathogenic |
+| GENE7 | 7:700000 C>T | splice_acceptor | het | 0.002 | - |
+| GENE5 | 5:500000 C>G | nonsense | het | 0.004 | - |
+
+## Scope
+
+Counts high-impact (loss-of-function) variants annotated with molecular consequence and population frequency in the input VCF. 'Rare' requires a documented frequency below the threshold; variants with no frequency are reported separately and not called rare. Genome-wide novel LoF calling (VEP / SnpEff / bcftools csq) and a complete frequency reference (gnomAD) are out of scope for v0.1.0.
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'result.json': """\
+{
+  "skill": "rare-high-impact-variants",
+  "version": "0.1.0",
+  "source": "demo_input.txt",
+  "rarity_threshold": 0.01,
+  "variants_processed": 7,
+  "carried_variants": 6,
+  "high_impact_carried": 5,
+  "rare_high_impact_count": 3,
+  "high_impact_common": 1,
+  "high_impact_frequency_unknown": 1,
+  "by_rarity": {
+    "ultra_rare": 1,
+    "rare": 2
+  },
+  "by_consequence": {
+    "nonsense": 2,
+    "splice_acceptor": 1
+  },
+  "findings": [
+    {
+      "gene": "GENE1",
+      "rsid": "rs1",
+      "locus": "1:100000 C>T",
+      "consequence": "nonsense",
+      "zygosity": "het",
+      "population_af": 0.0002,
+      "clnsig": "Pathogenic",
+      "rarity": "ultra_rare"
+    },
+    {
+      "gene": "GENE7",
+      "rsid": "rs7",
+      "locus": "7:700000 C>T",
+      "consequence": "splice_acceptor",
+      "zygosity": "het",
+      "population_af": 0.002,
+      "clnsig": "",
+      "rarity": "rare"
+    },
+    {
+      "gene": "GENE5",
+      "rsid": "rs5",
+      "locus": "5:500000 C>G",
+      "consequence": "nonsense",
+      "zygosity": "het",
+      "population_af": 0.004,
+      "clnsig": "",
+      "rarity": "rare"
+    }
+  ],
+  "frequency_unknown_genes": [
+    "GENE2"
+  ],
+  "scope_note": "Counts high-impact (loss-of-function) variants annotated with molecular consequence and population frequency in the input VCF. 'Rare' requires a documented frequency below the threshold; variants with no frequency are reported separately and not called rare. Genome-wide novel LoF calling (VEP / SnpEff / bcftools csq) and a complete frequency reference (gnomAD) are out of scope for v0.1.0.",
+  "disclaimer": "ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions."
+}\
+""", 'tables/results.csv': """\
+gene,locus,consequence,zygosity,population_af,rarity,clnsig
+GENE1,1:100000 C>T,nonsense,het,0.0002,ultra_rare,Pathogenic
+GENE7,7:700000 C>T,splice_acceptor,het,0.002,rare,
+GENE5,5:500000 C>G,nonsense,het,0.004,rare,
+"""})
