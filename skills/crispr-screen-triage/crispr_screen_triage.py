@@ -188,7 +188,7 @@ def write_outputs(result: dict, input_path: Path, output_dir: Path, demo: bool) 
     rows = [
         "# CRISPR Screen Triage Report",
         "",
-        f"**Input**: `{input_path}`",
+        f"**Input**: `{input_path.name}`",
         f"**Mode**: {'Synthetic demo data' if demo else 'User-provided local data'}",
         f"**Guides scored**: {result['summary']['guide_count']}",
         f"**Genes scored**: {result['summary']['gene_count']}",
