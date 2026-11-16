@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 MODULE_PATH = SKILL_DIR / "sample_qc_triage.py"
@@ -175,3 +177,21 @@ def test_bundle_replays_a_non_demo_run_from_a_path_with_spaces(tmp_path):
     )
     assert done.returncode == 0, done.stderr
     assert (replay / "reproducibility" / "checksums.sha256").read_text(encoding="utf-8") == first
+
+
+@pytest.mark.parametrize("report", ["report.md", "result.json", "tables/sample_flags.csv"])
+def test_reports_do_not_record_the_input_directory(tmp_path, report):
+    """Reports are shared; an absolute input path leaks the user's name and folder layout."""
+    import shutil
+
+    private_dir = tmp_path / "private_user_dir"
+    private_dir.mkdir()
+    source = private_dir / "metrics.csv"
+    shutil.copy(SKILL_DIR / "demo_qc_metrics.csv", source)
+    out = tmp_path / "out"
+    subprocess.run(
+        [sys.executable, str(MODULE_PATH), "--input", str(source), "--output", str(out)],
+        text=True, capture_output=True, check=True,
+    )
+    text = (out / report).read_text(encoding="utf-8")
+    assert str(private_dir) not in text and str(private_dir.resolve()) not in text
