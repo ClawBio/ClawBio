@@ -17,7 +17,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -64,7 +63,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -122,7 +120,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -169,7 +166,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -205,7 +201,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -249,7 +244,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -307,7 +301,6 @@
         "has_tests": true,
         "has_demo": false,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": false,
@@ -359,7 +352,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -399,7 +391,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -431,7 +422,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -486,7 +476,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -532,7 +521,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -575,7 +563,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -631,7 +618,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -676,7 +662,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -731,7 +716,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -785,7 +769,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -827,7 +810,6 @@
         "has_tests": false,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -869,7 +851,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -911,7 +892,6 @@
         "has_tests": false,
         "has_demo": false,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": false,
@@ -954,7 +934,6 @@
         "has_tests": false,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -998,7 +977,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1045,7 +1023,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1087,7 +1064,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1129,14 +1105,13 @@
       "description": "Query the ClinPGx API for pharmacogenomic gene-drug data, clinical annotations, CPIC guidelines, and FDA drug labels",
       "version": "0.1.0",
       "status": "mvp",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1173,7 +1148,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1270,7 +1244,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1312,7 +1285,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1340,7 +1312,6 @@
         "has_tests": false,
         "has_demo": false,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": false,
@@ -1382,7 +1353,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1430,7 +1400,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1475,7 +1444,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1568,7 +1536,6 @@
         "has_tests": false,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": false,
@@ -1608,7 +1575,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1658,7 +1624,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1705,7 +1670,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1743,14 +1707,13 @@
       "description": "Compute HEIM diversity and equity metrics from VCF or ancestry data. Generates heterozygosity, FST, PCA plots, and a composite HEIM Equity Score with markdown reports.",
       "version": "0.1.0",
       "status": "mvp",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1786,7 +1749,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1841,7 +1803,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1895,7 +1856,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1945,7 +1905,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -1989,14 +1948,13 @@
       "description": "Compare your genome to George Church (PGP-1) and estimate ancestry composition via IBS and EM admixture",
       "version": "0.1.0",
       "status": "mvp",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2040,7 +1998,6 @@
         "has_tests": false,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2081,7 +2038,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2129,7 +2085,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2180,7 +2135,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2235,7 +2189,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2287,7 +2240,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2337,7 +2289,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2388,7 +2339,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2440,7 +2390,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2479,14 +2428,13 @@
       "description": "Federated variant lookup across 8 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, and more.",
       "version": "0.1.0",
       "status": "mvp",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2524,7 +2472,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2563,14 +2510,13 @@
       "description": "Calculate polygenic risk scores from DTC genetic data using the PGS Catalog",
       "version": "0.2.0",
       "status": "mvp",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2607,7 +2553,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2653,7 +2598,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2692,7 +2636,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2742,7 +2685,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2784,7 +2726,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2829,7 +2770,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2874,7 +2814,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2921,7 +2860,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -2969,7 +2907,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3024,7 +2961,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3065,7 +3001,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3118,7 +3053,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3164,7 +3098,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3213,7 +3146,6 @@
         "has_tests": false,
         "has_demo": false,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": false,
@@ -3271,7 +3203,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3323,7 +3254,6 @@
         "has_tests": false,
         "has_demo": false,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": false,
@@ -3367,14 +3297,13 @@
       "description": "ClawBio wrapper around nf-core/sarek 3.8.1 covering mapping through annotation for germline, tumor-only, and somatic paired analyses.",
       "version": "0.1.0",
       "status": "mvp",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3434,7 +3363,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3486,14 +3414,13 @@
       "description": "Personalised nutrition report from consumer genetic data (23andMe, AncestryDNA, VCF) — interrogates nutritionally-relevant SNPs and generates actionable dietary guidance, all computed locally.",
       "version": "0.2.0",
       "status": "mvp",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3547,7 +3474,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3587,7 +3513,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3634,7 +3559,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3655,14 +3579,13 @@
       "description": "Pharmacogenomic report from DTC genetic data (23andMe/AncestryDNA) — 12 genes, 31 SNPs, 51 drugs",
       "version": "0.1.0",
       "status": "mvp",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3707,7 +3630,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3755,7 +3677,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3810,7 +3731,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3858,7 +3778,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3901,7 +3820,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3952,7 +3870,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -3982,7 +3899,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4018,14 +3934,13 @@
       "description": "Gates polygenic risk score percentiles on trait applicability, score integrity and ancestry transferability, withholding the percentile when it would be uninterpretable and attributing the error to individual SNPs.",
       "version": "0.4.0",
       "status": "planned",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4071,7 +3986,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4115,7 +4029,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4152,7 +4065,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4190,7 +4102,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4231,7 +4142,6 @@
         "has_tests": false,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4274,7 +4184,6 @@
         "has_tests": false,
         "has_demo": false,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": false,
@@ -4295,14 +4204,13 @@
       "description": "Differential expression analysis for bulk RNA-seq and pseudo-bulk count matrices with QC, PCA, and contrast testing.",
       "version": "0.1.0",
       "status": "mvp",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "cli-registered",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4352,7 +4260,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4395,7 +4302,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4445,7 +4351,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4497,7 +4402,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4553,7 +4457,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4588,14 +4491,13 @@
       "description": "Scaffold a new ClawBio skill from a spec file (JSON/YAML) or interactively — generates SKILL.md, Python skeleton, tests, and updates catalog.json",
       "version": "0.1.0",
       "status": "planned",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "tested",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4637,7 +4539,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4688,7 +4589,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4738,7 +4638,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4766,7 +4665,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4810,7 +4708,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4865,7 +4762,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4900,7 +4796,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4946,7 +4841,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -4982,14 +4876,13 @@
       "description": "Annotate VCF variants with Ensembl VEP, ClinVar, and gnomAD. Ranks variants by impact (HIGH/MODERATE/LOW/MODIFIER) and generates a reproducible report.",
       "version": "0.1.0",
       "status": "planned",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "tested",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -5038,7 +4931,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -5073,14 +4965,13 @@
       "description": "End-to-end WGS to polygenic risk score pipeline. Takes paired-end FASTQ files (or a pre-existing VCF) through nf-core/sarek for variant calling, applies VCF QC (normalisation, hard filtering, Ti/Tv and Het/Hom checks), then computes polygenic risk scores via the PGS Catalog. Fills the FASTQ to VCF gap upstream of the gwas-prs skill.",
       "version": "0.2.0",
       "status": "planned",
-      "maturity_tier": "ci-validated",
+      "maturity_tier": "tested",
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": true,
         "benchmark_validated": false
       },
       "has_script": true,
@@ -5132,7 +5023,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": false,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,

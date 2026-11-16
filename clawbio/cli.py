@@ -30,6 +30,7 @@ from pathlib import Path
 
 from clawbio import __version__
 from clawbio.contract_alerts import append_contract_alert_log, normalise_contract_alerts
+from clawbio.common.skill_manifest import SkillManifestError, read_skill_manifest
 
 # --------------------------------------------------------------------------- #
 # Paths
@@ -1068,10 +1069,7 @@ SKILLS = {
     },
     "methylation": {
         "script": SKILLS_DIR / "methylation-clock" / "methylation_clock.py",
-        "demo_args": [
-            "--input",
-            str(SKILLS_DIR / "methylation-clock" / "data" / "GSE139307_small.csv.gz"),
-        ],
+        "demo_args": ["--demo"],
         "description": "Epigenetic age from methylation clocks (PyAging)",
         "no_input_required": True,
         "allowed_extra_flags": {
@@ -1652,12 +1650,12 @@ def _failure_message(exit_code: int, stderr: str) -> str:
 def _skill_version(skill_name: str) -> str:
     """The SKILL.md frontmatter version, so an audit record says which methodology ran."""
     script = SKILLS.get(skill_name, {}).get("script")
-    try:
-        frontmatter = (script.parent / "SKILL.md").read_text(encoding="utf-8").split("---")[1]
-    except (AttributeError, OSError, IndexError):
+    if not script:
         return "unknown"
-    match = re.search(r"^\s*version:\s*['\"]?([^'\"\s]+)", frontmatter, re.M)
-    return match.group(1) if match else "unknown"
+    try:
+        return read_skill_manifest(script).version
+    except (SkillManifestError, OSError):
+        return "unknown"  # the audit record must not stop a run
 
 
 def run_skill(

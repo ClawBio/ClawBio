@@ -32,9 +32,9 @@ metadata:
     - kind: uv
       package: anndata
     - kind: uv
-      package: scrublet
-    - kind: uv
       package: celltypist
+    - kind: uv
+      package: scikit-image
     trigger_keywords:
     - scrna
     - single-cell
@@ -241,8 +241,8 @@ output_directory/
 - `numpy`, `pandas`, `matplotlib`, `leidenalg`, `python-igraph`
 
 **Optional**:
-- `scrublet` for `--doublet-method scrublet`
 - `celltypist` for `--annotate celltypist`
+- `scikit-image` for `--doublet-method scrublet` (scanpy's Scrublet threshold; `scanpy[scrublet]` installs it)
 
 **Out of scope**:
 - `scvi-tools` / `scANVI`

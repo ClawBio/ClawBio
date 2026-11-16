@@ -475,7 +475,7 @@ def test_demo_cli_writes_the_documented_output_contract(tmp_path) -> None:
     assert all(item["pgs_id"] is None for item in provenance["scoring_files"])
 
 
-def test_version_and_ci_contracts_stay_in_sync() -> None:
+def test_version_contracts_stay_in_sync() -> None:
     frontmatter = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[1]
     declared = re.search(r"^\s*version:\s*(\S+)\s*$", frontmatter, re.MULTILINE)
     assert declared is not None
@@ -485,14 +485,10 @@ def test_version_and_ci_contracts_stay_in_sync() -> None:
     catalog_entry = next(
         item for item in catalog["skills"] if item["name"] == "gwas-prs"
     )
-    workflow = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(
-        encoding="utf-8"
-    )
 
     assert re.fullmatch(r"\d+\.\d+\.\d+", repro_bundle.TOOL_VERSION)
     assert repro_bundle.TOOL_VERSION == declared.group(1)
     assert catalog_entry["version"] == repro_bundle.TOOL_VERSION
-    assert "uv run pytest skills/gwas-prs/tests/ -v" in workflow
 
 
 def test_skill_version_parser_tolerates_reindented_frontmatter(tmp_path, monkeypatch) -> None:

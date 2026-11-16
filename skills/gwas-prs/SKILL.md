@@ -96,6 +96,7 @@ When the user asks for a polygenic risk score calculation:
    - Multiply dosage by effect_weight
    - Sum across all matched variants
    - Record the number of matched vs total variants (coverage)
+   - If the matched share is below `--min-overlap` (default 0.5), do not calculate the score; record it as skipped (see Output Structure)
 
 5. **Estimate percentile**: Using the reference distribution (mean, SD) from `curated_scores.json`, compute the Z-score: `Z = (PRS - mean) / SD`. Convert to percentile using the normal CDF. Assign risk category:
    - **Low risk**: < 20th percentile
@@ -128,6 +129,20 @@ output_directory/
     ├── provenance.json    # Input and scoring-file hashes plus safe parameters
     └── checksums.sha256   # Integrity digests for outputs and bundle metadata
 ```
+
+### Scores below `--min-overlap`
+
+A score whose matched share of variants is below `--min-overlap` is withheld, not
+calculated from a subset of its variants. It has no entry in `prs_results.json`
+and no rows in `prs_variants.csv`. It is listed under "Scores Not Calculated" in
+`prs_report.md` and in `result.json` as `data.skipped_scores[]` (`score_id`,
+`reason`, `variants_used`, `variants_total`, `overlap_fraction`, `min_overlap`,
+plus the panel identity fields below), counted by `summary.scores_skipped`.
+
+When no requested score clears the gate the run still exits 0 and writes every
+file above: `prs_results.json` is `[]`, `summary.scores_calculated` is 0, and the
+report states that no score was calculated. An empty `prs_results.json` therefore
+means "asked and withheld", not a failed run; read `data.skipped_scores` for why.
 
 ### prs_report.md Format
 
@@ -171,7 +186,7 @@ controls as the source genetic data.
 
 The shared `clawbio.common.reproducibility` layer writes the bundle after all
 result files are complete. `provenance.json` stores the SHA-256 of the input and
-every scoring file actually used (with its `score_id`, nullable `pgs_id`,
+every scoring file the run evaluated, scored or skipped (with its `score_id`, nullable `pgs_id`,
 `curated_panel_id` and `legacy_pgs_id`), but omits the genotype path and
 contents. The selector is recorded in the order `gwas_prs.py` resolves it:
 `demo`, `panel_id`, `pgs_id` or `trait`. A free-text trait query is stored only

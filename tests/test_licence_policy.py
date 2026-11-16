@@ -21,8 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILLS_DIR = ROOT / "skills"
 CATALOG = SKILLS_DIR / "catalog.json"
 
-sys.path.insert(0, str(ROOT / "scripts"))
-from generate_catalog import parse_yaml_frontmatter  # noqa: E402
+from clawbio.common.skill_manifest import read_skill_manifest
 
 # Code licences that may ship inside the MIT wheel.
 WHEEL_LICENCES = {"MIT", "Apache-2.0"}
@@ -42,7 +41,7 @@ def _licences_on_disk() -> dict[str, str]:
     drops folders listed in EXCLUDED_FOLDERS, so a catalogue-only check cannot
     see the skills most likely to be unredistributable."""
     return {
-        d.name: str(parse_yaml_frontmatter((d / "SKILL.md").read_text(encoding="utf-8")).get("license", ""))
+        d.name: read_skill_manifest(d).license
         for d in sorted(SKILLS_DIR.iterdir())
         if d.is_dir() and (d / "SKILL.md").is_file()
     }
@@ -274,7 +273,7 @@ def test_missing_skills_dir_yields_no_wheel_skills():
 
 
 def test_both_licence_readers_agree():
-    """The build hook scans lines; this suite reads via PyYAML. If they ever
+    """The build hook scans lines; this suite reads via clawbio.common.skill_manifest. If they ever
     disagree -- `license: MIT  # code only` is enough -- a skill is silently
     dropped from the wheel with a green suite."""
     hatch_build = _hatch_build()

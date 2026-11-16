@@ -54,6 +54,7 @@ def test_checksum_manifest_covers_every_advertised_output(tmp_path, monkeypatch)
         "evidence.json",
         "report.md",
         "metadata.json",
+        "reproducibility/commands.sh",
         "reproducibility/environment.yml",
         "ro-crate-metadata.json",
     }

@@ -68,17 +68,6 @@ def _import_scanpy():
     return sc
 
 
-def _import_scrublet():
-    """Import scrublet for optional doublet detection."""
-    try:
-        import scrublet  # noqa: F401
-    except ImportError as exc:
-        raise RuntimeError(
-            "scrublet is required for --doublet-method scrublet. "
-            "Install it with: pip install scrublet"
-        ) from exc
-
-
 def _import_celltypist():
     """Import celltypist for optional annotation."""
     try:
@@ -430,7 +419,6 @@ def run_doublet_detection(
     if method == "none":
         return adata.copy(), None
 
-    _import_scrublet()
     sc = _import_scanpy()
 
     adata = adata.copy()
@@ -1359,7 +1347,6 @@ dependencies:
   - python-igraph=0.11.6
   - pip
   - pip:
-      - scrublet==0.2.3
       - celltypist==1.7.1
 """
     (repro_dir / "environment.yml").write_text(env_yml, encoding="utf-8")
