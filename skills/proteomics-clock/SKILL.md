@@ -220,6 +220,7 @@ proteomics_clock_report/
 - **Gen2 is NOT age in years by default**: The raw output is a relative log-mortality hazard. The Gompertz conversion to years is applied by default but uses population-level UK Biobank constants that may not generalise to all cohorts.
 - **Missing proteins silently degrade accuracy**: With many missing proteins, predictions become unreliable. Always check `missing_proteins.csv` and the coverage report.
 - **Non-Olink data needs rescaling**: If using SomaLogic or mass-spec data, you must standardise and rescale using the standard deviations from Table S3 of the paper. This skill currently assumes Olink NPX input.
+- **An empty coefficient fold is an error, not a missing organ**: If the selected fold of a coefficient file has no numeric protein coefficients, the run stops with an error naming the file instead of reporting NaN for that organ. Do not switch `--fold` or drop the organ to get past it; that reports a different model or none. Delete the named file from the cache (see Network Calls) and rerun to download it again.
 
 ## Network Calls
 
