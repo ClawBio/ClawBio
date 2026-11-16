@@ -1189,7 +1189,6 @@
         "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
-        "ci_tested": false,
         "benchmark_validated": false
       },
       "has_script": true,
