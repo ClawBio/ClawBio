@@ -53,6 +53,8 @@ def test_mortality_to_years():
 
 @given(age=st.floats(min_value=0, max_value=120))
 @example(age=0.0)
+# Run on its own, the first example also pays for importing the skill (pandas, matplotlib).
+@settings(deadline=None)
 def test_mortality_to_years_round_trips_gompertz_age(age):
     from proteomics_clock import (
         GOMPERTZ_AVG_HAZARD,
@@ -162,10 +164,15 @@ def coefficient_tables(draw):
     return header, rows, fold
 
 
-def _coefficient_csv(header, rows, newline):
-    """Serialise a table the way the organAging files are laid out: quoted header, one row per fold."""
+def _coefficient_csv(header, rows, newline, blank_after=()):
+    """Serialise a table the way the organAging files are laid out: quoted header, one row per fold.
+
+    Each number in blank_after adds a blank line after that line (1 is the header).
+    """
     lines = [",".join(f'"{name}"' for name in header)]
     lines += [",".join(repr(value) for value in row) for row in rows]
+    for line_number in sorted(blank_after, reverse=True):
+        lines.insert(line_number, "")
     return "".join(line + newline for line in lines).encode("utf-8")
 
 
@@ -205,6 +212,36 @@ def test_download_coefficients_rejects_fold_without_protein_coefficients(monkeyp
     assert pc.download_coefficients(["Heart"], "gen1", fold=2) == {
         "Heart_gen1": {"Intercept": 57.36, "NPPB": 2.28, "BMP10": -0.09}
     }
+
+
+@st.composite
+def tables_with_blank_lines(draw):
+    """A coefficient table and 1-3 line numbers (1 is the header) to put a blank line after."""
+    header, rows, fold = draw(coefficient_tables())
+    blank_after = draw(st.lists(st.integers(min_value=1, max_value=len(rows) + 1), min_size=1, max_size=3))
+    return header, rows, fold, blank_after
+
+
+@given(table=tables_with_blank_lines(), newline=st.sampled_from(["\n", "\r\n"]))
+# Without the filter, a blank line before fold 2 made fold 3 silently read fold 2's coefficients.
+@example(table=(["Intercept", "NPPB"], [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], 3, [2]), newline="\r\n")
+# Minimal failure without the filter: a blank line after the header was read as fold 1.
+@example(table=(["Intercept", "NPPB"], [[0.0, 0.0]], 1, [1]), newline="\n")
+# Run on its own, the first example also pays for importing the skill (pandas, matplotlib).
+@settings(deadline=None)
+def test_download_coefficients_skips_blank_lines_between_fold_rows(table, newline):
+    import proteomics_clock as pc
+
+    header, rows, fold, blank_after = table
+    text = _coefficient_csv(header, rows, newline, blank_after).decode("utf-8")
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(pc, "_download_text", lambda url, cache_name: text)
+        assert pc.download_coefficients(["Heart"], "gen1", fold=fold) == {
+            "Heart_gen1": dict(zip(header, rows[fold - 1]))
+        }
+        # A blank line counted as a fold would add a fold that does not exist.
+        with pytest.raises(ValueError, match=f"only has {len(rows)} fold rows"):
+            pc.download_coefficients(["Heart"], "gen1", fold=len(rows) + 1)
 
 
 def test_download_text_returns_same_text_from_download_and_cache(tmp_path, monkeypatch):
