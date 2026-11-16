@@ -649,6 +649,74 @@ def test_multiomics_locus_cli_registry_allows_all_coverage_bed_flags() -> None:
         assert flag in entry["extra_path_flags"], flag
 
 
+def test_intervals_outside_coverage_names_the_orphaned_peak() -> None:
+    accessibility = [("chr1", 100, 200, "peak_in"), ("chr1", 9000, 9050, "peak_outside")]
+    coverage_blocks = mli.layer_coverage_blocks([("chr1", 0, 1000, "panel")])
+    missed = mli.intervals_outside_coverage(accessibility, coverage_blocks)
+    assert missed == ["peak_outside"]
+
+
+def test_intervals_outside_coverage_empty_when_all_covered() -> None:
+    accessibility = [("chr1", 100, 200, "peak_in")]
+    coverage_blocks = mli.layer_coverage_blocks([("chr1", 0, 1000, "panel")])
+    assert mli.intervals_outside_coverage(accessibility, coverage_blocks) == []
+
+
+def test_loop_anchors_outside_coverage_names_the_orphaned_loop() -> None:
+    loops = [
+        ("chr1", 100, 150, "chr1", 200, 250, "LOOP_IN"),
+        ("chr1", 9000, 9050, "chr1", 9100, 9150, "LOOP_OUTSIDE"),
+    ]
+    coverage_blocks = mli.layer_coverage_blocks([("chr1", 0, 1000, "capture")])
+    missed = mli.loop_anchors_outside_coverage(loops, coverage_blocks)
+    assert missed == ["LOOP_OUTSIDE"]
+
+
+def test_cli_warns_when_accessibility_coverage_bed_omits_a_called_peak(tmp_path: Path, capsys) -> None:
+    loci_bed = tmp_path / "loci.bed"
+    loci_bed.write_text("chr1\t100\t101\tL1\n")
+    accessibility_bed = tmp_path / "accessibility.bed"
+    accessibility_bed.write_text("chr1\t9000\t9050\tpeak_outside_coverage\n")
+    coverage_bed = tmp_path / "coverage.bed"
+    coverage_bed.write_text("chr1\t0\t1000\tpanel\n")
+    genes_bed = tmp_path / "genes.bed"
+    genes_bed.write_text("chr1\t0\t50\tGENE_X\t+\n")
+    output_dir = tmp_path / "out"
+
+    mli.main([
+        "--loci", str(loci_bed),
+        "--accessibility-track", str(accessibility_bed),
+        "--accessibility-coverage-bed", str(coverage_bed),
+        "--gene-targets", str(genes_bed),
+        "--output", str(output_dir),
+    ])
+    captured = capsys.readouterr()
+    assert "WARNING" in captured.err
+    assert "peak_outside_coverage" in captured.err
+
+
+def test_cli_no_warning_when_coverage_bed_covers_all_calls(tmp_path: Path, capsys) -> None:
+    loci_bed = tmp_path / "loci.bed"
+    loci_bed.write_text("chr1\t100\t101\tL1\n")
+    accessibility_bed = tmp_path / "accessibility.bed"
+    accessibility_bed.write_text("chr1\t100\t200\tpeak_inside\n")
+    coverage_bed = tmp_path / "coverage.bed"
+    coverage_bed.write_text("chr1\t0\t1000\tpanel\n")
+    genes_bed = tmp_path / "genes.bed"
+    genes_bed.write_text("chr1\t0\t50\tGENE_X\t+\n")
+    output_dir = tmp_path / "out"
+
+    mli.main([
+        "--loci", str(loci_bed),
+        "--accessibility-track", str(accessibility_bed),
+        "--accessibility-coverage-bed", str(coverage_bed),
+        "--gene-targets", str(genes_bed),
+        "--output", str(output_dir),
+    ])
+    captured = capsys.readouterr()
+    assert "WARNING" not in captured.err
+
+
 def test_coverage_bed_cli_flags_produce_the_tighter_not_assayed(tmp_path: Path) -> None:
     loci_bed = tmp_path / "loci.bed"
     loci_bed.write_text("chr1\t5000\t5001\tL1\n")

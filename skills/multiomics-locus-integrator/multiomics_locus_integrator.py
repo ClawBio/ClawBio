@@ -303,6 +303,33 @@ def within_any_span(chrom: str, start: int, end: int, spans: list[tuple[str, int
     return any(_normalize_chrom(c) == key and start < hi and end > lo for c, lo, hi in spans)
 
 
+def intervals_outside_coverage(intervals: list[Interval], coverage_blocks: list[tuple[str, int, int]]) -> list[str]:
+    """Names of called intervals (peaks) that do not overlap ANY block in
+    coverage_blocks at all -- a sign the coverage file is narrower than
+    what was actually called, which would otherwise silently read as
+    not_assayed for that region despite the peak existing. Returns names,
+    not a bool, so a caller can report specifically which calls are at risk.
+    """
+    return [
+        name for (chrom, start, end, name) in intervals
+        if not within_any_span(chrom, start, end, coverage_blocks)
+    ]
+
+
+def loop_anchors_outside_coverage(loops: list[LoopAnchor], coverage_blocks: list[tuple[str, int, int]]) -> list[str]:
+    """Same check as intervals_outside_coverage, for loop anchors -- a
+    loop whose anchor sits entirely outside --contact-coverage-bed would
+    otherwise silently read as not_assayed despite the loop existing.
+    """
+    names: list[str] = []
+    for chrom1, start1, end1, chrom2, start2, end2, name in loops:
+        if not within_any_span(chrom1, start1, end1, coverage_blocks) or not within_any_span(
+            chrom2, start2, end2, coverage_blocks
+        ):
+            names.append(name)
+    return names
+
+
 def overlapping_names(chrom: str, start: int, end: int, intervals: list[Interval]) -> list[str]:
     return [name for (c, s, e, name) in intervals if _overlaps(chrom, start, end, c, s, e)]
 
@@ -719,7 +746,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--gene-targets", type=Path)
     parser.add_argument("--output", type=Path, default=Path("multiomics_locus_integrator_out"))
-    parser.add_argument("--demo", action="store_true")
+    parser.add_argument(
+        "--demo", action="store_true",
+        help="Run on the skill's bundled synthetic demo data. All other input "
+             "flags (--loci, --accessibility-track, --histone-track, "
+             "--contact-evidence, --gene-targets, and all three "
+             "--*-coverage-bed flags) are ignored when this is set.",
+    )
     args = parser.parse_args(argv)
 
     if args.demo:
@@ -756,6 +789,35 @@ def main(argv: list[str] | None = None) -> int:
     except (ValueError, FileNotFoundError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+
+    # A --*-coverage-bed narrower than what its own track actually called
+    # is a self-contradictory input (a real peak/loop existing somewhere
+    # the file claims was never assayed) that would otherwise silently
+    # read as not_assayed with no indication anything was off.
+    for label, flag, track, coverage in (
+        ("accessibility", "--accessibility-coverage-bed", accessibility, accessibility_coverage),
+        ("histone", "--histone-coverage-bed", histone, histone_coverage),
+    ):
+        if track and coverage:
+            missed = intervals_outside_coverage(track, layer_coverage_blocks(coverage))
+            if missed:
+                print(
+                    f"WARNING: {flag} omits the region of {len(missed)} called "
+                    f"{label} peak(s) ({', '.join(missed[:5])}"
+                    f"{', ...' if len(missed) > 5 else ''}) -- these will read "
+                    f"not_assayed despite the peak call.",
+                    file=sys.stderr,
+                )
+    if loops and contact_coverage:
+        missed_loops = loop_anchors_outside_coverage(loops, layer_coverage_blocks(contact_coverage))
+        if missed_loops:
+            print(
+                f"WARNING: --contact-coverage-bed omits an anchor of {len(missed_loops)} "
+                f"called loop(s) ({', '.join(missed_loops[:5])}"
+                f"{', ...' if len(missed_loops) > 5 else ''}) -- these will read "
+                f"not_assayed despite the loop call.",
+                file=sys.stderr,
+            )
 
     if not loci:
         print("ERROR: --loci contains no records", file=sys.stderr)
