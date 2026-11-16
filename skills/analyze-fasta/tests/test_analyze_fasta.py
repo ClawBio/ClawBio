@@ -73,6 +73,19 @@ def test_report_includes_clawbio_disclaimer(tmp_path):
 # Nucleotide and protein basic paths
 # ──────────────────────────────────────────────
 
+@pytest.mark.parametrize("report", ["report.md", "result.json", "report.html"])
+def test_reports_do_not_record_the_input_directory(tmp_path, report):
+    """Reports are shared; an absolute input path leaks the user's name and folder layout."""
+    private_dir = tmp_path / "private_user_dir"
+    private_dir.mkdir()
+    fasta = private_dir / "sample.fasta"
+    fasta.write_text((EXAMPLE_DIR / "demo_nucleotide.fasta").read_text())
+    out = tmp_path / "out"
+    run_cli(["--input", str(fasta), "--output", str(out)])
+    text = (out / report).read_text()
+    assert str(private_dir) not in text and str(private_dir.resolve()) not in text
+
+
 def test_nucleotide_input_basic(tmp_path):
     """Nucleotide FASTA produces gc_content and composition."""
     out = tmp_path / "nuc_out"

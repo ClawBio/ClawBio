@@ -217,7 +217,6 @@ def analyze_fasta(filepath):
 
     report = {
         "file": path.name,
-        "file_path": str(path.resolve()),
         "analysis_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "total_sequences": len(records),
         "sequence_type": seq_type,
