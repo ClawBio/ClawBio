@@ -26,14 +26,15 @@ import error and ran nothing. The fix:
 ### Wheel payload policy (`hatch_build.py`)
 
 - Every skill's logic (`.md` / `.py` / `.yaml` / `.sh`) ships, so agents can read
-  and call all 84 skills.
+  and call every skill (live count: `skill_count` in `skills/catalog.json`).
 - Small data files (< 256 KB) ship; heavy demo data (gzipped genomes,
   expected-output images, big catalogs) does not.
-- The three headline skills ship their full demo payload so the quick-start works
-  offline immediately: `pharmgx-reporter`, `drug-photo`, `gwas-lookup`.
+- The headline skills in `HEADLINE_SKILLS` ship their full demo payload so the
+  quick-start works offline immediately: `pharmgx-reporter`, `drug-photo`,
+  `gwas-lookup`, `just-prs-mcp`.
 
-Result: a ~3.2 MB wheel (vs the broken 100 KB one), all 84 skills present,
-`clawbio run pharmgx --demo` working straight after install.
+Result: a wheel of a few MB (4.0 MB at 0.7.1, vs the broken 100 KB one), every
+skill present, `clawbio run pharmgx --demo` working straight after install.
 
 ## Build locally
 
@@ -84,8 +85,18 @@ too, or publishing fails with `invalid-publisher`:
 | Workflow name | `publish.yml` |
 | Environment name | `pypi` |
 
-(Optionally create a `pypi` environment under the repo's GitHub Settings ->
-Environments to add protection rules; the workflow already targets it.)
+The `pypi` GitHub environment already exists: it accepts `v*` tags only and
+needs a reviewer's approval before the publish job runs.
+
+If a release fails with `invalid-publisher`, compare the table above with the
+claims printed in the job log.
+
+Once the first release has gone out over OIDC, delete the old `PYPI_API_TOKEN`
+secret from the `pypi` environment and revoke the token on PyPI.
+
+Trusted Publishing also turns on attestations: `pypa/gh-action-pypi-publish`
+signs every file with Sigstore and uploads a PEP 740 attestation. These show as
+"Provenance" on the PyPI file page. Token uploads get none.
 
 ### Manual fallback (if you ever need to publish without the Action)
 
@@ -107,5 +118,3 @@ Maintainer: @camlloyd.
 - The sdist is ~12 MB because it carries the full `skills/` tree (the wheel build
   hook reads it to assemble the curated wheel). If a leaner sdist is wanted later,
   add an sdist-target filter mirroring the wheel hook.
-- `README.md`'s "No `pip install clawbio` package yet" line should be removed once
-  the first PyPI release is live.

@@ -170,6 +170,11 @@ def assess_input_npx_scale(df: pd.DataFrame) -> list[str]:
 
 
 def _download_text(url: str, cache_name: str) -> str:
+    """Return the file at url as UTF-8 text, caching the exact bytes served.
+
+    Bytes, not text mode: on Windows, text mode wrote the organAging files' CRLF
+    line endings as CR CR LF, which read back as a blank line after every row.
+    """
     cached = _cache_dir() / cache_name
     checksum_file = _checksum_path(cached)
     if cached.exists():
@@ -181,12 +186,12 @@ def _download_text(url: str, cache_name: str) -> str:
                     f"Checksum mismatch for cached download {cached.name}: "
                     f"expected {expected}, got {actual}"
                 )
-        return cached.read_text()
+        return cached.read_bytes().decode("utf-8")
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
-    cached.write_text(resp.text)
-    checksum_file.write_text(_sha256(cached) + "\n")
-    return resp.text
+    cached.write_bytes(resp.content)
+    checksum_file.write_text(hashlib.sha256(resp.content).hexdigest() + "\n")
+    return resp.content.decode("utf-8")
 
 
 def download_organ_proteins() -> dict[str, list[str]]:
@@ -218,7 +223,8 @@ def download_coefficients(
 
             reader = csv.reader(io.StringIO(text))
             header = next(reader)
-            rows = list(reader)
+            # A blank line is not a fold row; counting one would shift every fold after it.
+            rows = [row for row in reader if row]
 
             if fold < 1:
                 raise ValueError("fold must be a positive 1-based index")
@@ -237,6 +243,14 @@ def download_coefficients(
                     coefs[col_name] = float(val)
                 except ValueError:
                     continue
+
+            # Without a protein weight every prediction for this organ would be NaN, with no warning.
+            if not any(name != "Intercept" for name in coefs):
+                raise ValueError(
+                    f"{organ} {gen} fold {fold} has no numeric protein coefficients in "
+                    f"{cache_name}. Delete that file from the proteomics-clock cache to "
+                    "download it again."
+                )
 
             result[key] = coefs
 

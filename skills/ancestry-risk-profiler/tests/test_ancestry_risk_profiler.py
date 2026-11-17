@@ -5,6 +5,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from inline_snapshot import snapshot
+
+from clawbio.common import demo_runner
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_DIR))
@@ -1011,3 +1014,244 @@ class TestAimFstGate:
             arp.infer_ancestry(genotypes, self.panel)
         assert "Only 5 ancestry-informative" in str(exc_info.value)
         assert "54 matched panel SNP(s) are below the Fst floor" in str(exc_info.value)
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/ancestry-risk-profiler/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("ancestry-risk-profiler", tmp_path) == snapshot({'ancestry_risk_report.md': """\
+# Ancestry-Aware Disease Risk Profile
+
+**Generated**: <TIMESTAMP> UTC  \n\
+**Skill**: ancestry-risk-profiler v1.4.0  \n\
+
+---
+## 1. Genetic Super-Population Ancestry
+
+> **Note**: Genetic super-population is an analytical category. It is **not**
+> self-reported ethnicity, cultural identity, or nationality. Labels (AFR, EAS, EUR,
+> SAS, AMR) are analytical categories from the 1000 Genomes Project — not ethnic identifiers.
+
+| Field | Value |
+|---|---|
+| Genetic super-population | **SAS** — South Asian *(user-supplied)* |
+| Confidence | user-supplied |
+| Informative AISNPs matched (Fst >= 0.3) | not assessed |
+| Matched low-Fst SNPs (excluded from coverage) | not assessed |
+
+Ancestry was supplied with `--ancestry`. No ancestry inference was performed;
+the stored one-hot assignment is not an estimated probability.
+
+---
+## 2. Ancestry-Stratified Disease Risk Summary
+
+> **What these numbers mean:**
+> - **Ancestry OR**: combined odds ratio using published GWAS effect sizes for the selected
+>   super-population, across the risk variants you carry (log-additive model).
+> - **EUR ref OR**: the same calculation using European reference effect sizes for those
+>   same variants — allows direct comparison.
+> - **AES** (Ancestry Elevation Score): exp(Σ[log OR_ancestry − log OR_EUR]) — an
+>   **exploratory directional indicator** showing where ancestry-specific effect sizes
+>   diverge from European estimates. AES > 1 = ancestry amplifies the signal; AES < 1 =
+>   ancestry attenuates it. **AES has not been externally validated and is not a clinical
+>   risk score.** Use it as a signal to explore further, not a probability.
+>
+> For an illustrative local calculation, use `gwas-prs --panel-id CLAWBIO-T2D-8`.
+> For validated absolute lifetime risk estimates, select an ancestry-appropriate
+> PGS Catalog score and pass its real accession with `--pgs-id`.
+
+| Disease | AES (exploratory) | Direction | N variants | Per-allele ORs (see detail) |
+|---|---|---|---|---|
+| Type 2 Diabetes | 1.84 | 🔴 Elevated By Ancestry | 7 | rs7903146 1.40x, rs13266634 1.17x, rs2237892 1.14x, rs7756992 1.18x, rs1552224 1.34x, rs8042680 1.21x, rs5219 1.23x |
+| Coronary Artery Disease | 1.06 | 🟡 Neutral | 1 | rs1333049 1.34x |
+
+> **Note on per-allele ORs**: values above are individual published GWAS effect sizes,
+> not a combined disease risk estimate. Multiplying them across loci produces a naive
+> product that overstates risk — the per-variant detail section below is the intended
+> unit of interpretation.
+
+---
+## 3. Ancestry Elevation Score — Top Diseases (Exploratory)
+
+> AES is a directional indicator, not a validated clinical metric.
+
+```
+Disease                               AES   Bar                    Direction
+---------------------------------------------------------------------------
+Type 2 Diabetes                      1.84   ██████████████████░░   elevated by ancestry
+Coronary Artery Disease              1.06   ███████████░░░░░░░░░   neutral
+```
+
+---
+## 4. Variant Detail
+
+| rsID | Genotype | Disease | OR (your ancestry) | OR (EUR ref) | Delta log-OR | Note |
+|---|---|---|---|---|---|---|
+| rs7903146 | CT | Type 2 Diabetes | 1.40 | 1.37 | +0.022 | Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; replication of rs7903146/TCF7L |
+| rs13266634 | CT | Type 2 Diabetes | 1.17 | 1.15 | +0.017 | Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; rs13266634/SLC30A8 SAS replica |
+| rs2237892 | CT | Type 2 Diabetes | 1.14 | 1.02 | +0.111 | Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; rs2237892/KCNQ1 SAS replicatio |
+| rs7756992 | AG | Type 2 Diabetes | 1.18 | 1.11 | +0.061 | Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; rs7756992/CDKAL1 SAS replicati |
+| rs1552224 | AC | Type 2 Diabetes | 1.34 | 1.09 | +0.206 | Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; rs1552224/CENTD2 SAS replicati |
+| rs8042680 | AC | Type 2 Diabetes | 1.21 | 1.08 | +0.114 | Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; rs8042680/PRC1 SAS replication |
+| rs5219 | CT | Type 2 Diabetes | 1.23 | 1.14 | +0.076 | Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; rs5219/KCNJ11 SAS replication  |
+| rs1333049 | CC | Coronary Artery Disease | 1.34 | 1.30 | +0.061 | PROXY — Bhanushali et al. 2013 Genet Res 95:138 direct rs1333049 genotyping in I |
+
+---
+## Methodology
+
+**Ancestry inference**: Hardy-Weinberg log-likelihood at all matched panel SNPs
+across five super-populations (AFR, AMR, EAS, EUR, SAS). Coverage counts only
+markers with equal-weighted Wright Fst >= 0.3. Low-Fst matches remain
+in the likelihood but are excluded from coverage. Automatic inference requires
+at least 30 qualifying markers regardless of the posterior.
+This retains the existing conservative marker-count policy; it is not a validated
+sufficiency threshold or posterior calibration. Explicit `--ancestry` bypasses inference.
+
+**Ancestry Elevation Score (AES)**: exp(Σ[log OR_ancestry_i − log OR_EUR_i] × dosage_i)
+summed across risk variants for each disease. This is an **exploratory metric** with no
+published external validation. It shows divergence from European GWAS estimates — it does
+not represent a calibrated disease probability.
+
+**Why no absolute lifetime risk %?** Applying individual-variant ORs on top of a
+population baseline prevalence double-counts the allele contribution already embedded in
+that baseline. For validated absolute risk, use `gwas-prs` with a PGS Catalog score
+calibrated to your ancestry.
+
+**SNP independence assumed**: variants are treated as independent (log-additive model);
+linkage disequilibrium is not modelled.
+
+---
+## Disclaimer
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'ancestry_risk_result.json': """\
+{
+  "inferred_ancestry": "SAS",
+  "ancestry_label": "South Asian",
+  "confidence": "user-supplied",
+  "posterior": {
+    "AFR": 0.0,
+    "AMR": 0.0,
+    "EAS": 0.0,
+    "EUR": 0.0,
+    "SAS": 1.0
+  },
+  "aisnp_coverage": 0,
+  "aisnp_low_fst_hits": 0,
+  "aim_fst_floor": 0.3,
+  "overridden": true,
+  "scoring_note": null,
+  "risks": [
+    {
+      "disease": "Type 2 Diabetes",
+      "combined_or": 4.394,
+      "or_eur_combined": 2.394,
+      "aes": 1.836,
+      "n_variants": 7,
+      "aes_category": "elevated by ancestry",
+      "variants_found": [
+        "rs7903146",
+        "rs13266634",
+        "rs2237892",
+        "rs7756992",
+        "rs1552224",
+        "rs8042680",
+        "rs5219"
+      ],
+      "variants_detail": [
+        {
+          "rsid": "rs7903146",
+          "genotype": "CT",
+          "dosage": 1,
+          "or_ancestry": 1.4,
+          "or_eur": 1.37,
+          "delta_log_or": 0.0217,
+          "note": "Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; replication of rs7903146/TCF7L2 in South Asian cohort pending PMC3773920 full-text verification"
+        },
+        {
+          "rsid": "rs13266634",
+          "genotype": "CT",
+          "dosage": 1,
+          "or_ancestry": 1.17,
+          "or_eur": 1.15,
+          "delta_log_or": 0.0172,
+          "note": "Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; rs13266634/SLC30A8 SAS replication pending PMC3773920 full-text verification"
+        },
+        {
+          "rsid": "rs2237892",
+          "genotype": "CT",
+          "dosage": 1,
+          "or_ancestry": 1.14,
+          "or_eur": 1.02,
+          "delta_log_or": 0.1112,
+          "note": "Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; rs2237892/KCNQ1 SAS replication pending PMC3773920 full-text verification"
+        },
+        {
+          "rsid": "rs7756992",
+          "genotype": "AG",
+          "dosage": 1,
+          "or_ancestry": 1.18,
+          "or_eur": 1.11,
+          "delta_log_or": 0.0612,
+          "note": "Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; rs7756992/CDKAL1 SAS replication pending PMC3773920 full-text verification"
+        },
+        {
+          "rsid": "rs1552224",
+          "genotype": "AC",
+          "dosage": 1,
+          "or_ancestry": 1.34,
+          "or_eur": 1.09,
+          "delta_log_or": 0.2065,
+          "note": "Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; rs1552224/CENTD2 SAS replication pending PMC3773920 full-text verification"
+        },
+        {
+          "rsid": "rs8042680",
+          "genotype": "AC",
+          "dosage": 1,
+          "or_ancestry": 1.21,
+          "or_eur": 1.08,
+          "delta_log_or": 0.1137,
+          "note": "Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; rs8042680/PRC1 SAS replication pending PMC3773920 full-text verification"
+        },
+        {
+          "rsid": "rs5219",
+          "genotype": "CT",
+          "dosage": 1,
+          "or_ancestry": 1.23,
+          "or_eur": 1.14,
+          "delta_log_or": 0.076,
+          "note": "Kooner et al. 2011 Nat Genet 43:984 SAS T2D GWAS; rs5219/KCNJ11 SAS replication pending PMC3773920 full-text verification"
+        }
+      ]
+    },
+    {
+      "disease": "Coronary Artery Disease",
+      "combined_or": 1.796,
+      "or_eur_combined": 1.69,
+      "aes": 1.062,
+      "n_variants": 1,
+      "aes_category": "neutral",
+      "variants_found": [
+        "rs1333049"
+      ],
+      "variants_detail": [
+        {
+          "rsid": "rs1333049",
+          "genotype": "CC",
+          "dosage": 2,
+          "or_ancestry": 1.34,
+          "or_eur": 1.3,
+          "delta_log_or": 0.0606,
+          "note": "PROXY \\u2014 Bhanushali et al. 2013 Genet Res 95:138 direct rs1333049 genotyping in Indian CAD cases/controls (OR 1.564); best available SAS replication, OR does not match exactly"
+        }
+      ]
+    }
+  ],
+  "timestamp": "<TIMESTAMP> UTC",
+  "skill_version": "1.4.0"
+}\
+"""})

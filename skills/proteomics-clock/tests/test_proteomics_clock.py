@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import sys
@@ -6,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-from hypothesis import example, given, strategies as st
+from hypothesis import example, given, settings, strategies as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -134,6 +135,100 @@ def test_download_coefficients_selects_fold(monkeypatch):
 
     with pytest.raises(ValueError):
         pc.download_coefficients(["Heart"], "gen1", fold=3)
+
+
+class _FakeResponse:
+    """Serves fixed bytes in place of requests.Response."""
+
+    def __init__(self, content: bytes):
+        self.content = content
+        self.text = content.decode("utf-8")
+
+    def raise_for_status(self) -> None:
+        pass
+
+
+@st.composite
+def coefficient_tables(draw):
+    """An Intercept and 1-3 proteins, 1-5 fold rows of finite coefficients, and a 1-based fold."""
+    proteins = draw(
+        st.lists(st.sampled_from(["NPPB", "BMP10", "UMOD", "GFAP"]), min_size=1, max_size=3, unique=True)
+    )
+    header = ["Intercept", *proteins]
+    coefficient = st.floats(allow_nan=False, allow_infinity=False)
+    row = st.lists(coefficient, min_size=len(header), max_size=len(header))
+    rows = draw(st.lists(row, min_size=1, max_size=5))
+    fold = draw(st.integers(min_value=1, max_value=len(rows)))
+    return header, rows, fold
+
+
+def _coefficient_csv(header, rows, newline):
+    """Serialise a table the way the organAging files are laid out: quoted header, one row per fold."""
+    lines = [",".join(f'"{name}"' for name in header)]
+    lines += [",".join(repr(value) for value in row) for row in rows]
+    return "".join(line + newline for line in lines).encode("utf-8")
+
+
+@given(table=coefficient_tables(), newline=st.sampled_from(["\n", "\r\n", "\r\r\n"]))
+# Minimal failure found on Windows, where text-mode caching wrote CRLF as CR CR LF.
+@example(table=(["Intercept", "NPPB"], [[0.0, 0.0]], 1), newline="\r\n")
+# The cache those runs left behind; the old code misreads it on every OS.
+@example(table=(["Intercept", "NPPB"], [[0.0, 0.0]], 1), newline="\r\r\n")
+@settings(deadline=None)
+def test_download_coefficients_selects_fold_from_download_and_cache(tmp_path_factory, table, newline):
+    import proteomics_clock as pc
+
+    header, rows, fold = table
+    served = _coefficient_csv(header, rows, newline)
+    # tmp_path and monkeypatch would be shared by every example, so each example gets a fresh cache.
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("CLAWBIO_CACHE", str(tmp_path_factory.mktemp("cache")))
+        mp.setattr(pc.requests, "get", lambda url, **kwargs: _FakeResponse(served))
+        downloaded = pc.download_coefficients(["Heart"], "gen1", fold=fold)
+        cached = pc.download_coefficients(["Heart"], "gen1", fold=fold)
+
+    expected = {"Heart_gen1": dict(zip(header, rows[fold - 1]))}
+    assert downloaded == expected
+    assert cached == expected
+
+
+@pytest.mark.parametrize("fold_row", ["NA,NA,NA", ",,", "57.33,NA,NA"])
+def test_download_coefficients_rejects_fold_without_protein_coefficients(monkeypatch, fold_row):
+    import proteomics_clock as pc
+
+    text = f"Intercept,NPPB,BMP10\n{fold_row}\n57.36,2.28,-0.09\n"
+    monkeypatch.setattr(pc, "_download_text", lambda url, cache_name: text)
+
+    # Unchecked, fold 1 gives the organ no protein weights, so every prediction is a silent NaN.
+    with pytest.raises(ValueError, match="no numeric protein coefficients"):
+        pc.download_coefficients(["Heart"], "gen1", fold=1)
+    assert pc.download_coefficients(["Heart"], "gen1", fold=2) == {
+        "Heart_gen1": {"Intercept": 57.36, "NPPB": 2.28, "BMP10": -0.09}
+    }
+
+
+def test_download_text_returns_same_text_from_download_and_cache(tmp_path, monkeypatch):
+    import proteomics_clock as pc
+
+    served = b'"Intercept","NPPB"\r\n57.36,2.28\r\n57.33,2.09\r\n'
+    gets = []
+
+    def fake_get(url, **kwargs):
+        gets.append(url)
+        return _FakeResponse(served)
+
+    monkeypatch.setenv("CLAWBIO_CACHE", str(tmp_path))
+    monkeypatch.setattr(pc.requests, "get", fake_get)
+    url = pc.COEF_URL_TEMPLATES["gen1"].format(organ="Heart")
+
+    downloaded = pc._download_text(url, "Heart_gen1_fold1.csv")
+    cached = pc._download_text(url, "Heart_gen1_fold1.csv")
+
+    cache_file = tmp_path / "proteomics-clock" / "Heart_gen1_fold1.csv"
+    assert gets == [url]
+    assert cache_file.read_bytes() == served
+    assert pc._checksum_path(cache_file).read_text().strip() == hashlib.sha256(served).hexdigest()
+    assert cached == downloaded == served.decode("utf-8")
 
 
 def test_load_input_csv(tmp_path):

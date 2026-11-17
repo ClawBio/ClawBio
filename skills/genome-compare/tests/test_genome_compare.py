@@ -13,6 +13,9 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from inline_snapshot import snapshot
+
+from clawbio.common import demo_runner
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -339,3 +342,310 @@ def test_demo_writes_reproducibility_bundle(tmp_path):
     for line in lines:
         digest, label = line.split("  ", 1)
         assert hashlib.sha256((out / label).read_bytes()).hexdigest() == digest
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/genome-compare/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("genome-compare", tmp_path) == snapshot({'report.md': """\
+# Genome Comparison Report
+
+**Date**: <TIMESTAMP> UTC  \n\
+**Reference**: George Church (PGP-1, hu43860C)  \n\
+**Input**: Manuel Corpas ([PGP-UK uk6D0CFA](https://my.personalgenomes.org.uk/profile/uk6D0CFA), Corpasome, demo mode)  \n\
+
+## Summary
+
+| Metric | Value |
+|--------|-------|
+| **IBS Score** | 0.7418 |
+| **SNPs Overlapping** | 544,515 |
+| **Genotypes Identical (IBS=2)** | 300,474 (55.2%) |
+| **Top Ancestry** | EUR (54.9%) |
+| **AIMs Used** | 47 / 65 |
+
+## Identity By State Analysis
+
+Your IBS score (0.7418) falls between **unrelated, same population** (0.735) and **first cousins** (0.760).
+
+### Population Context
+
+| Relationship | Typical IBS |
+|---|---|
+| Identical twins / same person | 1.000 |
+| Parent-child | 0.850 |
+| Full siblings | 0.820 |
+| Half-siblings | 0.780 |
+| First cousins | 0.760 |
+| Unrelated, same population | 0.735 **<--** |
+| European vs South Asian | 0.720 |
+| European vs East Asian | 0.710 |
+| European vs African | 0.695 |
+| African vs East Asian | 0.680 |
+
+![IBS Context](figures/ibs_context.png)
+
+## Chromosome Breakdown
+
+| Chr | SNPs | IBS Score | Identical (IBS=2) |
+|-----|------|-----------|-------------------|
+| 1 | 41,030 | 0.7454 | 22,578 |
+| 2 | 43,734 | 0.7362 | 23,662 |
+| 3 | 36,549 | 0.7371 | 19,639 |
+| 4 | 32,263 | 0.7376 | 17,414 |
+| 5 | 33,119 | 0.7454 | 18,289 |
+| 6 | 35,792 | 0.7489 | 19,941 |
+| 7 | 29,142 | 0.7417 | 15,819 |
+| 8 | 30,277 | 0.7457 | 16,790 |
+| 9 | 25,669 | 0.7411 | 14,095 |
+| 10 | 28,313 | 0.7447 | 15,482 |
+| 11 | 26,444 | 0.7408 | 14,497 |
+| 12 | 26,306 | 0.7435 | 14,260 |
+| 13 | 20,151 | 0.7336 | 10,796 |
+| 14 | 17,753 | 0.7461 | 9,825 |
+| 15 | 16,114 | 0.7318 | 8,654 |
+| 16 | 16,421 | 0.7473 | 9,106 |
+| 17 | 14,329 | 0.7495 | 8,003 |
+| 18 | 16,208 | 0.7412 | 8,854 |
+| 19 | 9,454 | 0.7406 | 5,089 |
+| 20 | 13,726 | 0.7398 | 7,440 |
+| 21 | 7,998 | 0.7336 | 4,256 |
+| 22 | 8,207 | 0.7336 | 4,406 |
+| X | 13,017 | 0.7000 | 9,108 |
+| Y | 1,136 | 0.9974 | 1,133 |
+| MT | 1,363 | 0.9817 | 1,338 |
+
+![Chromosome IBS](figures/chromosome_ibs.png)
+
+## Ancestry Composition
+
+### Your Estimated Ancestry
+
+| Population | Proportion |
+|------------|-----------|
+| EUR | 54.9% |
+| AFR | 28.8% |
+| EAS | 14.4% |
+| SAS | 1.7% |
+| AMR | 0.1% |
+
+*Method: EM admixture (binomial genotype likelihood)*
+
+![Ancestry Pie](figures/ancestry_pie.png)
+
+### Ground Truth — Manuel Corpas (23andMe Ancestry Report)
+
+*Since this demo uses Manuel Corpas as the input, we can compare the estimation above against his actual 23andMe ancestry report:*
+
+| Region | Proportion |
+|--------|-----------|
+| **European** | **97.7%** |
+| &emsp;Southern European | 92.0% |
+| &emsp;&emsp;Spanish & Portuguese | 79.8% |
+| &emsp;&emsp;Italian | 6.6% |
+| &emsp;&emsp;Broadly Southern European | 5.6% |
+| &emsp;Northwestern European | 3.0% |
+| &emsp;&emsp;French & German | 0.6% |
+| &emsp;&emsp;Broadly Northwestern European | 2.4% |
+| &emsp;Ashkenazi Jewish | 0.5% |
+| &emsp;Broadly European | 2.4% |
+| **Western Asian & North African** | **0.8%** |
+| &emsp;North African & Arabian | 0.3% |
+| &emsp;Broadly Western Asian & North African | 0.5% |
+| **Sub-Saharan African** | **0.3%** |
+| &emsp;West African | 0.2% |
+| &emsp;&emsp;Senegambian & Guinean | 0.2% |
+| &emsp;Northern East African | 0.1% |
+| &emsp;&emsp;Sudanese | 0.1% |
+| **East Asian & Native American** | **0.1%** |
+| **Unassigned** | **1.0%** |
+
+**Maternal haplogroup**: W  \n\
+**Paternal haplogroup**: R-P312  \n\
+
+**Neanderthal**: More Neanderthal variants than 61% of customers  \n\
+
+![Ancestry Comparison](figures/ancestry_comparison.png)
+
+## About the Reference Genome
+
+**George Church** (hu43860C) is PGP-1 — the first participant in the [Personal Genome Project](https://pgp.med.harvard.edu/). He is a professor of genetics at Harvard Medical School and a pioneer of genomics. His 23andMe data (569,226 SNPs, build 36) is CC0 public domain.
+
+## Methods
+
+**IBS (Identity By State)**: For each SNP present in both files, alleles are compared. IBS per site = number of shared alleles (0, 1, or 2). Overall IBS = sum(per-site IBS) / (2 * N). Range: 0.0 (no alleles shared) to 1.0 (identical).
+
+**Ancestry estimation**: EM admixture algorithm using ancestry-informative markers (AIMs) with population allele frequencies from 1000 Genomes Phase 3. Binomial genotype likelihood model with iterative expectation-maximisation. This is an approximation — for clinical-grade ancestry, use ADMIXTURE or RFMix.
+
+**Reference IBS values** are approximate ranges from population genetics literature (1000 Genomes, HGDP). Actual values depend on SNP panel and population composition.
+
+## Disclaimer
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+
+## Reproducibility
+
+- Input checksum: `4dca2c9863d9b9cb`
+- Reference checksum: `538d32b5dc9de76d`
+- Generated: <TIMESTAMP> UTC
+""", 'result.json': """\
+{
+  "skill": "genome-compare",
+  "version": "0.2.0",
+  "completed_at": "<TIMESTAMP>",
+  "input_checksum": "sha256:4dca2c9863d9b9cb",
+  "datasets": {},
+  "summary": {
+    "ibs_score": 0.7418060108536955,
+    "n_overlap": 544515,
+    "n_concordant": 300474,
+    "top_ancestry": "EUR"
+  },
+  "data": {
+    "ibs_score": 0.7418060108536955,
+    "per_chrom": {
+      "1": {
+        "ibs": 0.7454179868388984,
+        "n_overlap": 41030,
+        "n_concordant": 22578
+      },
+      "2": {
+        "ibs": 0.7361892349201994,
+        "n_overlap": 43734,
+        "n_concordant": 23662
+      },
+      "3": {
+        "ibs": 0.7370653095843935,
+        "n_overlap": 36549,
+        "n_concordant": 19639
+      },
+      "4": {
+        "ibs": 0.7375631528376159,
+        "n_overlap": 32263,
+        "n_concordant": 17414
+      },
+      "5": {
+        "ibs": 0.7454029409100517,
+        "n_overlap": 33119,
+        "n_concordant": 18289
+      },
+      "6": {
+        "ibs": 0.7489383102369245,
+        "n_overlap": 35792,
+        "n_concordant": 19941
+      },
+      "7": {
+        "ibs": 0.7416786768238282,
+        "n_overlap": 29142,
+        "n_concordant": 15819
+      },
+      "8": {
+        "ibs": 0.7456650262575553,
+        "n_overlap": 30277,
+        "n_concordant": 16790
+      },
+      "9": {
+        "ibs": 0.741068993727843,
+        "n_overlap": 25669,
+        "n_concordant": 14095
+      },
+      "10": {
+        "ibs": 0.7447109101826016,
+        "n_overlap": 28313,
+        "n_concordant": 15482
+      },
+      "11": {
+        "ibs": 0.7407540462864922,
+        "n_overlap": 26444,
+        "n_concordant": 14497
+      },
+      "12": {
+        "ibs": 0.7434995818444461,
+        "n_overlap": 26306,
+        "n_concordant": 14260
+      },
+      "13": {
+        "ibs": 0.7335616098456652,
+        "n_overlap": 20151,
+        "n_concordant": 10796
+      },
+      "14": {
+        "ibs": 0.7460992508308455,
+        "n_overlap": 17753,
+        "n_concordant": 9825
+      },
+      "15": {
+        "ibs": 0.7317860245749038,
+        "n_overlap": 16114,
+        "n_concordant": 8654
+      },
+      "16": {
+        "ibs": 0.7472748310090738,
+        "n_overlap": 16421,
+        "n_concordant": 9106
+      },
+      "17": {
+        "ibs": 0.7495289273501291,
+        "n_overlap": 14329,
+        "n_concordant": 8003
+      },
+      "18": {
+        "ibs": 0.7412080454096742,
+        "n_overlap": 16208,
+        "n_concordant": 8854
+      },
+      "19": {
+        "ibs": 0.7405859953458853,
+        "n_overlap": 9454,
+        "n_concordant": 5089
+      },
+      "20": {
+        "ibs": 0.7398003788430716,
+        "n_overlap": 13726,
+        "n_concordant": 7440
+      },
+      "21": {
+        "ibs": 0.7335583895973994,
+        "n_overlap": 7998,
+        "n_concordant": 4256
+      },
+      "22": {
+        "ibs": 0.7336420129158036,
+        "n_overlap": 8207,
+        "n_concordant": 4406
+      },
+      "X": {
+        "ibs": 0.6999692709533687,
+        "n_overlap": 13017,
+        "n_concordant": 9108
+      },
+      "Y": {
+        "ibs": 0.9973591549295775,
+        "n_overlap": 1136,
+        "n_concordant": 1133
+      },
+      "MT": {
+        "ibs": 0.9816581071166545,
+        "n_overlap": 1363,
+        "n_concordant": 1338
+      }
+    },
+    "ancestry": {
+      "continental": {
+        "AFR": 0.2883,
+        "EUR": 0.5493,
+        "EAS": 0.1442,
+        "SAS": 0.0173,
+        "AMR": 0.0009
+      },
+      "n_aims_used": 47,
+      "n_aims_total": 65,
+      "method": "EM admixture (binomial genotype likelihood)"
+    }
+  }
+}\
+"""})
