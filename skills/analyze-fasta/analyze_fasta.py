@@ -752,7 +752,7 @@ def generate_html_report(report, json_str):
     </section>
 
     <footer class="footer">
-        <p>Generado por analyze_fasta.py &middot; Biopython {get_biopython_version()} &middot; Python {sys.version.split()[0]}</p>
+        <p>Generado por analyze_fasta.py</p>
     </footer>
 </div>
 
