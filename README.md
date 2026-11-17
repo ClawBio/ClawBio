@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml"><img src="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.12+-blue?logo=python&logoColor=white" alt="Python 3.12+"></a>
+  <a href="#install"><img src="https://img.shields.io/badge/python-3.12+-blue?logo=python&logoColor=white" alt="Python 3.12+"></a>
   <a href="skills/catalog.json"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FClawBio%2FClawBio%2Fmain%2Fskills%2Fcatalog.json&query=%24.skill_count&label=skills&color=3fb950" alt="Skill count, read live from skills/catalog.json"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
   <a href="https://luma.com/clawbio"><img src="https://img.shields.io/badge/Events-Follow_on_Luma-7c3aed" alt="Follow ClawBio Events on Luma"></a>
@@ -17,49 +17,33 @@
   <a href="https://clawbio.github.io/ClawBio/slides/"><img src="https://img.shields.io/badge/slides-London_Bioinformatics_Meetup-purple" alt="Slides"></a>
 </p>
 
-<p align="center">
-  <strong>📅 <a href="https://luma.com/clawbio">Follow the official ClawBio Events Calendar</a></strong><br>
-  <sub>ClawBio is building a general-purpose agentic utility layer for bioinformatics. Follow the calendar for hackathons, workshops, meetups and community events where contributors build, test and extend the platform.</sub>
-</p>
+<p align="center"><strong>📅 <a href="https://luma.com/clawbio">Follow the ClawBio Events Calendar</a></strong> for hackathons, workshops and meetups.</p>
 
 ---
 
-### Install in 30 seconds
+## Install
 
 ```bash
 pip install clawbio                 # Python 3.12+
-clawbio run pharmgx --demo
+clawbio run pharmgx --demo          # runs in under 2 seconds
 ```
 
-Prefer [conda](https://docs.conda.io/)? `conda install -c bioconda clawbio`.
-
-Or use as a Python library:
-
-```python
-from clawbio import run_skill, list_skills
-result = run_skill("pharmgx", demo=True)
-```
-
-Or install as a [Claude Code](https://claude.ai/claude-code) plugin: `/plugin marketplace add ClawBio/ClawBio`
-
-Using **Cursor, VS Code, Codex, Zed or another editor that reads [Agent Skills](https://agentskills.io)**?
-Every skill is a plain Agent Skills folder. Copy or symlink the folders you need from `skills/` into
-`~/.agents/skills/`, which all four read, or into your project's `.agents/skills/`. No server involved.
-
-The MCP server (`clawbio mcp`), deprecated in 0.7.0, is **removed in 0.8.0**.
-Why, and how to migrate: [docs.clawbio.ai/reference/mcp](https://docs.clawbio.ai/reference/mcp/).
-
-**Developing ClawBio or want all skills with full demo data?** Work from a
-source checkout instead ([uv](https://docs.astral.sh/uv/) recommended):
+- **[Conda](https://docs.conda.io/):** `conda install -c bioconda clawbio`
+- **Python library:** `from clawbio import run_skill; run_skill("pharmgx", demo=True)`
+- **[Claude Code](https://claude.ai/claude-code) plugin:** `/plugin marketplace add ClawBio/ClawBio` (needs Claude Code 2.1.277+)
+- **Cursor, VS Code, Codex, Zed or any editor that reads [Agent Skills](https://agentskills.io):** every skill is a plain Agent Skills folder. Copy or symlink the ones you need from `skills/` into `~/.agents/skills/` or your project's `.agents/skills/`. No server involved.
+- **All skills with full demo data, or developing ClawBio:** work from a source checkout ([uv](https://docs.astral.sh/uv/) recommended):
 
 ```bash
-git clone https://github.com/ClawBio/ClawBio.git
-cd ClawBio
-uv sync                            # installs from pyproject.toml + uv.lock
+git clone https://github.com/ClawBio/ClawBio.git && cd ClawBio
+uv sync                             # installs from pyproject.toml + uv.lock
 uv run python clawbio.py run pharmgx --demo
 ```
 
----
+> The MCP server (`clawbio mcp`), deprecated in 0.7.0, is **removed in 0.8.0**.
+> Why, and how to migrate: [docs.clawbio.ai/reference/mcp](https://docs.clawbio.ai/reference/mcp/).
+
+Library calls, slash commands, every demo, running on your own data, tests and per-skill dependencies: [docs/usage.md](docs/usage.md).
 
 <p align="center">
   <img src="img/clawbio-demo.gif" alt="ClawBio GWAS Lookup demo — querying 9 genomic databases from the terminal" width="700">
@@ -67,12 +51,9 @@ uv run python clawbio.py run pharmgx --demo
 
 ---
 
-## What ClawBio Does Today
+## What ClawBio does
 
-**Agent skills, most with runnable demo data (live count in the badge above and `skill_count` in [`skills/catalog.json`](skills/catalog.json)) + 8,182 Galaxy tools + 5,040 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
-> **v0.7.1 released** (5 Sep 2026): tagged releases publish to PyPI on their own again, plus a security policy ([SECURITY.md](SECURITY.md)) and a [data-handling page](docs/data-handling.md). It follows v0.7.0, which brought the genomics skills into your editor as Agent Skills and deprecated the MCP server. [Release notes](https://github.com/ClawBio/ClawBio/releases/tag/v0.7.1). DOI: [10.5281/zenodo.19420648](https://doi.org/10.5281/zenodo.19420648).
-
-Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card — on your machine, in seconds:
+Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card, on your machine, in seconds:
 
 <p align="center">
   <img src="skills/drug-photo/demo-images/00-00-warfarin.jpg" width="360" alt="Warfarin 2mg medication packaging — ClawBio identifies the drug from a photo and returns a personalised pharmacogenomic report">
@@ -81,122 +62,43 @@ Snap a photo of a medication in Telegram. ClawBio identifies the drug from the p
 > **Warfarin** | CYP2C9 \*1/\*2 Intermediate · VKORC1 High Sensitivity
 > **AVOID — DO NOT USE** · Standard dose causes over-anticoagulation in this genotype.
 
-Or take any genetic variant (identified by its rsID — a unique label like [rs9923231](https://www.ncbi.nlm.nih.gov/snp/rs9923231)) and search nine genomic databases at once to find every known disease association, tissue-specific effect, and population frequency. Or estimate your genetic predisposition to conditions like type 2 diabetes by combining thousands of small-effect variants into a single polygenic risk score. Or explore the [UK Biobank](https://www.ukbiobank.ac.uk/) — a half-million-person research dataset — by asking in plain English what fields measure blood pressure, grip strength, or depression, and get back the exact field IDs, descriptions, and linked publications you need.
+Or look up a variant (such as [rs9923231](https://www.ncbi.nlm.nih.gov/snp/rs9923231)) across nine genomic databases at once, combine thousands of small-effect variants into a polygenic risk score, or ask the [UK Biobank](https://www.ukbiobank.ac.uk/) schema in plain English which fields measure blood pressure or grip strength. More examples: [docs/skill-highlights.md](docs/skill-highlights.md).
 
-Many ClawBio analyses write a `reproducibility/` bundle with replay commands, environment metadata, and output checksums. The exact files can vary by skill, and some replays still require the original external inputs to be present. See [docs/reproducibility.md](docs/reproducibility.md).
+## Why skills, not just an LLM
 
----
+Ask an LLM to "profile the pharmacogenes in my VCF file" and it writes plausible Python that may use outdated CPIC guidelines or misclassify star alleles. CYP2D6\*4 is a no-function allele; calling it reduced-function decides whether a patient gets a dose adjustment or is told to avoid a drug. About 7% of people of European ancestry are CYP2D6 poor metabolisers, for whom codeine gives no pain relief, and about 0.5% carry DPYD variants where standard fluorouracil dosing can be lethal.
 
-## Reference Genome
+Agentic bioinformatics systems usually address the **reasoning layer** (knowledge graphs, fine-tuning) or the **connectivity layer** (tools wrapped as MCP servers). ClawBio addresses the **specification layer**. A **skill** is a folder holding a declarative specification (`SKILL.md`), validated Python, demo data and tests. The specification is a contract, not a prompt: it encodes a domain expert's analytical decisions, so the LLM orchestrates but does not improvise.
+
+- **Specification-first**: domain expertise lives in versioned, peer-reviewable `SKILL.md` files, not in model weights.
+- **Agent-agnostic**: skills run the same whether Claude, ChatGPT or a local model via Ollama invokes them.
+- **Local-first by default**: Your genome is analysed on your machine, and the `clawbio` package itself makes no network calls. Some skills do reach public annotation APIs or hosted models, and a few send your variants or sequences to do so. Every one of them is named, with what it sends and to whom, in [docs/data-handling.md](docs/data-handling.md), and a test fails if a networked skill is missing from that page.
+- **Reproducible**: many skills write a `reproducibility/` bundle next to their report. Contents vary by skill, and some replays still need the original inputs ([docs/reproducibility.md](docs/reproducibility.md)):
+
+```
+report/
+├── report.md              # analysis with figures and tables
+├── figures/  tables/
+└── reproducibility/
+    ├── commands.sh        # replay command for this run
+    ├── environment.yml    # suggested Conda environment
+    ├── checksums.sha256   # SHA-256 of selected outputs
+    └── runtime-lock.json  # extra lock metadata, where supported
+```
+
+## Reference genome
 
 ClawBio's demo data is built on a real, fully open human genome: the **Corpasome**. The [23andMe SNP chip](docs/demo-genome.md) (~600K variants) has been available since launch. Now, the project also ships subsets from a **30x Illumina whole-genome sequence** (GRCh37), covering ~4M SNPs, ~600K indels, and structural variants (DEL, DUP, INV, BND, INS, CNVs). All data comes from a single individual (Manuel Corpas), licensed CC0, and published on Zenodo ([doi:10.5281/zenodo.19297389](https://doi.org/10.5281/zenodo.19297389)). This dataset is provided for research and educational purposes only.
 
 See [docs/reference-genome.md](docs/reference-genome.md) for use cases, subsets, and citation details.
 
----
+## Validation
 
-## Validation & Benchmarking
-
-ClawBio v0.5.0 introduces the platform's first systematic validation infrastructure. Skills are scored against curated ground truth with objective metrics.
-
-**What's in the benchmark suite:**
-
-| Component | Description |
-|-----------|-------------|
-| **AD Ground Truth** | 34 Alzheimer's disease genes across 3 evidence tiers (Mendelian, GWAS-replicated, novel), 20 negative controls, 10 lead variants |
-| **Mock API Server** | Deterministic endpoints for Ensembl, GWAS Catalog, ClinPGx. Offline CI without rate limits |
-| **Benchmark Scorer** | Gene recovery rate, FDR, precision, recall, F1, tier-weighted composite score |
-| **Swappable Fine-Mapping** | ABF vs SuSiE head-to-head on same data. Method registry pattern for adding FINEMAP, PolyFun |
-| **Nightly Sweep** | Runs every skill in demo mode, scores outputs against ground truth |
-
-```bash
-# Run the fine-mapping benchmark
-python tests/benchmark/finemapping_benchmark.py --output /tmp/fm_bench
-
-# Score a gene list against AD ground truth
-python tests/benchmark/benchmark_scorer.py --genes "APP,BIN1,CLU,TREM2,GAPDH"
-
-# Start mock API server for offline testing
-python tests/benchmark/mock_api_server.py &
-```
-
-**74 benchmark tests** at v0.5.0 baseline, all green. The public leaderboard now tracks **161 / 182 tests passing (88.5%)** across 10 audited skills, up from 80 / 140 (57.1%) at the original audit. See [benchmarks.html](https://clawbio.ai/benchmarks.html) for the live leaderboard and [CHANGELOG.md](CHANGELOG.md) for full details.
-
----
-
-## The Problem
-
-You read a paper. You want to reproduce Figure 3. So you:
-
-1. Go to GitHub. Clone the repo.
-2. Wrong Python version. Fix dependencies.
-3. Need the reference data — where is it?
-4. Download 2GB from Zenodo. **Link is dead.**
-5. Email the first author. **Wait 3 weeks.**
-6. Paths are hardcoded to `/home/jsmith/data/`.
-7. Two days later: still broken. **You give up.**
-
-Now imagine the same paper published a **skill**:
-
-```bash
-python skills/claw-ancestry-pca/ancestry_pca.py --demo --output fig3
-# Example demo output regenerated. Verify bundled checksums where provided.
-```
-
-**That's ClawBio.** The goal is to make replayable bioinformatics workflows straightforward when a skill ships demo data and helper-backed reproducibility outputs.
-
----
-
-## What Is ClawBio?
-
-Current agentic bioinformatics systems address either the **reasoning layer** (constraining LLM outputs with knowledge graphs or fine-tuning) or the **connectivity layer** (wrapping tools as MCP servers). Neither addresses the **specification layer**: the encoding of a domain expert's analytical decisions into a machine-readable contract that constrains agent behaviour. Without this layer, the agent must reconstruct expert knowledge from its training distribution, a stochastic, unversioned process.
-
-A **skill** is a self-contained directory comprising a declarative specification (`SKILL.md`), validated Python code, demo data, and reproducibility support. In many skills, that includes a `reproducibility/` bundle with `commands.sh`, `environment.yml`, and SHA-256 checksums, sometimes with extra lock metadata such as `runtime-lock.json`. The specification is a contract, not a prompt: it encodes the domain expert's analytical decisions so the LLM orchestrates but does not improvise.
-
-```
-Ad-hoc LLM code generation  = stochastic, unversioned, unverifiable
-ClawBio skill                = specification-constrained, versioned, reproducible
-```
-
-- **Specification-first**: Domain expertise resides in `SKILL.md`, not in model weights. Specifications are versioned, human-readable, peer-reviewable, and trivially updatable.
-- **Agent-agnostic**: Skills execute identically whether invoked by Claude, ChatGPT, or a locally hosted model via Ollama. Reproducibility is decoupled from any specific AI vendor.
-- **Local-first by default**: Your genome is analysed on your machine, and the `clawbio` package itself makes no network calls. Some skills do reach public annotation APIs or hosted models, and a few send your variants or sequences to do so. Every one of them is named, with what it sends and to whom, in [docs/data-handling.md](docs/data-handling.md), and a test fails if a networked skill is missing from that page.
-- **Reproducible**: Many skills export replay metadata such as `commands.sh`, `environment.yml`, and SHA-256 checksums so runs can be rechecked without the original agent session.
-- **MIT licensed**: Open-source, free, community-driven.
-
-## Why Not Just Use an LLM?
-
-Ask any LLM to "profile the pharmacogenes in my VCF file." It will produce plausible Python. But the code may use outdated CPIC guidelines, hallucinate star allele functional classifications, or confuse reduced-function and no-function alleles. CYP2D6\*4 is a no-function allele; misclassifying it as reduced-function determines whether a patient receives a dose adjustment or is told to avoid a drug entirely. Approximately 7% of individuals of European ancestry are CYP2D6 poor metabolisers for whom codeine provides zero analgesic effect, and roughly 0.5% carry DPYD variants where standard fluorouracil dosing can be lethal.
-
-An LLM should not be improvising these from training data. ClawBio encodes the correct bioinformatics decisions in versioned, peer-reviewable specifications so the agent executes them correctly every time.
-
----
-
-## Provenance and Reproducibility
-
-ClawBio's current reproducibility contract centers on a **`reproducibility/` bundle** written inside the output directory for skills that use the shared reproducibility helpers:
-
-```
-report/
-├── report.md              # Full analysis with figures and tables
-├── figures/               # Publication-quality PNGs
-├── tables/                # CSV data tables
-├── reproducibility/
-│   ├── commands.sh        # Replay command for this run
-│   ├── environment.yml    # Suggested Conda environment snapshot
-│   ├── checksums.sha256   # SHA-256 for selected output files
-│   └── runtime-lock.json  # Optional extra lock metadata when supported
-```
-
-The exact contents can vary by skill, and some replays also require the original external inputs or tools to be available locally. For a user-facing walkthrough, including a truthful `multiqc-reporter` example based on direct script invocation, see [docs/reproducibility.md](docs/reproducibility.md).
-
----
+Skills are scored against curated ground truth with objective metrics. The public leaderboard tracks **161 / 182 tests passing (88.5%)** across 10 audited skills, up from 80 / 140 (57.1%) at the original audit: see [benchmarks.html](https://clawbio.ai/benchmarks.html). The suite, its ground truth and how to run it: [docs/benchmarking.md](docs/benchmarking.md).
 
 ## Skills
 
-A curated cross-section of ClawBio's skills. The full machine-readable catalog (with status flags, objective `maturity_tier` evidence, trigger keywords, demo commands, and chaining partners) lives in [`skills/catalog.json`](skills/catalog.json); browse the directory at [`skills/`](skills/) to see every skill folder.
-
-Catalog maturity tiers are computed from repository evidence: `spec-only` (SKILL.md only), `scripted` (has runnable code), `tested` (has skill tests), `cli-registered` (available via `python clawbio.py run`), and `bench-validated` (reserved for skills with blocking scientific benchmark validation).
+A curated cross-section. Every skill is in the [skill directory](https://clawbio.ai/skills.html) and [`skills/catalog.json`](skills/catalog.json), or run `python clawbio.py list`.
 
 | Skill | Scale | Description |
 |-------|-------|-------------|
@@ -218,480 +120,45 @@ Catalog maturity tiers are computed from repository evidence: `spec-only` (SKILL
 | [Equity Scorer](skills/equity-scorer/) | Systemic | HEIM diversity metrics from VCF or ancestry CSV |
 | [DnaSP](skills/dnasp/) | Population *(community)* | Python reimplementation of DnaSP 6: 16 population-genetics analyses (Pi, Tajima's D, Fst, Ka/Ks, McDonald-Kreitman) |
 
-For the complete list including pharmacogenomics extensions, single-cell tooling, proteomics, methylation, metagenomics, structure prediction, clinical reporting, and meta-skills, see [`skills/catalog.json`](skills/catalog.json) or run `python clawbio.py list`.
+- **Hosted inference:** the `gi-*` skills (promoter, splice, enhancer, chromatin, expression, annotation) call the hosted [Genomic Intelligence](https://genomicintelligence.ai) API (`api.genomicintelligence.ai`), unlike most skills. A shared hackathon key ships in `.env.example` (50 concurrent / 120 rpm, opt-in only). API reference: <https://docs.genomicintelligence.ai>; production keys: **contact@genomicintelligence.ai**.
+- **Galaxy:** [Galaxy Bridge](skills/galaxy-bridge/) searches and runs 8,000+ [usegalaxy.org](https://usegalaxy.org) tools from the CLI.
+- **Genomebook:** a synthetic-genetics sandbox that turns character profiles into diploid genomes and breeds offspring: [docs/genomebook.md](docs/genomebook.md).
 
-### Hosted inference — Genomic Intelligence
+## Chat interfaces
 
-Six skills (`gi-promoter`, `gi-splice`, `gi-enhancer`, `gi-chromatin`, `gi-expression`, `gi-annotation`) wrap [Genomic Intelligence](https://genomicintelligence.ai) — a DNA language-model platform providing transformer-based inference for promoter, splice-site, enhancer, chromatin-accessibility, expression, and annotation prediction. Unlike most ClawBio skills these call a hosted API (`api.genomicintelligence.ai`); a shared hackathon key ships in `.env.example` (50 concurrent / 120 rpm, opt-in only).
+**RoboTerri** runs ClawBio over Telegram against a real, CC0-licensed human genome: [try it, no install needed](https://t.me/RoboTerri_bot). For the strongest privacy, a self-hosted **OpenClaw gateway** puts a browser webchat in front of skills running on your own machine. Both, and how to run your own: [docs/conversational-interfaces.md](docs/conversational-interfaces.md). How the pieces fit: [docs/architecture.md](docs/architecture.md).
 
-You can also run the same models interactively at <https://genomicintelligence.ai> — a browser UI with gene search and IGV/JBrowse viewers, no setup required. API reference: <https://docs.genomicintelligence.ai>. Questions, errors, or production-tier keys: **contact@genomicintelligence.ai**.
+## Contributing
 
-### Contributing a Skill
-
-Wrap your bioinformatics pipeline as a skill and submit a PR. Several community-contributed skills are now in production (NutriGx Advisor, analyze-fasta, WGS-PRS, DnaSP, ClawPathy Autoresearch, and others). See [skills/catalog.json](skills/catalog.json) for the full list with status flags.
+Wrap your pipeline as a skill and open a PR:
 
 ```bash
 cp templates/SKILL-TEMPLATE.md skills/<your-skill-name>/SKILL.md
 # Edit SKILL.md, add Python implementation, demo data, and tests
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full submission process. Join the contributors community on the Slack [`#all-clawbio` channel](https://clawbioworkspace.slack.com/channels/all-clawbio) (you can join with [this invite](https://clawbio.ai/join/slack/)) — hackathon work is coordinated there.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Still wanted: PLINK/REGENIE automation and ONT/PacBio long-read QC and assembly. Hackathon work is coordinated on Slack in [`#all-clawbio`](https://clawbioworkspace.slack.com/channels/all-clawbio) ([invite](https://clawbio.ai/join/slack/)).
 
 **Security and data handling.** Report vulnerabilities privately through [SECURITY.md](SECURITY.md), never in a public issue. Before running ClawBio on data you are responsible for, read [docs/data-handling.md](docs/data-handling.md): it lists every skill that can send data off your machine, what it sends, to which host, and which environment variable holds its credential.
 
----
-
-## Genomebook
-
-**Genomebook** is a synthetic-genetics sandbox built into ClawBio. It turns fictional or historical character profiles ("souls") into diploid genomes, scores compatibility, and breeds offspring across generations, complete with Mendelian inheritance, de novo mutations, and clinical evaluation.
-
-### Pipeline
-
-```
-SOUL.md  -->  Soul2DNA  -->  .genome.json  -->  GenomeMatch  -->  Recombinator  -->  Gen-N offspring
- (trait       (compiler)     (diploid loci)     (M x F rank)     (meiosis +        (.genome.json
-  scores)                                                         mutation)          with clinical
-                                                                                     history)
-```
-
-### Data
-
-- **20 souls** in `GENOMEBOOK/DATA/SOULS/` (Einstein, Curie, Turing, Hypatia, Da Vinci, ...)
-- **20 generation-0 genomes** in `GENOMEBOOK/DATA/GENOMES/`
-- **26 traits** across 55 loci (trait_registry.json)
-- **Disease registry** with penetrance, fitness costs, and onset probabilities
-
-### Quick Start
-
-```bash
-# Compile all souls to genomes (Genomebook sandbox script; not a catalogued skill)
-python GENOMEBOOK/PYTHON/01-soul2dna.py
-
-# Score all M x F compatibility pairings
-python skills/genome-match/genome_match.py --demo
-
-# Breed Einstein x Anning (3 offspring)
-python skills/recombinator/recombinator.py --demo
-```
-
-### What It Models
-
-- **Additive, dominant, recessive** inheritance at each locus
-- **Heterozygosity advantage** (heterosis) in compatibility scoring
-- **Carrier risk** flagging for autosomal recessive conditions
-- **De novo mutations** with hotspot categories (cognitive, immune, metabolic)
-- **Clinical evaluation** with penetrance, onset probability, and fitness costs
-- **Health scores** derived from cumulative condition burden
-
----
-
-## Skills in Detail
-
-### PharmGx Reporter — *Personal Scale*
-
-Generates a pharmacogenomic report from consumer genetic data (23andMe, AncestryDNA):
-
-- Parses raw genetic data (auto-detects format, including gzip)
-- Extracts **31 pharmacogenomic SNPs** across **12 genes** (CYP2C19, CYP2D6, CYP2C9, VKORC1, SLCO1B1, DPYD, TPMT, UGT1A1, CYP3A5, CYP2B6, NUDT15, CYP1A2)
-- Calls star alleles and determines metabolizer phenotypes
-- Looks up **CPIC drug recommendations** for **51 medications**
-- Zero dependencies. Runs in **< 1 second**.
-
-```bash
-python pharmgx_reporter.py --input demo_patient.txt --output report
-```
-
-**Demo result**: CYP2D6 \*4/\*4 (Poor Metabolizer) → **10 drugs AVOID** (codeine, tramadol, 7 TCAs, tamoxifen), 20 caution, 21 standard.
-
-> ~7% of people are CYP2D6 Poor Metabolizers — codeine gives them zero pain relief. ~0.5% carry DPYD variants where standard 5-FU dose can be lethal. This skill catches both.
-
-### Drug Photo — *Personal Scale*
-
-Snap a photo of any medication in Telegram. ClawBio identifies the drug from the packaging and returns a personalised dosage card against your own genotype.
-
-- Claude vision extracts drug name and visible dose from the photo
-- Cross-references your 23andMe genotype against 31 PGx SNPs
-- Four-tier classification: **STANDARD DOSING / USE WITH CAUTION / AVOID / INSUFFICIENT DATA**
-- Correct VKORC1 complement-strand handling (23andMe reports minus strand for rs9923231)
-- Works for warfarin, clopidogrel, codeine, simvastatin, tamoxifen, sertraline, and 20+ others
-
-```bash
-python pharmgx_reporter.py --drug warfarin --dose "5mg" --input my_23andme.txt --output report
-```
-
-> No command needed in Telegram — send any medication photo and RoboTerri triggers the skill automatically.
-
-### GWAS Lookup — *Population Scale*
-
-Federated variant query across nine genomic databases in a single command:
-
-| Database | What you get |
-|----------|-------------|
-| GWAS Catalog | Genome-wide significant associations |
-| gnomAD | Allele frequencies across 125,748 exomes |
-| ClinVar | Clinical significance and condition links |
-| Open Targets | Disease-gene evidence scores |
-| Ensembl | Functional annotation, regulatory impact |
-| GTEx | eQTL data, tissue-specific expression effects |
-| LDlink | Linkage disequilibrium across 26 populations |
-| UK Biobank PheWAS | Phenome-wide associations across 4,000+ traits |
-| LOVD | Variant pathogenicity database |
-
-```bash
-python gwas_lookup.py --rsid rs3798220 --output report
-python gwas_lookup.py --demo --output /tmp/gwas_lookup_demo
-```
-
-### UKB Navigator — *Research Scale*
-
-Semantic search across the UK Biobank schema. Ask in plain English what UK Biobank measures about any phenotype — get field IDs, descriptions, data types, participant counts, and linked publications back instantly.
-
-```bash
-python ukb_navigator.py --query "grip strength"   --output report
-python ukb_navigator.py --field 21001              --output report   # BMI
-python ukb_navigator.py --demo                     --output /tmp/ukb_demo
-```
-
-Built on a ChromaDB embedding of the full UKB Data Showcase (22,000+ fields).
-
-### Ancestry PCA — *Population Scale*
-
-Runs principal component analysis on your cohort against the SGDP reference panel (345 samples, 164 global populations):
-
-- Contig normalisation (chr1 vs 1)
-- IBD removal (related individuals filtered)
-- Common biallelic SNPs only
-- Confidence ellipses per population
-- Publication-quality **4-panel figure** generated instantly
-
-```bash
-python ancestry_pca.py --demo --output ancestry_report
-```
-
-**Demo result**: 736 Peruvian samples across 28 indigenous populations. Amazonian groups (Matzes, Awajun, Candoshi) sit in genetic space that no SGDP population occupies — genuinely underrepresented, not just in GWAS, but in the reference panels themselves.
-
-### Semantic Similarity Index — *Systemic Scale*
-
-Computes a Semantic Isolation Index for diseases using 13.1M PubMed abstracts and PubMedBERT embeddings (768-dim):
-
-- **SII** (Semantic Isolation Index): higher = more isolated in literature
-- **KTP** (Knowledge Transfer Potential): higher = more cross-disease spillover
-- **RCC** (Research Clustering Coefficient): diversity of research approaches
-- **Temporal Drift**: how research focus evolves over time
-- Publication-quality **4-panel figure**
-
-```bash
-python semantic_sim.py --demo --output sem_report
-```
-
-**Key finding**: Neglected tropical diseases are **+38% more semantically isolated** (P < 0.0001, Cohen's d = 0.84). 14 of the 25 most isolated diseases are Global South priority conditions. Knowledge silos kill innovation — a malaria immunology breakthrough could help leishmaniasis, but the literatures don't talk to each other.
-
-> Corpas et al. (2026). *HEIM: Health Equity Index for Measuring structural bias in biomedical research.* Under review.
-
----
-
-## Quick Start
-
-ClawBio is first and foremost a local bioinformatics skill library. You can execute it directly from the UNIX command line or through its Python module without any messenger or chat interface at all.
-
-The OpenClaw-borrowed "magic" happens when an external LLM interprets a user's request and translates it into those local library or command-line calls. In other words, the LLM operates at the orchestration layer, while the biological data processing remains local, inspectable, and reproducible.
-
-To experience that orchestration layer conversationally, ClawBio can be used through Telegram or Discord via RoboTerri, as a Claude Code skill, or through a self-hosted OpenClaw gateway with browser-based webchat. Of these options, the self-hosted OpenClaw gateway offers the strongest privacy story together with LLM-assisted interaction, because the LLM stays at the meta/orchestration level rather than operating on the underlying biological data themselves.
-
-### Install and run
-
-```bash
-pip install clawbio                      # or: conda install -c bioconda clawbio
-clawbio run pharmgx --demo
-```
-
-PharmGx demo runs in <2 seconds. Needs Python 3.12+. To develop ClawBio or get
-all skills with full demo data, work from a source checkout instead:
-
-```bash
-git clone https://github.com/ClawBio/ClawBio.git && cd ClawBio
-uv sync                                  # or: pip install -e .
-uv run python clawbio.py run pharmgx --demo
-```
-
-### Use as a Python library
-
-```python
-from clawbio import run_skill, list_skills
-
-# List available skills
-skills = list_skills()
-
-# Run pharmacogenomics with demo data
-result = run_skill("pharmgx", demo=True)
-
-# Run with your own input
-result = run_skill("gwas-lookup", rsid="rs3798220", output="/tmp/report")
-```
-
-### Install as a Claude Code plugin
-
-Inside [Claude Code](https://claude.ai/claude-code):
-
-```
-/plugin marketplace add ClawBio/ClawBio
-/plugin install clawbio
-```
-
-All skills are then available as agent-routable commands. Alternatively, clone the repo and open it as your working directory in Claude Code; the `AGENTS.md` at the repo root teaches Claude how to route requests to skills automatically.
-
-> **Needs Claude Code 2.1.277+** (`claude --version`, `claude update`): native `AGENTS.md` support landed there, and older versions read only `CLAUDE.md`, which this repo no longer ships. Every other agent reads `AGENTS.md` regardless of version.
-
-### Slash Commands
-
-The repository also ships reusable slash commands in [`commands/`](commands/) for Claude Code and compatible agents:
-
-| Command | Purpose |
-|---------|---------|
-| `/analyse` | Analyse a file or input with the appropriate ClawBio skill |
-| `/new-skill` | Scaffold a new skill from the official template |
-| `/list-skills` | List available skills from `skills/catalog.json` |
-| `/run-demo` | Run a skill demo with built-in sample data |
-
-### Try all skills
-
-```bash
-python clawbio.py list                           # See available skills
-python clawbio.py run pharmgx --demo             # Pharmacogenomics (1s)
-python clawbio.py run equity --demo              # Equity scoring (55s)
-python clawbio.py run nutrigx --demo             # Nutrigenomics (60s)
-python clawbio.py run metagenomics --demo        # Metagenomics (3s)
-python clawbio.py run scrna --demo               # scRNA clustering + marker detection (PBMC3k-first demo)
-python clawbio.py run scrna --demo --doublet-method scrublet
-                                                 # Optional doublet detection before clustering
-python clawbio.py run compare --demo             # Manuel Corpas vs George Church (10s)
-python clawbio.py run gwas-lookup --demo         # rs3798220 across 9 databases (5s)
-python clawbio.py run prs --demo                 # Polygenic risk scores (10s)
-python clawbio.py run ukb-navigator --demo       # UK Biobank schema search (5s)
-python clawbio.py run profile --demo             # Unified genomic profile (30s)
-python clawbio.py run galaxy --demo              # Galaxy Bridge FastQC demo (offline)
-python clawbio.py run rnaseq --demo              # RNA-seq DE demo (bulk/pseudo-bulk)
-python clawbio.py run methylation --demo        # Epigenetic methylation clocks via PyAging
-python clawbio.py run protocols-io --demo       # Protocols.io protocol search
-python clawbio.py run variant-annotation --demo # VCF variant annotation (VEP + ClinVar + gnomAD)
-python clawbio.py run proteomics --demo         # Proteomics differential expression
-python clawbio.py run clinical-trial --demo     # Clinical trial finder
-```
-
-### Run with your own data
-
-```bash
-python clawbio.py run pharmgx --input my_23andme.txt --output results/
-python clawbio.py run rnaseq --input counts.csv,metadata.csv --output results_rnaseq/
-python clawbio.py run methylation --geo-id GSE139307 --output results_methylation/
-```
-
-### Run tests
-
-```bash
-uv sync --all-extras                            # install every optional extra
-uv run pytest                                   # whole repo
-uv run pytest skills/pharmgx-reporter/tests/ -v # one skill
-```
-
-### Dependencies
-
-Core dependencies are declared in [`pyproject.toml`](pyproject.toml) and pinned in [`uv.lock`](uv.lock): biopython, pandas, numpy, scikit-learn, matplotlib, openai, pydeseq2, google-cloud-bigquery, google-auth, conda-lock, rocrate. Most skills run with just these.
-
-`uv sync` installs everything in a reproducible virtual environment. To add or update a dependency, run `uv add <package>` (or edit `pyproject.toml` and re-run `uv sync`); commit the resulting `uv.lock` change.
-
-Some skills have additional requirements, declared in that skill's own `SKILL.md` `install:` block and installed only if you use that skill:
-
-| Skill | Extra dependency | Install |
-|-------|-----------------|---------|
-| Metagenomics | Kraken2, RGI, HUMAnN3 | Conda (see skill README) |
-| Methylation Clock | PyAging | `pip install pyaging` |
-| scRNA Embedding | scvi-tools | `pip install scvi-tools` |
-| Galaxy Bridge | BioBlend | `pip install bioblend` |
-| Affinity Proteomics | somadata, scipy, statsmodels, seaborn, scikit-learn | `pip install somadata scipy statsmodels seaborn scikit-learn` |
-| Cell Detection | cellpose, tifffile, czifile, nd2, Pillow, scikit-image | `pip install "cellpose>=4.0" tifffile "czifile>=2019.7.2.2" "nd2>=0.11.1" Pillow scikit-image` |
-| Data Extractor | anthropic, opencv-python-headless | `pip install anthropic opencv-python-headless` |
-| eQTL Catalogue / GWAS Catalog Region Fetch | pysam | `pip install pysam pandas requests` |
-| Variant Annotation | pysam | `uv add pysam requests` |
-| Celltype Specificity Profiler | scanpy, anndata | `uv add scanpy anndata numpy scipy pandas` |
-| Drug Repurposing Screen | pyarrow (parquet engine) | `pip install numpy pandas scipy pyyaml pyarrow` |
-| Proteomics Clock | seaborn | `pip install pandas numpy matplotlib seaborn requests` |
-| RoboTerri (`robotary/`) | fastapi | **Undocumented in its own SKILL.md as of this writing.** `uv add fastapi` |
-
-No Docker or Singularity required for core functionality. Skills that need external bioinformatics tools document their setup in their own `SKILL.md`.
-
----
-
-## Conversational Interfaces
-
-### RoboTerri
-
-<p align="center">
-  <img src="img/terri_attwood_avatar_top_left.png" alt="RoboTerri" width="250">
-  <br><em>RoboTerri — ClawBio's messaging-facing agent, inspired by <a href="https://en.wikipedia.org/wiki/Teresa_Attwood">Prof. Teresa K. Attwood</a></em>
-</p>
-
-**RoboTerri** is the messaging-facing interface to ClawBio. It currently runs over Telegram and Discord, letting an external LLM interpret free-text requests and translate them into local ClawBio skill executions. The public demo bot runs against a real human genome ([Manuel Corpas](https://en.wikipedia.org/wiki/Manuel_Corpas), CC0 public domain). Named after [Prof. Teresa K. Attwood](https://en.wikipedia.org/wiki/Teresa_Attwood) — a pioneer of bioinformatics education, founding Chair of GOBLET, and winner of the 2021 ISCB Outstanding Contributions Award.
-
-<p align="center">
-  <a href="https://t.me/RoboTerri_bot">
-    <img src="demo/roboterri-preview.gif" alt="RoboTerri Telegram bot demo — querying a real genome" width="300">
-  </a>
-  <br>
-  <a href="https://t.me/RoboTerri_bot"><strong>Try RoboTerri now — no install needed →</strong></a>
-</p>
-
-Ask it anything:
-
-- **"Give me my pharmacogenomic summary"** — analyses 12 genes, 51 drugs
-- **"What diseases am I at risk for?"** — polygenic risk scores for 6 conditions
-- **Send a photo of any medication** — checks CYP2D6/CYP2C19 metaboliser status
-- `/demo pharmgx` `/demo prs` `/demo nutrigx` `/demo compare` `/demo profile`
-
-```
-You:        [send 23andMe file]
-RoboTerri:  Running PharmGx Reporter...
-            CYP2D6 *4/*4 — Poor Metabolizer → 10 drugs AVOID
-            [report.md attached]
-            [3 figures attached]
-
-You:        [send photo of warfarin packet]
-RoboTerri:  Warfarin detected. Running Drug Photo skill...
-            CYP2C9 *1/*2 · VKORC1 High Sensitivity
-            AVOID — DO NOT USE at standard dose.
-
-You:        run gwas-lookup rs3798220
-RoboTerri:  Querying 9 databases...
-            rs3798220 (LPA) — coronary artery disease, Lp(a) levels.
-            eQTL in liver (GTEx). gnomAD MAF 0.07.
-```
-
-RoboTerri auto-detects file type (23andMe `.txt`, AncestryDNA `.csv`, VCF, FASTQ) and routes to the right skill via the Bio Orchestrator. Photos of medications trigger the Drug Photo skill automatically — no command needed.
-
-> **[Install your own RoboTerri](docs/tutorial-roboterri-install.md)**: Set up your own Telegram or Discord adapter running ClawBio skills in ~20 minutes.
-
-### OpenClaw Gateway
-
-The **OpenClaw gateway** is the direct, self-hosted browser/webchat interface for ClawBio. Instead of routing through Telegram or Discord, it places a chat client directly in front of a local gateway that orchestrates ClawBio skill calls on your machine.
-
-This is the strongest privacy-preserving conversational setup in the ClawBio stack. It avoids reliance on external messenger platforms, keeps operational control in your hands, and lets the LLM remain at the orchestration layer while the biological analysis itself stays local.
-
-See [docs/custom-domain-webchat.md](docs/custom-domain-webchat.md) for a plain-language walkthrough of the gateway and how to expose a browser-based webchat on your own domain.
-
----
-
-## Galaxy Integration
-
-ClawBio indexes **8,000+ bioinformatics tools** from [usegalaxy.org](https://usegalaxy.org) via the Galaxy Bridge skill. Search by natural language, inspect tool schemas, and execute remotely — all from the CLI.
-
-```bash
-# Search Galaxy tools by keyword
-python skills/galaxy-bridge/galaxy_bridge.py --search "metagenomics"
-
-# Browse all 86 tool categories
-python skills/galaxy-bridge/galaxy_bridge.py --list-categories
-
-# Run a tool on Galaxy (requires GALAXY_API_KEY)
-python skills/galaxy-bridge/galaxy_bridge.py --run fastqc --input reads.fq.gz --output results/
-
-# Demo mode (offline, no API key)
-python skills/galaxy-bridge/galaxy_bridge.py --demo
-```
-
-**Cross-platform chaining**: Galaxy VEP annotates variants → ClawBio PharmGx generates dosage report. Galaxy Kraken2 classifies reads → ClawBio metagenomics profiler. Neither can do this alone.
-
-Built on [BioBlend](https://bioblend.readthedocs.io/) (Galaxy Python SDK). Developed in collaboration with the Galaxy ML SIG.
-
----
-
-## Architecture
-
-```
-CLI (clawbio.py)     Python (import clawbio)     Claude Code
-        │                     │                    │
-        └─────────────┬───────┴──────────────┬─────┘
-                      │                      │
-        OpenClaw Gateway (webchat)    RoboTerri (Telegram/Discord)
-                      │                      │
-                      └──────────┬───────────┘
-                                 │
-                          ┌──────▼──────┐
-                          │  Bio         │  ← routes by file type + keywords
-                          │  Orchestrator│
-                          └──────┬──────┘
-                                 │
-         ┌───────────────────────▼──────────────────────────────────────┐
-         │                                                               │
-         PharmGx    Equity     NutriGx    Metagenomics   Ancestry
-         Reporter   Scorer     Advisor    Profiler        PCA    ...
-         │                                                               │
-         └───────────────────────┬──────────────────────────────────────┘
-                                 │
-                          ┌──────▼──────┐
-                          │  Markdown    │  ← report + figures + checksums
-                          │  Report      │     + reproducibility bundle
-                          └─────────────┘
-```
-
-Each skill is standalone — the orchestrator routes to the right one, but every skill also works independently. The `clawbio.run_skill()` API is importable by any agent or adapter layer (RoboTerri, Claude Code, or an OpenClaw gateway), and it remains usable directly from local Python without any conversational interface at all.
-
-See [docs/architecture.md](docs/architecture.md) for the full design.
-
----
-
-## For AI Agents
-
-ClawBio is designed to be discovered and used by AI coding agents, not just humans.
+## For AI agents
 
 | Resource | Purpose |
 |----------|---------|
-| [`llms.txt`](llms.txt) | Token-optimized project summary for any LLM ([llmstxt.org](https://llmstxt.org) standard) |
-| [`AGENTS.md`](AGENTS.md) | The single guide for AI coding agents — routing table, CLI reference, demo commands, setup, style, development rules, safety rules |
-| [`skills/catalog.json`](skills/catalog.json) | Machine-readable skill index with trigger keywords, chaining partners, and demo commands |
-
-Agents can also run `python clawbio.py list` to discover available skills programmatically.
-
----
-
-## Wanted Skills
-
-Open skill requests (PRs welcome):
-
-| Skill | Domain |
-|-------|--------|
-| **claw-gwas** | PLINK/REGENIE automation (statistical genetics) |
-| **claw-acmg** | Clinical variant classification (clinical genomics) |
-| **claw-pathway** | GO/KEGG enrichment (functional genomics) |
-| **claw-phylogenetics** | IQ-TREE/RAxML automation (evolutionary biology) |
-| **claw-spatial** | Visium/MERFISH (spatial transcriptomics) |
-| **claw-long-reads** | ONT/PacBio QC and assembly (long-read sequencing) |
-
-See [Contributing a Skill](#contributing-a-skill) above for the submission process.
-
----
-
-## Presentations and Demos
-
-- **London Bioinformatics Meetup** (26 Feb 2026): project announcement. [Slides](https://clawbio.github.io/ClawBio/slides/).
-- **UK AI Agent Hack, Imperial College London** (1 Mar 2026): introduced ClawBio to Peter Steinberger, creator of OpenClaw. [Video](https://www.youtube.com/watch?v=eEEA71qSOmU).
-- **DoraHacks Demo Day, Imperial College London** (7 Mar 2026): live demo of pharmacogenomics, intelligent routing, multi-channel agents, and Drug Photo. [Video](https://www.youtube.com/watch?v=vxUDdjXMFwk).
-
----
+| [`AGENTS.md`](AGENTS.md) | The single guide for AI coding agents: routing, CLI, demos, setup, development and safety rules |
+| [`llms.txt`](llms.txt) | Token-optimized project summary ([llmstxt.org](https://llmstxt.org)) |
+| [`skills/catalog.json`](skills/catalog.json) | Machine-readable skill index with trigger keywords and demo commands |
 
 ## Versioning
 
-ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.7.1**. See [CHANGELOG.md](CHANGELOG.md) for a full history of additions and breaking changes.
-
----
+ClawBio follows [Semantic Versioning](https://semver.org/). The current release is **v0.7.1** (5 Sep 2026): tagged releases publish to PyPI on their own again. [Release notes](https://github.com/ClawBio/ClawBio/releases/tag/v0.7.1) · [CHANGELOG.md](CHANGELOG.md) · DOI [10.5281/zenodo.19420648](https://doi.org/10.5281/zenodo.19420648).
 
 ## Links
 
-- **Try RoboTerri**: [t.me/RoboTerri_bot](https://t.me/RoboTerri_bot) -- query a real genome on Telegram, no install needed
-- **Slides**: [clawbio.github.io/ClawBio/slides/](https://clawbio.github.io/ClawBio/slides/)
-- **Tutorial**: [Install your own RoboTerri](docs/tutorial-roboterri-install.md)
-- **OpenClaw**: [github.com/openclaw/openclaw](https://github.com/openclaw/openclaw) -- the agent platform
-- **ClawHub**: [clawhub.ai](https://clawhub.ai) -- skill registry
-- **HEIM Index**: [heim-index.org](https://heim-index.org) -- Health Equity Index for Minorities
+- **OpenClaw**: [github.com/openclaw/openclaw](https://github.com/openclaw/openclaw), the agent platform
+- **ClawHub**: [clawhub.ai](https://clawhub.ai), skill registry
+- **HEIM Index**: [heim-index.org](https://heim-index.org), Health Equity Index for Minorities
+- **Talks**: [docs/talks/](docs/talks/README.md), including the [London Bioinformatics Meetup slides](https://clawbio.github.io/ClawBio/slides/)
 
 ## License
 
