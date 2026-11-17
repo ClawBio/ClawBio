@@ -317,6 +317,7 @@ class TestSomaLogicDemo:
 # ---------------------------------------------------------------------------
 # Reproducibility bundle
 # ---------------------------------------------------------------------------
+@needs_statsmodels
 def test_demo_writes_verifiable_reproducibility_bundle(tmp_path, monkeypatch):
     import hashlib
 

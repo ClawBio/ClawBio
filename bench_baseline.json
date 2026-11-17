@@ -32,7 +32,20 @@
     "are unchanged. This records stale fixture expectations, not a rollback",
     "of the expanded panel or its incomplete-coverage guard.",
     "Restore at least 95.5 when CI pins an upstream revision with corrected",
-    "DPYD controls/expectations and a smoke run confirms the recovered passes."
+    "DPYD controls/expectations and a smoke run confirms the recovered passes.",
+    "",
+    "nutrigx-advisor 0.0 does not measure the skill. The pinned harness runs",
+    "skills/nutrigx_advisor/nutrigx_advisor.py, a path that left the repository",
+    "when the skill was renamed to skills/nutrigx/ in 2725981 (11 Jun 2026;",
+    "fdd781e had added it as a compat symlink for the bench). The interpreter",
+    "stops with \"can't open file\" before any skill code runs. That message is",
+    "not a traceback, so the harness does not class the exit as a harness",
+    "error: all ten cases are scored on the rubric and carry scientific-looking",
+    "verdicts (score_incorrect, threshold_mismatch, snp_invalid, repro_broken)",
+    "while harness_errors stays 0. A gate at 0.0 cannot regress, so the skill",
+    "has had no bench coverage since the rename. Re-record from a smoke run",
+    "once CI pins a bench revision that resolves the skill path",
+    "(biostochastics/clawbio_bench#187)."
   ],
   "recorded_from": {
     "clawbio_commit": "056826d",

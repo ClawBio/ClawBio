@@ -178,13 +178,15 @@ def generate_markdown(
 # ---------------------------------------------------------------------------
 
 
-def write_tables(output_dir: Path, df: pd.DataFrame, credible_sets: list[dict]) -> None:
+def write_tables(output_dir: Path, df: pd.DataFrame, credible_sets: list[dict]) -> list[Path]:
+    """Write tables; return the paths written (for the checksum manifest)."""
     tables_dir = output_dir / "tables"
     tables_dir.mkdir(parents=True, exist_ok=True)
 
     # pips.tsv
     cols = [c for c in ["rsid", "chr", "pos", "z", "beta", "se", "p", "maf", "pip", "cs_membership"] if c in df.columns]
     df[cols].to_csv(tables_dir / "pips.tsv", sep="\t", index=False, float_format="%.6g")
+    written = [tables_dir / "pips.tsv"]
 
     # credible_sets.tsv
     if credible_sets:
@@ -205,6 +207,8 @@ def write_tables(output_dir: Path, df: pd.DataFrame, credible_sets: list[dict]) 
                     "alpha": v["alpha"],
                 })
         pd.DataFrame(rows).to_csv(tables_dir / "credible_sets.tsv", sep="\t", index=False, float_format="%.6g")
+        written.append(tables_dir / "credible_sets.tsv")
+    return written
 
 
 # ---------------------------------------------------------------------------
@@ -218,7 +222,8 @@ def generate_figures(
     credible_sets: list[dict],
     R: Optional[np.ndarray] = None,
     gene_track: bool = False,
-) -> None:
+) -> list[Path]:
+    """Draw figures; return the paths written (for the checksum manifest)."""
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -226,18 +231,22 @@ def generate_figures(
         import matplotlib.colors as mcolors
     except ImportError:
         print("  [report] matplotlib not available — skipping figures")
-        return
+        return []
 
     figures_dir = output_dir / "figures"
     figures_dir.mkdir(parents=True, exist_ok=True)
 
     _plot_pip_locus(df, credible_sets, R, figures_dir, plt, mcolors)
+    written = [figures_dir / "pip_locus_plot.png"]
     if "p" in df.columns and df["p"].notna().any():
         _plot_regional_association(df, credible_sets, figures_dir, plt, gene_track=gene_track)
+        written.append(figures_dir / "regional_association.png")
     if R is not None:
         _plot_ld_heatmap(R, df, credible_sets, figures_dir, plt, mcolors)
+        written.append(figures_dir / "ld_heatmap.png")
 
     plt.close("all")
+    return written
 
 
 def _plot_pip_locus(df, credible_sets, R, figures_dir, plt, mcolors):
@@ -546,47 +555,3 @@ def _add_r2_colorbar(fig, ax, mcolors):
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax, shrink=0.6, pad=0.01)
     cbar.set_label("LD r² to lead", fontsize=8)
-
-
-# ---------------------------------------------------------------------------
-# Reproducibility bundle
-# ---------------------------------------------------------------------------
-
-
-def write_reproducibility(output_dir: Path, cmd: str, params: dict) -> None:
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
-
-    (repro_dir / "commands.sh").write_text(f"#!/bin/bash\n{cmd}\n")
-
-    try:
-        from importlib.metadata import version
-        packages = {}
-        for pkg in ("numpy", "scipy", "pandas", "matplotlib"):
-            try:
-                packages[pkg] = version(pkg)
-            except Exception:
-                pass
-    except Exception:
-        packages = {}
-
-    env = {
-        "name": "fine-mapping",
-        "channels": ["defaults"],
-        "dependencies": [
-            "python>=3.9",
-            {"pip": [
-                f"numpy=={packages.get('numpy', '>=1.24')}",
-                f"scipy=={packages.get('scipy', '>=1.10')}",
-                f"pandas=={packages.get('pandas', '>=1.5')}",
-                f"matplotlib=={packages.get('matplotlib', '>=3.7')}",
-            ]}
-        ],
-    }
-    try:
-        import yaml
-        with open(repro_dir / "environment.yml", "w") as f:
-            yaml.dump(env, f, default_flow_style=False)
-    except ImportError:
-        import json as _json
-        (repro_dir / "environment.json").write_text(_json.dumps(env, indent=2))

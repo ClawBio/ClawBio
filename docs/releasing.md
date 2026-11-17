@@ -26,14 +26,15 @@ import error and ran nothing. The fix:
 ### Wheel payload policy (`hatch_build.py`)
 
 - Every skill's logic (`.md` / `.py` / `.yaml` / `.sh`) ships, so agents can read
-  and call all 84 skills.
+  and call every skill (live count: `skill_count` in `skills/catalog.json`).
 - Small data files (< 256 KB) ship; heavy demo data (gzipped genomes,
   expected-output images, big catalogs) does not.
-- The three headline skills ship their full demo payload so the quick-start works
-  offline immediately: `pharmgx-reporter`, `drug-photo`, `gwas-lookup`.
+- The headline skills in `HEADLINE_SKILLS` ship their full demo payload so the
+  quick-start works offline immediately: `pharmgx-reporter`, `drug-photo`,
+  `gwas-lookup`, `just-prs-mcp`.
 
-Result: a ~3.2 MB wheel (vs the broken 100 KB one), all 84 skills present,
-`clawbio run pharmgx --demo` working straight after install.
+Result: a wheel of a few MB (4.0 MB at 0.7.1, vs the broken 100 KB one), every
+skill present, `clawbio run pharmgx --demo` working straight after install.
 
 ## Build locally
 
@@ -52,9 +53,10 @@ uv venv /tmp/cb && uv pip install --python /tmp/cb/bin/python dist/clawbio-*.whl
 ## Publish to PyPI (automated: one tag push)
 
 Releases are published automatically by `.github/workflows/publish.yml` when a
-`v*` tag is pushed. It authenticates with PyPI via Trusted Publishing (OIDC), so
-there is no API token or secret stored in the repo. PyPI release names and
-versions are permanent and cannot be reused, so release deliberately.
+`v*` tag is pushed. It authenticates with an API token for now; see
+[Current state](#current-state-api-token-trusted-publisher-registered-but-untested)
+below. PyPI release names and versions are permanent and cannot be reused, so
+release deliberately.
 
 To cut a release:
 
@@ -70,11 +72,16 @@ To cut a release:
    sdist + wheel, runs `twine check`, and publishes to PyPI. Watch it under the
    repo's Actions tab.
 
-### Current state: API token, not Trusted Publishing
+### Current state: API token, Trusted Publisher registered but untested
 
-Trusted Publishing has never worked on this project. Every tagged run failed
-with `invalid-publisher`, because no publisher matching this repository is
-registered on PyPI, so 0.5.2, 0.6.1 and 0.7.0 were all uploaded by hand.
+Trusted Publishing has never worked on this project. Every tagged run up to
+0.7.0 failed with `invalid-publisher`, because no publisher matching this
+repository was registered on PyPI, so 0.5.2, 0.6.1 and 0.7.0 were all uploaded
+by hand.
+
+On 2026-11-15 the publisher was registered on PyPI with the values in the table
+below. No release has used it yet: the workflow still passes the token, and while
+it does, the action never tries OIDC.
 
 Since 2026-09-05 the workflow authenticates with an API token instead, held as
 the `PYPI_API_TOKEN` secret on the `pypi` **environment** (not on the
@@ -87,8 +94,8 @@ improvement, and returning to Trusted Publishing removes the secret entirely.
 
 ### Returning to Trusted Publishing (removes the secret)
 
-On PyPI, open the `clawbio` project -> **Manage** -> **Publishing**, then under
-**Add a new publisher** choose GitHub and enter exactly:
+Step 1 (done 2026-11-15): on PyPI, open the `clawbio` project -> **Manage** ->
+**Publishing**, then under **Add a new publisher** choose GitHub and enter exactly:
 
 | Field | Value |
 |-------|-------|
@@ -97,8 +104,19 @@ On PyPI, open the `clawbio` project -> **Manage** -> **Publishing**, then under
 | Workflow name | `publish.yml` |
 | Environment name | `pypi` |
 
-(Optionally create a `pypi` environment under the repo's GitHub Settings ->
-Environments to add protection rules; the workflow already targets it.)
+The `pypi` GitHub environment already exists: it accepts `v*` tags only and
+needs a reviewer's approval before the publish job runs.
+
+Step 2: in `publish.yml`, delete the `password:` line from the publish step, then
+cut a release. If it fails with `invalid-publisher`, compare the table above with
+the claims printed in the job log. Put the line back to release in the meantime.
+
+Step 3: once a release has gone out over OIDC, delete the `PYPI_API_TOKEN` secret
+from the `pypi` environment and revoke the token on PyPI.
+
+Trusted Publishing also turns on attestations: `pypa/gh-action-pypi-publish`
+signs every file with Sigstore and uploads a PEP 740 attestation. These show as
+"Provenance" on the PyPI file page. Token uploads get none.
 
 ### Manual fallback (if you ever need to publish without the Action)
 
@@ -120,5 +138,3 @@ Maintainer: @camlloyd.
 - The sdist is ~12 MB because it carries the full `skills/` tree (the wheel build
   hook reads it to assemble the curated wheel). If a leaner sdist is wanted later,
   add an sdist-target filter mirroring the wheel hook.
-- `README.md`'s "No `pip install clawbio` package yet" line should be removed once
-  the first PyPI release is live.
