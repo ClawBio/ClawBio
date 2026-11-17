@@ -40,9 +40,6 @@ uv sync                             # installs from pyproject.toml + uv.lock
 uv run python clawbio.py run pharmgx --demo
 ```
 
-> The MCP server (`clawbio mcp`), deprecated in 0.7.0, is **removed in 0.8.0**.
-> Why, and how to migrate: [docs.clawbio.ai/reference/mcp](https://docs.clawbio.ai/reference/mcp/).
-
 Library calls, slash commands, every demo, running on your own data, tests and per-skill dependencies: [docs/usage.md](docs/usage.md).
 
 <p align="center">
@@ -98,27 +95,7 @@ Skills are scored against curated ground truth with objective metrics. The publi
 
 ## Skills
 
-A curated cross-section. Every skill is in the [skill directory](https://clawbio.ai/skills.html) and [`skills/catalog.json`](skills/catalog.json), or run `python clawbio.py list`.
-
-| Skill | Scale | Description |
-|-------|-------|-------------|
-| [Bio Orchestrator](skills/bio-orchestrator/) | Infrastructure | Routes free-text or file inputs to the right skill automatically |
-| [PharmGx Reporter](skills/pharmgx-reporter/) | Personal | 12 genes, 51 drugs, CPIC guidelines from consumer genetic data |
-| [Drug Photo](skills/drug-photo/) | Personal | Snap a medication photo, get a personalised dosage card from your genotype |
-| [GWAS Lookup](skills/gwas-lookup/) | Population | Federated variant query across 9 genomic databases (gnomAD, ClinVar, Open Targets, GTEx, LDlink, ...) |
-| [GWAS PRS](skills/gwas-prs/) | Population | Polygenic risk scores from the PGS Catalog for 6+ traits |
-| [Ancestry PCA](skills/claw-ancestry-pca/) | Population | PCA vs SGDP (345 samples, 164 populations) with confidence ellipses |
-| [Fine-Mapping](skills/fine-mapping/) | Population | SuSiE / ABF credible sets with posterior inclusion probabilities from GWAS summary stats |
-| [UKB Navigator](skills/ukb-navigator/) | Research | Semantic search across the UK Biobank schema (22,000+ fields) |
-| [Galaxy Bridge](skills/galaxy-bridge/) | Research | Search, run, and chain 8,000+ Galaxy bioinformatics tools |
-| [Variant Annotation](skills/variant-annotation/) | Clinical | Annotate VCF variants with Ensembl VEP REST, ClinVar significance, gnomAD frequencies |
-| [Clinical Variant Reporter](skills/clinical-variant-reporter/) | Clinical | ACMG-guided clinical variant classification from VCF with GiAB validation |
-| [nf-core scRNA Wrapper](skills/nfcore-scrnaseq-wrapper/) | Single-cell | Upstream FASTQ → h5ad preprocessing via nf-core/scrnaseq (simpleaf, STARsolo, kallisto, CellRanger) with strict preflight and reproducibility bundle |
-| [nf-core RNA-seq Wrapper](skills/nfcore-rnaseq-wrapper/) | Bulk RNA-seq | Upstream FASTQ/BAM → count matrices via nf-core/rnaseq with strict preflight and reproducibility bundle |
-| [nf-core Sarek Wrapper](skills/nfcore-sarek-wrapper/) | Variant calling | Upstream FASTQ/BAM/CRAM → VCF via nf-core/sarek (germline, tumor-only, somatic; Strelka/Mutect2/HaplotypeCaller, VEP/snpEff) with strict preflight and reproducibility bundle |
-| [scRNA Orchestrator](skills/scrna-orchestrator/) | Single-cell | Scanpy automation: QC, optional doublet detection, clustering, markers, annotation |
-| [Equity Scorer](skills/equity-scorer/) | Systemic | HEIM diversity metrics from VCF or ancestry CSV |
-| [DnaSP](skills/dnasp/) | Population *(community)* | Python reimplementation of DnaSP 6: 16 population-genetics analyses (Pi, Tajima's D, Fst, Ka/Ks, McDonald-Kreitman) |
+Browse every skill in the [skill directory](https://clawbio.ai/skills.html) or [`skills/catalog.json`](skills/catalog.json), or run `python clawbio.py list`.
 
 - **Hosted inference:** the `gi-*` skills (promoter, splice, enhancer, chromatin, expression, annotation) call the hosted [Genomic Intelligence](https://genomicintelligence.ai) API (`api.genomicintelligence.ai`), unlike most skills. A shared hackathon key ships in `.env.example` (50 concurrent / 120 rpm, opt-in only). API reference: <https://docs.genomicintelligence.ai>; production keys: **contact@genomicintelligence.ai**.
 - **Galaxy:** [Galaxy Bridge](skills/galaxy-bridge/) searches and runs 8,000+ [usegalaxy.org](https://usegalaxy.org) tools from the CLI.
@@ -137,7 +114,7 @@ cp templates/SKILL-TEMPLATE.md skills/<your-skill-name>/SKILL.md
 # Edit SKILL.md, add Python implementation, demo data, and tests
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Still wanted: PLINK/REGENIE automation and ONT/PacBio long-read QC and assembly. Hackathon work is coordinated on Slack in [`#all-clawbio`](https://clawbioworkspace.slack.com/channels/all-clawbio) ([invite](https://clawbio.ai/join/slack/)).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Hackathon work is coordinated on Slack in [`#all-clawbio`](https://clawbioworkspace.slack.com/channels/all-clawbio) ([invite](https://clawbio.ai/join/slack/)).
 
 **Security and data handling.** Report vulnerabilities privately through [SECURITY.md](SECURITY.md), never in a public issue. Before running ClawBio on data you are responsible for, read [docs/data-handling.md](docs/data-handling.md): it lists every skill that can send data off your machine, what it sends, to which host, and which environment variable holds its credential.
 
