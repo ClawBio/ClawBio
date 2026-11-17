@@ -26,15 +26,6 @@ from proteomics_de import (
 # Helpers: synthetic data
 # ---------------------------------------------------------------------------
 
-_has_seaborn = True
-try:
-    import seaborn  # noqa: F401
-except ImportError:
-    _has_seaborn = False
-
-needs_seaborn = pytest.mark.skipif(not _has_seaborn, reason="seaborn not installed")
-
-
 def _make_matrix(n_proteins=10, n_samples=6):
     """Create a synthetic proteomics matrix with some NaN."""
     np.random.seed(42)
@@ -200,7 +191,6 @@ class TestBhFdr:
 # run_differential_expression
 # ---------------------------------------------------------------------------
 
-@needs_seaborn
 class TestRunDE:
     def test_basic_output(self):
         matrix = _make_matrix()
@@ -229,7 +219,6 @@ class TestRunDE:
 # run_pca
 # ---------------------------------------------------------------------------
 
-@needs_seaborn
 class TestRunPCA:
     def test_output_shape(self):
         matrix = _make_matrix()
@@ -247,7 +236,6 @@ class TestRunPCA:
 # down_shift_imputation
 # ---------------------------------------------------------------------------
 
-@needs_seaborn
 class TestDownShiftImputation:
     def test_no_nan_in_output(self):
         matrix = _make_matrix()

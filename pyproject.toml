@@ -54,6 +54,7 @@ dependencies = [
     "rocrate>=0.16.0",
     "scikit-learn>=1.9.1",
     "scipy>=1.10",
+    "seaborn>=0.12",
 ]
 
 [project.optional-dependencies]
@@ -89,7 +90,7 @@ cell-detection = [
 # pinned them and `uv sync --all-extras` in CI never installed them.
 labstep = ["labstep>=3.0"]
 galaxy-bridge = ["bioblend>=1.2"]
-affinity-proteomics = ["statsmodels>=0.14", "seaborn>=0.12"]
+affinity-proteomics = ["statsmodels>=0.14"]
 drug-repurposing-screen = ["pyarrow>=26.0.0"]
 # Scanpy/Leiden for skills/spatial-transcriptomics. Squidpy is not on this
 # extra: 1.4–1.6 all pull spatialdata + dask + s3fs into `uv sync --all-extras`
