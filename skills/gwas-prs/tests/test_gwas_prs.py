@@ -381,3 +381,27 @@ class TestReportGeneration:
         assert "CLAWBIO-T2D-8" in report
         assert "CLAWBIO-CAD-46" in report
         assert "Type 2 diabetes" in report
+
+
+@pytest.mark.parametrize(
+    "report", ["prs_report.md", "prs_results.json", "prs_variants.csv", "result.json"]
+)
+def test_reports_do_not_record_the_input_directory(tmp_path, report):
+    """Reports are shared; an absolute input path leaks the user's name and folder layout."""
+    import shutil
+    import subprocess
+
+    private_dir = tmp_path / "private_user_dir"
+    private_dir.mkdir()
+    patient = private_dir / "demo_patient_prs.txt"
+    shutil.copy(SKILL_DIR / "demo_patient_prs.txt", patient)
+    out = tmp_path / "out"
+    proc = subprocess.run(
+        [sys.executable, str(SKILL_DIR / "gwas_prs.py"), "--input", str(patient),
+         "--panel-id", "CLAWBIO-T2D-8", "--output", str(out)],
+        capture_output=True, text=True, timeout=120,
+    )
+    assert proc.returncode == 0, proc.stderr
+    text = (out / report).read_text()
+    assert str(private_dir) not in text and str(private_dir.resolve()) not in text
+    assert patient.name in (out / "prs_report.md").read_text()
