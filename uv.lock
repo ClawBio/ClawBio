@@ -702,11 +702,11 @@ dependencies = [
     { name = "rocrate" },
     { name = "scikit-learn" },
     { name = "scipy" },
+    { name = "seaborn" },
 ]
 
 [package.optional-dependencies]
 affinity-proteomics = [
-    { name = "seaborn" },
     { name = "statsmodels" },
 ]
 bigquery = [
@@ -808,7 +808,7 @@ requires-dist = [
     { name = "scikit-image", marker = "extra == 'cell-detection'", specifier = ">=0.24" },
     { name = "scikit-learn", specifier = ">=1.9.1" },
     { name = "scipy", specifier = ">=1.10" },
-    { name = "seaborn", marker = "extra == 'affinity-proteomics'", specifier = ">=0.12" },
+    { name = "seaborn", specifier = ">=0.12" },
     { name = "statsmodels", marker = "extra == 'affinity-proteomics'", specifier = ">=0.14" },
     { name = "sushie", marker = "extra == 'fine-mapping'", specifier = ">=0.20,<0.21" },
     { name = "tifffile", marker = "extra == 'cell-detection'", specifier = ">=2024.8.30" },
