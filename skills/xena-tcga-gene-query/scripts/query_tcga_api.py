@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import sys
 import time
 import urllib.error
@@ -21,6 +22,20 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
+
+SCRIPT_REL = Path(__file__).resolve().relative_to(_PROJECT_ROOT)
 
 DEFAULT_BASE_URL = os.getenv("UCSCXENA_API_BASE_URL", "http://biotree.top:38123/ucscxena/")
 DEFAULT_API_KEY = os.getenv("UCSCXENA_API_KEY")
@@ -447,7 +462,31 @@ def build_live_report_md(task_key: str, data: dict[str, Any], base_url: str, mod
     return "\n".join(lines) + "\n"
 
 
-def write_outputs(results: dict[str, Any], base_url: str, output_dir: Path, mode: str = "demo") -> None:
+def replay_args(args: argparse.Namespace, output_dir: Path) -> list[str | ReproPath]:
+    """CLI arguments that reproduce this run. The API key is never recorded;
+    replay reads it from UCSCXENA_API_KEY like the original run can."""
+    out: list[str | ReproPath] = [
+        "--base-url", shlex.quote(args.base_url),
+        "--output", ReproPath(output_dir, anchor="output_dir"),
+    ]
+    if args.demo:
+        return out + ["--demo"]
+    out.append(args.task)
+    for flag in ("gene", "gene2", "cancer"):
+        value = getattr(args, flag, None)
+        if value is not None:
+            out += [f"--{flag}", shlex.quote(value)]
+    return out
+
+
+def write_outputs(
+    results: dict[str, Any],
+    base_url: str,
+    output_dir: Path,
+    mode: str = "demo",
+    *,
+    replay: list[str | ReproPath],
+) -> None:
     """Write report.md, result.json, and reproducibility/ to output_dir."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -468,46 +507,16 @@ def write_outputs(results: dict[str, Any], base_url: str, output_dir: Path, mode
     # reproducibility/
     repro_dir = output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
-
-    # commands.sh
-    commands_sh = repro_dir / "commands.sh"
-    if mode == "demo":
-        cmd_text = (
-            "#!/bin/sh\n"
-            "# Reproducibility commands for xena-tcga-gene-query (demo mode)\n"
-            "# Replace BASE_URL with the actual API base URL for live queries.\n"
-            'BASE_URL="${UCSCXENA_API_BASE_URL:-http://biotree.top:38123/ucscxena/}"\n'
-            'curl "${BASE_URL}/api/v1/diff-expr?gene=TP53&cancer=LUAD"\n'
-            'curl "${BASE_URL}/api/v1/corr?gene1=TP53&gene2=EGFR&cancer=LUAD"\n'
-            'curl "${BASE_URL}/api/v1/survival?gene=TP53&cancer=LUAD"\n'
-        )
-    else:
-        task_key = next(iter(results))
-        task_display = task_key.replace("_", "-")
-        if task_key == "cancers":
-            curl_line = f'curl "${{BASE_URL}}/api/v1/cancers"\n'
-        elif task_key == "diff_expr":
-            curl_line = (
-                f'curl "${{BASE_URL}}/api/v1/{task_display}?'
-                f'gene={results[task_key].get("gene","?")}&cancer={results[task_key].get("cancer","?")}"\n'
-            )
-        elif task_key == "corr":
-            curl_line = (
-                f'curl "${{BASE_URL}}/api/v1/{task_display}?'
-                f'gene1={results[task_key].get("gene1","?")}&gene2={results[task_key].get("gene2","?")}'
-                f'&cancer={results[task_key].get("cancer","?")}"\n'
-            )
-        else:
-            curl_line = (
-                f'curl "${{BASE_URL}}/api/v1/{task_display}?'
-                f'gene={results[task_key].get("gene","?")}&cancer={results[task_key].get("cancer","?")}"\n'
-            )
-        cmd_text = (
-            "#!/bin/sh\n"
-            f"# Reproducibility commands for xena-tcga-gene-query ({mode} mode)\n"
-            'BASE_URL="${UCSCXENA_API_BASE_URL:-' + base_url + '}"\n'
-        ) + curl_line
-    commands_sh.write_text(cmd_text, encoding="utf-8")
+    write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=SCRIPT_REL,
+            args=replay,
+            comment=f"Reproduce this xena-tcga-gene-query run ({mode} mode)",
+        ),
+        repo_root=_PROJECT_ROOT,
+    )
+    write_environment_yml(output_dir, "clawbio-xena-tcga-gene-query", pip_deps=[])
 
     run_json = repro_dir / "run.json"
     run_meta = {
@@ -518,6 +527,13 @@ def write_outputs(results: dict[str, Any], base_url: str, output_dir: Path, mode
         "python_version": sys.version,
     }
     run_json.write_text(json.dumps(run_meta, indent=2), encoding="utf-8")
+
+    # Last, so the manifest covers every other output of this run.
+    write_checksums(
+        [report_path, result_path, repro_dir / "commands.sh", repro_dir / "environment.yml", run_json],
+        output_dir,
+        anchor=output_dir,
+    )
 
 
 # ──────────────────────────────────────────────
@@ -561,7 +577,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.demo:
         output_dir = Path(args.output) if args.output else Path("/tmp/xena_demo")
         results = run_demo(output_dir)
-        write_outputs(results, args.base_url, output_dir, mode="demo")
+        write_outputs(results, args.base_url, output_dir, mode="demo", replay=replay_args(args, output_dir))
 
         # Also print a summary to stdout
         print(f"Demo complete. Output written to {output_dir}")
@@ -607,7 +623,7 @@ def main(argv: list[str] | None = None) -> int:
         output_dir = Path(args.output)
         task_key = TASK_KEY_MAP[args.task]
         results = {task_key: data}
-        write_outputs(results, args.base_url, output_dir, mode="live")
+        write_outputs(results, args.base_url, output_dir, mode="live", replay=replay_args(args, output_dir))
 
     return 0
 

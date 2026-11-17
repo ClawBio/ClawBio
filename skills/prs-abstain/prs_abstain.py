@@ -15,6 +15,7 @@ import csv
 import json
 import math
 import re
+import shlex
 import statistics as st
 import sys
 from dataclasses import dataclass, field
@@ -22,9 +23,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+SKILL_DIR = Path(__file__).resolve().parent
+if str(SKILL_DIR.parents[1]) not in sys.path:
+    sys.path.insert(0, str(SKILL_DIR.parents[1]))
+
+from clawbio.common.reproducibility import (
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
+
 __version__ = "0.4.0"
 
-SKILL_DIR = Path(__file__).resolve().parent
 EXAMPLES = SKILL_DIR / "examples"
 DEFAULT_PCS = ("PC1", "PC2", "PC3", "PC4")
 
@@ -2343,13 +2353,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                             s["raw_score"], s["percentile"], s["note"]])
 
     cmd = "python " + " ".join([str(Path(__file__).resolve()), *(argv or sys.argv[1:])])
-    (outdir / "reproducibility" / "commands.sh").write_text(
-        f"#!/usr/bin/env bash\nset -euo pipefail\n"
-        f"# Recorded from cwd: relative arguments resolve from here.\ncd {Path.cwd()}\n{cmd}\n")
-    (outdir / "reproducibility" / "environment.yml").write_text(
-        "name: prs-abstain\nchannels:\n  - conda-forge\n  - nodefaults\n"
-        "dependencies:\n  - python>=3.10\n  - matplotlib\n  - reportlab>=4.0\n  - pillow\n"
-    )
+    write_commands_sh(outdir,
+        "set -euo pipefail\n# Recorded from cwd: relative arguments resolve from here.\n"
+        f"cd {shlex.quote(str(Path.cwd()))}\n"
+        + shlex.join(["python", str(Path(__file__).resolve()), *(argv or sys.argv[1:])]))
+    write_environment_yml(outdir, "prs-abstain", pip_deps=[],
+                          conda_deps=["matplotlib", "reportlab>=4.0", "pillow"],
+                          channels=["conda-forge", "nodefaults"])
     json.dump(
         {
             "skill": "prs-abstain",
@@ -2408,6 +2418,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                                 v["af_population"], v["af_delta"], v["delta_mean"]])
 
     pdfs = [] if args.no_pdf else _write_pdfs(outdir, results)
+
+    # Name this run's outputs explicitly so leftovers from an earlier run are not certified.
+    tables = ["decisions.csv", "gated_scores.csv"]
+    tables += ["variant_audit.csv"] if audits else []
+    tables += ["af_shift_per_variant.csv"] if any_shift else []
+    write_checksums(
+        [outdir / f for f in ["report.md", "report_clinician.md", "report_technical.md",
+                              "result.json", *figures, *pdfs,
+                              *(f"tables/{t}" for t in tables),
+                              "reproducibility/commands.sh", "reproducibility/environment.yml"]],
+        outdir, anchor=outdir)
 
     print(f"\nThreshold {cal.threshold:.2f} ({cal.reference_population}, n={cal.n}, "
           f"mean {cal.mean:.2f} + {cal.k_sd:g}sd)")

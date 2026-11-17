@@ -142,7 +142,7 @@ def validate_input(input_path: Path) -> dict:
                 "pop_af": _pop_af(info),
                 "rsid": cols[2] if cols[2] not in (".", "") else "",
             })
-    return {"variants": variants, "source": str(input_path), "saw_header": saw_header}
+    return {"variants": variants, "source": input_path.name, "saw_header": saw_header}
 
 
 def run_analysis(data: dict, max_af: float = DEFAULT_MAX_AF) -> dict:

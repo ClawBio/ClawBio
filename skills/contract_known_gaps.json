@@ -5,25 +5,10 @@
   "clinical-variant-prioritizer": [
     "repro_files"
   ],
-  "drug-repurposing-screen": [
-    "repro_files"
-  ],
   "eqtl-catalogue-region-fetch": [
     "repro_files"
   ],
-  "fine-mapping": [
-    "repro_files"
-  ],
   "locuscompare-region-render": [
-    "repro_files"
-  ],
-  "omics-target-evidence-mapper": [
-    "repro_files"
-  ],
-  "prs-abstain": [
-    "repro_files"
-  ],
-  "target-validation-scorer": [
     "repro_files"
   ],
   "ukb-ppp-region-fetch": [
@@ -33,9 +18,6 @@
     "repro_files"
   ],
   "wes-clinical-report-en": [
-    "repro_files"
-  ],
-  "xena-tcga-gene-query": [
     "repro_files"
   ]
 }

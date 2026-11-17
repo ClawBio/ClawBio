@@ -411,7 +411,7 @@ def write_outputs(result: dict, input_path: Path, output_dir: Path, command: lis
     lines = [
         "# CNV ACMG Classification Report",
         "",
-        f"**Input**: `{input_path}`",
+        f"**Input**: `{Path(input_path).name}`",
         f"**Mode**: {'Synthetic demo data' if demo else 'User-provided local data'}",
         f"**Framework**: {result['framework']}",
         f"**CNVs classified**: {result['summary']['cnv_count']}",

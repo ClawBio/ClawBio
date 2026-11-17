@@ -217,7 +217,6 @@ def analyze_fasta(filepath):
 
     report = {
         "file": path.name,
-        "file_path": str(path.resolve()),
         "analysis_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "total_sequences": len(records),
         "sequence_type": seq_type,
@@ -753,7 +752,7 @@ def generate_html_report(report, json_str):
     </section>
 
     <footer class="footer">
-        <p>Generado por analyze_fasta.py &middot; Biopython {get_biopython_version()} &middot; Python {sys.version.split()[0]}</p>
+        <p>Generado por analyze_fasta.py</p>
     </footer>
 </div>
 

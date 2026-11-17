@@ -99,7 +99,7 @@ Host the webchat HTML on a static hosting service (GitHub Pages, Vercel, Netlify
 
 ### 1. Deploy the webchat HTML
 
-Put `chat/index.html` in a GitHub repo, Vercel project, or similar. Set the `GATEWAY_URL` in the HTML to your Tailscale Funnel WebSocket address:
+Put `bot/webchat/index.html` in a GitHub repo, Vercel project, or similar. Set the `GATEWAY_URL` in the HTML to your Tailscale Funnel WebSocket address:
 
 ```js
 const GATEWAY_URL = 'wss://<your-tailscale-hostname>.ts.net';
