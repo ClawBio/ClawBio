@@ -94,6 +94,9 @@ coordinates, include at least one Hypothesis property test. See
 [Property-based tests for maths and parsing](AGENTS.md#property-based-tests-for-maths-and-parsing)
 in `AGENTS.md`.
 
+If the skill has a `--demo`, add a demo snapshot test that pins the demo's
+outputs inline. See [Demo snapshot tests](AGENTS.md#demo-snapshot-tests).
+
 If you changed `SKILL.md` YAML frontmatter, regenerate the catalog:
 
 ```bash

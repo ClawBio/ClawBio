@@ -15,6 +15,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from inline_snapshot import snapshot
+
+from clawbio.common import demo_runner
 
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
@@ -415,3 +418,312 @@ def test_demo_reproducibility_bundle_verifies(tmp_path):
     for line in lines:
         digest, label = line.split("  ", 1)
         assert hashlib.sha256((out / label).read_bytes()).hexdigest() == digest, label
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/cnv-acmg-classifier/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("cnv-acmg-classifier", tmp_path) == snapshot({'report.md': """\
+# CNV ACMG Classification Report
+
+**Input**: `demo_cnv_calls.csv`
+**Mode**: Synthetic demo data
+**Framework**: ClinGen/ACMG 2019 (Riggs et al. 2020)
+**CNVs classified**: 7
+
+| CNV | Region | Type | Genes | Score | Classification | Evidence |
+|---|---|---|---:|---:|---|---|
+| CNV_P_TP53del | chr17:7,660,000-7,695,000 | loss | 1 | 1.00 | Pathogenic | 1A, 2A |
+| CNV_LP_TP53partial | chr17:7,680,000-7,700,000 | loss | 1 | 0.90 | Likely pathogenic | 1A, 2C-1, 3A |
+| CNV_B_benign | chr1:152,030,000-152,070,000 | loss | 1 | -1.00 | Benign | 1A, 2F |
+| CNV_VUS_inh | chr2:50,120,000-50,180,000 | loss | 1 | -0.30 | Variant of uncertain significance | 1A, 3A, 5B |
+| CNV_LB_caseev | chr2:50,120,000-50,180,000 | loss | 1 | -0.95 | Likely benign | 1A, 3A, 4, 5B |
+| CNV_P_dup22q | chr22:18,800,000-21,600,000 | gain | 3 | 1.45 | Pathogenic | 1A, 2A, 5A |
+| CNV_LP_genedense | chr19:51,990,000-52,410,000 | loss | 40 | 0.90 | Likely pathogenic | 1A, 3C |
+
+## Tier counts
+
+- Pathogenic: 2
+- Likely pathogenic: 2
+- Benign: 1
+- Variant of uncertain significance: 1
+- Likely benign: 1
+
+## Interpretation
+
+Scores follow the ClinGen/ACMG copy-number point framework: Pathogenic ≥ 0.99, Likely pathogenic 0.90–0.98, VUS −0.89 to 0.89, Likely benign −0.90 to −0.98, Benign ≤ −0.99. Section 3 gene-count points apply only when no established dosage gene/region is overlapped. Sections 4 (case/literature) and 5 (inheritance) reflect analyst-supplied evidence and are never auto-generated.
+
+ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.
+""", 'result.json': """\
+{
+  "skill": "cnv-acmg-classifier",
+  "framework": "ClinGen/ACMG 2019 (Riggs et al. 2020)",
+  "summary": {
+    "cnv_count": 7,
+    "tier_counts": {
+      "Pathogenic": 2,
+      "Likely pathogenic": 2,
+      "Benign": 1,
+      "Variant of uncertain significance": 1,
+      "Likely benign": 1
+    }
+  },
+  "classifications": [
+    {
+      "cnv_id": "CNV_P_TP53del",
+      "chrom": "chr17",
+      "start": 7660000,
+      "end": 7695000,
+      "cnv_type": "loss",
+      "gene_count": 1,
+      "genes": [
+        "TP53"
+      ],
+      "evidence": [
+        {
+          "code": "1A",
+          "points": 0.0,
+          "detail": "CNV contains protein-coding or known functionally important elements"
+        },
+        {
+          "code": "2A",
+          "points": 1.0,
+          "detail": "Complete overlap of established dosage-sensitive gene TP53"
+        }
+      ],
+      "total_score": 1.0,
+      "classification": "Pathogenic"
+    },
+    {
+      "cnv_id": "CNV_LP_TP53partial",
+      "chrom": "chr17",
+      "start": 7680000,
+      "end": 7700000,
+      "cnv_type": "loss",
+      "gene_count": 1,
+      "genes": [
+        "TP53"
+      ],
+      "evidence": [
+        {
+          "code": "1A",
+          "points": 0.0,
+          "detail": "CNV contains protein-coding or known functionally important elements"
+        },
+        {
+          "code": "2C-1",
+          "points": 0.9,
+          "detail": "5' end of established HI gene TP53 deleted, coding sequence involved (predicted LoF)"
+        },
+        {
+          "code": "3A",
+          "points": 0.0,
+          "detail": "1 protein-coding gene(s) wholly or partially included"
+        }
+      ],
+      "total_score": 0.9,
+      "classification": "Likely pathogenic"
+    },
+    {
+      "cnv_id": "CNV_B_benign",
+      "chrom": "chr1",
+      "start": 152030000,
+      "end": 152070000,
+      "cnv_type": "loss",
+      "gene_count": 1,
+      "genes": [
+        "BENIGNGENE1"
+      ],
+      "evidence": [
+        {
+          "code": "1A",
+          "points": 0.0,
+          "detail": "CNV contains protein-coding or known functionally important elements"
+        },
+        {
+          "code": "2F",
+          "points": -1.0,
+          "detail": "CNV completely contained within established benign region BENIGN_DEMO_REGION"
+        }
+      ],
+      "total_score": -1.0,
+      "classification": "Benign"
+    },
+    {
+      "cnv_id": "CNV_VUS_inh",
+      "chrom": "chr2",
+      "start": 50120000,
+      "end": 50180000,
+      "cnv_type": "loss",
+      "gene_count": 1,
+      "genes": [
+        "GENE_X"
+      ],
+      "evidence": [
+        {
+          "code": "1A",
+          "points": 0.0,
+          "detail": "CNV contains protein-coding or known functionally important elements"
+        },
+        {
+          "code": "3A",
+          "points": 0.0,
+          "detail": "1 protein-coding gene(s) wholly or partially included"
+        },
+        {
+          "code": "5B",
+          "points": -0.3,
+          "detail": "Inherited from a clinically unaffected parent"
+        }
+      ],
+      "total_score": -0.3,
+      "classification": "Variant of uncertain significance"
+    },
+    {
+      "cnv_id": "CNV_LB_caseev",
+      "chrom": "chr2",
+      "start": 50120000,
+      "end": 50180000,
+      "cnv_type": "loss",
+      "gene_count": 1,
+      "genes": [
+        "GENE_X"
+      ],
+      "evidence": [
+        {
+          "code": "1A",
+          "points": 0.0,
+          "detail": "CNV contains protein-coding or known functionally important elements"
+        },
+        {
+          "code": "3A",
+          "points": 0.0,
+          "detail": "1 protein-coding gene(s) wholly or partially included"
+        },
+        {
+          "code": "4",
+          "points": -0.65,
+          "detail": "Analyst-supplied case-level / literature evidence"
+        },
+        {
+          "code": "5B",
+          "points": -0.3,
+          "detail": "Inherited from a clinically unaffected parent"
+        }
+      ],
+      "total_score": -0.95,
+      "classification": "Likely benign"
+    },
+    {
+      "cnv_id": "CNV_P_dup22q",
+      "chrom": "chr22",
+      "start": 18800000,
+      "end": 21600000,
+      "cnv_type": "gain",
+      "gene_count": 3,
+      "genes": [
+        "TBX1DEMO",
+        "COMTDEMO",
+        "CRKLDEMO"
+      ],
+      "evidence": [
+        {
+          "code": "1A",
+          "points": 0.0,
+          "detail": "CNV contains protein-coding or known functionally important elements"
+        },
+        {
+          "code": "2A",
+          "points": 1.0,
+          "detail": "Complete overlap of established dosage-sensitive region 22q11.2"
+        },
+        {
+          "code": "5A",
+          "points": 0.45,
+          "detail": "Observed de novo (both parents tested)"
+        }
+      ],
+      "total_score": 1.45,
+      "classification": "Pathogenic"
+    },
+    {
+      "cnv_id": "CNV_LP_genedense",
+      "chrom": "chr19",
+      "start": 51990000,
+      "end": 52410000,
+      "cnv_type": "loss",
+      "gene_count": 40,
+      "genes": [
+        "ZNFDEMO000",
+        "ZNFDEMO001",
+        "ZNFDEMO002",
+        "ZNFDEMO003",
+        "ZNFDEMO004",
+        "ZNFDEMO005",
+        "ZNFDEMO006",
+        "ZNFDEMO007",
+        "ZNFDEMO008",
+        "ZNFDEMO009",
+        "ZNFDEMO010",
+        "ZNFDEMO011",
+        "ZNFDEMO012",
+        "ZNFDEMO013",
+        "ZNFDEMO014",
+        "ZNFDEMO015",
+        "ZNFDEMO016",
+        "ZNFDEMO017",
+        "ZNFDEMO018",
+        "ZNFDEMO019",
+        "ZNFDEMO020",
+        "ZNFDEMO021",
+        "ZNFDEMO022",
+        "ZNFDEMO023",
+        "ZNFDEMO024",
+        "ZNFDEMO025",
+        "ZNFDEMO026",
+        "ZNFDEMO027",
+        "ZNFDEMO028",
+        "ZNFDEMO029",
+        "ZNFDEMO030",
+        "ZNFDEMO031",
+        "ZNFDEMO032",
+        "ZNFDEMO033",
+        "ZNFDEMO034",
+        "ZNFDEMO035",
+        "ZNFDEMO036",
+        "ZNFDEMO037",
+        "ZNFDEMO038",
+        "ZNFDEMO039"
+      ],
+      "evidence": [
+        {
+          "code": "1A",
+          "points": 0.0,
+          "detail": "CNV contains protein-coding or known functionally important elements"
+        },
+        {
+          "code": "3C",
+          "points": 0.9,
+          "detail": "40 protein-coding gene(s) wholly or partially included"
+        }
+      ],
+      "total_score": 0.9,
+      "classification": "Likely pathogenic"
+    }
+  ],
+  "disclaimer": "ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions."
+}
+""", 'tables/cnv_classifications.csv': """\
+cnv_id,chrom,start,end,cnv_type,gene_count,total_score,classification,evidence_codes
+CNV_P_TP53del,chr17,7660000,7695000,loss,1,1.0,Pathogenic,1A;2A
+CNV_LP_TP53partial,chr17,7680000,7700000,loss,1,0.9,Likely pathogenic,1A;2C-1;3A
+CNV_B_benign,chr1,152030000,152070000,loss,1,-1.0,Benign,1A;2F
+CNV_VUS_inh,chr2,50120000,50180000,loss,1,-0.3,Variant of uncertain significance,1A;3A;5B
+CNV_LB_caseev,chr2,50120000,50180000,loss,1,-0.95,Likely benign,1A;3A;4;5B
+CNV_P_dup22q,chr22,18800000,21600000,gain,3,1.45,Pathogenic,1A;2A;5A
+CNV_LP_genedense,chr19,51990000,52410000,loss,40,0.9,Likely pathogenic,1A;3C
+"""})

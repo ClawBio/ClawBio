@@ -136,6 +136,31 @@ Step 2 without step 1 hides the tests everywhere. Run `uv sync --all-extras` to 
 - Use `tmp_path` for temporary inputs and outputs instead of fixed shared paths or custom temporary-directory helpers. It provides a unique `pathlib.Path` directory per test; it does not change cwd.
 - Use `monkeypatch` for environment variables, attributes and cwd changes. Prefer `monkeypatch.chdir(tmp_path)` to manual `os.chdir()` / `try/finally` cleanup; pytest restores changes after the test. Patch names where the code looks them up.
 
+### Demo snapshot tests
+
+Every skill with a `--demo` gets one test that pins the demo's outputs, so a
+change that moves a demo number fails CI:
+
+```python
+from inline_snapshot import snapshot
+from clawbio.common import demo_runner
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("<skill>", tmp_path) == snapshot()
+```
+
+Fill it with `uv run pytest skills/<skill>/tests -m demo_snapshot --inline-snapshot=create`.
+`demo_outputs` runs the catalog `demo_command` and masks the output path and
+timestamps. Reproducibility files, logs, binaries and text files over 50 KB are
+not snapshotted. CI runs `pytest skills/ -m demo_snapshot` on every PR, because
+a change to shared code can move a skill's numbers. When a change is meant to
+move them, run `--inline-snapshot=fix`. The PR diff then shows which values changed.
+
+If the demo needs network access, or its output still differs between two runs
+after masking, leave the snapshot out and say why in the PR. A flaky snapshot
+fails every PR.
+
 ## Code Style
 
 - **Python**: 3.12+ (type hints encouraged, `X | None` syntax over `Optional[X]`)
@@ -260,7 +285,7 @@ Hypothesis's default 200 ms deadline otherwise makes them flaky in CI.
    - `## Chaining Partners`: Which skills this connects with and how.
    - `## Maintenance`: Review cadence, staleness signals, deprecation criteria.
 4. **Add demo data**: a small synthetic dataset (never real patient data) and `--demo` flag support
-5. **Write tests first (red/green TDD)**: create `skills/<name>/tests/test_<name>.py` covering expected inputs, outputs, edge cases, and demo mode. Run them and confirm they fail.
+5. **Write tests first (red/green TDD)**: create `skills/<name>/tests/test_<name>.py` covering expected inputs, outputs, edge cases, and demo mode. Run them and confirm they fail. Once the demo runs, add its [demo snapshot test](#demo-snapshot-tests).
 6. **Add the Python implementation** to make the tests pass (optional — SKILL.md alone is a usable skill). Accept `--input`, `--output`, `--demo`. Write the reproducibility bundle with `clawbio.common.reproducibility` (`write_commands_sh`, `write_environment_yml`, `write_checksums`) rather than hand-rolling it, and keep `reproducibility/` listed in the SKILL.md `## Output Structure` tree — do not prune it to make `TestOutputContract` pass.
 7. **Stress test** (run 10 times with varied inputs). Every correction becomes a Gotcha.
 8. **Register in `clawbio/cli.py`**: add an entry to the `SKILLS` dict with script path, demo_args, description, and allowed_extra_flags

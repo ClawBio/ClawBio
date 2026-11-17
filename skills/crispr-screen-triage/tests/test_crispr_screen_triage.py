@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
@@ -76,6 +78,74 @@ def test_triage_ranks_depleted_druggable_genes():
     assert result["genes"][0]["median_log2_fold_change"] < -1.0
     assert result["genes"][0]["guide_count"] == 2
     assert {hit["gene"] for hit in result["top_hits"][:3]} == {"BRCA1", "PARP1", "ATR"}
+
+
+def _guide(gene, control, treated, essentiality=0.5, druggability=0.5, guide_id=None):
+    return {"guide_id": guide_id or f"g{gene}_{control}_{treated}", "gene": gene,
+            "control_count": float(control), "treatment_count": float(treated),
+            "essentiality": essentiality, "druggability": druggability}
+
+
+@pytest.mark.parametrize("score, median_log2fc, expected", [
+    (1.35, -1.0, "high"),     # both "high" thresholds are inclusive
+    (1.34, -1.0, "medium"),
+    (1.35, -0.99, "medium"),  # a high score alone is not enough: the depletion gate decides
+    (2.0, -0.5, "medium"),
+    (0.75, 0.0, "medium"),
+    (0.74, 0.0, "watch"),
+])
+def test_priority_boundaries(score, median_log2fc, expected):
+    assert load_module()._priority(score, median_log2fc) == expected
+
+
+def test_median_of_odd_and_even_guide_counts():
+    median = load_module()._median
+    assert median([5.0]) == 5.0
+    assert median([3.0, 1.0, 2.0]) == 2.0
+    assert median([4.0, 1.0, 3.0, 2.0]) == 2.5
+
+
+def test_low_count_flag_is_below_100_total_reads():
+    result = load_module().triage_genes([_guide("A", 49, 50), _guide("A", 50, 50)])
+    assert [g["low_count"] for g in result["guides"]] == [True, False]
+    assert result["genes"][0]["low_count_guides"] == 1
+
+
+def test_genes_with_equal_scores_are_ordered_by_name():
+    result = load_module().triage_genes([_guide("ZZZ", 500, 100), _guide("AAA", 500, 100)])
+    assert [g["gene"] for g in result["genes"]] == ["AAA", "ZZZ"]
+
+
+def test_load_counts_names_each_missing_column(tmp_path):
+    module = load_module()
+    for column in sorted(module.REQUIRED_COLUMNS):
+        kept = sorted(module.REQUIRED_COLUMNS - {column})
+        path = tmp_path / f"no_{column}.csv"
+        path.write_text(",".join(kept) + "\n" + ",".join("1" for _ in kept) + "\n", encoding="utf-8")
+        with pytest.raises(ValueError, match=f"missing required columns: .*'{column}'"):
+            module.load_counts(path)
+
+
+_RANK = {"watch": 0, "medium": 1, "high": 2}
+
+
+@given(
+    control=st.integers(0, 5000),
+    treated=st.integers(0, 5000),
+    fewer=st.integers(0, 5000),
+    essentiality=st.floats(0, 1),
+    druggability=st.floats(0, 1),
+)
+def test_more_depletion_never_lowers_priority(control, treated, fewer, essentiality, druggability):
+    module = load_module()
+    depleted = min(treated, fewer)
+
+    def gene(t):
+        return module.triage_genes([_guide("G", control, t, essentiality, druggability)])["genes"][0]
+
+    base, more = gene(treated), gene(depleted)
+    assert more["priority_score"] >= base["priority_score"]
+    assert _RANK[more["priority"]] >= _RANK[base["priority"]]
 
 
 def test_demo_cli_writes_expected_outputs(tmp_path):
