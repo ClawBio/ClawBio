@@ -3,11 +3,14 @@ name: Deploy site
 # Publishes the repository root to GitHub Pages (clawbio.ai), byte-for-byte what
 # legacy "Deploy from a branch" (main, /) serves today. Needs the repo's Pages
 # source set to "GitHub Actions" (Settings -> Pages); until then the deploy job fails.
-# A later step will build index.html's live numbers here instead of in daily PRs.
+# Before upload, scripts/build_site.py fills index.html's live numbers (data-stat spans),
+# so they no longer need daily PRs. The daily schedule keeps stars and forks current.
 
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 5 * * *"
   workflow_dispatch:
 
 permissions:
@@ -20,10 +23,21 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # merged-PR authors count as contributors
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      # Only pyyaml: build_catalog() needs nothing else, and the project's core deps are heavy.
+      - name: Fill live numbers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uv run --no-project --python 3.12 --with pyyaml python scripts/build_site.py
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

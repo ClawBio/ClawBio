@@ -371,20 +371,18 @@ python tests/benchmark/mock_api_server.py &
 
 ## Homepage (index.html) — STRICT
 
-The automated site-stats agent regenerates parts of `index.html`. These constraints
-are deliberate and must survive every regeneration:
+Live numbers on `index.html` (stars, forks, contributors, skills, demo, CLI and test
+counts, "+ N more skills") are filled at every deploy by `scripts/build_site.py` from
+their sources. Each sits in a `<span data-stat="KEY">`; never hand-edit the number
+inside one, and mark any new live number the same way (`tests/test_build_site.py`
+rejects unknown keys). These constraints are deliberate:
 
 - **The skills grid shows exactly 5 cards.** It is a sample, not a directory; do not
   add cards. Browsing the full set is what `skills/` and the marketplace are for.
-- **The "+ N more skills" line must equal `skill_count` in `skills/catalog.json`
-  minus the 5 shown.** Never hand-write N.
 - **"Latest from the community" shows at most 10 cards**, newest first.
-- **Every count on the page derives from a source, never from memory**: skills and
-  Galaxy tools from `skills/catalog.json` (which excludes proprietary/local-only
-  folders, so never count `SKILL.md` directories); tests from
-  `grep -rhoE '^[[:space:]]*def test_' --include='*.py' . | wc -l`; stars, forks and
-  contributors from `gh api` at run time; benchmark scores from the most recent
-  `bench-leaderboard` run, not from whatever the page currently says.
+- **Benchmark scores are hand-typed** from the most recent `bench-leaderboard` run, not
+  from `bench_runs/latest/` (stale since the job could not open PRs) and not from
+  whatever the page currently says.
 - **Never publish a benchmark figure without its date and scope.** The suite is a
   `--smoke` run over a subset of skills; a pass rate shown alone reads as a success
   headline and goes stale silently.
