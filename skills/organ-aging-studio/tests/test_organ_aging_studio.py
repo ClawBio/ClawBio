@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -10,6 +11,28 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 DEMO_FIXTURE = SKILL_DIR.parent / "proteomics-clock" / "data" / "demo_olink_npx.csv.gz"
+FORMULA = "predicted_age = intercept + Σ (protein_NPX × coefficient)"
+
+
+def _run_demo_cli(out_dir, *python_options, env=None):
+    return subprocess.run(
+        [
+            sys.executable,
+            *python_options,
+            str(SKILL_DIR / "organ_aging_studio.py"),
+            "--demo",
+            "--output",
+            str(out_dir),
+            "--organs",
+            "Heart",
+            "--sample-id",
+            "DEMO_000",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=180,
+        env=env,
+    )
 
 
 def test_filter_protein_coefs_top_n():
@@ -49,10 +72,10 @@ def test_run_studio_demo(tmp_path):
     assert (out_dir / "result.json").exists()
     assert (out_dir / "tables" / "protein_contributions.csv").exists()
 
-    payload = json.loads((out_dir / "result.json").read_text())
+    payload = json.loads((out_dir / "result.json").read_text(encoding="utf-8"))
     assert payload["samples"][0]["organs"]["Heart"]["predicted_age_years"] > 0
 
-    report_text = (out_dir / "report.md").read_text()
+    report_text = (out_dir / "report.md").read_text(encoding="utf-8")
     assert "filtered partial-model predictions" in report_text
     assert "Raw delta" in report_text
     assert "Input Sanity" in report_text
@@ -111,12 +134,12 @@ def test_demo_writes_verifiable_reproducibility_bundle(tmp_path):
         assert (repro / name).is_file(), name
     assert not (out_dir / "commands.sh").exists()
 
-    commands = (repro / "commands.sh").read_text()
+    commands = (repro / "commands.sh").read_text(encoding="utf-8")
     assert "python skills/organ-aging-studio/organ_aging_studio.py" in commands
     assert "--demo" in commands
     assert str(SKILL_DIR) not in commands
 
-    lines = (repro / "checksums.sha256").read_text().splitlines()
+    lines = (repro / "checksums.sha256").read_text(encoding="utf-8").splitlines()
     labels = {line.split("  ", 1)[1] for line in lines}
     assert {"report.md", "result.json", "reproducibility/environment.yml"} <= labels
     for line in lines:
@@ -124,6 +147,32 @@ def test_demo_writes_verifiable_reproducibility_bundle(tmp_path):
         target = out_dir / label
         assert target.resolve().is_relative_to(out_dir.resolve()), label
         assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, label
+
+
+def test_cli_demo_does_not_depend_on_locale_encoding(tmp_path):
+    # With locale coercion and UTF-8 mode off, the C locale gives Python an
+    # ASCII locale encoding on Linux and macOS. Windows ignores LC_ALL and uses
+    # its ANSI code page, such as cp1252. Neither can encode Σ or ✓.
+    env = {**os.environ, "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0", "PYTHONUTF8": "0"}
+    env.pop("PYTHONIOENCODING", None)
+    out_dir = tmp_path / "out"
+    proc = _run_demo_cli(out_dir, env=env)
+    assert proc.returncode == 0, proc.stderr
+    assert FORMULA in (out_dir / "report.md").read_text(encoding="utf-8")
+    assert "Organ Aging Studio complete" in proc.stdout
+
+
+def test_cli_demo_names_the_encoding_of_its_text_files(tmp_path):
+    # -X warn_default_encoding flags every text open that falls back to the
+    # locale encoding; the filter turns the ones in this script into errors.
+    proc = _run_demo_cli(
+        tmp_path / "out",
+        "-X",
+        "warn_default_encoding",
+        "-W",
+        "error::EncodingWarning:__main__",
+    )
+    assert proc.returncode == 0, proc.stderr
 
 
 def test_cli_requires_input_or_demo(tmp_path):

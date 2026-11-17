@@ -1615,7 +1615,7 @@ def main():
     print()
 
     input_info = {
-        "filepath": str(input_path),
+        "filepath": input_path.name,  # reports are shared; full path stays in reproducibility/
         "format": fmt,
         "total_snps": total_snps,
     }

@@ -9,6 +9,9 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from inline_snapshot import snapshot
+
+from clawbio.common import demo_runner
 
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -327,3 +330,61 @@ class TestEdgeCases:
         genos = ai.parse_vcf_genotypes(vcf)
         assert genos.shape == (1, 1)
         assert genos[0, 0] == -1
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/archaic-introgression/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("archaic-introgression", tmp_path) == snapshot({'introgression_results.json': """\
+{
+  "method": "ibdmix",
+  "lod_threshold": 3.0,
+  "num_samples": 2,
+  "segments": [
+    {
+      "sample": "SAMPLE01",
+      "chrom": "chr22",
+      "start": 16050115,
+      "end": 16051249,
+      "archaic_source": "Neanderthal",
+      "method": "ibdmix_fallback",
+      "score": 3.3,
+      "num_variants": 9,
+      "length": 1134
+    },
+    {
+      "sample": "SAMPLE03",
+      "chrom": "chr22",
+      "start": 16050075,
+      "end": 16051249,
+      "archaic_source": "Neanderthal",
+      "method": "ibdmix_fallback",
+      "score": 3.1,
+      "num_variants": 10,
+      "length": 1174
+    }
+  ],
+  "summary": {
+    "SAMPLE01": {
+      "total_segments": 1,
+      "total_length_bp": 1134,
+      "mean_segment_length": 1134.0,
+      "mean_score": 3.3
+    },
+    "SAMPLE03": {
+      "total_segments": 1,
+      "total_length_bp": 1174,
+      "mean_segment_length": 1174.0,
+      "mean_score": 3.1
+    }
+  }
+}\
+""", 'segments.bed': """\
+#chrom	start	end	sample	score
+chr22	16050114	16051249	SAMPLE01	3.30
+chr22	16050074	16051249	SAMPLE03	3.10
+"""})

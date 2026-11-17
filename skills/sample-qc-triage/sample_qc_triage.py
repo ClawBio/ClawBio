@@ -187,7 +187,7 @@ def write_outputs(result: dict, input_path: Path, output_dir: Path, demo: bool) 
     rows = [
         "# Sample QC Triage Report",
         "",
-        f"**Input**: `{input_path}`",
+        f"**Input**: `{input_path.name}`",
         f"**Mode**: {'Synthetic demo data' if demo else 'User-provided local data'}",
         f"**Samples**: {result['summary']['sample_count']}",
         f"**Flagged samples**: {result['summary']['flagged_count']}",
