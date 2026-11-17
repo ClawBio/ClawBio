@@ -92,8 +92,6 @@
     .showcase-skills { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.8rem; }
     .showcase-skill { background: rgba(63,185,80,0.12); border: 1px solid rgba(63,185,80,0.3); color: var(--accent); font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 999px; }
     @media (max-width: 600px) { .showcase-card { grid-template-columns: 1fr; text-align: center; justify-items: center; } }
-    .community-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
-    .community-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
     .cta-section { text-align: center; background: radial-gradient(ellipse 80% 60% at 50% 110%, rgba(63,185,80,0.1) 0%, transparent 70%); border-top: 1px solid var(--border); }
     .cta-section h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; margin-bottom: 1rem; }
     .cta-section p { color: var(--text-muted); margin-bottom: 2rem; font-size: 1.05rem; }
@@ -309,17 +307,8 @@ clawbio run pharmgx --demo</pre>
   <section id="community">
     <div class="section-inner">
       <div class="section-label">Community</div>
-      <div class="section-title">Wanted: skills from the community</div>
+      <div class="section-title">Contribute a skill</div>
       <p class="section-sub">If you work with genomics, proteomics, metabolomics, imaging, or clinical data — wrap your pipeline as a skill.</p>
-      <div class="community-grid">
-        <div class="community-card"><div class="skill-name">claw-gwas</div><div class="skill-desc">PLINK/REGENIE automation — Statistical genetics</div></div>
-        <div class="community-card"><div class="skill-name">claw-acmg</div><div class="skill-desc">Clinical variant classification — Clinical genomics</div></div>
-        <div class="community-card"><div class="skill-name">claw-pathway</div><div class="skill-desc">GO/KEGG enrichment — Functional genomics</div></div>
-        <div class="community-card"><div class="skill-name">claw-phylogenetics</div><div class="skill-desc">IQ-TREE/RAxML automation — Evolutionary biology</div></div>
-        <div class="community-card"><div class="skill-name">claw-spatial</div><div class="skill-desc">Visium/MERFISH — Spatial transcriptomics</div></div>
-        <div class="community-card"><div class="skill-name">claw-long-reads</div><div class="skill-desc">ONT/PacBio QC and assembly — Long-read sequencing</div></div>
-        <div class="community-card" style="display:flex;align-items:center;justify-content:center;border-style:dashed;"><div style="text-align:center;color:var(--text-muted);"><div style="font-size:1.5rem;margin-bottom:0.4rem;">+</div><div class="skill-name">Your skill here</div></div></div>
-      </div>
       <div style="margin-top:2rem;display:flex;gap:1rem;flex-wrap:wrap;">
         <a class="btn btn-primary" href="https://discord.gg/DHpmptyv" target="_blank">🎮 Join the Discord</a>
         <a class="btn btn-primary" href="https://t.me/ClawBioContributors" target="_blank">💬 Join the Telegram</a>
