@@ -135,7 +135,7 @@ ClawBio follows [Semantic Versioning](https://semver.org/). The current release 
 - **OpenClaw**: [github.com/openclaw/openclaw](https://github.com/openclaw/openclaw), the agent platform
 - **ClawHub**: [clawhub.ai](https://clawhub.ai), skill registry
 - **HEIM Index**: [heim-index.org](https://heim-index.org), Health Equity Index for Minorities
-- **Talks**: [docs/talks/](docs/talks/README.md), including the [London Bioinformatics Meetup slides](https://clawbio.github.io/ClawBio/slides/)
+- **Talks**: [docs.clawbio.ai/presentations](https://docs.clawbio.ai/presentations/); earlier ones: [London Bioinformatics Meetup slides](https://clawbio.github.io/ClawBio/slides/), [UK AI Agent Hack video](https://www.youtube.com/watch?v=eEEA71qSOmU), [DoraHacks Demo Day video](https://www.youtube.com/watch?v=vxUDdjXMFwk)
 
 ## License
 
