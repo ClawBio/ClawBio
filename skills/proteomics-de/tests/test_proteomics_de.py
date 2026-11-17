@@ -6,6 +6,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from inline_snapshot import snapshot
+
+from clawbio.common import demo_runner
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -252,3 +255,289 @@ class TestDownShiftImputation:
         log_matrix = log2_transform(matrix)
         result = down_shift_imputation(log_matrix)
         assert result.shape == log_matrix.shape
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/proteomics-de/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@needs_seaborn  # the demo imports seaborn (affinity-proteomics extra)
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("proteomics-de", tmp_path) == snapshot({'report.md': """\
+# Proteomics Differential Expression Report
+
+## Summary
+- Samples: 6
+- Proteins pre-filter: 2383
+- Proteins post-filter/imputation: 2069
+- Contrast: `treated vs control`
+- Significant proteins: 138
+  - Upregulated: 45
+  - Downregulated: 93
+
+## Preprocessing
+- Imputation distribution: `figures/imputation_distribution.png`
+- PCA (sample clustering): `figures/pca.png`
+
+## Differential Expression Results
+- Full results: `tables/de_results.csv`
+- Imputed protein matrix: `tables/imputed_proteinGroups.csv`
+- Volcano plot: `figures/volcano.png`
+
+### Top 10 Upregulated Proteins (by log2 fold change)
+
+| Protein ID | log2FoldChange | -log10(pvalue) |
+|---|---:|---:|
+| P16522 | 12.509 | 5.345 |
+| Q12379 | 8.234 | 2.729 |
+| P09798 | 8.031 | 3.217 |
+| P42935 | 6.054 | 2.336 |
+| P06633 | 5.861 | 1.452 |
+| P53886 | 5.663 | 2.165 |
+| Q3E747 | 5.629 | 1.775 |
+| P14724 | 5.530 | 1.440 |
+| P53912;P25608;P54007 | 5.492 | 2.144 |
+| P31111 | 5.474 | 1.993 |
+
+### Top 10 Downregulated Proteins (by log2 fold change)
+
+| Protein ID | log2FoldChange | -log10(pvalue) |
+|---|---:|---:|
+| Q12341 | -9.621 | 4.294 |
+| P38210 | -7.432 | 2.567 |
+| P39004;P39003 | -7.085 | 1.839 |
+| P38238 | -6.099 | 3.672 |
+| P53978 | -5.936 | 3.098 |
+| Q03774 | -5.816 | 2.230 |
+| P38314 | -5.668 | 2.365 |
+| P34163 | -5.450 | 1.919 |
+| P15992 | -5.427 | 1.694 |
+| Q08723 | -5.425 | 3.365 |
+
+## Reproducibility
+- Commands: `reproducibility/commands.sh`
+- Environment: `reproducibility/environment.yml`
+- Checksums: `reproducibility/checksums.sha256`
+- Provenance: `ro-crate-metadata.json`
+
+## Disclaimer
+ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.
+""", 'ro-crate-metadata.json': """\
+{
+  "@context": "https://w3id.org/ro/crate/1.1/context",
+  "@graph": [
+    {
+      "@id": "./",
+      "@type": "Dataset",
+      "datePublished": "<TIMESTAMP>",
+      "name": "proteomics-de run",
+      "description": "Proteomics differential expression from LFQ or DIA-NN data",
+      "version": "0.1.0",
+      "license": {
+        "@id": "https://spdx.org/licenses/MIT.html"
+      },
+      "hasPart": [
+        {
+          "@id": "figures/imputation_distribution.png"
+        },
+        {
+          "@id": "figures/pca.png"
+        },
+        {
+          "@id": "figures/volcano.png"
+        },
+        {
+          "@id": "report.md"
+        },
+        {
+          "@id": "reproducibility/checksums.sha256"
+        },
+        {
+          "@id": "reproducibility/commands.sh"
+        },
+        {
+          "@id": "reproducibility/environment.yml"
+        },
+        {
+          "@id": "tables/de_results.csv"
+        },
+        {
+          "@id": "tables/imputed_proteinGroups.csv"
+        }
+      ],
+      "mentions": {
+        "@id": "#run"
+      }
+    },
+    {
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "conformsTo": {
+        "@id": "https://w3id.org/ro/crate/1.1"
+      },
+      "about": {
+        "@id": "./"
+      }
+    },
+    {
+      "@id": "figures/imputation_distribution.png",
+      "@type": "File"
+    },
+    {
+      "@id": "figures/pca.png",
+      "@type": "File"
+    },
+    {
+      "@id": "figures/volcano.png",
+      "@type": "File"
+    },
+    {
+      "@id": "report.md",
+      "@type": "File"
+    },
+    {
+      "@id": "reproducibility/checksums.sha256",
+      "@type": "File"
+    },
+    {
+      "@id": "reproducibility/commands.sh",
+      "@type": "File"
+    },
+    {
+      "@id": "reproducibility/environment.yml",
+      "@type": "File"
+    },
+    {
+      "@id": "tables/de_results.csv",
+      "@type": "File"
+    },
+    {
+      "@id": "tables/imputed_proteinGroups.csv",
+      "@type": "File"
+    },
+    {
+      "@id": "skills/proteomics-de/proteomics_de.py",
+      "@type": "SoftwareSourceCode",
+      "name": "proteomics-de",
+      "version": "0.1.0",
+      "programmingLanguage": {
+        "@id": "https://www.python.org/"
+      }
+    },
+    {
+      "@id": "#input_type",
+      "@type": "PropertyValue",
+      "name": "input_type",
+      "value": "maxquant"
+    },
+    {
+      "@id": "#contrast",
+      "@type": "PropertyValue",
+      "name": "contrast",
+      "value": "treated,control"
+    },
+    {
+      "@id": "#s0",
+      "@type": "PropertyValue",
+      "name": "s0",
+      "value": "0.1"
+    },
+    {
+      "@id": "#fdr",
+      "@type": "PropertyValue",
+      "name": "fdr",
+      "value": "0.05"
+    },
+    {
+      "@id": "#ttest_df",
+      "@type": "PropertyValue",
+      "name": "ttest_df",
+      "value": "4"
+    },
+    {
+      "@id": "#imputation_shift",
+      "@type": "PropertyValue",
+      "name": "imputation_shift",
+      "value": "1.8"
+    },
+    {
+      "@id": "#imputation_scale",
+      "@type": "PropertyValue",
+      "name": "imputation_scale",
+      "value": "0.3"
+    },
+    {
+      "@id": "#demo",
+      "@type": "PropertyValue",
+      "name": "demo",
+      "value": "True"
+    },
+    {
+      "@id": "#run",
+      "@type": "CreateAction",
+      "name": "proteomics-de execution",
+      "instrument": {
+        "@id": "skills/proteomics-de/proteomics_de.py"
+      },
+      "endTime": "<TIMESTAMP>",
+      "result": [
+        {
+          "@id": "figures/imputation_distribution.png"
+        },
+        {
+          "@id": "figures/pca.png"
+        },
+        {
+          "@id": "figures/volcano.png"
+        },
+        {
+          "@id": "report.md"
+        },
+        {
+          "@id": "reproducibility/checksums.sha256"
+        },
+        {
+          "@id": "reproducibility/commands.sh"
+        },
+        {
+          "@id": "reproducibility/environment.yml"
+        },
+        {
+          "@id": "tables/de_results.csv"
+        },
+        {
+          "@id": "tables/imputed_proteinGroups.csv"
+        }
+      ],
+      "object": [
+        {
+          "@id": "#input_type"
+        },
+        {
+          "@id": "#contrast"
+        },
+        {
+          "@id": "#s0"
+        },
+        {
+          "@id": "#fdr"
+        },
+        {
+          "@id": "#ttest_df"
+        },
+        {
+          "@id": "#imputation_shift"
+        },
+        {
+          "@id": "#imputation_scale"
+        },
+        {
+          "@id": "#demo"
+        }
+      ]
+    }
+  ]
+}\
+"""})
