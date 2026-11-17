@@ -262,7 +262,6 @@ class TestDownShiftImputation:
 # run `pytest skills/proteomics-de/tests --inline-snapshot=fix`; it rewrites the
 # snapshot() values below, and the PR diff shows which numbers moved.
 
-@needs_seaborn  # the demo imports seaborn (affinity-proteomics extra)
 @pytest.mark.demo_snapshot
 def test_demo_output_matches_snapshot(tmp_path):
     assert demo_runner.demo_outputs("proteomics-de", tmp_path) == snapshot({'report.md': """\
