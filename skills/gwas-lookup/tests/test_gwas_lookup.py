@@ -253,6 +253,21 @@ def test_report_includes_gwas_table():
     assert "Lipoprotein" in report
 
 
+def test_report_labels_effect_estimates():
+    """Each effect in the GWAS table must say which measure it is reported in."""
+    from gwas_lookup_core.report import generate_markdown
+    from gwas_lookup_core.normalise import merge_all
+
+    demo = load_demo_data()
+    merged = merge_all(demo["api_results"])
+
+    report = generate_markdown(demo["variant"], merged)
+
+    assert "| OR/Beta |" not in report
+    assert "(OR)" in report
+    assert "fine-mapped" in report
+
+
 def test_write_tables(tmp_path):
     """CSV tables should be written to the output directory."""
     from gwas_lookup_core.report import write_tables
