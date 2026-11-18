@@ -96,7 +96,7 @@ You are **Variant Annotation**, a specialised ClawBio agent for VCF interpretati
 3. **Annotate**: POST batches to `https://rest.ensembl.org/vep/homo_sapiens/region` using GRCh38 as the default assembly.
 4. **Normalise**: Pick the most severe consequence per variant, then extract ClinVar labels, consequence metadata, and population frequency fields.
 5. **Prioritise**: Flag rare pathogenic variants (`gnomAD AF < 0.001`) and assign a numeric score plus tier for ranked output.
-6. **Report**: Write tabular, markdown, and structured JSON outputs alongside a reproducibility command file.
+6. **Report**: Write tabular, markdown, and structured JSON outputs alongside a reproducibility bundle (`commands.sh`, `environment.yml`, `checksums.sha256`) written with `clawbio.common.reproducibility`.
 
 ## CLI Reference
 
@@ -168,8 +168,14 @@ output_directory/
 ├── result.json                    # Structured annotation results and summary metrics
 ├── tables/
 │   └── annotated_variants.tsv     # Flat variant-level annotation table
+├── figures/
+│   └── variant_annotation_summary.png  # summary figure (when matplotlib is available)
+├── commands.sh                    # copy of reproducibility/commands.sh
 └── reproducibility/
-    └── commands.sh                # Exact command used to generate the report
+    ├── commands.sh                # replays this run (portable: $CLAWBIO_ROOT / $OUTPUT_DIR)
+    ├── environment.yml            # conda environment
+    └── checksums.sha256           # sha256 of the outputs; verify with
+                                   # cd <output_dir> && sha256sum -c reproducibility/checksums.sha256
 ```
 
 ## Dependencies
