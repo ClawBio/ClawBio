@@ -224,7 +224,9 @@ output_directory/
 │   └── scores.csv
 └── reproducibility/
     ├── commands.sh
-    └── checksums.sha256
+    ├── environment.yml
+    ├── checksums.sha256
+    └── mcp.stderr.log      # live runs only; MCP server stderr, not checksummed
 ```
 
 ## Dependencies
