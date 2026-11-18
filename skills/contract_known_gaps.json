@@ -5,6 +5,9 @@
   "clinical-variant-prioritizer": [
     "repro_files"
   ],
+  "eqtl-catalogue-region-fetch": [
+    "repro_files"
+  ],
   "locuscompare-region-render": [
     "repro_files"
   ],
