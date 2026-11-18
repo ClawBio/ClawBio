@@ -92,7 +92,56 @@ def main(argv: list[str] | None = None) -> int:
         config = _load_config(args.input)
         config_dir = args.input.parent
 
-    return _run(config=config, config_dir=config_dir, output=args.output)
+    rc = _run(config=config, config_dir=config_dir, output=args.output)
+    if rc == 0:
+        _write_repro_bundle(args, args.output)
+    return rc
+
+
+def _write_repro_bundle(args: argparse.Namespace, output: Path) -> None:
+    """Write <output>/reproducibility/ via clawbio.common.reproducibility.
+
+    Only after a successful run: a failed run leaves nothing a downstream step
+    could read as a finished one.
+    """
+    repo_root = Path(__file__).resolve().parents[2]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    from clawbio.common.reproducibility import (
+        ReproCommand,
+        ReproPath,
+        write_checksums,
+        write_environment_yml,
+        write_portable_commands_sh,
+    )
+
+    out = output.resolve()
+    if args.demo is not None:
+        run_args: list = ["--demo"] + ([] if args.demo == "__default__" else [args.demo])
+    else:
+        run_args = ["--input", ReproPath(args.input.resolve(), anchor="repo_root")]
+    run_args += ["--output", ReproPath(out, anchor="output_dir")]
+    write_portable_commands_sh(
+        out,
+        ReproCommand(
+            script_path=Path(__file__).resolve().relative_to(repo_root),
+            args=run_args,
+            comment="Reproduce this locuscompare-region-render run",
+        ),
+        repo_root=repo_root,
+    )
+    write_environment_yml(
+        out,
+        env_name="clawbio-locuscompare-region-render",
+        pip_deps=[
+            "numpy>=1.24", "scipy>=1.10", "pandas>=1.5", "matplotlib>=3.7",
+            "pysam>=0.22", "pyyaml>=6.0", "pydantic>=2.0", "requests>=2.28",
+        ],
+    )
+    manifest = yaml.safe_load((out / "manifest.yaml").read_text())
+    outputs = [out / manifest["plot_path"], out / "manifest.yaml", out / "report.md"]
+    # Last, so it covers this run's outputs and nothing left by earlier runs.
+    write_checksums(outputs, out, anchor=out)
 
 
 def _examples_dir() -> Path:
