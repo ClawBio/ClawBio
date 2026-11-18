@@ -1087,7 +1087,7 @@ def main(argv: list[str] | None = None) -> None:  # noqa: C901
         "bootstrap_mode": args.bootstrap,
         "num_taxa": len(sequences),
         "tree": newick,
-        "input_file": str(input_file),
+        "input_file": Path(input_file).name,
         "output_dir": str(output_dir),
         "pipeline_steps": pipeline_steps,
         "alignment_files": alignment_files,
