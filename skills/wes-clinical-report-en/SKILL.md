@@ -150,9 +150,22 @@ python skills/wes-clinical-report-en/wes_clinical_report_en.py \
   --output-dir /path/to/PDF-EN/ \
   --samples Sample3
 
-# Demo with default Novogene data
-python skills/wes-clinical-report-en/wes_clinical_report_en.py --demo
+# Demo with the bundled synthetic report (examples/demo_WES_Report.md)
+python skills/wes-clinical-report-en/wes_clinical_report_en.py --demo --output /tmp/wes-demo
 ```
+
+## Output Structure
+
+```
+<output_dir>/
+├── <Sample>_WES_Clinical_Report.pdf   # one per sample (demo: demo_WES_Clinical_Report.pdf)
+└── reproducibility/
+    ├── commands.sh          # exact command that produced this run
+    ├── environment.yml      # conda env (reportlab>=4.0)
+    └── checksums.sha256     # sha256 of each PDF, relative to <output_dir>
+```
+
+Verify with `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256`.
 
 ## Input format
 
