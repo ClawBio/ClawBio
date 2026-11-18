@@ -146,6 +146,21 @@ When an agent asks for a regional pQTL slice from UKB-PPP:
 4. **Extract the chromosome.** The tar contains one gzipped REGENIE file per autosome + X. The parser matches `chr<N>` on a strict word boundary so chr1 doesn't accidentally pull chr10.
 5. **Stream-filter to the window.** REGENIE files are plain gzip (not BGZ / tabix), so regional fetches scan one chromosome's file linearly. ~1M rows per chromosome; ~2 s on a modern laptop per window. Rows are normalised to OT `chr_pos_ref_alt` ALT-effect convention; LOG10P is converted to a linear p-value; A1FREQ above 0.5 is folded to MAF.
 6. **Write outputs** to `--output <dir>/`: a flat `variants.tsv` (effect-allele-aligned, GRCh38, ALT-effect β), a `manifest.yaml` with provenance (study_label, release_label, protein_hgnc, protein_uniprot, olink_reagent_id, olink_panel, ancestry, ancestry_label, n_samples, n_samples_min, n_samples_label, cohort_n, cohort_n_source, synapse_id, source_url, fetched-at UTC timestamp, attribution string), and a `report.md` human-readable summary that states the per-variant N and the published cohort size on separate, labeled lines.
+7. **Write the reproducibility bundle** to `<output>/reproducibility/` with `clawbio.common.reproducibility`; `checksums.sha256` is written last and covers this run's outputs.
+
+## Output Structure
+
+```
+<output_dir>/
+├── variants.tsv            # harmonised regional slice
+├── manifest.yaml           # provenance (manifest.json if PyYAML is missing)
+├── report.md               # human-readable summary
+└── reproducibility/
+    ├── commands.sh         # replays this run (portable: $CLAWBIO_ROOT / $OUTPUT_DIR)
+    ├── environment.yml     # conda environment
+    └── checksums.sha256    # sha256 of the files above; verify with
+                            # cd <output_dir> && sha256sum -c reproducibility/checksums.sha256
+```
 
 ## CLI Reference
 
