@@ -43,24 +43,24 @@ dependencies = [
     # anndata 0.13 is the first that writes pandas 3 string columns to .h5ad.
     "anndata>=0.13",
     "biopython>=1.88",
-    "conda-lock>=4.0.4",
+    "conda-lock>=4.1.0",
     "matplotlib>=3.11.2",
-    "numpy>=2.4.6",
-    "openai>=3.42.1",
+    "numpy>=2.5.4",
+    "openai>=3.49.0",
     "opentelemetry-sdk>=1.45.2,<2",
-    "pandas>=3.1.0",
+    "pandas>=3.1.1",
     "pyyaml>=6.0",
     "pydeseq2>=0.4",
     "rocrate>=0.16.0",
     "scikit-learn>=1.9.1",
-    "scipy>=1.10",
+    "scipy>=1.18.1",
     "seaborn>=0.12",
 ]
 
 [project.optional-dependencies]
 just-prs = [
-    "fastmcp>=4.1.5,<5",
-    "typer>=0.27.3,<1",
+    "fastmcp>=4.1.8,<5",
+    "typer>=0.29.0,<1",
 ]
 # SuShiE fine-mapping engine (jax-based) for skills/fine-mapping.
 # sushie pulls glimix-core itself; see the liknorm override under [tool.uv]
@@ -83,7 +83,7 @@ region-fetch = ["pysam>=0.22"]
 # deliberately absent, because torch's default Linux wheels pull the CUDA
 # runtime into every matrix job; the four tests that need it skip instead.
 cell-detection = [
-    "tifffile>=2024.8.30",
+    "tifffile>=2026.11.8",
     "scikit-image>=0.24",
 ]
 # Imported lazily by these skills but previously undeclared, so `uv.lock` never
@@ -91,14 +91,14 @@ cell-detection = [
 labstep = ["labstep>=3.0"]
 galaxy-bridge = ["bioblend>=1.2"]
 affinity-proteomics = ["statsmodels>=0.14"]
-drug-repurposing-screen = ["pyarrow>=26.0.0"]
+drug-repurposing-screen = ["pyarrow>=26.0.1"]
 # Scanpy/Leiden for skills/spatial-transcriptomics. Squidpy is not on this
 # extra: 1.4–1.6 all pull spatialdata + dask + s3fs into `uv sync --all-extras`
 # for every CI job. Spatial statistics (Moran's I, neighbourhood enrichment,
 # co-occurrence) are implemented in the skill against the same estimators
 # Squidpy documents, so the analysis does not need that stack.
 spatial = [
-    "scanpy>=1.10",
+    "scanpy>=1.12.5",
     "leidenalg>=0.10",
 ]
 # celltypist for skills/scrna-orchestrator's optional --annotate celltypist.
@@ -112,12 +112,12 @@ data-extractor = [
 # Python BigQuery client for skills/bigquery-public, which imports it lazily
 # and falls back to the `bq` CLI when it is absent.
 bigquery = [
-    "google-auth>=2.62.0,<3",
+    "google-auth>=2.62.2,<3",
     "google-cloud-bigquery>=3.47.0,<4",
 ]
 # The Robotary web UI (robotary/server.py).
 robotary = [
-    "fastapi>=0.162.0",
+    "fastapi>=0.162.4",
     "uvicorn>=0.54.0",
 ]
 
@@ -157,12 +157,12 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 
 [dependency-groups]
 dev = [
-    "hypothesis>=6.170.14",
+    "hypothesis>=6.170.15",
     "pytest>=9.2.0",
     "skills-ref>=0.1.1,<1",
     # prs-abstain tests inspect the rendered PDFs.
-    "pypdf>=7.0.0,<8",
-    "inline-snapshot>=0.36.1",
+    "pypdf>=7.0.1,<8",
+    "inline-snapshot>=0.36.2",
     "pytest-xdist>=3.8.0",
 ]
 bot = [
