@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from clawbio.common import demo_runner
+
 import pytest
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
@@ -122,3 +124,10 @@ class TestDemoData:
         content = DEMO_INPUT.read_text()
         lines = [l for l in content.splitlines() if l.strip() and not l.startswith("#")]
         assert len(lines) > 0, "Demo input has no data lines"
+
+
+def test_demo_outputs_do_not_record_the_checkout_path(tmp_path):
+    """Reports are shared; an absolute path leaks the user's name and folder layout."""
+    outputs = demo_runner.demo_outputs("hla-typing", tmp_path)
+    leaks = [name for name, text in outputs.items() if str(demo_runner.PROJECT_ROOT) in text]
+    assert leaks == []
