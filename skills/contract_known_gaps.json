@@ -8,6 +8,9 @@
   "eqtl-catalogue-region-fetch": [
     "repro_files"
   ],
+  "locuscompare-region-render": [
+    "repro_files"
+  ],
   "variant-annotation": [
     "repro_files"
   ]
