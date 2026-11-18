@@ -10,6 +10,7 @@ import pytest
 from clawbio.common.checksums import sha256_file
 from clawbio.common.reproducibility import (
     ReproCommand,
+    ReproPath,
     write_checksums,
     write_environment_yml,
     write_commands_sh,
@@ -274,23 +275,103 @@ class TestCommandsShMode:
 
 
 class TestWritePortableCommandsSh:
-    def test_portable_commands_validate_clawbio_root_directory(self, tmp_path):
+    @staticmethod
+    def _checkout(root: Path) -> Path:
+        """A minimal ClawBio checkout whose skill script prints its arguments."""
+        script = root / "skills" / "example" / "example.py"
+        script.parent.mkdir(parents=True)
+        script.write_text("import sys\nprint(' '.join(sys.argv[1:]))\n")
+        return root
+
+    @staticmethod
+    def _replay(commands_sh: Path, cwd: Path, **env: str) -> subprocess.CompletedProcess:
+        import os
+        import sys
+
+        full_env = {k: v for k, v in os.environ.items() if k != "CLAWBIO_ROOT"}
+        full_env["PYTHON"] = sys.executable
+        full_env.update(env)
+        return subprocess.run(
+            ["bash", str(commands_sh)], cwd=cwd, env=full_env, capture_output=True, text=True
+        )
+
+    def test_portable_commands_do_not_record_the_checkout_path(self, tmp_path):
+        """Bundles are shared; the generating machine's checkout path must not be in them."""
+        repo = self._checkout(tmp_path / "private_user_dir" / "ClawBio")
+        out = tmp_path / "out"
         command = ReproCommand(
             script_path=Path("skills/example/example.py"),
-            args=["--demo"],
-            comment="Replay example run",
+            args=["--input", ReproPath(repo / "skills" / "example" / "demo.csv", anchor="repo_root")],
         )
 
-        path = write_portable_commands_sh(
-            tmp_path,
-            command,
-            repo_root=tmp_path,
+        text = write_portable_commands_sh(out, command, repo_root=repo).read_text()
+
+        assert "private_user_dir" not in text
+        assert '"$CLAWBIO_ROOT/skills/example/demo.csv"' in text
+
+    def test_auto_anchored_path_inside_the_checkout_is_rendered_from_clawbio_root(self, tmp_path):
+        repo = self._checkout(tmp_path / "private_user_dir" / "ClawBio")
+        command = ReproCommand(
+            script_path=Path("skills/example/example.py"),
+            args=["--input", ReproPath(repo / "skills" / "example" / "demo.csv")],
         )
 
-        text = path.read_text()
-        assert 'if [ ! -d "$CLAWBIO_ROOT" ]; then' in text
-        assert 'echo "Invalid CLAWBIO_ROOT: $CLAWBIO_ROOT" >&2' in text
-        assert "exit 1" in text
+        text = write_portable_commands_sh(tmp_path / "out", command, repo_root=repo).read_text()
+
+        assert "private_user_dir" not in text
+        assert '"$CLAWBIO_ROOT/skills/example/demo.csv"' in text
+
+    def test_replay_finds_the_checkout_from_the_current_directory(self, tmp_path):
+        repo = self._checkout(tmp_path / "ClawBio")
+        out = tmp_path / "elsewhere" / "out"
+        command = ReproCommand(script_path=Path("skills/example/example.py"), args=["--demo"])
+        commands_sh = write_portable_commands_sh(out, command, repo_root=repo)
+
+        result = self._replay(commands_sh, cwd=repo / "skills")
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == "--demo"
+
+    def test_replay_finds_the_checkout_above_the_bundle(self, tmp_path):
+        repo = self._checkout(tmp_path / "ClawBio")
+        out = repo / "output" / "run1"
+        command = ReproCommand(script_path=Path("skills/example/example.py"), args=["--demo"])
+        commands_sh = write_portable_commands_sh(out, command, repo_root=repo)
+
+        result = self._replay(commands_sh, cwd=tmp_path)
+
+        assert result.returncode == 0, result.stderr
+
+    def test_replay_honours_clawbio_root(self, tmp_path):
+        repo = self._checkout(tmp_path / "ClawBio")
+        out = tmp_path / "elsewhere" / "out"
+        command = ReproCommand(script_path=Path("skills/example/example.py"), args=["--demo"])
+        commands_sh = write_portable_commands_sh(out, command, repo_root=repo)
+
+        result = self._replay(commands_sh, cwd=tmp_path, CLAWBIO_ROOT=str(repo))
+
+        assert result.returncode == 0, result.stderr
+
+    def test_replay_outside_a_checkout_fails_with_a_hint(self, tmp_path):
+        repo = self._checkout(tmp_path / "ClawBio")
+        out = tmp_path / "elsewhere" / "out"
+        command = ReproCommand(script_path=Path("skills/example/example.py"), args=["--demo"])
+        commands_sh = write_portable_commands_sh(out, command, repo_root=repo)
+
+        result = self._replay(commands_sh, cwd=out)
+
+        assert result.returncode == 1
+        assert "CLAWBIO_ROOT" in result.stderr
+
+    def test_replay_rejects_a_clawbio_root_that_is_not_a_checkout(self, tmp_path):
+        repo = self._checkout(tmp_path / "ClawBio")
+        command = ReproCommand(script_path=Path("skills/example/example.py"), args=["--demo"])
+        commands_sh = write_portable_commands_sh(tmp_path / "out", command, repo_root=repo)
+
+        result = self._replay(commands_sh, cwd=repo, CLAWBIO_ROOT=str(tmp_path / "missing"))
+
+        assert result.returncode == 1
+        assert "CLAWBIO_ROOT" in result.stderr
 
     def test_portable_commands_keep_existing_root_and_output_exports(self, tmp_path):
         command = ReproCommand(
@@ -298,18 +379,11 @@ class TestWritePortableCommandsSh:
             args=["--demo"],
         )
 
-        path = write_portable_commands_sh(
-            tmp_path,
-            command,
-            repo_root=tmp_path,
-        )
+        text = write_portable_commands_sh(tmp_path, command, repo_root=tmp_path).read_text()
 
-        text = path.read_text()
         assert 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' in text
         assert 'OUTPUT_DIR="$(dirname "$SCRIPT_DIR")"' in text
-        assert f': "${{CLAWBIO_ROOT:={tmp_path.resolve()}}}"' in text
         assert '"${PYTHON:-python3}" "$CLAWBIO_ROOT/skills/example/example.py" --demo' in text
-        assert f'python "{(tmp_path.resolve() / "skills/example/example.py")}" --demo' not in text
 
 
 # ---------------------------------------------------------------------------
