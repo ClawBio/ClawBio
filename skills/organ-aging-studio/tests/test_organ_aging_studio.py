@@ -16,6 +16,17 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 DEMO_FIXTURE = SKILL_DIR.parent / "proteomics-clock" / "data" / "demo_olink_npx.csv.gz"
 FORMULA = "predicted_age = intercept + Σ (protein_NPX × coefficient)"
 
+# Runs the script named by the next argument as __main__, with EncodingWarning
+# raised for that script and for the clawbio package.
+_RUN_WITH_ENCODING_WARNINGS_AS_ERRORS = """
+import runpy, sys, warnings
+warnings.filterwarnings(
+    "error", category=EncodingWarning, module="(__main__|clawbio)([.]|$)"
+)
+sys.argv = sys.argv[1:]
+runpy.run_path(sys.argv[0], run_name="__main__")
+"""
+
 
 def _run_demo_cli(out_dir, *python_options, env=None):
     return subprocess.run(
@@ -167,13 +178,16 @@ def test_cli_demo_does_not_depend_on_locale_encoding(tmp_path):
 
 def test_cli_demo_names_the_encoding_of_its_text_files(tmp_path):
     # -X warn_default_encoding flags every text open that falls back to the
-    # locale encoding; the filter turns the ones in this script into errors.
+    # locale encoding. The runner turns the ones in this script and in the
+    # clawbio code it calls, such as the reproducibility bundle writers, into
+    # errors; other modules only print theirs. -W cannot do this, because its
+    # module field must name one module exactly.
     proc = _run_demo_cli(
         tmp_path / "out",
         "-X",
         "warn_default_encoding",
-        "-W",
-        "error::EncodingWarning:__main__",
+        "-c",
+        _RUN_WITH_ENCODING_WARNINGS_AS_ERRORS,
     )
     assert proc.returncode == 0, proc.stderr
 

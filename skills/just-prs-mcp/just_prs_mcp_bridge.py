@@ -25,6 +25,11 @@ from clawbio.common.report import (  # noqa: E402
     generate_report_header,
     write_result_json,
 )
+from clawbio.common.reproducibility import (  # noqa: E402
+    write_checksums,
+    write_commands_sh,
+    write_environment_yml,
+)
 from clawbio.common.textio import write_text_lf  # noqa: E402
 from mcp_client import JustPrsMcpClient, McpCallError  # noqa: E402
 
@@ -740,8 +745,6 @@ def _write_reproducibility(
     top_n: int = 5,
     limit: int | None = None,
 ) -> Path:
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
     args: list[str] = ["--demo"] if demo else ["--input", f'"{input_path}"']
     if not demo:
         if trait:
@@ -764,9 +767,9 @@ def _write_reproducibility(
             args.extend(["--limit", str(limit)])
     args.extend(["--output", '"$OUTPUT_DIR"'])
     command = " \\\n  ".join(['"${RUNNER[@]}"', *args])
-    content = "\n".join(
+    # write_commands_sh adds the shebang, the trailing newline and the execute bit.
+    body = "\n".join(
         [
-            "#!/usr/bin/env bash",
             "set -euo pipefail",
             'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
             'OUTPUT_DIR="$(dirname "$SCRIPT_DIR")"',
@@ -779,13 +782,9 @@ def _write_reproducibility(
             '  RUNNER=(uv run --no-project --with "$CLAWBIO_PACKAGE_SPEC" clawbio run just-prs)',
             "fi",
             command,
-            "",
         ]
     )
-    path = repro_dir / "commands.sh"
-    write_text_lf(path, content)
-    path.chmod(path.stat().st_mode | 0o111)
-    return path
+    return write_commands_sh(output_dir, body)
 
 
 def write_bundle(
@@ -868,10 +867,15 @@ def write_bundle(
         top_n=top_n,
         limit=limit,
     )
-    from clawbio.common.reproducibility import write_checksums
-
+    # Bounds mirror the just-prs extra in pyproject.toml; uv supplies uvx for the pinned server.
+    environment_path = write_environment_yml(
+        output_dir,
+        env_name="clawbio-just-prs-mcp",
+        pip_deps=["fastmcp>=4.1.5,<5", "typer>=0.27.3,<1"],
+        conda_deps=["uv"],
+    )
     write_checksums(
-        [report_path, result_path, scores_path, commands_path],
+        [report_path, result_path, scores_path, commands_path, environment_path],
         output_dir,
         anchor=output_dir,
     )
