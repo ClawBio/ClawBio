@@ -621,7 +621,7 @@ def _write_markdown_report(
     lines.append("# Clinical Variant Report — ACMG/AMP Classification")
     lines.append("")
     lines.append(f"**Generated**: {timestamp}")
-    lines.append(f"**Input**: {input_path}")
+    lines.append(f"**Input**: {Path(input_path).name}")
     lines.append(f"**Assembly**: {assembly}")
     lines.append(f"**Total variants classified**: {len(classified)}")
     lines.append(f"**Mode**: {'Demo (pre-cached evidence)' if demo else 'Live (VEP REST API)'}")
