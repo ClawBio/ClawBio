@@ -26,6 +26,7 @@ from clawbio.common.report import (  # noqa: E402
     write_result_json,
 )
 from clawbio.common.reproducibility import (  # noqa: E402
+    CLAWBIO_ROOT_SEARCH,
     write_checksums,
     write_commands_sh,
     write_environment_yml,
@@ -773,7 +774,7 @@ def _write_reproducibility(
             "set -euo pipefail",
             'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
             'OUTPUT_DIR="$(dirname "$SCRIPT_DIR")"',
-            f': "${{CLAWBIO_ROOT:={_PROJECT_ROOT}}}"',
+            *CLAWBIO_ROOT_SEARCH,
             f': "${{CLAWBIO_PACKAGE_SPEC:=clawbio[just-prs]=={distribution_version("clawbio")}}}"',
             'CLAWBIO_SCRIPT="$CLAWBIO_ROOT/skills/just-prs-mcp/just_prs_mcp_bridge.py"',
             'if [[ -f "$CLAWBIO_ROOT/pyproject.toml" ]]; then',
