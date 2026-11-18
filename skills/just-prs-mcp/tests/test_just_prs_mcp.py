@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from inline_snapshot import snapshot
+from clawbio.common import demo_runner
 import yaml
 
 pytest.importorskip("typer", reason="needs the just-prs extra (uv sync --extra just-prs)")
@@ -768,3 +770,226 @@ def test_build_mismatch_banner_appears_in_report(tmp_path: Path) -> None:
     body = (tmp_path / "mismatch" / "report.md").read_text(encoding="utf-8")
     assert "build" in body.lower()
     assert "WARNING" in body
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/just-prs-mcp/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("just-prs-mcp", tmp_path) == snapshot({'report.md': """\
+# just-prs Polygenic Risk Report
+
+**Date**: <TIMESTAMP> UTC
+**Skill**: just-prs-mcp
+**Version**: 0.1.1
+**Mode**: Synthetic offline demo
+**Trait**: type 2 diabetes mellitus
+**Trait ontology ID**: EFO_0001360
+**Genome build**: GRCh38
+**Requested ancestry**: EUR
+**Reference panel ancestry**: EUR
+**Input files**:
+- `demo_patient.vcf`: `56eba18a865171bf2b87e6ff5f5735616bb40b036990ae9714a1ecdddc3a3835`
+
+---
+
+## Summary
+
+Scored 2/3 PGS ID(s) for type 2 diabetes mellitus on GRCh38; 1 failed.
+
+- Scored models: **2**
+- Failed models: **1**
+- Curated out: **4**
+- Build mismatch: **False**
+- Requested ancestry: **EUR**
+- Reference panel ancestry: **EUR**
+
+## Model agreement
+
+- Reliable models: **1**
+- Verdict: **insufficient_reliable_models**
+- Reliable percentile range: **78.00–78.00**
+- Descriptive percentile spread: **0.00**
+
+This is a descriptive comparison of reliable models, not a clinical confidence threshold.
+
+## Score details
+
+| PGS ID | Status | Percentile | Reference ancestry | Reliable | C_wt | Match rate | Quality | Absolute risk |
+|---|---|---:|---|---|---:|---:|---|---|
+| [PGS000014](https://www.pgscatalog.org/score/PGS000014/) | scored | 78.00 | EUR | True | 94.0% | 92.0% | High | unavailable |
+| [PGS000013](https://www.pgscatalog.org/score/PGS000013/) | scored | 54.00 | EUR | False | 61.0% | 72.5% | Moderate | unavailable |
+| [PGS999999](https://www.pgscatalog.org/score/PGS999999/) | failed | n/a | n/a | None | n/a | n/a | n/a | not_attempted |
+
+## Interpretation boundaries
+
+- A PRS measures genetic predisposition, not the trait itself and not a diagnosis.
+- Percentiles are meaningful only when the reference-panel ancestry is appropriate.
+- Absolute-risk percentages may use a single-population prevalence baseline upstream, so they can be ancestry-inconsistent with an ancestry-stratified percentile even when both numbers are shown.
+- Low C_wt, unreliable percentiles, model disagreement, and build mismatches must not be hidden.
+- Lifestyle, environment, age, family history, and genetic factors outside the model also matter.
+
+## Curation provenance
+
+profile=curated dropped 4 scored row(s): 2 no performance evidence, 2 duplicate score family
+
+Upstream engine: `just-prs-mcp==0.3.1` via local stdio.
+
+---
+
+## Disclaimer
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'result.json': """\
+{
+  "status": "ok",
+  "ok": true,
+  "skill": "just-prs-mcp",
+  "version": "0.1.1",
+  "completed_at": "<TIMESTAMP>",
+  "input_checksum": "sha256:56eba18a865171bf2b87e6ff5f5735616bb40b036990ae9714a1ecdddc3a3835",
+  "datasets": {
+    "just-prs-mcp": "0.3.1",
+    "PGS Catalog": "cached synthetic fixture"
+  },
+  "summary": {
+    "trait": "type 2 diabetes mellitus",
+    "trait_id": "EFO_0001360",
+    "models_scored": 2,
+    "models_failed": 1,
+    "reliable_models": 1,
+    "requested_superpopulation": "EUR",
+    "superpopulation_defaulted": false,
+    "reference_panel_ancestry": "EUR",
+    "demo": true
+  },
+  "data": {
+    "trait_id": "EFO_0001360",
+    "trait": "type 2 diabetes mellitus",
+    "genome_build": "GRCh38",
+    "detected_genome_build": "GRCh38",
+    "build_mismatch": false,
+    "profile": "curated",
+    "requested_superpopulation": "EUR",
+    "superpopulation_defaulted": false,
+    "superpopulation_auto_defaulted_models": [],
+    "reference_panel_ancestry": "EUR",
+    "n_requested": 3,
+    "n_scored": 2,
+    "n_failed": 1,
+    "n_skipped": 0,
+    "n_filtered": 4,
+    "n_omitted": 0,
+    "filter_summary": "profile=curated dropped 4 scored row(s): 2 no performance evidence, 2 duplicate score family",
+    "upstream_summary": "Scored 2/3 PGS ID(s) for type 2 diabetes mellitus on GRCh38; 1 failed.",
+    "model_agreement": {
+      "reliable_models": 1,
+      "verdict": "insufficient_reliable_models",
+      "percentile_min": 78.0,
+      "percentile_max": 78.0,
+      "percentile_spread": 0.0,
+      "percentile_mean": 78.0
+    },
+    "scores": [
+      {
+        "pgs_id": "PGS000014",
+        "pgs_catalog_url": "https://www.pgscatalog.org/score/PGS000014/",
+        "status": "scored",
+        "raw_score": 0.42,
+        "genome_build": "GRCh38",
+        "variants_number": 100,
+        "weight_type": "beta",
+        "variants_matched": 92,
+        "variants_total": 100,
+        "match_rate": 0.92,
+        "weight_mass_coverage": 0.94,
+        "percentile": 78.0,
+        "percentile_method": "reference_panel",
+        "percentile_reliable": true,
+        "percentile_caveat": null,
+        "requested_superpopulation": "EUR",
+        "superpopulation_applied": "EUR",
+        "superpopulation_auto_defaulted": false,
+        "reference_panel_ancestry": "EUR",
+        "quality_label": "High",
+        "quality_summary": "High-quality model with reliable percentile.",
+        "effect_size": "OR=1.55 [1.40-1.70]",
+        "auroc_estimate": 0.74,
+        "absolute_risk": {
+          "status": "unavailable",
+          "reason": "Offline demo does not call prevalence services."
+        },
+        "error": null
+      },
+      {
+        "pgs_id": "PGS000013",
+        "pgs_catalog_url": "https://www.pgscatalog.org/score/PGS000013/",
+        "status": "scored",
+        "raw_score": 0.11,
+        "genome_build": "GRCh38",
+        "variants_number": 80,
+        "weight_type": "beta",
+        "variants_matched": 58,
+        "variants_total": 80,
+        "match_rate": 0.725,
+        "weight_mass_coverage": 0.61,
+        "percentile": 54.0,
+        "percentile_method": "theoretical",
+        "percentile_reliable": false,
+        "percentile_caveat": "Coverage is too low for a reliable percentile.",
+        "requested_superpopulation": "EUR",
+        "superpopulation_applied": "EUR",
+        "superpopulation_auto_defaulted": false,
+        "reference_panel_ancestry": "EUR",
+        "quality_label": "Moderate",
+        "quality_summary": "Moderate model; interpret cautiously.",
+        "effect_size": "OR=1.20",
+        "auroc_estimate": 0.65,
+        "absolute_risk": {
+          "status": "unavailable",
+          "reason": "Offline demo does not call prevalence services."
+        },
+        "error": null
+      },
+      {
+        "pgs_id": "PGS999999",
+        "pgs_catalog_url": "https://www.pgscatalog.org/score/PGS999999/",
+        "status": "failed",
+        "raw_score": null,
+        "genome_build": null,
+        "variants_number": null,
+        "weight_type": null,
+        "variants_matched": null,
+        "variants_total": null,
+        "match_rate": null,
+        "weight_mass_coverage": null,
+        "percentile": null,
+        "percentile_method": null,
+        "percentile_reliable": null,
+        "percentile_caveat": null,
+        "requested_superpopulation": "EUR",
+        "superpopulation_applied": "EUR",
+        "superpopulation_auto_defaulted": false,
+        "reference_panel_ancestry": null,
+        "quality_label": null,
+        "quality_summary": null,
+        "effect_size": null,
+        "auroc_estimate": null,
+        "absolute_risk": {
+          "status": "not_attempted",
+          "reason": "Score failed, so absolute risk was not attempted."
+        },
+        "error": "Scoring file unavailable."
+      }
+    ]
+  }
+}\
+""", 'tables/scores.csv': """\
+pgs_id,status,raw_score,variants_matched,variants_total,match_rate,weight_mass_coverage,percentile,percentile_method,percentile_reliable,reference_panel_ancestry,quality_label,auroc_estimate,absolute_risk_status,absolute_risk,risk_ratio,error
+PGS000014,scored,0.42,92,100,0.92,0.94,78.0,reference_panel,True,EUR,High,0.74,unavailable,,,
+PGS000013,scored,0.11,58,80,0.725,0.61,54.0,theoretical,False,EUR,Moderate,0.65,unavailable,,,
+PGS999999,failed,,,,,,,,,,,,not_attempted,,,Scoring file unavailable.
+"""})
