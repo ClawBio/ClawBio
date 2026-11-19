@@ -1,5 +1,7 @@
 import hashlib
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -264,7 +266,7 @@ def test_download_text_returns_same_text_from_download_and_cache(tmp_path, monke
     cache_file = tmp_path / "proteomics-clock" / "Heart_gen1_fold1.csv"
     assert gets == [url]
     assert cache_file.read_bytes() == served
-    assert pc._checksum_path(cache_file).read_text().strip() == hashlib.sha256(served).hexdigest()
+    assert pc._checksum_path(cache_file).read_text(encoding="utf-8").strip() == hashlib.sha256(served).hexdigest()
     assert cached == downloaded == served.decode("utf-8")
 
 
@@ -310,7 +312,7 @@ def test_run_analysis_with_demo(tmp_path):
     gen1 = pd.read_csv(out_dir / "tables" / "predictions_gen1.csv")
     assert "sample_id" in gen1.columns
 
-    report_text = (out_dir / "report.md").read_text()
+    report_text = (out_dir / "report.md").read_text(encoding="utf-8")
     assert "ClawBio is a research and educational tool" in report_text
     assert "Goeminne" in report_text
     assert "Input Sanity" in report_text
@@ -336,3 +338,73 @@ def test_cli_smoke_with_demo(tmp_path):
     assert data["n_samples"] >= 1
     assert (out_dir / "tables" / "predictions_gen1.csv").exists()
     assert (out_dir / "reproducibility" / "checksums.sha256").exists()
+
+
+# Runs the script named by the next argument as __main__, with EncodingWarning
+# raised for that script and for the clawbio package.
+_RUN_WITH_ENCODING_WARNINGS_AS_ERRORS = """
+import runpy, sys, warnings
+warnings.filterwarnings(
+    "error", category=EncodingWarning, module="(__main__|clawbio)([.]|$)"
+)
+sys.argv = sys.argv[1:]
+runpy.run_path(sys.argv[0], run_name="__main__")
+"""
+
+
+def _run_cli(cache_dir, *args, python_options=()):
+    return subprocess.run(
+        [
+            sys.executable,
+            *python_options,
+            str(SKILL_DIR / "proteomics_clock.py"),
+            *args,
+            "--organs",
+            "Heart",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={**os.environ, "CLAWBIO_CACHE": str(cache_dir)},
+    )
+
+
+def test_cli_demo_names_the_encoding_of_its_text_files(tmp_path):
+    # -X warn_default_encoding flags every text open that falls back to the locale
+    # encoding; the runner turns the ones in this script and in clawbio into errors.
+    # The first run fills an empty cache and the second reads it, so the checksum
+    # sidecars are both written and read.
+    for out_name in ("cold_cache", "warm_cache"):
+        proc = _run_cli(
+            tmp_path / "cache",
+            "--demo",
+            "--output",
+            str(tmp_path / out_name),
+            python_options=("-X", "warn_default_encoding", "-c", _RUN_WITH_ENCODING_WARNINGS_AS_ERRORS),
+        )
+        assert proc.returncode == 0, proc.stderr
+
+
+def test_cli_writes_text_outputs_as_utf8_with_lf(tmp_path):
+    # Σ is not in cp1252, the code page of English and Western European Windows.
+    # report.md repeats the input path, and commands.sh both paths.
+    input_path = tmp_path / "in_Σ" / DEMO_FIXTURE.name
+    input_path.parent.mkdir()
+    shutil.copyfile(DEMO_FIXTURE, input_path)
+    out_dir = tmp_path / "out_Σ"
+
+    proc = _run_cli(tmp_path / "cache", "--input", str(input_path), "--output", str(out_dir))
+
+    assert proc.returncode == 0, proc.stderr
+    for name in [
+        "report.md",
+        "tables/clock_metadata.json",
+        "reproducibility/commands.sh",
+        "reproducibility/environment.yml",
+        "reproducibility/checksums.sha256",
+    ]:
+        assert b"\r" not in (out_dir / name).read_bytes(), name
+    assert str(input_path).encode("utf-8") in (out_dir / "report.md").read_bytes()
+    commands = (out_dir / "reproducibility" / "commands.sh").read_bytes()
+    assert str(input_path).encode("utf-8") in commands
+    assert str(out_dir).encode("utf-8") in commands
