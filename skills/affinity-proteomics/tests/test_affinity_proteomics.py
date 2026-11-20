@@ -6,6 +6,8 @@ testing, and end-to-end demo mode for both platforms.
 
 from __future__ import annotations
 
+from clawbio.common import demo_runner
+
 import importlib.util
 import json
 import sys
@@ -344,3 +346,10 @@ def test_demo_writes_verifiable_reproducibility_bundle(tmp_path, monkeypatch):
         target = out / label
         assert target.is_file(), label
         assert hashlib.sha256(target.read_bytes()).hexdigest() == digest, label
+
+
+def test_demo_outputs_do_not_record_the_checkout_path(tmp_path):
+    """Reports are shared; an absolute path leaks the user's name and folder layout."""
+    outputs = demo_runner.demo_outputs("affinity-proteomics", tmp_path)
+    leaks = [name for name, text in outputs.items() if str(demo_runner.PROJECT_ROOT) in text]
+    assert leaks == []
