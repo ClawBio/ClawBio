@@ -12,9 +12,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -24,6 +24,20 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.checksums import sha256_file  # noqa: E402
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
+from clawbio.common.textio import write_text_lf_atomic  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -187,15 +201,6 @@ DEMO_PATHWAYS = {
 # ---------------------------------------------------------------------------
 # Utility functions
 # ---------------------------------------------------------------------------
-
-def sha256_file(filepath: Path) -> str:
-    """Compute SHA-256 checksum of a file."""
-    h = hashlib.sha256()
-    with open(filepath, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
 
 def run_command(
     cmd: List[str],
@@ -884,98 +889,100 @@ Top pathway: {pw_name}
 # Reproducibility bundle
 # ---------------------------------------------------------------------------
 
+# The pipeline's external tools and Python libraries, for environment.yml.
+CONDA_DEPS = [
+    "kraken2>=2.1.3",
+    "bracken>=2.9",
+    "rgi>=6.0",
+    "humann>=3.8",
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "matplotlib>=3.7",
+    "seaborn>=0.12",
+    "scipy>=1.10",
+    "biopython>=1.82",
+]
+
+# A real run checks the tools before it starts; the demo needs none of them.
+TOOL_PREFLIGHT = [
+    "# Verify tool versions",
+    'kraken2 --version 2>/dev/null || echo "WARNING: kraken2 not found"',
+    'bracken -v 2>/dev/null || echo "WARNING: bracken not found"',
+    'rgi main --version 2>/dev/null || echo "WARNING: rgi not found"',
+    'humann --version 2>/dev/null || echo "WARNING: humann not found"',
+]
+
+
+def _quoted_path(value: str) -> str:
+    """A path for commands.sh: under $CLAWBIO_ROOT when inside the checkout, else absolute."""
+    path = Path(value).expanduser().resolve()
+    if path.is_relative_to(_PROJECT_ROOT):
+        return f'"$CLAWBIO_ROOT"/{shlex.quote(path.relative_to(_PROJECT_ROOT).as_posix())}'
+    return shlex.quote(str(path))
+
+
+def _replay_args(args: argparse.Namespace, output_dir: Path, is_demo: bool) -> list[str | ReproPath]:
+    if is_demo:
+        return ["--demo", "--output", ReproPath(output_dir, anchor="output_dir")]
+    replay: list[str | ReproPath] = []
+    for flag, value in (("--r1", args.r1), ("--r2", args.r2), ("--input", args.input)):
+        if value:
+            replay += [flag, _quoted_path(value)]
+    if args.skip_functional:
+        replay.append("--skip-functional")
+    for flag, value in (("--kraken2-db", args.kraken2_db),
+                        ("--humann-db", getattr(args, "humann_db", None))):
+        if value:
+            replay += [flag, _quoted_path(value)]
+    if args.read_length != DEFAULT_READ_LENGTH:
+        replay += ["--read-length", str(args.read_length)]
+    return replay + ["--output", ReproPath(output_dir, anchor="output_dir")]
+
+
 def write_reproducibility_bundle(
     output_dir: Path,
     input_files: List[Path],
     args: argparse.Namespace,
     is_demo: bool,
 ) -> None:
-    """Write commands.sh, environment.yml, and checksums.sha256."""
+    """Write reproducibility/ with the shared helpers: commands.sh, environment.yml,
+    checksums.sha256 and, for a real run, inputs.json with each input's SHA-256."""
+    output_dir = Path(output_dir).resolve()
     repro_dir = output_dir / "reproducibility"
+    outputs = sorted(p for p in output_dir.rglob("*") if p.is_file() and repro_dir not in p.parents)
     repro_dir.mkdir(parents=True, exist_ok=True)
 
-    # commands.sh
-    if is_demo:
-        cmd_line = "python metagenomics_profiler.py --demo --output demo_report"
-    else:
-        parts = ["python metagenomics_profiler.py"]
-        if hasattr(args, "r1") and args.r1:
-            parts.append(f"--r1 {args.r1}")
-        if hasattr(args, "r2") and args.r2:
-            parts.append(f"--r2 {args.r2}")
-        if hasattr(args, "input") and args.input:
-            parts.append(f"--input {args.input}")
-        parts.append(f"--output {args.output}")
-        if hasattr(args, "skip_functional") and args.skip_functional:
-            parts.append("--skip-functional")
-        if hasattr(args, "kraken2_db") and args.kraken2_db:
-            parts.append(f"--kraken2-db {args.kraken2_db}")
-        if hasattr(args, "read_length") and args.read_length != DEFAULT_READ_LENGTH:
-            parts.append(f"--read-length {args.read_length}")
-        cmd_line = " \\\n    ".join(parts)
+    bundle = []
+    if not is_demo:
+        # Inputs live outside the output directory, so their digests are recorded
+        # here by flag rather than in checksums.sha256.
+        inputs = {
+            flag: {"file": Path(value).name, "sha256": sha256_file(Path(value))}
+            for flag, value in (("r1", args.r1), ("r2", args.r2), ("input", args.input))
+            if value and Path(value).is_file()
+        }
+        inputs_path = repro_dir / "inputs.json"
+        write_text_lf_atomic(inputs_path, json.dumps(inputs, indent=2) + "\n")
+        bundle.append(inputs_path)
 
-    commands_sh = f"""#!/usr/bin/env bash
-# Reproducibility script — ClawBio Metagenomics Profiler
-# Generated: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
-
-set -euo pipefail
-
-# Verify tool versions
-kraken2 --version 2>/dev/null || echo "WARNING: kraken2 not found"
-bracken -v 2>/dev/null || echo "WARNING: bracken not found"
-rgi main --version 2>/dev/null || echo "WARNING: rgi not found"
-humann --version 2>/dev/null || echo "WARNING: humann not found"
-
-# Run pipeline
-{cmd_line}
-
-echo "Pipeline complete."
-"""
-    (repro_dir / "commands.sh").write_text(commands_sh, encoding="utf-8")
-
-    # environment.yml
-    env_yml = """name: clawbio-metagenomics
-channels:
-  - bioconda
-  - conda-forge
-  - defaults
-dependencies:
-  - python>=3.9
-  - kraken2>=2.1.3
-  - bracken>=2.9
-  - rgi>=6.0
-  - humann>=3.8
-  - pandas>=2.0
-  - numpy>=1.24
-  - matplotlib>=3.7
-  - seaborn>=0.12
-  - scipy>=1.10
-  - biopython>=1.82
-"""
-    (repro_dir / "environment.yml").write_text(env_yml, encoding="utf-8")
-
-    # checksums.sha256
-    checksums = []
-    for fp in input_files:
-        if fp.exists():
-            cs = sha256_file(fp)
-            checksums.append(f"{cs}  {fp.name}")
-        else:
-            checksums.append(f"# {fp.name}: demo data (no file on disk)")
-
-    # Also checksum generated outputs
-    for out_file in sorted(output_dir.glob("**/*")):
-        if out_file.is_file() and "reproducibility" not in str(out_file):
-            cs = sha256_file(out_file)
-            try:
-                rel = out_file.relative_to(output_dir)
-            except ValueError:
-                rel = out_file.name
-            checksums.append(f"{cs}  {rel}")
-
-    (repro_dir / "checksums.sha256").write_text(
-        "\n".join(checksums) + "\n", encoding="utf-8",
-    )
+    bundle.append(write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/claw-metagenomics/metagenomics_profiler.py"),
+            args=_replay_args(args, output_dir, is_demo),
+            comment="Reproduce this ClawBio Metagenomics Profiler run",
+            preflight=[] if is_demo else TOOL_PREFLIGHT,
+        ),
+        repo_root=_PROJECT_ROOT,
+    ))
+    bundle.append(write_environment_yml(
+        output_dir,
+        env_name="clawbio-metagenomics",
+        pip_deps=[],
+        conda_deps=CONDA_DEPS,
+        channels=["conda-forge", "bioconda"],
+    ))
+    write_checksums([*outputs, *bundle], output_dir, anchor=output_dir)
     print("  Saved: reproducibility/ (commands.sh, environment.yml, checksums.sha256)")
 
 
