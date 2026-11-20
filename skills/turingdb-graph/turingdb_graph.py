@@ -9,28 +9,44 @@ ClawBio skill entry point. Subcommands:
     --stop-server   Stop a daemon started by this skill
 
 Global flags: --host (default localhost:6666), --data-dir (default ~/.turing),
---auto-start (default True), --out (output directory, default ./output).
+--no-auto-start, --output (output directory, default ./output; --out also works).
 """
 from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import pandas as pd
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
 
 DISCLAIMER = (
     "ClawBio is a research and educational tool. Not a medical device. "
     "This output must not be used for clinical decision-making."
 )
 
-DEFAULT_HOST = "http://localhost:6666"
+DEFAULT_HOST = "localhost:6666"
+DEFAULT_PORT = 6666
 DEFAULT_DATA_DIR = Path.home() / ".turing"
 
 
@@ -38,17 +54,41 @@ DEFAULT_DATA_DIR = Path.home() / ".turing"
 # Connection / server lifecycle
 # ---------------------------------------------------------------------------
 
+def split_host(host: str) -> tuple[str, int]:
+    """Split ``--host`` into the host name and port the turingdb 3.x client takes.
+
+    Accepts ``localhost:6666``, ``localhost`` and, as earlier releases of this skill
+    documented, ``http://localhost:6666``; turingdb 3.x rejects a URL as ``host``.
+    """
+    parts = urlsplit(host if "://" in host else f"//{host}")
+    if not parts.hostname:
+        raise ValueError(f"--host must be a host name or host:port, got {host!r}")
+    return parts.hostname, parts.port or DEFAULT_PORT
+
+
 @dataclass
 class Connection:
     """Wraps a TuringDB client. Lazy-imports turingdb so --help works without it."""
     host: str
     data_dir: Path
     client: Any = None
+    # In-process engine on data_dir instead of a daemon. turingdb allows one
+    # embedded engine per process, so this suits a single CLI run such as --demo.
+    embedded: bool = False
+
+    def _client(self):
+        from turingdb import TuringDB  # lazy import — keeps --help cheap
+        if self.embedded:
+            return TuringDB(type="embedded", data_dir=str(self.data_dir))
+        hostname, port = split_host(self.host)
+        return TuringDB(host=hostname, port=port)
 
     def connect(self, auto_start: bool = True, retries: int = 30) -> None:
-        from turingdb import TuringDB  # lazy import — keeps --help cheap
+        if self.embedded:
+            self.client = self._client()
+            return
         try:
-            self.client = TuringDB(host=self.host)
+            self.client = self._client()
             self.client.list_loaded_graphs()  # probe
             return
         except Exception:
@@ -70,7 +110,7 @@ class Connection:
         # Poll for the server to come up
         for _ in range(retries):
             try:
-                self.client = TuringDB(host=self.host)
+                self.client = self._client()
                 self.client.list_loaded_graphs()
                 return
             except Exception:
@@ -665,6 +705,74 @@ def _build_cohort_demo(conn: Connection, csv_path: Path, graph: str, out_dir: Pa
 
 
 # ---------------------------------------------------------------------------
+# Reproducibility bundle
+# ---------------------------------------------------------------------------
+
+# Mirrors the turingdb-graph extra in pyproject.toml.
+REPRO_PIP_DEPS = ["turingdb>=3.1,<4", "pandas>=2.0", "tabulate>=0.9"]
+
+
+def _shell_quote(value: str) -> str:
+    """Quote value for bash so commands.sh hands it back unchanged.
+
+    commands.sh is written with LF line endings, which turns a carriage return
+    inside an ordinary quoted string into a newline; bash's $'...' quoting
+    spells it as an escape instead.
+    """
+    if "\r" not in value:
+        return shlex.quote(value)
+    escaped = value.replace("\\", "\\\\").replace("'", "\\'").replace("\r", "\\r")
+    return f"$'{escaped}'"
+
+
+def _replay_args(args: argparse.Namespace, out_dir: Path) -> list[str | ReproPath]:
+    """The CLI arguments that rerun this invocation into the bundle's own output directory."""
+    q = _shell_quote  # free-text values (graph names, Cypher) reach commands.sh verbatim
+    replay: list[str | ReproPath] = []
+    if not args.demo:  # the demo runs in-process and never reads these
+        if args.host != DEFAULT_HOST:
+            replay += ["--host", q(args.host)]
+        if args.no_auto_start:
+            replay.append("--no-auto-start")
+    if args.demo:
+        replay += ["--demo", args.demo]
+    elif args.build:
+        replay += ["--build", "--input", ReproPath(args.input.resolve()), "--graph", q(args.graph),
+                   "--format", args.format]
+        if args.node_label:
+            replay += ["--node-label", q(args.node_label)]
+    elif args.query:
+        replay += ["--query", "--graph", q(args.graph), "--cypher", q(args.cypher),
+                   "--result-format", args.result_format]
+    elif args.analyse_cohort:
+        replay += ["--analyse-cohort", "--graph", q(args.graph), "--top-n", str(args.top_n)]
+    replay += ["--output", ReproPath(out_dir, anchor="output_dir")]
+    return replay
+
+
+def write_reproducibility(args: argparse.Namespace, out_dir: Path) -> None:
+    """Write reproducibility/ (commands.sh, environment.yml, checksums.sha256) under out_dir."""
+    out_dir = out_dir.resolve()
+    repro_dir = out_dir / "reproducibility"
+    outputs = sorted(
+        p for p in out_dir.rglob("*") if p.is_file() and repro_dir not in p.parents
+    )
+    commands = write_portable_commands_sh(
+        out_dir,
+        ReproCommand(
+            script_path=Path("skills/turingdb-graph/turingdb_graph.py"),
+            args=_replay_args(args, out_dir),
+            comment="Replay this turingdb-graph run (needs the turingdb-graph extra).",
+        ),
+        repo_root=_PROJECT_ROOT,
+    )
+    environment = write_environment_yml(
+        out_dir, env_name="clawbio-turingdb-graph", pip_deps=REPRO_PIP_DEPS,
+    )
+    write_checksums([*outputs, commands, environment], out_dir, anchor=out_dir)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -675,11 +783,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     # Global flags
     parser.add_argument("--host", default=DEFAULT_HOST, help=f"TuringDB host (default {DEFAULT_HOST})")
-    parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR,
-                        help=f"TuringDB data directory (default {DEFAULT_DATA_DIR})")
+    parser.add_argument("--data-dir", type=Path, default=None,
+                        help=f"TuringDB data directory (default {DEFAULT_DATA_DIR}); "
+                             "--demo ignores it and uses a temporary one")
     parser.add_argument("--no-auto-start", action="store_true",
                         help="Do not launch the daemon if the server is unreachable")
-    parser.add_argument("--out", type=Path, default=Path("output"),
+    parser.add_argument("--output", "--out", dest="out", type=Path, default=Path("output"),
                         help="Output directory (default ./output)")
 
     sub = parser.add_mutually_exclusive_group(required=True)
@@ -704,39 +813,50 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
-    conn = Connection(host=args.host, data_dir=args.data_dir)
-
     if args.stop_server:
-        conn.stop()
+        Connection(host=args.host, data_dir=args.data_dir or DEFAULT_DATA_DIR).stop()
         return 0
 
-    conn.connect(auto_start=not args.no_auto_start)
+    if args.demo:
+        # The demo runs on an in-process engine in a throwaway data directory: no
+        # daemon to start or stop, and nothing written outside --output.
+        with tempfile.TemporaryDirectory(prefix="turingdb-graph-demo-") as data_dir:
+            conn = Connection(host=args.host, data_dir=Path(data_dir), embedded=True)
+            conn.connect()
+            _run_subcommand(parser, args, conn)
+    else:
+        conn = Connection(host=args.host, data_dir=args.data_dir or DEFAULT_DATA_DIR)
+        conn.connect(auto_start=not args.no_auto_start)
+        _run_subcommand(parser, args, conn)
 
+    write_reproducibility(args, args.out)
+    print(f"✓ done — outputs: {args.out}")
+    return 0
+
+
+def _run_subcommand(parser: argparse.ArgumentParser, args: argparse.Namespace,
+                    conn: Connection) -> None:
     if args.build:
         if not args.input or not args.graph:
             parser.error("--build requires --input and --graph")
-        summary = build_graph(
+        build_graph(
             conn, args.input, args.graph,
             fmt=args.format, node_label=args.node_label, out_dir=args.out,
         )
     elif args.query:
         if not args.graph or not args.cypher:
             parser.error("--query requires --graph and --cypher")
-        summary = run_query(conn, args.graph, args.cypher,
-                            fmt=args.result_format, out_dir=args.out)
+        run_query(conn, args.graph, args.cypher,
+                  fmt=args.result_format, out_dir=args.out)
     elif args.analyse_cohort:
         if not args.graph:
             parser.error("--analyse-cohort requires --graph")
-        summary = analyse_cohort(conn, args.graph, top_n=args.top_n, out_dir=args.out)
+        analyse_cohort(conn, args.graph, top_n=args.top_n, out_dir=args.out)
     elif args.demo:
         skill_root = Path(__file__).resolve().parent
-        summary = run_demo(conn, args.demo, skill_root, out_dir=args.out)
+        run_demo(conn, args.demo, skill_root, out_dir=args.out)
     else:
         parser.error("No subcommand selected")
-
-    # Final line for quick human read
-    print(f"✓ done — summary: {args.out}/summary.json")
-    return 0
 
 
 if __name__ == "__main__":

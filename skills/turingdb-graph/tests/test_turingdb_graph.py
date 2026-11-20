@@ -131,3 +131,213 @@ def test_reference_docs_shipped() -> None:
     for name in ("startup.md", "querying.md", "writing.md",
                  "algorithms.md", "introspection.md", "biomedical.md"):
         assert (ref / name).exists(), f"Missing reference doc: {name}"
+
+
+# ---------------------------------------------------------------------------
+# Demo output snapshot
+# ---------------------------------------------------------------------------
+# Fails when a code change alters any demo number. If the change is intended,
+# run `uv run pytest skills/turingdb-graph/tests --inline-snapshot=fix`; it
+# rewrites the snapshot() values below, and the PR diff shows which numbers moved.
+
+import importlib.util  # noqa: E402
+
+import pytest  # noqa: E402
+from inline_snapshot import snapshot  # noqa: E402
+
+from clawbio.common import demo_runner  # noqa: E402
+
+
+@pytest.mark.demo_snapshot
+@pytest.mark.skipif(
+    importlib.util.find_spec("turingdb") is None,
+    reason="needs the turingdb-graph extra (uv sync --extra turingdb-graph)",
+)
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("turingdb-graph", tmp_path) == snapshot({'demo-cohort/analysis/report.md': """\
+# Cohort analysis: `demo_cohort`
+
+- **Patients**: 20
+- **Ages** (n=20): min 14, max 73, mean 48.6, median 51.0
+- **Under 18**: 3
+- **Over 65**: 6
+
+## Top 10 conditions
+
+| condition | patients |
+|---|---|
+| Hypertension | 6 |
+| Diabetes Type 2 | 4 |
+| Asthma | 3 |
+| Arthritis | 3 |
+| Cancer | 2 |
+| Migraine | 2 |
+
+## Top 10 medications
+
+| medication | patients |
+|---|---|
+| Metformin | 4 |
+| Ibuprofen | 3 |
+| Amlodipine | 3 |
+| Lisinopril | 3 |
+| Salbutamol | 3 |
+| Sumatriptan | 2 |
+| Tamoxifen | 2 |
+
+
+---
+
+*ClawBio is a research and educational tool. Not a medical device. This output must not be used for clinical decision-making.*
+""", 'demo-cohort/analysis/summary.json': """\
+{
+  "graph": "demo_cohort",
+  "patient_count": 20,
+  "age_stats": {
+    "n": 20,
+    "min": 14,
+    "max": 73,
+    "mean": 48.6,
+    "median": 51.0
+  },
+  "junior_count": 3,
+  "senior_count": 6,
+  "top_conditions": [
+    {
+      "condition": "Hypertension",
+      "patients": 6
+    },
+    {
+      "condition": "Diabetes Type 2",
+      "patients": 4
+    },
+    {
+      "condition": "Asthma",
+      "patients": 3
+    },
+    {
+      "condition": "Arthritis",
+      "patients": 3
+    },
+    {
+      "condition": "Cancer",
+      "patients": 2
+    },
+    {
+      "condition": "Migraine",
+      "patients": 2
+    }
+  ],
+  "top_medications": [
+    {
+      "medication": "Metformin",
+      "patients": 4
+    },
+    {
+      "medication": "Ibuprofen",
+      "patients": 3
+    },
+    {
+      "medication": "Amlodipine",
+      "patients": 3
+    },
+    {
+      "medication": "Lisinopril",
+      "patients": 3
+    },
+    {
+      "medication": "Salbutamol",
+      "patients": 3
+    },
+    {
+      "medication": "Sumatriptan",
+      "patients": 2
+    },
+    {
+      "medication": "Tamoxifen",
+      "patients": 2
+    }
+  ],
+  "top_comorbidities": [],
+  "top_comedications": []
+}\
+""", 'demo-cohort/report.md': """\
+# Graph build: `demo_cohort`
+
+- **Source**: `cohort.csv` (csv (cohort demo builder))
+- **Loader**: `CREATE (cohort demo builder)`
+- **Nodes**: 50
+- **Edges**: 120
+
+## Nodes by label
+
+| Label | Count |
+|-------|------:|
+| `Patient` | 20 |
+| `BloodType` | 8 |
+| `Medication` | 7 |
+| `MedicalCondition` | 6 |
+| `Doctor` | 4 |
+| `Hospital` | 3 |
+| `Gender` | 2 |
+
+## Edge types
+
+`HAS`, `TOOK_MEDICATION`, `IS_TREATED_BY`, `IS_TREATED_IN`, `IS`
+
+
+---
+
+*ClawBio is a research and educational tool. Not a medical device. This output must not be used for clinical decision-making.*
+""", 'demo-cohort/summary.json': """\
+{
+  "graph": "demo_cohort",
+  "source": "cohort.csv",
+  "format": "csv (cohort demo builder)",
+  "loader": "CREATE (cohort demo builder)",
+  "nodes": 50,
+  "edges": 120,
+  "labels": [
+    "MedicalCondition",
+    "Medication",
+    "Doctor",
+    "Hospital",
+    "BloodType",
+    "Gender",
+    "Patient"
+  ],
+  "edge_types": [
+    "HAS",
+    "TOOK_MEDICATION",
+    "IS_TREATED_BY",
+    "IS_TREATED_IN",
+    "IS"
+  ],
+  "properties": [
+    {
+      "id": 0,
+      "propertyType": "displayName",
+      "valueType": "String"
+    },
+    {
+      "id": 1,
+      "propertyType": "id",
+      "valueType": "String"
+    },
+    {
+      "id": 2,
+      "propertyType": "age",
+      "valueType": "Int64"
+    }
+  ],
+  "nodes_by_label": {
+    "MedicalCondition": 6,
+    "Medication": 7,
+    "Doctor": 4,
+    "Hospital": 3,
+    "BloodType": 8,
+    "Gender": 2,
+    "Patient": 20
+  }
+}\
+"""})
