@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# Reproducibility bundle for locuscompare runs.
+# Example invocations for locuscompare-region-render.
 #
-# Each invocation of `locuscompare.py --input <config> --output <dir>` writes
-# a copy of THIS file to `<dir>/reproducibility/commands.sh` with the actual
-# arguments substituted. Re-running the saved file reproduces the analysis
-# byte-for-byte (modulo network-fetched data; cached artefacts are SHA-256-
-# pinned in `<dir>/reproducibility/checksums.sha256`).
+# Each run writes its own replay script to `<dir>/reproducibility/commands.sh`
+# (with environment.yml and checksums.sha256) via clawbio.common.reproducibility.
+# This file is only a hand-written usage example.
 
 set -euo pipefail
 
