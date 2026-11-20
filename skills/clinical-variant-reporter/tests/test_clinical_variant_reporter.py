@@ -7,6 +7,8 @@ of GIAB HG001 / ClinVar variants with known expected classifications.
 
 from __future__ import annotations
 
+from clawbio.common import demo_runner
+
 import json
 import sys
 from pathlib import Path
@@ -1471,3 +1473,10 @@ class TestAlleleSpecificClinVarSignificance:
 
         assert ev.clinvar_significance == ""
         assert ev.clinvar_review_stars == 0
+
+
+def test_demo_outputs_do_not_record_the_checkout_path(tmp_path):
+    """Reports are shared; an absolute path leaks the user's name and folder layout."""
+    outputs = demo_runner.demo_outputs("clinical-variant-reporter", tmp_path)
+    leaks = [name for name, text in outputs.items() if str(demo_runner.PROJECT_ROOT) in text]
+    assert leaks == []
