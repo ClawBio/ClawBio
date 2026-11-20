@@ -83,7 +83,7 @@ Snap a photo of a medication in Telegram. ClawBio identifies the drug from the p
 
 Or take any genetic variant (identified by its rsID — a unique label like [rs9923231](https://www.ncbi.nlm.nih.gov/snp/rs9923231)) and search nine genomic databases at once to find every known disease association, tissue-specific effect, and population frequency. Or estimate your genetic predisposition to conditions like type 2 diabetes by combining thousands of small-effect variants into a single polygenic risk score. Or explore the [UK Biobank](https://www.ukbiobank.ac.uk/) — a half-million-person research dataset — by asking in plain English what fields measure blood pressure, grip strength, or depression, and get back the exact field IDs, descriptions, and linked publications you need.
 
-Many ClawBio analyses write a `reproducibility/` bundle with replay commands, environment metadata, and output checksums. The exact files can vary by skill, and some replays still require the original external inputs to be present. See [docs/reproducibility.md](docs/reproducibility.md).
+Every skill run by the nightly demo sweep writes a `reproducibility/` bundle of three files: `commands.sh` (the replay command), `environment.yml` (a Conda environment) and `checksums.sha256` (SHA-256 of the outputs). The sweep fails if a skill stops writing one; the skills that do not write all three yet are listed in [`skills/contract_known_gaps.json`](skills/contract_known_gaps.json). Replaying a run on your own data needs those input files again. See [docs/reproducibility.md](docs/reproducibility.md).
 
 ---
 
@@ -151,7 +151,7 @@ python skills/claw-ancestry-pca/ancestry_pca.py --demo --output fig3
 
 Current agentic bioinformatics systems address either the **reasoning layer** (constraining LLM outputs with knowledge graphs or fine-tuning) or the **connectivity layer** (wrapping tools as MCP servers). Neither addresses the **specification layer**: the encoding of a domain expert's analytical decisions into a machine-readable contract that constrains agent behaviour. Without this layer, the agent must reconstruct expert knowledge from its training distribution, a stochastic, unversioned process.
 
-A **skill** is a self-contained directory comprising a declarative specification (`SKILL.md`), validated Python code, demo data, and reproducibility support. In many skills, that includes a `reproducibility/` bundle with `commands.sh`, `environment.yml`, and SHA-256 checksums, sometimes with extra lock metadata such as `runtime-lock.json`. The specification is a contract, not a prompt: it encodes the domain expert's analytical decisions so the LLM orchestrates but does not improvise.
+A **skill** is a self-contained directory comprising a declarative specification (`SKILL.md`), validated Python code, demo data, and a `reproducibility/` bundle (`commands.sh`, `environment.yml` and SHA-256 checksums) written on every run. The specification is a contract, not a prompt: it encodes the domain expert's analytical decisions so the LLM orchestrates but does not improvise.
 
 ```
 Ad-hoc LLM code generation  = stochastic, unversioned, unverifiable
@@ -161,7 +161,7 @@ ClawBio skill                = specification-constrained, versioned, reproducibl
 - **Specification-first**: Domain expertise resides in `SKILL.md`, not in model weights. Specifications are versioned, human-readable, peer-reviewable, and trivially updatable.
 - **Agent-agnostic**: Skills execute identically whether invoked by Claude, ChatGPT, or a locally hosted model via Ollama. Reproducibility is decoupled from any specific AI vendor.
 - **Local-first by default**: Your genome is analysed on your machine, and the `clawbio` package itself makes no network calls. Some skills do reach public annotation APIs or hosted models, and a few send your variants or sequences to do so. Every one of them is named, with what it sends and to whom, in [docs/data-handling.md](docs/data-handling.md), and a test fails if a networked skill is missing from that page.
-- **Reproducible**: Many skills export replay metadata such as `commands.sh`, `environment.yml`, and SHA-256 checksums so runs can be rechecked without the original agent session.
+- **Reproducible**: Each run writes `commands.sh`, `environment.yml` and SHA-256 checksums, so it can be rechecked without the original agent session. The exceptions are listed in [`skills/contract_known_gaps.json`](skills/contract_known_gaps.json).
 - **MIT licensed**: Open-source, free, community-driven.
 
 ## Why Not Just Use an LLM?
@@ -174,7 +174,7 @@ An LLM should not be improvising these from training data. ClawBio encodes the c
 
 ## Provenance and Reproducibility
 
-ClawBio's current reproducibility contract centers on a **`reproducibility/` bundle** written inside the output directory for skills that use the shared reproducibility helpers:
+Every run writes a **`reproducibility/` bundle** inside its output directory:
 
 ```
 report/
@@ -184,11 +184,16 @@ report/
 ├── reproducibility/
 │   ├── commands.sh        # Replay command for this run
 │   ├── environment.yml    # Suggested Conda environment snapshot
-│   ├── checksums.sha256   # SHA-256 for selected output files
-│   └── runtime-lock.json  # Optional extra lock metadata when supported
+│   └── checksums.sha256   # SHA-256 of the output files the skill records
 ```
 
-The exact contents can vary by skill, and some replays also require the original external inputs or tools to be available locally. For a user-facing walkthrough, including a truthful `multiqc-reporter` example based on direct script invocation, see [docs/reproducibility.md](docs/reproducibility.md).
+What this does and does not promise:
+
+- **Checked:** the nightly demo sweep runs each skill's demo (except the skipped ones below) and fails if one stops writing any of the three files. Skills that do not write all three yet are listed in [`skills/contract_known_gaps.json`](skills/contract_known_gaps.json); that list can only shrink.
+- **Not checked yet:** the skills the sweep skips because they need heavy tools, credentials or the network (listed as `SKIP_IN_CI` in [`scripts/nightly_demo_sweep.py`](scripts/nightly_demo_sweep.py)), and whether `commands.sh` replays on another machine. Some skills still record absolute paths from the machine that ran them.
+- **Your inputs and tools:** replaying a run on your own data needs those input files again, and any external tool the skill calls (such as `multiqc` or `Rscript`) must be installed.
+
+For a walkthrough with `multiqc-reporter`, see [docs/reproducibility.md](docs/reproducibility.md).
 
 ---
 

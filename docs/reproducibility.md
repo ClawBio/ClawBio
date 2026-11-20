@@ -1,18 +1,20 @@
 # Reproducibility Guide
 
-ClawBio's reproducibility support is designed to let someone replay a completed skill run without needing the original agent session. The exact files can vary by skill, but the current shared pattern centers on a `reproducibility/` directory written inside the chosen output directory.
+ClawBio's reproducibility support is designed to let someone replay a completed skill run without needing the original agent session. Every run writes a `reproducibility/` directory inside its output directory.
 
 This guide uses [`multiqc-reporter`](../skills/multiqc-reporter/) as the concrete example because it already has a validated direct-script workflow. For this example, the exact recorded replay path is a direct Python invocation of `skills/multiqc-reporter/multiqc_reporter.py` rather than `python clawbio.py run`.
 
 ## What The Bundle Contains
 
-Many skills write these files under `<output_dir>/reproducibility/`:
+Every skill writes these three files under `<output_dir>/reproducibility/`:
 
 - `commands.sh`: a replay script for the same skill run
 - `environment.yml`: a suggested Conda environment snapshot
-- `checksums.sha256`: SHA-256 digests for selected output files
+- `checksums.sha256`: SHA-256 digests of the output files the skill records
 
-Some skills may also write extra provenance or lock files when supported, such as `runtime-lock.json` or other lock metadata. Do not assume every skill emits the exact same extras.
+The nightly demo sweep (`scripts/nightly_demo_sweep.py`) runs each skill's demo and fails if any of the three is missing. Skills that do not write all three yet are listed in [`skills/contract_known_gaps.json`](../skills/contract_known_gaps.json), and that list can only shrink: the sweep also fails when a listed skill starts passing, until its entry is removed. Skills the sweep skips (`SKIP_IN_CI`: heavy tools, credentials or network) are not checked.
+
+Some skills write extra files next to these, such as `provenance.json`, `run.json` or an RO-Crate. Those vary by skill and are not checked.
 
 Keep these limits in mind:
 
@@ -54,7 +56,6 @@ conda activate clawbio-multiqc-reporter
 multiqc --version
 ```
 
-If your workflow or environment manager also produces a lock artifact such as `runtime-lock.json`, treat that as a stricter runtime snapshot than the base `environment.yml`.
 
 ## Replay The Analysis
 
@@ -67,8 +68,8 @@ bash /tmp/multiqc_demo/reproducibility/commands.sh
 For scripts that use the shared reproducibility helpers, `commands.sh` is self-anchoring:
 
 - `OUTPUT_DIR` is derived from the location of `commands.sh`
-- `CLAWBIO_ROOT` defaults to the repository path recorded when the bundle was created
-- you can override `CLAWBIO_ROOT` if you are replaying from a different checkout
+- `CLAWBIO_ROOT` is found at replay time: an explicit `CLAWBIO_ROOT` wins, else the nearest folder containing `skills/` above the bundle, else above your current directory
+- outside a ClawBio checkout, `commands.sh` stops and asks you to set `CLAWBIO_ROOT`
 
 Example with an explicit checkout path:
 
@@ -125,7 +126,7 @@ This matters for `multiqc-reporter` because non-demo runs depend on the original
 
 `checksums.sha256` verifies some files but not others
 
-- That is expected. Skills choose which outputs to checksum. Read the skill's `report.md` and `SKILL.md` to see what is considered part of the reproducibility contract.
+- That is expected. Each skill chooses which outputs to checksum. Read the skill's `report.md` and `SKILL.md` to see what is considered part of the reproducibility contract.
 
 The replay command points at the wrong repository path
 
@@ -137,4 +138,4 @@ The run succeeds but the report is empty
 
 You expected `analysis_log.md`
 
-- Some skills may emit extra logs, but it is not a universal ClawBio guarantee today.
+- Only some skills write it. It is not part of the bundle every skill writes.

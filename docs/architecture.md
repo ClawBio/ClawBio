@@ -120,12 +120,12 @@ ClawBio does not currently offer a local backend for the Ensembl VEP-dependent s
 
 ## Reproducibility Contract
 
-ClawBio's validated reproducibility contract is not universal across every skill. For skills that use the shared reproducibility helpers, the output directory typically includes:
+Every skill run writes these files (the nightly demo sweep enforces it; exceptions are listed in [`skills/contract_known_gaps.json`](../skills/contract_known_gaps.json)):
 
 1. **`reproducibility/commands.sh`**: A replay command for the skill run without needing the original agent session.
 2. **`reproducibility/environment.yml`**: A suggested Conda environment snapshot for the run.
-3. **`reproducibility/checksums.sha256`**: SHA-256 hashes for selected output files.
-4. **Optional extras**: Some skills may emit additional provenance files such as `runtime-lock.json` or other lock metadata.
+3. **`reproducibility/checksums.sha256`**: SHA-256 hashes of the output files the skill records.
+4. **Skill-specific extras**: some skills add files such as `provenance.json`, `run.json` or an RO-Crate. These vary by skill and are not checked.
 
 Important boundaries:
 
