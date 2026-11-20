@@ -139,7 +139,8 @@ When an agent asks for a regional LocusCompare for a (lead, exposure, outcome) t
 2. **Fetch (optional)**: for each side using a bundled fetcher (`source: eqtl_catalogue` or `source: gwas_catalog`), tabix-fetch the region from the source's FTP via the corresponding sibling skill (`eqtl-catalogue-region-fetch` or `gwas-catalog-region-fetch`). Cache to `~/.clawbio/locuscompare_cache/<source>/`.
 3. **LD compute (optional)**: pull the 1000G region VCF (~5-50 MB) via the `ld-1000g-region-compute` sibling skill; run `plink --r2` (plink 1.9) against the lead variant; cache to `~/.clawbio/locuscompare_cache/1000g/`. When the LD source is unavailable, or a variant is not in the panel, its points draw as hollow grey circles under a "no LD value" legend entry (caveat surfaced in manifest).
 4. **Gene track (optional)**: fetch the locus's GENCODE GTF region via Ensembl REST; parse exon / intron / strand for protein-coding genes (default; configurable via `gene_track.biotypes`). Cache to `~/.clawbio/locuscompare_cache/gencode/`.
-5. **Harmonise + render + emit**: join exposure × outcome on `variant_id`; flip `beta_outcome` for swapped alleles; exclude palindromic A/T or G/C variants from the scatter (count surfaced in manifest; configurable). Render the 4-panel matplotlib PNG. Emit `manifest.yaml` with full provenance, `report.md` human-readable summary, `tables/pairs.tsv` with all joined pairs, `tables/palindromic_excluded.tsv`, and a `reproducibility/` subdir with `commands.sh`, `environment.yml`, `input_config.yaml` (resolved defaults), and `checksums.sha256`.
+5. **Harmonise + render + emit**: join exposure × outcome on `variant_id`; flip `beta_outcome` for swapped alleles; exclude palindromic A/T or G/C variants from the scatter (count surfaced in manifest; configurable). Render the 4-panel matplotlib PNG. Emit `manifest.yaml` with full provenance and a `report.md` human-readable summary.
+6. **Write the reproducibility bundle** to `<output>/reproducibility/` with `clawbio.common.reproducibility`, after a successful render only; `checksums.sha256` is written last and covers the plot, manifest and report.
 
 ## CLI Reference
 
@@ -277,17 +278,14 @@ Output directory layout:
 
 ```
 <output_dir>/
-├── report.md                      # Markdown summary + caveats
-├── figure.png                     # 4-panel LocusCompare PNG
-├── manifest.yaml                  # Reproducibility provenance
-├── tables/
-│   ├── pairs.tsv                  # All joined pairs with both sides' beta/se/p + r2_lead
-│   └── palindromic_excluded.tsv   # Variants dropped for palindromic ambiguity
+├── report.md                          # Markdown summary + caveats
+├── <lead>_full_locuscompare.png       # 4-panel LocusCompare PNG
+├── manifest.yaml                      # provenance (render_block, lead, n_pairs)
 └── reproducibility/
-    ├── commands.sh                # Exact command to reproduce
-    ├── environment.yml            # Pinned package versions
-    ├── input_config.yaml          # Resolved config (defaults filled in)
-    └── checksums.sha256           # Hashes of input + output artefacts
+    ├── commands.sh                    # replays this run (portable: $CLAWBIO_ROOT / $OUTPUT_DIR)
+    ├── environment.yml                # conda environment
+    └── checksums.sha256               # sha256 of the files above; verify with
+                                       # cd <output_dir> && sha256sum -c reproducibility/checksums.sha256
 ```
 
 ## Gotchas

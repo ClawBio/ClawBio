@@ -589,7 +589,7 @@ def load_demo_result(query: str, location: str, max_rows: int, dry_run: bool) ->
         "job_id": payload.get("job_id"),
         "estimated_bytes_processed": bytes_processed,
         "total_bytes_processed": None if dry_run else bytes_processed,
-        "demo_source": str(DEMO_RESULT_PATH),
+        "demo_source": DEMO_RESULT_PATH.name,
     }
     return QueryExecutionResult(
         backend="demo-fixture",
