@@ -87,10 +87,12 @@ rdoutlier_report/
 ├── tables/
 │   ├── outlier_calls.csv         # all flagged outliers with z-score, direction, mechanism
 │   └── per_gene_stats.csv        # control median + MAD per gene
+├── demo_data/                    # --demo only: the synthetic counts, cases and controls
 └── reproducibility/
-    ├── commands.sh
+    ├── commands.sh               # replays the run into this directory
     ├── environment.yml
-    └── checksums.sha256
+    ├── inputs.json               # SHA-256 of the panel and, for real runs, each input file
+    └── checksums.sha256          # every output, relative to this directory
 ```
 
 ## Demo
